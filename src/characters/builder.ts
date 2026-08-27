@@ -86,6 +86,13 @@ export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: 
   const b = rig.bones;
 
   addBox(b.hips, opts.skin, 0.34, 0.2, 0.22, 0, 0.02, 0);
+  // Abdomen on the spine bone. Without it the hips and chest boxes leave a
+  // hole at the waist (~0.28 m on HUMAN proportions) that reads as a missing
+  // midsection on anyone without a robe or long coat to hide it. Derived from
+  // the proportions so it still closes for the taller/shorter species.
+  const absHeight = p.spineLen + p.chestLen - 0.13;
+  const absCentre = (p.chestLen - p.spineLen + 0.05) / 2;
+  addBox(b.spine, opts.skin, 0.34, absHeight, 0.235, 0, absCentre, 0);
   addBox(b.chest, opts.torso, 0.4, 0.34, 0.26, 0, 0.1, 0);
   limbMesh(b.upperArmL, opts.skin, p.upperArmLen, 0.055, 0.05);
   limbMesh(b.forearmL, opts.skin, p.forearmLen, 0.05, 0.042);

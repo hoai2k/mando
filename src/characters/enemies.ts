@@ -194,37 +194,6 @@ export function buildGunfighter(kind: 'marshal' | 'fennec'): CharacterInstance {
   return inst;
 }
 
-// ---------- Grogu in his floating pram (cosmetic companion) ----------
-export function buildGrogu(): CharacterInstance {
-  const root = new THREE.Group();
-  const pram = new THREE.Group();
-  root.add(pram);
-  const shell = mat(0x8f9298, { rough: 0.4, metal: 0.5 });
-  addSphere(pram, shell, 0.34, 0, 0, 0, 14, 10, 0.85, 1.15);
-  // open front rim
-  addCyl(pram, mat(0x4a4d52, { rough: 0.6 }), 0.26, 0.26, 0.05, 0, 0.12, 0.12, 1.2, 0, 0, 12);
-  const green = mat(0x7a9354, { rough: 0.85 });
-  const head = new THREE.Group();
-  head.position.set(0, 0.22, 0.1);
-  pram.add(head);
-  addSphere(head, green, 0.11, 0, 0, 0, 10, 8, 0.9, 1);
-  // the ears
-  addCyl(head, green, 0.01, 0.05, 0.16, -0.14, 0.02, 0, 0, 0, 1.35, 6);
-  addCyl(head, green, 0.01, 0.05, 0.16, 0.14, 0.02, 0, 0, 0, -1.35, 6);
-  const dark = mat(0x1a140f, { rough: 0.4 });
-  addSphere(head, dark, 0.025, -0.045, 0.01, 0.09, 6, 5);
-  addSphere(head, dark, 0.025, 0.045, 0.01, 0.09, 6, 5);
-  addBox(pram, mat(0x6b543a, { rough: 1 }), 0.3, 0.1, 0.3, 0, 0.08, 0.05); // robe blanket
-  return {
-    root, rig: null, animator: null, height: 0.8,
-    cosmetic: (dt, time) => {
-      pram.position.y = Math.sin(time * 1.8) * 0.08;
-      pram.rotation.z = Math.sin(time * 1.1) * 0.05;
-      head.rotation.y = Math.sin(time * 0.7) * 0.5;
-    },
-  };
-}
-
 // ---------- Nikto swoop rider: bike + seated rider, moved as one unit ----------
 export function buildNikto(): CharacterInstance {
   const group = new THREE.Group();
@@ -260,7 +229,10 @@ export function buildNikto(): CharacterInstance {
     [rb.head, -14 * D, 0, 0],
   ];
   for (const [o, x, y, z] of pose) o.rotation.set(x, y, z);
-  rider.root.position.set(0, 0.62, -0.1);
+  // seat the pelvis just above the bike's saddle (top ~0.67): the rig's origin
+  // is at the feet, so the root has to sit below the group origin or the rider
+  // floats a metre over the bike with nothing bridging the gap
+  rider.root.position.set(0, -0.22, -0.1);
   group.add(rider.root);
 
   return {

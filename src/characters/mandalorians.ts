@@ -6,7 +6,7 @@ import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaf
  * the same rig, clips, weapons and gameplay; only armor/silhouette differs.
  */
 
-export type MandoId = 'boba' | 'din' | 'bokatan' | 'paz' | 'armorer';
+export type MandoId = 'din' | 'paz';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
@@ -27,25 +27,13 @@ interface MandoConfig {
 }
 
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
-  boba: {
-    name: 'Boba Fett', desc: 'The Daimyo of Mos Espa — weathered green beskar, gaffi stick.',
-    primary: 0x4a5d43, accent: 0x6e2f2a, suit: 0x3a3a38, cape: 0x554838, helmet: 'boba', rangefinder: true, bulk: 1,
-  },
   din: {
     name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
   },
-  bokatan: {
-    name: 'Bo-Katan Kryze', desc: 'Heir of Mandalore — night-owl blue and grey.',
-    primary: 0x51687f, accent: 0x8c93a1, suit: 0x2e3238, cape: null, helmet: 'bokatan', rangefinder: false, bulk: 0.96,
-  },
   paz: {
     name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — walking siege tower.',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
-  },
-  armorer: {
-    name: 'The Armorer', desc: 'Keeper of the Forge — gilded horned helm.',
-    primary: 0x3a342c, accent: 0xc9992e, suit: 0x4a4038, cape: null, helmet: 'armorer', rangefinder: false, bulk: 1,
   },
 };
 
@@ -82,37 +70,19 @@ export function buildMandalorian(id: MandoId): PlayerCharacter {
   const helm = new THREE.Group();
   b.head.add(helm);
   helm.position.y = 0.06;
-  const helmMat = cfg.helmet === 'armorer' ? mat(0xc9992e, { rough: 0.35, metal: 0.75 }) : prim;
-  addSphere(helm, helmMat, 0.145, 0, 0.04, 0, 14, 12, 0.95, 1);
-  addCyl(helm, helmMat, 0.145, 0.15, 0.14, 0, -0.02, 0, 0, 0, 0, 14);
+  addSphere(helm, prim, 0.145, 0, 0.04, 0, 14, 12, 0.95, 1);
+  addCyl(helm, prim, 0.145, 0.15, 0.14, 0, -0.02, 0, 0, 0, 0, 14);
   addBox(helm, dark, 0.21, 0.035, 0.02, 0, 0.045, 0.135);   // T-visor horizontal
   addBox(helm, dark, 0.032, 0.1, 0.02, 0, -0.01, 0.142);    // T-visor vertical
   switch (cfg.helmet) {
-    case 'boba':
-      addCyl(helm, silver, 0.018, 0.018, 0.1, 0.16, 0.1, 0, 0, 0, 0.15, 6);
-      addBox(helm, dark, 0.03, 0.05, 0.03, 0.175, 0.16, 0);
-      break;
     case 'din':
       // cheek ridges
       addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, -0.1, -0.01, 0.08, 0, 0.3);
       addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, 0.1, -0.01, 0.08, 0, -0.3);
       break;
-    case 'bokatan':
-      // owl-crest fins
-      addBox(helm, accent, 0.02, 0.06, 0.12, -0.09, 0.14, -0.02, 0, 0, 0.35);
-      addBox(helm, accent, 0.02, 0.06, 0.12, 0.09, 0.14, -0.02, 0, 0, -0.35);
-      break;
     case 'paz':
       addBox(helm, accent, 0.06, 0.04, 0.22, 0, 0.15, 0.02); // reinforced crest
       break;
-    case 'armorer': {
-      // horns + fur mantle
-      const horn = mat(0x5c4a32, { rough: 0.8 });
-      addCyl(helm, horn, 0.008, 0.035, 0.16, -0.12, 0.12, 0, 0, 0, 0.7, 6);
-      addCyl(helm, horn, 0.008, 0.035, 0.16, 0.12, 0.12, 0, 0, 0, -0.7, 6);
-      addBox(b.chest, mat(0x6b543a, { rough: 1 }), 0.5, 0.12, 0.3, 0, 0.22, 0);
-      break;
-    }
   }
 
   // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----

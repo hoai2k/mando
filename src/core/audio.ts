@@ -11,7 +11,7 @@ type SampleName =
   | 'ui_move' | 'ui_confirm' | 'ui_back' | 'wave_start' | 'wave_clear'
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass'
-  | 'imperial_bark' | 'imperial_death' | 'grogu_coo'
+  | 'imperial_bark' | 'imperial_death'
   | 'amb_desert' | 'amb_station'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
@@ -19,7 +19,7 @@ type SampleName =
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass'
-  | 'imperial_bark' | 'imperial_death' | 'grogu_coo';
+  | 'imperial_bark' | 'imperial_death';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -59,7 +59,7 @@ export class AudioEngine {
       'ui_move', 'ui_confirm', 'ui_back', 'wave_start', 'wave_clear',
       'tusken_cry', 'pyke_chatter', 'pyke_death', 'pirate_taunt', 'pirate_death',
       'droid_death', 'swoop_pass',
-      'imperial_bark', 'imperial_death', 'grogu_coo',
+      'imperial_bark', 'imperial_death',
       'amb_desert', 'amb_station',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];

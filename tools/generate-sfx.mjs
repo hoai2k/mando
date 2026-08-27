@@ -59,7 +59,6 @@ const SFX = {
   swoop_pass: ['Fast hover bike flyby with doppler effect: whining repulsor engine sweep passing close', 1.0],
   imperial_bark: ['Soldier voice through a helmet radio filter shouting a short muffled command, clipped static edge, unintelligible', 0.7],
   imperial_death: ['Soldier death cry through a helmet radio filter, short, cut off with static', 0.6],
-  grogu_coo: ['Cute tiny alien baby creature cooing, soft curious babble, adorable, short', 0.8],
   // ambience beds (seamless loops)
   amb_desert: ['Desert planet ambience: dry wind over open dunes, sparse distant sand hiss, lonely and vast, seamless continuous loop, no music', 18, true],
   amb_station: ['Space station exterior ambience: deep hull hum, distant machinery clunks, occasional pressure hiss, cold industrial, seamless continuous loop, no music', 18, true],

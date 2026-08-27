@@ -32,13 +32,10 @@ Menus are fully navigable by controller. **Two-player split-screen co-op**: choo
 
 ## Playing the game
 
-Pick a board, then pick your Mandalorian — all five play identically, so choose your armor:
+Pick a board, then pick your Mandalorian — both play identically, so choose your armor:
 
-- **Boba Fett** — weathered green beskar, maroon accents
 - **Din Djarin** — bare beskar shine
-- **Bo-Katan Kryze** — Nite Owl blue-grey
 - **Paz Vizsla** — heavy blue plate, oversized pauldrons
-- **The Armorer** — gilded horned helm
 
 **The Dune Sea** — Tatooine wastes: Tusken outcasts, massiff hounds, Pyke patrols, Nikto
 swoop riders and a sarlacc pit that will eat anything knocked into it.
@@ -48,7 +45,7 @@ jetpack is the only road.
 
 From wave 6 the Imperial remnant shows up (stormtroopers, death troopers, flying dark
 troopers). Allies join you along the way: **The Marshal** (wave 4), **IG-11** (wave 7) and
-**Fennec Shand** (wave 9). Grogu rides along in his pram the whole time.
+**Fennec Shand** (wave 9).
 
 Survive ten waves to hold the territory.
 

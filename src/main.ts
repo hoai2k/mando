@@ -63,7 +63,7 @@ let game: Game | null = null;
 let chosenBoard: 'desert' | 'station' = 'desert';
 let playerCount = 1;
 let endTimer = 0;
-const chosenChars: MandoId[] = ['boba', 'din'];
+const chosenChars: MandoId[] = ['din', 'paz'];
 let charPickSlot = 0;
 
 // ----- title screen -----

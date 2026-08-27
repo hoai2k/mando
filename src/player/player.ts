@@ -63,7 +63,7 @@ export class Player {
   private wasThrusting = false;
   lastDamageDir = new THREE.Vector3();
 
-  constructor(public slot: number, aspect: number, public characterId: MandoId = 'boba') {
+  constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
     this.char = buildMandalorian(characterId);
     this.cam = new ThirdPersonCamera(aspect);
   }

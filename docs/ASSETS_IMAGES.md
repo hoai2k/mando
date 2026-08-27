@@ -48,28 +48,16 @@ humanoid at the same pixel height per the Height column so relative scale surviv
 models. Descriptions are deliberately written as *designs*, never as named characters —
 same rule as the audio prompts — which keeps output original and on-style.
 
-### Playable Mandalorians — priority 1
+### Playable Mandalorians — priority 1 (authored models incoming; sheets optional)
 
-Shared armour language matters more here than anywhere else: these five use one rig and
-must read as one family. Generate `mandalorian_lineup.png` (2048×1024) **first** and use it
-as the style anchor for all five individual sheets.
-
-> `mandalorian_lineup.png`: "Five armoured warriors standing side by side in a row, all in
-> relaxed A-pose, full body, orthographic front view, flat even lighting, plain mid-grey
-> background, identical scale and a shared armour design language: (1) battle-worn
-> sage-green plate with dark maroon accents and a small helmet rangefinder stalk;
-> (2) polished bare silver plate with a long brown cape; (3) slate blue-grey plate with two
-> swept-back angular helmet crest fins; (4) a very large heavy trooper in deep navy plate
-> with oversized squared pauldrons; (5) dark bronze armour with a gold horned helmet and a
-> brown fur shoulder mantle. Each wears a narrow T-shaped visor helmet."
+Din Djarin and Paz Vizsla are the only playable characters, and authored models for both
+are being supplied — so these sheets are a fallback rather than the blocking input they
+are for the rest of the cast.
 
 | id | Height | Subject |
 |---|---|---|
-| `boba` | 1.8 m | "a bounty hunter in battle-worn beskar-style plate armour, dull sage-green plates with dark maroon-red helmet accents, pauldrons and gauntlets, a dented domed helmet with a narrow T-shaped visor, a small silver rangefinder stalk hinged at the right temple, a jetpack with twin cylindrical tanks and a central rocket, a short weathered brown-grey half-cape over the left shoulder, sand-scoured and scratched" |
 | `din` | 1.8 m | "a bounty hunter in polished bare silver beskar-style plate armour, unpainted mirror-bright plates, a smooth domed helmet with a narrow T-shaped visor and raised cheek ridges, no rangefinder, brown leather flight suit sleeves and gloves, a long weathered brown wool cape, a slim compact jetpack, clean heroic silhouette" |
-| `bokatan` | 1.75 m | "a female warrior in slate blue-grey plate armour with pale grey trim, a helmet with a narrow T-shaped visor and two swept-back angular crest fins like stylized owl feathers, no cape, a slim armoured flight suit, agile lighter build" |
 | `paz` | 1.95 m | "a towering heavy-infantry warrior in deep navy-blue plate armour, oversized squared shoulder pauldrons, a reinforced helmet with a raised central crest ridge and a narrow T-shaped visor, thick armoured limbs, broad imposing silhouette" |
-| `armorer` | 1.8 m | "a ceremonial armour-smith in dark bronze-brown armour with gold trim, a gleaming gold helmet with two long curved horns sweeping back from the temples and a narrow T-shaped visor, a thick brown fur mantle across the shoulders, a heavy leather work apron, smith's gloves" |
 
 ### Allies — priority 2
 
@@ -78,11 +66,7 @@ as the style anchor for all five individual sheets.
 | `ig11` | 2.2 m | "a tall gaunt humanoid assassin droid, weathered off-white and brass metal, a smooth vertical cylindrical head ringed near the top with small red photoreceptor lenses, thin exposed piston-and-cable limbs, narrow shoulders, spindly and unsettling" |
 | `marshal` | 1.85 m | "a frontier lawman in a dusty red-brown leather duster coat over sand-worn work clothes, a wide-brimmed hat, a holstered blaster pistol at the hip, a weathered sun-beaten human face, desert gunslinger" |
 | `fennec` | 1.85 m | "a lean female elite mercenary sharpshooter in fitted dark grey body armour, a slim helmet cap with a glowing amber-orange visor band across the eyes, a long rifle slung across the back, precise and composed" |
-| `grogu` ◆ | 0.8 m | "a tiny green-skinned infant alien with very large dark round eyes and long drooping pointed ears, wearing a coarse beige robe, seated upright inside a floating silver egg-shaped hover-pram with an open front rim, curious gentle expression" |
 
-◆ **Pose exception** — no A-pose. Pram floating level, creature seated upright facing
-forward, front/side/back of the pram-plus-occupant. Add `grogu_creature_front.png`: the
-creature alone, standing, arms out in a small A-pose, no pram.
 
 ### Enemies — priority 2 (grunts) / 3 (elites)
 

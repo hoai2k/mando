@@ -4,7 +4,6 @@ import { Player } from '../player/player';
 import { Enemy } from '../enemies/enemy';
 import { FINAL_WAVE, spawnWave } from '../enemies/spawner';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
-import { buildGrogu } from '../characters/enemies';
 import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
@@ -33,8 +32,6 @@ export class Game {
   players: Player[] = [];
   enemies: Enemy[] = [];
   allies: Enemy[] = [];
-  private grogu: ReturnType<typeof buildGrogu> | null = null;
-  private groguCoo = 6;
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
   time = 0;
@@ -48,7 +45,7 @@ export class Game {
   totalKills = 0;
   elapsed = 0;
 
-  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents, characters: MandoId[] = ['boba', 'din']) {
+  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents, characters: MandoId[] = ['din', 'paz']) {
     this.scene.add(board.group);
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
@@ -66,18 +63,12 @@ export class Game {
     }
 
     for (let i = 0; i < playerCount; i++) {
-      const p = new Player(i, aspect, characters[i] ?? 'boba');
+      const p = new Player(i, aspect, characters[i] ?? 'din');
       p.spawnAt(board.playerStarts[i] ?? board.playerStarts[0]);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
 
-    // Grogu rides with Din Djarin and nobody else — he is not a shared pet
-    if (this.players[0].characterId === 'din') {
-      this.grogu = buildGrogu();
-      this.grogu.root.position.copy(this.players[0].position).add(new THREE.Vector3(-1.5, 1.4, -1));
-      this.scene.add(this.grogu.root);
-    }
 
     this.projectiles.onImpact = (point, hitTarget) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
@@ -198,28 +189,6 @@ export class Game {
     }
     this.allies = this.allies.filter((a) => !a.removeMe);
 
-    // ---- Grogu follows player 1, out of harm's way ----
-    if (this.grogu) {
-      const p0 = this.players[0];
-      // trail him behind and to the player's LEFT: the chase camera sits over
-      // the right shoulder, so anything on the right crowds the frame
-      const b = yawBasis(p0.cam.yaw);
-      const goal = new THREE.Vector3(
-        p0.position.x - b.fwdX * 2.2 - b.rightX * 1.7,
-        p0.position.y + 1.35,
-        p0.position.z - b.fwdZ * 2.2 - b.rightZ * 1.7
-      );
-      this.grogu.root.position.lerp(goal, Math.min(1, dt * 3.6));
-      // angle the pram's open face back toward the chase camera so Grogu is
-      // actually visible instead of showing the blank shell of the pram
-      this.grogu.root.rotation.y = p0.cam.yaw - Math.PI * 0.78;
-      this.grogu.cosmetic?.(dt, this.time);
-      this.groguCoo -= dt;
-      if (this.groguCoo <= 0) {
-        this.groguCoo = 10 + Math.random() * 14;
-        audio.bark('grogu_coo', 0.5);
-      }
-    }
 
     // ---- projectiles ----
     const targets: BoltTarget[] = [];
