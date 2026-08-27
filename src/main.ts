@@ -73,7 +73,7 @@ title.root.style.backgroundImage =
   "radial-gradient(ellipse at 50% 30%, rgba(30,22,12,0.55), rgba(0,0,0,0.92) 75%), url('assets/textures/title_bg.jpg')";
 title.root.style.backgroundSize = 'cover';
 title.root.style.backgroundPosition = 'center';
-title.addTitle('Daimyo', 'a Book of Boba Fett fan game');
+title.addTitle('Mando', 'a Mandalorian fan game');
 title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },
   { label: 'Fullscreen', action: toggleFullscreen },
@@ -277,7 +277,7 @@ function frame(now: number): void {
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;
         if (endTimer <= 0) {
-          endTitle.textContent = game.state === 'victory' ? 'Territory Held' : 'The Daimyo Has Fallen';
+          endTitle.textContent = game.state === 'victory' ? 'Territory Held' : 'The Mando Has Fallen';
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
           endStats.innerHTML = game.players

@@ -1,6 +1,6 @@
-# Boba Fett: Daimyo of Tatooine — Game Plan
+# Mando — Game Plan
 
-A fan-made, third-person 3D web game inspired by *The Book of Boba Fett*. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across two boards: the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates.
+A fan-made, third-person 3D web game following a Mandalorian bounty hunter. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across two boards: the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates.
 
 This document describes every component and how it will be built. Nothing is built yet — it exists so decisions can be steered before implementation.
 
@@ -49,7 +49,7 @@ No frameworks beyond that — no React, no ECS library. A simple `Entity` base c
     clips.ts              // procedural keyframe clips (idle, run, jump, fly, melee combo, shoot, hit, death)
   characters/
     builder.ts            // attaches procedural meshes to bones ("proc skin"); glTF swap point
-    boba.ts               // player model: green/red Mandalorian armor, jetpack, cape
+    mandalorians.ts       // playable Mandalorians: beskar armor variants, jetpack, cape
     tusken.ts | pyke.ts | nikto.ts | pirate.ts | droid.ts | trooper.ts
   player/
     controller.ts         // run/jump/jetpack state machine
@@ -113,8 +113,9 @@ This is the flexibility the brief demands:
 
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
-| **Boba Fett** (player) | Daimyo | Weathered **green beskar** armor w/ red-maroon helmet accents, T-visor, dented dome, Z-6 jetpack (green/maroon, rocket tip), half-cape, gaffi stick + EE-3 carbine. |
-| **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet (BOBF's low-profile redesign), swings gaderffii. *Neutral-turned-hostile "outcast raiders" so the player isn't fighting Boba's adopted tribe.* |
+| **Din Djarin** (player) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
+| **Paz Vizsla** (player) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, bulkiest silhouette; same jetpack and weapon loadout. |
+| **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |
 | **Nikto sand rider** | Fast harasser (Tatooine) | Leathery horned reddish faces, biker leathers per the swoop-gang episode; rides a fast hover-swoop in strafing runs. |
 | **Space pirate (Weequay/Trandoshan-styled)** | Ranged/melee (waystation) | Ragged spacer gear, mismatched armor plates, shoulder pauldrons. |
@@ -159,7 +160,7 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 
 1. **M1 — Feel:** Vite+TS scaffold, physics, camera, input, gray-box arena, run/jump/jetpack/dash tuned until movement alone is fun.
 2. **M2 — Combat:** blaster + aim assist, target dummies, hit FX, HUD basics; then gaffi combo + lunge.
-3. **M3 — Characters & animation:** skeleton/animator/clips, Boba model, one enemy (Pyke shooter) end-to-end with AI, hit reacts, death.
+3. **M3 — Characters & animation:** skeleton/animator/clips, playable Mandalorian model, one enemy (Pyke shooter) end-to-end with AI, hit reacts, death.
 4. **M4 — Tatooine board:** terrain, props, sky/lighting, full enemy roster (Tusken, Nikto swoop, pirates), wave mode, win/lose loop.
 5. **M5 — Waystation board:** platforms, space sky, pirates/jet-pirates/turrets, fall-respawn.
 6. **M6 — Polish:** audio pass, menus/board select, difficulty tuning, performance pass, gamepad.
@@ -184,5 +185,5 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 
 ## 15. Notes & Constraints
 
-- **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Daimyo") if ever needed.
+- **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Mandalorian") if ever needed.
 - **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, vehicles as drivables (swoops are enemy-only), mobile touch controls.

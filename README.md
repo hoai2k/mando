@@ -1,4 +1,4 @@
-# Daimyo — a *Book of Boba Fett* / *Mandalorian* fan game
+# Mando — a *Mandalorian* fan game
 
 **▶ Play it: https://hoai2k.github.io/mando/**
 

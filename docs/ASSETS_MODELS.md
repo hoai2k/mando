@@ -18,10 +18,10 @@ Every character below runs today as a procedural stand-in. An authored glTF (.gl
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
 
 **Authored models for these two are being supplied**, so they are the first real test of
-the swap contract. Boba Fett, Bo-Katan Kryze and The Armorer were built procedurally
-earlier and are now shelved — not in the game and not requested — but the config-driven
-factory in `src/characters/mandalorians.ts` makes restoring any of them a matter of
-re-adding one roster entry.
+the swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
+procedurally earlier and are now shelved — not in the game and not requested — but the
+config-driven factory in `src/characters/mandalorians.ts` makes restoring any of them a
+matter of re-adding one roster entry.
 
 | Character | Reference sheets (`reference/characters/`) | Reference look |
 |---|---|---|

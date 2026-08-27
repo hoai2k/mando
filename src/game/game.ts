@@ -132,7 +132,7 @@ export class Game {
     if (this.state === 'fighting' && this.aliveEnemyCount === 0 && this.enemies.length > 0) {
       if (this.wave >= FINAL_WAVE) {
         this.setState('victory');
-        this.events.banner('Territory held', 'The Daimyo rules');
+        this.events.banner('Territory held', 'This is the Way');
         audio.waveClear();
       } else {
         this.setState('break');
@@ -152,13 +152,13 @@ export class Game {
           p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
-          this.events.banner('The Daimyo has fallen');
+          this.events.banner('The Mando has fallen');
         }
       }
     }
     if (this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
-      this.events.banner('The Daimyo has fallen');
+      this.events.banner('The Mando has fallen');
     }
 
     // ---- enemies ----
