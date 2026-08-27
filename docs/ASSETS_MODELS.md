@@ -62,7 +62,28 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 
 ## Delivery & integration
 
-Drop files at `public/assets/models/<id>.glb` using ids: `din, paz, ig11, marshal, fennec, tusken, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`. Loader integration (glTF detection + procedural fallback, mirroring the texture/audio pattern) is the next engineering task once the first model lands — register in `src/characters/builder.ts`.
+Drop files at `public/models/<id>.glb` using ids: `din, paz, ig11, marshal, fennec, tusken, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`.
+
+**The loader is live** (`src/characters/authored.ts`). A model is picked up automatically
+when the file appears; when it is absent the procedural build stands, exactly like the
+texture and audio pipelines. Din Djarin and Paz Vizsla ship with authored models today —
+wiring a new character up is one call to `loadAuthored(id, height)` in its factory.
+
+What the loader accepts, learned from the first two drops:
+
+| Requirement | Why |
+|---|---|
+| One skinned mesh, `DEF-*` Rigify bone names | the bone map in `authored.ts` keys off them |
+| Any rest pose (A-pose is fine) | mapped bones are pulled onto the canonical rest before animating |
+| Flat or nested skeleton | chain roots are re-parented into our hierarchy on load, preserving world rest transforms |
+| Any scale, feet at any origin | measured and normalised to the character's game height |
+| `EXT_meshopt_compression`, `KHR_mesh_quantization`, `KHR_texture_transform` | all supported |
+| No animation clips needed | the game's clips drive the model through the retargeter |
+
+Models are PBR-lit: metallic-roughness maps work, and the scene carries a reflection probe
+built from the board's sky so metal has something to catch. Inspect any of it in the
+**model workbench** at `/workbench/?edit=models` — every game clip, on any character, with
+the authored model and the procedural build side by side.
 
 Order of work: reference sheets (`ASSETS_IMAGES.md`) → models → loader. The sheets are the
 blocking input; the five playable Mandalorians and the two shared weapons are priority 1

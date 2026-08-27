@@ -41,7 +41,11 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
 };
 
-export function buildMandalorian(id: MandoId): PlayerCharacter {
+/**
+ * @param opts.authored  false keeps the procedural build even when an authored
+ *   model exists — the model workbench uses it to show both side by side.
+ */
+export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {}): PlayerCharacter {
   const cfg = MANDO_ROSTER[id];
   const skin = mat(cfg.suit, { rough: 0.9 });
   const prim = mat(cfg.primary, { rough: 0.45, metal: 0.55 });
@@ -150,7 +154,8 @@ export function buildMandalorian(id: MandoId): PlayerCharacter {
     }
     proceduralMeshes.push(o);
   });
-  loadAuthored(id, MODEL_HEIGHT[id]).catch((err) => {
+  const wantAuthored = opts.authored !== false;
+  (wantAuthored ? loadAuthored(id, MODEL_HEIGHT[id]) : Promise.resolve(null)).catch((err) => {
     console.warn(`[authored] ${id} preparation failed:`, err);
     return null;
   }).then((model) => {

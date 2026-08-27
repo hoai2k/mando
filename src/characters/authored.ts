@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
+import { ASSET_ROOT } from '../core/assets';
 
 /**
  * Authored glTF characters.
@@ -134,7 +135,7 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
   if (!p) {
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
-        `models/${id}.glb`,
+        `${ASSET_ROOT}models/${id}.glb`,
         (gltf) => resolve(gltf.scene as THREE.Group),
         undefined,
         (err) => {

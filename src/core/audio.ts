@@ -3,6 +3,8 @@
  * file exists at assets/audio/<name>.ogg it is used instead (see docs/ASSETS_AUDIO.md).
  */
 
+import { ASSET_ROOT } from './assets';
+
 type SampleName =
   | 'blaster_shot' | 'enemy_blaster' | 'blaster_impact' | 'melee_whoosh' | 'melee_hit'
   | 'rocket_launch' | 'explosion' | 'hit_marker' | 'kill_confirm' | 'player_hurt'
@@ -68,7 +70,7 @@ export class AudioEngine {
       // case is one request instead of a 404 probe per sample.
       for (const ext of ['mp3', 'ogg']) {
         try {
-          const res = await fetch(`assets/audio/${n}.${ext}`);
+          const res = await fetch(`${ASSET_ROOT}assets/audio/${n}.${ext}`);
           if (!res.ok) continue;
           const buf = await res.arrayBuffer();
           const audio = await this.ctx!.decodeAudioData(buf);

@@ -6,8 +6,12 @@ A fast, arcade-style third-person 3D web game: run, jetpack-fly, blast and brawl
 through ten waves on two boards. Built with Three.js + TypeScript + Vite, no server, no
 downloads — it runs in the browser.
 
-Fan project. All geometry is procedural and all audio is generated; nothing is taken from
+Fan project. Audio is generated and most geometry is procedural; nothing is taken from
 the shows.
+
+**Model workbench:** https://hoai2k.github.io/mando/workbench/?edit=models — a turntable
+for the cast. Pick a character, run any animation the game plays, and stand an authored
+model next to the procedural build it replaces.
 
 ## Controls
 

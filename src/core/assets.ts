@@ -7,6 +7,16 @@ import { fbm2, makeRng } from './math';
  * procedural one (see docs/ASSETS_IMAGES.md).
  */
 
+/**
+ * Where the static assets sit relative to the page asking for them.
+ *
+ * Everything is built with a relative base so the site can live in a project
+ * subdirectory on GitHub Pages, and the game is served from that root. The
+ * model workbench is a second page one level down, so it needs one hop back up
+ * to reach the same files.
+ */
+export const ASSET_ROOT = location.pathname.includes('/workbench') ? '../' : '';
+
 const cache = new Map<string, THREE.Texture>();
 
 export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size: number) => void, size = 256, repeat = 1): THREE.Texture {
@@ -36,7 +46,7 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
 function tryLoadImage(name: string, exts: string[], onLoad: (img: HTMLImageElement) => void): void {
   if (exts.length === 0) return; // none present — procedural look stands
   new THREE.ImageLoader().load(
-    `assets/textures/${name}.${exts[0]}`,
+    `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
     onLoad,
     undefined,
     () => tryLoadImage(name, exts.slice(1), onLoad)
@@ -56,7 +66,7 @@ export function loadOptionalTexture(
   const exts = opts.exts ?? ['jpg', 'png'];
   if (exts.length === 0) return; // absent — procedural look stands
   new THREE.TextureLoader().load(
-    `assets/textures/${name}.${exts[0]}`,
+    `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
     (tex) => {
       // normal/data maps must stay linear, colour maps are sRGB
       tex.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
