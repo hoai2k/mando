@@ -50,7 +50,7 @@ No frameworks beyond that — no React, no ECS library. A simple `Entity` base c
   characters/
     builder.ts            // attaches procedural meshes to bones ("proc skin"); glTF swap point
     boba.ts               // player model: green/red Mandalorian armor, jetpack, cape
-    tusken.ts | pyke.ts | nikto.ts | pirate.ts | droid.ts | massiff.ts | scurrier.ts
+    tusken.ts | pyke.ts | nikto.ts | pirate.ts | droid.ts | trooper.ts
   player/
     controller.ts         // run/jump/jetpack state machine
     combat.ts             // blaster + gaffi stick, weapon switching, aim assist
@@ -101,7 +101,7 @@ docs/PLAN.md
 
 This is the flexibility the brief demands:
 
-1. **Canonical skeleton** — a named humanoid bone set (`hips, spine, chest, neck, head, shoulder.L/R, upperArm.L/R, forearm.L/R, hand.L/R, upperLeg.L/R, lowerLeg.L/R, foot.L/R` + attachment bones `weapon.R, jetpack, cape`). Built as a real `THREE.Bone` hierarchy per character, with per-species proportions (Pykes: big elongated heads, short bodies; Wookiee-class: tall/broad; massiff: quadruped variant rig).
+1. **Canonical skeleton** — a named humanoid bone set (`hips, spine, chest, neck, head, shoulder.L/R, upperArm.L/R, forearm.L/R, hand.L/R, upperLeg.L/R, lowerLeg.L/R, foot.L/R` + attachment bones `weapon.R, jetpack, cape`). Built as a real `THREE.Bone` hierarchy per character, with per-species proportions (Pykes: big elongated heads, short bodies; Wookiee-class: tall/broad).
 2. **Procedural "skin"** — `characters/builder.ts` parents proc meshes (armor plates, helmets, robes) to bones. Because animation drives *bones*, the meshes ride along for free.
 3. **Animator** — plays `AnimationClip`s through `THREE.AnimationMixer` with cross-fade blending, plus **two layers**: lower body (locomotion) and upper body (shoot/melee), so you can fire mid-run/flight. Clip events (e.g. `melee_hit_frame`, `footstep`) drive gameplay/audio.
 4. **Procedural clips** — `clips.ts` authors keyframe tracks in code (quaternion keys per bone): idle sway, run cycle w/ arm swing, jump, jetpack fly pose (legs trailing, arms out), 3 melee swings, aim/shoot additive, hit react, death. Because they're standard `AnimationClip`s on named bones, **an authored glTF with the same bone names can replace the whole character and either keep our clips or bring its own** — the animator, controller, and combat code don't change.
@@ -119,8 +119,6 @@ This is the flexibility the brief demands:
 | **Nikto sand rider** | Fast harasser (Tatooine) | Leathery horned reddish faces, biker leathers per the swoop-gang episode; rides a fast hover-swoop in strafing runs. |
 | **Space pirate (Weequay/Trandoshan-styled)** | Ranged/melee (waystation) | Ragged spacer gear, mismatched armor plates, shoulder pauldrons. |
 | **Security droid (8D8-style skeletal frame)** | Turret/slow tank | Bone-white skeletal droid; on waystation, heavier "loader droid" variant. |
-| **Massiff** | Melee dog rush (Tatooine) | Quadruped spiky lizard-hounds — small, fast, satisfying to swat. |
-| **Scurriers/womp rats** | Ambient critters | Non-combat scatter for life/target practice. |
 | **Bosses (stretch, post-MVP)** | — | Tatooine: **Krrsantan-class Wookiee enforcer** melee duel. Waystation: **Pyke capo + shield**. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
@@ -140,7 +138,7 @@ Faces/details are low-poly stylized (not realistic) — a deliberate "stylized a
 ## 9. Enemy AI
 
 Simple, readable behaviors (shared steering + separation so groups don't stack):
-- **Charger** (Tusken, massiff, pirate brawler): approach → telegraphed wind-up → swing; strafes when waiting its turn (max N simultaneous attackers so the player isn't mobbed unfairly).
+- **Charger** (Tusken, pirate brawler): approach → telegraphed wind-up → swing; strafes when waiting its turn (max N simultaneous attackers so the player isn't mobbed unfairly).
 - **Shooter** (Pyke, pirate): keep 10–20 m, strafe, volley of 3 slow dodgeable bolts, occasionally repositions/takes cover behind props.
 - **Swooper/flyer** (Nikto swoop, jet-pirate): figure-eight strafing runs, vulnerable window after each pass.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.
@@ -162,7 +160,7 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 1. **M1 — Feel:** Vite+TS scaffold, physics, camera, input, gray-box arena, run/jump/jetpack/dash tuned until movement alone is fun.
 2. **M2 — Combat:** blaster + aim assist, target dummies, hit FX, HUD basics; then gaffi combo + lunge.
 3. **M3 — Characters & animation:** skeleton/animator/clips, Boba model, one enemy (Pyke shooter) end-to-end with AI, hit reacts, death.
-4. **M4 — Tatooine board:** terrain, props, sky/lighting, full enemy roster (Tusken, massiff, Nikto swoop), wave mode, win/lose loop.
+4. **M4 — Tatooine board:** terrain, props, sky/lighting, full enemy roster (Tusken, Nikto swoop, pirates), wave mode, win/lose loop.
 5. **M5 — Waystation board:** platforms, space sky, pirates/jet-pirates/turrets, fall-respawn.
 6. **M6 — Polish:** audio pass, menus/board select, difficulty tuning, performance pass, gamepad.
 7. **Stretch:** bosses (Krrsantan-class duel, Pyke capo), score persistence, photo mode.
@@ -175,7 +173,16 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 - **Asset request docs** — `docs/ASSETS_IMAGES.md` and `docs/ASSETS_AUDIO.md` list every texture/image and audio asset the game can consume, with generation prompts, specs, and drop-in file paths. The game runs 100% procedurally without them and upgrades automatically when files are present (loader checks `/assets/...` and falls back to procedural).
 - **Progress tracking** — `docs/PROGRESS.md` is updated as milestones complete.
 
-## 14. Notes & Constraints
+## 14. Revisions from playtesting
+
+- **All enemies are human-size or larger.** The massiff (a ~0.8 m quadruped) was cut; the Tatooine melee slot is filled by Tuskens and pirate brawlers instead.
+- **Sprint gauge.** Holding B / Shift on the ground sprints at ~14.4 m/s against a 6-second energy bar, separate from jetpack fuel. The dash burst moved to a tap of the same button while airborne and now costs energy rather than fuel.
+- **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher and explosions ≈ 5 m.
+- **Blaster readability.** Bolts are longer, fatter, near-white cores with an additive halo, fired at 75 m/s with a muzzle flash. Shots converge on the crosshair via a camera raycast (or the soft-lock target) instead of firing parallel from the muzzle, and the crosshair shows a red lock ring when a target is in the assist cone.
+- **No abyss on the station.** Below the platforms gravity drops to 12% with a 3.2 m/s terminal speed and fuel regenerates, so drifting off is recoverable with a tap of jetpack; the killY backstop repositions without damage.
+- **Grogu rides with Din Djarin only.**
+
+## 15. Notes & Constraints
 
 - **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Daimyo") if ever needed.
 - **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, vehicles as drivables (swoops are enemy-only), mobile touch controls.

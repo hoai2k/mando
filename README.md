@@ -16,7 +16,8 @@ the shows.
 | Move | `WASD` | Left stick |
 | Look / aim | Mouse | Right stick |
 | Jump → hold to jetpack | `Space` | `A` |
-| Dash burst | `Shift` | `B` |
+| Sprint (hold) | hold `Shift` | hold `B` |
+| Jetpack dash burst (in air) | tap `Shift` | tap `B` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |

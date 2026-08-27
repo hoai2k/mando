@@ -16,6 +16,15 @@ export interface Board {
   skyIntensity?: number;
   /** procedural sky, hidden once the authored panorama loads */
   proceduralSky?: THREE.Object3D;
+  /**
+   * Below this height there is no floor left to hit, so falling becomes a slow
+   * drift a jetpack tap can undo rather than a plunge. Omit for solid ground.
+   */
+  voidY?: number;
+  /** gravity multiplier while drifting below voidY */
+  voidGravity?: number;
+  /** terminal downward speed while drifting, m/s */
+  voidFallSpeed?: number;
   /** deadly zone (sarlacc pit) */
   hazard?: { center: THREE.Vector3; radius: number };
   update?: (dt: number, time: number) => void;

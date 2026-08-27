@@ -48,11 +48,12 @@ body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #e8d
 
 /* ---------- HUD ---------- */
 .hud-viewport { position: absolute; pointer-events: none; overflow: hidden; }
-.crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
+.crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 58px; height: 58px; }
 .hud-bars { position: absolute; left: 26px; bottom: 22px; width: 240px; }
 .bar { height: 12px; background: rgba(0,0,0,0.55); border: 1px solid rgba(232,220,200,0.35); margin-top: 6px; position: relative; }
 .bar .fill { position: absolute; inset: 1px; transform-origin: left; background: #c33f2e; }
 .bar.fuel .fill { background: #d8b25a; }
+.bar.energy .fill { background: #4fb8d8; transition: opacity 0.15s; }
 .bar .label { position: absolute; right: 4px; top: -3px; font-size: 10px; letter-spacing: 0.2em; color: rgba(232,220,200,0.75); }
 .hud-wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; }
 .hud-wave .wave-num { font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #f0d08c; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85); }

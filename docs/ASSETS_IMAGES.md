@@ -96,12 +96,10 @@ creature alone, standing, arms out in a small A-pose, no pram.
 | `stormtrooper` | 1.9 m | "a soldier in scuffed grimy white segmented armour over a black bodysuit, a helmet with a dark horizontal visor band, angular cheek vents and a small central grille, sand-dusted and field-repaired with mismatched patched plates" |
 | `deathtrooper` | 2.0 m | "an elite soldier in matte jet-black segmented armour over a black bodysuit, a smooth helmet with a dark visor band and a faint green lens glow, taller and heavier than a standard trooper, sleek and intimidating" |
 | `darktrooper` | 2.2 m | "a heavy humanoid battle droid in matte black armoured plating, a blunt skull-like faceplate with two small glowing red eyes, thick armoured shoulders and limbs, integrated twin thrusters mounted on the back, brutal and mechanical" |
-| `massiff` ◆ | 0.8 m | "a squat four-legged reptilian guard-hound, leathery tan-brown hide, a broad heavy jaw full of teeth, a row of short bony spikes down the spine, stubby powerful legs, a short thick tail" |
 | `nikto` ◆ | 1.75 m | "a horned alien biker, leathery reddish-brown skin with a crown of short blunt horns across the brow, scuffed dark leather riding gear with a chest harness, lean and wiry" |
 | `nikto_swoop` ◆ | 2.6 m long | "a long-nosed single-rider hover speeder bike, battered orange-brown and gunmetal plating, a long forward prow, a large rear engine housing with exhaust vents, low handlebars, no wheels" |
 
-◆ **Pose exceptions** — `massiff`: standing square on all fours, neutral stance, head level.
-`nikto`: rider in normal A-pose (he is welded to the bike in-engine, so the sheets stay
+◆ **Pose exceptions** — `nikto`: rider in normal A-pose (he is welded to the bike in-engine, so the sheets stay
 separate). `nikto_swoop`: vehicle, orthographic side/front/rear, no rider.
 
 ### Weapon props — priority 1 (shared by all five playables)

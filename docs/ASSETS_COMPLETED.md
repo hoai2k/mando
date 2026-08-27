@@ -45,9 +45,10 @@ the old values washed out against the new bright skies.
 
 ---
 
-## Audio — 41 files, delivered 2026-08-27
+## Audio — 39 files, delivered 2026-08-27
 
 Live in `public/assets/audio/`, generated with the ElevenLabs sound-generation API.
+(Originally 41; the two massiff creature sounds were retired when that enemy was cut.)
 **Regeneration prompts are the source of truth in `tools/generate-sfx.mjs`** — edit the
 `SFX` table there and re-run rather than copying prompts around:
 
@@ -65,7 +66,7 @@ is present, so every one of these remains replaceable.
 |---|---|
 | Weapons & combat | `blaster_shot`, `enemy_blaster`, `blaster_impact`, `melee_whoosh`, `melee_hit`, `rocket_launch`, `explosion`, `hit_marker`, `kill_confirm`, `player_hurt` |
 | Movement | `jetpack_loop`, `jetpack_ignite`, `dash`, `land_hard`, `land_soft`, `footstep_sand`, `footstep_metal` |
-| Enemy & companion voices | `tusken_cry`, `pyke_chatter`, `pyke_death`, `pirate_taunt`, `pirate_death`, `droid_death`, `massiff_growl`, `massiff_yelp`, `swoop_pass`, `imperial_bark`, `imperial_death`, `grogu_coo` |
+| Enemy & companion voices | `tusken_cry`, `pyke_chatter`, `pyke_death`, `pirate_taunt`, `pirate_death`, `droid_death`, `swoop_pass`, `imperial_bark`, `imperial_death`, `grogu_coo` |
 | Ambience | `amb_desert`, `amb_station` |
 | Music | `music_title`, `music_combat_desert`, `music_combat_station`, `music_victory`, `music_defeat` |
 | UI | `ui_move`, `ui_confirm`, `ui_back`, `wave_start`, `wave_clear` |

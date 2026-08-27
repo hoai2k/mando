@@ -15,6 +15,10 @@ const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
 const FUEL_SECONDS = 3.4;
 const DASH_SPEED = 19;
+const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
+const SPRINT_SECONDS = 6;       // full gauge held down
+const SPRINT_REFILL = 4.5;      // seconds to refill from empty
+const DASH_ENERGY = 0.22;
 const ROCKET_CD = 12;
 
 export class Player {
@@ -27,6 +31,9 @@ export class Player {
   hp = 100;
   maxHp = 100;
   fuel = 1;
+  /** sprint gauge, separate from jetpack fuel: 1 = full */
+  energy = 1;
+  sprinting = false;
   weapon: 'blaster' | 'gaffi' = 'blaster';
   alive = true;
   kills = 0;
@@ -52,6 +59,7 @@ export class Player {
   private facingYaw = Math.PI;
   private wasGrounded = true;
   private footTimer = 0;
+  private sprintRefillDelay = 0;
   private wasThrusting = false;
   lastDamageDir = new THREE.Vector3();
 
@@ -65,6 +73,7 @@ export class Player {
     this.velocity.set(0, 0, 0);
     this.hp = this.maxHp;
     this.fuel = 1;
+    this.energy = 1;
     this.alive = true;
     this.respawnTimer = 0;
     this.slamming = false;
@@ -98,6 +107,9 @@ export class Player {
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
 
+  /** enemy currently under the crosshair's assist cone, for HUD feedback */
+  lockedOn = false;
+
   update(dt: number, input: FrameInput, game: Game): void {
     const anim = this.char.animator!;
     if (!this.alive) {
@@ -128,13 +140,26 @@ export class Player {
     const wishLen = Math.hypot(wishX, wishZ);
     const nx = wishLen > 0 ? wishX / wishLen : 0;
     const nz = wishLen > 0 ? wishZ / wishLen : 0;
-    const speedTarget = Math.min(wishLen, 1) * RUN_SPEED;
+    // ---- sprint (hold B / Shift on the ground, burns the energy gauge) ----
+    const wantsSprint = input.sprintHeld && wishLen > 0.2 && this.grounded && this.energy > 0;
+    this.sprinting = wantsSprint;
+    if (wantsSprint) {
+      this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
+      this.sprintRefillDelay = 0.7;
+    } else {
+      this.sprintRefillDelay -= dt;
+      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    }
+    const speedTarget = Math.min(wishLen, 1) * (this.sprinting ? SPRINT_SPEED : RUN_SPEED);
 
     // ---- dash ----
-    if (input.dashPressed && this.dashCd <= 0 && this.fuel > 0.12) {
+    // tapping the same button in the air is a jetpack dash burst; on the
+    // ground the hold-to-sprint above owns it
+    if (input.dashPressed && !this.grounded && this.dashCd <= 0 && this.energy > DASH_ENERGY) {
       this.dashTimer = 0.24;
       this.dashCd = 0.75;
-      this.fuel = Math.max(0, this.fuel - 0.13);
+      this.energy = Math.max(0, this.energy - DASH_ENERGY);
+      this.sprintRefillDelay = 0.7;
       const dir = wishLen > 0 ? new THREE.Vector3(nx, 0, nz) : new THREE.Vector3(fwdX, 0, fwdZ);
       this.dashDir.copy(dir);
       audio.dash();
@@ -189,7 +214,19 @@ export class Player {
     }
 
     // ---- gravity + integrate ----
-    if (this.dashTimer <= 0) this.velocity.y -= GRAVITY * dt;
+    // Below a board's voidY there is no floor left to land on, so gravity
+    // eases right off: you drift, and a tap of jetpack lifts you back out.
+    const board = game.board;
+    const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
+    if (this.dashTimer <= 0) {
+      this.velocity.y -= GRAVITY * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+      if (inVoid) {
+        const terminal = -(board.voidFallSpeed ?? 3.2);
+        if (this.velocity.y < terminal) this.velocity.y = terminal;
+      }
+    }
+    // never strand a drifting player with an empty tank
+    if (inVoid) this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.9));
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     if (res.grounded && !this.wasGrounded) {
       audio.land(this.slamming || this.velocity.y < -14);
@@ -203,7 +240,7 @@ export class Player {
           const d = e.position.distanceTo(this.position);
           if (d < 5) {
             e.damage(20, this.position, this.slot);
-            e.knockback(this.position, 14);
+            e.knockback(this.position, 16, 0.55);
           }
         }
       }
@@ -213,16 +250,13 @@ export class Player {
 
     // out of bounds / hazard
     if (this.position.y < game.board.physics.killY) {
-      if (game.board.kind === 'station') {
-        // arcade fall: respawn on start pad with a health cost
-        this.hp -= 20;
-        this.regenDelay = 5;
-        audio.hurt();
-        if (this.hp <= 0) { this.die(); } else {
-          const s = game.board.playerStarts[this.slot] ?? game.board.playerStarts[0];
-          this.position.copy(s);
-          this.velocity.set(0, 0, 0);
-        }
+      if (game.board.voidY !== undefined) {
+        // backstop only — the drift above makes this almost unreachable, and
+        // sinking out of a space station shouldn't cost anything
+        const s = game.board.playerStarts[this.slot] ?? game.board.playerStarts[0];
+        this.position.copy(s);
+        this.velocity.set(0, 0, 0);
+        this.fuel = 1;
       } else {
         this.damage(999, this.position);
       }
@@ -234,6 +268,8 @@ export class Player {
     }
 
     // ---- combat ----
+    this.lockedOn = this.weapon === 'blaster' &&
+      !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
     this.updateCombat(dt, input, game);
 
     // ---- facing ----
@@ -257,7 +293,7 @@ export class Player {
       if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
       this.footTimer -= dt * (speed2 / RUN_SPEED);
       if (this.footTimer <= 0) {
-        this.footTimer = 0.31;
+        this.footTimer = this.sprinting ? 0.23 : 0.31;
         audio.footstep(game.board.kind === 'desert' ? 'sand' : 'metal');
       }
     } else {
@@ -320,7 +356,7 @@ export class Player {
           if (to.dot(facing) < 0.25) continue;
           const wasAlive = e.alive;
           e.damage(this.meleeDamage, this.position, this.slot);
-          e.knockback(this.position, this.meleeStep === 3 ? 16 : 8);
+          e.knockback(this.position, this.meleeStep === 3 ? 19 : 11, this.meleeStep === 3 ? 0.55 : 0.32);
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
@@ -333,29 +369,25 @@ export class Player {
       this.fireCd = 0.24;
       const muzzlePos = new THREE.Vector3();
       this.char.muzzle!.getWorldPosition(muzzlePos);
-      const dir = new THREE.Vector3();
-      this.cam.aimDir(dir);
-      // aim from camera through crosshair: target point far ahead
-      const aimPoint = this.cam.camera.position.clone().addScaledVector(dir, 90);
-      let shotDir = aimPoint.sub(muzzlePos).normalize();
-      // soft-lock aim assist: bend toward the best enemy near the crosshair
-      const assist = this.aimAssistTarget(game, shotDir, muzzlePos);
-      if (assist) {
-        const to = assist.position.clone();
-        to.y += assist.height * 0.55;
-        shotDir = shotDir.lerp(to.sub(muzzlePos).normalize(), 0.65).normalize();
-      }
-      // slight spread when moving unaimed
+
+      // Converge the shot on whatever the crosshair is actually over, rather
+      // than firing parallel from the muzzle. The muzzle sits off to the side
+      // of the camera, so a parallel shot misses what the crosshair covers at
+      // close range — which is what made aiming feel unreadable.
+      const shotDir = this.aimPointFrom(game, muzzlePos);
+
+      // slight spread when hip-firing on the move; aiming removes it entirely
       if (!input.aimHeld) {
-        const spread = Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.02;
+        const spread = Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.015;
         shotDir.x += (Math.random() - 0.5) * spread;
         shotDir.y += (Math.random() - 0.5) * spread;
         shotDir.z += (Math.random() - 0.5) * spread;
         shotDir.normalize();
       }
-      game.projectiles.fire(muzzlePos, shotDir, 85, 34, 0);
+      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0);
+      game.particles.muzzleFlash(muzzlePos, shotDir);
       audio.blaster();
-      this.cam.shake(0.03);
+      this.cam.shake(0.035);
     }
 
     // rocket
@@ -370,6 +402,26 @@ export class Player {
       audio.rocket();
       this.cam.shake(0.15);
     }
+  }
+
+  /**
+   * Direction from `from` to whatever the crosshair is pointing at: a
+   * soft-locked enemy if one sits in the assist cone, else the first thing the
+   * camera ray hits, else a point far downrange.
+   */
+  private aimPointFrom(game: Game, from: THREE.Vector3): THREE.Vector3 {
+    const camDir = this.cam.aimDir(new THREE.Vector3());
+    const camPos = this.cam.camera.position;
+    const lock = this.aimAssistTarget(game, camDir, camPos);
+    const aimPoint = new THREE.Vector3();
+    if (lock) {
+      aimPoint.copy(lock.position);
+      aimPoint.y += lock.height * 0.55;
+    } else {
+      const hit = game.board.physics.raycast(camPos, camDir, 200);
+      aimPoint.copy(camPos).addScaledVector(camDir, hit ? hit.dist : 120);
+    }
+    return aimPoint.sub(from).normalize();
   }
 
   /** Best enemy near the aim direction (dot threshold), for soft-lock. */

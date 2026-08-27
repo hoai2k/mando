@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildMassiff, buildNikto,
+  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildNikto,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -20,7 +20,7 @@ export interface Combatant {
 }
 
 export type EnemyKind =
-  | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
+  | 'tusken' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
   | 'stormtrooper' | 'deathtrooper' | 'darktrooper'
   | 'ig11' | 'marshal' | 'fennec';
 
@@ -34,7 +34,6 @@ interface Def {
 
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, build: buildTusken },
-  massiff:     { hp: 45, speed: 8.2, radius: 0.45, height: 0.8, style: 'melee', damage: 8, attackRange: 1.9, attackCd: 1.1, build: buildMassiff },
   pirateMelee: { hp: 95, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, build: () => buildPirate(true) },
   pyke:        { hp: 70, speed: 4.6, radius: 0.5, height: 2.0, style: 'ranged', damage: 8, attackRange: 26, attackCd: 2.4, boltSpeed: 26, volley: 3, build: buildPyke },
   pirate:      { hp: 85, speed: 4.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 9, attackRange: 30, attackCd: 2.6, boltSpeed: 28, volley: 3, build: () => buildPirate(false) },
@@ -53,11 +52,9 @@ const DEFS: Record<EnemyKind, Def> = {
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
-  massiff: 'massiff_growl', stormtrooper: 'imperial_bark', deathtrooper: 'imperial_bark',
 };
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
-  massiff: 'massiff_yelp', droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
 };
 
@@ -83,6 +80,8 @@ export class Enemy {
   private windup = 0;
   private windupTarget: Combatant | null = null;
   private prevPassing = false;
+  /** while > 0 the AI stops steering so a knockback impulse actually carries */
+  private stagger = 0;
   private volleyLeft = 0;
   private volleyTimer = 0;
   private strafePhase = Math.random() * Math.PI * 2;
@@ -113,6 +112,7 @@ export class Enemy {
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     this.hitFlash = 0.15;
+    if (this.hp > 0 && this.windup > 0) this.windup = 0; // hit out of the wind-up
     if (this.hp <= 0) {
       this.alive = false;
       this.deadTimer = 1.4;
@@ -133,10 +133,19 @@ export class Enemy {
     }
   }
 
-  knockback(from: THREE.Vector3, force: number): void {
-    const dir = this.position.clone().sub(from).setY(0).normalize();
+  /**
+   * Shove this enemy away from `from`. The stagger window matters as much as
+   * the impulse: without it the per-frame steering damp in updateMelee/Ranged
+   * pulls velocity straight back to the AI's intended movement and the hit
+   * reads as nothing.
+   */
+  knockback(from: THREE.Vector3, force: number, stagger = 0.3): void {
+    const dir = this.position.clone().sub(from).setY(0);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // point-blank: shove along +Z
+    dir.normalize();
     this.velocity.addScaledVector(dir, force);
     this.velocity.y += force * 0.35;
+    this.stagger = Math.max(this.stagger, stagger);
   }
 
   private nearestFoe(game: Game): Combatant | null {
@@ -174,7 +183,14 @@ export class Enemy {
     this.attackCd -= dt;
     const d = DEFS[this.kind];
 
-    if (!target) {
+    if (this.stagger > 0) {
+      // reeling from a hit: coast on the impulse, just bleed it off slowly
+      this.stagger -= dt;
+      const grounded = d.style === 'melee' || d.style === 'ranged';
+      this.velocity.x = damp(this.velocity.x, 0, grounded ? 2.2 : 1.2, dt);
+      this.velocity.z = damp(this.velocity.z, 0, grounded ? 2.2 : 1.2, dt);
+      this.volleyLeft = 0; // interrupt any burst in progress
+    } else if (!target) {
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
     } else {
@@ -269,16 +285,9 @@ export class Enemy {
       this.velocity.x = damp(this.velocity.x, 0, 10, dt);
       this.velocity.z = damp(this.velocity.z, 0, 10, dt);
       if (this.attackCd <= 0) {
-        this.windup = this.kind === 'massiff' ? 0.3 : 0.55;
+        this.windup = 0.55;
         this.windupTarget = target;
         if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
-        if (this.kind === 'massiff') {
-          // pounce
-          const dir = to.clone().normalize();
-          this.velocity.x = dir.x * 10;
-          this.velocity.z = dir.z * 10;
-          this.velocity.y = 4;
-        }
       }
     }
   }

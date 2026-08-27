@@ -77,9 +77,16 @@ export class ParticleFX {
   private dust = new Pool(500, 0xcbb490, 0.35, 0.6, false, 0.35);
   private boom = new Pool(400, 0xffa050, 0.5, 1.5);
   private smoke = new Pool(300, 0x555555, 0.6, -0.8, false, 0.3);
+  private flash = new Pool(120, 0xffe0a0, 0.55, 0);
 
   constructor() {
-    for (const p of [this.sparks, this.flame, this.dust, this.boom, this.smoke]) this.group.add(p.points);
+    for (const p of [this.sparks, this.flame, this.dust, this.boom, this.smoke, this.flash]) this.group.add(p.points);
+  }
+
+  /** Bright puff at the gun barrel so firing has a visible source. */
+  muzzleFlash(p: THREE.Vector3, dir: THREE.Vector3): void {
+    this.flash.spawn(p, dir.clone().multiplyScalar(6), 3, 0.07, 5);
+    this.sparks.spawn(p, dir.clone().multiplyScalar(9), 4, 0.12, 4);
   }
 
   impactSparks(p: THREE.Vector3, n = 10): void { this.sparks.spawn(p, new THREE.Vector3(0, 2, 0), 6, 0.35, n); }
@@ -102,5 +109,6 @@ export class ParticleFX {
     this.dust.update(dt);
     this.boom.update(dt);
     this.smoke.update(dt);
+    this.flash.update(dt);
   }
 }

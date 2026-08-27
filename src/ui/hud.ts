@@ -6,6 +6,7 @@ interface PlayerHud {
   root: HTMLElement;
   health: HTMLElement;
   fuel: HTMLElement;
+  energy: HTMLElement;
   weapon: HTMLElement;
   rocket: HTMLElement;
   wave: HTMLElement;
@@ -19,15 +20,20 @@ interface PlayerHud {
 }
 
 const CROSSHAIR_SVG = `
-<svg class="crosshair" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="22" cy="22" r="1.8" fill="rgba(232,220,200,0.9)"/>
-  <g stroke="rgba(232,220,200,0.8)" stroke-width="1.6">
-    <line x1="22" y1="6" x2="22" y2="13"/><line x1="22" y1="31" x2="22" y2="38"/>
-    <line x1="6" y1="22" x2="13" y2="22"/><line x1="31" y1="22" x2="38" y2="22"/>
+<svg class="crosshair" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <g stroke="#000" stroke-opacity="0.55" stroke-width="4.5" stroke-linecap="round">
+    <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
+    <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
   </g>
-  <g class="hitmark" stroke="#ffcf6a" stroke-width="2" opacity="0">
-    <line x1="12" y1="12" x2="17" y2="17"/><line x1="32" y1="12" x2="27" y2="17"/>
-    <line x1="12" y1="32" x2="17" y2="27"/><line x1="32" y1="32" x2="27" y2="27"/>
+  <g class="ticks" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+    <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
+    <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
+  </g>
+  <circle cx="32" cy="32" r="2.1" fill="#fff" stroke="#000" stroke-opacity="0.6" stroke-width="1"/>
+  <circle class="lockring" cx="32" cy="32" r="13" fill="none" stroke="#ff5533" stroke-width="2.2" opacity="0"/>
+  <g class="hitmark" stroke="#ffcf6a" stroke-width="3" stroke-linecap="round" opacity="0">
+    <line x1="20" y1="20" x2="26" y2="26"/><line x1="44" y1="20" x2="38" y2="26"/>
+    <line x1="20" y1="44" x2="26" y2="38"/><line x1="44" y1="44" x2="38" y2="38"/>
   </g>
 </svg>`;
 
@@ -60,6 +66,7 @@ export class Hud {
         <div class="hud-bars">
           <div class="bar health"><div class="fill"></div><div class="label">HP</div></div>
           <div class="bar fuel"><div class="fill"></div><div class="label">JET</div></div>
+          <div class="bar energy"><div class="fill"></div><div class="label">ENERGY</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
@@ -70,6 +77,7 @@ export class Hud {
         root,
         health: root.querySelector('.bar.health .fill') as HTMLElement,
         fuel: root.querySelector('.bar.fuel .fill') as HTMLElement,
+        energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         weapon: root.querySelector('.wname') as HTMLElement,
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
@@ -114,6 +122,8 @@ export class Hud {
       h.health.style.transform = `scaleX(${Math.max(0, p.hp / p.maxHp)})`;
       h.health.style.background = p.hp < 30 ? '#e0301e' : '#c33f2e';
       h.fuel.style.transform = `scaleX(${p.fuel})`;
+      h.energy.style.transform = `scaleX(${p.energy})`;
+      h.energy.style.opacity = p.sprinting ? '1' : '0.8';
       h.weapon.textContent = p.alive
         ? (p.weapon === 'blaster' ? 'EE-3 Carbine' : 'Gaffi Stick')
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;
@@ -131,6 +141,10 @@ export class Hud {
       const hit = h.crosshair.querySelector('.hitmark') as SVGElement;
       if (h.hitTimer > 0) { h.hitTimer -= dt; hit.setAttribute('opacity', '1'); }
       else hit.setAttribute('opacity', '0');
+      const lock = h.crosshair.querySelector('.lockring') as SVGElement;
+      lock.setAttribute('opacity', p.alive && p.lockedOn ? '0.95' : '0');
+      const ticks = h.crosshair.querySelector('.ticks') as SVGElement;
+      ticks.setAttribute('stroke', p.lockedOn ? '#ff5533' : '#fff');
     }
   }
 }

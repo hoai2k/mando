@@ -41,7 +41,6 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 | Character | Board | Reference sheets | Reference look |
 |---|---|---|---|
 | **Tusken Raider** | `tusken_front/side/back.png` | desert | Sand-colored wrapped robes, bandolier, cylinder-eyed mask with rebreather spikes, gaderffii stick. |
-| **Massiff** ◆ | desert | `massiff_front/side/back.png` | Quadruped spiky reptilian hound, wide jaw, back spike row (~0.8 m tall); nodes: `body`, `head`, `leg1..4`, `tail`. |
 | **Nikto swoop rider** ◆ | desert | `nikto_front/side/back.png`, `nikto_swoop_front/side/back.png` | Horned leathery-faced alien in biker leathers riding a long-nosed swoop bike; nodes: `bike`, rider on canonical rig welded to seat. |
 | **Pyke soldier** | `pyke_front/side/back.png` | both | Tall tapered grey-green helmet with narrow eyes, breather tubes to chest rig, slate long coat, rifle. |
 | **Space pirate (ranged & brawler)** | `pirate_front/side/back.png` | station | Ragged spacer leathers, mismatched plates, one metal pauldron, horn-nubbed alien head; brawler variant carries a heavy club. |
@@ -61,7 +60,7 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 
 ## Delivery & integration
 
-Drop files at `public/assets/models/<id>.glb` using ids: `boba, din, bokatan, paz, armorer, grogu, ig11, marshal, fennec, tusken, massiff, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`. Loader integration (glTF detection + procedural fallback, mirroring the texture/audio pattern) is the next engineering task once the first model lands — register in `src/characters/builder.ts`.
+Drop files at `public/assets/models/<id>.glb` using ids: `boba, din, bokatan, paz, armorer, grogu, ig11, marshal, fennec, tusken, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`. Loader integration (glTF detection + procedural fallback, mirroring the texture/audio pattern) is the next engineering task once the first model lands — register in `src/characters/builder.ts`.
 
 Order of work: reference sheets (`ASSETS_IMAGES.md`) → models → loader. The sheets are the
 blocking input; the five playable Mandalorians and the two shared weapons are priority 1

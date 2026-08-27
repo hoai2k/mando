@@ -78,7 +78,7 @@ title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },
   { label: 'Fullscreen', action: toggleFullscreen },
 ]);
-title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> dash · <b>F</b> melee · <b>Q</b> rocket · <b>E</b> switch weapon');
+title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> sprint/dash · <b>F</b> melee · <b>Q</b> rocket · <b>E</b> switch weapon');
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);

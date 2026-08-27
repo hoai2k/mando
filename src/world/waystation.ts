@@ -204,6 +204,10 @@ export function buildWaystation(): Board {
     group, physics, kind: 'station',
     background: new THREE.Color(0x05050e),
     skyFile: 'sky_space',
+    // drifting between platforms should never feel like a death sentence
+    voidY: -3,
+    voidGravity: 0.12,
+    voidFallSpeed: 3.2,
     // the nebula is bright enough to silhouette the platforms against it
     skyIntensity: 0.62,
     proceduralSky,

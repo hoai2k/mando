@@ -12,6 +12,7 @@ export interface FrameInput {
   jumpHeld: boolean;
   jumpPressed: boolean;
   dashPressed: boolean;
+  sprintHeld: boolean;
   shootHeld: boolean;
   aimHeld: boolean;
   meleePressed: boolean;
@@ -32,7 +33,7 @@ const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START
 function blankInput(): FrameInput {
   return {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
-    jumpHeld: false, jumpPressed: false, dashPressed: false, shootHeld: false,
+    jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
     switchPressed: false, pausePressed: false,
   };
@@ -184,6 +185,7 @@ export class InputManager {
       inp.jumpHeld ||= k.has('Space');
       inp.jumpPressed ||= this.keysPressed.has('Space');
       inp.dashPressed ||= this.keysPressed.has('ShiftLeft') || this.keysPressed.has('ShiftRight');
+      inp.sprintHeld ||= k.has('ShiftLeft') || k.has('ShiftRight');
       inp.slamPressed ||= this.keysPressed.has('ControlLeft') || this.keysPressed.has('KeyC');
       inp.shootHeld ||= this.mouseButtons.has(0);
       inp.aimHeld ||= this.mouseButtons.has(2);
@@ -207,6 +209,7 @@ export class InputManager {
         inp.jumpHeld ||= b(BTN.A);
         inp.jumpPressed ||= this.edge(pad, BTN.A);
         inp.dashPressed ||= this.edge(pad, BTN.B);
+        inp.sprintHeld ||= b(BTN.B);
         inp.slamPressed ||= this.edge(pad, BTN.RB);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);

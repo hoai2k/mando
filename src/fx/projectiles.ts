@@ -10,7 +10,8 @@ export interface BoltTarget {
 }
 
 interface Bolt {
-  mesh: THREE.Mesh;
+  mesh: THREE.Mesh;   // bright core
+  glow: THREE.Mesh;   // additive halo, makes the bolt readable against any sky
   vel: THREE.Vector3;
   life: number;
   damage: number;
@@ -23,17 +24,26 @@ const CAPACITY = 160;
 export class ProjectileSystem {
   group = new THREE.Group();
   private bolts: Bolt[] = [];
-  private matPlayer = new THREE.MeshBasicMaterial({ color: 0xff3222 });
-  private matEnemy = new THREE.MeshBasicMaterial({ color: 0x66ff55 });
+  // near-white cores read as "hot"; the additive halo carries the colour
+  private matPlayer = new THREE.MeshBasicMaterial({ color: 0xffd8c0 });
+  private matEnemy = new THREE.MeshBasicMaterial({ color: 0xd8ffd0 });
+  private glowPlayer = new THREE.MeshBasicMaterial({ color: 0xff4a22, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+  private glowEnemy = new THREE.MeshBasicMaterial({ color: 0x55ff44, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   onImpact: ((p: THREE.Vector3, hitTarget: boolean) => void) | null = null;
 
   constructor() {
-    const geo = new THREE.BoxGeometry(0.055, 0.055, 0.85);
+    // unit-length along Z so each bolt can be stretched to cover the distance
+    // it travels in a frame — a short bolt at speed leaves visible gaps
+    const core = new THREE.BoxGeometry(0.1, 0.1, 1);
+    const halo = new THREE.BoxGeometry(0.34, 0.34, 1);
     for (let i = 0; i < CAPACITY; i++) {
-      const mesh = new THREE.Mesh(geo, this.matPlayer);
-      mesh.visible = false;
+      const mesh = new THREE.Mesh(core, this.matPlayer);
+      const glow = new THREE.Mesh(halo, this.glowPlayer);
+      mesh.visible = glow.visible = false;
+      mesh.frustumCulled = glow.frustumCulled = false;
       this.group.add(mesh);
-      this.bolts.push({ mesh, vel: new THREE.Vector3(), life: 0, damage: 0, team: 0, active: false });
+      this.group.add(glow);
+      this.bolts.push({ mesh, glow, vel: new THREE.Vector3(), life: 0, damage: 0, team: 0, active: false });
     }
   }
 
@@ -41,11 +51,18 @@ export class ProjectileSystem {
     const b = this.bolts.find((x) => !x.active);
     if (!b) return;
     b.active = true;
-    b.mesh.visible = true;
+    b.mesh.visible = b.glow.visible = true;
     b.mesh.material = team === 0 ? this.matPlayer : this.matEnemy;
+    b.glow.material = team === 0 ? this.glowPlayer : this.glowEnemy;
     b.mesh.position.copy(origin);
     b.vel.copy(dir).normalize().multiplyScalar(speed);
     b.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().normalize());
+    // player bolts are longer and fatter so you can actually track your own fire
+    const len = team === 0 ? 2.6 : 1.8;
+    b.mesh.scale.set(1, 1, len);
+    b.glow.scale.set(1, 1, len * 0.9);
+    b.glow.quaternion.copy(b.mesh.quaternion);
+    b.glow.position.copy(origin);
     b.life = 2.2;
     b.damage = damage;
     b.team = team;
@@ -56,7 +73,7 @@ export class ProjectileSystem {
     for (const b of this.bolts) {
       if (!b.active) continue;
       b.life -= dt;
-      if (b.life <= 0) { b.active = false; b.mesh.visible = false; continue; }
+      if (b.life <= 0) { b.active = false; b.mesh.visible = b.glow.visible = false; continue; }
       step.copy(b.vel).multiplyScalar(dt);
       const stepLen = step.length();
       const from = b.mesh.position;
@@ -81,8 +98,9 @@ export class ProjectileSystem {
           hit = true;
         }
       }
-      if (hit) { b.active = false; b.mesh.visible = false; continue; }
+      if (hit) { b.active = false; b.mesh.visible = b.glow.visible = false; continue; }
       from.add(step);
+      b.glow.position.copy(from);
     }
   }
 }

@@ -10,7 +10,7 @@ type SampleName =
   | 'footstep_sand' | 'footstep_metal'
   | 'ui_move' | 'ui_confirm' | 'ui_back' | 'wave_start' | 'wave_clear'
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
-  | 'droid_death' | 'massiff_growl' | 'massiff_yelp' | 'swoop_pass'
+  | 'droid_death' | 'swoop_pass'
   | 'imperial_bark' | 'imperial_death' | 'grogu_coo'
   | 'amb_desert' | 'amb_station'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
@@ -18,7 +18,7 @@ type SampleName =
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
-  | 'droid_death' | 'massiff_growl' | 'massiff_yelp' | 'swoop_pass'
+  | 'droid_death' | 'swoop_pass'
   | 'imperial_bark' | 'imperial_death' | 'grogu_coo';
 
 export class AudioEngine {
@@ -58,7 +58,7 @@ export class AudioEngine {
       'footstep_sand', 'footstep_metal',
       'ui_move', 'ui_confirm', 'ui_back', 'wave_start', 'wave_clear',
       'tusken_cry', 'pyke_chatter', 'pyke_death', 'pirate_taunt', 'pirate_death',
-      'droid_death', 'massiff_growl', 'massiff_yelp', 'swoop_pass',
+      'droid_death', 'swoop_pass',
       'imperial_bark', 'imperial_death', 'grogu_coo',
       'amb_desert', 'amb_station',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',

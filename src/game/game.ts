@@ -72,10 +72,12 @@ export class Game {
       this.players.push(p);
     }
 
-    // Grogu tags along with player 1 in his floating pram
-    this.grogu = buildGrogu();
-    this.grogu.root.position.copy(this.players[0].position).add(new THREE.Vector3(-1.5, 1.4, -1));
-    this.scene.add(this.grogu.root);
+    // Grogu rides with Din Djarin and nobody else — he is not a shared pet
+    if (this.players[0].characterId === 'din') {
+      this.grogu = buildGrogu();
+      this.grogu.root.position.copy(this.players[0].position).add(new THREE.Vector3(-1.5, 1.4, -1));
+      this.scene.add(this.grogu.root);
+    }
 
     this.projectiles.onImpact = (point, hitTarget) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
@@ -115,7 +117,7 @@ export class Game {
       const d = e.position.distanceTo(point);
       if (d < 7) {
         e.damage(90 * (1 - d / 8), point, bySlot);
-        e.knockback(point, 18);
+        e.knockback(point, 18, 0.6);
       }
     }
     for (const p of this.players) {
@@ -228,8 +230,11 @@ export class Game {
         radius: e.radius + 0.35, team: 1, alive: e.alive,
         onHit: (dmg, from) => {
           const wasAlive = e.alive;
-          e.damage(dmg, from, this.nearestPlayerSlot(from));
-          if (wasAlive) this.hitMarker(this.nearestPlayerSlot(from));
+          const slot = this.nearestPlayerSlot(from);
+          e.damage(dmg, from, slot);
+          // every hit shoves: light per bolt, but it stacks over a burst
+          e.knockback(from, 5.5, 0.2);
+          if (wasAlive) this.hitMarker(slot);
         },
       });
     }
