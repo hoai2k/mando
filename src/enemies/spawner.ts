@@ -132,6 +132,7 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
         );
         const e = new Enemy(entry.kind, base.clone().add(jitter));
         e.squad = squad;
+        e.squadSize = size;
         addEnemy(e);
         total++;
       }

@@ -29,7 +29,7 @@ export class ProjectileSystem {
   private matEnemy = new THREE.MeshBasicMaterial({ color: 0xd8ffd0 });
   private glowPlayer = new THREE.MeshBasicMaterial({ color: 0xff4a22, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   private glowEnemy = new THREE.MeshBasicMaterial({ color: 0x55ff44, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
-  onImpact: ((p: THREE.Vector3, hitTarget: boolean) => void) | null = null;
+  onImpact: ((p: THREE.Vector3, hitTarget: boolean, team: number) => void) | null = null;
 
   constructor() {
     // unit-length along Z so each bolt can be stretched to cover the distance
@@ -84,7 +84,7 @@ export class ProjectileSystem {
         if (!t.alive || t.team === b.team) continue;
         if (segSphere(from, step, stepLen, t.position, t.radius)) {
           t.onHit(b.damage, from);
-          this.onImpact?.(t.position.clone(), true);
+          this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;
         }
@@ -94,7 +94,7 @@ export class ProjectileSystem {
         const dir = step.clone().normalize();
         const worldHit = physics.raycast(from, dir, stepLen);
         if (worldHit) {
-          this.onImpact?.(worldHit.point, false);
+          this.onImpact?.(worldHit.point, false, b.team);
           hit = true;
         }
       }

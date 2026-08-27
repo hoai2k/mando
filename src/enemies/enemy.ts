@@ -137,6 +137,28 @@ export class Enemy {
   target: Combatant | null = null;
   /** whether that foe is in sight right now (vs. being hunted from memory) */
   private visible = false;
+  /** how many were posted with this squad, for the morale check */
+  squadSize = 1;
+  // ---- hit reactions & self-preservation (the RDR2 feel) ----
+  /** flat on the ground after a heavy hit; gets back up when it runs out */
+  private downTimer = 0;
+  /** gut-shot: crawling, out of the fight, bleeds out unless finished */
+  wounded = false;
+  private bleedOut = 0;
+  private woundedPosed = false;
+  /**
+   * Builds up under incoming fire (hits and near misses) and drains over
+   * time. Past ~0.55 a shooter stops working its firing position and just
+   * holds where it is, ragged and inaccurate — fire keeps heads down.
+   */
+  suppression = 0;
+  /** broke and ran after the squad collapsed; rallies at distance */
+  fleeing = false;
+  private fleeTimer = 0;
+
+  get downed(): boolean { return this.downTimer > 0; }
+  /** out of the fight for commitment purposes */
+  get outOfFight(): boolean { return !this.alive || this.wounded || this.fleeing || this.downed; }
   /**
    * Line-of-sight is a heightfield march, so it is rechecked a few times a
    * second (staggered per enemy) rather than every frame — with a board full
@@ -198,13 +220,48 @@ export class Enemy {
   /** true once this enemy is actually in the fight (used by the HUD radar) */
   get isEngaged(): boolean { return this.awareness === 'engaged'; }
 
+  /** the squad broke — run from `threat`, rally at distance */
+  breakAndRun(threat: THREE.Vector3): void {
+    if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;
+    if (this.kind === 'droid') return; // droids have no morale to break
+    if (this.def.style === 'swoop' || this.def.style === 'hover') return;
+    this.fleeing = true;
+    this.fleeTimer = 5 + Math.random() * 3;
+    this.interest.copy(threat);
+    const bark = SPAWN_BARKS[this.kind];
+    if (bark) audio.bark(bark, 0.45);
+  }
+
   damage(amount: number, from: THREE.Vector3, bySlot: number): void {
     if (!this.alive) return;
     this.alert(from, true); // being shot at is not something you investigate
+    this.suppress(0.35);
+    // finishing blows on someone already on the ground hit twice as hard
+    if (this.downed || this.wounded) amount *= 2;
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     this.hitFlash = 0.15;
     if (this.hp > 0 && this.windup > 0) this.windup = 0; // hit out of the wind-up
+
+    // Gut-shot: a hit that leaves a grounded humanoid nearly dead can drop it
+    // into a wounded crawl instead of a clean fight-on — it is out of the
+    // fight, dragging itself away, and bleeds out unless finished.
+    if (
+      this.hp > 0 && !this.wounded && this.team === 1 && this.downTimer <= 0 &&
+      (this.def.style === 'melee' || this.def.style === 'ranged') &&
+      this.kind !== 'droid' && // droids don't bleed
+      this.hp < this.def.hp * 0.25 && Math.random() < 0.4
+    ) {
+      this.wounded = true;
+      this.bleedOut = 8 + Math.random() * 4;
+      this.woundedPosed = false;
+      this.windup = 0;
+      this.volleyLeft = 0;
+      this.interest.copy(from);
+      const bark = DEATH_BARKS[this.kind];
+      if (bark) audio.bark(bark, 0.45);
+    }
+
     if (this.hp <= 0) {
       this.alive = false;
       this.deadTimer = 1.4;
@@ -216,11 +273,16 @@ export class Enemy {
         anim.playOnce('lower', 'deathLower', 0.08, true);
         anim.playOnce('upper', 'deathUpper', 0.08, true);
       }
-      // fling the corpse a bit
+      // fling the corpse — harder killing blows throw harder, with a bit of
+      // sideways scatter so a mowed-down line doesn't fall in lockstep
       const dir = this.position.clone().sub(from).setY(0).normalize();
-      this.velocity.addScaledVector(dir, 6);
-      this.velocity.y = Math.max(this.velocity.y, 3.5);
-    } else if (this.char.animator && this.windup <= 0) {
+      const heavy = amount >= 45 ? 1.6 : 1;
+      dir.x += (Math.random() - 0.5) * 0.5;
+      dir.z += (Math.random() - 0.5) * 0.5;
+      dir.normalize();
+      this.velocity.addScaledVector(dir, (4.5 + Math.random() * 3) * heavy);
+      this.velocity.y = Math.max(this.velocity.y, (3 + Math.random() * 1.5) * heavy);
+    } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       this.char.animator.playOnce('upper', 'hitUpper', 0.05);
     }
   }
@@ -240,6 +302,30 @@ export class Enemy {
     // target clear along the ground, raise it when a pop is wanted (explosions)
     this.velocity.y += force * lift;
     this.stagger = Math.max(this.stagger, stagger);
+  }
+
+  /**
+   * Put this enemy flat on the ground for `secs` — the big Euphoria-style hit
+   * read. Only grounded humanoids go down (a swoop rider or a hover trooper
+   * falling over mid-air reads as a bug, not a haymaker).
+   */
+  knockdown(secs = 1.8): void {
+    if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
+    if (this.wounded) return; // already on the ground
+    this.downTimer = Math.max(this.downTimer, secs);
+    this.windup = 0;
+    this.volleyLeft = 0;
+    const anim = this.char.animator;
+    if (anim) {
+      anim.release('lower'); anim.release('upper');
+      anim.playOnce('lower', 'deathLower', 0.06, true);
+      anim.playOnce('upper', 'deathUpper', 0.06, true);
+    }
+  }
+
+  /** incoming fire, landed or close: keeps this enemy's head down */
+  suppress(amount: number): void {
+    if (this.team !== 0) this.suppression = Math.min(1.2, this.suppression + amount);
   }
 
   private nearestFoe(game: Game): Combatant | null {
@@ -274,8 +360,85 @@ export class Enemy {
     }
 
     this.attackCd -= dt;
+    this.suppression = Math.max(0, this.suppression - dt * 0.25);
     const d = DEFS[this.kind];
+
+    // ---- flat on the ground after a heavy hit ----
+    if (this.downTimer > 0) {
+      this.downTimer -= dt;
+      this.velocity.x = damp(this.velocity.x, 0, 4, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 4, dt);
+      this.velocity.y -= 24 * dt;
+      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+      if (this.downTimer <= 0) {
+        // back on its feet, shaken
+        const a = this.char.animator;
+        if (a) { a.release('lower'); a.release('upper'); }
+        this.stagger = Math.max(this.stagger, 0.25);
+        this.attackCd = Math.max(this.attackCd, 0.8);
+      }
+      this.syncVisual(dt, game);
+      anim?.update(dt);
+      return;
+    }
+
+    // ---- wounded: crawling away, bleeding out ----
+    if (this.wounded) {
+      if (!this.woundedPosed) {
+        this.woundedPosed = true;
+        const a = this.char.animator;
+        if (a) {
+          a.release('lower'); a.release('upper');
+          a.playOnce('lower', 'deathLower', 0.08, true);
+          a.playOnce('upper', 'deathUpper', 0.08, true);
+        }
+      }
+      this.bleedOut -= dt;
+      // drag away from whatever did this, slowly
+      const away = this.position.clone().sub(this.interest).setY(0);
+      if (away.lengthSq() > 1e-4) away.normalize();
+      this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
+      this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
+      this.velocity.y -= 24 * dt;
+      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+      if (this.bleedOut <= 0) {
+        this.alive = false;
+        this.deadTimer = 1.4;
+      }
+      this.syncVisual(dt, game);
+      anim?.update(dt);
+      return;
+    }
+
     const target = this.senses(dt, game);
+
+    // ---- broke and ran ----
+    if (this.fleeing) {
+      this.fleeTimer -= dt;
+      const threat = this.interest;
+      const away = this.position.clone().sub(threat).setY(0);
+      const far = away.length();
+      if (this.fleeTimer <= 0 || far > 55) {
+        // rallied: turns and holds its ground out here
+        this.fleeing = false;
+        this.post.copy(this.position);
+        this.attackCd = Math.max(this.attackCd, 0.6);
+      } else if (far > 1e-2) {
+        away.normalize();
+        this.velocity.x = damp(this.velocity.x, away.x * d.speed * 1.05, 6, dt);
+        this.velocity.z = damp(this.velocity.z, away.z * d.speed * 1.05, 6, dt);
+        this.facingYaw = dampAngle(this.facingYaw, Math.atan2(away.x, away.z), 8, dt);
+        this.velocity.y -= 24 * dt;
+        game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+        if (anim) {
+          anim.play('lower', 'runLower', 0.2, 1.2);
+          anim.play('upper', 'runUpper', 0.2, 1.2);
+        }
+        this.syncVisual(dt, game);
+        anim?.update(dt);
+        return;
+      }
+    }
 
     if (this.stagger > 0) {
       // reeling from a hit: coast on the impulse, just bleed it off slowly
@@ -454,6 +617,13 @@ export class Enemy {
   /** heading for the last thing it saw or heard */
   private updateSearch(dt: number, game: Game, speedScale: number): void {
     const d = DEFS[this.kind];
+    // pinned applies here too: advancing into fire is exactly what stops
+    if (this.suppression > 0.55 && d.style !== 'swoop') {
+      this.faceToward(dt, this.interest.x, this.interest.z, 5);
+      this.velocity.x = damp(this.velocity.x, 0, 8, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 8, dt);
+      return;
+    }
     const air = d.style === 'swoop' || d.style === 'hover';
     const to = this.interest.clone().sub(this.position);
     const flat = Math.hypot(to.x, to.z);
@@ -573,6 +743,16 @@ export class Enemy {
       }
     }
 
+    // Pinned: under enough incoming fire a shooter stops working its firing
+    // position — it plants where it is, shrinks, and its return fire goes
+    // ragged. Pouring shots at a camp genuinely keeps heads down.
+    if (this.suppression > 0.55) {
+      this.velocity.x = damp(this.velocity.x, 0, 8, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 8, dt);
+      this.updateVolley(dt, game, target, dist);
+      return;
+    }
+
     // Work a firing position on the assigned bearing: committed shooters press
     // in to a shorter range, the rest hold the line further out and suppress.
     // Everyone still shoots, so the player is under fire from several angles
@@ -596,7 +776,8 @@ export class Enemy {
       }
     } else if (this.attackCd <= 0 && dist < d.attackRange && this.hasLineOfSight(game, target)) {
       this.volleyLeft = d.volley ?? 1;
-      this.attackCd = d.attackCd;
+      // a pinned shooter pops up less often
+      this.attackCd = d.attackCd * (this.suppression > 0.55 ? 1.6 : 1);
     }
   }
 
@@ -622,9 +803,11 @@ export class Enemy {
     aim.y += 1.1;
     const t = from.distanceTo(aim) / (d.boltSpeed ?? 28);
     aim.addScaledVector(target.velocity, t * 0.55);
-    aim.x += (Math.random() - 0.5) * 1.6;
-    aim.y += (Math.random() - 0.5) * 1.2;
-    aim.z += (Math.random() - 0.5) * 1.6;
+    // suppression wrecks the aim: shots snatched from behind cover go wide
+    const err = 1 + this.suppression * 1.6;
+    aim.x += (Math.random() - 0.5) * 1.6 * err;
+    aim.y += (Math.random() - 0.5) * 1.2 * err;
+    aim.z += (Math.random() - 0.5) * 1.6 * err;
     const dir = aim.sub(from).normalize();
     game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, this.team);
     // a firefight pulls in whoever is posted nearby — an ally's covering fire

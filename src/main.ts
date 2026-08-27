@@ -78,7 +78,7 @@ title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },
   { label: 'Fullscreen', action: toggleFullscreen },
 ]);
-title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> sprint/dash · <b>F</b> melee · <b>Q</b> rocket · <b>E</b> switch weapon');
+title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> sprint/dash · <b>F</b> melee · <b>Q</b> rocket · <b>V</b> Dead Eye · <b>E</b> switch weapon');
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);
@@ -230,6 +230,7 @@ function resumeGame(): void {
 }
 
 function quitToTitle(): void {
+  document.body.classList.remove('deadeye');
   disposeGame();
   hud.hide();
   setState('title');
@@ -273,6 +274,7 @@ function frame(now: number): void {
       const inputs = [input.read(0, dt), input.read(1, dt)];
       game.update(dt, inputs);
       hud.update(dt, game);
+      document.body.classList.toggle('deadeye', game.timeScale < 0.9);
       // transition to end screen shortly after victory/defeat
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;

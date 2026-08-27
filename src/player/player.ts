@@ -20,6 +20,10 @@ const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
 const ROCKET_CD = 12;
+/** seconds of Dead Eye on a full meter */
+const DEADEYE_SECONDS = 6;
+/** trickle refill: seconds from empty to full without kills */
+const DEADEYE_REFILL = 45;
 
 export class Player {
   char: PlayerCharacter;
@@ -34,6 +38,9 @@ export class Player {
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
   sprinting = false;
+  /** Dead Eye meter, 0..1 — drains while active, feeds on kills */
+  deadeye = 1;
+  deadeyeActive = false;
   weapon: 'blaster' | 'gaffi' = 'blaster';
   alive = true;
   kills = 0;
@@ -61,6 +68,7 @@ export class Player {
   private footTimer = 0;
   private sprintRefillDelay = 0;
   private wasThrusting = false;
+  private wasAiming = false;
   lastDamageDir = new THREE.Vector3();
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
@@ -77,6 +85,8 @@ export class Player {
     this.alive = true;
     this.respawnTimer = 0;
     this.slamming = false;
+    this.deadeye = Math.max(this.deadeye, 0.5);
+    this.deadeyeActive = false;
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
   }
@@ -101,6 +111,7 @@ export class Player {
     anim.release('upper');
     anim.playOnce('lower', 'deathLower', 0.1, true);
     anim.playOnce('upper', 'deathUpper', 0.1, true);
+    this.deadeyeActive = false;
     audio.setJetpackThrust(this.slot, 0);
   }
 
@@ -110,7 +121,7 @@ export class Player {
   /** enemy currently under the crosshair's assist cone, for HUD feedback */
   lockedOn = false;
 
-  update(dt: number, input: FrameInput, game: Game): void {
+  update(dt: number, input: FrameInput, game: Game, realDt = dt): void {
     const anim = this.char.animator!;
     if (!this.alive) {
       this.respawnTimer -= dt;
@@ -124,14 +135,46 @@ export class Player {
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
-    this.fireCd -= dt;
-    this.dashCd -= dt;
-    this.rocketCd -= dt;
+    // fire rate and cooldowns run on the wall clock: in Dead Eye the world
+    // crawls but the trigger finger doesn't — that gap is the whole power
+    this.fireCd -= realDt;
+    this.dashCd -= realDt;
+    this.rocketCd -= realDt;
     this.meleeComboWindow -= dt;
     this.regenDelay -= dt;
     if (this.regenDelay <= 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 14 * dt);
 
-    this.cam.addLook(input.lookX, input.lookY);
+    // ---- Dead Eye ----
+    if (input.deadeyePressed) {
+      if (this.deadeyeActive) this.deadeyeActive = false;
+      else if (this.deadeye > 0.15) {
+        this.deadeyeActive = true;
+        audio.dash(); // the whoosh into slow motion
+      }
+    }
+    if (this.deadeyeActive) {
+      this.deadeye = Math.max(0, this.deadeye - realDt / DEADEYE_SECONDS);
+      if (this.deadeye <= 0) this.deadeyeActive = false;
+    } else {
+      this.deadeye = Math.min(1, this.deadeye + realDt / DEADEYE_REFILL);
+    }
+
+    // aiming steadies the hand: finer look control while ADS
+    const lookScale = input.aimHeld ? 0.55 : 1;
+    this.cam.addLook(input.lookX * lookScale, input.lookY * lookScale);
+
+    // lock-on: pressing aim snaps the camera onto the target nearest the
+    // reticle, then fine aim is yours (RDR2's "Normal" lock-on)
+    if (input.aimHeld && !this.wasAiming && this.weapon === 'blaster') {
+      const dir = this.cam.aimDir(new THREE.Vector3());
+      const lock = this.aimAssistTarget(game, dir, this.cam.camera.position, 0.9, 50);
+      if (lock) {
+        const chest = lock.position.clone();
+        chest.y += lock.height * 0.55;
+        this.cam.snapToward(chest);
+      }
+    }
+    this.wasAiming = input.aimHeld;
 
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
@@ -241,6 +284,7 @@ export class Player {
           if (d < 5) {
             e.damage(20, this.position, this.slot);
             e.knockback(this.position, 16, 0.55);
+            e.knockdown(1.2 + Math.random() * 0.6);
           }
         }
       }
@@ -304,8 +348,9 @@ export class Player {
     this.syncVisual(dt, game);
     anim.update(dt);
 
-    // camera last (after position settles)
-    this.cam.update(dt, this.position, game.board.physics, {
+    // camera last (after position settles) — on the wall clock, so the
+    // camera stays crisp while the world is in slow motion
+    this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
     });
   }
@@ -356,10 +401,14 @@ export class Player {
           if (to.dot(facing) < 0.25) continue;
           const wasAlive = e.alive;
           e.damage(this.meleeDamage, this.position, this.slot);
-          // the finisher clears the target out of your firing line rather than
-          // launching it: same shove as a swing, kept low and resolved quickly
-          if (this.meleeStep === 3) e.knockback(this.position, 12, 0.35, 0.08);
-          else e.knockback(this.position, 11, 0.32);
+          // the finisher is the haymaker: it puts the target flat on the
+          // ground (follow up while they're down and hits land double)
+          if (this.meleeStep === 3) {
+            e.knockback(this.position, 12, 0.35, 0.08);
+            e.knockdown(1.6 + Math.random() * 0.5);
+          } else {
+            e.knockback(this.position, 11, 0.32);
+          }
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
@@ -379,20 +428,24 @@ export class Player {
       // close range — which is what made aiming feel unreadable.
       const shotDir = this.aimPointFrom(game, muzzlePos);
 
-      // slight spread when hip-firing on the move; aiming removes it entirely
-      if (!input.aimHeld) {
-        const spread = Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.015;
+      // spread when hip-firing (worse on the move); aiming removes it, and
+      // Dead Eye shots always fly true
+      if (!input.aimHeld && !this.deadeyeActive) {
+        const spread = 0.008 + Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.015;
         shotDir.x += (Math.random() - 0.5) * spread;
         shotDir.y += (Math.random() - 0.5) * spread;
         shotDir.z += (Math.random() - 0.5) * spread;
         shotDir.normalize();
       }
-      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0);
+      const dmg = this.deadeyeActive ? 55 : 34; // Dead Eye shots hit like a rifle round
+      game.projectiles.fire(muzzlePos, shotDir, 75, dmg, 0);
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
       audio.blaster();
       this.cam.shake(0.035);
+      // recoil: the muzzle climbs, less when shouldered — you ride it back down
+      this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
     }
 
     // rocket
