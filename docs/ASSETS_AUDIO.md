@@ -8,6 +8,11 @@ again.
 The game still runs with zero audio files: every sound falls back to a synthesized WebAudio
 voice. Files go in `public/assets/audio/`; the loader tries `.mp3` then `.ogg`.
 
+Board background music is separate: full-length tracks live in `public/music/` and are
+streamed as a per-board playlist rather than decoded as samples — see that directory's
+README and `MUSIC_PLAYLISTS` in `src/core/audio.ts`. The `music_combat_desert` /
+`music_combat_station` samples remain as the fallback if those tracks fail to load.
+
 **Specs:** OGG Vorbis or MP3, 44.1 kHz, mono for SFX / stereo for ambience and music,
 loudness-matched (SFX peaks ≈ −6 dBFS), seamless where looping. Original or licensed audio
 only — no ripped film audio; prompts describe character without naming trademarked sources.

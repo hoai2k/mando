@@ -8,5 +8,5 @@
 
 ## Project
 
-Fan-made 3D web game (Three.js + TypeScript + Vite) inspired by *The Book of Boba Fett*.
+Fan-made 3D web game (Three.js + TypeScript + Vite) inspired by *The Mandalorian*.
 See `docs/PLAN.md` for the full design and build plan.

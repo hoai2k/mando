@@ -389,6 +389,8 @@ export class Player {
       }
       game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0);
       game.particles.muzzleFlash(muzzlePos, shotDir);
+      // blaster fire carries: nearby posted enemies come looking
+      game.director.noise(game, this.position, 55);
       audio.blaster();
       this.cam.shake(0.035);
     }

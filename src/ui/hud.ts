@@ -1,4 +1,5 @@
 import type { Game } from '../game/game';
+import { Radar } from './radar';
 
 /** Per-player DOM HUD, laid out per split-screen viewport. */
 
@@ -15,6 +16,7 @@ interface PlayerHud {
   bannerSub: HTMLElement;
   vignette: HTMLElement;
   crosshair: SVGElement;
+  radar: Radar;
   bannerTimer: number;
   hitTimer: number;
 }
@@ -73,8 +75,11 @@ export class Hud {
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
       `;
       this.layer.appendChild(root);
+      const radar = new Radar();
+      root.appendChild(radar.root);
       this.huds.push({
         root,
+        radar,
         health: root.querySelector('.bar.health .fill') as HTMLElement,
         fuel: root.querySelector('.bar.fuel .fill') as HTMLElement,
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
@@ -131,7 +136,8 @@ export class Hud {
       h.rocket.textContent = rc <= 0 ? '◆ ROCKET READY' : `◇ rocket ${rc.toFixed(0)}s`;
       h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
       h.wave.textContent = game.state === 'victory' ? 'VICTORY' : `Wave ${Math.max(game.wave, 1)}`;
-      h.kills.textContent = `${p.kills} kills · ${game.aliveEnemyCount} hostiles`;
+      h.kills.textContent = `${p.kills} kills · ${game.aliveEnemyCount} hostiles remaining`;
+      h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 
       if (h.bannerTimer > 0) {

@@ -4,6 +4,7 @@ import type { Board } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy } from '../enemies/enemy';
 import { FINAL_WAVE, spawnWave } from '../enemies/spawner';
+import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
@@ -35,6 +36,8 @@ export class Game {
   allies: Enemy[] = [];
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
+  /** spreads alerts and decides who is allowed to push the player */
+  director = new CombatDirector();
   time = 0;
   wave = 0;
   state: MatchState = 'intro';
@@ -47,6 +50,10 @@ export class Game {
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
+  /** seconds spent on the current wave, for the hunt escalation below */
+  private waveTimer = 0;
+  private huntCall = 0;
+  private huntAnnounced = false;
 
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents, characters: MandoId[] = ['din', 'paz']) {
     this.scene.add(board.group);
@@ -107,6 +114,7 @@ export class Game {
   private explode(point: THREE.Vector3, bySlot: number): void {
     this.particles.explosion(point);
     audio.explosion();
+    this.director.noise(this, point, 70, true); // an explosion is not subtle
     for (const p of this.players) p.cam.shake(Math.max(0, 0.35 - point.distanceTo(p.position) * 0.01));
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -137,7 +145,7 @@ export class Game {
     if (this.state === 'fighting' && this.aliveEnemyCount === 0 && this.enemies.length > 0) {
       if (this.wave >= FINAL_WAVE) {
         this.setState('victory');
-        this.events.banner('Territory held', 'The Daimyo rules');
+        this.events.banner('Territory held', 'This is the Way');
         audio.waveClear();
       } else {
         this.setState('break');
@@ -157,16 +165,34 @@ export class Game {
           p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
-          this.events.banner('The Daimyo has fallen');
+          this.events.banner('The Mando has fallen');
         }
       }
     }
     if (this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
-      this.events.banner('The Daimyo has fallen');
+      this.events.banner('The Mando has fallen');
+    }
+
+    // ---- hunt escalation ----
+    // Posted enemies wait to be found, which must not let a wave stall out: if
+    // one drags on, the remnant starts sweeping toward the players instead.
+    if (this.state === 'fighting') {
+      this.waveTimer += dt;
+      this.huntCall -= dt;
+      if (this.waveTimer > 80 && this.huntCall <= 0) {
+        this.huntCall = 22;
+        const p = this.players.find((pl) => pl.alive) ?? this.players[0];
+        for (const e of this.enemies) if (e.alive) e.alert(p.position, false);
+        if (!this.huntAnnounced) {
+          this.huntAnnounced = true;
+          this.events.banner('They are sweeping for you');
+        }
+      }
     }
 
     // ---- enemies ----
+    this.director.update(dt, this);
     for (const e of this.enemies) {
       e.update(dt, this);
       if (!e.alive && !e.counted) {
@@ -282,6 +308,9 @@ export class Game {
 
   private nextWave(): void {
     this.wave++;
+    this.waveTimer = 0;
+    this.huntCall = 0;
+    this.huntAnnounced = false;
     this.setState('fighting');
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     spawnWave(this.board, this.wave, this.players.length, near, (e) => {
@@ -289,7 +318,11 @@ export class Game {
       this.scene.add(e.char.root);
       this.particles.dustPuff(e.position, 10);
     });
-    this.events.banner(`Wave ${this.wave}`, this.wave === FINAL_WAVE ? 'Final wave' : undefined);
+    const scattered = this.aliveEnemyCount;
+    this.events.banner(
+      `Wave ${this.wave}`,
+      this.wave === FINAL_WAVE ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
+    );
     audio.waveStart();
 
     // ally reinforcements from the covert on milestone waves

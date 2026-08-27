@@ -58,6 +58,20 @@ body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #e8d
 .hud-wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; }
 .hud-wave .wave-num { font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #f0d08c; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85); }
 .hud-wave .wave-kills { font-size: 12px; letter-spacing: 0.2em; color: #eee6d6; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
+.hud-radar {
+  position: absolute; right: 24px; top: 20px; width: 132px;
+  pointer-events: none; text-align: center;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.9));
+}
+/* The renderer's canvas is stretched over the whole app by the #app rule
+   above; the radar's is an ordinary in-flow element and has to opt out of it.
+   The #app prefix is load-bearing — without it that ID selector wins. */
+#app .hud-radar canvas { position: relative; inset: auto; display: block; width: 132px; height: 132px; }
+.radar-count {
+  margin-top: 2px; font-size: 11px; letter-spacing: 0.22em; color: #cbbf9f;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95);
+}
+.radar-count.engaged { color: #ff8a72; }
 .hud-weapon { position: absolute; right: 26px; bottom: 22px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2d3ac; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
