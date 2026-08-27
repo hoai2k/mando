@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
+import { loadAuthored, retarget, type AuthoredModel } from './authored';
 
 /**
  * Playable Mandalorians — one config-driven factory so every fighter shares
@@ -13,6 +14,9 @@ export interface PlayerCharacter extends CharacterInstance {
   setThrust: (t: number) => void;
   gaffi: THREE.Group;
 }
+
+/** visual height per character, used to size an authored model */
+const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0 };
 
 interface MandoConfig {
   name: string;
@@ -94,16 +98,21 @@ export function buildMandalorian(id: MandoId): PlayerCharacter {
   addSphere(jp, accent, 0.06, 0.08, 0.17, -0.04, 8, 6);
   addCyl(jp, silver, 0.035, 0.035, 0.3, 0, 0.1, -0.09);
   addCyl(jp, accent, 0.001, 0.045, 0.09, 0, 0.29, -0.09);
-  const nozzleL = addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
-  const nozzleR = addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
+  addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
+  addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
+  // Flames live on their own group under the jetpack bone rather than under the
+  // nozzle meshes: an authored model hides the procedural body, and a hidden
+  // parent would take the flames with it.
+  const flameRoot = new THREE.Group();
+  b.jetpack.add(flameRoot);
   const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa640, transparent: true, opacity: 0.85 });
   const flameGeo = new THREE.ConeGeometry(0.05, 0.5, 8);
-  const flames: THREE.Mesh[] = [nozzleL, nozzleR].map((n) => {
+  const flames: THREE.Mesh[] = [-0.08, 0.08].map((x) => {
     const f = new THREE.Mesh(flameGeo, flameMat);
     f.rotation.x = Math.PI;
-    f.position.y = -0.3;
+    f.position.set(x, -0.5, -0.04);
     f.visible = false;
-    n.add(f);
+    flameRoot.add(f);
     return f;
   });
 
@@ -126,6 +135,40 @@ export function buildMandalorian(id: MandoId): PlayerCharacter {
   gaffi.visible = false;
   b.weaponR.add(gaffi);
 
+  // ---- authored model swap ----
+  // The procedural build above stays as the animation source and the instant
+  // fallback; if models/<id>.glb loads we hide its meshes and let the authored
+  // skin ride the same rig instead.
+  let authored: AuthoredModel | null = null;
+  const proceduralMeshes: THREE.Object3D[] = [];
+  rig.root.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh) return;
+    // weapons and thruster flames survive the swap — they are held by the
+    // authored model, not replaced by it
+    for (let a: THREE.Object3D | null = o; a; a = a.parent) {
+      if (a === b.weaponR || a === b.weaponL || a === flameRoot) return;
+    }
+    proceduralMeshes.push(o);
+  });
+  loadAuthored(id, MODEL_HEIGHT[id]).catch((err) => {
+    console.warn(`[authored] ${id} preparation failed:`, err);
+    return null;
+  }).then((model) => {
+    if (!model) return;
+    authored = model;
+    for (const m of proceduralMeshes) m.visible = false;
+    rig.root.add(model.root);
+    // weapons move onto the authored hand so they track the real fingers; the
+    // mount reproduces our canonical weaponR frame, so nothing else changes
+    if (model.weaponMount) {
+      model.weaponMount.add(carbine);
+      model.weaponMount.add(gaffi);
+    }
+    // the jetpack rides the authored back, so keep the flames with our bone
+    // but sit them where the model's thrusters actually are
+    flameRoot.position.y = -0.02;
+  });
+
   let thrust = 0;
   return {
     ...inst,
@@ -137,6 +180,7 @@ export function buildMandalorian(id: MandoId): PlayerCharacter {
     },
     setThrust: (t) => { thrust = t; },
     cosmetic: (dt, time) => {
+      if (authored) retarget(rig, authored);
       capeUpdate?.(dt, time);
       for (const f of flames) {
         f.visible = thrust > 0.05;

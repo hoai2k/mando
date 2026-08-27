@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy } from '../enemies/enemy';
@@ -40,6 +41,8 @@ export class Game {
   private stateTimer = 2.2;
   private rockets: Rocket[] = [];
   private tmpSize = new THREE.Vector2();
+  private envSource: THREE.Texture | null = null;
+  private envBuilt = false;
   private rocketGeo = new THREE.ConeGeometry(0.09, 0.42, 6);
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
@@ -58,6 +61,8 @@ export class Game {
         tex.mapping = THREE.EquirectangularReflectionMapping;
         this.scene.background = tex;
         this.scene.backgroundIntensity = board.skyIntensity ?? 1;
+        this.envSource = tex;
+        this.envBuilt = false;   // rebuild the reflection probe off the real sky
         if (board.proceduralSky) board.proceduralSky.visible = false;
       });
     }
@@ -300,8 +305,31 @@ export class Game {
     }
   }
 
+  /**
+   * Give the scene something for metal to reflect.
+   *
+   * The authored characters are PBR: their metallic-roughness maps drive most
+   * of the armour to full metal, and a metal with nothing to reflect renders
+   * black — which is exactly how they looked before this existed. Pre-filter
+   * the board's sky into a reflection probe (a neutral room when a board has no
+   * panorama) and every metal surface, procedural ones included, picks up the
+   * light of the place it is standing in.
+   */
+  private buildEnvironment(renderer: THREE.WebGLRenderer): void {
+    this.envBuilt = true;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const rt = this.envSource
+      ? pmrem.fromEquirectangular(this.envSource)
+      : pmrem.fromScene(new RoomEnvironment(), 0.04);
+    this.scene.environment?.dispose();
+    this.scene.environment = rt.texture;
+    this.scene.environmentIntensity = 0.6;
+    pmrem.dispose();
+  }
+
   /** Split-screen render: one viewport per player (horizontal split). */
   render(renderer: THREE.WebGLRenderer): void {
+    if (!this.envBuilt) this.buildEnvironment(renderer);
     // getSize reports CSS pixels, which is what setViewport/setScissor expect —
     // they scale by the renderer's pixel ratio themselves. Passing
     // domElement.width here applies devicePixelRatio twice, blowing the
