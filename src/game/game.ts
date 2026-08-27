@@ -192,7 +192,9 @@ export class Game {
         p0.position.z - Math.cos(p0.cam.yaw) * 1.6 + Math.sin(p0.cam.yaw) * 1.1
       );
       this.grogu.root.position.lerp(goal, Math.min(1, dt * 2.2));
-      this.grogu.root.rotation.y = p0.char.root.rotation.y;
+      // angle the pram's open face back toward the chase camera so Grogu is
+      // actually visible instead of showing the blank shell of the pram
+      this.grogu.root.rotation.y = p0.cam.yaw + Math.PI * 0.82;
       this.grogu.cosmetic?.(dt, this.time);
       this.groguCoo -= dt;
       if (this.groguCoo <= 0) {
