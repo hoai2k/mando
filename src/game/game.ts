@@ -4,6 +4,8 @@ import { Player } from '../player/player';
 import { Enemy } from '../enemies/enemy';
 import { FINAL_WAVE, spawnWave } from '../enemies/spawner';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
+import { buildGrogu } from '../characters/enemies';
+import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import type { FrameInput } from '../core/input';
@@ -28,6 +30,9 @@ export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
   enemies: Enemy[] = [];
+  allies: Enemy[] = [];
+  private grogu: ReturnType<typeof buildGrogu> | null = null;
+  private groguCoo = 6;
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
   time = 0;
@@ -40,7 +45,7 @@ export class Game {
   totalKills = 0;
   elapsed = 0;
 
-  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents) {
+  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents, characters: MandoId[] = ['boba', 'din']) {
     this.scene.add(board.group);
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
@@ -48,11 +53,16 @@ export class Game {
     this.scene.fog = board.fog;
 
     for (let i = 0; i < playerCount; i++) {
-      const p = new Player(i, aspect);
+      const p = new Player(i, aspect, characters[i] ?? 'boba');
       p.spawnAt(board.playerStarts[i] ?? board.playerStarts[0]);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
+
+    // Grogu tags along with player 1 in his floating pram
+    this.grogu = buildGrogu();
+    this.grogu.root.position.copy(this.players[0].position).add(new THREE.Vector3(-1.5, 1.4, -1));
+    this.scene.add(this.grogu.root);
 
     this.projectiles.onImpact = (point, hitTarget) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
@@ -60,7 +70,7 @@ export class Game {
     };
 
     audio.startAmbient(board.kind === 'desert' ? 'desert' : 'station');
-    audio.startMusic(board.kind === 'desert' ? 55 : 49);
+    audio.startMusic(board.kind === 'desert' ? 'desert' : 'station');
     this.events.banner(board.kind === 'desert' ? 'The Dune Sea' : 'The Spice Run', 'Survive 10 waves');
   }
 
@@ -162,6 +172,35 @@ export class Game {
     }
     this.enemies = this.enemies.filter((e) => !e.removeMe);
 
+    // ---- allies ----
+    for (const a of this.allies) {
+      a.update(dt, this);
+      if (!a.alive && !a.counted) {
+        a.counted = true;
+        this.particles.deathBurst(a.position.clone().add(new THREE.Vector3(0, a.height * 0.5, 0)));
+      }
+      if (a.removeMe) this.scene.remove(a.char.root);
+    }
+    this.allies = this.allies.filter((a) => !a.removeMe);
+
+    // ---- Grogu follows player 1, out of harm's way ----
+    if (this.grogu) {
+      const p0 = this.players[0];
+      const goal = new THREE.Vector3(
+        p0.position.x - Math.sin(p0.cam.yaw) * 1.6 - Math.cos(p0.cam.yaw) * 1.1,
+        p0.position.y + 1.5,
+        p0.position.z - Math.cos(p0.cam.yaw) * 1.6 + Math.sin(p0.cam.yaw) * 1.1
+      );
+      this.grogu.root.position.lerp(goal, Math.min(1, dt * 2.2));
+      this.grogu.root.rotation.y = p0.char.root.rotation.y;
+      this.grogu.cosmetic?.(dt, this.time);
+      this.groguCoo -= dt;
+      if (this.groguCoo <= 0) {
+        this.groguCoo = 10 + Math.random() * 14;
+        audio.bark('grogu_coo', 0.5);
+      }
+    }
+
     // ---- projectiles ----
     const targets: BoltTarget[] = [];
     for (const e of this.enemies) {
@@ -182,6 +221,14 @@ export class Game {
         position: p.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
         radius: p.radius + 0.35, team: 0, alive: p.alive,
         onHit: (dmg, from) => p.damage(dmg, from),
+      });
+    }
+    for (const a of this.allies) {
+      if (!a.alive) continue;
+      targets.push({
+        position: a.position.clone().add(new THREE.Vector3(0, a.height * 0.5, 0)),
+        radius: a.radius + 0.35, team: 0, alive: a.alive,
+        onHit: (dmg, from) => a.damage(dmg, from, -1),
       });
     }
     this.projectiles.update(dt, this.board.physics, targets);
@@ -231,6 +278,8 @@ export class Game {
 
   private setState(s: MatchState): void {
     this.state = s;
+    if (s === 'victory') audio.sting(true);
+    if (s === 'defeat') audio.sting(false);
     this.events.stateChanged(s);
   }
 
@@ -245,6 +294,18 @@ export class Game {
     });
     this.events.banner(`Wave ${this.wave}`, this.wave === FINAL_WAVE ? 'Final wave' : undefined);
     audio.waveStart();
+
+    // ally reinforcements from the covert on milestone waves
+    const allyKind = this.wave === 4 ? 'marshal' : this.wave === 7 ? 'ig11' : this.wave === 9 ? 'fennec' : null;
+    if (allyKind) {
+      const start = this.board.playerStarts[0].clone().add(new THREE.Vector3(2.5, 0, 2.5));
+      const ally = new Enemy(allyKind, start, 0);
+      this.allies.push(ally);
+      this.scene.add(ally.char.root);
+      this.particles.dustPuff(start, 12);
+      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'IG-11 joins the fight', fennec: 'Fennec Shand joins the fight' };
+      this.events.banner(`Wave ${this.wave}`, names[allyKind]);
+    }
   }
 
   /** Split-screen render: one viewport per player (horizontal split). */

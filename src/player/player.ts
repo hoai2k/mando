@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildBoba, type PlayerCharacter } from '../characters/boba';
+import { buildMandalorian, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
 import { ThirdPersonCamera } from '../core/camera';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle } from '../core/math';
@@ -51,10 +51,12 @@ export class Player {
   private hurtFlash = 0;
   private facingYaw = Math.PI;
   private wasGrounded = true;
+  private footTimer = 0;
+  private wasThrusting = false;
   lastDamageDir = new THREE.Vector3();
 
-  constructor(public slot: number, aspect: number) {
-    this.char = buildBoba();
+  constructor(public slot: number, aspect: number, public characterId: MandoId = 'boba') {
+    this.char = buildMandalorian(characterId);
     this.cam = new ThirdPersonCamera(aspect);
   }
 
@@ -178,6 +180,8 @@ export class Player {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 3.2));
     }
     audio.setJetpackThrust(this.slot, this.thrusting * (0.6 + 0.4 * Math.min(1, Math.abs(this.velocity.y) / 8)));
+    if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
+    this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting);
 
     // ---- slam ----
@@ -253,6 +257,11 @@ export class Player {
       anim.play('lower', 'runLower', 0.15, clamp(speed2 / RUN_SPEED, 0.5, 1.3));
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, clamp(speed2 / RUN_SPEED, 0.5, 1.3));
       if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
+      this.footTimer -= dt * (speed2 / RUN_SPEED);
+      if (this.footTimer <= 0) {
+        this.footTimer = 0.31;
+        audio.footstep(game.board.kind === 'desert' ? 'sand' : 'metal');
+      }
     } else {
       anim.play('lower', 'idleLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'idleUpper');

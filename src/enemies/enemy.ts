@@ -1,12 +1,28 @@
 import * as THREE from 'three';
-import { buildDroid, buildMassiff, buildNikto, buildPirate, buildPyke, buildTusken } from '../characters/enemies';
+import {
+  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildMassiff, buildNikto,
+  buildPirate, buildPyke, buildStormtrooper, buildTusken,
+} from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
-import { audio } from '../core/audio';
+import { audio, type BarkName } from '../core/audio';
 import type { Game } from '../game/game';
-import type { Player } from '../player/player';
 
-export type EnemyKind = 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate';
+/** Anything that can be targeted and hurt — players, enemies, allies. */
+export interface Combatant {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  alive: boolean;
+  radius: number;
+  height: number;
+  team: number; // 0 = players/allies, 1 = hostiles
+  damage(amount: number, from: THREE.Vector3, bySlot?: number): void;
+}
+
+export type EnemyKind =
+  | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
+  | 'stormtrooper' | 'deathtrooper' | 'darktrooper'
+  | 'ig11' | 'marshal' | 'fennec';
 
 interface Def {
   hp: number; speed: number; radius: number; height: number;
@@ -25,6 +41,24 @@ const DEFS: Record<EnemyKind, Def> = {
   droid:       { hp: 170, speed: 1.6, radius: 0.55, height: 2.1, style: 'ranged', damage: 15, attackRange: 40, attackCd: 1.7, boltSpeed: 34, volley: 1, build: buildDroid },
   nikto:       { hp: 60, speed: 15, radius: 0.8, height: 1.6, style: 'swoop', damage: 8, attackRange: 40, attackCd: 0.4, boltSpeed: 34, build: buildNikto },
   jetpirate:   { hp: 70, speed: 6.5, radius: 0.5, height: 1.9, style: 'hover', damage: 9, attackRange: 30, attackCd: 2.2, boltSpeed: 28, volley: 2, build: () => buildPirate(false) },
+  // Imperial remnant
+  stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
+  deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
+  darktrooper:  { hp: 160, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
+  // Allies (spawned on team 0)
+  ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, boltSpeed: 34, volley: 4, build: buildIG },
+  marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
+  fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
+};
+
+const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
+  tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
+  massiff: 'massiff_growl', stormtrooper: 'imperial_bark', deathtrooper: 'imperial_bark',
+};
+const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
+  tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
+  massiff: 'massiff_yelp', droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
+  stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
 };
 
 let nextId = 1;
@@ -47,7 +81,8 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
-  private windupTarget: Player | null = null;
+  private windupTarget: Combatant | null = null;
+  private prevPassing = false;
   private volleyLeft = 0;
   private volleyTimer = 0;
   private strafePhase = Math.random() * Math.PI * 2;
@@ -59,8 +94,9 @@ export class Enemy {
   private hoverRetarget = 0;
   private hitFlash = 0;
 
-  constructor(public kind: EnemyKind, pos: THREE.Vector3) {
+  constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
     this.def = DEFS[kind];
+    this.team = team;
     this.char = this.def.build();
     this.hp = this.def.hp;
     this.radius = this.def.radius;
@@ -68,6 +104,8 @@ export class Enemy {
     this.position.copy(pos);
     this.spawnPos.copy(pos);
     this.char.root.position.copy(pos);
+    const bark = SPAWN_BARKS[kind];
+    if (bark && team === 1) audio.bark(bark, 0.4);
   }
 
   damage(amount: number, from: THREE.Vector3, bySlot: number): void {
@@ -78,6 +116,8 @@ export class Enemy {
     if (this.hp <= 0) {
       this.alive = false;
       this.deadTimer = 1.4;
+      const bark = DEATH_BARKS[this.kind];
+      if (bark) audio.bark(bark, 0.5);
       const anim = this.char.animator;
       if (anim) {
         anim.release('lower'); anim.release('upper');
@@ -99,13 +139,16 @@ export class Enemy {
     this.velocity.y += force * 0.35;
   }
 
-  private nearestPlayer(game: Game): Player | null {
-    let best: Player | null = null;
+  private nearestFoe(game: Game): Combatant | null {
+    let best: Combatant | null = null;
     let bestD = Infinity;
-    for (const p of game.players) {
-      if (!p.alive) continue;
-      const d = p.position.distanceToSquared(this.position);
-      if (d < bestD) { bestD = d; best = p; }
+    const foes: Combatant[] = this.team === 1
+      ? [...game.players, ...game.allies]
+      : game.enemies;
+    for (const f of foes) {
+      if (!f.alive || f.team === this.team) continue;
+      const d = f.position.distanceToSquared(this.position);
+      if (d < bestD) { bestD = d; best = f; }
     }
     return best;
   }
@@ -127,7 +170,7 @@ export class Enemy {
       return;
     }
 
-    const target = this.nearestPlayer(game);
+    const target = this.nearestFoe(game);
     this.attackCd -= dt;
     const d = DEFS[this.kind];
 
@@ -193,7 +236,7 @@ export class Enemy {
     this.facingYaw = dampAngle(this.facingYaw, yaw, rate, dt);
   }
 
-  private updateMelee(dt: number, game: Game, target: Player): void {
+  private updateMelee(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     const to = target.position.clone().sub(this.position);
     to.y = 0;
@@ -240,7 +283,7 @@ export class Enemy {
     }
   }
 
-  private updateRanged(dt: number, game: Game, target: Player): void {
+  private updateRanged(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     const to = target.position.clone().sub(this.position);
     to.y = 0;
@@ -257,7 +300,7 @@ export class Enemy {
     else if (dist < near) { mx -= to.x; mz -= to.z; }
     mx += -to.z * strafe * 0.7;
     mz += to.x * strafe * 0.7;
-    if (game.board.kind === 'station') {
+    if (game.board.kind === 'station' && this.team === 1) {
       const lx = this.spawnPos.x - this.position.x, lz = this.spawnPos.z - this.position.z;
       const ld = Math.hypot(lx, lz);
       if (ld > 4) { mx = lx / ld; mz = lz / ld; }
@@ -269,7 +312,7 @@ export class Enemy {
     this.updateVolley(dt, game, target, dist);
   }
 
-  private updateVolley(dt: number, game: Game, target: Player, dist: number): void {
+  private updateVolley(dt: number, game: Game, target: Combatant, dist: number): void {
     const d = DEFS[this.kind];
     if (this.volleyLeft > 0) {
       this.volleyTimer -= dt;
@@ -284,7 +327,7 @@ export class Enemy {
     }
   }
 
-  private hasLineOfSight(game: Game, target: Player): boolean {
+  private hasLineOfSight(game: Game, target: Combatant): boolean {
     const from = this.position.clone();
     from.y += this.height * 0.75;
     const to = target.position.clone();
@@ -296,7 +339,7 @@ export class Enemy {
     return !hit;
   }
 
-  private fireBoltAt(game: Game, target: Player): void {
+  private fireBoltAt(game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
@@ -310,11 +353,11 @@ export class Enemy {
     aim.y += (Math.random() - 0.5) * 1.2;
     aim.z += (Math.random() - 0.5) * 1.6;
     const dir = aim.sub(from).normalize();
-    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, 1);
+    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, this.team);
     audio.enemyBlaster();
   }
 
-  private updateSwoop(dt: number, game: Game, target: Player): void {
+  private updateSwoop(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     // figure-8 orbit with periodic dive-bys
     this.swoopPhase += dt * 0.55;
@@ -324,6 +367,8 @@ export class Enemy {
     const gz = cz + Math.sin(this.swoopPhase * 2) * orbitR * 0.55;
     const groundY = game.board.physics.heightAt ? game.board.physics.heightAt(this.position.x, this.position.z) : target.position.y;
     const passing = Math.cos(this.swoopPhase) < -0.25; // attack window on the inward leg
+    if (passing && !this.prevPassing) audio.bark('swoop_pass', 0.5);
+    this.prevPassing = passing;
     const gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
     const goal = new THREE.Vector3(gx, gy, gz);
     const to = goal.sub(this.position);
@@ -348,7 +393,7 @@ export class Enemy {
     }
   }
 
-  private updateHover(dt: number, game: Game, target: Player): void {
+  private updateHover(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     this.hoverRetarget -= dt;
     if (this.hoverRetarget <= 0) {

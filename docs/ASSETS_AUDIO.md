@@ -2,7 +2,7 @@
 
 All audio is synthesized procedurally via WebAudio at runtime, so nothing here is required. When a file exists at `public/assets/audio/<name>.ogg` or `.mp3`, the audio engine plays it instead of the synth fallback (loader in `src/core/audio.ts` tries `.ogg` then `.mp3`).
 
-**Status (2026-08-27):** the 18 SFX the engine currently consumes were **generated with the ElevenLabs sound-generation API** and are checked in as `.mp3` under `public/assets/audio/` — regenerate any of them with `node tools/generate-sfx.mjs <name ...>` (key from `ELEVENLABS_API_KEY` or the untracked `.elevenlabs_key` file; never commit the key). Marked ✅ below. Everything else in this doc (footstep variations, per-enemy voices, ambience beds, music) is **not yet consumed by the engine** — those stay as forward-looking requests until the engine grows hooks for them; ambience and music remain live synth loops today.
+**Status (2026-08-27):** all 41 sounds the engine consumes are **generated with the ElevenLabs sound-generation API** and checked in as `.mp3` under `public/assets/audio/` — combat/UI SFX, footsteps, jetpack ignite, enemy voice barks, Grogu coos, ambience beds and music loops included. Regenerate any with `node tools/generate-sfx.mjs <name ...>` (key from `ELEVENLABS_API_KEY` or the untracked `.elevenlabs_key` file; never commit the key). The engine hooks: footsteps by surface, spawn/death barks per enemy kind, swoop flyby, sampled ambience + music loops with synth fallback, victory/defeat stings. Remaining open requests are only the multi-variation files noted below (engine pitch-varies a single file instead).
 
 **Specs:** OGG Vorbis or MP3, 44.1 kHz, mono for SFX / stereo for ambience & music, loudness-matched (SFX peaks ≈ −6 dBFS), loops must be seamless where marked. All sounds must be original or licensed — no ripped film audio; prompts describe character without naming trademarked sources.
 
@@ -26,40 +26,42 @@ All audio is synthesized procedurally via WebAudio at runtime, so nothing here i
 | File | Prompt |
 |---|---|
 | ✅ `jetpack_loop.mp3` (seamless loop) | "Jetpack thruster loop: tight roaring flame jet, filtered white-noise core with low turbine whine, steady, seamless 2s loop, mono" |
-| `jetpack_ignite.ogg` | "Jetpack ignition burst: sharp pressurized whump into flame roar onset, 300ms" |
+| ✅ `jetpack_ignite.mp3` | "Jetpack ignition burst: sharp pressurized whump into flame roar onset, 300ms" |
 | ✅ `dash.mp3` | "Short burst thruster dash: quick doppler whoosh with flame crackle, 250ms" |
-| ✅ `land_hard.mp3` (`land_soft` still open — engine reuses hard at lower gain) | "Armored boots landing on sand — soft crunch thump / heavy two-stage armored slam landing with dust, 300ms" |
-| `footstep_sand_1..4.ogg` | "Single armored footstep on packed desert sand, dry crunch, 150ms, four variations" |
-| `footstep_metal_1..4.ogg` | "Single armored footstep on hollow steel deck plate, dull clank, 150ms, four variations" |
+| ✅ `land_hard.mp3` / ✅ `land_soft.mp3` | "Armored boots landing on sand — soft crunch thump / heavy two-stage armored slam landing with dust, 300ms" |
+| ✅ `footstep_sand.mp3` (engine pitch-varies; `_1..4` variants welcome) | "Single armored footstep on packed desert sand, dry crunch, 150ms, four variations" |
+| ✅ `footstep_metal.mp3` (engine pitch-varies; `_1..4` variants welcome) | "Single armored footstep on hollow steel deck plate, dull clank, 150ms, four variations" |
 
 ## Enemies (one-shots, mono)
 
 | File | Prompt |
 |---|---|
-| `tusken_cry.ogg` | "Aggressive alien desert-nomad war cry: hoarse braying howl through a breathing mask, 800ms, original creature voice" |
-| `pyke_chatter.ogg` / `pyke_death.ogg` | "Alien gangster radio chatter: burbling filtered vocalizations through a rebreather, gurgly and nasal, 600ms / same voice, short defeated gurgle-slump" |
-| `pirate_taunt.ogg` / `pirate_death.ogg` | "Gravelly alien pirate taunt bark, guttural, 500ms / short death groan cut off" |
-| `droid_servo.ogg` (loop) | "Robotic servo movement loop, whirring stepper motors and joint creaks, seamless 1s" |
-| `droid_death.ogg` | "Robot power-down destruction: descending servo whine into sparking electrical fizzle and metal collapse, 900ms" |
-| `massiff_growl.ogg` / `massiff_yelp.ogg` | "Reptilian hound aggressive snarling growl, 600ms / short reptilian yelp, 300ms" |
-| `swoop_pass.ogg` | "Fast hover-bike flyby with doppler: whining repulsor engine sweep left-to-right, 1s, stereo" |
+| ✅ `tusken_cry.mp3` | "Aggressive alien desert-nomad war cry: hoarse braying howl through a breathing mask, 800ms, original creature voice" |
+| ✅ `pyke_chatter.mp3` / ✅ `pyke_death.mp3` | "Alien gangster radio chatter: burbling filtered vocalizations through a rebreather, gurgly and nasal, 600ms / same voice, short defeated gurgle-slump" |
+| ✅ `pirate_taunt.mp3` / ✅ `pirate_death.mp3` | "Gravelly alien pirate taunt bark, guttural, 500ms / short death groan cut off" |
+| `droid_servo.ogg` (loop, not yet consumed by engine) | "Robotic servo movement loop, whirring stepper motors and joint creaks, seamless 1s" |
+| ✅ `droid_death.mp3` | "Robot power-down destruction: descending servo whine into sparking electrical fizzle and metal collapse, 900ms" |
+| ✅ `massiff_growl.mp3` / ✅ `massiff_yelp.mp3` | "Reptilian hound aggressive snarling growl, 600ms / short reptilian yelp, 300ms" |
+| ✅ `swoop_pass.mp3` | "Fast hover-bike flyby with doppler: whining repulsor engine sweep left-to-right, 1s, stereo" |
+| ✅ `imperial_bark.mp3` / ✅ `imperial_death.mp3` | "Soldier voice through helmet radio filter: short muffled command bark / short death cry cut off with static" |
+| ✅ `grogu_coo.mp3` | "Cute tiny alien baby creature cooing, soft curious babble, short" |
 
 ## Ambience (stereo, seamless loops, 30–60 s)
 
 | File | Prompt |
 |---|---|
-| `amb_desert.ogg` | "Desert planet ambience: dry wind over dunes, occasional distant sand hiss and faint unidentifiable animal call far away, sparse, lonely, seamless loop" |
-| `amb_station.ogg` | "Space station exterior ambience: deep hull hum, distant machinery clunks, occasional pressure hiss and crane groan, cold industrial, seamless loop" |
+| ✅ `amb_desert.mp3` (18s loop) | "Desert planet ambience: dry wind over dunes, occasional distant sand hiss and faint unidentifiable animal call far away, sparse, lonely, seamless loop" |
+| ✅ `amb_station.mp3` (18s loop) | "Space station exterior ambience: deep hull hum, distant machinery clunks, occasional pressure hiss and crane groan, cold industrial, seamless loop" |
 | `amb_krayt_call.ogg` | "Very distant colossal desert creature call, low mournful bellow rolling over dunes, 4s one-shot, heavily reverbed" |
 
 ## Music (stereo, seamless loops)
 
 | File | Prompt |
 |---|---|
-| `music_title.ogg` | "Dark space-western title theme: slow lone electric-guitar-like twang motif over deep drone and sparse tribal percussion, moody and mythic, 60s seamless loop, original composition" |
-| `music_combat_desert.ogg` | "Driving mid-tempo combat loop: tribal drums, low staccato strings, occasional brass stabs, desert-western tension, 90s seamless loop" |
-| `music_combat_station.ogg` | "Driving industrial combat loop: pulsing synth bass, metallic percussion, tense strings, sci-fi noir, 90s seamless loop" |
-| `music_victory.ogg` / `music_defeat.ogg` | "Short triumphant dark-western sting, 8s / short somber low-brass defeat sting, 6s" |
+| ✅ `music_title.mp3` (20s loop) | "Dark space-western title theme: slow lone electric-guitar-like twang motif over deep drone and sparse tribal percussion, moody and mythic, 60s seamless loop, original composition" |
+| ✅ `music_combat_desert.mp3` (20s loop) | "Driving mid-tempo combat loop: tribal drums, low staccato strings, occasional brass stabs, desert-western tension, 90s seamless loop" |
+| ✅ `music_combat_station.mp3` (20s loop) | "Driving industrial combat loop: pulsing synth bass, metallic percussion, tense strings, sci-fi noir, 90s seamless loop" |
+| ✅ `music_victory.mp3` / ✅ `music_defeat.mp3` | "Short triumphant dark-western sting, 8s / short somber low-brass defeat sting, 6s" |
 
 ## UI (mono, tiny)
 

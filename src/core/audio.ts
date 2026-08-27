@@ -6,8 +6,20 @@
 type SampleName =
   | 'blaster_shot' | 'enemy_blaster' | 'blaster_impact' | 'melee_whoosh' | 'melee_hit'
   | 'rocket_launch' | 'explosion' | 'hit_marker' | 'kill_confirm' | 'player_hurt'
-  | 'jetpack_loop' | 'dash' | 'land_hard' | 'ui_move' | 'ui_confirm' | 'ui_back'
-  | 'wave_start' | 'wave_clear';
+  | 'jetpack_loop' | 'jetpack_ignite' | 'dash' | 'land_hard' | 'land_soft'
+  | 'footstep_sand' | 'footstep_metal'
+  | 'ui_move' | 'ui_confirm' | 'ui_back' | 'wave_start' | 'wave_clear'
+  | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
+  | 'droid_death' | 'massiff_growl' | 'massiff_yelp' | 'swoop_pass'
+  | 'imperial_bark' | 'imperial_death' | 'grogu_coo'
+  | 'amb_desert' | 'amb_station'
+  | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
+
+/** Enemy voice bark names — flavor sounds with no synth fallback. */
+export type BarkName =
+  | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
+  | 'droid_death' | 'massiff_growl' | 'massiff_yelp' | 'swoop_pass'
+  | 'imperial_bark' | 'imperial_death' | 'grogu_coo';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -42,8 +54,14 @@ export class AudioEngine {
     const names: SampleName[] = [
       'blaster_shot', 'enemy_blaster', 'blaster_impact', 'melee_whoosh', 'melee_hit',
       'rocket_launch', 'explosion', 'hit_marker', 'kill_confirm', 'player_hurt',
-      'jetpack_loop', 'dash', 'land_hard', 'ui_move', 'ui_confirm', 'ui_back',
-      'wave_start', 'wave_clear',
+      'jetpack_loop', 'jetpack_ignite', 'dash', 'land_hard', 'land_soft',
+      'footstep_sand', 'footstep_metal',
+      'ui_move', 'ui_confirm', 'ui_back', 'wave_start', 'wave_clear',
+      'tusken_cry', 'pyke_chatter', 'pyke_death', 'pirate_taunt', 'pirate_death',
+      'droid_death', 'massiff_growl', 'massiff_yelp', 'swoop_pass',
+      'imperial_bark', 'imperial_death', 'grogu_coo',
+      'amb_desert', 'amb_station',
+      'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
       for (const ext of ['ogg', 'mp3']) {
@@ -169,9 +187,26 @@ export class AudioEngine {
   }
   land(hard: boolean): void {
     if (!this.ctx) return;
-    if (this.playSample('land_hard', hard ? 0.7 : 0.35)) return;
+    if (this.playSample(hard ? 'land_hard' : 'land_soft', hard ? 0.7 : 0.4)) return;
+    if (!hard && this.playSample('land_hard', 0.3, 1.15)) return;
     this.zap(hard ? 150 : 110, 45, hard ? 0.16 : 0.09, 'sine', hard ? 0.5 : 0.2);
     this.burst(0.07, hard ? 0.2 : 0.09, 700, 0, 0.8);
+  }
+  /** Footstep on the board's surface, with slight pitch variation. */
+  footstep(surface: 'sand' | 'metal'): void {
+    if (!this.ctx) return;
+    const rate = 0.9 + Math.random() * 0.25;
+    if (this.playSample(surface === 'sand' ? 'footstep_sand' : 'footstep_metal', 0.3, rate)) return;
+    this.burst(0.05, 0.07, surface === 'sand' ? 900 : 500, 0, 1.2);
+  }
+  /** Voice/flavor bark — sample only, silent if the file isn't present. */
+  bark(name: BarkName, gain = 0.55): void {
+    if (!this.ctx) return;
+    this.playSample(name as SampleName, gain, 0.95 + Math.random() * 0.1);
+  }
+  jetpackIgnite(): void {
+    if (!this.ctx || this.playSample('jetpack_ignite', 0.5)) return;
+    this.burst(0.2, 0.25, 900, 0, 0.5);
   }
   uiMove(): void { if (this.ctx && !this.playSample('ui_move', 0.4)) this.zap(900, 850, 0.03, 'square', 0.06); }
   uiConfirm(): void { if (this.ctx && !this.playSample('ui_confirm', 0.5)) { this.zap(700, 1050, 0.08, 'square', 0.12); this.zap(1050, 1400, 0.09, 'square', 0.1, 0.07); } }
@@ -209,10 +244,26 @@ export class AudioEngine {
     node.filter.frequency.setTargetAtTime(300 + thrust * 1700, t, 0.06);
   }
 
-  /** Ambient bed: 'desert' wind or 'station' hum. */
+  /** Loop a decoded sample into the music bus; returns a stop fn. */
+  private loopSample(name: SampleName, gain: number): (() => void) | null {
+    const s = this.samples.get(name);
+    if (!s || !this.ctx) return null;
+    const src = this.ctx.createBufferSource();
+    src.buffer = s;
+    src.loop = true;
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.music);
+    src.start();
+    return () => src.stop();
+  }
+
+  /** Ambient bed: authored loop if present, else synth wind/hum. */
   startAmbient(kind: 'desert' | 'station'): void {
     if (!this.ctx) return;
     this.stopAmbient();
+    const sampled = this.loopSample(kind === 'desert' ? 'amb_desert' : 'amb_station', 0.4);
+    if (sampled) { this.ambientStop = sampled; return; }
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuf;
@@ -245,10 +296,14 @@ export class AudioEngine {
   }
   stopAmbient(): void { this.ambientStop?.(); this.ambientStop = null; }
 
-  /** Minimal dark drone loop under combat. */
-  startMusic(root = 55): void {
+  /** Combat/title music: authored loop if present, else a dark synth drone. */
+  startMusic(kind: 'title' | 'desert' | 'station'): void {
     if (!this.ctx) return;
     this.stopMusic();
+    const name: SampleName = kind === 'title' ? 'music_title' : kind === 'desert' ? 'music_combat_desert' : 'music_combat_station';
+    const sampled = this.loopSample(name, 0.5);
+    if (sampled) { this.musicStop = sampled; return; }
+    const root = kind === 'station' ? 49 : 55;
     const ctx = this.ctx;
     const stops: (() => void)[] = [];
     for (const [mult, gainV, type] of [[1, 0.045, 'sawtooth'], [1.5, 0.02, 'triangle'], [2.02, 0.014, 'sine']] as const) {
@@ -267,6 +322,11 @@ export class AudioEngine {
     this.musicStop = () => stops.forEach((s) => s());
   }
   stopMusic(): void { this.musicStop?.(); this.musicStop = null; }
+
+  /** Victory/defeat sting (sample only; wave sounds already cover fallback). */
+  sting(victory: boolean): void {
+    this.playSample(victory ? 'music_victory' : 'music_defeat', 0.7);
+  }
 
   setMasterVolume(v: number): void { if (this.master) this.master.gain.value = v; }
 }

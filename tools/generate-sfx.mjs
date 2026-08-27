@@ -44,6 +44,33 @@ const SFX = {
   ui_back: ['Videogame UI back cancel sound: single low soft thunk, very short', 0.5],
   wave_start: ['Low alien war horn blast announcing an enemy wave, short, with metallic edge, ominous', 1.2],
   wave_clear: ['Positive wave-cleared fanfare sting, three ascending dark brass notes, restrained, short', 1.5],
+  // movement extras
+  jetpack_ignite: ['Jetpack ignition burst: sharp pressurized whump into flame roar onset, single short burst', 0.5],
+  land_soft: ['Armored boots soft landing on packed sand, light crunch thump, single landing', 0.5],
+  footstep_sand: ['Single armored boot footstep on packed desert sand, dry crunch, very short, one step only', 0.5],
+  footstep_metal: ['Single armored boot footstep on hollow steel deck plate, dull clank, very short, one step only', 0.5],
+  // enemy voices (original creature/character voices, no real-world references)
+  tusken_cry: ['Aggressive alien desert nomad war cry: hoarse braying howl through a breathing mask, original creature voice', 1.0],
+  pyke_chatter: ['Alien gangster radio chatter: burbling filtered vocalization through a rebreather, gurgly and nasal, short phrase, invented alien language', 0.8],
+  pyke_death: ['Alien gangster defeated: short gurgling slump groan through a rebreather, original creature voice', 0.7],
+  pirate_taunt: ['Gravelly alien pirate taunt bark, guttural growl-shout, short, invented alien language', 0.7],
+  pirate_death: ['Gravelly alien pirate short death groan cut off abruptly', 0.6],
+  droid_death: ['Robot destruction power-down: descending servo whine into sparking electrical fizzle and metal collapse', 1.0],
+  massiff_growl: ['Reptilian hound aggressive snarling growl, guttural, single growl', 0.7],
+  massiff_yelp: ['Short reptilian dog yelp of pain, single yelp', 0.5],
+  swoop_pass: ['Fast hover bike flyby with doppler effect: whining repulsor engine sweep passing close', 1.0],
+  imperial_bark: ['Soldier voice through a helmet radio filter shouting a short muffled command, clipped static edge, unintelligible', 0.7],
+  imperial_death: ['Soldier death cry through a helmet radio filter, short, cut off with static', 0.6],
+  grogu_coo: ['Cute tiny alien baby creature cooing, soft curious babble, adorable, short', 0.8],
+  // ambience beds (seamless loops)
+  amb_desert: ['Desert planet ambience: dry wind over open dunes, sparse distant sand hiss, lonely and vast, seamless continuous loop, no music', 18, true],
+  amb_station: ['Space station exterior ambience: deep hull hum, distant machinery clunks, occasional pressure hiss, cold industrial, seamless continuous loop, no music', 18, true],
+  // music loops & stings
+  music_title: ['Dark space western title theme: slow lone twangy electric guitar motif over a deep drone and sparse tribal percussion, moody mythic bounty hunter mood, instrumental, seamless loop', 20, true],
+  music_combat_desert: ['Driving mid tempo desert western combat music: tribal drums, low staccato strings, brass stabs, tense and heroic, instrumental, seamless loop', 20, true],
+  music_combat_station: ['Driving industrial sci-fi combat music: pulsing synth bass, metallic percussion, tense strings, dark noir energy, instrumental, seamless loop', 20, true],
+  music_victory: ['Short triumphant dark western victory fanfare, brass and drums, resolving upward, instrumental sting', 6],
+  music_defeat: ['Short somber defeat sting, low mournful brass and a fading drum hit, instrumental', 5],
 };
 
 await mkdir(OUT, { recursive: true });

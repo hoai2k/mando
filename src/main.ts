@@ -7,6 +7,7 @@ import { buildWaystation } from './world/waystation';
 import type { Board } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
+import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
 
 const app = document.getElementById('app')!;
 
@@ -56,12 +57,14 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'playing' | 'paused' | 'end';
+type AppState = 'title' | 'select' | 'characters' | 'playing' | 'paused' | 'end';
 let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard: 'desert' | 'station' = 'desert';
 let playerCount = 1;
 let endTimer = 0;
+const chosenChars: MandoId[] = ['boba', 'din'];
+let charPickSlot = 0;
 
 // ----- title screen -----
 const title = new MenuScreen(menuLayer);
@@ -92,8 +95,8 @@ const cardStation = makeCard('The Spice Run', 'A smugglers’ waystation in deep
   'board_waystation.jpg', 'linear-gradient(160deg, #2a2f4a, #0c0d18)');
 let playersBtn: HTMLElement;
 select.addButtons(cards, [
-  { label: '', action: () => { chosenBoard = 'desert'; startGame(); }, el: cardDesert },
-  { label: '', action: () => { chosenBoard = 'station'; startGame(); }, el: cardStation },
+  { label: '', action: () => { chosenBoard = 'desert'; openCharacterSelect(); }, el: cardDesert },
+  { label: '', action: () => { chosenBoard = 'station'; openCharacterSelect(); }, el: cardStation },
 ]);
 [playersBtn] = select.addButtons(null, [
   { label: 'Players: 1', action: () => togglePlayers() },
@@ -107,6 +110,46 @@ function togglePlayers(): void {
 function refreshPlayersBtn(): void {
   if (playerCount === 1) playersBtn.textContent = 'Players: 1';
   else playersBtn.textContent = input.padCount() >= 2 ? 'Players: 2 — split screen' : 'Players: 2 (connect 2nd controller)';
+}
+
+// ----- character select -----
+const charSelect = new MenuScreen(menuLayer);
+const charTitle = document.createElement('div');
+charTitle.className = 'menu-title';
+charTitle.style.fontSize = 'clamp(28px, 4vw, 52px)';
+charTitle.textContent = 'Choose Your Mandalorian';
+charSelect.root.appendChild(charTitle);
+const charSub = document.createElement('div');
+charSub.className = 'menu-subtitle';
+charSelect.root.appendChild(charSub);
+charSelect.addButtons(null, [
+  ...(Object.keys(MANDO_ROSTER) as MandoId[]).map((id) => ({
+    label: MANDO_ROSTER[id].name,
+    action: () => pickCharacter(id),
+  })),
+  { label: 'Back', action: () => setState('select') },
+]);
+charSelect.addHint(
+  (Object.keys(MANDO_ROSTER) as MandoId[])
+    .map((id) => `<b>${MANDO_ROSTER[id].name}</b> — ${MANDO_ROSTER[id].desc}`)
+    .join('<br/>')
+);
+charSelect.onBack = () => setState('select');
+
+function openCharacterSelect(): void {
+  charPickSlot = 0;
+  charSub.textContent = playerCount > 1 ? 'Player 1' : 'All Mandalorians fight alike — pick your armor';
+  setState('characters');
+}
+function pickCharacter(id: MandoId): void {
+  chosenChars[charPickSlot] = id;
+  if (playerCount > 1 && charPickSlot === 0) {
+    charPickSlot = 1;
+    charSub.textContent = 'Player 2';
+    charSelect.setFocus(0);
+    return;
+  }
+  startGame();
 }
 
 // ----- pause -----
@@ -134,11 +177,12 @@ end.addButtons(null, [
 ]);
 end.onBack = () => quitToTitle();
 
-const screens: Record<string, MenuScreen> = { title, select, paused: pause, end };
+const screens: Record<string, MenuScreen> = { title, select, characters: charSelect, paused: pause, end };
 
 function activeScreen(): MenuScreen | null {
   if (state === 'title') return title;
   if (state === 'select') return select;
+  if (state === 'characters') return charSelect;
   if (state === 'paused') return pause;
   if (state === 'end') return end;
   return null;
@@ -164,7 +208,7 @@ function startGame(): void {
     banner: (t, s) => hud.banner(t, s),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
-  });
+  }, [...chosenChars]);
   hud.setLayout(playerCount);
   setState('playing');
   input.requestPointerLock();
@@ -193,8 +237,17 @@ renderer.domElement.addEventListener('click', () => {
 
 // ---------- main loop ----------
 let last = performance.now();
+// test/capture hooks: __manual pauses the live loop; __renderOnce renders one frame
+const dbg = window as unknown as { __manual?: boolean; __renderOnce?: (dt?: number) => void };
+dbg.__renderOnce = (dt = 1 / 24) => {
+  if (game) {
+    hud.update(dt, game);
+    game.render(renderer);
+  }
+};
 function frame(now: number): void {
   requestAnimationFrame(frame);
+  if (dbg.__manual) { last = now; return; }
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 

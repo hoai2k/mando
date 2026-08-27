@@ -109,6 +109,122 @@ export function buildDroid(): CharacterInstance {
   return inst;
 }
 
+// ---------- Imperial remnant: stormtrooper / death trooper ----------
+export function buildStormtrooper(elite: boolean): CharacterInstance {
+  const armor = mat(elite ? 0x1c1e22 : 0xe4e2dc, { rough: 0.4, metal: 0.25 });
+  const suitM = mat(elite ? 0x101114 : 0x2a2a2a, { rough: 0.85 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: armor, scale: elite ? 1.08 : 1 });
+  const b = rig.bones;
+  const dark = mat(0x0c0c0e, { rough: 0.5 });
+  // plate details
+  addBox(b.chest, armor, 0.34, 0.3, 0.05, 0, 0.06, 0.12);
+  addBox(b.hips, armor, 0.32, 0.12, 0.05, 0, 0.04, 0.11);
+  addBox(b.shoulderL, armor, 0.15, 0.06, 0.17, -0.05, 0.05, 0, 0, 0, 0.22);
+  addBox(b.shoulderR, armor, 0.15, 0.06, 0.17, 0.05, 0.05, 0, 0, 0, -0.22);
+  addCyl(b.upperLegL, armor, 0.08, 0.07, 0.24, 0, -0.2, 0);
+  addCyl(b.upperLegR, armor, 0.08, 0.07, 0.24, 0, -0.2, 0);
+  // helmet: dome + brow band + grimace vents
+  addSphere(b.head, armor, 0.15, 0, 0.05, 0, 12, 10, 0.98, 1);
+  addBox(b.head, dark, 0.24, 0.035, 0.06, 0, 0.075, 0.1);            // visor band
+  addBox(b.head, dark, 0.1, 0.03, 0.03, 0, -0.05, 0.13);             // mouth vent
+  addSphere(b.head, dark, 0.02, -0.1, -0.02, 0.1, 5, 4);
+  addSphere(b.head, dark, 0.02, 0.1, -0.02, 0.1, 5, 4);
+  inst.muzzle = rifle(b.weaponR);
+  return inst;
+}
+
+// ---------- Dark trooper: heavy flying battle droid ----------
+export function buildDarkTrooper(): CharacterInstance {
+  const metal = mat(0x24262c, { rough: 0.35, metal: 0.8 });
+  const { inst, rig } = buildBiped({ skin: metal, torso: metal, scale: 1.15 });
+  const b = rig.bones;
+  addBox(b.chest, metal, 0.44, 0.36, 0.26, 0, 0.08, 0);
+  addBox(b.shoulderL, metal, 0.2, 0.12, 0.2, -0.06, 0.06, 0);
+  addBox(b.shoulderR, metal, 0.2, 0.12, 0.2, 0.06, 0.06, 0);
+  // skull-like droid head with red eyes
+  addBox(b.head, metal, 0.2, 0.22, 0.22, 0, 0.06, 0);
+  const eye = mat(0xff2810, { emissive: 0xff2810, rough: 0.3 });
+  addSphere(b.head, eye, 0.025, -0.055, 0.08, 0.11, 6, 5);
+  addSphere(b.head, eye, 0.025, 0.055, 0.08, 0.11, 6, 5);
+  // integrated back thrusters
+  const dark = mat(0x0e0f12, { rough: 0.5, metal: 0.6 });
+  addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, -0.09, -0.1, 0);
+  addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, 0.09, -0.1, 0);
+  inst.muzzle = rifle(b.weaponR);
+  return inst;
+}
+
+// ---------- Allies ----------
+/** IG-series assassin droid: tall thin cylinder head, spindly limbs. */
+export function buildIG(): CharacterInstance {
+  const steel = mat(0x8a8578, { rough: 0.5, metal: 0.6 });
+  const p: Proportions = { ...HUMAN, hipHeight: 1.15, headSize: 0.34, shoulderWidth: 0.2, upperLegLen: 0.56, lowerLegLen: 0.56 };
+  const { inst, rig } = buildBiped({ skin: steel, torso: steel, proportions: p });
+  const b = rig.bones;
+  const dark = mat(0x2c2c28, { rough: 0.6 });
+  addCyl(b.head, steel, 0.055, 0.075, 0.3, 0, 0.1, 0, 0, 0, 0, 8);
+  // sensor ring
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    addSphere(b.head, mat(0xd8342a, { emissive: 0x881510, rough: 0.4 }), 0.016, Math.cos(a) * 0.07, 0.16, Math.sin(a) * 0.07, 5, 4);
+  }
+  addCyl(b.chest, dark, 0.09, 0.11, 0.3, 0, 0.06, 0, 0, 0, 0, 8);
+  inst.muzzle = rifle(b.weaponR);
+  return inst;
+}
+
+/** Human gunfighter ally (marshal / sharpshooter flavor via palette). */
+export function buildGunfighter(kind: 'marshal' | 'fennec'): CharacterInstance {
+  const coat = mat(kind === 'marshal' ? 0x7a2e26 : 0x2c2c30, { rough: 0.9 });
+  const suitM = mat(kind === 'marshal' ? 0x4a3a2c : 0x3c3630, { rough: 0.9 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
+  const b = rig.bones;
+  const skinM = mat(0xc09068, { rough: 0.85 });
+  addSphere(b.head, skinM, 0.12, 0, 0.04, 0, 10, 8);
+  if (kind === 'marshal') {
+    // wide-brim hat
+    addCyl(b.head, coat, 0.2, 0.2, 0.02, 0, 0.13, 0, 0, 0, 0, 12);
+    addCyl(b.head, coat, 0.09, 0.1, 0.1, 0, 0.18, 0, 0, 0, 0, 10);
+  } else {
+    // fennec: helmet cap with orange visor band
+    addSphere(b.head, mat(0x3a3a40, { rough: 0.5, metal: 0.3 }), 0.13, 0, 0.07, 0, 10, 8, 0.8, 1);
+    addBox(b.head, mat(0xd07828, { emissive: 0x552f10, rough: 0.4 }), 0.2, 0.03, 0.04, 0, 0.05, 0.1);
+  }
+  inst.muzzle = rifle(b.weaponR);
+  return inst;
+}
+
+// ---------- Grogu in his floating pram (cosmetic companion) ----------
+export function buildGrogu(): CharacterInstance {
+  const root = new THREE.Group();
+  const pram = new THREE.Group();
+  root.add(pram);
+  const shell = mat(0x8f9298, { rough: 0.4, metal: 0.5 });
+  addSphere(pram, shell, 0.34, 0, 0, 0, 14, 10, 0.85, 1.15);
+  // open front rim
+  addCyl(pram, mat(0x4a4d52, { rough: 0.6 }), 0.26, 0.26, 0.05, 0, 0.12, 0.12, 1.2, 0, 0, 12);
+  const green = mat(0x7a9354, { rough: 0.85 });
+  const head = new THREE.Group();
+  head.position.set(0, 0.22, 0.1);
+  pram.add(head);
+  addSphere(head, green, 0.11, 0, 0, 0, 10, 8, 0.9, 1);
+  // the ears
+  addCyl(head, green, 0.01, 0.05, 0.16, -0.14, 0.02, 0, 0, 0, 1.35, 6);
+  addCyl(head, green, 0.01, 0.05, 0.16, 0.14, 0.02, 0, 0, 0, -1.35, 6);
+  const dark = mat(0x1a140f, { rough: 0.4 });
+  addSphere(head, dark, 0.025, -0.045, 0.01, 0.09, 6, 5);
+  addSphere(head, dark, 0.025, 0.045, 0.01, 0.09, 6, 5);
+  addBox(pram, mat(0x6b543a, { rough: 1 }), 0.3, 0.1, 0.3, 0, 0.08, 0.05); // robe blanket
+  return {
+    root, rig: null, animator: null, height: 0.8,
+    cosmetic: (dt, time) => {
+      pram.position.y = Math.sin(time * 1.8) * 0.08;
+      pram.rotation.z = Math.sin(time * 1.1) * 0.05;
+      head.rotation.y = Math.sin(time * 0.7) * 0.5;
+    },
+  };
+}
+
 // ---------- Nikto swoop rider: bike + seated rider, moved as one unit ----------
 export function buildNikto(): CharacterInstance {
   const group = new THREE.Group();

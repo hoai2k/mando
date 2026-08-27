@@ -1,0 +1,178 @@
+import * as THREE from 'three';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
+
+/**
+ * Playable Mandalorians — one config-driven factory so every fighter shares
+ * the same rig, clips, weapons and gameplay; only armor/silhouette differs.
+ */
+
+export type MandoId = 'boba' | 'din' | 'bokatan' | 'paz' | 'armorer';
+
+export interface PlayerCharacter extends CharacterInstance {
+  setWeapon: (w: 'blaster' | 'gaffi') => void;
+  setThrust: (t: number) => void;
+  gaffi: THREE.Group;
+}
+
+interface MandoConfig {
+  name: string;
+  desc: string;
+  primary: number;   // main armor plate color
+  accent: number;    // pauldrons / details
+  suit: number;      // under-suit
+  cape: number | null;
+  helmet: MandoId;   // helmet detail variant
+  rangefinder: boolean;
+  bulk: number;      // 1 = standard; Paz is heavier
+}
+
+export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
+  boba: {
+    name: 'Boba Fett', desc: 'The Daimyo of Mos Espa — weathered green beskar, gaffi stick.',
+    primary: 0x4a5d43, accent: 0x6e2f2a, suit: 0x3a3a38, cape: 0x554838, helmet: 'boba', rangefinder: true, bulk: 1,
+  },
+  din: {
+    name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
+    primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
+  },
+  bokatan: {
+    name: 'Bo-Katan Kryze', desc: 'Heir of Mandalore — night-owl blue and grey.',
+    primary: 0x51687f, accent: 0x8c93a1, suit: 0x2e3238, cape: null, helmet: 'bokatan', rangefinder: false, bulk: 0.96,
+  },
+  paz: {
+    name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — walking siege tower.',
+    primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
+  },
+  armorer: {
+    name: 'The Armorer', desc: 'Keeper of the Forge — gilded horned helm.',
+    primary: 0x3a342c, accent: 0xc9992e, suit: 0x4a4038, cape: null, helmet: 'armorer', rangefinder: false, bulk: 1,
+  },
+};
+
+export function buildMandalorian(id: MandoId): PlayerCharacter {
+  const cfg = MANDO_ROSTER[id];
+  const skin = mat(cfg.suit, { rough: 0.9 });
+  const prim = mat(cfg.primary, { rough: 0.45, metal: 0.55 });
+  const accent = mat(cfg.accent, { rough: 0.5, metal: 0.4 });
+  const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
+  const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
+
+  const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
+  const b = rig.bones;
+
+  // cuirass
+  addBox(b.chest, prim, 0.17, 0.16, 0.05, -0.1, 0.16, 0.135, 0, 0.12);
+  addBox(b.chest, prim, 0.17, 0.16, 0.05, 0.1, 0.16, 0.135, 0, -0.12);
+  addBox(b.chest, prim, 0.3, 0.12, 0.05, 0, 0.0, 0.135);
+  addBox(b.hips, prim, 0.3, 0.1, 0.04, 0, 0.03, 0.12);
+  addBox(b.hips, dark, 0.36, 0.06, 0.24, 0, 0.06, 0);
+  // pauldrons (Paz gets oversized ones)
+  const ps = cfg.bulk > 1.05 ? 1.5 : 1;
+  addBox(b.shoulderL, accent, 0.16 * ps, 0.07 * ps, 0.18 * ps, -0.05, 0.05, 0, 0, 0, 0.25);
+  addBox(b.shoulderR, accent, 0.16 * ps, 0.07 * ps, 0.18 * ps, 0.05, 0.05, 0, 0, 0, -0.25);
+  // gauntlets, thigh and knee plates
+  addCyl(b.forearmL, accent, 0.062, 0.056, 0.16, 0, -0.14, 0);
+  addCyl(b.forearmR, accent, 0.062, 0.056, 0.16, 0, -0.14, 0);
+  addBox(b.upperLegL, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
+  addBox(b.upperLegR, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
+  addSphere(b.lowerLegL, accent, 0.06, 0, -0.02, 0.04, 8, 6);
+  addSphere(b.lowerLegR, accent, 0.06, 0, -0.02, 0.04, 8, 6);
+
+  // ---- helmet variants ----
+  const helm = new THREE.Group();
+  b.head.add(helm);
+  helm.position.y = 0.06;
+  const helmMat = cfg.helmet === 'armorer' ? mat(0xc9992e, { rough: 0.35, metal: 0.75 }) : prim;
+  addSphere(helm, helmMat, 0.145, 0, 0.04, 0, 14, 12, 0.95, 1);
+  addCyl(helm, helmMat, 0.145, 0.15, 0.14, 0, -0.02, 0, 0, 0, 0, 14);
+  addBox(helm, dark, 0.21, 0.035, 0.02, 0, 0.045, 0.135);   // T-visor horizontal
+  addBox(helm, dark, 0.032, 0.1, 0.02, 0, -0.01, 0.142);    // T-visor vertical
+  switch (cfg.helmet) {
+    case 'boba':
+      addCyl(helm, silver, 0.018, 0.018, 0.1, 0.16, 0.1, 0, 0, 0, 0.15, 6);
+      addBox(helm, dark, 0.03, 0.05, 0.03, 0.175, 0.16, 0);
+      break;
+    case 'din':
+      // cheek ridges
+      addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, -0.1, -0.01, 0.08, 0, 0.3);
+      addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, 0.1, -0.01, 0.08, 0, -0.3);
+      break;
+    case 'bokatan':
+      // owl-crest fins
+      addBox(helm, accent, 0.02, 0.06, 0.12, -0.09, 0.14, -0.02, 0, 0, 0.35);
+      addBox(helm, accent, 0.02, 0.06, 0.12, 0.09, 0.14, -0.02, 0, 0, -0.35);
+      break;
+    case 'paz':
+      addBox(helm, accent, 0.06, 0.04, 0.22, 0, 0.15, 0.02); // reinforced crest
+      break;
+    case 'armorer': {
+      // horns + fur mantle
+      const horn = mat(0x5c4a32, { rough: 0.8 });
+      addCyl(helm, horn, 0.008, 0.035, 0.16, -0.12, 0.12, 0, 0, 0, 0.7, 6);
+      addCyl(helm, horn, 0.008, 0.035, 0.16, 0.12, 0.12, 0, 0, 0, -0.7, 6);
+      addBox(b.chest, mat(0x6b543a, { rough: 1 }), 0.5, 0.12, 0.3, 0, 0.22, 0);
+      break;
+    }
+  }
+
+  // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----
+  const jp = new THREE.Group();
+  b.jetpack.add(jp);
+  addCyl(jp, prim, 0.06, 0.06, 0.34, -0.08, 0, -0.04);
+  addCyl(jp, prim, 0.06, 0.06, 0.34, 0.08, 0, -0.04);
+  addSphere(jp, accent, 0.06, -0.08, 0.17, -0.04, 8, 6);
+  addSphere(jp, accent, 0.06, 0.08, 0.17, -0.04, 8, 6);
+  addCyl(jp, silver, 0.035, 0.035, 0.3, 0, 0.1, -0.09);
+  addCyl(jp, accent, 0.001, 0.045, 0.09, 0, 0.29, -0.09);
+  const nozzleL = addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
+  const nozzleR = addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa640, transparent: true, opacity: 0.85 });
+  const flameGeo = new THREE.ConeGeometry(0.05, 0.5, 8);
+  const flames: THREE.Mesh[] = [nozzleL, nozzleR].map((n) => {
+    const f = new THREE.Mesh(flameGeo, flameMat);
+    f.rotation.x = Math.PI;
+    f.position.y = -0.3;
+    f.visible = false;
+    n.add(f);
+    return f;
+  });
+
+  // ---- cape ----
+  let capeUpdate: ((dt: number, time: number) => void) | null = null;
+  if (cfg.cape !== null) {
+    capeUpdate = attachCape(rig, mat(cfg.cape, { rough: 1 }), 0.26, 4, 0.19);
+    rig.bones.capeRoot.position.x = -0.12;
+  }
+
+  // ---- weapons (shared: carbine + gaffi) ----
+  const carbine = makeCarbine(mat(0x3d3730, { rough: 0.5, metal: 0.5 }), dark);
+  carbine.rotation.x = Math.PI / 2;
+  b.weaponR.add(carbine);
+  const muzzle = new THREE.Group();
+  muzzle.position.set(0, 0.015, 0.62);
+  carbine.add(muzzle);
+  const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+  gaffi.rotation.x = Math.PI / 2;
+  gaffi.visible = false;
+  b.weaponR.add(gaffi);
+
+  let thrust = 0;
+  return {
+    ...inst,
+    muzzle,
+    gaffi,
+    setWeapon: (w) => {
+      carbine.visible = w === 'blaster';
+      gaffi.visible = w === 'gaffi';
+    },
+    setThrust: (t) => { thrust = t; },
+    cosmetic: (dt, time) => {
+      capeUpdate?.(dt, time);
+      for (const f of flames) {
+        f.visible = thrust > 0.05;
+        const s = 0.6 + thrust * (0.8 + Math.sin(time * 47) * 0.25);
+        f.scale.set(1, s, 1);
+      }
+    },
+  };
+}
