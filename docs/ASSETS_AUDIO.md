@@ -1,32 +1,34 @@
 # Asset Requests — Audio
 
-All audio is synthesized procedurally via WebAudio at runtime, so nothing here is required. When a file exists at `public/assets/audio/<name>.ogg` (or `.mp3`), the audio engine plays it instead of the synth fallback (`src/core/assets.ts`).
+All audio is synthesized procedurally via WebAudio at runtime, so nothing here is required. When a file exists at `public/assets/audio/<name>.ogg` or `.mp3`, the audio engine plays it instead of the synth fallback (loader in `src/core/audio.ts` tries `.ogg` then `.mp3`).
 
-**Specs:** OGG Vorbis preferred (MP3 ok), 44.1 kHz, mono for SFX / stereo for ambience & music, loudness-matched (SFX peaks ≈ −6 dBFS), loops must be seamless where marked. All sounds must be original or licensed — no ripped film audio; prompts describe character without naming trademarked sources.
+**Status (2026-08-27):** the 18 SFX the engine currently consumes were **generated with the ElevenLabs sound-generation API** and are checked in as `.mp3` under `public/assets/audio/` — regenerate any of them with `node tools/generate-sfx.mjs <name ...>` (key from `ELEVENLABS_API_KEY` or the untracked `.elevenlabs_key` file; never commit the key). Marked ✅ below. Everything else in this doc (footstep variations, per-enemy voices, ambience beds, music) is **not yet consumed by the engine** — those stay as forward-looking requests until the engine grows hooks for them; ambience and music remain live synth loops today.
+
+**Specs:** OGG Vorbis or MP3, 44.1 kHz, mono for SFX / stereo for ambience & music, loudness-matched (SFX peaks ≈ −6 dBFS), loops must be seamless where marked. All sounds must be original or licensed — no ripped film audio; prompts describe character without naming trademarked sources.
 
 ## Weapons & combat (one-shots, mono, < 1.5 s)
 
 | File | Prompt for sound generation / recording brief |
 |---|---|
-| `blaster_shot.ogg` | "Sci-fi laser blaster shot: sharp percussive attack, descending pitch zap 2kHz→300Hz over 120ms, slight metallic ring tail, punchy, retro-space-western character" |
-| `blaster_impact.ogg` | "Small energy bolt impact on rock/metal: short crackle-spark burst, 150ms, bright transient with tiny debris fizz" |
-| `enemy_blaster.ogg` | "Sci-fi enemy blaster shot, lower and rounder than hero blaster: hollow pulse zap around 500Hz, 150ms, slightly detuned" |
-| `melee_whoosh_1.ogg` / `_2.ogg` / `_3.ogg` | "Heavy metal staff swing whoosh, low airy sweep, 250ms; three variations rising in intensity, third ends with a weighty grunt of effort (no words)" |
-| `melee_hit.ogg` | "Blunt heavy melee impact on armor: deep thud with metallic clank overtone, 200ms, satisfying crunch" |
-| `rocket_launch.ogg` | "Small missile launch from shoulder rack: pressurized whoosh-ignition, rising rocket hiss, 400ms" |
-| `explosion.ogg` | "Medium sci-fi explosion: deep sub thump, fiery crackle body, metallic debris tail, 1.2s" |
-| `hit_marker.ogg` | "Tiny arcade hit-confirm tick: bright 30ms click-blip, subtle" |
-| `kill_confirm.ogg` | "Short arcade kill-confirm: two-note descending metallic blip, 200ms, understated" |
-| `player_hurt.ogg` | "Muffled pained grunt inside a helmet, male, short, no words, 300ms" |
+| ✅ `blaster_shot.mp3` | "Sci-fi laser blaster shot: sharp percussive attack, descending pitch zap 2kHz→300Hz over 120ms, slight metallic ring tail, punchy, retro-space-western character" |
+| ✅ `blaster_impact.mp3` | "Small energy bolt impact on rock/metal: short crackle-spark burst, 150ms, bright transient with tiny debris fizz" |
+| ✅ `enemy_blaster.mp3` | "Sci-fi enemy blaster shot, lower and rounder than hero blaster: hollow pulse zap around 500Hz, 150ms, slightly detuned" |
+| ✅ `melee_whoosh.mp3` (engine pitch-varies one file; `_1..3` variants still welcome) | "Heavy metal staff swing whoosh, low airy sweep, 250ms; three variations rising in intensity, third ends with a weighty grunt of effort (no words)" |
+| ✅ `melee_hit.mp3` | "Blunt heavy melee impact on armor: deep thud with metallic clank overtone, 200ms, satisfying crunch" |
+| ✅ `rocket_launch.mp3` | "Small missile launch from shoulder rack: pressurized whoosh-ignition, rising rocket hiss, 400ms" |
+| ✅ `explosion.mp3` | "Medium sci-fi explosion: deep sub thump, fiery crackle body, metallic debris tail, 1.2s" |
+| ✅ `hit_marker.mp3` | "Tiny arcade hit-confirm tick: bright 30ms click-blip, subtle" |
+| ✅ `kill_confirm.mp3` | "Short arcade kill-confirm: two-note descending metallic blip, 200ms, understated" |
+| ✅ `player_hurt.mp3` | "Muffled pained grunt inside a helmet, male, short, no words, 300ms" |
 
 ## Movement (loops marked)
 
 | File | Prompt |
 |---|---|
-| `jetpack_loop.ogg` (seamless loop) | "Jetpack thruster loop: tight roaring flame jet, filtered white-noise core with low turbine whine, steady, seamless 2s loop, mono" |
+| ✅ `jetpack_loop.mp3` (seamless loop) | "Jetpack thruster loop: tight roaring flame jet, filtered white-noise core with low turbine whine, steady, seamless 2s loop, mono" |
 | `jetpack_ignite.ogg` | "Jetpack ignition burst: sharp pressurized whump into flame roar onset, 300ms" |
-| `dash.ogg` | "Short burst thruster dash: quick doppler whoosh with flame crackle, 250ms" |
-| `land_soft.ogg` / `land_hard.ogg` | "Armored boots landing on sand — soft crunch thump / heavy two-stage armored slam landing with dust, 300ms" |
+| ✅ `dash.mp3` | "Short burst thruster dash: quick doppler whoosh with flame crackle, 250ms" |
+| ✅ `land_hard.mp3` (`land_soft` still open — engine reuses hard at lower gain) | "Armored boots landing on sand — soft crunch thump / heavy two-stage armored slam landing with dust, 300ms" |
 | `footstep_sand_1..4.ogg` | "Single armored footstep on packed desert sand, dry crunch, 150ms, four variations" |
 | `footstep_metal_1..4.ogg` | "Single armored footstep on hollow steel deck plate, dull clank, 150ms, four variations" |
 
@@ -63,8 +65,8 @@ All audio is synthesized procedurally via WebAudio at runtime, so nothing here i
 
 | File | Prompt |
 |---|---|
-| `ui_move.ogg` | "Minimal UI navigation blip, soft dry click-tick, 40ms" |
-| `ui_confirm.ogg` | "UI confirm: warm two-tone mechanical latch chirp, 150ms" |
-| `ui_back.ogg` | "UI back/cancel: single low soft thunk, 100ms" |
-| `wave_start.ogg` | "War-horn-like alert announcing an enemy wave: short low alien horn blast with metallic edge, 800ms" |
-| `wave_clear.ogg` | "Positive wave-cleared fanfare sting, three ascending dark-brass notes, 1.2s, restrained" |
+| ✅ `ui_move.mp3` | "Minimal UI navigation blip, soft dry click-tick, 40ms" |
+| ✅ `ui_confirm.mp3` | "UI confirm: warm two-tone mechanical latch chirp, 150ms" |
+| ✅ `ui_back.mp3` | "UI back/cancel: single low soft thunk, 100ms" |
+| ✅ `wave_start.mp3` | "War-horn-like alert announcing an enemy wave: short low alien horn blast with metallic edge, 800ms" |
+| ✅ `wave_clear.mp3` | "Positive wave-cleared fanfare sting, three ascending dark-brass notes, 1.2s, restrained" |

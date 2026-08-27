@@ -46,13 +46,16 @@ export class AudioEngine {
       'wave_start', 'wave_clear',
     ];
     await Promise.all(names.map(async (n) => {
-      try {
-        const res = await fetch(`assets/audio/${n}.ogg`);
-        if (!res.ok) return;
-        const buf = await res.arrayBuffer();
-        const audio = await this.ctx!.decodeAudioData(buf);
-        this.samples.set(n, audio);
-      } catch { /* fall back to synth */ }
+      for (const ext of ['ogg', 'mp3']) {
+        try {
+          const res = await fetch(`assets/audio/${n}.${ext}`);
+          if (!res.ok) continue;
+          const buf = await res.arrayBuffer();
+          const audio = await this.ctx!.decodeAudioData(buf);
+          this.samples.set(n, audio);
+          return;
+        } catch { /* try next ext / fall back to synth */ }
+      }
     }));
   }
 

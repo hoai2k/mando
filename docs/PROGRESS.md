@@ -34,3 +34,4 @@ Tracked per milestone; updated as work lands. See `docs/PLAN.md` for full scope.
 
 - 2026-08-27 — Plan written and merged to main. Asset request docs added. Scope addendum: Xbox controller everywhere, fullscreen button, split-screen co-op.
 - 2026-08-27 — Full game implemented and verified: two boards, 8 enemy types, wave mode, split-screen co-op, controller-navigable menus, procedural audio. Merged to main.
+- 2026-08-27 — Generated all 18 engine-consumed SFX with the ElevenLabs sound-generation API (`tools/generate-sfx.mjs`), checked in under `public/assets/audio/`; audio loader now accepts `.ogg` and `.mp3`. Verified every file decodes in Chromium. Docs updated.
