@@ -73,3 +73,18 @@ export function makeRng(seed: number): () => number {
 }
 
 export const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+
+export interface YawBasis { fwdX: number; fwdZ: number; rightX: number; rightZ: number; }
+
+/**
+ * Ground movement/camera basis for a yaw angle, in Three's right-handed Y-up
+ * space where the view direction is (sin yaw, ·, cos yaw).
+ *
+ * Screen-right is forward x up = (-cos yaw, sin yaw). Flipping that sign
+ * silently inverts strafing and puts the chase camera over the wrong
+ * shoulder, so both are derived here rather than rewritten per call site.
+ */
+export function yawBasis(yaw: number): YawBasis {
+  const s = Math.sin(yaw), c = Math.cos(yaw);
+  return { fwdX: s, fwdZ: c, rightX: -c, rightZ: s };
+}

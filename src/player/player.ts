@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { buildMandalorian, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
 import { ThirdPersonCamera } from '../core/camera';
 import type { FrameInput } from '../core/input';
-import { clamp, damp, dampAngle } from '../core/math';
+import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
@@ -122,9 +122,7 @@ export class Player {
     this.cam.addLook(input.lookX, input.lookY);
 
     // ---- movement basis from camera yaw ----
-    const yaw = this.cam.yaw;
-    const fwdX = Math.sin(yaw), fwdZ = Math.cos(yaw);
-    const rightX = Math.cos(yaw), rightZ = -Math.sin(yaw);
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
     const wishX = fwdX * input.moveY + rightX * input.moveX;
     const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
     const wishLen = Math.hypot(wishX, wishZ);

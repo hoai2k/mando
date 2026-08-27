@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, damp } from './math';
+import { clamp, damp, yawBasis } from './math';
 import type { PhysicsWorld } from './physics';
 
 /** Third-person orbit camera with collision, aim zoom, and shake. */
@@ -41,8 +41,8 @@ export class ThirdPersonCamera {
 
     const head = this.tmpTarget.copy(feetPos);
     head.y += 1.58;
-    // shoulder offset perpendicular to view
-    const rightX = Math.cos(this.yaw), rightZ = -Math.sin(this.yaw);
+    // over-the-right-shoulder offset, matching the right-handed carbine
+    const { rightX, rightZ } = yawBasis(this.yaw);
     const shoulder = opts.aiming ? 0.7 : 0.45;
     head.x += rightX * shoulder;
     head.z += rightZ * shoulder;

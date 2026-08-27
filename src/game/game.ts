@@ -8,6 +8,7 @@ import { buildGrogu } from '../characters/enemies';
 import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
+import { yawBasis } from '../core/math';
 import type { FrameInput } from '../core/input';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
@@ -40,6 +41,7 @@ export class Game {
   state: MatchState = 'intro';
   private stateTimer = 2.2;
   private rockets: Rocket[] = [];
+  private tmpSize = new THREE.Vector2();
   private rocketGeo = new THREE.ConeGeometry(0.09, 0.42, 6);
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
@@ -186,15 +188,18 @@ export class Game {
     // ---- Grogu follows player 1, out of harm's way ----
     if (this.grogu) {
       const p0 = this.players[0];
+      // trail him behind and to the player's LEFT: the chase camera sits over
+      // the right shoulder, so anything on the right crowds the frame
+      const b = yawBasis(p0.cam.yaw);
       const goal = new THREE.Vector3(
-        p0.position.x - Math.sin(p0.cam.yaw) * 1.6 - Math.cos(p0.cam.yaw) * 1.1,
-        p0.position.y + 1.5,
-        p0.position.z - Math.cos(p0.cam.yaw) * 1.6 + Math.sin(p0.cam.yaw) * 1.1
+        p0.position.x - b.fwdX * 2.2 - b.rightX * 1.7,
+        p0.position.y + 1.35,
+        p0.position.z - b.fwdZ * 2.2 - b.rightZ * 1.7
       );
-      this.grogu.root.position.lerp(goal, Math.min(1, dt * 2.2));
+      this.grogu.root.position.lerp(goal, Math.min(1, dt * 3.6));
       // angle the pram's open face back toward the chase camera so Grogu is
       // actually visible instead of showing the blank shell of the pram
-      this.grogu.root.rotation.y = p0.cam.yaw + Math.PI * 0.82;
+      this.grogu.root.rotation.y = p0.cam.yaw - Math.PI * 0.78;
       this.grogu.cosmetic?.(dt, this.time);
       this.groguCoo -= dt;
       if (this.groguCoo <= 0) {
@@ -312,8 +317,14 @@ export class Game {
 
   /** Split-screen render: one viewport per player (horizontal split). */
   render(renderer: THREE.WebGLRenderer): void {
-    const w = renderer.domElement.width;
-    const h = renderer.domElement.height;
+    // getSize reports CSS pixels, which is what setViewport/setScissor expect —
+    // they scale by the renderer's pixel ratio themselves. Passing
+    // domElement.width here applies devicePixelRatio twice, blowing the
+    // viewport past the drawing buffer on HiDPI screens and shoving the
+    // rendered scene up and to the right.
+    renderer.getSize(this.tmpSize);
+    const w = this.tmpSize.x;
+    const h = this.tmpSize.y;
     const n = this.players.length;
     renderer.setScissorTest(n > 1);
     for (let i = 0; i < n; i++) {
