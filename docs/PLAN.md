@@ -92,11 +92,12 @@ docs/PLAN.md
 
 ## 5. Combat
 
-- **EE-3 blaster carbine** — hitscan-feel but rendered as fast glowing red bolt projectiles (~80 m/s), ~4 shots/s, no ammo (arcade), slight spread when moving.
-  **Aim assist:** cone-based soft lock — bolts bend up to ~6° toward the nearest target near the crosshair; crosshair highlights + sticks lightly on targets. Aiming (RMB) narrows FOV and tightens spread.
-- **Gaffi stick (gaderffii)** — 3-hit combo (swing → backswing → overhead slam) with forward lunge that homes onto the nearest enemy within ~4 m (arcade magnetism). Higher damage than blaster; slam ends the combo with a knockdown. Melee kills refund a chunk of jetpack fuel → encourages weaving in close.
+- **EE-3 blaster carbine** — hitscan-feel but rendered as fast glowing red bolt projectiles (~80 m/s), ~4 shots/s, no ammo (arcade), spread when hip-firing (worse on the move), recoil climb per shot (about half when shouldered).
+  **Aim assist (RDR2 "Normal" lock-on):** pressing aim snaps the camera onto the target nearest the reticle over ~0.15 s, then fine aim is yours at reduced look sensitivity; bolts also soft-lock toward the crosshair target. Aiming narrows FOV and removes spread.
+- **Dead Eye** (V / right-stick click) — the RDR2 signature, adapted: the whole world drops to ~0.3× while your trigger and camera stay on the wall clock; shots fly true and hit for 55 instead of 34. Runs off a meter (6 s from full) that refills +25% per kill and trickles back out of combat. Sepia tint + glowing HUD bar while active. In split-screen the world clock is shared — either player's Dead Eye slows it for both.
+- **Gaffi stick (gaderffii)** — 3-hit combo (swing → backswing → overhead slam) with forward lunge that homes onto the nearest enemy within ~4 m (arcade magnetism). Higher damage than blaster; the finisher puts grounded humanoids flat on their back (a real knockdown state, ~1.6–2.1 s), and any hit on a downed or wounded enemy lands double — the RDR2 brawl loop of haymaker → finish them on the ground. Melee kills refund a chunk of jetpack fuel → encourages weaving in close.
 - **Wrist rocket (Q)** — the Z-6 jetpack's missile: lock-on lob, AoE explosion, 1 charge per ~12 s. Screen shake + big particle payoff.
-- **Feedback:** hit markers, damage numbers (toggleable), enemy hit-flash + stagger, kill confirm sound, corpses fling with impulse then fade.
+- **Feedback / hit reactions (Euphoria-flavoured):** hit markers, enemy hit-flash + stagger, kill confirm sound; explosions and ground slams knock enemies flat (they get back up shaken); a hit that leaves a grounded humanoid under 25% HP has a 40% chance to drop it into a **wounded crawl** — out of the fight, dragging itself away, bleeding out in 8–12 s unless finished; killing blows fling corpses with force scaled to the hit and a little scatter so a mowed-down line doesn't fall in lockstep.
 - **Player health:** 100 HP, short regen after 5 s without damage (arcade), death → quick respawn at board checkpoint.
 
 ## 6. Animation System (built for future authored models)
@@ -177,6 +178,21 @@ given player, only 2 melee and 2 ranged are *committed* at a time; the rest hold
 an assigned bearing at standoff distance and shoot from there. Bearings are
 handed out around the full circle, so a group closes in around the player from
 several sides instead of stampeding in from one.
+
+### Self-preservation (the RDR2 layer)
+
+Enemies value their own lives, per RDR2's combat AI:
+- **Suppression** — hits and near misses (player bolts landing within ~4.5 m)
+  build a suppression value; past a threshold a shooter stops working its
+  firing position or advancing, plants where it is, fires less often and much
+  less accurately until it recovers. Pouring fire at a camp genuinely keeps
+  heads down.
+- **Flinch** — a death rattles every hostile within 12 m (suppression spike).
+- **Morale** — when a squad of 3+ is down to its last member, even odds it
+  breaks and runs: sprints away from the threat, rallies at ~55 m, and turns
+  to fight from there as a new post. Droids never break; fliers don't either.
+- **Wounded crawl** — see Combat feedback above; a crawler still counts toward
+  the wave until it bleeds out or is finished.
 
 ### Per-kind behaviour
 - **Charger** (Tusken, pirate brawler): committed → approach, telegraphed wind-up,

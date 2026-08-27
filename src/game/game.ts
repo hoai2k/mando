@@ -8,7 +8,7 @@ import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
-import { yawBasis } from '../core/math';
+import { damp, yawBasis } from '../core/math';
 import { loadOptionalTexture } from '../core/assets';
 import type { FrameInput } from '../core/input';
 
@@ -47,6 +47,11 @@ export class Game {
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
+  /**
+   * Dead Eye slows the whole world. This is the smoothed timescale — the ramp
+   * in and out is most of what sells the effect.
+   */
+  timeScale = 1;
   /** seconds spent on the current wave, for the hunt escalation below */
   private waveTimer = 0;
   private huntCall = 0;
@@ -77,9 +82,17 @@ export class Game {
     }
 
 
-    this.projectiles.onImpact = (point, hitTarget) => {
+    this.projectiles.onImpact = (point, hitTarget, team) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
       audio.impact();
+      // player bolts slamming into the dirt next to someone still count as
+      // incoming fire — near misses are what keep heads down
+      if (team === 0 && !hitTarget) {
+        for (const e of this.enemies) {
+          if (!e.alive) continue;
+          if (e.position.distanceToSquared(point) < 4.5 * 4.5) e.suppress(0.22);
+        }
+      }
     };
 
     audio.startAmbient(board.kind === 'desert' ? 'desert' : 'station');
@@ -117,6 +130,7 @@ export class Game {
       if (d < 7) {
         e.damage(90 * (1 - d / 8), point, bySlot);
         e.knockback(point, 18, 0.6);
+        e.knockdown(1.4 + Math.random() * 0.8); // blast wave puts them flat
       }
     }
     for (const p of this.players) {
@@ -128,9 +142,18 @@ export class Game {
 
   get aliveEnemyCount(): number { return this.enemies.filter((e) => e.alive).length; }
 
-  update(dt: number, inputs: FrameInput[]): void {
+  update(realDt: number, inputs: FrameInput[]): void {
+    // ---- Dead Eye ----
+    // Any player in Dead Eye slows the world (both of them share it in
+    // split-screen — one shared world, one clock). Players still update on a
+    // faster clock than the world so the shooter keeps the advantage.
+    const wantSlow = this.players.some((p) => p.alive && p.deadeyeActive);
+    this.timeScale = damp(this.timeScale, wantSlow ? 0.3 : 1, 9, realDt);
+    if (this.timeScale > 0.985) this.timeScale = 1;
+    const dt = realDt * this.timeScale;
+
     this.time += dt;
-    if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
+    if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += realDt;
     this.board.update?.(dt, this.time);
 
     // ---- match flow ----
@@ -152,7 +175,7 @@ export class Game {
 
     // ---- players ----
     for (const p of this.players) {
-      p.update(dt, inputs[p.slot], this);
+      p.update(dt, inputs[p.slot], this, realDt);
       if (!p.alive && p.respawnTimer <= 0 && this.state !== 'defeat' && this.state !== 'victory') {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
         if (this.players.length > 1 && partnerAlive) {
@@ -195,8 +218,11 @@ export class Game {
         this.totalKills++;
         this.particles.deathBurst(e.position.clone().add(new THREE.Vector3(0, e.height * 0.5, 0)));
         audio.killConfirm();
+        this.director.deathNearby(this, e.position);
         if (e.lastHitBy >= 0 && this.players[e.lastHitBy]) {
-          this.players[e.lastHitBy].kills++;
+          const killer = this.players[e.lastHitBy];
+          killer.kills++;
+          killer.deadeye = Math.min(1, killer.deadeye + 0.25); // kills feed the meter
           this.events.hitMarker(e.lastHitBy);
         }
       }

@@ -22,6 +22,7 @@ the shows.
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
+| Dead Eye (slow motion) | `V` | click right stick |
 | Ground slam (in air) | `Ctrl` / `C` | `RB` |
 | Switch weapon | `E` | `LB` |
 | Pause | `Esc` | `Start` |
@@ -45,6 +46,15 @@ camp that hasn't noticed you, red once it is fighting), and the counter under it
 what's left of the wave. Once a fight starts only a couple of them press the attack
 at a time while the rest hold a firing line around you, so there is always a flank
 worth pushing.
+
+The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
+onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
+and recoil climbs; **Dead Eye** (`V` / right-stick click) drops the world into slow
+motion while your trigger stays fast — the meter refills as you kill. Enemies get
+suppressed under heavy fire and stop advancing, get knocked flat by explosions and
+the gaffi finisher (hit them again on the ground for double), sometimes crumple
+into a wounded crawl you have to finish, and the last survivor of a shattered squad
+may break and run for a new position.
 
 **The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
 swoop riders and a sarlacc pit that will eat anything knocked into it.

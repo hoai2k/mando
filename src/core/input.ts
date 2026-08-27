@@ -17,6 +17,8 @@ export interface FrameInput {
   aimHeld: boolean;
   meleePressed: boolean;
   rocketPressed: boolean;
+  /** Dead Eye toggle — V on keyboard, right-stick click on pad */
+  deadeyePressed: boolean;
   slamPressed: boolean;
   switchPressed: boolean;
   pausePressed: boolean;
@@ -28,14 +30,14 @@ const DEADZONE = 0.18;
 const dz = (v: number) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
 
 // Xbox standard-mapping button indices
-const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, DUP: 12, DDOWN: 13, DLEFT: 14, DRIGHT: 15 } as const;
+const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, LS: 10, RS: 11, DUP: 12, DDOWN: 13, DLEFT: 14, DRIGHT: 15 } as const;
 
 function blankInput(): FrameInput {
   return {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
-    switchPressed: false, pausePressed: false,
+    deadeyePressed: false, switchPressed: false, pausePressed: false,
   };
 }
 
@@ -191,6 +193,7 @@ export class InputManager {
       inp.aimHeld ||= this.mouseButtons.has(2);
       inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
       inp.rocketPressed ||= this.keysPressed.has('KeyQ');
+      inp.deadeyePressed ||= this.keysPressed.has('KeyV');
       inp.switchPressed ||= this.keysPressed.has('KeyE') || this.keysPressed.has('Digit1') || this.keysPressed.has('Digit2');
     }
 
@@ -215,6 +218,7 @@ export class InputManager {
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
         inp.rocketPressed ||= this.edge(pad, BTN.Y);
+        inp.deadeyePressed ||= this.edge(pad, BTN.RS);
         inp.switchPressed ||= this.edge(pad, BTN.LB);
       }
     }

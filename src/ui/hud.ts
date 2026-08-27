@@ -8,6 +8,8 @@ interface PlayerHud {
   health: HTMLElement;
   fuel: HTMLElement;
   energy: HTMLElement;
+  deadeye: HTMLElement;
+  deadeyeBar: HTMLElement;
   weapon: HTMLElement;
   rocket: HTMLElement;
   wave: HTMLElement;
@@ -69,6 +71,7 @@ export class Hud {
           <div class="bar health"><div class="fill"></div><div class="label">HP</div></div>
           <div class="bar fuel"><div class="fill"></div><div class="label">JET</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">ENERGY</div></div>
+          <div class="bar deadeye"><div class="fill"></div><div class="label">DEAD EYE</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
@@ -83,6 +86,8 @@ export class Hud {
         health: root.querySelector('.bar.health .fill') as HTMLElement,
         fuel: root.querySelector('.bar.fuel .fill') as HTMLElement,
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
+        deadeye: root.querySelector('.bar.deadeye .fill') as HTMLElement,
+        deadeyeBar: root.querySelector('.bar.deadeye') as HTMLElement,
         weapon: root.querySelector('.wname') as HTMLElement,
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
@@ -129,6 +134,8 @@ export class Hud {
       h.fuel.style.transform = `scaleX(${p.fuel})`;
       h.energy.style.transform = `scaleX(${p.energy})`;
       h.energy.style.opacity = p.sprinting ? '1' : '0.8';
+      h.deadeye.style.transform = `scaleX(${p.deadeye})`;
+      h.deadeyeBar.classList.toggle('active', p.deadeyeActive);
       h.weapon.textContent = p.alive
         ? (p.weapon === 'blaster' ? 'EE-3 Carbine' : 'Gaffi Stick')
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;

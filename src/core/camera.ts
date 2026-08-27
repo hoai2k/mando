@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, damp, yawBasis } from './math';
+import { clamp, damp, dampAngle, yawBasis } from './math';
 import type { PhysicsWorld } from './physics';
 
 /** Third-person orbit camera with collision, aim zoom, and shake. */
@@ -10,6 +10,11 @@ export class ThirdPersonCamera {
   private dist = 4.6;
   private fov = 72;
   private shakeAmt = 0;
+  // lock-on snap: on aim-press the camera pulls onto the target over a few
+  // frames (RDR2's "Normal" lock-on), then hands fine aim back to the player
+  private snapYaw = 0;
+  private snapPitch = 0;
+  private snapT = 0;
   private tmpTarget = new THREE.Vector3();
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -25,6 +30,16 @@ export class ThirdPersonCamera {
 
   shake(amount: number): void { this.shakeAmt = Math.min(this.shakeAmt + amount, 0.5); }
 
+  /** Pull the view onto a world point over ~0.15 s (aim-press lock-on). */
+  snapToward(point: THREE.Vector3): void {
+    const dx = point.x - this.camera.position.x;
+    const dy = point.y - this.camera.position.y;
+    const dz = point.z - this.camera.position.z;
+    this.snapYaw = Math.atan2(dx, dz);
+    this.snapPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -1.25, 1.05);
+    this.snapT = 0.15;
+  }
+
   /** Forward direction of aim (unit). */
   aimDir(out: THREE.Vector3): THREE.Vector3 {
     const cp = Math.cos(this.pitch);
@@ -32,6 +47,11 @@ export class ThirdPersonCamera {
   }
 
   update(dt: number, feetPos: THREE.Vector3, physics: PhysicsWorld, opts: { aiming: boolean; speed: number; dashing: boolean }): void {
+    if (this.snapT > 0) {
+      this.snapT -= dt;
+      this.yaw = dampAngle(this.yaw, this.snapYaw, 22, dt);
+      this.pitch = damp(this.pitch, this.snapPitch, 22, dt);
+    }
     const targetDist = opts.aiming ? 2.7 : 4.6;
     const targetFov = opts.aiming ? 52 : 72 + Math.min(opts.speed / 14, 1) * 7 + (opts.dashing ? 6 : 0);
     this.dist = damp(this.dist, targetDist, 10, dt);
