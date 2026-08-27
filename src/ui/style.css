@@ -1,0 +1,89 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #e8dcc8; user-select: none; }
+#app, #app canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#app canvas { display: block; }
+
+/* ---------- overlay layers ---------- */
+.layer { position: absolute; inset: 0; pointer-events: none; }
+.layer.interactive { pointer-events: auto; }
+
+/* ---------- menus ---------- */
+.menu-screen {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(60,45,25,0.55), rgba(0,0,0,0.92) 75%);
+  pointer-events: auto;
+}
+.menu-title {
+  font-size: clamp(42px, 7vw, 92px); font-weight: 800; letter-spacing: 0.18em;
+  color: #d8b25a; text-transform: uppercase;
+  text-shadow: 0 0 24px rgba(216,178,90,0.35), 0 2px 0 #5a3c14;
+}
+.menu-subtitle { font-size: 15px; letter-spacing: 0.35em; text-transform: uppercase; color: #9a8a6a; margin-top: -10px; }
+.menu-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 26px; align-items: stretch; min-width: 320px; }
+.menu-btn {
+  font: inherit; font-size: 19px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 12px 34px; color: #cbb98e; background: rgba(20,16,10,0.7);
+  border: 1px solid #5f4d2c; cursor: pointer; text-align: center; transition: all 0.12s;
+}
+.menu-btn.focused, .menu-btn:hover {
+  color: #111; background: #d8b25a; border-color: #f0d492;
+  box-shadow: 0 0 22px rgba(216,178,90,0.45); transform: scale(1.04);
+}
+.menu-btn.disabled { opacity: 0.4; }
+.menu-hint { margin-top: 26px; font-size: 13px; letter-spacing: 0.1em; color: #7a6c50; }
+.menu-hint b { color: #b9a678; }
+
+/* board select cards */
+.board-cards { display: flex; gap: 26px; margin-top: 10px; }
+.board-card {
+  width: min(360px, 38vw); border: 1px solid #5f4d2c; background: rgba(15,12,8,0.8);
+  cursor: pointer; transition: all 0.15s; overflow: hidden;
+}
+.board-card.focused, .board-card:hover { border-color: #f0d492; box-shadow: 0 0 28px rgba(216,178,90,0.4); transform: scale(1.03); }
+.board-card .art { height: 160px; background-size: cover; background-position: center; }
+.board-card .name { padding: 12px 16px 4px; font-size: 20px; letter-spacing: 0.12em; text-transform: uppercase; color: #d8b25a; }
+.board-card .desc { padding: 0 16px 14px; font-size: 13px; color: #9a8a6a; line-height: 1.45; }
+
+/* ---------- HUD ---------- */
+.hud-viewport { position: absolute; pointer-events: none; overflow: hidden; }
+.crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; }
+.hud-bars { position: absolute; left: 26px; bottom: 22px; width: 240px; }
+.bar { height: 12px; background: rgba(0,0,0,0.55); border: 1px solid rgba(232,220,200,0.35); margin-top: 6px; position: relative; }
+.bar .fill { position: absolute; inset: 1px; transform-origin: left; background: #c33f2e; }
+.bar.fuel .fill { background: #d8b25a; }
+.bar .label { position: absolute; right: 4px; top: -3px; font-size: 10px; letter-spacing: 0.2em; color: rgba(232,220,200,0.75); }
+.hud-wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; }
+.hud-wave .wave-num { font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #d8b25a; text-shadow: 0 0 8px #000; }
+.hud-wave .wave-kills { font-size: 12px; letter-spacing: 0.2em; color: #bba; text-shadow: 0 0 8px #000; }
+.hud-weapon { position: absolute; right: 26px; bottom: 22px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #cbb98e; text-shadow: 0 0 8px #000; }
+.hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
+.hud-weapon .rocket.cooling { color: #766; }
+.hud-banner {
+  position: absolute; top: 34%; left: 0; right: 0; text-align: center;
+  font-size: 34px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
+  color: #d8b25a; text-shadow: 0 0 26px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
+}
+.hud-banner.show { opacity: 1; }
+.damage-vignette {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(180,20,10,0.55) 100%);
+}
+.visor-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 72%, rgba(20,30,18,0.38) 100%);
+}
+.hud-divider { position: absolute; left: 0; right: 0; height: 2px; background: rgba(0,0,0,0.8); top: 50%; }
+
+/* ---------- fullscreen button ---------- */
+#fullscreen-btn {
+  position: absolute; right: 14px; bottom: 14px; z-index: 50; width: 42px; height: 42px;
+  background: rgba(15,12,8,0.65); border: 1px solid #5f4d2c; color: #cbb98e;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  pointer-events: auto; transition: all 0.12s;
+}
+#fullscreen-btn:hover { background: #d8b25a; color: #111; border-color: #f0d492; }
+#fullscreen-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+.fade-screen { position: absolute; inset: 0; background: #000; pointer-events: none; transition: opacity 0.5s; }

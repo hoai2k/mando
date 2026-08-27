@@ -167,7 +167,15 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 6. **M6 — Polish:** audio pass, menus/board select, difficulty tuning, performance pass, gamepad.
 7. **Stretch:** bosses (Krrsantan-class duel, Pyke capo), score persistence, photo mode.
 
-## 13. Notes & Constraints
+## 13. Addendum (user-requested, v1 scope)
+
+- **Full Xbox controller support, including menus.** Every menu is navigable with d-pad/left stick + A (confirm) / B (back); gameplay uses the standard twin-stick mapping (LS move, RS look, RT shoot, LT aim, A jump/jetpack, X melee, B dash, Y rocket, LB weapon switch, RB slam, Start pause, View fullscreen). Keyboard+mouse remains fully supported for player 1.
+- **Fullscreen icon button** fixed at the bottom-right of the screen at all times (menus and gameplay); also bound to the controller View button.
+- **2-player split-screen co-op.** Horizontal split (P1 top, P2 bottom). Player 2 joins from the board-select screen with a second controller (or via a "2 Players" menu option). One shared enemy pool/wave state; per-player camera, HUD, health, fuel. If one player dies they respawn while the partner survives the wave; both down = defeat.
+- **Asset request docs** — `docs/ASSETS_IMAGES.md` and `docs/ASSETS_AUDIO.md` list every texture/image and audio asset the game can consume, with generation prompts, specs, and drop-in file paths. The game runs 100% procedurally without them and upgrades automatically when files are present (loader checks `/assets/...` and falls back to procedural).
+- **Progress tracking** — `docs/PROGRESS.md` is updated as milestones complete.
+
+## 14. Notes & Constraints
 
 - **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Daimyo") if ever needed.
 - **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, vehicles as drivables (swoops are enemy-only), mobile touch controls.
