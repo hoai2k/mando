@@ -23,12 +23,49 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   cache.set(key, tex);
-  // authored override, fire and forget
-  new THREE.ImageLoader().load(`assets/textures/${name}.png`, (img) => {
+  // authored override, fire and forget; jpg first since that is what
+  // tools/optimize-textures.mjs emits for opaque maps
+  tryLoadImage(name, ['jpg', 'png'], (img) => {
     tex.image = img;
     tex.needsUpdate = true;
-  }, undefined, () => { /* keep procedural */ });
+  });
   return tex;
+}
+
+/** Try each extension in order, calling back on the first that loads. */
+function tryLoadImage(name: string, exts: string[], onLoad: (img: HTMLImageElement) => void): void {
+  if (exts.length === 0) return; // none present — procedural look stands
+  new THREE.ImageLoader().load(
+    `assets/textures/${name}.${exts[0]}`,
+    onLoad,
+    undefined,
+    () => tryLoadImage(name, exts.slice(1), onLoad)
+  );
+}
+
+/**
+ * Load an authored texture if it is present, otherwise do nothing — the caller
+ * keeps whatever procedural look it already had. Used for assets that have no
+ * meaningful canvas fallback (skies, normal maps, signage).
+ */
+export function loadOptionalTexture(
+  name: string,
+  onLoad: (tex: THREE.Texture) => void,
+  opts: { srgb?: boolean; exts?: string[] } = {}
+): void {
+  const exts = opts.exts ?? ['jpg', 'png'];
+  if (exts.length === 0) return; // absent — procedural look stands
+  new THREE.TextureLoader().load(
+    `assets/textures/${name}.${exts[0]}`,
+    (tex) => {
+      // normal/data maps must stay linear, colour maps are sRGB
+      tex.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      onLoad(tex);
+    },
+    undefined,
+    () => loadOptionalTexture(name, onLoad, { ...opts, exts: exts.slice(1) })
+  );
 }
 
 function grain(ctx: CanvasRenderingContext2D, size: number, seed: number, alpha: number, dark = true): void {

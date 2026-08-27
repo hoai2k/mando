@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
-import { crateTexture, deckTexture, hullTexture } from '../core/assets';
+import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { spaceSky } from './sky';
 import type { Board } from './board';
 
@@ -19,7 +19,8 @@ export function buildWaystation(): Board {
   physics.killY = -55;
   const rng = makeRng(66);
 
-  group.add(spaceSky());
+  const proceduralSky = spaceSky();
+  group.add(proceduralSky);
 
   // lighting: cold key + warm sodium fill + dim ambient
   const key = new THREE.DirectionalLight(0xbdd4ff, 1.7);
@@ -135,6 +136,28 @@ export function buildWaystation(): Board {
     physics.addBox(cx, cy + 1.3, cz, 2.6, 2.6, 2.6);
   }
 
+  // fuel barrels clustered around the pads (cover + set dressing)
+  const barrelMat = new THREE.MeshStandardMaterial({ color: 0x6a6a6e, roughness: 0.7, metalness: 0.4 });
+  loadOptionalTexture('barrel', (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    barrelMat.map = tex;
+    barrelMat.color.setHex(0xffffff);
+    barrelMat.needsUpdate = true;
+  });
+  const barrelGeo = new THREE.CylinderGeometry(0.55, 0.55, 1.5, 14);
+  for (const [bx, by, bz] of [
+    [12.5, 0, 3], [13.6, 0, 4.2], [12.2, 0, 5.1],
+    [-11, 0, -9], [-12.2, 0, -10.2],
+    [45, 6, 10], [-36, 4, -19], [24, 12, -33],
+  ] as const) {
+    const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+    barrel.position.set(bx, by + 0.75, bz);
+    barrel.rotation.y = rng() * Math.PI;
+    barrel.castShadow = barrel.receiveShadow = true;
+    group.add(barrel);
+    physics.addBox(bx, by + 0.75, bz, 1.1, 1.5, 1.1);
+  }
+
   // parked freighter on a landing pad
   const ship = new THREE.Group();
   const shipBody = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 9, 8), hullMat);
@@ -155,7 +178,13 @@ export function buildWaystation(): Board {
   physics.addBox(-38, 6, -16, 8, 4, 6);
 
   // neon cantina sign + hazard beacons (animated)
-  const neon = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.4), new THREE.MeshBasicMaterial({ color: 0x33ddc9, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  const neonMat = new THREE.MeshBasicMaterial({ color: 0x33ddc9, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+  loadOptionalTexture('neon_sign', (tex) => {
+    neonMat.map = tex;
+    neonMat.color.setHex(0xffffff); // let the artwork supply the colour
+    neonMat.needsUpdate = true;
+  }, { exts: ['png'] }); // stays PNG: the glyphs sit on transparency
+  const neon = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.4), neonMat);
   neon.position.set(-4.4, 6, 8.2);
   neon.rotation.y = Math.PI;
   group.add(neon);
@@ -174,6 +203,10 @@ export function buildWaystation(): Board {
   return {
     group, physics, kind: 'station',
     background: new THREE.Color(0x05050e),
+    skyFile: 'sky_space',
+    // the nebula is bright enough to silhouette the platforms against it
+    skyIntensity: 0.62,
+    proceduralSky,
     fog: null,
     playerStarts: [new THREE.Vector3(0, 0.5, -6), new THREE.Vector3(3, 0.5, -6)],
     groundSpawns: [plat(1), plat(2), plat(3), plat(4), plat(5), plat(6), plat(7), plat(8), plat(0).add(new THREE.Vector3(10, 0, -10))],

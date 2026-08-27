@@ -68,6 +68,11 @@ let charPickSlot = 0;
 
 // ----- title screen -----
 const title = new MenuScreen(menuLayer);
+// authored key art behind the title, under the existing vignette gradient
+title.root.style.backgroundImage =
+  "radial-gradient(ellipse at 50% 30%, rgba(30,22,12,0.55), rgba(0,0,0,0.92) 75%), url('assets/textures/title_bg.jpg')";
+title.root.style.backgroundSize = 'cover';
+title.root.style.backgroundPosition = 'center';
 title.addTitle('Daimyo', 'a Book of Boba Fett fan game');
 title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },

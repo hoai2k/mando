@@ -9,6 +9,7 @@ import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
+import { loadOptionalTexture } from '../core/assets';
 import type { FrameInput } from '../core/input';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
@@ -53,6 +54,16 @@ export class Game {
     this.scene.add(this.particles.group);
     this.scene.background = board.background;
     this.scene.fog = board.fog;
+
+    // authored equirect panorama replaces the procedural sky dome when present
+    if (board.skyFile) {
+      loadOptionalTexture(board.skyFile, (tex) => {
+        tex.mapping = THREE.EquirectangularReflectionMapping;
+        this.scene.background = tex;
+        this.scene.backgroundIntensity = board.skyIntensity ?? 1;
+        if (board.proceduralSky) board.proceduralSky.visible = false;
+      });
+    }
 
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'boba');

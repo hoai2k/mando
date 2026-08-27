@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng, ridge2 } from '../core/math';
-import { adobeTexture, clothTexture, rockTexture, sandTexture } from '../core/assets';
+import { adobeTexture, clothTexture, loadOptionalTexture, rockTexture, sandTexture } from '../core/assets';
 import { tatooineSky } from './sky';
 import type { Board } from './board';
 
@@ -35,7 +35,8 @@ export function buildTatooine(): Board {
   physics.killY = -40;
   const rng = makeRng(1138);
 
-  group.add(tatooineSky());
+  const proceduralSky = tatooineSky();
+  group.add(proceduralSky);
 
   // lighting: warm key sun + cool fill + hemisphere bounce
   const sun = new THREE.DirectionalLight(0xffe8c0, 2.6);
@@ -71,9 +72,18 @@ export function buildTatooine(): Board {
   }
   terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   terrainGeo.computeVertexNormals();
-  const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({
+  const terrainMat = new THREE.MeshStandardMaterial({
     map: sandTexture(), vertexColors: true, roughness: 1, metalness: 0,
-  }));
+  });
+  // authored normal map gives the dunes real ripple relief under the twin suns
+  loadOptionalTexture('sand_normal', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(40, 40);
+    terrainMat.normalMap = tex;
+    terrainMat.normalScale.set(0.7, 0.7);
+    terrainMat.needsUpdate = true;
+  }, { srgb: false, exts: ['png'] }); // stays PNG: JPEG ringing corrupts normals
+  const terrain = new THREE.Mesh(terrainGeo, terrainMat);
   terrain.receiveShadow = true;
   group.add(terrain);
 
@@ -205,6 +215,8 @@ export function buildTatooine(): Board {
   return {
     group, physics, kind: 'desert',
     background: new THREE.Color(0xd9b98a),
+    skyFile: 'sky_desert',
+    proceduralSky,
     fog: new THREE.Fog(0xdcc094, 90, 420),
     playerStarts: [new THREE.Vector3(0, heightAt(0, 4) + 0.5, 4), new THREE.Vector3(3, heightAt(3, 4) + 0.5, 4)],
     groundSpawns: [
