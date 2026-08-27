@@ -55,9 +55,10 @@ No frameworks beyond that — no React, no ECS library. A simple `Entity` base c
     controller.ts         // run/jump/jetpack state machine
     combat.ts             // blaster + gaffi stick, weapon switching, aim assist
   enemies/
-    enemy.ts              // shared health/AI base, hit reactions, ragdoll-lite death
+    enemy.ts              // shared health/AI base, awareness states, hit reactions, death
     ai.ts                 // behaviors: melee charger, ranged strafer, turret, swooper (flying)
-    spawner.ts            // wave/zone spawning, difficulty ramp
+    director.ts           // alert spreading + who is allowed to push the player
+    spawner.ts            // wave composition, squads posted around the board
   world/
     tatooine.ts           // heightfield dunes, rocks, homestead, vaporators, sarlacc pit, camp
     waystation.ts         // platform graph in space, cranes, cargo, neon signage
@@ -67,7 +68,8 @@ No frameworks beyond that — no React, no ECS library. A simple `Entity` base c
     projectiles.ts        // bolt pool, tracers, impact sparks
     particles.ts          // GPU-ish pooled particles: jetpack flame, dust, explosions
   ui/
-    hud.ts                // health, jetpack fuel, weapon, crosshair, hit markers, kill counter
+    hud.ts                // health, jetpack fuel, weapon, crosshair, hit markers, kill/hostile counts
+    radar.ts              // motion-tracker dial: hostile bearings, coloured by awareness
     menus.ts              // title, board select, pause, death/victory screens
 docs/PLAN.md
 ```
@@ -138,17 +140,66 @@ Faces/details are low-poly stylized (not realistic) — a deliberate "stylized a
 
 ## 9. Enemy AI
 
-Simple, readable behaviors (shared steering + separation so groups don't stack):
-- **Charger** (Tusken, pirate brawler): approach → telegraphed wind-up → swing; strafes when waiting its turn (max N simultaneous attackers so the player isn't mobbed unfairly).
-- **Shooter** (Pyke, pirate): keep 10–20 m, strafe, volley of 3 slow dodgeable bolts, occasionally repositions/takes cover behind props.
-- **Swooper/flyer** (Nikto swoop, jet-pirate): figure-eight strafing runs, vulnerable window after each pass.
+### Awareness — hostiles hold ground until they find you
+
+A wave is **posted**, not thrown at you: `spawner.ts` breaks it into squads of
+2–4 and places each squad at a spawn point somewhere on the board (farthest-point
+sampling, so squads spread out rather than bunch up; never within 55 m of a
+player). Every enemy remembers a `post` and stays there.
+
+Each enemy is `idle`, `alerted` or `engaged`:
+- **idle** — mills around its post, looks around, holds the ground. Clearing a
+  wave means going out and finding them, which is what the radar is for.
+- **alerted** — heard a blaster, an explosion, or a squadmate's shout: turns
+  toward it, then walks over to look. Patience scales with the distance to
+  what it heard, so a shot 80 m away is worth the walk.
+- **engaged** — has a foe in sight (or in memory for ~9 s after losing it).
+
+Spotting needs sight, not proximity: range depends on the kind, is halved to the
+sides and cut to 8 m behind, and needs line of sight — so a camp can be
+approached from behind, or slipped past. Getting shot skips the investigate step
+entirely. Line-of-sight is rechecked a few times a second per enemy (staggered),
+not per frame; it is a heightfield march and the boards now carry 40+ hostiles.
+
+**Noise** is the other sense: player blaster fire carries 55 m, an enemy's 30 m,
+an explosion 70 m (and alerts straight to combat). Firefights therefore pull in
+the neighbours, and a jetpack-and-blaster approach wakes a lot more of the board
+than a careful one.
+
+If a wave drags past 80 s the remnant starts sweeping toward the players, so a
+hunt can't stall.
+
+### The combat director
+
+`director.ts` handles what an individual can't: it spreads alerts through a
+squad, and it decides **who is allowed to push**. Of the enemies engaged with a
+given player, only 2 melee and 2 ranged are *committed* at a time; the rest hold
+an assigned bearing at standoff distance and shoot from there. Bearings are
+handed out around the full circle, so a group closes in around the player from
+several sides instead of stampeding in from one.
+
+### Per-kind behaviour
+- **Charger** (Tusken, pirate brawler): committed → approach, telegraphed wind-up,
+  swing. Not committed → circle at 9–14 m and wait for a turn.
+- **Shooter** (Pyke, pirate, troopers): works a firing position on its bearing —
+  9–18 m when committed, 15–30 m when holding the line — strafes there, and
+  fires volleys only with line of sight. On the station it stays leashed to its
+  platform.
+- **Swooper/flyer** (Nikto swoop, jet-pirate, dark trooper): figure-eight strafing
+  runs, vulnerable window after each pass; loiters near its post until alerted.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.
-Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–4 hits).
+- **Allies** (Marshal, IG-11, Fennec) escort rather than hunt: they engage what is
+  near the player, and come back if they stray past ~34 m.
+
+Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–4
+hits). Wave sizes run about 9–10 hostiles on wave 1 to ~41 on wave 10 (×1.5 in
+two-player).
 
 ## 10. FX, UI, Audio
 
 - **FX:** pooled particle system (dust, sparks, jetpack flame + heat distortion trail, explosions, blood-free "spark/cloth puff" hits), bolt light sources (cheap: few pooled point lights), decal-free scorch flashes.
-- **HUD:** health bar, jetpack fuel arc around crosshair (visible where your eyes are), weapon icon, rocket cooldown pip, wave/kill counter, damage direction indicators, boss bar (later). Diegetic green "helmet visor" vignette + subtle HUD tint.
+- **HUD:** health bar, jetpack fuel arc around crosshair (visible where your eyes are), weapon icon, rocket cooldown pip, wave/kill counter, **hostiles-remaining count**, damage direction indicators, boss bar (later). Diegetic green "helmet visor" vignette + subtle HUD tint.
+- **Radar** (`ui/radar.ts`): a 120 m motion-tracker dial per viewport, rotated so up is where the camera looks. Contacts are coloured by awareness — dim amber for a camp that hasn't noticed you, brighter amber once it is coming to look, red once it is fighting — with allies green and your co-op partner blue. Anything beyond the sweep is pinned to the rim as a chevron, so the bearing is always readable while the distance is not; a tick above or below a blip means it is well above or below you. The count under the dial is the wave's remaining hostiles.
 - **Menus:** title → board select (two illustrated cards) → controls card; pause; death (retry fast); victory (score + time).
 - **Audio:** synthesized blaster (pitch-swept saw + noise), jetpack (filtered noise roar tied to thrust), melee whooshes/clangs, Pyke/pirate death chirps, ambient wind or station hum per board, minimal dark-drum ambient loop. Master/SFX volume sliders.
 
