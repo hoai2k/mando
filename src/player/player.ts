@@ -356,7 +356,10 @@ export class Player {
           if (to.dot(facing) < 0.25) continue;
           const wasAlive = e.alive;
           e.damage(this.meleeDamage, this.position, this.slot);
-          e.knockback(this.position, this.meleeStep === 3 ? 19 : 11, this.meleeStep === 3 ? 0.55 : 0.32);
+          // the finisher clears the target out of your firing line rather than
+          // launching it: same shove as a swing, kept low and resolved quickly
+          if (this.meleeStep === 3) e.knockback(this.position, 12, 0.35, 0.08);
+          else e.knockback(this.position, 11, 0.32);
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }

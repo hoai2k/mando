@@ -177,7 +177,7 @@ Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–
 
 - **All enemies are human-size or larger.** The massiff (a ~0.8 m quadruped) was cut; the Tatooine melee slot is filled by Tuskens and pirate brawlers instead.
 - **Sprint gauge.** Holding B / Shift on the ground sprints at ~14.4 m/s against a 6-second energy bar, separate from jetpack fuel. The dash burst moved to a tap of the same button while airborne and now costs energy rather than fuel.
-- **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher and explosions ≈ 5 m.
+- **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher ≈ 3.1 m, explosions ≈ 4.7 m. The finisher deliberately shoves rather than launches (0.96 m/s of lift vs 6.65 m/s originally) — its job is to clear the target out of your firing line so you can swing to the next one, not to be spectacular.
 - **Blaster readability.** Bolts are longer, fatter, near-white cores with an additive halo, fired at 75 m/s with a muzzle flash. Shots converge on the crosshair via a camera raycast (or the soft-lock target) instead of firing parallel from the muzzle, and the crosshair shows a red lock ring when a target is in the assist cone.
 - **No abyss on the station.** Below the platforms gravity drops to 12% with a 3.2 m/s terminal speed and fuel regenerates, so drifting off is recoverable with a tap of jetpack; the killY backstop repositions without damage.
 - **Grogu rides with Din Djarin only.**

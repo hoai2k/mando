@@ -139,12 +139,14 @@ export class Enemy {
    * pulls velocity straight back to the AI's intended movement and the hit
    * reads as nothing.
    */
-  knockback(from: THREE.Vector3, force: number, stagger = 0.3): void {
+  knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
     const dir = this.position.clone().sub(from).setY(0);
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // point-blank: shove along +Z
     dir.normalize();
     this.velocity.addScaledVector(dir, force);
-    this.velocity.y += force * 0.35;
+    // `lift` is what separates a shove from a launch: keep it low to slide the
+    // target clear along the ground, raise it when a pop is wanted (explosions)
+    this.velocity.y += force * lift;
     this.stagger = Math.max(this.stagger, stagger);
   }
 
