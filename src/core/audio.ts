@@ -64,7 +64,9 @@ export class AudioEngine {
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
-      for (const ext of ['ogg', 'mp3']) {
+      // mp3 first: that's what tools/generate-sfx.mjs ships, so the common
+      // case is one request instead of a 404 probe per sample.
+      for (const ext of ['mp3', 'ogg']) {
         try {
           const res = await fetch(`assets/audio/${n}.${ext}`);
           if (!res.ok) continue;
