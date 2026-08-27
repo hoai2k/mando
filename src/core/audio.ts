@@ -1,6 +1,7 @@
 /**
- * WebAudio engine. Every sound is synthesized procedurally; if an authored
- * file exists at assets/audio/<name>.ogg it is used instead (see docs/ASSETS_AUDIO.md).
+ * WebAudio engine. Short sounds are synthesized procedurally unless an authored file
+ * exists at assets/audio/<name>.mp3 (see docs/ASSETS_AUDIO.md); board background music
+ * is streamed from public/music/ as a playlist (see MUSIC_PLAYLISTS below).
  */
 
 type SampleName =
@@ -20,6 +21,17 @@ export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass'
   | 'imperial_bark' | 'imperial_death';
+
+/**
+ * Authored background-music playlists, streamed rather than decoded up front:
+ * these are multi-megabyte tracks, so they play through an <audio> element fed
+ * into the music bus instead of a fully-decoded AudioBuffer. Each board picks a
+ * random starting track and then cycles through the list forever.
+ */
+const MUSIC_PLAYLISTS: Record<'desert' | 'station', string[]> = {
+  desert: ['music/bone-totem-march-1.mp3', 'music/bone-totem-march-2.mp3'],
+  station: ['music/dust-beyond-orbit-1.mp3', 'music/dust-beyond-orbit-2.mp3'],
+};
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -298,15 +310,74 @@ export class AudioEngine {
   }
   stopAmbient(): void { this.ambientStop?.(); this.ambientStop = null; }
 
-  /** Combat/title music: authored loop if present, else a dark synth drone. */
+  /**
+   * Board music: streamed playlist if one exists for the board, else an
+   * authored single loop, else a dark synth drone.
+   */
   startMusic(kind: 'title' | 'desert' | 'station'): void {
     if (!this.ctx) return;
     this.stopMusic();
+    if (kind !== 'title' && this.startPlaylist(MUSIC_PLAYLISTS[kind], kind)) return;
     const name: SampleName = kind === 'title' ? 'music_title' : kind === 'desert' ? 'music_combat_desert' : 'music_combat_station';
     const sampled = this.loopSample(name, 0.5);
     if (sampled) { this.musicStop = sampled; return; }
+    this.startSynthMusic(kind);
+  }
+
+  /**
+   * Stream `urls` through the music bus, one after another on repeat. Returns
+   * false if the element can't be wired up at all; if the files themselves fail
+   * to load we drop back to the synth drone once every track has been tried.
+   */
+  private startPlaylist(urls: string[], kind: 'desert' | 'station'): boolean {
+    const ctx = this.ctx!;
+    if (!urls.length || typeof Audio === 'undefined') return false;
+    const el = new Audio();
+    el.preload = 'auto';
+    let node: MediaElementAudioSourceNode;
+    try { node = ctx.createMediaElementSource(el); } catch { return false; }
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    g.gain.exponentialRampToValueAtTime(0.75, ctx.currentTime + 1.5);
+    node.connect(g).connect(this.music);
+
+    let index = Math.floor(Math.random() * urls.length);
+    let failures = 0;
+    let stopped = false;
+    const teardown = () => {
+      stopped = true;
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+      node.disconnect();
+      g.disconnect();
+    };
+    const play = () => {
+      el.src = urls[index];
+      el.play().catch(() => { /* autoplay blocked; init() runs from a gesture */ });
+    };
+    el.addEventListener('ended', () => {
+      if (stopped) return;
+      failures = 0;
+      index = (index + 1) % urls.length;
+      play();
+    });
+    el.addEventListener('error', () => {
+      if (stopped) return;
+      if (++failures >= urls.length) { teardown(); this.musicStop = null; this.startSynthMusic(kind); return; }
+      index = (index + 1) % urls.length;
+      play();
+    });
+    el.addEventListener('canplay', () => { failures = 0; });
+    play();
+    this.musicStop = teardown;
+    return true;
+  }
+
+  /** Last-resort music bed: a slow detuned drone, pitched per board. */
+  private startSynthMusic(kind: 'title' | 'desert' | 'station'): void {
     const root = kind === 'station' ? 49 : 55;
-    const ctx = this.ctx;
+    const ctx = this.ctx!;
     const stops: (() => void)[] = [];
     for (const [mult, gainV, type] of [[1, 0.045, 'sawtooth'], [1.5, 0.02, 'triangle'], [2.02, 0.014, 'sine']] as const) {
       const o = ctx.createOscillator();
