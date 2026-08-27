@@ -37,7 +37,16 @@ Pick a board, then pick your Mandalorian — both play identically, so choose yo
 - **Din Djarin** — bare beskar shine
 - **Paz Vizsla** — heavy blue plate, oversized pauldrons
 
-**The Dune Sea** — Tatooine wastes: Tusken outcasts, massiff hounds, Pyke patrols, Nikto
+Hostiles don't queue up to charge you. Each wave is **posted around the board** in
+squads that hold their ground until something gives you away — a shot, an explosion,
+a squadmate's shout, or walking into their line of sight. Go and find them: the
+**radar** in the top-right shows every remaining hostile's bearing (dim amber for a
+camp that hasn't noticed you, red once it is fighting), and the counter under it is
+what's left of the wave. Once a fight starts only a couple of them press the attack
+at a time while the rest hold a firing line around you, so there is always a flank
+worth pushing.
+
+**The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
 swoop riders and a sarlacc pit that will eat anything knocked into it.
 
 **The Spice Run** — a smugglers' waystation of floating platforms in deep space. The
