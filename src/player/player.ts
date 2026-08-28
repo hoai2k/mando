@@ -69,6 +69,14 @@ export class Player {
   /** burn-zone damage accrues and lands in ticks so the hurt feedback isn't a buzz */
   private burnAcc = 0;
   private burnTick = 0;
+  // ---- water ----
+  /** chest-deep with the bottom in standing reach: slow, exposed, but walking */
+  wading = false;
+  /** head under, no bottom in reach: free 3D swimming */
+  swimming = false;
+  private wasInWater = false;
+  /** seconds spent in the water since last touching dry ground (boards read this — the mamacore hunts by it) */
+  waterTime = 0;
 
   grounded = false;
   private coyote = 0;
@@ -236,6 +244,38 @@ export class Player {
       return;
     }
 
+    // ---- water: wade where you can stand, swim where you can't ----
+    const waterY = game.board.waterY;
+    const inWater = waterY !== undefined && this.position.y + 0.9 < waterY;
+    this.wading = false;
+    let swimNow = false;
+    if (inWater && waterY !== undefined) {
+      const bottom = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.5);
+      const depth = waterY - (isFinite(bottom) ? bottom : -1e9);
+      if (depth > 1.7) swimNow = true;
+      else this.wading = true;
+    }
+    if (inWater && !this.wasInWater) {
+      // hitting the surface
+      const p = this.position.clone().setY(waterY!);
+      game.particles.splash(p, Math.abs(this.velocity.y) > 6 ? 22 : 12);
+      audio.splash(true);
+      game.director.noise(game, this.position, 18); // a splash carries
+    } else if (!inWater && this.wasInWater) {
+      game.particles.splash(this.position.clone().setY(waterY ?? this.position.y), 8);
+      audio.splash(false, 0.4);
+    }
+    this.wasInWater = inWater;
+    // the clock a lurking predator hunts by: runs in the water, resets ashore
+    if (inWater) this.waterTime += dt;
+    else if (this.grounded) this.waterTime = 0;
+    if (swimNow) {
+      this.swimming = true;
+      this.updateSwimming(dt, input, game, realDt);
+      return;
+    }
+    this.swimming = false;
+
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
     const wishX = fwdX * input.moveY + rightX * input.moveX;
@@ -262,7 +302,7 @@ export class Player {
     // spot; if the stick is centred the dodge waits for a direction and goes
     // the instant one arrives. Either way, holding LB on past the dodge rolls
     // into a sprint. In the air sprint means nothing, so it is the jet burst.
-    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking && this.snareTimer <= 0;
+    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking && this.snareTimer <= 0 && !this.wading;
     if (input.dashPressed && !this.blocking) {
       this.dashArmed = true;
       // with no dodge to spend — cooling down, or out of gauge — holding it
@@ -290,7 +330,7 @@ export class Player {
     // ---- sprint ----
     const wantsSprint = this.sprintLatched && input.sprintHeld && moving
       && this.grounded && this.energy > 0 && !this.blocking;
-    this.sprinting = wantsSprint && this.snareTimer <= 0;
+    this.sprinting = wantsSprint && this.snareTimer <= 0 && !this.wading;
     if (this.sprinting) {
       this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
       this.sprintRefillDelay = 0.7;
@@ -304,6 +344,7 @@ export class Player {
     const snared = this.snareTimer > 0;
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
     if (snared) topSpeed *= 0.32;
+    if (this.wading) topSpeed *= 0.45; // chest-deep: slow, loud, exposed
     const speedTarget = Math.min(wishLen, 1) * topSpeed;
 
     if (this.dashTimer > 0) {
@@ -453,12 +494,15 @@ export class Player {
       const gait = anim.gaitRate('runLower', speed2);
       anim.play('lower', 'runLower', 0.15, gait);
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, gait);
-      if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
+      if (this.wading) {
+        if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
+      } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
       // footfalls follow the same cadence, so the sound lands on the plant
       this.footTimer -= dt;
       if (this.footTimer <= 0) {
         this.footTimer = anim.stepInterval('runLower', gait);
-        audio.footstep(game.board.footstep);
+        if (this.wading) audio.splash(false, 0.18);
+        else audio.footstep(game.board.footstep);
       }
     } else {
       anim.play('lower', 'idleLower');
@@ -472,6 +516,93 @@ export class Player {
     // camera stays crisp while the world is in slow motion
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+    });
+  }
+
+  /**
+   * Free 3D swimming — the helmet is sealed, so depth costs nothing but
+   * reach: bolts die at the surface (both ways), so a diver can travel and
+   * hide but has to surface to fight. Movement is camera-directed like the
+   * jetpack: look where you want to go and push forward; Space rises, and a
+   * jump taken near the surface breaches — high enough to catch a deck edge
+   * or light the jetpack.
+   */
+  private updateSwimming(dt: number, input: FrameInput, game: Game, realDt: number): void {
+    const anim = this.char.animator!;
+    const waterY = game.board.waterY!;
+
+    // camera-directed wish, with Space as ballast
+    const fwd = this.cam.aimDir(new THREE.Vector3());
+    const { rightX, rightZ } = yawBasis(this.cam.yaw);
+    const wish = new THREE.Vector3(
+      fwd.x * input.moveY + rightX * input.moveX,
+      fwd.y * input.moveY,
+      fwd.z * input.moveY + rightZ * input.moveX,
+    );
+    if (input.jumpHeld) wish.y += 0.85;
+    const wishLen = wish.length();
+    if (wishLen > 1) wish.divideScalar(wishLen);
+
+    // a kick of the fins: the dash button works underwater too
+    this.dashCd -= dt;
+    if ((input.dashPressed || input.sprintHeld) && this.dashCd <= 0 && this.energy > DASH_ENERGY && wishLen > 0.2) {
+      this.dashCd = 0.8;
+      this.energy = Math.max(0, this.energy - DASH_ENERGY);
+      this.sprintRefillDelay = 0.7;
+      this.velocity.addScaledVector(wish.clone().normalize(), 8);
+      game.particles.splash(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 6);
+    } else {
+      this.sprintRefillDelay -= dt;
+      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    }
+
+    const SWIM_SPEED = 5.4;
+    this.velocity.x = damp(this.velocity.x, wish.x * SWIM_SPEED, 3.5, dt);
+    this.velocity.z = damp(this.velocity.z, wish.z * SWIM_SPEED, 3.5, dt);
+    // gentle buoyancy: idle, you drift up until your visor breaks the surface
+    const eq = waterY - 1.45;
+    const buoy = Math.abs(wish.y) > 0.05 ? wish.y * SWIM_SPEED : clamp((eq - this.position.y) * 0.8, -0.6, 1.1);
+    this.velocity.y = damp(this.velocity.y, buoy, 3, dt);
+
+    // breach: a jump taken with the head near the surface throws you clear
+    if (input.jumpPressed && this.position.y + 1.7 > waterY) {
+      this.velocity.y = 8.5;
+      game.particles.splash(this.position.clone().setY(waterY), 18);
+      audio.splash(false);
+    }
+
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    this.wasGrounded = res.grounded;
+    this.slamming = false;
+    // the pack breathes out: a bubble trail off the helmet
+    game.particles.bubbleTrail(this.position.clone().add(new THREE.Vector3(0, 1.5, 0)), dt);
+    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.7));
+    audio.setJetpackThrust(this.slot, 0);
+    this.char.setThrust(0);
+    this.thrusting = 0;
+    this.wasThrusting = false;
+
+    if (this.position.y < game.board.physics.killY) this.damage(999, this.position);
+    this.applyHazards(dt, game);
+
+    // guns stay holstered below the surface; the gaffi still swings
+    this.aiming = false;
+    this.lockedOn = false;
+    this.updateCombat(dt, {
+      ...input, shootHeld: false, aimHeld: false, rocketPressed: false,
+    }, game);
+
+    // face and lean into the stroke
+    const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
+    if (speed2 > 0.6) this.facingYaw = dampAngle(this.facingYaw, Math.atan2(this.velocity.x, this.velocity.z), 8, dt);
+    anim.play('lower', 'flyLower');
+    if (this.meleeTimer <= 0) anim.play('upper', 'flyUpper');
+
+    this.syncVisual(dt, game);
+    anim.update(dt);
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: false, speed: speed2, dashing: false,
     });
   }
 
@@ -822,9 +953,13 @@ export class Player {
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
-    // lean into velocity while flying
+    // lean into velocity while flying; underwater the whole body pitches
+    // into the stroke — diving tips you prone, rising brings you upright
     const lean = clamp((this.velocity.x * Math.sin(this.facingYaw) + this.velocity.z * Math.cos(this.facingYaw)) / 18, -0.35, 0.35);
-    this.char.root.rotation.x = damp(this.char.root.rotation.x, this.grounded ? 0 : lean * (this.thrusting ? 1 : 0.4), 8, dt);
+    const target = this.swimming
+      ? clamp(lean * 2.2 - this.velocity.y * 0.09, -0.6, 0.9)
+      : this.grounded ? 0 : lean * (this.thrusting ? 1 : 0.4);
+    this.char.root.rotation.x = damp(this.char.root.rotation.x, target, 8, dt);
     this.char.cosmetic?.(dt, game.time);
   }
 }

@@ -17,12 +17,13 @@ import type { Game } from '../game/game';
 
 const SEA_BED = -1.5;
 const DECK_TOP = 1.7;
+const WATER_Y = 0;
 const MAMACORE = new THREE.Vector3(14, 0, -6);
 
-/** the harbour itself: cold enough to be a countdown, not a wall */
-function waterDps(x: number, z: number, y: number): number {
-  return y < 0.35 ? 20 : 0;
-}
+/** seconds of cumulative water time before the mamacore comes looking */
+const HUNT_AFTER = 5;
+/** seconds from the first ripple to the strike — the window to get out */
+const HUNT_TELEGRAPH = 2.4;
 
 export function buildTrask(): Board {
   const group = new THREE.Group();
@@ -214,9 +215,27 @@ export function buildTrask(): Board {
       new THREE.Vector3(-15, 14, -20), new THREE.Vector3(25, 12, -40), new THREE.Vector3(0, 16, 10),
     ],
     hazards: [{ center: MAMACORE.clone(), radius: 4.5, kind: 'kill', yMax: 1.0 }],
-    burnAt: waterDps,
+    // chest-deep everywhere: the harbour is wadeable, and the danger is the
+    // thing hunting in it, not the water itself
+    waterY: WATER_Y,
     movers,
   };
+
+  // ---- the mamacore hunts by the clock ----
+  // Spend too long in the water and a ripple wake starts converging on you:
+  // ~2.4 s from the first ring to the strike, which is exactly enough time to
+  // wade for a ladder or jet clear. It grabs whoever is still in the water.
+  interface Hunt { active: boolean; t: number; pos: THREE.Vector3; ring: THREE.Mesh; }
+  const ringGeo = new THREE.TorusGeometry(0.9, 0.1, 6, 22);
+  const hunts: Hunt[] = [0, 1].map(() => {
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+      color: 0x9fd8d0, transparent: true, opacity: 0.7, depthWrite: false,
+    }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.visible = false;
+    group.add(ring);
+    return { active: false, t: 0, pos: new THREE.Vector3(), ring };
+  });
 
   let boltIn = 6 + rng() * 8;      // seconds to the next lightning strike
   let boltFlash = 0;
@@ -236,6 +255,56 @@ export function buildTrask(): Board {
       b.mover.moveTo(b.home.x + surge * 0.4, b.home.y + heave, b.home.z + surge);
       b.node.rotation.z = Math.sin(time * 0.8 + b.phase) * 0.05;
       b.node.rotation.x = Math.cos(time * 0.66 + b.phase) * 0.035;
+    }
+
+    // the hunt: ripples converge on whoever has been in the water too long
+    if (game) {
+      for (let i = 0; i < hunts.length && i < game.players.length; i++) {
+        const h = hunts[i];
+        const p = game.players[i];
+        const inWater = p.alive && p.position.y + 0.9 < WATER_Y;
+        if (!h.active) {
+          h.ring.visible = false;
+          if (inWater && p.waterTime > HUNT_AFTER) {
+            h.active = true;
+            h.t = HUNT_TELEGRAPH;
+            const a = Math.random() * Math.PI * 2;
+            h.pos.set(p.position.x + Math.cos(a) * 15, WATER_Y + 0.08, p.position.z + Math.sin(a) * 15);
+            audio.mamacoreRoar(0.3); // something big turned toward you
+          }
+          continue;
+        }
+        h.t -= dt;
+        // the wake homes on the swimmer — it arrives when the timer does
+        const tx = p.position.x - h.pos.x, tz = p.position.z - h.pos.z;
+        const d2 = Math.hypot(tx, tz);
+        if (d2 > 0.05) {
+          const speed = Math.max(6, d2 / Math.max(h.t, 0.15));
+          const step = Math.min(speed * dt, d2);
+          h.pos.x += (tx / d2) * step;
+          h.pos.z += (tz / d2) * step;
+        }
+        h.ring.visible = true;
+        h.ring.position.copy(h.pos);
+        const s = 1 + Math.sin(time * 9) * 0.18;
+        h.ring.scale.set(s, s, 1);
+        if (Math.random() < dt * 16) game.particles.splash(h.pos, 2);
+        if (h.t <= 0) {
+          h.active = false;
+          h.ring.visible = false;
+          game.particles.splash(h.pos.clone(), 32);
+          audio.mamacoreRoar(0.85);
+          const pd = Math.hypot(p.position.x - h.pos.x, p.position.z - h.pos.z);
+          if (inWater && pd < 3.4) {
+            // grabbed, mauled, and spat toward the surface — twice is fatal
+            p.damage(55, h.pos);
+            p.velocity.y = 14;
+            p.velocity.x += (p.position.x - h.pos.x) * 2.2;
+            p.velocity.z += (p.position.z - h.pos.z) * 2.2;
+          }
+          p.waterTime = HUNT_AFTER - 3; // it circles back fast — get out
+        }
+      }
     }
 
     // the mamacore churns
@@ -273,7 +342,6 @@ export function buildTrask(): Board {
       thunderIn -= dt;
       if (thunderIn <= 0) audio.thunder(0.5 + Math.random() * 0.3);
     }
-    void game;
   };
 
   return board;

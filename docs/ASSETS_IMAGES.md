@@ -32,6 +32,7 @@ Same style and spec as the two delivered cards (`board_tatooine.jpg`,
 | `board_refinery.jpg` | "Cinematic interior shot of a vast industrial refinery hall: a glowing orange reactor column rising through a 40-meter open shaft ringed by catwalks, low corridors with hazard-striped fuel barrels, red alarm lights, an armored figure with jetpack flying up the shaft, concept-art style" |
 | `board_forge.jpg` | "Cinematic wide shot of a ruined civilization on a glassed planet: a shattered great dome half-collapsed over fused green-grey glass desert, floating chunks of ruin hanging in the air, a magnetic storm arcing violet lightning in the distance, a lone armored warrior before the ruins, somber concept-art style" |
 | `board_ringworld.jpg` | "Cinematic shot along a city street built on the inside of a ring space station, the ground curving up into the sky in the far distance: neon signs and street lights on one half in deep night, warm low sunlight on the other half, a sharp terminator line between them crossing the street, a sleek monorail tram, concept-art style" |
+| `board_narkina.jpg` | "Cinematic split-view shot at the waterline of an ocean planet: above, a sterile white Imperial prison facility on pylons under hard grey daylight, glowing white floor strips; below the surface, teal water with kelp, a glowing reef and an armored figure swimming down trailing bubbles, concept-art style" |
 
 ## New boards — sky panoramas (priority 2)
 
@@ -46,6 +47,7 @@ procedural shader sky when present (the Refinery is an interior and needs none).
 | `sky_trask.jpg` | Trask | "360 equirectangular panorama of a storm sky over an ocean moon: heavy dark grey-green cumulus, rain curtains on the horizon, one brighter break in the cloud, late dusk light, no ground objects, photorealistic" |
 | `sky_mandalore.jpg` | The Great Forge | "360 equirectangular panorama of a dead world's sky: muted grey-green haze, a pale sun behind thin toxic-looking cloud bands, faint aurora-like magnetic shimmer near the horizon, somber and still, no ground objects, photorealistic" |
 | `sky_ring.jpg` | The Ringworld | "360 equirectangular panorama from inside a colossal ring space station: the ring's inner surface arcing overhead as a faint band of distant city lights across the starfield, a low warm sun on one horizon and deep night on the opposite one, no nearby ground objects, photorealistic" |
+| `sky_narkina.jpg` | The Prison Rig | "360 equirectangular panorama of a hard bright overcast sky over an endless grey-green ocean: high white glare through thin cloud, a pale cold sun disc, distant white-capped swell at the horizon in every direction, no land, no objects, photorealistic" |
 
 ## New boards — surface textures (priority 3)
 

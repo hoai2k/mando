@@ -18,8 +18,9 @@ type SampleName =
   | 'imperial_bark' | 'imperial_death'
   | 'spider_chitter' | 'quarren_bark' | 'alamite_shriek' | 'drone_whine' | 'flame_burst'
   | 'thunder_crack' | 'geyser_blast' | 'alarm_klaxon' | 'ice_crack' | 'mythosaur_call'
+  | 'splash_in' | 'splash_out' | 'mamacore_roar' | 'floor_charge'
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
-  | 'amb_refinery' | 'amb_forge' | 'amb_city'
+  | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
@@ -101,8 +102,9 @@ export class AudioEngine {
       'imperial_bark', 'imperial_death',
       'spider_chitter', 'quarren_bark', 'alamite_shriek', 'drone_whine', 'flame_burst',
       'thunder_crack', 'geyser_blast', 'alarm_klaxon', 'ice_crack', 'mythosaur_call',
+      'splash_in', 'splash_out', 'mamacore_roar', 'floor_charge',
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
-      'amb_refinery', 'amb_forge', 'amb_city',
+      'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -297,6 +299,31 @@ export class AudioEngine {
     if (!this.ctx || this.playSample('flame_burst', gain)) return;
     this.burst(0.45, 0.2 * gain, 500, 0, 0.35);
     this.burst(0.3, 0.12 * gain, 1600, 0.05, 0.8);
+  }
+  /** Body meeting water — in (deeper whump) or out (lighter shed). */
+  splash(entering: boolean, gain = 0.55): void {
+    if (!this.ctx || this.playSample(entering ? 'splash_in' : 'splash_out', gain)) return;
+    if (entering) {
+      this.zap(300, 70, 0.18, 'sine', 0.3 * gain);
+      this.burst(0.3, 0.28 * gain, 1100, 0.01, 0.5);
+      this.burst(0.25, 0.14 * gain, 3200, 0.04, 0.8);
+    } else {
+      this.burst(0.22, 0.2 * gain, 1600, 0, 0.6);
+      this.burst(0.3, 0.1 * gain, 700, 0.05, 0.7);
+    }
+  }
+  /** The mamacore surfacing for a grab: a wet bellow with teeth in it. */
+  mamacoreRoar(gain = 0.7): void {
+    if (!this.ctx || this.playSample('mamacore_roar', gain)) return;
+    this.zap(160, 45, 0.7, 'sawtooth', 0.35 * gain);
+    this.zap(95, 38, 0.8, 'square', 0.2 * gain, 0.05);
+    this.burst(0.7, 0.25 * gain, 500, 0, 0.5);
+  }
+  /** Electrified floor charging up — the prison rig's warning tone. */
+  floorCharge(gain = 0.45): void {
+    if (!this.ctx || this.playSample('floor_charge', gain)) return;
+    this.zap(220, 900, 0.9, 'sawtooth', 0.08 * gain);
+    this.zap(440, 1800, 0.9, 'sine', 0.05 * gain, 0.05);
   }
   /** Something colossal, far below the water. Felt more than heard. */
   mythosaur(gain = 0.5): void {

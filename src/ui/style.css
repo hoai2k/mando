@@ -52,10 +52,10 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .menu-hint { margin-top: 26px; font-size: 13px; letter-spacing: 0.1em; color: #7a6c50; }
 .menu-hint b { color: #b9a678; }
 
-/* board select cards — a 4×2 grid now that there are eight territories */
+/* board select cards — a 3×3 grid for the nine territories */
 .board-cards {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px; margin-top: 10px; width: min(1240px, 94vw);
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; margin-top: 10px; width: min(1080px, 94vw);
 }
 .board-card {
   border: 1px solid #5f4d2c; background: rgba(15,12,8,0.8);

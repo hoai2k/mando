@@ -359,10 +359,14 @@ export class ParticleFX {
   private boom = new Pool(400, 0xffa050, 0.5, 1.5);
   private smoke = new Pool(300, 0x555555, 0.6, -0.8, false, 0.3);
   private flash = new Pool(120, 0xffe0a0, 0.55, 0);
+  /** white water thrown up by a splash — falls back down */
+  private spray = new Pool(300, 0xdceaf4, 0.3, 8, false, 0.55);
+  /** air bubbles — negative gravity, they rise */
+  private bubble = new Pool(300, 0xbfe4ff, 0.1, -2.4, true, 0.4);
   private jet = new FlamePool(2600);
 
   constructor() {
-    for (const p of [this.sparks, this.dust, this.boom, this.smoke, this.flash]) this.group.add(p.points);
+    for (const p of [this.sparks, this.dust, this.boom, this.smoke, this.flash, this.spray, this.bubble]) this.group.add(p.points);
     this.group.add(this.jet.points);
   }
 
@@ -429,6 +433,17 @@ export class ParticleFX {
     if (Math.random() < dt * 30) this.smoke.spawn(origin, new THREE.Vector3(0, 0.5, 0), 1, 0.7, 1);
   }
 
+  /** water thrown up where something met the surface */
+  splash(p: THREE.Vector3, n = 14): void {
+    this.spray.spawn(p, new THREE.Vector3(0, 3.2, 0), 3.4, 0.7, n);
+    this.bubble.spawn(p, new THREE.Vector3(0, 0.6, 0), 1.2, 0.8, Math.ceil(n / 2));
+  }
+
+  /** a swimmer's exhaust: a few bubbles a frame, rising off the pack */
+  bubbleTrail(p: THREE.Vector3, dt: number): void {
+    if (Math.random() < dt * 14) this.bubble.spawn(p, new THREE.Vector3(0, 1.4, 0), 0.7, 1.4, 1);
+  }
+
   dustPuff(p: THREE.Vector3, n = 8): void { this.dust.spawn(p, new THREE.Vector3(0, 1.2, 0), 2.4, 0.9, n); }
   runDust(p: THREE.Vector3): void { this.dust.spawn(p, new THREE.Vector3(0, 0.5, 0), 1, 0.5, 1); }
   explosion(p: THREE.Vector3): void {
@@ -447,6 +462,8 @@ export class ParticleFX {
     this.boom.update(dt);
     this.smoke.update(dt);
     this.flash.update(dt);
+    this.spray.update(dt);
+    this.bubble.update(dt);
     this.jet.update(dt);
   }
 }

@@ -736,11 +736,13 @@ export class Enemy {
     }
 
     if (d.style === 'melee' || d.style === 'ranged') {
-      // Edge guard: on the platforms a walking enemy never steers itself into
-      // the void — probe the ground a step ahead and stop at the lip. Only
-      // voluntary movement is caught; a knockback can still throw them off,
-      // which is half the fun of the station board.
-      if (!game.board.physics.heightAt && this.stagger <= 0) {
+      // Edge guard: a walking enemy never steers itself into the void — or
+      // over a rail into deep water it would drown in. Probe the ground a
+      // step ahead and stop at the lip. Only voluntary movement is caught; a
+      // knockback can still throw them off, which is half the fun. Shallow
+      // water (Trask's chest-deep harbour) is walkable and stays open.
+      const guardWater = game.board.waterY !== undefined;
+      if ((!game.board.physics.heightAt || guardWater) && this.stagger <= 0) {
         const sp = Math.hypot(this.velocity.x, this.velocity.z);
         // gate must be near zero: steering re-adds a trickle of velocity every
         // frame after a block, and a 0.3 m/s creep still walks off the lip
@@ -748,7 +750,9 @@ export class Enemy {
           const ax = this.position.x + (this.velocity.x / sp) * 1.2;
           const az = this.position.z + (this.velocity.z / sp) * 1.2;
           const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
-          if (!isFinite(g) || g < this.position.y - 3) {
+          const drop = !isFinite(g) || g < this.position.y - 3;
+          const intoDeep = guardWater && (!isFinite(g) || (game.board.waterY! - g > 1.7));
+          if (drop && (!game.board.physics.heightAt || (intoDeep && !this.def.burnImmune))) {
             this.velocity.x = 0;
             this.velocity.z = 0;
           }
@@ -767,12 +771,19 @@ export class Enemy {
     // machinery in damage() isn't hammered every frame.
     const hzd = hazardAt(game.board, this.position);
     if (hzd.kill) this.damage(9999, this.position, -1);
-    else if (hzd.dps > 0 && !this.def.burnImmune) {
-      this.burnAcc += hzd.dps * dt;
-      this.burnTick -= dt;
-      if (this.burnTick <= 0) {
-        this.burnTick = 0.5;
-        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1); this.burnAcc = 0; }
+    else if (!this.def.burnImmune) {
+      let dps = hzd.dps;
+      // fully under the surface, anything that breathes (or shorts) drowns —
+      // aquatic kinds (`burnImmune`) are at home down there
+      const wY = game.board.waterY;
+      if (wY !== undefined && this.position.y + this.height * 0.85 < wY) dps += 15;
+      if (dps > 0) {
+        this.burnAcc += dps * dt;
+        this.burnTick -= dt;
+        if (this.burnTick <= 0) {
+          this.burnTick = 0.5;
+          if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1); this.burnAcc = 0; }
+        }
       }
     }
 
@@ -869,7 +880,11 @@ export class Enemy {
     // sight range scales with the light falling on the *target*: on a board
     // with a moving terminator the night side is genuinely safer to cross
     const lit = game.board.lightAt ? 0.45 + 0.55 * game.board.lightAt(foe.position.x, foe.position.z) : 1;
-    const notice = d.notice * lit;
+    let notice = d.notice * lit;
+    // a submerged target is a shadow under the chop: near-invisible from
+    // above, which is what makes the water a stealth route
+    const wY = game.board.waterY;
+    if (wY !== undefined && foe.position.y + 1.2 < wY) notice = Math.min(notice, 7);
     if (dist > notice) return false;
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
