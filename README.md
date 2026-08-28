@@ -27,7 +27,7 @@ model next to the procedural build it replaces.
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Dead Eye (slow motion) | `V` | click right stick |
-| Ground slam (in air) | `Ctrl` / `C` | `RB` |
+| Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `RB` |
 | Switch weapon | `E` | `LB` |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
@@ -54,7 +54,11 @@ worth pushing.
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
 and recoil climbs; **Dead Eye** (`V` / right-stick click) drops the world into slow
-motion while your trigger stays fast — the meter refills as you kill. Enemies fight from
+motion while your trigger stays fast — the meter refills as you kill. And you can
+**take cover** like they do: press `C` (or `RB`) near a crate to snap against it —
+slide along the face with the stick, hold aim to lean out past the corner and
+shoot (it picks the corner with a clear shot to your target), release to duck
+back; jump, dash or push away to leave. Enemies fight from
 cover — shooters duck behind spice crates, barrels and hut walls, peek out to loose
 a volley, and duck back (suppress them and they stay hidden; flank the box and they
 scramble for a new one). They get pinned under heavy fire, get knocked flat by
