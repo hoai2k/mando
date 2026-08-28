@@ -81,8 +81,8 @@ export function warmTitle(): void {
 }
 
 /**
- * The territory grid: the roster is next, and any of the four could be picked,
- * so warm all of them. The first is usually already here from the title.
+ * The territory grid: the roster is next, and any of them could be picked, so
+ * warm all of them. The first is usually already here from the title.
  */
 export function warmBoardSelect(): void {
   for (const id of MANDO_IDS) warmAuthored(id, 'idle');

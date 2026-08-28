@@ -66,7 +66,7 @@ export const GROUPS: SubjectGroup[] = [
   {
     label: 'Allies',
     subjects: [
-      plain('ig11', 'IG-11', (a) => buildIG(a), true),
+      plain('ig11', 'VX-9 — ally build', (a) => buildIG(a), true),
       plain('marshal', 'Cobb Vanth', (a) => buildGunfighter('marshal', a), true),
       plain('fennec', 'Fennec Shand', (a) => buildGunfighter('fennec', a), true),
     ],
