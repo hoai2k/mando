@@ -182,11 +182,23 @@ several sides instead of stampeding in from one.
 ### Self-preservation (the RDR2 layer)
 
 Enemies value their own lives, per RDR2's combat AI:
+- **Cover** — shooters fight from behind the boards' boxes (spice crates,
+  barrels, huts, vaporators, the barge). A shooter scans nearby collision
+  boxes for a spot that blocks the sightline both ways *and* is within
+  blaster range of the target, walks there, then loops: hide a beat behind
+  the box (holding fire), step out to a peek point off the box's edge, fire
+  a volley, duck back. Committed shooters run the same loop at ~2× tempo so
+  the director's pressure roles survive. Cover spots are ground- and
+  path-validated so nobody steps off a platform to reach one, and being shot
+  in the open triggers an immediate dive for the nearest crate; when the
+  target flanks the box, the spot is abandoned. An edge guard also stops any
+  walking enemy from steering itself off a platform lip (knockbacks can
+  still throw them off — that stays).
 - **Suppression** — hits and near misses (player bolts landing within ~4.5 m)
   build a suppression value; past a threshold a shooter stops working its
   firing position or advancing, plants where it is, fires less often and much
-  less accurately until it recovers. Pouring fire at a camp genuinely keeps
-  heads down.
+  less accurately until it recovers — and a suppressed shooter in cover stays
+  hidden ~3× longer. Pouring fire at a crate genuinely keeps a head down.
 - **Flinch** — a death rattles every hostile within 12 m (suppression spike).
 - **Morale** — when a squad of 3+ is down to its last member, even odds it
   breaks and runs: sprints away from the threat, rallies at ~55 m, and turns
@@ -197,10 +209,11 @@ Enemies value their own lives, per RDR2's combat AI:
 ### Per-kind behaviour
 - **Charger** (Tusken, pirate brawler): committed → approach, telegraphed wind-up,
   swing. Not committed → circle at 9–14 m and wait for a turn.
-- **Shooter** (Pyke, pirate, troopers): works a firing position on its bearing —
-  9–18 m when committed, 15–30 m when holding the line — strafes there, and
-  fires volleys only with line of sight. On the station it stays leashed to its
-  platform.
+- **Shooter** (Pyke, pirate, troopers): fights from cover when a valid spot is
+  in range (see Self-preservation), otherwise works a firing position on its
+  bearing — 9–18 m when committed, 15–30 m when holding the line — strafes
+  there, and fires volleys only with line of sight. On the station it stays
+  leashed to its platform.
 - **Swooper/flyer** (Nikto swoop, jet-pirate, dark trooper): figure-eight strafing
   runs, vulnerable window after each pass; loiters near its post until alerted.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.
