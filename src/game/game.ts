@@ -41,6 +41,9 @@ interface Rocket {
   bySlot: number;
 }
 
+/** which ally reinforces on which wave; the preloader reads the same table */
+const ALLY_WAVES: Record<number, EnemyKind> = { 4: 'marshal', 7: 'ig11', 9: 'fennec' };
+
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
@@ -151,6 +154,12 @@ export class Game {
     // The intro banner buys a couple of seconds; spend them fetching the models
     // wave one is about to need, rather than parsing them on the spawn frame.
     this.preloadWave(1);
+    // The three allies are certain to appear in a full match and are only three
+    // files, so warm them now rather than the instant one walks into a firefight.
+    for (const kind of Object.values(ALLY_WAVES)) {
+      const id = ENEMY_MODEL_ID[kind];
+      if (id) preloadAuthored(id);
+    }
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music);
@@ -542,6 +551,13 @@ export class Game {
       const id = ENEMY_MODEL_ID[entry.kind];
       if (id) preloadAuthored(id);
     }
+    // Allies are not part of a wave's composition, so they were downloading
+    // cold at the moment they walked in — mid-fight, against a spawn storm.
+    const ally = ALLY_WAVES[wave];
+    if (ally) {
+      const id = ENEMY_MODEL_ID[ally];
+      if (id) preloadAuthored(id);
+    }
   }
 
   private setState(s: MatchState): void {
@@ -575,7 +591,7 @@ export class Game {
     audio.waveStart();
 
     // ally reinforcements from the covert on milestone waves
-    const allyKind = this.wave === 4 ? 'marshal' : this.wave === 7 ? 'ig11' : this.wave === 9 ? 'fennec' : null;
+    const allyKind = ALLY_WAVES[this.wave] ?? null;
     if (allyKind) {
       const start = this.board.playerStarts[0].clone().add(new THREE.Vector3(2.5, 0, 2.5));
       const ally = new Enemy(allyKind, start, 0);
