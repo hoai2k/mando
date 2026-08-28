@@ -320,8 +320,9 @@ function quitToTitle(): void {
 // to break — every slot still reads its own device, so a pad that is there
 // drives its player and a slot without one simply stands still.
 Object.assign(window, {
-  __startCoop: (n: number) => {
+  __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
+    if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
     while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     startGame();
   },
