@@ -16,6 +16,8 @@ import type { Game } from '../game/game';
  */
 
 const WALL_H = 40;
+/** underside of the roof slab — the walls run up to meet it, leaving no ledge */
+const ROOF_UNDER = 41.25;
 const CEIL_Y = 7.2;
 
 export function buildRefinery(): Board {
@@ -27,14 +29,13 @@ export function buildRefinery(): Board {
 
   // interior light: no sun. A dim cool wash, warm sodium pools, red alert rig.
   group.add(new THREE.HemisphereLight(0x6a7484, 0x1a1c20, 0.85));
+  // A directional wash standing in for bounce off the walls — deliberately not
+  // a shadow caster. This is a windowless building: the roof and the ceiling
+  // slabs are solid, so a sun-shaped shadow map either lights the interior
+  // through its own roof (what it did) or blacks the whole board out. Either
+  // way a full 2048 shadow pass was being rendered every frame for nothing.
   const key = new THREE.DirectionalLight(0xbfd0e0, 0.7);
   key.position.set(30, 60, 10);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
-  key.shadow.camera.left = key.shadow.camera.bottom = -70;
-  key.shadow.camera.right = key.shadow.camera.top = 70;
-  key.shadow.camera.far = 200;
-  key.shadow.bias = -0.0008;
   group.add(key);
   const lamps: THREE.PointLight[] = [];
   for (const [lx, lz] of [[-30, -30], [30, -30], [-30, 30], [30, 30], [0, 0]] as const) {
@@ -68,7 +69,11 @@ export function buildRefinery(): Board {
     wall.position.set(wx, WALL_H / 2, wz);
     wall.receiveShadow = true;
     group.add(wall);
-    physics.addBox(wx, WALL_H / 2, wz, w, WALL_H, d);
+    // Meet the roof. The walls stopped at 40 and the roof's underside is at
+    // 41.25, leaving a 1.25 m slot over a 2 m ledge — too low for the 1.75 m
+    // player capsule to stand in, so a jetpack landing on the wall top
+    // oscillated between the ceiling pushing down and the ledge snapping back.
+    physics.addBox(wx, ROOF_UNDER / 2, wz, w, ROOF_UNDER, d);
   }
 
   // low ceiling over the outer work halls; the centre 44×44 stays open — the
@@ -102,9 +107,20 @@ export function buildRefinery(): Board {
   core.position.y = 20;
   core.castShadow = core.receiveShadow = true;
   group.add(core);
-  physics.addCylinder(0, 20, 0, 5.2, 40);
+  // The column tapers 5.5 -> 4.5 over its height; one 5.2 m cylinder sank you
+  // 0.3 m into the base and put an invisible wall 0.7 m off the top. Stack a
+  // few, each matching the radius over its own slice.
+  for (let i = 0; i < 4; i++) {
+    const h = 40 / 4;
+    const cy = i * h + h / 2;
+    const r = 5.5 - (cy / 40) * 1.0;   // radius at the middle of this slice
+    physics.addCylinder(0, cy, 0, r, h);
+  }
+  // Outside the core at every height, not just the top five metres: a straight
+  // 4.7 m shell against a 5.5 -> 4.5 taper was swallowed by its own column for
+  // 29 of its 34 m, so the board's signature light only showed near the roof.
   const coreGlow = new THREE.Mesh(
-    new THREE.CylinderGeometry(4.7, 4.7, 34, 12, 1, true),
+    new THREE.CylinderGeometry(4.8, 5.8, 34, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0xff8a3a, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }),
   );
   coreGlow.position.y = 20;
@@ -123,12 +139,14 @@ export function buildRefinery(): Board {
     }
   }
 
-  // crates: cover through the halls
+  // crates: cover through the halls. One geometry between them, as elsewhere —
+  // eighteen identical boxes were eighteen separate buffer sets.
+  const refCrateGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4);
   for (let i = 0; i < 18; i++) {
     const room = [[-36, -36], [36, -36], [-36, 36], [36, 36], [-36, 0], [36, 0], [0, -40], [0, 40]][i % 8];
     const cx = room[0] + (rng() - 0.5) * 14;
     const cz = room[1] + (rng() - 0.5) * 12;
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), crateMat);
+    const crate = new THREE.Mesh(refCrateGeo, crateMat);
     crate.position.set(cx, 1.2, cz);
     crate.rotation.y = rng() * 0.8;
     crate.castShadow = crate.receiveShadow = true;

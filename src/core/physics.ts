@@ -158,6 +158,27 @@ export class PhysicsWorld {
     return { grounded, groundY: g };
   }
 
+  /**
+   * Raycast vs boxes and cylinders only, skipping the heightfield march.
+   *
+   * For a ray that cannot meet the ground — anything pointed up — the march is
+   * pure waste: it is a fixed 0.6 m step, so a 45 m probe runs 75 iterations of
+   * a noise function that never reports a hit. The Forge's storm ran one of
+   * these per combatant, several times a second, for the whole squall.
+   */
+  raycastSolids(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): RayHit | null {
+    let best: RayHit | null = null;
+    for (const b of this.boxes) {
+      const hit = rayBox(origin, dir, b, maxDist);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    for (const c of this.cylinders) {
+      const hit = rayCylinder(origin, dir, c, maxDist);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    return best;
+  }
+
   /** Raycast vs boxes (analytic) and heightfield (marched). */
   raycast(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): RayHit | null {
     let best: RayHit | null = null;

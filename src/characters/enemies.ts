@@ -28,6 +28,7 @@ const AUTHORED_ENEMY: Record<string, number> = {
   droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2, duelist: 1.9,
   pirate: 1.9, pirate_melee: 1.9, marshal: 1.85, fennec: 1.8, imperial_officer: 1.88,
   tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
+  ig11: 2.2,
   // the swoop rider is measured standing, then posted on the saddle by the pose
   nikto: 1.76,
   // the new-board roster (see ASSETS_MODELS.md for the model briefs)
@@ -193,7 +194,7 @@ export function buildDarkTrooper(authored = true): CharacterInstance {
 
 // ---------- Allies ----------
 /** IG-series assassin droid: tall thin cylinder head, spindly limbs. */
-export function buildIG(): CharacterInstance {
+export function buildIG(authored = true): CharacterInstance {
   const steel = mat(0x8a8578, { rough: 0.5, metal: 0.6 });
   const p: Proportions = { ...HUMAN, hipHeight: 1.15, headSize: 0.34, shoulderWidth: 0.2, upperLegLen: 0.56, lowerLegLen: 0.56 };
   const { inst, rig } = buildBiped({ skin: steel, torso: steel, proportions: p });
@@ -207,6 +208,7 @@ export function buildIG(): CharacterInstance {
   }
   addCyl(b.chest, dark, 0.09, 0.11, 0.3, 0, 0.06, 0, 0, 0, 0, 8);
   inst.muzzle = rifle(b.weaponR);
+  authoredEnemy(inst, rig, 'ig11', authored);
   return inst;
 }
 

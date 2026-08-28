@@ -38,6 +38,9 @@ const CALM_T = 46, WARN_T = 6, STORM_T = 13;
 const CYCLE = CALM_T + WARN_T + STORM_T;
 
 const _up = new THREE.Vector3(0, 1, 0);
+/** scratch for the storm's strikes — one tick can touch every body on the board */
+const _strikeFrom = new THREE.Vector3();
+const _strikeAt = new THREE.Vector3();
 const _probe = new THREE.Vector3();
 
 export function buildForge(): Board {
@@ -114,8 +117,16 @@ export function buildForge(): Board {
     wall.rotation.y = -a + Math.PI / 2;
     wall.castShadow = wall.receiveShadow = true;
     group.add(wall);
-    // AABB approximation of the rotated segment: use a cylinder-ish footprint
-    physics.addCylinder(wx, base + h / 2 - 1.5, wz, 8.5, h);
+    // A row of small cylinders along the wall's own axis, the way the sail
+    // barge is done. One r=8.5 disc per segment was wrong three ways at once:
+    // it stopped you 7.4 m short of a wall you can see, left the last 2.5 m of
+    // each end with no collider at all, and — since neighbouring segments stand
+    // 21 m apart while the discs only meet at 17 — opened a 4 m walk-through
+    // gap in every stretch the 22 m wall meshes visually close.
+    const along = new THREE.Vector2(Math.cos(-a + Math.PI / 2), -Math.sin(-a + Math.PI / 2));
+    for (const t of [-8.8, -4.4, 0, 4.4, 8.8]) {
+      physics.addCylinder(wx + along.x * t, base + h / 2 - 1.5, wz + along.y * t, 2.2, h);
+    }
   }
   // roof slabs at two heights over parts of the dome interior
   for (const [sx, sz, w, d, sy] of [
@@ -123,7 +134,11 @@ export function buildForge(): Board {
   ] as const) {
     const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, d), ruinMat);
     slab.position.set(sx, sy, sz);
-    slab.rotation.z = (rng() - 0.5) * 0.12;
+    // A tilt the collider cannot follow is a tilt you float over at one end and
+    // sink into at the other; over a 26 m slab even 0.06 rad is two thirds of a
+    // metre. Keep the character of a settled ruin, at an angle small enough
+    // that the flat AABB stays honest (under ~0.1 m across the widest slab).
+    slab.rotation.z = (rng() - 0.5) * 0.014;
     slab.castShadow = slab.receiveShadow = true;
     group.add(slab);
     physics.addBox(sx, sy, sz, w, 1.6, d);
@@ -144,8 +159,12 @@ export function buildForge(): Board {
   group.add(ember);
 
   // hanging ruin-chunks: floating platforms to jet between under the roofline
+  // Heights are checked against the slabs above them: a chunk at y = 17 under
+  // the y = 20 slab left 1.30 m of headroom for a 1.75 m capsule, so a player
+  // who jetted onto it was pinned — the ceiling pushing down, the chunk
+  // snapping back up. Moved out from under it rather than raised into it.
   for (const [hx, hy, hz, s] of [
-    [-22, 7, 6, 5], [18, 10, -14, 6], [6, 14, 16, 5], [-12, 17, -18, 4.5],
+    [-22, 7, 6, 5], [18, 10, -14, 6], [6, 14, 16, 5], [-26, 13, -30, 4.5],
     [28, 6, 20, 5], [-30, 11, -26, 5.5], [44, 9, -6, 5],
   ] as const) {
     const chunk = new THREE.Mesh(new THREE.BoxGeometry(s, 1.8, s * 0.85), ruinMat);
@@ -214,6 +233,7 @@ export function buildForge(): Board {
   let eyeGlow = 0;
   let strikeTick = 0;
   let stormWasOn = false;
+  let warnWasOn = false;
   board.update = (dt: number, time: number, game?: Game) => {
     const t = time % CYCLE;
     const warning = t >= CALM_T && t < CALM_T + WARN_T;
@@ -225,7 +245,12 @@ export function buildForge(): Board {
     hemi.intensity = 0.8 * (0.6 + 0.4 * dim);
     stormLight.intensity = storm ? (Math.sin(time * 17) * 0.5 + 0.5) * 1.6 : 0;
 
-    if (storm && !stormWasOn) audio.thunder(0.6); // the front arrives
+    // Thunder on the *warning*, not on the first hit. The six seconds of grace
+    // this mechanic gives you were signalled by nothing but the sun dimming,
+    // which is a lot to read on a board where the answer is a sprint to cover.
+    if (warning && !warnWasOn) audio.thunder(0.55);
+    warnWasOn = warning;
+    if (storm && !stormWasOn) audio.thunder(0.75); // and again as it breaks
     stormWasOn = storm;
 
     if (storm && game) {
@@ -234,24 +259,28 @@ export function buildForge(): Board {
         strikeTick = 0.7;
         // arcs find whoever stands under open sky — a roof is the answer.
         // The AI reads the same rule: suppression plants it where it hides.
+        // Straight up: only slabs, chunks and walls can be overhead, never the
+        // ground, so this asks for the solids alone.
         const sheltered = (pos: THREE.Vector3): boolean => {
           _probe.copy(pos);
           _probe.y += 1.5;
-          return !!physics.raycast(_probe, _up, 45);
+          return !!physics.raycastSolids(_probe, _up, 45);
         };
+        // scratch, not three fresh vectors per struck body per tick
+        const from = _strikeFrom, at = _strikeAt;
         for (const p of game.players) {
           if (!p.alive || sheltered(p.position)) continue;
           if (Math.random() < 0.65) {
-            p.damage(5, p.position.clone().add(new THREE.Vector3(0, 8, 0)));
-            game.particles.impactSparks(p.position.clone().setY(p.position.y + 1.6), 14);
+            p.damage(5, from.copy(p.position).setY(p.position.y + 8));
+            game.particles.impactSparks(at.copy(p.position).setY(p.position.y + 1.6), 14);
           }
         }
         for (const e of game.enemies) {
           if (!e.alive || sheltered(e.position)) continue;
           if (Math.random() < 0.5) {
-            e.damage(8, e.position.clone().add(new THREE.Vector3(0, 8, 0)), -1);
+            e.damage(8, from.copy(e.position).setY(e.position.y + 8), -1);
             e.suppress(0.6);
-            game.particles.impactSparks(e.position.clone().setY(e.position.y + 1.6), 10);
+            game.particles.impactSparks(at.copy(e.position).setY(e.position.y + 1.6), 10);
           }
         }
         if (Math.random() < 0.5) audio.thunder(0.25 + Math.random() * 0.2);

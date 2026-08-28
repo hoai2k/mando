@@ -86,13 +86,14 @@ above unlock the procedural animation.
 
 ## Delivery & integration
 
-Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character in the
-game except one — `din, paz, bokatan, armorer, marshal, fennec, tusken, pyke, nikto,
-pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
+Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character that
+existed before the new boards — `din, paz, bokatan, armorer, marshal, fennec, ig11, tusken,
+pyke, nikto, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
-nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`, and the
-seven new-board enemies above (`flametrooper`, `quarren`, `alamite`, `ring_enforcer`,
-`krykna`, `krykna_brood`, `interceptor_drone`).**
+nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: the seven
+new-board enemies above (`flametrooper`, `quarren`, `alamite`, `ring_enforcer`, `krykna`,
+`krykna_brood`, `interceptor_drone`) — every one has its reference sheets delivered, so
+they are ready to model.**
 
 ### Three intake paths
 
