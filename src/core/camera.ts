@@ -3,12 +3,31 @@ import { clamp, damp, dampAngle, yawBasis } from './math';
 import { config } from '../config';
 import type { PhysicsWorld } from './physics';
 
-/** default chase distance, and the range the right-stick dolly can set */
-const BASE_DIST = 4.6;
-const MIN_DIST = 1.9;
+/**
+ * Default chase distance, and the range the right-stick dolly can set.
+ *
+ * The default is what used to be the *closest* the dolly could go: over the
+ * shoulder and in the fight, where the armour, the footing and the swing of a
+ * gaffi stick read, rather than a wide arena view of a small figure. The
+ * dynamic follow (below) opens out from here when the pace picks up, so the
+ * old middle distance is still where a sprint puts you — it is just no longer
+ * where standing still puts you. The dolly can still push closer than the
+ * default and pull much further out, for anyone who wants either.
+ */
+const BASE_DIST = 1.9;
+const MIN_DIST = 1.1;
 const MAX_DIST = 11;
 /** aiming sits this fraction of the chase distance out */
-const AIM_RATIO = 2.7 / BASE_DIST;
+const AIM_RATIO = 0.59;
+/**
+ * Over-the-shoulder offset, in metres and deliberately not scaled by distance:
+ * a fixed sideways step subtends a wider angle the closer the camera sits, so
+ * it opens the sightline up exactly where a close camera would otherwise put
+ * the character's back over the crosshair, and fades toward a centred frame
+ * out at the far end of the dolly, which is the classic wide chase look.
+ */
+const SHOULDER_HIP = 0.55;
+const SHOULDER_AIM = 0.8;
 
 // ---- dynamic follow ----
 // The chase distance is the dialled-in `baseDist` times a pace multiplier, so
@@ -61,8 +80,8 @@ export class ThirdPersonCamera {
    * right-stick dolly writes it and everything else works relative to it, so
    * a camera you pulled out stays pulled out until you change it again.
    */
-  baseDist = 4.6;
-  private dist = 4.6;
+  baseDist = BASE_DIST;
+  private dist = BASE_DIST;
   /** eased 0-1 pace: 0 = the close framing, 1 = the wide one */
   private pace = 0;
   /** countdown that keeps the pace from falling right after it last rose */
@@ -164,7 +183,7 @@ export class ThirdPersonCamera {
     head.y += 1.58;
     // over-the-right-shoulder offset, matching the right-handed carbine
     const { rightX, rightZ } = yawBasis(this.yaw);
-    const shoulder = opts.aiming ? 0.7 : 0.45;
+    const shoulder = opts.aiming ? SHOULDER_AIM : SHOULDER_HIP;
     head.x += rightX * shoulder;
     head.z += rightZ * shoulder;
 
