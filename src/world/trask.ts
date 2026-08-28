@@ -129,6 +129,8 @@ export function buildTrask(): Board {
     home: THREE.Vector3; phase: number; node: THREE.Group; mover: Mover;
     /** the deckhouse box, carried along with the deck */
     house: Mover;
+    /** the mast, likewise — thin, but you can stand right against it */
+    mast: Mover;
   }
   const boats: BoatSpec[] = [];
   for (const [bx, bz, phase] of [[-12, -34, 0], [16, -46, 2.4]] as const) {
@@ -160,6 +162,9 @@ export function buildTrask(): Board {
     const boom = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 7), darkMat);
     boom.position.set(0, 6, 2.5);
     boom.rotation.x = 0.5;
+    // rigging thinner than a forearm is not worth a collider — you would
+    // catch on it far more often than you would ever mean to touch it
+    boom.userData.decor = true;
     boat.add(boom);
     boat.traverse((o) => { o.castShadow = o.receiveShadow = true; });
     boat.position.set(bx, 1.0, bz);
@@ -174,7 +179,13 @@ export function buildTrask(): Board {
     // mesh is; it is not a rider, so it is moved directly rather than carried
     const houseBox = physics.addBox(bx, 1.0 + 2.2, bz - 4.5, 4.5, 2.6, 4);
     const houseMover = new Mover(houseBox, null);
-    boats.push({ home: new THREE.Vector3(bx, 1.0, bz), phase, node: boat, mover, house: houseMover });
+    // the mast stands 6 m off a deck people fight on, so it blocks too
+    const mastBox = physics.addBox(bx, 1.0 + 4, bz + 1, 0.45, 6, 0.45);
+    const mastMover = new Mover(mastBox, null);
+    boats.push({
+      home: new THREE.Vector3(bx, 1.0, bz), phase, node: boat, mover,
+      house: houseMover, mast: mastMover,
+    });
   }
 
   // ---- the mamacore pool: churning water between the piers ----
@@ -191,6 +202,9 @@ export function buildTrask(): Board {
     const a = (i / 5) * Math.PI * 2;
     const t = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.3, 3.2, 6), tentMat);
     t.position.set(MAMACORE.x + Math.cos(a) * 2.6, 0.6, MAMACORE.z + Math.sin(a) * 2.6);
+    // they writhe, and they stand inside a kill zone nobody survives long
+    // enough to lean on — solid ones would be handholds over the mouth
+    t.userData.decor = true;
     group.add(t);
     tentacles.push(t);
   }
@@ -288,6 +302,7 @@ export function buildTrask(): Board {
       const cx = b.home.x + surge * 0.4, cy = b.home.y + heave, cz = b.home.z + surge;
       b.mover.moveTo(cx, cy, cz);
       b.house.moveTo(cx, cy + 2.2, cz - 4.5);
+      b.mast.moveTo(cx, cy + 4, cz + 1);
       b.node.rotation.z = Math.sin(time * 0.8 + b.phase) * 0.05;
       b.node.rotation.x = Math.cos(time * 0.66 + b.phase) * 0.035;
     }

@@ -256,6 +256,10 @@ end.onBack = () => quitToTitle();
 
 (window as unknown as { __charsel?: CharacterSelect }).__charsel = charSelect; // debug/testing handle
 (window as unknown as { __input?: InputManager }).__input = input;              // debug/testing handle
+// Board factories, so a test can build any board on its own — the collision
+// audit in tools/audit-collision.mjs walks every board's meshes against its
+// physics world without having to play nine matches to reach them.
+(window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

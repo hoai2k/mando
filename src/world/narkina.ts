@@ -205,6 +205,8 @@ export function buildNarkina(): Board {
     if (h < 4) continue;
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.24, h, 5), kelpMat);
     stalk.position.set(x, base + h / 2, z);
+    // kelp parts around a swimmer; a forest of solid poles would be a fence
+    stalk.userData.decor = true;
     group.add(stalk);
     kelp.push(stalk);
   }
@@ -215,6 +217,8 @@ export function buildNarkina(): Board {
     const base = heightAt(x, z);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.3 + rng() * 0.5, 7, 6), glowMat);
     bulb.position.set(x, base + 0.4, z);
+    // soft coral, half-sunk in the seabed: brushing through it is right
+    bulb.userData.decor = true;
     group.add(bulb);
   }
   for (const [lx, lz] of [[52, 62], [62, 74]] as const) {
@@ -245,11 +249,36 @@ export function buildNarkina(): Board {
   wreck.rotation.z = 0.12;
   wreck.traverse((o) => { o.castShadow = o.receiveShadow = true; });
   group.add(wreck);
-  // collision: the two hull walls and the roof, leaving the run-through open.
-  // AABBs can't rotate, so the boxes approximate the yawed hull generously.
-  physics.addBox(-52 - 4, wreckBase + 3, 48 + 2.6, 6, 6, 16);
-  physics.addBox(-52 + 4, wreckBase + 3, 48 - 2.6, 6, 6, 16);
-  physics.addBox(-52, wreckBase + 7, 48, 14, 2, 18);
+  // Collision follows the wreck's own axes. It lies yawed 0.6 rad and rolled
+  // 0.12, which no axis-aligned box describes: the old three boxes left the
+  // hull sides open at the ends and put invisible steel out in the water
+  // alongside them. Upright cylinders stepped along the hull take the yaw for
+  // free, and the corridor between the two hulls — the whole point of the
+  // wreck — stays swimmable.
+  const wyaw = 0.6, wroll = 0.12;
+  const local = (lx: number, ly: number, lz: number): [number, number, number] => {
+    const x1 = lx * Math.cos(wroll) - ly * Math.sin(wroll);
+    const y1 = lx * Math.sin(wroll) + ly * Math.cos(wroll);
+    return [
+      -52 + x1 * Math.cos(wyaw) + lz * Math.sin(wyaw),
+      wreckBase + y1,
+      48 - x1 * Math.sin(wyaw) + lz * Math.cos(wyaw),
+    ];
+  };
+  for (const lz of [-10, -5, 0, 5, 10]) {
+    for (const lx of [-4.5, 4.5]) {                       // the two hull walls
+      const [x, y, z] = local(lx, 3, lz);
+      physics.addCylinder(x, y, z, 3, 6);
+    }
+    for (const lx of [-3.6, 3.6]) {                       // the roof over them
+      const [x, y, z] = local(lx, 7, lz);
+      physics.addCylinder(x, y, z, 4.2, 2);
+    }
+  }
+  for (const lz of [10, 14]) {                            // the blunt nose
+    const [x, y, z] = local(0, 4, lz);
+    physics.addCylinder(x, y, z, 3.6, 7);
+  }
 
   // fish: a slow school circling the reef
   const fishCount = 120;

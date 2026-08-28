@@ -30,6 +30,9 @@ jobs:
       # before publishing it — the deploy used to go out on a typecheck alone.
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      # Every board's props measured against its colliders: nothing that looks
+      # solid may be walked through, and no collider may sit on empty air.
+      - run: npm run audit:boards
       - uses: actions/configure-pages@v5
         with:
           enablement: true

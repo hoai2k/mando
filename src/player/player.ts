@@ -562,9 +562,13 @@ export class Player {
     const SWIM_SPEED = 5.4;
     this.velocity.x = damp(this.velocity.x, wish.x * SWIM_SPEED, 3.5, dt);
     this.velocity.z = damp(this.velocity.z, wish.z * SWIM_SPEED, 3.5, dt);
-    // gentle buoyancy: idle, you drift up until your visor breaks the surface
-    const eq = waterY - 1.45;
-    const buoy = Math.abs(wish.y) > 0.05 ? wish.y * SWIM_SPEED : clamp((eq - this.position.y) * 0.8, -0.6, 1.1);
+    // Beskar is neutrally buoyant here: let go of the controls and you hold
+    // your depth. It used to drift up to visor-at-surface, which parked an
+    // idle diver exactly on the line the AI uses to decide whether it can see
+    // you — so lurking underwater worked or didn't at random. Holding depth
+    // makes the stealth route dependable and puts surfacing on the jump
+    // button, where the breach already is.
+    const buoy = Math.abs(wish.y) > 0.05 ? wish.y * SWIM_SPEED : 0;
     this.velocity.y = damp(this.velocity.y, buoy, 3, dt);
 
     // breach: a jump taken with the head near the surface throws you clear

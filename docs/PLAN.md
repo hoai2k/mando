@@ -157,7 +157,8 @@ burn + a free-form `burnAt` field), **movers** (platforms that carry riders),
 **breakables** (props wired into bolts, explosions and ground slams; may chain-explode),
 **traction** (ice), a **light field** the AI's sight range reads, and **water**
 (`waterY`): the player wades where the bottom is in standing reach and swims freely
-where it isn't (camera-directed, sealed helmet, no air limit; a jump near the surface
+where it isn't (camera-directed, sealed helmet, no air limit, neutrally buoyant so
+letting go holds your depth; a jump near the surface
 breaches into a jetpack chain), bolts die at the surface in both directions so a diver
 travels rather than fights, hostiles all but lose sight of a submerged target (the
 stealth route), and anything non-aquatic drowns if its head stays under. Each viewport
