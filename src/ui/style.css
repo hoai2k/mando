@@ -51,6 +51,7 @@ body.deadeye #app > canvas { filter: sepia(0.45) saturate(1.2) contrast(1.07) br
 
 /* ---------- HUD ---------- */
 .hud-viewport { position: absolute; pointer-events: none; overflow: hidden; }
+.crosshair .reticle { transition: opacity 0.1s ease; }
 .crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 58px; height: 58px; }
 .hud-bars { position: absolute; left: 26px; bottom: 22px; width: 240px; }
 .bar { height: 12px; background: rgba(0,0,0,0.55); border: 1px solid rgba(232,220,200,0.35); margin-top: 6px; position: relative; }

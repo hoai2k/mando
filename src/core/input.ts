@@ -44,17 +44,10 @@ function blankInput(): FrameInput {
 interface PadState { prev: boolean[]; repeatTimer: Map<string, number>; }
 
 export class InputManager {
-  private keys = new Set<string>();
-  private keysPressed = new Set<string>();
-  private mouseButtons = new Set<number>();
-  private mousePressed = new Set<number>();
-  private mouseDX = 0;
-  private mouseDY = 0;
   private padStates = new Map<number, PadState>();
   private menuQueue: MenuAction[] = [];
   /** gamepad index assigned to each player slot; -1 = none */
   padForPlayer: number[] = [-1, -1];
-  mouseSensitivity = 0.0023;
   stickSensitivity = 2.6; // rad/s at full deflection
   pointerLocked = false;
   /** set true while in menus so gameplay ignores input & pads emit menu events */
@@ -62,10 +55,10 @@ export class InputManager {
   onFullscreenToggle: (() => void) | null = null;
 
   constructor(private canvas: HTMLElement) {
+    // The keyboard is a menu device only: gameplay is controller-only, so
+    // nothing here feeds FrameInput.
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
-      this.keys.add(e.code);
-      this.keysPressed.add(e.code);
       const map: Record<string, MenuAction> = {
         ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
         ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
@@ -76,28 +69,10 @@ export class InputManager {
       if (e.code === 'KeyF' && e.altKey) this.menuQueue.push('fullscreen');
       if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    // e.buttons is the authoritative bitmask of what is down right now, so
-    // reconciling against it on every mouse event self-heals a mouseup that
-    // never arrived — released off-window, or eaten by a pointer-lock or
-    // fullscreen transition — which otherwise latches fire on for good
-    const sync = (e: MouseEvent) => {
-      for (const b of [0, 1, 2]) if (!(e.buttons & (b === 0 ? 1 : b === 1 ? 4 : 2))) this.mouseButtons.delete(b);
-    };
-    window.addEventListener('mousedown', (e) => { this.mouseButtons.add(e.button); this.mousePressed.add(e.button); sync(e); });
-    window.addEventListener('mouseup', (e) => { this.mouseButtons.delete(e.button); sync(e); });
-    window.addEventListener('mousemove', sync);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) { this.keys.clear(); this.mouseButtons.clear(); }
-    });
     window.addEventListener('contextmenu', (e) => e.preventDefault());
-    window.addEventListener('mousemove', (e) => {
-      if (this.pointerLocked) { this.mouseDX += e.movementX; this.mouseDY += e.movementY; }
-    });
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === this.canvas;
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.mouseButtons.clear(); });
   }
 
   requestPointerLock(): void {
@@ -192,30 +167,11 @@ export class InputManager {
 
   /**
    * Read gameplay input for a player slot (0 or 1) and clear per-frame edges.
-   * Slot 0 merges keyboard+mouse with its pad; slot 1 is pad-only.
+   * Gameplay is controller-only — the keyboard drives menus and nothing else.
    */
   read(slot: number, dt: number): FrameInput {
     const inp = blankInput();
     if (this.menuMode) { this.endFrame(); return inp; }
-
-    if (slot === 0) {
-      const k = this.keys;
-      inp.moveX += (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
-      inp.moveY += (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
-      inp.lookX -= this.mouseDX * this.mouseSensitivity;
-      inp.lookY -= this.mouseDY * this.mouseSensitivity;
-      inp.jumpHeld ||= k.has('Space');
-      inp.jumpPressed ||= this.keysPressed.has('Space');
-      inp.dashPressed ||= this.keysPressed.has('ShiftLeft') || this.keysPressed.has('ShiftRight');
-      inp.sprintHeld ||= k.has('ShiftLeft') || k.has('ShiftRight');
-      inp.slamPressed ||= this.keysPressed.has('ControlLeft') || this.keysPressed.has('KeyC');
-      inp.shootHeld ||= this.mouseButtons.has(0);
-      inp.aimHeld ||= this.mouseButtons.has(2);
-      inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
-      inp.rocketPressed ||= this.keysPressed.has('KeyQ');
-      inp.deadeyePressed ||= this.keysPressed.has('KeyV');
-      inp.switchPressed ||= this.keysPressed.has('KeyE') || this.keysPressed.has('Digit1') || this.keysPressed.has('Digit2');
-    }
 
     const padIdx = this.padForPlayer[slot];
     if (padIdx >= 0) {
@@ -260,9 +216,7 @@ export class InputManager {
 
   /** Clear per-frame edges/deltas — call once per frame after all read() calls. */
   endFrame(): void {
-    this.keysPressed.clear();
-    this.mousePressed.clear();
-    this.mouseDX = 0;
-    this.mouseDY = 0;
+    // gamepad edges are snapshot-based, so there is no per-frame state left to
+    // clear; kept as the loop's explicit end-of-frame hook
   }
 }

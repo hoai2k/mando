@@ -37,6 +37,56 @@ function pt(bone: string, times: number[], pos: [number, number, number][]): THR
 
 export interface ClipSet { [name: string]: THREE.AnimationClip; }
 
+const _q = new THREE.Quaternion();
+const _e = new THREE.Euler();
+const strideCache = new WeakMap<THREE.AnimationClip, number>();
+
+/**
+ * Ground distance one cycle of a locomotion clip covers, in metres.
+ *
+ * Measured off the clip rather than hand-tuned: run forward kinematics on the
+ * leg chain across the cycle and take how far the foot travels, hip-relative,
+ * between its most-forward and most-back pose. While a foot is planted the hip
+ * travels exactly that far over it, and a cycle has two stances — so that
+ * doubled is the distance the clip is "worth". Playing it at
+ * speed * duration / distance is what makes the feet push off the ground
+ * instead of skating over it.
+ *
+ * Positive X on a leg bone swings it backward (the bone points down -Y), so
+ * the sagittal offset is negated to read forward-positive; only the range
+ * matters, but keeping the sign honest makes the maths checkable.
+ */
+export function cycleDistance(clip: THREE.AnimationClip, p: Proportions): number {
+  const cached = strideCache.get(clip);
+  if (cached !== undefined) return cached;
+  const track = (bone: string) => clip.tracks.find((t) => t.name === `${bone}.quaternion`);
+  const upper = track('upperLegL');
+  let out = 0;
+  if (upper) {
+    const upperI = upper.createInterpolant();
+    const lowerT = track('lowerLegL');
+    const lowerI = lowerT?.createInterpolant();
+    const pitch = (buf: ArrayLike<number>): number => {
+      _q.set(buf[0], buf[1], buf[2], buf[3]);
+      _e.setFromQuaternion(_q, 'XYZ');
+      return _e.x;
+    };
+    let min = Infinity, max = -Infinity;
+    const STEPS = 48;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = (clip.duration * i) / STEPS;
+      const thigh = pitch(upperI.evaluate(t));
+      const shin = lowerI ? pitch(lowerI.evaluate(t)) : 0;
+      const x = -(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin));
+      if (x < min) min = x;
+      if (x > max) max = x;
+    }
+    out = Math.max(0, max - min) * 2;
+  }
+  strideCache.set(clip, out);
+  return out;
+}
+
 export function buildClips(p: Proportions): ClipSet {
   const hipY = p.hipHeight;
   const clips: ClipSet = {};
@@ -68,10 +118,10 @@ export function buildClips(p: Proportions): ClipSet {
     pt('hips', rt, [[0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0]]),
     qt('hips', rt, [[8, 0, 3], [8, 0, 0], [8, 0, -3], [8, 0, 0], [8, 0, 3]]),
     qt('spine', rt, [[4, -4, 0], [4, 0, 0], [4, 4, 0], [4, 0, 0], [4, -4, 0]]),
-    qt('upperLegL', rt, [[-48, 0, 0], [-10, 0, 0], [30, 0, 0], [-5, 0, 0], [-48, 0, 0]]),
-    qt('lowerLegL', rt, [[25, 0, 0], [15, 0, 0], [55, 0, 0], [80, 0, 0], [25, 0, 0]]),
-    qt('upperLegR', rt, [[30, 0, 0], [-5, 0, 0], [-48, 0, 0], [-10, 0, 0], [30, 0, 0]]),
-    qt('lowerLegR', rt, [[55, 0, 0], [80, 0, 0], [25, 0, 0], [15, 0, 0], [55, 0, 0]]),
+    qt('upperLegL', rt, [[-62, 0, 0], [-12, 0, 0], [42, 0, 0], [-6, 0, 0], [-62, 0, 0]]),
+    qt('lowerLegL', rt, [[20, 0, 0], [12, 0, 0], [70, 0, 0], [92, 0, 0], [20, 0, 0]]),
+    qt('upperLegR', rt, [[42, 0, 0], [-6, 0, 0], [-62, 0, 0], [-12, 0, 0], [42, 0, 0]]),
+    qt('lowerLegR', rt, [[70, 0, 0], [92, 0, 0], [20, 0, 0], [12, 0, 0], [70, 0, 0]]),
     qt('footL', rt, [[10, 0, 0], [0, 0, 0], [-15, 0, 0], [-5, 0, 0], [10, 0, 0]]),
     qt('footR', rt, [[-15, 0, 0], [-5, 0, 0], [10, 0, 0], [0, 0, 0], [-15, 0, 0]]),
   ]);
@@ -181,6 +231,28 @@ export function buildClips(p: Proportions): ClipSet {
     qt('upperArmR', [0, 0.8], [[20, 0, 40], [50, 0, 60]]),
     qt('forearmL', [0, 0.8], [[-30, 0, 0], [-10, 0, 0]]),
     qt('forearmR', [0, 0.8], [[-30, 0, 0], [-15, 0, 0]]),
+  ]);
+
+  // ---------- DEATH: limp collapse, toppled by the enemy's root ----------
+  // The death* clips above fold the body up for the wounded crawl. An actual
+  // kill instead lays the whole root flat on the ground, so these keep the
+  // body roughly straight and just go limp — folding here as well would land
+  // the corpse bent double, half-upright, instead of prone.
+  clips.collapseLower = new THREE.AnimationClip('collapseLower', 0.6, [
+    pt('hips', [0, 0.6], [[0, hipY, 0], [0, hipY * 0.94, 0]]),
+    qt('hips', [0, 0.6], [[0, 0, 0], [-7, 0, 5]]),
+    qt('upperLegL', [0, 0.6], [[0, 0, -4], [-7, 0, -14]]),
+    qt('lowerLegL', [0, 0.6], [[0, 0, 0], [16, 0, 0]]),
+    qt('upperLegR', [0, 0.6], [[0, 0, 4], [-3, 0, 11]]),
+    qt('lowerLegR', [0, 0.6], [[0, 0, 0], [23, 0, 0]]),
+  ]);
+  clips.collapseUpper = new THREE.AnimationClip('collapseUpper', 0.6, [
+    qt('chest', [0, 0.6], [[0, 0, 0], [7, 7, 0]]),
+    qt('head', [0, 0.6], [[0, 0, 0], [12, 14, 0]]),
+    qt('upperArmL', [0, 0.6], [[10, 0, -30], [26, 0, -64]]),
+    qt('upperArmR', [0, 0.6], [[10, 0, 30], [30, 0, 60]]),
+    qt('forearmL', [0, 0.6], [[-14, 0, 0], [-24, 0, 0]]),
+    qt('forearmR', [0, 0.6], [[-14, 0, 0], [-18, 0, 0]]),
   ]);
 
   // ---------- UPPER: one-hand pistol/rifle aim for enemies ----------

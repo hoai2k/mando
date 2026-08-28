@@ -81,6 +81,9 @@ const MEMORY = 9;
 const INVESTIGATE_TIME = 8;
 /** straight-down exhaust direction, shared so hover jets allocate nothing */
 const _JET_DOWN = new THREE.Vector3(0, -1, 0);
+/** scratch for laying a corpse flat */
+const _topple = new THREE.Quaternion();
+const _fallAxis = new THREE.Vector3();
 
 export class Enemy {
   id = nextId++;
@@ -109,6 +112,12 @@ export class Enemy {
   private strafePhase = Math.random() * Math.PI * 2;
   private facingYaw = 0;
   private deadTimer = 0;
+  /** how far the body has toppled: 0 upright, 1 flat on the ground */
+  private fallT = 0;
+  /** where fallT is heading — set by the death/wounded/knockdown states */
+  private fallTarget = 0;
+  /** horizontal direction the body lays out along once it goes down */
+  private fallDir = new THREE.Vector3(0, 0, 1);
   private spawnPos = new THREE.Vector3();
   private swoopPhase = Math.random() * Math.PI * 2;
   private hoverTarget = new THREE.Vector3();
@@ -275,8 +284,8 @@ export class Enemy {
       const anim = this.char.animator;
       if (anim) {
         anim.release('lower'); anim.release('upper');
-        anim.playOnce('lower', 'deathLower', 0.08, true);
-        anim.playOnce('upper', 'deathUpper', 0.08, true);
+        anim.playOnce('lower', 'collapseLower', 0.08, true);
+        anim.playOnce('upper', 'collapseUpper', 0.08, true);
       }
       // fling the corpse — harder killing blows throw harder, with a bit of
       // sideways scatter so a mowed-down line doesn't fall in lockstep
@@ -287,6 +296,10 @@ export class Enemy {
       dir.normalize();
       this.velocity.addScaledVector(dir, (4.5 + Math.random() * 3) * heavy);
       this.velocity.y = Math.max(this.velocity.y, (3 + Math.random() * 1.5) * heavy);
+      // it goes down the way it was thrown; syncVisual lays the root out along
+      // this once the body stops rising
+      this.fallTarget = 1;
+      this.fallDir.copy(dir.lengthSq() > 1e-6 ? dir : new THREE.Vector3(0, 0, 1));
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       this.char.animator.playOnce('upper', 'hitUpper', 0.05);
     }
@@ -323,9 +336,19 @@ export class Enemy {
     const anim = this.char.animator;
     if (anim) {
       anim.release('lower'); anim.release('upper');
-      anim.playOnce('lower', 'deathLower', 0.06, true);
-      anim.playOnce('upper', 'deathUpper', 0.06, true);
+      anim.playOnce('lower', 'collapseLower', 0.06, true);
+      anim.playOnce('upper', 'collapseUpper', 0.06, true);
     }
+    this.fallTarget = 1;
+    this.fallDir.set(-Math.sin(this.facingYaw), 0, -Math.cos(this.facingYaw));
+  }
+
+  /** Ease the body toward its toppled/upright target. */
+  private settle(dt: number): void {
+    const rate = this.fallTarget > this.fallT ? dt / 0.45 : dt / 0.3;
+    this.fallT = this.fallTarget > this.fallT
+      ? Math.min(this.fallTarget, this.fallT + rate)
+      : Math.max(this.fallTarget, this.fallT - rate);
   }
 
   /** incoming fire, landed or close: keeps this enemy's head down */
@@ -355,6 +378,9 @@ export class Enemy {
       this.deadTimer -= dt;
       this.velocity.y -= 22 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+      // hold the pose while it is still being thrown upward, then topple: a
+      // body that tips over on the way up reads as a faint, not a kill
+      if (this.velocity.y <= 0.5) this.settle(dt);
       if (this.deadTimer <= 0) {
         this.char.root.position.y -= dt * 1.2; // sink away
         if (this.deadTimer < -1.2) this.removeMe = true;
@@ -381,7 +407,9 @@ export class Enemy {
         if (a) { a.release('lower'); a.release('upper'); }
         this.stagger = Math.max(this.stagger, 0.25);
         this.attackCd = Math.max(this.attackCd, 0.8);
+        this.fallTarget = 0;
       }
+      this.settle(dt);
       this.syncVisual(dt, game);
       anim?.update(dt);
       return;
@@ -397,7 +425,13 @@ export class Enemy {
           a.playOnce('lower', 'deathLower', 0.08, true);
           a.playOnce('upper', 'deathUpper', 0.08, true);
         }
+        // dragging itself along the ground: down, but head still up
+        this.fallTarget = 0.8;
+        this.fallDir.copy(this.position).sub(this.interest).setY(0);
+        if (this.fallDir.lengthSq() < 1e-6) this.fallDir.set(0, 0, 1);
+        this.fallDir.normalize();
       }
+      this.settle(dt);
       this.bleedOut -= dt;
       // drag away from whatever did this, slowly
       const away = this.position.clone().sub(this.interest).setY(0);
@@ -409,6 +443,7 @@ export class Enemy {
       if (this.bleedOut <= 0) {
         this.alive = false;
         this.deadTimer = 1.4;
+        this.fallTarget = 1; // the last of it goes down flat
       }
       this.syncVisual(dt, game);
       anim?.update(dt);
@@ -436,8 +471,9 @@ export class Enemy {
         this.velocity.y -= 24 * grav(game) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (anim) {
-          anim.play('lower', 'runLower', 0.2, 1.2);
-          anim.play('upper', 'runUpper', 0.2, 1.2);
+          const flee = anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z));
+          anim.play('lower', 'runLower', 0.2, flee);
+          anim.play('upper', 'runUpper', 0.2, flee);
         }
         this.syncVisual(dt, game);
         anim?.update(dt);
@@ -506,9 +542,11 @@ export class Enemy {
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0) {
-        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
+        // same stride-matched cadence as the player, so nobody moonwalks
+        const gait = anim.gaitRate('runLower', speed2);
+        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, speed2 > 0.7 ? gait : 1);
         if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, gait);
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -892,9 +930,19 @@ export class Enemy {
 
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
-    this.char.root.rotation.y = this.facingYaw;
-    if (this.kind === 'nikto') {
+    this.char.root.rotation.set(0, this.facingYaw, 0);
+    if (this.kind === 'nikto' && this.alive && this.fallT <= 0.001) {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);
+    }
+    if (this.fallT > 0.001) {
+      // Lay the whole body down. The root sits at the feet, so a quarter turn
+      // about the horizontal axis across fallDir puts the corpse flat on the
+      // ground stretched out along it — posing the skeleton alone left them
+      // collapsed but still half-upright.
+      const t = this.fallT * this.fallT * (3 - 2 * this.fallT);
+      _topple.setFromAxisAngle(_fallAxis.set(this.fallDir.z, 0, -this.fallDir.x).normalize(), t * Math.PI * 0.5);
+      this.char.root.quaternion.premultiply(_topple);
+      this.char.root.position.y += 0.14 * t; // keep the limbs out of the sand
     }
     this.char.cosmetic?.(dt, game.time);
     // hit flash: emissive pulse on all materials (cheap: scale pop)

@@ -60,9 +60,27 @@ export class AudioEngine {
     this.applyConfig();
     this.noiseBuf = this.makeNoise();
     this.tryLoadSamples();
+    this.watchVisibility();
   }
 
   get ready(): boolean { return !!this.ctx; }
+
+  /**
+   * Go silent while the tab is in the background. Suspending the context (not
+   * just muting) also stops the loops and the scheduler burning CPU behind a
+   * tab nobody is looking at; a hidden tab is never resumed by mistake because
+   * the resume is gated on the tab being visible again.
+   */
+  private watchVisibility(): void {
+    if (this.visibilityHooked) return;
+    this.visibilityHooked = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!this.ctx) return;
+      if (document.hidden) this.ctx.suspend();
+      else this.ctx.resume();
+    });
+  }
+  private visibilityHooked = false;
 
   private async tryLoadSamples(): Promise<void> {
     const names: SampleName[] = [

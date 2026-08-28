@@ -108,7 +108,10 @@ export function buildTatooine(): Board {
     mesa.position.set(mx, base + h / 2 - 0.6, mz);
     mesa.castShadow = mesa.receiveShadow = true;
     group.add(mesa);
-    physics.addBox(mx, base + h / 2 - 0.6, mz, r * 1.5, h, r * 1.5);
+    // A box only covered 0.75r of a mesa that is r wide at the base and wider
+    // still where the noise pushes it out, so the sloping faces between the
+    // box corners were walk-through. A cylinder is what the mesa actually is.
+    physics.addCylinder(mx, base + h / 2 - 0.6, mz, r * 1.04, h);
   }
 
   // scattered boulders (instanced)
@@ -119,12 +122,18 @@ export function buildTatooine(): Board {
     const a = rng() * Math.PI * 2, d = 20 + rng() * 130;
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     const s = 0.5 + rng() * 2.2;
-    m4.compose(
-      new THREE.Vector3(x, heightAt(x, z) + s * 0.3, z),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(rng() * 3, rng() * 3, rng() * 3)),
-      new THREE.Vector3(s, s * (0.7 + rng() * 0.5), s)
-    );
+    const y = heightAt(x, z) + s * 0.3;
+    // rng() order here is load-bearing: it fixes the boulder field's layout,
+    // so the euler is drawn before the vertical scale exactly as compose did
+    const spin = new THREE.Euler(rng() * 3, rng() * 3, rng() * 3);
+    const sy = s * (0.7 + rng() * 0.5);
+    m4.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(spin), new THREE.Vector3(s, sy, s));
     boulders.setMatrixAt(i, m4);
+    // Boulders had no collider at all — you walked straight through every one.
+    // A dodecahedron's inradius is ~0.79 of its circumradius, so collide on the
+    // inscribed cylinder: forgiving at the corners rather than blocking bare
+    // air. Low ones fall under STEP_HEIGHT and become steps, not walls.
+    physics.addCylinder(x, y, z, s * 0.79, sy * 2);
   }
   boulders.castShadow = boulders.receiveShadow = true;
   group.add(boulders);

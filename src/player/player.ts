@@ -74,6 +74,8 @@ export class Player {
   private sprintRefillDelay = 0;
   private wasThrusting = false;
   private wasAiming = false;
+  /** true while ADS — the HUD only draws a crosshair when this is set */
+  aiming = false;
   lastDamageDir = new THREE.Vector3();
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
@@ -180,6 +182,7 @@ export class Player {
       }
     }
     this.wasAiming = input.aimHeld;
+    this.aiming = input.aimHeld;
 
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
@@ -343,12 +346,16 @@ export class Player {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'airUpper');
     } else if (speed2 > 0.6) {
-      anim.play('lower', 'runLower', 0.15, clamp(speed2 / RUN_SPEED, 0.5, 1.3));
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, clamp(speed2 / RUN_SPEED, 0.5, 1.3));
+      // the gait runs at whatever rate plants the feet at our actual ground
+      // speed, so the stride pushes off instead of skating
+      const gait = anim.gaitRate('runLower', speed2);
+      anim.play('lower', 'runLower', 0.15, gait);
+      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, gait);
       if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
-      this.footTimer -= dt * (speed2 / RUN_SPEED);
+      // footfalls follow the same cadence, so the sound lands on the plant
+      this.footTimer -= dt;
       if (this.footTimer <= 0) {
-        this.footTimer = this.sprinting ? 0.23 : 0.31;
+        this.footTimer = anim.stepInterval('runLower', gait);
         audio.footstep(game.board.kind === 'desert' ? 'sand' : 'metal');
       }
     } else {

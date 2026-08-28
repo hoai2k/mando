@@ -84,7 +84,7 @@ title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },
   { label: 'Fullscreen', action: toggleFullscreen },
 ]);
-title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> sprint/dash · <b>F</b> melee · <b>Q</b> rocket · <b>V</b> Dead Eye · <b>E</b> switch weapon');
+title.addHint('<b>Controller required.</b> Menus: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>In game: <b>L-stick</b> move · <b>R-stick</b> look · <b>A</b> jump/jetpack · <b>B</b> sprint/dash · <b>RT</b> fire · <b>LT</b> aim · <b>X</b> melee · <b>Y</b> rocket · <b>RS</b> Dead Eye · <b>RB</b> slam · <b>LB</b> switch weapon');
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);

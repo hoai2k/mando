@@ -25,15 +25,17 @@ interface PlayerHud {
 
 const CROSSHAIR_SVG = `
 <svg class="crosshair" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <g stroke="#000" stroke-opacity="0.55" stroke-width="4.5" stroke-linecap="round">
-    <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
-    <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
+  <g class="reticle">
+    <g stroke="#000" stroke-opacity="0.55" stroke-width="4.5" stroke-linecap="round">
+      <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
+      <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
+    </g>
+    <g class="ticks" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+      <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
+      <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
+    </g>
+    <circle cx="32" cy="32" r="2.1" fill="#fff" stroke="#000" stroke-opacity="0.6" stroke-width="1"/>
   </g>
-  <g class="ticks" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
-    <line x1="32" y1="9" x2="32" y2="21"/><line x1="32" y1="43" x2="32" y2="55"/>
-    <line x1="9" y1="32" x2="21" y2="32"/><line x1="43" y1="32" x2="55" y2="32"/>
-  </g>
-  <circle cx="32" cy="32" r="2.1" fill="#fff" stroke="#000" stroke-opacity="0.6" stroke-width="1"/>
   <circle class="lockring" cx="32" cy="32" r="13" fill="none" stroke="#ff5533" stroke-width="2.2" opacity="0"/>
   <g class="hitmark" stroke="#ffcf6a" stroke-width="3" stroke-linecap="round" opacity="0">
     <line x1="20" y1="20" x2="26" y2="26"/><line x1="44" y1="20" x2="38" y2="26"/>
@@ -151,6 +153,11 @@ export class Hud {
         h.bannerTimer -= dt;
         if (h.bannerTimer <= 0) h.banner.parentElement!.classList.remove('show');
       }
+      // the reticle belongs to ADS only — hip fire reads off the muzzle. The
+      // hit marker and lock ring stay live either way: they are feedback about
+      // the world, not an aiming aid.
+      const reticle = h.crosshair.querySelector('.reticle') as SVGElement;
+      reticle.setAttribute('opacity', p.alive && p.aiming ? '1' : '0');
       const hit = h.crosshair.querySelector('.hitmark') as SVGElement;
       if (h.hitTimer > 0) { h.hitTimer -= dt; hit.setAttribute('opacity', '1'); }
       else hit.setAttribute('opacity', '0');

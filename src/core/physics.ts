@@ -10,6 +10,8 @@ export interface GroundHit { grounded: boolean; groundY: number; }
 export interface RayHit { dist: number; point: THREE.Vector3; normal: THREE.Vector3; }
 
 export interface StaticBox { min: THREE.Vector3; max: THREE.Vector3; }
+/** Upright cylinder — rocks, mesas, pillars: round things a box lies about. */
+export interface StaticCylinder { x: number; z: number; r: number; minY: number; maxY: number; }
 
 const STEP_HEIGHT = 0.55;
 
@@ -17,6 +19,7 @@ export class PhysicsWorld {
   /** ground height function; null = bottomless (space) */
   heightAt: ((x: number, z: number) => number) | null = null;
   boxes: StaticBox[] = [];
+  cylinders: StaticCylinder[] = [];
   /** falling below this Y = out of bounds */
   killY = -60;
 
@@ -29,6 +32,13 @@ export class PhysicsWorld {
     return b;
   }
 
+  /** @param cy centre Y of the cylinder, @param h its full height */
+  addCylinder(cx: number, cy: number, cz: number, r: number, h: number): StaticCylinder {
+    const c = { x: cx, z: cz, r, minY: cy - h / 2, maxY: cy + h / 2 };
+    this.cylinders.push(c);
+    return c;
+  }
+
   groundHeight(x: number, z: number, feetY: number): number {
     let g = this.heightAt ? this.heightAt(x, z) : -Infinity;
     for (const b of this.boxes) {
@@ -36,6 +46,11 @@ export class PhysicsWorld {
         // box top counts as ground if it's at/below feet (+ step allowance)
         if (b.max.y <= feetY + STEP_HEIGHT && b.max.y > g) g = b.max.y;
       }
+    }
+    for (const c of this.cylinders) {
+      const dx = x - c.x, dz = z - c.z;
+      if (dx * dx + dz * dz > c.r * c.r) continue;
+      if (c.maxY <= feetY + STEP_HEIGHT && c.maxY > g) g = c.maxY;
     }
     return g;
   }
@@ -66,6 +81,25 @@ export class PhysicsWorld {
       else { pos.z = maxZ; if (vel.z < 0) vel.z = 0; }
     }
 
+    // push out of cylinder sides — radially, so a rock face pushes you around
+    // it instead of snapping you to a box edge that isn't where the rock is
+    for (const c of this.cylinders) {
+      const reach = c.r + radius;
+      let dx = pos.x - c.x, dz = pos.z - c.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= reach * reach) continue;
+      const feet = pos.y, head = pos.y + height;
+      if (head <= c.minY || feet >= c.maxY) continue;
+      if (c.maxY - feet <= STEP_HEIGHT && vel.y <= 0.01) continue; // low enough to step onto
+      let d = Math.sqrt(d2);
+      if (d < 1e-5) { dx = 1; dz = 0; d = 1; } // dead centre: shove somewhere
+      const nx = dx / d, nz = dz / d;
+      pos.x = c.x + nx * reach;
+      pos.z = c.z + nz * reach;
+      const into = vel.x * nx + vel.z * nz;
+      if (into < 0) { vel.x -= into * nx; vel.z -= into * nz; }
+    }
+
     pos.y += vel.y * dt;
     const g = this.groundHeight(pos.x, pos.z, pos.y + STEP_HEIGHT);
     let grounded = false;
@@ -83,6 +117,15 @@ export class PhysicsWorld {
         vel.y = 0;
       }
     }
+    for (const c of this.cylinders) {
+      const dx = pos.x - c.x, dz = pos.z - c.z, reach = c.r + radius;
+      if (dx * dx + dz * dz > reach * reach) continue;
+      const head = pos.y + height;
+      if (head > c.minY && pos.y < c.minY && vel.y > 0 && c.minY - pos.y > STEP_HEIGHT) {
+        pos.y = c.minY - height;
+        vel.y = 0;
+      }
+    }
     return { grounded, groundY: g };
   }
 
@@ -92,6 +135,10 @@ export class PhysicsWorld {
     // boxes: slab test
     for (const b of this.boxes) {
       const hit = rayBox(origin, dir, b, maxDist);
+      if (hit && (!best || hit.dist < best.dist)) best = hit;
+    }
+    for (const c of this.cylinders) {
+      const hit = rayCylinder(origin, dir, c, maxDist);
       if (hit && (!best || hit.dist < best.dist)) best = hit;
     }
     // heightfield: fixed-step march
@@ -120,6 +167,42 @@ export class PhysicsWorld {
     const hz = this.heightAt(x, z + e) - this.heightAt(x, z - e);
     return new THREE.Vector3(-hx, 2 * e, -hz).normalize();
   }
+}
+
+/** Ray vs upright finite cylinder: infinite-side quadratic, then the two caps. */
+function rayCylinder(o: THREE.Vector3, d: THREE.Vector3, c: StaticCylinder, maxDist: number): RayHit | null {
+  const ox = o.x - c.x, oz = o.z - c.z;
+  const a = d.x * d.x + d.z * d.z;
+  let best = Infinity;
+  let normal: THREE.Vector3 | null = null;
+
+  if (a > 1e-10) {
+    const b = 2 * (ox * d.x + oz * d.z);
+    const cc = ox * ox + oz * oz - c.r * c.r;
+    const disc = b * b - 4 * a * cc;
+    if (disc >= 0) {
+      const sq = Math.sqrt(disc);
+      for (const t of [(-b - sq) / (2 * a), (-b + sq) / (2 * a)]) {
+        if (t <= 0 || t >= best || t > maxDist) continue;
+        const y = o.y + d.y * t;
+        if (y < c.minY || y > c.maxY) continue;
+        best = t;
+        normal = new THREE.Vector3(ox + d.x * t, 0, oz + d.z * t).normalize();
+      }
+    }
+  }
+  if (Math.abs(d.y) > 1e-8) {
+    for (const [capY, ny] of [[c.maxY, 1], [c.minY, -1]] as const) {
+      const t = (capY - o.y) / d.y;
+      if (t <= 0 || t >= best || t > maxDist) continue;
+      const px = ox + d.x * t, pz = oz + d.z * t;
+      if (px * px + pz * pz > c.r * c.r) continue;
+      best = t;
+      normal = new THREE.Vector3(0, ny, 0);
+    }
+  }
+  if (!normal || best === Infinity) return null;
+  return { dist: best, point: o.clone().addScaledVector(d, best), normal };
 }
 
 function rayBox(o: THREE.Vector3, d: THREE.Vector3, b: StaticBox, maxDist: number): RayHit | null {

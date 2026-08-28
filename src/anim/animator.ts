@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Rig } from './skeleton';
-import type { ClipSet } from './clips';
+import { cycleDistance, type ClipSet } from './clips';
 
 /**
  * Two-channel layered animator: 'lower' (locomotion) and 'upper' (actions).
@@ -30,6 +30,26 @@ export class Animator {
   }
 
   /** Cross-fade to a looping clip on a channel (no-op if already playing). */
+  /**
+   * Playback rate for a locomotion clip that keeps its feet on the ground at
+   * `speed` m/s: the clip is advanced exactly as far as the character moves.
+   * The clamp is a legibility floor/ceiling — below it a crawl would freeze,
+   * above it the legs blur — not a substitute for the measurement.
+   */
+  gaitRate(name: string, speed: number): number {
+    const clip = this.clips[name];
+    if (!clip) return 1;
+    const d = cycleDistance(clip, this.rig.proportions);
+    if (d <= 1e-4) return 1;
+    return Math.min(2.4, Math.max(0.35, (speed * clip.duration) / d));
+  }
+
+  /** Seconds between footfalls at the rate `gaitRate` returned. */
+  stepInterval(name: string, rate: number): number {
+    const clip = this.clips[name];
+    return clip ? clip.duration / Math.max(0.05, rate) / 2 : 0.3;
+  }
+
   play(channel: 'lower' | 'upper', name: string, fade = 0.18, timeScale = 1): void {
     if (this.time < this.oneShotUntil[channel]) return; // one-shot in progress
     const cur = this.current[channel];
