@@ -62,7 +62,14 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 
 ## Delivery & integration
 
-Drop files at `public/models/<id>.glb` using ids: `din, paz, ig11, marshal, fennec, tusken, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`.
+Drop files at `public/models/<id>.glb`. **Delivered:** `din, paz, bokatan, armorer, marshal,
+fennec, nikto, pirate, pirate_melee, droid, deathtrooper, darktrooper, duelist,
+imperial_officer`. **Still open:** `ig11, tusken, pyke, stormtrooper, carbine, gaffi`.
+
+The id is the filename, and it is not always the character's internal id — the Imperial
+officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate
+is the kind `pirateMelee` but the file `pirate_melee.glb`. The mapping lives in
+`AUTHORED_ENEMY` in `src/characters/enemies.ts`.
 
 **The loader is live** (`src/characters/authored.ts`). A model is picked up automatically
 when the file appears; when it is absent the procedural build stands, exactly like the

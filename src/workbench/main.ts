@@ -172,6 +172,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
+  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose };  // debug/testing handle
 }
 
 /**
@@ -358,7 +359,7 @@ function renderPanel(): void {
 
     <p class="note">
       ${subject.hasModel
-        ? `Authored skin from <code>public/models/${subject.id}.glb</code>, driven by the
+        ? `Authored skin from <code>public/models/${subject.modelFile ?? subject.id}.glb</code>, driven by the
            procedural rig through the retargeter. Compare puts the two side by side.`
         : 'No authored model for this character yet — procedural build only.'}
       <br><br>Drag to orbit, scroll to zoom. Posts are 0.5&nbsp;m each.
