@@ -1,26 +1,18 @@
 /**
  * The controls reference: an Xbox pad drawn to scale with its bindings called
- * out, and the keyboard equivalents beside it.
+ * out. Gameplay is controller-only, so the keyboard column lists the few keys
+ * that still do anything — all of them menu keys.
  *
  * Bindings are transcribed from `src/core/input.ts` — if a binding moves there,
  * it moves here. The diagram is inline SVG so it stays sharp at any size and
  * needs no asset.
  */
 
-/** label rows for the keyboard/mouse column, kept next to the pad art */
+/** the keyboard does menus and nothing else — gameplay is controller-only */
 const KEYBOARD: Array<[string, string]> = [
-  ['Move', 'W A S D'],
-  ['Look / aim', 'Mouse'],
-  ['Jump → hold to jetpack', 'Space'],
-  ['Sprint (moving) · dash (from a stop)', 'Shift'],
-  ['Block — raise shield (hold)', 'R'],
-  ['Fire blaster', 'Left mouse'],
-  ['Aim — zoom', 'Right mouse'],
-  ['Melee combo (gaffi stick)', 'F · Middle mouse'],
-  ['Wrist rocket', 'Q'],
-  ['Dead Eye', 'V'],
-  ['Take cover · ground slam', 'Ctrl · C'],
-  ['Switch weapon', 'E · 1 · 2'],
+  ['Navigate menus', '↑ ↓ ← → · W A S D'],
+  ['Select', 'Enter · Space'],
+  ['Back', 'Esc'],
   ['Pause', 'Esc'],
   ['Fullscreen', 'Alt + F'],
 ];
@@ -145,7 +137,7 @@ export function controlsMarkup(): string {
   return `<div class="controls-page">
     ${padSvg()}
     <div class="controls-keys">
-      <div class="controls-keys-title">Keyboard &amp; mouse</div>
+      <div class="controls-keys-title">Keyboard — menus only</div>
       <dl>${KEYBOARD.map(([what, keys]) =>
         `<dt>${what}</dt><dd>${keys.split(' · ').map((k) => `<kbd>${k}</kbd>`).join('<i>·</i>')}</dd>`
       ).join('')}</dl>

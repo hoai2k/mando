@@ -26,10 +26,10 @@ export interface Config {
 export const config: Config = {
   audio: {
     master: 0.8,
-    // SFX used to run at full bus gain, which put every blaster shot well over
-    // the score; this sits them under it with headroom for a busy wave.
-    sfx: 0.45,
-    music: 0.4,
+    // SFX sit well under the score: a busy wave puts a lot of blaster fire on
+    // the sfx bus at once, and it swamped the music at anything higher.
+    sfx: 0.25,
+    music: 0.75,
   },
 };
 
