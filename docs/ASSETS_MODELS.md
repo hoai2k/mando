@@ -75,15 +75,27 @@ nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`
 |---|---|---|
 | Characters on the canonical humanoid rig | `attachAuthored()` | our clips, through the retargeter |
 | Weapons, vehicles — no rig | `loadProp()` | nothing; placed and scaled, carried by its holder |
-| Creatures on a rig of their own | `loadCreature()` | nothing yet — see below |
+| Creatures on a rig of their own | `loadCreature()` | clips authored in code against that rig |
 
 **The massiff is the third case.** It is a quadruped: 44 deform bones, four legs and a
 tail, so `BONE_MAP` reaches none of it and no humanoid clip means anything to it. It comes
 in through `loadCreature('massiff')`, which places and scales the model (1.15 m at the
-shoulder, 2.5 m long) and grounds it — the enemy's own movement carries it, exactly as the
-swoop bike works. `massiff_static` is the unrigged variant of the same sculpt and the
-cheaper choice while nothing is deforming it. Giving it a real gait means either authoring
-clips against its own skeleton or a second, quadruped bone map; neither is in place.
+shoulder, 2.5 m long) and grounds it. `massiff_static` is the unrigged variant of the same
+sculpt.
+
+Its gait is authored in code, in `src/anim/quadruped.ts`. Two differences from `clips.ts`
+matter to anyone touching it: this skeleton has **real rest rotations baked in**, so every
+value is `rest * delta` and the clips are built once the model is loaded and its rest pose
+can be read; and every bone runs along its local **+Y**, so a rotation about local X swings
+a limb fore and aft, positive being backward. A leg holds its rest height through the
+stance half of the cycle and only lifts during the swing half — nothing raises the body, so
+a leg that stays bent leaves the animal prancing above the ground it should be pushing off.
+
+**Clips shipped in a `.glb` always win.** `GENERATED_CLIPS` in `authored.ts` is consulted
+only when the file carries none, so re-exporting `massiff.glb` with real animation baked in
+replaces this with no code change — the loader hands whatever it finds to the same mixer.
+Name them to match: something matching `/idle|breath|stand/` and something matching
+`/run|gallop|sprint/` or `/walk|trot|move/`.
 
 The id is the filename, and it is not always the character's internal id — the Imperial
 officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate

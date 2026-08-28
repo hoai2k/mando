@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
+import { massiffClips } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 
 /**
@@ -369,6 +370,15 @@ export function retarget(source: Rig, model: AuthoredModel): void {
  * quadruped, four legs on a 44-bone skeleton, so no humanoid clip has anything
  * to say to it.
  */
+/**
+ * Gaits written in code for models that arrive without any, keyed by model id.
+ * They are built per load, because they compose with the rest pose of the
+ * skeleton they are handed.
+ */
+const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationClip[]> = {
+  massiff: massiffClips,
+};
+
 export function loadProp(
   id: string,
   targetSize: number,
@@ -396,7 +406,11 @@ export function loadProp(
       skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
       skinned.frustumCulled = false;
     });
-    root.userData.clips = raw.userData.clips ?? [];
+    // Clips the file ships always win; a model with none falls back to a set
+    // authored in code against its own skeleton. That way a later re-export
+    // with real animation baked in simply takes over.
+    const own = (raw.userData.clips ?? []) as THREE.AnimationClip[];
+    root.userData.clips = own.length ? own : (GENERATED_CLIPS[id]?.(root) ?? []);
     const box = new THREE.Box3();
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
