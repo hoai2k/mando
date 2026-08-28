@@ -64,3 +64,35 @@ option { color: var(--text); }
   color: var(--dim); font-size: 11px;
 }
 .note code { color: var(--text); }
+
+/* ---------- pose edit mode ---------- */
+.toggle {
+  margin-top: 14px; padding: 8px; cursor: pointer;
+  letter-spacing: .06em; text-transform: uppercase; font-size: 11px;
+}
+.toggle[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #17191d; font-weight: 600; }
+
+.editbox {
+  margin-top: 14px; padding: 12px 12px 4px;
+  border: 1px solid var(--accent); border-radius: 5px; background: #20242c;
+}
+.editbox .field:last-of-type { margin-bottom: 10px; }
+
+.xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.xyz input {
+  width: 100%; font: inherit; color: var(--text); text-align: center;
+  background: #23272f; border: 1px solid var(--line); border-radius: 4px; padding: 5px 2px;
+}
+.xyz input:focus { outline: 1px solid var(--accent); }
+
+.row { display: flex; gap: 4px; margin-bottom: 8px; }
+.row button { cursor: pointer; font-size: 12px; padding: 6px 4px; }
+.row button:disabled { opacity: .4; cursor: default; }
+.row button.primary { background: var(--accent); border-color: var(--accent); color: #17191d; font-weight: 600; }
+.row button.primary:disabled { background: #23272f; border-color: var(--line); color: var(--text); font-weight: 400; }
+
+.hint { color: var(--dim); font-size: 11px; margin: 0 0 10px; }
+.note.edited { margin-top: 10px; padding-top: 8px; }
+.note.edited b { color: var(--accent); }
+.row button { white-space: nowrap; }
+.hint.keys { margin-top: -6px; }
