@@ -103,15 +103,18 @@ export class Hud {
         bannerTimer: 0,
         hitTimer: 0,
       });
-      // a rule along each internal edge, so neighbouring viewports read apart
-      for (const [cls, at] of [['hud-divider', r.y], ['hud-divider-v', r.x]] as const) {
-        if (at <= 0) continue;
-        const rule = document.createElement('div');
-        rule.className = cls;
-        if (cls === 'hud-divider') { rule.style.top = `${at * 100}%`; }
-        else { rule.style.left = `${at * 100}%`; rule.style.top = `${r.y * 100}%`; rule.style.height = `${r.h * 100}%`; }
-        this.layer.appendChild(rule);
-      }
+      // A rule along each internal edge of this viewport, so neighbours read
+      // apart — spanning only that viewport's own edge, never the full window:
+      // three players side by side have a tall picture next to two short ones,
+      // and a rule drawn all the way across would cut the tall one in half.
+      const rule = (cls: string, style: Partial<CSSStyleDeclaration>) => {
+        const el = document.createElement('div');
+        el.className = cls;
+        Object.assign(el.style, style);
+        this.layer.appendChild(el);
+      };
+      if (r.y > 0) rule('hud-divider', { top: `${r.y * 100}%`, left: `${r.x * 100}%`, width: `${r.w * 100}%` });
+      if (r.x > 0) rule('hud-divider-v', { left: `${r.x * 100}%`, top: `${r.y * 100}%`, height: `${r.h * 100}%` });
     }
   }
 

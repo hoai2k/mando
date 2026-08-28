@@ -40,15 +40,35 @@ export interface CameraConfig {
   dynamic: boolean;
 }
 
+/**
+ * How split-screen divides the window between players.
+ *
+ * `stacked` is the couch default and what the game has always done: players
+ * are laid out in rows, so two get a wide letterbox each — the shape that
+ * suits a shared TV. `columns` is the transpose, for anyone playing on a tall
+ * or portrait display, or who simply prefers a taller, narrower view: two
+ * players sit side by side instead. The two describe an axis rather than a
+ * fixed picture, so they scale to any number of players — with four the grid
+ * is square either way, and only three tell the difference by which edge the
+ * odd player takes.
+ */
+export type SplitMode = 'stacked' | 'columns';
+
+export interface VideoConfig {
+  split: SplitMode;
+}
+
 export interface Config {
   audio: AudioConfig;
   input: InputConfig;
   camera: CameraConfig;
+  video: VideoConfig;
 }
 
 export const config: Config = {
   input: { keyboardMouse: false },
   camera: { dynamic: true },
+  video: { split: 'stacked' },
   audio: {
     master: 0.8,
     // SFX sit well under the score: a busy wave puts a lot of blaster fire on
@@ -64,6 +84,8 @@ const STORE = 'mando.audio';
 const INPUT_STORE = 'mando.input';
 /** Camera preferences, same reasoning: one key per group of settings. */
 const CAMERA_STORE = 'mando.camera';
+/** Screen preferences (the split-screen layout). */
+const VIDEO_STORE = 'mando.video';
 
 /** Merge any saved volume preferences over the defaults above. */
 export function loadSavedConfig(): void {
@@ -94,6 +116,22 @@ export function loadSavedConfig(): void {
     if (saved && typeof saved.dynamic === 'boolean') config.camera.dynamic = saved.dynamic;
   } catch {
     // same
+  }
+  try {
+    const raw = localStorage.getItem(VIDEO_STORE);
+    const saved = raw ? JSON.parse(raw) as Partial<VideoConfig> : null;
+    if (saved && (saved.split === 'stacked' || saved.split === 'columns')) config.video.split = saved.split;
+  } catch {
+    // same
+  }
+}
+
+/** Persist the screen preferences so they survive a reload. */
+export function saveVideoConfig(): void {
+  try {
+    localStorage.setItem(VIDEO_STORE, JSON.stringify(config.video));
+  } catch {
+    // private browsing / blocked storage — the session still honours the values
   }
 }
 

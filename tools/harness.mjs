@@ -268,8 +268,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
         meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
         zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
       };
+      // one input per possible player: the game indexes by player slot, and a
+      // three- or four-player match would read past a two-entry array
+      const inputs = [{ ...base, ...over }, { ...base }, { ...base }, { ...base }];
       for (let i = 0; i < Math.round(secs * 60); i++) {
-        g.update(dt, [{ ...base, ...over }, { ...base }]);
+        g.update(dt, inputs);
       }
       const p = g.players[0];
       return { wave: g.wave, hp: +p.hp.toFixed(1), alive: p.alive, hostiles: g.aliveEnemyCount };

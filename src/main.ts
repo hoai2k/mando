@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig } from './config';
+import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { audio } from './core/audio';
@@ -182,6 +182,16 @@ settings.addToggle('Dynamic camera', () => config.camera.dynamic, (on) => {
   config.camera.dynamic = on;
   saveCameraConfig();
 });
+settings.addChoice('Split screen', [
+  { value: 'stacked' as const, label: 'Stacked' },
+  { value: 'columns' as const, label: 'Side by side' },
+], () => config.video.split, (v) => {
+  config.video.split = v;
+  saveVideoConfig();
+  // A match in progress re-lays its HUD immediately; the renderer reads the
+  // rectangles fresh every frame, so the viewports follow on their own.
+  if (game) hud.setLayout(playerCount);
+});
 settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
@@ -195,11 +205,12 @@ settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) =>
 });
 settings.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
 settings.addHint('Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
-  + '<b>Dynamic camera</b> eases the chase camera in close when you are still or walking and out '
-  + 'when you sprint, dash or fly; the right-stick dolly still scales the whole range. Off, it holds '
-  + 'the single distance you dial in.<br/>'
-  + '<b>Keyboard &amp; mouse</b> adds WASD and mouse aiming — the game is designed for a controller, '
-  + 'and while this is off the mouse cursor stays free during play.');
+  + '<b>Dynamic camera</b> — the chase camera closes in when you are still and opens out when you sprint, '
+  + 'dash or fly. Off, it holds the one distance the right stick dials in.<br/>'
+  + '<b>Split screen</b> — which way co-op divides the window: <b>stacked</b> gives each player a wide strip, '
+  + '<b>side by side</b> turns the same layout on its side. Four players get a quadrant either way.<br/>'
+  + '<b>Keyboard &amp; mouse</b> — adds WASD and mouse aiming; while it is off the cursor stays free during play.');
+
 settings.onBack = () => closeOverlay();
 
 /**

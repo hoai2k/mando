@@ -159,6 +159,45 @@ export class MenuScreen {
     return row;
   }
 
+  /**
+   * A row that cycles through a fixed set of values — the same contract as the
+   * toggle, for a setting with more than two states. Left/right step through
+   * the options (wrapping), confirm and a click step forward, and it re-reads
+   * its value whenever the screen is shown.
+   */
+  addChoice<T>(label: string, options: Array<{ value: T; label: string }>, get: () => T, set: (v: T) => void): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'menu-toggle menu-btn';
+    const name = document.createElement('span');
+    name.className = 'toggle-label';
+    name.textContent = label;
+    const value = document.createElement('span');
+    value.className = 'toggle-value';
+    row.append(name, value);
+    this.root.appendChild(row);
+
+    const paint = () => {
+      const i = options.findIndex((o) => o.value === get());
+      value.textContent = (options[i] ?? options[0]).label;
+    };
+    const step = (dir: -1 | 1) => {
+      const i = Math.max(0, options.findIndex((o) => o.value === get()));
+      set(options[(i + dir + options.length) % options.length].value);
+      paint();
+    };
+    row.addEventListener('click', () => { audio.uiConfirm(); step(1); });
+    row.addEventListener('mouseenter', () => { if (pointerMoved) this.focusEl(row); });
+
+    this.focusables.push({
+      el: row,
+      action: () => { audio.uiConfirm(); step(1); },
+      adjust: (dir) => { audio.uiMove(); step(dir); },
+    });
+    paint();
+    this.sliders.push(paint);
+    return row;
+  }
+
   /** Re-read every slider from its source — call when a screen is shown. */
   refreshSliders(): void { for (const paint of this.sliders) paint(); }
 
