@@ -48,7 +48,7 @@ the old values washed out against the new bright skies.
 ## Audio — 38 files, delivered 2026-08-27
 
 Live in `public/assets/audio/`, generated with the ElevenLabs sound-generation API.
-(Originally 41; Grogu's coo was retired when he was cut. The two massiff sounds — `massiff_growl`, `massiff_yelp` — are wanted again now the war massiff is back, and are listed in `ASSETS_AUDIO.md`; the engine synthesizes a stand-in growl and yelp until they land.)
+(Originally 41; Grogu's coo was retired when he was cut. The two massiff sounds — `massiff_growl`, `massiff_yelp` — were retired with the old small massiff and have been regenerated for the war massiff at its new size: a chest-deep snarl and a heavy death rattle rather than a hound's. Their prompts are in `tools/generate-sfx.mjs`.)
 **Regeneration prompts are the source of truth in `tools/generate-sfx.mjs`** — edit the
 `SFX` table there and re-run rather than copying prompts around:
 

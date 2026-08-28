@@ -136,7 +136,13 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         `${ASSET_ROOT}models/${id}.glb`,
-        (gltf) => resolve(gltf.scene as THREE.Group),
+        (gltf) => {
+          // Stash the file's own clips on the scene. Characters on our rig are
+          // driven by our clips and ignore these, but a creature with a rig of
+          // its own (the quadruped massiff) has nothing else to animate it.
+          (gltf.scene as THREE.Group).userData.clips = gltf.animations ?? [];
+          resolve(gltf.scene as THREE.Group);
+        },
         undefined,
         (err) => {
           // absent is normal (procedural fallback); anything else is worth saying
@@ -350,6 +356,98 @@ export function retarget(source: Rig, model: AuthoredModel): void {
  * nothing happens and the procedural build simply stands: that is the contract
  * the whole asset pipeline runs on.
  */
+/**
+ * Load a model that nothing drives: a weapon, a vehicle, a creature on a rig
+ * of its own. It is scaled to `targetLength` along its longest axis (or
+ * `axis`, when the fit should be by height instead) and centred on its origin
+ * the way the procedural prop it replaces was, then handed back for the caller
+ * to park wherever the procedural one sat.
+ *
+ * This is the other half of the intake. `attachAuthored` is for characters
+ * built on the canonical skeleton, where our clips drive the model; this is
+ * for everything else, including rigs we cannot drive — the massiff is a
+ * quadruped, four legs on a 44-bone skeleton, so no humanoid clip has anything
+ * to say to it.
+ */
+export function loadProp(
+  id: string,
+  targetSize: number,
+  opts: {
+    axis?: 'x' | 'y' | 'z' | 'longest';
+    /** sit the model on y = 0 instead of on its own origin — creatures want this */
+    ground?: boolean;
+    onLoad?: (root: THREE.Object3D) => void;
+  } = {},
+): THREE.Group {
+  const holder = new THREE.Group();
+  loadRaw(id).then((raw) => {
+    if (!raw) return;
+    const root = raw.clone(true);
+    root.updateMatrixWorld(true);
+    // A prop is usually static, but a creature model can be skinned (the
+    // massiff is): a plain clone leaves its skinned meshes bound to the
+    // original's bones, so anything that animates the clone moves nothing.
+    const byName = new Map<string, THREE.Object3D>();
+    root.traverse((o) => { if (o.name) byName.set(norm(o.name), o); });
+    root.traverse((o) => {
+      const skinned = o as THREE.SkinnedMesh;
+      if (!skinned.isSkinnedMesh) return;
+      const bones = skinned.skeleton.bones.map((b) => (byName.get(norm(b.name)) as THREE.Bone) ?? b);
+      skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
+      skinned.frustumCulled = false;
+    });
+    root.userData.clips = raw.userData.clips ?? [];
+    const box = new THREE.Box3();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld));
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const axis = opts.axis ?? 'longest';
+    const measured = axis === 'longest' ? Math.max(size.x, size.y, size.z) : size[axis];
+    if (!(measured > 1e-4)) return;
+    const scale = targetSize / measured;
+    root.scale.setScalar(scale);
+    // a sculpt's origin is wherever the artist left it, which for a standing
+    // creature is usually its middle — put its feet on the floor
+    if (opts.ground) root.position.y = -box.min.y * scale;
+    holder.add(root);
+    opts.onLoad?.(root);
+  }).catch((err) => console.warn(`[authored] prop ${id} failed:`, err));
+  return holder;
+}
+
+/**
+ * Creatures that arrive on a skeleton of their own rather than the canonical
+ * humanoid one, keyed to the height they should stand.
+ *
+ * The massiff is the case in point: a quadruped on a 44-bone rig with four
+ * legs and a tail, so nothing in `BONE_MAP` reaches it and none of our clips
+ * mean anything to it. Until it has a gait of its own it comes in through
+ * `loadCreature`, which is the prop path — the model is placed and scaled and
+ * the enemy's own movement carries it, exactly as the swoop bike works.
+ * `massiff_static` is the unrigged variant of the same sculpt, and the cheaper
+ * choice while nothing is deforming it.
+ */
+export const CREATURE_MODELS: Record<string, number> = {
+  // the war massiff is an elite beast, not the knee-high hound the sculpt was
+  // scaled for — see the size note in ASSETS_MODELS.md
+  massiff: 2.05,
+};
+
+/** Load a creature model at its registered height. Null id or missing file = nothing. */
+export function loadCreature(
+  id: keyof typeof CREATURE_MODELS,
+  opts: { onLoad?: (root: THREE.Object3D) => void } = {},
+): THREE.Group {
+  return loadProp(id, CREATURE_MODELS[id], { axis: 'y', ground: true, onLoad: opts.onLoad });
+}
+
 export interface AuthoredSwap {
   /** copy this frame's pose across; a no-op until the model lands */
   update: () => void;

@@ -56,6 +56,10 @@ const SFX = {
   pirate_taunt: ['Gravelly alien pirate taunt bark, guttural growl-shout, short, invented alien language', 0.7],
   pirate_death: ['Gravelly alien pirate short death groan cut off abruptly', 0.6],
   droid_death: ['Robot destruction power-down: descending servo whine into sparking electrical fizzle and metal collapse', 1.0],
+  // War massiff: a two-metre armoured quadruped predator, not a hound — the
+  // voice has to come from a big chest, low and slow, or it reads as a dog
+  massiff_growl: ['Huge armoured reptilian war beast snarl: chest-deep guttural growl building into a wet ragged bark, enormous lungs, slow and heavy, threatening, original creature voice, no dog yelps', 1.2],
+  massiff_yelp: ['Huge armoured reptilian war beast death cry: pained roar dropping into a gurgling rattle and a heavy final exhale, enormous body, original creature voice', 1.2],
   swoop_pass: ['Fast hover bike flyby with doppler effect: whining repulsor engine sweep passing close', 1.0],
   imperial_bark: ['Soldier voice through a helmet radio filter shouting a short muffled command, clipped static edge, unintelligible', 0.7],
   imperial_death: ['Soldier death cry through a helmet radio filter, short, cut off with static', 0.6],

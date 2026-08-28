@@ -63,9 +63,27 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 
 ## Delivery & integration
 
-Drop files at `public/models/<id>.glb`. **Delivered:** `din, paz, bokatan, armorer, marshal,
-fennec, nikto, pirate, pirate_melee, droid, deathtrooper, darktrooper, duelist,
-imperial_officer`. **Still open:** `ig11, tusken, pyke, stormtrooper, carbine, gaffi`.
+Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character in the
+game except one — `din, paz, bokatan, armorer, marshal, fennec, tusken, pyke, nikto,
+pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
+imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
+nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`.**
+
+### Three intake paths
+
+| Model | Path | What drives it |
+|---|---|---|
+| Characters on the canonical humanoid rig | `attachAuthored()` | our clips, through the retargeter |
+| Weapons, vehicles — no rig | `loadProp()` | nothing; placed and scaled, carried by its holder |
+| Creatures on a rig of their own | `loadCreature()` | nothing yet — see below |
+
+**The massiff is the third case.** It is a quadruped: 44 deform bones, four legs and a
+tail, so `BONE_MAP` reaches none of it and no humanoid clip means anything to it. It comes
+in through `loadCreature('massiff')`, which places and scales the model (1.15 m at the
+shoulder, 2.5 m long) and grounds it — the enemy's own movement carries it, exactly as the
+swoop bike works. `massiff_static` is the unrigged variant of the same sculpt and the
+cheaper choice while nothing is deforming it. Giving it a real gait means either authoring
+clips against its own skeleton or a second, quadruped bone map; neither is in place.
 
 The id is the filename, and it is not always the character's internal id — the Imperial
 officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate

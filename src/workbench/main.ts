@@ -358,10 +358,13 @@ function renderPanel(): void {
     <div id="edit"></div>
 
     <p class="note">
-      ${subject.hasModel
-        ? `Authored skin from <code>public/models/${subject.modelFile ?? subject.id}.glb</code>, driven by the
-           procedural rig through the retargeter. Compare puts the two side by side.`
-        : 'No authored model for this character yet — procedural build only.'}
+      ${!subject.hasModel
+        ? 'No authored model for this character yet — procedural build only.'
+        : subject.build.length === 0
+          ? `<code>public/models/${subject.modelFile ?? subject.id}.glb</code> — a prop, on no rig
+             we drive. Nothing animates it, so the animation picker does nothing here.`
+          : `Authored skin from <code>public/models/${subject.modelFile ?? subject.id}.glb</code>, driven by the
+             procedural rig through the retargeter. Compare puts the two side by side.`}
       <br><br>Drag to orbit, scroll to zoom. Posts are 0.5&nbsp;m each.
       <br><br><b>Edit mode</b> freezes the pose at its first keyframe, draws the rig
       on the figure and gives the joint you click a rotation gizmo. Edits are written

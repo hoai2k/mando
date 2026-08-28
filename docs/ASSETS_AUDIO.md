@@ -17,17 +17,6 @@ README and `MUSIC_PLAYLISTS` in `src/core/audio.ts`. The `music_combat_desert` /
 loudness-matched (SFX peaks ≈ −6 dBFS), seamless where looping. Original or licensed audio
 only — no ripped film audio; prompts describe character without naming trademarked sources.
 
-## Open — war massiff voice
-
-The war massiff (a wave-5+ elite on the desert board) has no authored voice: the engine
-synthesizes a stand-in snarl and yelp for it, which carries but reads thin under a big
-armoured beast. These two replace it.
-
-| Files | Prompt |
-|---|---|
-| `massiff_growl` | "Large reptilian war-beast snarl, chest-deep guttural rasp building to a bark, wet and threatening, 500ms — a 2 m armoured quadruped predator, not a dog" |
-| `massiff_yelp` | "Large reptilian war-beast death cry, sharp pained roar falling into a gurgling rattle, 400ms" |
-
 ## Open — nice-to-have variation sets
 
 The engine currently pitch-varies a single file for each of these, which is convincing but
