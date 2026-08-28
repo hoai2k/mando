@@ -63,6 +63,7 @@ export function buildTrask(): Board {
   sea.position.y = 0.05;
   group.add(sea);
   const seaPos = seaGeo.attributes.position as THREE.BufferAttribute;
+  const seaNorm = seaGeo.attributes.normal as THREE.BufferAttribute;
 
   const deckMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0x8a9096, roughness: 0.75, metalness: 0.35 });
   const hullMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x6a7a72, roughness: 0.6, metalness: 0.45 });
@@ -223,12 +224,23 @@ export function buildTrask(): Board {
   let thunderIn = -1;
   board.update = (dt: number, time: number, game?: Game) => {
     // swell: the sea surface rolls, the boats ride it
+    // The swell is two sinusoids, so its normal is the analytic slope rather
+    // than a topology pass: computeVertexNormals() walked 3,200 triangles and
+    // renormalised 1,681 vertices every frame for a surface whose derivative
+    // is two more cosines. Same water, a fraction of the work.
     for (let i = 0; i < seaPos.count; i++) {
       const x = seaPos.getX(i), z = seaPos.getZ(i);
-      seaPos.setY(i, Math.sin(x * 0.08 + time * 1.1) * 0.22 + Math.cos(z * 0.06 + time * 0.8) * 0.18);
+      const ax = x * 0.08 + time * 1.1;
+      const az = z * 0.06 + time * 0.8;
+      seaPos.setY(i, Math.sin(ax) * 0.22 + Math.cos(az) * 0.18);
+      // dy/dx and dy/dz; the surface normal is (-dy/dx, 1, -dy/dz) normalised
+      const dx = -Math.cos(ax) * 0.22 * 0.08;
+      const dz = Math.sin(az) * 0.18 * 0.06;
+      const inv = 1 / Math.hypot(dx, 1, dz);
+      seaNorm.setXYZ(i, dx * inv, inv, dz * inv);
     }
     seaPos.needsUpdate = true;
-    seaGeo.computeVertexNormals();
+    seaNorm.needsUpdate = true;
 
     for (const b of boats) {
       const heave = Math.sin(time * 0.9 + b.phase) * 0.45;

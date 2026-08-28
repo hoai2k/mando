@@ -84,6 +84,8 @@ export function buildRingworld(): Board {
   // building rows: stepped blocks with walkable roofs, lining both sides
   const neonMats: THREE.MeshBasicMaterial[] = [];
   const buildings: [number, number, number, number, number][] = [];
+  /** posts on the roofs, placed from the roofs the generator actually built */
+  const rooftopPosts: THREE.Vector3[] = [];
   for (let i = 0; i < 9; i++) {
     for (const side of [-1, 1]) {
       const bz = -100 + i * 25 + (side > 0 ? 8 : 0);
@@ -169,6 +171,21 @@ export function buildRingworld(): Board {
   rail.position.set(24, 0.1, 0);
   rail.receiveShadow = true;
   group.add(rail);
+  // Rooftop posts, taken from the roofs the generator actually produced.
+  // Hardcoded heights do not survive a randomised skyline: block heights run
+  // 5-13 m, so a post fixed at y=9 either floated three metres over a low roof
+  // or was buried inside a tall one, with the squad stuck in the masonry.
+  for (const side of [-1, 1]) {
+    let best: [number, number, number, number, number] | null = null;
+    for (const b of buildings) {
+      if (Math.sign(b[0]) !== side) continue;
+      // mid-street, away from the player's end, and the taller the better
+      if (Math.abs(b[1]) > 70) continue;
+      if (!best || b[3] > best[3]) best = b;
+    }
+    if (best) rooftopPosts.push(new THREE.Vector3(best[0], best[3] + 0.3, best[1]));
+  }
+
   const tramBox = physics.addBox(24, 1.6, 0, 3.4, 2.6, 9);
   const tramMover = new Mover(tramBox, tram);
 
@@ -200,7 +217,7 @@ export function buildRingworld(): Board {
       new THREE.Vector3(-10, 0.3, 74), new THREE.Vector3(4, 0.3, 96),
       new THREE.Vector3(12, 0.3, 48), new THREE.Vector3(-6, 0.3, 22),
       new THREE.Vector3(-12, 0.3, -30), new THREE.Vector3(10, 0.3, -60),
-      new THREE.Vector3(-34, 9, -50), new THREE.Vector3(36, 8, 60), // rooftops
+      ...rooftopPosts,
     ],
     airSpawns: [
       new THREE.Vector3(0, 18, 40), new THREE.Vector3(-20, 16, -40), new THREE.Vector3(20, 20, 90),
