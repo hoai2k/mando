@@ -24,6 +24,8 @@ const ARC_RATE = 0.4;
 /** yaw rate at full right-stick deflection, and how fast a released stick eases back */
 const MANUAL_RATE = 2.8;
 const RETURN_TAU = 0.55;
+/** radians of yaw per pixel of mouse drag */
+const DRAG_RATE = 0.011;
 /** resting emissive lift, matched to how the hero reads in-game */
 const BASE_GLOW = 0.22;
 
@@ -57,6 +59,8 @@ export class CharacterSelect {
   private slots: Slot[] = [];
   private startBtn: HTMLElement;
   private time = 0;
+  /** in-progress mouse drag: which pedestal it grabbed and where it last was */
+  private drag: { slot: number; lastX: number } | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -95,8 +99,31 @@ export class CharacterSelect {
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b> select · <b>B</b>/<b>Esc</b> back';
+    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
     this.root.appendChild(hint);
+
+    // ---- mouse drag turns the model on the pedestal you grabbed ----
+    // The stage is drawn behind this overlay rather than into it, so the
+    // pedestal is picked from which half of the screen the drag started in;
+    // that is exactly the region its panel occupies.
+    this.root.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+      const slot = e.clientX < window.innerWidth / 2 ? 0 : 1;
+      const phase = this.slots[slot].phase;
+      if (phase === 'empty' || phase === 'spinning') return;   // nothing to turn
+      this.drag = { slot, lastX: e.clientX };
+      this.root.classList.add('dragging');
+    });
+    this.root.addEventListener('pointermove', (e) => {
+      if (!this.drag) return;
+      const s = this.slots[this.drag.slot];
+      s.manual = wrapPi(s.manual + (e.clientX - this.drag.lastX) * DRAG_RATE);
+      this.drag.lastX = e.clientX;
+    });
+    // on window, so releasing outside the screen still ends the drag
+    const endDrag = () => { this.drag = null; this.root.classList.remove('dragging'); };
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 
     // ---- 3D stage ----
     this.scene.background = new THREE.Color(0x07080c);
@@ -366,7 +393,7 @@ export class CharacterSelect {
         // to zero, so it settles into the idle sweep rather than snapping.
         const stick = this.opts.stickX(i);
         if (stick !== 0) s.manual = wrapPi(s.manual + stick * MANUAL_RATE * dt);
-        else s.manual *= Math.exp(-dt / RETURN_TAU);
+        else if (this.drag?.slot !== i) s.manual *= Math.exp(-dt / RETURN_TAU);
         // slow turntable, centred on facing the camera, so it reads from both sides
         if (s.phase === 'browsing') s.arcT += dt;
         const arc = s.phase === 'browsing' ? Math.sin(s.arcT * ARC_RATE) * ARC : 0;
@@ -405,6 +432,7 @@ export class CharacterSelect {
 
   show(): void {
     this.root.style.display = '';
+    this.drag = null;
     // P1 walks in browsing; P2 waits for a join. Committed picks reset each visit.
     this.slots.forEach((s, i) => {
       s.phase = i === 0 ? 'browsing' : 'empty';
@@ -418,6 +446,10 @@ export class CharacterSelect {
     this.preloadNeighbours(0);
     this.refresh();
   }
-  hide(): void { this.root.style.display = 'none'; }
+  hide(): void {
+    this.root.style.display = 'none';
+    this.drag = null;
+    this.root.classList.remove('dragging');
+  }
   get visible(): boolean { return this.root.style.display !== 'none'; }
 }

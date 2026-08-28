@@ -251,18 +251,20 @@ export class Player {
     this.blockRaise = damp(this.blockRaise, this.blocking ? 1 : 0, 14, dt);
     this.char.setBlock(this.blockRaise);
 
-    // ---- RB: a dash from a standstill, a sprint on the move ----
-    // Pressing with the stick centred arms a dash and waits for a direction;
-    // pressing while already moving is a sprint for as long as it is held. In
-    // the air sprint means nothing, so a press there is always the jet burst.
+    // ---- LB: a dodge in whatever direction it is given, then a sprint ----
+    // One press arms one dodge. If the stick is already pushed it fires on the
+    // spot; if the stick is centred the dodge waits for a direction and goes
+    // the instant one arrives. Either way, holding LB on past the dodge rolls
+    // into a sprint. In the air sprint means nothing, so it is the jet burst.
+    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking;
     if (input.dashPressed && !this.blocking) {
-      if (!this.grounded) this.dashArmed = true;
-      else if (moving) { this.sprintLatched = true; this.dashArmed = false; }
-      else { this.dashArmed = true; this.sprintLatched = false; }
+      this.dashArmed = true;
+      // with no dodge to spend — cooling down, or out of gauge — holding it
+      // still has to sprint, or the button would go dead mid-fight
+      this.sprintLatched = !canDash;
     }
     if (!input.sprintHeld) { this.dashArmed = false; this.sprintLatched = false; }
 
-    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking;
     const dashNow = this.dashArmed && canDash && (moving || !this.grounded);
     if (dashNow) {
       this.dashArmed = false;
