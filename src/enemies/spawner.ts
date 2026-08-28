@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Enemy, type EnemyKind } from './enemy';
-import { killZones, type Board, type BoardId } from '../world/board';
+import { hazardAt, killZones, type Board, type BoardId } from '../world/board';
 
 /** Wave composition per board — grunt-heavy early, mixed later. */
 
@@ -132,6 +132,35 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
   return list;
 }
 
+const _probe = new THREE.Vector3();
+
+/**
+ * Nudge a post out of any prop it happens to be standing in.
+ *
+ * Several boards place posts on coordinates that are also a prop's centre —
+ * the Ringworld's plaza kiosks are the clearest case, where six of the eight
+ * posts are kiosk centres — and an enemy spawned inside a box is ejected
+ * through its nearest face on the first frame, with the squad's dust puff
+ * playing inside the scenery. Search a small ring for open ground instead.
+ */
+function freeSpot(board: Board, p: THREE.Vector3): THREE.Vector3 {
+  const phys = board.physics;
+  if (!phys.solidAt(p.x, p.y + 0.9, p.z)) return p;
+  // out to 13 m: a body can start well inside a cluster of colliders (the
+  // barge's hull cylinders, a stack of crates) and a short search never clears it
+  for (let ring = 1; ring <= 5; ring++) {
+    const r = ring * 2.6;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2 + ring;
+      const x = p.x + Math.cos(a) * r;
+      const z = p.z + Math.sin(a) * r;
+      const y = phys.heightAt ? phys.heightAt(x, z) + 0.3 : p.y;
+      if (!phys.solidAt(x, y + 0.9, z)) return new THREE.Vector3(x, y, z);
+    }
+  }
+  return p;   // boxed in on every side: leave it, the push-out will sort it
+}
+
 /** how far apart posted enemies in one squad stand */
 const SQUAD_SPREAD = 7;
 /** don't post a squad closer than this to a player — they should be found, not handed over */
@@ -178,7 +207,7 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   const rank = (v: THREE.Vector3) => v.distanceTo(near);
   const ground = board.groundSpawns.filter((v) => rank(v) > MIN_PLAYER_DIST);
   const pool = (ground.length >= 3 ? ground : board.groundSpawns).slice();
-  const posts = disperse(pool, wave);
+  const posts = disperse(pool, wave).map((p) => freeSpot(board, p));
   const air = disperse(board.airSpawns.slice(), wave);
 
   // Late waves field more squads than the board has posts. On solid ground the
@@ -187,24 +216,57 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   // there the post is reused as-is and only the per-enemy jitter separates them.
   const groundY = board.physics.heightAt;
   const deadly = killZones(board);
+
+  /**
+   * Is this somewhere a squad can actually stand and be fought?
+   *
+   * A ring position is a guess, and on several boards the guess lands
+   * somewhere the wave can never be resolved from: outside a sealed board's
+   * walls (an enclosed refinery whose kill plane is unreachable, so the
+   * hostiles behind the wall are alive and unkillable forever), in water or
+   * lava that drowns or cooks the squad before the player ever sees it, or
+   * inside a prop, from which the physics ejects it somewhere nobody chose.
+   * `extent` is the board's own authored reach — the outermost post the level
+   * designer picked — so nothing is posted meaningfully beyond the level.
+   */
+  const valid = (x: number, y: number, z: number, extent: number): boolean => {
+    if (!isFinite(y)) return false;
+    if (Math.hypot(x, z) > extent) return false;
+    if (board.physics.solidAt(x, y + 0.9, z)) return false;
+    const hz = hazardAt(board, _probe.set(x, y, z));
+    return !hz.kill && hz.dps <= 0;
+  };
+
+  // the level's own reach, plus a little slack for the ring to breathe in
+  let extent = 0;
+  for (const p of board.groundSpawns) extent = Math.max(extent, Math.hypot(p.x, p.z));
+  extent += 12;
+
   const post = (i: number): THREE.Vector3 => {
     const base = posts[i % posts.length];
     const lap = Math.floor(i / posts.length);
     if (lap === 0 || !groundY) return base.clone();
-    const a = i * 2.399; // golden angle: successive laps don't line up
     const r = 16 + lap * 9;
-    let x = base.x + Math.cos(a) * r;
-    let z = base.z + Math.sin(a) * r;
-    for (const hazard of deadly) {
-      // never post a squad standing in the sarlacc (or any of its cousins)
-      const hd = Math.hypot(x - hazard.center.x, z - hazard.center.z);
-      const keep = hazard.radius + 6;
-      if (hd < keep && hd > 1e-3) {
-        x = hazard.center.x + ((x - hazard.center.x) / hd) * keep;
-        z = hazard.center.z + ((z - hazard.center.z) / hd) * keep;
+    // Try the golden-angle bearing first, then walk around the circle: the
+    // point is to spread squads out, and any bearing that stands up does that.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const a = i * 2.399 + attempt * (Math.PI / 4);
+      let x = base.x + Math.cos(a) * r;
+      let z = base.z + Math.sin(a) * r;
+      for (const hazard of deadly) {
+        // never post a squad standing in the sarlacc (or any of its cousins)
+        const hd = Math.hypot(x - hazard.center.x, z - hazard.center.z);
+        const keep = hazard.radius + 6;
+        if (hd < keep && hd > 1e-3) {
+          x = hazard.center.x + ((x - hazard.center.x) / hd) * keep;
+          z = hazard.center.z + ((z - hazard.center.z) / hd) * keep;
+        }
       }
+      const y = groundY(x, z) + 0.3;
+      if (valid(x, y, z, extent)) return new THREE.Vector3(x, y, z);
     }
-    return new THREE.Vector3(x, groundY(x, z) + 0.3, z);
+    // nowhere on the ring works: reuse the post itself, which is known good
+    return base.clone();
   };
   const airPost = (i: number) => air[i % air.length].clone();
 
@@ -225,7 +287,10 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
           entry.air ? (Math.random() - 0.5) * 4 : 0.2,
           (Math.random() - 0.5) * SQUAD_SPREAD
         );
-        const e = new Enemy(entry.kind, base.clone().add(jitter));
+        // The jitter that spreads a squad out can also drop a body inside the
+        // prop next to its post, so each spawn is checked, not just the post.
+        const at = base.clone().add(jitter);
+        const e = new Enemy(entry.kind, entry.air ? at : freeSpot(board, at));
         e.squad = squad;
         e.squadSize = size;
         addEnemy(e);

@@ -39,6 +39,23 @@ export class PhysicsWorld {
     return c;
   }
 
+  /**
+   * Is this point inside a solid collider? Spawn placement needs to know: a
+   * squad posted inside a crate or a kiosk is ejected through the nearest face
+   * on its first frame, which puts it somewhere nobody chose.
+   */
+  solidAt(x: number, y: number, z: number): boolean {
+    for (const b of this.boxes) {
+      if (x > b.min.x && x < b.max.x && y > b.min.y && y < b.max.y && z > b.min.z && z < b.max.z) return true;
+    }
+    for (const c of this.cylinders) {
+      if (y <= c.minY || y >= c.maxY) continue;
+      const dx = x - c.x, dz = z - c.z;
+      if (dx * dx + dz * dz < c.r * c.r) return true;
+    }
+    return false;
+  }
+
   groundHeight(x: number, z: number, feetY: number): number {
     let g = this.heightAt ? this.heightAt(x, z) : -Infinity;
     for (const b of this.boxes) {
