@@ -1,3 +1,4 @@
+import { weaponDisplayName } from '../characters/mandalorians';
 import type { Game } from '../game/game';
 import { Radar } from './radar';
 import { splitLayout } from '../core/layout';
@@ -150,7 +151,7 @@ export class Hud {
       else h.coverHint.textContent = '';
       h.coverHint.classList.toggle('active', !!p.cover);
       h.weapon.textContent = p.alive
-        ? (p.weapon === 'blaster' ? 'EE-3 Carbine' : 'Gaffi Stick')
+        ? weaponDisplayName(p.characterId, p.weapon)
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;
       const rc = p.rocketCd;
       h.rocket.textContent = rc <= 0 ? '◆ ROCKET READY' : `◇ rocket ${rc.toFixed(0)}s`;

@@ -532,6 +532,13 @@ export interface AuthoredSwap {
   update: () => void;
   /** the loaded model, once it is there */
   readonly model: AuthoredModel | null;
+  /**
+   * True once the question is answered either way: the authored skin is on, or
+   * there is no file and the procedural build is the final look. The character
+   * select waits on this rather than on `model`, so a character without an
+   * authored .glb yet is still presentable.
+   */
+  readonly settled: boolean;
 }
 
 export function attachAuthored(
@@ -548,11 +555,12 @@ export function attachAuthored(
     procedural.push(o);
   });
 
-  const swap: { model: AuthoredModel | null } = { model: null };
+  const swap: { model: AuthoredModel | null; settled: boolean } = { model: null, settled: opts.enabled === false };
   if (opts.enabled !== false) {
     loadAuthored(id, targetHeight)
       .catch((err) => { console.warn(`[authored] ${id} preparation failed:`, err); return null; })
       .then((model) => {
+        swap.settled = true;
         if (!model) return;
         swap.model = model;
         for (const m of procedural) m.visible = false;
@@ -563,6 +571,7 @@ export function attachAuthored(
 
   return {
     get model() { return swap.model; },
+    get settled() { return swap.settled; },
     update: () => { if (swap.model) retarget(rig, swap.model); },
   };
 }

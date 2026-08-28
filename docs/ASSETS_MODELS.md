@@ -54,10 +54,13 @@ later if the 8k boss version reads poorly up close. The five new sheets are requ
 | **Reptilian hunter** (`bossk`) | `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
 | **Snouted hunter** (`greedo`) | `greedo_front/side/back.png` | 1.73 m | Slender green alien, tapered dome head, glassy dark eyes, short trunk snout, ear stalks and ridged scalp crest, olive flight jacket and gunbelt. Slightest of the set (scale ~0.95). |
 
-Integration note: today's roster factory (`src/characters/mandalorians.ts`) is
-Mando-specific — these six need their own roster entries wired to `attachAuthored` when
-the models land, and until then a hunter would fall back to a generic armored biped, so
-the models are the gating asset, not the code.
+Integration note: `ventress`, `embo` and `bossk` are **playable today** — roster entries
+in `src/characters/mandalorians.ts` with procedural stand-in bodies, signature weapons
+(twin red curved-hilt sabers, laser crossbow, long rifle) and hunter heads. The loader is
+already pointed at `public/models/<id>.glb`, so each model replaces its stand-in the
+moment the file lands — the models are the gating asset, not the code. Their signature
+weapons also take authored props: `saber_curved.glb`, `crossbow.glb`, `longrifle.glb`
+via the standard prop path.
 
 ## Allies — priority 2
 
