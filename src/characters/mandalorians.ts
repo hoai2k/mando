@@ -63,6 +63,12 @@ interface MandoConfig {
   melee?: 'gaffi' | 'sabers';
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
+  /**
+   * Where the flight flames live: on the worn jetpack (default), or under the
+   * feet for a character that flies on leg thrusters — no pack is built, and
+   * the flames ride the foot bones so they angle with the legs in flight.
+   */
+  thrusters?: 'jetpack' | 'feet';
 }
 
 /** HUD display names for each loadout slot. */
@@ -110,7 +116,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   ig11: {
     name: 'VX-9', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
-    ranged: 'longrifle', skin: 0x8a8578,
+    ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
   },
 };
 
@@ -183,16 +189,19 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   }
 
   // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----
-  const jp = new THREE.Group();
-  b.jetpack.add(jp);
-  addCyl(jp, prim, 0.06, 0.06, 0.34, -0.08, 0, -0.04);
-  addCyl(jp, prim, 0.06, 0.06, 0.34, 0.08, 0, -0.04);
-  addSphere(jp, accent, 0.06, -0.08, 0.17, -0.04, 8, 6);
-  addSphere(jp, accent, 0.06, 0.08, 0.17, -0.04, 8, 6);
-  addCyl(jp, silver, 0.035, 0.035, 0.3, 0, 0.1, -0.09);
-  addCyl(jp, accent, 0.001, 0.045, 0.09, 0, 0.29, -0.09);
-  addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
-  addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
+  const feetThrusters = cfg.thrusters === 'feet';
+  if (!feetThrusters) {
+    const jp = new THREE.Group();
+    b.jetpack.add(jp);
+    addCyl(jp, prim, 0.06, 0.06, 0.34, -0.08, 0, -0.04);
+    addCyl(jp, prim, 0.06, 0.06, 0.34, 0.08, 0, -0.04);
+    addSphere(jp, accent, 0.06, -0.08, 0.17, -0.04, 8, 6);
+    addSphere(jp, accent, 0.06, 0.08, 0.17, -0.04, 8, 6);
+    addCyl(jp, silver, 0.035, 0.035, 0.3, 0, 0.1, -0.09);
+    addCyl(jp, accent, 0.001, 0.045, 0.09, 0, 0.29, -0.09);
+    addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
+    addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
+  }
   // Flames live on their own group under the jetpack bone rather than under the
   // nozzle meshes: an authored model hides the procedural body, and a hidden
   // parent would take the flames with it.
@@ -205,11 +214,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const coreGeo = new THREE.ConeGeometry(0.03, 0.09, 10, 1, true);
   const plumeGeo = new THREE.ConeGeometry(0.05, 0.16, 10, 1, true);
   interface Flame { group: THREE.Group; core: THREE.Mesh; plume: THREE.Mesh; coreMat: THREE.MeshBasicMaterial; plumeMat: THREE.MeshBasicMaterial }
-  const flames: Flame[] = [-0.08, 0.08].map((x) => {
+  // Two flame mounts: the pack's twin nozzles, or one sole per foot.
+  const flameMounts: Array<[THREE.Object3D, number, number, number]> = feetThrusters
+    ? [[b.footL, 0, -0.07, 0.03], [b.footR, 0, -0.07, 0.03]]
+    : [[flameRoot, -0.08, NOZZLE_Y, -0.04], [flameRoot, 0.08, NOZZLE_Y, -0.04]];
+  const flames: Flame[] = flameMounts.map(([mount, x, y, z]) => {
     const group = new THREE.Group();
-    group.position.set(x, NOZZLE_Y, -0.04);
+    group.position.set(x, y, z);
     group.visible = false;
-    flameRoot.add(group);
+    mount.add(group);
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0xffe2a8, transparent: true, opacity: 0.45,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
@@ -408,7 +421,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
     // weapons, thruster flames and the shield pane belong to the character,
     // not to the body being replaced
-    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot],
+    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot, ...flames.map((f) => f.group)],
     enabled: opts.authored !== false,
     onLoad: (model) => {
       adoptHeroMaterials(model.root);   // the skin arrives after the pass above
@@ -420,7 +433,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
-      flameRoot.position.y = -0.02;
+      if (!feetThrusters) flameRoot.position.y = -0.02;
     },
   });
 
