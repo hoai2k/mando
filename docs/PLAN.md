@@ -148,13 +148,20 @@ Faces/details are low-poly stylized (not realistic) — a deliberate "stylized a
 - **Atmosphere:** deep-space skybox w/ purple-orange nebula + dense starfield, cold rim lighting + warm sodium work-lights, blinking hazard beacons, slow parallax of a nearby gas giant. Grimy industrial kit-bash aesthetic (greebles, pipes, vents).
 - **Flow:** same wave mode, but spawns emphasize verticality: pirates on distant platforms sniping (fly to them or trade fire), jet-trooper pirates who fly at you, turret droids on crane arms.
 
-### Boards 3–8 (the second wave of boards — built on shared board systems)
+### Boards 3–9 (the second wave of boards — built on shared board systems)
 
 The `Board` interface carries per-board data (name, footstep surface, ambience, music,
 wave table) plus opt-in systems any board can declare: multi-zone **hazards** (kill /
 burn + a free-form `burnAt` field), **movers** (platforms that carry riders),
 **breakables** (props wired into bolts, explosions and ground slams; may chain-explode),
-**traction** (ice), and a **light field** the AI's sight range reads.
+**traction** (ice), a **light field** the AI's sight range reads, and **water**
+(`waterY`): the player wades where the bottom is in standing reach and swims freely
+where it isn't (camera-directed, sealed helmet, no air limit; a jump near the surface
+breaches into a jetpack chain), bolts die at the surface in both directions so a diver
+travels rather than fights, hostiles all but lose sight of a submerged target (the
+stealth route), and anything non-aquatic drowns if its head stays under. Each viewport
+judges the surface for itself, so a diver's screen goes to teal murk while a surface
+partner keeps the daylight.
 
 - **Board 3 — Nevarro, "The Lava Flats."** Black basalt cut by two lava rivers (burn
   zones), breakable cooling-crust bridges, telegraphed geysers that launch whoever stands
@@ -164,9 +171,13 @@ burn + a free-form `burnAt` field), **movers** (platforms that carry riders),
   ice-ledge middle layers — three vertical fighting layers. Low-traction ice, a frozen
   lake of breakable plates over bleed-out water (a ground slam opens it), krykna spiders
   as the melee mass, a broodmother as the wave-10 boss (spawns hatchlings as she is hurt).
-- **Board 5 — Trask, "The Storm Docks."** Dock fingers over a harbour that bites (20 dps),
-  two trawler movers heaving on a real swell, rain with delayed thunder after each
-  lightning flash, the mamacore kill pool, Quarren netcasters whose nets root the player.
+- **Board 5 — Trask, "The Storm Docks."** Dock fingers over a wadeable chest-deep
+  harbour, two trawler movers heaving on a real swell, rain with delayed thunder after
+  each lightning flash, and Quarren netcasters whose nets root the player. The water
+  itself is safe to cross — the **mamacore** is not: linger past ~5 s and a ripple wake
+  converges on you over 2.4 s (the window to reach a ladder or jet clear), then the
+  strike — heavy damage and a fling — and it circles back fast. Its lair pool stays
+  instantly lethal.
 - **Board 6 — "The Refinery."** The first interior: walled halls under a low ceiling
   around an open 40 m reactor shaft ringed by catwalks (the jetpack chimney). Chaining
   rhydonium barrels punish the AI's own cover habit; alarm consoles call the whole
@@ -180,6 +191,14 @@ burn + a free-form `burnAt` field), **movers** (platforms that carry riders),
   sweeping a 210-second cycle — enemy sight ranges halve on the night side, so both sides
   migrate with the light. Walkable rooftops, neon, a rideable armored tram the length of
   the board, shielded ringworld enforcers, and the duelist pair as the final wave.
+- **Board 9 — "The Prison Rig."** A sterile white Imperial labour facility on pylons over
+  an ocean world (Narkina-flavoured). Above the surface: platform fighting with
+  **electrified deck sections** that charge (blink + rising whine) and go live on a cycle,
+  shocking everything standing on them, guards included — the board's rhythm is the hop.
+  Below the surface: the other half of the board — a swimmable sea with a kelp forest, a
+  glowing reef, a sunken transport to swim through, and a **moon pool** in the ring's
+  centre that surfaces inside the perimeter, behind every posted sentry. Diving is the
+  stealth route; surfacing is the commitment.
 
 ## 9. Enemy AI
 

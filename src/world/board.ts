@@ -11,7 +11,8 @@ import type { Game } from '../game/game';
 
 export type BoardId =
   | 'desert' | 'station'
-  | 'nevarro' | 'crevasse' | 'trask' | 'refinery' | 'forge' | 'ringworld';
+  | 'nevarro' | 'crevasse' | 'trask' | 'refinery' | 'forge' | 'ringworld'
+  | 'narkina';
 
 /** ground the footsteps land on (each maps to a sample + synth voice) */
 export type Surface = 'sand' | 'metal' | 'snow' | 'stone';
@@ -108,6 +109,14 @@ export interface Board {
    * further on the same fuel.
    */
   gravity?: number;
+  /**
+   * The sea's surface height. Below it the water rules apply: the player
+   * wades where the bottom is within standing depth and swims where it
+   * isn't, bolts die at the surface in both directions, hostiles all but
+   * lose sight of a submerged target, and anything not aquatic drowns if
+   * its head goes under for long. Omit for dry boards.
+   */
+  waterY?: number;
   /**
    * Below this height there is no floor left to hit, so falling becomes a slow
    * drift a jetpack tap can undo rather than a plunge. Omit for solid ground.

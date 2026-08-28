@@ -34,6 +34,7 @@ voice until the file exists.
 | `amb_refinery` | The Refinery | "Industrial plant interior ambience: deep machinery drone, cycling pumps, steam hisses, metallic clanks echoing in a large hall, seamless loop" |
 | `amb_forge` | The Great Forge | "Dead-world ambience: hollow wind over glass dunes, faint electrical crackle on the horizon, occasional deep sub-bass earth groan, desolate, seamless loop" |
 | `amb_city` | The Ringworld | "Quiet alien city-street ambience: low crowd murmur behind walls, neon buzz, distant tram hum, occasional door hiss, night-city calm, seamless loop" |
+| `amb_sea` | The Prison Rig | "Open-ocean facility ambience: steady sea swell against metal pylons, gull-less empty wind, faint sterile facility hum, distant intercom chime, seamless loop" |
 
 ### Board effects (mono one-shots unless noted)
 
@@ -45,6 +46,10 @@ voice until the file exists.
 | `ice_crack` | Crevasse lake plates (loud) + glacier groans (quiet, pitch-varied) | "Thick lake ice splitting: sharp crack then a deep resonant groan, 1s" |
 | `flame_burst` | Incinerator trooper's projector | "Flamethrower burst: ignition whump into a sustained roaring jet, 1.5s" |
 | `mythosaur_call` | The Living Waters (Forge) | "Colossal creature call from deep underwater, mournful sub-bass bellow, heavily muffled, felt more than heard, 4s" |
+| `splash_in` | Anyone hitting the water (all water boards) | "Armored body plunging into sea water: deep whump and spray, 800ms" |
+| `splash_out` | Surfacing / breaching / wading footfalls (quiet, pitch-varied) | "Water shedding off a surfacing body, light splash and drips, 600ms" |
+| `mamacore_roar` | Trask's hunter — quiet cue when it turns toward you, loud on the strike | "Huge aquatic predator roar breaking the surface: wet bellow with a gurgling snap, 1.5s" |
+| `floor_charge` | The Prison Rig's electrified decks charging | "Electrical floor plate charging up: rising capacitor whine over a building hum, 1s" |
 
 ### Footsteps (mono, ~150 ms; pitch-varied in engine)
 

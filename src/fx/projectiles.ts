@@ -78,7 +78,10 @@ export class ProjectileSystem {
     b.team = team;
   }
 
-  update(dt: number, physics: PhysicsWorld, targets: BoltTarget[]): void {
+  /** fired when a bolt meets the water's surface (splash FX hook) */
+  onWaterHit: ((p: THREE.Vector3) => void) | null = null;
+
+  update(dt: number, physics: PhysicsWorld, targets: BoltTarget[], waterY?: number): void {
     const step = new THREE.Vector3();
     for (const b of this.bolts) {
       if (!b.active) continue;
@@ -87,6 +90,20 @@ export class ProjectileSystem {
       step.copy(b.vel).multiplyScalar(dt);
       const stepLen = step.length();
       const from = b.mesh.position;
+
+      // the sea swallows bolts, both ways: fire doesn't reach a diver, and a
+      // diver's fire doesn't reach the surface world — surface to fight
+      if (waterY !== undefined) {
+        const y0 = from.y, y1 = from.y + step.y;
+        if ((y0 > waterY) !== (y1 > waterY)) {
+          const t = (waterY - y0) / (y1 - y0 || 1);
+          const hit = from.clone().addScaledVector(step, t);
+          this.onWaterHit?.(hit);
+          b.active = false;
+          b.mesh.visible = b.glow.visible = false;
+          continue;
+        }
+      }
 
       // deflection first: a shield in the way is what the bolt meets, and it
       // has to be tested before the body it is covering
