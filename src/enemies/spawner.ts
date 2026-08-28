@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Enemy, type EnemyKind } from './enemy';
-import type { Board } from '../world/board';
+import { killZones, type Board, type BoardId } from '../world/board';
 
 /** Wave composition per board — grunt-heavy early, mixed later. */
 
@@ -8,41 +8,127 @@ export const FINAL_WAVE = 10;
 
 interface WaveEntry { kind: EnemyKind; count: number; air?: boolean; }
 
-export function waveComposition(board: Board['kind'], wave: number, players: number): WaveEntry[] {
+export function waveComposition(board: BoardId, wave: number, players: number): WaveEntry[] {
   const mult = players === 2 ? 1.5 : 1;
   const n = (base: number, per: number) => Math.max(1, Math.round((base + wave * per) * mult));
-  if (board === 'desert') {
-    const list: WaveEntry[] = [
-      { kind: 'tusken', count: n(5, 0.7) },
-      { kind: 'pyke', count: n(2, 0.5) },
-    ];
-    if (wave >= 2) list.push({ kind: 'pirateMelee', count: n(1, 0.4) });
-    if (wave >= 3) list.push({ kind: 'nikto', count: Math.min(1 + ((wave / 3) | 0), 3), air: true });
-    if (wave >= 5) list.push({ kind: 'droid', count: Math.min(1 + (((wave - 3) / 2) | 0), 3) });
-    // war massiffs are an elite, not a grunt: a couple at a time, late on
-    if (wave >= 5) list.push({ kind: 'massiff', count: Math.min(1 + (((wave - 5) / 2) | 0), 3) });
-    if (wave >= 6) list.push({ kind: 'stormtrooper', count: n(1, 0.5) });     // Imperial remnant arrives
-    if (wave >= 8) list.push({ kind: 'deathtrooper', count: Math.min(1 + (((wave - 6) / 2) | 0), 3) });
-    if (wave >= 9) list.push({ kind: 'darktrooper', count: 2, air: true });
-    // the gunslinger turns up late, and alone
-    if (wave >= 7) list.push({ kind: 'duelist', count: 1 });
-    if (wave >= 9) list.push({ kind: 'officer', count: 1 });
-    if (wave === FINAL_WAVE) list.push({ kind: 'enforcer', count: 1 });
-    return list;
+  const ramp = (from: number, every: number, cap: number) =>
+    Math.min(1 + (((wave - from) / every) | 0), cap);
+  const list: WaveEntry[] = [];
+  const at = (minWave: number, kind: EnemyKind, count: number, air = false): void => {
+    if (wave >= minWave && count > 0) list.push({ kind, count, air });
+  };
+
+  switch (board) {
+    case 'desert':
+      at(1, 'tusken', n(5, 0.7));
+      at(1, 'pyke', n(2, 0.5));
+      at(2, 'pirateMelee', n(1, 0.4));
+      at(3, 'nikto', Math.min(1 + ((wave / 3) | 0), 3), true);
+      at(5, 'droid', ramp(3, 2, 3));
+      // war massiffs are an elite, not a grunt: a couple at a time, late on
+      at(5, 'massiff', ramp(5, 2, 3));
+      at(6, 'stormtrooper', n(1, 0.5));   // Imperial remnant arrives
+      at(8, 'deathtrooper', ramp(6, 2, 3));
+      at(9, 'darktrooper', 2, true);
+      // the gunslinger turns up late, and alone
+      at(7, 'duelist', 1);
+      at(9, 'officer', 1);
+      at(FINAL_WAVE, 'enforcer', 1);
+      break;
+
+    case 'station':
+      at(1, 'pirate', n(5, 0.6));
+      at(1, 'pirateMelee', n(2, 0.4));
+      at(2, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 4), true);
+      at(4, 'pyke', n(1, 0.6));
+      at(5, 'droid', ramp(3, 2, 3));
+      at(6, 'stormtrooper', n(1, 0.5));
+      at(7, 'darktrooper', ramp(7, 2, 3), true);
+      at(9, 'deathtrooper', 2);
+      at(8, 'duelist', 1);
+      at(10, 'officer', 1);
+      at(FINAL_WAVE, 'capo', 1);
+      break;
+
+    case 'nevarro':
+      // pirates hold the flats; the remnant garrison walks out of the gate late
+      at(1, 'pirate', n(4, 0.6));
+      at(1, 'pirateMelee', n(2, 0.5));
+      at(2, 'flametrooper', ramp(2, 3, 3));
+      at(3, 'stormtrooper', n(1, 0.6));
+      at(4, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
+      at(5, 'droid', ramp(4, 2, 3));
+      at(6, 'massiff', ramp(6, 2, 2));
+      at(7, 'deathtrooper', ramp(7, 2, 3));
+      at(8, 'duelist', 1);
+      at(9, 'darktrooper', 2, true);
+      at(FINAL_WAVE, 'officer', 1);
+      break;
+
+    case 'crevasse':
+      // the spiders own the ice; the Pykes are just passing through, poor souls
+      at(1, 'krykna', n(5, 0.9));
+      at(1, 'pyke', n(2, 0.4));
+      at(3, 'stormtrooper', n(1, 0.5));
+      at(4, 'krykna', ramp(4, 1, 4)); // second nest opens
+      at(5, 'droid', ramp(5, 2, 2));
+      at(6, 'deathtrooper', ramp(6, 2, 2));
+      at(7, 'darktrooper', ramp(7, 2, 2), true);
+      at(8, 'duelist', 1);
+      at(FINAL_WAVE, 'broodmother', 1);
+      break;
+
+    case 'trask':
+      at(1, 'quarren', n(3, 0.6));
+      at(1, 'pirate', n(3, 0.5));
+      at(2, 'pirateMelee', n(1, 0.5));
+      at(3, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
+      at(4, 'pyke', n(1, 0.5));
+      at(5, 'droid', ramp(5, 2, 2));
+      at(6, 'stormtrooper', n(1, 0.5)); // the freighter was never carrying fish
+      at(7, 'deathtrooper', ramp(7, 2, 2));
+      at(8, 'duelist', 1);
+      at(9, 'darktrooper', 2, true);
+      at(FINAL_WAVE, 'capo', 1);
+      break;
+
+    case 'refinery':
+      at(1, 'stormtrooper', n(5, 0.8));
+      at(1, 'droid', n(1, 0.3));
+      at(2, 'flametrooper', ramp(2, 2, 4)); // corridors are their country
+      at(4, 'deathtrooper', ramp(4, 2, 3));
+      at(5, 'darktrooper', ramp(5, 2, 3), true);
+      at(7, 'duelist', 1);
+      at(9, 'officer', 1);
+      at(FINAL_WAVE, 'officer', 1);
+      break;
+
+    case 'forge':
+      at(1, 'alamite', n(5, 0.9));
+      at(2, 'drone', Math.min(1 + ((wave / 2) | 0), 4), true);
+      at(3, 'stormtrooper', n(1, 0.6));
+      at(5, 'deathtrooper', ramp(5, 2, 3));
+      at(6, 'droid', ramp(6, 2, 2));
+      at(7, 'darktrooper', ramp(7, 2, 3), true);
+      at(8, 'duelist', 1);
+      at(FINAL_WAVE, 'officer', 1);
+      at(FINAL_WAVE, 'enforcer', 1);
+      break;
+
+    case 'ringworld':
+      at(1, 'pirate', n(4, 0.6));
+      at(1, 'pirateMelee', n(2, 0.4));
+      at(2, 'ringEnforcer', ramp(2, 3, 3));
+      at(3, 'pyke', n(1, 0.5));
+      at(4, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
+      at(5, 'droid', ramp(5, 2, 3));
+      at(6, 'duelist', 1); // assassin country
+      at(7, 'deathtrooper', ramp(7, 2, 2));
+      at(9, 'darktrooper', 2, true);
+      at(FINAL_WAVE, 'duelist', 2);
+      at(FINAL_WAVE, 'ringEnforcer', 2);
+      break;
   }
-  const list: WaveEntry[] = [
-    { kind: 'pirate', count: n(5, 0.6) },
-    { kind: 'pirateMelee', count: n(2, 0.4) },
-  ];
-  if (wave >= 2) list.push({ kind: 'jetpirate', count: Math.min(1 + ((wave / 2) | 0), 4), air: true });
-  if (wave >= 4) list.push({ kind: 'pyke', count: n(1, 0.6) });
-  if (wave >= 5) list.push({ kind: 'droid', count: Math.min(1 + (((wave - 3) / 2) | 0), 3) });
-  if (wave >= 6) list.push({ kind: 'stormtrooper', count: n(1, 0.5) });
-  if (wave >= 7) list.push({ kind: 'darktrooper', count: Math.min(1 + (((wave - 7) / 2) | 0), 3), air: true });
-  if (wave >= 9) list.push({ kind: 'deathtrooper', count: 2 });
-  if (wave >= 8) list.push({ kind: 'duelist', count: 1 });
-  if (wave >= 10) list.push({ kind: 'officer', count: 1 });
-  if (wave === FINAL_WAVE) list.push({ kind: 'capo', count: 1 });
   return list;
 }
 
@@ -100,7 +186,7 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   // their own patch of desert; the station has no ground between platforms, so
   // there the post is reused as-is and only the per-enemy jitter separates them.
   const groundY = board.physics.heightAt;
-  const hazard = board.hazard;
+  const deadly = killZones(board);
   const post = (i: number): THREE.Vector3 => {
     const base = posts[i % posts.length];
     const lap = Math.floor(i / posts.length);
@@ -109,8 +195,8 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
     const r = 16 + lap * 9;
     let x = base.x + Math.cos(a) * r;
     let z = base.z + Math.sin(a) * r;
-    if (hazard) {
-      // never post a squad standing in the sarlacc
+    for (const hazard of deadly) {
+      // never post a squad standing in the sarlacc (or any of its cousins)
       const hd = Math.hypot(x - hazard.center.x, z - hazard.center.z);
       const keep = hazard.radius + 6;
       if (hd < keep && hd > 1e-3) {

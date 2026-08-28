@@ -1,13 +1,16 @@
 import * as THREE from 'three';
 import {
-  buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG,
-  buildImperialOfficer, buildMassiff, buildNikto, buildPykeCapo, buildWookieeEnforcer,
+  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
+  buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
+  buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
+  buildQuarren, buildRingEnforcer, buildWookieeEnforcer,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
 import { Ragdoll } from '../anim/ragdoll';
 import { audio, type BarkName } from '../core/audio';
+import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
@@ -25,6 +28,7 @@ export type EnemyKind =
   | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
   | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
   | 'capo' | 'enforcer'
+  | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
   | 'ig11' | 'marshal' | 'fennec';
 
 interface Def {
@@ -47,6 +51,21 @@ interface Def {
    */
   hitParts?: { z: number; y: number; r: number }[];
   boltSpeed?: number; volley?: number;
+  /**
+   * Fires a flame stream instead of bolts: the volley becomes a fan of damage
+   * ticks along a fixed aim line, so sidestepping the stream beats it.
+   */
+  flame?: boolean;
+  /** its bolts snare instead of hurting much — the net gun */
+  boltTag?: string;
+  /** hover kind that ends itself in a dive — the interceptor drone */
+  kamikaze?: boolean;
+  /** carries a frontal energy shield that turns bolts away — flank it */
+  frontShield?: boolean;
+  /** burn zones don't bite (a Quarren in the harbour is at home) */
+  burnImmune?: boolean;
+  /** every `per` fraction of max HP lost, `count` of `kind` crawl out (≤ max) */
+  spawnOnHurt?: { kind: EnemyKind; per: number; count: number; max: number };
   build: () => CharacterInstance;
 }
 
@@ -79,6 +98,25 @@ const DEFS: Record<EnemyKind, Def> = {
   // Two and a half metres of gladiator; slow to arrive, ruinous once there.
   enforcer:     { hp: 420, speed: 5.4, radius: 0.68, height: 2.6, style: 'melee', damage: 34, attackRange: 3.4, attackCd: 1.6, notice: 45, build: buildWookieeEnforcer },
   darktrooper:  { hp: 160, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
+  // ---- the new-board roster ----
+  // Flame projector: short reach, but the stream suppresses nothing — it has
+  // to be sidestepped, and it cooks anyone who tries to hold a crate against it.
+  flametrooper: { hp: 130, speed: 5.0, radius: 0.52, height: 1.9, style: 'ranged', damage: 6, attackRange: 12, attackCd: 2.6, notice: 42, volley: 9, flame: true, build: buildFlametrooper },
+  // Cave spiders hunt like the massiff hunts: no turns taken, no morale. Low
+  // HP each — the fight is volume, not weight.
+  krykna:       { hp: 55, speed: 8.5, radius: 0.6, height: 1.6, style: 'melee', damage: 12, attackRange: 2.5, attackCd: 1.3, notice: 46, relentless: true, build: buildKrykna },
+  broodmother:  { hp: 560, speed: 6.2, radius: 0.95, height: 2.6, style: 'melee', damage: 30, attackRange: 3.8, attackCd: 1.9, notice: 60, relentless: true,
+    hitParts: [{ z: 1.0, y: 1.5, r: 0.7 }, { z: -0.9, y: 1.7, r: 0.95 }],
+    spawnOnHurt: { kind: 'krykna', per: 0.22, count: 2, max: 8 }, build: buildBroodmother },
+  // The net gun barely hurts; being rooted in front of his friends is the hurt.
+  quarren:      { hp: 100, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
+  alamite:      { hp: 65, speed: 6.4, radius: 0.5, height: 1.85, style: 'melee', damage: 13, attackRange: 2.5, attackCd: 1.4, notice: 32, build: buildAlamite },
+  // The drone *is* the projectile: it stalks, then dives and detonates. The
+  // dive is committed like the massiff's pounce — a dash beats it.
+  drone:        { hp: 45, speed: 8.0, radius: 0.55, height: 1.7, style: 'hover', damage: 24, attackRange: 30, attackCd: 4.0, notice: 60, kamikaze: true, build: buildInterceptorDrone },
+  // A walking priority-target puzzle: bolts bounce off the front pane, so the
+  // answer is a flank, a melee rush, or a rocket.
+  ringEnforcer: { hp: 260, speed: 3.8, radius: 0.55, height: 2.1, style: 'ranged', damage: 13, attackRange: 30, attackCd: 2.2, notice: 48, boltSpeed: 30, volley: 3, frontShield: true, build: buildRingEnforcer },
   // Allies (spawned on team 0)
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
@@ -88,11 +126,17 @@ const DEFS: Record<EnemyKind, Def> = {
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
   duelist: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
+  flametrooper: 'imperial_bark', krykna: 'spider_chitter', broodmother: 'spider_chitter',
+  quarren: 'quarren_bark', alamite: 'alamite_shriek', drone: 'drone_whine',
+  ringEnforcer: 'pirate_taunt',
 };
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
   duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
+  flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
+  quarren: 'quarren_bark', alamite: 'alamite_shriek',
+  ringEnforcer: 'pirate_death',
 };
 
 
@@ -140,6 +184,18 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
+  /** burn-zone damage accrues and lands in ticks, not per frame */
+  private burnAcc = 0;
+  private burnTick = 0;
+  /** where a flame volley was aimed when it started — the stream holds its line */
+  private flameAim = new THREE.Vector3();
+  /** kamikaze dive: seconds left of committed dive, 0 = stalking */
+  private diving = 0;
+  /** HP mark the last spawn-on-hurt brood crawled out at */
+  private spawnMark: number;
+  private spawnedCount = 0;
+  /** scratch for the frontal shield handed to the projectile system */
+  private shieldSphere = { center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3() };
   /** massiff leap: >0 while airborne mid-pounce, damage lands on contact */
   private pounce = 0;
   private pounceHit = false;
@@ -254,6 +310,7 @@ export class Enemy {
     this.team = team;
     this.char = this.def.build();
     this.hp = this.def.hp;
+    this.spawnMark = this.def.hp;
     this.radius = this.def.radius;
     this.height = this.def.height;
     this.position.copy(pos);
@@ -304,6 +361,20 @@ export class Enemy {
 
   /** world yaw the body is facing, for placing the extra hit spheres */
   get yaw(): number { return this.facingYaw; }
+
+  /**
+   * The enforcer's frontal pane, as the projectile system sees it: a sphere
+   * held out in front of wherever the body faces. Bolts bounce; melee, rockets
+   * and anything from behind land as normal. Down or wounded drops the pane.
+   */
+  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
+    if (!this.def.frontShield || !this.alive || this.downed || this.wounded || this.fleeing) return null;
+    const s = this.shieldSphere;
+    s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    s.center.copy(this.position).addScaledVector(s.normal, 0.7);
+    s.center.y += 1.15;
+    return s;
+  }
 
   /** true once this enemy is actually in the fight (used by the HUD radar) */
   get isEngaged(): boolean { return this.awareness === 'engaged'; }
@@ -691,11 +762,33 @@ export class Enemy {
       this.position.addScaledVector(this.velocity, dt);
     }
 
-    // hazard: sarlacc eats enemies too
-    const hz = game.board.hazard;
-    if (hz) {
-      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
-      if (hd < hz.radius && this.position.y < hz.center.y + 3) { this.damage(9999, hz.center, -1); }
+    // hazards: the sarlacc, the lava, the harbour — they eat enemies too.
+    // Burn damage accrues and lands in half-second ticks so the alert/flash
+    // machinery in damage() isn't hammered every frame.
+    const hzd = hazardAt(game.board, this.position);
+    if (hzd.kill) this.damage(9999, this.position, -1);
+    else if (hzd.dps > 0 && !this.def.burnImmune) {
+      this.burnAcc += hzd.dps * dt;
+      this.burnTick -= dt;
+      if (this.burnTick <= 0) {
+        this.burnTick = 0.5;
+        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1); this.burnAcc = 0; }
+      }
+    }
+
+    // brood spawns: enough damage taken and the egg sacs let go
+    const brood = this.def.spawnOnHurt;
+    if (brood && this.spawnedCount < brood.max &&
+        this.hp < this.spawnMark - this.def.hp * brood.per) {
+      this.spawnMark = this.hp;
+      for (let i = 0; i < brood.count && this.spawnedCount < brood.max; i++) {
+        this.spawnedCount++;
+        const a = Math.random() * Math.PI * 2;
+        const p = this.position.clone().add(new THREE.Vector3(Math.cos(a) * 2, 0.2, Math.sin(a) * 2));
+        const hatchling = game.addReinforcement(brood.kind, p, this.squad);
+        if (this.target) hatchling.alert(this.target.position, true);
+      }
+      audio.bark('spider_chitter', 0.6);
     }
 
     // locomotion animation
@@ -773,11 +866,15 @@ export class Enemy {
     const dx = foe.position.x - this.position.x;
     const dz = foe.position.z - this.position.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > d.notice) return false;
+    // sight range scales with the light falling on the *target*: on a board
+    // with a moving terminator the night side is genuinely safer to cross
+    const lit = game.board.lightAt ? 0.45 + 0.55 * game.board.lightAt(foe.position.x, foe.position.z) : 1;
+    const notice = d.notice * lit;
+    if (dist > notice) return false;
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
     // ahead: full range; peripheral: about half; behind: only right on top of them
-    const range = dot > 0.25 ? d.notice : dot > -0.35 ? d.notice * 0.5 : 8;
+    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : 8;
     if (dist > range) { this.sightMemo = false; return false; }
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.2 + (this.id % 5) * 0.03;
@@ -1159,8 +1256,8 @@ export class Enemy {
       }
     }
 
-    if (game.board.kind === 'station' && this.team === 1) {
-      // platforms: never walk off the edge chasing a firing angle
+    if (game.board.rangedLeash && this.team === 1) {
+      // island boards: never walk off the edge chasing a firing angle
       const lx = this.spawnPos.x - this.position.x, lz = this.spawnPos.z - this.position.z;
       const ld = Math.hypot(lx, lz);
       if (ld > 4) {
@@ -1195,18 +1292,51 @@ export class Enemy {
 
   private updateVolley(dt: number, game: Game, target: Combatant, dist: number): void {
     const d = DEFS[this.kind];
+    if (d.kamikaze) return; // the drone's whole body is the attack
     if (this.volleyLeft > 0) {
       this.volleyTimer -= dt;
       if (this.volleyTimer <= 0) {
         this.volleyLeft--;
-        this.volleyTimer = 0.16;
-        this.fireBoltAt(game, target);
+        this.volleyTimer = d.flame ? 0.09 : 0.16;
+        if (d.flame) this.flameTick(game, target);
+        else this.fireBoltAt(game, target);
       }
     } else if (this.attackCd <= 0 && dist < d.attackRange && this.hasLineOfSight(game, target)) {
       this.volleyLeft = d.volley ?? 1;
       // a pinned shooter pops up less often
       this.attackCd = d.attackCd * (this.suppression > 0.55 ? 1.6 : 1);
+      if (d.flame) {
+        // the stream commits to a line when the trigger is squeezed: it leads
+        // the target a touch, and then holds — stepping off the line beats it
+        this.flameAim.copy(target.position).addScaledVector(target.velocity, 0.35);
+        this.flameAim.y += 1.0;
+        audio.flame();
+      }
     }
+  }
+
+  /**
+   * One tick of the flame stream: a jet of fire along the committed aim line.
+   * Damage lands only on a target still standing in the stream's cone.
+   */
+  private flameTick(game: Game, target: Combatant): void {
+    const d = DEFS[this.kind];
+    const from = new THREE.Vector3();
+    if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
+    else { from.copy(this.position); from.y += this.height * 0.7; }
+    const dir = this.flameAim.clone().sub(from);
+    const reach = Math.min(dir.length(), d.attackRange + 1);
+    dir.normalize();
+    game.particles.jetPlume(from, dir, 0.09, { power: 1, scale: 2.6 });
+    if (!target.alive) return;
+    const toT = target.position.clone();
+    toT.y += target.height * 0.5;
+    toT.sub(from);
+    const tDist = toT.length();
+    if (tDist > reach + 1.2) return;
+    toT.normalize();
+    if (toT.dot(dir) < 0.9) return; // stepped out of the stream
+    target.damage(d.damage, from);
   }
 
   private hasLineOfSight(game: Game, target: Combatant): boolean {
@@ -1237,7 +1367,7 @@ export class Enemy {
     aim.y += (Math.random() - 0.5) * 1.2 * err;
     aim.z += (Math.random() - 0.5) * 1.6 * err;
     const dir = aim.sub(from).normalize();
-    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, this.team);
+    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, this.team, d.boltTag);
     // a firefight pulls in whoever is posted nearby — an ally's covering fire
     // gives the position away just as readily as a hostile's
     game.director.noise(game, this.position, this.team === 1 ? 30 : 40);
@@ -1282,6 +1412,58 @@ export class Enemy {
 
   private updateHover(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
+
+    // ---- kamikaze (the interceptor drone) ----
+    // It stalks like any hover flier, then commits: a straight, unsteered dive
+    // at where the target was heading. Contact — or anything solid — sets it
+    // off. A dash or a jetpack hop after the whine beats it clean.
+    if (d.kamikaze) {
+      if (this.diving > 0) {
+        this.diving -= dt;
+        const pd = this.position.distanceTo(target.position);
+        const hitGround = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.5) >= this.position.y - 0.1;
+        if (pd < 1.6 || hitGround || this.diving <= 0) {
+          // detonation: FX + splash on whoever is close, then nothing left
+          game.particles.explosion(this.position.clone());
+          audio.explosion();
+          game.director.noise(game, this.position, 55, true);
+          for (const p of game.players) {
+            if (!p.alive) continue;
+            const dd = p.position.distanceTo(this.position);
+            if (dd < 4.5) p.damage(d.damage * (1 - dd / 5.5), this.position);
+          }
+          for (const e of game.enemies) {
+            if (!e.alive || e === this) continue;
+            const dd = e.position.distanceTo(this.position);
+            if (dd < 4) { e.damage(30 * (1 - dd / 4.5), this.position, this.lastHitBy); e.knockback(this.position, 10, 0.4); }
+          }
+          this.hp = 0;
+          this.alive = false;
+          this.settled = true; // nothing left to tip over
+          return;
+        }
+        // committed: no steering, just the trail
+        game.particles.jetPlume(this.position, _JET_DOWN, dt, { power: 0.9, carrier: this.velocity });
+        return;
+      }
+      const dist = this.position.distanceTo(target.position);
+      // it only commits from altitude: a dive that starts at ground level
+      // trips its own ground-contact fuse before it has gone anywhere
+      const clearance = this.position.y -
+        game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.5);
+      if (this.attackCd <= 0 && dist < 18 && (!isFinite(clearance) || clearance > 3) &&
+          this.hasLineOfSight(game, target)) {
+        const aim = target.position.clone();
+        aim.y += 0.9;
+        aim.addScaledVector(target.velocity, dist / 17 * 0.7);
+        this.velocity.copy(aim.sub(this.position).normalize().multiplyScalar(17));
+        this.diving = 1.8;
+        this.attackCd = d.attackCd;
+        audio.bark('drone_whine', 0.7);
+        return;
+      }
+    }
+
     this.hoverRetarget -= dt;
     if (this.hoverRetarget <= 0) {
       this.hoverRetarget = 2.5 + Math.random() * 2;

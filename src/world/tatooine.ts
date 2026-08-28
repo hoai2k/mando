@@ -223,6 +223,10 @@ export function buildTatooine(): Board {
 
   return {
     group, physics, kind: 'desert',
+    name: 'The Dune Sea',
+    footstep: 'sand',
+    ambience: { sample: 'amb_desert', bed: 'wind' },
+    music: 'desert',
     background: new THREE.Color(0xd9b98a),
     heroLight: 0.1,
     skyFile: 'sky_desert',
@@ -239,7 +243,7 @@ export function buildTatooine(): Board {
     airSpawns: [
       new THREE.Vector3(-40, 24, 20), new THREE.Vector3(60, 26, -30), new THREE.Vector3(0, 30, 70),
     ],
-    hazard: { center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5 },
+    hazards: [{ center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5, kind: 'kill' }],
     update: (dt, time) => {
       tentacles.forEach((t, i) => {
         t.rotation.x = Math.sin(time * 1.3 + i * 2.1) * 0.35;

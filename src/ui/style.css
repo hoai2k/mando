@@ -52,16 +52,22 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .menu-hint { margin-top: 26px; font-size: 13px; letter-spacing: 0.1em; color: #7a6c50; }
 .menu-hint b { color: #b9a678; }
 
-/* board select cards */
-.board-cards { display: flex; gap: 26px; margin-top: 10px; }
+/* board select cards — a 4×2 grid now that there are eight territories */
+.board-cards {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px; margin-top: 10px; width: min(1240px, 94vw);
+}
 .board-card {
-  width: min(360px, 38vw); border: 1px solid #5f4d2c; background: rgba(15,12,8,0.8);
+  border: 1px solid #5f4d2c; background: rgba(15,12,8,0.8);
   cursor: pointer; transition: all 0.15s; overflow: hidden;
 }
 .board-card.focused, .board-card:hover { border-color: #f0d492; box-shadow: 0 0 28px rgba(216,178,90,0.4); transform: scale(1.03); }
-.board-card .art { height: 160px; background-size: cover; background-position: center; }
-.board-card .name { padding: 12px 16px 4px; font-size: 20px; letter-spacing: 0.12em; text-transform: uppercase; color: #d8b25a; }
-.board-card .desc { padding: 0 16px 14px; font-size: 13px; color: #9a8a6a; line-height: 1.45; }
+.board-card .art { height: clamp(70px, 11vh, 120px); background-size: cover; background-position: center; }
+.board-card .name { padding: 8px 12px 3px; font-size: clamp(13px, 1.4vw, 17px); letter-spacing: 0.1em; text-transform: uppercase; color: #d8b25a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board-card .desc { padding: 0 12px 10px; font-size: clamp(10px, 1vw, 12px); color: #9a8a6a; line-height: 1.4; }
+@media (max-width: 900px) {
+  .board-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* ---------- HUD ---------- */
 .hud-viewport { position: absolute; pointer-events: none; overflow: hidden; }

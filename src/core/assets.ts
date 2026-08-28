@@ -198,3 +198,82 @@ export const crateTexture = () => texture('crate_side', (ctx, s) => {
   for (let i = 0; i < 6; i++) ctx.fillRect(14 + i * 18, s - 26, 10, 8);
   grain(ctx, s, 33, 0.08);
 }, 128, 1);
+
+export const basaltTexture = () => texture('basalt_albedo', (ctx, s) => {
+  ctx.fillStyle = '#3a3634';
+  ctx.fillRect(0, 0, s, s);
+  // cracked volcanic plates: dark cells split by darker seams
+  const rng = makeRng(77);
+  for (let i = 0; i < 60; i++) {
+    const x = rng() * s, y = rng() * s, w = 14 + rng() * 40, h = 12 + rng() * 34;
+    const v = 0.8 + rng() * 0.45;
+    ctx.fillStyle = `rgb(${58 * v | 0},${54 * v | 0},${50 * v | 0})`;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(16,13,11,0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+  }
+  // faint ember veins in the deepest cracks
+  for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = `rgba(200,80,20,${0.06 + rng() * 0.1})`;
+    ctx.fillRect(rng() * s, rng() * s, 1 + rng() * 2, 6 + rng() * 22);
+  }
+  grain(ctx, s, 19, 0.08);
+}, 256, 26);
+
+export const snowTexture = () => texture('snow_albedo', (ctx, s) => {
+  ctx.fillStyle = '#e8edf2';
+  ctx.fillRect(0, 0, s, s);
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x += 4) {
+      const r = fbm2(x * 0.03, y * 0.06, 3);
+      const drift = Math.sin((y + r * 30) * 0.2) * 0.5 + 0.5;
+      const v = 0.92 + drift * 0.07 + (r - 0.5) * 0.05;
+      ctx.fillStyle = `rgb(${232 * v | 0},${237 * v | 0},${244 * v | 0})`;
+      ctx.fillRect(x, y, 4, 1);
+    }
+  }
+  grain(ctx, s, 31, 0.03, false);
+}, 256, 34);
+
+export const iceTexture = () => texture('ice_albedo', (ctx, s) => {
+  ctx.fillStyle = '#b8d4e2';
+  ctx.fillRect(0, 0, s, s);
+  const rng = makeRng(55);
+  // depth marbling
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = `rgba(120,170,200,${0.08 + rng() * 0.12})`;
+    ctx.beginPath();
+    ctx.ellipse(rng() * s, rng() * s, 20 + rng() * 60, 8 + rng() * 24, rng() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // fracture lines
+  ctx.strokeStyle = 'rgba(235,248,255,0.6)';
+  for (let i = 0; i < 22; i++) {
+    ctx.lineWidth = 0.6 + rng() * 1.2;
+    ctx.beginPath();
+    let x = rng() * s, y = rng() * s;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { x += (rng() - 0.5) * 70; y += (rng() - 0.5) * 70; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+}, 256, 8);
+
+export const lavaTexture = () => texture('lava_flow', (ctx, s) => {
+  // crusted flow: black skin over a bright molten web (rendered emissive)
+  ctx.fillStyle = '#1a0d08';
+  ctx.fillRect(0, 0, s, s);
+  for (let y = 0; y < s; y += 2) {
+    for (let x = 0; x < s; x += 2) {
+      const n = fbm2(x * 0.04, y * 0.04, 4);
+      if (n > 0.62) {
+        const heat = (n - 0.62) / 0.38;
+        ctx.fillStyle = `rgb(${200 + heat * 55 | 0},${60 + heat * 130 | 0},${10 + heat * 30 | 0})`;
+        ctx.fillRect(x, y, 2, 2);
+      } else if (n > 0.55) {
+        ctx.fillStyle = '#4a1c0a';
+        ctx.fillRect(x, y, 2, 2);
+      }
+    }
+  }
+}, 256, 12);
