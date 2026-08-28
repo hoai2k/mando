@@ -19,6 +19,8 @@ export interface FrameInput {
   rocketPressed: boolean;
   /** Dead Eye toggle — V on keyboard, right-stick click on pad */
   deadeyePressed: boolean;
+  /** hold to raise the block shield */
+  blockHeld: boolean;
   slamPressed: boolean;
   switchPressed: boolean;
   pausePressed: boolean;
@@ -37,7 +39,7 @@ function blankInput(): FrameInput {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
-    deadeyePressed: false, switchPressed: false, pausePressed: false,
+    deadeyePressed: false, blockHeld: false, switchPressed: false, pausePressed: false,
   };
 }
 
@@ -189,6 +191,7 @@ export class InputManager {
       inp.dashPressed ||= this.keysPressed.has('ShiftLeft') || this.keysPressed.has('ShiftRight');
       inp.sprintHeld ||= k.has('ShiftLeft') || k.has('ShiftRight');
       inp.slamPressed ||= this.keysPressed.has('ControlLeft') || this.keysPressed.has('KeyC');
+      inp.blockHeld ||= this.keys.has('KeyR');
       inp.shootHeld ||= this.mouseButtons.has(0);
       inp.aimHeld ||= this.mouseButtons.has(2);
       inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
@@ -211,15 +214,18 @@ export class InputManager {
         // already updated, so track pressed separately here using a shadow set:
         inp.jumpHeld ||= b(BTN.A);
         inp.jumpPressed ||= this.edge(pad, BTN.A);
-        inp.dashPressed ||= this.edge(pad, BTN.B);
-        inp.sprintHeld ||= b(BTN.B);
-        inp.slamPressed ||= this.edge(pad, BTN.RB);
+        // RB is the movement button: the player controller decides between a
+        // dash and a sprint from whether the stick was already pushed.
+        inp.dashPressed ||= this.edge(pad, BTN.RB);
+        inp.sprintHeld ||= b(BTN.RB);
+        inp.blockHeld ||= b(BTN.B);
+        inp.slamPressed ||= this.edge(pad, BTN.LB);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
         inp.rocketPressed ||= this.edge(pad, BTN.Y);
         inp.deadeyePressed ||= this.edge(pad, BTN.RS);
-        inp.switchPressed ||= this.edge(pad, BTN.LB);
+        inp.switchPressed ||= this.edge(pad, BTN.DRIGHT);
       }
     }
     inp.moveX = Math.max(-1, Math.min(1, inp.moveX));

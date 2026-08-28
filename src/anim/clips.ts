@@ -157,6 +157,27 @@ export function buildClips(p: Proportions): ClipSet {
     qt('head', [0, 0.3, 0.55], [[-12, 0, 0], [14, 0, 0], [0, 0, 0]]),
   ]);
 
+  // ---------- UPPER: block (shield up, braced behind it) ----------
+  clips.blockUpper = new THREE.AnimationClip('blockUpper', 2, [
+    qt('chest', [0, 1, 2], [[10, 6, 0], [12, 7, 0], [10, 6, 0]]),
+    qt('head', [0, 2], [[6, -10, 0], [6, -10, 0]]),
+    // forearm across the body, the other bracing it — the shield hangs off both
+    qt('upperArmL', [0, 1, 2], [[-64, -22, -14], [-66, -24, -15], [-64, -22, -14]]),
+    qt('forearmL', [0, 2], [[-74, 0, 0], [-74, 0, 0]]),
+    qt('upperArmR', [0, 1, 2], [[-52, 26, 18], [-54, 28, 19], [-52, 26, 18]]),
+    qt('forearmR', [0, 2], [[-62, 0, 0], [-62, 0, 0]]),
+  ]);
+  // legs braced wide, weight back
+  clips.blockLower = new THREE.AnimationClip('blockLower', 2, [
+    pt('hips', [0, 1, 2], [[0, hipY - 0.08, 0], [0, hipY - 0.09, 0], [0, hipY - 0.08, 0]]),
+    qt('hips', [0, 2], [[6, 12, 0], [6, 12, 0]]),
+    qt('spine', [0, 2], [[4, 0, 0], [4, 0, 0]]),
+    qt('upperLegL', [0, 2], [[-26, 0, -8], [-26, 0, -8]]),
+    qt('lowerLegL', [0, 2], [[34, 0, 0], [34, 0, 0]]),
+    qt('upperLegR', [0, 2], [[16, 0, 10], [16, 0, 10]]),
+    qt('lowerLegR', [0, 2], [[26, 0, 0], [26, 0, 0]]),
+  ]);
+
   // ---------- UPPER: hit flinch ----------
   clips.hitUpper = new THREE.AnimationClip('hitUpper', 0.28, [
     qt('chest', [0, 0.08, 0.28], [[-14, 6, 0], [-18, 8, 0], [1, 0, 0]]),

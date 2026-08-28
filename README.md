@@ -20,21 +20,28 @@ model next to the procedural build it replaces.
 | Move | `WASD` | Left stick |
 | Look / aim | Mouse | Right stick |
 | Jump → hold to jetpack | `Space` | `A` |
-| Sprint (hold) | hold `Shift` | hold `B` |
-| Jetpack dash burst (in air) | tap `Shift` | tap `B` |
+| Sprint — press while already moving, hold to keep it | hold `Shift` | hold `RB` |
+| Dash — press from a standstill, then push a direction | hold `Shift` | hold `RB` |
+| Block — raise the shield (hold) | hold `R` | hold `B` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Dead Eye (slow motion) | `V` | click right stick |
-| Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `RB` |
-| Switch weapon | `E` | `LB` |
+| Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `LB` |
+| Switch weapon | `E` | D-pad right |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
 
 The same reference lives in the game: the **(i)** button, bottom-right, draws these bindings
 on a controller diagram, and the **gear** beside it opens audio settings. Both are also on the
 title and pause menus.
+
+**Blocking** raises a force shield in front of you. Bolts that hit it bounce off and fly on
+as your own fire. It runs off the same energy gauge as sprinting, so a fight is a budget:
+spend it holding a shield up and you have none left to run with. Behind the shield you can
+shuffle but not run, and you cannot shoot or swing — and raising it in the air kills your
+lift and brings you down, because a brace needs the ground under it.
 
 Menus are fully navigable by controller. **Two-player split-screen co-op**: choose
 "Players: 2" on the board-select screen with a second controller connected.

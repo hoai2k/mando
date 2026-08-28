@@ -25,6 +25,12 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
+/** seconds of block on a full gauge */
+const BLOCK_SECONDS = 5;
+/** you can shuffle behind the shield, but not run */
+const BLOCK_SPEED = 3.2;
+/** extra downward pull while blocking in the air, m/s² */
+const BLOCK_SINK = 16;
 const ROCKET_CD = 12;
 /** seconds of Dead Eye on a full meter */
 const DEADEYE_SECONDS = 6;
@@ -44,6 +50,19 @@ export class Player {
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
   sprinting = false;
+  /** shield up: drains the same gauge sprinting does */
+  blocking = false;
+  /** scratch for the shield collider handed to the projectile system */
+  private shieldSphere = { center: new THREE.Vector3(), radius: 0.78, normal: new THREE.Vector3() };
+  /** 0..1 raise animation for the shield pane */
+  private blockRaise = 0;
+  /**
+   * RB pressed with the stick centred arms a dash instead of a sprint; the
+   * next direction pushed spends it. See the dash block below.
+   */
+  private dashArmed = false;
+  /** RB was pressed while already moving, so this hold is a sprint */
+  private sprintLatched = false;
   /** Dead Eye meter, 0..1 — drains while active, feeds on kills */
   deadeye = 1;
   deadeyeActive = false;
@@ -139,6 +158,21 @@ export class Player {
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
 
+  /**
+   * The block shield as the projectile system sees it: a sphere sitting a
+   * little in front of the chest, facing the way we are. Null until the pane
+   * is most of the way up, so a shield that is still rising does not yet
+   * bounce anything.
+   */
+  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
+    if (this.blockRaise < 0.6) return null;
+    const s = this.shieldSphere;
+    s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    s.center.copy(this.position).addScaledVector(s.normal, 0.6);
+    s.center.y += 1.05;
+    return s;
+  }
+
   /** enemy currently under the crosshair's assist cone, for HUD feedback */
   lockedOn = false;
 
@@ -222,22 +256,35 @@ export class Player {
     const wishLen = Math.hypot(wishX, wishZ);
     const nx = wishLen > 0 ? wishX / wishLen : 0;
     const nz = wishLen > 0 ? wishZ / wishLen : 0;
-    // ---- sprint (hold B / Shift on the ground, burns the energy gauge) ----
-    const wantsSprint = input.sprintHeld && wishLen > 0.2 && this.grounded && this.energy > 0;
-    this.sprinting = wantsSprint;
-    if (wantsSprint) {
-      this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
+    // ---- block (hold B / R) ----
+    // The shield is the same gauge as sprinting, so a fight is a budget: run
+    // it down blocking and you have nothing left to run with.
+    const moving = wishLen > 0.2;
+    this.blocking = input.blockHeld && this.energy > 0 && this.meleeTimer <= 0 && this.dashTimer <= 0;
+    if (this.blocking) {
+      this.energy = Math.max(0, this.energy - dt / BLOCK_SECONDS);
       this.sprintRefillDelay = 0.7;
-    } else {
-      this.sprintRefillDelay -= dt;
-      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+      this.dashArmed = false;
+      this.sprintLatched = false;
     }
-    const speedTarget = Math.min(wishLen, 1) * (this.sprinting ? SPRINT_SPEED : RUN_SPEED);
+    this.blockRaise = damp(this.blockRaise, this.blocking ? 1 : 0, 14, dt);
+    this.char.setBlock(this.blockRaise);
 
-    // ---- dash ----
-    // tapping the same button in the air is a jetpack dash burst; on the
-    // ground the hold-to-sprint above owns it
-    if (input.dashPressed && !this.grounded && this.dashCd <= 0 && this.energy > DASH_ENERGY) {
+    // ---- RB: a dash from a standstill, a sprint on the move ----
+    // Pressing with the stick centred arms a dash and waits for a direction;
+    // pressing while already moving is a sprint for as long as it is held. In
+    // the air sprint means nothing, so a press there is always the jet burst.
+    if (input.dashPressed && !this.blocking) {
+      if (!this.grounded) this.dashArmed = true;
+      else if (moving) { this.sprintLatched = true; this.dashArmed = false; }
+      else { this.dashArmed = true; this.sprintLatched = false; }
+    }
+    if (!input.sprintHeld) { this.dashArmed = false; this.sprintLatched = false; }
+
+    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking;
+    const dashNow = this.dashArmed && canDash && (moving || !this.grounded);
+    if (dashNow) {
+      this.dashArmed = false;
       this.dashTimer = 0.24;
       this.dashCd = 0.75;
       this.energy = Math.max(0, this.energy - DASH_ENERGY);
@@ -247,7 +294,23 @@ export class Player {
       audio.dash();
       this.cam.shake(0.06);
       game.particles.dustPuff(this.position, 6);
+      // holding on through the dash rolls into a sprint when it ends
+      this.sprintLatched = true;
     }
+
+    // ---- sprint ----
+    const wantsSprint = this.sprintLatched && input.sprintHeld && moving
+      && this.grounded && this.energy > 0 && !this.blocking;
+    this.sprinting = wantsSprint;
+    if (wantsSprint) {
+      this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
+      this.sprintRefillDelay = 0.7;
+    } else if (!this.blocking) {
+      this.sprintRefillDelay -= dt;
+      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    }
+    const topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
+    const speedTarget = Math.min(wishLen, 1) * topSpeed;
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
@@ -262,14 +325,14 @@ export class Player {
 
     // ---- jump / jetpack ----
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
-    if (input.jumpPressed && this.coyote > 0) {
+    if (input.jumpPressed && this.coyote > 0 && !this.blocking) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
       game.particles.dustPuff(this.position, 4);
     }
     this.thrusting = 0;
-    if (input.jumpHeld && !this.grounded && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    if (input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -308,6 +371,12 @@ export class Player {
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
       this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+      // A brace wants the ground under it: raising the shield mid-air kills any
+      // rise you had and pulls you down to meet it.
+      if (this.blocking && !this.grounded) {
+        if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
+        this.velocity.y -= BLOCK_SINK * dt;
+      }
       if (inVoid) {
         const terminal = -(board.voidFallSpeed ?? 3.2);
         if (this.velocity.y < terminal) this.velocity.y = terminal;
@@ -359,10 +428,14 @@ export class Player {
     // ---- combat ----
     this.lockedOn = this.weapon === 'blaster' &&
       !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
-    this.updateCombat(dt, input, game);
+    // Both hands are on the shield: no firing, no swinging, no weapon swap
+    // from behind it. Everything else in updateCombat still ticks down.
+    this.updateCombat(dt, this.blocking
+      ? { ...input, shootHeld: false, aimHeld: false, meleePressed: false, rocketPressed: false, switchPressed: false }
+      : input, game);
 
     // ---- facing ----
-    const combatFacing = input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
+    const combatFacing = this.blocking || input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
     const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
     let targetYaw = this.facingYaw;
     if (combatFacing) targetYaw = this.cam.yaw;
@@ -370,7 +443,11 @@ export class Player {
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
 
     // ---- animation state ----
-    if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
+    if (this.blocking) {
+      // the brace owns both channels: no running, no firing from behind it
+      anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
+      anim.play('upper', 'blockUpper', 0.12);
+    } else if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       anim.play('lower', 'flyLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
     } else if (!this.grounded) {

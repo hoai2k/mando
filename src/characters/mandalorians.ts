@@ -14,6 +14,10 @@ export interface PlayerCharacter extends CharacterInstance {
   setThrust: (t: number) => void;
   /** intensity of the fill light that travels with this character */
   setHeroLight: (intensity: number) => void;
+  /** raise (1) or drop (0) the block shield; values between animate it */
+  setBlock: (t: number) => void;
+  /** flash the shield where a bolt bounced off it */
+  shieldHit: () => void;
   gaffi: THREE.Group;
   /** thruster mouths, in world space — where the jet particles are born */
   nozzles: THREE.Object3D[];
@@ -163,6 +167,30 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   gaffi.visible = false;
   b.weaponR.add(gaffi);
 
+  // ---- block shield ----
+  // A curved pane on the forearm rather than a flat disc: at this size a flat
+  // one reads as a signboard, and the curve catches the rim light along its
+  // edge so you can see which way it faces.
+  const shieldRoot = new THREE.Group();
+  b.chest.add(shieldRoot);
+  shieldRoot.position.set(0, 0.14, 0.34);
+  const shieldMat = new THREE.MeshBasicMaterial({
+    color: 0x63b4ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const shieldGeo = new THREE.SphereGeometry(0.62, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.44);
+  const shieldSkin = new THREE.Mesh(shieldGeo, shieldMat);
+  shieldSkin.rotation.x = Math.PI / 2;   // cap opens forward, along +Z
+  shieldRoot.add(shieldSkin);
+  const rimMat = new THREE.MeshBasicMaterial({
+    color: 0xcfe6ff, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.022, 8, 32), rimMat);
+  rim.position.z = 0.235;
+  shieldRoot.add(rim);
+  shieldRoot.visible = false;
+  let shieldFlash = 0;
+
   // ---- hero ambient ----
   // The player is the one thing that must never be lost against a board, and
   // the station is dark enough — cold key, no sky bounce, a nebula reflection
@@ -210,7 +238,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     // weapons and thruster flames survive the swap — they are held by the
     // authored model, not replaced by it
     for (let a: THREE.Object3D | null = o; a; a = a.parent) {
-      if (a === b.weaponR || a === b.weaponL || a === flameRoot) return;
+      if (a === b.weaponR || a === b.weaponL || a === flameRoot || a === shieldRoot) return;
     }
     proceduralMeshes.push(o);
   });
@@ -236,21 +264,42 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   });
 
   let thrust = 0;
+  let weapon: 'blaster' | 'gaffi' = 'blaster';
+  let shieldUp = false;
+  const showWeapon = () => {
+    carbine.visible = !shieldUp && weapon === 'blaster';
+    gaffi.visible = !shieldUp && weapon === 'gaffi';
+  };
   return {
     ...inst,
     muzzle,
     gaffi,
-    setWeapon: (w) => {
-      carbine.visible = w === 'blaster';
-      gaffi.visible = w === 'gaffi';
-    },
+    setWeapon: (w) => { weapon = w; showWeapon(); },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
+    setBlock: (t) => {
+      // both hands go to the shield, so the weapon is stowed while it is up
+      const up = t > 0.5;
+      if (up !== shieldUp) { shieldUp = up; showWeapon(); }
+      shieldRoot.visible = t > 0.02;
+      // it grows into place rather than popping, and sits flat until it is up
+      shieldRoot.scale.setScalar(0.55 + t * 0.45);
+      shieldMat.opacity = 0.22 * t;
+      rimMat.opacity = 0.65 * t;
+    },
+    shieldHit: () => { shieldFlash = 1; },
     setHeroLight: (intensity) => {
       heroAmbient = intensity;
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
+      if (shieldFlash > 0) {
+        shieldFlash = Math.max(0, shieldFlash - dt * 4);
+        // the bounce lights the whole pane for a moment, then settles
+        // additive blending blows out fast, so the flash is a lift, not a fill
+        shieldMat.opacity += shieldFlash * 0.22;
+        rimMat.opacity += shieldFlash * 0.3;
+      }
       if (authored) retarget(rig, authored);
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {

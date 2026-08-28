@@ -21,7 +21,11 @@ type Mode = 'authored' | 'procedural' | 'both';
 interface Figure {
   inst: CharacterInstance;
   /** the character factory hands back extras on the Mandalorians */
-  extras: { setThrust?: (t: number) => void; setWeapon?: (w: 'blaster' | 'gaffi') => void };
+  extras: {
+    setThrust?: (t: number) => void;
+    setWeapon?: (w: 'blaster' | 'gaffi') => void;
+    setBlock?: (t: number) => void;
+  };
   label: string;
 }
 
@@ -188,6 +192,7 @@ function applyPose(): void {
     if (pose.upper) anim.play('upper', pose.upper, 0, pose.rate ?? 1);
     f.extras.setThrust?.(pose.thrust ?? 0);
     f.extras.setWeapon?.(pose.melee ? 'gaffi' : 'blaster');
+    f.extras.setBlock?.(pose.block ? 1 : 0);
   }
 }
 

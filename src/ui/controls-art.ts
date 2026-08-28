@@ -12,7 +12,8 @@ const KEYBOARD: Array<[string, string]> = [
   ['Move', 'W A S D'],
   ['Look / aim', 'Mouse'],
   ['Jump → hold to jetpack', 'Space'],
-  ['Sprint (hold) · dash (tap, in air)', 'Shift'],
+  ['Sprint (moving) · dash (from a stop)', 'Shift'],
+  ['Block — raise shield (hold)', 'R'],
   ['Fire blaster', 'Left mouse'],
   ['Aim — zoom', 'Right mouse'],
   ['Melee combo (gaffi stick)', 'F · Middle mouse'],
@@ -104,21 +105,21 @@ function padSvg(): string {
     ${lead('252,44 330,44 372,50')}${dot(391, 52)}
     ${label(244, 45, 'end', [['LT', 'Aim (zoom)']])}
     ${lead('252,112 316,112 356,90')}${dot(376, 86)}
-    ${label(244, 113, 'end', [['LB', 'Switch weapon']])}
+    ${label(244, 106, 'end', [['LB', 'Take cover (on ground)'], ['', 'Ground slam (in air)']])}
     ${lead('252,176 318,176 350,156')}${dot(375, 150)}
     ${label(244, 181, 'end', [['Left stick', 'Move']])}
     ${lead('252,272 356,272 404,234')}${dot(430, 222)}
-    ${label(244, 277, 'end', [['D-pad', 'Navigate menus']])}
+    ${label(244, 271, 'end', [['D-pad →', 'Switch weapon'], ['', 'Navigate menus']])}
 
     <!-- callouts: right -->
     ${lead('728,44 650,44 608,50')}${dot(589, 52)}
     ${label(736, 45, 'start', [['RT', 'Fire blaster']])}
     ${lead('728,112 664,112 624,90')}${dot(604, 86)}
-    ${label(736, 106, 'start', [['RB', 'Take cover (on ground)'], ['', 'Ground slam (in air)']])}
-    ${lead('728,176 692,176 640,152')}${dot(618, 150)}
-    ${label(736, 158, 'start', [
+    ${label(736, 102, 'start', [['RB', 'Sprint while moving'], ['', 'Dash from a standstill']])}
+    ${lead('728,190 692,190 640,155')}${dot(618, 150)}
+    ${label(736, 172, 'start', [
       ['Y', 'Wrist rocket'],
-      ['B', 'Sprint (hold) · dash (tap)'],
+      ['B', 'Block — raise shield'],
       ['A', 'Jump → hold to jetpack'],
       ['X', 'Melee combo (gaffi)'],
     ])}

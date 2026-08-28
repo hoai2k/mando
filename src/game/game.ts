@@ -90,6 +90,19 @@ export class Game {
     }
 
 
+    // a bolt turned around by a shield: sparks at the pane, and the blocker
+    // feels it land
+    this.projectiles.onDeflect = (point) => {
+      this.particles.impactSparks(point, 10);
+      audio.impact();
+      for (const p of this.players) {
+        if (!p.blocking) continue;
+        if (p.position.distanceToSquared(point) < 2.5 * 2.5) {
+          p.char.shieldHit();
+          p.cam.shake(0.05);
+        }
+      }
+    };
     this.projectiles.onImpact = (point, hitTarget, team) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
       audio.impact();
@@ -279,6 +292,7 @@ export class Game {
       targets.push({
         position: p.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
         radius: p.radius + 0.35, team: 0, alive: p.alive,
+        shield: p.shieldCollider,
         onHit: (dmg, from) => p.damage(dmg, from),
       });
     }
