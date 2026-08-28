@@ -70,6 +70,10 @@ export function buildTrask(): Board {
   const hullMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x6a7a72, roughness: 0.6, metalness: 0.45 });
   const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.85 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.7, metalness: 0.4 });
+  // repeated props share one geometry apiece: fifty pilings and fourteen crates
+  // were fifty and fourteen separate buffer sets
+  const pileGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.4, 6);
+  const trCrateGeo = new THREE.BoxGeometry(2.3, 2.3, 2.3);
 
   // dock plan: a main quay and fingers reaching into the harbour
   const docks: [number, number, number, number][] = [
@@ -92,7 +96,7 @@ export function buildTrask(): Board {
     for (let i = 0; i < Math.max(2, ((w + d) / 14) | 0) * 2; i++) {
       const px = dx + (rng() - 0.5) * (w - 1);
       const pz = dz + (rng() - 0.5) * (d - 1);
-      const pile = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 3.4, 6), darkMat);
+      const pile = new THREE.Mesh(pileGeo, darkMat);
       pile.position.set(px, 0, pz);
       group.add(pile);
     }
@@ -104,7 +108,7 @@ export function buildTrask(): Board {
     [-26, 8], [-26, -20], [1.5, -30], [-1.8, -44], [28, 10], [26, -16],
     [-6, -50], [40, -36],
   ] as const) {
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 2.3), crateMat);
+    const crate = new THREE.Mesh(trCrateGeo, crateMat);
     crate.position.set(cx, DECK_TOP + 1.15, cz);
     crate.rotation.y = rng() * 0.8;
     crate.castShadow = crate.receiveShadow = true;
@@ -121,7 +125,11 @@ export function buildTrask(): Board {
 
   // ---- the trawlers: decks that heave and drift on the swell ----
   const movers: Mover[] = [];
-  interface BoatSpec { home: THREE.Vector3; phase: number; node: THREE.Group; mover: Mover; }
+  interface BoatSpec {
+    home: THREE.Vector3; phase: number; node: THREE.Group; mover: Mover;
+    /** the deckhouse box, carried along with the deck */
+    house: Mover;
+  }
   const boats: BoatSpec[] = [];
   for (const [bx, bz, phase] of [[-12, -34, 0], [16, -46, 2.4]] as const) {
     const boat = new THREE.Group();
@@ -129,14 +137,23 @@ export function buildTrask(): Board {
     const hull = new THREE.Mesh(new THREE.BoxGeometry(7, 2.4, 16), hullMat);
     hull.position.y = -0.2;
     boat.add(hull);
+    // A wedge lying flat across the beam. Rotating on X *and* Z turned the
+    // prism on its side: its axis ended up along -X, so a 7 m cross-section
+    // stood up 2.3 m above the deck as a fin you walk through, while 4.7 m of
+    // it reached past the collision box entirely. Rotating on X alone lays the
+    // triangle in the deck plane where a bow belongs.
     const bow = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 2.4, 3, 1), hullMat);
     bow.rotation.x = Math.PI / 2;
-    bow.rotation.z = Math.PI / 2;
-    bow.position.set(0, -0.2, 9.2);
+    bow.position.set(0, -0.2, 7.4);
     boat.add(bow);
+    // The deckhouse is a third of the boat's usable area and stands chest-high
+    // on ground you fight over, so it blocks like it looks. It rides the same
+    // Mover as the deck, which keeps the box under the mesh as the swell lifts
+    // them both.
     const house = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.6, 4), deckMat);
     house.position.set(0, 2.2, -4.5);
     boat.add(house);
+
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 6, 6), darkMat);
     mast.position.set(0, 4, 1);
     boat.add(mast);
@@ -153,7 +170,11 @@ export function buildTrask(): Board {
     const box = physics.addBox(bx, 1.0, bz, 7, 2.0, 16);
     const mover = new Mover(box, boat);
     movers.push(mover);
-    boats.push({ home: new THREE.Vector3(bx, 1.0, bz), phase, node: boat, mover });
+    // the deckhouse gets its own box, offset from the boat's origin the way the
+    // mesh is; it is not a rider, so it is moved directly rather than carried
+    const houseBox = physics.addBox(bx, 1.0 + 2.2, bz - 4.5, 4.5, 2.6, 4);
+    const houseMover = new Mover(houseBox, null);
+    boats.push({ home: new THREE.Vector3(bx, 1.0, bz), phase, node: boat, mover, house: houseMover });
   }
 
   // ---- the mamacore pool: churning water between the piers ----
@@ -264,7 +285,9 @@ export function buildTrask(): Board {
     for (const b of boats) {
       const heave = Math.sin(time * 0.9 + b.phase) * 0.45;
       const surge = Math.sin(time * 0.32 + b.phase * 2) * 2.2;
-      b.mover.moveTo(b.home.x + surge * 0.4, b.home.y + heave, b.home.z + surge);
+      const cx = b.home.x + surge * 0.4, cy = b.home.y + heave, cz = b.home.z + surge;
+      b.mover.moveTo(cx, cy, cz);
+      b.house.moveTo(cx, cy + 2.2, cz - 4.5);
       b.node.rotation.z = Math.sin(time * 0.8 + b.phase) * 0.05;
       b.node.rotation.x = Math.cos(time * 0.66 + b.phase) * 0.035;
     }

@@ -378,8 +378,6 @@ export class Enemy {
    * station board.
    */
   private edgeGuard(game: Game): void {
-    const guardWater = game.board.waterY !== undefined;
-    if (game.board.physics.heightAt && !guardWater) return;
     if (this.stagger > 0) return;
     const sp = Math.hypot(this.velocity.x, this.velocity.z);
     // gate must be near zero: steering re-adds a trickle of velocity every
@@ -388,11 +386,16 @@ export class Enemy {
     const ax = this.position.x + (this.velocity.x / sp) * 1.2;
     const az = this.position.z + (this.velocity.z / sp) * 1.2;
     const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
-    const drop = !isFinite(g) || g < this.position.y - 3;
-    if (!drop) return;
-    // Shallow water (Trask's chest-deep harbour) is walkable and stays open;
-    // deep water is a drop like any other, except to whatever is at home in it.
-    const intoDeep = guardWater && (!isFinite(g) || (game.board.waterY! - g > 1.7));
+    // No ground at all ahead is the edge of the world on any board — a station
+    // platform's lip, the end of the Ringworld's deck — and nothing walks off
+    // it on purpose.
+    if (!isFinite(g)) { this.velocity.x = 0; this.velocity.z = 0; return; }
+    if (g >= this.position.y - 3) return;
+    // A long drop only stops the ones with nowhere to land: on open terrain a
+    // slope is not a cliff. Shallow water (Trask's chest-deep harbour) is
+    // walkable; deep water is a drop, except to whatever is at home in it.
+    const guardWater = game.board.waterY !== undefined;
+    const intoDeep = guardWater && game.board.waterY! - g > 1.7;
     if (!game.board.physics.heightAt || (intoDeep && !this.def.burnImmune)) {
       this.velocity.x = 0;
       this.velocity.z = 0;

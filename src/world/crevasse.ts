@@ -29,7 +29,11 @@ function heightAt(x: number, z: number): number {
   let h = floorH + (rimH - floorH) * wall;
   // the lake bed sits below the plates that cover it
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
-  if (ld < LAKE_R) h = Math.min(h, FLOOR_Y - 1.6 + (ld / LAKE_R) * 0.8);
+  // The bed rises the full 1.6 m to meet the floor at the rim. It stopped
+  // 0.8 m short, which is just past the 0.55 m step height — so going through
+  // the ice left you in a bowl with no way out but thrust, while the water
+  // burned. Deep and cold in the middle, wadeable at the edge.
+  if (ld < LAKE_R) h = Math.min(h, FLOOR_Y - 1.6 + (ld / LAKE_R) * 1.6);
   // canyon ends climb out
   const az = Math.abs(z);
   if (az > 120) h += (az - 120) * 0.5;
@@ -66,8 +70,9 @@ export function buildCrevasse(): Board {
   sun.position.set(40, 90, 50);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = sun.shadow.camera.bottom = -90;
-  sun.shadow.camera.right = sun.shadow.camera.top = 90;
+  // the canyon runs to z = +-110 and both player starts sit outside a +-90 box
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -125;
+  sun.shadow.camera.right = sun.shadow.camera.top = 125;
   sun.shadow.camera.far = 300;
   sun.shadow.bias = -0.0008;
   group.add(sun);
@@ -120,18 +125,26 @@ export function buildCrevasse(): Board {
   for (const [lx, ly, lz, w, d] of ledges) {
     const ledge = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, d), iceMatFlat);
     ledge.position.set(lx, ly, lz);
-    ledge.rotation.y = (rng() - 0.5) * 0.3;
+    // Small enough that the flat collider still matches the corners — at 0.3
+    // rad a 12 m ledge overhangs its own box by nearly half a metre, which is
+    // exactly where you land coming off a jet hop.
+    ledge.rotation.y = (rng() - 0.5) * 0.05;
     ledge.castShadow = ledge.receiveShadow = true;
     group.add(ledge);
     physics.addBox(lx, ly, lz, w, 1.6, d);
   }
-  // ice arches spanning the crevasse near the top: rim-to-rim crossings
+  // Ice arches spanning the crevasse: crossings, which means they have to reach
+  // the walls. At 44 m they stopped around x = +-22, where the canyon wall is
+  // still ten metres below them — three slabs ending in mid-air, reachable only
+  // by the jetpack that would have cleared the gap anyway. The wall climbs to
+  // their height around x = +-33, so 72 m lands both ends in solid ice.
+  const archGeo = new THREE.BoxGeometry(72, 1.8, 6);
   for (const [ay, az] of [[0.5, -35], [1.5, 30], [-1, 95]] as const) {
-    const arch = new THREE.Mesh(new THREE.BoxGeometry(44, 1.8, 6), iceMatFlat);
+    const arch = new THREE.Mesh(archGeo, iceMatFlat);
     arch.position.set(0, ay, az);
     arch.castShadow = arch.receiveShadow = true;
     group.add(arch);
-    physics.addBox(0, ay, az, 44, 1.8, 6);
+    physics.addBox(0, ay, az, 72, 1.8, 6);
   }
 
   // ice spires on the floor — cover, and something to shatter the quiet
@@ -140,12 +153,21 @@ export function buildCrevasse(): Board {
     const z = (rng() - 0.5) * 220;
     if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE_R + 3) continue;
     const h = 2 + rng() * 4;
+    const r = 0.9 + rng() * 0.8;
     const base = heightAt(x, z);
-    const spire = new THREE.Mesh(new THREE.ConeGeometry(0.9 + rng() * 0.8, h, 6), iceMat);
+    const spire = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), iceMat);
     spire.position.set(x, base + h / 2 - 0.2, z);
     spire.castShadow = true;
     group.add(spire);
-    physics.addCylinder(x, base + h / 2 - 0.2, z, 0.8, h);
+    // Follow the taper. One 0.8 m cylinder for cones whose bases run 0.98-1.65
+    // let you walk most of a metre into the widest of them, and — because a
+    // cylinder does not narrow — left a 1.6 m disc of standable air balanced on
+    // every spike, metres above the floor. Two stacked slices track it closely
+    // enough, and the cone's inscribed radius is what the six-sided mesh
+    // actually presents.
+    const inr = r * Math.cos(Math.PI / 6);
+    physics.addCylinder(x, base + h * 0.05 - 0.2, z, inr * 0.75, h * 0.5);
+    physics.addCylinder(x, base + h * 0.55 - 0.2, z, inr * 0.3, h * 0.5);
   }
 
   // a crashed survey crawler on the north rim: crate cover for the shooters

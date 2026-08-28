@@ -28,6 +28,7 @@ interface PooledTarget extends BoltTarget {
   position: THREE.Vector3;
   enemy: Enemy | null;
   player: Player | null;
+  breakable?: Breakable | null;
 }
 
 /** the rocket mesh's own axis, for orienting it along its velocity */
@@ -403,6 +404,7 @@ export class Game {
       t.alive = true;
       t.shield = e.shieldCollider;
       t.slot = undefined;
+      t.breakable = null;
       targets.push(t);
       // long bodies (the war massiff) need more than the one centre sphere
       if (e.def.hitParts) {
@@ -421,6 +423,7 @@ export class Game {
           h.alive = true;
           h.shield = null;
           h.slot = undefined;
+          h.breakable = null;
           targets.push(h);
         }
       }
@@ -436,16 +439,38 @@ export class Game {
       t.alive = true;
       t.shield = p.shieldCollider;
       t.slot = p.slot;
+      t.breakable = null;
       targets.push(t);
     }
     // breakable props sit on team 2, so both sides' fire chips at them
     if (this.board.breakables) {
       for (const b of this.board.breakables) {
         if (b.broken) continue;
-        targets.push({
-          position: b.center, radius: b.radius, team: 2, alive: true,
-          onHit: (dmg) => this.hurtBreakable(b, dmg),
-        });
+        // A breakable is hit as a sphere, which a long prop outgrows: Nevarro's
+        // crust plates are 26 m of bridge behind a 4.2 m sphere, so only the
+        // middle third could be shot and a bolt aimed anywhere else sparked off
+        // the collider for no damage. Lay spheres along the box's longest axis
+        // so the whole visible prop is a target, the way a long body gets extra
+        // hit spheres.
+        const size = b.box.max.clone().sub(b.box.min);
+        const long = Math.max(size.x, size.z);
+        const span = Math.max(0, long / 2 - b.radius);
+        const steps = Math.min(6, Math.ceil(span / Math.max(1, b.radius)));
+        const alongX = size.x >= size.z;
+        for (let i = -steps; i <= steps; i++) {
+          const t = steps === 0 ? 0 : (i / steps) * span;
+          const p = this.pooledBreakTarget(slot++);
+          p.position.set(b.center.x + (alongX ? t : 0), b.center.y, b.center.z + (alongX ? 0 : t));
+          p.radius = b.radius;
+          p.team = 2;
+          p.alive = true;
+          p.shield = null;
+          p.slot = undefined;
+          p.enemy = null;
+          p.player = null;
+          p.breakable = b;
+          targets.push(p);
+        }
       }
     }
     for (const a of this.allies) {
@@ -459,6 +484,7 @@ export class Game {
       t.alive = true;
       t.shield = null;
       t.slot = undefined;
+      t.breakable = null;
       targets.push(t);
     }
     this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
@@ -514,6 +540,7 @@ export class Game {
       position: new THREE.Vector3(), radius: 0, team: 0, alive: false,
       shield: null, slot: undefined, enemy: null, player: null,
       onHit: (dmg: number, from: THREE.Vector3, bySlot: number, tag?: string): void => {
+        if (entry.breakable) { this.hurtBreakable(entry.breakable, dmg); return; }
         if (entry.player) {
           const p = entry.player;
           p.damage(dmg, from);
@@ -533,6 +560,11 @@ export class Game {
     };
     this.targetPool[i] = entry;
     return entry;
+  }
+
+  /** A pooled entry standing in for part of a breakable prop. */
+  private pooledBreakTarget(i: number): PooledTarget {
+    return this.pooledTarget(i);
   }
 
   /** Warm the .glb cache for everything a wave can put on the board. */

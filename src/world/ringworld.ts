@@ -22,21 +22,39 @@ function terminatorZ(time: number): number {
 }
 
 /** soft-edged darkness texture for the night side's ground shadow */
+/** how wide the day/night line is, in metres — shared by the shading and the AI */
+const TERMINATOR_W = 36;
+/** length of the plane the gradient is drawn on */
+const NIGHT_PLANE_Z = 480;
+
 const nightGradient = () => texture('ring_night_gradient', (ctx, s) => {
   const g = ctx.createLinearGradient(0, 0, 0, s);
   g.addColorStop(0, 'rgba(4,6,14,0.62)');
-  g.addColorStop(0.42, 'rgba(4,6,14,0.62)');
-  g.addColorStop(0.58, 'rgba(4,6,14,0)');
+  // These two stops are the terminator's visible width on a 480 m plane, and
+  // they have to agree with lightAt's ramp or the shadow lies about where the
+  // dark begins: 0.42-0.58 drew a 77 m fade over a 36 m ramp, so ground that
+  // looked half-dark was already full daylight to enemy eyes.
+  g.addColorStop(0.5 - TERMINATOR_W / 2 / NIGHT_PLANE_Z, 'rgba(4,6,14,0.62)');
+  g.addColorStop(0.5 + TERMINATOR_W / 2 / NIGHT_PLANE_Z, 'rgba(4,6,14,0)');
   g.addColorStop(1, 'rgba(4,6,14,0)');
   ctx.clearRect(0, 0, s, s);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, s, s);
 }, 128, 1);
 
+/** the tram's lane, in x */
+const TRAM_X = 24;
+/** how far the deck reaches either side of the street's centre-line */
+const STREET_HALF_X = 62;
+
 export function buildRingworld(): Board {
   const group = new THREE.Group();
   const physics = new PhysicsWorld();
-  physics.heightAt = () => 0;
+  // The deck is solid everywhere, so the street needs its own edges: without
+  // them you could round the end bulkheads and walk out into fog forever, on
+  // ground that exists, with a kill plane that can never be reached.
+  physics.heightAt = (x: number, z: number) =>
+    Math.abs(x) > STREET_HALF_X || Math.abs(z) > STRIP_Z + 22 ? -Infinity : 0;
   physics.killY = -30;
   const rng = makeRng(7719);
 
@@ -84,6 +102,9 @@ export function buildRingworld(): Board {
   // building rows: stepped blocks with walkable roofs, lining both sides
   const neonMats: THREE.MeshBasicMaterial[] = [];
   const buildings: [number, number, number, number, number][] = [];
+  // one geometry per repeated prop: up to eighteen vents, eighteen signs,
+  // eight kiosks, eight planters and five lamp posts shared six shapes
+  const ventGeo = new THREE.BoxGeometry(2.2, 1.4, 2.2);
   /** posts on the roofs, placed from the roofs the generator actually built */
   const rooftopPosts: THREE.Vector3[] = [];
   for (let i = 0; i < 9; i++) {
@@ -92,7 +113,12 @@ export function buildRingworld(): Board {
       const w = 14 + rng() * 8;
       const h = 5 + rng() * 8;
       const d = 16 + rng() * 6;
-      const bx = side * (34 + rng() * 6);
+      // Clear of the tram lane. The tram's box spans x 22.3-25.7 and sweeps the
+      // whole street; a building's inner face could reach x = 23, and where the
+      // two overlapped a player was pinned between them — pushed off the facade
+      // into the tram's box, pushed out of the tram back into the facade — until
+      // the tram had passed.
+      const bx = side * Math.max(34 + rng() * 6, side > 0 ? TRAM_X + 2.2 + w / 2 : 0);
       buildings.push([bx, bz, w, h, d]);
       const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), buildingMat);
       block.position.set(bx, h / 2, bz);
@@ -101,7 +127,7 @@ export function buildRingworld(): Board {
       physics.addBox(bx, h / 2, bz, w, h, d);
       // rooftop clutter: a vent box to duck behind
       if (h < 11 && rng() > 0.4) {
-        const vent = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 2.2), darkMat);
+        const vent = new THREE.Mesh(ventGeo, darkMat);
         vent.position.set(bx + (rng() - 0.5) * (w - 4), h + 0.7, bz + (rng() - 0.5) * (d - 4));
         vent.castShadow = true;
         group.add(vent);
@@ -164,11 +190,11 @@ export function buildRingworld(): Board {
     tram.add(stripe);
   }
   tram.traverse((o) => { o.castShadow = o.receiveShadow = true; });
-  tram.position.set(24, 1.6, 0);
+  tram.position.set(TRAM_X, 1.6, 0);
   group.add(tram);
   // rail bed under it, the visual lane
   const rail = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.2, STRIP_Z * 2 + 10), darkMat);
-  rail.position.set(24, 0.1, 0);
+  rail.position.set(TRAM_X, 0.1, 0);
   rail.receiveShadow = true;
   group.add(rail);
   // Rooftop posts, taken from the roofs the generator actually produced.
@@ -186,14 +212,16 @@ export function buildRingworld(): Board {
     if (best) rooftopPosts.push(new THREE.Vector3(best[0], best[3] + 0.3, best[1]));
   }
 
-  const tramBox = physics.addBox(24, 1.6, 0, 3.4, 2.6, 9);
+  // 12.2 deep, not 9: the nose reaches z = 6.6, and the front two metres of a
+  // vehicle moving at 16 m/s were passing straight through people.
+  const tramBox = physics.addBox(TRAM_X, 1.6, 0, 3.4, 2.6, 12.2);
   const tramMover = new Mover(tramBox, tram);
 
   // ---- the terminator's ground shadow: a soft-edged darkness that moves ----
   const nightMat = new THREE.MeshBasicMaterial({
     map: nightGradient(), transparent: true, depthWrite: false,
   });
-  const nightPlane = new THREE.Mesh(new THREE.PlaneGeometry(100, 480), nightMat);
+  const nightPlane = new THREE.Mesh(new THREE.PlaneGeometry(100, NIGHT_PLANE_Z), nightMat);
   nightPlane.rotation.x = -Math.PI / 2;
   nightPlane.position.y = 0.06;
   nightPlane.renderOrder = 2;
@@ -207,6 +235,12 @@ export function buildRingworld(): Board {
     ambience: { sample: 'amb_city', bed: 'hum' },
     music: 'station',
     gravity: 0.85,
+    // Off the deck is a fall, not a death sentence: the same recoverable drift
+    // the station uses, which a jetpack tap undoes. The board is built around
+    // flying, and a city street with an invisible instant-kill edge is not.
+    voidY: -6,
+    voidGravity: 0.14,
+    voidFallSpeed: 3.4,
     background: new THREE.Color(0x141824),
     heroLight: 0.24,
     skyFile: 'sky_ring',
@@ -226,7 +260,7 @@ export function buildRingworld(): Board {
     lightAt: (x: number, z: number) => {
       void x;
       const b = terminatorZ(timeNow);
-      return clamp((z - b) / 36 + 0.5, 0, 1);
+      return clamp((z - b) / TERMINATOR_W + 0.5, 0, 1);
     },
   };
   board.movers = [tramMover];
@@ -247,7 +281,7 @@ export function buildRingworld(): Board {
 
     // the tram works the line, easing at the turnarounds
     const tz = Math.sin(time * 0.16) * (STRIP_Z - 14);
-    tramMover.moveTo(24, 1.6, tz);
+    tramMover.moveTo(TRAM_X, 1.6, tz);
 
     // neon flickers now and then, the way neon does
     for (let i = 0; i < neonMats.length; i++) {
