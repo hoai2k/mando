@@ -155,6 +155,15 @@ export class Enemy {
   /** broke and ran after the squad collapsed; rallies at distance */
   fleeing = false;
   private fleeTimer = 0;
+  // ---- cover: shooters fight from behind the crates ----
+  /** current cover spot, if any: hide behind the box, peek out to fire */
+  cover: { hide: THREE.Vector3; peek: THREE.Vector3 } | null = null;
+  /** what the shooter is doing with its cover right now */
+  coverState: 'seek' | 'hide' | 'peek' = 'seek';
+  private coverTimer = 0;
+  private coverRetry = Math.random() * 0.8;
+  private coverCheck = 0;
+  private peekFired = false;
 
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
@@ -236,6 +245,8 @@ export class Enemy {
     if (!this.alive) return;
     this.alert(from, true); // being shot at is not something you investigate
     this.suppress(0.35);
+    // a shooter caught in the open dives for the nearest crate
+    if (!this.cover && this.def.style === 'ranged' && this.team === 1) this.coverRetry = 0;
     // finishing blows on someone already on the ground hit twice as hard
     if (this.downed || this.wounded) amount *= 2;
     this.hp -= amount;
@@ -483,6 +494,24 @@ export class Enemy {
     }
 
     if (d.style === 'melee' || d.style === 'ranged') {
+      // Edge guard: on the platforms a walking enemy never steers itself into
+      // the void — probe the ground a step ahead and stop at the lip. Only
+      // voluntary movement is caught; a knockback can still throw them off,
+      // which is half the fun of the station board.
+      if (!game.board.physics.heightAt && this.stagger <= 0) {
+        const sp = Math.hypot(this.velocity.x, this.velocity.z);
+        // gate must be near zero: steering re-adds a trickle of velocity every
+        // frame after a block, and a 0.3 m/s creep still walks off the lip
+        if (sp > 0.05) {
+          const ax = this.position.x + (this.velocity.x / sp) * 1.2;
+          const az = this.position.z + (this.velocity.z / sp) * 1.2;
+          const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
+          if (!isFinite(g) || g < this.position.y - 3) {
+            this.velocity.x = 0;
+            this.velocity.z = 0;
+          }
+        }
+      }
       this.velocity.y -= 24 * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.alive = false; this.removeMe = true; }
@@ -643,6 +672,146 @@ export class Enemy {
   }
 
   /**
+   * Scan the board's collision boxes for a spot that hides this enemy from
+   * `target`: standing on the far side of a box tall enough to block the
+   * chest-to-eye sightline, with a peek position off the box's edge where the
+   * sightline opens again. Raycast-heavy, so callers throttle it.
+   */
+  private findCover(game: Game, target: Combatant): { hide: THREE.Vector3; peek: THREE.Vector3 } | null {
+    const phys = game.board.physics;
+    const eye = target.position.clone();
+    eye.y += 1.5;
+    let best: { hide: THREE.Vector3; peek: THREE.Vector3 } | null = null;
+    let bestD = Infinity;
+    for (const b of phys.boxes) {
+      const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+      let dx = cx - target.position.x, dz = cz - target.position.z;
+      const dl = Math.hypot(dx, dz);
+      if (dl < 1e-3 || dl > 60) continue;
+      dx /= dl; dz /= dl;
+      // hide point just past the box on the side away from the target
+      const ext = Math.abs(dx) * (b.max.x - b.min.x) / 2 + Math.abs(dz) * (b.max.z - b.min.z) / 2 + this.radius + 0.35;
+      const hx = cx + dx * ext, hz = cz + dz * ext;
+      const d = Math.hypot(hx - this.position.x, hz - this.position.z);
+      if (d > 16 || d >= bestD) continue;
+      // must be a spot it can actually fight from — cover out past blaster
+      // range is just hiding, and hiding doesn't win territory
+      if (Math.hypot(hx - target.position.x, hz - target.position.z) > DEFS[this.kind].attackRange * 0.9) continue;
+      const gy = phys.groundHeight(hx, hz, this.position.y + 0.5);
+      if (!isFinite(gy) || Math.abs(gy - this.position.y) > 2.2) continue; // off the platform / different floor
+      if (b.max.y - gy < 1.1) continue; // too low to hide a standing humanoid
+      // Must actually block the sightline — both ways. The muzzle check is
+      // the same ray updateVolley uses (chest to target), so "hidden" also
+      // means "holds fire"; without it, marginal cover like the barrels lets
+      // a hiding shooter squeeze rounds over the top.
+      const chest = new THREE.Vector3(hx, gy + this.height * 0.75, hz);
+      const toC = chest.clone().sub(eye);
+      const cd = toC.length();
+      toC.normalize();
+      if (!phys.raycast(eye, toC, cd)) continue;
+      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(chest);
+      const md = muzzleTo.length();
+      muzzleTo.normalize();
+      if (!phys.raycast(chest, muzzleTo, md)) continue;
+      // peek point off one edge, where the sightline opens back up
+      const tx = -dz, tz = dx;
+      const lat = Math.abs(tx) * (b.max.x - b.min.x) / 2 + Math.abs(tz) * (b.max.z - b.min.z) / 2 + this.radius + 0.45;
+      for (const side of [1, -1]) {
+        const px = hx + tx * lat * side, pz = hz + tz * lat * side;
+        const pgy = phys.groundHeight(px, pz, this.position.y + 0.5);
+        if (!isFinite(pgy) || Math.abs(pgy - gy) > 1.2) continue;
+        const pchest = new THREE.Vector3(px, pgy + this.height * 0.75, pz);
+        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(pchest);
+        const pmd = pMuzzle.length();
+        pMuzzle.normalize();
+        if (phys.raycast(pchest, pMuzzle, pmd)) continue; // peek blocked too — useless
+        if (!this.pathOk(phys, hx, hz)) break;     // can't walk there (a gap between platforms)
+        best = { hide: new THREE.Vector3(hx, gy, hz), peek: new THREE.Vector3(px, pgy, pz) };
+        bestD = d;
+        break;
+      }
+    }
+    return best;
+  }
+
+  /** straight walk there without stepping into a void (station platforms) */
+  private pathOk(phys: import('../core/physics').PhysicsWorld, x: number, z: number): boolean {
+    if (phys.heightAt) return true; // solid ground everywhere
+    const dx = x - this.position.x, dz = z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.ceil(dist / 2));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const g = phys.groundHeight(this.position.x + dx * t, this.position.z + dz * t, this.position.y + 0.5);
+      if (!isFinite(g) || g < this.position.y - 2.5) return false;
+    }
+    return true;
+  }
+
+  /**
+   * The cover loop: settle in behind the box, wait a beat, step out to the
+   * peek point, fire, duck back. Suppression stretches the hiding — pouring
+   * fire at a crate genuinely keeps the shooter behind it.
+   */
+  private updateCover(dt: number, game: Game, target: Combatant): void {
+    const spot = this.cover!;
+    const d = DEFS[this.kind];
+    const goal = this.coverState === 'peek' ? spot.peek : spot.hide;
+    const gx = goal.x - this.position.x, gz = goal.z - this.position.z;
+    const gd = Math.hypot(gx, gz);
+    this.faceToward(dt, target.position.x, target.position.z, 7);
+    if (gd > 0.7) {
+      const inv = 1 / gd;
+      this.velocity.x = damp(this.velocity.x, gx * inv * d.speed * 0.95, 7, dt);
+      this.velocity.z = damp(this.velocity.z, gz * inv * d.speed * 0.95, 7, dt);
+    } else {
+      this.velocity.x = damp(this.velocity.x, 0, 9, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 9, dt);
+    }
+
+    switch (this.coverState) {
+      case 'seek':
+        if (gd < 0.8) {
+          this.coverState = 'hide';
+          this.coverTimer = (0.6 + Math.random() * 1.2) * (this.committed ? 0.45 : 1);
+          this.volleyLeft = 0; // ducking means holding fire
+        }
+        break;
+      case 'hide':
+        // pinned shooters stay hidden — this is what suppression buys
+        this.coverTimer -= this.suppression > 0.55 ? dt * 0.3 : dt;
+        if (this.coverTimer <= 0) {
+          this.coverState = 'peek';
+          this.coverTimer = 2.4;
+          this.peekFired = false;
+          this.attackCd = Math.min(this.attackCd, 0.25); // pop out ready to fire
+        }
+        break;
+      case 'peek': {
+        this.coverTimer -= dt;
+        if (this.volleyLeft > 0) this.peekFired = true;
+        const done = (this.peekFired && this.volleyLeft === 0) || this.coverTimer <= 0;
+        if (done && gd < 1.2) {
+          this.coverState = 'hide';
+          this.coverTimer = (0.9 + Math.random() * 1.3) * (this.committed ? 0.45 : 1);
+          this.volleyLeft = 0; // duck: any rounds left in the burst stay unfired
+          // now and then abandon the crate and work a new angle
+          if (Math.random() < 0.2) this.cover = null;
+        }
+        break;
+      }
+    }
+
+    // Shooting only while out of cover: the sightline check handles most of
+    // it, but separation shoves can hold a hider half a metre off its spot
+    // where the crate no longer fully blocks — so hiding simply holds fire.
+    if (this.coverState !== 'hide') {
+      const dist = Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z);
+      this.updateVolley(dt, game, target, dist);
+    }
+  }
+
+  /**
    * Steer to a standing position `radius` out from the target on this enemy's
    * director-assigned bearing. Squads spread around their target instead of
    * piling into the same spot, and holding a bearing is what lets non-committed
@@ -730,6 +899,39 @@ export class Enemy {
     to.y = 0;
     const dist = to.length();
     this.faceToward(dt, target.position.x, target.position.z, 7);
+
+    // ---- cover first: a shooter with a crate to fight from uses it ----
+    // Everyone works the boxes — settle behind one, peek out, fire, duck
+    // back. Committed shooters run the same loop at a much faster tempo, so
+    // the director's pressure roles survive: they dart between peeks instead
+    // of camping. Cover points are ground- and path-validated, so this also
+    // overrides the station leash below: the crate is a safe destination.
+    if (this.team === 1) {
+      this.coverRetry -= dt;
+      if (!this.cover && this.coverRetry <= 0) {
+        this.cover = this.findCover(game, target);
+        this.coverRetry = 1.4 + Math.random(); // the search raycasts; don't spam it
+        if (this.cover) this.coverState = 'seek';
+      }
+      if (this.cover) {
+        // flanked? if the hide spot no longer blocks the sightline, drop it
+        this.coverCheck -= dt;
+        if (this.coverCheck <= 0) {
+          this.coverCheck = 0.8;
+          const eye = target.position.clone();
+          eye.y += 1.5;
+          const chest = this.cover.hide.clone();
+          chest.y += this.height * 0.75;
+          const toC = chest.sub(eye);
+          const cd = toC.length();
+          if (!game.board.physics.raycast(eye, toC.normalize(), cd)) this.cover = null;
+        }
+      }
+      if (this.cover) {
+        this.updateCover(dt, game, target);
+        return;
+      }
+    }
 
     if (game.board.kind === 'station' && this.team === 1) {
       // platforms: never walk off the edge chasing a firing angle

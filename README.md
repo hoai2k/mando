@@ -54,11 +54,13 @@ worth pushing.
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
 and recoil climbs; **Dead Eye** (`V` / right-stick click) drops the world into slow
-motion while your trigger stays fast — the meter refills as you kill. Enemies get
-suppressed under heavy fire and stop advancing, get knocked flat by explosions and
-the gaffi finisher (hit them again on the ground for double), sometimes crumple
-into a wounded crawl you have to finish, and the last survivor of a shattered squad
-may break and run for a new position.
+motion while your trigger stays fast — the meter refills as you kill. Enemies fight from
+cover — shooters duck behind spice crates, barrels and hut walls, peek out to loose
+a volley, and duck back (suppress them and they stay hidden; flank the box and they
+scramble for a new one). They get pinned under heavy fire, get knocked flat by
+explosions and the gaffi finisher (hit them again on the ground for double),
+sometimes crumple into a wounded crawl you have to finish, and the last survivor of
+a shattered squad may break and run for a new position.
 
 **The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
 swoop riders and a sarlacc pit that will eat anything knocked into it.
