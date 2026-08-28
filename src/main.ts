@@ -264,7 +264,12 @@ function startGame(): void {
 }
 
 function disposeGame(): void {
-  if (game) { game.dispose(); game = null; }
+  if (!game) return;
+  game.dispose();
+  game = null;
+  // the debug/testing handle must not outlive the match either: a torn-down
+  // Game still answers to `.wave`, which makes it look like one is running
+  (window as unknown as { __game?: Game | null }).__game = null;
 }
 
 function resumeGame(): void {
