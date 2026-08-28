@@ -32,6 +32,10 @@ model next to the procedural build it replaces.
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
 
+The same reference lives in the game: the **(i)** button, bottom-right, draws these bindings
+on a controller diagram, and the **gear** beside it opens audio settings. Both are also on the
+title and pause menus.
+
 Menus are fully navigable by controller. **Two-player split-screen co-op**: choose
 "Players: 2" on the board-select screen with a second controller connected.
 
@@ -105,8 +109,10 @@ Existing files are skipped unless named explicitly. Never commit the key.
 
 ## Settings
 
-Audio volumes live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
-linear gain from 0 to 1. They can also be changed while playing, from the browser console:
+Volume sliders are in the game, under the gear button. They persist per device.
+
+The defaults live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
+linear gain from 0 to 1 — and can also be changed from the browser console:
 
 ```js
 __config.audio.sfx = 0.2;   // quieter blasters

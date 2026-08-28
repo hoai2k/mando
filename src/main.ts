@@ -8,6 +8,7 @@ import { buildWaystation } from './world/waystation';
 import type { Board } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
+import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
 
 const app = document.getElementById('app')!;
@@ -39,14 +40,33 @@ const unlockAudio = () => audio.init();
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
-// ---------- fullscreen button (bottom right, always visible) ----------
+// ---------- corner buttons (bottom right, always visible) ----------
+const corner = document.createElement('div');
+corner.id = 'corner-buttons';
+document.body.appendChild(corner);
+
+function cornerButton(title: string, svg: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.className = 'corner-btn';
+  b.title = title;
+  b.innerHTML = svg;
+  b.addEventListener('click', () => { audio.init(); audio.uiConfirm(); onClick(); });
+  corner.appendChild(b);
+  return b;
+}
+
+cornerButton('Controls', '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm-1 3h2v2h-2V7zm0 4h2v6h-2v-6z"/></svg>',
+  () => openOverlay('controls'));
+cornerButton('Settings', '<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3.4h-4l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4-2-1.6zM12 15.2A3.2 3.2 0 1112 8.8a3.2 3.2 0 010 6.4z"/></svg>',
+  () => openOverlay('settings'));
+
 const fsBtn = document.createElement('button');
-fsBtn.id = 'fullscreen-btn';
+fsBtn.className = 'corner-btn';
 fsBtn.title = 'Fullscreen (controller: View button)';
 const FS_EXPAND = '<svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>';
 const FS_SHRINK = '<svg viewBox="0 0 24 24"><path d="M10 4v6H4V8h4V4h2zm4 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>';
 fsBtn.innerHTML = FS_EXPAND;
-document.body.appendChild(fsBtn);
+corner.appendChild(fsBtn);
 function toggleFullscreen(): void {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.();
@@ -63,7 +83,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'characters' | 'playing' | 'paused' | 'end';
+type AppState = 'title' | 'select' | 'characters' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard: 'desert' | 'station' = 'desert';
@@ -82,9 +102,9 @@ title.root.style.backgroundPosition = 'center';
 title.addTitle('Mando', 'a Mandalorian fan game');
 title.addButtons(null, [
   { label: 'Play', action: () => setState('select') },
-  { label: 'Fullscreen', action: toggleFullscreen },
+  { label: 'Controls', action: () => openOverlay('controls') },
+  { label: 'Settings', action: () => openOverlay('settings') },
 ]);
-title.addHint('Gamepad: <b>D-pad/Stick</b> navigate · <b>A</b> select · <b>B</b> back · <b>View</b> fullscreen<br/>Keyboard: <b>WASD</b> move · <b>Mouse</b> aim · <b>Space</b> jump/jetpack · <b>Shift</b> sprint/dash · <b>F</b> melee · <b>Q</b> rocket · <b>V</b> Dead Eye · <b>E</b> switch weapon');
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);
@@ -163,11 +183,50 @@ function pickCharacter(id: MandoId): void {
   startGame();
 }
 
+// ----- controls & settings -----
+// Reachable from the corner buttons at any time, so they remember where they
+// were opened from and go back there rather than dumping you on the title.
+let overlayReturn: AppState = 'title';
+
+const controls = new MenuScreen(menuLayer);
+controls.addTitle('Controls');
+const controlsArt = document.createElement('div');
+controlsArt.innerHTML = controlsMarkup();
+controls.root.appendChild(controlsArt);
+controls.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
+controls.onBack = () => closeOverlay();
+
+const settings = new MenuScreen(menuLayer);
+settings.addTitle('Settings');
+const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
+  settings.addSlider(label, () => config.audio[key], (v) => {
+    config.audio[key] = v;
+    audio.applyConfig();
+    saveAudioConfig();
+  });
+volume('Master volume', 'master');
+volume('Sound effects', 'sfx');
+volume('Music', 'music');
+settings.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
+settings.addHint('Volumes are saved on this device. Gamepad: <b>left / right</b> to adjust.');
+settings.onBack = () => closeOverlay();
+
+function openOverlay(which: 'controls' | 'settings'): void {
+  if (state !== 'controls' && state !== 'settings') overlayReturn = state;
+  setState(which);
+}
+function closeOverlay(): void {
+  setState(overlayReturn);
+  if (overlayReturn === 'playing') input.requestPointerLock();
+}
+
 // ----- pause -----
 const pause = new MenuScreen(menuLayer);
 pause.addTitle('Paused');
 pause.addButtons(null, [
   { label: 'Resume', action: () => resumeGame() },
+  { label: 'Controls', action: () => openOverlay('controls') },
+  { label: 'Settings', action: () => openOverlay('settings') },
   { label: 'Restart Board', action: () => { startGame(); } },
   { label: 'Quit to Title', action: () => quitToTitle() },
 ]);
@@ -188,7 +247,7 @@ end.addButtons(null, [
 ]);
 end.onBack = () => quitToTitle();
 
-const screens: Record<string, MenuScreen> = { title, select, characters: charSelect, paused: pause, end };
+const screens: Record<string, MenuScreen> = { title, select, characters: charSelect, paused: pause, end, controls, settings };
 
 function activeScreen(): MenuScreen | null {
   if (state === 'title') return title;
@@ -196,11 +255,14 @@ function activeScreen(): MenuScreen | null {
   if (state === 'characters') return charSelect;
   if (state === 'paused') return pause;
   if (state === 'end') return end;
+  if (state === 'controls') return controls;
+  if (state === 'settings') return settings;
   return null;
 }
 
 function setState(s: AppState): void {
   state = s;
+  (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
   for (const key of Object.keys(screens)) screens[key].hide();
   const scr = activeScreen();
   if (scr) scr.show();
@@ -275,7 +337,7 @@ function frame(now: number): void {
     }
   }
 
-  if (game && (state === 'playing' || state === 'paused' || state === 'end')) {
+  if (game && state !== 'title' && state !== 'select' && state !== 'characters') {
     if (state === 'playing') {
       const inputs = [input.read(0, dt), input.read(1, dt)];
       game.update(dt, inputs);
