@@ -126,6 +126,12 @@ This is the flexibility the brief demands:
 | **Nikto sand rider** | Fast harasser (Tatooine) | Leathery horned reddish faces, biker leathers per the swoop-gang episode; rides a fast hover-swoop in strafing runs. |
 | **Space pirate (Weequay/Trandoshan-styled)** | Ranged/melee (waystation) | Ragged spacer gear, mismatched armor plates, shoulder pauldrons. |
 | **Security droid (8D8-style skeletal frame)** | Turret/slow tank | Bone-white skeletal droid; on waystation, heavier "loader droid" variant. |
+| **Incinerator trooper** | Ranged (Nevarro, Refinery) | White trooper plate w/ dark-red trim + helmet crest, twin back fuel tanks, flame projector: a stream committed to its aim line — sidestep it. |
+| **Krykna / broodmother** | Melee swarm + boss (Crevasse) | Person-sized bone-white cave spiders on free-form eight-leg rigs, relentless like the massiff; the broodmother spawns hatchlings as she takes damage. |
+| **Quarren netcaster** | Ranged (Trask) | Squid-faced dock hand in an oilskin coat; net launcher snares the player's legs (walk it off, or cut free with a melee swing). At home in the harbour. |
+| **Alamite** | Melee (Great Forge) | Pale hunched cave-dweller, tusked underbite, bony dorsal ridge, stone club. |
+| **Interceptor drone** | Kamikaze flier (Great Forge) | Black probe-style drone, red eye, dangling arms; stalks, whines, then commits to an unsteered dive — the whine is the dodge cue. |
+| **Ringworld enforcer** | Shielded shooter (Ringworld) | Oxblood plate + tower shield whose energy pane reflects bolts; flank it, rush it, or rocket it. |
 | **Bosses (stretch, post-MVP)** | — | Tatooine: **Krrsantan-class Wookiee enforcer** melee duel. Waystation: **Pyke capo + shield**. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
@@ -141,6 +147,39 @@ Faces/details are low-poly stylized (not realistic) — a deliberate "stylized a
 - **Layout:** a chain of ~12 floating platforms/gantries around a central refinery spire, connected by nothing — **the jetpack is the road**. Cargo cranes, stacked spice containers, glowing antenna masts, landing pads with parked freighters, rotating ring section. Fall off = respawn on last platform (small HP cost) — arcade, not punishing.
 - **Atmosphere:** deep-space skybox w/ purple-orange nebula + dense starfield, cold rim lighting + warm sodium work-lights, blinking hazard beacons, slow parallax of a nearby gas giant. Grimy industrial kit-bash aesthetic (greebles, pipes, vents).
 - **Flow:** same wave mode, but spawns emphasize verticality: pirates on distant platforms sniping (fly to them or trade fire), jet-trooper pirates who fly at you, turret droids on crane arms.
+
+### Boards 3–8 (the second wave of boards — built on shared board systems)
+
+The `Board` interface carries per-board data (name, footstep surface, ambience, music,
+wave table) plus opt-in systems any board can declare: multi-zone **hazards** (kill /
+burn + a free-form `burnAt` field), **movers** (platforms that carry riders),
+**breakables** (props wired into bolts, explosions and ground slams; may chain-explode),
+**traction** (ice), and a **light field** the AI's sight range reads.
+
+- **Board 3 — Nevarro, "The Lava Flats."** Black basalt cut by two lava rivers (burn
+  zones), breakable cooling-crust bridges, telegraphed geysers that launch whoever stands
+  on them (hazard to the AI, free altitude to a bold player), the town gate as anchor.
+  Enemies: pirates, incinerator troopers, Imperials, late massiffs.
+- **Board 4 — Maldo Kreis, "The Crevasse."** Snowfield rims over a deep canyon floor with
+  ice-ledge middle layers — three vertical fighting layers. Low-traction ice, a frozen
+  lake of breakable plates over bleed-out water (a ground slam opens it), krykna spiders
+  as the melee mass, a broodmother as the wave-10 boss (spawns hatchlings as she is hurt).
+- **Board 5 — Trask, "The Storm Docks."** Dock fingers over a harbour that bites (20 dps),
+  two trawler movers heaving on a real swell, rain with delayed thunder after each
+  lightning flash, the mamacore kill pool, Quarren netcasters whose nets root the player.
+- **Board 6 — "The Refinery."** The first interior: walled halls under a low ceiling
+  around an open 40 m reactor shaft ringed by catwalks (the jetpack chimney). Chaining
+  rhydonium barrels punish the AI's own cover habit; alarm consoles call the whole
+  garrison while any squad is engaged — shoot them out to keep firefights local.
+- **Board 7 — Mandalore, "The Great Forge."** Fused glass desert around the shattered
+  dome, floating ruin-chunks, and a magnetic-storm cycle: everything without a roof
+  overhead (checked by raycast — the dome and roof slabs count) takes arcs, AI included,
+  so the calm is for fighting and the storm is for repositioning. The Living Waters are
+  pure theatre: an eye glow and a sub-bass mythosaur call on a long timer.
+- **Board 8 — Glavis, "The Ringworld."** A city street strip at 0.85 g under a terminator
+  sweeping a 210-second cycle — enemy sight ranges halve on the night side, so both sides
+  migrate with the light. Walkable rooftops, neon, a rideable armored tram the length of
+  the board, shielded ringworld enforcers, and the duelist pair as the final wave.
 
 ## 9. Enemy AI
 

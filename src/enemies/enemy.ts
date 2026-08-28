@@ -1447,7 +1447,12 @@ export class Enemy {
         return;
       }
       const dist = this.position.distanceTo(target.position);
-      if (this.attackCd <= 0 && dist < 18 && this.hasLineOfSight(game, target)) {
+      // it only commits from altitude: a dive that starts at ground level
+      // trips its own ground-contact fuse before it has gone anywhere
+      const clearance = this.position.y -
+        game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.5);
+      if (this.attackCd <= 0 && dist < 18 && (!isFinite(clearance) || clearance > 3) &&
+          this.hasLineOfSight(game, target)) {
         const aim = target.position.clone();
         aim.y += 0.9;
         aim.addScaledVector(target.velocity, dist / 17 * 0.7);
