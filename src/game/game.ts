@@ -57,6 +57,8 @@ export class Game {
   timeScale = 1;
   /** seconds spent on the current wave, for the hunt escalation below */
   private waveTimer = 0;
+  /** hostiles this wave put on the board — see the wave-clear check */
+  private waveSpawned = 0;
   private huntCall = 0;
   private huntAnnounced = false;
 
@@ -165,7 +167,12 @@ export class Game {
     this.stateTimer -= dt;
     if (this.state === 'intro' && this.stateTimer <= 0) this.nextWave();
     if (this.state === 'break' && this.stateTimer <= 0) this.nextWave();
-    if (this.state === 'fighting' && this.aliveEnemyCount === 0 && this.enemies.length > 0) {
+    // A wave is cleared once everything it spawned is down. Testing
+    // `enemies.length > 0` instead — as a stand-in for "the wave has started" —
+    // stalled the station permanently: enemies knocked into the abyss are
+    // removed the same frame they die, rather than lingering as a corpse, so
+    // the array could empty completely and the check could never fire again.
+    if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
       if (this.wave >= FINAL_WAVE) {
         this.setState('victory');
         this.events.banner('Territory held', 'This is the Way');
@@ -335,11 +342,13 @@ export class Game {
   private nextWave(): void {
     this.wave++;
     this.waveTimer = 0;
+    this.waveSpawned = 0;
     this.huntCall = 0;
     this.huntAnnounced = false;
     this.setState('fighting');
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     spawnWave(this.board, this.wave, this.players.length, near, (e) => {
+      this.waveSpawned++;
       this.enemies.push(e);
       this.scene.add(e.char.root);
       this.particles.dustPuff(e.position, 10);

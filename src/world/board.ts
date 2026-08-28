@@ -17,6 +17,12 @@ export interface Board {
   /** procedural sky, hidden once the authored panorama loads */
   proceduralSky?: THREE.Object3D;
   /**
+   * Gravity scale for everyone standing on this board, 1 = Tatooine. A station
+   * in orbit runs light: jumps float, falls are gentle, the jetpack goes
+   * further on the same fuel.
+   */
+  gravity?: number;
+  /**
    * Below this height there is no floor left to hit, so falling becomes a slow
    * drift a jetpack tap can undo rather than a plunge. Omit for solid ground.
    */

@@ -127,7 +127,7 @@ export class Player {
       this.respawnTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
-      this.velocity.y -= GRAVITY * dt;
+      this.velocity.y -= GRAVITY * (game.board.gravity ?? 1) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.syncVisual(dt, game);
       anim.update(dt);
@@ -262,7 +262,7 @@ export class Player {
     const board = game.board;
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
-      this.velocity.y -= GRAVITY * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+      this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
       if (inVoid) {
         const terminal = -(board.voidFallSpeed ?? 3.2);
         if (this.velocity.y < terminal) this.velocity.y = terminal;

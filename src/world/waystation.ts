@@ -205,6 +205,7 @@ export function buildWaystation(): Board {
     background: new THREE.Color(0x05050e),
     skyFile: 'sky_space',
     // drifting between platforms should never feel like a death sentence
+    gravity: 0.45,
     voidY: -3,
     voidGravity: 0.12,
     voidFallSpeed: 3.2,

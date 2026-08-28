@@ -5,6 +5,7 @@
  */
 
 import { ASSET_ROOT } from './assets';
+import { config } from '../config';
 
 type SampleName =
   | 'blaster_shot' | 'enemy_blaster' | 'blaster_impact' | 'melee_whoosh' | 'melee_hit'
@@ -51,13 +52,12 @@ export class AudioEngine {
     if (this.ctx) { this.ctx.resume(); return; }
     this.ctx = new AudioContext();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.8;
     this.master.connect(this.ctx.destination);
     this.sfx = this.ctx.createGain();
     this.sfx.connect(this.master);
     this.music = this.ctx.createGain();
-    this.music.gain.value = 0.4;
     this.music.connect(this.master);
+    this.applyConfig();
     this.noiseBuf = this.makeNoise();
     this.tryLoadSamples();
   }
@@ -403,7 +403,27 @@ export class AudioEngine {
     this.playSample(victory ? 'music_victory' : 'music_defeat', 0.7);
   }
 
-  setMasterVolume(v: number): void { if (this.master) this.master.gain.value = v; }
+  /**
+   * Push `config.audio` onto the three buses. Called on init, and again by
+   * anything that changes a volume at runtime.
+   */
+  applyConfig(): void {
+    if (!this.ctx) return;
+    this.master.gain.value = config.audio.master;
+    this.sfx.gain.value = config.audio.sfx;
+    this.music.gain.value = config.audio.music;
+  }
+
+  /** live bus gains, for a settings screen or a console tweak to read back */
+  get volumes(): { master: number; sfx: number; music: number } {
+    return this.ctx
+      ? { master: this.master.gain.value, sfx: this.sfx.gain.value, music: this.music.gain.value }
+      : { ...config.audio };
+  }
+
+  setMasterVolume(v: number): void { config.audio.master = v; this.applyConfig(); }
+  setSfxVolume(v: number): void { config.audio.sfx = v; this.applyConfig(); }
+  setMusicVolume(v: number): void { config.audio.music = v; this.applyConfig(); }
 }
 
 export const audio = new AudioEngine();

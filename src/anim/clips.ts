@@ -7,6 +7,13 @@ import type { Proportions } from './skeleton';
  * (chest/arms/head actions) so the animator can layer shooting/melee
  * over any locomotion state. All clips are standard THREE.AnimationClips,
  * so authored clips from a glTF can replace them 1:1.
+ *
+ * ARM/LEG SPLAY SIGN: the rig's `L` bones sit at +X and `R` at -X, and a
+ * positive Z rotation swings a downward-pointing bone toward +X. So a limb
+ * spreads *away* from the body on negative Z for `L` and positive Z for `R` —
+ * the opposite of what reads naturally. Getting this backwards tucks the arms
+ * into the torso, which is invisible on a stick-figure build and clips
+ * straight through an authored one.
  */
 
 const D = Math.PI / 180;
@@ -39,8 +46,8 @@ export function buildClips(p: Proportions): ClipSet {
     pt('hips', [0, 1.5, 3], [[0, hipY, 0], [0, hipY - 0.015, 0], [0, hipY, 0]]),
     qt('hips', [0, 1.5, 3], [[0, 0, 0], [1, 0, 1], [0, 0, 0]]),
     qt('spine', [0, 1.5, 3], [[2, 0, 0], [3.5, 0, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 3], [[-3, 0, 2], [-3, 0, 2]]),
-    qt('upperLegR', [0, 3], [[-3, 0, -2], [-3, 0, -2]]),
+    qt('upperLegL', [0, 3], [[-3, 0, -2], [-3, 0, -2]]),
+    qt('upperLegR', [0, 3], [[-3, 0, 2], [-3, 0, 2]]),
     qt('lowerLegL', [0, 3], [[5, 0, 0], [5, 0, 0]]),
     qt('lowerLegR', [0, 3], [[5, 0, 0], [5, 0, 0]]),
   ]);
@@ -48,8 +55,8 @@ export function buildClips(p: Proportions): ClipSet {
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, 1, 0], [1, 0, 0]]),
-    qt('upperArmL', [0, 1.5, 3], [[8, 0, 10], [10, 0, 11], [8, 0, 10]]),
-    qt('upperArmR', [0, 1.5, 3], [[8, 0, -10], [10, 0, -11], [8, 0, -10]]),
+    qt('upperArmL', [0, 1.5, 3], [[8, 0, -14], [10, 0, -15], [8, 0, -14]]),
+    qt('upperArmR', [0, 1.5, 3], [[8, 0, 14], [10, 0, 15], [8, 0, 14]]),
     qt('forearmL', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('forearmR', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('head', [0, 1.5, 3], [[0, 0, 0], [1, 3, 0], [0, 0, 0]]),
@@ -72,9 +79,9 @@ export function buildClips(p: Proportions): ClipSet {
   // ---------- UPPER: run (arm swing) ----------
   clips.runUpper = new THREE.AnimationClip('runUpper', 0.6, [
     qt('chest', rt, [[6, 5, 0], [6, 0, 0], [6, -5, 0], [6, 0, 0], [6, 5, 0]]),
-    qt('upperArmL', rt, [[35, 0, 8], [5, 0, 8], [-30, 0, 8], [5, 0, 8], [35, 0, 8]]),
+    qt('upperArmL', rt, [[35, 0, -12], [5, 0, -12], [-30, 0, -12], [5, 0, -12], [35, 0, -12]]),
     qt('forearmL', rt, [[-40, 0, 0], [-55, 0, 0], [-70, 0, 0], [-55, 0, 0], [-40, 0, 0]]),
-    qt('upperArmR', rt, [[-30, 0, -8], [5, 0, -8], [35, 0, -8], [5, 0, -8], [-30, 0, -8]]),
+    qt('upperArmR', rt, [[-30, 0, 12], [5, 0, 12], [35, 0, 12], [5, 0, 12], [-30, 0, 12]]),
     qt('forearmR', rt, [[-70, 0, 0], [-55, 0, 0], [-40, 0, 0], [-55, 0, 0], [-70, 0, 0]]),
     qt('head', rt, [[-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
   ]);
@@ -83,16 +90,16 @@ export function buildClips(p: Proportions): ClipSet {
   clips.airLower = new THREE.AnimationClip('airLower', 1, [
     pt('hips', [0, 1], [[0, hipY, 0], [0, hipY, 0]]),
     qt('hips', [0, 1], [[5, 0, 0], [5, 0, 0]]),
-    qt('upperLegL', [0, 0.5, 1], [[-35, 0, 4], [-30, 0, 4], [-35, 0, 4]]),
+    qt('upperLegL', [0, 0.5, 1], [[-35, 0, -4], [-30, 0, -4], [-35, 0, -4]]),
     qt('lowerLegL', [0, 1], [[60, 0, 0], [60, 0, 0]]),
-    qt('upperLegR', [0, 0.5, 1], [[-12, 0, -4], [-8, 0, -4], [-12, 0, -4]]),
+    qt('upperLegR', [0, 0.5, 1], [[-12, 0, 4], [-8, 0, 4], [-12, 0, 4]]),
     qt('lowerLegR', [0, 1], [[35, 0, 0], [35, 0, 0]]),
   ]);
   clips.airUpper = new THREE.AnimationClip('airUpper', 1, [
     qt('chest', [0, 1], [[-4, 0, 0], [-4, 0, 0]]),
-    qt('upperArmL', [0, 0.5, 1], [[15, 0, 45], [18, 0, 50], [15, 0, 45]]),
+    qt('upperArmL', [0, 0.5, 1], [[15, 0, -45], [18, 0, -50], [15, 0, -45]]),
     qt('forearmL', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
-    qt('upperArmR', [0, 0.5, 1], [[15, 0, -45], [18, 0, -50], [15, 0, -45]]),
+    qt('upperArmR', [0, 0.5, 1], [[15, 0, 45], [18, 0, 50], [15, 0, 45]]),
     qt('forearmR', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
   ]);
 
@@ -100,18 +107,18 @@ export function buildClips(p: Proportions): ClipSet {
   clips.flyLower = new THREE.AnimationClip('flyLower', 1.6, [
     pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.02, 0], [0, hipY, 0]]),
     qt('hips', [0, 0.8, 1.6], [[18, 0, 0], [22, 0, 0], [18, 0, 0]]),
-    qt('upperLegL', [0, 0.8, 1.6], [[14, 0, 3], [18, 0, 3], [14, 0, 3]]),
+    qt('upperLegL', [0, 0.8, 1.6], [[14, 0, -3], [18, 0, -3], [14, 0, -3]]),
     qt('lowerLegL', [0, 0.8, 1.6], [[28, 0, 0], [32, 0, 0], [28, 0, 0]]),
-    qt('upperLegR', [0, 0.8, 1.6], [[18, 0, -3], [14, 0, -3], [18, 0, -3]]),
+    qt('upperLegR', [0, 0.8, 1.6], [[18, 0, 3], [14, 0, 3], [18, 0, 3]]),
     qt('lowerLegR', [0, 0.8, 1.6], [[32, 0, 0], [28, 0, 0], [32, 0, 0]]),
     qt('footL', [0, 1.6], [[35, 0, 0], [35, 0, 0]]),
     qt('footR', [0, 1.6], [[35, 0, 0], [35, 0, 0]]),
   ]);
   clips.flyUpper = new THREE.AnimationClip('flyUpper', 1.6, [
     qt('chest', [0, 0.8, 1.6], [[-8, 0, 0], [-10, 0, 0], [-8, 0, 0]]),
-    qt('upperArmL', [0, 0.8, 1.6], [[10, 0, 28], [12, 0, 32], [10, 0, 28]]),
+    qt('upperArmL', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
     qt('forearmL', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
-    qt('upperArmR', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[10, 0, 28], [12, 0, 32], [10, 0, 28]]),
     qt('forearmR', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
     qt('head', [0, 1.6], [[-14, 0, 0], [-14, 0, 0]]),
   ]);
@@ -154,24 +161,24 @@ export function buildClips(p: Proportions): ClipSet {
   clips.hitUpper = new THREE.AnimationClip('hitUpper', 0.28, [
     qt('chest', [0, 0.08, 0.28], [[-14, 6, 0], [-18, 8, 0], [1, 0, 0]]),
     qt('head', [0, 0.08, 0.28], [[-16, 0, 0], [-20, 4, 0], [0, 0, 0]]),
-    qt('upperArmL', [0, 0.08, 0.28], [[20, 0, 30], [26, 0, 36], [8, 0, 10]]),
-    qt('upperArmR', [0, 0.08, 0.28], [[20, 0, -30], [26, 0, -36], [8, 0, -10]]),
+    qt('upperArmL', [0, 0.08, 0.28], [[20, 0, -30], [26, 0, -36], [8, 0, -10]]),
+    qt('upperArmR', [0, 0.08, 0.28], [[20, 0, 30], [26, 0, 36], [8, 0, 10]]),
   ]);
 
   // ---------- FULL: death (crumple back) ----------
   clips.deathLower = new THREE.AnimationClip('deathLower', 0.8, [
     pt('hips', [0, 0.35, 0.8], [[0, hipY, 0], [0, hipY * 0.45, -0.2], [0, 0.22, -0.45]]),
     qt('hips', [0, 0.35, 0.8], [[0, 0, 0], [-38, 0, 6], [-78, 0, 10]]),
-    qt('upperLegL', [0, 0.8], [[-20, 0, 6], [-40, 0, 10]]),
+    qt('upperLegL', [0, 0.8], [[-20, 0, -6], [-40, 0, -10]]),
     qt('lowerLegL', [0, 0.8], [[30, 0, 0], [55, 0, 0]]),
-    qt('upperLegR', [0, 0.8], [[-30, 0, -8], [-25, 0, -12]]),
+    qt('upperLegR', [0, 0.8], [[-30, 0, 8], [-25, 0, 12]]),
     qt('lowerLegR', [0, 0.8], [[40, 0, 0], [30, 0, 0]]),
   ]);
   clips.deathUpper = new THREE.AnimationClip('deathUpper', 0.8, [
     qt('chest', [0, 0.35, 0.8], [[-10, 0, 0], [-18, 8, 0], [-14, 12, 0]]),
     qt('head', [0, 0.8], [[-10, 0, 0], [-24, 14, 0]]),
-    qt('upperArmL', [0, 0.8], [[20, 0, 40], [40, 0, 70]]),
-    qt('upperArmR', [0, 0.8], [[20, 0, -40], [50, 0, -60]]),
+    qt('upperArmL', [0, 0.8], [[20, 0, -40], [40, 0, -70]]),
+    qt('upperArmR', [0, 0.8], [[20, 0, 40], [50, 0, 60]]),
     qt('forearmL', [0, 0.8], [[-30, 0, 0], [-10, 0, 0]]),
     qt('forearmR', [0, 0.8], [[-30, 0, 0], [-15, 0, 0]]),
   ]);
