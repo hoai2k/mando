@@ -8,8 +8,9 @@ import { buildWaystation } from './world/waystation';
 import type { Board } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
+import { CharacterSelect } from './ui/charselect';
 import { controlsMarkup } from './ui/controls-art';
-import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
+import type { MandoId } from './characters/mandalorians';
 
 const app = document.getElementById('app')!;
 
@@ -90,7 +91,6 @@ let chosenBoard: 'desert' | 'station' = 'desert';
 let playerCount = 1;
 let endTimer = 0;
 const chosenChars: MandoId[] = ['din', 'paz'];
-let charPickSlot = 0;
 
 // ----- title screen -----
 const title = new MenuScreen(menuLayer);
@@ -100,11 +100,18 @@ title.root.style.backgroundImage =
 title.root.style.backgroundSize = 'cover';
 title.root.style.backgroundPosition = 'center';
 title.addTitle('Mando', 'a Mandalorian fan game');
+// One prompt, arcade style: Start (or Enter, or a click) drops straight into
+// territory select and takes the window fullscreen on the way. Browsers only
+// honour requestFullscreen from a real user gesture — a gamepad press isn't
+// one, so the fullscreen half is best-effort and failure is silent.
 title.addButtons(null, [
-  { label: 'Play', action: () => setState('select') },
-  { label: 'Controls', action: () => openOverlay('controls') },
-  { label: 'Settings', action: () => openOverlay('settings') },
+  { label: 'Press Start', action: () => { enterFullscreen(); setState('select'); } },
 ]);
+function enterFullscreen(): void {
+  if (!document.fullscreenElement) {
+    try { document.documentElement.requestFullscreen?.()?.catch(() => {}); } catch { /* not a user gesture */ }
+  }
+}
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);
@@ -124,64 +131,24 @@ const cardDesert = makeCard('The Dune Sea', 'Tatooine wastes — Tusken outcasts
   'board_tatooine.jpg', 'linear-gradient(160deg, #d9a860, #7a4a28)');
 const cardStation = makeCard('The Spice Run', 'A smugglers’ waystation in deep space. Floating platforms — the jetpack is the only road.',
   'board_waystation.jpg', 'linear-gradient(160deg, #2a2f4a, #0c0d18)');
-let playersBtn: HTMLElement;
 select.addButtons(cards, [
-  { label: '', action: () => { chosenBoard = 'desert'; openCharacterSelect(); }, el: cardDesert },
-  { label: '', action: () => { chosenBoard = 'station'; openCharacterSelect(); }, el: cardStation },
-]);
-[playersBtn] = select.addButtons(null, [
-  { label: 'Players: 1', action: () => togglePlayers() },
-  { label: 'Back', action: () => setState('title') },
+  { label: '', action: () => { chosenBoard = 'desert'; setState('characters'); }, el: cardDesert },
+  { label: '', action: () => { chosenBoard = 'station'; setState('characters'); }, el: cardStation },
 ]);
 select.onBack = () => setState('title');
-function togglePlayers(): void {
-  playerCount = playerCount === 1 ? 2 : 1;
-  refreshPlayersBtn();
-}
-function refreshPlayersBtn(): void {
-  if (playerCount === 1) playersBtn.textContent = 'Players: 1';
-  else playersBtn.textContent = input.padCount() >= 2 ? 'Players: 2 — split screen' : 'Players: 2 (connect 2nd controller)';
-}
 
-// ----- character select -----
-const charSelect = new MenuScreen(menuLayer);
-const charTitle = document.createElement('div');
-charTitle.className = 'menu-title';
-charTitle.style.fontSize = 'clamp(28px, 4vw, 52px)';
-charTitle.textContent = 'Choose Your Mandalorian';
-charSelect.root.appendChild(charTitle);
-const charSub = document.createElement('div');
-charSub.className = 'menu-subtitle';
-charSelect.root.appendChild(charSub);
-charSelect.addButtons(null, [
-  ...(Object.keys(MANDO_ROSTER) as MandoId[]).map((id) => ({
-    label: MANDO_ROSTER[id].name,
-    action: () => pickCharacter(id),
-  })),
-  { label: 'Back', action: () => setState('select') },
-]);
-charSelect.addHint(
-  (Object.keys(MANDO_ROSTER) as MandoId[])
-    .map((id) => `<b>${MANDO_ROSTER[id].name}</b> — ${MANDO_ROSTER[id].desc}`)
-    .join('<br/>')
-);
-charSelect.onBack = () => setState('select');
-
-function openCharacterSelect(): void {
-  charPickSlot = 0;
-  charSub.textContent = playerCount > 1 ? 'Player 1' : 'All Mandalorians fight alike — pick your armor';
-  setState('characters');
-}
-function pickCharacter(id: MandoId): void {
-  chosenChars[charPickSlot] = id;
-  if (playerCount > 1 && charPickSlot === 0) {
-    charPickSlot = 1;
-    charSub.textContent = 'Player 2';
-    charSelect.setFocus(0);
-    return;
-  }
-  startGame();
-}
+// ----- character select (3D stage, drawn by the game renderer) -----
+const charSelect = new CharacterSelect(menuLayer, {
+  onStart: (chars, count) => {
+    chosenChars.length = 0;
+    chosenChars.push(...chars);
+    if (chars.length === 1) chosenChars.push('paz');   // slot 1 default, unused solo
+    playerCount = count;
+    startGame();
+  },
+  onBack: () => setState('select'),
+  padForPlayer: () => input.padForPlayer,
+});
 
 // ----- controls & settings -----
 // Reachable from the corner buttons at any time, so they remember where they
@@ -247,12 +214,11 @@ end.addButtons(null, [
 ]);
 end.onBack = () => quitToTitle();
 
-const screens: Record<string, MenuScreen> = { title, select, characters: charSelect, paused: pause, end, controls, settings };
+const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 
 function activeScreen(): MenuScreen | null {
   if (state === 'title') return title;
   if (state === 'select') return select;
-  if (state === 'characters') return charSelect;
   if (state === 'paused') return pause;
   if (state === 'end') return end;
   if (state === 'controls') return controls;
@@ -264,12 +230,13 @@ function setState(s: AppState): void {
   state = s;
   (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
   for (const key of Object.keys(screens)) screens[key].hide();
+  if (s === 'characters') { if (!charSelect.visible) charSelect.show(); }
+  else charSelect.hide();
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
   if (s === 'playing') hud.show();
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
-  if (s === 'select') refreshPlayersBtn();
 }
 
 function startGame(): void {
@@ -326,14 +293,16 @@ function frame(now: number): void {
   last = now;
 
   input.poll(dt);
-  const actions = input.drainMenuActions();
+  const events = input.drainMenuEvents();
 
   const scr = activeScreen();
-  if (scr) {
-    for (const a of actions) scr.handle(a);
+  if (state === 'characters') {
+    for (const e of events) charSelect.handle(e.action, e.source);
+  } else if (scr) {
+    for (const e of events) scr.handle(e.action);
   } else if (state === 'playing' && game) {
-    for (const a of actions) {
-      if (a === 'pause' || a === 'back') { setState('paused'); input.releasePointerLock(); }
+    for (const e of events) {
+      if (e.action === 'pause' || e.action === 'back') { setState('paused'); input.releasePointerLock(); }
     }
   }
 
@@ -358,6 +327,9 @@ function frame(now: number): void {
       }
     }
     game.render(renderer);
+  } else if (state === 'characters') {
+    charSelect.update(dt);
+    charSelect.render(renderer);
   } else {
     renderer.clear();
   }

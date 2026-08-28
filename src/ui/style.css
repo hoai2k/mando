@@ -197,3 +197,36 @@ body.deadeye #app > canvas { filter: sepia(0.45) saturate(1.2) contrast(1.07) br
   .controls-page { flex-direction: column; align-items: center; }
   .controls-keys { flex: none; width: min(560px, 90vw); }
 }
+
+/* ---------- 3D character select ---------- */
+/* transparent chrome over the live 3D stage — no vignette, the scene is the background */
+.charsel-screen { background: none; justify-content: space-between; padding: 4vh 0 5vh; }
+.charsel-title { font-size: clamp(26px, 3.6vw, 46px); }
+.charsel-panels { display: flex; width: 100%; flex: 1; }
+.charsel-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; }
+.charsel-panel.empty { justify-content: center; }
+.charsel-base { display: flex; align-items: center; gap: 18px; }
+.charsel-name {
+  min-width: 240px; text-align: center; font-size: clamp(18px, 2.2vw, 30px);
+  letter-spacing: 0.14em; text-transform: uppercase; color: #d8b25a; font-weight: 700;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+}
+.charsel-panel.ready .charsel-name { color: #f0d492; text-shadow: 0 0 18px rgba(216,178,90,0.8); }
+.charsel-arrow {
+  background: none; border: 1px solid rgba(216,178,90,0.5); border-radius: 6px;
+  color: #d8b25a; font-size: 22px; padding: 6px 14px; cursor: pointer;
+  animation: charsel-nudge 1.6s ease-in-out infinite;
+}
+.charsel-arrow:hover { background: rgba(216,178,90,0.15); }
+.charsel-arrow:last-child { animation-delay: 0.8s; }
+@keyframes charsel-nudge { 50% { border-color: rgba(240,212,146,0.95); color: #f0d492; } }
+.charsel-status { font-size: 15px; letter-spacing: 0.12em; color: #9a8a64; text-transform: uppercase; text-align: center; }
+.charsel-status b { color: #d8b25a; }
+.charsel-panel.ready .charsel-status b { color: #f0d492; text-shadow: 0 0 14px rgba(216,178,90,0.9); }
+.charsel-spinner {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid rgba(216,178,90,0.2); border-top-color: #d8b25a;
+  animation: charsel-spin 0.9s linear infinite; margin-bottom: 18vh;
+}
+@keyframes charsel-spin { to { transform: rotate(360deg); } }
+.charsel-start { font-size: 20px; padding: 14px 46px; }

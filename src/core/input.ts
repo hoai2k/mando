@@ -28,6 +28,9 @@ export interface FrameInput {
 
 export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'fullscreen';
 
+/** A menu action plus where it came from: -1 = keyboard/mouse, else gamepad index. */
+export interface MenuEvent { action: MenuAction; source: number; }
+
 const DEADZONE = 0.18;
 const dz = (v: number) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
 
@@ -53,7 +56,7 @@ export class InputManager {
   private mouseDX = 0;
   private mouseDY = 0;
   private padStates = new Map<number, PadState>();
-  private menuQueue: MenuAction[] = [];
+  private menuQueue: MenuEvent[] = [];
   /** gamepad index assigned to each player slot; -1 = none */
   padForPlayer: number[] = [-1, -1];
   mouseSensitivity = 0.0023;
@@ -73,9 +76,9 @@ export class InputManager {
         ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
         Enter: 'confirm', Space: 'confirm', Escape: 'back',
       };
-      if (this.menuMode && map[e.code]) this.menuQueue.push(map[e.code]);
-      if (!this.menuMode && e.code === 'Escape') this.menuQueue.push('pause');
-      if (e.code === 'KeyF' && e.altKey) this.menuQueue.push('fullscreen');
+      if (this.menuMode && map[e.code]) this.menuQueue.push({ action: map[e.code], source: -1 });
+      if (!this.menuMode && e.code === 'Escape') this.menuQueue.push({ action: 'pause', source: -1 });
+      if (e.code === 'KeyF' && e.altKey) this.menuQueue.push({ action: 'fullscreen', source: -1 });
       if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -136,7 +139,7 @@ export class InputManager {
     for (const pad of this.pads()) {
       const st = this.padState(pad.index);
       // fullscreen on View button, any mode
-      if (this.padPressed(pad, BTN.VIEW, st)) this.menuQueue.push('fullscreen');
+      if (this.padPressed(pad, BTN.VIEW, st)) this.menuQueue.push({ action: 'fullscreen', source: pad.index });
       if (this.menuMode) {
         const dirs: Array<[string, boolean, MenuAction]> = [
           ['up', !!pad.buttons[BTN.DUP]?.pressed || dz(pad.axes[1] ?? 0) < -0.55, 'up'],
@@ -147,26 +150,26 @@ export class InputManager {
         for (const [key, held, action] of dirs) {
           const t = st.repeatTimer.get(key) ?? 0;
           if (held) {
-            if (t <= 0) { this.menuQueue.push(action); st.repeatTimer.set(key, t <= -0.001 ? 0.16 : 0.42); }
+            if (t <= 0) { this.menuQueue.push({ action, source: pad.index }); st.repeatTimer.set(key, t <= -0.001 ? 0.16 : 0.42); }
             else st.repeatTimer.set(key, t - dt);
           } else st.repeatTimer.set(key, 0);
         }
-        if (this.padPressed(pad, BTN.A, st)) this.menuQueue.push('confirm');
-        if (this.padPressed(pad, BTN.B, st)) this.menuQueue.push('back');
-        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push('confirm');
+        if (this.padPressed(pad, BTN.A, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
+        if (this.padPressed(pad, BTN.B, st)) this.menuQueue.push({ action: 'back', source: pad.index });
+        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
       } else {
-        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push('pause');
+        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'pause', source: pad.index });
       }
       for (let i = 0; i < pad.buttons.length && i < 17; i++) st.prev[i] = !!pad.buttons[i]?.pressed;
     }
-    for (const a of this.menuQueue) {
-      if (a === 'fullscreen') this.onFullscreenToggle?.();
+    for (const e of this.menuQueue) {
+      if (e.action === 'fullscreen') this.onFullscreenToggle?.();
     }
-    this.menuQueue = this.menuQueue.filter((a) => a !== 'fullscreen');
+    this.menuQueue = this.menuQueue.filter((e) => e.action !== 'fullscreen');
   }
 
-  /** Drain queued menu navigation events. */
-  drainMenuActions(): MenuAction[] {
+  /** Drain queued menu navigation events, with their input source attached. */
+  drainMenuEvents(): MenuEvent[] {
     const q = this.menuQueue;
     this.menuQueue = [];
     return q;

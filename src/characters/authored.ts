@@ -151,6 +151,13 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
 }
 
 /**
+ * Warm the .glb cache for a character we expect to need soon — the character
+ * select uses it on the neighbours of the current choice, so flipping to them
+ * doesn't start the download from zero.
+ */
+export function preloadAuthored(id: string): void { loadRaw(id); }
+
+/**
  * Re-parent `child` under `parent` without moving it in the world. The skin's
  * bind matrices were captured from the original world rest pose, so that pose
  * has to survive the surgery exactly.

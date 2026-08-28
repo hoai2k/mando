@@ -21,6 +21,8 @@ export interface PlayerCharacter extends CharacterInstance {
   gaffi: THREE.Group;
   /** thruster mouths, in world space — where the jet particles are born */
   nozzles: THREE.Object3D[];
+  /** true once the authored .glb has replaced the procedural body */
+  modelReady: () => boolean;
 }
 
 /** visual height per character, used to size an authored model */
@@ -278,6 +280,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     ...inst,
     muzzle,
     gaffi,
+    modelReady: () => swap.model !== null,
     setWeapon: (w) => { weapon = w; showWeapon(); },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
