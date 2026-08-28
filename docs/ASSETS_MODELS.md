@@ -30,6 +30,35 @@ matter of re-adding one roster entry.
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
+## Playable bounty hunters (6) — priority 2
+
+A second playable roster: underworld hunters alongside the Mandalorians. Standard swap
+contract and playable budgets (≤ 15k tris, one 1024² PBR set). Two things every one of
+them needs that the sheets are briefed to show: a **low-profile twin-nozzle thruster
+backpack** (playable movement is jetpack flight — sized and styled to the character, worn
+over the costume, thruster mouths low on the pack where the `jetpack` bone's flames sit),
+and empty hands (they mount the shared carbine and gaffi props like the Mandalorians;
+signature weapons below are separate props or FX).
+
+The **blue-skinned gunslinger** is the delivered boss model `duelist.glb` — the playable
+slot reuses it and its sheets as-is; an optional re-export at playable budget can come
+later if the 8k boss version reads poorly up close. The five new sheets are requested in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under *Playable bounty hunter sheets*.
+
+| Character | Reference sheets | Height | Reference look |
+|---|---|---|---|
+| **Blue gunslinger** (`duelist`, delivered) | `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin holstered pistols. |
+| **Pale assassin** (`ventress`) | `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
+| **Horned warrior** (`maul`) | `maul_front/side/back.png` | 1.75 m | Red-and-black tattooed alien, crown of short horns, yellow-red eyes, matte-black layered tunic and sash, a double-ended weapon hilt across the lower back (hilt only). |
+| **Hatted hunter** (`embo`) | `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
+| **Reptilian hunter** (`bossk`) | `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
+| **Snouted hunter** (`greedo`) | `greedo_front/side/back.png` | 1.73 m | Slender green alien, tapered dome head, glassy dark eyes, short trunk snout, ear stalks and ridged scalp crest, olive flight jacket and gunbelt. Slightest of the set (scale ~0.95). |
+
+Integration note: today's roster factory (`src/characters/mandalorians.ts`) is
+Mando-specific — these six need their own roster entries wired to `attachAuthored` when
+the models land, and until then a hunter would fall back to a generic armored biped, so
+the models are the gating asset, not the code.
+
 ## Allies — priority 2
 
 | Character | Type | Reference sheets | Reference look |
@@ -97,7 +126,10 @@ imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
 nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board trio
 `flametrooper`, `quarren`, `alamite`. **Still open: `ring_enforcer`, `krykna`,
 `krykna_brood`, `interceptor_drone` — every one has its reference sheets delivered, so
-they are ready to model.**
+they are ready to model — plus the five playable bounty hunters `ventress`, `maul`,
+`embo`, `bossk`, `greedo`, which are blocked on their sheets (see
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)); their sixth, the blue gunslinger, reuses the
+delivered `duelist.glb`.**
 
 ### Three intake paths
 
