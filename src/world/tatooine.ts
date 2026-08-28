@@ -215,6 +215,7 @@ export function buildTatooine(): Board {
   return {
     group, physics, kind: 'desert',
     background: new THREE.Color(0xd9b98a),
+    heroLight: 0.1,
     skyFile: 'sky_desert',
     proceduralSky,
     fog: new THREE.Fog(0xdcc094, 90, 420),

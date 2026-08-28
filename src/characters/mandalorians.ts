@@ -12,6 +12,8 @@ export type MandoId = 'din' | 'paz';
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
   setThrust: (t: number) => void;
+  /** intensity of the fill light that travels with this character */
+  setHeroLight: (intensity: number) => void;
   gaffi: THREE.Group;
   /** thruster mouths, in world space — where the jet particles are born */
   nozzles: THREE.Object3D[];
@@ -161,6 +163,42 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   gaffi.visible = false;
   b.weaponR.add(gaffi);
 
+  // ---- hero ambient ----
+  // The player is the one thing that must never be lost against a board, and
+  // the station is dark enough — cold key, no sky bounce, a nebula reflection
+  // probe — that beskar reads as a silhouette there.
+  //
+  // This is a per-character lift rather than a light: Three tests a light's
+  // layers against the camera, never against the object it falls on, so there
+  // is no way to aim one at the hero alone. Instead his materials are cloned
+  // and given an emissive term driven by their own texture, which brightens
+  // the artwork that is already there and cannot touch anything else on the
+  // board.
+  const heroMats: THREE.MeshStandardMaterial[] = [];
+  let heroAmbient = 0;
+  function adoptHeroMaterials(root: THREE.Object3D): void {
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+      const many = Array.isArray(mesh.material);
+      const source: THREE.Material[] = many ? mesh.material as THREE.Material[] : [mesh.material as THREE.Material];
+      const cloned = source.map((m): THREE.Material => {
+        const std = m as THREE.MeshStandardMaterial;
+        if (!std.isMeshStandardMaterial) return m;      // muzzle flash, flames
+        const c = std.clone();
+        // self-lit by its own surface: where there's a texture the emissive
+        // follows it, so the lift reads as ambience rather than a colour wash
+        c.emissiveMap = c.map;
+        c.emissive = c.map ? new THREE.Color(0xffffff) : c.color.clone();
+        c.emissiveIntensity = heroAmbient;
+        heroMats.push(c);
+        return c;
+      });
+      mesh.material = many ? cloned : cloned[0];
+    });
+  }
+  adoptHeroMaterials(rig.root);
+
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
   // fallback; if models/<id>.glb loads we hide its meshes and let the authored
@@ -185,6 +223,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     authored = model;
     for (const m of proceduralMeshes) m.visible = false;
     rig.root.add(model.root);
+    adoptHeroMaterials(model.root);   // the skin arrives after the pass above
     // weapons move onto the authored hand so they track the real fingers; the
     // mount reproduces our canonical weaponR frame, so nothing else changes
     if (model.weaponMount) {
@@ -207,6 +246,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
+    setHeroLight: (intensity) => {
+      heroAmbient = intensity;
+      for (const m of heroMats) m.emissiveIntensity = intensity;
+    },
     cosmetic: (dt, time) => {
       if (authored) retarget(rig, authored);
       capeUpdate?.(dt, time);

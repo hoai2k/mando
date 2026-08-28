@@ -84,6 +84,7 @@ export class Game {
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
       p.spawnAt(board.playerStarts[i] ?? board.playerStarts[0]);
+      p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
