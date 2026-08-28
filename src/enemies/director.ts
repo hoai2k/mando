@@ -113,7 +113,8 @@ export class CombatDirector {
         const e = group[i];
         // keep each enemy near the bearing it already holds, but spread the set
         e.slotAngle = i * step + (e.id % 7) * 0.09;
-        if (e.def.style === 'melee') e.committed = melee++ < MELEE_COMMIT;
+        if (e.def.relentless) e.committed = true;      // beasts never hold back
+        else if (e.def.style === 'melee') e.committed = melee++ < MELEE_COMMIT;
         else if (e.def.style === 'ranged') e.committed = ranged++ < RANGED_COMMIT;
         else e.committed = true; // fliers run their own orbit patterns
       }

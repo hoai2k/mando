@@ -19,6 +19,8 @@ export function waveComposition(board: Board['kind'], wave: number, players: num
     if (wave >= 2) list.push({ kind: 'pirateMelee', count: n(1, 0.4) });
     if (wave >= 3) list.push({ kind: 'nikto', count: Math.min(1 + ((wave / 3) | 0), 3), air: true });
     if (wave >= 5) list.push({ kind: 'droid', count: Math.min(1 + (((wave - 3) / 2) | 0), 3) });
+    // war massiffs are an elite, not a grunt: a couple at a time, late on
+    if (wave >= 5) list.push({ kind: 'massiff', count: Math.min(1 + (((wave - 5) / 2) | 0), 3) });
     if (wave >= 6) list.push({ kind: 'stormtrooper', count: n(1, 0.5) });     // Imperial remnant arrives
     if (wave >= 8) list.push({ kind: 'deathtrooper', count: Math.min(1 + (((wave - 6) / 2) | 0), 3) });
     if (wave >= 9) list.push({ kind: 'darktrooper', count: 2, air: true });

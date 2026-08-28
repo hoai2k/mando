@@ -2,7 +2,8 @@ import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import {
   buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG,
-  buildImperialOfficer, buildNikto, buildPirate, buildPyke, buildStormtrooper, buildTusken,
+  buildImperialOfficer, buildMassiff, buildNikto, buildPirate, buildPyke, buildStormtrooper,
+  buildTusken,
 } from '../characters/enemies';
 
 /**
@@ -65,6 +66,7 @@ export const GROUPS: SubjectGroup[] = [
       plain('pirateMelee', 'Pirate — melee', (a) => buildPirate(true, a), true, 'pirate_melee'),
       plain('droid', 'Assassin Droid', (a) => buildDroid(a), true),
       plain('nikto', 'Nikto Swoop Rider', (a) => buildNikto(a), true),
+      plain('massiff', 'War Massiff', buildMassiff),
       plain('stormtrooper', 'Stormtrooper', () => buildStormtrooper(false)),
       plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a), true),
       plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a), true),

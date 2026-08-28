@@ -32,10 +32,6 @@ const BLOCK_SPEED = 3.2;
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 const ROCKET_CD = 12;
-/** seconds of Dead Eye on a full meter */
-const DEADEYE_SECONDS = 6;
-/** trickle refill: seconds from empty to full without kills */
-const DEADEYE_REFILL = 45;
 
 export class Player {
   char: PlayerCharacter;
@@ -63,9 +59,6 @@ export class Player {
   private dashArmed = false;
   /** RB was pressed while already moving, so this hold is a sprint */
   private sprintLatched = false;
-  /** Dead Eye meter, 0..1 — drains while active, feeds on kills */
-  deadeye = 1;
-  deadeyeActive = false;
   weapon: 'blaster' | 'gaffi' = 'blaster';
   alive = true;
   kills = 0;
@@ -123,8 +116,6 @@ export class Player {
     this.alive = true;
     this.respawnTimer = 0;
     this.slamming = false;
-    this.deadeye = Math.max(this.deadeye, 0.5);
-    this.deadeyeActive = false;
     this.cover = null;
     this.peeking = false;
     this.char.animator!.releaseAll();
@@ -151,7 +142,6 @@ export class Player {
     anim.release('upper');
     anim.playOnce('lower', 'deathLower', 0.1, true);
     anim.playOnce('upper', 'deathUpper', 0.1, true);
-    this.deadeyeActive = false;
     this.cover = null;
     this.peeking = false;
     audio.setJetpackThrust(this.slot, 0);
@@ -192,29 +182,17 @@ export class Player {
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
-    // fire rate and cooldowns run on the wall clock: in Dead Eye the world
-    // crawls but the trigger finger doesn't — that gap is the whole power
-    this.fireCd -= realDt;
-    this.dashCd -= realDt;
-    this.rocketCd -= realDt;
+    this.fireCd -= dt;
+    this.dashCd -= dt;
+    this.rocketCd -= dt;
     this.meleeComboWindow -= dt;
     this.regenDelay -= dt;
     if (this.regenDelay <= 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 14 * dt);
 
-    // ---- Dead Eye ----
-    if (input.deadeyePressed) {
-      if (this.deadeyeActive) this.deadeyeActive = false;
-      else if (this.deadeye > 0.15) {
-        this.deadeyeActive = true;
-        audio.dash(); // the whoosh into slow motion
-      }
-    }
-    if (this.deadeyeActive) {
-      this.deadeye = Math.max(0, this.deadeye - realDt / DEADEYE_SECONDS);
-      if (this.deadeye <= 0) this.deadeyeActive = false;
-    } else {
-      this.deadeye = Math.min(1, this.deadeye + realDt / DEADEYE_REFILL);
-    }
+    // ---- camera dolly ----
+    // Hold the right stick in and push it up or down (or roll the wheel) to
+    // set the chase distance; it sticks until it is changed again.
+    if (input.zoomDelta) this.cam.dolly(input.zoomDelta);
 
     // aiming steadies the hand: finer look control while ADS
     const lookScale = input.aimHeld ? 0.55 : 1;
@@ -721,17 +699,15 @@ export class Player {
       // close range — which is what made aiming feel unreadable.
       const shotDir = this.aimPointFrom(game, muzzlePos);
 
-      // spread when hip-firing (worse on the move); aiming removes it, and
-      // Dead Eye shots always fly true
-      if (!input.aimHeld && !this.deadeyeActive) {
+      // spread when hip-firing (worse on the move); aiming removes it
+      if (!input.aimHeld) {
         const spread = 0.008 + Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.015;
         shotDir.x += (Math.random() - 0.5) * spread;
         shotDir.y += (Math.random() - 0.5) * spread;
         shotDir.z += (Math.random() - 0.5) * spread;
         shotDir.normalize();
       }
-      const dmg = this.deadeyeActive ? 55 : 34; // Dead Eye shots hit like a rifle round
-      game.projectiles.fire(muzzlePos, shotDir, 75, dmg, 0);
+      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0);
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);

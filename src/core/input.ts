@@ -17,8 +17,10 @@ export interface FrameInput {
   aimHeld: boolean;
   meleePressed: boolean;
   rocketPressed: boolean;
-  /** Dead Eye toggle — V on keyboard, right-stick click on pad */
-  deadeyePressed: boolean;
+  /** camera-zoom modifier — right-stick click held; stick Y then dollies the camera */
+  zoomHeld: boolean;
+  /** camera dolly this frame: + pulls out, - pushes in (stick Y while zoomHeld, or wheel) */
+  zoomDelta: number;
   /** hold to raise the block shield */
   blockHeld: boolean;
   slamPressed: boolean;
@@ -42,7 +44,7 @@ function blankInput(): FrameInput {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
-    deadeyePressed: false, blockHeld: false, switchPressed: false, pausePressed: false,
+    zoomHeld: false, zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
   };
 }
 
@@ -214,7 +216,13 @@ export class InputManager {
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
         inp.rocketPressed ||= this.edge(pad, BTN.Y);
-        inp.deadeyePressed ||= this.edge(pad, BTN.RS);
+        // Hold the right stick in and its vertical axis dollies the camera
+        // instead of pitching it; yaw keeps working so you can still turn.
+        if (b(BTN.RS)) {
+          inp.zoomHeld = true;
+          inp.lookY = 0;
+          inp.zoomDelta += dz(pad.axes[3] ?? 0) * 2.4 * dt;
+        }
         inp.switchPressed ||= this.edge(pad, BTN.DRIGHT);
       }
     }

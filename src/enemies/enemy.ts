@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG,
-  buildImperialOfficer, buildNikto,
+  buildImperialOfficer, buildMassiff, buildNikto,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -22,7 +22,7 @@ export interface Combatant {
 }
 
 export type EnemyKind =
-  | 'tusken' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
+  | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
   | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
   | 'ig11' | 'marshal' | 'fennec';
 
@@ -32,6 +32,19 @@ interface Def {
   damage: number; attackRange: number; attackCd: number;
   /** how far this kind can spot a foe it is facing, in metres */
   notice: number;
+  /**
+   * Never waits its turn. The director's standoff rotation is what stops a
+   * crowd of grunts mobbing the player, but a beast that politely holds a
+   * bearing while you jog away isn't a predator — relentless kinds are always
+   * committed and simply run you down.
+   */
+  relentless?: boolean;
+  /**
+   * Extra hit spheres in body-local metres (z forward, y up), for anyone too
+   * long to cover with the one capsule sphere — without these, shots at a
+   * five-metre beast's head sail straight through it.
+   */
+  hitParts?: { z: number; y: number; r: number }[];
   boltSpeed?: number; volley?: number;
   build: () => CharacterInstance;
 }
@@ -42,6 +55,12 @@ const grav = (game: Game): number => game.board.gravity ?? 1;
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
   pirateMelee: { hp: 95, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
+  // War massiff: an elite beast, not a wave-1 critter. Outruns a jog but not a
+  // sprint, so breaking away costs the energy gauge; hits hard enough that
+  // letting one close is a real mistake, and it pounces to cover the last gap.
+  massiff:     { hp: 300, speed: 10.5, radius: 0.85, height: 2.0, style: 'melee', damage: 30, attackRange: 3.6, attackCd: 1.8, notice: 52, relentless: true,
+    // skull/neck out front and the haunches behind the shoulders
+    hitParts: [{ z: 1.75, y: 1.0, r: 0.65 }, { z: -1.15, y: 1.15, r: 0.7 }], build: buildMassiff },
   pyke:        { hp: 70, speed: 4.6, radius: 0.5, height: 2.0, style: 'ranged', damage: 8, attackRange: 26, attackCd: 2.4, notice: 42, boltSpeed: 26, volley: 3, build: buildPyke },
   pirate:      { hp: 85, speed: 4.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 9, attackRange: 30, attackCd: 2.6, notice: 42, boltSpeed: 28, volley: 3, build: () => buildPirate(false) },
   droid:       { hp: 170, speed: 1.6, radius: 0.55, height: 2.1, style: 'ranged', damage: 15, attackRange: 40, attackCd: 1.7, notice: 48, boltSpeed: 34, volley: 1, build: buildDroid },
@@ -71,6 +90,10 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   duelist: 'pirate_death', officer: 'imperial_death',
 };
 
+
+const UP = new THREE.Vector3(0, 1, 0);
+const _q = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion();
 
 let nextId = 1;
 
@@ -112,6 +135,9 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
+  /** massiff leap: >0 while airborne mid-pounce, damage lands on contact */
+  private pounce = 0;
+  private pounceHit = false;
   private windupTarget: Combatant | null = null;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
@@ -135,6 +161,14 @@ export class Enemy {
    * since the sim seeds its motion from this.velocity as it stands then.
    */
   private ragdollArmed = false;
+  /** on the floor this frame (drives the massiff's pounce landing) */
+  private grounded = true;
+  /**
+   * Roll-over for corpses the articulated solver can't take: free-form rigs
+   * (the war massiff) have no canonical skeleton to hang it on, and without
+   * this they would settle standing upright on their feet.
+   */
+  private corpseTip: { axis: THREE.Vector3; angle: number; vel: number; rest: number } | null = null;
   /** corpse has come to rest: skip physics and limb work from here on */
   private settled = false;
   /** wave ended: corpse fading out, then removed */
@@ -226,8 +260,11 @@ export class Enemy {
     this.char.root.position.copy(pos);
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
-    const bark = SPAWN_BARKS[kind];
-    if (bark && team === 1) audio.bark(bark, 0.4);
+    if (kind === 'massiff') { if (team === 1) audio.beastGrowl(0.4); }
+    else {
+      const bark = SPAWN_BARKS[kind];
+      if (bark && team === 1) audio.bark(bark, 0.4);
+    }
   }
 
   /**
@@ -260,13 +297,17 @@ export class Enemy {
     return wasCalm;
   }
 
+  /** world yaw the body is facing, for placing the extra hit spheres */
+  get yaw(): number { return this.facingYaw; }
+
   /** true once this enemy is actually in the fight (used by the HUD radar) */
   get isEngaged(): boolean { return this.awareness === 'engaged'; }
 
   /** the squad broke — run from `threat`, rally at distance */
   breakAndRun(threat: THREE.Vector3): void {
     if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;
-    if (this.kind === 'droid') return; // droids have no morale to break
+    if (this.kind === 'droid') return;   // droids have no morale to break
+    if (this.def.relentless) return;     // nor does a war beast: it comes anyway
     if (this.def.style === 'swoop' || this.def.style === 'hover') return;
     this.fleeing = true;
     this.fleeTimer = 5 + Math.random() * 3;
@@ -309,8 +350,11 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      const bark = DEATH_BARKS[this.kind];
-      if (bark) audio.bark(bark, 0.5);
+      if (this.kind === 'massiff') audio.beastYelp(0.6);
+      else {
+        const bark = DEATH_BARKS[this.kind];
+        if (bark) audio.bark(bark, 0.5);
+      }
       // fling the corpse — harder killing blows throw harder, with a bit of
       // sideways scatter so a mowed-down line doesn't fall in lockstep
       const dir = this.position.clone().sub(from).setY(0).normalize();
@@ -458,13 +502,36 @@ export class Enemy {
         return;
       }
 
-      // no solver (already prone from a crawl or knockdown): slide and settle
+      // Rigless bodies (the war massiff) get a plain roll-over instead of the
+      // solver: tip onto the flank away from the killing blow. Anyone already
+      // prone (a crawl or a knockdown) keeps the pose they were holding.
+      if (this.ragdollArmed) {
+        this.ragdollArmed = false;
+        if (!this.char.rig) {
+          const dir = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
+          if (dir.lengthSq() < 0.05) dir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+          dir.normalize();
+          this.corpseTip = {
+            axis: new THREE.Vector3(0, 1, 0).cross(dir).normalize(),
+            angle: 0,
+            vel: 2 + Math.random() * 1.5,
+            rest: (Math.PI / 2) * (0.85 + Math.random() * 0.2),
+          };
+        }
+      }
+      if (this.corpseTip && this.corpseTip.angle < this.corpseTip.rest) {
+        this.corpseTip.vel += 7 * dt;
+        this.corpseTip.angle = Math.min(this.corpseTip.rest, this.corpseTip.angle + this.corpseTip.vel * dt);
+      }
+
+      // no solver: slide and settle
       this.velocity.x = damp(this.velocity.x, 0, 3, dt);
       this.velocity.z = damp(this.velocity.z, 0, 3, dt);
       this.velocity.y -= 22 * grav(game) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
-      if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
+      const rolled = !this.corpseTip || this.corpseTip.angle >= this.corpseTip.rest;
+      if (res.grounded && this.velocity.lengthSq() < 0.1 && rolled && this.fadeT < 0) this.settled = true;
 
       this.syncVisual(dt, game);
       return;
@@ -612,7 +679,8 @@ export class Enemy {
         }
       }
       this.velocity.y -= 24 * grav(game) * dt;
-      game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+      this.grounded = res.grounded;
       if (this.position.y < game.board.physics.killY) { this.alive = false; this.removeMe = true; }
     } else {
       this.position.addScaledVector(this.velocity, dt);
@@ -674,8 +742,11 @@ export class Enemy {
       this.interest.copy(foe.position);
       if (first) {
         this.reaction = Math.max(this.reaction, 0.2 + Math.random() * 0.4);
-        const bark = SPAWN_BARKS[this.kind];
-        if (bark) audio.bark(bark, 0.35);
+        if (this.kind === 'massiff') audio.beastGrowl(0.45);
+        else {
+          const bark = SPAWN_BARKS[this.kind];
+          if (bark) audio.bark(bark, 0.35);
+        }
         game.director.alertSquad(game, this, foe.position);
       }
       return foe;
@@ -965,12 +1036,63 @@ export class Enemy {
       return;
     }
 
+    // ---- pounce (the massiff's signature) ----
+    // Mid-leap it steers not at all: the arc is committed the moment it jumps,
+    // so a dash or a jetpack hop to the side beats it. Contact during the leap
+    // is the hit, and landing ends it either way.
+    if (this.pounce > 0) {
+      this.pounce -= dt;
+      if (!this.pounceHit && target.alive) {
+        const pd = target.position.distanceTo(this.position);
+        if (pd < d.attackRange + 0.4) {
+          this.pounceHit = true;
+          target.damage(d.damage * 1.15, this.position);
+          if ('velocity' in target) target.velocity.addScaledVector(this.velocity.clone().setY(0).normalize(), 5);
+          this.attackCd = d.attackCd;
+        }
+      }
+      if (this.pounce <= 0 || (this.grounded && this.pounce < 0.4)) {
+        this.pounce = 0;
+        // land and get straight back to running; a miss shouldn't gift a rest
+        this.attackCd = Math.max(this.attackCd, this.pounceHit ? d.attackCd : 0.7);
+        game.particles.dustPuff(this.position, 10); // heavy landing
+      }
+      return;
+    }
+
     // Not our turn: hold at a standoff on the assigned bearing and wait for an
     // opening. Only the handful of fighters the director commits actually rush,
     // which is what keeps a group from becoming a conga line into the gaffi.
     if (!this.committed && dist < 20) {
       this.holdBearing(dt, target, 9 + (this.id % 3) * 1.7, 0.8);
       return;
+    }
+
+    // Beasts close the last stretch in one leap rather than jogging into reach.
+    // The arc is ballistic and committed — no steering once airborne, so a dash
+    // or a jetpack hop beats it — which means it has to be aimed at where the
+    // target *will* be. Without the lead, pouncing at a running player lands
+    // behind them and actually loses ground.
+    if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
+        dist > d.attackRange && dist < 16 && this.hasLineOfSight(game, target)) {
+      const vy = 6.2 + dist * 0.12;
+      const flight = (2 * vy) / (24 * grav(game));       // ballistic hang time
+      const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.85);
+      const ax = aim.x - this.position.x, az = aim.z - this.position.z;
+      const gap = Math.hypot(ax, az);
+      const need = gap / flight;
+      // only leap if the beast can actually land on them
+      if (need <= 24 && gap > 1) {
+        this.velocity.x = (ax / gap) * need;
+        this.velocity.z = (az / gap) * need;
+        this.velocity.y = vy;
+        this.pounce = flight + 0.5;
+        this.pounceHit = false;
+        this.grounded = false;
+        audio.beastGrowl(0.6);
+        game.particles.dustPuff(this.position, 8);
+        return;
+      }
     }
 
     if (dist > d.attackRange) {
@@ -1191,6 +1313,14 @@ export class Enemy {
     // and every bone itself, so syncVisual must keep its hands off
     if (this.ragdoll) return;
     this.char.root.position.copy(this.position);
+    if (this.corpseTip) {
+      // yaw first, then tip onto the flank around the impulse axis
+      _q.setFromAxisAngle(UP, this.facingYaw);
+      _q2.setFromAxisAngle(this.corpseTip.axis, this.corpseTip.angle);
+      this.char.root.quaternion.multiplyQuaternions(_q2, _q);
+      this.char.cosmetic?.(dt, game.time);
+      return;
+    }
     this.char.root.rotation.y = this.facingYaw;
     if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);

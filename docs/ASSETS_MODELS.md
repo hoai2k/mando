@@ -43,6 +43,7 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 | Character | Board | Reference sheets | Reference look |
 |---|---|---|---|
 | **Tusken Raider** | `tusken_front/side/back.png` | desert | Sand-colored wrapped robes, bandolier, cylinder-eyed mask with rebreather spikes, gaderffii stick. |
+| **War massiff** ◆ | desert | `massiff_front/side/back.png` | Armoured quadruped predator — **note the size change: 2.1 m tall at the dorsal spines, 5.6 m nose to tail**, roughly triple a trooper's bulk, not the knee-high hound the old sheets imply. Slab-sided plated hide, spine of plates and spikes, flank scutes, heavy tusked skull carried low and forward, thick segmented tail. Free-form rig; keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..5`. |
 | **Nikto swoop rider** ◆ | desert | `nikto_front/side/back.png`, `nikto_swoop_front/side/back.png` | Horned leathery-faced alien in biker leathers riding a long-nosed swoop bike; nodes: `bike`, rider on canonical rig welded to seat. |
 | **Pyke soldier** | `pyke_front/side/back.png` | both | Tall tapered grey-green helmet with narrow eyes, breather tubes to chest rig, slate long coat, rifle. |
 | **Space pirate (ranged & brawler)** | `pirate_front/side/back.png` | station | Ragged spacer leathers, mismatched plates, one metal pauldron, horn-nubbed alien head; brawler variant carries a heavy club. |

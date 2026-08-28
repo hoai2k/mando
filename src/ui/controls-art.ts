@@ -118,7 +118,7 @@ function padSvg(): string {
     ${lead('728,300 686,300 634,238')}${dot(605, 222)}
     ${label(736, 296, 'start', [
       ['Right stick', 'Look &amp; aim'],
-      ['Click', 'Dead Eye'],
+      ['Click + up/down', 'Camera distance'],
     ])}
 
     <!-- View and Menu: routed down through the gap between the grips, which is

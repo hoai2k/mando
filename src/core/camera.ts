@@ -2,11 +2,24 @@ import * as THREE from 'three';
 import { clamp, damp, dampAngle, yawBasis } from './math';
 import type { PhysicsWorld } from './physics';
 
+/** default chase distance, and the range the right-stick dolly can set */
+const BASE_DIST = 4.6;
+const MIN_DIST = 1.9;
+const MAX_DIST = 11;
+/** aiming sits this fraction of the chase distance out */
+const AIM_RATIO = 2.7 / BASE_DIST;
+
 /** Third-person orbit camera with collision, aim zoom, and shake. */
 export class ThirdPersonCamera {
   camera: THREE.PerspectiveCamera;
   yaw = Math.PI; // face -Z toward scene by default
   pitch = -0.12;
+  /**
+   * The player's chosen chase distance, held across the whole session: the
+   * right-stick dolly writes it and everything else works relative to it, so
+   * a camera you pulled out stays pulled out until you change it again.
+   */
+  baseDist = 4.6;
   private dist = 4.6;
   private fov = 72;
   private shakeAmt = 0;
@@ -30,6 +43,11 @@ export class ThirdPersonCamera {
 
   shake(amount: number): void { this.shakeAmt = Math.min(this.shakeAmt + amount, 0.5); }
 
+  /** dolly the chase camera; + pulls out, - pushes in. Persists. */
+  dolly(delta: number): void {
+    this.baseDist = clamp(this.baseDist + delta * BASE_DIST, MIN_DIST, MAX_DIST);
+  }
+
   /** Pull the view onto a world point over ~0.15 s (aim-press lock-on). */
   snapToward(point: THREE.Vector3): void {
     const dx = point.x - this.camera.position.x;
@@ -52,7 +70,9 @@ export class ThirdPersonCamera {
       this.yaw = dampAngle(this.yaw, this.snapYaw, 22, dt);
       this.pitch = damp(this.pitch, this.snapPitch, 22, dt);
     }
-    const targetDist = opts.aiming ? 2.7 : 4.6;
+    // aiming pulls in proportionally, so the over-the-shoulder framing keeps
+    // its relationship to whatever chase distance the player has dialled in
+    const targetDist = this.baseDist * (opts.aiming ? AIM_RATIO : 1);
     const targetFov = opts.aiming ? 52 : 72 + Math.min(opts.speed / 14, 1) * 7 + (opts.dashing ? 6 : 0);
     this.dist = damp(this.dist, targetDist, 10, dt);
     this.fov = damp(this.fov, targetFov, 8, dt);

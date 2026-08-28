@@ -9,7 +9,7 @@ import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
-import { damp, yawBasis } from '../core/math';
+import { yawBasis } from '../core/math';
 import { loadOptionalTexture } from '../core/assets';
 import type { FrameInput } from '../core/input';
 
@@ -50,11 +50,6 @@ export class Game {
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
-  /**
-   * Dead Eye slows the whole world. This is the smoothed timescale — the ramp
-   * in and out is most of what sells the effect.
-   */
-  timeScale = 1;
   /** seconds spent on the current wave, for the hunt escalation below */
   private waveTimer = 0;
   /** hostiles this wave put on the board — see the wave-clear check */
@@ -163,18 +158,9 @@ export class Game {
 
   get aliveEnemyCount(): number { return this.enemies.filter((e) => e.alive).length; }
 
-  update(realDt: number, inputs: FrameInput[]): void {
-    // ---- Dead Eye ----
-    // Any player in Dead Eye slows the world (both of them share it in
-    // split-screen — one shared world, one clock). Players still update on a
-    // faster clock than the world so the shooter keeps the advantage.
-    const wantSlow = this.players.some((p) => p.alive && p.deadeyeActive);
-    this.timeScale = damp(this.timeScale, wantSlow ? 0.3 : 1, 9, realDt);
-    if (this.timeScale > 0.985) this.timeScale = 1;
-    const dt = realDt * this.timeScale;
-
+  update(dt: number, inputs: FrameInput[]): void {
     this.time += dt;
-    if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += realDt;
+    if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
     this.board.update?.(dt, this.time);
 
     // ---- match flow ----
@@ -203,7 +189,7 @@ export class Game {
 
     // ---- players ----
     for (const p of this.players) {
-      p.update(dt, inputs[p.slot], this, realDt);
+      p.update(dt, inputs[p.slot], this);
       if (!p.alive && p.respawnTimer <= 0 && this.state !== 'defeat' && this.state !== 'victory') {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
         if (this.players.length > 1 && partnerAlive) {
@@ -248,9 +234,7 @@ export class Game {
         audio.killConfirm();
         this.director.deathNearby(this, e.position);
         if (e.lastHitBy >= 0 && this.players[e.lastHitBy]) {
-          const killer = this.players[e.lastHitBy];
-          killer.kills++;
-          killer.deadeye = Math.min(1, killer.deadeye + 0.25); // kills feed the meter
+          this.players[e.lastHitBy].kills++;
           this.events.hitMarker(e.lastHitBy);
         }
       }
@@ -274,18 +258,34 @@ export class Game {
     const targets: BoltTarget[] = [];
     for (const e of this.enemies) {
       if (!e.alive) continue;
+      const onHit = (dmg: number, from: THREE.Vector3): void => {
+        const wasAlive = e.alive;
+        const slot = this.nearestPlayerSlot(from);
+        e.damage(dmg, from, slot);
+        // every hit shoves: light per bolt, but it stacks over a burst
+        e.knockback(from, 5.5, 0.2);
+        if (wasAlive) this.hitMarker(slot);
+      };
       targets.push({
         position: e.position.clone().add(new THREE.Vector3(0, e.height * 0.5, 0)),
         radius: e.radius + 0.35, team: 1, alive: e.alive,
-        onHit: (dmg, from) => {
-          const wasAlive = e.alive;
-          const slot = this.nearestPlayerSlot(from);
-          e.damage(dmg, from, slot);
-          // every hit shoves: light per bolt, but it stacks over a burst
-          e.knockback(from, 5.5, 0.2);
-          if (wasAlive) this.hitMarker(slot);
-        },
+        onHit,
       });
+      // long bodies (the war massiff) need more than the one centre sphere
+      if (e.def.hitParts) {
+        const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
+        for (const part of e.def.hitParts) {
+          targets.push({
+            position: new THREE.Vector3(
+              e.position.x + sin * part.z,
+              e.position.y + part.y,
+              e.position.z + cos * part.z
+            ),
+            radius: part.r, team: 1, alive: e.alive,
+            onHit,
+          });
+        }
+      }
     }
     for (const p of this.players) {
       if (!p.alive) continue;

@@ -268,7 +268,6 @@ function resumeGame(): void {
 }
 
 function quitToTitle(): void {
-  document.body.classList.remove('deadeye');
   disposeGame();
   hud.hide();
   setState('title');
@@ -314,7 +313,6 @@ function frame(now: number): void {
       const inputs = [input.read(0, dt), input.read(1, dt)];
       game.update(dt, inputs);
       hud.update(dt, game);
-      document.body.classList.toggle('deadeye', game.timeScale < 0.9);
       // transition to end screen shortly after victory/defeat
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;

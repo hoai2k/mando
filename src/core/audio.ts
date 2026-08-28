@@ -14,7 +14,7 @@ type SampleName =
   | 'footstep_sand' | 'footstep_metal'
   | 'ui_move' | 'ui_confirm' | 'ui_back' | 'wave_start' | 'wave_clear'
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
-  | 'droid_death' | 'swoop_pass'
+  | 'droid_death' | 'swoop_pass' | 'massiff_growl' | 'massiff_yelp'
   | 'imperial_bark' | 'imperial_death'
   | 'amb_desert' | 'amb_station'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
@@ -90,7 +90,7 @@ export class AudioEngine {
       'footstep_sand', 'footstep_metal',
       'ui_move', 'ui_confirm', 'ui_back', 'wave_start', 'wave_clear',
       'tusken_cry', 'pyke_chatter', 'pyke_death', 'pirate_taunt', 'pirate_death',
-      'droid_death', 'swoop_pass',
+      'droid_death', 'swoop_pass', 'massiff_growl', 'massiff_yelp',
       'imperial_bark', 'imperial_death',
       'amb_desert', 'amb_station',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
@@ -167,6 +167,26 @@ export class AudioEngine {
     const t = ctx.currentTime + when;
     src.start(t);
     src.stop(t + dur + 0.05);
+  }
+
+  /**
+   * War-massiff voice. Unlike the other creature barks this one synthesizes
+   * when the sample is missing — the beast is big enough on screen that a
+   * silent charge reads as broken, and its two mp3s were retired when the
+   * old small massiff was cut.
+   */
+  beastGrowl(gain = 0.55): void {
+    if (!this.ctx || this.playSample('massiff_growl', gain, 0.95 + Math.random() * 0.1)) return;
+    // low rasping snarl: detuned growl over a filtered noise rumble
+    this.zap(110, 62, 0.5, 'sawtooth', 0.3 * gain);
+    this.zap(76, 47, 0.55, 'square', 0.18 * gain);
+    this.burst(0.5, 0.22 * gain, 340, 0, 2.5);
+  }
+
+  beastYelp(gain = 0.6): void {
+    if (!this.ctx || this.playSample('massiff_yelp', gain, 0.95 + Math.random() * 0.1)) return;
+    this.zap(430, 90, 0.34, 'sawtooth', 0.32 * gain);
+    this.burst(0.26, 0.2 * gain, 900, 0.02, 1.4);
   }
 
   blaster(): void {
