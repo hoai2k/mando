@@ -19,7 +19,10 @@ undo and redo them, and export the whole session as one JSON.
 
 ## Controls
 
-| Action | Keyboard / Mouse | Xbox controller |
+The game is built for a controller. Keyboard and mouse gameplay is off by
+default — turn on **Keyboard & mouse** in Settings for the left column.
+
+| Action | Keyboard / Mouse (opt-in) | Xbox controller |
 |---|---|---|
 | Move | `WASD` | Left stick |
 | Look / aim | Mouse | Right stick |

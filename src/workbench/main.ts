@@ -34,6 +34,8 @@ interface Figure {
     setThrust?: (t: number) => void;
     setWeapon?: (w: 'blaster' | 'gaffi') => void;
     setBlock?: (t: number) => void;
+    /** creatures on their own rig cross-fade idle against a run by speed */
+    setGait?: (speed: number) => void;
   };
   label: string;
 }
@@ -225,6 +227,9 @@ function applyPose(): void {
     f.extras.setThrust?.(pose.thrust ?? 0);
     f.extras.setWeapon?.(pose.melee ? 'gaffi' : 'blaster');
     f.extras.setBlock?.(pose.block ? 1 : 0);
+    // A creature with its own gait has no channels to play, but it does take a
+    // speed — so the run poses drive it and everything else stands it still.
+    f.extras.setGait?.(/run|sprint/.test(pose.id) ? 12 : 0);
   }
 }
 

@@ -1,16 +1,31 @@
 import * as THREE from 'three';
 
-/** Twin-sun desert sky dome (custom gradient shader with two sun discs). */
-export function tatooineSky(): THREE.Mesh {
+export interface GradientSkyOpts {
+  top: number;
+  horizon: number;
+  dusk: number;
+  sun1?: { dir: THREE.Vector3; color: number; size?: number };
+  sun2?: { dir: THREE.Vector3; color: number; size?: number };
+}
+
+/**
+ * Gradient sky dome with up to two sun discs — the desert sky generalized so
+ * every outdoor board can carry its own palette (ochre Tatooine, ash-brown
+ * Nevarro, bone-pale ice, the ring city's hard split).
+ */
+export function gradientSky(opts: GradientSkyOpts): THREE.Mesh {
+  const off = new THREE.Vector3(0, -1, 0); // a sun below the floor never shows
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: {
-      topColor: { value: new THREE.Color(0x8fb0cd) },
-      horizonColor: { value: new THREE.Color(0xeacf96) },
-      duskColor: { value: new THREE.Color(0xd99a5b) },
-      sun1Dir: { value: new THREE.Vector3(0.42, 0.38, 0.55).normalize() },
-      sun2Dir: { value: new THREE.Vector3(0.62, 0.3, 0.45).normalize() },
+      topColor: { value: new THREE.Color(opts.top) },
+      horizonColor: { value: new THREE.Color(opts.horizon) },
+      duskColor: { value: new THREE.Color(opts.dusk) },
+      sun1Dir: { value: (opts.sun1?.dir ?? off).clone().normalize() },
+      sun2Dir: { value: (opts.sun2?.dir ?? off).clone().normalize() },
+      sun1Color: { value: new THREE.Color(opts.sun1?.color ?? 0x000000) },
+      sun2Color: { value: new THREE.Color(opts.sun2?.color ?? 0x000000) },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -20,7 +35,7 @@ export function tatooineSky(): THREE.Mesh {
       }
     `,
     fragmentShader: /* glsl */ `
-      uniform vec3 topColor, horizonColor, duskColor, sun1Dir, sun2Dir;
+      uniform vec3 topColor, horizonColor, duskColor, sun1Dir, sun2Dir, sun1Color, sun2Color;
       varying vec3 vDir;
       void main() {
         float h = clamp(vDir.y, 0.0, 1.0);
@@ -28,13 +43,13 @@ export function tatooineSky(): THREE.Mesh {
         // warm dusk band toward the suns' azimuth
         float sunAz = max(dot(normalize(vec3(vDir.x, 0.0, vDir.z)), normalize(vec3(sun1Dir.x, 0.0, sun1Dir.z))), 0.0);
         col = mix(col, duskColor, sunAz * (1.0 - h) * 0.55);
-        // twin suns
+        // sun discs
         float d1 = dot(vDir, sun1Dir);
         float d2 = dot(vDir, sun2Dir);
-        col += vec3(1.0, 0.95, 0.82) * smoothstep(0.9985, 0.9995, d1) * 1.6;
-        col += vec3(1.0, 0.95, 0.82) * smoothstep(0.996, 0.999, d1) * 0.5;
-        col += vec3(1.0, 0.75, 0.5) * smoothstep(0.9988, 0.9996, d2) * 1.3;
-        col += vec3(1.0, 0.75, 0.5) * smoothstep(0.997, 0.9992, d2) * 0.4;
+        col += sun1Color * smoothstep(0.9985, 0.9995, d1) * 1.6;
+        col += sun1Color * smoothstep(0.996, 0.999, d1) * 0.5;
+        col += sun2Color * smoothstep(0.9988, 0.9996, d2) * 1.3;
+        col += sun2Color * smoothstep(0.997, 0.9992, d2) * 0.4;
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -42,6 +57,15 @@ export function tatooineSky(): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), material);
   mesh.frustumCulled = false;
   return mesh;
+}
+
+/** Twin-sun desert sky dome — the Dune Sea's original palette. */
+export function tatooineSky(): THREE.Mesh {
+  return gradientSky({
+    top: 0x8fb0cd, horizon: 0xeacf96, dusk: 0xd99a5b,
+    sun1: { dir: new THREE.Vector3(0.42, 0.38, 0.55), color: 0xfff2d1 },
+    sun2: { dir: new THREE.Vector3(0.62, 0.3, 0.45), color: 0xffbf80 },
+  });
 }
 
 /** Deep-space nebula + starfield + gas giant. */

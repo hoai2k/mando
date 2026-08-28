@@ -52,6 +52,29 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 | **Death trooper** | `deathtrooper_front/side/back.png` | both | All-black elite trooper armor, taller (~2.0 m), matte with subtle green lens glow. |
 | **Dark trooper** | both | `darktrooper_front/side/back.png` | Heavy jet-black humanoid battle droid (~2.2 m), skull-faced with red eyes, integrated back thrusters; uses canonical rig + `jetpack` node. |
 
+## New-board enemies — priority 3 (in game now as procedural stand-ins)
+
+The six new boards (Nevarro, the Crevasse, Trask, the Refinery, the Great Forge, the
+Ringworld) shipped with seven new enemy kinds. All run procedurally today; sheets for every
+one are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under *New-board enemies* —
+as everywhere else, model from the sheets, not the prose.
+
+| Character | Boards | Type / intake | Reference look |
+|---|---|---|---|
+| **Incinerator trooper** (`flametrooper`) | Nevarro, Refinery | canonical rig, `attachAuthored` | White trooper plate with dark-red trim bands and helmet crest, twin back fuel tanks, wide-mouthed flame projector (projector stays a separate prop on `weaponR` — the muzzle drives the flame stream). |
+| **Quarren netcaster** (`quarren`) | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
+| **Alamite** (`alamite`) | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
+| **Ringworld enforcer** (`ring_enforcer`) | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
+| **Krykna** (`krykna`) ◆ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. |
+| **Krykna broodmother** (`krykna_brood`) ◆ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
+| **Interceptor drone** (`interceptor_drone`) ◆ | Great Forge | own rig, `loadCreature` | Black probe-style drone: sphere head, one red photoreceptor, amber sensor ring, five dangling manipulator arms (`arm1..5`), top thruster node `thruster` (its dive trail emits there). |
+
+Budgets as above: ≤ 8k tris each (the broodmother may take 12k), one 512² PBR set (1024²
+for the broodmother). The four bipeds obey the standard swap contract; the three ◆
+creatures come in through `loadCreature` like the massiff — placed, scaled and grounded,
+with movement carried by the enemy code, so any node layout works but the named nodes
+above unlock the procedural animation.
+
 ## Bosses — priority 4 (planned, not yet in game)
 
 | Character | Reference sheets | Reference look |
@@ -67,7 +90,9 @@ Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every char
 game except one — `din, paz, bokatan, armorer, marshal, fennec, tusken, pyke, nikto,
 pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
-nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`.**
+nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`, and the
+seven new-board enemies above (`flametrooper`, `quarren`, `alamite`, `ring_enforcer`,
+`krykna`, `krykna_brood`, `interceptor_drone`).**
 
 ### Three intake paths
 
@@ -75,15 +100,27 @@ nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: `ig11`
 |---|---|---|
 | Characters on the canonical humanoid rig | `attachAuthored()` | our clips, through the retargeter |
 | Weapons, vehicles — no rig | `loadProp()` | nothing; placed and scaled, carried by its holder |
-| Creatures on a rig of their own | `loadCreature()` | nothing yet — see below |
+| Creatures on a rig of their own | `loadCreature()` | clips authored in code against that rig |
 
 **The massiff is the third case.** It is a quadruped: 44 deform bones, four legs and a
 tail, so `BONE_MAP` reaches none of it and no humanoid clip means anything to it. It comes
 in through `loadCreature('massiff')`, which places and scales the model (1.15 m at the
-shoulder, 2.5 m long) and grounds it — the enemy's own movement carries it, exactly as the
-swoop bike works. `massiff_static` is the unrigged variant of the same sculpt and the
-cheaper choice while nothing is deforming it. Giving it a real gait means either authoring
-clips against its own skeleton or a second, quadruped bone map; neither is in place.
+shoulder, 2.5 m long) and grounds it. `massiff_static` is the unrigged variant of the same
+sculpt.
+
+Its gait is authored in code, in `src/anim/quadruped.ts`. Two differences from `clips.ts`
+matter to anyone touching it: this skeleton has **real rest rotations baked in**, so every
+value is `rest * delta` and the clips are built once the model is loaded and its rest pose
+can be read; and every bone runs along its local **+Y**, so a rotation about local X swings
+a limb fore and aft, positive being backward. A leg holds its rest height through the
+stance half of the cycle and only lifts during the swing half — nothing raises the body, so
+a leg that stays bent leaves the animal prancing above the ground it should be pushing off.
+
+**Clips shipped in a `.glb` always win.** `GENERATED_CLIPS` in `authored.ts` is consulted
+only when the file carries none, so re-exporting `massiff.glb` with real animation baked in
+replaces this with no code change — the loader hands whatever it finds to the same mixer.
+Name them to match: something matching `/idle|breath|stand/` and something matching
+`/run|gallop|sprint/` or `/walk|trot|move/`.
 
 The id is the filename, and it is not always the character's internal id — the Imperial
 officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate

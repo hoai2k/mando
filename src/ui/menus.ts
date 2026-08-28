@@ -124,6 +124,41 @@ export class MenuScreen {
     return row;
   }
 
+  /**
+   * On/off row. Confirm flips it, left/right set it explicitly, and it reads
+   * back from its source every time the screen is shown — same contract as a
+   * slider, so a value changed elsewhere never shows stale here.
+   */
+  addToggle(label: string, get: () => boolean, set: (v: boolean) => void): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'menu-toggle menu-btn';
+    const name = document.createElement('span');
+    name.className = 'toggle-label';
+    name.textContent = label;
+    const value = document.createElement('span');
+    value.className = 'toggle-value';
+    row.append(name, value);
+    this.root.appendChild(row);
+
+    const paint = () => {
+      const on = get();
+      value.textContent = on ? 'On' : 'Off';
+      row.classList.toggle('on', on);
+    };
+    const apply = (v: boolean) => { set(v); paint(); };
+    row.addEventListener('click', () => { audio.uiConfirm(); apply(!get()); });
+    row.addEventListener('mouseenter', () => { if (pointerMoved) this.focusEl(row); });
+
+    this.focusables.push({
+      el: row,
+      action: () => { audio.uiConfirm(); apply(!get()); },
+      adjust: (dir) => { audio.uiMove(); apply(dir > 0); },
+    });
+    paint();
+    this.sliders.push(paint);   // refreshed with the sliders when a screen opens
+    return row;
+  }
+
   /** Re-read every slider from its source — call when a screen is shown. */
   refreshSliders(): void { for (const paint of this.sliders) paint(); }
 

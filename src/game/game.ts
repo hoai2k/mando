@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { Board } from '../world/board';
+import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
-import { Enemy } from '../enemies/enemy';
+import { Enemy, type EnemyKind } from '../enemies/enemy';
 import { FINAL_WAVE, spawnWave, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
@@ -146,9 +146,55 @@ export class Game {
     // wave one is about to need, rather than parsing them on the spawn frame.
     this.preloadWave(1);
 
-    audio.startAmbient(board.kind === 'desert' ? 'desert' : 'station');
-    audio.startMusic(board.kind === 'desert' ? 'desert' : 'station');
-    this.events.banner(board.kind === 'desert' ? 'The Dune Sea' : 'The Spice Run', 'Survive 10 waves');
+    audio.startAmbient(board.ambience.sample, board.ambience.bed);
+    audio.startMusic(board.music);
+    this.events.banner(board.name, board.objective ?? 'Survive 10 waves');
+  }
+
+  /**
+   * Add a hostile mid-wave (brood spawns, reinforcement events). It counts
+   * toward the wave like anything the spawner posted, so the clear check and
+   * the radar tally stay honest.
+   */
+  addReinforcement(kind: EnemyKind, pos: THREE.Vector3, squad = 0): Enemy {
+    const e = new Enemy(kind, pos);
+    e.squad = squad;
+    this.waveSpawned++;
+    this.enemies.push(e);
+    this.scene.add(e.char.root);
+    this.particles.dustPuff(pos, 8);
+    return e;
+  }
+
+  /**
+   * Hurt every breakable prop within `radius` of `point` — explosions and
+   * ground slams reach the scenery just like they reach people.
+   */
+  damageBreakablesNear(point: THREE.Vector3, radius: number, dmg: number): void {
+    const list = this.board.breakables;
+    if (!list) return;
+    for (const b of list) {
+      if (b.broken) continue;
+      const d = b.center.distanceTo(point);
+      if (d < radius + b.radius) this.hurtBreakable(b, dmg * (1 - Math.max(0, d - b.radius) / (radius + 1)));
+    }
+  }
+
+  private hurtBreakable(b: Breakable, dmg: number): void {
+    if (b.broken || dmg <= 0) return;
+    b.hp -= dmg;
+    if (b.hp > 0) return;
+    b.broken = true;
+    // the collision box goes with the prop — it no longer blocks or shelters
+    const boxes = this.board.physics.boxes;
+    const bi = boxes.indexOf(b.box);
+    if (bi >= 0) boxes.splice(bi, 1);
+    b.mesh.visible = false;
+    for (const p of this.players) if (p.cover?.box === b.box) { p.cover = null; p.peeking = false; }
+    this.particles.deathBurst(b.center, 18);
+    b.onBreak?.(this);
+    if (b.explosive) this.explode(b.center.clone(), -1);
+    else audio.impact();
   }
 
   /**
@@ -200,6 +246,7 @@ export class Game {
     this.particles.explosion(point);
     audio.explosion();
     this.director.noise(this, point, 70, true); // an explosion is not subtle
+    this.damageBreakablesNear(point, 6, 90);    // scenery is not exempt (chains!)
     for (const p of this.players) p.cam.shake(Math.max(0, 0.35 - point.distanceTo(p.position) * 0.01));
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -222,7 +269,27 @@ export class Game {
   update(dt: number, inputs: FrameInput[]): void {
     this.time += dt;
     if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
-    this.board.update?.(dt, this.time);
+    this.board.update?.(dt, this.time, this);
+
+    // ---- moving platforms carry their riders ----
+    // The board has already re-placed each mover's box; whoever is standing on
+    // the old top rides the frame's displacement, so a heaving deck under your
+    // feet is ground, not a treadmill.
+    if (this.board.movers) {
+      for (const m of this.board.movers) {
+        if (m.delta.lengthSq() < 1e-10) continue;
+        const b = m.box;
+        const carry = (pos: THREE.Vector3, radius: number): void => {
+          if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) return;
+          if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) return;
+          if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) return;
+          pos.add(m.delta);
+        };
+        for (const p of this.players) if (p.alive) carry(p.position, p.radius);
+        for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
+        for (const a of this.allies) if (a.alive) carry(a.position, a.radius);
+      }
+    }
 
     // ---- match flow ----
     this.stateTimer -= dt;
@@ -328,7 +395,7 @@ export class Game {
       t.radius = e.radius + 0.35;
       t.team = 1;
       t.alive = true;
-      t.shield = null;
+      t.shield = e.shieldCollider;
       t.slot = undefined;
       targets.push(t);
       // long bodies (the war massiff) need more than the one centre sphere
@@ -364,6 +431,16 @@ export class Game {
       t.shield = p.shieldCollider;
       t.slot = p.slot;
       targets.push(t);
+    }
+    // breakable props sit on team 2, so both sides' fire chips at them
+    if (this.board.breakables) {
+      for (const b of this.board.breakables) {
+        if (b.broken) continue;
+        targets.push({
+          position: b.center, radius: b.radius, team: 2, alive: true,
+          onHit: (dmg) => this.hurtBreakable(b, dmg),
+        });
+      }
     }
     for (const a of this.allies) {
       if (!a.alive) continue;
@@ -430,8 +507,14 @@ export class Game {
     const entry: PooledTarget = {
       position: new THREE.Vector3(), radius: 0, team: 0, alive: false,
       shield: null, slot: undefined, enemy: null, player: null,
-      onHit: (dmg: number, from: THREE.Vector3, bySlot: number): void => {
-        if (entry.player) { entry.player.damage(dmg, from); return; }
+      onHit: (dmg: number, from: THREE.Vector3, bySlot: number, tag?: string): void => {
+        if (entry.player) {
+          const p = entry.player;
+          p.damage(dmg, from);
+          // a net barely hurts; being rooted in the open is the damage
+          if (tag === 'net' && p.alive) p.snareTimer = Math.max(p.snareTimer, 2.4);
+          return;
+        }
         const e = entry.enemy;
         if (!e) return;
         const wasAlive = e.alive;

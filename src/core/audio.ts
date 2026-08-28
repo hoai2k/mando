@@ -11,19 +11,26 @@ type SampleName =
   | 'blaster_shot' | 'enemy_blaster' | 'blaster_impact' | 'melee_whoosh' | 'melee_hit'
   | 'rocket_launch' | 'explosion' | 'hit_marker' | 'kill_confirm' | 'player_hurt'
   | 'jetpack_loop' | 'jetpack_ignite' | 'dash' | 'land_hard' | 'land_soft'
-  | 'footstep_sand' | 'footstep_metal'
+  | 'footstep_sand' | 'footstep_metal' | 'footstep_snow' | 'footstep_stone'
   | 'ui_move' | 'ui_confirm' | 'ui_back' | 'wave_start' | 'wave_clear'
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass' | 'massiff_growl' | 'massiff_yelp'
   | 'imperial_bark' | 'imperial_death'
-  | 'amb_desert' | 'amb_station'
+  | 'spider_chitter' | 'quarren_bark' | 'alamite_shriek' | 'drone_whine' | 'flame_burst'
+  | 'thunder_crack' | 'geyser_blast' | 'alarm_klaxon' | 'ice_crack' | 'mythosaur_call'
+  | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
+  | 'amb_refinery' | 'amb_forge' | 'amb_city'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass'
-  | 'imperial_bark' | 'imperial_death';
+  | 'imperial_bark' | 'imperial_death'
+  | 'spider_chitter' | 'quarren_bark' | 'alamite_shriek' | 'drone_whine';
+
+/** Footfall surfaces, one per board flavor. */
+export type FootSurface = 'sand' | 'metal' | 'snow' | 'stone';
 
 /**
  * Authored background-music playlists, streamed rather than decoded up front:
@@ -90,12 +97,15 @@ export class AudioEngine {
       'blaster_shot', 'enemy_blaster', 'blaster_impact', 'melee_whoosh', 'melee_hit',
       'rocket_launch', 'explosion', 'hit_marker', 'kill_confirm', 'player_hurt',
       'jetpack_loop', 'jetpack_ignite', 'dash', 'land_hard', 'land_soft',
-      'footstep_sand', 'footstep_metal',
+      'footstep_sand', 'footstep_metal', 'footstep_snow', 'footstep_stone',
       'ui_move', 'ui_confirm', 'ui_back', 'wave_start', 'wave_clear',
       'tusken_cry', 'pyke_chatter', 'pyke_death', 'pirate_taunt', 'pirate_death',
       'droid_death', 'swoop_pass', 'massiff_growl', 'massiff_yelp',
       'imperial_bark', 'imperial_death',
-      'amb_desert', 'amb_station',
+      'spider_chitter', 'quarren_bark', 'alamite_shriek', 'drone_whine', 'flame_burst',
+      'thunder_crack', 'geyser_blast', 'alarm_klaxon', 'ice_crack', 'mythosaur_call',
+      'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
+      'amb_refinery', 'amb_forge', 'amb_city',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -250,11 +260,52 @@ export class AudioEngine {
     this.burst(0.07, hard ? 0.2 : 0.09, 700, 0, 0.8);
   }
   /** Footstep on the board's surface, with slight pitch variation. */
-  footstep(surface: 'sand' | 'metal'): void {
+  footstep(surface: FootSurface): void {
     if (!this.ctx) return;
     const rate = 0.9 + Math.random() * 0.25;
-    if (this.playSample(surface === 'sand' ? 'footstep_sand' : 'footstep_metal', 0.3, rate)) return;
-    this.burst(0.05, 0.07, surface === 'sand' ? 900 : 500, 0, 1.2);
+    if (this.playSample(`footstep_${surface}` as SampleName, 0.3, rate)) return;
+    // authored fallbacks that read close enough until real files land
+    if (surface === 'snow' && this.playSample('footstep_sand', 0.24, rate * 0.8)) return;
+    if (surface === 'stone' && this.playSample('footstep_metal', 0.24, rate * 0.85)) return;
+    const freq: Record<FootSurface, number> = { sand: 900, metal: 500, snow: 1200, stone: 650 };
+    this.burst(0.05, 0.07, freq[surface], 0, 1.2);
+  }
+  /** Thunder over the docks: a deep crack rolling off into rumble. */
+  thunder(gain = 0.7): void {
+    if (!this.ctx || this.playSample('thunder_crack', gain)) return;
+    this.burst(0.12, 0.4 * gain, 1800, 0, 0.6);
+    this.zap(90, 28, 1.6, 'sine', 0.5 * gain, 0.05);
+    this.burst(1.4, 0.22 * gain, 180, 0.1, 0.4);
+  }
+  /** Lava geyser letting go under someone's feet. */
+  geyser(gain = 0.6): void {
+    if (!this.ctx || this.playSample('geyser_blast', gain)) return;
+    this.burst(0.5, 0.35 * gain, 700, 0, 0.5);
+    this.zap(160, 480, 0.4, 'sawtooth', 0.12 * gain);
+  }
+  /** Refinery alarm: two-tone klaxon, one cycle per call. */
+  alarm(gain = 0.5): void {
+    if (!this.ctx || this.playSample('alarm_klaxon', gain)) return;
+    this.zap(620, 610, 0.28, 'square', 0.1 * gain);
+    this.zap(470, 460, 0.28, 'square', 0.1 * gain, 0.3);
+  }
+  /** Ice plate splitting: a sharp snap over a deep groan. */
+  iceCrack(gain = 0.7): void {
+    if (!this.ctx || this.playSample('ice_crack', gain)) return;
+    this.burst(0.08, 0.35 * gain, 2600, 0, 2.2);
+    this.zap(220, 60, 0.5, 'triangle', 0.25 * gain, 0.02);
+  }
+  /** Flame projector burst — one squeeze of the trigger. */
+  flame(gain = 0.5): void {
+    if (!this.ctx || this.playSample('flame_burst', gain)) return;
+    this.burst(0.45, 0.2 * gain, 500, 0, 0.35);
+    this.burst(0.3, 0.12 * gain, 1600, 0.05, 0.8);
+  }
+  /** Something colossal, far below the water. Felt more than heard. */
+  mythosaur(gain = 0.5): void {
+    if (!this.ctx || this.playSample('mythosaur_call', gain)) return;
+    this.zap(55, 34, 2.4, 'sine', 0.4 * gain);
+    this.zap(82, 40, 2.0, 'triangle', 0.16 * gain, 0.25);
   }
   /** Voice/flavor bark — sample only, silent if the file isn't present. */
   bark(name: BarkName, gain = 0.55): void {
@@ -339,11 +390,16 @@ export class AudioEngine {
     return () => src.stop();
   }
 
-  /** Ambient bed: authored loop if present, else synth wind/hum. */
-  startAmbient(kind: 'desert' | 'station'): void {
+  /**
+   * Ambient bed: the board's authored loop if present, else a synth bed —
+   * `wind` (outdoor boards) or `hum` (industrial interiors and stations).
+   */
+  startAmbient(sample: string, bed: 'wind' | 'hum' = 'wind'): void {
     if (!this.ctx) return;
     this.stopAmbient();
-    const sampled = this.loopSample(kind === 'desert' ? 'amb_desert' : 'amb_station', 0.4);
+    const kind = bed === 'wind' ? 'desert' : 'station';
+    const sampled = this.loopSample(sample as SampleName, 0.4)
+      ?? this.loopSample(kind === 'desert' ? 'amb_desert' : 'amb_station', 0.4);
     if (sampled) { this.ambientStop = sampled; return; }
     const ctx = this.ctx;
     const src = ctx.createBufferSource();

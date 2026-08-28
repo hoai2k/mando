@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
+import { massiffClips } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { markSharedTree } from '../core/dispose';
 
@@ -182,6 +183,11 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   stormtrooper: 'stormtrooper', deathtrooper: 'deathtrooper', darktrooper: 'darktrooper',
   duelist: 'duelist', officer: 'imperial_officer', capo: 'pyke_capo',
   enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',
+  flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
+  ringEnforcer: 'ring_enforcer',
+  // the three creatures come through loadCreature, but the file is the same
+  // download, so warming it here is what stops a first-spawn hitch
+  krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',
 };
 
 /**
@@ -411,6 +417,15 @@ export function retarget(source: Rig, model: AuthoredModel): void {
  * quadruped, four legs on a 44-bone skeleton, so no humanoid clip has anything
  * to say to it.
  */
+/**
+ * Gaits written in code for models that arrive without any, keyed by model id.
+ * They are built per load, because they compose with the rest pose of the
+ * skeleton they are handed.
+ */
+const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationClip[]> = {
+  massiff: massiffClips,
+};
+
 export function loadProp(
   id: string,
   targetSize: number,
@@ -438,7 +453,11 @@ export function loadProp(
       skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
       padBounds(skinned);
     });
-    root.userData.clips = raw.userData.clips ?? [];
+    // Clips the file ships always win; a model with none falls back to a set
+    // authored in code against its own skeleton. That way a later re-export
+    // with real animation baked in simply takes over.
+    const own = (raw.userData.clips ?? []) as THREE.AnimationClip[];
+    root.userData.clips = own.length ? own : (GENERATED_CLIPS[id]?.(root) ?? []);
     const box = new THREE.Box3();
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -476,18 +495,36 @@ export function loadProp(
  * `massiff_static` is the unrigged variant of the same sculpt, and the cheaper
  * choice while nothing is deforming it.
  */
-export const CREATURE_MODELS: Record<string, number> = {
+export const CREATURE_MODELS = {
   // the war massiff is an elite beast, not the knee-high hound the sculpt was
   // scaled for — see the size note in ASSETS_MODELS.md
   massiff: 2.05,
-};
+  // heights match each kind's DEFS entry, which is what the hit spheres and the
+  // camera framing use
+  krykna: 1.6,
+  krykna_brood: 2.6,
+  interceptor_drone: 1.7,
+} as const;
 
-/** Load a creature model at its registered height. Null id or missing file = nothing. */
+export type CreatureId = keyof typeof CREATURE_MODELS;
+
+/**
+ * Load a creature model at its registered height. A missing file is normal —
+ * the procedural build stands — but an *unregistered* id is a mistake worth
+ * catching: `loadProp` would divide by an undefined target size, scale the
+ * model by NaN and render nothing, and it would only show up on the day the
+ * artwork landed.
+ */
 export function loadCreature(
-  id: keyof typeof CREATURE_MODELS,
+  id: CreatureId,
   opts: { onLoad?: (root: THREE.Object3D) => void } = {},
 ): THREE.Group {
-  return loadProp(id, CREATURE_MODELS[id], { axis: 'y', ground: true, onLoad: opts.onLoad });
+  const height = CREATURE_MODELS[id];
+  if (!height) {
+    console.warn(`[authored] creature "${id}" has no registered height; add it to CREATURE_MODELS`);
+    return new THREE.Group();
+  }
+  return loadProp(id, height, { axis: 'y', ground: true, onLoad: opts.onLoad });
 }
 
 export interface AuthoredSwap {

@@ -4,9 +4,12 @@ import type { PhysicsWorld } from '../core/physics';
 export interface BoltTarget {
   position: THREE.Vector3;   // center of hit sphere
   radius: number;
-  team: number;              // 0 = players, 1 = enemies
-  /** who fired the bolt that landed: player slot, or -1 for anyone else */
-  onHit: (damage: number, from: THREE.Vector3, bySlot: number) => void;
+  team: number;              // 0 = players, 1 = enemies (2 = props, hit by both)
+  /**
+   * @param bySlot the player slot that fired it, or -1 for enemy/ally fire
+   * @param tag    the shot's kind, for bolts that do more than damage (a net)
+   */
+  onHit: (damage: number, from: THREE.Vector3, bySlot: number, tag?: string) => void;
   alive: boolean;
   /** player slot, so a bolt this target deflects is credited to them */
   slot?: number;
@@ -28,6 +31,8 @@ interface Bolt {
   /** player slot that fired it, for kill credit; -1 = enemy or ally fire */
   bySlot: number;
   active: boolean;
+  /** special payloads ride along with the bolt (e.g. 'net' snares on hit) */
+  tag?: string;
 }
 
 const CAPACITY = 220;
@@ -65,7 +70,7 @@ export class ProjectileSystem {
     }
   }
 
-  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number, bySlot = -1): void {
+  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number, bySlot = -1, tag?: string): void {
     // A full pool must never swallow a shot: the trigger still played its
     // sound, flash and recoil, so dropping the bolt made the weapon look
     // broken. Recycle whatever is closest to expiring instead — that is the
@@ -76,6 +81,7 @@ export class ProjectileSystem {
       for (const x of this.bolts) if (x.life < b.life) b = x;
     }
     b.active = true;
+    b.tag = tag;
     b.mesh.visible = b.glow.visible = true;
     b.mesh.material = team === 0 ? this.matPlayer : this.matEnemy;
     b.glow.material = team === 0 ? this.glowPlayer : this.glowEnemy;
@@ -138,7 +144,7 @@ export class ProjectileSystem {
       for (const t of targets) {
         if (!t.alive || t.team === b.team) continue;
         if (segSphere(from, step, stepLen, t.position, t.radius)) {
-          t.onHit(b.damage, from, b.bySlot);
+          t.onHit(b.damage, from, b.bySlot, b.tag);
           this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;

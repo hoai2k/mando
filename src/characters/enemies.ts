@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { clamp } from '../core/math';
-import { attachAuthored, loadCreature, loadProp } from './authored';
+import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
 
 /** Enemy character builders — show-inspired silhouettes, procedural meshes on the canonical rig. */
@@ -30,6 +30,8 @@ const AUTHORED_ENEMY: Record<string, number> = {
   tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
   // the swoop rider is measured standing, then posted on the saddle by the pose
   nikto: 1.76,
+  // the new-board roster (see ASSETS_MODELS.md for the model briefs)
+  flametrooper: 1.9, quarren: 1.9, alamite: 1.85, ring_enforcer: 2.1,
 };
 
 /**
@@ -601,4 +603,277 @@ export function buildNikto(authored = true): CharacterInstance {
       flame.scale.y = 0.8 + Math.sin(time * 40) * 0.2;
     },
   };
+}
+
+// ---------- Incinerator trooper: red-striped white armor, flame projector ----------
+export function buildFlametrooper(authored = true): CharacterInstance {
+  const armor = mat(0xe0ddd4, { rough: 0.45, metal: 0.25 });
+  const stripe = mat(0xa8281e, { rough: 0.5 });
+  const suitM = mat(0x2a2a2a, { rough: 0.85 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: armor });
+  const b = rig.bones;
+  const dark = mat(0x0c0c0e, { rough: 0.5 });
+  addBox(b.chest, armor, 0.34, 0.3, 0.05, 0, 0.06, 0.12);
+  addBox(b.chest, stripe, 0.35, 0.06, 0.055, 0, 0.14, 0.12);     // red band
+  addBox(b.hips, armor, 0.32, 0.12, 0.05, 0, 0.04, 0.11);
+  addBox(b.shoulderL, stripe, 0.15, 0.06, 0.17, -0.05, 0.05, 0, 0, 0, 0.22);
+  addBox(b.shoulderR, stripe, 0.15, 0.06, 0.17, 0.05, 0.05, 0, 0, 0, -0.22);
+  // helmet: flat-faced with a wide visor slot and a red crest stripe
+  addSphere(b.head, armor, 0.15, 0, 0.05, 0, 12, 10, 0.95, 0.92);
+  addBox(b.head, armor, 0.22, 0.2, 0.06, 0, 0.04, 0.1);
+  addBox(b.head, dark, 0.18, 0.03, 0.03, 0, 0.075, 0.13);        // visor slit
+  addBox(b.head, stripe, 0.03, 0.16, 0.2, 0, 0.14, -0.01);       // crest
+  // twin fuel tanks on the back
+  addCyl(b.jetpack, mat(0x8f2c20, { rough: 0.5, metal: 0.4 }), 0.07, 0.07, 0.42, -0.09, -0.06, -0.02);
+  addCyl(b.jetpack, mat(0x8f2c20, { rough: 0.5, metal: 0.4 }), 0.07, 0.07, 0.42, 0.09, -0.06, -0.02);
+  // flame projector: fat shrouded barrel, pilot light at the mouth
+  const proj = new THREE.Group();
+  addBox(proj, dark, 0.06, 0.09, 0.34, 0, 0, 0.05);
+  addCyl(proj, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.045, 0.045, 0.3, 0, 0.01, 0.3, Math.PI / 2, 0, 0, 8);
+  addCyl(proj, dark, 0.065, 0.05, 0.09, 0, 0.01, 0.47, Math.PI / 2, 0, 0, 8);
+  const pilot = addSphere(proj, mat(0xffa030, { emissive: 0xff6a10, rough: 0.3 }), 0.018, 0, 0.05, 0.47, 6, 5);
+  proj.rotation.x = Math.PI / 2;
+  b.weaponR.add(proj);
+  const muzzle = new THREE.Group();
+  muzzle.position.set(0, 0.01, 0.5);
+  proj.add(muzzle);
+  inst.muzzle = muzzle;
+  authoredEnemy(inst, rig, 'flametrooper', authored);
+  const prev = inst.cosmetic;
+  inst.cosmetic = (dt, time) => {
+    (pilot.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.8 + Math.sin(time * 13) * 0.4;
+    prev?.(dt, time);
+  };
+  return inst;
+}
+
+// ---------- Krykna: pale cave spider on its own free-form rig ----------
+/**
+ * Human-scale skitterer (the playtest rule holds: nothing smaller than a
+ * person). Free-form rig like the massiff: the gait is code, not clips, so an
+ * authored model comes in through `loadCreature` when one lands.
+ */
+function buildKryknaBase(scale: number, bodyColor: number, authored: boolean, creatureId: CreatureId): CharacterInstance {
+  const chitin = mat(bodyColor, { rough: 0.75 });
+  const joint = mat(0x8d867a, { rough: 0.85 });
+  const dark = mat(0x22201c, { rough: 0.7 });
+  const root = new THREE.Group();
+
+  const BODY_Y = 0.95;
+  const body = new THREE.Group();
+  body.position.y = BODY_Y;
+  root.add(body);
+  addSphere(body, chitin, 0.42, 0, 0.05, -0.25, 12, 9, 0.9, 1.25);   // abdomen
+  addSphere(body, chitin, 0.3, 0, 0, 0.35, 10, 8, 0.85, 1);          // cephalothorax
+  // eye cluster + fangs
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI - Math.PI / 2;
+    addSphere(body, dark, 0.035, Math.sin(a) * 0.16, 0.1 + Math.cos(a) * 0.06, 0.6, 5, 4);
+  }
+  for (const sx of [-1, 1]) addCyl(body, dark, 0.008, 0.035, 0.22, sx * 0.09, -0.14, 0.62, 2.6, 0, 0, 5);
+
+  // eight legs: two joints each, animated as four diagonal pairs
+  const legs: { hip: THREE.Group; knee: THREE.Group; side: number; phase: number }[] = [];
+  for (let i = 0; i < 8; i++) {
+    const side = i < 4 ? -1 : 1;
+    const zi = (i % 4) - 1.5;
+    const hip = new THREE.Group();
+    hip.position.set(side * 0.28, 0.08, zi * 0.28 + 0.1);
+    hip.rotation.z = side * -0.9;
+    hip.rotation.y = zi * 0.28 * side;
+    addCyl(hip, joint, 0.035, 0.05, 0.75, 0, 0.34, 0, 0, 0, 0, 6);   // femur, angled up-out
+    const knee = new THREE.Group();
+    knee.position.set(0, 0.7, 0);
+    knee.rotation.z = side * 2.1;
+    addCyl(knee, chitin, 0.014, 0.034, 0.95, 0, 0.42, 0, 0, 0, 0, 6); // tibia, down to the point
+    hip.add(knee);
+    body.add(hip);
+    legs.push({ hip, knee, side, phase: (i % 2) * Math.PI + zi * 0.7 });
+  }
+
+  let posed = true;
+  if (authored) {
+    const model = loadCreature(creatureId, { onLoad: () => { body.visible = false; posed = false; } });
+    root.add(model);
+  }
+  root.scale.setScalar(scale);
+
+  let gaitSpeed = 0;
+  return {
+    root, rig: null, animator: null, height: 1.7 * scale, baseScale: scale,
+    setGait: (speed: number) => { gaitSpeed = speed; },
+    cosmetic: (dt, time) => {
+      if (!posed) return;
+      const rate = 4 + Math.min(gaitSpeed, 8) * 1.4;
+      const lift = Math.min(1, 0.25 + gaitSpeed / 5);
+      for (const leg of legs) {
+        const ph = time * rate + leg.phase;
+        leg.hip.rotation.x = Math.sin(ph) * 0.35 * lift;
+        leg.knee.rotation.z = leg.side * (2.1 + Math.cos(ph) * 0.25 * lift);
+      }
+      body.position.y = BODY_Y + Math.sin(time * rate * 2) * 0.03 * lift;
+      body.rotation.y = Math.sin(time * 1.1) * 0.05;
+    },
+  };
+}
+
+export function buildKrykna(authored = true): CharacterInstance {
+  return buildKryknaBase(1, 0xcfc6b4, authored, 'krykna');
+}
+
+/** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
+export function buildBroodmother(authored = true): CharacterInstance {
+  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
+  const sac = mat(0xd8e4da, { rough: 0.55, emissive: 0x24301f });
+  // egg sacs cling to the abdomen — the thing the whole fight is about
+  for (const [x, y, z, r] of [[-0.25, 1.25, -0.5, 0.2], [0.22, 1.3, -0.62, 0.24], [0, 1.05, -0.75, 0.18]] as const) {
+    addSphere(inst.root, sac, r, x, y, z, 8, 7);
+  }
+  return inst;
+}
+
+// ---------- Quarren netcaster: squid-faced dock hand turned hostile ----------
+export function buildQuarren(authored = true): CharacterInstance {
+  const slicker = mat(0x3d4a42, { rough: 0.95 });
+  const suitM = mat(0x4a4438, { rough: 0.9 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: slicker });
+  const b = rig.bones;
+  const skinM = mat(0xb06a4a, { rough: 0.85 });
+  // domed head with side-set eyes and four face tentacles
+  addSphere(b.head, skinM, 0.14, 0, 0.06, 0, 10, 8, 1.15, 1);
+  const dark = mat(0x1c1812, { rough: 0.7 });
+  addSphere(b.head, dark, 0.024, -0.09, 0.08, 0.08, 5, 4);
+  addSphere(b.head, dark, 0.024, 0.09, 0.08, 0.08, 5, 4);
+  const tentacles: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) {
+    const t = addCyl(b.head, skinM, 0.012, 0.028, 0.22, -0.06 + i * 0.04, -0.08, 0.1, 0.35 + (i % 2) * 0.15, 0, 0, 5);
+    tentacles.push(t);
+  }
+  // rolled net slung over the shoulder + hip floats
+  addCyl(b.chest, mat(0x7a6c50, { rough: 1 }), 0.07, 0.09, 0.5, 0, 0.06, -0.02, 0, 0, 0.9, 7);
+  addSphere(b.hips, mat(0xc26a2a, { rough: 0.8 }), 0.06, -0.2, 0.02, 0, 6, 5);
+  // net launcher: a stubby wide-mouthed tube
+  const launcher = new THREE.Group();
+  addCyl(launcher, dark, 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
+  addCyl(launcher, mat(0x6b6f72, { rough: 0.4, metal: 0.6 }), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
+  b.weaponR.add(launcher);
+  const muzzle = new THREE.Group();
+  muzzle.position.set(0, 0, 0.38);
+  launcher.add(muzzle);
+  inst.muzzle = muzzle;
+  authoredEnemy(inst, rig, 'quarren', authored);
+  const prev = inst.cosmetic;
+  inst.cosmetic = (dt, time) => {
+    for (let i = 0; i < tentacles.length; i++) tentacles[i].rotation.x = 0.35 + (i % 2) * 0.15 + Math.sin(time * 2.2 + i) * 0.08;
+    prev?.(dt, time);
+  };
+  return inst;
+}
+
+// ---------- Alamite: pale cave-dweller of the Mandalore ruins ----------
+export function buildAlamite(authored = true): CharacterInstance {
+  const hide = mat(0xb9b2a4, { rough: 1 });
+  const P: Proportions = { ...HUMAN, hipHeight: 0.92, chestLen: 0.34, shoulderWidth: 0.3, upperArmLen: 0.38, forearmLen: 0.34 };
+  const { inst, rig } = buildBiped({ skin: hide, torso: hide, proportions: P });
+  const b = rig.bones;
+  const dark = mat(0x2a241c, { rough: 0.8 });
+  // heavy brow ridge, sunken eyes, tusked underbite
+  addSphere(b.head, hide, 0.15, 0, 0.05, 0.01, 10, 8, 0.95, 1.05);
+  addBox(b.head, hide, 0.24, 0.06, 0.12, 0, 0.1, 0.08);
+  addSphere(b.head, dark, 0.02, -0.06, 0.05, 0.12, 5, 4);
+  addSphere(b.head, dark, 0.02, 0.06, 0.05, 0.12, 5, 4);
+  for (const sx of [-0.05, 0.05]) addCyl(b.head, mat(0xd8cdaa, { rough: 0.6 }), 0.004, 0.018, 0.08, sx, -0.06, 0.12, Math.PI, 0, 0, 4);
+  // bony dorsal ridge down the spine
+  for (let i = 0; i < 4; i++) addCyl(b.chest, hide, 0.01, 0.045, 0.12, 0, 0.16 - i * 0.09, -0.14, -0.5, 0, 0, 5);
+  // rag loincloth + wrapped fists
+  addCyl(b.hips, mat(0x6a5c44, { rough: 1 }), 0.22, 0.26, 0.3, 0, -0.14, 0, 0, 0, 0, 8);
+  // crude stone club
+  const club = new THREE.Group();
+  addCyl(club, mat(0x77695a, { rough: 1 }), 0.025, 0.035, 0.62);
+  addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
+  club.rotation.x = Math.PI / 2;
+  b.weaponR.add(club);
+  authoredEnemy(inst, rig, 'alamite', authored);
+  return inst;
+}
+
+// ---------- Imperial interceptor drone: probe-droid-style kamikaze flier ----------
+export function buildInterceptorDrone(authored = true): CharacterInstance {
+  const shell = mat(0x2e3138, { rough: 0.4, metal: 0.7 });
+  const dark = mat(0x14151a, { rough: 0.55, metal: 0.5 });
+  const root = new THREE.Group();
+  const core = new THREE.Group();
+  core.position.y = 1.15;
+  root.add(core);
+  addSphere(core, shell, 0.34, 0, 0, 0, 12, 10, 0.85, 1);
+  addCyl(core, dark, 0.36, 0.3, 0.1, 0, -0.16, 0, 0, 0, 0, 10);        // sensor skirt
+  const eye = addSphere(core, mat(0xff2810, { emissive: 0xff2810, rough: 0.3 }), 0.06, 0, 0.02, 0.3, 8, 6);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    addSphere(core, mat(0xffb060, { emissive: 0x7a3a10, rough: 0.4 }), 0.02, Math.cos(a) * 0.28, 0.12, Math.sin(a) * 0.28, 5, 4);
+  }
+  // dangling manipulator arms — what gives a probe droid its silhouette
+  const arms: THREE.Mesh[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const arm = addCyl(core, dark, 0.012, 0.022, 0.55, Math.cos(a) * 0.2, -0.42, Math.sin(a) * 0.2, 0.12 * Math.cos(a * 3), 0, 0.12 * Math.sin(a * 2), 5);
+    arms.push(arm);
+  }
+  addCyl(core, dark, 0.05, 0.08, 0.16, 0, 0.3, 0, 0, 0, 0, 8);          // top thruster
+  let posed = true;
+  if (authored) {
+    const model = loadCreature('interceptor_drone', { onLoad: () => { core.visible = false; posed = false; } });
+    root.add(model);
+  }
+  return {
+    root, rig: null, animator: null, height: 1.7, baseScale: 1,
+    cosmetic: (dt, time) => {
+      if (!posed) return;
+      core.position.y = 1.15 + Math.sin(time * 2.6) * 0.06;
+      core.rotation.y = Math.sin(time * 0.9) * 0.4;
+      for (let i = 0; i < arms.length; i++) arms[i].rotation.x = 0.12 * Math.cos(i * 3) + Math.sin(time * 3 + i * 1.7) * 0.09;
+      (eye.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.9 + Math.sin(time * 7) * 0.35;
+    },
+  };
+}
+
+// ---------- Ringworld enforcer: shielded heavy — flank him or go around ----------
+export function buildRingEnforcer(authored = true): CharacterInstance {
+  const plate = mat(0x5a2e30, { rough: 0.5, metal: 0.4 });
+  const suitM = mat(0x26262c, { rough: 0.85 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: plate, scale: 1.1 });
+  const b = rig.bones;
+  const dark = mat(0x101014, { rough: 0.5 });
+  addBox(b.chest, plate, 0.42, 0.34, 0.26, 0, 0.08, 0);
+  addBox(b.shoulderL, plate, 0.2, 0.1, 0.2, -0.06, 0.06, 0);
+  addBox(b.shoulderR, plate, 0.2, 0.1, 0.2, 0.06, 0.06, 0);
+  // visored enforcer helm with a squared jaw guard
+  addSphere(b.head, plate, 0.15, 0, 0.05, 0, 10, 8, 0.95, 1);
+  addBox(b.head, dark, 0.22, 0.045, 0.06, 0, 0.06, 0.11);
+  addBox(b.head, plate, 0.2, 0.1, 0.08, 0, -0.05, 0.09);
+  inst.muzzle = rifle(b.weaponR);
+  // tower shield on the left arm: an energy pane framed in metal. The pane is
+  // cosmetic — the real block is the shield collider the enemy code raises,
+  // facing wherever he faces — but the glow is what tells you to flank.
+  const shield = new THREE.Group();
+  addBox(shield, dark, 0.5, 1.1, 0.05, 0, 0, 0);
+  const pane = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.44, 1.0),
+    new THREE.MeshBasicMaterial({
+      color: 0x66c8ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+  );
+  pane.position.z = 0.04;
+  shield.add(pane);
+  shield.position.set(0, -0.12, 0.1);
+  shield.rotation.y = Math.PI;
+  b.forearmL.add(shield);
+  authoredEnemy(inst, rig, 'ring_enforcer', authored);
+  const prev = inst.cosmetic;
+  inst.cosmetic = (dt, time) => {
+    (pane.material as THREE.MeshBasicMaterial).opacity = 0.24 + Math.sin(time * 5.5) * 0.06;
+    prev?.(dt, time);
+  };
+  return inst;
 }
