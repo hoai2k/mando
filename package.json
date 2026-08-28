@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node tools/harness.mjs"
+    "test": "node tools/harness.mjs",
+    "audit:boards": "node tools/audit-collision.mjs"
   },
   "dependencies": {
     "three": "^0.168.0"

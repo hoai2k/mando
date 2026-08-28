@@ -82,6 +82,10 @@ export function buildWaystation(): Board {
     under.position.set(p.x, p.y - 2.2, p.z);
     group.add(under);
     physics.addBox(p.x, p.y - 0.6, p.z, p.w, 1.2, p.d);
+    // The machinery slung under each deck is the one part of a platform you
+    // meet from below, and the jetpack puts you there constantly — without its
+    // own collider a platform had a solid top and a hollow belly.
+    physics.addBox(p.x, p.y - 2.2, p.z, p.w * 0.6, 2.2, p.d * 0.6);
     // guard posts on corners of bigger platforms
     if (p.w >= 14) {
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
@@ -136,6 +140,19 @@ export function buildWaystation(): Board {
     crane.rotation.y = rot;
     crane.traverse((o) => { o.castShadow = true; });
     group.add(crane);
+    // Cranes were pure scenery: an 18 m mast, a 20 m arm and a hanging
+    // container you flew straight through, in the middle of the airspace this
+    // board is fought in. Upright cylinders take the yaw for free — the arm
+    // becomes a row of them along its own axis, the way the barge hull is done.
+    const ax = Math.cos(rot), az = -Math.sin(rot);
+    physics.addCylinder(cx, cy - 1, cz, 0.85, 18);                       // mast
+    // The arm runs local x −3..17. Step it closer than the collider is wide
+    // or the beam is a row of stepping stones with holes between them.
+    for (let t = -3; t <= 17.01; t += 1.5) {
+      physics.addCylinder(cx + ax * t, cy + 7, cz + az * t, 0.85, 1.1);
+    }
+    physics.addCylinder(cx + ax * 14, cy - 0.5, cz + az * 14, 1.45, 2.4); // hook
+    // the cable stays intangible — 10 cm of wire is not something to bump into
   }
 
   // spice container stacks on the main pad (cover)
@@ -192,6 +209,8 @@ export function buildWaystation(): Board {
   ship.traverse((o) => { o.castShadow = true; });
   group.add(ship);
   physics.addBox(-38, 6, -16, 8, 4, 6);
+  // the cockpit blister sits 2 m proud of the hull box, out over the pad edge
+  physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
 
   // neon cantina sign + hazard beacons (animated)
   const neonMat = new THREE.MeshBasicMaterial({ color: 0x33ddc9, transparent: true, opacity: 0.9, side: THREE.DoubleSide });

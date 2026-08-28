@@ -170,9 +170,12 @@ export function buildTatooine(): Board {
   dome.position.set(hx, hBase, hz);
   dome.castShadow = dome.receiveShadow = true;
   group.add(dome);
-  // round dome, round collider: the 8 m box cut its corners off and clipped
-  // the 10 m span of the dome at the sides
-  physics.addCylinder(hx, hBase + 1.8, hz, 4.2, 3.6);
+  // Round dome, round collider: the 8 m box cut its corners off and clipped
+  // the 10 m span of the dome at the sides. Two stacked discs then follow the
+  // curve instead of inscribing it — one 4.2 m disc left the skirt, where the
+  // dome is widest and lowest, as something you could walk a shoulder into.
+  physics.addCylinder(hx, hBase + 0.85, hz, 4.9, 1.7);
+  physics.addCylinder(hx, hBase + 2.2, hz, 3.7, 4.4);
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
@@ -214,6 +217,15 @@ export function buildTatooine(): Board {
   for (const t of [-9, -4.5, 0, 4.5, 9]) {
     physics.addCylinder(bx + hullAxis.x * t, bBase + 2.5, bz + hullAxis.y * t, 4.4, 6);
   }
+  // The sail is a 9 m plank leaning 0.5 rad, and its own AABB is 4.7 m wide
+  // for 0.4 m of canvas — a slab of invisible wall. Three boxes climbing the
+  // lean stay where the sail is: solid to shoot past, nothing to snag on.
+  for (const k of [-1, 0, 1]) {
+    physics.addBox(
+      bx - 6 - Math.sin(0.5) * k * 3, bBase + 6 + Math.cos(0.5) * k * 3, bz + 2,
+      1.5, 3.4, 14,
+    );
+  }
 
   // sarlacc: teeth ring + tentacles that sway
   const pitBase = heightAt(SARLACC.x, SARLACC.z);
@@ -228,9 +240,18 @@ export function buildTatooine(): Board {
     tooth.rotation.x = (Math.cos(a) * 0.3);
     tooth.lookAt(SARLACC.x, heightAt(SARLACC.x, SARLACC.z) + 6, SARLACC.z);
     group.add(tooth);
+    // A ring of two-metre fangs stands outside the kill radius, so it is the
+    // first thing anyone charging the pit meets — it has to stop them rather
+    // than let them run through it into the mouth. Sunk well into the slope of
+    // the crater so nobody slips beneath it on the downhill side.
+    physics.addCylinder(tx, heightAt(tx, tz) + 0.3, tz, 0.75, 3.6);
     if (i % 4 === 0) {
       const tent = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.42, 7, 6), tentMat2);
       tent.position.set(SARLACC.x + Math.cos(a) * 5, pitBase + 2, SARLACC.z + Math.sin(a) * 5);
+      // deliberately intangible: they writhe, they stand inside a kill zone
+      // nobody survives to touch them in, and a solid one would be a handhold
+      // over the mouth
+      tent.userData.decor = true;
       group.add(tent);
       tentacles.push(tent);
     }

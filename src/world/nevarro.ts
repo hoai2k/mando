@@ -265,6 +265,17 @@ export function buildNevarro(): Board {
     rim.position.set(gx, y + 0.3, gz);
     rim.castShadow = rim.receiveShadow = true;
     group.add(rim);
+    // The drum is a solid stone pad, so stand on it: without this collider it
+    // was scenery you walked through, which is what a raised pool must never
+    // be. Radius splits the flare (2.4 lip, 3.0 base) so the taper forgives at
+    // the foot rather than catching on air, and the 0.85 m lip is a hop up —
+    // riding the blast means being on the pad when it goes.
+    //
+    // It reaches well below the mesh on purpose. These sit on sloping ground,
+    // and a collider that stopped at the drum's own base left the downhill
+    // side standing over air: you could run *under* the pad and out the far
+    // side. Burying the foot seals that without changing what you can climb.
+    physics.addCylinder(gx, y - 0.7, gz, 2.6, 3.1);
     // Above the rim's lip, not inside it: the drum's top sits at y + 0.85 and
     // the telegraph used to sit at y + 0.5-1.0, so all but the last 15 cm of
     // the only warning this mechanic gives was hidden inside its own scenery.
