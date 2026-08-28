@@ -212,6 +212,7 @@ export function buildForge(): Board {
     footstep: 'stone',
     ambience: { sample: 'amb_forge', bed: 'wind' },
     music: 'desert',
+    musicLead: 'music/mando-fada.mp3',
     background: new THREE.Color(0x99a496),
     heroLight: 0.14,
     skyFile: 'sky_mandalore',

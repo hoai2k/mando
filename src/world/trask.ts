@@ -233,6 +233,7 @@ export function buildTrask(): Board {
     footstep: 'metal',
     ambience: { sample: 'amb_rain', bed: 'wind' },
     music: 'station',
+    musicLead: 'music/mando-sea-shanty.mp3',
     // dock fingers are islands: shooters hold their pier instead of wading
     rangedLeash: true,
     background: new THREE.Color(0x46505a),
