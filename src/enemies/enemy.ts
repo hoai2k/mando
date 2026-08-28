@@ -5,6 +5,7 @@ import {
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
+import { Ragdoll } from '../anim/ragdoll';
 import { audio, type BarkName } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -81,6 +82,7 @@ const MEMORY = 9;
 const INVESTIGATE_TIME = 8;
 /** straight-down exhaust direction, shared so hover jets allocate nothing */
 const _JET_DOWN = new THREE.Vector3(0, -1, 0);
+const _zero = new THREE.Vector3();
 /** scratch for laying a corpse flat */
 const _topple = new THREE.Quaternion();
 const _fallAxis = new THREE.Vector3();
@@ -112,6 +114,8 @@ export class Enemy {
   private strafePhase = Math.random() * Math.PI * 2;
   private facingYaw = 0;
   private deadTimer = 0;
+  /** live physics ragdoll once this one is dead; null while it is on its feet */
+  private ragdoll: Ragdoll | null = null;
   /** how far the body has toppled: 0 upright, 1 flat on the ground */
   private fallT = 0;
   /** where fallT is heading — set by the death/wounded/knockdown states */
@@ -281,25 +285,22 @@ export class Enemy {
       this.deadTimer = 1.4;
       const bark = DEATH_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.5);
+      // The rig stops being animated here and becomes a physics ragdoll: the
+      // animator is released so nothing fights the sim for the bones.
       const anim = this.char.animator;
-      if (anim) {
-        anim.release('lower'); anim.release('upper');
-        anim.playOnce('lower', 'collapseLower', 0.08, true);
-        anim.playOnce('upper', 'collapseUpper', 0.08, true);
-      }
-      // fling the corpse — harder killing blows throw harder, with a bit of
+      if (anim) { anim.release('lower'); anim.release('upper'); }
+      // the killing blow's push — harder hits throw harder, with a bit of
       // sideways scatter so a mowed-down line doesn't fall in lockstep
       const dir = this.position.clone().sub(from).setY(0).normalize();
       const heavy = amount >= 45 ? 1.6 : 1;
       dir.x += (Math.random() - 0.5) * 0.5;
       dir.z += (Math.random() - 0.5) * 0.5;
       dir.normalize();
-      this.velocity.addScaledVector(dir, (4.5 + Math.random() * 3) * heavy);
-      this.velocity.y = Math.max(this.velocity.y, (3 + Math.random() * 1.5) * heavy);
-      // it goes down the way it was thrown; syncVisual lays the root out along
-      // this once the body stops rising
-      this.fallTarget = 1;
-      this.fallDir.copy(dir.lengthSq() > 1e-6 ? dir : new THREE.Vector3(0, 0, 1));
+      const impulse = dir.multiplyScalar((3.2 + Math.random() * 2.2) * heavy);
+      impulse.y = (2.2 + Math.random() * 1.4) * heavy;
+      if (this.char.rig) this.ragdoll = new Ragdoll(this.char.rig, this.velocity, impulse);
+      this.fallTarget = 0;
+      this.fallT = 0;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       this.char.animator.playOnce('upper', 'hitUpper', 0.05);
     }
@@ -376,17 +377,27 @@ export class Enemy {
 
     if (!this.alive) {
       this.deadTimer -= dt;
-      this.velocity.y -= 22 * grav(game) * dt;
-      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
-      // hold the pose while it is still being thrown upward, then topple: a
-      // body that tips over on the way up reads as a faint, not a kill
-      if (this.velocity.y <= 0.5) this.settle(dt);
-      if (this.deadTimer <= 0) {
-        this.char.root.position.y -= dt * 1.2; // sink away
-        if (this.deadTimer < -1.2) this.removeMe = true;
+      if (this.ragdoll) {
+        this.ragdoll.step(dt, game.board.physics);
+        // anything still tracking the corpse follows the body, not a ghost
+        // capsule left behind where it was standing
+        this.position.copy(this.ragdoll.hips);
+        if (this.deadTimer <= 0) {
+          this.ragdoll.translate(-dt * 1.2); // sink away
+          if (this.deadTimer < -1.2) this.removeMe = true;
+        }
+        this.char.cosmetic?.(dt, game.time);
+      } else {
+        this.velocity.y -= 22 * grav(game) * dt;
+        game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+        this.settle(dt);
+        if (this.deadTimer <= 0) {
+          this.char.root.position.y -= dt * 1.2;
+          if (this.deadTimer < -1.2) this.removeMe = true;
+        }
+        this.syncVisual(dt, game);
+        anim?.update(dt);
       }
-      this.syncVisual(dt, game);
-      anim?.update(dt);
       return;
     }
 
@@ -443,7 +454,11 @@ export class Enemy {
       if (this.bleedOut <= 0) {
         this.alive = false;
         this.deadTimer = 1.4;
-        this.fallTarget = 1; // the last of it goes down flat
+        // it is already on the ground, so it just goes limp where it lies
+        anim?.release('lower'); anim?.release('upper');
+        if (this.char.rig) this.ragdoll = new Ragdoll(this.char.rig, this.velocity, _zero);
+        this.fallTarget = 0;
+        this.fallT = 0;
       }
       this.syncVisual(dt, game);
       anim?.update(dt);
