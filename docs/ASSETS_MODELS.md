@@ -52,18 +52,22 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 | **Death trooper** | `deathtrooper_front/side/back.png` | both | All-black elite trooper armor, taller (~2.0 m), matte with subtle green lens glow. |
 | **Dark trooper** | both | `darktrooper_front/side/back.png` | Heavy jet-black humanoid battle droid (~2.2 m), skull-faced with red eyes, integrated back thrusters; uses canonical rig + `jetpack` node. |
 
-## New-board enemies — priority 3 (in game now as procedural stand-ins)
+## New-board enemies — priority 3
 
 The six new boards (Nevarro, the Crevasse, Trask, the Refinery, the Great Forge, the
-Ringworld) shipped with seven new enemy kinds. All run procedurally today; sheets for every
-one are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under *New-board enemies* —
-as everywhere else, model from the sheets, not the prose.
+Ringworld) shipped with seven new enemy kinds. **Three are delivered and integrated** —
+the incinerator trooper, the Quarren netcaster and the alamite now wear their authored
+skins in game and appear in the workbench. The remaining four still run procedurally;
+sheets for every one are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under
+*New-board enemies* — as everywhere else, model from the sheets, not the prose.
+
+✅ = delivered and integrated.
 
 | Character | Boards | Type / intake | Reference look |
 |---|---|---|---|
-| **Incinerator trooper** (`flametrooper`) | Nevarro, Refinery | canonical rig, `attachAuthored` | White trooper plate with dark-red trim bands and helmet crest, twin back fuel tanks, wide-mouthed flame projector (projector stays a separate prop on `weaponR` — the muzzle drives the flame stream). |
-| **Quarren netcaster** (`quarren`) | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
-| **Alamite** (`alamite`) | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
+| **Incinerator trooper** (`flametrooper`) ✅ | Nevarro, Refinery | canonical rig, `attachAuthored` | White trooper plate with dark-red trim bands and helmet crest, twin back fuel tanks, wide-mouthed flame projector (projector stays a separate prop on `weaponR` — the muzzle drives the flame stream). |
+| **Quarren netcaster** (`quarren`) ✅ | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
+| **Alamite** (`alamite`) ✅ | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
 | **Ringworld enforcer** (`ring_enforcer`) | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
 | **Krykna** (`krykna`) ◆ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. |
 | **Krykna broodmother** (`krykna_brood`) ◆ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
@@ -90,9 +94,9 @@ Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every char
 existed before the new boards — `din, paz, bokatan, armorer, marshal, fennec, ig11, tusken,
 pyke, nikto, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
-nikto_swoop` and the creature `massiff` / `massiff_static`. **Still open: the seven
-new-board enemies above (`flametrooper`, `quarren`, `alamite`, `ring_enforcer`, `krykna`,
-`krykna_brood`, `interceptor_drone`) — every one has its reference sheets delivered, so
+nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board trio
+`flametrooper`, `quarren`, `alamite`. **Still open: `ring_enforcer`, `krykna`,
+`krykna_brood`, `interceptor_drone` — every one has its reference sheets delivered, so
 they are ready to model.**
 
 ### Three intake paths
