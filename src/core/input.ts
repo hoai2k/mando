@@ -168,6 +168,18 @@ export class InputManager {
     this.menuQueue = this.menuQueue.filter((e) => e.action !== 'fullscreen');
   }
 
+  /**
+   * Right-stick X for a player slot, live even in menu mode — read() returns a
+   * blank frame there, but the character select still wants free-look on its
+   * preview. 0 when that slot has no pad.
+   */
+  menuStickX(slot: number): number {
+    const idx = this.padForPlayer[slot];
+    if (idx < 0) return 0;
+    const pad = (navigator.getGamepads?.() ?? [])[idx];
+    return pad ? dz(pad.axes[2] ?? 0) : 0;
+  }
+
   /** Drain queued menu navigation events, with their input source attached. */
   drainMenuEvents(): MenuEvent[] {
     const q = this.menuQueue;

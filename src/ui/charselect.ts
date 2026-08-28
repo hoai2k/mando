@@ -18,16 +18,28 @@ import { preloadAuthored } from '../characters/authored';
 const ROSTER = Object.keys(MANDO_ROSTER) as MandoId[];
 const SPINNER_DELAY = 0.7;
 const SPIN_DURATION = 0.9;
+/** half-width and rate of the idle turntable sweep */
+const ARC = 0.35;
+const ARC_RATE = 0.4;
+/** yaw rate at full right-stick deflection, and how fast a released stick eases back */
+const MANUAL_RATE = 2.8;
+const RETURN_TAU = 0.55;
 /** resting emissive lift, matched to how the hero reads in-game */
 const BASE_GLOW = 0.22;
 
 type Phase = 'empty' | 'browsing' | 'spinning' | 'ready';
+
+/** shortest signed equivalent of an angle, so a full manual spin unwinds the near way */
+const wrapPi = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 
 interface Slot {
   phase: Phase;
   choice: number;                 // index into ROSTER
   spinT: number;                  // 0..1 through the commit spin
   loadingFor: number;             // seconds the current model has kept us waiting
+  baseYaw: number;                // yaw that faces this pedestal's model at the camera
+  arcT: number;                   // idle-sweep clock, restarted per character
+  manual: number;                 // right-stick yaw offset, eased back to 0 on release
   group: THREE.Group;             // pedestal-local root the characters stand in
   chars: Map<MandoId, PlayerCharacter>;
   // DOM
@@ -53,6 +65,8 @@ export class CharacterSelect {
       onBack: () => void;
       /** gamepad index driving each player slot, -1 for none (from InputManager) */
       padForPlayer: () => number[];
+      /** right-stick X for a player slot, for free-look on that pedestal */
+      stickX: (slot: number) => number;
     },
   ) {
     // ---- DOM chrome (transparent — the 3D scene shows through) ----
@@ -124,6 +138,12 @@ export class CharacterSelect {
       ring.position.set(x, 0.125, 0);
       this.scene.add(pedestal, ring);
       this.slots[i].group.position.set(x, 0.12, 0);
+      // A pedestal sits off the camera's centre line, so yaw 0 (facing +Z)
+      // points the model down-screen rather than at the viewer. Every rotation
+      // here is measured from the yaw that actually faces the camera, so the
+      // idle sweep is centred on the model looking straight at you.
+      this.slots[i].baseYaw = Math.atan2(this.camera.position.x - x, this.camera.position.z);
+      this.slots[i].group.rotation.y = this.slots[i].baseYaw;
       this.scene.add(this.slots[i].group);
     }
   }
@@ -159,6 +179,7 @@ export class CharacterSelect {
 
     return {
       phase: 'empty', choice: i % ROSTER.length, spinT: 0, loadingFor: 0,
+      baseYaw: 0, arcT: 0, manual: 0,
       group: new THREE.Group(), chars: new Map(),
       panel, name, status, spinner, arrows,
     };
@@ -190,6 +211,7 @@ export class CharacterSelect {
     audio.uiMove();
     s.choice = this.step(slot, s.choice, dir);
     s.loadingFor = 0;
+    s.arcT = 0;                       // each new face starts square to the camera
     this.preloadNeighbours(slot);
     this.refresh();
   }
@@ -254,6 +276,7 @@ export class CharacterSelect {
     // land on a free character, not on something the other player took
     if (!this.available(slot).has(ROSTER[s.choice])) s.choice = this.step(slot, s.choice, 1);
     s.loadingFor = 0;
+    s.arcT = 0;
     this.preloadNeighbours(slot);
     this.refresh();
   }
@@ -276,6 +299,7 @@ export class CharacterSelect {
       if (i !== slot && other.phase === 'browsing' && other.choice === s.choice) {
         other.choice = this.step(i, other.choice, 1);
         other.loadingFor = 0;
+        other.arcT = 0;
       }
     });
     this.refresh();
@@ -284,7 +308,8 @@ export class CharacterSelect {
   private uncommit(slot: number): void {
     const s = this.slots[slot];
     s.phase = 'browsing';
-    s.group.rotation.y = 0;
+    s.arcT = 0;
+    s.group.rotation.y = s.baseYaw + s.manual;
     s.chars.get(ROSTER[s.choice])?.setHeroLight(BASE_GLOW);
     this.refresh();
   }
@@ -326,18 +351,26 @@ export class CharacterSelect {
       if (s.phase === 'spinning') {
         s.spinT = Math.min(1, s.spinT + dt / SPIN_DURATION);
         const e = 1 - Math.pow(1 - s.spinT, 3);          // ease-out cubic
-        s.group.rotation.y = e * Math.PI * 4;
+        s.group.rotation.y = s.baseYaw + e * Math.PI * 4;
         // glow crests mid-spin and settles into the ready shine
         current.setHeroLight(BASE_GLOW + Math.sin(s.spinT * Math.PI) * 1.3 + s.spinT * 0.25);
         if (s.spinT >= 1) {
           s.phase = 'ready';
-          s.group.rotation.y = 0;
+          s.manual = 0;
+          s.group.rotation.y = s.baseYaw;
           current.setHeroLight(BASE_GLOW + 0.25);
           this.refresh();
         }
-      } else if (s.phase === 'browsing') {
-        // slow turntable so the model reads from all sides
-        s.group.rotation.y = Math.sin(this.time * 0.4) * 0.35;
+      } else {
+        // Right stick turns the model by hand; letting go eases the offset back
+        // to zero, so it settles into the idle sweep rather than snapping.
+        const stick = this.opts.stickX(i);
+        if (stick !== 0) s.manual = wrapPi(s.manual + stick * MANUAL_RATE * dt);
+        else s.manual *= Math.exp(-dt / RETURN_TAU);
+        // slow turntable, centred on facing the camera, so it reads from both sides
+        if (s.phase === 'browsing') s.arcT += dt;
+        const arc = s.phase === 'browsing' ? Math.sin(s.arcT * ARC_RATE) * ARC : 0;
+        s.group.rotation.y = s.baseYaw + arc + s.manual;
       }
     }
     this.startBtn.style.display = anyJoined && allReady ? '' : 'none';
@@ -375,7 +408,9 @@ export class CharacterSelect {
     // P1 walks in browsing; P2 waits for a join. Committed picks reset each visit.
     this.slots.forEach((s, i) => {
       s.phase = i === 0 ? 'browsing' : 'empty';
-      s.group.rotation.y = 0;
+      s.arcT = 0;
+      s.manual = 0;
+      s.group.rotation.y = s.baseYaw;
       s.loadingFor = 0;
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
