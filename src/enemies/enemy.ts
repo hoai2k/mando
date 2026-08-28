@@ -76,6 +76,8 @@ export type Awareness = 'idle' | 'alerted' | 'engaged';
 const MEMORY = 9;
 /** how long it pokes around a noise before shrugging and going home */
 const INVESTIGATE_TIME = 8;
+/** straight-down exhaust direction, shared so hover jets allocate nothing */
+const _JET_DOWN = new THREE.Vector3(0, -1, 0);
 
 export class Enemy {
   id = nextId++;
@@ -873,11 +875,15 @@ export class Enemy {
     this.faceToward(dt, target.position.x, target.position.z, 6);
     const dist = this.position.distanceTo(target.position);
     this.updateVolley(dt, game, target, dist);
-    // jet flame
-    if (Math.random() < dt * 30) {
-      const p = this.position.clone();
-      p.y += 1.1;
-      game.particles.jetFlame(p, new THREE.Vector3(0, -4, 0));
+    // hover jets — a short burn under each nozzle, riding along with us
+    for (const side of [-1, 1]) {
+      const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
+      const p = new THREE.Vector3(
+        this.position.x - fs * 0.18 + fc * 0.08 * side,
+        this.position.y + 1.1,
+        this.position.z - fc * 0.18 - fs * 0.08 * side,
+      );
+      game.particles.jetPlume(p, _JET_DOWN, dt, { power: 0.7, carrier: this.velocity });
     }
   }
 

@@ -7,6 +7,11 @@ import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
 
+// scratch vectors for the per-frame jetpack emission
+const _jetPos = new THREE.Vector3();
+const _jetDir = new THREE.Vector3();
+const _jetRot = new THREE.Quaternion();
+
 const GRAVITY = 26;
 const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
@@ -234,12 +239,18 @@ export class Player {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
-      // flame particles from the jetpack
-      const jetPos = this.position.clone();
-      jetPos.y += 1.15;
-      jetPos.x -= Math.sin(this.facingYaw) * 0.25;
-      jetPos.z -= Math.cos(this.facingYaw) * 0.25;
-      game.particles.jetFlame(jetPos, new THREE.Vector3(0, -5, 0));
+      // Twin nozzle jets, born at the thruster mouths themselves. The offset
+      // is taken against the character root rather than the world so the jets
+      // do not lag a frame behind us, and the exhaust inherits most of our own
+      // velocity — that is what keeps it a short jet stuck under the pack
+      // instead of a long trail left behind in world space.
+      const ignite = this.thrusting > 0 && !this.wasThrusting;
+      for (const nozzle of this.char.nozzles) {
+        nozzle.getWorldPosition(_jetPos).sub(this.char.root.position).add(this.position);
+        _jetDir.set(0, -1, 0).applyQuaternion(nozzle.getWorldQuaternion(_jetRot));
+        if (ignite) game.particles.jetIgnite(_jetPos, _jetDir);
+        game.particles.jetPlume(_jetPos, _jetDir, dt, { power: 1, carrier: this.velocity });
+      }
     } else if (this.grounded) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
     } else {

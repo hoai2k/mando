@@ -308,7 +308,7 @@ export class Game {
       else {
         r.mesh.position.add(step);
         r.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), r.vel.clone().normalize());
-        this.particles.jetFlame(r.mesh.position, new THREE.Vector3(0, 0, 0));
+        this.particles.rocketExhaust(r.mesh.position, r.vel.clone().negate().normalize(), dt);
       }
     }
     this.rockets = this.rockets.filter((r) => r.life > 0);

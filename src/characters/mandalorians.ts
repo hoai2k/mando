@@ -13,6 +13,8 @@ export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
   setThrust: (t: number) => void;
   gaffi: THREE.Group;
+  /** thruster mouths, in world space — where the jet particles are born */
+  nozzles: THREE.Object3D[];
 }
 
 /** visual height per character, used to size an authored model */
@@ -109,15 +111,35 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // parent would take the flames with it.
   const flameRoot = new THREE.Group();
   b.jetpack.add(flameRoot);
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa640, transparent: true, opacity: 0.85 });
-  const flameGeo = new THREE.ConeGeometry(0.05, 0.5, 8);
-  const flames: THREE.Mesh[] = [-0.08, 0.08].map((x) => {
-    const f = new THREE.Mesh(flameGeo, flameMat);
-    f.rotation.x = Math.PI;
-    f.position.set(x, -0.5, -0.04);
-    f.visible = false;
-    flameRoot.add(f);
-    return f;
+  // Each nozzle only carries a stubby glow — a white-hot core inside a softer
+  // orange sheath, both additive and open-ended so they read as light in the
+  // throat of the thruster. The particle jet does the actual flame below it.
+  const NOZZLE_Y = -0.24;
+  const coreGeo = new THREE.ConeGeometry(0.03, 0.09, 10, 1, true);
+  const plumeGeo = new THREE.ConeGeometry(0.05, 0.16, 10, 1, true);
+  interface Flame { group: THREE.Group; core: THREE.Mesh; plume: THREE.Mesh; coreMat: THREE.MeshBasicMaterial; plumeMat: THREE.MeshBasicMaterial }
+  const flames: Flame[] = [-0.08, 0.08].map((x) => {
+    const group = new THREE.Group();
+    group.position.set(x, NOZZLE_Y, -0.04);
+    group.visible = false;
+    flameRoot.add(group);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffe2a8, transparent: true, opacity: 0.45,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const plumeMat = new THREE.MeshBasicMaterial({
+      color: 0xff6a18, transparent: true, opacity: 0.18,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    // cones are built apex-up; flip them and drop the base onto the nozzle mouth
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.rotation.x = Math.PI;
+    core.position.y = -0.045;
+    const plume = new THREE.Mesh(plumeGeo, plumeMat);
+    plume.rotation.x = Math.PI;
+    plume.position.y = -0.08;
+    group.add(core, plume);
+    return { group, core, plume, coreMat, plumeMat };
   });
 
   // ---- cape ----
@@ -183,14 +205,23 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       carbine.visible = w === 'blaster';
       gaffi.visible = w === 'gaffi';
     },
+    nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
     cosmetic: (dt, time) => {
       if (authored) retarget(rig, authored);
       capeUpdate?.(dt, time);
-      for (const f of flames) {
-        f.visible = thrust > 0.05;
-        const s = 0.6 + thrust * (0.8 + Math.sin(time * 47) * 0.25);
-        f.scale.set(1, s, 1);
+      for (let i = 0; i < flames.length; i++) {
+        const f = flames[i];
+        f.group.visible = thrust > 0.03;
+        if (!f.group.visible) continue;
+        // two detuned wobbles per nozzle so the twin jets never pulse in step
+        const ph = i * 2.7;
+        const flick = 1 + Math.sin(time * 53 + ph) * 0.13 + Math.sin(time * 97 + ph * 1.7) * 0.07;
+        const len = (0.55 + 0.45 * thrust) * flick;
+        f.plume.scale.set(0.9 + 0.15 * flick, len, 0.9 + 0.15 * flick);
+        f.core.scale.set(1, len * (0.85 + 0.3 * Math.sin(time * 71 + ph)), 1);
+        f.coreMat.opacity = 0.45 * thrust;
+        f.plumeMat.opacity = (0.15 + 0.07 * Math.sin(time * 61 + ph)) * thrust;
       }
     },
   };
