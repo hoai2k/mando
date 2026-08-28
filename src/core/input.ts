@@ -53,6 +53,20 @@ function blankInput(): FrameInput {
 
 interface PadState { prev: boolean[]; repeatTimer: Map<string, number>; }
 
+/**
+ * Is somebody holding this controller?
+ *
+ * Any button or trigger counts, and so does a stick pushed well past its
+ * deadzone — a player browsing a menu with the stick has plainly picked the
+ * thing up. The stick threshold is high enough that drift on a worn analogue
+ * cannot claim a seat on its own.
+ */
+function padInUse(pad: Gamepad): boolean {
+  for (const b of pad.buttons) if (b?.pressed || (b?.value ?? 0) > 0.35) return true;
+  for (const a of pad.axes) if (Math.abs(a ?? 0) > 0.6) return true;
+  return false;
+}
+
 export class InputManager {
   // Keyboard and mouse are the secondary path: the controller is what the game
   // is designed around (sprint latching, cover, the right-stick dolly), but
@@ -153,14 +167,23 @@ export class InputManager {
   }
 
   /**
-   * Assign pads to player slots: P1 gets the first free pad (shared with KB/M),
-   * P2 the next, and so on up to four — and a slot then *keeps* its device.
+   * Give player slots to the controllers people are actually holding, in the
+   * order they first touch them: the first pad used is player one, the next
+   * player two, and so on — and a slot then *keeps* its device.
    *
-   * Reassigning by array order every frame meant that when player one's pad
-   * died mid-fight (battery, cable), player two's pad became `pads[0]` on the
-   * very next frame and started driving player one's character while player two
-   * lost control of theirs. Slots now hold a device index until that device
-   * actually goes away, and losing one in play pauses instead.
+   * A seat is earned by use, not by existing. Merely being enumerated is no
+   * evidence anyone is holding a device: a browser will happily report a pad
+   * that is asleep in a drawer, a wireless dongle with no pad paired to it, or
+   * the same controller twice over two transports. Seating those on sight cost
+   * the real second controller its place — it joined as player three, and the
+   * empty seat between them then fed player two a device nobody was touching,
+   * so that pad did nothing once the match started.
+   *
+   * Reassigning by array order every frame is the other failure and is just as
+   * bad: when player one's pad died mid-fight (battery, cable), player two's
+   * pad became `pads[0]` on the very next frame and started driving player
+   * one's character. So slots hold their device until it actually goes away,
+   * and losing one in play pauses.
    */
   private assignPads(): void {
     const pads = this.pads();
@@ -174,11 +197,27 @@ export class InputManager {
     }
     for (const p of pads) {
       if (this.padForPlayer.includes(p.index)) continue;
+      if (!padInUse(p)) continue;                  // nobody is holding this one
       const slot = this.padForPlayer.indexOf(-1);
       if (slot < 0) break;
       this.padForPlayer[slot] = p.index;
     }
     if (lost && !this.menuMode) this.menuQueue.push({ action: 'pause', source: -1 });
+  }
+
+  /**
+   * Move a controller to a particular slot, trading places with whatever sat
+   * there. The character select uses it so a player who presses A joins at the
+   * first free place rather than wherever their pad happened to be seated —
+   * it only ever swaps seats nobody has joined from, so no player in the line
+   * changes hands.
+   */
+  seatPad(padIndex: number, slot: number): void {
+    if (slot < 0 || slot >= this.padForPlayer.length) return;
+    const from = this.padForPlayer.indexOf(padIndex);
+    if (from === slot) return;
+    if (from >= 0) this.padForPlayer[from] = this.padForPlayer[slot];
+    this.padForPlayer[slot] = padIndex;
   }
 
   /**
@@ -201,6 +240,8 @@ export class InputManager {
   /** How many players could join right now: the keyboard plus every free pad. */
   joinablePlayers(): number { return Math.min(MAX_PLAYERS, Math.max(1, this.pads().length)); }
   padCount(): number { return this.pads().length; }
+  /** Controllers that have been picked up and hold a player slot. */
+  seatedPads(): number { return this.padForPlayer.filter((p) => p >= 0).length; }
 
   private padState(idx: number): PadState {
     let s = this.padStates.get(idx);

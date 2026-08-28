@@ -150,6 +150,7 @@ const charSelect = new CharacterSelect(menuLayer, {
   onBack: () => setState('select'),
   padForPlayer: () => input.padForPlayer,
   compactPads: () => input.compactPlayerSlots(),
+  seatPad: (padIndex, slot) => input.seatPad(padIndex, slot),
   stickX: (slot) => input.menuStickX(slot),
 });
 
@@ -346,6 +347,8 @@ function quitToTitle(): void {
 // to break — every slot still reads its own device, so a pad that is there
 // drives its player and a slot without one simply stands still.
 Object.assign(window, {
+  // back to the title from wherever we are, so a test can run several matches
+  __quitToTitle: () => quitToTitle(),
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
     if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;

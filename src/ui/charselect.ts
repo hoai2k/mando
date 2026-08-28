@@ -99,6 +99,8 @@ export class CharacterSelect {
       padForPlayer: () => number[];
       /** close gaps in the pad-to-slot assignment after a player drops out */
       compactPads: () => void;
+      /** move a controller to a given player slot, trading places with it */
+      seatPad: (padIndex: number, slot: number) => void;
       /** right-stick X for a player slot, for free-look on that pedestal */
       stickX: (slot: number) => number;
     },
@@ -412,8 +414,28 @@ export class CharacterSelect {
     else if (s.phase === 'ready' && this.startBtn.style.display !== 'none') { audio.uiConfirm(); this.start(); }
   }
 
+  /**
+   * Where a controller's press to join should land: its own place if it is
+   * already in the line, otherwise the first free one — and the pad is re-seated
+   * to match, so the seat a player takes in the line is the seat their
+   * controller drives in the match.
+   *
+   * Without this, a controller that had already claimed a place by being used
+   * on an earlier screen could press A over an empty plinth to its left and
+   * join to its right, leaving a gap; the line would then start a match with
+   * that player reading a seat their pad was not in.
+   */
+  private slotForJoin(source: number): number {
+    const seat = this.slotFor(source);
+    if (seat >= 0 && this.slots[seat].phase !== 'empty') return seat;   // already in the line
+    const free = this.slots.findIndex((s) => s.phase === 'empty');
+    if (free < 0) return seat;
+    if (source !== -1) this.opts.seatPad(source, free);
+    return free;
+  }
+
   handle(action: MenuAction, source: number): void {
-    const slot = this.slotFor(source);
+    const slot = action === 'confirm' ? this.slotForJoin(source) : this.slotFor(source);
     if (slot < 0) return;
     const s = this.slots[slot];
     switch (action) {
@@ -503,6 +525,9 @@ export class CharacterSelect {
   }
 
   private start(): void {
+    // a last close-up before the match takes the line as it stands: players and
+    // their pads must be seats 0..n-1 with no hole, or someone drives nobody
+    this.compact();
     const joined = this.slots.filter((s) => s.phase === 'ready');
     if (joined.length === 0 || joined.length !== this.slots.filter((s) => s.phase !== 'empty').length) return;
     this.opts.onStart(joined.map((s) => ROSTER[s.choice]), joined.length);
