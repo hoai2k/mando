@@ -34,6 +34,9 @@ interface Def {
   build: () => CharacterInstance;
 }
 
+/** the board's gravity scale — a station in orbit runs light for everyone on it */
+const grav = (game: Game): number => game.board.gravity ?? 1;
+
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
   pirateMelee: { hp: 95, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
@@ -350,7 +353,7 @@ export class Enemy {
 
     if (!this.alive) {
       this.deadTimer -= dt;
-      this.velocity.y -= 22 * dt;
+      this.velocity.y -= 22 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.deadTimer <= 0) {
         this.char.root.position.y -= dt * 1.2; // sink away
@@ -370,7 +373,7 @@ export class Enemy {
       this.downTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 4, dt);
       this.velocity.z = damp(this.velocity.z, 0, 4, dt);
-      this.velocity.y -= 24 * dt;
+      this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.downTimer <= 0) {
         // back on its feet, shaken
@@ -401,7 +404,7 @@ export class Enemy {
       if (away.lengthSq() > 1e-4) away.normalize();
       this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
       this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
-      this.velocity.y -= 24 * dt;
+      this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.bleedOut <= 0) {
         this.alive = false;
@@ -430,7 +433,7 @@ export class Enemy {
         this.velocity.x = damp(this.velocity.x, away.x * d.speed * 1.05, 6, dt);
         this.velocity.z = damp(this.velocity.z, away.z * d.speed * 1.05, 6, dt);
         this.facingYaw = dampAngle(this.facingYaw, Math.atan2(away.x, away.z), 8, dt);
-        this.velocity.y -= 24 * dt;
+        this.velocity.y -= 24 * grav(game) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (anim) {
           anim.play('lower', 'runLower', 0.2, 1.2);
@@ -485,7 +488,7 @@ export class Enemy {
     }
 
     if (d.style === 'melee' || d.style === 'ranged') {
-      this.velocity.y -= 24 * dt;
+      this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.alive = false; this.removeMe = true; }
     } else {

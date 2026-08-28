@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { config, loadSavedConfig, saveAudioConfig } from './config';
 import { InputManager } from './core/input';
 import { audio } from './core/audio';
 import { Game } from './game/game';
@@ -12,6 +13,11 @@ import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
 const app = document.getElementById('app')!;
 
 // ---------- renderer ----------
+loadSavedConfig();
+// The tunables in src/config.ts are meant to be adjustable while playing:
+//   __config.audio.sfx = 0.2; __audio.applyConfig(); __saveAudio();
+Object.assign(window, { __config: config, __audio: audio, __saveAudio: saveAudioConfig });
+
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;

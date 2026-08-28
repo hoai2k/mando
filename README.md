@@ -100,3 +100,14 @@ ELEVENLABS_API_KEY=... node tools/generate-sfx.mjs [name ...]
 ```
 
 Existing files are skipped unless named explicitly. Never commit the key.
+
+## Settings
+
+Audio volumes live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
+linear gain from 0 to 1. They can also be changed while playing, from the browser console:
+
+```js
+__config.audio.sfx = 0.2;   // quieter blasters
+__audio.applyConfig();      // take effect now
+__saveAudio();              // remember it across reloads
+```
