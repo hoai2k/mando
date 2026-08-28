@@ -305,6 +305,122 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
 }
 
 // ---------- Nikto swoop rider: bike + seated rider, moved as one unit ----------
+/**
+ * War massiff — an armoured quadruped bred well past the size of the pack
+ * animals the Tuskens keep. Shoulder height ~1.9 m, ~4 m nose to tail, so it
+ * reads as an apex predator next to a 1.8 m trooper rather than a hound
+ * underfoot. Free-form rig: the gait, jaw and tail are animated in code by
+ * `cosmetic`, since there is no biped skeleton to hang clips on.
+ */
+export function buildMassiff(): CharacterInstance {
+  const hide = mat(0x8a6a45, { rough: 0.95 });
+  const plate = mat(0x6f5535, { rough: 0.8 });
+  const dark = mat(0x2e2418, { rough: 0.9 });
+  const tusk = mat(0xd8cdaa, { rough: 0.6 });
+  const root = new THREE.Group();
+
+  // Low, slab-sided torso: flattened rather than barrel-round so it reads as
+  // armour over muscle from 30 m, with the shoulders carried higher than the
+  // hips and the skull slung out front below them — a stalking predator line.
+  const BODY_Y = 1.22;
+  const body = new THREE.Group();
+  body.position.y = BODY_Y;
+  root.add(body);
+  addSphere(body, hide, 0.64, 0, 0, 0.05, 12, 9, 1.15, 1.85);        // barrel
+  addSphere(body, hide, 0.52, 0, 0.1, 0.62, 10, 8, 1.12, 0.95);      // shoulder hump
+  addSphere(body, hide, 0.5, 0, -0.06, -0.92, 10, 8, 1.05, 1.15);    // haunches
+  body.scale.y = 0.84;                                                // flatten the whole mass
+
+  // dorsal armour: overlapping plates down the spine, spikes standing off them
+  for (let i = 0; i < 10; i++) {
+    const z = 0.95 - i * 0.25;
+    const hump = Math.max(0, 1 - Math.abs(i - 2.5) / 6);
+    addBox(body, plate, 0.54 - Math.abs(i - 3) * 0.03, 0.11, 0.21, 0, 0.55 + hump * 0.08, z, -0.1, 0, 0);
+    addCyl(body, plate, 0.012, 0.08, 0.34 - i * 0.016, 0, 0.72 + hump * 0.08, z, -0.22, 0, 0, 5);
+  }
+  // flank scutes
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 5; i++) {
+      addBox(body, plate, 0.09, 0.2, 0.32, sx * 0.6, 0.14 - i * 0.03, 0.7 - i * 0.36, 0, 0, sx * 0.3);
+    }
+  }
+
+  // neck and heavy skull, carried low and forward
+  const neck = new THREE.Group();
+  neck.position.set(0, -0.02, 1.02);
+  body.add(neck);
+  addCyl(neck, hide, 0.3, 0.34, 0.5, 0, -0.08, 0.18, Math.PI / 2 - 0.28, 0, 0, 8);
+  const head = new THREE.Group();
+  head.position.set(0, -0.2, 0.44);
+  neck.add(head);
+  addBox(head, hide, 0.48, 0.36, 0.46, 0, 0, 0.06);                  // skull
+  addBox(head, plate, 0.44, 0.1, 0.4, 0, 0.19, 0.04);                // crown plate
+  addBox(head, hide, 0.4, 0.24, 0.46, 0, -0.05, 0.42);               // snout
+  const jaw = new THREE.Group();
+  jaw.position.set(0, -0.17, 0.1);
+  head.add(jaw);
+  addBox(jaw, dark, 0.36, 0.13, 0.5, 0, -0.02, 0.26);
+  for (let i = 0; i < 6; i++) {
+    const tx = -0.15 + (i % 2) * 0.3;
+    const tz = 0.12 + ((i / 2) | 0) * 0.22;
+    addCyl(jaw, tusk, 0.005, 0.038, 0.19, tx, 0.1, tz, 0, 0, 0, 5);       // lower fangs
+    addCyl(head, tusk, 0.005, 0.034, 0.16, tx, -0.16, tz + 0.04, Math.PI, 0, 0, 5); // upper
+  }
+  for (const ex of [-1, 1]) {
+    addSphere(head, mat(0xc4761f, { rough: 0.35, emissive: 0x6a2f06 }), 0.055, ex * 0.23, 0.08, 0.2, 7, 6);
+    addCyl(head, plate, 0.01, 0.055, 0.28, ex * 0.19, 0.24, -0.02, -0.55, 0, ex * 0.35, 5); // brow horns
+  }
+
+  // four heavy legs, sized so the feet meet the ground from the flattened body
+  const legs: THREE.Object3D[] = [];
+  for (const [x, z, front] of [[-0.5, 0.6, 1], [0.5, 0.6, 1], [-0.5, -0.88, 0], [0.5, -0.88, 0]] as const) {
+    const leg = new THREE.Group();
+    // the body is scaled 0.84 in y, so undo it here or the legs squash with it
+    leg.position.set(x, -0.26 / 0.84, z);
+    leg.scale.y = 1 / 0.84;
+    addCyl(leg, hide, 0.19, 0.15, 0.5, 0, -0.25, 0, 0, 0, 0, 7);          // upper
+    addCyl(leg, hide, 0.15, 0.16, 0.46, 0, -0.7, front ? 0.04 : -0.04, 0, 0, 0, 7); // lower
+    addBox(leg, dark, 0.36, 0.14, 0.5, 0, -0.98, 0.11);                    // foot
+    for (let c = 0; c < 3; c++) addCyl(leg, tusk, 0.004, 0.024, 0.12, -0.11 + c * 0.11, -1.0, 0.36, 1.35, 0, 0, 4);
+    body.add(leg);
+    legs.push(leg);
+  }
+
+  // thick spiked tail, tapering in segments so it can swing as a chain
+  const tailSegs: THREE.Object3D[] = [];
+  let attach: THREE.Object3D = body;
+  for (let i = 0; i < 5; i++) {
+    const seg = new THREE.Group();
+    seg.position.set(0, i === 0 ? 0.06 : 0, i === 0 ? -1.3 : -0.42);
+    addCyl(seg, hide, 0.21 - i * 0.034, 0.25 - i * 0.034, 0.44, 0, 0, -0.22, Math.PI / 2, 0, 0, 7);
+    addCyl(seg, plate, 0.01, 0.06 - i * 0.007, 0.22, 0, 0.21 - i * 0.026, -0.2, -0.35, 0, 0, 5);
+    attach.add(seg);
+    attach = seg;
+    tailSegs.push(seg);
+  }
+
+  return {
+    root, rig: null, animator: null, height: 2.0,
+    cosmetic: (dt, time) => {
+      // stalking gait: diagonal pairs, slower and heavier than a hound's
+      const gait = time * 7;
+      for (let i = 0; i < 4; i++) {
+        const phase = gait + ((i === 0 || i === 3) ? 0 : Math.PI);
+        legs[i].rotation.x = Math.sin(phase) * 0.5;
+      }
+      body.position.y = BODY_Y + Math.abs(Math.sin(gait)) * 0.07;
+      body.rotation.z = Math.sin(gait) * 0.035;
+      neck.rotation.y = Math.sin(time * 1.7) * 0.1;
+      neck.rotation.x = Math.sin(time * 2.3) * 0.06;
+      jaw.rotation.x = 0.12 + Math.abs(Math.sin(time * 3.1)) * 0.24; // panting
+      for (let i = 0; i < tailSegs.length; i++) {
+        tailSegs[i].rotation.y = Math.sin(time * 3.4 - i * 0.5) * 0.16;
+        tailSegs[i].rotation.x = Math.sin(time * 2.1 - i * 0.4) * 0.05;
+      }
+    },
+  };
+}
+
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
   // swoop bike

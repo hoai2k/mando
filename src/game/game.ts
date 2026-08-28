@@ -274,18 +274,34 @@ export class Game {
     const targets: BoltTarget[] = [];
     for (const e of this.enemies) {
       if (!e.alive) continue;
+      const onHit = (dmg: number, from: THREE.Vector3): void => {
+        const wasAlive = e.alive;
+        const slot = this.nearestPlayerSlot(from);
+        e.damage(dmg, from, slot);
+        // every hit shoves: light per bolt, but it stacks over a burst
+        e.knockback(from, 5.5, 0.2);
+        if (wasAlive) this.hitMarker(slot);
+      };
       targets.push({
         position: e.position.clone().add(new THREE.Vector3(0, e.height * 0.5, 0)),
         radius: e.radius + 0.35, team: 1, alive: e.alive,
-        onHit: (dmg, from) => {
-          const wasAlive = e.alive;
-          const slot = this.nearestPlayerSlot(from);
-          e.damage(dmg, from, slot);
-          // every hit shoves: light per bolt, but it stacks over a burst
-          e.knockback(from, 5.5, 0.2);
-          if (wasAlive) this.hitMarker(slot);
-        },
+        onHit,
       });
+      // long bodies (the war massiff) need more than the one centre sphere
+      if (e.def.hitParts) {
+        const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
+        for (const part of e.def.hitParts) {
+          targets.push({
+            position: new THREE.Vector3(
+              e.position.x + sin * part.z,
+              e.position.y + part.y,
+              e.position.z + cos * part.z
+            ),
+            radius: part.r, team: 1, alive: e.alive,
+            onHit,
+          });
+        }
+      }
     }
     for (const p of this.players) {
       if (!p.alive) continue;

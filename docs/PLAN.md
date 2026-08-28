@@ -120,6 +120,7 @@ This is the flexibility the brief demands:
 |---|---|---|
 | **Din Djarin** (player) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
 | **Paz Vizsla** (player) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, bulkiest silhouette; same jetpack and weapon loadout. |
+| **War massiff** | Tatooine elite (wave 5+) | Armoured quadruped predator: slab-sided hide under a spine of dorsal plates and spikes, flank scutes, heavy tusked skull slung low and forward, thick segmented tail. 2.1 m tall, 5.6 m long. Runs down anyone who tries to jog away and pounces the last 16 m. |
 | **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |
 | **Nikto sand rider** | Fast harasser (Tatooine) | Leathery horned reddish faces, biker leathers per the swoop-gang episode; rides a fast hover-swoop in strafing runs. |
@@ -219,6 +220,7 @@ Enemies value their own lives, per RDR2's combat AI:
 - **Swooper/flyer** (Nikto swoop, jet-pirate, dark trooper): figure-eight strafing
   runs, vulnerable window after each pass; loiters near its post until alerted.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.
+- **Beast** (war massiff): `relentless` — exempt from the director's standoff rotation and from morale breaks, because a predator that waits its turn or runs away isn't one. Chases at 10.5 m/s (a jog is 9.2, a sprint 14.4, so it catches anyone who doesn't spend the energy gauge) and closes the last 4–16 m with a ballistic **pounce**, led to intercept the target's velocity. The leap has no steering once airborne, so a dash or jetpack hop to the side beats it; a miss costs it 0.7 s. 300 HP with hit spheres on the skull and haunches as well as the torso, since one capsule sphere can't cover a five-metre body.
 - **Allies** (Marshal, IG-11, Fennec) escort rather than hunt: they engage what is
   near the player, and come back if they stray past ~34 m.
 
@@ -258,7 +260,7 @@ two-player).
 
 ## 14. Revisions from playtesting
 
-- **All enemies are human-size or larger.** The massiff (a ~0.8 m quadruped) was cut; the Tatooine melee slot is filled by Tuskens and pirate brawlers instead.
+- **All enemies are human-size or larger.** The massiff was originally a ~0.8 m quadruped and got cut for it; it is back as the **war massiff** — a bred war beast at 2.1 m to the spines and 5.6 m nose to tail, roughly triple a trooper's bulk — and promoted from wave-1 chaff to a wave-5+ elite. Nothing else was ever cut for size.
 - **Sprint gauge.** Holding B / Shift on the ground sprints at ~14.4 m/s against a 6-second energy bar, separate from jetpack fuel. The dash burst moved to a tap of the same button while airborne and now costs energy rather than fuel.
 - **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher ≈ 3.1 m, explosions ≈ 4.7 m. The finisher deliberately shoves rather than launches (0.96 m/s of lift vs 6.65 m/s originally) — its job is to clear the target out of your firing line so you can swing to the next one, not to be spectacular.
 - **Blaster readability.** Bolts are longer, fatter, near-white cores with an additive halo, fired at 75 m/s with a muzzle flash. Shots converge on the crosshair via a camera raycast (or the soft-lock target) instead of firing parallel from the muzzle, and the crosshair shows a red lock ring when a target is in the assist cone.
