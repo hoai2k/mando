@@ -77,8 +77,19 @@ export class InputManager {
       if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('mousedown', (e) => { this.mouseButtons.add(e.button); this.mousePressed.add(e.button); });
-    window.addEventListener('mouseup', (e) => this.mouseButtons.delete(e.button));
+    // e.buttons is the authoritative bitmask of what is down right now, so
+    // reconciling against it on every mouse event self-heals a mouseup that
+    // never arrived — released off-window, or eaten by a pointer-lock or
+    // fullscreen transition — which otherwise latches fire on for good
+    const sync = (e: MouseEvent) => {
+      for (const b of [0, 1, 2]) if (!(e.buttons & (b === 0 ? 1 : b === 1 ? 4 : 2))) this.mouseButtons.delete(b);
+    };
+    window.addEventListener('mousedown', (e) => { this.mouseButtons.add(e.button); this.mousePressed.add(e.button); sync(e); });
+    window.addEventListener('mouseup', (e) => { this.mouseButtons.delete(e.button); sync(e); });
+    window.addEventListener('mousemove', sync);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { this.keys.clear(); this.mouseButtons.clear(); }
+    });
     window.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', (e) => {
       if (this.pointerLocked) { this.mouseDX += e.movementX; this.mouseDY += e.movementY; }
@@ -96,10 +107,19 @@ export class InputManager {
     if (this.pointerLocked) document.exitPointerLock?.();
   }
 
-  /** Connected gamepads with standard mapping, sorted by index. */
+  /**
+   * Connected gamepads with standard mapping, sorted by index.
+   *
+   * The mapping check is not optional: everything below reads Xbox standard
+   * button indices, and browsers expose plenty of other HID devices as
+   * gamepads — joysticks, wheels, D-input pads, adapters. On those the indices
+   * mean something else entirely, and a switch that happens to sit latched at
+   * index 7 reads as a held right trigger, so player one fires forever without
+   * anyone touching anything.
+   */
   private pads(): Gamepad[] {
     const out: Gamepad[] = [];
-    for (const p of navigator.getGamepads?.() ?? []) if (p && p.connected) out.push(p);
+    for (const p of navigator.getGamepads?.() ?? []) if (p && p.connected && p.mapping === 'standard') out.push(p);
     return out;
   }
 
