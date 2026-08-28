@@ -7,6 +7,7 @@ import { buildTrask } from './trask';
 import { buildRefinery } from './refinery';
 import { buildForge } from './forge';
 import { buildRingworld } from './ringworld';
+import { buildNarkina } from './narkina';
 
 /**
  * The board roster: everything the select screen and the game boot need to
@@ -72,5 +73,11 @@ export const BOARDS: BoardInfo[] = [
     desc: 'A Glavis street under a moving terminator. The dark side hides you; the tram runs through both.',
     art: 'board_ringworld.jpg', gradient: 'linear-gradient(160deg, #34405c, #141824)',
     build: buildRingworld,
+  },
+  {
+    id: 'narkina', name: 'The Prison Rig',
+    desc: 'A white Imperial facility on an ocean world. Electrified decks above; a whole sea to dive below.',
+    art: 'board_narkina.jpg', gradient: 'linear-gradient(160deg, #c8d4dc, #3c5560)',
+    build: buildNarkina,
   },
 ];

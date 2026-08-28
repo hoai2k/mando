@@ -115,6 +115,18 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(FINAL_WAVE, 'enforcer', 1);
       break;
 
+    case 'narkina':
+      // a prison garrison: troopers and droids in numbers, elites late
+      at(1, 'stormtrooper', n(5, 0.8));
+      at(1, 'droid', n(1, 0.4));
+      at(3, 'deathtrooper', ramp(3, 2, 3));
+      at(4, 'darktrooper', ramp(4, 2, 3), true);
+      at(6, 'flametrooper', ramp(6, 2, 2));
+      at(7, 'duelist', 1);
+      at(9, 'officer', 1);
+      at(FINAL_WAVE, 'officer', 1);
+      break;
+
     case 'ringworld':
       at(1, 'pirate', n(4, 0.6));
       at(1, 'pirateMelee', n(2, 0.4));

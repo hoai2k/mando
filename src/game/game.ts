@@ -56,6 +56,9 @@ export class Game {
   private stateTimer = 2.2;
   private rockets: Rocket[] = [];
   private tmpSize = new THREE.Vector2();
+  /** the world seen from below the surface: dense teal murk */
+  private underFog = new THREE.Fog(0x0d3240, 2, 52);
+  private underColor = new THREE.Color(0x0d3240);
   private envSource: THREE.Texture | null = null;
   private envBuilt = false;
   /** PMREM output; three hands back a render target that has to be freed too */
@@ -128,6 +131,9 @@ export class Game {
           p.cam.shake(0.05);
         }
       }
+    };
+    this.projectiles.onWaterHit = (point) => {
+      this.particles.splash(point, 5);
     };
     this.projectiles.onImpact = (point, hitTarget, team) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
@@ -455,7 +461,7 @@ export class Game {
       t.slot = undefined;
       targets.push(t);
     }
-    this.projectiles.update(dt, this.board.physics, targets);
+    this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
 
     // ---- rockets ----
     for (const r of this.rockets) {
@@ -621,6 +627,11 @@ export class Game {
     const h = this.tmpSize.y;
     const n = this.players.length;
     renderer.setScissorTest(n > 1);
+    // each viewport judges the water for itself: a diver's screen goes to
+    // teal murk while the partner's stays in daylight
+    const surfaceFog = this.scene.fog;
+    const surfaceBg = this.scene.background;
+    const wY = this.board.waterY;
     for (let i = 0; i < n; i++) {
       const vh = n > 1 ? h / 2 : h;
       const vy = n > 1 ? (i === 0 ? h / 2 : 0) : 0;
@@ -629,8 +640,13 @@ export class Game {
       cam.updateProjectionMatrix();
       renderer.setViewport(0, vy, w, vh);
       renderer.setScissor(0, vy, w, vh);
+      const under = wY !== undefined && cam.position.y < wY;
+      this.scene.fog = under ? this.underFog : surfaceFog;
+      this.scene.background = under ? this.underColor : surfaceBg;
       renderer.render(this.scene, cam);
     }
+    this.scene.fog = surfaceFog;
+    this.scene.background = surfaceBg;
     renderer.setScissorTest(false);
   }
 }
