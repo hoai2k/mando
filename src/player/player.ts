@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildMandalorian, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
+import { buildMandalorian, MANDO_ROSTER, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
 import { ThirdPersonCamera } from '../core/camera';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
@@ -820,7 +820,8 @@ export class Player {
     if (input.switchPressed) {
       this.weapon = this.weapon === 'blaster' ? 'gaffi' : 'blaster';
       this.char.setWeapon(this.weapon);
-      audio.uiMove();
+      if (this.weapon === 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
+      else audio.uiMove();
     }
 
     // melee (always available; swaps to gaffi visual during swing)
@@ -834,7 +835,7 @@ export class Player {
       this.meleeHitPending = dur * 0.45;
       this.meleeDamage = this.meleeStep === 3 ? 55 : 32;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep);
+      audio.melee(this.meleeStep, MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
       // lunge toward nearest enemy in front
       const target = this.nearestEnemy(game, 5.5, 0.4);
       if (target) {
@@ -900,7 +901,7 @@ export class Player {
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
-      audio.blaster();
+      audio.blaster(MANDO_ROSTER[this.characterId].ranged ?? 'carbine');
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);

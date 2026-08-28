@@ -121,6 +121,24 @@ chant, bass wood flutes, analog synth pulse, and a lonely desert-western twang.
 | *White Deck Cadence* | "Sterile penal-facility precision: cold clipped electronic ticking in strict grid time, sequenced bass with a rising charge-up whine motif that peaks and discharges on the loop, pristine icy pads, curt processed drum hits like boots on plated floor, no warmth anywhere. Oppressive order. ~110 BPM, 3 minutes, seamless loop" |
 | *Beneath the Moon Pool* | "The same facility heard from underwater: a muffled low-passed echo of the deck cadence far above, slow sub-aquatic pads, kelp-forest shimmer, sonar-like pings, glowing-reef bell tones — dread turned weightless and strangely beautiful. ~3 minutes, loopable" |
 
+## Open — hunter roster signature weapons (priority 2)
+
+The three new playable hunters (see *Playable bounty hunters* in `ASSETS_MODELS.md`)
+carry their own weapons, and the engine now voices each one — synth fallbacks are live,
+and the generation prompts are already in `tools/generate-sfx.mjs`, so delivery is
+`node tools/generate-sfx.mjs crossbow_shot longrifle_shot saber_swing saber_ignite`
+with an ElevenLabs key.
+
+| File | Used by | Prompt lives in |
+|---|---|---|
+| `crossbow_shot` | Karshii's laser crossbow | `tools/generate-sfx.mjs` |
+| `longrifle_shot` | Skarvek's and VX-9's long rifle | `tools/generate-sfx.mjs` |
+| `saber_swing` | Sylla Morvane's melee swings (pitch-varied per combo step) | `tools/generate-sfx.mjs` |
+| `saber_ignite` | Sylla Morvane drawing the twin blades | `tools/generate-sfx.mjs` |
+
+Nice-to-have on top: per-hunter `player_hurt` variants (a droid VX-9 grunting like a
+helmeted human is the one real seam) — needs a small engine hook, not just files.
+
 ## Open — nice-to-have variation sets
 
 The engine currently pitch-varies a single file for each of these, which is convincing but

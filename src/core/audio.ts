@@ -21,6 +21,7 @@ type SampleName =
   | 'splash_in' | 'splash_out' | 'mamacore_roar' | 'floor_charge'
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
+  | 'crossbow_shot' | 'longrifle_shot' | 'saber_swing' | 'saber_ignite'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
@@ -110,6 +111,7 @@ export class AudioEngine {
       'splash_in', 'splash_out', 'mamacore_roar', 'floor_charge',
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
+      'crossbow_shot', 'longrifle_shot', 'saber_swing', 'saber_ignite',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -206,8 +208,25 @@ export class AudioEngine {
     this.burst(0.26, 0.2 * gain, 900, 0.02, 1.4);
   }
 
-  blaster(): void {
-    if (!this.ctx || this.playSample('blaster_shot', 0.7)) return;
+  /** Hero ranged shot, voiced per weapon; the carbine is the classic zap. */
+  blaster(kind: 'carbine' | 'crossbow' | 'longrifle' = 'carbine'): void {
+    if (!this.ctx) return;
+    if (kind === 'crossbow') {
+      if (this.playSample('crossbow_shot', 0.7)) return;
+      // string release then a bright bolt: pluck transient, high short zap
+      this.burst(0.03, 0.25, 1600, 0, 3);
+      this.zap(2600, 700, 0.09, 'square', 0.22, 0.015);
+      return;
+    }
+    if (kind === 'longrifle') {
+      if (this.playSample('longrifle_shot', 0.75)) return;
+      // heavier, slower report with a low barrel resonance
+      this.zap(950, 140, 0.22, 'sawtooth', 0.4);
+      this.burst(0.1, 0.22, 1400, 0, 1.2);
+      this.zap(180, 70, 0.28, 'sine', 0.2, 0.02);
+      return;
+    }
+    if (this.playSample('blaster_shot', 0.7)) return;
     this.zap(1900, 260, 0.13, 'sawtooth', 0.35);
     this.burst(0.06, 0.16, 3400);
   }
@@ -219,9 +238,26 @@ export class AudioEngine {
     if (!this.ctx || this.playSample('blaster_impact', 0.5)) return;
     this.burst(0.09, 0.22, 2400, 0, 2);
   }
-  melee(step: number): void {
-    if (!this.ctx || this.playSample('melee_whoosh', 0.6, 0.9 + step * 0.12)) return;
+  melee(step: number, kind: 'gaffi' | 'sabers' = 'gaffi'): void {
+    if (!this.ctx) return;
+    if (kind === 'sabers') {
+      if (this.playSample('saber_swing', 0.65, 0.92 + step * 0.1)) return;
+      // an energy blade sweep is a hum with doppler, not moving air: a tonal
+      // sweep with a fifth above it, plus only a whisper of whoosh
+      this.zap(340 + step * 40, 130, 0.22, 'sawtooth', 0.2);
+      this.zap(510 + step * 60, 195, 0.22, 'triangle', 0.12);
+      this.burst(0.14, 0.08, 700 + step * 150, 0, 0.5);
+      return;
+    }
+    if (this.playSample('melee_whoosh', 0.6, 0.9 + step * 0.12)) return;
     this.burst(0.16, 0.22, 500 + step * 200, 0, 0.7);
+  }
+  /** Twin blades snapping alive when the assassin draws them. */
+  saberIgnite(): void {
+    if (!this.ctx || this.playSample('saber_ignite', 0.6)) return;
+    this.burst(0.04, 0.3, 2400, 0, 2);
+    this.zap(90, 260, 0.16, 'sawtooth', 0.22, 0.02);
+    this.zap(140, 390, 0.16, 'triangle', 0.12, 0.02);
   }
   meleeHit(): void {
     if (!this.ctx || this.playSample('melee_hit', 0.8)) return;
