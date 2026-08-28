@@ -12,7 +12,7 @@ import { attachAuthored } from './authored';
  * (The Mando* names predate the hunters; every id below rides the same type.)
  */
 
-export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer' | 'ventress' | 'embo' | 'bossk';
+export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer' | 'ventress' | 'embo' | 'bossk' | 'ig11';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
@@ -31,9 +31,14 @@ export interface PlayerCharacter extends CharacterInstance {
 }
 
 /** visual height per character, used to size an authored model */
+/**
+ * Height the authored model is normalised to, in metres, BEFORE the config's
+ * bulk scale multiplies it — so Paz at 1.67 x 1.16 stands 1.94 m broad rather
+ * than the 2.24 m tower the old 2.0 x 1.12 made of him.
+ */
 const MODEL_HEIGHT: Record<MandoId, number> = {
-  din: 1.85, paz: 2.0, bokatan: 1.75, armorer: 1.78,
-  ventress: 1.79, embo: 1.78, bossk: 1.9,
+  din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
+  ventress: 1.79, embo: 1.78, bossk: 1.9, ig11: 2.2,
 };
 
 interface MandoConfig {
@@ -47,6 +52,12 @@ interface MandoConfig {
   helmet: MandoId | null;
   rangefinder: boolean;
   bulk: number;      // 1 = standard; Paz is heavier
+  /**
+   * Extra width-only multiplier on top of bulk (x/z, never y) for characters
+   * that should read broad rather than tall. Kept small: limbs under a
+   * non-uniform parent scale stretch as they swing, invisible below ~10%.
+   */
+  broad?: number;
   /** signature loadout — defaults are the shared carbine and gaffi */
   ranged?: 'carbine' | 'crossbow' | 'longrifle';
   melee?: 'gaffi' | 'sabers';
@@ -70,8 +81,8 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
   },
   paz: {
-    name: 'Torva Brekk', desc: 'Heavy infantry of the covert — walking siege tower.',
-    primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
+    name: 'Torva Brekk', desc: 'Heavy infantry of the covert — a walking siege wall.',
+    primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
   },
   bokatan: {
     name: 'Vess Ordane', desc: 'Night owl of the old clans — born to the creed, and to rule it.',
@@ -96,6 +107,11 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
   },
+  ig11: {
+    name: 'VX-9', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
+    primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
+    ranged: 'longrifle', skin: 0x8a8578,
+  },
 };
 
 /**
@@ -111,6 +127,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
 
   const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
+  if (cfg.broad) { rig.root.scale.x *= cfg.broad; rig.root.scale.z *= cfg.broad; }
   const b = rig.bones;
 
   // cuirass
@@ -499,6 +516,19 @@ function buildHunterHead(
       addCyl(hat, prim, 0.34, 0.36, 0.022, 0, 0, 0, 0, 0, 0, 18);  // the wide brim
       addCyl(hat, prim, 0.12, 0.16, 0.06, 0, 0.035, 0, 0, 0, 0, 14); // crown
       addCyl(hat, accent, 0.125, 0.125, 0.02, 0, 0.012, 0, 0, 0, 0, 14); // band
+      break;
+    }
+    case 'ig11': {
+      // the skull sphere reads as a neck joint under the cylinder head
+      addCyl(helm, skin, 0.075, 0.09, 0.16, 0, 0.09, 0, 0, 0, 0, 12);
+      addCyl(helm, prim, 0.078, 0.078, 0.035, 0, 0.055, 0, 0, 0, 0, 12);  // sensor collar
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        addSphere(helm, mat(0xc9401e, { rough: 0.3, emissive: 0x401508 }), 0.012,
+          Math.sin(a) * 0.08, 0.055, Math.cos(a) * 0.08, 6, 5);
+      }
+      addCyl(helm, accent, 0.008, 0.008, 0.1, 0.03, 0.22, 0, 0, 0, 0, 6);  // antenna
+      addSphere(helm, accent, 0.014, 0.03, 0.27, 0, 6, 5);
       break;
     }
     case 'bossk': {

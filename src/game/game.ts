@@ -644,7 +644,7 @@ export class Game {
       this.allies.push(ally);
       this.scene.add(ally.char.root);
       this.particles.dustPuff(start, 12);
-      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'IG-11 joins the fight', fennec: 'Fennec Shand joins the fight' };
+      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'VX-9 joins the fight', fennec: 'Fennec Shand joins the fight' };
       this.events.banner(`Wave ${this.wave}`, names[allyKind]);
     }
   }
