@@ -148,6 +148,7 @@ const charSelect = new CharacterSelect(menuLayer, {
   },
   onBack: () => setState('select'),
   padForPlayer: () => input.padForPlayer,
+  stickX: (slot) => input.menuStickX(slot),
 });
 
 // ----- controls & settings -----
@@ -213,6 +214,8 @@ end.addButtons(null, [
   { label: 'Quit to Title', action: () => quitToTitle() },
 ]);
 end.onBack = () => quitToTitle();
+
+(window as unknown as { __charsel?: CharacterSelect }).__charsel = charSelect; // debug/testing handle
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

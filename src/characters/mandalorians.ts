@@ -188,25 +188,101 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   b.weaponR.add(gaffi);
 
   // ---- block shield ----
-  // A curved pane on the forearm rather than a flat disc: at this size a flat
-  // one reads as a signboard, and the curve catches the rim light along its
-  // edge so you can see which way it faces.
+  // A force field, not a pane with a border: the body of the dome carries the
+  // effect and the edge falls out of it. A Fresnel term brightens the surface
+  // where it turns away from the eye, which is what makes a curved field read
+  // as a volume; a hex interference pattern drifts across it so it looks
+  // energised rather than painted; and a hit sends a ring out from the point
+  // of impact. The old bright torus rim did all the work and left the middle
+  // empty, so the whole thing read as an outline.
   const shieldRoot = new THREE.Group();
   b.chest.add(shieldRoot);
   shieldRoot.position.set(0, 0.14, 0.34);
-  const shieldMat = new THREE.MeshBasicMaterial({
-    color: 0x63b4ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending, depthWrite: false,
+  const shieldMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uStrength: { value: 0 },
+      uFlash: { value: 0 },
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0x63b4ff) },
+      uHot: { value: new THREE.Color(0xdcefff) },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vNormalV;
+      varying vec3 vViewV;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormalV = normalMatrix * normal;
+        vViewV = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform float uStrength;
+      uniform float uFlash;
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform vec3 uHot;
+      varying vec3 vNormalV;
+      varying vec3 vViewV;
+      varying vec2 vUv;
+
+      // distance to the nearest hex cell edge, for the interference lattice
+      float hexEdge(vec2 p) {
+        p.x *= 1.1547;
+        p.y += mod(floor(p.x), 2.0) * 0.5;
+        p = abs(fract(p) - 0.5);
+        return abs(max(p.x * 1.5 + p.y, p.y * 2.0) - 1.0);
+      }
+
+      void main() {
+        if (uStrength <= 0.001) discard;
+        vec3 n = normalize(vNormalV);
+        vec3 v = normalize(vViewV);
+        // grazing angles glow: the dome gains a body instead of a border
+        float fres = pow(1.0 - abs(dot(n, v)), 2.4);
+
+        // lattice drifting across the surface — kept faint, it is a texture on
+        // the field, not the field itself
+        vec2 hp = vec2(vUv.x * 15.0 + uTime * 0.10, vUv.y * 15.0 - uTime * 0.04);
+        float cells = smoothstep(0.09, 0.0, hexEdge(hp)) * 0.14;
+
+        // slow standing ripple so an idle field still breathes
+        float shimmer = sin(vUv.y * 34.0 - uTime * 2.4) * 0.5 + 0.5;
+
+        // impact ring travelling out from the centre of the dome
+        float r = vUv.y / 0.46;
+        float ring = smoothstep(0.16, 0.0, abs(r - (1.0 - uFlash))) * uFlash;
+
+        // the dome is double-sided, so a head-on look adds the far wall to the
+        // near one; the halved total keeps the middle see-through
+        float a = (0.05 + fres * 0.8 + cells + shimmer * 0.05 + ring * 1.0) * uStrength * 0.62;
+        vec3 col = mix(uColor, uHot, clamp(fres * 0.55 + ring, 0.0, 1.0));
+        gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
-  const shieldGeo = new THREE.SphereGeometry(0.62, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.44);
+  // a little bigger than before, and opened out slightly so it covers more
+  const SHIELD_R = 0.72, SHIELD_ARC = Math.PI * 0.46;
+  const shieldGeo = new THREE.SphereGeometry(SHIELD_R, 30, 16, 0, Math.PI * 2, 0, SHIELD_ARC);
   const shieldSkin = new THREE.Mesh(shieldGeo, shieldMat);
   shieldSkin.rotation.x = Math.PI / 2;   // cap opens forward, along +Z
   shieldRoot.add(shieldSkin);
+  // a faint edge, sitting exactly on the dome's lip so it reads as the field
+  // ending rather than as a frame drawn around it
   const rimMat = new THREE.MeshBasicMaterial({
-    color: 0xcfe6ff, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false,
+    color: 0x9fd0ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false,
   });
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.022, 8, 32), rimMat);
-  rim.position.z = 0.235;
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(SHIELD_R * Math.sin(SHIELD_ARC), 0.012, 8, 40), rimMat);
+  rim.position.z = SHIELD_R * Math.cos(SHIELD_ARC);
   shieldRoot.add(rim);
   shieldRoot.visible = false;
   let shieldFlash = 0;
@@ -291,8 +367,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       shieldRoot.visible = t > 0.02;
       // it grows into place rather than popping, and sits flat until it is up
       shieldRoot.scale.setScalar(0.55 + t * 0.45);
-      shieldMat.opacity = 0.22 * t;
-      rimMat.opacity = 0.65 * t;
+      shieldMat.uniforms.uStrength.value = t;
+      rimMat.opacity = 0.22 * t;
     },
     shieldHit: () => { shieldFlash = 1; },
     setHeroLight: (intensity) => {
@@ -300,13 +376,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
+      shieldMat.uniforms.uTime.value = time;
       if (shieldFlash > 0) {
-        shieldFlash = Math.max(0, shieldFlash - dt * 4);
-        // the bounce lights the whole pane for a moment, then settles
-        // additive blending blows out fast, so the flash is a lift, not a fill
-        shieldMat.opacity += shieldFlash * 0.22;
+        // the ring runs out from the centre and the lip lifts with it
+        shieldFlash = Math.max(0, shieldFlash - dt * 3);
         rimMat.opacity += shieldFlash * 0.3;
       }
+      shieldMat.uniforms.uFlash.value = shieldFlash;
       swap.update();
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
