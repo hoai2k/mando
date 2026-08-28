@@ -1,9 +1,10 @@
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import {
-  buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG,
-  buildImperialOfficer, buildMassiff, buildNikto, buildPirate, buildPyke, buildPykeCapo,
-  buildStormtrooper, buildTusken, buildWookieeEnforcer,
+  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
+  buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer, buildInterceptorDrone,
+  buildKrykna, buildMassiff, buildNikto, buildPirate, buildPyke, buildPykeCapo,
+  buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
 } from '../characters/enemies';
 import { loadProp } from '../characters/authored';
 
@@ -87,6 +88,13 @@ export const GROUPS: SubjectGroup[] = [
       plain('capo', 'Pyke Capo', (a) => buildPykeCapo(a), true, 'pyke_capo'),
       plain('enforcer', 'Wookiee Enforcer', (a) => buildWookieeEnforcer(a), true, 'wookiee_enforcer'),
       plain('officer', 'Imperial Officer', (a) => buildImperialOfficer(a), true, 'imperial_officer'),
+      plain('flametrooper', 'Incinerator Trooper', (a) => buildFlametrooper(a), true),
+      plain('quarren', 'Quarren Netcaster', (a) => buildQuarren(a), true),
+      plain('alamite', 'Alamite Charger', (a) => buildAlamite(a), true),
+      plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a), false, 'ring_enforcer'),
+      plain('krykna', 'Krykna', (a) => buildKrykna(a)),
+      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a)),
+      plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a)),
     ],
   },
 ];

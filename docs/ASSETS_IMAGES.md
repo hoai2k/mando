@@ -1,15 +1,12 @@
 # Asset Requests — Images & Textures
 
 **Open image requests only.** Delivered images are recorded in
-[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts. The first 15
-environment, sky and UI textures, the six new boards' card art, skies and surface textures,
-and the A-pose turnaround sheets for the whole cast are all delivered and integrated —
-nothing on that list needs making again.
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**What is left is The Prison Rig (Narkina), which landed after the last art batch.** Both
-files below have a working fallback in-game — the board card falls back to its gradient and
-the sky to the procedural dome — so neither blocks anything; they are upgrades the loader
-picks up automatically when they arrive.
+**Nothing is outstanding.** Every environment, sky and UI texture, all nine boards' card
+art and skies, the surface textures, and the A-pose turnaround sheets for the whole cast
+are delivered and integrated — The Prison Rig's card and sky, the last two open requests,
+landed on 2026-08-28 and the loader picked both up with no code change.
 
 Every image request for the project belongs in this file; once delivered it moves to the
 history doc, and anything it feeds (such as the 3D model briefs) references the resulting
@@ -21,26 +18,6 @@ design, never name a trademarked character or film frame.
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
-
-## New boards — select-card art (priority 1)
-
-Same style and spec as the two delivered cards (`board_tatooine.jpg`,
-`board_waystation.jpg` in the history doc): cinematic concept-art, landscape ~16:9,
-≥1024×576, no text. These are the first thing a player sees of each board.
-
-| File | Prompt |
-|---|---|
-| `board_narkina.jpg` | "Cinematic split-view shot at the waterline of an ocean planet: above, a sterile white Imperial prison facility on pylons under hard grey daylight, glowing white floor strips; below the surface, teal water with kelp, a glowing reef and an armored figure swimming down trailing bubbles, concept-art style" |
-
-## New boards — sky panoramas (priority 2)
-
-Same spec as the delivered `sky_desert.jpg` / `sky_space.jpg`: 360° equirectangular,
-≥4096×2048, no ground objects that would conflict with board geometry. Each replaces a
-procedural shader sky when present (the Refinery is an interior and needs none).
-
-| File | Board | Prompt |
-|---|---|---|
-| `sky_narkina.jpg` | The Prison Rig | "360 equirectangular panorama of a hard bright overcast sky over an endless grey-green ocean: high white glare through thin cloud, a pale cold sun disc, distant white-capped swell at the horizon in every direction, no land, no objects, photorealistic" |
 
 ## Making more character reference sheets
 
