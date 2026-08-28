@@ -1,11 +1,13 @@
 /**
  * WebAudio engine. Short sounds are synthesized procedurally unless an authored file
  * exists at assets/audio/<name>.mp3 (see docs/ASSETS_AUDIO.md); board background music
- * is streamed from public/music/ as a playlist (see MUSIC_PLAYLISTS below).
+ * is streamed from public/music/ as a playlist (see ./music.ts).
  */
 
 import { ASSET_ROOT } from './assets';
 import { config } from '../config';
+import { playlistFor } from './music';
+import type { BoardId } from '../world/board';
 
 type SampleName =
   | 'blaster_shot' | 'enemy_blaster' | 'blaster_impact' | 'melee_whoosh' | 'melee_hit'
@@ -33,19 +35,6 @@ export type BarkName =
 
 /** Footfall surfaces, one per board flavor. */
 export type FootSurface = 'sand' | 'metal' | 'snow' | 'stone';
-
-/**
- * Authored background-music playlists, streamed rather than decoded up front:
- * these are multi-megabyte tracks, so they play through an <audio> element fed
- * into the music bus instead of a fully-decoded AudioBuffer. A board opens on
- * its own signature track when it names one (`Board.musicLead`) and otherwise
- * on a random one, then keeps picking at random from the rest of the list —
- * never the track it just played — for as long as the match runs.
- */
-const MUSIC_PLAYLISTS: Record<'desert' | 'station', string[]> = {
-  desert: ['music/bone-totem-march-1.mp3', 'music/bone-totem-march-2.mp3'],
-  station: ['music/dust-beyond-orbit-1.mp3', 'music/dust-beyond-orbit-2.mp3'],
-};
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -502,13 +491,13 @@ export class AudioEngine {
    * Board music: streamed playlist if one exists for the board, else an
    * authored single loop, else a dark synth drone.
    */
-  startMusic(kind: 'title' | 'desert' | 'station', lead?: string): void {
+  startMusic(kind: 'title' | 'desert' | 'station', board?: BoardId): void {
     if (!this.ctx) return;
     this.stopMusic();
     if (kind !== 'title') {
-      // The lead track opens the board; the kind's playlist is what follows.
-      const urls = lead ? [lead, ...MUSIC_PLAYLISTS[kind].filter((u) => u !== lead)] : MUSIC_PLAYLISTS[kind];
-      if (this.startPlaylist(urls, kind, lead ? 0 : -1)) return;
+      // The board's signature track opens; its playlist is what follows.
+      const { urls, hasLead } = playlistFor(kind, board);
+      if (this.startPlaylist(urls, kind, hasLead ? 0 : -1)) return;
     }
     const name: SampleName = kind === 'title' ? 'music_title' : kind === 'desert' ? 'music_combat_desert' : 'music_combat_station';
     const sampled = this.loopSample(name, 0.5);

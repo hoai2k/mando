@@ -196,7 +196,6 @@ export function buildCrevasse(): Board {
     footstep: 'snow',
     ambience: { sample: 'amb_ice', bed: 'wind' },
     music: 'station',
-    musicLead: 'music/mando-ice.mp3',
     background: new THREE.Color(0xdde7ee),
     heroLight: 0.08,
     skyFile: 'sky_ice',

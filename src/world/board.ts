@@ -95,11 +95,6 @@ export interface Board {
   ambience: { sample: string; bed: 'wind' | 'hum' };
   /** which streamed playlist / combat loop fits this board */
   music: 'desert' | 'station';
-  /**
-   * The board's signature track: it opens the match, and the rest of the
-   * board's playlist follows at random. Omit and the opener is random too.
-   */
-  musicLead?: string;
   fog: THREE.Fog | null;
   background: THREE.Color;
   /** authored equirect panorama to use as the scene background, if present */

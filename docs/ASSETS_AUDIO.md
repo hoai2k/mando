@@ -12,7 +12,7 @@ voice. Files go in `public/assets/audio/`; the loader tries `.mp3` then `.ogg`.
 
 Board background music is separate: full-length tracks live in `public/music/` and are
 streamed as a per-board playlist rather than decoded as samples — see that directory's
-README and `MUSIC_PLAYLISTS` in `src/core/audio.ts`. The `music_combat_desert` /
+README and the track map in `src/core/music.ts`. The `music_combat_desert` /
 `music_combat_station` samples remain as the fallback if those tracks fail to load.
 
 **Specs:** OGG Vorbis or MP3, 44.1 kHz, mono for SFX / stereo for ambience and music,
@@ -73,7 +73,7 @@ Each new board currently borrows one of the two delivered playlists (`music/` RE
 Nevarro and the Great Forge use the desert set, the rest use the station set. The
 dedicated two-track sets below would replace that — same specs as the delivered tracks
 (stereo, 44.1 kHz, loudness-matched, seamless loop; chants and wordless voice fine, no
-lyric vocals). Wire-up is one entry per board in `MUSIC_PLAYLISTS` (`src/core/audio.ts`)
+lyric vocals). Wire-up is one entry per board in `src/core/music.ts`
 plus the board's `music` field.
 
 The shared scoring DNA across all of them, tuned per board: ritual percussion, low male
