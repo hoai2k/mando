@@ -51,7 +51,7 @@ Menus are fully navigable by controller. **Two-player split-screen co-op**: choo
 
 ## Playing the game
 
-Pick a board, then pick your Mandalorian — both play identically, so choose your armor:
+Pick a board, then pick your Mandalorian — all four play identically, so choose your armor:
 
 - **Din Djarin** — bare beskar shine
 - **Paz Vizsla** — heavy blue plate, oversized pauldrons

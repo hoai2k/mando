@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildNikto,
+  buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG, buildNikto,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -21,7 +21,7 @@ export interface Combatant {
 
 export type EnemyKind =
   | 'tusken' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
-  | 'stormtrooper' | 'deathtrooper' | 'darktrooper'
+  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist'
   | 'ig11' | 'marshal' | 'fennec';
 
 interface Def {
@@ -48,6 +48,8 @@ const DEFS: Record<EnemyKind, Def> = {
   // Imperial remnant
   stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, notice: 42, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
   deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
+  // Fast, accurate and hits hard, but folds if you can close on him.
+  duelist:      { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildDuelist },
   darktrooper:  { hp: 160, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
   // Allies (spawned on team 0)
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
@@ -57,10 +59,12 @@ const DEFS: Record<EnemyKind, Def> = {
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
+  duelist: 'pirate_taunt',
 };
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
+  duelist: 'pirate_death',
 };
 
 const UP = new THREE.Vector3(0, 1, 0);

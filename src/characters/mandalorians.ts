@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
-import { loadAuthored, retarget, type AuthoredModel } from './authored';
+import { attachAuthored } from './authored';
 
 /**
  * Playable Mandalorians — one config-driven factory so every fighter shares
  * the same rig, clips, weapons and gameplay; only armor/silhouette differs.
  */
 
-export type MandoId = 'din' | 'paz';
+export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
@@ -24,7 +24,7 @@ export interface PlayerCharacter extends CharacterInstance {
 }
 
 /** visual height per character, used to size an authored model */
-const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0 };
+const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0, bokatan: 1.75, armorer: 1.78 };
 
 interface MandoConfig {
   name: string;
@@ -46,6 +46,14 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   paz: {
     name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — walking siege tower.',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
+  },
+  bokatan: {
+    name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
+    primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
+  },
+  armorer: {
+    name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
+    primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
   },
 };
 
@@ -98,6 +106,16 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       break;
     case 'paz':
       addBox(helm, accent, 0.06, 0.04, 0.22, 0, 0.15, 0.02); // reinforced crest
+      break;
+    case 'bokatan':
+      // Nite Owl swept wings either side of the crown
+      addBox(helm, accent, 0.02, 0.09, 0.13, -0.13, 0.09, -0.02, 0, 0, 0.45);
+      addBox(helm, accent, 0.02, 0.09, 0.13, 0.13, 0.09, -0.02, 0, 0, -0.45);
+      break;
+    case 'armorer':
+      // horned forge helm
+      addCyl(helm, accent, 0.005, 0.035, 0.22, -0.1, 0.16, 0.02, -0.5, 0, -0.5);
+      addCyl(helm, accent, 0.005, 0.035, 0.22, 0.1, 0.16, 0.02, -0.5, 0, 0.5);
       break;
   }
 
@@ -229,38 +247,24 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
 
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
-  // fallback; if models/<id>.glb loads we hide its meshes and let the authored
-  // skin ride the same rig instead.
-  let authored: AuthoredModel | null = null;
-  const proceduralMeshes: THREE.Object3D[] = [];
-  rig.root.traverse((o) => {
-    if (!(o as THREE.Mesh).isMesh) return;
-    // weapons and thruster flames survive the swap — they are held by the
-    // authored model, not replaced by it
-    for (let a: THREE.Object3D | null = o; a; a = a.parent) {
-      if (a === b.weaponR || a === b.weaponL || a === flameRoot || a === shieldRoot) return;
-    }
-    proceduralMeshes.push(o);
-  });
-  const wantAuthored = opts.authored !== false;
-  (wantAuthored ? loadAuthored(id, MODEL_HEIGHT[id]) : Promise.resolve(null)).catch((err) => {
-    console.warn(`[authored] ${id} preparation failed:`, err);
-    return null;
-  }).then((model) => {
-    if (!model) return;
-    authored = model;
-    for (const m of proceduralMeshes) m.visible = false;
-    rig.root.add(model.root);
-    adoptHeroMaterials(model.root);   // the skin arrives after the pass above
-    // weapons move onto the authored hand so they track the real fingers; the
-    // mount reproduces our canonical weaponR frame, so nothing else changes
-    if (model.weaponMount) {
-      model.weaponMount.add(carbine);
-      model.weaponMount.add(gaffi);
-    }
-    // the jetpack rides the authored back, so keep the flames with our bone
-    // but sit them where the model's thrusters actually are
-    flameRoot.position.y = -0.02;
+  // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
+  const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
+    // weapons, thruster flames and the shield pane belong to the character,
+    // not to the body being replaced
+    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot],
+    enabled: opts.authored !== false,
+    onLoad: (model) => {
+      adoptHeroMaterials(model.root);   // the skin arrives after the pass above
+      // weapons move onto the authored hand so they track the real fingers; the
+      // mount reproduces our canonical weaponR frame, so nothing else changes
+      if (model.weaponMount) {
+        model.weaponMount.add(carbine);
+        model.weaponMount.add(gaffi);
+      }
+      // the jetpack rides the authored back, so keep the flames with our bone
+      // but sit them where the model's thrusters actually are
+      flameRoot.position.y = -0.02;
+    },
   });
 
   let thrust = 0;
@@ -300,7 +304,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         shieldMat.opacity += shieldFlash * 0.22;
         rimMat.opacity += shieldFlash * 0.3;
       }
-      if (authored) retarget(rig, authored);
+      swap.update();
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
         const f = flames[i];

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { HUMAN, type Proportions } from '../anim/skeleton';
+import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
+import { attachAuthored } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
 
 /** Enemy character builders — show-inspired silhouettes, procedural meshes on the canonical rig. */
@@ -18,6 +19,29 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
 }
 
 // ---------- Tusken Raider: sand robes, eye-stalk mask, gaderffii ----------
+/**
+ * Heights the authored enemy models are normalised to, matching the `height`
+ * their DEFS entry uses for hit spheres and camera framing.
+ */
+const AUTHORED_ENEMY: Record<string, number> = {
+  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2, duelist: 1.9,
+};
+
+/**
+ * Give an enemy its authored skin, if one exists. The weapon stays on the
+ * canonical `weaponR` bone rather than moving into the model's hand: enemy
+ * rifles are aimed by the same clips on either build, and keeping one mount
+ * keeps the muzzle where the firing code already looks for it.
+ */
+function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
+  const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
+    keep: [rig.bones.weaponR, rig.bones.weaponL],
+    enabled,
+  });
+  const prev = inst.cosmetic;
+  inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
+}
+
 export function buildTusken(): CharacterInstance {
   const robe = mat(0xb8a37e, { rough: 1 });
   const wrap = mat(0x8f7c58, { rough: 1 });
@@ -93,7 +117,7 @@ export function buildPirate(melee: boolean): CharacterInstance {
 
 // ---------- Security droid: bone-white skeletal frame ----------
 const DROID_P: Proportions = { ...HUMAN, hipHeight: 1.05, headSize: 0.3, shoulderWidth: 0.24, upperLegLen: 0.52, lowerLegLen: 0.52 };
-export function buildDroid(): CharacterInstance {
+export function buildDroid(authored = true): CharacterInstance {
   const bone = mat(0xcfc8b8, { rough: 0.5, metal: 0.35 });
   const dark = mat(0x2c2c2c, { rough: 0.6, metal: 0.4 });
   const { inst, rig } = buildBiped({ skin: bone, torso: dark, proportions: DROID_P });
@@ -106,11 +130,12 @@ export function buildDroid(): CharacterInstance {
   addSphere(b.head, eye, 0.022, -0.045, 0.1, 0.1, 6, 5);
   addSphere(b.head, eye, 0.022, 0.045, 0.1, 0.1, 6, 5);
   inst.muzzle = rifle(b.weaponR);
+  authoredEnemy(inst, rig, 'droid', authored);
   return inst;
 }
 
 // ---------- Imperial remnant: stormtrooper / death trooper ----------
-export function buildStormtrooper(elite: boolean): CharacterInstance {
+export function buildStormtrooper(elite: boolean, authored = true): CharacterInstance {
   const armor = mat(elite ? 0x1c1e22 : 0xe4e2dc, { rough: 0.4, metal: 0.25 });
   const suitM = mat(elite ? 0x101114 : 0x2a2a2a, { rough: 0.85 });
   const { inst, rig } = buildBiped({ skin: suitM, torso: armor, scale: elite ? 1.08 : 1 });
@@ -130,11 +155,13 @@ export function buildStormtrooper(elite: boolean): CharacterInstance {
   addSphere(b.head, dark, 0.02, -0.1, -0.02, 0.1, 5, 4);
   addSphere(b.head, dark, 0.02, 0.1, -0.02, 0.1, 5, 4);
   inst.muzzle = rifle(b.weaponR);
+  // only the elite has an authored skin; the line trooper stays procedural
+  if (elite) authoredEnemy(inst, rig, 'deathtrooper', authored);
   return inst;
 }
 
 // ---------- Dark trooper: heavy flying battle droid ----------
-export function buildDarkTrooper(): CharacterInstance {
+export function buildDarkTrooper(authored = true): CharacterInstance {
   const metal = mat(0x24262c, { rough: 0.35, metal: 0.8 });
   const { inst, rig } = buildBiped({ skin: metal, torso: metal, scale: 1.15 });
   const b = rig.bones;
@@ -151,6 +178,7 @@ export function buildDarkTrooper(): CharacterInstance {
   addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, -0.09, -0.1, 0);
   addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, 0.09, -0.1, 0);
   inst.muzzle = rifle(b.weaponR);
+  authoredEnemy(inst, rig, 'darktrooper', authored);
   return inst;
 }
 
@@ -191,6 +219,32 @@ export function buildGunfighter(kind: 'marshal' | 'fennec'): CharacterInstance {
     addBox(b.head, mat(0xd07828, { emissive: 0x552f10, rough: 0.4 }), 0.2, 0.03, 0.04, 0, 0.05, 0.1);
   }
   inst.muzzle = rifle(b.weaponR);
+  return inst;
+}
+
+/**
+ * Cad Bane-class duelist: blue-skinned gunslinger under a wide brim, twin
+ * pistols, breathing tubes from nose to temple. Listed in ASSETS_MODELS.md as
+ * a planned boss; with a model in hand it enters as a late-wave elite instead
+ * of a scripted fight — a fast, high-damage shooter you have to answer.
+ */
+export function buildDuelist(authored = true): CharacterInstance {
+  const coat = mat(0x2b2f38, { rough: 0.9 });
+  const suitM = mat(0x1e2129, { rough: 0.9 });
+  const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
+  const b = rig.bones;
+  const skinM = mat(0x5a86a8, { rough: 0.8 });     // blue-grey hide
+  addSphere(b.head, skinM, 0.12, 0, 0.04, 0, 10, 8);
+  // wide-brim hat
+  addCyl(b.head, coat, 0.22, 0.22, 0.02, 0, 0.13, 0, 0, 0, 0, 14);
+  addCyl(b.head, coat, 0.1, 0.11, 0.11, 0, 0.19, 0, 0, 0, 0, 10);
+  // breathing tubes, nose to temple
+  const tube = mat(0x8a8f98, { rough: 0.5, metal: 0.5 });
+  addCyl(b.head, tube, 0.014, 0.014, 0.14, -0.06, 0.02, 0.08, 0.5, 0, -0.25);
+  addCyl(b.head, tube, 0.014, 0.014, 0.14, 0.06, 0.02, 0.08, 0.5, 0, 0.25);
+  addBox(b.chest, coat, 0.36, 0.4, 0.24, 0, 0.08, 0);
+  inst.muzzle = rifle(b.weaponR);
+  authoredEnemy(inst, rig, 'duelist', authored);
   return inst;
 }
 

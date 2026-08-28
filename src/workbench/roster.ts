@@ -1,7 +1,7 @@
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import {
-  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildNikto,
+  buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG, buildNikto,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 
@@ -27,13 +27,19 @@ const mando = (id: MandoId): Subject => ({
   hasModel: true,
 });
 
-const plain = (id: string, name: string, build: () => CharacterInstance): Subject =>
-  ({ id, name, build, hasModel: false });
+/**
+ * A non-playable character. `hasModel` marks the ones with an authored .glb —
+ * only those can be compared against their procedural build, and only their
+ * factories call the loader, so it has to match `AUTHORED_ENEMY` in
+ * `characters/enemies.ts`.
+ */
+const plain = (id: string, name: string, build: (authored: boolean) => CharacterInstance, hasModel = false): Subject =>
+  ({ id, name, build, hasModel });
 
 export const GROUPS: SubjectGroup[] = [
   {
     label: 'Playable',
-    subjects: [mando('din'), mando('paz')],
+    subjects: [mando('din'), mando('paz'), mando('bokatan'), mando('armorer')],
   },
   {
     label: 'Allies',
@@ -50,11 +56,12 @@ export const GROUPS: SubjectGroup[] = [
       plain('pyke', 'Pyke Soldier', buildPyke),
       plain('pirate', 'Pirate — blaster', () => buildPirate(false)),
       plain('pirateMelee', 'Pirate — melee', () => buildPirate(true)),
-      plain('droid', 'Assassin Droid', buildDroid),
+      plain('droid', 'Assassin Droid', (a) => buildDroid(a), true),
       plain('nikto', 'Nikto Swoop Rider', buildNikto),
       plain('stormtrooper', 'Stormtrooper', () => buildStormtrooper(false)),
-      plain('deathtrooper', 'Death Trooper', () => buildStormtrooper(true)),
-      plain('darktrooper', 'Dark Trooper', buildDarkTrooper),
+      plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a), true),
+      plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a), true),
+      plain('duelist', 'Duelist', (a) => buildDuelist(a), true),
     ],
   },
 ];

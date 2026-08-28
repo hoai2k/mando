@@ -13,12 +13,12 @@ Every character below runs today as a procedural stand-in. An authored glTF (.gl
 - Non-biped characters (marked ◆) use their own free-form rig — animation is procedural code, so any node layout is fine; keep the listed named nodes if possible.
 - Style target: stylized-realistic, weathered and used; silhouettes must read at 30 m. Original fan interpretations — no scans/rips of commercial assets.
 
-## Playable Mandalorians (2) — priority 1
+## Playable Mandalorians (4) — priority 1
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
 
-**Authored models for these two are being supplied**, so they are the first real test of
-the swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
+**Authored models are supplied for all four**, and they are the proving ground for the
+swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
 procedurally earlier and are now shelved — not in the game and not requested — but the
 config-driven factory in `src/characters/mandalorians.ts` makes restoring any of them a
 matter of re-adding one roster entry.

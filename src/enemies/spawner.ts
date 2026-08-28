@@ -22,6 +22,8 @@ export function waveComposition(board: Board['kind'], wave: number, players: num
     if (wave >= 6) list.push({ kind: 'stormtrooper', count: n(1, 0.5) });     // Imperial remnant arrives
     if (wave >= 8) list.push({ kind: 'deathtrooper', count: Math.min(1 + (((wave - 6) / 2) | 0), 3) });
     if (wave >= 9) list.push({ kind: 'darktrooper', count: 2, air: true });
+    // the gunslinger turns up late, and alone
+    if (wave >= 7) list.push({ kind: 'duelist', count: 1 });
     return list;
   }
   const list: WaveEntry[] = [
@@ -34,6 +36,7 @@ export function waveComposition(board: Board['kind'], wave: number, players: num
   if (wave >= 6) list.push({ kind: 'stormtrooper', count: n(1, 0.5) });
   if (wave >= 7) list.push({ kind: 'darktrooper', count: Math.min(1 + (((wave - 7) / 2) | 0), 3), air: true });
   if (wave >= 9) list.push({ kind: 'deathtrooper', count: 2 });
+  if (wave >= 8) list.push({ kind: 'duelist', count: 1 });
   return list;
 }
 

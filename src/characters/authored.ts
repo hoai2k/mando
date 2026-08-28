@@ -330,3 +330,55 @@ export function retarget(source: Rig, model: AuthoredModel): void {
       + (srcHips.position.y - source.proportions.hipHeight) / model.scale;
   }
 }
+
+/**
+ * Wire an authored model onto a procedural build.
+ *
+ * This is the whole swap in one call: hide the procedural skin, hang the
+ * authored one off the same rig, and hand back an `update` to run each frame.
+ * Everything a character adds on top of its body — weapons, thruster flames,
+ * a shield pane — is passed in `keep` and rides through untouched.
+ *
+ * The model arrives asynchronously and may never arrive at all, in which case
+ * nothing happens and the procedural build simply stands: that is the contract
+ * the whole asset pipeline runs on.
+ */
+export interface AuthoredSwap {
+  /** copy this frame's pose across; a no-op until the model lands */
+  update: () => void;
+  /** the loaded model, once it is there */
+  readonly model: AuthoredModel | null;
+}
+
+export function attachAuthored(
+  rig: Rig,
+  id: string,
+  targetHeight: number,
+  opts: { keep?: THREE.Object3D[]; onLoad?: (model: AuthoredModel) => void; enabled?: boolean } = {},
+): AuthoredSwap {
+  const keep = opts.keep ?? [];
+  const procedural: THREE.Object3D[] = [];
+  rig.root.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh) return;
+    for (let a: THREE.Object3D | null = o; a; a = a.parent) if (keep.includes(a)) return;
+    procedural.push(o);
+  });
+
+  const swap: { model: AuthoredModel | null } = { model: null };
+  if (opts.enabled !== false) {
+    loadAuthored(id, targetHeight)
+      .catch((err) => { console.warn(`[authored] ${id} preparation failed:`, err); return null; })
+      .then((model) => {
+        if (!model) return;
+        swap.model = model;
+        for (const m of procedural) m.visible = false;
+        rig.root.add(model.root);
+        opts.onLoad?.(model);
+      });
+  }
+
+  return {
+    get model() { return swap.model; },
+    update: () => { if (swap.model) retarget(rig, swap.model); },
+  };
+}
