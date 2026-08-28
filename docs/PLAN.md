@@ -94,10 +94,12 @@ docs/PLAN.md
 
 - **EE-3 blaster carbine** — hitscan-feel but rendered as fast glowing red bolt projectiles (~80 m/s), ~4 shots/s, no ammo (arcade), spread when hip-firing (worse on the move), recoil climb per shot (about half when shouldered).
   **Aim assist (RDR2 "Normal" lock-on):** pressing aim snaps the camera onto the target nearest the reticle over ~0.15 s, then fine aim is yours at reduced look sensitivity; bolts also soft-lock toward the crosshair target. Aiming narrows FOV and removes spread.
+- **Player cover** (C / RB on the ground, near a box ≥1 m tall and ≥1 m wide, within ~2.4 m) — RDR2 snap-to-cover: the player presses against the box face (a HUD prompt appears in range), slides along it with the stick (clamped to the face), and is protected while tucked — enemy sightlines and bolts are blocked by the box, and the tucked player holds fire. Holding aim leans out past a corner to shoot: the corner is chosen by camera lean, overridden by whichever corner has a clear raycast to the soft-locked target (re-checked ~3×/s — crates sit in rows, and leaning into the neighbour is a peek wasted); the lean reaches ~1 m past the edge so shots clear deep boxes. Release tucks back in. Jump (exits with the jump), dash, melee, pressing cover again, or pushing off the wall for 0.2 s all leave. Weapon switching is disabled in cover; rockets fire only while leaned out.
 - **Dead Eye** (V / right-stick click) — the RDR2 signature, adapted: the whole world drops to ~0.3× while your trigger and camera stay on the wall clock; shots fly true and hit for 55 instead of 34. Runs off a meter (6 s from full) that refills +25% per kill and trickles back out of combat. Sepia tint + glowing HUD bar while active. In split-screen the world clock is shared — either player's Dead Eye slows it for both.
 - **Gaffi stick (gaderffii)** — 3-hit combo (swing → backswing → overhead slam) with forward lunge that homes onto the nearest enemy within ~4 m (arcade magnetism). Higher damage than blaster; the finisher puts grounded humanoids flat on their back (a real knockdown state, ~1.6–2.1 s), and any hit on a downed or wounded enemy lands double — the RDR2 brawl loop of haymaker → finish them on the ground. Melee kills refund a chunk of jetpack fuel → encourages weaving in close.
 - **Wrist rocket (Q)** — the Z-6 jetpack's missile: lock-on lob, AoE explosion, 1 charge per ~12 s. Screen shake + big particle payoff.
-- **Feedback / hit reactions (Euphoria-flavoured):** hit markers, enemy hit-flash + stagger, kill confirm sound; explosions and ground slams knock enemies flat (they get back up shaken); a hit that leaves a grounded humanoid under 25% HP has a 40% chance to drop it into a **wounded crawl** — out of the fight, dragging itself away, bleeding out in 8–12 s unless finished; killing blows fling corpses with force scaled to the hit and a little scatter so a mowed-down line doesn't fall in lockstep.
+- **Feedback / hit reactions (Euphoria-flavoured):** hit markers, enemy hit-flash + stagger, kill confirm sound; explosions and ground slams knock enemies flat (they get back up shaken); a hit that leaves a grounded humanoid under 25% HP has a 40% chance to drop it into a **wounded crawl** — out of the fight, dragging itself away, bleeding out in 8–12 s unless finished.
+- **Ragdoll deaths & persistent corpses:** a killing blow ragdolls the body with the impulse of the last hit — the live pose freezes (the mixer just stops updating), the body tips over along the accumulated impulse (damage fling plus any knockback stacked after it) pivoting at the feet with a thud-and-bounce, limbs flail with damped random angular velocities, and the capsule flies and slides before settling. Heavier kills throw and flail harder, with sideways scatter so a mowed-down line doesn't fall in lockstep. Enemies already prone (wounded crawlers, knockdowns) keep their held pose instead of double-tipping. Corpses then **stay where they fell for the rest of the wave** (settled bodies cost nothing per frame) and fade out over ~1.2 s when the wave clears — materials are cloned per corpse at fade start, since the procedural builder shares them from a cache. Corpses that fall off the station or die mid-air settle wherever they land; below the kill plane they're removed.
 - **Player health:** 100 HP, short regen after 5 s without damage (arcade), death → quick respawn at board checkpoint.
 
 ## 6. Animation System (built for future authored models)
@@ -182,11 +184,23 @@ several sides instead of stampeding in from one.
 ### Self-preservation (the RDR2 layer)
 
 Enemies value their own lives, per RDR2's combat AI:
+- **Cover** — shooters fight from behind the boards' boxes (spice crates,
+  barrels, huts, vaporators, the barge). A shooter scans nearby collision
+  boxes for a spot that blocks the sightline both ways *and* is within
+  blaster range of the target, walks there, then loops: hide a beat behind
+  the box (holding fire), step out to a peek point off the box's edge, fire
+  a volley, duck back. Committed shooters run the same loop at ~2× tempo so
+  the director's pressure roles survive. Cover spots are ground- and
+  path-validated so nobody steps off a platform to reach one, and being shot
+  in the open triggers an immediate dive for the nearest crate; when the
+  target flanks the box, the spot is abandoned. An edge guard also stops any
+  walking enemy from steering itself off a platform lip (knockbacks can
+  still throw them off — that stays).
 - **Suppression** — hits and near misses (player bolts landing within ~4.5 m)
   build a suppression value; past a threshold a shooter stops working its
   firing position or advancing, plants where it is, fires less often and much
-  less accurately until it recovers. Pouring fire at a camp genuinely keeps
-  heads down.
+  less accurately until it recovers — and a suppressed shooter in cover stays
+  hidden ~3× longer. Pouring fire at a crate genuinely keeps a head down.
 - **Flinch** — a death rattles every hostile within 12 m (suppression spike).
 - **Morale** — when a squad of 3+ is down to its last member, even odds it
   breaks and runs: sprints away from the threat, rallies at ~55 m, and turns
@@ -197,10 +211,11 @@ Enemies value their own lives, per RDR2's combat AI:
 ### Per-kind behaviour
 - **Charger** (Tusken, pirate brawler): committed → approach, telegraphed wind-up,
   swing. Not committed → circle at 9–14 m and wait for a turn.
-- **Shooter** (Pyke, pirate, troopers): works a firing position on its bearing —
-  9–18 m when committed, 15–30 m when holding the line — strafes there, and
-  fires volleys only with line of sight. On the station it stays leashed to its
-  platform.
+- **Shooter** (Pyke, pirate, troopers): fights from cover when a valid spot is
+  in range (see Self-preservation), otherwise works a firing position on its
+  bearing — 9–18 m when committed, 15–30 m when holding the line — strafes
+  there, and fires volleys only with line of sight. On the station it stays
+  leashed to its platform.
 - **Swooper/flyer** (Nikto swoop, jet-pirate, dark trooper): figure-eight strafing
   runs, vulnerable window after each pass; loiters near its post until alerted.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.

@@ -11,7 +11,10 @@ the shows.
 
 **Model workbench:** https://hoai2k.github.io/mando/workbench/?edit=models — a turntable
 for the cast. Pick a character, run any animation the game plays, and stand an authored
-model next to the procedural build it replaces.
+model next to the procedural build it replaces. *Edit mode* freezes the pose, draws the
+rig on the figure and gives each joint a rotation gizmo — local, world or camera-relative.
+Edits go into the clips, so you can leave edit mode and watch the animation with them,
+undo and redo them, and export the whole session as one JSON.
 
 ## Controls
 
@@ -20,24 +23,35 @@ model next to the procedural build it replaces.
 | Move | `WASD` | Left stick |
 | Look / aim | Mouse | Right stick |
 | Jump → hold to jetpack | `Space` | `A` |
-| Sprint (hold) | hold `Shift` | hold `B` |
-| Jetpack dash burst (in air) | tap `Shift` | tap `B` |
+| Sprint — press while already moving, hold to keep it | hold `Shift` | hold `RB` |
+| Dash — press from a standstill, then push a direction | hold `Shift` | hold `RB` |
+| Block — raise the shield (hold) | hold `R` | hold `B` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Dead Eye (slow motion) | `V` | click right stick |
-| Ground slam (in air) | `Ctrl` / `C` | `RB` |
-| Switch weapon | `E` | `LB` |
+| Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `LB` |
+| Switch weapon | `E` | D-pad right |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
+
+The same reference lives in the game: the **(i)** button, bottom-right, draws these bindings
+on a controller diagram, and the **gear** beside it opens audio settings. Both are also on the
+title and pause menus.
+
+**Blocking** raises a force shield in front of you. Bolts that hit it bounce off and fly on
+as your own fire. It runs off the same energy gauge as sprinting, so a fight is a budget:
+spend it holding a shield up and you have none left to run with. Behind the shield you can
+shuffle but not run, and you cannot shoot or swing — and raising it in the air kills your
+lift and brings you down, because a brace needs the ground under it.
 
 Menus are fully navigable by controller. **Two-player split-screen co-op**: choose
 "Players: 2" on the board-select screen with a second controller connected.
 
 ## Playing the game
 
-Pick a board, then pick your Mandalorian — both play identically, so choose your armor:
+Pick a board, then pick your Mandalorian — all four play identically, so choose your armor:
 
 - **Din Djarin** — bare beskar shine
 - **Paz Vizsla** — heavy blue plate, oversized pauldrons
@@ -54,11 +68,17 @@ worth pushing.
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
 and recoil climbs; **Dead Eye** (`V` / right-stick click) drops the world into slow
-motion while your trigger stays fast — the meter refills as you kill. Enemies get
-suppressed under heavy fire and stop advancing, get knocked flat by explosions and
-the gaffi finisher (hit them again on the ground for double), sometimes crumple
-into a wounded crawl you have to finish, and the last survivor of a shattered squad
-may break and run for a new position.
+motion while your trigger stays fast — the meter refills as you kill. And you can
+**take cover** like they do: press `C` (or `RB`) near a crate to snap against it —
+slide along the face with the stick, hold aim to lean out past the corner and
+shoot (it picks the corner with a clear shot to your target), release to duck
+back; jump, dash or push away to leave. Enemies fight from
+cover — shooters duck behind spice crates, barrels and hut walls, peek out to loose
+a volley, and duck back (suppress them and they stay hidden; flank the box and they
+scramble for a new one). They get pinned under heavy fire, get knocked flat by
+explosions and the gaffi finisher (hit them again on the ground for double),
+sometimes crumple into a wounded crawl you have to finish, and the last survivor of
+a shattered squad may break and run for a new position.
 
 **The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
 swoop riders and a sarlacc pit that will eat anything knocked into it.
@@ -103,8 +123,10 @@ Existing files are skipped unless named explicitly. Never commit the key.
 
 ## Settings
 
-Audio volumes live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
-linear gain from 0 to 1. They can also be changed while playing, from the browser console:
+Volume sliders are in the game, under the gear button. They persist per device.
+
+The defaults live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
+linear gain from 0 to 1 — and can also be changed from the browser console:
 
 ```js
 __config.audio.sfx = 0.2;   // quieter blasters

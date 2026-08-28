@@ -9,7 +9,10 @@ body.deadeye #app > canvas { filter: sepia(0.45) saturate(1.2) contrast(1.07) br
 
 /* ---------- overlay layers ---------- */
 .layer { position: absolute; inset: 0; pointer-events: none; }
-.layer.interactive { pointer-events: auto; }
+/* The menu layer spans the viewport but only its visible screens should take
+   clicks — otherwise it swallows the corner buttons during a match, when every
+   screen inside it is hidden. .menu-screen re-enables them for itself. */
+.layer.interactive { pointer-events: none; }
 
 /* ---------- menus ---------- */
 .menu-screen {
@@ -79,6 +82,12 @@ body.deadeye #app > canvas { filter: sepia(0.45) saturate(1.2) contrast(1.07) br
   text-shadow: 0 1px 3px rgba(0,0,0,0.95);
 }
 .radar-count.engaged { color: #ff8a72; }
+.hud-cover {
+  position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%);
+  font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: #cbbf9f;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8);
+}
+.hud-cover.active { color: #f0d08c; }
 .hud-weapon { position: absolute; right: 26px; bottom: 22px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2d3ac; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
@@ -99,13 +108,126 @@ body.deadeye #app > canvas { filter: sepia(0.45) saturate(1.2) contrast(1.07) br
 .hud-divider { position: absolute; left: 0; right: 0; height: 2px; background: rgba(0,0,0,0.8); top: 50%; }
 
 /* ---------- fullscreen button ---------- */
-#fullscreen-btn {
-  position: absolute; right: 14px; bottom: 14px; z-index: 50; width: 42px; height: 42px;
+#corner-buttons {
+  position: absolute; right: 14px; bottom: 14px; z-index: 50;
+  display: flex; gap: 8px; pointer-events: auto;
+}
+.corner-btn {
+  width: 42px; height: 42px;
   background: rgba(15,12,8,0.65); border: 1px solid #5f4d2c; color: #cbb98e;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   pointer-events: auto; transition: all 0.12s;
 }
-#fullscreen-btn:hover { background: #d8b25a; color: #111; border-color: #f0d492; }
-#fullscreen-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.corner-btn:hover, .corner-btn.focused { background: #d8b25a; color: #111; border-color: #f0d492; }
+.corner-btn svg { width: 20px; height: 20px; fill: currentColor; }
 
 .fade-screen { position: absolute; inset: 0; background: #000; pointer-events: none; transition: opacity 0.5s; }
+
+/* ---------- volume sliders ---------- */
+.menu-slider {
+  display: grid; grid-template-columns: 1fr 260px 56px; align-items: center; gap: 18px;
+  width: min(560px, 80vw); margin: 6px 0; padding: 10px 18px;
+  border: 1px solid transparent; cursor: pointer;
+}
+.menu-slider.focused { border-color: #5f4d2c; background: rgba(20,16,10,0.7); }
+.menu-slider .slider-label {
+  font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #cbb98e; text-align: right;
+}
+.menu-slider.focused .slider-label { color: #f0d492; }
+.menu-slider .slider-value {
+  font-size: 14px; color: #9a8a6a; font-variant-numeric: tabular-nums; text-align: left;
+}
+.menu-slider input[type='range'] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: transparent;
+  cursor: pointer;
+}
+/* the filled portion is painted from --fill so it tracks a gamepad nudge too */
+.menu-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 6px; border: 1px solid #5f4d2c;
+  background: linear-gradient(to right, #d8b25a var(--fill, 0%), rgba(20,16,10,0.8) var(--fill, 0%));
+}
+.menu-slider input[type='range']::-moz-range-track {
+  height: 6px; border: 1px solid #5f4d2c;
+  background: linear-gradient(to right, #d8b25a var(--fill, 0%), rgba(20,16,10,0.8) var(--fill, 0%));
+}
+.menu-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; margin-top: -7px;
+  width: 16px; height: 20px; background: #f0d492; border: 1px solid #2a2114;
+}
+.menu-slider input[type='range']::-moz-range-thumb {
+  width: 16px; height: 20px; border-radius: 0; background: #f0d492; border: 1px solid #2a2114;
+}
+
+/* ---------- controls page ---------- */
+.controls-page {
+  display: flex; gap: 30px; align-items: flex-start; justify-content: center;
+  width: min(1320px, 94vw); margin-top: 4px;
+}
+.pad-art { flex: 1 1 64%; max-width: 860px; height: auto; }
+.pad-art .cl-body { fill: url(#padBody); stroke: #6d737d; stroke-width: 2; }
+.pad-art .cl-trigger { fill: #2b2f36; stroke: #565c66; stroke-width: 2; }
+.pad-art .cl-bumper { fill: #363b43; stroke: #656b75; stroke-width: 2; }
+.pad-art .cl-well { fill: #23262c; stroke: #575d67; stroke-width: 2; }
+.pad-art .cl-cap { fill: url(#padFace); stroke: #7b828d; stroke-width: 2; }
+.pad-art .cl-dpad path { fill: #d7dbe2; stroke: #8f96a1; stroke-width: 1.5; }
+.pad-art .cl-face circle { fill: #d8b25a; stroke: #f0d492; stroke-width: 2; }
+.pad-art .cl-face text { font: 700 18px 'Segoe UI', system-ui, sans-serif; fill: #1b1710; }
+.pad-art .cl-small circle { fill: #9aa1ac; }
+.pad-art .cl-small .cl-guide { fill: #2b2f36; stroke: #9aa1ac; stroke-width: 2; }
+.pad-art .cl-lead { fill: none; stroke: #5f4d2c; stroke-width: 1.5; }
+.pad-art .cl-dot { fill: #d8b25a; }
+.pad-art .cl-label { font: 15px 'Segoe UI', system-ui, sans-serif; fill: #9a8a6a; }
+.pad-art .cl-key { fill: #f0d492; font-weight: 700; letter-spacing: 0.06em; }
+.pad-art .cl-sep { fill: #5f4d2c; }
+
+.controls-keys { flex: 0 1 320px; text-align: left; }
+.controls-keys-title {
+  font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #d8b25a;
+  border-bottom: 1px solid #5f4d2c; padding-bottom: 8px; margin-bottom: 10px;
+}
+.controls-keys dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; margin: 0; }
+.controls-keys dt { font-size: 13px; color: #9a8a6a; }
+.controls-keys dd { margin: 0; text-align: right; white-space: nowrap; }
+.controls-keys kbd {
+  font: 12px 'Segoe UI', system-ui, sans-serif; color: #cbb98e;
+  border: 1px solid #5f4d2c; background: rgba(20,16,10,0.7); padding: 2px 7px;
+}
+.controls-keys i { color: #5f4d2c; font-style: normal; padding: 0 4px; }
+
+@media (max-width: 900px) {
+  .controls-page { flex-direction: column; align-items: center; }
+  .controls-keys { flex: none; width: min(560px, 90vw); }
+}
+
+/* ---------- 3D character select ---------- */
+/* transparent chrome over the live 3D stage — no vignette, the scene is the background */
+.charsel-screen { background: none; justify-content: space-between; padding: 4vh 0 5vh; }
+.charsel-title { font-size: clamp(26px, 3.6vw, 46px); }
+.charsel-panels { display: flex; width: 100%; flex: 1; }
+.charsel-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; }
+.charsel-panel.empty { justify-content: center; }
+.charsel-base { display: flex; align-items: center; gap: 18px; }
+.charsel-name {
+  min-width: 240px; text-align: center; font-size: clamp(18px, 2.2vw, 30px);
+  letter-spacing: 0.14em; text-transform: uppercase; color: #d8b25a; font-weight: 700;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+}
+.charsel-panel.ready .charsel-name { color: #f0d492; text-shadow: 0 0 18px rgba(216,178,90,0.8); }
+.charsel-arrow {
+  background: none; border: 1px solid rgba(216,178,90,0.5); border-radius: 6px;
+  color: #d8b25a; font-size: 22px; padding: 6px 14px; cursor: pointer;
+  animation: charsel-nudge 1.6s ease-in-out infinite;
+}
+.charsel-arrow:hover { background: rgba(216,178,90,0.15); }
+.charsel-arrow:last-child { animation-delay: 0.8s; }
+@keyframes charsel-nudge { 50% { border-color: rgba(240,212,146,0.95); color: #f0d492; } }
+.charsel-status { font-size: 15px; letter-spacing: 0.12em; color: #9a8a64; text-transform: uppercase; text-align: center; }
+.charsel-status b { color: #d8b25a; }
+.charsel-panel.ready .charsel-status b { color: #f0d492; text-shadow: 0 0 14px rgba(216,178,90,0.9); }
+.charsel-spinner {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid rgba(216,178,90,0.2); border-top-color: #d8b25a;
+  animation: charsel-spin 0.9s linear infinite; margin-bottom: 18vh;
+}
+@keyframes charsel-spin { to { transform: rotate(360deg); } }
+.charsel-start { font-size: 20px; padding: 14px 46px; }

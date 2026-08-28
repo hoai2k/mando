@@ -19,12 +19,17 @@ export interface FrameInput {
   rocketPressed: boolean;
   /** Dead Eye toggle — V on keyboard, right-stick click on pad */
   deadeyePressed: boolean;
+  /** hold to raise the block shield */
+  blockHeld: boolean;
   slamPressed: boolean;
   switchPressed: boolean;
   pausePressed: boolean;
 }
 
 export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'fullscreen';
+
+/** A menu action plus where it came from: -1 = keyboard/mouse, else gamepad index. */
+export interface MenuEvent { action: MenuAction; source: number; }
 
 const DEADZONE = 0.18;
 const dz = (v: number) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
@@ -37,7 +42,7 @@ function blankInput(): FrameInput {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
-    deadeyePressed: false, switchPressed: false, pausePressed: false,
+    deadeyePressed: false, blockHeld: false, switchPressed: false, pausePressed: false,
   };
 }
 
@@ -45,7 +50,7 @@ interface PadState { prev: boolean[]; repeatTimer: Map<string, number>; }
 
 export class InputManager {
   private padStates = new Map<number, PadState>();
-  private menuQueue: MenuAction[] = [];
+  private menuQueue: MenuEvent[] = [];
   /** gamepad index assigned to each player slot; -1 = none */
   padForPlayer: number[] = [-1, -1];
   stickSensitivity = 2.6; // rad/s at full deflection
@@ -64,9 +69,9 @@ export class InputManager {
         ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
         Enter: 'confirm', Space: 'confirm', Escape: 'back',
       };
-      if (this.menuMode && map[e.code]) this.menuQueue.push(map[e.code]);
-      if (!this.menuMode && e.code === 'Escape') this.menuQueue.push('pause');
-      if (e.code === 'KeyF' && e.altKey) this.menuQueue.push('fullscreen');
+      if (this.menuMode && map[e.code]) this.menuQueue.push({ action: map[e.code], source: -1 });
+      if (!this.menuMode && e.code === 'Escape') this.menuQueue.push({ action: 'pause', source: -1 });
+      if (e.code === 'KeyF' && e.altKey) this.menuQueue.push({ action: 'fullscreen', source: -1 });
       if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -129,7 +134,7 @@ export class InputManager {
     for (const pad of this.pads()) {
       const st = this.padState(pad.index);
       // fullscreen on View button, any mode
-      if (this.padPressed(pad, BTN.VIEW, st)) this.menuQueue.push('fullscreen');
+      if (this.padPressed(pad, BTN.VIEW, st)) this.menuQueue.push({ action: 'fullscreen', source: pad.index });
       if (this.menuMode) {
         const dirs: Array<[string, boolean, MenuAction]> = [
           ['up', !!pad.buttons[BTN.DUP]?.pressed || dz(pad.axes[1] ?? 0) < -0.55, 'up'],
@@ -140,26 +145,26 @@ export class InputManager {
         for (const [key, held, action] of dirs) {
           const t = st.repeatTimer.get(key) ?? 0;
           if (held) {
-            if (t <= 0) { this.menuQueue.push(action); st.repeatTimer.set(key, t <= -0.001 ? 0.16 : 0.42); }
+            if (t <= 0) { this.menuQueue.push({ action, source: pad.index }); st.repeatTimer.set(key, t <= -0.001 ? 0.16 : 0.42); }
             else st.repeatTimer.set(key, t - dt);
           } else st.repeatTimer.set(key, 0);
         }
-        if (this.padPressed(pad, BTN.A, st)) this.menuQueue.push('confirm');
-        if (this.padPressed(pad, BTN.B, st)) this.menuQueue.push('back');
-        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push('confirm');
+        if (this.padPressed(pad, BTN.A, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
+        if (this.padPressed(pad, BTN.B, st)) this.menuQueue.push({ action: 'back', source: pad.index });
+        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
       } else {
-        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push('pause');
+        if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'pause', source: pad.index });
       }
       for (let i = 0; i < pad.buttons.length && i < 17; i++) st.prev[i] = !!pad.buttons[i]?.pressed;
     }
-    for (const a of this.menuQueue) {
-      if (a === 'fullscreen') this.onFullscreenToggle?.();
+    for (const e of this.menuQueue) {
+      if (e.action === 'fullscreen') this.onFullscreenToggle?.();
     }
-    this.menuQueue = this.menuQueue.filter((a) => a !== 'fullscreen');
+    this.menuQueue = this.menuQueue.filter((e) => e.action !== 'fullscreen');
   }
 
-  /** Drain queued menu navigation events. */
-  drainMenuActions(): MenuAction[] {
+  /** Drain queued menu navigation events, with their input source attached. */
+  drainMenuEvents(): MenuEvent[] {
     const q = this.menuQueue;
     this.menuQueue = [];
     return q;
@@ -187,15 +192,18 @@ export class InputManager {
         // already updated, so track pressed separately here using a shadow set:
         inp.jumpHeld ||= b(BTN.A);
         inp.jumpPressed ||= this.edge(pad, BTN.A);
-        inp.dashPressed ||= this.edge(pad, BTN.B);
-        inp.sprintHeld ||= b(BTN.B);
-        inp.slamPressed ||= this.edge(pad, BTN.RB);
+        // RB is the movement button: the player controller decides between a
+        // dash and a sprint from whether the stick was already pushed.
+        inp.dashPressed ||= this.edge(pad, BTN.RB);
+        inp.sprintHeld ||= b(BTN.RB);
+        inp.blockHeld ||= b(BTN.B);
+        inp.slamPressed ||= this.edge(pad, BTN.LB);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
         inp.rocketPressed ||= this.edge(pad, BTN.Y);
         inp.deadeyePressed ||= this.edge(pad, BTN.RS);
-        inp.switchPressed ||= this.edge(pad, BTN.LB);
+        inp.switchPressed ||= this.edge(pad, BTN.DRIGHT);
       }
     }
     inp.moveX = Math.max(-1, Math.min(1, inp.moveX));

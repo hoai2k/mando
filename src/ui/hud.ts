@@ -10,6 +10,7 @@ interface PlayerHud {
   energy: HTMLElement;
   deadeye: HTMLElement;
   deadeyeBar: HTMLElement;
+  coverHint: HTMLElement;
   weapon: HTMLElement;
   rocket: HTMLElement;
   wave: HTMLElement;
@@ -77,6 +78,7 @@ export class Hud {
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
+        <div class="hud-cover"></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
       `;
       this.layer.appendChild(root);
@@ -90,6 +92,7 @@ export class Hud {
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         deadeye: root.querySelector('.bar.deadeye .fill') as HTMLElement,
         deadeyeBar: root.querySelector('.bar.deadeye') as HTMLElement,
+        coverHint: root.querySelector('.hud-cover') as HTMLElement,
         weapon: root.querySelector('.wname') as HTMLElement,
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
@@ -138,6 +141,10 @@ export class Hud {
       h.energy.style.opacity = p.sprinting ? '1' : '0.8';
       h.deadeye.style.transform = `scaleX(${p.deadeye})`;
       h.deadeyeBar.classList.toggle('active', p.deadeyeActive);
+      if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
+      else if (p.nearCover && p.alive) h.coverHint.textContent = 'C / RB — take cover';
+      else h.coverHint.textContent = '';
+      h.coverHint.classList.toggle('active', !!p.cover);
       h.weapon.textContent = p.alive
         ? (p.weapon === 'blaster' ? 'EE-3 Carbine' : 'Gaffi Stick')
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;

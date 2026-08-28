@@ -206,6 +206,7 @@ export function buildWaystation(): Board {
     skyFile: 'sky_space',
     // drifting between platforms should never feel like a death sentence
     gravity: 0.45,
+    heroLight: 0.34,
     voidY: -3,
     voidGravity: 0.12,
     voidFallSpeed: 3.2,

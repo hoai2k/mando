@@ -1,24 +1,32 @@
 import * as THREE from 'three';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
-import { loadAuthored, retarget, type AuthoredModel } from './authored';
+import { attachAuthored } from './authored';
 
 /**
  * Playable Mandalorians — one config-driven factory so every fighter shares
  * the same rig, clips, weapons and gameplay; only armor/silhouette differs.
  */
 
-export type MandoId = 'din' | 'paz';
+export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
   setThrust: (t: number) => void;
+  /** intensity of the fill light that travels with this character */
+  setHeroLight: (intensity: number) => void;
+  /** raise (1) or drop (0) the block shield; values between animate it */
+  setBlock: (t: number) => void;
+  /** flash the shield where a bolt bounced off it */
+  shieldHit: () => void;
   gaffi: THREE.Group;
   /** thruster mouths, in world space — where the jet particles are born */
   nozzles: THREE.Object3D[];
+  /** true once the authored .glb has replaced the procedural body */
+  modelReady: () => boolean;
 }
 
 /** visual height per character, used to size an authored model */
-const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0 };
+const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0, bokatan: 1.75, armorer: 1.78 };
 
 interface MandoConfig {
   name: string;
@@ -40,6 +48,14 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   paz: {
     name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — walking siege tower.',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
+  },
+  bokatan: {
+    name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
+    primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
+  },
+  armorer: {
+    name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
+    primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
   },
 };
 
@@ -92,6 +108,16 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       break;
     case 'paz':
       addBox(helm, accent, 0.06, 0.04, 0.22, 0, 0.15, 0.02); // reinforced crest
+      break;
+    case 'bokatan':
+      // Nite Owl swept wings either side of the crown
+      addBox(helm, accent, 0.02, 0.09, 0.13, -0.13, 0.09, -0.02, 0, 0, 0.45);
+      addBox(helm, accent, 0.02, 0.09, 0.13, 0.13, 0.09, -0.02, 0, 0, -0.45);
+      break;
+    case 'armorer':
+      // horned forge helm
+      addCyl(helm, accent, 0.005, 0.035, 0.22, -0.1, 0.16, 0.02, -0.5, 0, -0.5);
+      addCyl(helm, accent, 0.005, 0.035, 0.22, 0.1, 0.16, 0.02, -0.5, 0, 0.5);
       break;
   }
 
@@ -161,54 +187,203 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   gaffi.visible = false;
   b.weaponR.add(gaffi);
 
+  // ---- block shield ----
+  // A force field, not a pane with a border: the body of the dome carries the
+  // effect and the edge falls out of it. A Fresnel term brightens the surface
+  // where it turns away from the eye, which is what makes a curved field read
+  // as a volume; a hex interference pattern drifts across it so it looks
+  // energised rather than painted; and a hit sends a ring out from the point
+  // of impact. The old bright torus rim did all the work and left the middle
+  // empty, so the whole thing read as an outline.
+  const shieldRoot = new THREE.Group();
+  b.chest.add(shieldRoot);
+  shieldRoot.position.set(0, 0.14, 0.34);
+  const shieldMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uStrength: { value: 0 },
+      uFlash: { value: 0 },
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0x63b4ff) },
+      uHot: { value: new THREE.Color(0xdcefff) },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vNormalV;
+      varying vec3 vViewV;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormalV = normalMatrix * normal;
+        vViewV = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform float uStrength;
+      uniform float uFlash;
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform vec3 uHot;
+      varying vec3 vNormalV;
+      varying vec3 vViewV;
+      varying vec2 vUv;
+
+      // distance to the nearest hex cell edge, for the interference lattice
+      float hexEdge(vec2 p) {
+        p.x *= 1.1547;
+        p.y += mod(floor(p.x), 2.0) * 0.5;
+        p = abs(fract(p) - 0.5);
+        return abs(max(p.x * 1.5 + p.y, p.y * 2.0) - 1.0);
+      }
+
+      void main() {
+        if (uStrength <= 0.001) discard;
+        vec3 n = normalize(vNormalV);
+        vec3 v = normalize(vViewV);
+        // grazing angles glow: the dome gains a body instead of a border
+        float fres = pow(1.0 - abs(dot(n, v)), 2.4);
+
+        // lattice drifting across the surface — kept faint, it is a texture on
+        // the field, not the field itself
+        vec2 hp = vec2(vUv.x * 15.0 + uTime * 0.10, vUv.y * 15.0 - uTime * 0.04);
+        float cells = smoothstep(0.09, 0.0, hexEdge(hp)) * 0.14;
+
+        // slow standing ripple so an idle field still breathes
+        float shimmer = sin(vUv.y * 34.0 - uTime * 2.4) * 0.5 + 0.5;
+
+        // impact ring travelling out from the centre of the dome
+        float r = vUv.y / 0.46;
+        float ring = smoothstep(0.16, 0.0, abs(r - (1.0 - uFlash))) * uFlash;
+
+        // the dome is double-sided, so a head-on look adds the far wall to the
+        // near one; the halved total keeps the middle see-through
+        float a = (0.05 + fres * 0.8 + cells + shimmer * 0.05 + ring * 1.0) * uStrength * 0.62;
+        vec3 col = mix(uColor, uHot, clamp(fres * 0.55 + ring, 0.0, 1.0));
+        gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  // a little bigger than before, and opened out slightly so it covers more
+  const SHIELD_R = 0.72, SHIELD_ARC = Math.PI * 0.46;
+  const shieldGeo = new THREE.SphereGeometry(SHIELD_R, 30, 16, 0, Math.PI * 2, 0, SHIELD_ARC);
+  const shieldSkin = new THREE.Mesh(shieldGeo, shieldMat);
+  shieldSkin.rotation.x = Math.PI / 2;   // cap opens forward, along +Z
+  shieldRoot.add(shieldSkin);
+  // a faint edge, sitting exactly on the dome's lip so it reads as the field
+  // ending rather than as a frame drawn around it
+  const rimMat = new THREE.MeshBasicMaterial({
+    color: 0x9fd0ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(SHIELD_R * Math.sin(SHIELD_ARC), 0.012, 8, 40), rimMat);
+  rim.position.z = SHIELD_R * Math.cos(SHIELD_ARC);
+  shieldRoot.add(rim);
+  shieldRoot.visible = false;
+  let shieldFlash = 0;
+
+  // ---- hero ambient ----
+  // The player is the one thing that must never be lost against a board, and
+  // the station is dark enough — cold key, no sky bounce, a nebula reflection
+  // probe — that beskar reads as a silhouette there.
+  //
+  // This is a per-character lift rather than a light: Three tests a light's
+  // layers against the camera, never against the object it falls on, so there
+  // is no way to aim one at the hero alone. Instead his materials are cloned
+  // and given an emissive term driven by their own texture, which brightens
+  // the artwork that is already there and cannot touch anything else on the
+  // board.
+  const heroMats: THREE.MeshStandardMaterial[] = [];
+  let heroAmbient = 0;
+  function adoptHeroMaterials(root: THREE.Object3D): void {
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+      const many = Array.isArray(mesh.material);
+      const source: THREE.Material[] = many ? mesh.material as THREE.Material[] : [mesh.material as THREE.Material];
+      const cloned = source.map((m): THREE.Material => {
+        const std = m as THREE.MeshStandardMaterial;
+        if (!std.isMeshStandardMaterial) return m;      // muzzle flash, flames
+        const c = std.clone();
+        // self-lit by its own surface: where there's a texture the emissive
+        // follows it, so the lift reads as ambience rather than a colour wash
+        c.emissiveMap = c.map;
+        c.emissive = c.map ? new THREE.Color(0xffffff) : c.color.clone();
+        c.emissiveIntensity = heroAmbient;
+        heroMats.push(c);
+        return c;
+      });
+      mesh.material = many ? cloned : cloned[0];
+    });
+  }
+  adoptHeroMaterials(rig.root);
+
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
-  // fallback; if models/<id>.glb loads we hide its meshes and let the authored
-  // skin ride the same rig instead.
-  let authored: AuthoredModel | null = null;
-  const proceduralMeshes: THREE.Object3D[] = [];
-  rig.root.traverse((o) => {
-    if (!(o as THREE.Mesh).isMesh) return;
-    // weapons and thruster flames survive the swap — they are held by the
-    // authored model, not replaced by it
-    for (let a: THREE.Object3D | null = o; a; a = a.parent) {
-      if (a === b.weaponR || a === b.weaponL || a === flameRoot) return;
-    }
-    proceduralMeshes.push(o);
-  });
-  const wantAuthored = opts.authored !== false;
-  (wantAuthored ? loadAuthored(id, MODEL_HEIGHT[id]) : Promise.resolve(null)).catch((err) => {
-    console.warn(`[authored] ${id} preparation failed:`, err);
-    return null;
-  }).then((model) => {
-    if (!model) return;
-    authored = model;
-    for (const m of proceduralMeshes) m.visible = false;
-    rig.root.add(model.root);
-    // weapons move onto the authored hand so they track the real fingers; the
-    // mount reproduces our canonical weaponR frame, so nothing else changes
-    if (model.weaponMount) {
-      model.weaponMount.add(carbine);
-      model.weaponMount.add(gaffi);
-    }
-    // the jetpack rides the authored back, so keep the flames with our bone
-    // but sit them where the model's thrusters actually are
-    flameRoot.position.y = -0.02;
+  // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
+  const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
+    // weapons, thruster flames and the shield pane belong to the character,
+    // not to the body being replaced
+    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot],
+    enabled: opts.authored !== false,
+    onLoad: (model) => {
+      adoptHeroMaterials(model.root);   // the skin arrives after the pass above
+      // weapons move onto the authored hand so they track the real fingers; the
+      // mount reproduces our canonical weaponR frame, so nothing else changes
+      if (model.weaponMount) {
+        model.weaponMount.add(carbine);
+        model.weaponMount.add(gaffi);
+      }
+      // the jetpack rides the authored back, so keep the flames with our bone
+      // but sit them where the model's thrusters actually are
+      flameRoot.position.y = -0.02;
+    },
   });
 
   let thrust = 0;
+  let weapon: 'blaster' | 'gaffi' = 'blaster';
+  let shieldUp = false;
+  const showWeapon = () => {
+    carbine.visible = !shieldUp && weapon === 'blaster';
+    gaffi.visible = !shieldUp && weapon === 'gaffi';
+  };
   return {
     ...inst,
     muzzle,
     gaffi,
-    setWeapon: (w) => {
-      carbine.visible = w === 'blaster';
-      gaffi.visible = w === 'gaffi';
-    },
+    modelReady: () => swap.model !== null,
+    setWeapon: (w) => { weapon = w; showWeapon(); },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
+    setBlock: (t) => {
+      // both hands go to the shield, so the weapon is stowed while it is up
+      const up = t > 0.5;
+      if (up !== shieldUp) { shieldUp = up; showWeapon(); }
+      shieldRoot.visible = t > 0.02;
+      // it grows into place rather than popping, and sits flat until it is up
+      shieldRoot.scale.setScalar(0.55 + t * 0.45);
+      shieldMat.uniforms.uStrength.value = t;
+      rimMat.opacity = 0.22 * t;
+    },
+    shieldHit: () => { shieldFlash = 1; },
+    setHeroLight: (intensity) => {
+      heroAmbient = intensity;
+      for (const m of heroMats) m.emissiveIntensity = intensity;
+    },
     cosmetic: (dt, time) => {
-      if (authored) retarget(rig, authored);
+      shieldMat.uniforms.uTime.value = time;
+      if (shieldFlash > 0) {
+        // the ring runs out from the centre and the lip lifts with it
+        shieldFlash = Math.max(0, shieldFlash - dt * 3);
+        rimMat.opacity += shieldFlash * 0.3;
+      }
+      shieldMat.uniforms.uFlash.value = shieldFlash;
+      swap.update();
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
         const f = flames[i];

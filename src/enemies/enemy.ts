@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
-  buildDarkTrooper, buildDroid, buildGunfighter, buildIG, buildNikto,
+  buildDarkTrooper, buildDroid, buildDuelist, buildGunfighter, buildIG,
+  buildImperialOfficer, buildNikto,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -22,7 +23,7 @@ export interface Combatant {
 
 export type EnemyKind =
   | 'tusken' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
-  | 'stormtrooper' | 'deathtrooper' | 'darktrooper'
+  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
   | 'ig11' | 'marshal' | 'fennec';
 
 interface Def {
@@ -49,6 +50,10 @@ const DEFS: Record<EnemyKind, Def> = {
   // Imperial remnant
   stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, notice: 42, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
   deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
+  // Fast, accurate and hits hard, but folds if you can close on him.
+  duelist:      { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildDuelist },
+  // Closes to the darksaber's reach and hits like a truck when he gets there.
+  officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 3.0, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
   darktrooper:  { hp: 160, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
   // Allies (spawned on team 0)
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
@@ -58,11 +63,14 @@ const DEFS: Record<EnemyKind, Def> = {
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
+  duelist: 'pirate_taunt', officer: 'imperial_bark',
 };
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
+  duelist: 'pirate_death', officer: 'imperial_death',
 };
+
 
 let nextId = 1;
 
@@ -82,10 +90,9 @@ const MEMORY = 9;
 const INVESTIGATE_TIME = 8;
 /** straight-down exhaust direction, shared so hover jets allocate nothing */
 const _JET_DOWN = new THREE.Vector3(0, -1, 0);
-const _zero = new THREE.Vector3();
-/** scratch for laying a corpse flat */
-const _topple = new THREE.Quaternion();
-const _fallAxis = new THREE.Vector3();
+/** scratch for seeding a ragdoll */
+const _base = new THREE.Vector3();
+const _spin = new THREE.Vector3();
 
 export class Enemy {
   id = nextId++;
@@ -113,16 +120,25 @@ export class Enemy {
   private volleyTimer = 0;
   private strafePhase = Math.random() * Math.PI * 2;
   private facingYaw = 0;
-  private deadTimer = 0;
-  /** live physics ragdoll once this one is dead; null while it is on its feet */
-  private ragdoll: Ragdoll | null = null;
-  /** how far the body has toppled: 0 upright, 1 flat on the ground */
-  private fallT = 0;
-  /** where fallT is heading — set by the death/wounded/knockdown states */
-  private fallTarget = 0;
-  /** horizontal direction the body lays out along once it goes down */
-  private fallDir = new THREE.Vector3(0, 0, 1);
   private spawnPos = new THREE.Vector3();
+  // ---- ragdoll & corpse ----
+  /**
+   * Deaths hand the rig to an articulated solver: point masses at the joints
+   * under gravity, bone-length constraints, ground contact and friction. The
+   * body finds its own way down and drapes over whatever it lands on, so no
+   * two deaths are alike and none of them argue with the terrain.
+   */
+  private ragdoll: Ragdoll | null = null;
+  /**
+   * Armed by the killing blow, built on the first dead frame. Waiting a frame
+   * lets knockback stacked after damage() — explosions, melee — steer the fall,
+   * since the sim seeds its motion from this.velocity as it stands then.
+   */
+  private ragdollArmed = false;
+  /** corpse has come to rest: skip physics and limb work from here on */
+  private settled = false;
+  /** wave ended: corpse fading out, then removed */
+  private fadeT = -1;
   private swoopPhase = Math.random() * Math.PI * 2;
   private hoverTarget = new THREE.Vector3();
   private hoverRetarget = 0;
@@ -173,6 +189,15 @@ export class Enemy {
   /** broke and ran after the squad collapsed; rallies at distance */
   fleeing = false;
   private fleeTimer = 0;
+  // ---- cover: shooters fight from behind the crates ----
+  /** current cover spot, if any: hide behind the box, peek out to fire */
+  cover: { hide: THREE.Vector3; peek: THREE.Vector3 } | null = null;
+  /** what the shooter is doing with its cover right now */
+  coverState: 'seek' | 'hide' | 'peek' = 'seek';
+  private coverTimer = 0;
+  private coverRetry = Math.random() * 0.8;
+  private coverCheck = 0;
+  private peekFired = false;
 
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
@@ -254,6 +279,8 @@ export class Enemy {
     if (!this.alive) return;
     this.alert(from, true); // being shot at is not something you investigate
     this.suppress(0.35);
+    // a shooter caught in the open dives for the nearest crate
+    if (!this.cover && this.def.style === 'ranged' && this.team === 1) this.coverRetry = 0;
     // finishing blows on someone already on the ground hit twice as hard
     if (this.downed || this.wounded) amount *= 2;
     this.hp -= amount;
@@ -282,25 +309,24 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      this.deadTimer = 1.4;
       const bark = DEATH_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.5);
-      // The rig stops being animated here and becomes a physics ragdoll: the
-      // animator is released so nothing fights the sim for the bones.
-      const anim = this.char.animator;
-      if (anim) { anim.release('lower'); anim.release('upper'); }
-      // the killing blow's push — harder hits throw harder, with a bit of
+      // fling the corpse — harder killing blows throw harder, with a bit of
       // sideways scatter so a mowed-down line doesn't fall in lockstep
       const dir = this.position.clone().sub(from).setY(0).normalize();
       const heavy = amount >= 45 ? 1.6 : 1;
       dir.x += (Math.random() - 0.5) * 0.5;
       dir.z += (Math.random() - 0.5) * 0.5;
       dir.normalize();
-      const impulse = dir.multiplyScalar((3.2 + Math.random() * 2.2) * heavy);
-      impulse.y = (2.2 + Math.random() * 1.4) * heavy;
-      if (this.char.rig) this.ragdoll = new Ragdoll(this.char.rig, this.velocity, impulse);
-      this.fallTarget = 0;
-      this.fallT = 0;
+      this.velocity.addScaledVector(dir, (4.5 + Math.random() * 3) * heavy);
+      this.velocity.y = Math.max(this.velocity.y, (3 + Math.random() * 1.5) * heavy);
+      // Someone already flat (wounded crawl, knockdown) keeps the held prone
+      // pose — tipping the root again would fold them through the floor. The
+      // upright die the ragdoll death; the ragdoll reads its direction from
+      // this.velocity on its first frame, so knockbacks applied right after
+      // this call (explosions, melee) still steer the fall.
+      if (!this.wounded && this.downTimer <= 0) this.startRagdoll();
+      this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       this.char.animator.playOnce('upper', 'hitUpper', 0.05);
     }
@@ -337,19 +363,9 @@ export class Enemy {
     const anim = this.char.animator;
     if (anim) {
       anim.release('lower'); anim.release('upper');
-      anim.playOnce('lower', 'collapseLower', 0.06, true);
-      anim.playOnce('upper', 'collapseUpper', 0.06, true);
+      anim.playOnce('lower', 'deathLower', 0.06, true);
+      anim.playOnce('upper', 'deathUpper', 0.06, true);
     }
-    this.fallTarget = 1;
-    this.fallDir.set(-Math.sin(this.facingYaw), 0, -Math.cos(this.facingYaw));
-  }
-
-  /** Ease the body toward its toppled/upright target. */
-  private settle(dt: number): void {
-    const rate = this.fallTarget > this.fallT ? dt / 0.45 : dt / 0.3;
-    this.fallT = this.fallTarget > this.fallT
-      ? Math.min(this.fallTarget, this.fallT + rate)
-      : Math.max(this.fallTarget, this.fallT - rate);
   }
 
   /** incoming fire, landed or close: keeps this enemy's head down */
@@ -371,33 +387,86 @@ export class Enemy {
     return best;
   }
 
+  /** arm the ragdoll; it is seeded from velocity on the first dead frame */
+  private startRagdoll(): void {
+    // the mixer stops here so nothing fights the solver for the bones
+    const anim = this.char.animator;
+    if (anim) { anim.release('lower'); anim.release('upper'); }
+    this.ragdollArmed = true;
+  }
+  /** wave over: fade the corpse out, then remove it */
+  fadeOut(): void {
+    if (this.alive || this.fadeT >= 0) return;
+    this.fadeT = 0;
+    // materials are shared from a cache — clone them so only this corpse fades
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const clone = (m: THREE.Material): THREE.Material => {
+        const c = m.clone();
+        c.transparent = true;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
+    });
+  }
+
+  private setOpacity(alpha: number): void {
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) m.opacity = alpha;
+    });
+  }
+
   update(dt: number, game: Game): void {
     const anim = this.char.animator;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
 
     if (!this.alive) {
-      this.deadTimer -= dt;
+      // ---- corpse ----
+      // Bodies stay where they fell for the rest of the wave (the mixer is
+      // simply never updated again, freezing the last live pose under the
+      // ragdoll), then fade out when the wave clears.
+      if (this.fadeT >= 0) {
+        this.fadeT += dt;
+        this.setOpacity(Math.max(0, 1 - this.fadeT / 1.2));
+        if (this.fadeT > 1.3) this.removeMe = true;
+      }
+      if (this.settled) return; // at rest: nothing left to simulate
+
+      // Seeded a frame late on purpose: velocity now carries the damage fling
+      // plus any knockback stacked after it, and that is what steers the fall.
+      // The upper body takes a larger share, so a hit turns the body over
+      // rather than sliding it away flat.
+      if (this.ragdollArmed && this.char.rig) {
+        this.ragdollArmed = false;
+        _base.copy(this.velocity).multiplyScalar(0.85);
+        _spin.copy(this.velocity).multiplyScalar(0.3);
+        this.ragdoll = new Ragdoll(this.char.rig, _base, _spin);
+      }
+
       if (this.ragdoll) {
         this.ragdoll.step(dt, game.board.physics);
-        // anything still tracking the corpse follows the body, not a ghost
-        // capsule left behind where it was standing
+        // anything still tracking the corpse follows the body itself, not a
+        // capsule left standing where it died
         this.position.copy(this.ragdoll.hips);
-        if (this.deadTimer <= 0) {
-          this.ragdoll.translate(-dt * 1.2); // sink away
-          if (this.deadTimer < -1.2) this.removeMe = true;
-        }
+        if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
+        if (!this.ragdoll.active && this.fadeT < 0) this.settled = true;
         this.char.cosmetic?.(dt, game.time);
-      } else {
-        this.velocity.y -= 22 * grav(game) * dt;
-        game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
-        this.settle(dt);
-        if (this.deadTimer <= 0) {
-          this.char.root.position.y -= dt * 1.2;
-          if (this.deadTimer < -1.2) this.removeMe = true;
-        }
-        this.syncVisual(dt, game);
-        anim?.update(dt);
+        return;
       }
+
+      // no solver (already prone from a crawl or knockdown): slide and settle
+      this.velocity.x = damp(this.velocity.x, 0, 3, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 3, dt);
+      this.velocity.y -= 22 * grav(game) * dt;
+      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
+      if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
+      if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
+
+      this.syncVisual(dt, game);
       return;
     }
 
@@ -418,9 +487,7 @@ export class Enemy {
         if (a) { a.release('lower'); a.release('upper'); }
         this.stagger = Math.max(this.stagger, 0.25);
         this.attackCd = Math.max(this.attackCd, 0.8);
-        this.fallTarget = 0;
       }
-      this.settle(dt);
       this.syncVisual(dt, game);
       anim?.update(dt);
       return;
@@ -436,13 +503,7 @@ export class Enemy {
           a.playOnce('lower', 'deathLower', 0.08, true);
           a.playOnce('upper', 'deathUpper', 0.08, true);
         }
-        // dragging itself along the ground: down, but head still up
-        this.fallTarget = 0.8;
-        this.fallDir.copy(this.position).sub(this.interest).setY(0);
-        if (this.fallDir.lengthSq() < 1e-6) this.fallDir.set(0, 0, 1);
-        this.fallDir.normalize();
       }
-      this.settle(dt);
       this.bleedOut -= dt;
       // drag away from whatever did this, slowly
       const away = this.position.clone().sub(this.interest).setY(0);
@@ -452,13 +513,7 @@ export class Enemy {
       this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.bleedOut <= 0) {
-        this.alive = false;
-        this.deadTimer = 1.4;
-        // it is already on the ground, so it just goes limp where it lies
-        anim?.release('lower'); anim?.release('upper');
-        if (this.char.rig) this.ragdoll = new Ragdoll(this.char.rig, this.velocity, _zero);
-        this.fallTarget = 0;
-        this.fallT = 0;
+        this.alive = false; // already prone: the held pose is the corpse
       }
       this.syncVisual(dt, game);
       anim?.update(dt);
@@ -486,9 +541,8 @@ export class Enemy {
         this.velocity.y -= 24 * grav(game) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (anim) {
-          const flee = anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z));
-          anim.play('lower', 'runLower', 0.2, flee);
-          anim.play('upper', 'runUpper', 0.2, flee);
+          anim.play('lower', 'runLower', 0.2, 1.2);
+          anim.play('upper', 'runUpper', 0.2, 1.2);
         }
         this.syncVisual(dt, game);
         anim?.update(dt);
@@ -539,6 +593,24 @@ export class Enemy {
     }
 
     if (d.style === 'melee' || d.style === 'ranged') {
+      // Edge guard: on the platforms a walking enemy never steers itself into
+      // the void — probe the ground a step ahead and stop at the lip. Only
+      // voluntary movement is caught; a knockback can still throw them off,
+      // which is half the fun of the station board.
+      if (!game.board.physics.heightAt && this.stagger <= 0) {
+        const sp = Math.hypot(this.velocity.x, this.velocity.z);
+        // gate must be near zero: steering re-adds a trickle of velocity every
+        // frame after a block, and a 0.3 m/s creep still walks off the lip
+        if (sp > 0.05) {
+          const ax = this.position.x + (this.velocity.x / sp) * 1.2;
+          const az = this.position.z + (this.velocity.z / sp) * 1.2;
+          const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
+          if (!isFinite(g) || g < this.position.y - 3) {
+            this.velocity.x = 0;
+            this.velocity.z = 0;
+          }
+        }
+      }
       this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.alive = false; this.removeMe = true; }
@@ -557,11 +629,9 @@ export class Enemy {
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0) {
-        // same stride-matched cadence as the player, so nobody moonwalks
-        const gait = anim.gaitRate('runLower', speed2);
-        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, speed2 > 0.7 ? gait : 1);
+        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
         if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, gait);
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -701,6 +771,146 @@ export class Enemy {
   }
 
   /**
+   * Scan the board's collision boxes for a spot that hides this enemy from
+   * `target`: standing on the far side of a box tall enough to block the
+   * chest-to-eye sightline, with a peek position off the box's edge where the
+   * sightline opens again. Raycast-heavy, so callers throttle it.
+   */
+  private findCover(game: Game, target: Combatant): { hide: THREE.Vector3; peek: THREE.Vector3 } | null {
+    const phys = game.board.physics;
+    const eye = target.position.clone();
+    eye.y += 1.5;
+    let best: { hide: THREE.Vector3; peek: THREE.Vector3 } | null = null;
+    let bestD = Infinity;
+    for (const b of phys.boxes) {
+      const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+      let dx = cx - target.position.x, dz = cz - target.position.z;
+      const dl = Math.hypot(dx, dz);
+      if (dl < 1e-3 || dl > 60) continue;
+      dx /= dl; dz /= dl;
+      // hide point just past the box on the side away from the target
+      const ext = Math.abs(dx) * (b.max.x - b.min.x) / 2 + Math.abs(dz) * (b.max.z - b.min.z) / 2 + this.radius + 0.35;
+      const hx = cx + dx * ext, hz = cz + dz * ext;
+      const d = Math.hypot(hx - this.position.x, hz - this.position.z);
+      if (d > 16 || d >= bestD) continue;
+      // must be a spot it can actually fight from — cover out past blaster
+      // range is just hiding, and hiding doesn't win territory
+      if (Math.hypot(hx - target.position.x, hz - target.position.z) > DEFS[this.kind].attackRange * 0.9) continue;
+      const gy = phys.groundHeight(hx, hz, this.position.y + 0.5);
+      if (!isFinite(gy) || Math.abs(gy - this.position.y) > 2.2) continue; // off the platform / different floor
+      if (b.max.y - gy < 1.1) continue; // too low to hide a standing humanoid
+      // Must actually block the sightline — both ways. The muzzle check is
+      // the same ray updateVolley uses (chest to target), so "hidden" also
+      // means "holds fire"; without it, marginal cover like the barrels lets
+      // a hiding shooter squeeze rounds over the top.
+      const chest = new THREE.Vector3(hx, gy + this.height * 0.75, hz);
+      const toC = chest.clone().sub(eye);
+      const cd = toC.length();
+      toC.normalize();
+      if (!phys.raycast(eye, toC, cd)) continue;
+      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(chest);
+      const md = muzzleTo.length();
+      muzzleTo.normalize();
+      if (!phys.raycast(chest, muzzleTo, md)) continue;
+      // peek point off one edge, where the sightline opens back up
+      const tx = -dz, tz = dx;
+      const lat = Math.abs(tx) * (b.max.x - b.min.x) / 2 + Math.abs(tz) * (b.max.z - b.min.z) / 2 + this.radius + 0.45;
+      for (const side of [1, -1]) {
+        const px = hx + tx * lat * side, pz = hz + tz * lat * side;
+        const pgy = phys.groundHeight(px, pz, this.position.y + 0.5);
+        if (!isFinite(pgy) || Math.abs(pgy - gy) > 1.2) continue;
+        const pchest = new THREE.Vector3(px, pgy + this.height * 0.75, pz);
+        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(pchest);
+        const pmd = pMuzzle.length();
+        pMuzzle.normalize();
+        if (phys.raycast(pchest, pMuzzle, pmd)) continue; // peek blocked too — useless
+        if (!this.pathOk(phys, hx, hz)) break;     // can't walk there (a gap between platforms)
+        best = { hide: new THREE.Vector3(hx, gy, hz), peek: new THREE.Vector3(px, pgy, pz) };
+        bestD = d;
+        break;
+      }
+    }
+    return best;
+  }
+
+  /** straight walk there without stepping into a void (station platforms) */
+  private pathOk(phys: import('../core/physics').PhysicsWorld, x: number, z: number): boolean {
+    if (phys.heightAt) return true; // solid ground everywhere
+    const dx = x - this.position.x, dz = z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.ceil(dist / 2));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const g = phys.groundHeight(this.position.x + dx * t, this.position.z + dz * t, this.position.y + 0.5);
+      if (!isFinite(g) || g < this.position.y - 2.5) return false;
+    }
+    return true;
+  }
+
+  /**
+   * The cover loop: settle in behind the box, wait a beat, step out to the
+   * peek point, fire, duck back. Suppression stretches the hiding — pouring
+   * fire at a crate genuinely keeps the shooter behind it.
+   */
+  private updateCover(dt: number, game: Game, target: Combatant): void {
+    const spot = this.cover!;
+    const d = DEFS[this.kind];
+    const goal = this.coverState === 'peek' ? spot.peek : spot.hide;
+    const gx = goal.x - this.position.x, gz = goal.z - this.position.z;
+    const gd = Math.hypot(gx, gz);
+    this.faceToward(dt, target.position.x, target.position.z, 7);
+    if (gd > 0.7) {
+      const inv = 1 / gd;
+      this.velocity.x = damp(this.velocity.x, gx * inv * d.speed * 0.95, 7, dt);
+      this.velocity.z = damp(this.velocity.z, gz * inv * d.speed * 0.95, 7, dt);
+    } else {
+      this.velocity.x = damp(this.velocity.x, 0, 9, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 9, dt);
+    }
+
+    switch (this.coverState) {
+      case 'seek':
+        if (gd < 0.8) {
+          this.coverState = 'hide';
+          this.coverTimer = (0.6 + Math.random() * 1.2) * (this.committed ? 0.45 : 1);
+          this.volleyLeft = 0; // ducking means holding fire
+        }
+        break;
+      case 'hide':
+        // pinned shooters stay hidden — this is what suppression buys
+        this.coverTimer -= this.suppression > 0.55 ? dt * 0.3 : dt;
+        if (this.coverTimer <= 0) {
+          this.coverState = 'peek';
+          this.coverTimer = 2.4;
+          this.peekFired = false;
+          this.attackCd = Math.min(this.attackCd, 0.25); // pop out ready to fire
+        }
+        break;
+      case 'peek': {
+        this.coverTimer -= dt;
+        if (this.volleyLeft > 0) this.peekFired = true;
+        const done = (this.peekFired && this.volleyLeft === 0) || this.coverTimer <= 0;
+        if (done && gd < 1.2) {
+          this.coverState = 'hide';
+          this.coverTimer = (0.9 + Math.random() * 1.3) * (this.committed ? 0.45 : 1);
+          this.volleyLeft = 0; // duck: any rounds left in the burst stay unfired
+          // now and then abandon the crate and work a new angle
+          if (Math.random() < 0.2) this.cover = null;
+        }
+        break;
+      }
+    }
+
+    // Shooting only while out of cover: the sightline check handles most of
+    // it, but separation shoves can hold a hider half a metre off its spot
+    // where the crate no longer fully blocks — so hiding simply holds fire.
+    if (this.coverState !== 'hide') {
+      const dist = Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z);
+      this.updateVolley(dt, game, target, dist);
+    }
+  }
+
+  /**
    * Steer to a standing position `radius` out from the target on this enemy's
    * director-assigned bearing. Squads spread around their target instead of
    * piling into the same spot, and holding a bearing is what lets non-committed
@@ -788,6 +998,39 @@ export class Enemy {
     to.y = 0;
     const dist = to.length();
     this.faceToward(dt, target.position.x, target.position.z, 7);
+
+    // ---- cover first: a shooter with a crate to fight from uses it ----
+    // Everyone works the boxes — settle behind one, peek out, fire, duck
+    // back. Committed shooters run the same loop at a much faster tempo, so
+    // the director's pressure roles survive: they dart between peeks instead
+    // of camping. Cover points are ground- and path-validated, so this also
+    // overrides the station leash below: the crate is a safe destination.
+    if (this.team === 1) {
+      this.coverRetry -= dt;
+      if (!this.cover && this.coverRetry <= 0) {
+        this.cover = this.findCover(game, target);
+        this.coverRetry = 1.4 + Math.random(); // the search raycasts; don't spam it
+        if (this.cover) this.coverState = 'seek';
+      }
+      if (this.cover) {
+        // flanked? if the hide spot no longer blocks the sightline, drop it
+        this.coverCheck -= dt;
+        if (this.coverCheck <= 0) {
+          this.coverCheck = 0.8;
+          const eye = target.position.clone();
+          eye.y += 1.5;
+          const chest = this.cover.hide.clone();
+          chest.y += this.height * 0.75;
+          const toC = chest.sub(eye);
+          const cd = toC.length();
+          if (!game.board.physics.raycast(eye, toC.normalize(), cd)) this.cover = null;
+        }
+      }
+      if (this.cover) {
+        this.updateCover(dt, game, target);
+        return;
+      }
+    }
 
     if (game.board.kind === 'station' && this.team === 1) {
       // platforms: never walk off the edge chasing a firing angle
@@ -944,20 +1187,13 @@ export class Enemy {
   }
 
   private syncVisual(dt: number, game: Game): void {
+    // a ragdolled corpse is placed entirely by the solver — it writes the root
+    // and every bone itself, so syncVisual must keep its hands off
+    if (this.ragdoll) return;
     this.char.root.position.copy(this.position);
-    this.char.root.rotation.set(0, this.facingYaw, 0);
-    if (this.kind === 'nikto' && this.alive && this.fallT <= 0.001) {
+    this.char.root.rotation.y = this.facingYaw;
+    if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);
-    }
-    if (this.fallT > 0.001) {
-      // Lay the whole body down. The root sits at the feet, so a quarter turn
-      // about the horizontal axis across fallDir puts the corpse flat on the
-      // ground stretched out along it — posing the skeleton alone left them
-      // collapsed but still half-upright.
-      const t = this.fallT * this.fallT * (3 - 2 * this.fallT);
-      _topple.setFromAxisAngle(_fallAxis.set(this.fallDir.z, 0, -this.fallDir.x).normalize(), t * Math.PI * 0.5);
-      this.char.root.quaternion.premultiply(_topple);
-      this.char.root.position.y += 0.14 * t; // keep the limbs out of the sand
     }
     this.char.cosmetic?.(dt, game.time);
     // hit flash: emissive pulse on all materials (cheap: scale pop)

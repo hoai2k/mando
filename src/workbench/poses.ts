@@ -16,6 +16,8 @@ export interface Pose {
   thrust?: number;
   /** gaffi stick instead of the carbine */
   melee?: boolean;
+  /** raise the block shield */
+  block?: boolean;
 }
 
 export const POSES: Pose[] = [
@@ -27,6 +29,7 @@ export const POSES: Pose[] = [
   { id: 'runaim', name: 'Aim — running', lower: 'runLower', upper: 'aimUpper' },
   { id: 'air', name: 'Jump / falling', lower: 'airLower', upper: 'airUpper' },
   { id: 'fly', name: 'Jetpack flight', lower: 'flyLower', upper: 'flyUpper', thrust: 1 },
+  { id: 'block', name: 'Block — shield up', lower: 'blockLower', upper: 'blockUpper', block: true },
   { id: 'melee1', name: 'Melee 1 — swing', lower: 'idleLower', upper: 'melee1', melee: true },
   { id: 'melee2', name: 'Melee 2 — backswing', lower: 'idleLower', upper: 'melee2', melee: true },
   { id: 'melee3', name: 'Melee 3 — overhead', lower: 'idleLower', upper: 'melee3', melee: true },

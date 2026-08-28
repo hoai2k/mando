@@ -7,6 +7,12 @@ export interface BoltTarget {
   team: number;              // 0 = players, 1 = enemies
   onHit: (damage: number, from: THREE.Vector3) => void;
   alive: boolean;
+  /**
+   * A raised block shield. Bolts arriving from the front of `normal` bounce
+   * off it and fly on as the blocker's own fire; the sphere is tested before
+   * the body, so a shield up is a shield that works.
+   */
+  shield?: { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null;
 }
 
 interface Bolt {
@@ -30,6 +36,7 @@ export class ProjectileSystem {
   private glowPlayer = new THREE.MeshBasicMaterial({ color: 0xff4a22, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   private glowEnemy = new THREE.MeshBasicMaterial({ color: 0x55ff44, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   onImpact: ((p: THREE.Vector3, hitTarget: boolean, team: number) => void) | null = null;
+  onDeflect: ((p: THREE.Vector3, normal: THREE.Vector3) => void) | null = null;
 
   constructor() {
     // unit-length along Z so each bolt can be stretched to cover the distance
@@ -56,7 +63,7 @@ export class ProjectileSystem {
     b.glow.material = team === 0 ? this.glowPlayer : this.glowEnemy;
     b.mesh.position.copy(origin);
     b.vel.copy(dir).normalize().multiplyScalar(speed);
-    b.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().normalize());
+    b.mesh.quaternion.setFromUnitVectors(FORWARD, dir.clone().normalize());
     // player bolts are longer and fatter so you can actually track your own fire
     const len = team === 0 ? 2.6 : 1.8;
     b.mesh.scale.set(1, 1, len);
@@ -77,6 +84,34 @@ export class ProjectileSystem {
       step.copy(b.vel).multiplyScalar(dt);
       const stepLen = step.length();
       const from = b.mesh.position;
+
+      // deflection first: a shield in the way is what the bolt meets, and it
+      // has to be tested before the body it is covering
+      let deflected = false;
+      for (const t of targets) {
+        if (!t.alive || t.team === b.team || !t.shield) continue;
+        const sh = t.shield;
+        // only the outward face blocks — you cannot shelter behind your own back
+        if (b.vel.dot(sh.normal) >= 0) continue;
+        if (!segSphere(from, step, stepLen, sh.center, sh.radius)) continue;
+        // bounce: mirror the velocity about the shield normal and hand the
+        // bolt to the blocker's team, so a good block is also a counterattack
+        b.vel.reflect(sh.normal);
+        b.team = t.team;
+        b.damage *= 0.75;
+        b.life = Math.min(b.life, 1.6);
+        b.mesh.material = t.team === 0 ? this.matPlayer : this.matEnemy;
+        b.glow.material = t.team === 0 ? this.glowPlayer : this.glowEnemy;
+        const dir = b.vel.clone().normalize();
+        b.mesh.quaternion.setFromUnitVectors(FORWARD, dir);
+        b.glow.quaternion.copy(b.mesh.quaternion);
+        from.copy(sh.center).addScaledVector(dir, sh.radius * 0.6);
+        b.glow.position.copy(from);
+        this.onDeflect?.(from.clone(), sh.normal);
+        deflected = true;
+        break;
+      }
+      if (deflected) continue;
 
       // hit targets: segment vs sphere
       let hit = false;
@@ -105,6 +140,7 @@ export class ProjectileSystem {
   }
 }
 
+const FORWARD = new THREE.Vector3(0, 0, 1);
 const tmp = new THREE.Vector3();
 function segSphere(from: THREE.Vector3, step: THREE.Vector3, stepLen: number, center: THREE.Vector3, radius: number): boolean {
   tmp.subVectors(center, from);

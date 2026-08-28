@@ -84,11 +84,25 @@ export class Game {
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
       p.spawnAt(board.playerStarts[i] ?? board.playerStarts[0]);
+      p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
 
 
+    // a bolt turned around by a shield: sparks at the pane, and the blocker
+    // feels it land
+    this.projectiles.onDeflect = (point) => {
+      this.particles.impactSparks(point, 10);
+      audio.impact();
+      for (const p of this.players) {
+        if (!p.blocking) continue;
+        if (p.position.distanceToSquared(point) < 2.5 * 2.5) {
+          p.char.shieldHit();
+          p.cam.shake(0.05);
+        }
+      }
+    };
     this.projectiles.onImpact = (point, hitTarget, team) => {
       this.particles.impactSparks(point, hitTarget ? 12 : 6);
       audio.impact();
@@ -173,6 +187,8 @@ export class Game {
     // removed the same frame they die, rather than lingering as a corpse, so
     // the array could empty completely and the check could never fire again.
     if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
+      // the fallen fade away now that the wave is decided
+      for (const e of this.enemies) if (!e.alive) e.fadeOut();
       if (this.wave >= FINAL_WAVE) {
         this.setState('victory');
         this.events.banner('Territory held', 'This is the Way');
@@ -276,6 +292,7 @@ export class Game {
       targets.push({
         position: p.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
         radius: p.radius + 0.35, team: 0, alive: p.alive,
+        shield: p.shieldCollider,
         onHit: (dmg, from) => p.damage(dmg, from),
       });
     }

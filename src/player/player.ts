@@ -6,6 +6,7 @@ import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
+import type { StaticBox } from '../core/physics';
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -24,6 +25,12 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
+/** seconds of block on a full gauge */
+const BLOCK_SECONDS = 5;
+/** you can shuffle behind the shield, but not run */
+const BLOCK_SPEED = 3.2;
+/** extra downward pull while blocking in the air, m/s² */
+const BLOCK_SINK = 16;
 const ROCKET_CD = 12;
 /** seconds of Dead Eye on a full meter */
 const DEADEYE_SECONDS = 6;
@@ -43,6 +50,19 @@ export class Player {
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
   sprinting = false;
+  /** shield up: drains the same gauge sprinting does */
+  blocking = false;
+  /** scratch for the shield collider handed to the projectile system */
+  private shieldSphere = { center: new THREE.Vector3(), radius: 0.78, normal: new THREE.Vector3() };
+  /** 0..1 raise animation for the shield pane */
+  private blockRaise = 0;
+  /**
+   * RB pressed with the stick centred arms a dash instead of a sprint; the
+   * next direction pushed spends it. See the dash block below.
+   */
+  private dashArmed = false;
+  /** RB was pressed while already moving, so this hold is a sprint */
+  private sprintLatched = false;
   /** Dead Eye meter, 0..1 — drains while active, feeds on kills */
   deadeye = 1;
   deadeyeActive = false;
@@ -77,6 +97,17 @@ export class Player {
   /** true while ADS — the HUD only draws a crosshair when this is set */
   aiming = false;
   lastDamageDir = new THREE.Vector3();
+  // ---- cover (RDR2 snap-to-cover) ----
+  /** the box being hugged, plus the outward normal of the face we're on */
+  cover: { box: StaticBox; nx: number; nz: number } | null = null;
+  /** a face is close enough to snap to right now (drives the HUD prompt) */
+  nearCover = false;
+  /** currently leaning out past the corner to shoot */
+  peeking = false;
+  /** which corner this peek leans around: -1/+1 along the face tangent, 0 = unset */
+  private peekSide = 0;
+  private peekRecheck = 0;
+  private pushAwayTime = 0;
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
     this.char = buildMandalorian(characterId);
@@ -94,6 +125,8 @@ export class Player {
     this.slamming = false;
     this.deadeye = Math.max(this.deadeye, 0.5);
     this.deadeyeActive = false;
+    this.cover = null;
+    this.peeking = false;
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
   }
@@ -119,11 +152,28 @@ export class Player {
     anim.playOnce('lower', 'deathLower', 0.1, true);
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.deadeyeActive = false;
+    this.cover = null;
+    this.peeking = false;
     audio.setJetpackThrust(this.slot, 0);
   }
 
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
+
+  /**
+   * The block shield as the projectile system sees it: a sphere sitting a
+   * little in front of the chest, facing the way we are. Null until the pane
+   * is most of the way up, so a shield that is still rising does not yet
+   * bounce anything.
+   */
+  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
+    if (this.blockRaise < 0.6) return null;
+    const s = this.shieldSphere;
+    s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    s.center.copy(this.position).addScaledVector(s.normal, 0.6);
+    s.center.y += 1.05;
+    return s;
+  }
 
   /** enemy currently under the crosshair's assist cone, for HUD feedback */
   lockedOn = false;
@@ -184,6 +234,24 @@ export class Player {
     this.wasAiming = input.aimHeld;
     this.aiming = input.aimHeld;
 
+    // ---- cover: on the ground the slam button snaps to a nearby box ----
+    // (the air keeps its ground slam — the button splits by grounded state)
+    const face = this.grounded ? this.findCoverFace(game) : null;
+    this.nearCover = !!face && !this.cover;
+    if (!this.cover && face && input.slamPressed) {
+      this.cover = face;
+      this.peeking = false;
+      this.pushAwayTime = 0;
+      audio.land(false); // the thump of shoulder meeting crate
+      // the press that got us in must not also read as the press that exits
+      this.updateInCover(dt, { ...input, slamPressed: false }, game, realDt);
+      return;
+    }
+    if (this.cover) {
+      this.updateInCover(dt, input, game, realDt);
+      return;
+    }
+
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
     const wishX = fwdX * input.moveY + rightX * input.moveX;
@@ -191,22 +259,35 @@ export class Player {
     const wishLen = Math.hypot(wishX, wishZ);
     const nx = wishLen > 0 ? wishX / wishLen : 0;
     const nz = wishLen > 0 ? wishZ / wishLen : 0;
-    // ---- sprint (hold B / Shift on the ground, burns the energy gauge) ----
-    const wantsSprint = input.sprintHeld && wishLen > 0.2 && this.grounded && this.energy > 0;
-    this.sprinting = wantsSprint;
-    if (wantsSprint) {
-      this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
+    // ---- block (hold B / R) ----
+    // The shield is the same gauge as sprinting, so a fight is a budget: run
+    // it down blocking and you have nothing left to run with.
+    const moving = wishLen > 0.2;
+    this.blocking = input.blockHeld && this.energy > 0 && this.meleeTimer <= 0 && this.dashTimer <= 0;
+    if (this.blocking) {
+      this.energy = Math.max(0, this.energy - dt / BLOCK_SECONDS);
       this.sprintRefillDelay = 0.7;
-    } else {
-      this.sprintRefillDelay -= dt;
-      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+      this.dashArmed = false;
+      this.sprintLatched = false;
     }
-    const speedTarget = Math.min(wishLen, 1) * (this.sprinting ? SPRINT_SPEED : RUN_SPEED);
+    this.blockRaise = damp(this.blockRaise, this.blocking ? 1 : 0, 14, dt);
+    this.char.setBlock(this.blockRaise);
 
-    // ---- dash ----
-    // tapping the same button in the air is a jetpack dash burst; on the
-    // ground the hold-to-sprint above owns it
-    if (input.dashPressed && !this.grounded && this.dashCd <= 0 && this.energy > DASH_ENERGY) {
+    // ---- RB: a dash from a standstill, a sprint on the move ----
+    // Pressing with the stick centred arms a dash and waits for a direction;
+    // pressing while already moving is a sprint for as long as it is held. In
+    // the air sprint means nothing, so a press there is always the jet burst.
+    if (input.dashPressed && !this.blocking) {
+      if (!this.grounded) this.dashArmed = true;
+      else if (moving) { this.sprintLatched = true; this.dashArmed = false; }
+      else { this.dashArmed = true; this.sprintLatched = false; }
+    }
+    if (!input.sprintHeld) { this.dashArmed = false; this.sprintLatched = false; }
+
+    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking;
+    const dashNow = this.dashArmed && canDash && (moving || !this.grounded);
+    if (dashNow) {
+      this.dashArmed = false;
       this.dashTimer = 0.24;
       this.dashCd = 0.75;
       this.energy = Math.max(0, this.energy - DASH_ENERGY);
@@ -216,7 +297,23 @@ export class Player {
       audio.dash();
       this.cam.shake(0.06);
       game.particles.dustPuff(this.position, 6);
+      // holding on through the dash rolls into a sprint when it ends
+      this.sprintLatched = true;
     }
+
+    // ---- sprint ----
+    const wantsSprint = this.sprintLatched && input.sprintHeld && moving
+      && this.grounded && this.energy > 0 && !this.blocking;
+    this.sprinting = wantsSprint;
+    if (wantsSprint) {
+      this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
+      this.sprintRefillDelay = 0.7;
+    } else if (!this.blocking) {
+      this.sprintRefillDelay -= dt;
+      if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    }
+    const topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
+    const speedTarget = Math.min(wishLen, 1) * topSpeed;
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
@@ -231,14 +328,14 @@ export class Player {
 
     // ---- jump / jetpack ----
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
-    if (input.jumpPressed && this.coyote > 0) {
+    if (input.jumpPressed && this.coyote > 0 && !this.blocking) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
       game.particles.dustPuff(this.position, 4);
     }
     this.thrusting = 0;
-    if (input.jumpHeld && !this.grounded && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    if (input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -277,6 +374,12 @@ export class Player {
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
       this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+      // A brace wants the ground under it: raising the shield mid-air kills any
+      // rise you had and pulls you down to meet it.
+      if (this.blocking && !this.grounded) {
+        if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
+        this.velocity.y -= BLOCK_SINK * dt;
+      }
       if (inVoid) {
         const terminal = -(board.voidFallSpeed ?? 3.2);
         if (this.velocity.y < terminal) this.velocity.y = terminal;
@@ -328,10 +431,14 @@ export class Player {
     // ---- combat ----
     this.lockedOn = this.weapon === 'blaster' &&
       !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
-    this.updateCombat(dt, input, game);
+    // Both hands are on the shield: no firing, no swinging, no weapon swap
+    // from behind it. Everything else in updateCombat still ticks down.
+    this.updateCombat(dt, this.blocking
+      ? { ...input, shootHeld: false, aimHeld: false, meleePressed: false, rocketPressed: false, switchPressed: false }
+      : input, game);
 
     // ---- facing ----
-    const combatFacing = input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
+    const combatFacing = this.blocking || input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
     const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
     let targetYaw = this.facingYaw;
     if (combatFacing) targetYaw = this.cam.yaw;
@@ -339,7 +446,11 @@ export class Player {
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
 
     // ---- animation state ----
-    if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
+    if (this.blocking) {
+      // the brace owns both channels: no running, no firing from behind it
+      anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
+      anim.play('upper', 'blockUpper', 0.12);
+    } else if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       anim.play('lower', 'flyLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
     } else if (!this.grounded) {
@@ -370,6 +481,170 @@ export class Player {
     // camera stays crisp while the world is in slow motion
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+    });
+  }
+
+  /**
+   * Nearest box face worth hugging: tall enough to hide behind, wide enough
+   * to matter, within snap range, and not the thing we're standing on.
+   */
+  private findCoverFace(game: Game): { box: StaticBox; nx: number; nz: number } | null {
+    let best: { box: StaticBox; nx: number; nz: number } | null = null;
+    let bestD = 2.4; // snap range
+    for (const b of game.board.physics.boxes) {
+      if (b.max.y - this.position.y < 1.0) continue;              // too low to cover the chest
+      if (b.min.y > this.position.y + 0.5) continue;              // floating above us
+      if (this.position.y > b.max.y - 0.3) continue;              // we're standing on it
+      // outside distance to the box, and which face is closest
+      const cx = clamp(this.position.x, b.min.x, b.max.x);
+      const cz = clamp(this.position.z, b.min.z, b.max.z);
+      const ox = this.position.x - cx, oz = this.position.z - cz;
+      const dist = Math.hypot(ox, oz);
+      if (dist < 0.01 || dist > bestD) continue;
+      let nx = 0, nz = 0;
+      if (Math.abs(ox) >= Math.abs(oz)) nx = Math.sign(ox) || 1;
+      else nz = Math.sign(oz) || 1;
+      // the face must be wide enough to actually hide a person
+      const width = nx !== 0 ? b.max.z - b.min.z : b.max.x - b.min.x;
+      if (width < 1.0) continue;
+      bestD = dist;
+      best = { box: b, nx, nz };
+    }
+    return best;
+  }
+
+  /**
+   * Hugging a box, RDR2-style: slide along the face with the stick, hold aim
+   * to lean out past the corner and shoot, release to tuck back in. Jump,
+   * dash, melee, pressing the cover button again, or pushing away all leave.
+   */
+  private updateInCover(dt: number, input: FrameInput, game: Game, realDt: number): void {
+    const anim = this.char.animator!;
+    const c = this.cover!;
+    const b = c.box;
+    // face geometry: n = outward normal, t = tangent along the face
+    const tx = -c.nz, tz = c.nx;
+    const facePlane = (c.nx > 0 ? b.max.x : c.nx < 0 ? b.min.x : c.nz > 0 ? b.max.z : b.min.z);
+    const hugDist = this.radius + 0.22;
+    const tMin = (c.nx !== 0 ? b.min.z : b.min.x);
+    const tMax = (c.nx !== 0 ? b.max.z : b.max.x);
+    const myT = c.nx !== 0 ? this.position.z : this.position.x;
+
+    // ---- exits ----
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
+    const wishX = fwdX * input.moveY + rightX * input.moveX;
+    const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
+    const away = wishX * c.nx + wishZ * c.nz; // pushing off the wall
+    this.pushAwayTime = away > 0.6 ? this.pushAwayTime + dt : 0;
+    let leave = input.slamPressed || input.dashPressed || input.meleePressed || this.pushAwayTime > 0.18;
+    if (input.jumpPressed) {
+      leave = true;
+      this.velocity.y = JUMP_VEL;
+      this.grounded = false;
+    }
+    if (leave) {
+      this.cover = null;
+      this.peeking = false;
+      // a melee press still swings: fall through to the normal path next frame
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, { aiming: input.aimHeld, speed: 0, dashing: false });
+      return;
+    }
+
+    // ---- desired spot on the face ----
+    const wasPeeking = this.peeking;
+    this.peeking = input.aimHeld && this.weapon === 'blaster';
+    let targetT: number;
+    if (this.peeking) {
+      // Pick the corner: prefer the side the camera leans toward, but when a
+      // target is locked, take whichever corner has a clear shot to it —
+      // boxes often sit in rows (crate stacks), and leaning out into the
+      // neighbouring crate is a peek wasted. Re-checked a few times a second
+      // while the aim is held, since targets move; the cone is cast from the
+      // chest, not the camera, which can be a frame stale on the first peek.
+      this.peekRecheck -= dt;
+      if (!wasPeeking || this.peekSide === 0 || this.peekRecheck <= 0) {
+        this.peekRecheck = 0.35;
+        const aim = this.cam.aimDir(new THREE.Vector3());
+        const along = aim.x * tx + aim.z * tz;
+        let side = this.peekSide !== 0 ? this.peekSide
+          : Math.abs(along) > 0.25 ? Math.sign(along)
+          : (myT - (tMin + tMax) / 2 >= 0 ? 1 : -1);
+        const chest = this.position.clone();
+        chest.y += 1.4;
+        const lock = this.aimAssistTarget(game, aim, chest, 0.9, 70);
+        if (lock) {
+          const clear = (sd: number): boolean => {
+            const pt = (sd > 0 ? tMax : tMin) + sd * (this.radius + 0.55);
+            const from = c.nx !== 0
+              ? new THREE.Vector3(facePlane + c.nx * hugDist, this.position.y + 1.4, pt)
+              : new THREE.Vector3(pt, this.position.y + 1.4, facePlane + c.nz * hugDist);
+            const to = lock.position.clone();
+            to.y += lock.height * 0.55;
+            const dir = to.sub(from);
+            const dist = dir.length();
+            return !game.board.physics.raycast(from, dir.normalize(), dist);
+          };
+          if (!clear(side) && clear(-side)) side = -side;
+        }
+        this.peekSide = side;
+      }
+      targetT = (this.peekSide > 0 ? tMax : tMin) + this.peekSide * (this.radius + 0.55);
+    } else {
+      this.peekSide = 0;
+      // tucked: slide along the face with the stick, staying behind the box
+      const slide = wishX * tx + wishZ * tz;
+      targetT = clamp(myT + slide * 3.6 * dt * 12, tMin + 0.2, tMax - 0.2);
+    }
+    let dx: number, dz: number;
+    if (c.nx !== 0) {
+      dx = (facePlane + c.nx * hugDist) - this.position.x;
+      dz = targetT - this.position.z;
+    } else {
+      dx = targetT - this.position.x;
+      dz = (facePlane + c.nz * hugDist) - this.position.z;
+    }
+    this.velocity.x = clamp(dx * 12, -6.5, 6.5);
+    this.velocity.z = clamp(dz * 12, -6.5, 6.5);
+    this.velocity.y -= GRAVITY * dt;
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    this.wasGrounded = res.grounded;
+    if (!res.grounded && this.position.y < (game.board.voidY ?? game.board.physics.killY)) {
+      this.cover = null; // the floor is gone; back to normal rules
+    }
+
+    // out of bounds / hazard (same rules as the open field)
+    if (this.position.y < game.board.physics.killY) this.damage(999, this.position);
+    const hz = game.board.hazard;
+    if (hz && this.alive) {
+      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
+      if (hd < hz.radius && this.position.y < hz.center.y + 3) this.damage(999, hz.center);
+    }
+
+    // ---- combat: shoot only while leaning out ----
+    this.lockedOn = this.peeking &&
+      !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
+    const masked: FrameInput = {
+      ...input,
+      shootHeld: input.shootHeld && this.peeking,
+      rocketPressed: input.rocketPressed && this.peeking,
+      meleePressed: false,
+      switchPressed: false, // the gaffi has no place in cover
+    };
+    this.updateCombat(dt, masked, game);
+
+    // ---- facing & pose ----
+    const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
+    this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
+    anim.play('lower', 'idleLower');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : 'idleUpper');
+
+    this.syncVisual(dt, game);
+    anim.update(dt);
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: input.aimHeld, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
     });
   }
 

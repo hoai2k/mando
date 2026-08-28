@@ -31,6 +31,12 @@ export interface Board {
   voidGravity?: number;
   /** terminal downward speed while drifting, m/s */
   voidFallSpeed?: number;
+  /**
+   * How much ambient lift the player character gets on this board, 0–1 as a
+   * fraction of his own albedo. It reaches the hero only, so a dark board can
+   * keep its mood without losing him against it.
+   */
+  heroLight?: number;
   /** deadly zone (sarlacc pit) */
   hazard?: { center: THREE.Vector3; radius: number };
   update?: (dt: number, time: number) => void;

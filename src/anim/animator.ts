@@ -14,7 +14,7 @@ export class Animator {
   private oneShotUntil = { lower: 0, upper: 0 };
   private time = 0;
 
-  constructor(public rig: Rig, private clips: ClipSet) {
+  constructor(public rig: Rig, public readonly clips: ClipSet) {
     this.mixer = new THREE.AnimationMixer(rig.root);
   }
 
@@ -90,6 +90,18 @@ export class Animator {
   release(channel: 'lower' | 'upper'): void {
     this.oneShotUntil[channel] = 0;
     this.current[channel] = null;
+  }
+
+  /**
+   * Drop the cached actions so clips whose tracks were rewritten (the
+   * workbench's pose editor does this) are re-bound on the next play.
+   */
+  invalidate(): void {
+    this.mixer.stopAllAction();
+    for (const a of this.actions.values()) this.mixer.uncacheClip(a.getClip());
+    this.actions.clear();
+    this.release('lower');
+    this.release('upper');
   }
 
   releaseAll(): void {

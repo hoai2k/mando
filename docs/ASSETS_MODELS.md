@@ -13,12 +13,12 @@ Every character below runs today as a procedural stand-in. An authored glTF (.gl
 - Non-biped characters (marked ◆) use their own free-form rig — animation is procedural code, so any node layout is fine; keep the listed named nodes if possible.
 - Style target: stylized-realistic, weathered and used; silhouettes must read at 30 m. Original fan interpretations — no scans/rips of commercial assets.
 
-## Playable Mandalorians (2) — priority 1
+## Playable Mandalorians (4) — priority 1
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
 
-**Authored models for these two are being supplied**, so they are the first real test of
-the swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
+**Authored models are supplied for all four**, and they are the proving ground for the
+swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
 procedurally earlier and are now shelved — not in the game and not requested — but the
 config-driven factory in `src/characters/mandalorians.ts` makes restoring any of them a
 matter of re-adding one roster entry.
@@ -62,7 +62,14 @@ Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbin
 
 ## Delivery & integration
 
-Drop files at `public/models/<id>.glb` using ids: `din, paz, ig11, marshal, fennec, tusken, nikto, pyke, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, carbine, gaffi`.
+Drop files at `public/models/<id>.glb`. **Delivered:** `din, paz, bokatan, armorer, marshal,
+fennec, nikto, pirate, pirate_melee, droid, deathtrooper, darktrooper, duelist,
+imperial_officer`. **Still open:** `ig11, tusken, pyke, stormtrooper, carbine, gaffi`.
+
+The id is the filename, and it is not always the character's internal id — the Imperial
+officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate
+is the kind `pirateMelee` but the file `pirate_melee.glb`. The mapping lives in
+`AUTHORED_ENEMY` in `src/characters/enemies.ts`.
 
 **The loader is live** (`src/characters/authored.ts`). A model is picked up automatically
 when the file appears; when it is absent the procedural build stands, exactly like the
@@ -83,7 +90,12 @@ What the loader accepts, learned from the first two drops:
 Models are PBR-lit: metallic-roughness maps work, and the scene carries a reflection probe
 built from the board's sky so metal has something to catch. Inspect any of it in the
 **model workbench** at `/workbench/?edit=models` — every game clip, on any character, with
-the authored model and the procedural build side by side.
+the authored model and the procedural build side by side. Its *edit mode* freezes the pose,
+draws the rig as clickable joints and rotates them with an on-screen gizmo (local, world or
+camera-relative rings, Shift to snap). Edits are written into the clips, so leaving edit mode
+plays the animation back with them, they undo and redo, and one export carries the whole
+session as JSON in the same units `src/anim/clips.ts` is written in — the way to correct a
+clip against a real model.
 
 Order of work: reference sheets (`ASSETS_IMAGES.md`) → models → loader. The sheets are the
 blocking input; the five playable Mandalorians and the two shared weapons are priority 1
