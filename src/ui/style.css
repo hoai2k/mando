@@ -276,3 +276,64 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 }
 @keyframes charsel-spin { to { transform: rotate(360deg); } }
 .charsel-start { font-size: 20px; padding: 14px 46px; }
+
+/* ---------- loading screen ---------- */
+/* Territory art behind, the drop's cast and a progress bar in front. Shown
+   between the character select and the match, for as long as the files the
+   first minute needs are still coming in. */
+.loading-screen { position: absolute; inset: 0; pointer-events: auto; overflow: hidden; }
+.loading-art {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  transform: scale(1.06);
+  animation: loading-drift 18s ease-in-out infinite alternate;
+}
+@keyframes loading-drift { to { transform: scale(1.12) translateX(-1.5%); } }
+.loading-screen::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(6,5,4,0.72), rgba(6,5,4,0.86) 55%, rgba(6,5,4,0.96));
+}
+.loading-body {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: 4vh 5vw;
+}
+.loading-title {
+  font-size: clamp(28px, 4.4vw, 58px); letter-spacing: 0.16em; text-transform: uppercase;
+  color: #f0d492; text-shadow: 0 4px 26px rgba(0,0,0,0.9);
+}
+.loading-sub {
+  max-width: min(760px, 86vw); text-align: center; line-height: 1.6;
+  font-size: 14px; letter-spacing: 0.08em; color: #b6a682;
+}
+.loading-cast { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 6px 0 4px; }
+.loading-card { width: clamp(74px, 8vw, 104px); text-align: center; }
+.loading-card .face {
+  aspect-ratio: 5 / 6; border: 1px solid rgba(216,178,90,0.35); border-radius: 8px;
+  background: rgba(12,10,8,0.55) center/cover; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.loading-card .face svg { width: 82%; height: 82%; }
+.loading-card .face.has-art svg { display: none; }
+.loading-card.hostile .face { border-color: rgba(170,60,45,0.45); }
+.loading-card .cname {
+  /* two lines' worth, always: a name that wraps must not shove its neighbours
+     up the screen relative to the rest of the row */
+  margin-top: 6px; min-height: 2.4em; font-size: 11px; line-height: 1.2;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #cbb98e;
+}
+.loading-card.hostile .cname { color: #b98a7a; }
+.loading-bar {
+  width: min(560px, 80vw); height: 6px; margin-top: 10px;
+  background: rgba(216,178,90,0.16); border-radius: 3px; overflow: hidden;
+}
+.loading-bar .fill {
+  height: 100%; width: 0; border-radius: 3px;
+  background: linear-gradient(90deg, #d8b25a, #f0d492);
+  transition: width 0.25s ease-out;
+}
+.loading-foot {
+  display: flex; gap: 14px; align-items: baseline;
+  font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a7c5c;
+}
+.loading-foot .pct { color: #d8b25a; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }

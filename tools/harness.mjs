@@ -250,6 +250,20 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     await tapUntil(BTN.A, async () => /READY/i.test(await text()));
     await sleep(400);
     await tapUntil(BTN.A, () => page.evaluate(() => !!window.__game), { timeoutMs: 15000 });
+    // The match is built behind a loading screen and shown when the files its
+    // first minute needs have landed, so "a game object exists" is no longer
+    // "the player is on the ground". Wait for the drop to finish.
+    await waitForPlaying();
+  }
+
+  /** Wait out the loading screen (or any other menu) until the match is live. */
+  async function waitForPlaying(timeoutMs = 45000) {
+    const t0 = Date.now();
+    for (;;) {
+      if (await page.evaluate(() => window.__state === 'playing')) return;
+      if (Date.now() - t0 > timeoutMs) throw new Error(`still ${await page.evaluate(() => window.__state)} after ${timeoutMs}ms`);
+      await sleep(200);
+    }
   }
 
   /**
@@ -281,7 +295,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   return {
     browser, page, pad, pads, errors,
-    text, waitForText, tapUntil, clickText, startMatch, step, game,
+    text, waitForText, tapUntil, clickText, startMatch, waitForPlaying, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
     close: async () => {
       await browser.close();

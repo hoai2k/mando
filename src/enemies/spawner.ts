@@ -6,6 +6,15 @@ import { hazardAt, killZones, type Board, type BoardId } from '../world/board';
 
 export const FINAL_WAVE = 10;
 
+/**
+ * Which ally reinforces on which wave.
+ *
+ * It lives beside the wave tables rather than in the match, because two other
+ * things read it: the match warms an ally's model before it walks in, and the
+ * prefetcher counts allies among the models a territory will eventually want.
+ */
+export const ALLY_WAVES: Record<number, EnemyKind> = { 4: 'marshal', 7: 'ig11', 9: 'fennec' };
+
 interface WaveEntry { kind: EnemyKind; count: number; air?: boolean; }
 
 export function waveComposition(board: BoardId, wave: number, players: number): WaveEntry[] {

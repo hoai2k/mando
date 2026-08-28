@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy, type EnemyKind } from '../enemies/enemy';
-import { FINAL_WAVE, spawnWave, waveComposition } from '../enemies/spawner';
+import { ALLY_WAVES, FINAL_WAVE, spawnWave, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
@@ -42,9 +42,6 @@ interface Rocket {
   life: number;
   bySlot: number;
 }
-
-/** which ally reinforces on which wave; the preloader reads the same table */
-const ALLY_WAVES: Record<number, EnemyKind> = { 4: 'marshal', 7: 'ig11', 9: 'fennec' };
 
 export class Game {
   scene = new THREE.Scene();

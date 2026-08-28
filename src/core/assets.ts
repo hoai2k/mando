@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { fbm2, makeRng } from './math';
 import { markShared } from './dispose';
+import { tracked, warmImage, warmQueue, type WarmPriority } from './warm';
 
 /**
  * Texture pipeline: procedural canvas textures by default; if an authored
@@ -37,21 +38,34 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
   cache.set(key, tex);
   // authored override, fire and forget; jpg first since that is what
   // tools/optimize-textures.mjs emits for opaque maps
+  const handle = tracked.start(textureUrl(name));
   tryLoadImage(name, ['jpg', 'png'], (img) => {
     tex.image = img;
     tex.needsUpdate = true;
-  });
+    handle.finish(true);
+  }, () => handle.finish(false));
   return tex;
 }
 
+/**
+ * The tracker's name for an authored texture, extension aside: one logical
+ * file even though it is attempted as .jpg and then .png.
+ */
+export function textureUrl(name: string): string { return `${ASSET_ROOT}assets/textures/${name}`; }
+
 /** Try each extension in order, calling back on the first that loads. */
-function tryLoadImage(name: string, exts: string[], onLoad: (img: HTMLImageElement) => void): void {
-  if (exts.length === 0) return; // none present — procedural look stands
+function tryLoadImage(
+  name: string,
+  exts: string[],
+  onLoad: (img: HTMLImageElement) => void,
+  onMissing: () => void,
+): void {
+  if (exts.length === 0) { onMissing(); return; }  // none present — procedural look stands
   new THREE.ImageLoader().load(
     `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
     onLoad,
     undefined,
-    () => tryLoadImage(name, exts.slice(1), onLoad)
+    () => tryLoadImage(name, exts.slice(1), onLoad, onMissing)
   );
 }
 
@@ -66,18 +80,42 @@ export function loadOptionalTexture(
   opts: { srgb?: boolean; exts?: string[] } = {}
 ): void {
   const exts = opts.exts ?? ['jpg', 'png'];
-  if (exts.length === 0) return; // absent — procedural look stands
+  // the tracker hears about this the first time round, not once per extension
+  const handle = opts.exts === undefined ? tracked.start(textureUrl(name)) : undefined;
+  attemptTexture(name, exts, onLoad, opts.srgb, handle);
+}
+
+function attemptTexture(
+  name: string,
+  exts: string[],
+  onLoad: (tex: THREE.Texture) => void,
+  srgb: boolean | undefined,
+  handle: ReturnType<typeof tracked.start> | undefined,
+): void {
+  if (exts.length === 0) { handle?.finish(false); return; }  // absent — procedural look stands
   new THREE.TextureLoader().load(
     `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
     (tex) => {
       // normal/data maps must stay linear, colour maps are sRGB
-      tex.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+      tex.colorSpace = srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       onLoad(tex);
+      handle?.finish(true);
     },
     undefined,
-    () => loadOptionalTexture(name, onLoad, { ...opts, exts: exts.slice(1) })
+    () => attemptTexture(name, exts.slice(1), onLoad, srgb, handle),
   );
+}
+
+/**
+ * Queue an authored texture to be pulled into the browser cache when there is
+ * a gap to do it in. Nothing is decoded here and nothing is returned: the real
+ * `texture()` or `loadOptionalTexture()` call happens later, as it always did,
+ * and finds the bytes already local.
+ */
+export function warmTexture(name: string, priority: WarmPriority = 'idle', ext = 'jpg'): void {
+  const url = `${textureUrl(name)}.${ext}`;
+  warmQueue.want(url, priority, () => warmImage(url));
 }
 
 function grain(ctx: CanvasRenderingContext2D, size: number, seed: number, alpha: number, dark = true): void {

@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import { massiffClips } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
+import { tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 
 /**
@@ -131,14 +132,22 @@ function loader(): GLTFLoader {
   return l;
 }
 
+/** Where a character or creature model lives, and what the tracker calls it. */
+export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}.glb`; }
+
 /** Load and cache a .glb, resolving null when it isn't present. */
 function loadRaw(id: string): Promise<THREE.Group | null> {
   let p = cache.get(id);
   if (!p) {
+    const url = modelUrl(id);
+    // report to the tracker, so a loading screen can wait on this file and
+    // show how much of it has arrived without knowing anything about models
+    const handle = tracked.start(url);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
-        `${ASSET_ROOT}models/${id}.glb`,
+        url,
         (gltf) => {
+          handle.finish(true);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
@@ -148,8 +157,9 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
           markSharedTree(gltf.scene as THREE.Group);
           resolve(gltf.scene as THREE.Group);
         },
-        undefined,
+        (ev) => handle.progress(ev.loaded, ev.total),
         (err) => {
+          handle.finish(false);
           // absent is normal (procedural fallback); anything else is worth saying
           console.warn(`[authored] ${id}.glb failed to load:`, err);
           // Drop the rejection from the cache. Keeping it meant one dropped
@@ -171,6 +181,18 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
  * doesn't start the download from zero.
  */
 export function preloadAuthored(id: string): void { loadRaw(id); }
+
+/**
+ * Queue a model to be fetched *and parsed* when there is time for it.
+ *
+ * `preloadAuthored` starts immediately, which is right for the two characters
+ * either side of the one being looked at and wrong for the ten a board might
+ * eventually spawn: those go through the warm queue, which waits for the
+ * browser to be idle and keeps a couple in flight at a time.
+ */
+export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void {
+  warmQueue.want(modelUrl(id), priority, () => loadRaw(id));
+}
 
 /**
  * .glb backing each enemy kind, so a wave's models can be warmed before it

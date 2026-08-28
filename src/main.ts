@@ -2,10 +2,15 @@ import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
+import { matchAssets, warmBoardSelect, warmMatch, warmTerritory, warmTitle } from './core/prefetch';
+import { tracked } from './core/warm';
+import { LoadingScreen } from './ui/loading';
+import { FINAL_WAVE, waveComposition } from './enemies/spawner';
+import type { EnemyKind } from './enemies/enemy';
 import { audio } from './core/audio';
 import { Game } from './game/game';
 import { BOARDS } from './world/boards';
-import type { Board } from './world/board';
+import type { Board, BoardId } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
@@ -87,7 +92,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'characters' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+type AppState = 'title' | 'select' | 'characters' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard = BOARDS[0];
@@ -108,7 +113,7 @@ title.addTitle('Mando', 'a Mandalorian fan game');
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
 // one, so the fullscreen half is best-effort and failure is silent.
 title.addButtons(null, [
-  { label: 'Press Start', action: () => { enterFullscreen(); setState('select'); } },
+  { label: 'Press Start', action: () => { enterFullscreen(); warmBoardSelect(); setState('select'); } },
 ]);
 function enterFullscreen(): void {
   if (!document.fullscreenElement) {
@@ -132,10 +137,19 @@ function makeCard(name: string, desc: string, art: string, grad: string): HTMLEl
 }
 select.addButtons(cards, BOARDS.map((info) => ({
   label: '',
-  action: () => { chosenBoard = info; setState('characters'); },
+  action: () => {
+    chosenBoard = info;
+    // the player is about to spend a while picking a fighter: spend it
+    // pulling down this territory's sky, ground and opening waves
+    warmTerritory(info.id);
+    setState('characters');
+  },
   el: makeCard(info.name, info.desc, info.art, info.gradient),
 })));
 select.onBack = () => setState('title');
+
+// ----- the drop: loading screen between the character select and the match -----
+const loading = new LoadingScreen(menuLayer);
 
 // ----- character select (3D stage, drawn by the game renderer) -----
 const charSelect = new CharacterSelect(menuLayer, {
@@ -292,6 +306,7 @@ function setState(s: AppState): void {
   for (const key of Object.keys(screens)) screens[key].hide();
   if (s === 'characters') { if (!charSelect.visible) charSelect.show(); }
   else charSelect.hide();
+  if (s !== 'loading') loading.hide();
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
@@ -299,9 +314,36 @@ function setState(s: AppState): void {
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
 }
 
+/**
+ * The drop, in three beats: put the loading screen up, build the match behind
+ * it, then hold it there until what the first minute needs has arrived.
+ *
+ * The build is synchronous and takes long enough to be seen, so it happens a
+ * frame after the screen is shown rather than before — otherwise the character
+ * select freezes mid-turntable and the loading screen appears when the work is
+ * already done.
+ */
 function startGame(): void {
   audio.init();
   disposeGame();
+  const chars = chosenChars.slice(0, playerCount);
+  // anything still missing goes to the front of the queue now
+  warmMatch(chosenBoard.id, chars);
+  loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
+  setState('loading');
+  loadTimer = 0;
+  requestAnimationFrame(() => requestAnimationFrame(() => buildMatch()));
+}
+
+/** The hostiles worth showing on the loading screen: the opening wave, and the elite that ends it. */
+function keyEnemies(board: BoardId): EnemyKind[] {
+  const opening = waveComposition(board, 1, 1).map((e) => e.kind);
+  const last = waveComposition(board, FINAL_WAVE, 1).map((e) => e.kind);
+  const picked: EnemyKind[] = [...opening.slice(0, 2), last[last.length - 1]];
+  return [...new Set(picked.filter(Boolean))];
+}
+
+function buildMatch(): void {
   const board: Board = chosenBoard.build();
   // seed the cameras with the aspect of the viewport they will actually get;
   // render() recomputes it per frame, but a wrong first frame is a visible pop
@@ -317,9 +359,61 @@ function startGame(): void {
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars]);
+  (window as unknown as { __game?: Game }).__game = game; // debug/testing handle
+  built = true;
+}
+
+/**
+ * Hold the loading screen while the drop's files land, then start the match.
+ *
+ * What it waits on is the required set — the players' models, wave one's
+ * hostiles, the sky — plus whatever the board asked for as it built, which is
+ * the only honest account of a territory's own textures. A file that *fails*
+ * settles like any other: the procedural version of that surface is what the
+ * game has always fallen back to, and waiting longer would not produce it.
+ *
+ * The wait is capped. A slow connection should not be able to strand someone
+ * on this screen, and every asset here has a fallback that works.
+ */
+const LOAD_CAP = 30;
+const LOAD_SKIP_AFTER = 5;
+let loadTimer = 0;
+let built = false;
+
+function updateLoading(dt: number): void {
+  loadTimer += dt;
+  const chars = chosenChars.slice(0, playerCount);
+  const keys = [...matchAssets(chosenBoard.id, chars), ...(built ? boardLoads() : [])];
+  const p = tracked.progress(keys);
+  // the build itself is a real part of the wait, and worth a moving bar
+  const ratio = built ? 0.15 + p.ratio * 0.85 : Math.min(0.15, loadTimer * 0.3);
+  const note = !built ? 'Raising the territory'
+    : p.pending > 0 ? `${p.pending} file${p.pending === 1 ? '' : 's'} to go`
+      : 'Ready';
+  loading.progress(ratio, loadTimer > LOAD_SKIP_AFTER && p.pending > 0 ? `${note} · A to drop now` : note);
+  // __holdLoading keeps the screen up for capture and for the tests that read
+  // it; a real drop is over in the time it takes to fetch what is missing
+  if (dbg.__holdLoading) return;
+  if (built && (p.pending === 0 || loadTimer > LOAD_CAP)) enterMatch();
+}
+
+/**
+ * Texture loads the board kicked off while building, whatever they turned out
+ * to be — this is what makes the wait cover a territory's own ground and sky
+ * without anyone maintaining a list of them.
+ *
+ * Speculative warm fetches are excluded: those are the *next* thing being
+ * pulled down in the background, and holding the drop for them would mean
+ * waiting on files this match does not need.
+ */
+function boardLoads(): string[] {
+  return tracked.inFlight().filter((k) => !k.startsWith('warm:') && k.includes('assets/textures/'));
+}
+
+function enterMatch(): void {
+  built = false;
   setState('playing');
   input.requestPointerLock();
-  (window as unknown as { __game?: Game }).__game = game; // debug/testing handle
 }
 
 function disposeGame(): void {
@@ -349,6 +443,9 @@ function quitToTitle(): void {
 Object.assign(window, {
   // back to the title from wherever we are, so a test can run several matches
   __quitToTitle: () => quitToTitle(),
+  // how many of this drop's required files are still outstanding, for tests:
+  // it must read 0 by the time the match is on screen
+  __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount))).pending,
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
     if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
@@ -365,7 +462,9 @@ renderer.domElement.addEventListener('click', () => {
 // ---------- main loop ----------
 let last = performance.now();
 // test/capture hooks: __manual pauses the live loop; __renderOnce renders one frame
-const dbg = window as unknown as { __manual?: boolean; __renderOnce?: (dt?: number) => void };
+const dbg = window as unknown as {
+  __manual?: boolean; __renderOnce?: (dt?: number) => void; __holdLoading?: boolean;
+};
 dbg.__renderOnce = (dt = 1 / 24) => {
   if (game) {
     hud.update(dt, game);
@@ -385,6 +484,10 @@ function frame(now: number): void {
   const scr = activeScreen();
   if (state === 'characters') {
     for (const e of events) charSelect.handle(e.action, e.source);
+  } else if (state === 'loading') {
+    // an impatient player can always drop early: everything still coming has a
+    // fallback, so the worst case is a surface that pops in a second later
+    for (const e of events) if (e.action === 'confirm' && built && loadTimer > LOAD_SKIP_AFTER) enterMatch();
   } else if (scr) {
     for (const e of events) scr.handle(e.action);
   } else if (state === 'playing' && game) {
@@ -393,7 +496,9 @@ function frame(now: number): void {
     }
   }
 
-  if (game && state !== 'title' && state !== 'select' && state !== 'characters') {
+  if (state === 'loading') updateLoading(dt);
+
+  if (game && state !== 'title' && state !== 'select' && state !== 'characters' && state !== 'loading') {
     if (state === 'playing') {
       const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
@@ -422,5 +527,8 @@ function frame(now: number): void {
   input.endFrame();
 }
 
+// The title screen is the longest anyone sits still: start pulling down the
+// first Mandalorian and the territory art behind the next screen while they do.
+warmTitle();
 setState('title');
 requestAnimationFrame(frame);

@@ -75,3 +75,27 @@ ignited blade — blades are FX meshes the game manages.
 | `embo` | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
 | `bossk` | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
 | `greedo` | 1.73 m | "a slender green-skinned alien hunter with a tapered dome head, large glassy dark-purple eyes, a short trunk-like snout, twin antenna-like ear stalks, a bumpy ridged scalp crest, a fitted olive flight jacket over a tan jumpsuit, a gunbelt with a holstered pistol" |
+
+## Open — drop-screen portraits (priority 3)
+
+The loading screen between the character select and the match shows who is
+dropping and who is waiting there. Until these files exist it draws its own
+marks — a helmet in each Mandalorian's armour colours, a spider for the
+krykna, an optic for the droids — so the screen is complete without them;
+a portrait simply takes over the moment one is present.
+
+Drop them at `public/assets/textures/portrait_<id>.jpg`. Nothing else needs
+changing: the loader tries the file and keeps its drawn mark if it 404s, and a
+missing portrait never delays the drop it illustrates.
+
+- **Format:** 512×614 (5:6 portrait), JPEG, quality 82.
+- **Framing:** head and shoulders, facing camera, filling the frame.
+- **Lighting:** single warm key from the upper left against a near-black
+  background, matching the menus' lit-from-above look.
+- **Ids:** the playable four — `din`, `paz`, `bokatan`, `armorer` — and any
+  enemy kind by its game id: `tusken`, `pyke`, `pirate`, `pirateMelee`,
+  `jetpirate`, `droid`, `nikto`, `massiff`, `stormtrooper`, `deathtrooper`,
+  `darktrooper`, `duelist`, `officer`, `capo`, `enforcer`, `flametrooper`,
+  `krykna`, `broodmother`, `quarren`, `alamite`, `drone`, `ringEnforcer`.
+  Only the ones a drop actually shows are worth doing first: each board's
+  opening two kinds and the elite that closes its final wave.
