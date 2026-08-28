@@ -9,6 +9,12 @@ import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './pos
 import { findSubject, GROUPS, type Subject } from './roster';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
+import { setClipCaching } from '../anim/clips';
+
+// The pose editor rewrites clip tracks in place, so each figure on the
+// turntable needs its own set — the game's shared-by-species cache would let an
+// edit to one character leak into every other character of that species.
+setClipCaching(false);
 
 /**
  * Model workbench — /workbench/?edit=models

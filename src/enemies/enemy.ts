@@ -124,6 +124,12 @@ const _base = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 /** crowd separation, m/s² per metre of overlap (tuned to the old 60 Hz feel) */
 const SEPARATION_ACCEL = 180;
+/** scratch for the per-frame hot paths: ~45 hostiles all run these every frame */
+const _from = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _jet = new THREE.Vector3();
+/** reused foe list, so nearestFoe doesn't build one per enemy per frame */
+const _foes: Combatant[] = [];
 
 export class Enemy {
   id = nextId++;
@@ -185,6 +191,9 @@ export class Enemy {
   private hoverTarget = new THREE.Vector3();
   private hoverRetarget = 0;
   private hitFlash = 0;
+  /** memo for the firing line-of-sight check; see losThrottled */
+  private losCheckAt = -1;
+  private losMemo = false;
 
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
@@ -476,9 +485,15 @@ export class Enemy {
   private nearestFoe(game: Game): Combatant | null {
     let best: Combatant | null = null;
     let bestD = Infinity;
-    const foes: Combatant[] = this.team === 1
-      ? [...game.players, ...game.allies]
-      : game.enemies;
+    // filled rather than allocated: this runs once per enemy per frame
+    const foes = _foes;
+    foes.length = 0;
+    if (this.team === 1) {
+      for (const p of game.players) foes.push(p);
+      for (const a of game.allies) foes.push(a);
+    } else {
+      for (const e of game.enemies) foes.push(e);
+    }
     for (const f of foes) {
       if (!f.alive || f.team === this.team) continue;
       const d = f.position.distanceToSquared(this.position);
@@ -1122,7 +1137,7 @@ export class Enemy {
     // target *will* be. Without the lead, pouncing at a running player lands
     // behind them and actually loses ground.
     if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
-        dist > d.attackRange && dist < 16 && this.hasLineOfSight(game, target)) {
+        dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
       const flight = (2 * vy) / (24 * grav(game));       // ballistic hang time
       const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.85);
@@ -1245,23 +1260,41 @@ export class Enemy {
         this.volleyTimer = 0.16;
         this.fireBoltAt(game, target);
       }
-    } else if (this.attackCd <= 0 && dist < d.attackRange && this.hasLineOfSight(game, target)) {
+    } else if (this.attackCd <= 0 && dist < d.attackRange && this.losThrottled(game, target)) {
       this.volleyLeft = d.volley ?? 1;
       // a pinned shooter pops up less often
       this.attackCd = d.attackCd * (this.suppression > 0.55 ? 1.6 : 1);
     }
   }
 
+  /**
+   * Line of sight for the firing checks, memoised a dozen times a second.
+   *
+   * The class throttles its *spotting* raycast deliberately (see `canSee`), but
+   * these two ran every frame: `updateVolley` whenever a shooter sat in range
+   * with its cooldown up, and the massiff's pounce gate for every frame a
+   * target sat in the band where the leap keeps failing its distance test — a
+   * target sprinting away holds it there indefinitely. Each is a march through
+   * the whole world, times every hostile on the board.
+   */
+  private losThrottled(game: Game, target: Combatant): boolean {
+    const period = 0.08 + (this.id % 4) * 0.01;   // staggered, so they don't all land together
+    if (game.time - this.losCheckAt >= period) {
+      this.losCheckAt = game.time;
+      this.losMemo = this.hasLineOfSight(game, target);
+    }
+    return this.losMemo;
+  }
+
   private hasLineOfSight(game: Game, target: Combatant): boolean {
-    const from = this.position.clone();
+    const from = _from.copy(this.position);
     from.y += this.height * 0.75;
-    const to = target.position.clone();
+    const to = _to.copy(target.position);
     to.y += 1;
     const dir = to.sub(from);
     const dist = dir.length();
     dir.normalize();
-    const hit = game.board.physics.raycast(from, dir, dist);
-    return !hit;
+    return !game.board.physics.raycast(from, dir, dist);
   }
 
   private fireBoltAt(game: Game, target: Combatant): void {
@@ -1348,14 +1381,14 @@ export class Enemy {
     const dist = this.position.distanceTo(target.position);
     this.updateVolley(dt, game, target, dist);
     // hover jets — a short burn under each nozzle, riding along with us
+    const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
     for (const side of [-1, 1]) {
-      const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
-      const p = new THREE.Vector3(
+      _jet.set(
         this.position.x - fs * 0.18 + fc * 0.08 * side,
         this.position.y + 1.1,
         this.position.z - fc * 0.18 - fs * 0.08 * side,
       );
-      game.particles.jetPlume(p, _JET_DOWN, dt, { power: 0.7, carrier: this.velocity });
+      game.particles.jetPlume(_jet, _JET_DOWN, dt, { power: 0.7, carrier: this.velocity });
     }
   }
 

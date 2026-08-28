@@ -60,6 +60,18 @@ export function buildWaystation(): Board {
     { x: 0, y: 40, z: 8, w: 12, d: 12 },       // crow's nest above spire base
   ];
 
+  // Props that repeat share one geometry apiece. Eleven identical crate boxes
+  // and twenty-eight identical posts each used to allocate their own buffers,
+  // which is both memory and a missed chance for the renderer to batch them.
+  const postGeo = new THREE.CylinderGeometry(0.09, 0.09, 1.2, 5);
+  const crateGeo = new THREE.BoxGeometry(2.6, 2.6, 2.6);
+  const winGeo = new THREE.PlaneGeometry(0.7, 0.5);
+  const mastGeo = new THREE.BoxGeometry(1.4, 18, 1.4);
+  const armGeo = new THREE.BoxGeometry(20, 1.1, 1.1);
+  const cableGeo = new THREE.CylinderGeometry(0.05, 0.05, 6, 4);
+  const hookGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4);
+  const beaconGeo = new THREE.SphereGeometry(0.16, 6, 5);
+
   for (const p of platforms) {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(p.w, 1.2, p.d), deckMat);
     deck.position.set(p.x, p.y - 0.6, p.z);
@@ -73,7 +85,7 @@ export function buildWaystation(): Board {
     // guard posts on corners of bigger platforms
     if (p.w >= 14) {
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.2, 5), darkMat);
+        const post = new THREE.Mesh(postGeo, darkMat);
         post.position.set(p.x + sx * (p.w / 2 - 0.4), p.y + 0.6, p.z + sz * (p.d / 2 - 0.4));
         group.add(post);
       }
@@ -93,7 +105,7 @@ export function buildWaystation(): Board {
   // glowing windows band
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffc76a });
   for (let i = 0; i < 14; i++) {
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.5), winMat);
+    const w = new THREE.Mesh(winGeo, winMat);
     const a = rng() * Math.PI * 2, wy = -6 + rng() * 40;
     const r = 5.6 + (7.5 - 5.5) * (0.5 - wy / 120);
     w.position.set(Math.cos(a) * r, 8 + wy, 8 + Math.sin(a) * r);
@@ -108,16 +120,16 @@ export function buildWaystation(): Board {
   // cargo cranes reaching over platforms
   for (const [cx, cy, cz, rot] of [[26, 10, -20, 0.7], [-30, 12, 20, -1.9], [40, 26, 10, 2.4]] as const) {
     const crane = new THREE.Group();
-    const mast = new THREE.Mesh(new THREE.BoxGeometry(1.4, 18, 1.4), darkMat);
+    const mast = new THREE.Mesh(mastGeo, darkMat);
     mast.position.y = 9;
     crane.add(mast);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(20, 1.1, 1.1), darkMat);
+    const arm = new THREE.Mesh(armGeo, darkMat);
     arm.position.set(7, 17, 0);
     crane.add(arm);
-    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 6, 4), darkMat);
+    const cable = new THREE.Mesh(cableGeo, darkMat);
     cable.position.set(14, 13.5, 0);
     crane.add(cable);
-    const hook = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.4), crateMat);
+    const hook = new THREE.Mesh(hookGeo, crateMat);
     hook.position.set(14, 9.5, 0);
     crane.add(hook);
     crane.position.set(cx, cy - 10, cz);
@@ -132,7 +144,7 @@ export function buildWaystation(): Board {
     [10, 0, -8], [-4, 0, 10], [44, 6, 5], [-40, 4, -14], [22, 12, -34],
   ];
   for (const [cx, cy, cz] of cratePositions) {
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 2.6), crateMat);
+    const crate = new THREE.Mesh(crateGeo, crateMat);
     crate.position.set(cx, cy + 1.3, cz);
     crate.rotation.y = rng() * 0.6;
     crate.castShadow = crate.receiveShadow = true;
@@ -196,7 +208,7 @@ export function buildWaystation(): Board {
   const beacons: THREE.Mesh[] = [];
   for (const p of platforms) {
     if (p.w > 13) continue;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5), beaconMat.clone());
+    const b = new THREE.Mesh(beaconGeo, beaconMat.clone());
     b.position.set(p.x + p.w / 2 - 0.5, p.y + 0.5, p.z + p.d / 2 - 0.5);
     group.add(b);
     beacons.push(b);

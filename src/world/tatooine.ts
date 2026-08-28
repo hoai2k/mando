@@ -142,14 +142,17 @@ export function buildTatooine(): Board {
 
   // moisture vaporators
   const vapMat = new THREE.MeshStandardMaterial({ color: 0x9a9d9f, roughness: 0.6, metalness: 0.15 });
+  // one geometry per repeated prop rather than one per copy
+  const poleGeo = new THREE.CylinderGeometry(0.35, 0.55, 7, 6);
+  const ringGeo = new THREE.BoxGeometry(1.6, 0.25, 1.6);
   for (const [vx, vz] of [[-20, 55], [-32, 62], [-12, 68], [25, 40]] as const) {
     const v = new THREE.Group();
     const base = heightAt(vx, vz);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 7, 6), vapMat);
+    const pole = new THREE.Mesh(poleGeo, vapMat);
     pole.position.y = 3.5;
     v.add(pole);
     for (let i = 0; i < 3; i++) {
-      const ring = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 1.6), vapMat);
+      const ring = new THREE.Mesh(ringGeo, vapMat);
       ring.position.y = 4.2 + i * 1.1;
       ring.rotation.y = i * 0.5;
       v.add(ring);
@@ -173,6 +176,7 @@ export function buildTatooine(): Board {
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
+  const campTentGeo = new THREE.ConeGeometry(2.6, 3.6, 7, 1, true);
   const campC = new THREE.Vector3(-70, 0, -60);
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;

@@ -23,6 +23,16 @@ export interface GameEvents {
   hitMarker: (slot: number) => void;
 }
 
+/** a bolt target that lives in the pool, remembering what it stands for */
+interface PooledTarget extends BoltTarget {
+  position: THREE.Vector3;
+  enemy: Enemy | null;
+  player: Player | null;
+}
+
+/** the rocket mesh's own axis, for orienting it along its velocity */
+const UP = new THREE.Vector3(0, 1, 0);
+
 interface Rocket {
   mesh: THREE.Mesh;
   vel: THREE.Vector3;
@@ -53,6 +63,18 @@ export class Game {
   /** set by dispose(), so async loads that land afterwards stay out of a dead scene */
   private disposed = false;
   private rocketGeo = new THREE.ConeGeometry(0.09, 0.42, 6);
+  /**
+   * Bolt targets, reused frame to frame. Rebuilding ~45 of these every frame —
+   * each with a freshly cloned vector and a freshly allocated onHit closure —
+   * was the update loop's largest source of garbage. The entries are filled in
+   * place instead; `targets` is the same array object every frame.
+   */
+  private targetPool: PooledTarget[] = [];
+  private targets: BoltTarget[] = [];
+  /** scratch for the rocket integration */
+  private rkTo = new THREE.Vector3();
+  private rkStep = new THREE.Vector3();
+  private rkDir = new THREE.Vector3();
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
@@ -294,58 +316,67 @@ export class Game {
 
 
     // ---- projectiles ----
-    const targets: BoltTarget[] = [];
+    const targets = this.targets;
+    targets.length = 0;
+    let slot = 0;
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      // Credit goes to whoever pulled the trigger. Deriving it from the bolt's
-      // impact position instead handed player A's kills to player B whenever
-      // the target happened to be standing nearer B — and credited ally fire to
-      // a random player.
-      const onHit = (dmg: number, from: THREE.Vector3, bySlot: number): void => {
-        const wasAlive = e.alive;
-        e.damage(dmg, from, bySlot);
-        // every hit shoves: light per bolt, but it stacks over a burst
-        e.knockback(from, 5.5, 0.2);
-        if (wasAlive && bySlot >= 0) this.hitMarker(bySlot);
-      };
-      targets.push({
-        position: e.position.clone().add(new THREE.Vector3(0, e.height * 0.5, 0)),
-        radius: e.radius + 0.35, team: 1, alive: e.alive,
-        onHit,
-      });
+      const t = this.pooledTarget(slot++);
+      t.enemy = e;
+      t.player = null;
+      t.position.set(e.position.x, e.position.y + e.height * 0.5, e.position.z);
+      t.radius = e.radius + 0.35;
+      t.team = 1;
+      t.alive = true;
+      t.shield = null;
+      t.slot = undefined;
+      targets.push(t);
       // long bodies (the war massiff) need more than the one centre sphere
       if (e.def.hitParts) {
         const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
         for (const part of e.def.hitParts) {
-          targets.push({
-            position: new THREE.Vector3(
-              e.position.x + sin * part.z,
-              e.position.y + part.y,
-              e.position.z + cos * part.z
-            ),
-            radius: part.r, team: 1, alive: e.alive,
-            onHit,
-          });
+          const h = this.pooledTarget(slot++);
+          h.enemy = e;
+          h.player = null;
+          h.position.set(
+            e.position.x + sin * part.z,
+            e.position.y + part.y,
+            e.position.z + cos * part.z,
+          );
+          h.radius = part.r;
+          h.team = 1;
+          h.alive = true;
+          h.shield = null;
+          h.slot = undefined;
+          targets.push(h);
         }
       }
     }
     for (const p of this.players) {
       if (!p.alive) continue;
-      targets.push({
-        position: p.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
-        radius: p.radius + 0.35, team: 0, alive: p.alive,
-        shield: p.shieldCollider,
-        slot: p.slot,
-        onHit: (dmg, from) => p.damage(dmg, from),
-      });
+      const t = this.pooledTarget(slot++);
+      t.enemy = null;
+      t.player = p;
+      t.position.set(p.position.x, p.position.y + 0.9, p.position.z);
+      t.radius = p.radius + 0.35;
+      t.team = 0;
+      t.alive = true;
+      t.shield = p.shieldCollider;
+      t.slot = p.slot;
+      targets.push(t);
     }
     for (const a of this.allies) {
       if (!a.alive) continue;
-      targets.push({
-        position: a.position.clone().add(new THREE.Vector3(0, a.height * 0.5, 0)),
-        radius: a.radius + 0.35, team: 0, alive: a.alive,
-        onHit: (dmg, from) => a.damage(dmg, from, -1),
-      });
+      const t = this.pooledTarget(slot++);
+      t.enemy = a;
+      t.player = null;
+      t.position.set(a.position.x, a.position.y + a.height * 0.5, a.position.z);
+      t.radius = a.radius + 0.35;
+      t.team = 0;
+      t.alive = true;
+      t.shield = null;
+      t.slot = undefined;
+      targets.push(t);
     }
     this.projectiles.update(dt, this.board.physics, targets);
 
@@ -353,11 +384,15 @@ export class Game {
     for (const r of this.rockets) {
       r.life -= dt;
       if (r.target && r.target.alive) {
-        const to = r.target.position.clone().add(new THREE.Vector3(0, r.target.height * 0.5, 0)).sub(r.mesh.position).normalize();
+        const to = this.rkTo.set(
+          r.target.position.x,
+          r.target.position.y + r.target.height * 0.5,
+          r.target.position.z,
+        ).sub(r.mesh.position).normalize();
         r.vel.lerp(to.multiplyScalar(38), Math.min(1, dt * 4));
       }
-      const step = r.vel.clone().multiplyScalar(dt);
-      const hit = this.board.physics.raycast(r.mesh.position, step.clone().normalize(), step.length() + 0.2);
+      const step = this.rkStep.copy(r.vel).multiplyScalar(dt);
+      const hit = this.board.physics.raycast(r.mesh.position, this.rkDir.copy(step).normalize(), step.length() + 0.2);
       let exploded = false;
       if (hit) { this.explode(hit.point, r.bySlot); exploded = true; }
       else {
@@ -374,13 +409,41 @@ export class Game {
       if (exploded) { this.scene.remove(r.mesh); r.life = -1; }
       else {
         r.mesh.position.add(step);
-        r.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), r.vel.clone().normalize());
-        this.particles.rocketExhaust(r.mesh.position, r.vel.clone().negate().normalize(), dt);
+        r.mesh.quaternion.setFromUnitVectors(UP, this.rkDir.copy(r.vel).normalize());
+        this.particles.rocketExhaust(r.mesh.position, this.rkDir.negate(), dt);
       }
     }
     this.rockets = this.rockets.filter((r) => r.life > 0);
 
     this.particles.update(dt);
+  }
+
+  /**
+   * A reusable bolt-target entry. Its `onHit` is allocated once and dispatches
+   * through the entry, so credit still goes to whoever pulled the trigger —
+   * deriving it from the impact position handed player A's kills to player B
+   * whenever the target stood nearer B, and credited ally fire at random.
+   */
+  private pooledTarget(i: number): PooledTarget {
+    let t = this.targetPool[i];
+    if (t) return t;
+    const entry: PooledTarget = {
+      position: new THREE.Vector3(), radius: 0, team: 0, alive: false,
+      shield: null, slot: undefined, enemy: null, player: null,
+      onHit: (dmg: number, from: THREE.Vector3, bySlot: number): void => {
+        if (entry.player) { entry.player.damage(dmg, from); return; }
+        const e = entry.enemy;
+        if (!e) return;
+        const wasAlive = e.alive;
+        e.damage(dmg, from, bySlot);
+        if (e.team !== 1) return;   // allies take the damage without the shove
+        // every hit shoves: light per bolt, but it stacks over a burst
+        e.knockback(from, 5.5, 0.2);
+        if (wasAlive && bySlot >= 0) this.hitMarker(bySlot);
+      },
+    };
+    this.targetPool[i] = entry;
+    return entry;
   }
 
   /** Warm the .glb cache for everything a wave can put on the board. */

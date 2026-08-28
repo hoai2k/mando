@@ -87,7 +87,36 @@ export function cycleDistance(clip: THREE.AnimationClip, p: Proportions): number
   return out;
 }
 
+const clipCache = new Map<string, ClipSet>();
+let clipCaching = true;
+
+/**
+ * Clips depend on proportions and nothing else, so every character of a species
+ * can share one set — building them per spawn meant ~28 clips and ~170
+ * keyframe tracks allocated for every enemy in every wave, and defeated the
+ * stride cache along with it.
+ *
+ * The workbench's pose editor rewrites clip tracks in place, which one shared
+ * set cannot survive: it turns caching off so each figure gets its own.
+ */
+export function setClipCaching(on: boolean): void {
+  clipCaching = on;
+  clipCache.clear();
+}
+
+const proportionKey = (p: Proportions): string =>
+  `${p.hipHeight},${p.spineLen},${p.chestLen},${p.neckLen},${p.headSize},${p.shoulderWidth},` +
+  `${p.upperArmLen},${p.forearmLen},${p.upperLegLen},${p.lowerLegLen},${p.hipWidth}`;
+
 export function buildClips(p: Proportions): ClipSet {
+  if (!clipCaching) return makeClips(p);
+  const key = proportionKey(p);
+  let set = clipCache.get(key);
+  if (!set) { set = makeClips(p); clipCache.set(key, set); }
+  return set;
+}
+
+function makeClips(p: Proportions): ClipSet {
   const hipY = p.hipHeight;
   const clips: ClipSet = {};
 

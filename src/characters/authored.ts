@@ -185,6 +185,23 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
 };
 
 /**
+ * Widen a skinned mesh's bounding sphere so animation cannot take it outside
+ * its own bounds, and leave frustum culling on. A rest-pose sphere is measured
+ * with the arms down; a flight pose, a swing or a ragdoll all reach further.
+ */
+function padBounds(mesh: THREE.SkinnedMesh): void {
+  const geo = mesh.geometry;
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  // every clone of a model shares this geometry, so pad it exactly once —
+  // widening per instance would compound to a sphere that culls nothing
+  if (geo.boundingSphere && !geo.userData.boundsPadded) {
+    geo.userData.boundsPadded = true;
+    geo.boundingSphere.radius *= 2.2;
+  }
+  mesh.frustumCulled = true;
+}
+
+/**
  * Re-parent `child` under `parent` without moving it in the world. The skin's
  * bind matrices were captured from the original world rest pose, so that pose
  * has to survive the surgery exactly.
@@ -221,7 +238,11 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     if (!skinned.isSkinnedMesh) return;
     const bones = skinned.skeleton.bones.map((b) => (byName.get(norm(b.name)) as THREE.Bone) ?? b);
     skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
-    skinned.frustumCulled = false;   // the bind pose's bounds understate an animated one
+    // The bind pose's bounds understate an animated one, but switching culling
+    // off entirely meant no authored character was ever culled — every enemy on
+    // the board skinned and drew in the main and shadow passes even when it was
+    // behind the camera. Pad the sphere instead and keep the cull.
+    padBounds(skinned);
     skinned.castShadow = true;
     skinned.receiveShadow = true;
   });
@@ -415,7 +436,7 @@ export function loadProp(
       if (!skinned.isSkinnedMesh) return;
       const bones = skinned.skeleton.bones.map((b) => (byName.get(norm(b.name)) as THREE.Bone) ?? b);
       skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
-      skinned.frustumCulled = false;
+      padBounds(skinned);
     });
     root.userData.clips = raw.userData.clips ?? [];
     const box = new THREE.Box3();

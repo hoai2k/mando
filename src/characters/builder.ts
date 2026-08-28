@@ -115,7 +115,7 @@ export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: 
   limbMesh(b.upperArmR, opts.skin, p.upperArmLen, 0.055, 0.05);
   limbMesh(b.forearmR, opts.skin, p.forearmLen, 0.05, 0.042);
   limbMesh(b.upperLegL, opts.skin, p.upperLegLen, 0.075, 0.06);
-  limbMesh(b.lowerLegL, opts.skin, p.upperLegLen, 0.06, 0.05);
+  limbMesh(b.lowerLegL, opts.skin, p.lowerLegLen, 0.06, 0.05);   // shin, not thigh — the right leg had it right
   limbMesh(b.upperLegR, opts.skin, p.upperLegLen, 0.075, 0.06);
   limbMesh(b.lowerLegR, opts.skin, p.lowerLegLen, 0.06, 0.05);
   addBox(b.footL, opts.skin, 0.11, 0.07, 0.24, 0, -0.035, 0.05);

@@ -28,7 +28,7 @@ function loadPlaywright() {
   for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright/index.js']) {
     try { return require_(id); } catch { /* try the next */ }
   }
-  throw new Error('playwright not found: npm i -D playwright, or install it globally');
+  throw new Error('playwright not found: run `npm ci` (it is a devDependency), then `npx playwright install chromium`');
 }
 
 /** Xbox standard-mapping button indices, matching src/core/input.ts */
@@ -117,8 +117,34 @@ class Pad {
   }
 }
 
+/**
+ * Start `vite preview` and wait for it to answer, unless something is already
+ * serving there. The harness used to assume a server was already up and died
+ * with ERR_CONNECTION_REFUSED otherwise, which made it unrunnable from a fresh
+ * clone and unusable in CI.
+ */
+async function ensureServer(url) {
+  const reachable = async () => {
+    try { await fetch(url, { method: 'GET' }); return true; } catch { return false; }
+  };
+  if (await reachable()) return null;
+
+  const { spawn } = await import('child_process');
+  const root = new URL('..', import.meta.url).pathname;
+  const child = spawn('npm', ['run', 'preview', '--', '--port', new URL(url).port || '4173'], {
+    cwd: root, stdio: 'ignore', detached: false,
+  });
+  for (let i = 0; i < 60; i++) {
+    await sleep(250);
+    if (await reachable()) return child;
+  }
+  child.kill();
+  throw new Error(`preview server did not come up at ${url} — is dist/ built? (npm run build)`);
+}
+
 export async function launch({ headless = true, width = 1280, height = 720, url = 'http://localhost:4173/' } = {}) {
   const { chromium } = loadPlaywright();
+  const server = await ensureServer(url);
   const browser = await chromium.launch({
     headless,
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
@@ -209,8 +235,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   return {
     browser, page, pad, errors,
     text, waitForText, tapUntil, startMatch, step, game,
-    shot: (path) => page.screenshot({ path }),
-    close: () => browser.close(),
+    shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
+    close: async () => {
+      await browser.close();
+      server?.kill();
+    },
   };
 }
 
@@ -227,7 +256,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await h.pad.release();
   const state = await h.step(2);
   console.log('after 2 s of game time:', JSON.stringify(state));
-  if (out) await h.shot(out);
-  console.log('errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
+  if (out) {
+    // software rendering makes this slow, but a failed screenshot must not hide
+    // the result of the run itself
+    try { await h.shot(out); } catch (e) { console.warn('screenshot skipped:', e.message.split('\n')[0]); }
+  }
+  const bad = h.errors.length;
+  console.log('errors:', bad ? h.errors.slice(0, 3) : 'none');
   await h.close();
+  if (bad) process.exit(1);
 }

@@ -82,7 +82,9 @@ body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #e8d
   text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8);
 }
 .hud-cover.active { color: #f0d08c; }
-.hud-weapon { position: absolute; right: 26px; bottom: 22px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2d3ac; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
+/* bottom clears the corner buttons (42px tall, sitting at bottom:14px) — at
+   1280x720 the weapon name and rocket pip printed straight through them */
+.hud-weapon { position: absolute; right: 26px; bottom: 68px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2d3ac; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
 .hud-banner {

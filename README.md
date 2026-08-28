@@ -7,7 +7,8 @@ through ten waves on two boards. Built with Three.js + TypeScript + Vite, no ser
 downloads — it runs in the browser.
 
 Fan project. Audio is generated and most geometry is procedural; nothing is taken from
-the shows.
+the shows. Not affiliated with or endorsed by Lucasfilm or Disney — see
+[LICENSE](LICENSE) for the code licence and the full fan-work notice.
 
 **Model workbench:** https://hoai2k.github.io/mando/workbench/?edit=models — a turntable
 for the cast. Pick a character, run any animation the game plays, and stand an authored
@@ -133,3 +134,31 @@ __config.audio.sfx = 0.2;   // quieter blasters
 __audio.applyConfig();      // take effect now
 __saveAudio();              // remember it across reloads
 ```
+
+## Tests
+
+```bash
+npm run build     # tsc --noEmit + vite build
+npm test          # boot the built game in Chromium and play a wave
+```
+
+`npm test` drives the real build behind a synthetic Xbox pad
+([`tools/harness.mjs`](tools/harness.mjs)) — it starts its own preview server, walks
+title → board → character select, plays a wave and fails on any console error. It needs
+a browser once: `npx playwright install chromium`. CI runs it before every deploy.
+
+The harness is also a library, for writing one-off probes against a running match:
+
+```js
+import { launch, BTN } from './tools/harness.mjs';
+const h = await launch();
+await h.startMatch();
+await h.pad.stick('left', 0, -1, 1200);      // walk forward
+console.log(await h.step(2));                 // advance 2 s of game time
+await h.close();
+```
+
+## Licence
+
+[MIT](LICENSE) for the code and the original assets, with a fan-work notice: this is a
+non-commercial homage, and the names and likenesses it borrows belong to their owners.
