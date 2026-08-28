@@ -18,7 +18,7 @@ const KEYBOARD: Array<[string, string]> = [
   ['Melee combo (gaffi stick)', 'F · Middle mouse'],
   ['Wrist rocket', 'Q'],
   ['Dead Eye', 'V'],
-  ['Ground slam (in air)', 'Ctrl · C'],
+  ['Take cover · ground slam', 'Ctrl · C'],
   ['Switch weapon', 'E · 1 · 2'],
   ['Pause', 'Esc'],
   ['Fullscreen', 'Alt + F'],
@@ -32,10 +32,14 @@ const KEYBOARD: Array<[string, string]> = [
  * face buttons share one leader line to a legend instead of four crossing ones.
  */
 function padSvg(): string {
+  // an empty key makes a continuation line — just the text, no leading dash
   const label = (x: number, y: number, anchor: 'start' | 'end', lines: Array<[string, string]>): string =>
     lines.map(([key, text], i) =>
       `<text class="cl-label" x="${x}" y="${y + i * 22}" text-anchor="${anchor}">` +
-      `<tspan class="cl-key">${key}</tspan>${text ? `<tspan class="cl-sep"> — </tspan>${text}` : ''}</text>`
+      (key
+        ? `<tspan class="cl-key">${key}</tspan>${text ? `<tspan class="cl-sep"> — </tspan>${text}` : ''}`
+        : text) +
+      '</text>'
     ).join('');
   const lead = (pts: string): string => `<polyline class="cl-lead" points="${pts}"/>`;
   const dot = (x: number, y: number): string => `<circle class="cl-dot" cx="${x}" cy="${y}" r="3.5"/>`;
@@ -110,7 +114,7 @@ function padSvg(): string {
     ${lead('728,44 650,44 608,50')}${dot(589, 52)}
     ${label(736, 45, 'start', [['RT', 'Fire blaster']])}
     ${lead('728,112 664,112 624,90')}${dot(604, 86)}
-    ${label(736, 113, 'start', [['RB', 'Ground slam (in air)']])}
+    ${label(736, 106, 'start', [['RB', 'Take cover (on ground)'], ['', 'Ground slam (in air)']])}
     ${lead('728,176 692,176 640,152')}${dot(618, 150)}
     ${label(736, 158, 'start', [
       ['Y', 'Wrist rocket'],

@@ -6,6 +6,7 @@ import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
+import type { StaticBox } from '../core/physics';
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -75,6 +76,17 @@ export class Player {
   private wasThrusting = false;
   private wasAiming = false;
   lastDamageDir = new THREE.Vector3();
+  // ---- cover (RDR2 snap-to-cover) ----
+  /** the box being hugged, plus the outward normal of the face we're on */
+  cover: { box: StaticBox; nx: number; nz: number } | null = null;
+  /** a face is close enough to snap to right now (drives the HUD prompt) */
+  nearCover = false;
+  /** currently leaning out past the corner to shoot */
+  peeking = false;
+  /** which corner this peek leans around: -1/+1 along the face tangent, 0 = unset */
+  private peekSide = 0;
+  private peekRecheck = 0;
+  private pushAwayTime = 0;
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
     this.char = buildMandalorian(characterId);
@@ -92,6 +104,8 @@ export class Player {
     this.slamming = false;
     this.deadeye = Math.max(this.deadeye, 0.5);
     this.deadeyeActive = false;
+    this.cover = null;
+    this.peeking = false;
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
   }
@@ -117,6 +131,8 @@ export class Player {
     anim.playOnce('lower', 'deathLower', 0.1, true);
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.deadeyeActive = false;
+    this.cover = null;
+    this.peeking = false;
     audio.setJetpackThrust(this.slot, 0);
   }
 
@@ -180,6 +196,24 @@ export class Player {
       }
     }
     this.wasAiming = input.aimHeld;
+
+    // ---- cover: on the ground the slam button snaps to a nearby box ----
+    // (the air keeps its ground slam — the button splits by grounded state)
+    const face = this.grounded ? this.findCoverFace(game) : null;
+    this.nearCover = !!face && !this.cover;
+    if (!this.cover && face && input.slamPressed) {
+      this.cover = face;
+      this.peeking = false;
+      this.pushAwayTime = 0;
+      audio.land(false); // the thump of shoulder meeting crate
+      // the press that got us in must not also read as the press that exits
+      this.updateInCover(dt, { ...input, slamPressed: false }, game, realDt);
+      return;
+    }
+    if (this.cover) {
+      this.updateInCover(dt, input, game, realDt);
+      return;
+    }
 
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
@@ -363,6 +397,170 @@ export class Player {
     // camera stays crisp while the world is in slow motion
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+    });
+  }
+
+  /**
+   * Nearest box face worth hugging: tall enough to hide behind, wide enough
+   * to matter, within snap range, and not the thing we're standing on.
+   */
+  private findCoverFace(game: Game): { box: StaticBox; nx: number; nz: number } | null {
+    let best: { box: StaticBox; nx: number; nz: number } | null = null;
+    let bestD = 2.4; // snap range
+    for (const b of game.board.physics.boxes) {
+      if (b.max.y - this.position.y < 1.0) continue;              // too low to cover the chest
+      if (b.min.y > this.position.y + 0.5) continue;              // floating above us
+      if (this.position.y > b.max.y - 0.3) continue;              // we're standing on it
+      // outside distance to the box, and which face is closest
+      const cx = clamp(this.position.x, b.min.x, b.max.x);
+      const cz = clamp(this.position.z, b.min.z, b.max.z);
+      const ox = this.position.x - cx, oz = this.position.z - cz;
+      const dist = Math.hypot(ox, oz);
+      if (dist < 0.01 || dist > bestD) continue;
+      let nx = 0, nz = 0;
+      if (Math.abs(ox) >= Math.abs(oz)) nx = Math.sign(ox) || 1;
+      else nz = Math.sign(oz) || 1;
+      // the face must be wide enough to actually hide a person
+      const width = nx !== 0 ? b.max.z - b.min.z : b.max.x - b.min.x;
+      if (width < 1.0) continue;
+      bestD = dist;
+      best = { box: b, nx, nz };
+    }
+    return best;
+  }
+
+  /**
+   * Hugging a box, RDR2-style: slide along the face with the stick, hold aim
+   * to lean out past the corner and shoot, release to tuck back in. Jump,
+   * dash, melee, pressing the cover button again, or pushing away all leave.
+   */
+  private updateInCover(dt: number, input: FrameInput, game: Game, realDt: number): void {
+    const anim = this.char.animator!;
+    const c = this.cover!;
+    const b = c.box;
+    // face geometry: n = outward normal, t = tangent along the face
+    const tx = -c.nz, tz = c.nx;
+    const facePlane = (c.nx > 0 ? b.max.x : c.nx < 0 ? b.min.x : c.nz > 0 ? b.max.z : b.min.z);
+    const hugDist = this.radius + 0.22;
+    const tMin = (c.nx !== 0 ? b.min.z : b.min.x);
+    const tMax = (c.nx !== 0 ? b.max.z : b.max.x);
+    const myT = c.nx !== 0 ? this.position.z : this.position.x;
+
+    // ---- exits ----
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
+    const wishX = fwdX * input.moveY + rightX * input.moveX;
+    const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
+    const away = wishX * c.nx + wishZ * c.nz; // pushing off the wall
+    this.pushAwayTime = away > 0.6 ? this.pushAwayTime + dt : 0;
+    let leave = input.slamPressed || input.dashPressed || input.meleePressed || this.pushAwayTime > 0.18;
+    if (input.jumpPressed) {
+      leave = true;
+      this.velocity.y = JUMP_VEL;
+      this.grounded = false;
+    }
+    if (leave) {
+      this.cover = null;
+      this.peeking = false;
+      // a melee press still swings: fall through to the normal path next frame
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, { aiming: input.aimHeld, speed: 0, dashing: false });
+      return;
+    }
+
+    // ---- desired spot on the face ----
+    const wasPeeking = this.peeking;
+    this.peeking = input.aimHeld && this.weapon === 'blaster';
+    let targetT: number;
+    if (this.peeking) {
+      // Pick the corner: prefer the side the camera leans toward, but when a
+      // target is locked, take whichever corner has a clear shot to it —
+      // boxes often sit in rows (crate stacks), and leaning out into the
+      // neighbouring crate is a peek wasted. Re-checked a few times a second
+      // while the aim is held, since targets move; the cone is cast from the
+      // chest, not the camera, which can be a frame stale on the first peek.
+      this.peekRecheck -= dt;
+      if (!wasPeeking || this.peekSide === 0 || this.peekRecheck <= 0) {
+        this.peekRecheck = 0.35;
+        const aim = this.cam.aimDir(new THREE.Vector3());
+        const along = aim.x * tx + aim.z * tz;
+        let side = this.peekSide !== 0 ? this.peekSide
+          : Math.abs(along) > 0.25 ? Math.sign(along)
+          : (myT - (tMin + tMax) / 2 >= 0 ? 1 : -1);
+        const chest = this.position.clone();
+        chest.y += 1.4;
+        const lock = this.aimAssistTarget(game, aim, chest, 0.9, 70);
+        if (lock) {
+          const clear = (sd: number): boolean => {
+            const pt = (sd > 0 ? tMax : tMin) + sd * (this.radius + 0.55);
+            const from = c.nx !== 0
+              ? new THREE.Vector3(facePlane + c.nx * hugDist, this.position.y + 1.4, pt)
+              : new THREE.Vector3(pt, this.position.y + 1.4, facePlane + c.nz * hugDist);
+            const to = lock.position.clone();
+            to.y += lock.height * 0.55;
+            const dir = to.sub(from);
+            const dist = dir.length();
+            return !game.board.physics.raycast(from, dir.normalize(), dist);
+          };
+          if (!clear(side) && clear(-side)) side = -side;
+        }
+        this.peekSide = side;
+      }
+      targetT = (this.peekSide > 0 ? tMax : tMin) + this.peekSide * (this.radius + 0.55);
+    } else {
+      this.peekSide = 0;
+      // tucked: slide along the face with the stick, staying behind the box
+      const slide = wishX * tx + wishZ * tz;
+      targetT = clamp(myT + slide * 3.6 * dt * 12, tMin + 0.2, tMax - 0.2);
+    }
+    let dx: number, dz: number;
+    if (c.nx !== 0) {
+      dx = (facePlane + c.nx * hugDist) - this.position.x;
+      dz = targetT - this.position.z;
+    } else {
+      dx = targetT - this.position.x;
+      dz = (facePlane + c.nz * hugDist) - this.position.z;
+    }
+    this.velocity.x = clamp(dx * 12, -6.5, 6.5);
+    this.velocity.z = clamp(dz * 12, -6.5, 6.5);
+    this.velocity.y -= GRAVITY * dt;
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    this.wasGrounded = res.grounded;
+    if (!res.grounded && this.position.y < (game.board.voidY ?? game.board.physics.killY)) {
+      this.cover = null; // the floor is gone; back to normal rules
+    }
+
+    // out of bounds / hazard (same rules as the open field)
+    if (this.position.y < game.board.physics.killY) this.damage(999, this.position);
+    const hz = game.board.hazard;
+    if (hz && this.alive) {
+      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
+      if (hd < hz.radius && this.position.y < hz.center.y + 3) this.damage(999, hz.center);
+    }
+
+    // ---- combat: shoot only while leaning out ----
+    this.lockedOn = this.peeking &&
+      !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
+    const masked: FrameInput = {
+      ...input,
+      shootHeld: input.shootHeld && this.peeking,
+      rocketPressed: input.rocketPressed && this.peeking,
+      meleePressed: false,
+      switchPressed: false, // the gaffi has no place in cover
+    };
+    this.updateCombat(dt, masked, game);
+
+    // ---- facing & pose ----
+    const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
+    this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
+    anim.play('lower', 'idleLower');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : 'idleUpper');
+
+    this.syncVisual(dt, game);
+    anim.update(dt);
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: input.aimHeld, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
     });
   }
 
