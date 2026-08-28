@@ -3,8 +3,9 @@
 **Open image requests only.** Delivered images are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**Open: the `maul` and `greedo` sheets and the hunter weapon prop sheets below** (the
-`ventress`, `embo` and `bossk` sheets landed on 2026-08-28). Everything else — every
+**Open: the hunter weapon prop sheets below.** The `ventress`, `embo` and `bossk`
+sheets landed on 2026-08-28, and the other two hunter concepts (the horned warrior and
+the snouted hunter) were cut before their sheets were made. Everything else — every
 environment, sky and UI texture, all nine boards' card art and skies, the surface
 textures, and the A-pose turnaround sheets for the rest of the cast — is delivered and
 integrated; The Prison Rig's card and sky landed on 2026-08-28 and the loader picked both
@@ -23,9 +24,8 @@ Production-only reference art lives in `reference/` and is **not** shipped.
 
 ## Making more character reference sheets
 
-The `maul` and `greedo` sheets are the outstanding set (`ventress`, `embo` and `bossk`
-are delivered); every other character in `ASSETS_MODELS.md` has its three views, recorded
-in the history doc. This is the recipe.
+Every character in `ASSETS_MODELS.md` has its three views (`ventress`, `embo` and
+`bossk` landed 2026-08-28), recorded in the history doc. This is the recipe.
 
 These are the canonical visual reference for every authored 3D character in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md) — they drive image-to-3D generators (Meshy, Tripo,
@@ -58,11 +58,11 @@ humanoid at the same pixel height per the Height column so relative scale surviv
 models. Descriptions are deliberately written as *designs*, never as named characters —
 same rule as the audio prompts — which keeps output original and on-style.
 
-## Open — playable bounty hunter sheets (priority 2)
+## Playable bounty hunter sheets (delivered)
 
-Five new playable fighters for the roster (see *Playable bounty hunters* in
-[`ASSETS_MODELS.md`](ASSETS_MODELS.md)). A sixth, the blue-skinned gunslinger, needs no
-sheets — the delivered `duelist` set already is that design.
+The three hunter sheets below are delivered; they stay here as the record of the set
+until the models land and everything moves to the history doc. The blue-skinned
+gunslinger needed no sheets — the delivered `duelist` set already is that design.
 
 Same recipe as above: shared preamble + the Subject line below, three views each at
 matched pixel heights. **Two additions for this set:** every playable flies, so include a
@@ -73,10 +73,8 @@ ignited blade — blades are FX meshes the game manages.
 | Id | Height | Subject |
 |---|---|---|
 | `ventress` ✅ delivered | 1.79 m | "a pale ash-grey-skinned bald female assassin, gaunt striking features with dark markings crowning the bare scalp, a fitted sleeveless grey-black bodysuit under a long split skirt panel, forearm wraps, two curved-hilt sword grips holstered crossed at the back of the belt" |
-| `maul` | 1.75 m | "a horned red-and-black tattooed alien warrior, hairless head crowned by a ring of short dark horns, piercing yellow-red eyes, layered matte-black combat tunic with an armored collar and belt sash, fingerless gauntlets, heavy boots, a long double-ended weapon hilt clipped across the lower back" |
 | `embo` ✅ delivered | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
 | `bossk` ✅ delivered | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
-| `greedo` | 1.73 m | "a slender green-skinned alien hunter with a tapered dome head, large glassy dark-purple eyes, a short trunk-like snout, twin antenna-like ear stalks, a bumpy ridged scalp crest, a fitted olive flight jacket over a tan jumpsuit, a gunbelt with a holstered pistol" |
 
 ### Hunter weapon prop sheets
 

@@ -148,3 +148,12 @@ change; the sheets are production inputs in `reference/characters/` and are not 
 | `imperial_officer` | 1.85 m — "a severe uniformed officer in a long black military greatcoat with a peaked cap and rank insignia plaque, gloved hands, gaunt authoritarian bearing" |
 | `duelist` | 1.9 m — "a blue-skinned gunslinger alien with a gaunt narrow face, deep-set red eyes and two breathing tubes running from the nose to the temples, a wide-brimmed hat, a long coat, twin holstered pistols" |
 
+
+## Audio — 4 files, delivered 2026-08-28
+
+Signature-weapon voices for the hunter roster, generated with
+`node tools/generate-sfx.mjs crossbow_shot longrifle_shot saber_swing saber_ignite`
+(prompts live in that script): `crossbow_shot` (Karshii's laser crossbow),
+`longrifle_shot` (Skarvek's and VX-9's long rifle), `saber_swing` (Sylla Morvane's
+melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades).
+Synth fallbacks remain in `src/core/audio.ts`.

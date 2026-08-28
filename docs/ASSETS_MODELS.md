@@ -30,9 +30,10 @@ matter of re-adding one roster entry.
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
-## Playable bounty hunters (6) — priority 2
+## Playable bounty hunters (4) — priority 2
 
-A second playable roster: underworld hunters alongside the Mandalorians. Standard swap
+A second playable roster: underworld hunters alongside the Mandalorians. (Two more
+concepts — a horned warrior and a snouted hunter — were considered and cut.) Standard swap
 contract and playable budgets (≤ 15k tris, one 1024² PBR set). Two things every one of
 them needs that the sheets are briefed to show: a **low-profile twin-nozzle thruster
 backpack** (playable movement is jetpack flight — sized and styled to the character, worn
@@ -40,19 +41,18 @@ over the costume, thruster mouths low on the pack where the `jetpack` bone's fla
 and empty hands (they mount the shared carbine and gaffi props like the Mandalorians;
 signature weapons below are separate props or FX).
 
-The **blue-skinned gunslinger** is the delivered boss model `duelist.glb` — the playable
-slot reuses it and its sheets as-is; an optional re-export at playable budget can come
-later if the 8k boss version reads poorly up close. The five new sheets are requested in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under *Playable bounty hunter sheets*.
+**All three hunter models are delivered and integrated** (2026-08-28) — they wear their
+authored skins in the character select and in game. The **blue-skinned gunslinger** is
+the delivered boss model `duelist.glb` — the playable slot reuses it and its sheets
+as-is; an optional re-export at playable budget can come later if the 8k boss version
+reads poorly up close.
 
 | Character | Reference sheets | Height | Reference look |
 |---|---|---|---|
 | **Blue gunslinger** (`duelist`, delivered) | `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin holstered pistols. |
 | **Pale assassin** (`ventress`) | `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
-| **Horned warrior** (`maul`) | `maul_front/side/back.png` | 1.75 m | Red-and-black tattooed alien, crown of short horns, yellow-red eyes, matte-black layered tunic and sash, a double-ended weapon hilt across the lower back (hilt only). |
 | **Hatted hunter** (`embo`) | `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
 | **Reptilian hunter** (`bossk`) | `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
-| **Snouted hunter** (`greedo`) | `greedo_front/side/back.png` | 1.73 m | Slender green alien, tapered dome head, glassy dark eyes, short trunk snout, ear stalks and ridged scalp crest, olive flight jacket and gunbelt. Slightest of the set (scale ~0.95). |
 
 Integration note: `ventress`, `embo` and `bossk` are **playable today** — roster entries
 in `src/characters/mandalorians.ts` with procedural stand-in bodies, signature weapons
@@ -87,11 +87,11 @@ via the standard prop path.
 ## New-board enemies — priority 3
 
 The six new boards (Nevarro, the Crevasse, Trask, the Refinery, the Great Forge, the
-Ringworld) shipped with seven new enemy kinds. **Three are delivered and integrated** —
-the incinerator trooper, the Quarren netcaster and the alamite now wear their authored
-skins in game and appear in the workbench. The remaining four still run procedurally;
-sheets for every one are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) under
-*New-board enemies* — as everywhere else, model from the sheets, not the prose.
+Ringworld) shipped with seven new enemy kinds. **All seven are delivered and
+integrated** — the last four (ringworld enforcer, krykna, broodmother, interceptor
+drone) landed 2026-08-28. The three creatures animate through `GENERATED_CLIPS` in
+`src/characters/authored.ts` (code-built idle/move clips in `src/anim/quadruped.ts`,
+blended by gait speed); clips shipped in a re-exported .glb would win over these.
 
 ✅ = delivered and integrated.
 
@@ -100,10 +100,10 @@ sheets for every one are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) und
 | **Incinerator trooper** (`flametrooper`) ✅ | Nevarro, Refinery | canonical rig, `attachAuthored` | White trooper plate with dark-red trim bands and helmet crest, twin back fuel tanks, wide-mouthed flame projector (projector stays a separate prop on `weaponR` — the muzzle drives the flame stream). |
 | **Quarren netcaster** (`quarren`) ✅ | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
 | **Alamite** (`alamite`) ✅ | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
-| **Ringworld enforcer** (`ring_enforcer`) | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
-| **Krykna** (`krykna`) ◆ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. |
-| **Krykna broodmother** (`krykna_brood`) ◆ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
-| **Interceptor drone** (`interceptor_drone`) ◆ | Great Forge | own rig, `loadCreature` | Black probe-style drone: sphere head, one red photoreceptor, amber sensor ring, five dangling manipulator arms (`arm1..5`), top thruster node `thruster` (its dive trail emits there). |
+| **Ringworld enforcer** (`ring_enforcer`) ✅ | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
+| **Krykna** (`krykna`) ◆ ✅ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. |
+| **Krykna broodmother** (`krykna_brood`) ◆ ✅ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
+| **Interceptor drone** (`interceptor_drone`) ◆ ✅ | Great Forge | own rig, `loadCreature` | Black probe-style drone: sphere head, one red photoreceptor, amber sensor ring, five dangling manipulator arms (`arm1..5`), top thruster node `thruster` (its dive trail emits there). |
 
 Budgets as above: ≤ 8k tris each (the broodmother may take 12k), one 512² PBR set (1024²
 for the broodmother). The four bipeds obey the standard swap contract; the three ◆
@@ -127,12 +127,12 @@ existed before the new boards — `din, paz, bokatan, armorer, marshal, fennec, 
 pyke, nikto, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
 nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board trio
-`flametrooper`, `quarren`, `alamite`. **Still open: `ring_enforcer`, `krykna`,
-`krykna_brood`, `interceptor_drone` — every one has its reference sheets delivered, so
-they are ready to model — plus the five playable bounty hunters `ventress`, `maul`,
-`embo`, `bossk`, `greedo`, which are blocked on their sheets (see
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)); their sixth, the blue gunslinger, reuses the
-delivered `duelist.glb`.**
+`flametrooper`, `quarren`, `alamite`. **Everything requested is delivered** — the last batch (`ring_enforcer`, `krykna`,
+`krykna_brood`, `interceptor_drone`, and the playable hunters `ventress`, `embo`,
+`bossk`) landed on 2026-08-28 and is integrated; the fourth hunter, the blue gunslinger,
+reuses the delivered `duelist.glb`. Open on the model side: only the three hunter weapon
+props (`saber_curved`, `crossbow`, `longrifle` — procedural stand-ins in game, sheet
+requests in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)).**
 
 ### Three intake paths
 

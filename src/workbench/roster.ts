@@ -61,7 +61,7 @@ const prop = (id: string, name: string, size: number, axis: 'y' | 'longest' = 'l
 export const GROUPS: SubjectGroup[] = [
   {
     label: 'Playable',
-    subjects: [mando('din'), mando('paz'), mando('bokatan'), mando('armorer')],
+    subjects: (Object.keys(MANDO_ROSTER) as MandoId[]).map(mando),
   },
   {
     label: 'Allies',
@@ -91,10 +91,10 @@ export const GROUPS: SubjectGroup[] = [
       plain('flametrooper', 'Incinerator Trooper', (a) => buildFlametrooper(a), true),
       plain('quarren', 'Quarren Netcaster', (a) => buildQuarren(a), true),
       plain('alamite', 'Alamite Charger', (a) => buildAlamite(a), true),
-      plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a), false, 'ring_enforcer'),
-      plain('krykna', 'Krykna', (a) => buildKrykna(a)),
-      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a)),
-      plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a)),
+      plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a), true, 'ring_enforcer'),
+      plain('krykna', 'Krykna', (a) => buildKrykna(a), true),
+      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a), true, 'krykna_brood'),
+      plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a), true, 'interceptor_drone'),
     ],
   },
 ];

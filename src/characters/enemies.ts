@@ -655,7 +655,10 @@ export function buildFlametrooper(authored = true): CharacterInstance {
  * person). Free-form rig like the massiff: the gait is code, not clips, so an
  * authored model comes in through `loadCreature` when one lands.
  */
-function buildKryknaBase(scale: number, bodyColor: number, authored: boolean, creatureId: CreatureId): CharacterInstance {
+function buildKryknaBase(
+  scale: number, bodyColor: number, authored: boolean, creatureId: CreatureId,
+  decorate?: (body: THREE.Group) => void,
+): CharacterInstance {
   const chitin = mat(bodyColor, { rough: 0.75 });
   const joint = mat(0x8d867a, { rough: 0.85 });
   const dark = mat(0x22201c, { rough: 0.7 });
@@ -693,9 +696,35 @@ function buildKryknaBase(scale: number, bodyColor: number, authored: boolean, cr
     legs.push({ hip, knee, side, phase: (i % 2) * Math.PI + zi * 0.7 });
   }
 
+  decorate?.(body);
+
+  // The authored spider plays the code-built clips from GENERATED_CLIPS (its
+  // file ships none), blended and rate-matched to the gait like the massiff.
   let posed = true;
+  let mixer: THREE.AnimationMixer | null = null;
+  let idleAction: THREE.AnimationAction | null = null;
+  let moveAction: THREE.AnimationAction | null = null;
+  let clipStride = 3;
   if (authored) {
-    const model = loadCreature(creatureId, { onLoad: () => { body.visible = false; posed = false; } });
+    const model = loadCreature(creatureId, {
+      onLoad: (loaded) => {
+        body.visible = false;
+        posed = false;
+        const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
+        if (!clips.length) return;
+        const idle = clips.find((c) => /idle|breath|stand/i.test(c.name));
+        const move = clips.find((c) => /run|gallop|sprint|walk|trot|move/i.test(c.name));
+        mixer = new THREE.AnimationMixer(loaded);
+        if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+        if (move) {
+          moveAction = mixer.clipAction(move);
+          moveAction.play();
+          moveAction.setEffectiveWeight(0);
+          // a skitter cycle covers roughly a body length and a half
+          clipStride = 1.6 / Math.max(move.duration, 0.2);
+        }
+      },
+    });
     root.add(model);
   }
   root.scale.setScalar(scale);
@@ -705,6 +734,16 @@ function buildKryknaBase(scale: number, bodyColor: number, authored: boolean, cr
     root, rig: null, animator: null, height: 1.7 * scale, baseScale: scale,
     setGait: (speed: number) => { gaitSpeed = speed; },
     cosmetic: (dt, time) => {
+      if (mixer) {
+        const moving = Math.min(gaitSpeed / 4, 1);
+        if (moveAction) {
+          moveAction.setEffectiveWeight(moving);
+          moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.5, 2.4);
+        }
+        if (idleAction) idleAction.setEffectiveWeight(1 - moving);
+        mixer.update(dt);
+        return;
+      }
       if (!posed) return;
       const rate = 4 + Math.min(gaitSpeed, 8) * 1.4;
       const lift = Math.min(1, 0.25 + gaitSpeed / 5);
@@ -725,13 +764,16 @@ export function buildKrykna(authored = true): CharacterInstance {
 
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
-  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
   const sac = mat(0xd8e4da, { rough: 0.55, emissive: 0x24301f });
-  // egg sacs cling to the abdomen — the thing the whole fight is about
-  for (const [x, y, z, r] of [[-0.25, 1.25, -0.5, 0.2], [0.22, 1.3, -0.62, 0.24], [0, 1.05, -0.75, 0.18]] as const) {
-    addSphere(inst.root, sac, r, x, y, z, 8, 7);
-  }
-  return inst;
+  // Egg sacs cling to the abdomen — the thing the whole fight is about. They
+  // ride the body group (positions are root-space minus its 0.95 m lift) so
+  // they disappear with it when the authored model, which carries its own
+  // sculpted sacs, takes over.
+  return buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood', (body) => {
+    for (const [x, y, z, r] of [[-0.25, 0.3, -0.5, 0.2], [0.22, 0.35, -0.62, 0.24], [0, 0.1, -0.75, 0.18]] as const) {
+      addSphere(body, sac, r, x, y, z, 8, 7);
+    }
+  });
 }
 
 // ---------- Quarren netcaster: squid-faced dock hand turned hostile ----------
@@ -823,13 +865,25 @@ export function buildInterceptorDrone(authored = true): CharacterInstance {
   }
   addCyl(core, dark, 0.05, 0.08, 0.16, 0, 0.3, 0, 0, 0, 0, 8);          // top thruster
   let posed = true;
+  let mixer: THREE.AnimationMixer | null = null;
   if (authored) {
-    const model = loadCreature('interceptor_drone', { onLoad: () => { core.visible = false; posed = false; } });
+    const model = loadCreature('interceptor_drone', {
+      onLoad: (loaded) => {
+        core.visible = false;
+        posed = false;
+        const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
+        if (clips.length) {
+          mixer = new THREE.AnimationMixer(loaded);
+          mixer.clipAction(clips[0]).play();   // one looping hover-idle is the whole performance
+        }
+      },
+    });
     root.add(model);
   }
   return {
     root, rig: null, animator: null, height: 1.7, baseScale: 1,
     cosmetic: (dt, time) => {
+      if (mixer) { mixer.update(dt); return; }
       if (!posed) return;
       core.position.y = 1.15 + Math.sin(time * 2.6) * 0.06;
       core.rotation.y = Math.sin(time * 0.9) * 0.4;

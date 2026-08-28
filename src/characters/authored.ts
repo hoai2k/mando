@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
-import { massiffClips } from '../anim/quadruped';
+import { droneClips, kryknaClips, massiffClips } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
@@ -446,6 +446,9 @@ export function retarget(source: Rig, model: AuthoredModel): void {
  */
 const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationClip[]> = {
   massiff: massiffClips,
+  krykna: kryknaClips,
+  krykna_brood: kryknaClips,
+  interceptor_drone: droneClips,
 };
 
 export function loadProp(

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 
 /**
- * Gait clips for the war massiff, authored in code against its own skeleton.
+ * Gait clips for the creatures on their own free-form rigs — the war massiff,
+ * the krykna spiders, the interceptor drone. Nothing here touches the
+ * canonical humanoid rig.
  *
  * The massiff is not on our canonical humanoid rig — it is a quadruped with
  * four legs on a 44-bone Rigify skeleton — so nothing in `clips.ts` reaches it
@@ -152,4 +154,80 @@ function idle(root: THREE.Object3D): THREE.AnimationClip {
 
 export function massiffClips(root: THREE.Object3D): THREE.AnimationClip[] {
   return [idle(root), gallop(root)];
+}
+
+
+// ---------- krykna: eight-legged skitter on the authored spider rig ----------
+//
+// The authored spiders carry leg roots legL1..legL4 / legR1..legR4, each with
+// a _mid joint below it, plus `body` and `head` — the node names the model
+// brief asked for. Same conventions as the massiff: rest rotations are baked,
+// bones run along local +Y, X swings a limb fore and aft.
+
+/** alternating tetrapod: two sets of four legs, half a cycle apart */
+const SPIDER_LEGS = [
+  { root: 'legL1', phase: 0 }, { root: 'legR1', phase: 0.5 },
+  { root: 'legL2', phase: 0.5 }, { root: 'legR2', phase: 0 },
+  { root: 'legL3', phase: 0 }, { root: 'legR3', phase: 0.5 },
+  { root: 'legL4', phase: 0.5 }, { root: 'legR4', phase: 0 },
+] as const;
+
+const SKITTER = 0.45;   // seconds per cycle
+
+function spiderMove(root: THREE.Object3D): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * SKITTER);
+  for (const leg of SPIDER_LEGS) {
+    // fore-aft swing on the leg root, and a lift at mid-swing so the tip
+    // clears the ground on the way forward instead of dragging through it
+    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * 20).map((v) => [v, 0, 0]));
+    b.rot(`${leg.root}_mid`, times, cycle(STEPS, leg.phase, (t) => {
+      const swing = Math.sin(t * Math.PI * 2);
+      return swing > 0 ? -16 * swing : 4 * -swing;   // fold up forward, press back
+    }).map((v) => [v, 0, 0]));
+  }
+  return new THREE.AnimationClip('move', SKITTER, b.tracks);
+}
+
+function spiderIdle(root: THREE.Object3D): THREE.AnimationClip {
+  const b = builder(root);
+  const DUR = 2.8;
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * DUR);
+  for (const leg of SPIDER_LEGS) {
+    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * 2.5).map((v) => [v, 0, 0]));
+  }
+  b.rot('head', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * 6).map((v) => [0, v, 0]));
+  return new THREE.AnimationClip('idle', DUR, b.tracks);
+}
+
+export function kryknaClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  return [spiderIdle(root), spiderMove(root)];
+}
+
+// ---------- interceptor drone: hover bob and dangling arms ----------
+//
+// One looping idle is the whole performance — the dive, the orbit and every
+// other motion is the enemy controller moving the root.
+
+export function droneClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const b = builder(root);
+  const DUR = 3.6;
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * DUR);
+  for (let i = 1; i <= 5; i++) {
+    b.rot(`arm${i}`, times, cycle(STEPS, i / 5, (t) => Math.sin(t * Math.PI * 2) * 7).map((v) => [v, 0, v * 0.4]));
+  }
+  b.rot('body', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * 9).map((v) => [0, v, 0]));
+  // the hover bob is a position track on the body, in its own local units
+  const body = findBone(root, 'body');
+  if (body) {
+    const ws = body.getWorldScale(new THREE.Vector3()).y || 1;
+    const amp = 0.03 / ws;
+    const values: number[] = [];
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      values.push(body.position.x, body.position.y + Math.sin(t * Math.PI * 2) * amp, body.position.z);
+    }
+    b.tracks.push(new THREE.VectorKeyframeTrack(`${body.name}.position`, times, values));
+  }
+  return [new THREE.AnimationClip('idle', DUR, b.tracks)];
 }
