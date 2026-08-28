@@ -29,13 +29,26 @@ export interface InputConfig {
   keyboardMouse: boolean;
 }
 
+export interface CameraConfig {
+  /**
+   * On by default: the chase distance drifts in when the player is still or
+   * moving slowly (the character and the space around them are what matters)
+   * and out when they sprint, dash or fly (where they are going matters more).
+   * Off falls back to the single distance the right stick dials in, which is
+   * what the dolly set before this existed.
+   */
+  dynamic: boolean;
+}
+
 export interface Config {
   audio: AudioConfig;
   input: InputConfig;
+  camera: CameraConfig;
 }
 
 export const config: Config = {
   input: { keyboardMouse: false },
+  camera: { dynamic: true },
   audio: {
     master: 0.8,
     // SFX sit well under the score: a busy wave puts a lot of blaster fire on
@@ -49,27 +62,47 @@ export const config: Config = {
 const STORE = 'mando.audio';
 /** Input preferences, stored separately so a stale audio blob can't clobber them. */
 const INPUT_STORE = 'mando.input';
+/** Camera preferences, same reasoning: one key per group of settings. */
+const CAMERA_STORE = 'mando.camera';
 
 /** Merge any saved volume preferences over the defaults above. */
 export function loadSavedConfig(): void {
   try {
     const raw = localStorage.getItem(STORE);
-    if (!raw) return;
-    const saved = JSON.parse(raw) as Partial<AudioConfig>;
-    for (const k of ['master', 'sfx', 'music'] as const) {
-      const v = saved[k];
-      if (typeof v === 'number' && v >= 0 && v <= 1) config.audio[k] = v;
+    // no early return: each group loads independently, so a player who has
+    // never touched the volumes still gets their input and camera preferences
+    const saved = raw ? JSON.parse(raw) as Partial<AudioConfig> : null;
+    if (saved) {
+      for (const k of ['master', 'sfx', 'music'] as const) {
+        const v = saved[k];
+        if (typeof v === 'number' && v >= 0 && v <= 1) config.audio[k] = v;
+      }
     }
   } catch {
     // a corrupt or blocked store is not worth failing a game boot over
   }
   try {
     const raw = localStorage.getItem(INPUT_STORE);
-    if (!raw) return;
-    const saved = JSON.parse(raw) as Partial<InputConfig>;
-    if (typeof saved.keyboardMouse === 'boolean') config.input.keyboardMouse = saved.keyboardMouse;
+    const saved = raw ? JSON.parse(raw) as Partial<InputConfig> : null;
+    if (saved && typeof saved.keyboardMouse === 'boolean') config.input.keyboardMouse = saved.keyboardMouse;
   } catch {
     // same
+  }
+  try {
+    const raw = localStorage.getItem(CAMERA_STORE);
+    const saved = raw ? JSON.parse(raw) as Partial<CameraConfig> : null;
+    if (saved && typeof saved.dynamic === 'boolean') config.camera.dynamic = saved.dynamic;
+  } catch {
+    // same
+  }
+}
+
+/** Persist the camera preferences so they survive a reload. */
+export function saveCameraConfig(): void {
+  try {
+    localStorage.setItem(CAMERA_STORE, JSON.stringify(config.camera));
+  } catch {
+    // private browsing / blocked storage — the session still honours the values
   }
 }
 

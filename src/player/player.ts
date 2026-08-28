@@ -516,6 +516,9 @@ export class Player {
     // camera stays crisp while the world is in slow motion
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+      // thrust reads as flight even while hovering still; a plain fall gets
+      // its width from the climb term instead, so a kerb-step isn't "flying"
+      flying: this.thrusting > 0, climb: this.grounded ? 0 : this.velocity.y,
     });
   }
 
@@ -603,6 +606,7 @@ export class Player {
     anim.update(dt);
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: false, speed: speed2, dashing: false,
+      flying: true, climb: this.velocity.y,
     });
   }
 
