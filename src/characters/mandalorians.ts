@@ -1,14 +1,18 @@
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 
 /**
- * Playable Mandalorians — one config-driven factory so every fighter shares
- * the same rig, clips, weapons and gameplay; only armor/silhouette differs.
+ * Playable characters — one config-driven factory so every fighter shares the
+ * same rig, clips and gameplay; only look and loadout differ. Two families
+ * share it: helmeted Mandalorians, and bare-headed underworld hunters (config
+ * `helmet: null`), who bring their own heads and signature weapons.
+ *
+ * (The Mando* names predate the hunters; every id below rides the same type.)
  */
 
-export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer';
+export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer' | 'ventress' | 'embo' | 'bossk';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
@@ -27,7 +31,10 @@ export interface PlayerCharacter extends CharacterInstance {
 }
 
 /** visual height per character, used to size an authored model */
-const MODEL_HEIGHT: Record<MandoId, number> = { din: 1.85, paz: 2.0, bokatan: 1.75, armorer: 1.78 };
+const MODEL_HEIGHT: Record<MandoId, number> = {
+  din: 1.85, paz: 2.0, bokatan: 1.75, armorer: 1.78,
+  ventress: 1.79, embo: 1.78, bossk: 1.9,
+};
 
 interface MandoConfig {
   name: string;
@@ -36,27 +43,58 @@ interface MandoConfig {
   accent: number;    // pauldrons / details
   suit: number;      // under-suit
   cape: number | null;
-  helmet: MandoId;   // helmet detail variant
+  /** Mando helmet variant, or null for a bare-headed hunter (head built per id) */
+  helmet: MandoId | null;
   rangefinder: boolean;
   bulk: number;      // 1 = standard; Paz is heavier
+  /** signature loadout — defaults are the shared carbine and gaffi */
+  ranged?: 'carbine' | 'crossbow' | 'longrifle';
+  melee?: 'gaffi' | 'sabers';
+  /** exposed skin colour, for anyone without a bucket on their head */
+  skin?: number;
+}
+
+/** HUD display names for each loadout slot. */
+export const RANGED_NAMES = { carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle' } as const;
+export const MELEE_NAMES = { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' } as const;
+
+/** What a character's HUD calls the weapon currently in hand. */
+export function weaponDisplayName(id: MandoId, weapon: 'blaster' | 'gaffi'): string {
+  const cfg = MANDO_ROSTER[id];
+  return weapon === 'blaster' ? RANGED_NAMES[cfg.ranged ?? 'carbine'] : MELEE_NAMES[cfg.melee ?? 'gaffi'];
 }
 
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
-    name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
+    name: 'Kell Dravan', desc: 'The wanderer in pure beskar shine — this is the way.',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
   },
   paz: {
-    name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — walking siege tower.',
+    name: 'Torva Brekk', desc: 'Heavy infantry of the covert — walking siege tower.',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.12,
   },
   bokatan: {
-    name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
+    name: 'Vess Ordane', desc: 'Night owl of the old clans — born to the creed, and to rule it.',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
   },
   armorer: {
-    name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
+    name: 'The Forgemistress', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
+  },
+  ventress: {
+    name: 'Sylla Morvane', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
+    primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
+    melee: 'sabers', skin: 0xcdc3ba,
+  },
+  embo: {
+    name: 'Karshii', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
+    primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
+    ranged: 'crossbow', skin: 0x7a8a4f,
+  },
+  bossk: {
+    name: 'Skarvek', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
+    primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
+    ranged: 'longrifle', skin: 0x8ba03f,
   },
 };
 
@@ -93,10 +131,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   addSphere(b.lowerLegL, accent, 0.06, 0, -0.02, 0.04, 8, 6);
   addSphere(b.lowerLegR, accent, 0.06, 0, -0.02, 0.04, 8, 6);
 
-  // ---- helmet variants ----
+  // ---- heads: Mando helmet variants, or a hunter's own face ----
   const helm = new THREE.Group();
   b.head.add(helm);
   helm.position.y = 0.06;
+  const skinMat = cfg.skin !== undefined ? mat(cfg.skin, { rough: 0.85 }) : skin;
+  if (cfg.helmet === null) {
+    buildHunterHead(id, helm, skinMat, prim, accent, dark);
+  } else {
   addSphere(helm, prim, 0.145, 0, 0.04, 0, 14, 12, 0.95, 1);
   addCyl(helm, prim, 0.145, 0.15, 0.14, 0, -0.02, 0, 0, 0, 0, 14);
   addBox(helm, dark, 0.21, 0.035, 0.02, 0, 0.045, 0.135);   // T-visor horizontal
@@ -120,6 +162,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       addCyl(helm, accent, 0.005, 0.035, 0.22, -0.1, 0.16, 0.02, -0.5, 0, -0.5);
       addCyl(helm, accent, 0.005, 0.035, 0.22, 0.1, 0.16, 0.02, -0.5, 0, 0.5);
       break;
+  }
   }
 
   // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----
@@ -176,17 +219,35 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     rig.bones.capeRoot.position.x = -0.12;
   }
 
-  // ---- weapons (shared: carbine + gaffi) ----
-  const carbine = makeCarbine(mat(0x3d3730, { rough: 0.5, metal: 0.5 }), dark);
-  carbine.rotation.x = Math.PI / 2;
-  b.weaponR.add(carbine);
+  // ---- weapons: signature ranged + melee per config, carbine/gaffi default ----
+  const gunmetal = mat(0x3d3730, { rough: 0.5, metal: 0.5 });
+  const rangedKind = cfg.ranged ?? 'carbine';
+  const ranged =
+    rangedKind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
+    rangedKind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
+    makeCarbine(gunmetal, dark);
+  ranged.rotation.x = Math.PI / 2;
+  b.weaponR.add(ranged);
   const muzzle = new THREE.Group();
-  muzzle.position.set(0, 0.015, 0.62);
-  carbine.add(muzzle);
-  const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
-  gaffi.rotation.x = Math.PI / 2;
-  gaffi.visible = false;
-  b.weaponR.add(gaffi);
+  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95 }[rangedKind]);
+  ranged.add(muzzle);
+  // The melee prop keeps the gaffi's mount and orientation whatever it looks
+  // like, so the melee clips swing a saber exactly as they swing the staff.
+  // Twin sabers add an off-hand hilt on weaponL that shows and hides with it.
+  let offhand: THREE.Group | null = null;
+  let melee: THREE.Group;
+  if (cfg.melee === 'sabers') {
+    melee = makeSaber(silver, dark);
+    offhand = makeSaber(silver, dark);
+    offhand.rotation.x = Math.PI / 2;
+    offhand.visible = false;
+    b.weaponL.add(offhand);
+  } else {
+    melee = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+  }
+  melee.rotation.x = Math.PI / 2;
+  melee.visible = false;
+  b.weaponR.add(melee);
 
   // ---- block shield ----
   // A force field, not a pane with a border: the body of the dome carries the
@@ -337,8 +398,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // weapons move onto the authored hand so they track the real fingers; the
       // mount reproduces our canonical weaponR frame, so nothing else changes
       if (model.weaponMount) {
-        model.weaponMount.add(carbine);
-        model.weaponMount.add(gaffi);
+        model.weaponMount.add(ranged);
+        model.weaponMount.add(melee);
       }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
@@ -350,14 +411,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   let weapon: 'blaster' | 'gaffi' = 'blaster';
   let shieldUp = false;
   const showWeapon = () => {
-    carbine.visible = !shieldUp && weapon === 'blaster';
-    gaffi.visible = !shieldUp && weapon === 'gaffi';
+    ranged.visible = !shieldUp && weapon === 'blaster';
+    melee.visible = !shieldUp && weapon === 'gaffi';
+    if (offhand) offhand.visible = melee.visible;
   };
   return {
     ...inst,
     muzzle,
-    gaffi,
-    modelReady: () => swap.model !== null,
+    gaffi: melee,
+    modelReady: () => swap.settled,
     setWeapon: (w) => { weapon = w; showWeapon(); },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
@@ -401,4 +463,56 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
     },
   };
+}
+
+/**
+ * Bare heads for the hunter roster. Same budget philosophy as the helmets:
+ * a few primitives that read at 30 m, standing in until the authored model.
+ */
+function buildHunterHead(
+  id: MandoId, helm: THREE.Group,
+  skin: THREE.Material, prim: THREE.Material, accent: THREE.Material, dark: THREE.Material,
+): void {
+  addSphere(helm, skin, 0.13, 0, 0.03, 0, 14, 12, 1.05, 1);   // skull
+  switch (id) {
+    case 'ventress': {
+      // gaunt pale features: sunken dark eyes, jaw shading, tattoo bands over the crown
+      addBox(helm, dark, 0.032, 0.014, 0.01, -0.05, 0.06, 0.125);
+      addBox(helm, dark, 0.032, 0.014, 0.01, 0.05, 0.06, 0.125);
+      addBox(helm, accent, 0.1, 0.05, 0.09, 0, -0.06, 0.05);   // jaw
+      addBox(helm, dark, 0.016, 0.005, 0.16, -0.045, 0.145, -0.02, 0.15);
+      addBox(helm, dark, 0.016, 0.005, 0.16, 0.045, 0.145, -0.02, 0.15);
+      // high armored collar
+      addCyl(helm, prim, 0.1, 0.115, 0.07, 0, -0.13, 0, 0, 0, 0, 10);
+      break;
+    }
+    case 'embo': {
+      // slatted rebreather over the lower face, and the hat
+      for (let i = 0; i < 3; i++) addBox(helm, dark, 0.12, 0.016, 0.02, 0, -0.045 + i * 0.028, 0.115);
+      addBox(helm, accent, 0.14, 0.09, 0.03, 0, -0.03, 0.1);   // mask body behind the slats
+      addBox(helm, dark, 0.03, 0.012, 0.01, -0.045, 0.065, 0.12);  // shaded eyes
+      addBox(helm, dark, 0.03, 0.012, 0.01, 0.045, 0.065, 0.12);
+      const hat = new THREE.Group();
+      hat.position.y = 0.13;
+      hat.rotation.x = 0.08;
+      helm.add(hat);
+      addCyl(hat, prim, 0.34, 0.36, 0.022, 0, 0, 0, 0, 0, 0, 18);  // the wide brim
+      addCyl(hat, prim, 0.12, 0.16, 0.06, 0, 0.035, 0, 0, 0, 0, 14); // crown
+      addCyl(hat, accent, 0.125, 0.125, 0.02, 0, 0.012, 0, 0, 0, 0, 14); // band
+      break;
+    }
+    case 'bossk': {
+      // wedge snout, needle teeth, slit eyes; the skull sits a little long
+      addBox(helm, skin, 0.1, 0.075, 0.14, 0, -0.015, 0.14, 0.12);   // snout
+      addBox(helm, skin, 0.075, 0.05, 0.05, 0, -0.06, 0.19);         // jaw
+      for (let i = 0; i < 4; i++) {
+        addBox(helm, mat(0xe8e0c8, { rough: 0.5 }), 0.008, 0.02, 0.008, -0.033 + i * 0.022, -0.045, 0.2);
+      }
+      addSphere(helm, mat(0xc9401e, { rough: 0.4, emissive: 0x30160a }), 0.018, -0.055, 0.055, 0.1, 8, 6);
+      addSphere(helm, mat(0xc9401e, { rough: 0.4, emissive: 0x30160a }), 0.018, 0.055, 0.055, 0.1, 8, 6);
+      addBox(helm, accent, 0.02, 0.03, 0.1, -0.09, 0.09, -0.02, 0, 0, -0.3);  // brow ridges
+      addBox(helm, accent, 0.02, 0.03, 0.1, 0.09, 0.09, -0.02, 0, 0, 0.3);
+      break;
+    }
+  }
 }

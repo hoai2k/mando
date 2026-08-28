@@ -202,3 +202,77 @@ export function makeCarbine(mBody: THREE.Material, mDark: THREE.Material): THREE
   swapWeapon(g, 'carbine', 0.72);
   return g;
 }
+
+/** Additive material for blade/bolt glows — never cached, never a shadow caster. */
+function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
+  return markShared(new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+}
+
+/**
+ * Curved-hilt energy sword: a short kinked hilt and a red blade. The blade is
+ * an FX mesh (white-hot core in two red sheaths), lives in its own subgroup so
+ * an authored hilt swap leaves it alone, and casts no shadow.
+ */
+export function makeSaber(mHilt: THREE.Material, mDark: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  // hilt: main grip with a curved hook at the pommel
+  addCyl(g, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
+  addCyl(g, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);   // emitter shroud
+  addCyl(g, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
+  addSphere(g, mDark, 0.02, 0.05, -0.175, 0, 8, 6);                  // pommel cap
+  const blade = new THREE.Group();
+  blade.position.y = 0.06;
+  g.add(blade);
+  const BLADE_LEN = 0.92;
+  for (const [r, color, opacity] of [
+    [0.011, 0xfff0f0, 0.95], [0.026, 0xff2a1e, 0.42], [0.045, 0xff2a1e, 0.14],
+  ] as const) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, BLADE_LEN, 8), glowMat(color, opacity));
+    m.position.y = BLADE_LEN / 2;
+    m.castShadow = false;
+    blade.add(m);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), m.material);
+    tip.position.y = BLADE_LEN;
+    tip.castShadow = false;
+    blade.add(tip);
+  }
+  swapWeapon(g, 'saber_curved', 0.26, -Math.PI / 2);
+  return g;
+}
+
+/** Laser crossbow: forward-swept limbs around a rifle core, glowing string line. */
+export function makeCrossbow(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  addBox(g, mBody, 0.05, 0.08, 0.5, 0, 0, 0.08);            // stock and rail
+  addCyl(g, mDark, 0.014, 0.014, 0.2, 0, 0.02, 0.38, Math.PI / 2, 0, 0, 8); // short emitter barrel
+  addBox(g, mDark, 0.03, 0.11, 0.05, 0, -0.08, 0, 0.3);     // grip
+  // bow limbs, swept toward the muzzle
+  addBox(g, mBody, 0.3, 0.03, 0.05, -0.17, 0.02, 0.24, 0, -0.55);
+  addBox(g, mBody, 0.3, 0.03, 0.05, 0.17, 0.02, 0.24, 0, 0.55);
+  addSphere(g, mDark, 0.025, -0.31, 0.02, 0.315, 8, 6);     // limb tip emitters
+  addSphere(g, mDark, 0.025, 0.31, 0.02, 0.315, 8, 6);
+  // energy string stretched between the tips
+  const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.62, 6), glowMat(0xffc24a, 0.7));
+  string.position.set(0, 0.02, 0.315);
+  string.rotation.z = Math.PI / 2;
+  string.castShadow = false;
+  g.add(string);
+  swapWeapon(g, 'crossbow', 0.72);
+  return g;
+}
+
+/** Long-barrelled hunting rifle: the carbine's heavier, slower-looking cousin. */
+export function makeLongRifle(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  addBox(g, mBody, 0.05, 0.1, 0.5, 0, 0, 0.05);             // receiver
+  addBox(g, mBody, 0.045, 0.07, 0.18, 0, -0.03, -0.2, -0.12); // shoulder stock
+  addCyl(g, mDark, 0.015, 0.017, 0.62, 0, 0.02, 0.58, Math.PI / 2, 0, 0, 8); // long barrel
+  addCyl(g, mDark, 0.032, 0.026, 0.09, 0, 0.02, 0.9, Math.PI / 2, 0, 0, 8);  // flared muzzle
+  addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.09, 0.06, 0.3);  // grip
+  addCyl(g, mDark, 0.028, 0.028, 0.26, 0, 0.085, 0.1, Math.PI / 2, 0, 0, 8); // long scope
+  addBox(g, mDark, 0.04, 0.04, 0.14, 0, -0.045, 0.42);      // fore grip
+  swapWeapon(g, 'longrifle', 1.05);
+  return g;
+}
