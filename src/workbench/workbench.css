@@ -96,3 +96,23 @@ option { color: var(--text); }
 .note.edited b { color: var(--accent); }
 .row button { white-space: nowrap; }
 .hint.keys { margin-top: -6px; }
+
+/* the running list of pose edits */
+.ledger {
+  margin: 4px 0 8px; padding: 6px 8px;
+  background: #191c22; border: 1px solid var(--line); border-radius: 4px;
+  max-height: 190px; overflow-y: auto;
+}
+.ledger .clip {
+  font-size: 11px; color: var(--accent); margin: 6px 0 2px; font-weight: 600;
+}
+.ledger .clip:first-child { margin-top: 0; }
+.ledger .edit { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 0; }
+.ledger .edit span { flex: 0 0 82px; color: var(--text); }
+.ledger .edit code { flex: 1; color: var(--dim); font-size: 10.5px; white-space: nowrap; }
+.ledger .edit button {
+  flex: 0 0 18px; width: 18px; padding: 0; line-height: 16px;
+  background: none; border: none; color: var(--dim); cursor: pointer;
+}
+.ledger .edit button:hover { color: var(--accent); }
+.field label .clip { color: var(--accent); text-transform: none; letter-spacing: 0; }

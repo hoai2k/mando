@@ -31,15 +31,6 @@ export interface EditTarget {
 
 export type GizmoSpace = 'local' | 'world' | 'camera';
 
-export interface BoneChange {
-  /** local euler XYZ in degrees when edit mode was entered */
-  base: [number, number, number];
-  /** local euler XYZ in degrees now */
-  edited: [number, number, number];
-  /** edited - base, per axis, in degrees */
-  delta: [number, number, number];
-}
-
 const DEG = 180 / Math.PI;
 const RING_COLORS: Record<string, number> = { x: 0xff6b6b, y: 0x86e07a, z: 0x6aa8ff, screen: 0xffd479 };
 const JOINT_IDLE = 0x93a3bb;
@@ -53,8 +44,6 @@ function eulerDeg(q: THREE.Quaternion): [number, number, number] {
   const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
   return [e.x * DEG, e.y * DEG, e.z * DEG];
 }
-
-const round2 = (v: number): number => Math.round(v * 100) / 100;
 
 interface Handle {
   mesh: THREE.Mesh;
@@ -82,8 +71,6 @@ export class PoseEditor {
   private screenRing!: THREE.Mesh;
   /** bone that the gizmo sits on (the one whose handle was clicked) */
   private anchor: THREE.Object3D | null = null;
-  private baseline = new Map<THREE.Object3D, THREE.Quaternion>();
-  private edited = new Set<string>();
 
   private ray = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -104,6 +91,8 @@ export class PoseEditor {
     private controls: OrbitControls,
     private dom: HTMLElement,
     private onChange: () => void,
+    /** called when a rotation is finished, so the ledger can record it */
+    private onCommit: (bone: string) => void,
   ) {
     this.overlay.visible = false;
     this.overlay.renderOrder = 998;
@@ -154,13 +143,11 @@ export class PoseEditor {
     this.gizmo.add(pip);
   }
 
-  /** Rebuild the joint overlay for a new set of figures. Clears any edits. */
+  /** Rebuild the joint overlay for a new set of figures, keeping the pick. */
   setTargets(targets: EditTarget[]): void {
+    const keep = this.selected;
     this.clearOverlay();
     this.targets = targets;
-    this.baseline.clear();
-    this.edited.clear();
-    this.select(null);
 
     for (const t of targets) {
       const pairs: Array<[THREE.Object3D, THREE.Object3D]> = [];
@@ -185,6 +172,7 @@ export class PoseEditor {
       this.overlay.add(line);
       this.lines.push({ line, pairs });
     }
+    this.select(keep);
   }
 
   private clearOverlay(): void {
@@ -204,36 +192,11 @@ export class PoseEditor {
 
   // ---------- mode ----------
 
-  /** Put every bone back where the clips left it (used on leaving edit mode). */
-  restoreBaseline(): void {
-    for (const [bone, q] of this.baseline) bone.quaternion.copy(q);
-    this.edited.clear();
-    this.onChange();
-  }
-
   setEnabled(on: boolean): void {
     this.enabled = on;
     this.overlay.visible = on;
-    if (!on) {
-      this.select(null);
-      this.baseline.clear();
-      this.edited.clear();
-      this.controls.enabled = true;
-    } else {
-      this.captureBaseline();
-    }
-  }
-
-  /** Remember the frozen pose, so edits can be expressed as deltas and undone. */
-  captureBaseline(): void {
-    this.baseline.clear();
-    this.edited.clear();
-    for (const t of this.targets) {
-      for (const [name, bone] of Object.entries(t.bones)) {
-        if (SKIP.has(name)) continue;
-        this.baseline.set(bone, bone.quaternion.clone());
-      }
-    }
+    this.gizmo.visible = on && !!this.anchor;
+    if (!on) this.controls.enabled = true;
   }
 
   setSpace(space: GizmoSpace): void {
@@ -266,7 +229,7 @@ export class PoseEditor {
       new THREE.Euler(deg[0] / DEG, deg[1] / DEG, deg[2] / DEG, 'XYZ'),
     );
     for (const bone of this.bonesNamed(this.selected)) bone.quaternion.copy(q);
-    this.edited.add(this.selected);
+    this.onCommit(this.selected);
     this.onChange();
   }
 
@@ -285,43 +248,6 @@ export class PoseEditor {
       else parentQ.identity();
       bone.quaternion.copy(parentQ.invert().multiply(dq).multiply(worldQ));
     }
-    this.edited.add(name);
-  }
-
-  resetBone(name: string): void {
-    for (const bone of this.bonesNamed(name)) {
-      const base = this.baseline.get(bone);
-      if (base) bone.quaternion.copy(base);
-    }
-    this.edited.delete(name);
-    this.onChange();
-  }
-
-  resetAll(): void {
-    for (const name of [...this.edited]) this.resetBone(name);
-    this.onChange();
-  }
-
-  editedBones(): string[] {
-    return [...this.edited].sort();
-  }
-
-  /** What changed, keyed by bone name — the payload of the JSON export. */
-  changes(): Record<string, BoneChange> {
-    const out: Record<string, BoneChange> = {};
-    for (const name of this.editedBones()) {
-      const bone = this.bonesNamed(name)[0];
-      const base = this.baseline.get(bone);
-      if (!bone || !base) continue;
-      const b = eulerDeg(base).map(round2) as [number, number, number];
-      const e = eulerDeg(bone.quaternion).map(round2) as [number, number, number];
-      out[name] = {
-        base: b,
-        edited: e,
-        delta: [round2(e[0] - b[0]), round2(e[1] - b[1]), round2(e[2] - b[2])],
-      };
-    }
-    return out;
   }
 
   // ---------- picking ----------
@@ -428,9 +354,11 @@ export class PoseEditor {
       }
       return;
     }
+    const bone = this.selected;
     this.drag = null;
     this.dragAxis = null;
     this.dragAngle = 0;
+    if (bone) this.onCommit(bone);
     this.controls.enabled = true;
     this.dom.releasePointerCapture?.(ev.pointerId);
     this.dom.style.cursor = '';

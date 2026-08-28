@@ -5,6 +5,7 @@ import type { CharacterInstance } from '../characters/builder';
 import { loadOptionalTexture } from '../core/assets';
 import { findPose, POSES, type Pose } from './poses';
 import { PoseEditor, type GizmoSpace } from './poseEdit';
+import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
@@ -119,7 +120,14 @@ let showSkeleton = false;
 let showGrid = true;
 let editing = false;
 
-const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange);
+/**
+ * Edits live here, not on the bones: the ledger holds a delta per clip and bone,
+ * writes it into the live clips, and can undo it. That is what lets an edit
+ * outlive edit mode — leave it and the animation plays back adjusted — and it
+ * is what the single combined export describes.
+ */
+const edits = new PoseEdits();
+const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
 
 function disposeFigures(): void {
   for (const f of figures) turntable.remove(f.inst.root);
@@ -148,6 +156,14 @@ function spawn(): void {
     helper.visible = showSkeleton;
     skeletons.push(helper);
     scene.add(helper);
+  }
+  // a fresh character arrives with pristine clips: record them, then put the
+  // session's edits back so what is on the turntable never loses them
+  for (const f of figures) {
+    if (!f.inst.animator) continue;
+    edits.capture(f.inst.animator.clips);
+    edits.apply(f.inst.animator.clips);
+    f.inst.animator.invalidate();
   }
   applyPose();
   editor.setTargets(figures
@@ -236,10 +252,63 @@ function enterEdit(): void {
 
 function leaveEdit(): void {
   editing = false;
-  editor.restoreBaseline();
   editor.setEnabled(false);
+  // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
+
+/** bones the lower channel drives; everything else belongs to the upper clip */
+const LOWER_BONES = new Set([
+  'hips', 'spine', 'upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR',
+]);
+
+/** Which of the pose's two clips owns a bone — where an edit to it is stored. */
+function clipFor(bone: string): string | null {
+  const own = LOWER_BONES.has(bone) ? pose.lower : pose.upper;
+  const other = LOWER_BONES.has(bone) ? pose.upper : pose.lower;
+  const has = (clip: string | null): boolean => {
+    if (!clip) return false;
+    const set = figures.find((f) => f.inst.animator)?.inst.animator?.clips;
+    return !!set?.[clip]?.tracks.some((t) => t.name === `${bone}.quaternion`);
+  };
+  // an existing track wins over the channel the bone nominally belongs to
+  return has(own) ? own : has(other) ? other : own ?? other;
+}
+
+/**
+ * Record the rotation the editor just made: the difference between the bone now
+ * and the clip's original first key, stored against that clip.
+ */
+function commitBone(bone: string): void {
+  const clip = clipFor(bone);
+  const rig = figures.find((f) => f.inst.rig)?.inst.rig;
+  const joint = rig?.bones[bone as keyof typeof rig.bones];
+  if (!clip || !joint) { renderEditPanel(); return; }
+  edits.set(clip, bone, eulerSub(eulerOf(joint.quaternion), edits.baseOf(clip, bone)) as Euler3);
+  refreshEdits();
+}
+
+/** Push the ledger into the clips and put the figures back in the frozen pose. */
+function refreshEdits(): void {
+  for (const f of figures) {
+    if (!f.inst.animator) continue;
+    edits.apply(f.inst.animator.clips);
+    f.inst.animator.invalidate();
+  }
+  applyPose();
+  if (editing) freezePose();
+  renderEditPanel();
+}
+
+function undoEdit(): void { if (edits.undo()) refreshEdits(); }
+function redoEdit(): void { if (edits.redo()) refreshEdits(); }
+
+addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.target instanceof HTMLInputElement) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoEdit(); }
+  else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redoEdit(); }
+});
 
 // ---------- panel ----------
 const panel = document.getElementById('panel')!;
@@ -294,8 +363,10 @@ function renderPanel(): void {
         : 'No authored model for this character yet — procedural build only.'}
       <br><br>Drag to orbit, scroll to zoom. Posts are 0.5&nbsp;m each.
       <br><br><b>Edit mode</b> freezes the pose at its first keyframe, draws the rig
-      on the figure and gives the joint you click a rotation gizmo. Export hands
-      you a JSON of the changed bones in <code>clips.ts</code> units.
+      on the figure and gives the joint you click a rotation gizmo. Edits are written
+      into the clips, so leaving edit mode plays the animation back with them, and they
+      survive a change of pose or character. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and
+      redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
     </p>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
@@ -305,10 +376,8 @@ function renderPanel(): void {
   };
   panel.querySelector<HTMLSelectElement>('#pose')!.onchange = (e) => {
     pose = findPose((e.target as HTMLSelectElement).value);
-    // a pose switch mid-edit drops the edits: they belonged to the old clip
-    if (editing) editor.restoreBaseline();
     applyPose();
-    if (editing) { freezePose(); editor.captureBaseline(); }
+    if (editing) freezePose();
     renderEditPanel();
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
@@ -345,19 +414,20 @@ let editSignature = '';
 function renderEditPanel(): void {
   const host = panel.querySelector<HTMLDivElement>('#edit');
   if (!host) return;
-  if (!editing) {
+  if (!editing && !edits.size) {
     host.innerHTML = '';
     editSignature = '';
     return;
   }
 
-  const sel = editor.selected;
-  const changed = editor.editedBones();
-  editSignature = `${sel}|${editor.space}|${changed.join(',')}`;
-  const deg = editor.selectedEuler();
+  const sel = editing ? editor.selected : null;
+  const list = edits.entries();
+  const selClip = sel ? clipFor(sel) : null;
+  const selEdited = !!(sel && selClip && edits.deltaOf(selClip, sel));
+  editSignature = signature();
+  const deg = editing ? editor.selectedEuler() : null;
 
-  host.innerHTML = `
-    <div class="editbox">
+  const editBox = !editing ? '' : `
       <div class="field">
         <label>Rotate about</label>
         <div class="seg" id="space">
@@ -377,7 +447,7 @@ function renderEditPanel(): void {
 
       ${sel && deg ? `
         <div class="field">
-          <label>Local rotation — degrees, XYZ</label>
+          <label>Local rotation — degrees, XYZ${selClip ? ` · <span class="clip">${selClip}</span>` : ''}</label>
           <div class="xyz">
             <input type="number" id="rx" step="1" value="${deg[0].toFixed(1)}">
             <input type="number" id="ry" step="1" value="${deg[1].toFixed(1)}">
@@ -385,34 +455,41 @@ function renderEditPanel(): void {
           </div>
         </div>
         <div class="row">
-          <button id="resetBone">Reset ${sel}</button>
+          <button id="resetBone"${selEdited ? '' : ' disabled'}>Reset ${sel}</button>
         </div>
-        <p class="hint" id="drag">${editor.dragAxis
-          ? `${editor.dragAxis.toUpperCase()} ring · ${editor.dragAngle.toFixed(1)}°`
-          : 'Drag a ring to rotate; hold Shift to snap to 5°.'}</p>
+        <p class="hint" id="drag">${dragHint()}</p>
         <p class="hint keys">
           <b style="color:#ff6b6b">X</b> · <b style="color:#86e07a">Y</b> ·
           <b style="color:#6aa8ff">Z</b> of the chosen space${editor.space === 'camera'
             ? ' — screen right, screen up, and roll in the screen plane.'
-            : `, plus the outer <b style="color:#ffd479">gold</b> ring: roll about the view direction.`}
+            : ', plus the outer <b style="color:#ffd479">gold</b> ring: roll about the view direction.'}
         </p>
-      ` : '<p class="hint">Pick a joint — its shoulder/elbow rings appear on the figure.</p>'}
+      ` : '<p class="hint">Pick a joint — its rotation rings appear on the figure.</p>'}`;
 
+  host.innerHTML = `
+    <div class="editbox">
+      ${editBox}
       <div class="row">
-        <button id="resetAll"${changed.length ? '' : ' disabled'}>Reset all</button>
-        <button id="export" class="primary"${changed.length ? '' : ' disabled'}>Export changes</button>
+        <button id="undo"${edits.canUndo ? '' : ' disabled'} title="Ctrl/Cmd+Z">↶ Undo</button>
+        <button id="redo"${edits.canRedo ? '' : ' disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
       </div>
-      <p class="note edited">${changed.length
-        ? `<b>Edited:</b> ${changed.join(', ')}`
+      <div class="row">
+        <button id="resetAll"${list.length ? '' : ' disabled'}>Reset all</button>
+        <button id="export" class="primary"${list.length ? '' : ' disabled'}>Export changes</button>
+      </div>
+      ${list.length ? `<div class="ledger">${renderLedger(list)}</div>` : ''}
+      <p class="note edited">${list.length
+        ? `<b>${list.length} edit${list.length > 1 ? 's' : ''}</b> across ${new Set(list.map((e) => e.clip)).size}
+           clip${new Set(list.map((e) => e.clip)).size > 1 ? 's' : ''}, written into the clips —
+           leave edit mode and the animation plays them back. Export sends them all in one file.`
         : 'No edits yet. Rotations apply to every figure on the turntable at once.'}</p>
     </div>`;
 
-  host.querySelector('#space')!.querySelectorAll('button').forEach((btn) => {
+  host.querySelector('#space')?.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { editor.setSpace(btn.dataset.space as GizmoSpace); renderEditPanel(); };
   });
-  host.querySelector<HTMLSelectElement>('#bone')!.onchange = (e) => {
-    editor.select((e.target as HTMLSelectElement).value || null);
-  };
+  const bonePicker = host.querySelector<HTMLSelectElement>('#bone');
+  if (bonePicker) bonePicker.onchange = (e) => editor.select((e.target as HTMLSelectElement).value || null);
   const fields = ['#rx', '#ry', '#rz'].map((id) => host.querySelector<HTMLInputElement>(id));
   if (fields[0]) {
     for (const f of fields) {
@@ -422,11 +499,41 @@ function renderEditPanel(): void {
     }
   }
   host.querySelector<HTMLButtonElement>('#resetBone')?.addEventListener('click', () => {
-    if (editor.selected) editor.resetBone(editor.selected);
+    if (sel && selClip) { edits.clear(selClip, sel); refreshEdits(); }
   });
-  host.querySelector<HTMLButtonElement>('#resetAll')!.onclick = () => editor.resetAll();
+  host.querySelector<HTMLButtonElement>('#undo')!.onclick = undoEdit;
+  host.querySelector<HTMLButtonElement>('#redo')!.onclick = redoEdit;
+  host.querySelector<HTMLButtonElement>('#resetAll')!.onclick = () => { edits.clearAll(); refreshEdits(); };
   host.querySelector<HTMLButtonElement>('#export')!.onclick = exportChanges;
+  for (const row of host.querySelectorAll<HTMLButtonElement>('.ledger button')) {
+    row.onclick = () => {
+      edits.clear(row.dataset.clip!, row.dataset.bone!);
+      refreshEdits();
+    };
+  }
 }
+
+/** The running list of edits, grouped by the clip they will be pasted into. */
+function renderLedger(list: EditEntry[]): string {
+  const byClip = new Map<string, EditEntry[]>();
+  for (const e of list) byClip.set(e.clip, [...(byClip.get(e.clip) ?? []), e]);
+  return [...byClip].map(([clip, entries]) => `
+    <div class="clip">${clip}</div>
+    ${entries.map((e) => `
+      <div class="edit">
+        <span>${e.bone}</span>
+        <code>${e.delta.map((d) => (d > 0 ? '+' : '') + d).join(' ')}</code>
+        <button data-clip="${e.clip}" data-bone="${e.bone}" title="drop this edit">×</button>
+      </div>`).join('')}`).join('');
+}
+
+const dragHint = (): string => (editor.dragAxis
+  ? `${editor.dragAxis.toUpperCase()} ring · ${editor.dragAngle.toFixed(1)}°`
+  : 'Drag a ring to rotate; hold Shift to snap to 5°.');
+
+const signature = (): string =>
+  `${editing}|${editor.selected}|${editor.space}|${edits.canUndo}|${edits.canRedo}|`
+  + edits.entries().map((e) => `${e.clip}.${e.bone}:${e.delta}`).join(',');
 
 /** Cheap refresh: numbers only, leaving the DOM (and focus) where it is. */
 function syncEditValues(): void {
@@ -440,86 +547,60 @@ function syncEditValues(): void {
     });
   }
   const drag = host.querySelector<HTMLParagraphElement>('#drag');
-  if (drag) {
-    drag.textContent = editor.dragAxis
-      ? `${editor.dragAxis.toUpperCase()} ring · ${editor.dragAngle.toFixed(1)}°`
-      : 'Drag a ring to rotate. Hold Shift to snap to 5°.';
-  }
+  if (drag) drag.textContent = dragHint();
 }
 
 function onEditorChange(): void {
-  if (!editing) return;
-  const sig = `${editor.selected}|${editor.space}|${editor.editedBones().join(',')}`;
-  if (sig !== editSignature) renderEditPanel();
+  if (signature() !== editSignature) renderEditPanel();
   else syncEditValues();
 }
 
 // ---------- export ----------
 /**
- * Hand the edits back as JSON: absolute local eulers in degrees, XYZ order —
- * the same units and order `qt()` in `src/anim/clips.ts` takes — plus the
- * keyframes each edited bone currently has in the clip, so a bone that is
- * animated across several keys can be corrected by its delta rather than
- * flattened to one frame.
+ * One file for the whole session: every clip and bone touched, as absolute
+ * local eulers in degrees, XYZ order — the units and argument order of `qt()`
+ * in `src/anim/clips.ts` — with the delta and both the original and the
+ * resulting keyframes, so a bone that moves through several keys can be
+ * corrected without flattening it to one frame.
  */
-function clipKeys(clip: THREE.AnimationClip | undefined, bone: string): Array<{ t: number; deg: number[] }> | null {
-  const track = clip?.tracks.find((t) => t.name === `${bone}.quaternion`);
-  if (!track) return null;
-  const q = new THREE.Quaternion();
-  const v = track.values;
-  const out: Array<{ t: number; deg: number[] }> = [];
-  for (let i = 0; i < track.times.length; i++) {
-    q.set(v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]);
-    const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
-    out.push({
-      t: Math.round(track.times[i] * 1000) / 1000,
-      deg: [e.x, e.y, e.z].map((v) => Math.round((v * 180) / Math.PI * 100) / 100),
-    });
-  }
-  return out;
-}
-
 function exportChanges(): void {
-  const changes = editor.changes();
-  const clips = figures.find((f) => f.inst.animator)?.inst.animator?.clips;
+  const list = edits.entries();
+  const posesOf = (clip: string): string[] =>
+    POSES.filter((p) => p.lower === clip || p.upper === clip).map((p) => p.name);
 
-  const bones: Record<string, unknown> = {};
-  for (const [name, change] of Object.entries(changes)) {
-    const upper = pose.upper ? clipKeys(clips?.[pose.upper], name) : null;
-    const lower = pose.lower ? clipKeys(clips?.[pose.lower], name) : null;
-    const channel = upper ? 'upper' : lower ? 'lower' : null;
-    const keys = upper ?? lower;
-    bones[name] = {
-      ...change,
-      channel,
-      clip: channel === 'upper' ? pose.upper : channel === 'lower' ? pose.lower : null,
-      // null when the clip has no track for this bone yet — a new track is needed
-      currentKeys: keys,
+  const clips: Record<string, unknown> = {};
+  for (const entry of list) {
+    const bones = (clips[entry.clip] ??= { playedBy: posesOf(entry.clip), bones: {} }) as
+      { playedBy: string[]; bones: Record<string, unknown> };
+    bones.bones[entry.bone] = {
+      base: entry.base,
+      edited: entry.edited,
+      delta: entry.delta,
+      currentKeys: entry.keys,
+      newKeys: entry.newKeys,
     };
   }
 
   const doc = {
-    format: 'mando-pose-edit/1',
+    format: 'mando-pose-edit/2',
     exportedAt: new Date().toISOString(),
-    character: { id: subject.id, name: subject.name },
-    pose: { id: pose.id, name: pose.name, lower: pose.lower, upper: pose.upper },
-    frozenAt: 'first keyframe (clip time 0)',
-    gizmoSpace: editor.space,
+    editedOn: { character: subject.id, lastPose: pose.id },
     units: 'local-space Euler XYZ in degrees — the argument order of qt() in src/anim/clips.ts',
     howToApply: [
-      'Each entry is one bone of the canonical rig (src/anim/skeleton.ts).',
-      '`edited` is the new absolute rotation; use it directly for a clip whose bone holds one value across all keys.',
-      '`delta` is edited - base; add it to every key of a bone that moves during the clip.',
-      '`currentKeys` is what the clip holds for that bone today (null = no track yet, so add one).',
+      'Each entry is one bone of the canonical rig (src/anim/skeleton.ts) in one clip.',
+      '`newKeys` is the finished track: paste those values into that clip’s qt() call.',
+      '`delta` is what was added to every key; `currentKeys` is what the clip holds today.',
+      '`currentKeys: null` means the clip had no track for that bone — add one (constant over the clip).',
+      'Bones were edited against the clip’s first keyframe; the delta carries to the rest.',
       'Remember the splay sign convention documented at the top of clips.ts.',
     ],
-    bones,
+    clips,
   };
 
   const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `pose-${subject.id}-${pose.id}.json`;
+  a.download = 'pose-edits.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

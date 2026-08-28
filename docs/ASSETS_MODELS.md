@@ -85,8 +85,10 @@ built from the board's sky so metal has something to catch. Inspect any of it in
 **model workbench** at `/workbench/?edit=models` — every game clip, on any character, with
 the authored model and the procedural build side by side. Its *edit mode* freezes the pose,
 draws the rig as clickable joints and rotates them with an on-screen gizmo (local, world or
-camera-relative rings, Shift to snap), then exports the changed bones as JSON in the same
-units `src/anim/clips.ts` is written in — the way to correct a clip against a real model.
+camera-relative rings, Shift to snap). Edits are written into the clips, so leaving edit mode
+plays the animation back with them, they undo and redo, and one export carries the whole
+session as JSON in the same units `src/anim/clips.ts` is written in — the way to correct a
+clip against a real model.
 
 Order of work: reference sheets (`ASSETS_IMAGES.md`) → models → loader. The sheets are the
 blocking input; the five playable Mandalorians and the two shared weapons are priority 1

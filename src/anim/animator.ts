@@ -72,6 +72,18 @@ export class Animator {
     this.current[channel] = null;
   }
 
+  /**
+   * Drop the cached actions so clips whose tracks were rewritten (the
+   * workbench's pose editor does this) are re-bound on the next play.
+   */
+  invalidate(): void {
+    this.mixer.stopAllAction();
+    for (const a of this.actions.values()) this.mixer.uncacheClip(a.getClip());
+    this.actions.clear();
+    this.release('lower');
+    this.release('upper');
+  }
+
   releaseAll(): void {
     this.mixer.stopAllAction();
     this.actions.forEach((a) => a.stop());
