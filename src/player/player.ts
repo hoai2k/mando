@@ -4,6 +4,7 @@ import { ThirdPersonCamera } from '../core/camera';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
+import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
@@ -63,6 +64,11 @@ export class Player {
   alive = true;
   kills = 0;
   team = 0;
+  /** netted: legs bound for a moment — walk it off slowly, or cut free with melee */
+  snareTimer = 0;
+  /** burn-zone damage accrues and lands in ticks so the hurt feedback isn't a buzz */
+  private burnAcc = 0;
+  private burnTick = 0;
 
   grounded = false;
   private coyote = 0;
@@ -256,7 +262,7 @@ export class Player {
     // spot; if the stick is centred the dodge waits for a direction and goes
     // the instant one arrives. Either way, holding LB on past the dodge rolls
     // into a sprint. In the air sprint means nothing, so it is the jet burst.
-    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking;
+    const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking && this.snareTimer <= 0;
     if (input.dashPressed && !this.blocking) {
       this.dashArmed = true;
       // with no dodge to spend — cooling down, or out of gauge — holding it
@@ -284,15 +290,20 @@ export class Player {
     // ---- sprint ----
     const wantsSprint = this.sprintLatched && input.sprintHeld && moving
       && this.grounded && this.energy > 0 && !this.blocking;
-    this.sprinting = wantsSprint;
-    if (wantsSprint) {
+    this.sprinting = wantsSprint && this.snareTimer <= 0;
+    if (this.sprinting) {
       this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
       this.sprintRefillDelay = 0.7;
     } else if (!this.blocking) {
       this.sprintRefillDelay -= dt;
       if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
     }
-    const topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
+    // netted: legs bound — a crawl until it runs out, or a melee swing cuts it
+    this.snareTimer -= dt;
+    if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
+    const snared = this.snareTimer > 0;
+    let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
+    if (snared) topSpeed *= 0.32;
     const speedTarget = Math.min(wishLen, 1) * topSpeed;
 
     if (this.dashTimer > 0) {
@@ -301,14 +312,16 @@ export class Player {
       this.velocity.z = this.dashDir.z * DASH_SPEED;
       if (this.velocity.y < 0) this.velocity.y = 0;
     } else {
-      const lambda = this.grounded ? 13 : (this.thrusting > 0 ? 9 : AIR_CONTROL * 0.6);
+      // on ice the grip goes: steering barely bites and running becomes a drift
+      const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
+      const lambda = this.grounded ? 13 * traction : (this.thrusting > 0 ? 9 : AIR_CONTROL * 0.6);
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
 
     // ---- jump / jetpack ----
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
-    if (input.jumpPressed && this.coyote > 0 && !this.blocking) {
+    if (input.jumpPressed && this.coyote > 0 && !this.blocking && this.snareTimer <= 0) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
@@ -375,6 +388,8 @@ export class Player {
         this.slamming = false;
         this.cam.shake(0.2);
         audio.explosion();
+        // the shockwave reaches the scenery too — ice plates crack under it
+        game.damageBreakablesNear(this.position, 4.5, 70);
         for (const e of game.enemies) {
           if (!e.alive) continue;
           const d = e.position.distanceTo(this.position);
@@ -402,11 +417,7 @@ export class Player {
         this.damage(999, this.position);
       }
     }
-    const hz = game.board.hazard;
-    if (hz && this.alive) {
-      const d = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
-      if (d < hz.radius && this.position.y < hz.center.y + 3) this.damage(999, hz.center);
-    }
+    this.applyHazards(dt, game);
 
     // ---- combat ----
     this.lockedOn = this.weapon === 'blaster' &&
@@ -447,7 +458,7 @@ export class Player {
       this.footTimer -= dt;
       if (this.footTimer <= 0) {
         this.footTimer = anim.stepInterval('runLower', gait);
-        audio.footstep(game.board.kind === 'desert' ? 'sand' : 'metal');
+        audio.footstep(game.board.footstep);
       }
     } else {
       anim.play('lower', 'idleLower');
@@ -462,6 +473,24 @@ export class Player {
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
     });
+  }
+
+  /**
+   * The board's danger zones: kill zones end it, burn zones tick damage in
+   * beats so the hurt feedback reads as heat, not a buzzer.
+   */
+  private applyHazards(dt: number, game: Game): void {
+    if (!this.alive) return;
+    const hzd = hazardAt(game.board, this.position);
+    if (hzd.kill) { this.damage(999, this.position); return; }
+    if (hzd.dps > 0) {
+      this.burnAcc += hzd.dps * dt;
+      this.burnTick -= dt;
+      if (this.burnTick <= 0) {
+        this.burnTick = 0.4;
+        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position); this.burnAcc = 0; }
+      }
+    }
   }
 
   /**
@@ -597,11 +626,7 @@ export class Player {
 
     // out of bounds / hazard (same rules as the open field)
     if (this.position.y < game.board.physics.killY) this.damage(999, this.position);
-    const hz = game.board.hazard;
-    if (hz && this.alive) {
-      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
-      if (hd < hz.radius && this.position.y < hz.center.y + 3) this.damage(999, hz.center);
-    }
+    this.applyHazards(dt, game);
 
     // ---- combat: shoot only while leaning out ----
     this.lockedOn = this.peeking &&

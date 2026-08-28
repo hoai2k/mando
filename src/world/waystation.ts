@@ -202,6 +202,12 @@ export function buildWaystation(): Board {
 
   return {
     group, physics, kind: 'station',
+    name: 'The Spice Run',
+    footstep: 'metal',
+    ambience: { sample: 'amb_station', bed: 'hum' },
+    music: 'station',
+    // island platforms: shooters hold their spawn platform instead of chasing
+    rangedLeash: true,
     background: new THREE.Color(0x05050e),
     skyFile: 'sky_space',
     // drifting between platforms should never feel like a death sentence

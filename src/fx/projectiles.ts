@@ -4,8 +4,8 @@ import type { PhysicsWorld } from '../core/physics';
 export interface BoltTarget {
   position: THREE.Vector3;   // center of hit sphere
   radius: number;
-  team: number;              // 0 = players, 1 = enemies
-  onHit: (damage: number, from: THREE.Vector3) => void;
+  team: number;              // 0 = players, 1 = enemies (2 = props, hit by both)
+  onHit: (damage: number, from: THREE.Vector3, tag?: string) => void;
   alive: boolean;
   /**
    * A raised block shield. Bolts arriving from the front of `normal` bounce
@@ -23,6 +23,8 @@ interface Bolt {
   damage: number;
   team: number;
   active: boolean;
+  /** special payloads ride along with the bolt (e.g. 'net' snares on hit) */
+  tag?: string;
 }
 
 const CAPACITY = 160;
@@ -54,10 +56,11 @@ export class ProjectileSystem {
     }
   }
 
-  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number): void {
+  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number, tag?: string): void {
     const b = this.bolts.find((x) => !x.active);
     if (!b) return;
     b.active = true;
+    b.tag = tag;
     b.mesh.visible = b.glow.visible = true;
     b.mesh.material = team === 0 ? this.matPlayer : this.matEnemy;
     b.glow.material = team === 0 ? this.glowPlayer : this.glowEnemy;
@@ -118,7 +121,7 @@ export class ProjectileSystem {
       for (const t of targets) {
         if (!t.alive || t.team === b.team) continue;
         if (segSphere(from, step, stepLen, t.position, t.radius)) {
-          t.onHit(b.damage, from);
+          t.onHit(b.damage, from, b.tag);
           this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;

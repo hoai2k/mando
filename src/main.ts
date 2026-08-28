@@ -3,8 +3,7 @@ import { config, loadSavedConfig, saveAudioConfig } from './config';
 import { InputManager } from './core/input';
 import { audio } from './core/audio';
 import { Game } from './game/game';
-import { buildTatooine } from './world/tatooine';
-import { buildWaystation } from './world/waystation';
+import { BOARDS } from './world/boards';
 import type { Board } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
@@ -87,7 +86,7 @@ app.appendChild(menuLayer);
 type AppState = 'title' | 'select' | 'characters' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 let game: Game | null = null;
-let chosenBoard: 'desert' | 'station' = 'desert';
+let chosenBoard = BOARDS[0];
 let playerCount = 1;
 let endTimer = 0;
 const chosenChars: MandoId[] = ['din', 'paz'];
@@ -127,14 +126,11 @@ function makeCard(name: string, desc: string, art: string, grad: string): HTMLEl
   cards.appendChild(c);
   return c;
 }
-const cardDesert = makeCard('The Dune Sea', 'Tatooine wastes — Tusken outcasts, Pyke patrols, swoop gangs, and the sarlacc. Watch your step.',
-  'board_tatooine.jpg', 'linear-gradient(160deg, #d9a860, #7a4a28)');
-const cardStation = makeCard('The Spice Run', 'A smugglers’ waystation in deep space. Floating platforms — the jetpack is the only road.',
-  'board_waystation.jpg', 'linear-gradient(160deg, #2a2f4a, #0c0d18)');
-select.addButtons(cards, [
-  { label: '', action: () => { chosenBoard = 'desert'; setState('characters'); }, el: cardDesert },
-  { label: '', action: () => { chosenBoard = 'station'; setState('characters'); }, el: cardStation },
-]);
+select.addButtons(cards, BOARDS.map((info) => ({
+  label: '',
+  action: () => { chosenBoard = info; setState('characters'); },
+  el: makeCard(info.name, info.desc, info.art, info.gradient),
+})));
 select.onBack = () => setState('title');
 
 // ----- character select (3D stage, drawn by the game renderer) -----
@@ -246,7 +242,7 @@ function setState(s: AppState): void {
 function startGame(): void {
   audio.init();
   disposeGame();
-  const board: Board = chosenBoard === 'desert' ? buildTatooine() : buildWaystation();
+  const board: Board = chosenBoard.build();
   const aspect = window.innerWidth / (window.innerHeight / (playerCount > 1 ? 2 : 1));
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
