@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
-import { attachAuthored } from './authored';
+import { attachAuthored, loadProp } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
 
 /** Enemy character builders — show-inspired silhouettes, procedural meshes on the canonical rig. */
@@ -26,6 +26,7 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
 const AUTHORED_ENEMY: Record<string, number> = {
   droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2, duelist: 1.9,
   pirate: 1.9, pirate_melee: 1.9, marshal: 1.85, fennec: 1.8, imperial_officer: 1.88,
+  tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
   // the swoop rider is measured standing, then posted on the saddle by the pose
   nikto: 1.76,
 };
@@ -45,7 +46,7 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
 }
 
-export function buildTusken(): CharacterInstance {
+export function buildTusken(authored = true): CharacterInstance {
   const robe = mat(0xb8a37e, { rough: 1 });
   const wrap = mat(0x8f7c58, { rough: 1 });
   const { inst, rig } = buildBiped({ skin: robe, torso: robe });
@@ -67,12 +68,13 @@ export function buildTusken(): CharacterInstance {
   const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), mat(0x8a8f92, { rough: 0.4, metal: 0.6 }));
   gaffi.rotation.x = Math.PI / 2;
   b.weaponR.add(gaffi);
+  authoredEnemy(inst, rig, 'tusken', authored);
   return inst;
 }
 
 // ---------- Pyke soldier: tall tapered helmet, slate coat, rifle ----------
 const PYKE_P: Proportions = { ...HUMAN, hipHeight: 0.9, headSize: 0.34, shoulderWidth: 0.22 };
-export function buildPyke(): CharacterInstance {
+export function buildPyke(authored = true): CharacterInstance {
   const coat = mat(0x4e5d63, { rough: 0.85 });
   const suit = mat(0x39434a, { rough: 0.9 });
   const { inst, rig } = buildBiped({ skin: suit, torso: coat, proportions: PYKE_P });
@@ -89,6 +91,7 @@ export function buildPyke(): CharacterInstance {
   addCyl(b.chest, dark, 0.014, 0.014, 0.3, -0.07, 0.16, 0.12, 0.5, 0, 0.2, 5);
   addCyl(b.chest, dark, 0.014, 0.014, 0.3, 0.07, 0.16, 0.12, 0.5, 0, -0.2, 5);
   inst.muzzle = rifle(b.weaponR);
+  authoredEnemy(inst, rig, 'pyke', authored);
   return inst;
 }
 
@@ -159,8 +162,7 @@ export function buildStormtrooper(elite: boolean, authored = true): CharacterIns
   addSphere(b.head, dark, 0.02, -0.1, -0.02, 0.1, 5, 4);
   addSphere(b.head, dark, 0.02, 0.1, -0.02, 0.1, 5, 4);
   inst.muzzle = rifle(b.weaponR);
-  // only the elite has an authored skin; the line trooper stays procedural
-  if (elite) authoredEnemy(inst, rig, 'deathtrooper', authored);
+  authoredEnemy(inst, rig, elite ? 'deathtrooper' : 'stormtrooper', authored);
   return inst;
 }
 
@@ -304,6 +306,59 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   return inst;
 }
 
+/**
+ * Pyke capo: the syndicate's local boss, in embroidered robes behind a
+ * personal shield. Another of ASSETS_MODELS.md's planned bosses, entering as a
+ * late-wave elite — a shielded shooter you have to flank or out-damage.
+ */
+export function buildPykeCapo(authored = true): CharacterInstance {
+  const robe = mat(0x4a3f63, { rough: 0.85 });
+  const { inst, rig } = buildBiped({ skin: mat(0x39434a, { rough: 0.9 }), torso: robe, proportions: PYKE_P });
+  const b = rig.bones;
+  addCyl(b.hips, robe, 0.26, 0.32, 0.5, 0, -0.22, 0, 0, 0, 0, 10);
+  const helm = mat(0xa08c6a, { rough: 0.5, metal: 0.35 });
+  addCyl(b.head, helm, 0.05, 0.12, 0.36, 0, 0.17, 0, 0, 0, 0, 10);
+  addSphere(b.head, helm, 0.12, 0, 0, 0.01, 10, 8, 0.9, 1.05);
+  inst.muzzle = rifle(b.weaponR);
+  // personal shield bubble — the thing that makes a capo a capo
+  const bubble = new THREE.Mesh(
+    new THREE.SphereGeometry(1.05, 20, 14),
+    new THREE.MeshBasicMaterial({
+      color: 0xc08cff, transparent: true, opacity: 0.13, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }),
+  );
+  bubble.position.y = 1.0;
+  inst.root.add(bubble);
+  authoredEnemy(inst, rig, 'pyke_capo', authored);
+  const prev = inst.cosmetic;
+  inst.cosmetic = (dt, time) => {
+    const m = bubble.material as THREE.MeshBasicMaterial;
+    m.opacity = 0.11 + Math.sin(time * 2.2) * 0.03;
+    bubble.rotation.y = time * 0.4;
+    prev?.(dt, time);
+  };
+  return inst;
+}
+
+/**
+ * Krrsantan-class Wookiee enforcer: a 2.6 m gladiator who closes and hits.
+ * The last of the planned bosses to arrive with a model.
+ */
+export function buildWookieeEnforcer(authored = true): CharacterInstance {
+  const fur = mat(0x2b2019, { rough: 1 });
+  const WOOKIEE_P: Proportions = { ...HUMAN, hipHeight: 1.3, chestLen: 0.38, shoulderWidth: 0.36, upperArmLen: 0.42, forearmLen: 0.38 };
+  const { inst, rig } = buildBiped({ skin: fur, torso: fur, proportions: WOOKIEE_P, scale: 1.05 });
+  const b = rig.bones;
+  addSphere(b.head, fur, 0.19, 0, 0.06, 0.02, 12, 10);
+  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.11, 0.5, 0.34, 0, 0.06, 0, 0, 0, 0.5);  // bandolier
+  const gauntlet = mat(0x6d6a63, { rough: 0.4, metal: 0.6 });
+  addCyl(b.forearmL, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
+  addCyl(b.forearmR, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
+  authoredEnemy(inst, rig, 'wookiee_enforcer', authored);
+  return inst;
+}
+
 // ---------- Nikto swoop rider: bike + seated rider, moved as one unit ----------
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
@@ -322,6 +377,14 @@ export function buildNikto(authored = true): CharacterInstance {
   bike.add(flame);
   bike.position.y = 0.55;
   group.add(bike);
+  // The bike is a vehicle, not a character — nothing animates it, so it comes
+  // in through the prop path and simply replaces the procedural box.
+  if (authored) {
+    const swoop = loadProp('nikto_swoop', 2.6, {
+      onLoad: () => { for (const m of bike.children) if ((m as THREE.Mesh).isMesh) m.visible = false; },
+    });
+    bike.add(swoop);
+  }
   // rider (statically posed on the canonical rig — no clips needed)
   const leather = mat(0x4a3b28, { rough: 0.95 });
   const { inst: rider, rig: riderRig } = buildBiped({ skin: leather, torso: mat(0x3a2f22, { rough: 0.9 }) });

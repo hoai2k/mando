@@ -25,6 +25,7 @@ export function waveComposition(board: Board['kind'], wave: number, players: num
     // the gunslinger turns up late, and alone
     if (wave >= 7) list.push({ kind: 'duelist', count: 1 });
     if (wave >= 9) list.push({ kind: 'officer', count: 1 });
+    if (wave === FINAL_WAVE) list.push({ kind: 'enforcer', count: 1 });
     return list;
   }
   const list: WaveEntry[] = [
@@ -39,6 +40,7 @@ export function waveComposition(board: Board['kind'], wave: number, players: num
   if (wave >= 9) list.push({ kind: 'deathtrooper', count: 2 });
   if (wave >= 8) list.push({ kind: 'duelist', count: 1 });
   if (wave >= 10) list.push({ kind: 'officer', count: 1 });
+  if (wave === FINAL_WAVE) list.push({ kind: 'capo', count: 1 });
   return list;
 }
 
