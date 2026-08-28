@@ -61,6 +61,8 @@ export class CharacterSelect {
   private time = 0;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
   private drag: { slot: number; lastX: number } | null = null;
+  /** live press, to tell a click apart from a drag on release */
+  private press: { slot: number; x: number; y: number; moved: number } | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -99,7 +101,7 @@ export class CharacterSelect {
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
+    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b>/<b>click</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
     this.root.appendChild(hint);
 
     // ---- mouse drag turns the model on the pedestal you grabbed ----
@@ -109,12 +111,18 @@ export class CharacterSelect {
     this.root.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
       const slot = e.clientX < window.innerWidth / 2 ? 0 : 1;
+      // Remember every press, not just the ones that can turn a model: a press
+      // on an empty or spinning pedestal can still resolve into a click.
+      this.press = { slot, x: e.clientX, y: e.clientY, moved: 0 };
       const phase = this.slots[slot].phase;
       if (phase === 'empty' || phase === 'spinning') return;   // nothing to turn
       this.drag = { slot, lastX: e.clientX };
       this.root.classList.add('dragging');
     });
     this.root.addEventListener('pointermove', (e) => {
+      if (this.press) {
+        this.press.moved = Math.max(this.press.moved, Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y));
+      }
       if (!this.drag) return;
       const s = this.slots[this.drag.slot];
       s.manual = wrapPi(s.manual + (e.clientX - this.drag.lastX) * DRAG_RATE);
@@ -122,8 +130,18 @@ export class CharacterSelect {
     });
     // on window, so releasing outside the screen still ends the drag
     const endDrag = () => { this.drag = null; this.root.classList.remove('dragging'); };
-    window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointerup', (e) => {
+      // A press that barely moved is a click, not a turn: it selects the
+      // pedestal it landed on — join an empty slot, lock in a browsing one,
+      // start from a ready one — which is what A does on a pad.
+      const press = this.press;
+      this.press = null;
+      endDrag();
+      if (press && press.moved < 6 && !(e.target as HTMLElement).closest('button')) {
+        this.select(press.slot);
+      }
+    });
+    window.addEventListener('pointercancel', () => { this.press = null; endDrag(); });
 
     // ---- 3D stage ----
     this.scene.background = new THREE.Color(0x07080c);
@@ -277,6 +295,17 @@ export class CharacterSelect {
     return -1;
   }
 
+  /**
+   * What a click (or A) on one pedestal means, by where that slot is up to.
+   * Mouse and pad go through the same three beats: join, lock in, start.
+   */
+  private select(slot: number): void {
+    const s = this.slots[slot];
+    if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
+    else if (s.phase === 'browsing') this.commit(slot);
+    else if (s.phase === 'ready' && this.startBtn.style.display !== 'none') { audio.uiConfirm(); this.start(); }
+  }
+
   handle(action: MenuAction, source: number): void {
     const slot = this.slotFor(source);
     if (slot < 0) return;
@@ -284,11 +313,7 @@ export class CharacterSelect {
     switch (action) {
       case 'left': this.flip(slot, -1); break;
       case 'right': this.flip(slot, 1); break;
-      case 'confirm':
-        if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
-        else if (s.phase === 'browsing') this.commit(slot);
-        else if (s.phase === 'ready' && this.startBtn.style.display !== 'none') { audio.uiConfirm(); this.start(); }
-        break;
+      case 'confirm': this.select(slot); break;
       case 'back':
         if (s.phase === 'ready') { audio.uiBack(); this.uncommit(slot); }
         else if (slot === 1 && s.phase === 'browsing') { audio.uiBack(); this.leave(slot); }

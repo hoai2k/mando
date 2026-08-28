@@ -216,6 +216,7 @@ end.addButtons(null, [
 end.onBack = () => quitToTitle();
 
 (window as unknown as { __charsel?: CharacterSelect }).__charsel = charSelect; // debug/testing handle
+(window as unknown as { __input?: InputManager }).__input = input;              // debug/testing handle
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

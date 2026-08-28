@@ -31,6 +31,7 @@ undo and redo them, and export the whole session as one JSON.
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Camera distance | Mouse wheel | hold right stick click + up/down |
+| Take cover (near a box) · ground slam (in air) | `C` · `Ctrl` | `RB` |
 | Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `LB` |
 | Switch weapon | `E` | D-pad right |
 | Pause | `Esc` | `Start` |

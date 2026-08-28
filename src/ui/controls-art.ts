@@ -8,11 +8,24 @@
  * needs no asset.
  */
 
-/** the keyboard does menus and nothing else — gameplay is controller-only */
+/**
+ * Keyboard and mouse are the secondary path: the game is designed around a
+ * controller, but nothing needs one.
+ */
 const KEYBOARD: Array<[string, string]> = [
-  ['Navigate menus', '↑ ↓ ← → · W A S D'],
-  ['Select', 'Enter · Space'],
-  ['Back', 'Esc'],
+  ['Move', 'W A S D'],
+  ['Look / aim', 'Mouse'],
+  ['Jump → hold to jetpack', 'Space'],
+  ['Sprint (moving) · dash (from a stop)', 'Shift'],
+  ['Block — raise shield (hold)', 'R'],
+  ['Fire blaster', 'Left mouse'],
+  ['Aim — zoom', 'Right mouse'],
+  ['Melee combo (gaffi stick)', 'F · Middle mouse'],
+  ['Wrist rocket', 'Q'],
+  ['Camera distance', 'Mouse wheel'],
+  ['Take cover · ground slam', 'C · Ctrl'],
+  ['Switch weapon', 'E · 1 · 2'],
+  ['Navigate menus', '↑ ↓ ← → · click'],
   ['Pause', 'Esc'],
   ['Fullscreen', 'Alt + F'],
 ];
