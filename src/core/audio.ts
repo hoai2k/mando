@@ -36,8 +36,10 @@ export type FootSurface = 'sand' | 'metal' | 'snow' | 'stone';
 /**
  * Authored background-music playlists, streamed rather than decoded up front:
  * these are multi-megabyte tracks, so they play through an <audio> element fed
- * into the music bus instead of a fully-decoded AudioBuffer. Each board picks a
- * random starting track and then cycles through the list forever.
+ * into the music bus instead of a fully-decoded AudioBuffer. A board opens on
+ * its own signature track when it names one (`Board.musicLead`) and otherwise
+ * on a random one, then keeps picking at random from the rest of the list —
+ * never the track it just played — for as long as the match runs.
  */
 const MUSIC_PLAYLISTS: Record<'desert' | 'station', string[]> = {
   desert: ['music/bone-totem-march-1.mp3', 'music/bone-totem-march-2.mp3'],
@@ -464,10 +466,14 @@ export class AudioEngine {
    * Board music: streamed playlist if one exists for the board, else an
    * authored single loop, else a dark synth drone.
    */
-  startMusic(kind: 'title' | 'desert' | 'station'): void {
+  startMusic(kind: 'title' | 'desert' | 'station', lead?: string): void {
     if (!this.ctx) return;
     this.stopMusic();
-    if (kind !== 'title' && this.startPlaylist(MUSIC_PLAYLISTS[kind], kind)) return;
+    if (kind !== 'title') {
+      // The lead track opens the board; the kind's playlist is what follows.
+      const urls = lead ? [lead, ...MUSIC_PLAYLISTS[kind].filter((u) => u !== lead)] : MUSIC_PLAYLISTS[kind];
+      if (this.startPlaylist(urls, kind, lead ? 0 : -1)) return;
+    }
     const name: SampleName = kind === 'title' ? 'music_title' : kind === 'desert' ? 'music_combat_desert' : 'music_combat_station';
     const sampled = this.loopSample(name, 0.5);
     if (sampled) { this.musicStop = sampled; return; }
@@ -475,11 +481,13 @@ export class AudioEngine {
   }
 
   /**
-   * Stream `urls` through the music bus, one after another on repeat. Returns
-   * false if the element can't be wired up at all; if the files themselves fail
-   * to load we drop back to the synth drone once every track has been tried.
+   * Stream `urls` through the music bus on repeat, starting at `first` (any
+   * index outside the list means start on a random track) and choosing at
+   * random from there on. Returns false if the element can't be wired up at
+   * all; if the files themselves fail to load we drop back to the synth drone
+   * once every track has been tried.
    */
-  private startPlaylist(urls: string[], kind: 'desert' | 'station'): boolean {
+  private startPlaylist(urls: string[], kind: 'desert' | 'station', first = -1): boolean {
     const ctx = this.ctx!;
     if (!urls.length || typeof Audio === 'undefined') return false;
     const el = new Audio();
@@ -491,7 +499,13 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(0.75, ctx.currentTime + 1.5);
     node.connect(g).connect(this.music);
 
-    let index = Math.floor(Math.random() * urls.length);
+    /** any track but the one playing, so nothing repeats back to back */
+    const nextIndex = (): number => {
+      if (urls.length < 2) return 0;
+      const pick = Math.floor(Math.random() * (urls.length - 1));
+      return pick >= index ? pick + 1 : pick;
+    };
+    let index = first >= 0 && first < urls.length ? first : Math.floor(Math.random() * urls.length);
     let failures = 0;
     let stopped = false;
     const teardown = () => {
@@ -509,12 +523,13 @@ export class AudioEngine {
     el.addEventListener('ended', () => {
       if (stopped) return;
       failures = 0;
-      index = (index + 1) % urls.length;
+      index = nextIndex();
       play();
     });
     el.addEventListener('error', () => {
       if (stopped) return;
       if (++failures >= urls.length) { teardown(); this.musicStop = null; this.startSynthMusic(kind); return; }
+      // Step on failure, so a dead file can't be re-picked forever.
       index = (index + 1) % urls.length;
       play();
     });

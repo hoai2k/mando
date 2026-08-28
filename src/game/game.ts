@@ -161,7 +161,7 @@ export class Game {
     }
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
-    audio.startMusic(board.music);
+    audio.startMusic(board.music, board.musicLead);
     this.events.banner(board.name, board.objective ?? 'Survive 10 waves');
   }
 
