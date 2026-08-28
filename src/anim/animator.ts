@@ -14,7 +14,7 @@ export class Animator {
   private oneShotUntil = { lower: 0, upper: 0 };
   private time = 0;
 
-  constructor(public rig: Rig, private clips: ClipSet) {
+  constructor(public rig: Rig, public readonly clips: ClipSet) {
     this.mixer = new THREE.AnimationMixer(rig.root);
   }
 

@@ -11,7 +11,9 @@ the shows.
 
 **Model workbench:** https://hoai2k.github.io/mando/workbench/?edit=models — a turntable
 for the cast. Pick a character, run any animation the game plays, and stand an authored
-model next to the procedural build it replaces.
+model next to the procedural build it replaces. *Edit mode* freezes the pose, draws the
+rig on the figure and gives each joint a rotation gizmo — local, world or camera-relative —
+and exports the bones you changed as JSON.
 
 ## Controls
 
