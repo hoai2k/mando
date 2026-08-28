@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildRig, HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { buildClips } from '../anim/clips';
 import { Animator } from '../anim/animator';
+import { loadProp } from './authored';
 
 /**
  * Procedural character construction: meshes are parented to rig bones so any
@@ -146,12 +147,31 @@ export function attachCape(rig: Rig, m: THREE.Material, width = 0.42, segs = 5, 
 }
 
 /** Impulse the cape when the character accelerates (called by controller). */
+/**
+ * Weapons follow the same rule as characters: the procedural shape is the
+ * fallback, and an authored model replaces it the moment the file is there.
+ * They hang off the same group, so the mount, the muzzle and every clip that
+ * swings them are untouched by the swap.
+ */
+function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0): void {
+  const prop = loadProp(id, length, {
+    axis: 'longest',
+    onLoad: () => { for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false; },
+  });
+  // The sculpts lie along their longest axis, which is Z; a procedural weapon
+  // built along Y needs the model turned to match before anything that holds it
+  // will hold it the same way.
+  prop.rotation.x = orientX;
+  g.add(prop);
+}
+
 export function makeGaffi(m1: THREE.Material, m2: THREE.Material): THREE.Group {
   const g = new THREE.Group();
   addCyl(g, m1, 0.02, 0.024, 1.35, 0, 0, 0, 0, 0, 0, 8); // shaft
   addCyl(g, m2, 0.005, 0.05, 0.22, 0, 0.78, 0, 0, 0, 0, 8); // spearhead
   addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
   addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
+  swapWeapon(g, 'gaffi', 1.5, -Math.PI / 2);
   return g;
 }
 
@@ -162,5 +182,6 @@ export function makeCarbine(mBody: THREE.Material, mDark: THREE.Material): THREE
   addCyl(g, mDark, 0.03, 0.03, 0.06, 0, 0.015, 0.6, Math.PI / 2, 0, 0, 8);    // muzzle
   addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.08, 0.02, 0.3);  // grip
   addBox(g, mDark, 0.03, 0.05, 0.2, 0, 0.07, 0.12);         // scope
+  swapWeapon(g, 'carbine', 0.72);
   return g;
 }
