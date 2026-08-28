@@ -32,6 +32,7 @@ const ALWAYS: Array<[string, string]> = [
   ['Navigate menus', '↑ ↓ ← → · click'],
   ['Select · back', 'Enter · Esc'],
   ['Pause', 'Esc'],
+  ['Join co-op (up to 4)', 'A on a free pad'],
   ['Fullscreen', 'Alt + F'],
 ];
 

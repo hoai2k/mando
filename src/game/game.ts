@@ -10,6 +10,7 @@ import type { MandoId } from '../characters/mandalorians';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
+import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
@@ -112,7 +113,7 @@ export class Game {
 
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
-      p.spawnAt(board.playerStarts[i] ?? board.playerStarts[0]);
+      p.spawnAt(this.startFor(board, i));
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
@@ -241,6 +242,22 @@ export class Game {
     mesh.position.copy(origin);
     this.scene.add(mesh);
     this.rockets.push({ mesh, vel: dir.clone().multiplyScalar(38), target, life: 4, bySlot });
+  }
+
+  /**
+   * Where player `i` starts. Boards declare two spots; a third and fourth are
+   * fanned out sideways from them rather than asking nine board files to each
+   * remember a number, and the height is taken from the spot they extend so
+   * nobody starts inside the ground or under a deck.
+   */
+  private startFor(board: Board, i: number): THREE.Vector3 {
+    const declared = board.playerStarts[i];
+    if (declared) return declared;
+    const base = board.playerStarts[board.playerStarts.length - 1] ?? board.playerStarts[0];
+    const step = board.playerStarts.length > 1
+      ? board.playerStarts[1].x - board.playerStarts[0].x
+      : 3;
+    return base.clone().setX(base.x + step * (i - board.playerStarts.length + 1));
   }
 
   hitMarker(slot: number): void {
@@ -626,6 +643,7 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
     const n = this.players.length;
+    const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to
     // teal murk while the partner's stays in daylight
@@ -633,13 +651,12 @@ export class Game {
     const surfaceBg = this.scene.background;
     const wY = this.board.waterY;
     for (let i = 0; i < n; i++) {
-      const vh = n > 1 ? h / 2 : h;
-      const vy = n > 1 ? (i === 0 ? h / 2 : 0) : 0;
+      const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const cam = this.players[i].cam.camera;
-      cam.aspect = w / vh;
+      cam.aspect = vw / vh;
       cam.updateProjectionMatrix();
-      renderer.setViewport(0, vy, w, vh);
-      renderer.setScissor(0, vy, w, vh);
+      renderer.setViewport(vx, vy, vw, vh);
+      renderer.setScissor(vx, vy, vw, vh);
       const under = wY !== undefined && cam.position.y < wY;
       this.scene.fog = under ? this.underFog : surfaceFog;
       this.scene.background = under ? this.underColor : surfaceBg;

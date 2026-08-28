@@ -51,8 +51,12 @@ spend it holding a shield up and you have none left to run with. Behind the shie
 shuffle but not run, and you cannot shoot or swing — and raising it in the air kills your
 lift and brings you down, because a brace needs the ground under it.
 
-Menus are fully navigable by controller. **Two-player split-screen co-op**: choose
-"Players: 2" on the board-select screen with a second controller connected.
+Menus are fully navigable by controller. **Up to four-player split-screen co-op**: on the
+character-select screen, each extra controller presses **A** on its own pedestal to join.
+The screen splits to suit — two players share it top and bottom, three get two quarters
+above a full-width strip, four take a quadrant each — and every player has their own
+camera, HUD, health and fuel. Waves grow with the party. If one player falls they respawn
+while the others hold the wave; everyone down is a defeat.
 
 ## Playing the game
 

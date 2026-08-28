@@ -9,7 +9,8 @@ export const FINAL_WAVE = 10;
 interface WaveEntry { kind: EnemyKind; count: number; air?: boolean; }
 
 export function waveComposition(board: BoardId, wave: number, players: number): WaveEntry[] {
-  const mult = players === 2 ? 1.5 : 1;
+  // each extra body on the team adds half a wave's worth of trouble
+  const mult = 1 + (Math.max(1, players) - 1) * 0.5;
   const n = (base: number, per: number) => Math.max(1, Math.round((base + wave * per) * mult));
   const ramp = (from: number, every: number, cap: number) =>
     Math.min(1 + (((wave - from) / every) | 0), cap);

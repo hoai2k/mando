@@ -121,7 +121,18 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 72%, rgba(20,30,18,0.38) 100%);
 }
-.hud-divider { position: absolute; left: 0; right: 0; height: 2px; background: rgba(0,0,0,0.8); top: 50%; }
+.hud-divider { position: absolute; left: 0; right: 0; height: 2px; background: rgba(0,0,0,0.8); }
+.hud-divider-v { position: absolute; width: 2px; background: rgba(0,0,0,0.8); }
+/* Three and four up: the picture is a quarter the size, so the furniture has
+   to shrink with it or it eats the view. Each piece is pinned to its own
+   corner, so each scales about that corner and stays where it belongs. */
+.hud-viewport.compact .hud-bars { transform: scale(0.66); transform-origin: bottom left; left: 14px; bottom: 12px; }
+.hud-viewport.compact .hud-radar { transform: scale(0.6); transform-origin: top right; }
+.hud-viewport.compact .hud-wave { transform: translateX(-50%) scale(0.72); transform-origin: top center; top: 8px; }
+.hud-viewport.compact .hud-weapon { transform: scale(0.76); transform-origin: bottom right; right: 14px; bottom: 46px; }
+.hud-viewport.compact .hud-banner .btext { font-size: 22px; letter-spacing: 0.16em; }
+.hud-viewport.compact .hud-banner .bsub { font-size: 11px !important; }
+.hud-viewport.compact .crosshair { transform: translate(-50%, -50%) scale(0.8); }
 
 /* ---------- fullscreen button ---------- */
 #corner-buttons {
@@ -225,19 +236,23 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .charsel-screen { cursor: grab; }
 .charsel-screen.dragging { cursor: grabbing; }
 .charsel-screen button { cursor: pointer; }
-.charsel-panels { display: flex; width: 100%; flex: 1; }
-.charsel-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px; }
-.charsel-panel.empty { justify-content: center; }
-.charsel-base { display: flex; align-items: center; gap: 18px; }
+.charsel-panels { position: relative; width: 100%; flex: 1; }
+.charsel-panel {
+  position: absolute; bottom: 0; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 10px;
+}
+/* an empty slot's prompt stands where its character would, not on the plinth */
+.charsel-panel.empty { bottom: 34%; }
+.charsel-base { display: flex; align-items: center; gap: 8px; }
 .charsel-name {
-  min-width: 240px; text-align: center; font-size: clamp(18px, 2.2vw, 30px);
+  min-width: 130px; text-align: center; font-size: clamp(13px, 1.35vw, 22px);
   letter-spacing: 0.14em; text-transform: uppercase; color: #d8b25a; font-weight: 700;
   text-shadow: 0 2px 12px rgba(0,0,0,0.8);
 }
 .charsel-panel.ready .charsel-name { color: #f0d492; text-shadow: 0 0 18px rgba(216,178,90,0.8); }
 .charsel-arrow {
   background: none; border: 1px solid rgba(216,178,90,0.5); border-radius: 6px;
-  color: #d8b25a; font-size: 22px; padding: 6px 14px; cursor: pointer;
+  color: #d8b25a; font-size: 17px; padding: 4px 9px; cursor: pointer;
   animation: charsel-nudge 1.6s ease-in-out infinite;
 }
 .charsel-arrow:hover { background: rgba(216,178,90,0.15); }

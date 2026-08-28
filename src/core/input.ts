@@ -1,5 +1,5 @@
 /**
- * Input: keyboard+mouse and up to two Xbox-style gamepads (standard mapping),
+ * Input: keyboard+mouse and up to four Xbox-style gamepads (standard mapping),
  * merged into per-player FrameInput, plus a menu-navigation event stream that
  * aggregates keyboard and ALL gamepads so menus are controller-navigable.
  */
@@ -32,6 +32,7 @@ export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' |
 
 /** A menu action plus where it came from: -1 = keyboard/mouse, else gamepad index. */
 import { config } from '../config';
+import { MAX_PLAYERS } from './layout';
 
 export interface MenuEvent { action: MenuAction; source: number; }
 
@@ -67,7 +68,8 @@ export class InputManager {
   private padStates = new Map<number, PadState>();
   private menuQueue: MenuEvent[] = [];
   /** gamepad index assigned to each player slot; -1 = none */
-  padForPlayer: number[] = [-1, -1];
+  /** pad index per player slot, -1 for none; one entry per possible player */
+  padForPlayer: number[] = Array(MAX_PLAYERS).fill(-1);
   stickSensitivity = 2.6; // rad/s at full deflection
   pointerLocked = false;
   /** set true while in menus so gameplay ignores input & pads emit menu events */
@@ -152,7 +154,7 @@ export class InputManager {
 
   /**
    * Assign pads to player slots: P1 gets the first free pad (shared with KB/M),
-   * P2 the next — and a slot then *keeps* its device.
+   * P2 the next, and so on up to four — and a slot then *keeps* its device.
    *
    * Reassigning by array order every frame meant that when player one's pad
    * died mid-fight (battery, cable), player two's pad became `pads[0]` on the
@@ -181,6 +183,8 @@ export class InputManager {
 
   /** True if a second controller is available for split-screen join. */
   hasSecondPad(): boolean { return this.pads().length >= 2; }
+  /** How many players could join right now: the keyboard plus every free pad. */
+  joinablePlayers(): number { return Math.min(MAX_PLAYERS, Math.max(1, this.pads().length)); }
   padCount(): number { return this.pads().length; }
 
   private padState(idx: number): PadState {

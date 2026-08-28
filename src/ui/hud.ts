@@ -1,5 +1,6 @@
 import type { Game } from '../game/game';
 import { Radar } from './radar';
+import { splitLayout } from '../core/layout';
 
 /** Per-player DOM HUD, laid out per split-screen viewport. */
 
@@ -55,15 +56,18 @@ export class Hud {
   setLayout(playerCount: number): void {
     this.layer.innerHTML = '';
     this.huds = [];
+    // the same rectangles the renderer sets its viewports from, so a player's
+    // bars always sit inside that player's picture
+    const rects = splitLayout(playerCount);
     for (let i = 0; i < playerCount; i++) {
       const root = document.createElement('div');
       root.className = 'hud-viewport';
-      if (playerCount === 1) root.style.inset = '0';
-      else {
-        root.style.left = '0'; root.style.right = '0';
-        root.style.top = i === 0 ? '0' : '50%';
-        root.style.height = '50%';
-      }
+      const r = rects[i];
+      root.style.left = `${r.x * 100}%`;
+      root.style.top = `${r.y * 100}%`;
+      root.style.width = `${r.w * 100}%`;
+      root.style.height = `${r.h * 100}%`;
+      root.classList.toggle('compact', r.h < 0.9 && r.w < 0.9);
       root.innerHTML = `
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
@@ -99,10 +103,14 @@ export class Hud {
         bannerTimer: 0,
         hitTimer: 0,
       });
-      if (playerCount > 1 && i === 1) {
-        const divider = document.createElement('div');
-        divider.className = 'hud-divider';
-        this.layer.appendChild(divider);
+      // a rule along each internal edge, so neighbouring viewports read apart
+      for (const [cls, at] of [['hud-divider', r.y], ['hud-divider-v', r.x]] as const) {
+        if (at <= 0) continue;
+        const rule = document.createElement('div');
+        rule.className = cls;
+        if (cls === 'hud-divider') { rule.style.top = `${at * 100}%`; }
+        else { rule.style.left = `${at * 100}%`; rule.style.top = `${r.y * 100}%`; rule.style.height = `${r.h * 100}%`; }
+        this.layer.appendChild(rule);
       }
     }
   }

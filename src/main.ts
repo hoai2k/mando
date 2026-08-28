@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveInputConfig } from './config';
 import { InputManager } from './core/input';
+import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { audio } from './core/audio';
 import { Game } from './game/game';
 import { BOARDS } from './world/boards';
@@ -50,7 +51,7 @@ function cornerButton(title: string, svg: string, onClick: () => void): HTMLButt
   b.className = 'corner-btn';
   b.title = title;
   b.innerHTML = svg;
-  b.addEventListener('click', () => { audio.init(); audio.uiConfirm(); onClick(); });
+  b.addEventListener('click', () => { audio.init(); audio.uiConfirm(); b.blur(); onClick(); });
   corner.appendChild(b);
   return b;
 }
@@ -71,7 +72,7 @@ function toggleFullscreen(): void {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.();
 }
-fsBtn.addEventListener('click', () => { audio.init(); toggleFullscreen(); });
+fsBtn.addEventListener('click', () => { audio.init(); fsBtn.blur(); toggleFullscreen(); });
 document.addEventListener('fullscreenchange', () => {
   fsBtn.innerHTML = document.fullscreenElement ? FS_SHRINK : FS_EXPAND;
 });
@@ -138,7 +139,8 @@ const charSelect = new CharacterSelect(menuLayer, {
   onStart: (chars, count) => {
     chosenChars.length = 0;
     chosenChars.push(...chars);
-    if (chars.length === 1) chosenChars.push('paz');   // slot 1 default, unused solo
+    // pad out the unused slots so a later index is never undefined
+    while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     playerCount = count;
     startGame();
   },
@@ -274,7 +276,10 @@ function startGame(): void {
   audio.init();
   disposeGame();
   const board: Board = chosenBoard.build();
-  const aspect = window.innerWidth / (window.innerHeight / (playerCount > 1 ? 2 : 1));
+  // seed the cameras with the aspect of the viewport they will actually get;
+  // render() recomputes it per frame, but a wrong first frame is a visible pop
+  const first = splitLayout(playerCount)[0];
+  const aspect = (window.innerWidth * first.w) / (window.innerHeight * first.h);
   // Layout first: the Game constructor announces the board, and setLayout wipes
   // and rebuilds the HUD elements. Built the other way round, that opening
   // banner was written into DOM that was destroyed a line later, so "The Dune
@@ -309,6 +314,18 @@ function quitToTitle(): void {
   hud.hide();
   setState('title');
 }
+
+// Start an N-player match without N controllers plugged in. Split-screen is
+// otherwise untestable on one machine, and the layout is the part most likely
+// to break — every slot still reads its own device, so a pad that is there
+// drives its player and a slot without one simply stands still.
+Object.assign(window, {
+  __startCoop: (n: number) => {
+    playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
+    while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
+    startGame();
+  },
+});
 
 // clicking the canvas while playing re-locks the pointer
 renderer.domElement.addEventListener('click', () => {
@@ -348,7 +365,7 @@ function frame(now: number): void {
 
   if (game && state !== 'title' && state !== 'select' && state !== 'characters') {
     if (state === 'playing') {
-      const inputs = [input.read(0, dt), input.read(1, dt)];
+      const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
       hud.update(dt, game);
       // transition to end screen shortly after victory/defeat

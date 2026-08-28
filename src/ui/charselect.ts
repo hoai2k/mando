@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { audio } from '../core/audio';
+import { MAX_PLAYERS } from '../core/layout';
+
+/** scratch for projecting a pedestal to the screen */
+const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
 import { buildMandalorian, MANDO_ROSTER, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
 import { preloadAuthored } from '../characters/authored';
@@ -90,7 +94,7 @@ export class CharacterSelect {
     panels.className = 'charsel-panels';
     this.root.appendChild(panels);
 
-    for (let i = 0; i < 2; i++) this.slots.push(this.makeSlot(i, panels));
+    for (let i = 0; i < MAX_PLAYERS; i++) this.slots.push(this.makeSlot(i, panels));
 
     this.startBtn = document.createElement('button');
     this.startBtn.className = 'menu-btn charsel-start';
@@ -148,7 +152,8 @@ export class CharacterSelect {
     this.scene.fog = new THREE.Fog(0x07080c, 6, 14);
     // far enough back that the tallest fighter (Paz, 2 m) keeps his head
     // under the title and his feet clear of the name plates
-    this.camera.position.set(0, 1.5, 4.8);
+    // four pedestals need the camera further back than two did
+    this.camera.position.set(0, 1.5, MAX_PLAYERS > 2 ? 6.6 : 4.8);
     this.camera.lookAt(0, 1.05, 0);
 
     const key = new THREE.DirectionalLight(0xfff0d8, 2.2);
@@ -167,8 +172,11 @@ export class CharacterSelect {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    for (let i = 0; i < 2; i++) {
-      const x = i === 0 ? -1.4 : 1.4;
+    // pedestals spread evenly about the centre line, tightening as the line
+    // grows so four still fit the frame
+    const gap = MAX_PLAYERS > 2 ? 1.5 : 2.8;
+    for (let i = 0; i < MAX_PLAYERS; i++) {
+      const x = (i - (MAX_PLAYERS - 1) / 2) * gap;
       const pedestal = new THREE.Mesh(
         new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
         new THREE.MeshStandardMaterial({ color: 0x232a38, roughness: 0.4, metalness: 0.7 }),
@@ -290,9 +298,11 @@ export class CharacterSelect {
   /** Map an input source (-1 keyboard, else pad index) to a player slot. */
   private slotFor(source: number): number {
     const pads = this.opts.padForPlayer();
-    if (source === -1 || source === pads[0]) return 0;
-    if (source === pads[1]) return 1;
-    return -1;
+    // the keyboard is player one's other hand; every pad answers for the slot
+    // it was assigned, however many of them there are
+    if (source === -1) return 0;
+    const slot = pads.indexOf(source);
+    return slot >= 0 && slot < this.slots.length ? slot : -1;
   }
 
   /**
@@ -431,7 +441,23 @@ export class CharacterSelect {
   render(renderer: THREE.WebGLRenderer): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
+    this.layoutPanels();
     renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Put each player's name and arrows under that player's pedestal.
+   *
+   * The panels used to be equal flex columns, which lined up with two
+   * pedestals only because the spacing had been picked to make it so — and
+   * only at one aspect ratio. Projecting the pedestal instead is exact at any
+   * window shape and any number of players.
+   */
+  private layoutPanels(): void {
+    for (const s of this.slots) {
+      PROJECT.copy(s.group.position).project(this.camera);
+      s.panel.style.left = `${(PROJECT.x * 0.5 + 0.5) * 100}%`;
+    }
   }
 
   // ---------- DOM state ----------
