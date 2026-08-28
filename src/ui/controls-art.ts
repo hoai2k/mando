@@ -18,7 +18,7 @@ const KEYBOARD: Array<[string, string]> = [
   ['Aim — zoom', 'Right mouse'],
   ['Melee combo (gaffi stick)', 'F · Middle mouse'],
   ['Wrist rocket', 'Q'],
-  ['Dead Eye', 'V'],
+  ['Camera distance', 'Mouse wheel'],
   ['Take cover · ground slam', 'Ctrl · C'],
   ['Switch weapon', 'E · 1 · 2'],
   ['Pause', 'Esc'],
@@ -126,7 +126,7 @@ function padSvg(): string {
     ${lead('728,300 686,300 634,238')}${dot(605, 222)}
     ${label(736, 296, 'start', [
       ['Right stick', 'Look &amp; aim'],
-      ['Click', 'Dead Eye'],
+      ['Click + up/down', 'Camera distance'],
     ])}
 
     <!-- View and Menu: routed down through the gap between the grips, which is

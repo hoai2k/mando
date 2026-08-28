@@ -30,7 +30,7 @@ undo and redo them, and export the whole session as one JSON.
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
-| Dead Eye (slow motion) | `V` | click right stick |
+| Camera distance | Mouse wheel | hold right stick click + up/down |
 | Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `LB` |
 | Switch weapon | `E` | D-pad right |
 | Pause | `Esc` | `Start` |
@@ -67,8 +67,7 @@ worth pushing.
 
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
-and recoil climbs; **Dead Eye** (`V` / right-stick click) drops the world into slow
-motion while your trigger stays fast — the meter refills as you kill. And you can
+and recoil climbs; You can
 **take cover** like they do: press `C` (or `RB`) near a crate to snap against it —
 slide along the face with the stick, hold aim to lean out past the corner and
 shoot (it picks the corner with a clear shot to your target), release to duck
