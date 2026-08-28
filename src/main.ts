@@ -248,12 +248,16 @@ function startGame(): void {
   disposeGame();
   const board: Board = chosenBoard === 'desert' ? buildTatooine() : buildWaystation();
   const aspect = window.innerWidth / (window.innerHeight / (playerCount > 1 ? 2 : 1));
+  // Layout first: the Game constructor announces the board, and setLayout wipes
+  // and rebuilds the HUD elements. Built the other way round, that opening
+  // banner was written into DOM that was destroyed a line later, so "The Dune
+  // Sea / Survive 10 waves" never actually appeared.
+  hud.setLayout(playerCount);
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars]);
-  hud.setLayout(playerCount);
   setState('playing');
   input.requestPointerLock();
   (window as unknown as { __game?: Game }).__game = game; // debug/testing handle

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeGaffi, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 
@@ -309,7 +310,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       const cloned = source.map((m): THREE.Material => {
         const std = m as THREE.MeshStandardMaterial;
         if (!std.isMeshStandardMaterial) return m;      // muzzle flash, flames
-        const c = std.clone();
+        const c = markOwned(std.clone());   // a per-player copy, not the shared cache entry
         // self-lit by its own surface: where there's a texture the emissive
         // follows it, so the lift reads as ambience rather than a colour wash
         c.emissiveMap = c.map;

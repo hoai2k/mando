@@ -42,7 +42,10 @@ export class AudioEngine {
   private sfx!: GainNode;
   private music!: GainNode;
   private samples = new Map<string, AudioBuffer>();
-  private jetpackNodes: { gain: GainNode; filter: BiquadFilterNode }[] = [];
+  /** per-player looping jetpack voice; `sample` is what it was built around */
+  private jetpackNodes: ({
+    gain: GainNode; filter: BiquadFilterNode; src: AudioBufferSourceNode; sample: AudioBuffer | null;
+  } | undefined)[] = [];
   private ambientStop: (() => void) | null = null;
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
@@ -119,7 +122,7 @@ export class AudioEngine {
     return buf;
   }
 
-  private playSample(name: SampleName, gain = 1, rate = 1): boolean {
+  private playSample(name: SampleName, gain = 1, rate = 1, bus: GainNode = this.sfx): boolean {
     const s = this.samples.get(name);
     if (!s || !this.ctx) return false;
     const src = this.ctx.createBufferSource();
@@ -127,7 +130,7 @@ export class AudioEngine {
     src.playbackRate.value = rate;
     const g = this.ctx.createGain();
     g.gain.value = gain;
-    src.connect(g).connect(this.sfx);
+    src.connect(g).connect(bus);
     src.start();
     return true;
   }
@@ -279,9 +282,18 @@ export class AudioEngine {
   setJetpackThrust(slot: number, thrust: number): void {
     if (!this.ctx) return;
     let node = this.jetpackNodes[slot];
+    const sample = this.samples.get('jetpack_loop') ?? null;
+    // Samples decode asynchronously after init, so a player who jets in the
+    // first seconds used to build this node around the synth fallback and keep
+    // it for the whole browser session. Rebuild once the real loop lands.
+    if (node && node.sample !== sample) {
+      node.src.stop();
+      node.gain.disconnect();
+      node = undefined;
+    }
     if (!node) {
       const src = this.ctx.createBufferSource();
-      src.buffer = this.samples.get('jetpack_loop') ?? this.noiseBuf;
+      src.buffer = sample ?? this.noiseBuf;
       src.loop = true;
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
@@ -290,12 +302,27 @@ export class AudioEngine {
       gain.gain.value = 0;
       src.connect(filter).connect(gain).connect(this.sfx);
       src.start();
-      node = { gain, filter };
+      node = { gain, filter, src, sample };
       this.jetpackNodes[slot] = node;
     }
     const t = this.ctx.currentTime;
     node.gain.gain.setTargetAtTime(thrust * 0.34, t, 0.05);
     node.filter.frequency.setTargetAtTime(300 + thrust * 1700, t, 0.06);
+  }
+
+  /**
+   * Tear down the looping jetpack voices. They run forever once started — at
+   * gain 0 between flights, but still a live source and filter in the graph for
+   * every match the tab ever plays.
+   */
+  stopJetpacks(): void {
+    for (let slot = 0; slot < this.jetpackNodes.length; slot++) {
+      const node = this.jetpackNodes[slot];
+      if (!node) continue;
+      try { node.src.stop(); } catch { /* already stopped */ }
+      node.gain.disconnect();
+      this.jetpackNodes[slot] = undefined;
+    }
   }
 
   /** Loop a decoded sample into the music bus; returns a stop fn. */
@@ -436,9 +463,14 @@ export class AudioEngine {
   }
   stopMusic(): void { this.musicStop?.(); this.musicStop = null; }
 
-  /** Victory/defeat sting (sample only; wave sounds already cover fallback). */
+  /**
+   * Victory/defeat sting (sample only; wave sounds already cover fallback).
+   * On the music bus, as its name says: on the SFX bus it played at SFX volume
+   * — a third of the intended level with the shipped defaults — and ignored the
+   * Music slider it should answer to.
+   */
   sting(victory: boolean): void {
-    this.playSample(victory ? 'music_victory' : 'music_defeat', 0.7);
+    this.playSample(victory ? 'music_victory' : 'music_defeat', 0.7, 1, this.music);
   }
 
   /**

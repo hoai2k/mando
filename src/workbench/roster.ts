@@ -54,7 +54,7 @@ const prop = (id: string, name: string, size: number, axis: 'y' | 'longest' = 'l
   id,
   name,
   hasModel: true,
-  build: () => ({ root: loadProp(id, size, { axis, ground: axis === 'y' }), rig: null, animator: null, height: size }),
+  build: () => ({ root: loadProp(id, size, { axis, ground: axis === 'y' }), rig: null, animator: null, height: size, baseScale: 1 }),
 });
 
 export const GROUPS: SubjectGroup[] = [

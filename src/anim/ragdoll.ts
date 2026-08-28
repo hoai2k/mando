@@ -180,10 +180,24 @@ export class Ragdoll {
   /** Aim every driven bone at the point that follows it. */
   private driveRig(): void {
     const b = this.rig.bones;
-    this.rig.root.position.set(0, 0, 0);
+    // Place the body with the root and leave the hips bone at its rest offset.
+    //
+    // Writing the corpse's world position straight onto the hips bone (with the
+    // root parked at the origin) worked for the procedural skin, but never
+    // reached an authored one: that model hangs off this same root and is
+    // driven by bone *rotations* plus the hips' vertical bob, so the world X/Z
+    // stayed behind on the procedural skeleton and the visible body rendered
+    // back at the map origin. Carrying the placement on the root reaches both.
+    // The root's scale is the character's bulk, so the hip offset is in its
+    // units; rotations are unaffected by a uniform scale.
+    const rest = this.rig.proportions.hipHeight;
+    this.rig.root.position.copy(this.pos[HIPS]);
+    this.rig.root.position.y -= rest * (this.rig.root.scale.y || 1);
     this.rig.root.quaternion.identity();
     for (const name of RELAX) b[name as keyof typeof b]?.quaternion.identity();
-    b.hips.position.copy(this.pos[HIPS]);
+    // rest, not zero: the authored retarget reads this bone's height as the
+    // clips' vertical bob and would sink the model by a hip's worth otherwise
+    b.hips.position.set(0, rest, 0);
     this.rig.root.updateMatrixWorld(true);
     for (const d of DRIVE) {
       const bone = b[d.bone as keyof typeof b];

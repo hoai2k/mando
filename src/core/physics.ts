@@ -60,6 +60,18 @@ export class PhysicsWorld {
    * collisions. Returns grounded state.
    */
   moveCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3, dt: number): GroundHit {
+    // Movement is teleport-then-push-out, so it only sees a wall it ends the
+    // step overlapping. At dash speed against the loop's 0.05 s frame clamp a
+    // single step covers most of a metre and can cross a thin wall or platform
+    // without ever touching it. Split anything longer than half a radius.
+    const dist = Math.hypot(vel.x, vel.y, vel.z) * dt;
+    const steps = Math.min(8, Math.max(1, Math.ceil(dist / Math.max(0.05, radius * 0.5))));
+    let res: GroundHit = { grounded: false, groundY: -Infinity };
+    for (let i = 0; i < steps; i++) res = this.stepCapsule(pos, radius, height, vel, dt / steps);
+    return res;
+  }
+
+  private stepCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3, dt: number): GroundHit {
     pos.x += vel.x * dt;
     pos.z += vel.z * dt;
 
@@ -224,7 +236,25 @@ function rayBox(o: THREE.Vector3, d: THREE.Vector3, b: StaticBox, maxDist: numbe
     tmax = Math.min(tmax, t2);
     if (tmin > tmax) return null;
   }
-  if (axis < 0 || tmin <= 0) return null;
+  if (axis < 0 || tmin <= 0) {
+    // An origin inside the box used to report nothing at all, which reads as
+    // "clear line" to every caller. The camera collision ray starts at the
+    // player's head, so a head pushed into a wall let the camera swing straight
+    // through the geometry. Report a contact at zero distance instead, with the
+    // normal of the nearest face so the caller is pushed back out.
+    const inside = o.x > b.min.x && o.x < b.max.x && o.y > b.min.y
+      && o.y < b.max.y && o.z > b.min.z && o.z < b.max.z;
+    if (!inside) return null;
+    let bestAxis = 0, bestDepth = Infinity, bestSign = 1;
+    for (let i = 0; i < 3; i++) {
+      const lo = oArr[i] - minArr[i], hi = maxArr[i] - oArr[i];
+      if (lo < bestDepth) { bestDepth = lo; bestAxis = i; bestSign = -1; }
+      if (hi < bestDepth) { bestDepth = hi; bestAxis = i; bestSign = 1; }
+    }
+    const n = new THREE.Vector3();
+    n.setComponent(bestAxis, bestSign);
+    return { dist: 0, point: o.clone(), normal: n };
+  }
   const point = o.clone().addScaledVector(d, tmin);
   const normal = new THREE.Vector3();
   normal.setComponent(axis, sign);

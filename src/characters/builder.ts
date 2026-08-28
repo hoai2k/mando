@@ -3,6 +3,7 @@ import { buildRig, HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { buildClips } from '../anim/clips';
 import { Animator } from '../anim/animator';
 import { loadProp } from './authored';
+import { markShared } from '../core/dispose';
 
 /**
  * Procedural character construction: meshes are parented to rig bones so any
@@ -24,6 +25,13 @@ export interface CharacterInstance {
    */
   setGait?: (speed: number) => void;
   height: number;
+  /**
+   * Species bulk, as a uniform scale on `root`. Gameplay code also writes
+   * `root.scale` (the hit-flash pop), so anything that does has to multiply
+   * this in rather than overwrite it — otherwise a dark trooper renders at
+   * trooper size while its hit spheres stay elite-sized.
+   */
+  baseScale: number;
 }
 
 const materials = new Map<string, THREE.MeshStandardMaterial>();
@@ -36,6 +44,8 @@ export function mat(color: number, opts: { rough?: number; metal?: number; emiss
       flatShading: opts.flat ?? false,
     });
     if (opts.emissive) m.emissive = new THREE.Color(opts.emissive);
+    // handed to every character in every match: match teardown must not free it
+    markShared(m);
     materials.set(key, m);
   }
   return m;
@@ -116,7 +126,9 @@ export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: 
   if (opts.scale && opts.scale !== 1) rig.root.scale.setScalar(opts.scale);
 
   const inst: CharacterInstance = {
-    root: rig.root, rig, animator, height: rig.height * (opts.scale ?? 1),
+    root: rig.root, rig, animator,
+    height: rig.height * (opts.scale ?? 1),
+    baseScale: opts.scale ?? 1,
   };
   return { inst, rig };
 }

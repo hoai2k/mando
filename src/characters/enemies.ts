@@ -497,7 +497,7 @@ export function buildMassiff(authored = true): CharacterInstance {
   }
 
   return {
-    root, rig: null, animator: null, height: 2.0,
+    root, rig: null, animator: null, height: 2.0, baseScale: 1,
     setGait: (speed: number) => { gaitSpeed = speed; },
     cosmetic: (dt, time) => {
       if (mixer) {
@@ -593,7 +593,7 @@ export function buildNikto(authored = true): CharacterInstance {
   });
 
   return {
-    root: group, rig: null, animator: null, height: 1.6,
+    root: group, rig: null, animator: null, height: 1.6, baseScale: 1,
     cosmetic: (dt, time) => {
       swap.update();
       bike.position.y = 0.55 + Math.sin(time * 6) * 0.05;

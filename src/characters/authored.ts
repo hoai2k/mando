@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import { ASSET_ROOT } from '../core/assets';
+import { markSharedTree } from '../core/dispose';
 
 /**
  * Authored glTF characters.
@@ -141,12 +142,19 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
           (gltf.scene as THREE.Group).userData.clips = gltf.animations ?? [];
+          // every instance is a clone sharing these buffers and materials, and
+          // the file is cached for the session — teardown must not free them
+          markSharedTree(gltf.scene as THREE.Group);
           resolve(gltf.scene as THREE.Group);
         },
         undefined,
         (err) => {
           // absent is normal (procedural fallback); anything else is worth saying
           console.warn(`[authored] ${id}.glb failed to load:`, err);
+          // Drop the rejection from the cache. Keeping it meant one dropped
+          // request downgraded that character to procedural for the rest of
+          // the session, with no way back short of a reload.
+          cache.delete(id);
           resolve(null);
         },
       );
@@ -162,6 +170,19 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
  * doesn't start the download from zero.
  */
 export function preloadAuthored(id: string): void { loadRaw(id); }
+
+/**
+ * .glb backing each enemy kind, so a wave's models can be warmed before it
+ * lands. Loading on first spawn meant a 3-4 MB parse on the main thread at the
+ * worst possible moment — the frame a new enemy type joins the fight.
+ */
+export const ENEMY_MODEL_ID: Record<string, string> = {
+  tusken: 'tusken', pyke: 'pyke', pirate: 'pirate', pirateMelee: 'pirate_melee',
+  jetpirate: 'pirate', droid: 'droid', nikto: 'nikto', massiff: 'massiff',
+  stormtrooper: 'stormtrooper', deathtrooper: 'deathtrooper', darktrooper: 'darktrooper',
+  duelist: 'duelist', officer: 'imperial_officer', capo: 'pyke_capo',
+  enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',
+};
 
 /**
  * Re-parent `child` under `parent` without moving it in the world. The skin's

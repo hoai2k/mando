@@ -56,6 +56,13 @@ class Pool {
   private maxLife: Float32Array;
   private cursor = 0;
   private geo: THREE.BufferGeometry;
+  /**
+   * Upper bound on particles still burning. An idle pool used to walk its whole
+   * capacity and re-upload every attribute buffer each frame — the flame pool
+   * alone pushed ~83 KB a frame with nothing on fire. Emission over-counts and
+   * the update pass corrects it, so zero here really means zero.
+   */
+  private live = 0;
 
   constructor(public capacity: number, color: number, size: number, private gravity: number, additive = true, opacity = 0.9) {
     this.pos = new Float32Array(capacity * 3).fill(1e6);
@@ -168,6 +175,13 @@ class FlamePool {
   private cursor = 0;
   private geo = new THREE.BufferGeometry();
   private time = 0;
+  /**
+   * Upper bound on particles still burning. An idle pool used to walk its whole
+   * capacity and re-upload every attribute buffer each frame — the flame pool
+   * alone pushed ~83 KB a frame with nothing on fire. Emission over-counts and
+   * the update pass corrects it, so zero here really means zero.
+   */
+  private live = 0;
 
   constructor(public capacity: number) {
     const n = capacity;
@@ -250,6 +264,7 @@ class FlamePool {
     let count = Math.floor(want);
     if (Math.random() < want - count) count++;
     if (count <= 0) return;
+    this.live = Math.min(this.capacity, this.live + count);
 
     // nozzle frame: any two axes perpendicular to the exhaust direction
     const d = _d.copy(dir).normalize();
@@ -303,11 +318,14 @@ class FlamePool {
 
   update(dt: number): void {
     this.time += dt;
+    if (this.live === 0) return;
+    let live = 0;
     const t = this.time;
     for (let i = 0; i < this.capacity; i++) {
       if (this.life[i] <= 0) continue;
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.pos[i * 3 + 1] = 1e6; this.aAlpha[i] = 0; continue; }
+      live++;
 
       const age = 1 - this.life[i] / this.maxLife[i];
       const i3 = i * 3;
@@ -339,6 +357,7 @@ class FlamePool {
       this.aSize[i] = this.sizeA[i] + (this.sizeB[i] - this.sizeA[i]) * Math.pow(age, 0.55);
       this.aAlpha[i] = this.alpha[i] * Math.min(1, age / 0.05) * Math.pow(1 - age, 1.4);
     }
+    this.live = live;
     (this.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     (this.geo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
     (this.geo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;

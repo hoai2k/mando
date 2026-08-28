@@ -100,7 +100,22 @@ export class InputManager {
     // losing focus mid-hold would otherwise leave a key stuck down
     window.addEventListener('blur', () => { this.keys.clear(); this.mouseButtons.clear(); });
     document.addEventListener('pointerlockchange', () => {
+      const was = this.pointerLocked;
       this.pointerLocked = document.pointerLockElement === this.canvas;
+      // The click that grabs the lock back must not also read as a trigger
+      // pull: mousedown lands while still unlocked and the button stays held
+      // into the locked frames, firing the blaster on the way in.
+      this.mouseButtons.clear();
+      this.mousePressed.clear();
+      this.mouseDX = 0;
+      this.mouseDY = 0;
+      // Escape is consumed by the browser to leave pointer lock and never
+      // reaches keydown, so this is the only signal that a keyboard-and-mouse
+      // player asked to stop. Without it the match ran on with mouse-look dead
+      // while they were being shot at.
+      if (was && !this.pointerLocked && !this.menuMode) {
+        this.menuQueue.push({ action: 'pause', source: -1 });
+      }
     });
   }
 
@@ -127,11 +142,33 @@ export class InputManager {
     return out;
   }
 
-  /** Assign pads to player slots: P1 gets the first pad (shared with KB/M), P2 the second. */
+  /**
+   * Assign pads to player slots: P1 gets the first free pad (shared with KB/M),
+   * P2 the next — and a slot then *keeps* its device.
+   *
+   * Reassigning by array order every frame meant that when player one's pad
+   * died mid-fight (battery, cable), player two's pad became `pads[0]` on the
+   * very next frame and started driving player one's character while player two
+   * lost control of theirs. Slots now hold a device index until that device
+   * actually goes away, and losing one in play pauses instead.
+   */
   private assignPads(): void {
     const pads = this.pads();
-    this.padForPlayer[0] = pads[0]?.index ?? -1;
-    this.padForPlayer[1] = pads[1]?.index ?? -1;
+    const live = new Set(pads.map((p) => p.index));
+    let lost = false;
+    for (let s = 0; s < this.padForPlayer.length; s++) {
+      if (this.padForPlayer[s] >= 0 && !live.has(this.padForPlayer[s])) {
+        this.padForPlayer[s] = -1;
+        lost = true;
+      }
+    }
+    for (const p of pads) {
+      if (this.padForPlayer.includes(p.index)) continue;
+      const slot = this.padForPlayer.indexOf(-1);
+      if (slot < 0) break;
+      this.padForPlayer[slot] = p.index;
+    }
+    if (lost && !this.menuMode) this.menuQueue.push({ action: 'pause', source: -1 });
   }
 
   /** True if a second controller is available for split-screen join. */
@@ -212,7 +249,9 @@ export class InputManager {
    */
   read(slot: number, dt: number): FrameInput {
     const inp = blankInput();
-    if (this.menuMode) { this.endFrame(); return inp; }
+    // Edges are cleared once per frame by the caller's endFrame(), never here:
+    // clearing them mid-read would eat player two's edges in split-screen.
+    if (this.menuMode) return inp;
 
     // Player one can also use keyboard and mouse. Two actions are controller
     // shapes that need a keyboard equivalent: sprint latches off the same

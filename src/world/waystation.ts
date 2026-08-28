@@ -85,7 +85,11 @@ export function buildWaystation(): Board {
   spire.position.set(0, 8, 8);
   spire.castShadow = spire.receiveShadow = true;
   group.add(spire);
-  physics.addBox(0, 8, 8, 12, 60, 12);
+  // A cylinder, not a box: the spire is round, so a 12 m square collider left
+  // flat sides you sank into near the base (bottom radius 7.5 vs a 6 m half
+  // width) and invisible walls at the corners (8.5 m out). addCylinder exists
+  // for exactly this — see the mesa note in tatooine.ts.
+  physics.addCylinder(0, 8, 8, 6.5, 60);
   // glowing windows band
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffc76a });
   for (let i = 0; i < 14; i++) {

@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Board } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy } from '../enemies/enemy';
-import { FINAL_WAVE, spawnWave } from '../enemies/spawner';
+import { FINAL_WAVE, spawnWave, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
@@ -11,6 +11,8 @@ import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
 import { loadOptionalTexture } from '../core/assets';
+import { disposeSubtree } from '../core/dispose';
+import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
@@ -46,6 +48,10 @@ export class Game {
   private tmpSize = new THREE.Vector2();
   private envSource: THREE.Texture | null = null;
   private envBuilt = false;
+  /** PMREM output; three hands back a render target that has to be freed too */
+  private envRT: THREE.WebGLRenderTarget | null = null;
+  /** set by dispose(), so async loads that land afterwards stay out of a dead scene */
+  private disposed = false;
   private rocketGeo = new THREE.ConeGeometry(0.09, 0.42, 6);
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
@@ -67,6 +73,9 @@ export class Game {
     // authored equirect panorama replaces the procedural sky dome when present
     if (board.skyFile) {
       loadOptionalTexture(board.skyFile, (tex) => {
+        // the panorama is megabytes; quitting or restarting mid-download used
+        // to drop it into a torn-down scene, orphaning the decoded texture
+        if (this.disposed) { tex.dispose(); return; }
         tex.mapping = THREE.EquirectangularReflectionMapping;
         this.scene.background = tex;
         this.scene.backgroundIntensity = board.skyIntensity ?? 1;
@@ -111,16 +120,46 @@ export class Game {
       }
     };
 
+    // The intro banner buys a couple of seconds; spend them fetching the models
+    // wave one is about to need, rather than parsing them on the spawn frame.
+    this.preloadWave(1);
+
     audio.startAmbient(board.kind === 'desert' ? 'desert' : 'station');
     audio.startMusic(board.kind === 'desert' ? 'desert' : 'station');
     this.events.banner(board.kind === 'desert' ? 'The Dune Sea' : 'The Spice Run', 'Survive 10 waves');
   }
 
+  /**
+   * Give the GPU back everything this match built.
+   *
+   * Three frees buffers and textures only on an explicit dispose(), so without
+   * this every "Retry Board" left a whole previous board — terrain, props,
+   * skies, characters, the reflection probe — resident for the life of the tab,
+   * and repeated restarts walked GPU memory upward until the browser dropped
+   * the context. Resources shared across matches (the character material cache,
+   * the texture cache, loaded .glb scenes) are tagged and skipped; see
+   * core/dispose.ts.
+   */
   dispose(): void {
+    this.disposed = true;
     audio.stopAmbient();
     audio.stopMusic();
-    audio.setJetpackThrust(0, 0);
-    audio.setJetpackThrust(1, 0);
+    audio.stopJetpacks();
+
+    disposeSubtree(this.scene);
+    this.rocketGeo.dispose();
+    this.rocketMat.dispose();
+    if (this.scene.background instanceof THREE.Texture) this.scene.background.dispose();
+    this.scene.background = null;
+    this.scene.environment?.dispose();
+    this.envRT?.dispose();
+    this.envRT = null;
+    this.scene.environment = null;
+    this.envSource = null;
+    this.rockets.length = 0;
+    this.enemies.length = 0;
+    this.allies.length = 0;
+    this.players.length = 0;
   }
 
   fireRocket(origin: THREE.Vector3, dir: THREE.Vector3, target: Enemy | null, bySlot: number): void {
@@ -258,13 +297,16 @@ export class Game {
     const targets: BoltTarget[] = [];
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      const onHit = (dmg: number, from: THREE.Vector3): void => {
+      // Credit goes to whoever pulled the trigger. Deriving it from the bolt's
+      // impact position instead handed player A's kills to player B whenever
+      // the target happened to be standing nearer B — and credited ally fire to
+      // a random player.
+      const onHit = (dmg: number, from: THREE.Vector3, bySlot: number): void => {
         const wasAlive = e.alive;
-        const slot = this.nearestPlayerSlot(from);
-        e.damage(dmg, from, slot);
+        e.damage(dmg, from, bySlot);
         // every hit shoves: light per bolt, but it stacks over a burst
         e.knockback(from, 5.5, 0.2);
-        if (wasAlive) this.hitMarker(slot);
+        if (wasAlive && bySlot >= 0) this.hitMarker(bySlot);
       };
       targets.push({
         position: e.position.clone().add(new THREE.Vector3(0, e.height * 0.5, 0)),
@@ -293,6 +335,7 @@ export class Game {
         position: p.position.clone().add(new THREE.Vector3(0, 0.9, 0)),
         radius: p.radius + 0.35, team: 0, alive: p.alive,
         shield: p.shieldCollider,
+        slot: p.slot,
         onHit: (dmg, from) => p.damage(dmg, from),
       });
     }
@@ -340,13 +383,13 @@ export class Game {
     this.particles.update(dt);
   }
 
-  private nearestPlayerSlot(from: THREE.Vector3): number {
-    let slot = 0, bestD = Infinity;
-    for (const p of this.players) {
-      const d = p.position.distanceToSquared(from);
-      if (d < bestD) { bestD = d; slot = p.slot; }
+  /** Warm the .glb cache for everything a wave can put on the board. */
+  private preloadWave(wave: number): void {
+    if (wave > FINAL_WAVE) return;
+    for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
+      const id = ENEMY_MODEL_ID[entry.kind];
+      if (id) preloadAuthored(id);
     }
-    return slot;
   }
 
   private setState(s: MatchState): void {
@@ -370,6 +413,8 @@ export class Game {
       this.scene.add(e.char.root);
       this.particles.dustPuff(e.position, 10);
     });
+    // the break before the next wave is the lead time for its new arrivals
+    this.preloadWave(this.wave + 1);
     const scattered = this.aliveEnemyCount;
     this.events.banner(
       `Wave ${this.wave}`,
@@ -406,7 +451,12 @@ export class Game {
     const rt = this.envSource
       ? pmrem.fromEquirectangular(this.envSource)
       : pmrem.fromScene(new RoomEnvironment(), 0.04);
+    // The probe is rebuilt once when the authored sky lands, so the first one
+    // has to go — and it is a render target, which pmrem.dispose() does not
+    // free. Freeing the texture alone left the framebuffer behind.
     this.scene.environment?.dispose();
+    this.envRT?.dispose();
+    this.envRT = rt;
     this.scene.environment = rt.texture;
     this.scene.environmentIntensity = 0.6;
     pmrem.dispose();

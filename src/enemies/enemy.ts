@@ -7,6 +7,7 @@ import {
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
 import { Ragdoll } from '../anim/ragdoll';
+import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -121,6 +122,8 @@ const _JET_DOWN = new THREE.Vector3(0, -1, 0);
 /** scratch for seeding a ragdoll */
 const _base = new THREE.Vector3();
 const _spin = new THREE.Vector3();
+/** crowd separation, m/s² per metre of overlap (tuned to the old 60 Hz feel) */
+const SEPARATION_ACCEL = 180;
 
 export class Enemy {
   id = nextId++;
@@ -302,6 +305,54 @@ export class Enemy {
     return wasCalm;
   }
 
+  /**
+   * On the platforms a walking enemy never steers itself into the void: probe
+   * the ground a step ahead and stop at the lip. Only voluntary movement is
+   * caught — a knockback can still throw them off, which is half the fun of the
+   * station board.
+   */
+  private edgeGuard(game: Game): void {
+    if (game.board.physics.heightAt || this.stagger > 0) return;
+    const sp = Math.hypot(this.velocity.x, this.velocity.z);
+    // gate must be near zero: steering re-adds a trickle of velocity every
+    // frame after a block, and a 0.3 m/s creep still walks off the lip
+    if (sp <= 0.05) return;
+    const ax = this.position.x + (this.velocity.x / sp) * 1.2;
+    const az = this.position.z + (this.velocity.z / sp) * 1.2;
+    const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
+    if (!isFinite(g) || g < this.position.y - 3) {
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+    }
+  }
+
+  /**
+   * What the board does to a body wherever it is: the void under the platforms,
+   * and the sarlacc. Every moving state owes these checks.
+   *
+   * The states that return early — knocked flat, crawling wounded, broken and
+   * running — used to skip both. A crawler shoved off a station platform stayed
+   * "alive" below the kill plane and held the wave open for its whole bleed-out,
+   * and nothing prone could fall into the pit. Returns true when this enemy is
+   * gone and the caller should stop touching it.
+   */
+  private boardHazards(game: Game): boolean {
+    if (this.position.y < game.board.physics.killY) {
+      this.alive = false;
+      this.removeMe = true;
+      return true;
+    }
+    const hz = game.board.hazard;
+    if (hz) {
+      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
+      if (hd < hz.radius && this.position.y < hz.center.y + 3) {
+        this.damage(9999, hz.center, -1);
+        return !this.alive;
+      }
+    }
+    return false;
+  }
+
   /** world yaw the body is facing, for placing the extra hit spheres */
   get yaw(): number { return this.facingYaw; }
 
@@ -441,6 +492,9 @@ export class Enemy {
     // the mixer stops here so nothing fights the solver for the bones
     const anim = this.char.animator;
     if (anim) { anim.release('lower'); anim.release('upper'); }
+    // syncVisual keeps its hands off a ragdoll, so settle the hit-flash pop
+    // back to the body's own bulk now or the corpse wears it for good
+    this.char.root.scale.setScalar(this.char.baseScale);
     this.ragdollArmed = true;
   }
   /** wave over: fade the corpse out, then remove it */
@@ -452,7 +506,7 @@ export class Enemy {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const clone = (m: THREE.Material): THREE.Material => {
-        const c = m.clone();
+        const c = markOwned(m.clone());   // a per-corpse copy, not the shared cache entry
         c.transparent = true;
         return c;
       };
@@ -553,6 +607,7 @@ export class Enemy {
       this.velocity.z = damp(this.velocity.z, 0, 4, dt);
       this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+      if (this.boardHazards(game)) return;
       if (this.downTimer <= 0) {
         // back on its feet, shaken
         const a = this.char.animator;
@@ -584,6 +639,7 @@ export class Enemy {
       this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
       this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
+      if (this.boardHazards(game)) return;
       if (this.bleedOut <= 0) {
         this.alive = false; // already prone: the held pose is the corpse
       }
@@ -610,8 +666,12 @@ export class Enemy {
         this.velocity.x = damp(this.velocity.x, away.x * d.speed * 1.05, 6, dt);
         this.velocity.z = damp(this.velocity.z, away.z * d.speed * 1.05, 6, dt);
         this.facingYaw = dampAngle(this.facingYaw, Math.atan2(away.x, away.z), 8, dt);
+        // a morale break is still voluntary movement: it does not get to sprint
+        // off a platform lip that the same enemy would have stopped at walking
+        this.edgeGuard(game);
         this.velocity.y -= 24 * grav(game) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+        if (this.boardHazards(game)) return;
         if (anim) {
           anim.play('lower', 'runLower', 0.2, 1.2);
           anim.play('upper', 'runUpper', 0.2, 1.2);
@@ -658,45 +718,28 @@ export class Enemy {
       const min = this.radius + other.radius + 0.3;
       if (dist2 < min * min && dist2 > 1e-6) {
         const dist = Math.sqrt(dist2);
-        const push = (min - dist) * 3;
+        // An acceleration, so it has to be scaled by dt like every other
+        // steering write in here — as a raw per-frame velocity add it was
+        // ~2.4x stronger at 144 Hz than at 60, which moved crowd spacing,
+        // cover displacement and the pounce arc with the refresh rate. The
+        // constant reproduces the old 60 Hz feel; the clamp keeps a deep
+        // overlap on a long frame from launching anyone.
+        const push = Math.min((min - dist) * SEPARATION_ACCEL * dt, 6);
         this.velocity.x += (dx / dist) * push;
         this.velocity.z += (dz / dist) * push;
       }
     }
 
     if (d.style === 'melee' || d.style === 'ranged') {
-      // Edge guard: on the platforms a walking enemy never steers itself into
-      // the void — probe the ground a step ahead and stop at the lip. Only
-      // voluntary movement is caught; a knockback can still throw them off,
-      // which is half the fun of the station board.
-      if (!game.board.physics.heightAt && this.stagger <= 0) {
-        const sp = Math.hypot(this.velocity.x, this.velocity.z);
-        // gate must be near zero: steering re-adds a trickle of velocity every
-        // frame after a block, and a 0.3 m/s creep still walks off the lip
-        if (sp > 0.05) {
-          const ax = this.position.x + (this.velocity.x / sp) * 1.2;
-          const az = this.position.z + (this.velocity.z / sp) * 1.2;
-          const g = game.board.physics.groundHeight(ax, az, this.position.y + 0.5);
-          if (!isFinite(g) || g < this.position.y - 3) {
-            this.velocity.x = 0;
-            this.velocity.z = 0;
-          }
-        }
-      }
+      this.edgeGuard(game);
       this.velocity.y -= 24 * grav(game) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
-      if (this.position.y < game.board.physics.killY) { this.alive = false; this.removeMe = true; }
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
 
-    // hazard: sarlacc eats enemies too
-    const hz = game.board.hazard;
-    if (hz) {
-      const hd = Math.hypot(this.position.x - hz.center.x, this.position.z - hz.center.z);
-      if (hd < hz.radius && this.position.y < hz.center.y + 3) { this.damage(9999, hz.center, -1); }
-    }
+    if (this.boardHazards(game)) return;
 
     // locomotion animation
     if (anim) {
@@ -1272,8 +1315,11 @@ export class Enemy {
         this.attackCd = d.attackCd;
       }
     }
-    // ram damage on close pass
-    if (this.position.distanceTo(target.position) < 1.8 && target.alive) {
+    // Ram damage on a close pass — once per pass, not once per frame. The
+    // cooldown was set here but never tested, so a swoop overlapping the player
+    // billed 10 damage on every rendered frame it stayed in contact (~30-60 a
+    // pass, and worse the higher the refresh rate).
+    if (this.attackCd <= 0 && this.position.distanceTo(target.position) < 1.8 && target.alive) {
       target.damage(10, this.position);
       target.velocity.add(this.velocity.clone().multiplyScalar(0.4));
       this.attackCd = Math.max(this.attackCd, 1);
@@ -1333,8 +1379,11 @@ export class Enemy {
     // creatures that animate themselves need to know how fast they're going
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
     this.char.cosmetic?.(dt, game.time);
-    // hit flash: emissive pulse on all materials (cheap: scale pop)
-    const s = 1 + this.hitFlash * 0.6;
-    this.char.root.scale.setScalar(this.kind === 'nikto' ? 1 : s);
+    // Hit flash: a brief scale pop, multiplied into the species bulk rather
+    // than written over it. Overwriting meant every scaled enemy (dark trooper
+    // 1.15, death trooper 1.08, pirate 1.05) lost its bulk on the first frame
+    // in game and rendered smaller than its own hit spheres.
+    const base = this.char.baseScale;
+    this.char.root.scale.setScalar(this.kind === 'nikto' ? base : base * (1 + this.hitFlash * 0.6));
   }
 }

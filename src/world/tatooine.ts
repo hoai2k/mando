@@ -43,8 +43,10 @@ export function buildTatooine(): Board {
   sun.position.set(60, 90, 80);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = sun.shadow.camera.bottom = -90;
-  sun.shadow.camera.right = sun.shadow.camera.top = 90;
+  // The board runs to +-95 (mesas, spawn posts), so +-90 left its far corners
+  // with no shadows at all and popped them in at the boundary.
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -115;
+  sun.shadow.camera.right = sun.shadow.camera.top = 115;
   sun.shadow.camera.far = 300;
   sun.shadow.bias = -0.0008;
   group.add(sun);
@@ -165,7 +167,9 @@ export function buildTatooine(): Board {
   dome.position.set(hx, hBase, hz);
   dome.castShadow = dome.receiveShadow = true;
   group.add(dome);
-  physics.addBox(hx, hBase + 2, hz, 8, 4, 8);
+  // round dome, round collider: the 8 m box cut its corners off and clipped
+  // the 10 m span of the dome at the sides
+  physics.addCylinder(hx, hBase + 1.8, hz, 4.2, 3.6);
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
@@ -198,7 +202,14 @@ export function buildTatooine(): Board {
   barge.position.set(bx, bBase, bz);
   barge.traverse((o) => { o.castShadow = o.receiveShadow = true; });
   group.add(barge);
-  physics.addBox(bx, bBase + 2.5, bz, 20, 6, 12);
+  // The hull is 26 m long and yawed 0.6 rad, which one axis-aligned box cannot
+  // describe: the old 20x12 AABB put invisible walls off the bow and let you
+  // walk through the hull ends. A short row of cylinders along the hull's own
+  // axis follows it at any rotation, and keeps the same deck height to stand on.
+  const hullAxis = new THREE.Vector2(Math.cos(0.6), -Math.sin(0.6));
+  for (const t of [-9, -4.5, 0, 4.5, 9]) {
+    physics.addCylinder(bx + hullAxis.x * t, bBase + 2.5, bz + hullAxis.y * t, 4.4, 6);
+  }
 
   // sarlacc: teeth ring + tentacles that sway
   const pitBase = heightAt(SARLACC.x, SARLACC.z);

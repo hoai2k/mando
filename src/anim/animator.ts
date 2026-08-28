@@ -86,8 +86,21 @@ export class Animator {
     return dur;
   }
 
-  /** Force-release a channel from a one-shot (e.g. respawn). */
+  /**
+   * Force-release a channel from a one-shot (e.g. respawn, getting up from a
+   * knockdown).
+   *
+   * The action has to be stopped, not just forgotten. A clamped one-shot holds
+   * its last frame at full weight forever, and `play()` only fades out the clip
+   * it believes is current — so clearing the bookkeeping alone left a released
+   * death pose blending half-and-half against the next locomotion clip, and
+   * every enemy that got up from a knockdown ran crumpled for the rest of its
+   * life. Looked up rather than created: `invalidate()` releases after
+   * uncaching, and re-binding a dropped clip here would put it straight back.
+   */
   release(channel: 'lower' | 'upper'): void {
+    const cur = this.current[channel];
+    if (cur) this.actions.get(cur)?.stop();
     this.oneShotUntil[channel] = 0;
     this.current[channel] = null;
   }

@@ -500,6 +500,29 @@ export class Player {
    */
   private updateInCover(dt: number, input: FrameInput, game: Game, realDt: number): void {
     const anim = this.char.animator!;
+    // The gauges the open-field path owns still have to tick here, because this
+    // branch returns before reaching them. Ducking behind a crate used to leave
+    // jetpack fuel and sprint energy frozen exactly where they stood — and,
+    // worse, froze the shield: take cover with block held and `blockRaise`
+    // stayed pinned at 1, so `shieldCollider` kept reflecting bolts for as long
+    // as the player stayed tucked, draining nothing and leaving peek-fire
+    // available. Cover is made of real geometry; it does not also get a shield.
+    this.blocking = false;
+    this.blockRaise = damp(this.blockRaise, 0, 14, dt);
+    this.char.setBlock(this.blockRaise);
+    this.dashArmed = false;
+    this.sprintLatched = false;
+    this.sprinting = false;
+    this.thrusting = 0;
+    this.wasThrusting = false;
+    this.char.setThrust(0);
+    audio.setJetpackThrust(this.slot, 0);
+    this.sprintRefillDelay -= dt;
+    if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    // tucked against a box is a grounded state, so fuel comes back at the
+    // grounded rate — catching your breath behind cover is the point of it
+    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
+
     const c = this.cover!;
     const b = c.box;
     // face geometry: n = outward normal, t = tangent along the face
@@ -587,7 +610,7 @@ export class Player {
     }
     this.velocity.x = clamp(dx * 12, -6.5, 6.5);
     this.velocity.z = clamp(dz * 12, -6.5, 6.5);
-    this.velocity.y -= GRAVITY * dt;
+    this.velocity.y -= GRAVITY * (game.board.gravity ?? 1) * dt;
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
@@ -709,7 +732,7 @@ export class Player {
         shotDir.z += (Math.random() - 0.5) * spread;
         shotDir.normalize();
       }
-      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0);
+      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0, this.slot);
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);

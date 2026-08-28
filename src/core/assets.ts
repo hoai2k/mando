@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { fbm2, makeRng } from './math';
+import { markShared } from './dispose';
 
 /**
  * Texture pipeline: procedural canvas textures by default; if an authored
@@ -32,6 +33,7 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
   tex.repeat.set(repeat, repeat);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
+  markShared(tex);   // cached across matches; teardown leaves it alone
   cache.set(key, tex);
   // authored override, fire and forget; jpg first since that is what
   // tools/optimize-textures.mjs emits for opaque maps

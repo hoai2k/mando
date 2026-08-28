@@ -5,8 +5,11 @@ export interface BoltTarget {
   position: THREE.Vector3;   // center of hit sphere
   radius: number;
   team: number;              // 0 = players, 1 = enemies
-  onHit: (damage: number, from: THREE.Vector3) => void;
+  /** who fired the bolt that landed: player slot, or -1 for anyone else */
+  onHit: (damage: number, from: THREE.Vector3, bySlot: number) => void;
   alive: boolean;
+  /** player slot, so a bolt this target deflects is credited to them */
+  slot?: number;
   /**
    * A raised block shield. Bolts arriving from the front of `normal` bounce
    * off it and fly on as the blocker's own fire; the sphere is tested before
@@ -22,10 +25,18 @@ interface Bolt {
   life: number;
   damage: number;
   team: number;
+  /** player slot that fired it, for kill credit; -1 = enemy or ally fire */
+  bySlot: number;
   active: boolean;
 }
 
-const CAPACITY = 160;
+const CAPACITY = 220;
+/**
+ * Metres a bolt may cover before it expires. Well past any engagement range
+ * (aim assist reaches 80 m), and short enough that shots fired over the
+ * station's void stop occupying the pool for a full two seconds.
+ */
+const MAX_RANGE = 110;
 
 export class ProjectileSystem {
   group = new THREE.Group();
@@ -50,13 +61,20 @@ export class ProjectileSystem {
       mesh.frustumCulled = glow.frustumCulled = false;
       this.group.add(mesh);
       this.group.add(glow);
-      this.bolts.push({ mesh, glow, vel: new THREE.Vector3(), life: 0, damage: 0, team: 0, active: false });
+      this.bolts.push({ mesh, glow, vel: new THREE.Vector3(), life: 0, damage: 0, team: 0, bySlot: -1, active: false });
     }
   }
 
-  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number): void {
-    const b = this.bolts.find((x) => !x.active);
-    if (!b) return;
+  fire(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, damage: number, team: number, bySlot = -1): void {
+    // A full pool must never swallow a shot: the trigger still played its
+    // sound, flash and recoil, so dropping the bolt made the weapon look
+    // broken. Recycle whatever is closest to expiring instead — that is the
+    // most distant, least interesting bolt in flight.
+    let b = this.bolts.find((x) => !x.active);
+    if (!b) {
+      b = this.bolts[0];
+      for (const x of this.bolts) if (x.life < b.life) b = x;
+    }
     b.active = true;
     b.mesh.visible = b.glow.visible = true;
     b.mesh.material = team === 0 ? this.matPlayer : this.matEnemy;
@@ -70,9 +88,10 @@ export class ProjectileSystem {
     b.glow.scale.set(1, 1, len * 0.9);
     b.glow.quaternion.copy(b.mesh.quaternion);
     b.glow.position.copy(origin);
-    b.life = 2.2;
+    b.life = MAX_RANGE / speed;
     b.damage = damage;
     b.team = team;
+    b.bySlot = bySlot;
   }
 
   update(dt: number, physics: PhysicsWorld, targets: BoltTarget[]): void {
@@ -98,6 +117,7 @@ export class ProjectileSystem {
         // bolt to the blocker's team, so a good block is also a counterattack
         b.vel.reflect(sh.normal);
         b.team = t.team;
+        b.bySlot = t.slot ?? -1;   // a kill off a good block belongs to the blocker
         b.damage *= 0.75;
         b.life = Math.min(b.life, 1.6);
         b.mesh.material = t.team === 0 ? this.matPlayer : this.matEnemy;
@@ -118,7 +138,7 @@ export class ProjectileSystem {
       for (const t of targets) {
         if (!t.alive || t.team === b.team) continue;
         if (segSphere(from, step, stepLen, t.position, t.radius)) {
-          t.onHit(b.damage, from);
+          t.onHit(b.damage, from, b.bySlot);
           this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;
