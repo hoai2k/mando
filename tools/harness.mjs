@@ -39,26 +39,36 @@ export const BTN = {
 
 /**
  * Installed before page scripts so the game never sees a padless frame.
- * State lives on `window.__pad`; the page's own rAF loop polls it through
- * getGamepads() exactly as it would a real device.
+ *
+ * Four pads exist from the start and only the first is plugged in; the others
+ * are connected on demand with `window.__padConnect`, which is what lets the
+ * couch co-op paths — joining the character select, and a player's controller
+ * dying mid-screen — be driven without four real controllers. State lives on
+ * `window.__pads` (with `window.__pad` still naming the first), and the page's
+ * own rAF loop polls it through getGamepads() exactly as it would a real
+ * device.
  */
 function padShim() {
-  const state = {
+  const states = [0, 1, 2, 3].map((i) => ({
     buttons: new Array(17).fill(0),
     axes: [0, 0, 0, 0],
-    connected: true,
-  };
-  window.__pad = state;
-  const snapshot = () => ({
+    connected: i === 0,
+  }));
+  window.__pads = states;
+  window.__pad = states[0];
+  window.__padConnect = (i, on = true) => { states[i].connected = on; };
+  const snapshot = (state, index) => ({
     id: 'Harness Pad (STANDARD GAMEPAD Vendor: 045e Product: 02ea)',
-    index: 0,
+    index,
     connected: state.connected,
     mapping: 'standard',
     timestamp: performance.now(),
     axes: state.axes.slice(),
     buttons: state.buttons.map((v) => ({ pressed: v > 0.5, touched: v > 0, value: v })),
   });
-  navigator.getGamepads = () => [snapshot()];
+  // disconnected slots read back as null holes, exactly as a real browser
+  // reports a pad that has been unplugged
+  navigator.getGamepads = () => states.map((s, i) => (s.connected ? snapshot(s, i) : null));
   // No synthetic 'gamepadconnected' event: its constructor demands a real
   // Gamepad and rejects a plain object. The game polls getGamepads() every
   // frame anyway, so the pad is picked up on the next tick regardless.
@@ -67,12 +77,19 @@ function padShim() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Pad {
-  constructor(page) { this.page = page; }
+  /** `index` picks which of the four shimmed controllers this drives */
+  constructor(page, index = 0) { this.page = page; this.index = index; }
+
+  /** plug this controller in, or pull it out mid-session */
+  async connect(on = true) {
+    await this.page.evaluate(([i, v]) => window.__padConnect(i, v), [this.index, on]);
+    await sleep(250);          // a couple of frames for the game to notice
+  }
 
   /** hold a button down */
-  async down(btn) { await this.page.evaluate((b) => { window.__pad.buttons[b] = 1; }, btn); }
+  async down(btn) { await this.page.evaluate(([i, b]) => { window.__pads[i].buttons[b] = 1; }, [this.index, btn]); }
   /** release a button */
-  async up(btn) { await this.page.evaluate((b) => { window.__pad.buttons[b] = 0; }, btn); }
+  async up(btn) { await this.page.evaluate(([i, b]) => { window.__pads[i].buttons[b] = 0; }, [this.index, btn]); }
 
   /**
    * Press and release. The default hold spans several frames: edge detection
@@ -87,33 +104,35 @@ class Pad {
   }
 
   /** analogue trigger value (LT/RT read `.value`, not just `.pressed`) */
-  async trigger(btn, value) { await this.page.evaluate(([b, v]) => { window.__pad.buttons[b] = v; }, [btn, value]); }
+  async trigger(btn, value) {
+    await this.page.evaluate(([i, b, v]) => { window.__pads[i].buttons[b] = v; }, [this.index, btn, value]);
+  }
 
   /**
    * Set a stick, optionally for a fixed duration then re-centre.
    * `which` is 'left' (axes 0,1) or 'right' (axes 2,3); y is negative up.
    */
   async stick(which, x, y, holdMs = 0) {
-    const i = which === 'left' ? 0 : 2;
-    await this.page.evaluate(([idx, sx, sy]) => {
-      window.__pad.axes[idx] = sx;
-      window.__pad.axes[idx + 1] = sy;
-    }, [i, x, y]);
+    const axis = which === 'left' ? 0 : 2;
+    await this.page.evaluate(([i, idx, sx, sy]) => {
+      window.__pads[i].axes[idx] = sx;
+      window.__pads[i].axes[idx + 1] = sy;
+    }, [this.index, axis, x, y]);
     if (holdMs) {
       await sleep(holdMs);
-      await this.page.evaluate((idx) => {
-        window.__pad.axes[idx] = 0;
-        window.__pad.axes[idx + 1] = 0;
-      }, i);
+      await this.page.evaluate(([i, idx]) => {
+        window.__pads[i].axes[idx] = 0;
+        window.__pads[i].axes[idx + 1] = 0;
+      }, [this.index, axis]);
     }
   }
 
   /** everything to neutral */
   async release() {
-    await this.page.evaluate(() => {
-      window.__pad.buttons.fill(0);
-      window.__pad.axes.fill(0);
-    });
+    await this.page.evaluate((i) => {
+      window.__pads[i].buttons.fill(0);
+      window.__pads[i].axes.fill(0);
+    }, this.index);
   }
 }
 
@@ -161,6 +180,8 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   await sleep(1500);
 
   const pad = new Pad(page);
+  // one driver per shimmed controller; pads[0] is the same device as `pad`
+  const pads = [0, 1, 2, 3].map((i) => new Pad(page, i));
   const text = () => page.evaluate(() => document.body.innerText.replace(/\s*\n+\s*/g, ' | ').trim());
   const game = (fn) => page.evaluate(fn);
 
@@ -256,7 +277,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   }
 
   return {
-    browser, page, pad, errors,
+    browser, page, pad, pads, errors,
     text, waitForText, tapUntil, clickText, startMatch, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
     close: async () => {

@@ -181,6 +181,21 @@ export class InputManager {
     if (lost && !this.menuMode) this.menuQueue.push({ action: 'pause', source: -1 });
   }
 
+  /**
+   * Close gaps in the slot-to-pad assignment, keeping the order of the pads
+   * that are left.
+   *
+   * A slot normally *keeps* its device even when that device dies, because
+   * shuffling mid-fight would hand one player another player's character. In
+   * the character select nobody is driving anything yet, so a hole left by an
+   * unplugged pad should close instead — otherwise player three starts a match
+   * in player two's empty seat and controls nothing.
+   */
+  compactPlayerSlots(): void {
+    const live = this.padForPlayer.filter((p) => p >= 0);
+    for (let i = 0; i < this.padForPlayer.length; i++) this.padForPlayer[i] = live[i] ?? -1;
+  }
+
   /** True if a second controller is available for split-screen join. */
   hasSecondPad(): boolean { return this.pads().length >= 2; }
   /** How many players could join right now: the keyboard plus every free pad. */

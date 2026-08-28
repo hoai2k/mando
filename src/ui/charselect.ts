@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { audio } from '../core/audio';
 import { MAX_PLAYERS } from '../core/layout';
+import { damp } from '../core/math';
 
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
@@ -33,6 +34,22 @@ const DRAG_RATE = 0.011;
 /** resting emissive lift, matched to how the hero reads in-game */
 const BASE_GLOW = 0.22;
 
+/**
+ * The line only ever holds the players who are here plus one open place —
+ * never four plinths with two of them dark. Spacing tightens and the camera
+ * eases back as the line grows, both indexed by how many are on stage.
+ */
+const STAGE_GAP = [0, 0, 2.8, 2.3, 1.9];
+const STAGE_Z = [0, 5.2, 5.2, 5.9, 6.5];
+/** how fast the line re-spaces itself, and how fast a plinth grows in or out */
+const STAGE_LAMBDA = 5.5;
+const APPEAR_LAMBDA = 7;
+
+/** x of the i-th pedestal when `n` of them are on stage, centred on the line */
+function stageX(i: number, n: number): number {
+  return (i - (n - 1) / 2) * STAGE_GAP[Math.max(1, Math.min(MAX_PLAYERS, n))];
+}
+
 type Phase = 'empty' | 'browsing' | 'spinning' | 'ready';
 
 /** shortest signed equivalent of an angle, so a full manual spin unwinds the near way */
@@ -48,6 +65,10 @@ interface Slot {
   manual: number;                 // right-stick yaw offset, eased back to 0 on release
   group: THREE.Group;             // pedestal-local root the characters stand in
   chars: Map<MandoId, PlayerCharacter>;
+  pedestal: THREE.Mesh;           // the plinth itself, moved with the group
+  ring: THREE.Mesh;
+  appear: number;                 // 0 = off stage, 1 = fully in the line
+  screenX: number;                // last projected x, 0..1 across the window
   // DOM
   panel: HTMLElement;
   name: HTMLElement;
@@ -62,6 +83,7 @@ export class CharacterSelect {
   private camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
   private slots: Slot[] = [];
   private startBtn: HTMLElement;
+  private panels!: HTMLElement;
   private time = 0;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
   private drag: { slot: number; lastX: number } | null = null;
@@ -75,6 +97,8 @@ export class CharacterSelect {
       onBack: () => void;
       /** gamepad index driving each player slot, -1 for none (from InputManager) */
       padForPlayer: () => number[];
+      /** close gaps in the pad-to-slot assignment after a player drops out */
+      compactPads: () => void;
       /** right-stick X for a player slot, for free-look on that pedestal */
       stickX: (slot: number) => number;
     },
@@ -93,6 +117,7 @@ export class CharacterSelect {
     const panels = document.createElement('div');
     panels.className = 'charsel-panels';
     this.root.appendChild(panels);
+    this.panels = panels;
 
     for (let i = 0; i < MAX_PLAYERS; i++) this.slots.push(this.makeSlot(i, panels));
 
@@ -114,7 +139,7 @@ export class CharacterSelect {
     // that is exactly the region its panel occupies.
     this.root.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
-      const slot = e.clientX < window.innerWidth / 2 ? 0 : 1;
+      const slot = this.slotNearest(e.clientX);
       // Remember every press, not just the ones that can turn a model: a press
       // on an empty or spinning pedestal can still resolve into a click.
       this.press = { slot, x: e.clientX, y: e.clientY, moved: 0 };
@@ -151,10 +176,10 @@ export class CharacterSelect {
     this.scene.background = new THREE.Color(0x07080c);
     this.scene.fog = new THREE.Fog(0x07080c, 6, 14);
     // far enough back that the tallest fighter (Paz, 2 m) keeps his head
-    // under the title and his feet clear of the name plates
-    // four pedestals need the camera further back than two did
-    this.camera.position.set(0, 1.5, MAX_PLAYERS > 2 ? 6.6 : 4.8);
-    this.camera.lookAt(0, 1.05, 0);
+    // under the title and his feet clear of the name plates; layoutStage moves
+    // it further out again as the line grows
+    this.camera.position.set(0, 1.5, STAGE_Z[2]);
+    this.camera.lookAt(0, 0.85, 0);
 
     const key = new THREE.DirectionalLight(0xfff0d8, 2.2);
     key.position.set(2.5, 4, 3);
@@ -172,33 +197,70 @@ export class CharacterSelect {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    // pedestals spread evenly about the centre line, tightening as the line
-    // grows so four still fit the frame
-    const gap = MAX_PLAYERS > 2 ? 1.5 : 2.8;
-    for (let i = 0; i < MAX_PLAYERS; i++) {
-      const x = (i - (MAX_PLAYERS - 1) / 2) * gap;
-      const pedestal = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
-        new THREE.MeshStandardMaterial({ color: 0x232a38, roughness: 0.4, metalness: 0.7 }),
-      );
-      pedestal.position.set(x, 0.06, 0);
-      pedestal.receiveShadow = true;
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.64, 0.015, 8, 48),
-        new THREE.MeshBasicMaterial({ color: 0xd8b25a }),
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(x, 0.125, 0);
-      this.scene.add(pedestal, ring);
-      this.slots[i].group.position.set(x, 0.12, 0);
+    // The line starts as player one plus one open place; `layoutStage` sizes
+    // and spaces it from there, every frame, as players come and go.
+    for (const s of this.slots) this.scene.add(s.pedestal, s.ring, s.group);
+    this.layoutStage(0);
+  }
+
+  /**
+   * Slide the line to the spacing its current size wants, growing the plinths
+   * that have just been opened and shrinking away the ones no longer needed.
+   *
+   * Called every frame with the real frame time, and once with dt 0 when the
+   * screen opens, which snaps everything into place instead of letting the
+   * first visit animate in from nowhere.
+   */
+  private layoutStage(dt: number): void {
+    const n = this.onStage();
+    // the camera eases back as the line widens, so four fit the frame without
+    // two ever looking marooned at the edges
+    this.camera.position.z = dt > 0 ? damp(this.camera.position.z, STAGE_Z[n], STAGE_LAMBDA, dt) : STAGE_Z[n];
+    // aimed low so the line rides high in frame, leaving the band under the
+    // plinths free for the name plates however few pedestals are up
+    this.camera.lookAt(0, 0.85, 0);
+    this.slots.forEach((s, i) => {
+      // a slot that is not on stage parks off the end of the line, so when it
+      // opens it slides in from the wing rather than fading up out of nowhere
+      const targetX = stageX(i, i < n ? n : i + 1);
+      const targetAppear = i < n ? 1 : 0;
+      const x = dt > 0 ? damp(s.group.position.x, targetX, STAGE_LAMBDA, dt) : targetX;
+      s.appear = dt > 0 ? damp(s.appear, targetAppear, APPEAR_LAMBDA, dt) : targetAppear;
+      s.group.position.x = x;
+      s.pedestal.position.x = x;
+      s.ring.position.x = x;
+      const shown = s.appear > 0.02;
+      s.group.visible = shown;
+      s.pedestal.visible = shown;
+      s.ring.visible = shown;
+      // grow in from the plinth up: scale reads as arriving, not as a fade
+      const k = Math.max(0.001, s.appear);
+      s.group.scale.setScalar(k);
+      s.pedestal.scale.set(k, 1, k);
+      s.ring.scale.setScalar(k);
+      s.panel.style.display = shown ? '' : 'none';
+      s.panel.style.opacity = `${Math.min(1, s.appear * 1.4)}`;
       // A pedestal sits off the camera's centre line, so yaw 0 (facing +Z)
       // points the model down-screen rather than at the viewer. Every rotation
       // here is measured from the yaw that actually faces the camera, so the
-      // idle sweep is centred on the model looking straight at you.
-      this.slots[i].baseYaw = Math.atan2(this.camera.position.x - x, this.camera.position.z);
-      this.slots[i].group.rotation.y = this.slots[i].baseYaw;
-      this.scene.add(this.slots[i].group);
-    }
+      // idle sweep is centred on the model looking straight at you — and it is
+      // recomputed as the line moves, since it depends on where the plinth is.
+      s.baseYaw = Math.atan2(this.camera.position.x - x, this.camera.position.z);
+    });
+  }
+
+  /**
+   * How many plinths belong on stage: everyone who has joined, plus a single
+   * open place inviting the next player — and nothing beyond four.
+   *
+   * Counting to the *highest* joined slot rather than the number joined keeps
+   * the invitation honest when a pad drops out mid-screen and leaves a hole:
+   * the hole is itself the open place, and the players past it stay put.
+   */
+  private onStage(): number {
+    let last = 0;
+    this.slots.forEach((s, i) => { if (s.phase !== 'empty') last = i; });
+    return Math.min(MAX_PLAYERS, last + 2);
   }
 
   private makeSlot(i: number, panels: HTMLElement): Slot {
@@ -230,10 +292,25 @@ export class CharacterSelect {
     const arrows = [mkArrow(-1), mkArrow(1)];
     base.append(arrows[0], name, arrows[1]);
 
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
+      new THREE.MeshStandardMaterial({ color: 0x232a38, roughness: 0.4, metalness: 0.7 }),
+    );
+    pedestal.position.y = 0.06;
+    pedestal.receiveShadow = true;
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.64, 0.015, 8, 48),
+      new THREE.MeshBasicMaterial({ color: 0xd8b25a }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.125;
+    const group = new THREE.Group();
+    group.position.y = 0.12;
+
     return {
       phase: 'empty', choice: i % ROSTER.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
-      group: new THREE.Group(), chars: new Map(),
+      group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
       panel, name, status, spinner, arrows,
     };
   }
@@ -295,6 +372,25 @@ export class CharacterSelect {
 
   // ---------- input ----------
 
+  /**
+   * The on-stage pedestal nearest a click.
+   *
+   * The stage is drawn behind this overlay rather than into it, so a click is
+   * matched to a plinth by where that plinth projects on screen — which is
+   * exact however many are up and wherever the line has slid to. (Splitting
+   * the window in half worked only while there were exactly two.)
+   */
+  private slotNearest(clientX: number): number {
+    const x = clientX / window.innerWidth;
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < this.onStage(); i++) {
+      const d = Math.abs(this.slots[i].screenX - x);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
   /** Map an input source (-1 keyboard, else pad index) to a player slot. */
   private slotFor(source: number): number {
     const pads = this.opts.padForPlayer();
@@ -326,8 +422,8 @@ export class CharacterSelect {
       case 'confirm': this.select(slot); break;
       case 'back':
         if (s.phase === 'ready') { audio.uiBack(); this.uncommit(slot); }
-        else if (slot === 1 && s.phase === 'browsing') { audio.uiBack(); this.leave(slot); }
-        else if (slot === 0 && s.phase === 'browsing') { audio.uiBack(); this.opts.onBack(); }
+        else if (slot > 0 && s.phase === 'browsing') { audio.uiBack(); this.leave(slot); }
+        else if (s.phase === 'browsing') { audio.uiBack(); this.opts.onBack(); }
         break;
     }
   }
@@ -344,9 +440,39 @@ export class CharacterSelect {
   }
 
   private leave(slot: number): void {
-    const s = this.slots[slot];
-    s.phase = 'empty';
+    this.slots[slot].phase = 'empty';
+    this.compact();
     this.refresh();
+  }
+
+  /**
+   * Close a gap in the line: every player past a slot that emptied moves down
+   * one, and the pads move with them.
+   *
+   * This is not cosmetic. A match hands player N the input of player N, so a
+   * player sitting in slot 3 while slot 2 stands empty would start the game
+   * driving nobody. Pads are re-seated to match (the input layer otherwise
+   * holds a slot for its device — which is right mid-fight, where a shuffle
+   * would swap two players' characters, and wrong here, where nobody has a
+   * character yet).
+   */
+  private compact(): void {
+    const held = this.slots
+      .filter((s) => s.phase !== 'empty')
+      .map((s) => ({ phase: s.phase, choice: s.choice, spinT: s.spinT, arcT: s.arcT, manual: s.manual }));
+    // nothing to close up if the joined slots already run 0..k-1
+    if (this.slots.every((s, i) => (s.phase !== 'empty') === (i < held.length))) return;
+    this.slots.forEach((s, i) => {
+      const h = held[i];
+      s.phase = h ? h.phase : 'empty';
+      s.choice = h ? h.choice : s.choice;
+      s.spinT = h ? h.spinT : 0;
+      s.arcT = h ? h.arcT : 0;
+      s.manual = h ? h.manual : 0;
+      s.loadingFor = 0;
+      if (!h) for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
+    });
+    this.opts.compactPads();
   }
 
   private commit(slot: number): void {
@@ -386,6 +512,8 @@ export class CharacterSelect {
 
   update(dt: number): void {
     this.time += dt;
+    this.dropDisconnected();
+    this.layoutStage(dt);
     let allReady = true;
     let anyJoined = false;
     for (let i = 0; i < this.slots.length; i++) {
@@ -438,6 +566,24 @@ export class CharacterSelect {
     this.startBtn.style.display = anyJoined && allReady ? '' : 'none';
   }
 
+  /**
+   * A player whose controller goes away leaves the line.
+   *
+   * Player one is never dropped: that slot is the keyboard's as well, so it
+   * survives a pad being unplugged. Everyone else *is* their controller, so
+   * losing it is leaving, and the line closes up behind them — back to one
+   * open place, exactly as if they had backed out.
+   */
+  private dropDisconnected(): void {
+    const pads = this.opts.padForPlayer();
+    for (let i = 1; i < this.slots.length; i++) {
+      if (this.slots[i].phase !== 'empty' && (pads[i] ?? -1) < 0) {
+        audio.uiBack();
+        this.leave(i);
+      }
+    }
+  }
+
   render(renderer: THREE.WebGLRenderer): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
@@ -454,9 +600,26 @@ export class CharacterSelect {
    * window shape and any number of players.
    */
   private layoutPanels(): void {
+    const box = this.panels.getBoundingClientRect();
     for (const s of this.slots) {
-      PROJECT.copy(s.group.position).project(this.camera);
-      s.panel.style.left = `${(PROJECT.x * 0.5 + 0.5) * 100}%`;
+      // Joined slots hang their plate off the plinth; an empty one puts its
+      // invitation up where a character would stand, so the eye reads a place
+      // waiting to be filled rather than a caption under an empty disc.
+      PROJECT.copy(s.group.position);
+      // a hand's width below the plinth for a name, chest height for an
+      // invitation — measured in the world, so the gap shrinks in perspective
+      // with the plinth rather than sitting on the ring when the line is short
+      PROJECT.y += s.phase === 'empty' ? 1.15 : -0.45;
+      PROJECT.project(this.camera);
+      s.screenX = PROJECT.x * 0.5 + 0.5;
+      s.panel.style.left = `${s.screenX * 100}%`;
+      // Following the plinth vertically as well keeps the name clear of it at
+      // every line width: the stage camera pulls back as players join, which
+      // slides the whole line up the screen.
+      // ...and clamped to the band between the title and the hint, so a short
+      // line placing its plinths low on screen can never push a name into them
+      const y = (1 - (PROJECT.y * 0.5 + 0.5)) * window.innerHeight - box.top;
+      s.panel.style.top = `${Math.max(0, Math.min(y, box.height - 74))}px`;
     }
   }
 
@@ -495,6 +658,8 @@ export class CharacterSelect {
     });
     if (!this.available(0).has(ROSTER[this.slots[0].choice])) this.slots[0].choice = 0;
     this.preloadNeighbours(0);
+    this.layoutStage(0);            // open on the line already spaced, not sliding in
+    this.layoutPanels();
     this.refresh();
   }
   hide(): void {

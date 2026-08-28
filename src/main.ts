@@ -149,6 +149,7 @@ const charSelect = new CharacterSelect(menuLayer, {
   },
   onBack: () => setState('select'),
   padForPlayer: () => input.padForPlayer,
+  compactPads: () => input.compactPlayerSlots(),
   stickX: (slot) => input.menuStickX(slot),
 });
 
