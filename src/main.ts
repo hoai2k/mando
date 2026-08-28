@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { config, loadSavedConfig, saveAudioConfig } from './config';
+import { config, loadSavedConfig, saveAudioConfig, saveInputConfig } from './config';
 import { InputManager } from './core/input';
 import { audio } from './core/audio';
 import { Game } from './game/game';
@@ -159,7 +159,8 @@ let overlayReturn: AppState = 'title';
 const controls = new MenuScreen(menuLayer);
 controls.addTitle('Controls');
 const controlsArt = document.createElement('div');
-controlsArt.innerHTML = controlsMarkup();
+const paintControls = (): void => { controlsArt.innerHTML = controlsMarkup(config.input.keyboardMouse); };
+paintControls();
 controls.root.appendChild(controlsArt);
 controls.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
 controls.onBack = () => closeOverlay();
@@ -175,9 +176,39 @@ const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
 volume('Master volume', 'master');
 volume('Sound effects', 'sfx');
 volume('Music', 'music');
+settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
+  config.input.keyboardMouse = on;
+  saveInputConfig();
+  paintControls();
+  // Turning it off mid-game hands the cursor straight back rather than
+  // waiting for the next pause; turning it on grabs it for mouse look.
+  if (state === 'playing') {
+    if (on) input.requestPointerLock();
+    else input.releasePointerLock();
+  }
+});
 settings.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
-settings.addHint('Volumes are saved on this device. Gamepad: <b>left / right</b> to adjust.');
+settings.addHint('Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
+  + '<b>Keyboard &amp; mouse</b> adds WASD and mouse aiming — the game is designed for a controller, '
+  + 'and while this is off the mouse cursor stays free during play.');
 settings.onBack = () => closeOverlay();
+
+/**
+ * Cursor behaviour, controller-game style: hidden while playing, and back the
+ * instant the mouse moves so the corner buttons stay reachable, then hidden
+ * again after a couple of idle seconds. Menus always show it. Under pointer
+ * lock (the keyboard-and-mouse path) the browser hides it for us anyway.
+ */
+const CURSOR_IDLE = 2;
+let cursorWake = 0;
+addEventListener('pointermove', () => { cursorWake = CURSOR_IDLE; }, { passive: true });
+addEventListener('pointerdown', () => { cursorWake = CURSOR_IDLE; }, { passive: true });
+
+function updateCursor(dt: number): void {
+  if (cursorWake > 0) cursorWake -= dt;
+  const hide = state === 'playing' && cursorWake <= 0;
+  document.body.classList.toggle('cursor-hidden', hide);
+}
 
 function openOverlay(which: 'controls' | 'settings'): void {
   if (state !== 'controls' && state !== 'settings') overlayReturn = state;
@@ -295,6 +326,7 @@ function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
+  updateCursor(dt);
   input.poll(dt);
   const events = input.drainMenuEvents();
 

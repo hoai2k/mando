@@ -19,11 +19,23 @@ export interface AudioConfig {
   music: number;
 }
 
+export interface InputConfig {
+  /**
+   * Off by default: the game is built around a controller, and while the
+   * keyboard and mouse path exists it stays out of the way — no pointer lock
+   * while playing, and no keyboard bindings shown in the controls — until
+   * someone turns it on in Settings.
+   */
+  keyboardMouse: boolean;
+}
+
 export interface Config {
   audio: AudioConfig;
+  input: InputConfig;
 }
 
 export const config: Config = {
+  input: { keyboardMouse: false },
   audio: {
     master: 0.8,
     // SFX sit well under the score: a busy wave puts a lot of blaster fire on
@@ -35,6 +47,8 @@ export const config: Config = {
 
 /** Volume keys the player can persist, stored under this localStorage key. */
 const STORE = 'mando.audio';
+/** Input preferences, stored separately so a stale audio blob can't clobber them. */
+const INPUT_STORE = 'mando.input';
 
 /** Merge any saved volume preferences over the defaults above. */
 export function loadSavedConfig(): void {
@@ -48,6 +62,23 @@ export function loadSavedConfig(): void {
     }
   } catch {
     // a corrupt or blocked store is not worth failing a game boot over
+  }
+  try {
+    const raw = localStorage.getItem(INPUT_STORE);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as Partial<InputConfig>;
+    if (typeof saved.keyboardMouse === 'boolean') config.input.keyboardMouse = saved.keyboardMouse;
+  } catch {
+    // same
+  }
+}
+
+/** Persist the input preferences so they survive a reload. */
+export function saveInputConfig(): void {
+  try {
+    localStorage.setItem(INPUT_STORE, JSON.stringify(config.input));
+  } catch {
+    // private browsing / blocked storage — the session still honours the values
   }
 }
 

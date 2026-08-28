@@ -31,6 +31,8 @@ export interface FrameInput {
 export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'fullscreen';
 
 /** A menu action plus where it came from: -1 = keyboard/mouse, else gamepad index. */
+import { config } from '../config';
+
 export interface MenuEvent { action: MenuAction; source: number; }
 
 const DEADZONE = 0.18;
@@ -104,7 +106,13 @@ export class InputManager {
     });
   }
 
+  /**
+   * Only ever locked for mouse look. In the default controller game the
+   * pointer stays free, so the cursor behaves normally over the page while
+   * playing — you can reach the corner buttons without pausing.
+   */
   requestPointerLock(): void {
+    if (!config.input.keyboardMouse) return;
     if (!this.pointerLocked) this.canvas.requestPointerLock?.();
   }
   releasePointerLock(): void {
@@ -214,11 +222,13 @@ export class InputManager {
     const inp = blankInput();
     if (this.menuMode) { this.endFrame(); return inp; }
 
-    // Player one can also use keyboard and mouse. Two actions are controller
-    // shapes that need a keyboard equivalent: sprint latches off the same
-    // button as dash on a pad, so Shift sends both and the latch resolves it;
-    // and the right-stick dolly becomes the mouse wheel.
-    if (slot === 0) {
+    // Player one can also use keyboard and mouse, once it is switched on in
+    // Settings — off by default, so a stray key or click never moves the
+    // player in a controller game. Two actions are controller shapes that need
+    // a keyboard equivalent: sprint latches off the same button as dash on a
+    // pad, so Shift sends both and the latch resolves it; and the right-stick
+    // dolly becomes the mouse wheel.
+    if (slot === 0 && config.input.keyboardMouse) {
       const k = this.keys;
       inp.moveX += (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       inp.moveY += (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);

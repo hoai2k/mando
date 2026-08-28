@@ -252,6 +252,7 @@ two-player).
 
 ## 13. Addendum (user-requested, v1 scope)
 
+- **Controller-first input.** The game is designed around an Xbox pad, and that is the default: keyboard and mouse gameplay is behind a **Keyboard & mouse** toggle in Settings (off by default, saved per device). While it is off, no key or click moves the player, the pointer is never locked during play, and the Controls screen shows only the pad — the keyboard column is replaced by a note pointing at the setting. Menus are always navigable by mouse and keyboard regardless, since a menu is not gameplay. The cursor follows console convention: hidden while playing, back the moment the mouse moves, hidden again after two idle seconds.
 - **Full Xbox controller support, including menus.** Every menu is navigable with d-pad/left stick + A (confirm) / B (back); gameplay uses the standard twin-stick mapping (LS move, RS look, RT shoot, LT aim, A jump/jetpack, X melee, B dash, Y rocket, LB weapon switch, RB slam, Start pause, View fullscreen). Keyboard+mouse remains fully supported for player 1.
 - **Fullscreen icon button** fixed at the bottom-right of the screen at all times (menus and gameplay); also bound to the controller View button.
 - **2-player split-screen co-op.** Horizontal split (P1 top, P2 bottom). Player 2 joins from the board-select screen with a second controller (or via a "2 Players" menu option). One shared enemy pool/wave state; per-player camera, HUD, health, fuel. If one player dies they respawn while the partner survives the wave; both down = defeat.

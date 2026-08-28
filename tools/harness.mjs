@@ -153,6 +153,29 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     }
   }
 
+  /**
+   * Click a visible menu item by its label, at its centre point.
+   *
+   * Playwright's locator click waits for the element to be "stable" across
+   * animation frames, which never happens here: software rendering starves the
+   * frame loop, and a paused game is still drawing the scene behind the menu.
+   * The element is fine — nothing overlaps it — so click the coordinates and
+   * skip the wait.
+   */
+  async function clickText(label) {
+    const c = await page.evaluate((l) => {
+      const el = [...document.querySelectorAll('.menu-btn, .menu-toggle, .board-card, .charsel-arrow')]
+        .find((e) => e.offsetParent !== null && (e.textContent || '').includes(l));
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, label);
+    if (!c) return false;
+    await page.mouse.click(c.x, c.y);
+    await sleep(400);
+    return true;
+  }
+
   /** menu screens animate in; wait for one whose text matches */
   async function waitForText(re, timeoutMs = 8000) {
     const t0 = Date.now();
@@ -208,7 +231,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   return {
     browser, page, pad, errors,
-    text, waitForText, tapUntil, startMatch, step, game,
+    text, waitForText, tapUntil, clickText, startMatch, step, game,
     shot: (path) => page.screenshot({ path }),
     close: () => browser.close(),
   };

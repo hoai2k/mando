@@ -25,7 +25,12 @@ const KEYBOARD: Array<[string, string]> = [
   ['Camera distance', 'Mouse wheel'],
   ['Take cover · ground slam', 'C · Ctrl'],
   ['Switch weapon', 'E · 1 · 2'],
+];
+
+/** always available, controller or not */
+const ALWAYS: Array<[string, string]> = [
   ['Navigate menus', '↑ ↓ ← → · click'],
+  ['Select · back', 'Enter · Esc'],
   ['Pause', 'Esc'],
   ['Fullscreen', 'Alt + F'],
 ];
@@ -146,14 +151,25 @@ function padSvg(): string {
   </svg>`;
 }
 
-export function controlsMarkup(): string {
+/**
+ * `keyboard` mirrors the Settings toggle: with the keyboard and mouse path
+ * switched off there are no keyboard bindings to document, so the column is
+ * left out rather than shown as something that quietly does nothing.
+ */
+export function controlsMarkup(keyboard = false): string {
   return `<div class="controls-page">
     ${padSvg()}
-    <div class="controls-keys">
-      <div class="controls-keys-title">Keyboard — menus only</div>
-      <dl>${KEYBOARD.map(([what, keys]) =>
+    ${keyboard ? `<div class="controls-keys">
+      <div class="controls-keys-title">Keyboard &amp; mouse</div>
+      <dl>${[...KEYBOARD, ...ALWAYS].map(([what, keys]) =>
         `<dt>${what}</dt><dd>${keys.split(' · ').map((k) => `<kbd>${k}</kbd>`).join('<i>·</i>')}</dd>`
       ).join('')}</dl>
-    </div>
+    </div>` : `<div class="controls-keys controls-keys-off">
+      <div class="controls-keys-title">Keyboard &amp; mouse</div>
+      <p>Off — turn it on in <b>Settings</b> to play without a controller.</p>
+      <dl>${ALWAYS.map(([what, keys]) =>
+        `<dt>${what}</dt><dd>${keys.split(' · ').map((k) => `<kbd>${k}</kbd>`).join('<i>·</i>')}</dd>`
+      ).join('')}</dl>
+    </div>`}
   </div>`;
 }
