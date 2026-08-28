@@ -63,6 +63,8 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
 };
 
+const UP = new THREE.Vector3(0, 1, 0);
+
 let nextId = 1;
 
 /**
@@ -108,8 +110,28 @@ export class Enemy {
   private volleyTimer = 0;
   private strafePhase = Math.random() * Math.PI * 2;
   private facingYaw = 0;
-  private deadTimer = 0;
   private spawnPos = new THREE.Vector3();
+  // ---- ragdoll & corpse ----
+  /**
+   * Deaths ragdoll instead of playing a canned clip: the live pose freezes
+   * (the mixer just stops being updated), the body tips over along the kill
+   * impulse while the capsule flies and slides, and the limbs flail with
+   * damped random angular velocities. Reads as physics at this fidelity
+   * without an actual articulated solver.
+   */
+  private ragdoll: {
+    axis: THREE.Vector3;   // horizontal axis the body tips around
+    tip: number;           // current tip angle, 0 = upright
+    tipVel: number;
+    lieAngle: number;      // where the ground stops the tip
+    spin: number;          // damped yaw drift while falling
+    spinVel: number;
+    limbs: { bone: THREE.Object3D; w: THREE.Vector3 }[];
+  } | null = null;
+  /** corpse has come to rest: skip physics and limb work from here on */
+  private settled = false;
+  /** wave ended: corpse fading out, then removed */
+  private fadeT = -1;
   private swoopPhase = Math.random() * Math.PI * 2;
   private hoverTarget = new THREE.Vector3();
   private hoverRetarget = 0;
@@ -280,15 +302,8 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      this.deadTimer = 1.4;
       const bark = DEATH_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.5);
-      const anim = this.char.animator;
-      if (anim) {
-        anim.release('lower'); anim.release('upper');
-        anim.playOnce('lower', 'deathLower', 0.08, true);
-        anim.playOnce('upper', 'deathUpper', 0.08, true);
-      }
       // fling the corpse — harder killing blows throw harder, with a bit of
       // sideways scatter so a mowed-down line doesn't fall in lockstep
       const dir = this.position.clone().sub(from).setY(0).normalize();
@@ -298,6 +313,13 @@ export class Enemy {
       dir.normalize();
       this.velocity.addScaledVector(dir, (4.5 + Math.random() * 3) * heavy);
       this.velocity.y = Math.max(this.velocity.y, (3 + Math.random() * 1.5) * heavy);
+      // Someone already flat (wounded crawl, knockdown) keeps the held prone
+      // pose — tipping the root again would fold them through the floor. The
+      // upright die the ragdoll death; the ragdoll reads its direction from
+      // this.velocity on its first frame, so knockbacks applied right after
+      // this call (explosions, melee) still steer the fall.
+      if (!this.wounded && this.downTimer <= 0) this.startRagdoll(heavy);
+      this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       this.char.animator.playOnce('upper', 'hitUpper', 0.05);
     }
@@ -358,20 +380,125 @@ export class Enemy {
     return best;
   }
 
+  /** arm the ragdoll; direction is sampled from velocity on the first frame */
+  private startRagdoll(heavy: number): void {
+    const limbs: { bone: THREE.Object3D; w: THREE.Vector3 }[] = [];
+    const rig = this.char.rig;
+    if (rig) {
+      const names = ['upperArmL', 'upperArmR', 'forearmL', 'forearmR',
+        'upperLegL', 'upperLegR', 'lowerLegL', 'lowerLegR', 'head', 'chest'] as const;
+      for (const n of names) {
+        const bone = rig.bones[n];
+        if (!bone) continue;
+        const w = new THREE.Vector3(
+          (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2
+        );
+        // flail harder off a heavy kill; the damping bounds the total travel
+        w.normalize().multiplyScalar((3 + Math.random() * 4) * heavy * (n === 'chest' ? 0.4 : 1));
+        limbs.push({ bone, w });
+      }
+    }
+    this.ragdoll = {
+      axis: new THREE.Vector3(1, 0, 0), // replaced on the first dead frame
+      tip: 0,
+      tipVel: (2.5 + Math.random() * 2) * Math.min(heavy, 1.3),
+      lieAngle: Math.PI / 2 * (0.94 + Math.random() * 0.1),
+      spin: 0,
+      spinVel: (Math.random() - 0.5) * 4,
+      limbs,
+    };
+  }
+
+  /** wave over: fade the corpse out, then remove it */
+  fadeOut(): void {
+    if (this.alive || this.fadeT >= 0) return;
+    this.fadeT = 0;
+    // materials are shared from a cache — clone them so only this corpse fades
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const clone = (m: THREE.Material): THREE.Material => {
+        const c = m.clone();
+        c.transparent = true;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
+    });
+  }
+
+  private setOpacity(alpha: number): void {
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) m.opacity = alpha;
+    });
+  }
+
   update(dt: number, game: Game): void {
     const anim = this.char.animator;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
 
     if (!this.alive) {
-      this.deadTimer -= dt;
-      this.velocity.y -= 22 * grav(game) * dt;
-      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
-      if (this.deadTimer <= 0) {
-        this.char.root.position.y -= dt * 1.2; // sink away
-        if (this.deadTimer < -1.2) this.removeMe = true;
+      // ---- corpse ----
+      // Bodies stay where they fell for the rest of the wave (the mixer is
+      // simply never updated again, freezing the last live pose under the
+      // ragdoll), then fade out when the wave clears.
+      if (this.fadeT >= 0) {
+        this.fadeT += dt;
+        this.setOpacity(Math.max(0, 1 - this.fadeT / 1.2));
+        if (this.fadeT > 1.3) this.removeMe = true;
       }
+      if (this.settled) return; // at rest: nothing left to simulate
+
+      const r = this.ragdoll;
+      if (r && r.tip === 0 && r.tipVel > 0) {
+        // first dead frame: fall along the accumulated impulse (the damage
+        // fling plus any knockback stacked after it)
+        const dir = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
+        if (dir.lengthSq() < 0.05) dir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+        dir.normalize();
+        r.axis.set(0, 1, 0).cross(dir).normalize();
+      }
+      if (r) {
+        // tip over: accelerate like a felled tree, thud, small bounce
+        if (r.tip < r.lieAngle) {
+          r.tipVel += 7 * dt;
+          r.tip += r.tipVel * dt;
+          if (r.tip >= r.lieAngle) {
+            r.tip = r.lieAngle;
+            r.tipVel = r.tipVel > 1.6 ? -r.tipVel * 0.22 : 0; // bounce only off a hard fall
+          }
+        } else if (r.tipVel < 0) {
+          r.tip += r.tipVel * dt;
+          r.tipVel += 9 * dt;
+          if (r.tipVel >= 0) r.tipVel = 0.01; // fall back down
+        }
+        r.spinVel = damp(r.spinVel, 0, 3, dt);
+        r.spin += r.spinVel * dt;
+        // limbs flail and calm down
+        const decay = Math.exp(-4 * dt);
+        const dq = new THREE.Quaternion();
+        for (const l of r.limbs) {
+          const len = l.w.length();
+          if (len < 0.05) continue;
+          dq.setFromAxisAngle(l.w.clone().multiplyScalar(1 / len), len * dt);
+          l.bone.quaternion.multiply(dq);
+          l.w.multiplyScalar(decay);
+        }
+      }
+
+      // slide, fall, settle
+      this.velocity.x = damp(this.velocity.x, 0, 3, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 3, dt);
+      this.velocity.y -= 22 * grav(game) * dt;
+      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
+      if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
+      const speed = this.velocity.lengthSq();
+      const tipDone = !r || (r.tip >= r.lieAngle && Math.abs(r.tipVel) < 0.05);
+      if (res.grounded && speed < 0.1 && tipDone && this.fadeT < 0) this.settled = true;
+
       this.syncVisual(dt, game);
-      anim?.update(dt);
       return;
     }
 
@@ -418,8 +545,7 @@ export class Enemy {
       this.velocity.y -= 24 * grav(game) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.bleedOut <= 0) {
-        this.alive = false;
-        this.deadTimer = 1.4;
+        this.alive = false; // already prone: the held pose is the corpse
       }
       this.syncVisual(dt, game);
       anim?.update(dt);
@@ -1092,8 +1218,21 @@ export class Enemy {
     }
   }
 
+  private tmpQ = new THREE.Quaternion();
+  private tmpQ2 = new THREE.Quaternion();
+
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
+    const r = this.ragdoll;
+    if (!this.alive && r) {
+      // yaw (+ death spin), then tip over around the impulse axis
+      this.tmpQ.setFromAxisAngle(UP, this.facingYaw + r.spin);
+      this.tmpQ2.setFromAxisAngle(r.axis, r.tip);
+      this.char.root.quaternion.multiplyQuaternions(this.tmpQ2, this.tmpQ);
+      this.char.cosmetic?.(dt, game.time);
+      this.char.root.scale.setScalar(1);
+      return;
+    }
     this.char.root.rotation.y = this.facingYaw;
     if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);

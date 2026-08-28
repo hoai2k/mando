@@ -174,6 +174,8 @@ export class Game {
     // removed the same frame they die, rather than lingering as a corpse, so
     // the array could empty completely and the check could never fire again.
     if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
+      // the fallen fade away now that the wave is decided
+      for (const e of this.enemies) if (!e.alive) e.fadeOut();
       if (this.wave >= FINAL_WAVE) {
         this.setState('victory');
         this.events.banner('Territory held', 'This is the Way');
