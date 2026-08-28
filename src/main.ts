@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { config, loadSavedConfig, saveAudioConfig, saveInputConfig } from './config';
+import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { audio } from './core/audio';
@@ -18,7 +18,10 @@ const app = document.getElementById('app')!;
 loadSavedConfig();
 // The tunables in src/config.ts are meant to be adjustable while playing:
 //   __config.audio.sfx = 0.2; __audio.applyConfig(); __saveAudio();
-Object.assign(window, { __config: config, __audio: audio, __saveAudio: saveAudioConfig });
+//   __config.camera.dynamic = false; __saveCamera();
+Object.assign(window, {
+  __config: config, __audio: audio, __saveAudio: saveAudioConfig, __saveCamera: saveCameraConfig,
+});
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.shadowMap.enabled = true;
@@ -174,6 +177,10 @@ const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
 volume('Master volume', 'master');
 volume('Sound effects', 'sfx');
 volume('Music', 'music');
+settings.addToggle('Dynamic camera', () => config.camera.dynamic, (on) => {
+  config.camera.dynamic = on;
+  saveCameraConfig();
+});
 settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
@@ -187,6 +194,9 @@ settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) =>
 });
 settings.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
 settings.addHint('Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
+  + '<b>Dynamic camera</b> eases the chase camera in close when you are still or walking and out '
+  + 'when you sprint, dash or fly; the right-stick dolly still scales the whole range. Off, it holds '
+  + 'the single distance you dial in.<br/>'
   + '<b>Keyboard &amp; mouse</b> adds WASD and mouse aiming — the game is designed for a controller, '
   + 'and while this is off the mouse cursor stays free during play.');
 settings.onBack = () => closeOverlay();
