@@ -15,7 +15,7 @@ import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { controlsMarkup } from './ui/controls-art';
-import type { MandoId } from './characters/mandalorians';
+import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
 
 const app = document.getElementById('app')!;
 
@@ -287,6 +287,10 @@ end.onBack = () => quitToTitle();
 // audit in tools/audit-collision.mjs walks every board's meshes against its
 // physics world without having to play nine matches to reach them.
 (window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
+// debug/testing handle: the playable roster, so a test never has to hardcode a
+// character's name or count — both have changed under it before
+(window as unknown as { __roster?: unknown }).__roster =
+  (Object.keys(MANDO_ROSTER) as MandoId[]).map((id) => ({ id, name: MANDO_ROSTER[id].name }));
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

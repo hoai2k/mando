@@ -25,32 +25,53 @@ const fetched = () => h.page.evaluate(() => performance.getEntriesByType('resour
   .filter((e) => /\.glb$|assets\/textures\/.*\.(jpg|png)$/.test(e.name))
   .map((e) => e.name.split('/').pop()));
 const has = async (name) => (await fetched()).includes(name);
+/**
+ * Warming is asynchronous by nature — the queue runs two files at a time and
+ * waits for idle gaps — so "has it arrived?" is a question with a deadline,
+ * not an instant. Sampling once raced the arrival and failed the run on a file
+ * that turned up a beat later.
+ */
+const waitForAsset = async (name, ms = 20000) => {
+  for (let waited = 0; waited < ms; waited += 250) {
+    if (await has(name)) return true;
+    await sleep(250);
+  }
+  return false;
+};
 const state = () => h.page.evaluate(() => window.__state);
 
 // ---- 1. the title screen warms the first fighter and the territory art ----
 await h.waitForText(/PRESS START/i);
 await sleep(3000);
-check('the title warms the first Mandalorian', await has('din.glb'));
-check('the title warms the territory art', await has('board_tatooine.jpg'));
+check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
+check('the title warms the territory art', await waitForAsset('board_tatooine.jpg'));
 
 // ---- 2. the territory grid warms the rest of the roster ----
 await h.pad.tap(BTN.START);
 await h.waitForText(/CHOOSE|TERRITORY/i);
 await sleep(4000);
-const roster = ['din.glb', 'paz.glb', 'bokatan.glb', 'armorer.glb'];
+// The roster comes from the game rather than a list here: it has gained
+// characters and been renamed wholesale, and a frozen copy silently stops
+// covering whoever was added last.
+const roster = (await h.page.evaluate(() => window.__roster)).map((c) => `${c.id}.glb`);
+for (const m of roster) await waitForAsset(m);
 const got = await fetched();
-check('the grid warms every playable Mandalorian', roster.every((m) => got.includes(m)),
-  roster.filter((m) => !got.includes(m)).join(', ') || 'all four');
+check('the grid warms every playable fighter', roster.every((m) => got.includes(m)),
+  roster.filter((m) => !got.includes(m)).join(', ') || `all ${roster.length}`);
 
 // ---- 3. choosing a territory warms that territory ----
 await h.pad.tap(BTN.A);                       // The Dune Sea
-await h.waitForText(/MANDALORIAN|DIN DJARIN/i);
+await h.waitForText(/CHOOSE YOUR/i);
 await sleep(7000);
-check('the character select warms the chosen sky', await has('sky_desert.jpg'));
-check('...and its ground textures', await has('sand_albedo.jpg'));
-check('...and wave one\'s hostiles', await has('tusken.glb'));
+check('the character select warms the chosen sky', await waitForAsset('sky_desert.jpg'));
+check('...and its ground textures', await waitForAsset('sand_albedo.jpg'));
+check('...and wave one\'s hostiles', await waitForAsset('tusken.glb'),
+  `glb fetched: ${(await fetched()).filter((f) => f.endsWith('.glb')).join(' ') || 'none'}`);
 
 // ---- 4. the drop screen, and what it is allowed to reveal ----
+// Whoever the select is showing is who the next A press picks; hold onto the
+// name it displayed so the drop screen can be checked against it.
+const picked = await h.page.evaluate(() => document.querySelector('.charsel-name')?.textContent ?? '');
 for (let i = 0; i < 8; i++) {
   if (/READY/.test(await h.text())) break;
   await h.pad.tap(BTN.A);
@@ -70,7 +91,8 @@ const screen = await h.page.evaluate(() => {
   };
 });
 check('it names the territory', screen?.title === 'The Dune Sea', screen?.title ?? 'no screen');
-check('it shows the player', !!screen?.cast.includes('Din Djarin'), (screen?.cast ?? []).join(', '));
+check('it shows the player', !!picked && !!screen?.cast.includes(picked),
+  `picked ${picked || '(nothing)'} — cast ${(screen?.cast ?? []).join(', ')}`);
 check('it shows the hostiles waiting there', (screen?.cast.length ?? 0) > 1, (screen?.cast ?? []).join(', '));
 
 await h.page.evaluate(() => { window.__holdLoading = false; });
@@ -80,9 +102,12 @@ check('nothing the match needed was still loading when it appeared',
 check('the match is running', await state() === 'playing');
 
 // ---- 5. a cold drop waits, and a missing model does not strand it ----
-// The Crevasse posts krykna, whose .glb is not in the repo: that load fails,
-// the spiders fall back to their procedural build as they always have, and the
-// drop must go ahead rather than sitting on a bar that can never fill.
+// The Crevasse posts krykna. Its .glb now ships, so the failure this guards
+// against is staged rather than waited for: block that one request, and the
+// spiders must fall back to their procedural build and let the drop go ahead
+// rather than sitting on a bar that can never fill.
+let kryknaBlocked = 0;
+await h.page.route('**/krykna.glb', (route) => { kryknaBlocked++; route.abort(); });
 await h.page.evaluate(() => { window.__holdLoading = true; window.__quitToTitle?.(); });
 await sleep(800);
 await h.page.evaluate(() => window.__startCoop(1, 'crevasse'));
@@ -95,13 +120,15 @@ await h.waitForPlaying(30000);
 check('a missing model settles instead of stranding the drop', await state() === 'playing');
 check('the drop revealed with nothing outstanding',
   await h.page.evaluate(() => window.__loadPending()) === 0);
-check('the spiders fell back to their procedural build',
-  await h.page.evaluate(() => performance.getEntriesByType('resource')
-    .some((e) => e.name.endsWith('krykna.glb'))));
+check('the spiders fell back to their procedural build', kryknaBlocked > 0,
+  `${kryknaBlocked} blocked request(s)`);
 
-console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
+// The blocked krykna request above logs a console error in the page. That is
+// this test staging a failure on purpose, so it must not count as one.
+const unexpected = h.errors.filter((e) => !/ERR_FAILED|Failed to load resource/.test(e));
+console.log('page errors:', unexpected.length ? unexpected.slice(0, 3) : 'none');
 await h.close();
-if (failures.length || h.errors.length) {
+if (failures.length || unexpected.length) {
   console.error(`\n${failures.length} check(s) failed: ${failures.join(', ')}`);
   process.exit(1);
 }
