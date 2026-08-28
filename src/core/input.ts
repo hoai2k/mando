@@ -204,12 +204,12 @@ export class InputManager {
         // already updated, so track pressed separately here using a shadow set:
         inp.jumpHeld ||= b(BTN.A);
         inp.jumpPressed ||= this.edge(pad, BTN.A);
-        // RB is the movement button: the player controller decides between a
-        // dash and a sprint from whether the stick was already pushed.
-        inp.dashPressed ||= this.edge(pad, BTN.RB);
-        inp.sprintHeld ||= b(BTN.RB);
+        // LB is the movement button: a press dodges in whatever direction the
+        // stick gives it, and holding it on rolls that into a sprint.
+        inp.dashPressed ||= this.edge(pad, BTN.LB);
+        inp.sprintHeld ||= b(BTN.LB);
         inp.blockHeld ||= b(BTN.B);
-        inp.slamPressed ||= this.edge(pad, BTN.LB);
+        inp.slamPressed ||= this.edge(pad, BTN.RB);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
