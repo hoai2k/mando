@@ -1,33 +1,45 @@
 # Asset Requests — Images & Textures
 
-**Open image requests only.** Delivered images are recorded in
-[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
+**Open image requests only.** Everything delivered — with its original prompt — lives in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md); nothing that has landed is described here.
+Once a request is filled it moves there, and anything that builds on it (the 3D model
+briefs, say) cites the resulting filename from there.
 
-**Open: the game logo and favicon, one drop-screen portrait (`ig11`), and the environment
-prop reference sheets below.** The eleven runtime environment textures requested on 2026-08-29 all landed and
-are wired into their boards; so did the `ventress`, `embo` and `bossk` portraits, which
-closed that request. The `saber_curved`, `crossbow` and `longrifle` weapon sheets landed
-too, but the weapon *models* they were drawn for are **parked by decision** — the
-signature weapons keep their procedural builds for now — and the fourth sheet, `pistol`,
-is parked with them. Everything older — every environment, sky and UI texture, all nine
-boards' card art and skies, the surface textures, and the A-pose turnaround sheets for
-the whole cast — is delivered and integrated.
-
-Every image request for the project belongs in this file; once delivered it moves to the
-history doc, and anything it feeds (such as the 3D model briefs) references the resulting
-filenames from there.
+**Outstanding right now:** the favicon file, the environment prop reference sheets and
+their runtime textures, and the game-mode art for the `?modes` build. Nothing else — the
+cast, the boards, the skies, the surface textures, the drop-screen portraits and the logo
+are all in and wired.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
-design, never name a trademarked character or film frame.
+design, never name a trademarked character or film frame. (The game's own logo and favicon
+were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
 
+## Open — `favicon.png`
+
+The artwork is drawn and approved — a front-view T-visored helmet in aged gold with a dark
+visor and vents, on transparency — it just has not been committed to the repository yet.
+**Save it as `public/favicon.png`, 512×512 PNG with alpha** (browsers downscale it; only
+the silhouette survives at 32 px, which this design is built for).
+
+Nothing else is needed: `<link rel="icon">` is already in `index.html` and
+`workbench/index.html`, and until the file exists the request 404s and the browser falls
+back to its default tab icon.
+
+## Parked — not wanted while the decision holds
+
+| Id | Why | Prompt, for whenever it changes |
+|---|---|---|
+| `pistol` | The signature weapon **models** are parked (see [`ASSETS_MODELS.md`](ASSETS_MODELS.md)): the game keeps its procedural weapons, which read well at gameplay distance, and no code waits on a file. The other three sheets were drawn before that call and are delivered; this one never was. | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
+
 ## Making more character reference sheets
 
-Every character in `ASSETS_MODELS.md` has its three views (`ventress`, `embo` and
-`bossk` landed 2026-08-28), recorded in the history doc. This is the recipe.
+Every character in `ASSETS_MODELS.md` already has its three views, so this section is
+here for the next character rather than for anything outstanding. Delivered sheets and
+their prompts are in the history doc.
 
 These are the canonical visual reference for every authored 3D character in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md) — they drive image-to-3D generators (Meshy, Tripo,
@@ -59,70 +71,6 @@ back if the tool supports image-to-image, or the three views won't agree. Keep e
 humanoid at the same pixel height per the Height column so relative scale survives into the
 models. Descriptions are deliberately written as *designs*, never as named characters —
 same rule as the audio prompts — which keeps output original and on-style.
-
-## Playable bounty hunter sheets (delivered)
-
-The three hunter sheets below are delivered; they stay here as the record of the set
-until the models land and everything moves to the history doc. The blue-skinned
-gunslinger needed no sheets — the delivered `duelist` set already is that design.
-
-Same recipe as above: shared preamble + the Subject line below, three views each at
-matched pixel heights. **Two additions for this set:** every playable flies, so include a
-low-profile twin-nozzle thruster backpack, form-fitted to the character and visible in the
-side and back views; and where a weapon hilt is described it is hilt only, never an
-ignited blade — blades are FX meshes the game manages.
-
-| Id | Height | Subject |
-|---|---|---|
-| `ventress` ✅ delivered | 1.79 m | "a pale ash-grey-skinned bald female assassin, gaunt striking features with dark markings crowning the bare scalp, a fitted sleeveless grey-black bodysuit under a long split skirt panel, forearm wraps, two curved-hilt sword grips holstered crossed at the back of the belt" |
-| `embo` ✅ delivered | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
-| `bossk` ✅ delivered | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
-
-### Hunter weapon prop sheets — delivered, and the models parked
-
-`saber_curved.png`, `crossbow.png` and `longrifle.png` landed in `reference/characters/`
-and are recorded with their prompts in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The
-**models** they were drawn for are **parked by decision** (2026-08-29): the game keeps its
-procedural weapons, which read well at gameplay distance, and no code waits on a file. The
-fourth sheet, `pistol` — Cad Bane's twin heavy pistols — was never produced and is not
-wanted while that holds; its prompt is kept here for whenever it is:
-
-| Id | Prompt |
-|---|---|
-| `pistol` (parked) | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
-
-## Open — drop-screen portrait: `ig11` (priority 3)
-
-29 portraits are delivered (recorded in the history doc) — every enemy kind the drop
-screen shows and eight of the nine playable characters. Still open: **`ig11`**, who
-became playable after the batches were made and is the last face still drawn as a mark.
-
-Drop it at `public/assets/textures/portrait_ig11.jpg`. Nothing else needs
-changing: the loader tries the file and keeps its drawn mark if it 404s, and a
-missing portrait never delays the drop it illustrates.
-
-- **Format:** 512×614 (5:6 portrait), JPEG, quality 82.
-- **Framing:** head and shoulders, facing camera, filling the frame.
-- **Lighting:** single warm key from the upper left against a near-black
-  background, matching the menus' lit-from-above look.
-- **Subject:** per the delivered `ig11` turnaround sheets in `reference/characters/` —
-  the tall spindly assassin droid, cylindrical head with a red sensor ring.
-
-## Open — game logo and favicon (priority 2)
-
-The game is called **Bounty Hunters**. The title screen currently sets the name in the
-menus' gold type over the key art; a drawn wordmark would give it an identity. Both
-files are pre-wired — arriving at the path *is* the integration, and each falls back
-cleanly if it never does.
-
-| File | Where it goes | Prompt / notes |
-|---|---|---|
-| `logo.png` | `public/assets/textures/logo.png` → the title screen's heading | Title-screen wordmark, transparent background, **the words "BOUNTY HUNTERS" and nothing else** — this is the one image in the project that carries text, so the spelling has to be exact. "The words BOUNTY HUNTERS as a game logo wordmark on a transparent background: heavy condensed uppercase sans-serif, slightly angular and industrial, weathered aged-gold metal with worn edges and fine scratches, a thin dark bevel, HUNTERS set below and wider than BOUNTY, no other text, no symbols, no background". **1600×600 PNG with alpha.** Palette should sit with the menus' gold (`#d8b25a` over near-black). Wired: `MenuScreen.addTitle(text, sub, 'logo')` swaps the set type for the image on load and keeps the text as the accessible label; missing, the type stands. |
-| `favicon.png` | `public/favicon.png` → the browser tab | A mark, not a wordmark — at 32 px only a silhouette survives. "A simple bold icon on a transparent background: the front view of a T-visored bounty hunter helmet as a flat two-tone silhouette, aged gold on nothing, thick shapes, no fine detail, no text, centred with even margins". **512×512 PNG with alpha** (browsers downscale it). Wired: `<link rel="icon">` in `index.html` and `workbench/index.html`; a 404 falls back to the browser default. |
-
-Both are exceptions to the project's usual "no text, no logos" rule, which exists to keep
-generated art free of invented signage — the game's own name is the one thing that is
-meant to be readable.
 
 ## Open — environment prop reference sheets (for image-to-3D)
 
@@ -207,19 +155,6 @@ player character itself.
 | `speeder_bike` ▣ | "a military scout repulsor speeder bike about 3 meters long, no rider: two long forward outrigger vanes ending in steering fins, a narrow saddle over a compact rear engine block, handlebar controls, footrests, no wheels, hovering, drab grey-brown metal, field-worn" |
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
-
-## Environment textures (runtime) — delivered 2026-08-29
-
-All eleven landed and are wired: `city_facade` + `city_facade_glow` (Ringworld facades,
-albedo and emissive), `neon_sign_2/3` (street signs), `rust_hull` (Trask hulls and
-decks), `panel_white` (the Prison Rig's white surfaces), `forge_relief` (the Forge's
-dome walls, on their own cloned material so the relief does not tile across loose
-rubble), `kelp_frond` (the kelp is crossed alpha cards now, not cylinders),
-`skyline_silhouette` + `_2` (two parallax rows beyond the Ringworld bulkheads) and
-`net_weave` (nets along the Trask quay edges). Prompts are recorded in
-[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md).
-
-Nothing in this batch is outstanding. Later texture requests go in a new section here.
 
 ## Game-mode art — requested 2026-08-29 (the `?modes` build, docs/MODES.md)
 

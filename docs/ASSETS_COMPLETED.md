@@ -316,3 +316,37 @@ through them rather than shuffling.
 
 With these, all nine boards play their own ambience instead of borrowing the desert
 or station bed, and every enemy kind with a bark hook has the voice for it.
+
+---
+
+## Playable hunter turnaround sheets — 3 sets, delivered 2026-08-28
+
+`ventress`, `embo` and `bossk`, three views each in `reference/characters/` (production
+inputs, not shipped), to the shared A-pose recipe in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md). Two additions applied to this set: every playable
+flies, so each carries a low-profile twin-nozzle thruster backpack form-fitted to the
+character and visible in the side and back views; and a described weapon hilt is hilt
+only, never an ignited blade, since blades are FX meshes the game manages. The
+blue-skinned gunslinger needed no sheets — the delivered `duelist` set already is that
+design.
+
+| Id | Height | Original subject line |
+|---|---|---|
+| `ventress` | 1.79 m | "a pale ash-grey-skinned bald female assassin, gaunt striking features with dark markings crowning the bare scalp, a fitted sleeveless grey-black bodysuit under a long split skirt panel, forearm wraps, two curved-hilt sword grips holstered crossed at the back of the belt" |
+| `embo` | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
+| `bossk` | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
+
+## Game identity — the logo, delivered 2026-08-29
+
+| File | Where | Original prompt / notes |
+|---|---|---|
+| `logo.png` (1600×600 PNG, alpha) | `public/assets/textures/` → the title screen's heading | Title-screen wordmark reading **BOUNTY HUNTERS** and nothing else: heavy condensed uppercase, weathered aged-gold metal with worn edges, HUNTERS set below and wider than BOUNTY, transparent background. Wired ahead of delivery: `MenuScreen.addTitle(text, sub, 'logo')` swaps the set type for the image on load and keeps the text as the accessible label. |
+
+The logo and the matching favicon are the deliberate exception to the "no text, no logos"
+rule that keeps the rest of the generated art free of invented signage — the game's own
+name is the one thing meant to be readable.
+
+## Drop-screen portrait — `ig11`, delivered 2026-08-29
+
+`portrait_ig11.jpg` (512×614), the last face still drawn as a mark, to the same recipe as
+the earlier portrait batches. Every card on the drop screen carries authored art now.
