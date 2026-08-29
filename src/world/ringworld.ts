@@ -145,6 +145,21 @@ export function buildRingworld(): Board {
     }
   }
 
+  // hazard beacons on the tallest silhouette towers (PLAN.md §16.7): slow
+  // red blinks past the bulkheads, so the far city keeps moving at night
+  const beaconMat2 = new THREE.MeshBasicMaterial({ color: 0xff3a2a, transparent: true });
+  const beaconGeo2 = new THREE.SphereGeometry(0.9, 6, 5);
+  const skyBeacons: THREE.Mesh[] = [];
+  for (const end of [-1, 1]) {
+    for (const [bx, by] of [[-70, 36], [22, 41], [96, 33]] as const) {
+      const b = new THREE.Mesh(beaconGeo2, beaconMat2.clone());
+      b.position.set(bx, by, end * (STRIP_Z + 57));
+      b.userData.decor = true;
+      group.add(b);
+      skyBeacons.push(b);
+    }
+  }
+
   // boundary: the strip's end bulkheads and the outer facades
   for (const [wx, wz, w, d] of [
     [0, -(STRIP_Z + 8), 100, 4], [0, STRIP_Z + 8, 100, 4],
@@ -372,6 +387,11 @@ export function buildRingworld(): Board {
     // the tram works the line, easing at the turnarounds
     const tz = Math.sin(time * 0.16) * (STRIP_Z - 14);
     tramMover.moveTo(TRAM_X, TRAM_Y, tz);
+
+    // the skyline's hazard beacons blink on slow offset clocks
+    for (let i = 0; i < skyBeacons.length; i++) {
+      (skyBeacons[i].material as THREE.MeshBasicMaterial).opacity = Math.sin(time * 1.4 + i * 2.1) > 0.4 ? 0.9 : 0.08;
+    }
 
     // neon flickers now and then, the way neon does
     for (let i = 0; i < neonMats.length; i++) {
