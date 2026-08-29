@@ -15,6 +15,7 @@ import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
+import { spawnVehicles, type Vehicle } from './vehicles';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
@@ -30,6 +31,7 @@ interface PooledTarget extends BoltTarget {
   enemy: Enemy | null;
   player: Player | null;
   breakable?: Breakable | null;
+  vehicle?: Vehicle | null;
 }
 
 /** the rocket mesh's own axis, for orienting it along its velocity */
@@ -48,6 +50,8 @@ export class Game {
   players: Player[] = [];
   enemies: Enemy[] = [];
   allies: Enemy[] = [];
+  /** rides parked around the board (PLAN.md §17) */
+  vehicles: Vehicle[] = [];
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
   /** spreads alerts and decides who is allowed to push the player */
@@ -119,6 +123,8 @@ export class Game {
       this.scene.add(p.char.root);
       this.players.push(p);
     }
+
+    this.vehicles = spawnVehicles(board, this.scene);
 
 
     // a bolt turned around by a shield: sparks at the pane, and the blocker
@@ -236,6 +242,7 @@ export class Game {
     audio.stopMusic();
     audio.stopJetpacks();
     audio.stopSabers();
+    audio.stopEngines();
 
     disposeSubtree(this.scene);
     this.rocketGeo.dispose();
@@ -248,6 +255,7 @@ export class Game {
     this.scene.environment = null;
     this.envSource = null;
     this.rockets.length = 0;
+    this.vehicles.length = 0;
     this.enemies.length = 0;
     this.allies.length = 0;
     this.players.length = 0;
@@ -300,6 +308,12 @@ export class Game {
       if (!p.alive) continue;
       const d = p.position.distanceTo(point);
       if (d < 4.5) p.damage(18 * (1 - d / 4.5), point);
+    }
+    // parked rides are scenery with hit points — blasts reach them too
+    for (const v of this.vehicles) {
+      if (!v.alive) continue;
+      const d = v.pos.distanceTo(point);
+      if (d > 0.5 && d < 7) v.damage(80 * (1 - d / 8), point, bySlot);
     }
   }
 
@@ -373,6 +387,20 @@ export class Game {
       this.events.banner('The Mando has fallen');
     }
 
+    // ---- vehicles ----
+    // Ridden ones were driven inside their rider's update; this settles the
+    // parked ones and detonates anything that died this frame.
+    for (const v of this.vehicles) {
+      v.update(dt, this);
+      if (v.pendingExplosion) {
+        const px = v.pendingExplosion;
+        v.pendingExplosion = null;
+        this.explode(px.at, px.slot);
+      }
+      if (v.removeMe) this.scene.remove(v.group);
+    }
+    this.vehicles = this.vehicles.filter((v) => !v.removeMe);
+
     // ---- hunt escalation ----
     // Posted enemies wait to be found, which must not let a wave stall out: if
     // one drags on, the remnant starts sweeping toward the players instead.
@@ -437,6 +465,7 @@ export class Game {
       t.shield = e.shieldCollider;
       t.slot = undefined;
       t.breakable = null;
+      t.vehicle = null;
       targets.push(t);
       // long bodies (the war massiff) need more than the one centre sphere
       if (e.def.hitParts) {
@@ -456,6 +485,7 @@ export class Game {
           h.shield = null;
           h.slot = undefined;
           h.breakable = null;
+          h.vehicle = null;
           targets.push(h);
         }
       }
@@ -475,6 +505,7 @@ export class Game {
       t.shield = p.shieldCollider;
       t.slot = p.slot;
       t.breakable = null;
+      t.vehicle = null;
       targets.push(t);
     }
     // breakable props sit on team 2, so both sides' fire chips at them
@@ -504,8 +535,32 @@ export class Game {
           p.enemy = null;
           p.player = null;
           p.breakable = b;
+          p.vehicle = null;
           targets.push(p);
         }
+      }
+    }
+    // vehicles are props with hit points: team 2, spheres laid along the hull
+    // so a long skiff is hittable bow to stern
+    for (const v of this.vehicles) {
+      if (!v.alive) continue;
+      const sin = Math.sin(v.yaw), cos = Math.cos(v.yaw);
+      const r = Math.max(v.def.radius, 0.9);
+      const steps = Math.max(0, Math.ceil(v.def.length / 2 / r) - 1);
+      for (let i = -steps; i <= steps; i++) {
+        const along = steps === 0 ? 0 : (i / steps) * (v.def.length / 2 - r * 0.5);
+        const t = this.pooledTarget(slot++);
+        t.enemy = null;
+        t.player = null;
+        t.breakable = null;
+        t.vehicle = v;
+        t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
+        t.radius = r;
+        t.team = 2;
+        t.alive = true;
+        t.shield = null;
+        t.slot = undefined;
+        targets.push(t);
       }
     }
     for (const a of this.allies) {
@@ -520,6 +575,7 @@ export class Game {
       t.shield = null;
       t.slot = undefined;
       t.breakable = null;
+      t.vehicle = null;
       targets.push(t);
     }
     this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
@@ -598,6 +654,7 @@ export class Game {
       shield: null, slot: undefined, enemy: null, player: null,
       onHit: (dmg: number, from: THREE.Vector3, bySlot: number, tag?: string): void => {
         if (entry.breakable) { this.hurtBreakable(entry.breakable, dmg); return; }
+        if (entry.vehicle) { entry.vehicle.damage(dmg, from, bySlot); return; }
         if (entry.player) {
           const p = entry.player;
           p.damage(dmg, from);

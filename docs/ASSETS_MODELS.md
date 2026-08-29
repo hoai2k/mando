@@ -228,7 +228,10 @@ are textures (see `ASSETS_IMAGES.md`), not models. That leaves four:
 
 ### Pilotable vehicles (PLAN.md §17)
 
-Player-drivable rides through the same `loadProp` path as the swoop bike. The rider is
+**The system is live** (implemented 2026-08-29): every kind below is parked on its
+boards with a procedural stand-in, and the loader is already pointed at these ids —
+each model replaces its stand-in the moment the file lands, exactly like the
+characters. Player-drivable rides through the same `loadProp` path as the swoop bike. The rider is
 the player character seated by the game's own ride clips, so **model the vehicle empty**:
 an open saddle or seat with nothing in it, controls (bars, wheel, tiller) placed where
 seated hands reach. Origin at the resting ground point, +Z forward. The **swoop is not

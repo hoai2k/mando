@@ -292,6 +292,9 @@ export function buildTrask(): Board {
     // thing hunting in it, not the water itself
     waterY: WATER_Y,
     movers,
+    // a cargo skiff moored in the channel between the fingers — it rides the
+    // water, and skims over the mamacore's bite depth
+    vehicles: [{ kind: 'skiff', x: -14, z: 8, yaw: 0 }],
   };
 
   // ---- the mamacore hunts by the clock ----

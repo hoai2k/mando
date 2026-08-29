@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
+import type { VoiceId } from '../core/audio';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -66,6 +67,8 @@ interface MandoConfig {
   melee?: 'gaffi' | 'sabers';
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
+  /** whose throat the hurt and death sounds come from; defaults to a helmeted man */
+  voice?: VoiceId;
   /**
    * Where the flight flames live: on the worn jetpack (default), or under the
    * feet for a character that flies on leg thrusters — no pack is built, and
@@ -102,35 +105,42 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   bokatan: {
     name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
+    voice: 'mando_f',
   },
   armorer: {
     name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
+    voice: 'mando_f',
   },
   ventress: {
     name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
+    voice: 'human_f',
   },
   embo: {
     name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
+    voice: 'masked',
   },
   bossk: {
     name: 'Bossk', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
+    voice: 'reptile',
   },
   duelist: {
     name: 'Cad Bane', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
+    voice: 'alien_m',
   },
   ig11: {
     name: 'IG-11', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
+    voice: 'droid',
   },
 };
 
