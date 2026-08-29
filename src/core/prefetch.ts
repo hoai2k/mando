@@ -44,6 +44,34 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
 };
 
 /**
+ * The environment sculpts each territory builds itself out of.
+ *
+ * These are not warmed for the loading screen's benefit — the drop deliberately
+ * does not wait on them, since a board looks right without them and swaps them
+ * in as they land. They are warmed because otherwise the *match* pays for them:
+ * a territory kicks off every one of these the instant it builds, which on the
+ * Dune Sea measured 54 MB across 17 files arriving while the player was already
+ * fighting — bandwidth taken from the assets the drop *does* wait on, and a
+ * parse hitch per file on the main thread. Fetched from the character select
+ * instead, they are usually in the HTTP cache before the match starts.
+ *
+ * A stale entry costs one wasted prefetch and nothing else: the board asks for
+ * what it asks for, and this list only decides what arrives early.
+ */
+export const BOARD_PROPS: Record<BoardId, string[]> = {
+  desert: ['cargo_crate', 'sail_barge', 'vaporator', 'tusken_tent', 'homestead_dome',
+    'sandcrawler', 'bantha', 'nikto_swoop', 'landspeeder', 'skiff'],
+  station: ['cargo_crate', 'fuel_barrel', 'cargo_crane', 'freighter'],
+  nevarro: ['adobe_tower', 'adobe_gate', 'speeder_bike'],
+  crevasse: ['cargo_crate', 'survey_crawler'],
+  trask: ['cargo_crate', 'trawler', 'dock_shed', 'fish_rack', 'skiff'],
+  refinery: ['cargo_crate', 'fuel_barrel', 'reactor_core', 'alarm_console', 'pipe_rack'],
+  forge: ['forge_brazier', 'mythosaur_skull', 'speeder_bike'],
+  ringworld: ['tram', 'street_kiosk', 'nikto_swoop'],
+  narkina: ['cargo_crate', 'sunken_transport'],
+};
+
+/**
  * The panorama behind each board, matching the `skyFile` its builder sets.
  * The refinery is indoors and has none — and since the match waits on this
  * list, naming a sky it will never load would hold the drop until the cap.
@@ -103,6 +131,9 @@ export function warmTerritory(board: BoardId): void {
   if (sky) warmTexture(sky, 'soon');
   for (const name of BOARD_TEXTURES[board]) warmTexture(name, 'soon');
   for (const id of boardEnemyIds(board, 2)) warmAuthored(id, 'soon');
+  // the territory's own sculpts, behind its opening waves: the match starts
+  // every one of these at build, so arriving early is the whole point
+  for (const id of BOARD_PROPS[board]) warmAuthored(id, 'soon');
   for (const id of boardEnemyIds(board)) warmAuthored(id, 'idle');
   for (const id of MANDO_IDS) warmAuthored(id, 'idle');
 }
