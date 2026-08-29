@@ -3,8 +3,10 @@ import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
 import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { spaceSky } from './sky';
-import type { Board } from './board';
+import { Mover, type Board } from './board';
 import { authoredProp } from './props';
+import { addSkyTraffic } from './traffic';
+import { audio } from '../core/audio';
 
 /**
  * Board 2 — "The Spice Run" waystation: a constellation of floating platforms
@@ -199,22 +201,29 @@ export function buildWaystation(): Board {
     authoredProp(group, barrel, 'fuel_barrel', 1.5, { x: bx, y: by, z: bz, axis: 'y', yaw: barrel.rotation.y });
   }
 
+  // freighter hull, built twice: once parked on its pad, once as the working
+  // ship that flies the landing cycle on the north-east pad
+  const makeFreighter = (): THREE.Group => {
+    const f = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 9, 8), hullMat);
+    body.rotation.z = Math.PI / 2;
+    body.position.y = 2.2;
+    f.add(body);
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), darkMat);
+    cockpit.position.set(4.6, 2.4, 0);
+    f.add(cockpit);
+    for (const s of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.35, 3.2), hullMat);
+      wing.position.set(-1, 1.6, s * 3);
+      f.add(wing);
+    }
+    f.traverse((o) => { o.castShadow = true; });
+    return f;
+  };
+
   // parked freighter on a landing pad
-  const ship = new THREE.Group();
-  const shipBody = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 9, 8), hullMat);
-  shipBody.rotation.z = Math.PI / 2;
-  shipBody.position.y = 2.2;
-  ship.add(shipBody);
-  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), darkMat);
-  cockpit.position.set(4.6, 2.4, 0);
-  ship.add(cockpit);
-  for (const s of [-1, 1]) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.35, 3.2), hullMat);
-    wing.position.set(-1, 1.6, s * 3);
-    ship.add(wing);
-  }
+  const ship = makeFreighter();
   ship.position.set(-38, 4, -16);
-  ship.traverse((o) => { o.castShadow = true; });
   group.add(ship);
   // The procedural ship lies nose-out along +X, which is where its colliders
   // are; the sculpt is built along +Z like every other prop, so it takes a
@@ -227,6 +236,42 @@ export function buildWaystation(): Board {
   physics.addBox(-38, 6, -16, 11, 4, 10);
   // the cockpit blister sits 2 m proud of the hull box, out over the pad edge
   physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
+
+  // ---- the working landing pad (PLAN.md §16.2) ----
+  // The x8 z60 outrigger is a live pad: on a ~100 s cycle a freighter comes
+  // down on thruster wash, sits about twenty seconds under the pad beacons,
+  // and lifts away. The hull rides a Mover, so it is real ground — land on
+  // the roof and ride the takeoff for free altitude. It never crushes: any
+  // body under the descending hull is shoved clear, no damage. Touchdown is
+  // loud on purpose (director.noise) — cover for a loud approach.
+  const PAD = { x: 8, y: 24, z: 60 };
+  const CRUISE = 60;             // metres above the pad when away
+  const visitor = makeFreighter();
+  visitor.position.set(PAD.x, PAD.y + CRUISE, PAD.z);
+  group.add(visitor);
+  authoredProp(visitor, visitor.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 });
+  const visitorBox = physics.addBox(PAD.x, PAD.y + CRUISE + 2, PAD.z, 11, 4, 10);
+  const visitorMover = new Mover(visitorBox, visitor);
+  // thruster wash: two glow planes under the hull, shown only while moving
+  const washMat = new THREE.MeshBasicMaterial({ color: 0x9ac8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
+  for (const sx of [-2.2, 2.2]) {
+    const wash = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 3.4), washMat);
+    wash.position.set(sx, -1.4, 0);
+    wash.rotation.x = Math.PI / 2;
+    wash.userData.decor = true;
+    visitor.add(wash);
+  }
+  /** the cycle: 0 away → descend → sit → climb → away; phase in seconds */
+  const LANDING_PERIOD = 100;
+  let landedAnnounced = false;
+  let liftAnnounced = false;
+
+  // ---- sky traffic (PLAN.md §16.1) ----
+  const trafficUpdate = addSkyTraffic(group, [
+    { center: new THREE.Vector3(0, 90, 0), rx: 300, rz: 260, speed: 0.016, phase: 0.4, scale: 4 },
+    { center: new THREE.Vector3(40, 140, -60), rx: 380, rz: 340, speed: 0.011, phase: 2.6, scale: 6 },
+    { center: new THREE.Vector3(-30, 55, 30), rx: 240, rz: 200, speed: 0.02, phase: 4.5, scale: 3, rumble: true },
+  ]);
 
   // neon cantina sign + hazard beacons (animated)
   const neonMat = new THREE.MeshBasicMaterial({ color: 0x33ddc9, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
@@ -277,10 +322,59 @@ export function buildWaystation(): Board {
       new THREE.Vector3(20, 26, 20), new THREE.Vector3(-30, 30, 10), new THREE.Vector3(10, 36, -30),
       plat(9, 6), plat(10, 6), plat(11, 8),
     ],
-    update: (dt, time) => {
+    movers: [visitorMover],
+    update: (dt, time, game) => {
       const blink = (Math.sin(time * 4) + 1) / 2;
       for (const b of beacons) (b.material as THREE.MeshBasicMaterial).color.setRGB(0.4 + blink * 0.6, 0.12, 0.1);
       (neon.material as THREE.MeshBasicMaterial).opacity = 0.72 + Math.sin(time * 11) * 0.08 + (Math.sin(time * 1.7) > 0.92 ? -0.4 : 0);
+
+      trafficUpdate(time, game);
+
+      // ---- the landing cycle ----
+      // Height over the phase: away → an eased descent (t 8..20), twenty
+      // seconds parked (20..40), an eased climb (40..52), then away again.
+      const t = time % LANDING_PERIOD;
+      const ease = (k: number): number => k * k * (3 - 2 * k);
+      let h = CRUISE;
+      let moving = 0;
+      if (t >= 8 && t < 20) { h = CRUISE * (1 - ease((t - 8) / 12)); moving = 1; }
+      else if (t >= 20 && t < 40) { h = 0; }
+      else if (t >= 40 && t < 52) { h = CRUISE * ease((t - 40) / 12); moving = 1; }
+      // the hull box's centre sits 2 m above the deck line (a 4 m tall box
+      // whose underside is the landing gear); park it so the roof is standable
+      visitorMover.moveTo(PAD.x, PAD.y + 4 + h, PAD.z);
+      washMat.opacity = moving * (0.35 + Math.sin(time * 31) * 0.12);
+
+      // touchdown and liftoff each announce themselves once per cycle
+      if (t >= 20 && t < 40 && !landedAnnounced) {
+        landedAnnounced = true;
+        liftAnnounced = false;
+        const p = game?.players[0];
+        const dist = p ? p.position.distanceTo(new THREE.Vector3(PAD.x, PAD.y, PAD.z)) : 200;
+        audio.shipLanding(Math.max(0.06, Math.min(0.7, 40 / Math.max(dist, 10))));
+        game?.director.noise(game, new THREE.Vector3(PAD.x, PAD.y, PAD.z), 45);
+      } else if (t >= 40 && !liftAnnounced) {
+        liftAnnounced = true;
+        const p = game?.players[0];
+        const dist = p ? p.position.distanceTo(new THREE.Vector3(PAD.x, PAD.y, PAD.z)) : 200;
+        audio.shipLanding(Math.max(0.05, Math.min(0.5, 30 / Math.max(dist, 10))));
+      } else if (t < 8) {
+        landedAnnounced = false;
+      }
+
+      // never crush: while the hull is coming down, anything under it is
+      // shoved off the footprint — a push, not a hit
+      if (moving && h < 8 && game) {
+        const bodies = [...game.players, ...game.enemies];
+        for (const b of bodies) {
+          if (!b.alive) continue;
+          const dx = b.position.x - PAD.x, dz = b.position.z - PAD.z;
+          if (Math.abs(dx) > 6.5 || Math.abs(dz) > 6 || Math.abs(b.position.y - PAD.y) > 6) continue;
+          const push = Math.max(Math.abs(dx), 0.5);
+          b.velocity.x += (dx / push) * 12 * dt * 8;
+          b.velocity.z += (dz === 0 ? 1 : Math.sign(dz)) * 10 * dt * 8;
+        }
+      }
     },
   };
 }

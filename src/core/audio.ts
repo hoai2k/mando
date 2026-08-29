@@ -25,6 +25,7 @@ type SampleName =
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
   | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
+  | 'ship_pass' | 'ship_landing' | 'steam_hiss'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample | VariantSample;
 
@@ -138,6 +139,7 @@ export class AudioEngine {
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
       'saber_deflect', 'speeder_loop', 'speeder_ignite', 'boss_horn',
+      'ship_pass', 'ship_landing', 'steam_hiss',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
       // match needs is not known until the players have picked
@@ -548,6 +550,26 @@ export class AudioEngine {
     this.zap(116, 124, 1.2, 'triangle', 0.2 * g, 0.1);
     this.burst(0.5, 0.35 * g, 300, 1.15, 1.2);   // the hit at the crest
     this.zap(45, 30, 0.7, 'sine', 0.4 * g, 1.15);
+  }
+  /** a ship sliding past overhead — ambience, volume set by the caller's range */
+  shipPass(vol = 0.5): void {
+    if (!this.ctx || vol < 0.03) return;
+    if (this.playSample('ship_pass', vol)) return;
+    this.zap(120, 60, 2.2, 'sawtooth', 0.12 * vol * 2);
+    this.burst(2.2, 0.2 * vol * 2, 500, 0, 0.8);
+  }
+  /** a freighter touching down or lifting off a pad nearby */
+  shipLanding(vol = 0.6): void {
+    if (!this.ctx || vol < 0.03) return;
+    if (this.playSample('ship_landing', vol)) return;
+    this.burst(1.6, 0.3 * vol * 1.6, 900, 0, 0.7);
+    this.zap(90, 40, 1.6, 'sawtooth', 0.14 * vol * 1.6);
+  }
+  /** a wall vent letting off pressure — ambience, positional by caller's range */
+  steamHiss(vol = 0.4): void {
+    if (!this.ctx || vol < 0.03) return;
+    if (this.playSample('steam_hiss', vol)) return;
+    this.burst(1.4, 0.3 * vol * 1.8, 5200, 0, 0.6);
   }
   waveClear(): void {
     if (!this.ctx || this.playSample('wave_clear', 0.7)) return;

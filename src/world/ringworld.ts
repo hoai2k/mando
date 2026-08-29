@@ -5,6 +5,7 @@ import { deckTexture, hullTexture, loadOptionalTexture, texture } from '../core/
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
 import { authoredProp } from './props';
+import { addSkyTraffic } from './traffic';
 
 /**
  * Board 8 — Glavis Ringworld: a city street strip on a ring station, under a
@@ -344,8 +345,18 @@ export function buildRingworld(): Board {
   // a street swoop parked mid-strip — the tram is not the only ride here
   board.vehicles = [{ kind: 'swoop', x: 2, z: 32, yaw: 0.3 }];
 
-  board.update = (dt: number, time: number) => {
+  // ---- sky traffic (PLAN.md §16.1) ----
+  // The lane follows the ring overhead: long ellipses high above the strip,
+  // running lengthwise so the ships track the habitat's curve, brightest
+  // against the night side where the running lights carry.
+  const trafficUpdate = addSkyTraffic(group, [
+    { center: new THREE.Vector3(0, 170, 0), rx: 160, rz: 420, speed: 0.014, phase: 1.2, scale: 5 },
+    { center: new THREE.Vector3(60, 120, 0), rx: 130, rz: 360, speed: 0.019, phase: 4.0, scale: 3, rumble: true },
+  ]);
+
+  board.update = (dt: number, time: number, game) => {
     timeNow = time;
+    trafficUpdate(time, game);
     const b = terminatorZ(time);
 
     // the darkness follows the terminator: the texture's soft edge sits at
