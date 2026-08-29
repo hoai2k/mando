@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { clamp, makeRng } from '../core/math';
-import { deckTexture, hullTexture, texture } from '../core/assets';
+import { deckTexture, hullTexture, loadOptionalTexture, texture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
 
@@ -12,6 +12,9 @@ import { Mover, type Board } from './board';
  * it. A monorail tram runs the length of the street on a loop: an armored
  * ride through hostile territory that anyone can board.
  */
+
+/** the street's sign artworks, cycled down the strip */
+const SIGN_ART = ['neon_sign', 'neon_sign_2', 'neon_sign_3'];
 
 const STRIP_Z = 118;    // half-length of the street
 const DAY_LENGTH = 210; // seconds for a full terminator swing
@@ -80,6 +83,24 @@ export function buildRingworld(): Board {
 
   const streetMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0x9a9da2, roughness: 0.8, metalness: 0.3 });
   const buildingMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x9aa0aa, roughness: 0.7, metalness: 0.35 });
+  // The buildings are random-sized boxes, so a facade texture is the upgrade a
+  // model would have been: window strips and conduit runs at tiling scale, with
+  // an emissive map lighting a scattering of them on the night side.
+  loadOptionalTexture('city_facade', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 2);
+    buildingMat.map = tex;
+    buildingMat.color.setHex(0xffffff);   // the artwork carries the colour now
+    buildingMat.needsUpdate = true;
+  });
+  loadOptionalTexture('city_facade_glow', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 2);
+    buildingMat.emissiveMap = tex;
+    buildingMat.emissive.setHex(0xffffff);
+    buildingMat.emissiveIntensity = 1.1;
+    buildingMat.needsUpdate = true;
+  });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x272a30, roughness: 0.7, metalness: 0.4 });
 
   // street floor
@@ -87,6 +108,35 @@ export function buildRingworld(): Board {
   street.position.y = -0.5;
   street.receiveShadow = true;
   group.add(street);
+
+  // City beyond the bulkheads: two parallax rows of tower silhouettes at each
+  // end of the strip, the far one wider and dimmer. Decor — they stand outside
+  // the play space entirely and carry no collider.
+  for (const [name, dist, height, tint] of [
+    ['skyline_silhouette_2', 96, 62, 0x39415a],
+    ['skyline_silhouette', 58, 44, 0x2a3040],
+  ] as const) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: tint, transparent: true, alphaTest: 0.25,
+      side: THREE.DoubleSide, depthWrite: false, visible: false,
+    });
+    loadOptionalTexture(name, (tex) => {
+      mat.map = tex;
+      mat.alphaMap = tex;
+      mat.color.setHex(0xffffff);
+      mat.visible = true;
+      mat.needsUpdate = true;
+    }, { exts: ['png'] });
+    const geo = new THREE.PlaneGeometry(300, height);
+    for (const end of [-1, 1]) {
+      const row = new THREE.Mesh(geo, mat);
+      row.position.set(0, height * 0.42, end * (STRIP_Z + dist));
+      row.rotation.y = end > 0 ? Math.PI : 0;
+      row.userData.decor = true;
+      row.renderOrder = dist > 70 ? -2 : -1;
+      group.add(row);
+    }
+  }
 
   // boundary: the strip's end bulkheads and the outer facades
   for (const [wx, wz, w, d] of [
@@ -133,11 +183,18 @@ export function buildRingworld(): Board {
         group.add(vent);
         physics.addBox(vent.position.x, h + 0.7, vent.position.z, 2.2, 1.4, 2.2);
       }
-      // neon sign on the street face — the night side's landmarks
+      // neon sign on the street face — the night side's landmarks. Three sign
+      // artworks rotate through the street where they exist; a flat colour
+      // plane stands in for any that has not been drawn.
       const neon = new THREE.MeshBasicMaterial({
         color: [0x33ddc9, 0xd84a9a, 0xd8b02a, 0x6a8aff][(i + (side > 0 ? 1 : 0)) % 4],
         transparent: true, opacity: 0.85, side: THREE.DoubleSide,
       });
+      loadOptionalTexture(SIGN_ART[(i + (side > 0 ? 1 : 0)) % SIGN_ART.length], (tex) => {
+        neon.map = tex;
+        neon.color.setHex(0xffffff);
+        neon.needsUpdate = true;
+      }, { exts: ['png'] });   // glyphs on transparency
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.4), neon);
       sign.position.set(bx - side * (w / 2 + 0.1), h * 0.6, bz);
       sign.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;

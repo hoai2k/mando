@@ -153,9 +153,9 @@ change; the sheets are production inputs in `reference/characters/` and are not 
 
 Signature-weapon voices for the hunter roster, generated with
 `node tools/generate-sfx.mjs crossbow_shot longrifle_shot saber_swing saber_ignite`
-(prompts live in that script): `crossbow_shot` (Karshii's laser crossbow),
-`longrifle_shot` (Skarvek's and VX-9's long rifle), `saber_swing` (Sylla Morvane's
-melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Rook Vance's twin pistols)
+(prompts live in that script): `crossbow_shot` (Embo's laser crossbow),
+`longrifle_shot` (Bossk's and IG-11's long rifle), `saber_swing` (Asajj Ventress's
+melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Cad Bane's twin pistols)
 followed on 2026-08-29.
 Synth fallbacks remain in `src/core/audio.ts`.
 
@@ -225,3 +225,70 @@ The seven per-board pairs still wanted are open in [`ASSETS_AUDIO.md`](ASSETS_AU
 
 The engine synthesizes a fallback (two detuned saws an octave apart plus a sub triangle
 through a lowpass) when the file is absent, so the hum works either way.
+
+## Audio — 28 files, delivered 2026-08-29
+
+Per-character voices for the playable roster, generated with
+`node tools/generate-sfx.mjs <name ...>` (prompts in that script). Every playable
+used to share one `player_hurt` grunt recorded for a man inside a helmet, so the
+droid and the reptile yelped like a human; each species now has its own family of
+three hurt takes plus a death cry, picked at random with a little pitch scatter.
+
+| Voice | Who | Files |
+|---|---|---|
+| `mando_m` | Kell Dravan, Torva Brekk | `hurt_mando_m_1..3`, `death_mando_m` |
+| `mando_f` | Vess Ordane, The Forgemistress | `hurt_mando_f_1..3`, `death_mando_f` |
+| `human_f` | Sylla Morvane | `hurt_human_f_1..3`, `death_human_f` |
+| `masked` | Karshii (rebreather) | `hurt_masked_1..3`, `death_masked` |
+| `reptile` | Skarvek | `hurt_reptile_1..3`, `death_reptile` |
+| `droid` | VX-9 (servos and sparks, no voice) | `hurt_droid_1..3`, `death_droid` |
+| `alien_m` | Rook Vance | `hurt_alien_m_1..3`, `death_alien_m` |
+
+The engine keeps a per-voice synth fallback too, so a droid stays mechanical even
+before the files decode. `player_hurt` is retained as the `mando_m` fallback only.
+
+---
+
+---
+
+## Environment textures (runtime) — 11 files, delivered 2026-08-29
+
+The batch the board audit asked for, at `public/assets/textures/`. Unlike earlier
+texture batches these were **not** pre-wired — each needed a `loadOptionalTexture` call
+or a material swap in its board module, all of which landed with the files. Verified by
+walking each board's live scene graph and confirming the file is on a real material.
+
+| Id | For | Original prompt / notes |
+|---|---|---|
+| `city_facade.jpg` + `city_facade_glow.jpg` | Ringworld building blocks (`world/ringworld.ts`) | The buildings are random-sized boxes under the generic hull texture, so a facade texture — not a model — is the upgrade. Albedo: "Seamless tileable texture of a dense sci-fi city building facade: stacked metal panels, narrow horizontal window strips, vents and conduit runs, subtle grime streaks, gunmetal grey-blue, even lighting, 1024×1024". Glow (emissive map, same layout): "matching emissive map, near-black with scattered lit window strips in warm amber and pale teal". Wiring: swap `buildingMat`'s map + add emissiveMap. |
+| `neon_sign_2.png`, `neon_sign_3.png` | Ringworld street signs | Today four flat colour planes. Same recipe as the delivered `neon_sign.png` (glyphs on transparency, invented script): one "glowing magenta-and-amber alien noodle-bar sign", one "glowing violet-and-teal alien hostel sign", 512×256 PNG. Wiring: swap the sign planes' materials. |
+| `rust_hull.jpg` | Trask trawlers + dock decks | "Seamless tileable texture of rusty ship hull plating: green-grey steel plates with riveted seams, rust bleeding from joints and scuppers, flaking paint patches, even lighting, 1024×1024". Wiring: swap `hullMat`/`deckMat` maps in `world/trask.ts`. |
+| `panel_white.jpg` | Prison Rig decks, tower, pylons | "Seamless tileable texture of clean white sci-fi facility wall panels: smooth off-white composite panels with fine seams, recessed bolts, faint scuffs low on the panel, even lighting, 1024×1024". Wiring: swap `whiteMat`/`deckMat` maps in `world/narkina.ts`. |
+| `forge_relief.jpg` | Great Forge dome walls | "Seamless tileable texture of ancient carved stone wall: shallow angular geometric relief of interlocking sigils, grey basalt, chipped and heat-scorched, even lighting, 1024×1024". Wiring: swap `ruinMat`'s map on the dome wall segments in `world/forge.ts`. |
+| `kelp_frond.png` | Prison Rig kelp forest | The kelp is solid cylinders today; crossed alpha-card ribbons would read as plants. "A single kelp frond on a transparent background: long tapering ribbon leaf with a gentle S-curve, olive-green, translucent edges, 512×1024 PNG with alpha". Wiring: replace the cylinder stalks with two crossed cards per plant (small code change, kelp is already `decor`). |
+| `skyline_silhouette.png`, `skyline_silhouette_2.png` | Ringworld backdrop (PLAN.md §16) | Two parallax layers of city beyond the end bulkheads. "A wide row of varied dark sci-fi tower silhouettes on a transparent background: flat near-black shapes of mixed heights with spires, gantries and rooftop tanks, scattered tiny lit windows in warm amber and pale teal, no detail inside the shapes, 2048×512 PNG with alpha". `_2` is a second, differently-composed row for the far layer. Wiring: two alpha planes per bulkhead end in `world/ringworld.ts`, `decor`. |
+| `net_weave.png` | Trask quay nets (PLAN.md §16) | "A hanging cargo net on a transparent background: knotted rope in a sagging diamond mesh, frayed ends, dark tarred brown, 512×512 PNG with alpha". Wiring: alpha planes hung between pilings in `world/trask.ts`, `decor`. |
+
+Wiring notes for the three that were more than a map swap: the Forge's relief goes on a
+clone of `ruinMat` so the carving does not tile across loose rubble; the kelp is two
+crossed alpha cards per plant with the cylinder kept as the stand-in until the artwork
+lands; the skyline rows and the quay nets are `decor`, and the collision audit's decor
+flag now inherits down a group so a prop built from parts declares itself once.
+
+## Drop-screen portraits — the hunter trio, delivered 2026-08-29
+
+`portrait_ventress.jpg`, `portrait_embo.jpg`, `portrait_bossk.jpg`, to the recipe in the
+earlier 26-portrait batch (512×614 JPEG, head and shoulders, warm key from the upper left
+on near-black). No code change: the loading screen already probes `portrait_<id>.jpg` and
+keeps its drawn mark on a 404. `portrait_ig11` is the last one still open.
+
+---
+
+## Audio — `saber_deflect`, delivered 2026-08-29
+
+| File | Used by | Original prompt |
+|---|---|---|
+| `saber_deflect.mp3` | Each bolt Ventress turns on a blade (`audio.saberDeflect()`) | "Energy blade parrying a blaster bolt: short bright metallic ping with an electric crackle and a fast sizzling tail, dry, no reverb" |
+
+0.48 s, verified decoding in-browser at peak 0.666 / rms 0.092. The synth voice (a square
+zap over a bright noise burst) remains the fallback.

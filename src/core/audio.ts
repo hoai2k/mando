@@ -24,10 +24,25 @@ type SampleName =
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
-  | 'speeder_loop' | 'speeder_ignite'
-  | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
+  | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite'
+  | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
+  | VoiceSample;
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
+/**
+ * Whose throat the sound comes out of. A playable character's pain is the one
+ * place the roster's variety used to vanish: everyone shared a single grunt
+ * recorded for a man inside a helmet, so the droid and the reptile yelped like
+ * a human. Each voice carries its own hurt variants and death cry, and its own
+ * synth fallback — so even with no files present a droid never sounds human.
+ */
+export type VoiceId = 'mando_m' | 'mando_f' | 'human_f' | 'masked' | 'reptile' | 'droid' | 'alien_m';
+export const VOICES: VoiceId[] = ['mando_m', 'mando_f', 'human_f', 'masked', 'reptile', 'droid', 'alien_m'];
+/** how many hurt takes each voice has; the engine picks among whichever landed */
+export const HURT_VARIANTS = 3;
+
+type VoiceSample = `hurt_${VoiceId}_${1 | 2 | 3}` | `death_${VoiceId}`;
+
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
   | 'droid_death' | 'swoop_pass'
@@ -113,8 +128,13 @@ export class AudioEngine {
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
-      'speeder_loop', 'speeder_ignite',
+      'saber_deflect', 'speeder_loop', 'speeder_ignite',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
+      // every voice's hurt takes and death cry — small files, and which one a
+      // match needs is not known until the players have picked
+      ...VOICES.flatMap((v): SampleName[] => [
+        `hurt_${v}_1`, `hurt_${v}_2`, `hurt_${v}_3`, `death_${v}`,
+      ]),
     ];
     await Promise.all(names.map(async (n) => {
       // mp3 first: that's what tools/generate-sfx.mjs ships, so the common
@@ -151,6 +171,22 @@ export class AudioEngine {
     src.connect(g).connect(bus);
     src.start();
     return true;
+  }
+
+  /**
+   * Play one of `base_1..count`, chosen from those that actually loaded so a
+   * partial delivery still varies, with a little pitch scatter on top. False
+   * when none of them are here.
+   */
+  private playVariants(base: string, count: number, gain: number): boolean {
+    if (!this.ctx) return false;
+    const have: SampleName[] = [];
+    for (let i = 1; i <= count; i++) {
+      const name = `${base}_${i}` as SampleName;
+      if (this.samples.has(name)) have.push(name);
+    }
+    if (!have.length) return false;
+    return this.playSample(have[(Math.random() * have.length) | 0], gain, 0.94 + Math.random() * 0.12);
   }
 
   private env(peak: number, attack: number, decay: number, when = 0): GainNode {
@@ -268,6 +304,17 @@ export class AudioEngine {
     this.zap(90, 260, 0.16, 'sawtooth', 0.22, 0.02);
     this.zap(140, 390, 0.16, 'triangle', 0.12, 0.02);
   }
+  /**
+   * A bolt turned on a blade: the short, bright ping that tells the player the
+   * parry landed. Pitched above the clash so a deflect in the middle of a
+   * combo still reads as a separate event.
+   */
+  saberDeflect(): void {
+    if (!this.ctx || this.playSample('saber_deflect', 0.7)) return;
+    this.zap(1500, 420, 0.1, 'square', 0.26);
+    this.burst(0.06, 0.2, 5200, 0, 1.6);
+    this.zap(600, 900, 0.07, 'sawtooth', 0.14, 0.01);
+  }
   meleeHit(kind: 'gaffi' | 'sabers' = 'gaffi'): void {
     if (!this.ctx) return;
     if (kind === 'sabers') {
@@ -301,9 +348,62 @@ export class AudioEngine {
     this.zap(1300, 900, 0.07, 'square', 0.12);
     this.zap(900, 600, 0.09, 'square', 0.12, 0.07);
   }
-  hurt(): void {
-    if (!this.ctx || this.playSample('player_hurt', 0.7)) return;
-    this.zap(240, 90, 0.2, 'sawtooth', 0.3);
+  /** A playable character taking a hit, in their own voice. */
+  hurt(voice: VoiceId = 'mando_m'): void {
+    if (!this.ctx) return;
+    if (this.playVariants(`hurt_${voice}`, HURT_VARIANTS, 0.7)) return;
+    // The delivered single grunt was recorded for a helmeted man, so only that
+    // voice may borrow it; everyone else falls through to their own synth.
+    if (voice === 'mando_m' && this.playSample('player_hurt', 0.7)) return;
+    this.voiceSynth(voice, false);
+  }
+
+  /** The same character going down — longer, and the last thing they say. */
+  playerDeath(voice: VoiceId = 'mando_m'): void {
+    if (!this.ctx) return;
+    if (this.playSample(`death_${voice}`, 0.8)) return;
+    this.voiceSynth(voice, true);
+  }
+
+  /**
+   * Fallback voices, one shape per species: pitched vocal-ish zaps for the
+   * living, and for the droid no voice at all — a servo stutter and an
+   * electrical crackle, which is the whole point of the split.
+   */
+  private voiceSynth(voice: VoiceId, dying: boolean): void {
+    const long = dying ? 2.2 : 1;
+    switch (voice) {
+      case 'droid':
+        // descending servo whine plus a spark; nothing throat-shaped
+        this.zap(1500, dying ? 90 : 620, 0.16 * long, 'square', 0.16);
+        this.burst(0.05 * long, 0.2, 3200, 0, 2.5);
+        if (dying) this.burst(0.5, 0.16, 900, 0.14, 0.6);
+        break;
+      case 'reptile':
+        // a wet hiss over a guttural rasp
+        this.burst(0.22 * long, 0.26, 2600, 0, 0.9);
+        this.zap(190, 95, 0.24 * long, 'sawtooth', 0.26);
+        break;
+      case 'masked':
+        // grunt behind a rebreather: muffled, with the valve letting go after
+        this.zap(210, 100, 0.16 * long, 'triangle', 0.24);
+        this.burst(0.18 * long, 0.12, 700, 0.05, 1.4);
+        break;
+      case 'mando_f':
+        this.zap(340, 150, 0.18 * long, 'sawtooth', 0.26);
+        this.burst(0.1, 0.07, 900, 0, 1.2);   // helmet muffle
+        break;
+      case 'human_f':
+        this.zap(430, 190, 0.18 * long, 'triangle', 0.28);
+        break;
+      case 'alien_m':
+        this.zap(170, 70, 0.24 * long, 'sawtooth', 0.3);
+        this.burst(0.12 * long, 0.1, 500, 0.02, 1.1);   // gravel
+        break;
+      default:
+        this.zap(240, 90, 0.2 * long, 'sawtooth', 0.3);
+        if (dying) this.burst(0.2, 0.08, 800, 0.05, 1.2);
+    }
   }
   dash(): void {
     if (!this.ctx || this.playSample('dash', 0.6)) return;

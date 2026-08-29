@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng } from '../core/math';
-import { rockTexture } from '../core/assets';
+import { loadOptionalTexture, rockTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import type { Board } from './board';
 import { audio } from '../core/audio';
@@ -101,6 +101,16 @@ export function buildForge(): Board {
   group.add(terrain);
 
   const ruinMat = new THREE.MeshStandardMaterial({ map: rockTexture(), color: 0x9aa0a2, roughness: 0.85, flatShading: true });
+  // The dome walls carry carved sigils where the rubble does not, so they get
+  // their own material rather than the relief tiling across every loose slab.
+  const wallMat = ruinMat.clone();
+  loadOptionalTexture('forge_relief', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 1);
+    wallMat.map = tex;
+    wallMat.color.setHex(0xffffff);
+    wallMat.needsUpdate = true;
+  });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x3a4044, roughness: 0.7, metalness: 0.3 });
 
   // ---- the dome: an arc of standing wall segments + surviving roof slabs ----
@@ -111,7 +121,7 @@ export function buildForge(): Board {
     if (i === 2 || i === 3 || i === 7) continue; // collapsed gaps — the ways in
     const wx = Math.cos(a) * 34, wz = Math.sin(a) * 34;
     const h = 12 + ((i * 37) % 9);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(22, h, 3), ruinMat);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(22, h, 3), wallMat);
     const base = heightAt(wx, wz);
     wall.position.set(wx, base + h / 2 - 1.5, wz);
     wall.rotation.y = -a + Math.PI / 2;

@@ -8,6 +8,7 @@ import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
+import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
 
 // scratch vectors for the per-frame jetpack emission
@@ -27,6 +28,10 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
+/** gauge spent turning one bolt aside on a blade */
+const DEFLECT_ENERGY = 0.05;
+/** seconds of no swinging and no deflecting before the blades stow themselves */
+const SABER_STOW_DELAY = 4;
 /** seconds of block on a full gauge */
 const BLOCK_SECONDS = 5;
 /** you can shuffle behind the shield, but not run */
@@ -61,7 +66,33 @@ export class Player {
   private dashArmed = false;
   /** RB was pressed while already moving, so this hold is a sprint */
   private sprintLatched = false;
-  weapon: 'blaster' | 'gaffi' = 'blaster';
+  /**
+   * What is in the hands. `none` is empty-handed, which only a melee-only
+   * fighter reaches: for everyone else 'blaster' is the stowed-melee state.
+   * Everything gated on 'blaster' — aiming, firing, lock-on, peek-fire —
+   * therefore switches itself off for a character who carries no gun.
+   */
+  weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
+  /**
+   * Seconds of no swinging and no deflecting before the blades go away again.
+   * A saber fighter walks the board with empty hands and lights up the moment
+   * she needs to, rather than jogging around lit like a road flare.
+   */
+  private saberIdle = 0;
+  /**
+   * Spacing between deflects. Short — the gauge, not the clock, is what limits
+   * a parry, and a squad's shots arriving together should mostly be turned —
+   * but non-zero, so a single burst cannot be met with one blade sweep.
+   */
+  private deflectCd = 0;
+  /** scratch for the saber deflect collider */
+  private saberSphere = {
+    center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
+    kind: 'saber' as const, minDot: 0.35,
+    aim: null as THREE.Vector3 | null,
+    consume: () => this.consumeDeflect(),
+  };
+  private deflectAim = new THREE.Vector3();
   alive = true;
   kills = 0;
   team = 0;
@@ -97,6 +128,8 @@ export class Player {
   respawnTimer = 0;
   private hurtFlash = 0;
   private facingYaw = Math.PI;
+  /** which way the body is pointed, for anything outside that needs the arc */
+  get yaw(): number { return this.facingYaw; }
   private wasGrounded = true;
   private footTimer = 0;
   private sprintRefillDelay = 0;
@@ -124,6 +157,7 @@ export class Player {
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
     this.char = buildMandalorian(characterId);
+    if (this.meleeOnly) this.weapon = 'none';
     this.cam = new ThirdPersonCamera(aspect);
   }
 
@@ -155,7 +189,7 @@ export class Player {
     this.regenDelay = 5;
     this.hurtFlash = 1;
     this.lastDamageDir.subVectors(from, this.position);
-    audio.hurt();
+    audio.hurt(MANDO_ROSTER[this.characterId].voice);
     this.cam.shake(0.12);
     if (this.hp <= 0) this.die();
   }
@@ -178,6 +212,7 @@ export class Player {
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.cover = null;
     this.peeking = false;
+    audio.playerDeath(MANDO_ROSTER[this.characterId].voice);
     audio.setJetpackThrust(this.slot, 0);
   }
 
@@ -190,13 +225,68 @@ export class Player {
    * is most of the way up, so a shield that is still rising does not yet
    * bounce anything.
    */
-  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
-    if (this.blockRaise < 0.6) return null;
-    const s = this.shieldSphere;
+  get shieldCollider(): DeflectSphere | null {
+    if (this.blockRaise >= 0.6) {
+      const s = this.shieldSphere;
+      s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+      s.center.copy(this.position).addScaledVector(s.normal, 0.6);
+      s.center.y += 1.05;
+      return s;
+    }
+    return this.saberCollider;
+  }
+
+  /** the character fights with blades and carries nothing to shoot with */
+  private get meleeOnly(): boolean {
+    return MANDO_ROSTER[this.characterId].ranged === 'none';
+  }
+
+  /** blades out and free to work */
+  get sabersDrawn(): boolean {
+    return this.alive && this.weapon === 'gaffi'
+      && MANDO_ROSTER[this.characterId].melee === 'sabers';
+  }
+
+  /**
+   * Twin blades bat blaster fire away. It reuses the block shield's collider
+   * rather than inventing a second mechanism, with three differences that make
+   * it read as a parry and not a wall: a tighter frontal arc (a bolt from the
+   * flank still lands), a short cooldown so a squad firing together gets shots
+   * through, and an aim point — the bolt goes back at whoever is in front of
+   * her rather than mirroring off a pane, which is the whole fantasy.
+   */
+  private get saberCollider(): DeflectSphere | null {
+    if (!this.sabersDrawn || this.energy <= 0) return null;
+    const s = this.saberSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-    s.center.copy(this.position).addScaledVector(s.normal, 0.6);
-    s.center.y += 1.05;
+    s.center.copy(this.position).addScaledVector(s.normal, 0.55);
+    s.center.y += 1.15;
+    s.aim = this.deflectTarget;
     return s;
+  }
+
+  /** where a deflected bolt is sent: the nearest hostile she is facing */
+  private get deflectTarget(): THREE.Vector3 | null {
+    const e = this.deflectEnemy;
+    if (!e) return null;
+    this.deflectAim.copy(e.position);
+    this.deflectAim.y += 0.9;
+    return this.deflectAim;
+  }
+  /** set each frame by the game, which is the only thing that knows the roster */
+  deflectEnemy: { position: THREE.Vector3 } | null = null;
+
+  /**
+   * Charged per bolt turned, so holding blades into sustained fire costs the
+   * same gauge as sprinting. Returning false lets the bolt through.
+   */
+  private consumeDeflect(): boolean {
+    if (this.deflectCd > 0 || this.energy <= 0) return false;
+    this.deflectCd = 0.05;
+    this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
+    this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
+    this.saberIdle = 0;
+    return true;
   }
 
   /** enemy currently under the crosshair's assist cone, for HUD feedback */
@@ -245,7 +335,9 @@ export class Player {
       }
     }
     this.wasAiming = input.aimHeld;
-    this.aiming = input.aimHeld;
+    // aiming down sights needs sights: a blades-only fighter holding the aim
+    // button just pulls the camera in, and draws no crosshair
+    this.aiming = input.aimHeld && !this.meleeOnly;
 
     // ---- vehicles: RB near a parked ride mounts, and the ride wins the press ----
     this.nearVehicle = this.vehicle ? null : this.findVehicle(game);
@@ -980,13 +1072,36 @@ export class Player {
     audio.setSaberHum(this.slot, drawn ? 0.55 + (this.meleeTimer > 0 ? 0.8 : 0) : 0);
   }
 
+  /**
+   * Blades put themselves away after a lull. They are lit by swinging or by
+   * turning a bolt — both reset the clock — and the moment the player reaches
+   * for them again (melee, or the swap button) they come straight back out, so
+   * stowing is never something you have to undo before you can fight.
+   */
+  private updateSaberStow(dt: number, input: FrameInput): void {
+    if (!this.meleeOnly) return;
+    if (this.weapon !== 'gaffi') { this.saberIdle = 0; return; }
+    const busy = this.meleeTimer > 0 || this.meleeComboWindow > 0 || input.meleePressed || this.blocking;
+    this.saberIdle = busy ? 0 : this.saberIdle + dt;
+    if (this.saberIdle >= SABER_STOW_DELAY) {
+      this.weapon = 'none';
+      this.saberIdle = 0;
+      this.char.setWeapon('none');
+      audio.saberIgnite();   // the same snap, going the other way
+    }
+  }
+
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
-    // weapon switch
+    this.deflectCd -= dt;
+    // weapon switch: for a melee-only fighter the other half of the toggle is
+    // empty hands, since there is no gun to swap to
+    const stowed = this.meleeOnly ? 'none' : 'blaster';
     if (input.switchPressed) {
-      this.weapon = this.weapon === 'blaster' ? 'gaffi' : 'blaster';
+      this.weapon = this.weapon === 'gaffi' ? stowed : 'gaffi';
       this.char.setWeapon(this.weapon);
       if (this.weapon === 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
       else audio.uiMove();
+      this.saberIdle = 0;
     }
 
     // melee (always available; swaps to gaffi visual during swing)
@@ -1001,6 +1116,12 @@ export class Player {
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * 0.45;
       this.meleeDamage = this.meleeStep === 3 ? 55 : 32;
+      // Melee draws: pressing swing with the blades away lights them on the
+      // spot rather than costing a swap first, and they stay lit afterwards
+      // until the idle timer puts them back.
+      if (this.weapon !== 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
+      this.weapon = 'gaffi';
+      this.saberIdle = 0;
       this.char.setWeapon('gaffi');
       audio.melee(this.meleeStep, MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
       // lunge toward nearest enemy in front
@@ -1012,9 +1133,10 @@ export class Player {
         this.facingYaw = Math.atan2(dir.x, dir.z);
       }
     }
-    if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon === 'blaster' && this.char.gaffi.visible) {
-      this.char.setWeapon('blaster');
+    if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
+      this.char.setWeapon(stowed);
     }
+    this.updateSaberStow(dt, input);
     if (this.meleeHitPending > 0) {
       this.meleeHitPending -= dt;
       if (this.meleeHitPending <= 0) {
@@ -1072,7 +1194,8 @@ export class Player {
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
-      audio.blaster(MANDO_ROSTER[this.characterId].ranged ?? 'carbine');
+      const kind = MANDO_ROSTER[this.characterId].ranged ?? 'carbine';
+      audio.blaster(kind === 'none' ? 'carbine' : kind);
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
