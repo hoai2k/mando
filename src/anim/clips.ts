@@ -8,12 +8,18 @@ import type { Proportions } from './skeleton';
  * over any locomotion state. All clips are standard THREE.AnimationClips,
  * so authored clips from a glTF can replace them 1:1.
  *
- * ARM/LEG SPLAY SIGN: the rig's `L` bones sit at +X and `R` at -X, and a
+ * ARM/LEG SPLAY SIGN: the rig's `L` bones sit at -X and `R` at +X, and a
  * positive Z rotation swings a downward-pointing bone toward +X. So a limb
- * spreads *away* from the body on negative Z for `L` and positive Z for `R` —
- * the opposite of what reads naturally. Getting this backwards tucks the arms
- * into the torso, which is invisible on a stick-figure build and clips
- * straight through an authored one.
+ * spreads *away* from the body on negative Z for `L` and positive Z for `R`.
+ * Getting this backwards tucks the arms into the torso, which is invisible on
+ * a stick-figure build and clips straight through an authored one.
+ *
+ * ARM SPLAY AMOUNT: every authored character was sculpted in an A-pose with
+ * the upper arm 16-31° out from vertical (mean ~24° — see the rest-pose
+ * audit in docs/ANIMATION_AUDIT.md), and the retargeter pulls that rest to
+ * straight-down before the clips pose it. Any "arms hanging" clip therefore
+ * needs ~19-22° of Z splay or the deltoid/biceps geometry the artist built
+ * around the A-pose presses into the torso and the arms read as pinned.
  */
 
 const D = Math.PI / 180;
@@ -134,8 +140,8 @@ function makeClips(p: Proportions): ClipSet {
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, 1, 0], [1, 0, 0]]),
-    qt('upperArmL', [0, 1.5, 3], [[8, 0, -14], [10, 0, -15], [8, 0, -14]]),
-    qt('upperArmR', [0, 1.5, 3], [[8, 0, 14], [10, 0, 15], [8, 0, 14]]),
+    qt('upperArmL', [0, 1.5, 3], [[8, 0, -21], [10, 0, -22], [8, 0, -21]]),
+    qt('upperArmR', [0, 1.5, 3], [[8, 0, 21], [10, 0, 22], [8, 0, 21]]),
     qt('forearmL', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('forearmR', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('head', [0, 1.5, 3], [[0, 0, 0], [1, 3, 0], [0, 0, 0]]),
@@ -158,9 +164,9 @@ function makeClips(p: Proportions): ClipSet {
   // ---------- UPPER: run (arm swing) ----------
   clips.runUpper = new THREE.AnimationClip('runUpper', 0.6, [
     qt('chest', rt, [[6, 5, 0], [6, 0, 0], [6, -5, 0], [6, 0, 0], [6, 5, 0]]),
-    qt('upperArmL', rt, [[35, 0, -12], [5, 0, -12], [-30, 0, -12], [5, 0, -12], [35, 0, -12]]),
+    qt('upperArmL', rt, [[35, 0, -19], [5, 0, -19], [-30, 0, -19], [5, 0, -19], [35, 0, -19]]),
     qt('forearmL', rt, [[-40, 0, 0], [-55, 0, 0], [-70, 0, 0], [-55, 0, 0], [-40, 0, 0]]),
-    qt('upperArmR', rt, [[-30, 0, 12], [5, 0, 12], [35, 0, 12], [5, 0, 12], [-30, 0, 12]]),
+    qt('upperArmR', rt, [[-30, 0, 19], [5, 0, 19], [35, 0, 19], [5, 0, 19], [-30, 0, 19]]),
     qt('forearmR', rt, [[-70, 0, 0], [-55, 0, 0], [-40, 0, 0], [-55, 0, 0], [-70, 0, 0]]),
     qt('head', rt, [[-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
   ]);
