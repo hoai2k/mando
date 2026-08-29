@@ -162,6 +162,8 @@ export function buildTatooine(): Board {
     v.traverse((o) => { o.castShadow = true; });
     group.add(v);
     physics.addBox(vx, base + 3.5, vz, 1.2, 7, 1.2);
+    // 7 m to the top of the condenser stack, standing on the sand
+    authoredProp(group, v, 'vaporator', 7, { x: vx, y: base, z: vz, axis: 'y' });
   }
 
   // homestead dome + entry hut
@@ -177,6 +179,8 @@ export function buildTatooine(): Board {
   // dome is widest and lowest, as something you could walk a shoulder into.
   physics.addCylinder(hx, hBase + 0.85, hz, 4.9, 1.7);
   physics.addCylinder(hx, hBase + 2.2, hz, 3.7, 4.4);
+  // 10 m across, matching the dome the two stacked discs were fitted to
+  authoredProp(group, dome, 'homestead_dome', 10, { x: hx, y: hBase, z: hz, axis: 'z' });
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
@@ -190,7 +194,89 @@ export function buildTatooine(): Board {
     tent.position.set(tx, base + 1.8, tz);
     tent.castShadow = true;
     group.add(tent);
-    physics.addBox(tx, base + 1.5, tz, 3.4, 3, 3.4);
+    // Two stacked discs follow the tent's taper: one 3.4 m box stopped well
+    // inside a 5.2 m sculpt at the skirt and stood as invisible wall above its
+    // peak. Same treatment as the ice spires.
+    physics.addCylinder(tx, base + 1.3, tz, 2.2, 2.6);
+    physics.addCylinder(tx, base + 3.6, tz, 1.3, 2.0);
+    // each tent faces the middle of the camp, the way a ring of them would be pitched
+    authoredProp(group, tent, 'tusken_tent', 5.2, {
+      x: tx, y: base, z: tz, axis: 'x', yaw: Math.atan2(campC.x - tx, campC.z - tz),
+    });
+  }
+
+  // ---- the sandcrawler on the rim (PLAN.md §16) ----
+  // A landmark out on the bowl slope, past where the fighting goes but close
+  // enough to walk to — so it is solid, and it gets a row of colliders along
+  // its own axis the way the barge hull does.
+  const scx = -104, scz = 132, scYaw = 0.9;
+  const scBase = heightAt(scx, scz);
+  const crawler = new THREE.Group();
+  const crawlerMat = new THREE.MeshStandardMaterial({ map: rockTexture(), color: 0x9a6a4a, roughness: 0.9, metalness: 0.25 });
+  const scHull = new THREE.Mesh(new THREE.BoxGeometry(12, 14, 30), crawlerMat);
+  scHull.position.y = 8;
+  crawler.add(scHull);
+  const scProw = new THREE.Mesh(new THREE.BoxGeometry(12, 7, 6), crawlerMat);
+  scProw.position.set(0, 4.5, 16);
+  scProw.rotation.x = 0.35;
+  crawler.add(scProw);
+  crawler.position.set(scx, scBase, scz);
+  crawler.rotation.y = scYaw;
+  crawler.traverse((o) => { o.castShadow = o.receiveShadow = true; });
+  group.add(crawler);
+  authoredProp(crawler, [scHull, scProw], 'sandcrawler', 35, { axis: 'z' });
+  // r 6.4, not 5.5: the hull is 12 m across, so a 5.5 m disc left half a metre
+  // of each flank as something you walk into and through — which is exactly
+  // what the audit is for.
+  const scAxis = new THREE.Vector2(Math.sin(scYaw), Math.cos(scYaw));
+  for (const t of [-13, -6.5, 0, 6.5, 13]) {
+    physics.addCylinder(scx + scAxis.x * t, scBase + 7, scz + scAxis.y * t, 6.4, 15);
+  }
+
+  // ---- banthas at the Tusken camp (PLAN.md §16) ----
+  // The camp's livestock: solid, so bolts stop on the hide, but no health and
+  // no team — they are scenery that breathes, not targets. Placed clear of the
+  // tents, and they sway on their own clock rather than wandering, so a moving
+  // collider can never shoulder anything into the fire.
+  const banthas: Array<{ node: THREE.Group; phase: number }> = [];
+  const banthaMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
+  const hornMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.8 });
+  for (const [bnx, bnz, bnYaw] of [[-58, -70, 1.2], [-52, -62, 2.1], [-62, -78, 0.4]] as const) {
+    const base = heightAt(bnx, bnz);
+    const node = new THREE.Group();
+    const parts: THREE.Mesh[] = [];
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 9), banthaMat);
+    body.scale.set(1, 1.05, 1.9);
+    body.position.y = 1.9;
+    parts.push(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 8), banthaMat);
+    head.position.set(0, 1.6, 2.7);
+    parts.push(head);
+    for (const sx of [-1, 1]) {
+      const horn = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 10, Math.PI * 1.3), hornMat);
+      horn.position.set(sx * 0.55, 2.1, 2.7);
+      horn.rotation.set(Math.PI / 2, 0, sx * 0.6);
+      parts.push(horn);
+      for (const sz of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 1.5, 6), banthaMat);
+        leg.position.set(sx * 0.8, 0.75, sz * 1.1);
+        parts.push(leg);
+      }
+    }
+    for (const p of parts) { p.castShadow = true; node.add(p); }
+    node.position.set(bnx, base, bnz);
+    node.rotation.y = bnYaw;
+    group.add(node);
+    authoredProp(node, parts, 'bantha', 4.5, { axis: 'z' });
+    // A bantha is nearly six metres nose to tail, so one disc at its middle
+    // left both ends — the head most of all — as geometry with nothing under
+    // it. Three along the animal's own axis, the way a long body gets extra
+    // hit spheres.
+    const bnAxis = new THREE.Vector2(Math.sin(bnYaw), Math.cos(bnYaw));
+    for (const [t, r, cy, ch] of [[-1.7, 1.7, 1.9, 3.4], [0.3, 1.8, 1.6, 3.8], [2.4, 1.4, 1.7, 2.8]] as const) {
+      physics.addCylinder(bnx + bnAxis.x * t, base + cy, bnz + bnAxis.y * t, r, ch);
+    }
+    banthas.push({ node, phase: banthas.length * 2.1 });
   }
 
   // crashed sail barge — tilted hull + deck planes for cover
@@ -294,6 +380,12 @@ export function buildTatooine(): Board {
       { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
     ],
     update: (dt, time) => {
+      // the herd shifts its weight and swings its heads, slowly
+      for (const b of banthas) {
+        b.node.rotation.z = Math.sin(time * 0.4 + b.phase) * 0.03;
+        b.node.position.y = heightAt(b.node.position.x, b.node.position.z)
+          + Math.sin(time * 0.7 + b.phase) * 0.04;
+      }
       tentacles.forEach((t, i) => {
         t.rotation.x = Math.sin(time * 1.3 + i * 2.1) * 0.35;
         t.rotation.z = Math.cos(time * 1.7 + i * 1.3) * 0.35;

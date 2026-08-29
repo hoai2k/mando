@@ -68,20 +68,16 @@ carrying its authored model and its signature weapon — twin red curved-hilt sa
 (Rook). Paired weapons mount on `weaponR` and `weaponL`; an authored model exposes both
 mounts, so an off-hand weapon sits in the model's other hand rather than beside the body.
 
-**The signature weapons themselves stay procedural — this is a decision, not a gap.**
-Three weapon props were requested as models — `saber_curved`, `crossbow`, `longrifle` —
-and their side-view sheets were delivered (`reference/characters/`), but the .glbs are
-**parked as of 2026-08-29**: the procedurally built weapons read well at gameplay distance
-and nothing is blocked on a file. `pistol`, added later for Cad Bane, is parked with
-them. If that is revisited, the brief is unchanged — one .glb per weapon on the standard
-`loadProp()` path, gripped at origin, and a character carrying a pair needs only one
-file, since the off-hand is a second instance of it.
-
-Weighed once more on 2026-08-29 by rendering all three: the crossbow and the long rifle
-already read at silhouette level from a chase camera 4.6 m back (forward-swept limbs and
-a glowing string; long barrel, scope, stock), and the saber is barely a model at all —
-the hilt is 15 cm of a 1-metre weapon, half-hidden in a fist, while everything the eye
-reads is FX geometry no .glb can supply. The effort went into the blades instead.
+**Three of the four signature weapon props are delivered and integrated**
+(2026-08-29): `saber_curved`, `crossbow` and `longrifle` landed and are picked up
+automatically — `swapWeapon()` in `src/characters/builder.ts` already pointed at each id,
+so the file arriving *is* the integration, and the procedural build hides behind it. They
+had been parked by an earlier decision (the procedural versions read well at gameplay
+distance and nothing was blocked on a file); that decision is simply moot now the sculpts
+exist. `pistol`, for Cad Bane's pair, is the one still to come — its prompt is in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) and the procedural pistols stand until it does.
+A character carrying a pair needs only one file, since the off-hand is a second instance
+of it.
 
 ## Allies — priority 2
 
@@ -150,12 +146,16 @@ boss bar — remain future work, and their voice sets are deferred with them
 
 ## Environment & hazard models — priority by impact
 
-**Nine of these are delivered and integrated** (2026-08-29): the whole priority-1 and
-priority-2 set — `cargo_crate`, `fuel_barrel`, `trawler`, `tram`, `sail_barge`,
-`freighter`, `cargo_crane`, `reactor_core`, `sunken_transport`. Each hides its
-procedural stand-in the moment it loads and keeps it as the fallback. **Open:**
-`adobe_tower`, `adobe_gate`, `forge_brazier`, `survey_crawler`, and the whole
-priority-3 list.
+**Every model on this page is delivered and integrated** (2026-08-29). The
+priority-1 and 2 set landed first — `cargo_crate`, `fuel_barrel`, `trawler`, `tram`,
+`sail_barge`, `freighter`, `cargo_crane`, `reactor_core`, `sunken_transport` — and the
+rest followed the same day: `adobe_tower`, `adobe_gate`, `forge_brazier`,
+`survey_crawler`, the priority-3 dressing (`vaporator`, `tusken_tent`,
+`alarm_console`, `street_kiosk`, `dock_shed`, `homestead_dome`, `mythosaur_skull`),
+the ambient-pass set (`bantha`, `sandcrawler`, `pipe_rack`, `fish_rack`) and the three
+vehicles (`speeder_bike`, `landspeeder`, `skiff`). Each hides its procedural stand-in
+the moment it loads and keeps it as the fallback. **Nothing on the model side is
+open.**
 
 Opened 2026-08-29 by an audit of all nine board modules (`src/world/*.ts`). Every
 structure, vehicle and hazard in the game is procedural primitive geometry today — the
@@ -176,12 +176,16 @@ footprints below are already tuned and CI-audited (`tools/audit-collision.mjs`) 
 **do not change with the model**, so a model must read solid where its collider is and
 open where it is not; the sizes given are the envelope to fill.
 
-Two of the delivered nine earned an exception, both because the collider was only ever
-a box drawn around a procedural stand-in and the art disagreed with it in a way players
-would feel: the **tram** stands 3.78 m to a roof people ride on, and the **freighter**
-spans 10 m across wings you would otherwise walk through. Both boxes were refitted to
-the sculpt and both boards still audit clean. Everything else fits the shape it was
-given.
+Six sculpts earned an exception, each because the collider was only ever a box drawn
+around a procedural stand-in and the art disagreed with it in a way players would feel:
+the **tram** stands 3.78 m to a roof people ride on; the **freighter** spans 10 m
+across wings you would otherwise walk through; the **survey crawler** is a 8.9 m
+machine, not the low 3.4 m box that stood in for it; the **dock shed** reaches 7.1 m to
+its ridge; the **Tusken tents** are 5.2 m across and taper, so they took stacked discs
+instead of one narrow box; and the **gate** needed pylons of its own, since the lintel's
+collider only ever covered the span above them. Every box was refitted to the sculpt and
+all nine boards still audit clean in both directions. Everything else fits the shape it
+was given.
 
 **Budgets:** landmarks (⚓) ≤ 10k tris, one 1024² PBR set (baseColor / metal-rough /
 normal, emissive where noted); mid-size props ≤ 4k tris / 512²; small repeated props
@@ -208,22 +212,22 @@ fan designs only.
 | `cargo_crane` ⚓ ✅ | Waystation ×3 | 18 m mast, 20 m arm | Mid-airspace landmarks the jetpack weaves through. Mast on the r 0.85 collider; arm along the audited collider row at +17 m; cable trolley with a hanging cargo container filling the 2.4 m cube collider near deck level. The cable itself stays intangible. |
 | `reactor_core` ⚓ ✅ | Refinery | 40 m column, r 5.5→4.5 taper | The board's centrepiece chimney. Segmented industrial column wrapped in pipes and ring flanges, tall emissive orange coolant channels up its height (the additive glow shell stays game FX). Must respect the stacked tapering colliders. |
 | `sunken_transport` ⚓ ✅ | Prison Rig | ~15 × 9 × 28 m | The swim-through wreck. Twin parallel hull sections under a roof plate with the **open corridor between them kept swimmable** (≥ 2.5 m — the colliders already leave it open), blunt collapsed nose, torn openings at both ends, silt-streaked. |
-| `adobe_tower` | Nevarro ×2 | 11 m tall | The gate watchtowers flanking the town gate anchor. Tapering round adobe tower on the r 3.6 collider, covered lookout top. The 26 m wall runs stay procedural under the delivered `adobe_wall` texture. |
-| `adobe_gate` | Nevarro | 12 m span | The gate arch between the towers: two pylons + lintel filling the 12 × 2.4 m lintel collider at +7.6 m, gate leaves standing open. |
-| `forge_brazier` | Great Forge | ~3.5 m wide | The thematic heart of Mandalore — today a bare cylinder on the dais. Ceremonial forge basin with built-in anvil horn, glowing embers (emissive), blackened iron with worn silver inlay. Sits on the existing procedural dais over the r 1.6 collider. |
-| `survey_crawler` | Crevasse | 10 × 3.4 × 5 m | The wrecked expedition vehicle the north-rim shooters fight around. Tracked cabin listing 0.18 rad within its box collider, bent sensor mast, doors ajar, frost-scoured grey-blue. |
+| `adobe_tower` ✅ | Nevarro ×2 | 11 m tall | The gate watchtowers flanking the town gate anchor. Tapering round adobe tower on the r 3.6 collider, covered lookout top. The 26 m wall runs stay procedural under the delivered `adobe_wall` texture. |
+| `adobe_gate` ✅ | Nevarro | 12 m span | The gate arch between the towers: two pylons + lintel filling the 12 × 2.4 m lintel collider at +7.6 m, gate leaves standing open. |
+| `forge_brazier` ✅ | Great Forge | ~3.5 m wide | The thematic heart of Mandalore — today a bare cylinder on the dais. Ceremonial forge basin with built-in anvil horn, glowing embers (emissive), blackened iron with worn silver inlay. Sits on the existing procedural dais over the r 1.6 collider. |
+| `survey_crawler` ✅ | Crevasse | 10 × 3.4 × 5 m | The wrecked expedition vehicle the north-rim shooters fight around. Tracked cabin listing 0.18 rad within its box collider, bent sensor mast, doors ajar, frost-scoured grey-blue. |
 
 ### Priority 3 — repeated set dressing
 
 | Id | Board(s) | Size | Replaces / constraints |
 |---|---|---|---|
-| `vaporator` | Dune Sea ×4 | 7 m | The moisture farm's icon — today a pole and three box rings. Slim tapering column with stacked condenser vanes, within the 1.2 m square collider footprint. |
-| `tusken_tent` | Dune Sea ×5 | 5.2 Ø × 3.6 m | Camp tents — today bare textured cones. Hide-and-pole cone, stitched panels, trophies at the flap. |
-| `alarm_console` ✷ | Refinery ×4 | 2.4 × 2.6 × 0.8 m | The shoot-this-to-stop-the-alarm cabinet. Angled console with screen and conduit; **the blinking red beacon above it stays a game mesh** — model the cabinet only. |
-| `street_kiosk` | Ringworld ×8 | 3.2 × 2.4 × 3.2 m | Mid-street cover. Shuttered vendor stall with awning and an emissive holo-menu panel. |
-| `dock_shed` | Trask | 10 × 4.5 × 7 m | The harbour-master's shed on the quay: corrugated walls, portholes, stove pipe, ropes and floats. |
-| `homestead_dome` | Dune Sea | 10 m Ø | The moisture-farm dome. Keep it a smooth dome — the collider is two stacked discs following that curve — with an entry vestibule, hatch and vent stacks. |
-| `mythosaur_skull` | Great Forge | ~8 m | **New landmark, no procedural stand-in:** a half-buried horned leviathan skull at the rim of the Living Waters, paying off the eye-glow-and-call event that already plays there. Placement and collider are added at integration. |
+| `vaporator` ✅ | Dune Sea ×4 | 7 m | The moisture farm's icon — today a pole and three box rings. Slim tapering column with stacked condenser vanes, within the 1.2 m square collider footprint. |
+| `tusken_tent` ✅ | Dune Sea ×5 | 5.2 Ø × 3.6 m | Camp tents — today bare textured cones. Hide-and-pole cone, stitched panels, trophies at the flap. |
+| `alarm_console` ✷ ✅ | Refinery ×4 | 2.4 × 2.6 × 0.8 m | The shoot-this-to-stop-the-alarm cabinet. Angled console with screen and conduit; **the blinking red beacon above it stays a game mesh** — model the cabinet only. |
+| `street_kiosk` ✅ | Ringworld ×8 | 3.2 × 2.4 × 3.2 m | Mid-street cover. Shuttered vendor stall with awning and an emissive holo-menu panel. |
+| `dock_shed` ✅ | Trask | 10 × 4.5 × 7 m | The harbour-master's shed on the quay: corrugated walls, portholes, stove pipe, ropes and floats. |
+| `homestead_dome` ✅ | Dune Sea | 10 m Ø | The moisture-farm dome. Keep it a smooth dome — the collider is two stacked discs following that curve — with an entry vestibule, hatch and vent stacks. |
+| `mythosaur_skull` ✅ | Great Forge | ~8 m | **New landmark, no procedural stand-in:** a half-buried horned leviathan skull at the rim of the Living Waters, paying off the eye-glow-and-call event that already plays there. Placement and collider are added at integration. |
 
 ### Ambient life & backdrop — the atmosphere pass
 
@@ -235,10 +239,10 @@ are textures (see `ASSETS_IMAGES.md`), not models. That leaves four:
 
 | Id | Board | Size | Role / constraints |
 |---|---|---|---|
-| `bantha` ◆ | Dune Sea ×2–3 | 2.5 m shoulder, ~4.5 m long | Ambient grazers at the Tusken camp — the one creature in this batch, through `loadCreature` like the massiff: own quadruped rig, gait authored in code, so keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..3`. Long shaggy wool, great spiral horns, a woven saddle (they are the camp's livestock). ≤ 8k tris, one 1024² PBR set. |
-| `sandcrawler` ⚓ | Dune Sea | ~35 m long | Horizon landmark on the rim slope, reachable on foot: towering rusted slab-sided hull, angled prow with a sealed full-width ramp, continuous tracks, rows of tiny emissive portholes high on the hull. Solid — simple hull colliders added at integration. ≤ 10k tris, 1024² + emissive. |
-| `pipe_rack` | Refinery | ~6 m modular segment | Upgrades the big manifold by the reactor; the rest of the pipe runs stay procedural cylinders. Four mixed-diameter pipes on a wall rack, flange joints, one elbow branch to a valve wheel. Designed to tile end-to-end. ≤ 2k tris, 512². |
-| `fish_rack` | Trask ×2–3 | ~2 m tall | Quay dressing that doubles as thin cover — the only new solid on the board, with a thin box collider entering the cover system. A-frame strung with drying split fish, hooks, a gutting bench at one end. Single object. ≤ 1.5k tris, 512². |
+| `bantha` ◆ ✅ | Dune Sea ×2–3 | 2.5 m shoulder, ~4.5 m long | Ambient grazers at the Tusken camp — the one creature in this batch, through `loadCreature` like the massiff: own quadruped rig, gait authored in code, so keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..3`. Long shaggy wool, great spiral horns, a woven saddle (they are the camp's livestock). ≤ 8k tris, one 1024² PBR set. |
+| `sandcrawler` ⚓ ✅ | Dune Sea | ~35 m long | Horizon landmark on the rim slope, reachable on foot: towering rusted slab-sided hull, angled prow with a sealed full-width ramp, continuous tracks, rows of tiny emissive portholes high on the hull. Solid — simple hull colliders added at integration. ≤ 10k tris, 1024² + emissive. |
+| `pipe_rack` ✅ | Refinery | ~6 m modular segment | Upgrades the big manifold by the reactor; the rest of the pipe runs stay procedural cylinders. Four mixed-diameter pipes on a wall rack, flange joints, one elbow branch to a valve wheel. Designed to tile end-to-end. ≤ 2k tris, 512². |
+| `fish_rack` ✅ | Trask ×2–3 | ~2 m tall | Quay dressing that doubles as thin cover — the only new solid on the board, with a thin box collider entering the cover system. A-frame strung with drying split fish, hooks, a gutting bench at one end. Single object. ≤ 1.5k tris, 512². |
 
 ### Pilotable vehicles (PLAN.md §17)
 
@@ -253,9 +257,9 @@ requested** — the delivered `nikto_swoop.glb` is reused as a parked, stealable
 
 | Id | Size | Feel / constraints |
 |---|---|---|
-| `speeder_bike` | ~3 m long | Military scout repulsor bike: long forward outrigger vanes, saddle over a compact engine block, steering vanes at the nose, footrests. Fastest and most fragile ride. ≤ 3k tris, 512². |
-| `landspeeder` | ~4.5 m long | Open-top civilian sand speeder: rounded weathered body, single open seat, low windshield, three engine nacelles at the tail. ≤ 4k tris, 512². |
-| `skiff` | ~9 m long | Repulsor cargo skiff: flat open deck with low rails, a tiller platform at the stern, lashed cargo at the bow. The deck is walkable and the collider footprint is the deck, so keep it flat and clear amidships. ≤ 5k tris, 512². |
+| `speeder_bike` ✅ | ~3 m long | Military scout repulsor bike: long forward outrigger vanes, saddle over a compact engine block, steering vanes at the nose, footrests. Fastest and most fragile ride. ≤ 3k tris, 512². |
+| `landspeeder` ✅ | ~4.5 m long | Open-top civilian sand speeder: rounded weathered body, single open seat, low windshield, three engine nacelles at the tail. ≤ 4k tris, 512². |
+| `skiff` ✅ | ~9 m long | Repulsor cargo skiff: flat open deck with low rails, a tiller platform at the stern, lashed cargo at the bow. The deck is walkable and the collider footprint is the deck, so keep it flat and clear amidships. ≤ 5k tris, 512². |
 
 ## Delivery & integration
 
@@ -268,12 +272,11 @@ nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board t
 integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 `interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
-and the fifth, IG-11, reuses `ig11.glb`. Open on the model side: the environment batch
-above, and nothing else. The signature-weapon props (`saber_curved`, `crossbow`,
-`longrifle`, and `pistol` after them) are **parked by decision** — the game keeps its
-procedural versions for now, as described under the hunters above; a character who
-carries a pair would need only one prop anyway, since the off-hand is a second instance
-of the same .glb.**
+and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
+wired too**, along with the weapon props `saber_curved`, `crossbow` and `longrifle`.
+Open on the model side: `pistol` alone — the game keeps its procedural pistols until it
+lands, and a character who carries a pair needs only the one file, since the off-hand is
+a second instance of the same .glb.**
 
 ### Three intake paths
 

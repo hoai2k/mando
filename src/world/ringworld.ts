@@ -219,6 +219,7 @@ export function buildRingworld(): Board {
     kiosk.position.set(px, 1.2, pz);
     kiosk.rotation.y = rng() * 0.7;
     kiosk.castShadow = kiosk.receiveShadow = true;
+    authoredProp(group, kiosk, 'street_kiosk', 2.4, { x: px, z: pz, axis: 'y', yaw: kiosk.rotation.y });
     group.add(kiosk);
     physics.addBox(px, 1.2, pz, 3.2, 2.4, 3.2);
     const planter = new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 2), buildingMat);

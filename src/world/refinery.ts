@@ -159,6 +159,34 @@ export function buildRefinery(): Board {
     authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, z: cz, yaw: crate.rotation.y });
   }
 
+  // ---- pipe runs along the hall walls (PLAN.md §16) ----
+  // Wall-hugging manifolds that break up the long blank partitions. They are
+  // half a metre proud of the wall and chest-high, so they get a collider each
+  // rather than being something you sink a shoulder into.
+  const pipeMat = new THREE.MeshStandardMaterial({ color: 0x6a6f76, roughness: 0.55, metalness: 0.6 });
+  for (const [px, pz, pyaw] of [
+    [-48.6, -30, Math.PI / 2], [48.6, -30, -Math.PI / 2],
+    [-48.6, 30, Math.PI / 2], [48.6, 30, -Math.PI / 2],
+    [-30, -48.6, 0], [30, 48.6, Math.PI],
+  ] as const) {
+    const rack = new THREE.Group();
+    const pipes: THREE.Mesh[] = [];
+    for (const [dy, r] of [[1.4, 0.22], [2.0, 0.16], [2.5, 0.26], [3.0, 0.14]] as const) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 6, 8), pipeMat);
+      pipe.rotation.z = Math.PI / 2;
+      pipe.position.set(0, dy, 0);
+      pipes.push(pipe);
+    }
+    for (const p of pipes) { p.castShadow = true; rack.add(p); }
+    rack.position.set(px, 0, pz);
+    rack.rotation.y = pyaw;
+    group.add(rack);
+    authoredProp(rack, pipes, 'pipe_rack', 6, { axis: 'x' });
+    // the rack runs along the wall it is on; 1.4 m of clearance out from it
+    const along = Math.abs(Math.cos(pyaw)) > 0.5;
+    physics.addBox(px, 2.2, pz, along ? 6 : 1.4, 3.6, along ? 1.4 : 6);
+  }
+
   const board: Board = {
     group, physics, kind: 'refinery',
     name: 'The Refinery',
@@ -219,6 +247,9 @@ export function buildRefinery(): Board {
     body.rotation.y = ry;
     body.castShadow = true;
     group.add(body);
+    // The console's own beacon is a game mesh (it blinks with the alarm state),
+    // so only the cabinet is swapped; it faces the way the stand-in does.
+    const cabinet = authoredProp(group, body, 'alarm_console', 2.6, { x: cx, z: cz, axis: 'y', yaw: ry });
     const light = new THREE.Mesh(
       new THREE.SphereGeometry(0.14, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xff4433 }),
@@ -230,7 +261,7 @@ export function buildRefinery(): Board {
     consoles.push(rec);
     addBreakable(board, body, box, 70, {
       radius: 1.5,
-      onBreak: () => { rec.alive = false; light.visible = false; audio.impact(); },
+      onBreak: () => { rec.alive = false; light.visible = false; cabinet.visible = false; audio.impact(); },
     });
   }
 

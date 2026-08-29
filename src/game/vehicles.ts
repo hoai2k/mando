@@ -91,6 +91,9 @@ const REVERSE_FRACTION = 0.35;
 const REVERSE_THRESHOLD = 0.4;
 
 const _ramPoint = new THREE.Vector3();
+const _seatRay = new THREE.Raycaster();
+const _seatFrom = new THREE.Vector3();
+const _down = new THREE.Vector3(0, -1, 0);
 
 export class Vehicle {
   def: VehicleDef;
@@ -112,6 +115,12 @@ export class Vehicle {
   private boostCd = 0;
   /** last frame's steering input, for the visual bank into a turn */
   private steer = 0;
+  /**
+   * Height of the rider's root above the keel. Starts at the def's value,
+   * which is tuned to the procedural stand-in, and is re-measured off the
+   * authored sculpt the moment one lands — see `seatToModel`.
+   */
+  private seatY: number;
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -122,8 +131,9 @@ export class Vehicle {
     this.yaw = spec.yaw ?? 0;
     const ground = this.groundAt(spec.x, spec.z);
     this.pos.set(spec.x, ground + this.def.hover, spec.z);
+    this.seatY = this.def.seat.y;
     this.group.add(this.body);
-    buildVehicleMesh(spec.kind, this.body);
+    buildVehicleMesh(spec.kind, this.body, (root) => this.seatToModel(root));
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
     this.park();
@@ -222,9 +232,41 @@ export class Vehicle {
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     return out.set(
       this.pos.x + cos * s.x + sin * s.z,
-      this.pos.y + s.y,
+      this.pos.y + this.seatY,
       this.pos.z - sin * s.x + cos * s.z,
     );
+  }
+
+  /**
+   * Put the rider on the surface the sculpt actually has.
+   *
+   * The seat offsets in the defs are measured against the procedural
+   * stand-ins, and an authored vehicle puts its saddle or its deck somewhere
+   * else — so a rider tuned to a box ends up perched above the cockpit of the
+   * model that replaced it. Rather than hand-tune a number per vehicle (and
+   * re-tune it on every re-export), drop a ray down the seat column and take
+   * the surface it finds: feet on it for a rider who stands, hips just over it
+   * for one who straddles.
+   */
+  private seatToModel(root: THREE.Object3D): void {
+    // The raycaster works in world space, so the column has to be the seat's
+    // world column — the group carries the vehicle's yaw, and the sculpt hangs
+    // under it.
+    this.group.updateMatrixWorld(true);
+    const s = this.def.seat;
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    _seatFrom.set(
+      this.pos.x + cos * s.x + sin * s.z,
+      this.pos.y + this.def.body + 3,
+      this.pos.z - sin * s.x + cos * s.z,
+    );
+    _seatRay.set(_seatFrom, _down);
+    const hit = _seatRay.intersectObject(root, true)[0];
+    if (!hit) return;                       // nothing under the seat: keep the default
+    const surface = hit.point.y - this.pos.y;
+    // a straddled saddle carries the hips a hand's width above it; a standing
+    // rider's feet go straight onto the deck
+    this.seatY = this.def.stance === 'stand' ? surface : surface - 0.85;
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
@@ -427,7 +469,7 @@ function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: numbe
  * When the kind's authored .glb exists it loads through `loadProp` and the
  * procedural meshes hide — the same swap the enemy swoop bike already does.
  */
-function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group): void {
+function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void): void {
   const def = VEHICLE_DEFS[kind];
   const built: THREE.Mesh[] = [];
   const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
@@ -474,7 +516,7 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group): void {
   }
   if (def.modelId) {
     const model = loadProp(def.modelId, def.modelSize ?? def.length, {
-      onLoad: () => { for (const m of built) m.visible = false; },
+      onLoad: (root) => { for (const m of built) m.visible = false; onModel?.(root); },
     });
     model.position.y = def.body * 0.35;
     group.add(model);
