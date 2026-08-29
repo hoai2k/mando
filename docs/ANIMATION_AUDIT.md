@@ -6,6 +6,11 @@ how `player.ts` / `enemy.ts` actually play the clips. Method: code read,
 numeric rest-pose measurement of every shipped `.glb`, and workbench renders
 (`/workbench/`) of each pose family frozen at their key frames.*
 
+*Second pass, same day: every roadmap item below is now implemented (see the
+status table in §6), and a full-roster pose sweep (§7) audited the rest of
+the cast. Sections 3-5 are kept as written — they are the reasoning behind
+the changes.*
+
 ---
 
 ## 1. Rig findings (fixed alongside this audit)
@@ -51,13 +56,14 @@ just above them.
 
 ### 1.3 Enemy melee weapons drifted from the authored fist
 
-Enemy weapons stay on the canonical `weaponR` bone so rifles keep their muzzle
-where the firing code looks — but that bone rides the *hidden procedural* arm,
-whose proportions differ from the sculpt's, so a gaffi/club/darksaber floated
-a hand-width or more from the authored fist at the top of a swing. **Fix:**
-melee-only weapons (tusken gaffi, pirate club, alamite club, officer
-darksaber) now re-mount into the model's hand on load, exactly as player
-weapons already did. Rifles are unchanged.
+Enemy weapons stayed on the canonical `weaponR` bone — but that bone rides
+the *hidden procedural* arm, whose proportions differ from the sculpt's, so a
+gaffi/club/darksaber floated a hand-width or more from the authored fist at
+the top of a swing, and the §7 sweep showed rifles hovering mid-chest in aim
+poses too. **Fix:** everything on the weapon bones re-mounts into the model's
+hands on load, exactly as player weapons already did. The muzzle group
+travels inside the weapon group and shot direction is chest-derived, so
+firing is untouched.
 
 ---
 
@@ -234,15 +240,47 @@ reads fine; the controller's root motion does the rest. No action.
   has the X-signs backwards too but its mirror logic and conclusion are
   correct — worth a one-line fix next time that file is touched.
 
-**Prioritized roadmap**
+**Roadmap → all implemented** (same change set as this doc's second revision):
 
-| # | Work | Cost | Payoff |
-|---|---|---|---|
-| 1 | Strafe/back-pedal lower clips + picker (§4.1) | ~1 day | kills the moonwalk, every fight |
-| 2 | Saber stance idles/run for Ventress (§3.2.1) | ½ day | her whole identity when not swinging |
-| 3 | Melee velocity shaping + hit-stop (§3.1.2-3) | ½ day | every hit lands harder |
-| 4 | Lower-body melee stances (§3.1.1, §3.2.2) | 1 day | grounded, choreographed combat |
-| 5 | Massiff bob + walk, krykna de-phase (§5) | ½ day | creatures stop reading as props |
-| 6 | Blade trails + saber flourish (§3.2.3-4) | ½ day | flash, reads at gameplay distance |
-| 7 | Directional hit reacts (§4.3) | ¼ day | fire-fight legibility |
-| 8 | Run personality pass (§4.2) | ¼ day | polish |
+| # | Work | Status |
+|---|---|---|
+| 1 | Strafe/back-pedal lower clips + picker (§4.1) | ✅ `strafeLower` + programmatic mirror + reversed run; picker in `player.ts` by facing/velocity divergence; `cycleDistance` measures lateral sweeps; `gaitRate` takes the character's world scale so heavies stride slower instead of skating |
+| 2 | Saber stance idles/run for Ventress (§3.2.1) | ✅ `saberIdleUpper` / `saberRunUpper`, picked whenever `sabersDrawn` |
+| 3 | Melee velocity shaping + hit-stop (§3.1.2-3) | ✅ strike keys pulled tight behind held windups on all seven combat clips (contact times re-checked); 55-90 ms attacker hit-stop on landed hits |
+| 4 | Lower-body melee stances (§3.1.1, §3.2.2) | ✅ `meleeLower1-3` one-shots under the swings, played when grounded and near-stationary (the lunge owns the legs otherwise) |
+| 5 | Massiff bob + walk, krykna de-phase (§5) | ✅ gallop carries a spine-root bob (`lift()` handles parent-space/world-up conversion); a 4-beat `walk` blends in below gallop speed; krykna legs rippled off the strict tetrad + carapace bob |
+| 6 | Blade trails + saber flourish (§3.2.3-4) | ✅ `makeBladeTrail` ribbons on both blades during swings; `saberFlourish` one-shot fires when the combo window lapses with blades lit |
+| 7 | Directional hit reacts (§4.3) | ✅ `hitFromR` + mirrored `hitFromL`, picked by attacker bearing in `enemy.ts` |
+| 8 | Run personality pass (§4.2) | ✅ chest roll against the yaw twist, foot-roll asymmetry, scale-aware gait rate |
+
+---
+
+## 7. Full-roster pose sweep (second pass)
+
+Every workbench subject was rendered in the poses its kind actually plays
+(~140 frame-frozen shots: playables ×7-10, shooters ×4, melee enemies ×4,
+creatures ×2-3), reviewed as contact sheets.
+
+**Fixed from the sweep's findings:**
+- *Shooters' rifles floated off the authored hands* — worst on the marshal,
+  pirate and capo, whose rifles hovered mid-chest in `enemyAimUpper`. The
+  melee weapon re-mount was extended to **all** enemy weapon-bone children:
+  the muzzle group travels inside the weapon group, and shot direction is
+  computed from the chest, so firing is untouched. Verified: marshal/pirate
+  rifles now sit in the extended hand along the aim.
+
+**Verified good across the sweep:** every playable's idle/run/aim/fly/
+melee/block/death; the Tusken's three-hit staff combo with the gaffi in its
+fist through the full windup; the officer's two-hand darksaber swing; the
+alamite/pirate club swings; nikto saddle pose; krykna/broodmother rippled
+skitter; drone hover; duelist twin pistols; IG-11's whole set.
+
+**Known limitations (documented, not fixed):**
+- Authored hands are not posed around grips — an open sculpted palm holds a
+  rifle by intersection. A per-model finger pose (or a sculpted grip pose in
+  the export) is model work, not rig work.
+- Some enemy rifles sit canted relative to the true fire direction in
+  `enemyAimUpper` (bolts still fly true — direction is chest-derived). A
+  per-character aim-pose polish pass in the workbench editor would tighten it.
+- The massiff reads correctly in motion but the workbench's auto-framing
+  fills the viewport with it; judge it zoomed out.

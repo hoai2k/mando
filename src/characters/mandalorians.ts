@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 import type { VoiceId } from '../core/audio';
 
@@ -25,6 +25,8 @@ export interface PlayerCharacter extends CharacterInstance {
   setHeroLight: (intensity: number) => void;
   /** raise (1) or drop (0) the block shield; values between animate it */
   setBlock: (t: number) => void;
+  /** blade sweep trails on/off (no-op for anyone without sabers) */
+  setTrail: (on: boolean) => void;
   /** flash the shield where a bolt bounced off it */
   shieldHit: () => void;
   gaffi: THREE.Group;
@@ -318,6 +320,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   melee.visible = false;
   b.weaponR.add(melee);
 
+  // ---- blade trails (sabers only) ----
+  // Ribbons in the wake of both blades while swinging; the player toggles
+  // them with setTrail and the cosmetic tick keeps them fed. They hang off
+  // the rig root so a hidden procedural body doesn't take them with it.
+  const trailUpdates: Array<(dt: number, active: boolean) => void> = [];
+  if (cfg.melee === 'sabers') {
+    trailUpdates.push(makeBladeTrail(rig.root, melee));
+    if (meleeOffhand) trailUpdates.push(makeBladeTrail(rig.root, meleeOffhand));
+  }
+  let trailActive = false;
+
   // ---- block shield ----
   // A force field, not a pane with a border: the body of the dome carries the
   // effect and the edge falls out of it. A Fresnel term brightens the surface
@@ -502,6 +515,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     gaffi: melee,
     modelReady: () => swap.settled,
     setWeapon: (w) => { weapon = w; showWeapon(); },
+    setTrail: (on) => { trailActive = on; },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
     setBlock: (t) => {
@@ -528,6 +542,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
       shieldMat.uniforms.uFlash.value = shieldFlash;
       swap.update();
+      for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
         const f = flames[i];

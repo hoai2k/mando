@@ -123,6 +123,12 @@ export class Player {
   private meleeComboWindow = 0;
   private meleeHitPending = 0;
   private meleeDamage = 0;
+  /** seconds of animation freeze left after a landed melee hit */
+  private hitStop = 0;
+  /** the post-combo saber flourish has played (or nothing to flourish) */
+  private flourished = true;
+  /** keeps the blade trail alive through the flourish, which isn't a swing */
+  private trailTimer = 0;
   rocketCd = 0;
   private regenDelay = 0;
   respawnTimer = 0;
@@ -218,6 +224,17 @@ export class Player {
 
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
+
+  /**
+   * Animation time for this frame: near-frozen during hit-stop, so a landed
+   * melee hit hangs on its contact frame for a few hundredths of a second.
+   * The world keeps moving — only this body's mixer feels it.
+   */
+  private animDt(dt: number): number {
+    if (this.hitStop <= 0) return dt;
+    this.hitStop -= dt;
+    return dt * 0.05;
+  }
 
   /**
    * The block shield as the projectile system sees it: a sphere sitting a
@@ -618,28 +635,48 @@ export class Player {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'airUpper');
     } else if (speed2 > 0.6) {
-      // the gait runs at whatever rate plants the feet at our actual ground
-      // speed, so the stride pushes off instead of skating
-      const gait = anim.gaitRate('runLower', speed2);
-      anim.play('lower', 'runLower', 0.15, gait);
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, gait);
+      // Which way is travel, relative to the body? Combat facing points the
+      // chest at the camera while the feet go where the stick says, and the
+      // forward run played for all of it — legs pumping forward through a
+      // sidestep is a moonwalk. Pick the cycle by the divergence instead:
+      // forward run, lateral shuffle (one clip and its mirror), or the run
+      // reversed for a back-pedal.
+      let rel = Math.atan2(this.velocity.x, this.velocity.z) - this.facingYaw;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      const arel = Math.abs(rel);
+      let lowerClip = 'runLower';
+      let rate: number;
+      if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
+        rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
+      } else if (arel > 0.8) {    // 46-132°: side-stepping
+        lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
+        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
+      } else {
+        // the gait runs at whatever rate plants the feet at our actual ground
+        // speed, so the stride pushes off instead of skating
+        rate = anim.gaitRate('runLower', speed2, this.char.baseScale);
+      }
+      anim.play('lower', lowerClip, 0.15, rate);
+      const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
+      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
       } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
       // footfalls follow the same cadence, so the sound lands on the plant
       this.footTimer -= dt;
       if (this.footTimer <= 0) {
-        this.footTimer = anim.stepInterval('runLower', gait);
+        this.footTimer = anim.stepInterval(lowerClip, rate);
         if (this.wading) audio.splash(false, 0.18);
         else audio.footstep(game.board.footstep);
       }
     } else {
       anim.play('lower', 'idleLower');
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'idleUpper');
+      const idleUpper = this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper';
+      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : idleUpper);
     }
 
     this.syncVisual(dt, game);
-    anim.update(dt);
+    anim.update(this.animDt(dt));
 
     // camera last (after position settles) — on the wall clock, so the
     // camera stays crisp while the world is in slow motion
@@ -736,7 +773,7 @@ export class Player {
     if (this.meleeTimer <= 0) anim.play('upper', 'flyUpper');
 
     this.syncVisual(dt, game);
-    anim.update(dt);
+    anim.update(this.animDt(dt));
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: false, speed: speed2, dashing: false,
       flying: true, climb: this.velocity.y,
@@ -935,7 +972,7 @@ export class Player {
     const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
     anim.play('lower', 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
@@ -1131,7 +1168,24 @@ export class Player {
         this.velocity.x = dir.x * 13;
         this.velocity.z = dir.z * 13;
         this.facingYaw = Math.atan2(dir.x, dir.z);
+      } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
+        // no lunge to carry the body, so the legs join the swing: weight
+        // drop, step, pivot — one-shots matched to each upper's duration
+        this.char.animator!.playOnce('lower', `meleeLower${this.meleeStep}`, 0.08);
       }
+      this.flourished = false;
+    }
+    // Combo punctuation: when the window lapses with blades still lit, the
+    // wrists circle both sabers once and settle into the guard. The window
+    // was decremented once this frame, so `+ dt` reads its previous value —
+    // this fires exactly on the frame it lapses.
+    if (
+      !this.flourished && this.sabersDrawn && this.meleeTimer <= 0
+      && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
+    ) {
+      this.flourished = true;
+      this.char.animator!.playOnce('upper', 'saberFlourish', 0.12);
+      this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
       this.char.setWeapon(stowed);
@@ -1166,6 +1220,10 @@ export class Player {
           audio.meleeHit(MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
           this.cam.shake(0.1);
           game.hitMarker(this.slot);
+          // hit-stop: the attacker's animation hangs for a few frames on
+          // contact (heavier on the finisher), which is most of what makes
+          // a hit feel like it landed on something solid
+          this.hitStop = this.meleeStep === 3 ? 0.09 : 0.055;
         }
       }
     }
@@ -1279,6 +1337,9 @@ export class Player {
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
+    // blade trails ride the swings (and the flourish), on every update path
+    this.trailTimer -= dt;
+    this.char.setTrail(this.weapon === 'gaffi' && (this.meleeTimer > 0 || this.trailTimer > 0));
     // lean into velocity while flying; underwater the whole body pitches
     // into the stroke — diving tips you prone, rising brings you upright
     const lean = clamp((this.velocity.x * Math.sin(this.facingYaw) + this.velocity.z * Math.cos(this.facingYaw)) / 18, -0.35, 0.35);

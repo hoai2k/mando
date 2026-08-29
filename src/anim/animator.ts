@@ -36,18 +36,24 @@ export class Animator {
    * The clamp is a legibility floor/ceiling — below it a crawl would freeze,
    * above it the legs blur — not a substitute for the measurement.
    */
-  gaitRate(name: string, speed: number): number {
+  /**
+   * `scale` is the character's world scale (`CharacterInstance.baseScale`):
+   * a bulked-up body's feet really cover scale-times the measured stride, so
+   * without it every heavy ran its cycle too fast and skated a little — and
+   * with it Paz gets his slower, weightier gait for free.
+   */
+  gaitRate(name: string, speed: number, scale = 1): number {
     const clip = this.clips[name];
     if (!clip) return 1;
-    const d = cycleDistance(clip, this.rig.proportions);
+    const d = cycleDistance(clip, this.rig.proportions) * Math.max(0.5, scale);
     if (d <= 1e-4) return 1;
     return Math.min(2.4, Math.max(0.35, (speed * clip.duration) / d));
   }
 
-  /** Seconds between footfalls at the rate `gaitRate` returned. */
+  /** Seconds between footfalls at the rate `gaitRate` returned (sign-blind, so a reversed back-pedal still steps). */
   stepInterval(name: string, rate: number): number {
     const clip = this.clips[name];
-    return clip ? clip.duration / Math.max(0.05, rate) / 2 : 0.3;
+    return clip ? clip.duration / Math.max(0.05, Math.abs(rate)) / 2 : 0.3;
   }
 
   play(channel: 'lower' | 'upper', name: string, fade = 0.18, timeScale = 1): void {
