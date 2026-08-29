@@ -148,15 +148,18 @@ await startMode('wave', 1, 'desert', ['din']);
 const wv = await page.evaluate(`(() => {
   const g = window.__game;
   let guard = 0;
-  while (g.state !== 'victory' && guard++ < 60) {
+  const bosses = [];
+  while (g.state !== 'victory' && guard++ < 80) {
+    if (g.boss && g.boss.alive && !bosses.includes(g.boss.bossName)) bosses.push(g.boss.bossName);
     for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
     g.players[0].hp = g.players[0].maxHp; g.players[0].alive = true;
     (${STEP})(200);
   }
-  return { wave: g.wave, boss: g.boss?.bossName, bossHp: g.boss?.maxHp, state: g.state };
+  return { wave: g.wave, boss: g.boss?.bossName, bossHp: g.boss?.maxHp, bosses, state: g.state };
 })()`);
-check('wave: clearing wave 10 rings in the boss wave', wv.wave === 11 && !!wv.boss, JSON.stringify(wv));
-check('wave: the boss is a promoted elite', (wv.bossHp ?? 0) > 1000, String(wv.bossHp));
+check('wave: two boss battles — the champion after wave 4, the warlord after wave 7',
+  wv.wave === 8 && wv.bosses.length === 2 && !!wv.boss, JSON.stringify(wv));
+check('wave: the warlord is a promoted elite', (wv.bossHp ?? 0) > 1000, String(wv.bossHp));
 check('wave: its death holds the territory', wv.state === 'victory');
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----

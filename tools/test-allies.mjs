@@ -28,7 +28,7 @@ await sleep(9000);
 // clearing three waves of hostiles by hand.
 const spawned = await h.page.evaluate(() => {
   const g = window.__game;
-  g.wave = 3;
+  g.wave = 2;
   g.nextWave();
   return g.allies.map((a) => a.kind);
 });

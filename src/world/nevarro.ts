@@ -218,7 +218,7 @@ export function buildNevarro(): Board {
   const board: Board = {
     group, physics, kind: 'nevarro',
     name: 'The Lava Flats',
-    objective: 'Nevarro · survive 10 waves',
+    objective: 'Nevarro · survive 7 waves',
     footstep: 'stone',
     ambience: { sample: 'amb_lava', bed: 'wind' },
     music: 'desert',

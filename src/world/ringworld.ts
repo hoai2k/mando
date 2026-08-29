@@ -323,7 +323,7 @@ export function buildRingworld(): Board {
   const board: Board = {
     group, physics, kind: 'ringworld',
     name: 'The Ringworld',
-    objective: 'Glavis · survive 10 waves',
+    objective: 'Glavis · survive 7 waves',
     footstep: 'stone',
     ambience: { sample: 'amb_city', bed: 'hum' },
     music: 'station',

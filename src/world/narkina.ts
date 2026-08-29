@@ -485,7 +485,7 @@ export function buildNarkina(): Board {
   const board: Board = {
     group, physics, kind: 'narkina',
     name: 'The Prison Rig',
-    objective: 'Imperial ocean facility · survive 10 waves',
+    objective: 'Imperial ocean facility · survive 7 waves',
     footstep: 'metal',
     ambience: { sample: 'amb_sea', bed: 'wind' },
     music: 'station',

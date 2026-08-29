@@ -250,7 +250,7 @@ export function buildForge(): Board {
   const board: Board = {
     group, physics, kind: 'forge',
     name: 'The Great Forge',
-    objective: 'Mandalore · survive 10 waves',
+    objective: 'Mandalore · survive 7 waves',
     footstep: 'stone',
     ambience: { sample: 'amb_forge', bed: 'wind' },
     music: 'desert',

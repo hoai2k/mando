@@ -134,6 +134,23 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   color: #f0d08c; text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
 }
 .hud-banner.show { opacity: 1; }
+/* the intel card under the banner: enemy kinds debuting this wave */
+.hud-contacts {
+  position: absolute; top: 47%; left: 50%; transform: translateX(-50%);
+  padding: 7px 16px 8px; text-align: center;
+  border: 1px solid rgba(240, 208, 140, 0.45); border-radius: 3px;
+  background: rgba(12, 14, 10, 0.62);
+  opacity: 0; transition: opacity 0.35s; pointer-events: none;
+}
+.hud-contacts.show { opacity: 1; }
+.hud-contacts .nc-kicker {
+  font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: #bba97f;
+}
+.hud-contacts .nc-names {
+  margin-top: 4px; font-size: 17px; font-weight: 700; letter-spacing: 0.18em;
+  text-transform: uppercase; color: #f0d08c;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.85);
+}
 .damage-vignette {
   position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
   background: radial-gradient(ellipse at center, transparent 55%, rgba(180,20,10,0.55) 100%);
@@ -153,6 +170,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-viewport.compact .hud-weapon { transform: scale(0.76); transform-origin: bottom right; right: 14px; bottom: 46px; }
 .hud-viewport.compact .hud-banner .btext { font-size: 22px; letter-spacing: 0.16em; }
 .hud-viewport.compact .hud-banner .bsub { font-size: 11px !important; }
+.hud-viewport.compact .hud-contacts { transform: translateX(-50%) scale(0.72); transform-origin: top center; }
 .hud-viewport.compact .crosshair { transform: translate(-50%, -50%) scale(0.8); }
 
 /* ---------- fullscreen button ---------- */
@@ -428,6 +446,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-viewport.shared-follower .hud-wave,
 .hud-viewport.shared-follower .hud-radar,
 .hud-viewport.shared-follower .hud-banner,
+.hud-viewport.shared-follower .hud-contacts,
 .hud-viewport.shared-follower .hud-boss,
 .hud-viewport.shared-follower .hud-cover,
 .hud-viewport.shared-follower .crosshair,

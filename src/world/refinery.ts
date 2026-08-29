@@ -190,7 +190,7 @@ export function buildRefinery(): Board {
   const board: Board = {
     group, physics, kind: 'refinery',
     name: 'The Refinery',
-    objective: 'Imperial rhydonium plant · survive 10 waves',
+    objective: 'Imperial rhydonium plant · survive 7 waves',
     footstep: 'metal',
     ambience: { sample: 'amb_refinery', bed: 'hum' },
     music: 'station',

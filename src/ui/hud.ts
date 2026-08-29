@@ -18,6 +18,8 @@ interface PlayerHud {
   kills: HTMLElement;
   banner: HTMLElement;
   bannerSub: HTMLElement;
+  contacts: HTMLElement;
+  contactNames: HTMLElement;
   boss: HTMLElement;
   bossName: HTMLElement;
   bossFill: HTMLElement;
@@ -25,6 +27,7 @@ interface PlayerHud {
   crosshair: SVGElement;
   radar: Radar;
   bannerTimer: number;
+  contactsTimer: number;
   hitTimer: number;
 }
 
@@ -95,6 +98,7 @@ export class Hud {
         <div class="hud-cover"></div>
         <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
+        <div class="hud-contacts"><div class="nc-kicker">◢ New contact</div><div class="nc-names"></div></div>
       `;
       this.layer.appendChild(root);
       const radar = new Radar();
@@ -114,12 +118,15 @@ export class Hud {
         kills: root.querySelector('.wave-kills') as HTMLElement,
         banner: root.querySelector('.btext') as HTMLElement,
         bannerSub: root.querySelector('.bsub') as HTMLElement,
+        contacts: root.querySelector('.hud-contacts') as HTMLElement,
+        contactNames: root.querySelector('.nc-names') as HTMLElement,
         boss: root.querySelector('.hud-boss') as HTMLElement,
         bossName: root.querySelector('.bossname') as HTMLElement,
         bossFill: root.querySelector('.bossfill') as HTMLElement,
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
         crosshair: root.querySelector('.crosshair') as SVGElement,
         bannerTimer: 0,
+        contactsTimer: 0,
         hitTimer: 0,
       });
       // A rule along each internal edge of this viewport, so neighbours read
@@ -149,7 +156,7 @@ export class Hud {
     card.innerHTML = `
       <div class="bi-bar top"></div>
       <div class="bi-plate">
-        <div class="bi-kicker">— Warlord —</div>
+        <div class="bi-kicker">— ${sub.startsWith('Champion') ? 'Champion' : 'Warlord'} —</div>
         <div class="bi-name">${title}</div>
         <div class="bi-rule"></div>
         <div class="bi-sub">${sub}</div>
@@ -166,6 +173,21 @@ export class Hud {
       h.bannerSub.textContent = sub ?? '';
       h.banner.parentElement!.classList.add('show');
       h.bannerTimer = 2.6;
+    }
+  }
+
+  /**
+   * The little intel card under the wave banner, naming enemy kinds making
+   * their first appearance this wave. Held longer than the banner — it is
+   * the one piece worth reading twice.
+   */
+  newContacts(names: string[]): void {
+    for (const h of this.huds) {
+      h.contacts.querySelector('.nc-kicker')!.textContent =
+        names.length > 1 ? '◢ New contacts' : '◢ New contact';
+      h.contactNames.textContent = names.join(' · ');
+      h.contacts.classList.add('show');
+      h.contactsTimer = 6;
     }
   }
 
@@ -223,6 +245,10 @@ export class Hud {
       if (h.bannerTimer > 0) {
         h.bannerTimer -= dt;
         if (h.bannerTimer <= 0) h.banner.parentElement!.classList.remove('show');
+      }
+      if (h.contactsTimer > 0) {
+        h.contactsTimer -= dt;
+        if (h.contactsTimer <= 0) h.contacts.classList.remove('show');
       }
       // the reticle belongs to ADS only — hip fire reads off the muzzle. The
       // hit marker and lock ring stay live either way: they are feedback about

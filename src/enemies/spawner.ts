@@ -4,7 +4,17 @@ import { hazardAt, killZones, type Board, type BoardId } from '../world/board';
 
 /** Wave composition per board — grunt-heavy early, mixed later. */
 
-export const FINAL_WAVE = 10;
+/**
+ * The board runs seven waves of squads. Two boss battles interleave them —
+ * after wave MID_BOSS_WAVE the board's champion walks out (modes.ts
+ * MID_BOSS), and clearing wave FINAL_WAVE rings in the territory's warlord
+ * (modes.ts BOSS_KIND). The ramp keeps the enemies themselves as they are:
+ * waves grow by adding bodies and debuting new kinds sooner, never by
+ * making anyone individually harder.
+ */
+export const FINAL_WAVE = 7;
+/** clearing this wave rings in the mid-board boss battle */
+export const MID_BOSS_WAVE = 4;
 
 /**
  * Which ally reinforces on which wave.
@@ -12,8 +22,10 @@ export const FINAL_WAVE = 10;
  * It lives beside the wave tables rather than in the match, because two other
  * things read it: the match warms an ally's model before it walks in, and the
  * prefetcher counts allies among the models a territory will eventually want.
+ * The beats bracket the boss battles: one before the champion, one right
+ * after it, one for the final wave before the warlord.
  */
-export const ALLY_WAVES: Record<number, EnemyKind> = { 4: 'marshal', 7: 'ig11', 9: 'fennec' };
+export const ALLY_WAVES: Record<number, EnemyKind> = { 3: 'marshal', 5: 'ig11', 7: 'fennec' };
 
 interface WaveEntry { kind: EnemyKind; count: number; air?: boolean; }
 
@@ -30,123 +42,123 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
 
   switch (board) {
     case 'desert':
-      at(1, 'tusken', n(5, 0.7));
-      at(1, 'pyke', n(2, 0.5));
-      at(2, 'pirateMelee', n(1, 0.4));
-      at(3, 'nikto', Math.min(1 + ((wave / 3) | 0), 3), true);
-      at(5, 'droid', ramp(3, 2, 3));
+      at(1, 'tusken', n(5, 1.0));
+      at(1, 'pyke', n(2, 0.7));
+      at(2, 'pirateMelee', n(1, 0.55));
+      at(2, 'nikto', Math.min(1 + ((wave / 2) | 0), 3), true);
+      at(4, 'droid', ramp(4, 1, 3));
       // war massiffs are an elite, not a grunt: a couple at a time, late on
-      at(5, 'massiff', ramp(5, 2, 3));
-      at(6, 'stormtrooper', n(1, 0.5));   // Imperial remnant arrives
-      at(8, 'deathtrooper', ramp(6, 2, 3));
-      at(9, 'darktrooper', 2, true);
+      at(4, 'massiff', ramp(4, 2, 3));
+      at(4, 'stormtrooper', n(1, 0.7));   // Imperial remnant arrives
+      at(6, 'deathtrooper', ramp(5, 1, 3));
+      at(6, 'darktrooper', 2, true);
       // the gunslinger turns up late, and alone
-      at(7, 'duelist', 1);
-      at(9, 'officer', 1);
+      at(5, 'duelist', 1);
+      at(6, 'officer', 1);
       at(FINAL_WAVE, 'enforcer', 1);
       break;
 
     case 'station':
-      at(1, 'pirate', n(5, 0.6));
-      at(1, 'pirateMelee', n(2, 0.4));
+      at(1, 'pirate', n(5, 0.85));
+      at(1, 'pirateMelee', n(2, 0.55));
       at(2, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 4), true);
-      at(4, 'pyke', n(1, 0.6));
-      at(5, 'droid', ramp(3, 2, 3));
-      at(6, 'stormtrooper', n(1, 0.5));
-      at(7, 'darktrooper', ramp(7, 2, 3), true);
-      at(9, 'deathtrooper', 2);
-      at(8, 'duelist', 1);
-      at(10, 'officer', 1);
+      at(3, 'pyke', n(1, 0.85));
+      at(4, 'droid', ramp(4, 1, 3));
+      at(4, 'stormtrooper', n(1, 0.7));
+      at(5, 'darktrooper', ramp(5, 1, 3), true);
+      at(6, 'deathtrooper', 2);
+      at(6, 'duelist', 1);
+      at(7, 'officer', 1);
       at(FINAL_WAVE, 'capo', 1);
       break;
 
     case 'nevarro':
       // pirates hold the flats; the remnant garrison walks out of the gate late
-      at(1, 'pirate', n(4, 0.6));
-      at(1, 'pirateMelee', n(2, 0.5));
-      at(2, 'flametrooper', ramp(2, 3, 3));
-      at(3, 'stormtrooper', n(1, 0.6));
-      at(4, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
-      at(5, 'droid', ramp(4, 2, 3));
-      at(6, 'massiff', ramp(6, 2, 2));
-      at(7, 'deathtrooper', ramp(7, 2, 3));
-      at(8, 'duelist', 1);
-      at(9, 'darktrooper', 2, true);
+      at(1, 'pirate', n(4, 0.85));
+      at(1, 'pirateMelee', n(2, 0.7));
+      at(2, 'flametrooper', ramp(2, 2, 3));
+      at(2, 'stormtrooper', n(1, 0.85));
+      at(3, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 3), true);
+      at(4, 'droid', ramp(3, 1, 3));
+      at(4, 'massiff', ramp(4, 2, 2));
+      at(5, 'deathtrooper', ramp(5, 1, 3));
+      at(6, 'duelist', 1);
+      at(6, 'darktrooper', 2, true);
       at(FINAL_WAVE, 'officer', 1);
       break;
 
     case 'crevasse':
       // the spiders own the ice; the Pykes are just passing through, poor souls
-      at(1, 'krykna', n(5, 0.9));
-      at(1, 'pyke', n(2, 0.4));
-      at(3, 'stormtrooper', n(1, 0.5));
-      at(4, 'krykna', ramp(4, 1, 4)); // second nest opens
-      at(5, 'droid', ramp(5, 2, 2));
-      at(6, 'deathtrooper', ramp(6, 2, 2));
-      at(7, 'darktrooper', ramp(7, 2, 2), true);
-      at(8, 'duelist', 1);
+      at(1, 'krykna', n(5, 1.3));
+      at(1, 'pyke', n(2, 0.55));
+      at(2, 'stormtrooper', n(1, 0.7));
+      at(3, 'krykna', ramp(3, 1, 4)); // second nest opens
+      at(4, 'droid', ramp(4, 2, 2));
+      at(4, 'deathtrooper', ramp(4, 2, 2));
+      at(5, 'darktrooper', ramp(5, 2, 2), true);
+      at(6, 'duelist', 1);
       at(FINAL_WAVE, 'broodmother', 1);
       break;
 
     case 'trask':
-      at(1, 'quarren', n(3, 0.6));
-      at(1, 'pirate', n(3, 0.5));
-      at(2, 'pirateMelee', n(1, 0.5));
-      at(3, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
-      at(4, 'pyke', n(1, 0.5));
-      at(5, 'droid', ramp(5, 2, 2));
-      at(6, 'stormtrooper', n(1, 0.5)); // the freighter was never carrying fish
-      at(7, 'deathtrooper', ramp(7, 2, 2));
-      at(8, 'duelist', 1);
-      at(9, 'darktrooper', 2, true);
+      at(1, 'quarren', n(3, 0.85));
+      at(1, 'pirate', n(3, 0.7));
+      at(2, 'pirateMelee', n(1, 0.7));
+      at(2, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 3), true);
+      at(3, 'pyke', n(1, 0.7));
+      at(4, 'droid', ramp(4, 2, 2));
+      at(4, 'stormtrooper', n(1, 0.7)); // the freighter was never carrying fish
+      at(5, 'deathtrooper', ramp(5, 2, 2));
+      at(6, 'duelist', 1);
+      at(6, 'darktrooper', 2, true);
       at(FINAL_WAVE, 'capo', 1);
       break;
 
     case 'refinery':
-      at(1, 'stormtrooper', n(5, 0.8));
-      at(1, 'droid', n(1, 0.3));
-      at(2, 'flametrooper', ramp(2, 2, 4)); // corridors are their country
-      at(4, 'deathtrooper', ramp(4, 2, 3));
-      at(5, 'darktrooper', ramp(5, 2, 3), true);
-      at(7, 'duelist', 1);
-      at(9, 'officer', 1);
+      at(1, 'stormtrooper', n(5, 1.15));
+      at(1, 'droid', n(1, 0.4));
+      at(2, 'flametrooper', ramp(2, 1, 4)); // corridors are their country
+      at(3, 'deathtrooper', ramp(3, 1, 3));
+      at(4, 'darktrooper', ramp(4, 1, 3), true);
+      at(5, 'duelist', 1);
+      at(6, 'officer', 1);
       at(FINAL_WAVE, 'officer', 1);
       break;
 
     case 'forge':
-      at(1, 'alamite', n(5, 0.9));
+      at(1, 'alamite', n(5, 1.3));
       at(2, 'drone', Math.min(1 + ((wave / 2) | 0), 4), true);
-      at(3, 'stormtrooper', n(1, 0.6));
-      at(5, 'deathtrooper', ramp(5, 2, 3));
-      at(6, 'droid', ramp(6, 2, 2));
-      at(7, 'darktrooper', ramp(7, 2, 3), true);
-      at(8, 'duelist', 1);
+      at(2, 'stormtrooper', n(1, 0.85));
+      at(4, 'deathtrooper', ramp(4, 1, 3));
+      at(4, 'droid', ramp(4, 2, 2));
+      at(5, 'darktrooper', ramp(5, 1, 3), true);
+      at(6, 'duelist', 1);
       at(FINAL_WAVE, 'officer', 1);
       at(FINAL_WAVE, 'enforcer', 1);
       break;
 
     case 'narkina':
       // a prison garrison: troopers and droids in numbers, elites late
-      at(1, 'stormtrooper', n(5, 0.8));
-      at(1, 'droid', n(1, 0.4));
-      at(3, 'deathtrooper', ramp(3, 2, 3));
-      at(4, 'darktrooper', ramp(4, 2, 3), true);
-      at(6, 'flametrooper', ramp(6, 2, 2));
-      at(7, 'duelist', 1);
-      at(9, 'officer', 1);
+      at(1, 'stormtrooper', n(5, 1.15));
+      at(1, 'droid', n(1, 0.55));
+      at(2, 'deathtrooper', ramp(2, 1, 3));
+      at(3, 'darktrooper', ramp(3, 1, 3), true);
+      at(4, 'flametrooper', ramp(4, 2, 2));
+      at(5, 'duelist', 1);
+      at(6, 'officer', 1);
       at(FINAL_WAVE, 'officer', 1);
       break;
 
     case 'ringworld':
-      at(1, 'pirate', n(4, 0.6));
-      at(1, 'pirateMelee', n(2, 0.4));
-      at(2, 'ringEnforcer', ramp(2, 3, 3));
-      at(3, 'pyke', n(1, 0.5));
-      at(4, 'jetpirate', Math.min(1 + ((wave / 3) | 0), 3), true);
-      at(5, 'droid', ramp(5, 2, 3));
-      at(6, 'duelist', 1); // assassin country
-      at(7, 'deathtrooper', ramp(7, 2, 2));
-      at(9, 'darktrooper', 2, true);
+      at(1, 'pirate', n(4, 0.85));
+      at(1, 'pirateMelee', n(2, 0.55));
+      at(2, 'ringEnforcer', ramp(2, 2, 3));
+      at(2, 'pyke', n(1, 0.7));
+      at(3, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 3), true);
+      at(4, 'droid', ramp(4, 1, 3));
+      at(4, 'duelist', 1); // assassin country
+      at(5, 'deathtrooper', ramp(5, 2, 2));
+      at(6, 'darktrooper', 2, true);
       at(FINAL_WAVE, 'duelist', 2);
       at(FINAL_WAVE, 'ringEnforcer', 2);
       break;

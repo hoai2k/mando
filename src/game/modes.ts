@@ -32,7 +32,10 @@ export function modesEnabled(): boolean {
 /**
  * Each territory's boss: its signature final-wave elite, promoted
  * (Enemy.promoteBoss) rather than a new character. Caps the wave game after
- * wave 10 and holds the campaign's final arena — docs/MODES.md §4a.
+ * the final wave and holds the campaign's final arena — docs/MODES.md §4a.
+ * Always the harder of the board's two boss battles: the warlord takes the
+ * full promotion (×4.5 HP), where the mid-board champion below is promoted
+ * lighter and ends up with roughly half the warlord's health everywhere.
  */
 export const BOSS_KIND: Record<BoardId, EnemyKind> = {
   desert: 'enforcer', station: 'capo', nevarro: 'officer',
@@ -51,6 +54,33 @@ export const BOSS_NAME: Record<BoardId, string> = {
   forge: 'The Forge Tyrant',
   ringworld: 'The Fastest Gun on Glavis',
   narkina: 'The Prison Warden',
+};
+
+/**
+ * The mid-board boss battle: after wave MID_BOSS_WAVE (and at the campaign
+ * path's midpoint) the warlord sends its champion — a monster where the
+ * board has one, an elite lieutenant otherwise. Promoted through the same
+ * machinery as the warlord but lighter (the scales below are per-kind, so a
+ * grunt-sized creature can be blown up into a proper monster), and always
+ * the easier of the board's two boss battles.
+ */
+export interface MidBossDef {
+  kind: EnemyKind;
+  name: string;
+  /** promoteBoss scales: health, damage, frame */
+  hp: number; dmg: number; bulk: number;
+}
+
+export const MID_BOSS: Record<BoardId, MidBossDef> = {
+  desert:    { kind: 'massiff',      name: 'The Pit Beast',         hp: 3.0, dmg: 1.3,  bulk: 1.35 },
+  station:   { kind: 'duelist',      name: 'The Dock Assassin',     hp: 3.0, dmg: 1.3,  bulk: 1.15 },
+  nevarro:   { kind: 'massiff',      name: "The Magistrate's Hound", hp: 2.6, dmg: 1.2, bulk: 1.3 },
+  crevasse:  { kind: 'krykna',       name: 'The Tunnel Queen',      hp: 14,  dmg: 2.0,  bulk: 1.9 },
+  trask:     { kind: 'officer',      name: 'The Freighter Captain', hp: 2.6, dmg: 1.25, bulk: 1.15 },
+  refinery:  { kind: 'flametrooper', name: 'The Furnace Master',    hp: 4.2, dmg: 1.5,  bulk: 1.25 },
+  forge:     { kind: 'alamite',      name: 'The Rockdweller Alpha', hp: 11,  dmg: 1.9,  bulk: 1.6 },
+  ringworld: { kind: 'ringEnforcer', name: 'The Silent Sentinel',   hp: 2.4, dmg: 1.3,  bulk: 1.2 },
+  narkina:   { kind: 'deathtrooper', name: 'The Floor Supervisor',  hp: 4.0, dmg: 1.4,  bulk: 1.2 },
 };
 
 /**

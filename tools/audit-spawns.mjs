@@ -22,7 +22,7 @@ import { launch } from './harness.mjs';
 // NB: the audit body is stringified into the page, so everything it uses has
 // to live inside it — no closure over module scope.
 function audit() {
-  const WAVES = 10;
+  const WAVES = 7;
   /** how many times each wave is planned, since jitter and squad sizes are random */
   const TRIALS = 12;
   /** where the players are standing — posts are placed relative to them */

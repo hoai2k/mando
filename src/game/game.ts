@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
-import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, spawnWave, standingSpot, waveComposition } from '../enemies/spawner';
+import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
+import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, spawnWave, standingSpot, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import { playableDef, type PlayableId } from '../characters/roster';
@@ -16,7 +16,7 @@ import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, type GameMode } from './modes';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, type GameMode } from './modes';
 import { Campaign } from './campaign';
 import { ThirdPersonCamera } from '../core/camera';
 
@@ -40,6 +40,8 @@ export interface GameEvents {
   banner: (text: string, sub?: string) => void;
   /** the boss introduction card: letterbox + name, over the slow-motion reveal */
   bossIntro?: (title: string, sub: string) => void;
+  /** the little card naming enemy kinds making their first appearance this wave */
+  newContacts?: (names: string[]) => void;
   stateChanged: (s: MatchState) => void;
   hitMarker: (slot: number) => void;
 }
@@ -113,8 +115,12 @@ export class Game {
   private huntCall = 0;
   private huntAnnounced = false;
   // ---- modes (docs/MODES.md) ----
-  /** the boss capping the wave game and the campaign, once spawned */
+  /** the standing boss battle — the mid-board champion or the warlord */
   boss: Enemy | null = null;
+  /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
+  private midBossActive = false;
+  /** the champion has fallen; the second run of waves is open */
+  private midBossDown = false;
   private bossPhase = 0;
   /** seconds left of the boss introduction: slow-motion, cameras on the warlord */
   bossIntroT = 0;
@@ -228,17 +234,20 @@ export class Game {
         if (id) preloadAuthored(id);
       }
     }
-    // wave and campaign both end at the territory's boss: warm its model now
+    // wave and campaign both run the champion and end at the territory's
+    // warlord: warm both models now
     if (mode !== 'pvp') {
-      const bossId = ENEMY_MODEL_ID[BOSS_KIND[board.kind]];
-      if (bossId) preloadAuthored(bossId);
+      for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
+        const bossId = ENEMY_MODEL_ID[kind];
+        if (bossId) preloadAuthored(bossId);
+      }
     }
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music, board.kind);
     const objective = mode === 'pvp' ? 'Last fighter standing takes it'
       : mode === 'campaign' ? 'Follow the beacon · liberate the territory'
-        : board.objective ?? 'Survive 10 waves';
+        : board.objective ?? 'Survive 7 waves and two warlords';
     this.events.banner(board.name, objective);
   }
 
@@ -298,14 +307,18 @@ export class Game {
   }
 
   /**
-   * Spawn the territory's boss (docs/MODES.md §4a) at `pos` with a small
-   * honour guard. Shared by the wave game's final wave and the campaign arena.
+   * Spawn a boss battle (docs/MODES.md §4a) at `pos` with a small honour
+   * guard. `tier` picks the fight: the mid-board champion (MID_BOSS, a
+   * lighter promotion and a thinner guard) or the territory's warlord.
+   * Shared by the wave game's boss battles and the campaign's two arenas.
    */
-  spawnBoss(pos: THREE.Vector3): Enemy {
-    const kind = BOSS_KIND[this.board.kind];
+  spawnBoss(pos: THREE.Vector3, tier: 'mid' | 'final' = 'final'): Enemy {
+    const mid = MID_BOSS[this.board.kind];
+    const kind = tier === 'mid' ? mid.kind : BOSS_KIND[this.board.kind];
     const at = standingSpot(this.board, pos.clone(), kind);
     const boss = new Enemy(kind, at);
-    boss.promoteBoss(BOSS_NAME[this.board.kind]);
+    if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
+    else boss.promoteBoss(BOSS_NAME[this.board.kind]);
     this.waveSpawned++;
     this.enemies.push(boss);
     this.scene.add(boss.char.root);
@@ -313,8 +326,9 @@ export class Game {
     this.boss = boss;
     this.bossPhase = 0;
     const guard = BOSS_RETINUE[this.board.kind];
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2;
+    const guards = tier === 'mid' ? 2 : 3;
+    for (let i = 0; i < guards; i++) {
+      const a = (i / guards) * Math.PI * 2;
       this.addReinforcement(guard, at.clone().add(new THREE.Vector3(Math.cos(a) * 6, 0.2, Math.sin(a) * 6)), 9900);
     }
     // The introduction: three and a half seconds of slow motion with every
@@ -325,7 +339,8 @@ export class Game {
     this.bossMoveCd = 8;
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
-    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, `Warlord of ${this.board.name}`);
+    const sub = tier === 'mid' ? `Champion of ${this.board.name}` : `Warlord of ${this.board.name}`;
+    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
     else this.events.banner(boss.bossName, 'Bring them down');
     audio.bossHorn();
     return boss;
@@ -634,11 +649,20 @@ export class Game {
         // the fallen fade away now that the wave is decided
         for (const e of this.enemies) if (!e.alive) e.fadeOut();
         if (this.wave > FINAL_WAVE) {
-          // the boss wave is down: the territory is truly held
+          // the warlord is down: the territory is truly held
           this.setState('victory');
           this.events.banner('Territory held', 'This is the Way');
           audio.waveClear();
-        } else if (this.wave === FINAL_WAVE) {
+        } else if (this.midBossActive) {
+          // the champion falls; the second run of waves opens
+          this.midBossActive = false;
+          this.midBossDown = true;
+          this.setState('break');
+          this.stateTimer = 4.5;
+          this.events.banner('The champion falls', 'The warlord is watching');
+          audio.waveClear();
+        } else if (this.wave === FINAL_WAVE || (this.wave === MID_BOSS_WAVE && !this.midBossDown)) {
+          // a boss battle rings in on the next bell
           this.setState('break');
           this.stateTimer = 4.5;
           this.events.banner(`Wave ${this.wave} cleared`, 'Something big is coming');
@@ -656,7 +680,7 @@ export class Game {
       this.wave = 1;
     }
 
-    // boss phases run wherever a boss stands (wave 11, campaign arena)
+    // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     this.updateBoss(dt);
 
     // ---- campaign objectives ----
@@ -1085,7 +1109,7 @@ export class Game {
       return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
     }
     if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
-    if (this.wave > FINAL_WAVE) return this.boss?.bossName ?? 'The warlord';
+    if (this.midBossActive || this.wave > FINAL_WAVE) return this.boss?.bossName ?? 'The warlord';
     return `Wave ${Math.max(this.wave, 1)}`;
   }
 
@@ -1098,22 +1122,33 @@ export class Game {
     return `${p.kills} kills · ${this.aliveEnemyCount} hostiles remaining`;
   }
 
+  /** the far side of the board, where a boss battle posts its warlord */
+  private farPost(): THREE.Vector3 {
+    const near = this.players[0]?.position ?? this.board.playerStarts[0];
+    let far = this.board.groundSpawns[0] ?? near;
+    for (const s of this.board.groundSpawns) {
+      if (s.distanceToSquared(near) > far.distanceToSquared(near)) far = s;
+    }
+    return far.clone();
+  }
+
   private nextWave(): void {
-    this.wave++;
     this.waveTimer = 0;
     this.waveSpawned = 0;
     this.huntCall = 0;
     this.huntAnnounced = false;
     this.setState('fighting');
-    // wave 11 is the boss battle: the warlord posts at the far side with a
-    // guard, instead of another spread of squads
+    // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
+    // the next wave: the board's first boss posts at the far side with a guard
+    if (this.wave === MID_BOSS_WAVE && !this.midBossDown) {
+      this.midBossActive = true;
+      this.spawnBoss(this.farPost(), 'mid');
+      return;
+    }
+    this.wave++;
+    // past the final wave is the warlord's battle, and the last bell
     if (this.wave > FINAL_WAVE) {
-      const near = this.players[0]?.position ?? this.board.playerStarts[0];
-      let far = this.board.groundSpawns[0] ?? near;
-      for (const s of this.board.groundSpawns) {
-        if (s.distanceToSquared(near) > far.distanceToSquared(near)) far = s;
-      }
-      this.spawnBoss(far.clone());
+      this.spawnBoss(this.farPost(), 'final');
       return;
     }
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
@@ -1130,6 +1165,17 @@ export class Game {
       `Wave ${this.wave}`,
       this.wave === FINAL_WAVE ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
     );
+    // the little card naming kinds that debut this wave — the wave tables
+    // are deterministic in which kinds appear, so a diff against every
+    // earlier wave is exactly "first appearance"
+    const seen = new Set<EnemyKind>();
+    for (let w = 1; w < this.wave; w++) {
+      for (const entry of waveComposition(this.board.kind, w, this.players.length)) seen.add(entry.kind);
+    }
+    const fresh = [...new Set(
+      waveComposition(this.board.kind, this.wave, this.players.length).map((entry) => entry.kind)
+    )].filter((k) => !seen.has(k));
+    if (fresh.length) this.events.newContacts?.(fresh.map((k) => ENEMY_NAME[k]));
     audio.waveStart();
 
     // ally reinforcements from the covert on milestone waves
