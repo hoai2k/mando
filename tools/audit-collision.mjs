@@ -92,7 +92,11 @@ function audit() {
       // `userData.decor` is the board author saying so out loud — kelp you
       // swim through, coral, writhing tentacles. Everything else has to earn
       // its exemption by being a decal, a glow, or the world itself.
-      if (obj.userData && obj.userData.decor) { skipped++; return; }
+      // The flag is inherited: a decorative prop built as a group of parts
+      // says so once, on the group, rather than on each piece of it.
+      let decor = false;
+      for (let n = obj; n; n = n.parent) if (n.userData && n.userData.decor) { decor = true; break; }
+      if (decor) { skipped++; return; }
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
       const m = mats[0] || {};
       if (m.isShaderMaterial) { skipped++; return; }                    // sky domes

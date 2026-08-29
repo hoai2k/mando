@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
-import { crateTexture, deckTexture, hullTexture } from '../core/assets';
+import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
 import { audio } from '../core/audio';
@@ -68,6 +68,17 @@ export function buildTrask(): Board {
 
   const deckMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0x8a9096, roughness: 0.75, metalness: 0.35 });
   const hullMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x6a7a72, roughness: 0.6, metalness: 0.45 });
+  // Rusted plating over both the trawler hulls and the decks players stand on:
+  // the harbour reads as working boats rather than clean grey boxes.
+  loadOptionalTexture('rust_hull', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    for (const m of [hullMat, deckMat]) {
+      m.map = tex;
+      m.color.setHex(0xffffff);
+      m.needsUpdate = true;
+    }
+  });
   const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.85 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.7, metalness: 0.4 });
   // repeated props share one geometry apiece: fifty pilings and fourteen crates
@@ -100,6 +111,32 @@ export function buildTrask(): Board {
       pile.position.set(px, 0, pz);
       group.add(pile);
     }
+  }
+
+  // Cargo nets hung along the quay edges: dressing, never collision — they are
+  // flagged decor so the audit does not read them as geometry missing a box,
+  // and they only appear where the artwork does, since a net is its cutout.
+  const netMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.95, side: THREE.DoubleSide,
+    transparent: true, alphaTest: 0.4, visible: false,
+  });
+  loadOptionalTexture('net_weave', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    netMat.map = tex;
+    netMat.alphaMap = tex;
+    netMat.visible = true;
+    netMat.needsUpdate = true;
+  }, { exts: ['png'] });
+  const netGeo = new THREE.PlaneGeometry(3.2, 2.2);
+  for (const [nx, nz, turn] of [
+    [-18, 32.2, 0], [6, 32.2, 0], [26, 32.2, 0],
+    [-31.2, -12, Math.PI / 2], [-4.2, -34, Math.PI / 2], [33.2, -10, Math.PI / 2],
+  ] as const) {
+    const net = new THREE.Mesh(netGeo, netMat);
+    net.position.set(nx, DECK_TOP - 1.3, nz);
+    net.rotation.y = turn;
+    net.userData.decor = true;
+    group.add(net);
   }
 
   // crates and barrels: cover on the quay and fingers

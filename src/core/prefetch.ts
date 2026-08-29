@@ -33,11 +33,12 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
   station: ['metal_deck', 'metal_hull', 'crate_side'],
   nevarro: ['basalt_albedo', 'lava_flow', 'rock_albedo', 'metal_hull'],
   crevasse: ['snow_albedo', 'ice_albedo', 'rock_albedo'],
-  trask: ['metal_deck', 'metal_hull', 'crate_side', 'rock_albedo'],
+  trask: ['metal_deck', 'metal_hull', 'crate_side', 'rock_albedo', 'rust_hull', 'net_weave'],
   refinery: ['metal_deck', 'metal_hull', 'crate_side'],
-  forge: ['rock_albedo', 'metal_hull', 'basalt_albedo'],
-  ringworld: ['metal_deck', 'metal_hull', 'crate_side'],
-  narkina: ['metal_deck', 'metal_hull', 'ice_albedo'],
+  forge: ['rock_albedo', 'metal_hull', 'basalt_albedo', 'forge_relief'],
+  ringworld: ['metal_deck', 'metal_hull', 'crate_side', 'city_facade', 'city_facade_glow',
+    'neon_sign', 'neon_sign_2', 'neon_sign_3', 'skyline_silhouette', 'skyline_silhouette_2'],
+  narkina: ['metal_deck', 'metal_hull', 'ice_albedo', 'panel_white', 'kelp_frond'],
 };
 
 /**

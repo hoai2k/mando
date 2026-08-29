@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng, ridge2 } from '../core/math';
-import { deckTexture, hullTexture } from '../core/assets';
+import { deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import type { Board } from './board';
 import { audio } from '../core/audio';
@@ -97,6 +97,18 @@ export function buildNarkina(): Board {
 
   const whiteMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0xdfe4e8, roughness: 0.45, metalness: 0.3 });
   const deckMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0xc9ced4, roughness: 0.55, metalness: 0.35 });
+  // Clean composite panelling on every white surface of the rig — the sterile
+  // Imperial look the board is built around, which the generic hull map only
+  // approximated with a grey tint.
+  loadOptionalTexture('panel_white', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    for (const m of [whiteMat, deckMat]) {
+      m.map = tex;
+      m.color.setHex(0xffffff);
+      m.needsUpdate = true;
+    }
+  });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x30343c, roughness: 0.6, metalness: 0.4 });
   const stripMat = new THREE.MeshBasicMaterial({ color: 0xdff2ff });
 
@@ -195,20 +207,43 @@ export function buildNarkina(): Board {
 
   // ---- below: the reasons to dive ----
   // kelp forest on the trench's shoulder
+  // Each plant is two crossed alpha cards where the frond artwork exists — a
+  // ribbon leaf reads as a plant from any angle, where the fallback cylinder
+  // reads as a pole. The material is swapped in place, so the cards are built
+  // either way and simply carry no cutout until the texture lands.
   const kelpMat = new THREE.MeshStandardMaterial({ color: 0x2f6a4c, roughness: 0.9, side: THREE.DoubleSide });
-  const kelp: THREE.Mesh[] = [];
+  loadOptionalTexture('kelp_frond', (tex) => {
+    kelpMat.map = tex;
+    kelpMat.alphaMap = tex;
+    kelpMat.transparent = true;
+    kelpMat.alphaTest = 0.4;
+    kelpMat.color.setHex(0xffffff);
+    kelpMat.needsUpdate = true;
+    // the cylinder was the stand-in; the cards replace it
+    for (const plant of kelp) plant.children.forEach((c, i) => { c.visible = i > 0; });
+  }, { exts: ['png'] });
+  const kelp: THREE.Group[] = [];
   for (let i = 0; i < 34; i++) {
     const a = rng() * Math.PI * 2, dd = 30 + rng() * 70;
     const x = Math.cos(a) * dd - 20, z = Math.sin(a) * dd - 20;
     const base = heightAt(x, z);
     const h = Math.min(6 + rng() * 12, WATER_Y - 2 - base);
     if (h < 4) continue;
+    const plant = new THREE.Group();
+    plant.position.set(x, base + h / 2, z);
     const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.24, h, 5), kelpMat);
-    stalk.position.set(x, base + h / 2, z);
+    plant.add(stalk);
+    // two cards crossed at right angles, so the frond has no edge-on angle
+    for (const turn of [0, Math.PI / 2]) {
+      const card = new THREE.Mesh(new THREE.PlaneGeometry(0.9, h), kelpMat);
+      card.rotation.y = turn + rng() * 0.4;
+      card.visible = false;   // shown when the artwork arrives
+      plant.add(card);
+    }
     // kelp parts around a swimmer; a forest of solid poles would be a fence
-    stalk.userData.decor = true;
-    group.add(stalk);
-    kelp.push(stalk);
+    plant.userData.decor = true;
+    group.add(plant);
+    kelp.push(plant);
   }
   // glowing reef on the seamount slope
   const glowMat = new THREE.MeshStandardMaterial({ color: 0x3ac8b8, emissive: 0x2a8a80, roughness: 0.6 });

@@ -421,18 +421,20 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
    no sight-block — though a plume that breaks enemy line-of-sight is noted as a
    future stealth hook.
 
-6. **Trask quay dressing** (Trask). Hanging cargo nets between the pilings
-   (`net_weave.png` alpha planes), buoy clusters riding the same swell sinusoid the
+6. **Trask quay dressing** (Trask). **The nets are in** — six `net_weave.png` alpha
+   planes along the quay and finger edges, `decor`, hidden until the artwork loads
+   since a net is its own cutout. Still to come: buoy clusters riding the same swell sinusoid the
    sea already computes (instanced, `decor`), rope coils, and two or three
    fish-drying racks (`fish_rack.glb`) — the racks stand chest-high and get thin box
    colliders, so they enter the cover system honestly as the board's only new solid.
    The delivered `amb_rain` loop already carries the distant gulls.
 
-7. **Ringworld skyline** (Ringworld). Beyond each end bulkhead, two parallax layers
-   of silhouette towers (`skyline_silhouette.png` / `_2`, alpha planes) at ~140 and
-   ~220 m, window dots emissive, fading into the existing fog; blinking
-   hazard beacons ride the tallest towers on the night side. Pure planes, `decor` —
-   the street stops being a corridor in fog and becomes a slice of a city.
+7. **Ringworld skyline** (Ringworld) — **shipped.** Two parallax rows of silhouette
+   towers beyond each end bulkhead (`skyline_silhouette.png` at 58 m and `_2` at 96 m
+   past the bulkhead, the far row taller and cooler-tinted), pure alpha planes flagged
+   `decor` and drawn behind everything, fading into the existing fog. The street stopped
+   being a corridor in fog and became a slice of a city. Still to come: blinking hazard
+   beacons on the tallest towers on the night side.
 
 ## 17. Pilotable vehicles
 

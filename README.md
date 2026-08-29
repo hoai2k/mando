@@ -32,11 +32,11 @@ default — turn on **Keyboard & mouse** in Settings for the left column.
 | Block — raise the shield (hold) | hold `R` | hold `B` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
-| Melee combo (gaffi stick) | `F` | `X` |
+| Melee combo (gaffi stick, or the sabers) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Camera distance | Mouse wheel | hold right stick click + up/down |
 | Take cover (on ground, near a box) / ground slam (in air) | `C` / `Ctrl` | `RB` |
-| Switch weapon | `E` | D-pad right |
+| Switch weapon (draw or stow, for a blades-only fighter) | `E` | D-pad right |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
 
@@ -76,7 +76,10 @@ who each bring a weapon of their own:
 | **IG-11** | Hunter | Assassin droid on leg thrusters, long rifle |
 
 The armour is cosmetic; the weapon is not — a crossbow, a rifle and a pair of pistols
-each fire differently, and Sylla's sabers swing where everyone else's staff does.
+each fire differently, and Ventress's sabers swing where everyone else's staff does.
+She is the one real departure: no ranged weapon at all, so aiming and firing are simply
+not hers, and in exchange the blades turn blaster bolts back at whoever fired them. They
+stow themselves after a few seconds' quiet and come back out on the melee button.
 
 Hostiles don't queue up to charge you. Each wave is **posted around the board** in
 squads that hold their ground until something gives you away — a shot, an explosion,
