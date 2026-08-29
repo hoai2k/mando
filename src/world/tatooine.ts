@@ -280,6 +280,14 @@ export function buildTatooine(): Board {
       new THREE.Vector3(-40, 24, 20), new THREE.Vector3(60, 26, -30), new THREE.Vector3(0, 30, 70),
     ],
     hazards: [{ center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5, kind: 'kill' }],
+    // rides (PLAN.md §17): the Tuskens' swoops at the camp, the farmer's
+    // landspeeder by the homestead, a cargo skiff out past the barge
+    vehicles: [
+      { kind: 'swoop', x: -80, z: -50, yaw: 0.8 },
+      { kind: 'swoop', x: -77, z: -45, yaw: 1.2 },
+      { kind: 'landspeeder', x: -26, z: 52, yaw: 2.4 },
+      { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
+    ],
     update: (dt, time) => {
       tentacles.forEach((t, i) => {
         t.rotation.x = Math.sin(time * 1.3 + i * 2.1) * 0.35;

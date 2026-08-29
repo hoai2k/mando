@@ -264,6 +264,8 @@ export function buildRingworld(): Board {
     },
   };
   board.movers = [tramMover];
+  // a street swoop parked mid-strip — the tram is not the only ride here
+  board.vehicles = [{ kind: 'swoop', x: 2, z: 32, yaw: 0.3 }];
 
   board.update = (dt: number, time: number) => {
     timeNow = time;

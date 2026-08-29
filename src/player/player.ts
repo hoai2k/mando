@@ -8,6 +8,7 @@ import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
+import type { Vehicle } from '../game/vehicles';
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -111,6 +112,11 @@ export class Player {
   nearCover = false;
   /** currently leaning out past the corner to shoot */
   peeking = false;
+  // ---- vehicles (PLAN.md §17) ----
+  /** the ride being driven; while set, hits on the rider land on the hull */
+  vehicle: Vehicle | null = null;
+  /** a parked ride in mounting range (drives the HUD prompt) */
+  nearVehicle: Vehicle | null = null;
   /** which corner this peek leans around: -1/+1 along the face tangent, 0 = unset */
   private peekSide = 0;
   private peekRecheck = 0;
@@ -138,6 +144,13 @@ export class Player {
 
   damage(amount: number, from: THREE.Vector3): void {
     if (!this.alive) return;
+    // Mounted, the hull is your HP: hits on the rider land on the vehicle —
+    // until it gives out. Kill zones (999) still kill the rider outright.
+    if (this.vehicle && amount < 500) {
+      this.vehicle.damage(amount, from, -1);
+      this.noteVehicleHit(from);
+      return;
+    }
     this.hp -= amount;
     this.regenDelay = 5;
     this.hurtFlash = 1;
@@ -147,7 +160,14 @@ export class Player {
     if (this.hp <= 0) this.die();
   }
 
+  /** the hull took a hit under us: feedback without the health cost */
+  noteVehicleHit(from: THREE.Vector3): void {
+    this.hurtFlash = Math.max(this.hurtFlash, 0.45);
+    this.lastDamageDir.subVectors(from, this.position);
+  }
+
   private die(): void {
+    this.vehicle?.dropRider();
     this.hp = 0;
     this.alive = false;
     this.respawnTimer = 4;
@@ -227,6 +247,22 @@ export class Player {
     }
     this.wasAiming = input.aimHeld;
     this.aiming = input.aimHeld;
+
+    // ---- vehicles: RB near a parked ride mounts, and the ride wins the press ----
+    this.nearVehicle = this.vehicle ? null : this.findVehicle(game);
+    if (!this.vehicle && this.nearVehicle && input.slamPressed) {
+      this.nearVehicle.mount(this);
+      this.cover = null;
+      this.peeking = false;
+      this.nearVehicle = null;
+      // the press that mounted must not also read as the dismount press
+      this.updateRiding(dt, { ...input, slamPressed: false }, game, realDt);
+      return;
+    }
+    if (this.vehicle) {
+      this.updateRiding(dt, input, game, realDt);
+      return;
+    }
 
     // ---- cover: on the ground the slam button snaps to a nearby box ----
     // (the air keeps its ground slam — the button splits by grounded state)
@@ -814,6 +850,115 @@ export class Player {
     anim.update(dt);
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
+    });
+  }
+
+  /** Nearest parked, riderless vehicle within mounting reach. */
+  private findVehicle(game: Game): Vehicle | null {
+    let best: Vehicle | null = null;
+    let bestD = 2.4;
+    for (const v of game.vehicles) {
+      if (!v.alive || v.rider) continue;
+      const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
+      if (d > bestD) continue;
+      if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
+      bestD = d;
+      best = v;
+    }
+    return best;
+  }
+
+  /**
+   * In the saddle: input drives the vehicle, the rider sits its seat, and the
+   * hull soaks the fire. RB steps off beside the ride; A hops off upward —
+   * straight into a jetpack chain, which is the fun exit.
+   */
+  private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
+    const anim = this.char.animator!;
+    const v = this.vehicle!;
+    // gauges keep ticking and the pack stays cold — mirror of the cover branch
+    this.blocking = false;
+    this.blockRaise = damp(this.blockRaise, 0, 14, dt);
+    this.char.setBlock(this.blockRaise);
+    this.dashArmed = false;
+    this.sprintLatched = false;
+    this.sprinting = false;
+    this.thrusting = 0;
+    this.wasThrusting = false;
+    this.char.setThrust(0);
+    audio.setJetpackThrust(this.slot, 0);
+    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
+    this.sprintRefillDelay -= dt;
+    if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    this.snareTimer -= dt;
+    this.meleeTimer = 0;
+    this.meleeHitPending = 0;
+    this.slamming = false;
+    this.swimming = false;
+    this.wading = false;
+    this.waterTime = 0; // the hull is between you and whatever hunts the water
+    this.aiming = false;
+    this.lockedOn = false;
+    this.cover = null;
+
+    // ---- dismount: RB steps off in place, A hops off into the air ----
+    if (input.slamPressed || input.jumpPressed || !v.alive) {
+      const hop = input.jumpPressed;
+      const carry = v.vel.clone();
+      v.dropRider();
+      this.velocity.copy(carry);
+      if (hop) this.velocity.y = JUMP_VEL;
+      else {
+        // step clear sideways so we don't stand inside the newly parked box
+        this.position.x += Math.cos(v.yaw) * (v.def.radius + 0.75);
+        this.position.z -= Math.sin(v.yaw) * (v.def.radius + 0.75);
+      }
+      this.grounded = false;
+      audio.setEngine(this.slot, 0);
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: Math.hypot(carry.x, carry.z), dashing: false,
+      });
+      return;
+    }
+
+    v.drive(dt, input, this, game);
+    // a crash or a ram chip can end the ride inside drive(): destroy() has
+    // already thrown us clear — settle the visuals and let next frame be normal
+    if (!this.vehicle) {
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
+      });
+      return;
+    }
+
+    // sit the seat, carry the ride's momentum (the camera paces off velocity)
+    v.seatWorld(this.position);
+    this.velocity.copy(v.vel);
+    this.grounded = true;
+    this.wasGrounded = true;
+    this.coyote = 0.12;
+
+    // kill zones still end the rider (the hull is not armour against a sarlacc);
+    // burn zones cook the hull instead
+    const hzd = hazardAt(game.board, this.position);
+    if (hzd.kill) { this.damage(999, this.position); return; }
+    if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
+    if (!this.vehicle) return; // the burn just finished the ride
+
+    this.facingYaw = dampAngle(this.facingYaw, v.yaw, 10, dt);
+    const stand = v.def.stance === 'stand';
+    anim.play('lower', stand ? 'idleLower' : 'rideLower');
+    anim.play('upper', stand ? 'idleUpper' : 'rideUpper');
+
+    this.syncVisual(dt, game);
+    anim.update(dt);
+    const speed = Math.hypot(v.vel.x, v.vel.z);
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: false, speed, dashing: false, flying: false, climb: 0,
     });
   }
 

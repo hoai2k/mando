@@ -24,6 +24,7 @@ type SampleName =
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
+  | 'speeder_loop' | 'speeder_ignite'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample;
 
@@ -70,6 +71,8 @@ export class AudioEngine {
   } | undefined)[] = [];
   /** per-player looping blade hum, built the same way */
   private saberNodes: (SaberVoice | undefined)[] = [];
+  /** per-player repulsor engine loop while riding, built the same way */
+  private engineNodes: (SaberVoice | undefined)[] = [];
   private ambientStop: (() => void) | null = null;
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
@@ -125,6 +128,7 @@ export class AudioEngine {
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
+      'speeder_loop', 'speeder_ignite',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
       // match needs is not known until the players have picked
@@ -588,6 +592,79 @@ export class AudioEngine {
       },
       stop: () => { for (const p of parts) p.stop(); gain.disconnect(); },
     };
+  }
+
+  /**
+   * The repulsor engine under a ridden vehicle. Level 0 parks it; above that
+   * the gain and filter lean with the throttle, the way the jetpack voice
+   * leans with thrust. Synth fallback: two detuned low saws and a sub
+   * triangle — a turbine hum rather than a blade's whine.
+   */
+  setEngine(slot: number, level: number): void {
+    if (!this.ctx) return;
+    let node = this.engineNodes[slot];
+    const sample = this.samples.get('speeder_loop') ?? null;
+    // same rebuild rule as the jetpack and saber voices
+    if (node && node.sample !== sample) {
+      node.stop();
+      node = undefined;
+    }
+    if (!node) node = this.engineNodes[slot] = this.makeEngineVoice(sample);
+    node.set(level);
+  }
+
+  private makeEngineVoice(sample: AudioBuffer | null): SaberVoice {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 300;
+    filter.Q.value = 0.9;
+    filter.connect(gain).connect(this.sfx);
+    const parts: Array<{ stop: () => void }> = [];
+    if (sample) {
+      const src = ctx.createBufferSource();
+      src.buffer = sample;
+      src.loop = true;
+      src.connect(filter);
+      src.start();
+      parts.push({ stop: () => { try { src.stop(); } catch { /* already stopped */ } } });
+    } else {
+      for (const [freq, detune, type] of [[58, -5, 'sawtooth'], [116, 6, 'sawtooth'], [29, 0, 'triangle']] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = freq;
+        o.detune.value = detune;
+        o.connect(filter);
+        o.start();
+        parts.push({ stop: () => { try { o.stop(); } catch { /* already stopped */ } } });
+      }
+    }
+    return {
+      sample,
+      set: (level: number) => {
+        const t = ctx.currentTime;
+        gain.gain.setTargetAtTime(Math.min(level, 1.4) * 0.22, t, 0.07);
+        filter.frequency.setTargetAtTime(220 + Math.min(level, 1.4) * 1100, t, 0.09);
+      },
+      stop: () => { for (const p of parts) p.stop(); gain.disconnect(); },
+    };
+  }
+
+  /** The rev of mounting up. */
+  speederIgnite(): void {
+    if (!this.ctx || this.playSample('speeder_ignite', 0.5)) return;
+    this.zap(140, 620, 0.45, 'sawtooth', 0.16);
+    this.zap(70, 190, 0.5, 'triangle', 0.14, 0.05);
+  }
+
+  /** Tear down the engine voices — same lifetime as the jetpacks. */
+  stopEngines(): void {
+    for (let slot = 0; slot < this.engineNodes.length; slot++) {
+      this.engineNodes[slot]?.stop();
+      this.engineNodes[slot] = undefined;
+    }
   }
 
   /** Tear down the saber voices — same lifetime problem as the jetpacks. */

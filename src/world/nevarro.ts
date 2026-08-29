@@ -224,6 +224,11 @@ export function buildNevarro(): Board {
       new THREE.Vector3(-30, 26, 0), new THREE.Vector3(50, 24, 40), new THREE.Vector3(0, 30, -60),
     ],
     burnAt: lavaDps,
+    // garrison scout bikes parked inside the town gate
+    vehicles: [
+      { kind: 'speederBike', x: 9, z: -102, yaw: 0.4 },
+      { kind: 'speederBike', x: 13, z: -100, yaw: 0.2 },
+    ],
   };
 
   // crust plates: cooling skin bridging the rivers — real shortcuts, until
