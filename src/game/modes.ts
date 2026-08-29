@@ -3,18 +3,29 @@ import type { EnemyKind } from '../enemies/enemy';
 
 /**
  * The three game modes (docs/MODES.md). 'wave' is the game as it has always
- * been; 'pvp' and 'campaign' are experimental and only reachable while the
- * `?modes` URL flag is present — without it the title shows the single
- * Press Start and nothing below ever sees another mode.
+ * been; 'pvp' and 'campaign' joined it on the title screen.
  */
 export type GameMode = 'wave' | 'pvp' | 'campaign';
 
-/** True when the experimental mode select is enabled via `?modes`. */
+/**
+ * Whether the title screen offers the mode select.
+ *
+ * On by default as of 2026-08-29 — the modes were behind `?modes` while they
+ * were being built, and are now the default title screen. The escape hatch
+ * survives the promotion rather than being deleted: `?nomodes` (or
+ * `?modes=off`, or `=0`, or `=false`) puts the single Press Start back, which
+ * is what the regression test uses to check the old path still works and what
+ * anyone can reach for if a mode turns out to be broken in the wild.
+ */
 export function modesEnabled(): boolean {
   try {
-    return new URLSearchParams(window.location.search).has('modes');
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('nomodes')) return false;
+    const v = q.get('modes');
+    return !(v === 'off' || v === '0' || v === 'false');
   } catch {
-    return false;
+    // no location to read (a non-browser host): the default stands
+    return true;
   }
 }
 

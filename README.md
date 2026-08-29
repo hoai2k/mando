@@ -59,7 +59,18 @@ while the others hold the wave; everyone down is a defeat.
 
 ## Playing the game
 
-Pick a territory, then pick your fighter. Nine of them, in two families — the covert's
+The title screen offers three modes:
+
+| Mode | What it is |
+|---|---|
+| **Wave Battle** | The core game — ten waves on one territory, then the board's warlord as a boss wave. Solo or up to four in split-screen. |
+| **PvP** | Hunter against hunter, each with a squad of followers, last one standing. |
+| **Missions** | The campaign: a path across the galaxy on a shared screen, door-gated corridors between arenas, a boss holding each territory. |
+
+Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
+one-button title and the wave game on its own.
+
+Then pick a territory, and pick your fighter. Nine of them, in two families — the covert's
 Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,
 who each bring a weapon of their own:
 

@@ -102,7 +102,7 @@ let game: Game | null = null;
 let chosenBoard = BOARDS[0];
 let playerCount = 1;
 let endTimer = 0;
-/** which rule set the next match runs under; 'wave' unless ?modes offers more */
+/** which rule set the next match runs under; the title screen picks it */
 let mode: GameMode = 'wave';
 const chosenChars: PlayableId[] = ['din', 'paz'];
 
@@ -119,8 +119,8 @@ title.addTitle('Bounty Hunters', 'a Mandalorian fan game', 'logo');
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
 // one, so the fullscreen half is best-effort and failure is silent.
 //
-// With the experimental ?modes flag the single prompt becomes three choices —
-// one per mode (docs/MODES.md). Without the flag nothing here changes.
+// That single prompt becomes three choices — one per mode (docs/MODES.md) —
+// which is the default now. `?nomodes` puts the one-button title back.
 if (modesEnabled()) {
   const pickMode = (m: GameMode, next: AppState): void => {
     mode = m;
@@ -171,11 +171,11 @@ select.addButtons(cards, BOARDS.map((info) => ({
 })));
 select.onBack = () => setState('title');
 
-// ----- pvp VS splash (?modes only) -----
+// ----- pvp VS splash (mode select only) -----
 const vs = new VsScreen(menuLayer);
 vs.onDone = () => startGame();
 
-// ----- campaign planet strip (?modes only) -----
+// ----- campaign planet strip (mode select only) -----
 const planets = new PlanetSelect(menuLayer);
 planets.onPick = (info) => {
   chosenBoard = info;
@@ -543,8 +543,8 @@ Object.assign(window, {
     while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     startGame();
   },
-  // start a match in any mode without walking the menus, for tests: the modes
-  // are experimental (?modes) and this is the only scriptable way into them
+  // start a match in any mode without walking the menus, for tests: walking
+  // the mode select and the planet strip by hand is slow and brittle
   __startMode: (m: GameMode, n: number, boardId?: string, chars?: PlayableId[]) => {
     mode = m;
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));

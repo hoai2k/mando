@@ -1,10 +1,10 @@
 /**
- * Regression test for the experimental game modes behind `?modes`
- * (docs/MODES.md): the three-way title, PvP rules (distinct teams, the
- * playable-NPC adapter, squad followers, last-one-standing), the campaign
- * (shared screen, path with door-gated corridors, boss arena, liberation),
- * the wave game's new boss wave, and — most importantly — that without the
- * flag the title is exactly what it always was.
+ * Regression test for the game modes (docs/MODES.md): the three-way title,
+ * PvP rules (distinct teams, the playable-NPC adapter, squad followers,
+ * last-one-standing), the campaign (shared screen, path with door-gated
+ * corridors, boss arena, liberation), the wave game's boss wave, and — since
+ * the modes became the default — that `?nomodes` still puts the original
+ * one-button title back.
  *
  * The headless GPU renders this game at a crawl, so the checks drive the
  * *simulation* directly: `__manual` pauses the live loop and `game.update`
@@ -20,7 +20,8 @@ const check = (name, ok, detail = '') => {
   if (!ok) failures.push(name);
 };
 
-const h = await launch({ url: 'http://localhost:4173/?modes' });
+// the modes are on by default now, so the plain URL is the mode-select case
+const h = await launch({ url: 'http://localhost:4173/' });
 const { page } = h;
 const sleepFrames = async (n) => { for (let i = 0; i < n; i++) await page.evaluate(() => new Promise(requestAnimationFrame)); };
 
@@ -48,7 +49,7 @@ const startMode = async (mode, players, board, chars) => {
 // ---- the flag's title ----
 await sleepFrames(6);
 const labels = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
-check('?modes title offers the three modes',
+check('the title offers the three modes',
   labels.includes('Wave Battle') && labels.includes('PvP') && labels.includes('Missions'), labels.slice(0, 3).join(','));
 
 // ---- the VS splash (shown between the PvP select and the drop) ----
@@ -158,12 +159,12 @@ check('wave: clearing wave 10 rings in the boss wave', wv.wave === 11 && !!wv.bo
 check('wave: the boss is a promoted elite', (wv.bossHp ?? 0) > 1000, String(wv.bossHp));
 check('wave: its death holds the territory', wv.state === 'victory');
 
-// ---- flag off: the game as it always was ----
+// ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });
-await page.goto('http://localhost:4173/');
+await page.goto('http://localhost:4173/?nomodes');
 await sleepFrames(8);
 const plain = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
-check('without ?modes the title is the single Press Start',
+check('?nomodes falls back to the single Press Start',
   plain.includes('Press Start') && !plain.includes('PvP') && !plain.includes('Missions'), plain.slice(0, 3).join(','));
 
 // The final flag-off check navigates the page, which cancels any .glb texture

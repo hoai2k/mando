@@ -494,12 +494,13 @@ breakables.
 jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
 existing explosion. Synth fallbacks under both, per the audio rules.
 
-## 18. Game modes (experimental, behind `?modes` — 2026-08-29)
+## 18. Game modes (default since 2026-08-29)
 
 Three modes as rule sets over the one simulation; full research/design record in
-`docs/MODES.md`, campaign level design in `docs/LEVEL_DESIGN.md`. Without the
-`?modes` URL flag the title shows the single Press Start and the game is exactly
-the wave game; with it, the title offers **Wave Battle**, **PvP** and **Missions** (the campaign mode).
+`docs/MODES.md`, campaign level design in `docs/LEVEL_DESIGN.md`. The title offers
+**Wave Battle**, **PvP** and **Missions** (the campaign mode). They were built behind
+a `?modes` URL flag and are now the default; the hatch survives inverted, so
+`?nomodes` puts the single Press Start back and the game is exactly the wave game.
 
 - **Wave Battle** — the game as shipped, plus a **boss wave**: clearing wave 10
   rings in the territory's warlord (its signature elite, promoted — ×4.5 HP,

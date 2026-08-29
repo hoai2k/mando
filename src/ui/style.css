@@ -346,7 +346,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 }
 .loading-foot .pct { color: #d8b25a; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }
 
-/* ---- experimental modes (?modes): boss bar, shared-screen HUD, planet strip ---- */
+/* ---- game modes: boss bar, shared-screen HUD, planet strip ---- */
 
 /* boss health bar: top centre, under the wave line */
 .hud-boss {

@@ -1,10 +1,11 @@
 # Game Modes — research, analysis & design
 
-Three modes behind the experimental `?modes` URL flag. With the flag off nothing
-changes: the title shows **Press Start** and the game is exactly the wave game.
-With `?modes` in the URL the title shows three choices — **Wave Battle**,
-**PvP**, and **Missions** (the campaign; the mode keeps its internal id
-`campaign`) — one per mode.
+Three modes, **on by default** as of 2026-08-29: the title shows three choices —
+**Wave Battle**, **PvP**, and **Missions** (the campaign; the mode keeps its
+internal id `campaign`) — one per mode. They spent their build behind a `?modes`
+URL flag; that escape hatch survives inverted, so `?nomodes` (or `?modes=off`)
+puts the single **Press Start** back and the game is exactly the wave game. The
+regression test drives both paths.
 
 This document is the research + design record; `docs/LEVEL_DESIGN.md` carries
 the campaign's level-design strategy in detail. Implementation status lives in
