@@ -4,6 +4,7 @@ import { fbm2, makeRng, ridge2 } from '../core/math';
 import { deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import type { Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -177,6 +178,7 @@ export function buildNarkina(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, cy + 1.2, cz, 2.4, 2.4, 2.4);
+    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, y: cy, z: cz, yaw: crate.rotation.y });
   }
 
   // ---- the electrified floors ----
@@ -284,6 +286,10 @@ export function buildNarkina(): Board {
   wreck.rotation.z = 0.12;
   wreck.traverse((o) => { o.castShadow = o.receiveShadow = true; });
   group.add(wreck);
+  // Hung off the wreck node, so it inherits the yaw and roll the collider rows
+  // below were built around — and the corridor between the hulls, which is the
+  // whole point of the wreck, stays where the physics says it is.
+  authoredProp(wreck, [hullL, hullR, hullTop, nose], 'sunken_transport', 28, { axis: 'z' });
   // Collision follows the wreck's own axes. It lies yawed 0.6 rad and rolled
   // 0.12, which no axis-aligned box describes: the old three boxes left the
   // hull sides open at the ends and put invisible steel out in the water

@@ -4,6 +4,7 @@ import { clamp, makeRng } from '../core/math';
 import { deckTexture, hullTexture, loadOptionalTexture, texture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
+import { authoredProp } from './props';
 
 /**
  * Board 8 — Glavis Ringworld: a city street strip on a ring station, under a
@@ -47,6 +48,11 @@ const nightGradient = () => texture('ring_night_gradient', (ctx, s) => {
 
 /** the tram's lane, in x */
 const TRAM_X = 24;
+/** how tall and wide the tram sculpt stands at its 12.2 m length */
+const TRAM_H = 3.78;
+const TRAM_W = 4.2;
+/** box centre that puts the tram's keel on the street and its roof on the box */
+const TRAM_Y = TRAM_H / 2;
 /** how far the deck reaches either side of the street's centre-line */
 const STREET_HALF_X = 62;
 
@@ -163,12 +169,14 @@ export function buildRingworld(): Board {
       const w = 14 + rng() * 8;
       const h = 5 + rng() * 8;
       const d = 16 + rng() * 6;
-      // Clear of the tram lane. The tram's box spans x 22.3-25.7 and sweeps the
-      // whole street; a building's inner face could reach x = 23, and where the
-      // two overlapped a player was pinned between them — pushed off the facade
-      // into the tram's box, pushed out of the tram back into the facade — until
-      // the tram had passed.
-      const bx = side * Math.max(34 + rng() * 6, side > 0 ? TRAM_X + 2.2 + w / 2 : 0);
+      // Clear of the tram lane, with half a metre to spare. The tram sweeps the
+      // whole street; a building's inner face could reach into its box, and
+      // where the two overlapped a player was pinned between them — pushed off
+      // the facade into the tram's box, pushed out of the tram back into the
+      // facade — until the tram had passed. Derived from the tram's own width
+      // so widening it to fit the sculpt cannot quietly reopen that.
+      const clear = TRAM_X + TRAM_W / 2 + 0.5;
+      const bx = side * Math.max(34 + rng() * 6, side > 0 ? clear + w / 2 : 0);
       buildings.push([bx, bz, w, h, d]);
       const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), buildingMat);
       block.position.set(bx, h / 2, bz);
@@ -247,8 +255,11 @@ export function buildRingworld(): Board {
     tram.add(stripe);
   }
   tram.traverse((o) => { o.castShadow = o.receiveShadow = true; });
-  tram.position.set(TRAM_X, 1.6, 0);
+  tram.position.set(TRAM_X, TRAM_Y, 0);
   group.add(tram);
+  // Grounded at the box's underside — which is street level — so the roof the
+  // sculpt draws is the roof the Mover carries riders on.
+  authoredProp(tram, [tramBody, tramNose], 'tram', 12.2, { y: -TRAM_Y, axis: 'z' });
   // rail bed under it, the visual lane
   const rail = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.2, STRIP_Z * 2 + 10), darkMat);
   rail.position.set(TRAM_X, 0.1, 0);
@@ -271,7 +282,15 @@ export function buildRingworld(): Board {
 
   // 12.2 deep, not 9: the nose reaches z = 6.6, and the front two metres of a
   // vehicle moving at 16 m/s were passing straight through people.
-  const tramBox = physics.addBox(TRAM_X, 1.6, 0, 3.4, 2.6, 12.2);
+  //
+  // The height is the one collider on any board that the authored art moved,
+  // and it had to: the tram's roof is a surface people ride, so it has to be
+  // the roof they can see. The sculpt stands 0.31 of its own length, which at
+  // 12.2 m long is TRAM_H — re-measure it if the model is ever re-exported.
+  // 4.2 wide for the same reason the height moved: that is what the sculpt
+  // measures across, and a tram sweeping the street at 16 m/s must not have
+  // flanks you can stand inside.
+  const tramBox = physics.addBox(TRAM_X, TRAM_Y, 0, TRAM_W, TRAM_H, 12.2);
   const tramMover = new Mover(tramBox, tram);
 
   // ---- the terminator's ground shadow: a soft-edged darkness that moves ----
@@ -340,7 +359,7 @@ export function buildRingworld(): Board {
 
     // the tram works the line, easing at the turnarounds
     const tz = Math.sin(time * 0.16) * (STRIP_Z - 14);
-    tramMover.moveTo(TRAM_X, 1.6, tz);
+    tramMover.moveTo(TRAM_X, TRAM_Y, tz);
 
     // neon flickers now and then, the way neon does
     for (let i = 0; i < neonMats.length; i++) {

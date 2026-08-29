@@ -4,6 +4,7 @@ import { makeRng } from '../core/math';
 import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -151,6 +152,7 @@ export function buildTrask(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, DECK_TOP + 1.15, cz, 2.3, 2.3, 2.3);
+    authoredProp(group, crate, 'cargo_crate', 2.3, { x: cx, y: DECK_TOP, z: cz, yaw: crate.rotation.y });
   }
 
   // harbour-master's shed on the quay
@@ -206,6 +208,11 @@ export function buildTrask(): Board {
     boat.traverse((o) => { o.castShadow = o.receiveShadow = true; });
     boat.position.set(bx, 1.0, bz);
     group.add(boat);
+    // The trawler hangs off the boat node, so it heaves on the swell with the
+    // deck box under it. Grounded at the box's underside (local -1.0) and
+    // measured along the hull, which puts its working deck where the collider
+    // top already is — the surface people fight on does not move.
+    authoredProp(boat, [hull, bow, house, mast], 'trawler', 16, { y: -1.0, axis: 'z' });
     // One walkable box over the working deck; the deckhouse is dressing.
     // Its centre matches the boat group's origin so Mover.moveTo keeps the
     // visual hull and the collision box in lockstep.

@@ -4,6 +4,7 @@ import { fbm2, makeRng, ridge2 } from '../core/math';
 import { adobeTexture, clothTexture, loadOptionalTexture, rockTexture, sandTexture } from '../core/assets';
 import { tatooineSky } from './sky';
 import type { Board } from './board';
+import { authoredProp } from './props';
 
 /**
  * Board 1 — the Dune Sea: rolling dunes flattening into a central arena,
@@ -209,6 +210,10 @@ export function buildTatooine(): Board {
   barge.position.set(bx, bBase, bz);
   barge.traverse((o) => { o.castShadow = o.receiveShadow = true; });
   group.add(barge);
+  // The wreck lies along the hull's own yaw, which is the axis its row of
+  // colliders follows, and grounds on the sand the barge node sits on. The
+  // sculpt carries its own mast, so the procedural sail goes with the hull.
+  authoredProp(barge, [hull, sail], 'sail_barge', 26, { yaw: 0.6, axis: 'z' });
   // The hull is 26 m long and yawed 0.6 rad, which one axis-aligned box cannot
   // describe: the old 20x12 AABB put invisible walls off the bow and let you
   // walk through the hull ends. A short row of cylinders along the hull's own
