@@ -90,6 +90,20 @@ await h.pads[3].stick('left', 0, -1, 1000);
 check('the last player drives their own character', await speeds(), [0, 0, 1]);
 await h.pads[3].release();
 
+// ---- 4. a split-screen match hands the whole canvas back ----
+// The viewport is renderer state that outlives a render: left on the last
+// player's half, the character select's stage drew into that strip and its
+// Mandalorians came back squashed flat.
+const canvas = await h.page.evaluate(() => {
+  const c = document.querySelector('canvas');
+  return [c.clientWidth, c.clientHeight];
+});
+await h.page.evaluate(() => window.__quitToTitle?.());
+await sleep(1200);
+await toCharacterSelect();
+check('the character select draws on the whole canvas',
+  (await h.page.evaluate(() => window.__viewport())).map(Math.round), [0, 0, ...canvas]);
+
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
 if (failures.length || h.errors.length) {

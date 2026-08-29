@@ -716,6 +716,13 @@ export class Game {
     }
     this.scene.fog = surfaceFog;
     this.scene.background = surfaceBg;
+    // Hand the renderer back the whole canvas. The viewport is renderer state,
+    // not per-render state: leaving it on the last player's half meant every
+    // later full-screen draw — the character select's stage above all — was
+    // squeezed into that strip, which is why its Mandalorians came back
+    // squashed flat after a split-screen board.
     renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);
+    renderer.setScissor(0, 0, w, h);
   }
 }
