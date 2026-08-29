@@ -225,3 +225,24 @@ The seven per-board pairs still wanted are open in [`ASSETS_AUDIO.md`](ASSETS_AU
 
 The engine synthesizes a fallback (two detuned saws an octave apart plus a sub triangle
 through a lowpass) when the file is absent, so the hum works either way.
+
+## Audio — 28 files, delivered 2026-08-29
+
+Per-character voices for the playable roster, generated with
+`node tools/generate-sfx.mjs <name ...>` (prompts in that script). Every playable
+used to share one `player_hurt` grunt recorded for a man inside a helmet, so the
+droid and the reptile yelped like a human; each species now has its own family of
+three hurt takes plus a death cry, picked at random with a little pitch scatter.
+
+| Voice | Who | Files |
+|---|---|---|
+| `mando_m` | Kell Dravan, Torva Brekk | `hurt_mando_m_1..3`, `death_mando_m` |
+| `mando_f` | Vess Ordane, The Forgemistress | `hurt_mando_f_1..3`, `death_mando_f` |
+| `human_f` | Sylla Morvane | `hurt_human_f_1..3`, `death_human_f` |
+| `masked` | Karshii (rebreather) | `hurt_masked_1..3`, `death_masked` |
+| `reptile` | Skarvek | `hurt_reptile_1..3`, `death_reptile` |
+| `droid` | VX-9 (servos and sparks, no voice) | `hurt_droid_1..3`, `death_droid` |
+| `alien_m` | Rook Vance | `hurt_alien_m_1..3`, `death_alien_m` |
+
+The engine keeps a per-voice synth fallback too, so a droid stays mechanical even
+before the files decode. `player_hurt` is retained as the `mando_m` fallback only.

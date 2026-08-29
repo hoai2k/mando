@@ -142,7 +142,7 @@ export class Player {
     this.regenDelay = 5;
     this.hurtFlash = 1;
     this.lastDamageDir.subVectors(from, this.position);
-    audio.hurt();
+    audio.hurt(MANDO_ROSTER[this.characterId].voice);
     this.cam.shake(0.12);
     if (this.hp <= 0) this.die();
   }
@@ -158,6 +158,7 @@ export class Player {
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.cover = null;
     this.peeking = false;
+    audio.playerDeath(MANDO_ROSTER[this.characterId].voice);
     audio.setJetpackThrust(this.slot, 0);
   }
 

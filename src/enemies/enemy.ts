@@ -148,6 +148,10 @@ const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
+  // droid_death has existed since the first audio batch and was never wired:
+  // every droid on the board died silently. Nothing mechanical borrows a
+  // human death rattle — they get the power-down that was made for them.
+  droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
   duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
   flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek',
