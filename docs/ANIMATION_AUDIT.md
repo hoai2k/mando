@@ -37,16 +37,17 @@ few degrees of the sculpted A-pose across the roster. Air (45-50°) and flight
 (28-32°) already cleared. The splay-sign and splay-amount conventions are now
 documented at the top of `clips.ts` for future clips.
 
-### 1.2 Procedural fallback: shoulders buried mid-torso
+### 1.2 Procedural fallback: shoulders buried mid-torso (noted, not changed)
 
-On the stick-figure builds the chest box reached ear level (top at +0.27 above
-the chest joint) while the shoulder bones hung at +0.048 — the arm pivot sat a
-full 0.22 m below the "shoulders" of the mesh, which is exactly the
-"shoulder bone too low" read. **Fix:** shoulder joints raised to
-`chestLen * 0.5` (just under the torso top, like a real acromion) and the
-chest slab shortened to top out just above them (`skeleton.ts`,
-`builder.ts`). Pauldrons now cap the shoulder corner instead of floating
-mid-ribcage.
+On the stick-figure builds the chest box reaches ear level (top at +0.27 above
+the chest joint) while the shoulder bones hang at +0.048 — the arm pivot sits
+0.22 m below the "shoulders" of the mesh, which is a genuine "shoulder bone
+too low" look. Deliberately left as-is: every character in the roster ships an
+authored model, so the procedural build is only ever a loading-order fallback
+and the retargeter copies rotations, not positions — the bone placement never
+reaches the models players actually see. If it's ever revisited, the recipe is
+shoulder joints at `chestLen * 0.5` with the chest slab shortened to top out
+just above them.
 
 ### 1.3 Enemy melee weapons drifted from the authored fist
 

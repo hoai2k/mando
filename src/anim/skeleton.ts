@@ -65,17 +65,13 @@ export function buildRig(p: Proportions = HUMAN): Rig {
   const neck = bones.neck = bone('neck', chest, 0, p.neckLen, 0);
   bones.head = bone('head', neck, 0, p.headSize * 0.4, 0);
 
-  // The shoulder joint rides high on the chest — just under the top of the
-  // torso mass, like a real acromion. It used to hang at neckLen * 0.4
-  // (~0.05 above the chest origin), which put the arm pivot at mid-torso and
-  // read as sloped, too-low shoulders with the arms pinned against the ribs.
-  bones.shoulderL = bone('shoulderL', chest, -p.shoulderWidth, p.chestLen * 0.5, 0);
+  bones.shoulderL = bone('shoulderL', chest, -p.shoulderWidth, p.neckLen * 0.4, 0);
   bones.upperArmL = bone('upperArmL', bones.shoulderL, -0.06, 0, 0);
   bones.forearmL = bone('forearmL', bones.upperArmL, 0, -p.upperArmLen, 0);
   bones.handL = bone('handL', bones.forearmL, 0, -p.forearmLen, 0);
   bones.weaponL = bone('weaponL', bones.handL, 0, -0.05, 0.02);
 
-  bones.shoulderR = bone('shoulderR', chest, p.shoulderWidth, p.chestLen * 0.5, 0);
+  bones.shoulderR = bone('shoulderR', chest, p.shoulderWidth, p.neckLen * 0.4, 0);
   bones.upperArmR = bone('upperArmR', bones.shoulderR, 0.06, 0, 0);
   bones.forearmR = bone('forearmR', bones.upperArmR, 0, -p.upperArmLen, 0);
   bones.handR = bone('handR', bones.forearmR, 0, -p.forearmLen, 0);
