@@ -1,6 +1,10 @@
-# Asset Requests — 3D Character Models
+# Asset Requests — 3D Models
 
-**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is nothing on the character side. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+Characters first (the original scope of this doc), then the
+[environment & hazard models](#environment--hazard-models--priority-by-impact)
+opened by the 2026-08-29 territory audit.
+
+**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the environment batch below and nothing on the character side. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -138,6 +142,69 @@ boss bar — remain future work, and their voice sets are deferred with them
 | **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
 | **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. |
 
+## Environment & hazard models — priority by impact
+
+Opened 2026-08-29 by an audit of all nine board modules (`src/world/*.ts`). Every
+structure, vehicle and hazard in the game is procedural primitive geometry today — the
+trawlers players ride on Trask are three boxes, the crashed sail barge is two — while
+every character already wears an authored model, so the environments are now the gap.
+The requests below are ranked by impact: **priority 1 is what players ride, shoot or
+hide behind every match; priority 2 is the landmark each board is recognised by;
+priority 3 is repeated set dressing.** Reference images for image-to-3D generation
+(Tripo etc.) are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) and land in
+`reference/props/`.
+
+**Intake:** all of these are rigless props on the `loadProp()` path — placed and
+scaled, no skeleton, no clips (a file that ships clips anyway will play them, per the
+massiff rules). **Unlike the characters, none are wired yet:** each site needs a
+one-call swap in its board module when the file lands — load the prop at the
+procedural group's anchor, hide the procedural meshes, keep the physics. The collision
+footprints below are already tuned and CI-audited (`tools/audit-collision.mjs`) and
+**do not change with the model**, so a model must read solid where its collider is and
+open where it is not; the sizes given are the envelope to fill.
+
+**Budgets:** landmarks (⚓) ≤ 10k tris, one 1024² PBR set (baseColor / metal-rough /
+normal, emissive where noted); mid-size props ≤ 4k tris / 512²; small repeated props
+≤ 1.5k tris / 512². Marked ✷ = a breakable the game removes whole on destruction —
+model it as one object with no parts that should outlive it. Style per the character
+sheets: stylized-realistic, weathered and used, silhouette readable at 30 m, original
+fan designs only.
+
+### Priority 1 — ridden, shot at, or hidden behind every match
+
+| Id | Board(s) | Size | Replaces / constraints |
+|---|---|---|---|
+| `trawler` ⚓ | Trask ×2 | 16 m hull, 7 m beam | The two heaving movers players fight on all match — today a box hull, wedge bow, box deckhouse. Flat working deck across the 7×16 m collider top; deckhouse within 4.5 w × 2.6 h × 4 d at local (0, +2.2, −4.5); mast at (0, +4, +1); bow may reach z +7.4. Deck must stay clean enough to fight on. |
+| `tram` ⚓ | Ringworld | 12.2 m long, 3.4 w × 2.6 h | The rideable armored monorail sweeping the whole street. Body + wedge nose fill the 3.4×2.6×12.2 collider; the roof is where riders stand, so it is flat and walkable; side stripe lights read at 16 m/s. |
+| `sail_barge` ⚓ | Dune Sea | ~26 m, listing | The signature cover playground — today two boxes. Hull silhouette follows the audited row of r 4.4 m colliders along its axis, deck top standable; leaning broken mast + torn sail vane within the three stacked sail boxes. Half-buried, scoured, stripped. |
+| `cargo_crate` | Waystation, Trask, Refinery, Prison Rig (~50 instances) | 2.3–2.6 m cube (scaled per site) | The universal cover box both the enemy AI and the player's snap-to-cover press against — point-blank screen time all game. Cube envelope, recessed X-braced faces in the delivered `crate_side` style, corner lift lugs. Second clean-white texture set for the Prison Rig's containers. |
+| `fuel_barrel` ✷ | Waystation ×8, Refinery ×13 | 1.2 Ø × 1.7 m | One sculpt, two skins: plain steel (station cover, `barrel.jpg` style) and **rhydonium** — hazard-yellow band and a glowing amber fill slit (emissive), because on the Refinery these chain-explode and the read *is* the mechanic. Bake the band into the rhydonium skin. |
+
+### Priority 2 — the landmark each board is recognised by
+
+| Id | Board(s) | Size | Replaces / constraints |
+|---|---|---|---|
+| `freighter` ⚓ | Waystation | ~11 m parked | The parked light freighter on the landing pad — today a cylinder, a sphere and two box wings. Fills the 8×4×6 collider plus the cockpit blister (r 1.5) at the nose; landing skids down, boarding ramp lowered, chipped off-white hull. |
+| `cargo_crane` ⚓ | Waystation ×3 | 18 m mast, 20 m arm | Mid-airspace landmarks the jetpack weaves through. Mast on the r 0.85 collider; arm along the audited collider row at +17 m; cable trolley with a hanging cargo container filling the 2.4 m cube collider near deck level. The cable itself stays intangible. |
+| `reactor_core` ⚓ | Refinery | 40 m column, r 5.5→4.5 taper | The board's centrepiece chimney. Segmented industrial column wrapped in pipes and ring flanges, tall emissive orange coolant channels up its height (the additive glow shell stays game FX). Must respect the stacked tapering colliders. |
+| `sunken_transport` ⚓ | Prison Rig | ~15 × 9 × 28 m | The swim-through wreck. Twin parallel hull sections under a roof plate with the **open corridor between them kept swimmable** (≥ 2.5 m — the colliders already leave it open), blunt collapsed nose, torn openings at both ends, silt-streaked. |
+| `adobe_tower` | Nevarro ×2 | 11 m tall | The gate watchtowers flanking the town gate anchor. Tapering round adobe tower on the r 3.6 collider, covered lookout top. The 26 m wall runs stay procedural under the delivered `adobe_wall` texture. |
+| `adobe_gate` | Nevarro | 12 m span | The gate arch between the towers: two pylons + lintel filling the 12 × 2.4 m lintel collider at +7.6 m, gate leaves standing open. |
+| `forge_brazier` | Great Forge | ~3.5 m wide | The thematic heart of Mandalore — today a bare cylinder on the dais. Ceremonial forge basin with built-in anvil horn, glowing embers (emissive), blackened iron with worn silver inlay. Sits on the existing procedural dais over the r 1.6 collider. |
+| `survey_crawler` | Crevasse | 10 × 3.4 × 5 m | The wrecked expedition vehicle the north-rim shooters fight around. Tracked cabin listing 0.18 rad within its box collider, bent sensor mast, doors ajar, frost-scoured grey-blue. |
+
+### Priority 3 — repeated set dressing
+
+| Id | Board(s) | Size | Replaces / constraints |
+|---|---|---|---|
+| `vaporator` | Dune Sea ×4 | 7 m | The moisture farm's icon — today a pole and three box rings. Slim tapering column with stacked condenser vanes, within the 1.2 m square collider footprint. |
+| `tusken_tent` | Dune Sea ×5 | 5.2 Ø × 3.6 m | Camp tents — today bare textured cones. Hide-and-pole cone, stitched panels, trophies at the flap. |
+| `alarm_console` ✷ | Refinery ×4 | 2.4 × 2.6 × 0.8 m | The shoot-this-to-stop-the-alarm cabinet. Angled console with screen and conduit; **the blinking red beacon above it stays a game mesh** — model the cabinet only. |
+| `street_kiosk` | Ringworld ×8 | 3.2 × 2.4 × 3.2 m | Mid-street cover. Shuttered vendor stall with awning and an emissive holo-menu panel. |
+| `dock_shed` | Trask | 10 × 4.5 × 7 m | The harbour-master's shed on the quay: corrugated walls, portholes, stove pipe, ropes and floats. |
+| `homestead_dome` | Dune Sea | 10 m Ø | The moisture-farm dome. Keep it a smooth dome — the collider is two stacked discs following that curve — with an entry vestibule, hatch and vent stacks. |
+| `mythosaur_skull` | Great Forge | ~8 m | **New landmark, no procedural stand-in:** a half-buried horned leviathan skull at the rim of the Living Waters, paying off the eye-glow-and-call event that already plays there. Placement and collider are added at integration. |
+
 ## Delivery & integration
 
 Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character that
@@ -145,13 +212,16 @@ existed before the new boards — `din, paz, bokatan, armorer, marshal, fennec, 
 pyke, nikto, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
 nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board trio
-`flametrooper`, `quarren`, `alamite`. **Everything requested is delivered, and nothing is open.** The last batch
-(`ring_enforcer`, `krykna`, `krykna_brood`, `interceptor_drone`, and the playable hunters
-`ventress`, `embo`, `bossk`) landed on 2026-08-28 and is integrated; the fourth hunter,
-the blue gunslinger, reuses the delivered `duelist.glb`, and the fifth, VX-9, reuses
-`ig11.glb`. The signature-weapon props (`saber_curved`, `crossbow`, `longrifle`, and `pistol` after
-them) were the only outstanding items and are **parked by decision** — the game keeps its
-procedural versions for now, as described under the hunters above.**
+`flametrooper`, `quarren`, `alamite`. **Every character requested is delivered and
+integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
+`interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
+2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
+and the fifth, VX-9, reuses `ig11.glb`. Open on the model side: the environment batch
+above, and nothing else. The signature-weapon props (`saber_curved`, `crossbow`,
+`longrifle`, and `pistol` after them) are **parked by decision** — the game keeps its
+procedural versions for now, as described under the hunters above; a character who
+carries a pair would need only one prop anyway, since the off-hand is a second instance
+of the same .glb.**
 
 ### Three intake paths
 

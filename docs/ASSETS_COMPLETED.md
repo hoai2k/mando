@@ -143,9 +143,6 @@ change; the sheets are production inputs in `reference/characters/` and are not 
 | `interceptor_drone` ◆ | 1.7 m — "a sinister black Imperial probe drone: a rounded armored sphere head with one large red photoreceptor and a ring of small amber sensor lights, a skirt of dark plating below, five thin articulated manipulator arms dangling underneath, a small top-mounted thruster — orthographic side, front and top views, hovering, no ground contact" |
 | `carbine` | 1024×512 — "a compact sci-fi blaster carbine rifle, scuffed gunmetal grey and dark brown, a boxy receiver, a short ribbed barrel with a flared muzzle, a compact scope on top, a pistol grip and short stock. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
 | `gaffi` | 1024×512 — "a primitive two-handed alien fighting staff: a long weathered wooden shaft bound with cord, a pointed metal spearhead at the top, a knobbed bludgeon head below it, and a short curved axe blade at the base. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
-| `saber_curved` | 1024×512 — "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
-| `crossbow` | 1024×512 — "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
-| `longrifle` | 1024×512 — "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
 | `wookiee_enforcer` | 2.6 m — "a towering black-furred ape-like gladiator alien, heavy muscular build, a metal-studded bandolier across the chest, armoured fighting gauntlets, scarred and battle-worn" |
 | `pyke_capo` | 2.0 m — "an ornately dressed alien crime boss with a tall narrow tapered head, embroidered layered robes in deep plum and gold, jewelled rings, a belt-mounted shield generator emitter" |
 | `imperial_officer` | 1.85 m — "a severe uniformed officer in a long black military greatcoat with a peaked cap and rank insignia plaque, gloved hands, gaunt authoritarian bearing" |
@@ -161,6 +158,35 @@ Signature-weapon voices for the hunter roster, generated with
 melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Rook Vance's twin pistols)
 followed on 2026-08-29.
 Synth fallbacks remain in `src/core/audio.ts`.
+
+---
+
+## Images — 29 files, delivered 2026-08-29
+
+**26 drop-screen portraits** at `public/assets/textures/portrait_<id>.jpg` — the
+playable four (`din`, `paz`, `bokatan`, `armorer`) and every enemy kind the drop
+screen shows (`tusken`, `pyke`, `pirate`, `pirateMelee`, `jetpirate`, `droid`,
+`nikto`, `massiff`, `stormtrooper`, `deathtrooper`, `darktrooper`, `duelist`,
+`officer`, `capo`, `enforcer`, `flametrooper`, `krykna`, `broodmother`, `quarren`,
+`alamite`, `drone`, `ringEnforcer`). Made to the recipe in `ASSETS_IMAGES.md`
+(512×614 JPEG, head and shoulders, warm key from the upper left on near-black).
+The loading screen probes these paths already and keeps its drawn mark on a 404, so
+arriving at the path is the integration. Still open: the three playable hunters
+(`ventress`, `embo`, `bossk`), who joined the roster after this batch.
+
+**3 hunter weapon prop sheets** in `reference/characters/` (production inputs, not
+shipped) — original prompts, per the carbine/gaffi recipe (1024×512, orthographic
+side view, flat lighting, mid-grey background):
+
+| Id | Prompt |
+|---|---|
+| `saber_curved` | "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered" |
+| `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
+| `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
+
+They were drawn to unblock the `saber_curved`, `crossbow` and `longrifle` prop models,
+but those models are **parked by decision** (2026-08-29) — the game keeps its procedural
+weapons — and the `pistol` sheet is parked with them. See `ASSETS_MODELS.md`.
 
 ---
 
