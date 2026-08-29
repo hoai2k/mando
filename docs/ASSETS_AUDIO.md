@@ -140,8 +140,9 @@ name, so it would need a variant-picking helper in `src/core/audio.ts`.
 
 ## Open — pilotable vehicles (PLAN.md §17)
 
-Hooks are live in the engine (the vehicle system leans the loop with throttle exactly
-like the jetpack voice); synth fallbacks cover both until the files land.
+Hooks are live in the engine as of 2026-08-29 (`audio.setEngine` leans the loop with
+throttle exactly like the jetpack voice; `speederIgnite` fires on mount); synth
+fallbacks cover both until the files land.
 
 | File | Hook | Prompt |
 |---|---|---|

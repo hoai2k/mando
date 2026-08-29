@@ -227,6 +227,9 @@ export function buildForge(): Board {
     airSpawns: [
       new THREE.Vector3(-30, 24, 20), new THREE.Vector3(40, 26, -30), new THREE.Vector3(0, 30, 60),
     ],
+    // a scout bike abandoned at the dome's collapsed gap — riding out a storm
+    // in the open is the gamble it looks like
+    vehicles: [{ kind: 'speederBike', x: 2, z: 46, yaw: Math.PI }],
   };
 
   let mythosaurIn = 35 + rng() * 30;

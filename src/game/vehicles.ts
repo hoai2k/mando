@@ -1,0 +1,420 @@
+import * as THREE from 'three';
+import type { Game } from './game';
+import type { Player } from '../player/player';
+import type { Board, VehicleSpec } from '../world/board';
+import type { FrameInput } from '../core/input';
+import type { StaticBox } from '../core/physics';
+import { loadProp } from '../characters/authored';
+import { crateTexture, hullTexture } from '../core/assets';
+import { audio } from '../core/audio';
+import { damp, dampAngle, yawBasis } from '../core/math';
+
+/**
+ * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
+ * boards. RB near one mounts, the stick drives it camera-relative with real
+ * momentum, ramming is the weapon, and the hull soaks the fire aimed at the
+ * rider until it gives out — then the rider is thrown and the wreck explodes.
+ * Not transport: a toy that ends in a crash.
+ */
+
+export interface VehicleDef {
+  name: string;
+  hp: number;
+  /** top speed, m/s */
+  top: number;
+  /** steering response: damp lambda toward the wished velocity — low = drift */
+  accel: number;
+  /** boost impulse, m/s, on the dash button */
+  boost: number;
+  /** collision capsule radius (moveCapsule is one capsule, so long hulls approximate) */
+  radius: number;
+  /** capsule/parked-box height from the keel up */
+  body: number;
+  /** ride height of the keel over ground (or water) */
+  hover: number;
+  /** hull length, for the ram axis and the bolt spheres */
+  length: number;
+  /** player-root offset from the keel while riding (saddle top − hip height) */
+  seat: { x: number; y: number; z: number };
+  /** saddle straddle or standing at a tiller */
+  stance: 'saddle' | 'stand';
+  /** authored .glb to swap in when present */
+  modelId?: string;
+  modelSize?: number;
+}
+
+export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
+  swoop: {
+    name: 'Swoop', hp: 100, top: 24, accel: 1.8, boost: 9,
+    radius: 0.85, body: 1.1, hover: 0.55, length: 2.8,
+    seat: { x: 0, y: -0.38, z: -0.15 }, stance: 'saddle',
+    modelId: 'nikto_swoop', modelSize: 2.6,
+  },
+  speederBike: {
+    name: 'Speeder bike', hp: 90, top: 27, accel: 2.0, boost: 10,
+    radius: 0.8, body: 1.15, hover: 0.6, length: 3.0,
+    seat: { x: 0, y: -0.34, z: -0.3 }, stance: 'saddle',
+    modelId: 'speeder_bike', modelSize: 3.0,
+  },
+  landspeeder: {
+    name: 'Landspeeder', hp: 150, top: 22, accel: 1.5, boost: 8,
+    radius: 1.15, body: 1.1, hover: 0.45, length: 4.4,
+    seat: { x: 0, y: -0.32, z: -0.5 }, stance: 'saddle',
+    modelId: 'landspeeder', modelSize: 4.5,
+  },
+  skiff: {
+    name: 'Cargo skiff', hp: 220, top: 15, accel: 1.1, boost: 6,
+    radius: 1.7, body: 1.3, hover: 0.9, length: 9,
+    seat: { x: 0, y: 1.05, z: -3.1 }, stance: 'stand',
+    modelId: 'skiff', modelSize: 9,
+  },
+};
+
+const _basisWish = new THREE.Vector3();
+const _seatOut = new THREE.Vector3();
+const _ramPoint = new THREE.Vector3();
+
+export class Vehicle {
+  def: VehicleDef;
+  /** the keel point: hovers `def.hover` over the ground */
+  pos = new THREE.Vector3();
+  vel = new THREE.Vector3();
+  yaw: number;
+  hp: number;
+  maxHp: number;
+  alive = true;
+  removeMe = false;
+  rider: Player | null = null;
+  group = new THREE.Group();
+  /** who shot it last, for kill credit on the explosion */
+  lastHitBy = -1;
+  private body = new THREE.Group();
+  private parkedBox: StaticBox | null = null;
+  private bobPhase = Math.random() * Math.PI * 2;
+  private boostCd = 0;
+  /** per-body ram cooldown, so one pass hits once */
+  private ramMemo = new Map<object, number>();
+  private dustTimer = 0;
+
+  constructor(public spec: VehicleSpec, private board: Board) {
+    this.def = VEHICLE_DEFS[spec.kind];
+    this.hp = this.maxHp = this.def.hp;
+    this.yaw = spec.yaw ?? 0;
+    const ground = this.groundAt(spec.x, spec.z);
+    this.pos.set(spec.x, ground + this.def.hover, spec.z);
+    this.group.add(this.body);
+    buildVehicleMesh(spec.kind, this.body);
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.yaw;
+    this.park();
+  }
+
+  /** ground (or water surface) under a point — repulsors ride whichever is higher */
+  private groundAt(x: number, z: number): number {
+    const phys = this.board.physics;
+    const base = phys.heightAt ? phys.heightAt(x, z) : 0;
+    let g = phys.groundHeight(x, z, Math.max(base, this.pos.y - this.def.hover) + 0.8);
+    if (!isFinite(g)) g = base;
+    if (this.board.waterY !== undefined) g = Math.max(g, this.board.waterY);
+    return g;
+  }
+
+  /** A parked ride is solid: one axis-aligned box over its footprint. */
+  private park(): void {
+    if (this.parkedBox) return;
+    const s = Math.abs(Math.sin(this.yaw)), c = Math.abs(Math.cos(this.yaw));
+    const w = s * this.def.length + c * this.def.radius * 2;
+    const d = c * this.def.length + s * this.def.radius * 2;
+    const bottom = this.pos.y - this.def.hover;
+    const top = this.pos.y + this.def.body;
+    this.parkedBox = this.board.physics.addBox(
+      this.pos.x, (bottom + top) / 2, this.pos.z, w, top - bottom, d,
+    );
+  }
+
+  private unpark(): void {
+    if (!this.parkedBox) return;
+    const boxes = this.board.physics.boxes;
+    const i = boxes.indexOf(this.parkedBox);
+    if (i >= 0) boxes.splice(i, 1);
+    this.parkedBox = null;
+  }
+
+  mount(rider: Player): void {
+    this.unpark();
+    this.rider = rider;
+    rider.vehicle = this;
+    audio.speederIgnite();
+  }
+
+  /**
+   * Let the rider off (RB, a jump, death, destruction). The vehicle parks
+   * where it stands and can be remounted — unless it is already dead.
+   */
+  dropRider(): void {
+    const rider = this.rider;
+    if (!rider) return;
+    this.rider = null;
+    rider.vehicle = null;
+    audio.setEngine(rider.slot, 0);
+    if (this.alive) this.park();
+  }
+
+  damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
+    if (!this.alive || amount <= 0) return;
+    this.hp -= amount;
+    if (bySlot >= 0) this.lastHitBy = bySlot;
+    if (this.rider) {
+      this.rider.cam.shake(Math.min(0.12, amount * 0.006));
+      this.rider.noteVehicleHit(from);
+    }
+    if (this.hp <= 0) this.destroy(true);
+  }
+
+  /** The end of the ride: throw the rider clear and blow the wreck. */
+  private destroy(explode: boolean): void {
+    if (!this.alive) return;
+    this.alive = false;
+    const at = this.pos.clone();
+    const slot = this.rider?.slot ?? this.lastHitBy;
+    if (this.rider) {
+      const r = this.rider;
+      this.dropRider();
+      // thrown clear: the ride's momentum plus a kick up and out
+      r.velocity.copy(this.vel);
+      r.velocity.y = Math.max(r.velocity.y, 7.5);
+      r.velocity.x += Math.sin(this.yaw + Math.PI / 2) * 3;
+      r.velocity.z += Math.cos(this.yaw + Math.PI / 2) * 3;
+      r.position.y += 0.6;
+    }
+    this.unpark();
+    this.group.visible = false;
+    this.removeMe = true;
+    if (explode) this.pendingExplosion = { at: at.setY(at.y + 0.5), slot };
+  }
+
+  /** set by destroy(); the game detonates it on its next update pass */
+  pendingExplosion: { at: THREE.Vector3; slot: number } | null = null;
+
+  /** World position of the rider's root while mounted. */
+  seatWorld(out: THREE.Vector3): THREE.Vector3 {
+    const s = this.def.seat;
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    return out.set(
+      this.pos.x + cos * s.x + sin * s.z,
+      this.pos.y + s.y,
+      this.pos.z - sin * s.x + cos * s.z,
+    );
+  }
+
+  /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
+  update(dt: number, game: Game): void {
+    if (!this.alive || this.rider) return;
+    // settle toward hover height and idle-bob gently inside the parked box
+    const target = this.groundAt(this.pos.x, this.pos.z) + this.def.hover;
+    this.pos.y = damp(this.pos.y, target, 4, dt) + Math.sin(game.time * 1.7 + this.bobPhase) * 0.004;
+    this.syncMesh(dt, 0);
+  }
+
+  /**
+   * One frame of driving, called from the rider's update so input flows the
+   * same path it does on foot. Camera-relative wish, heavy momentum, hover
+   * spring, ram damage on contact, crash damage on a hard stop.
+   */
+  drive(dt: number, input: FrameInput, rider: Player, game: Game): void {
+    const def = this.def;
+    this.boostCd -= dt;
+
+    // camera-relative wish, like the foot controller but with momentum
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(rider.cam.yaw);
+    const wish = _basisWish.set(
+      fwdX * input.moveY + rightX * input.moveX, 0,
+      fwdZ * input.moveY + rightZ * input.moveX,
+    );
+    const wishLen = Math.min(1, wish.length());
+    if (wishLen > 0) wish.normalize();
+    this.vel.x = damp(this.vel.x, wish.x * wishLen * def.top, def.accel, dt);
+    this.vel.z = damp(this.vel.z, wish.z * wishLen * def.top, def.accel, dt);
+
+    // boost: the dash button, a straight shove along the nose
+    if (input.dashPressed && this.boostCd <= 0) {
+      this.boostCd = 1.4;
+      this.vel.x += Math.sin(this.yaw) * def.boost;
+      this.vel.z += Math.cos(this.yaw) * def.boost;
+      audio.dash();
+      rider.cam.shake(0.05);
+    }
+
+    // hover: spring the keel toward ride height over ground or water
+    const target = this.groundAt(this.pos.x, this.pos.z) + def.hover;
+    this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
+
+    // integrate against the world; a wall eats velocity, and a hard stop hurts
+    const before = Math.hypot(this.vel.x, this.vel.z);
+    game.board.physics.moveCapsule(this.pos, def.radius, def.body, this.vel, dt);
+    const after = Math.hypot(this.vel.x, this.vel.z);
+    const lost = before - after;
+    if (lost > 7) {
+      this.damage(lost * 2.2, this.pos, -1);
+      game.particles.impactSparks(this.pos.clone().setY(this.pos.y + 0.6), 12);
+      audio.land(true);
+      rider.cam.shake(Math.min(0.3, lost * 0.012));
+    }
+
+    // face the way we're moving, banked into the turn
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (speed > 1.2) this.yaw = dampAngle(this.yaw, Math.atan2(this.vel.x, this.vel.z), 6, dt);
+
+    // ---- ramming: the vehicle is the weapon ----
+    if (speed > 6) {
+      const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+      const half = def.length / 2;
+      for (const e of game.enemies) {
+        if (!e.alive) continue;
+        if (Math.abs(e.position.y - this.pos.y) > 2.4) continue;
+        // nearest point on the hull's axis, so a long skiff hits with its bow
+        const relX = e.position.x - this.pos.x, relZ = e.position.z - this.pos.z;
+        const along = Math.max(-half, Math.min(half, relX * sin + relZ * cos));
+        _ramPoint.set(this.pos.x + sin * along, this.pos.y, this.pos.z + cos * along);
+        const d = Math.hypot(e.position.x - _ramPoint.x, e.position.z - _ramPoint.z);
+        if (d > def.radius + e.radius + 0.35) continue;
+        const until = this.ramMemo.get(e) ?? 0;
+        if (game.time < until) continue;
+        this.ramMemo.set(e, game.time + 0.5);
+        const dmg = Math.min(48, speed * 2.1);
+        const wasAlive = e.alive;
+        e.damage(dmg, this.pos, rider.slot);
+        e.knockback(this.pos, Math.min(20, speed * 0.9), 0.5, 0.3);
+        e.knockdown(1.2 + Math.random() * 0.6);
+        game.particles.impactSparks(e.position.clone().setY(e.position.y + 1), 10);
+        audio.impact();
+        rider.cam.shake(0.09);
+        if (wasAlive) game.hitMarker(rider.slot);
+        // every body struck chips the ride — nothing is free
+        this.damage(3, e.position, -1);
+        if (!this.alive) break;
+      }
+    }
+
+    // engine leans with the throttle; dust or spray kicks up in the wake
+    audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
+    this.dustTimer -= dt * speed;
+    if (this.dustTimer <= 0 && speed > 3) {
+      this.dustTimer = 2.2;
+      const wake = this.pos.clone().setY(this.pos.y - def.hover * 0.5);
+      if (this.board.waterY !== undefined && this.pos.y - def.hover <= this.board.waterY + 0.1) {
+        game.particles.splash(wake.setY(this.board.waterY), 3);
+      } else {
+        game.particles.runDust(wake);
+      }
+    }
+
+    // safety: past the bottom of the world the ride is simply gone
+    if (this.pos.y < game.board.physics.killY) this.destroy(false);
+
+    this.syncMesh(dt, speed);
+  }
+
+  private syncMesh(dt: number, speed: number): void {
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.yaw;
+    // bank into lateral velocity, nose down a touch with descent
+    const latX = Math.cos(this.yaw), latZ = -Math.sin(this.yaw);
+    const lateral = (this.vel.x * latX + this.vel.z * latZ) / Math.max(1, this.def.top);
+    this.body.rotation.z = damp(this.body.rotation.z, -lateral * 0.55, 8, dt);
+    this.body.rotation.x = damp(this.body.rotation.x, -this.vel.y * 0.02 + speed * 0.004, 8, dt);
+  }
+}
+
+/** Spawn every vehicle a board declares; the game owns the entities. */
+export function spawnVehicles(board: Board, scene: THREE.Scene): Vehicle[] {
+  const out: Vehicle[] = [];
+  for (const spec of board.vehicles ?? []) {
+    const v = new Vehicle(spec, board);
+    scene.add(v.group);
+    out.push(v);
+  }
+  return out;
+}
+
+// ---------- procedural builds (hidden when the authored model lands) ----------
+
+function mat(color: number, rough = 0.6, metal = 0.35): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
+}
+
+function addBox(parent: THREE.Object3D, m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: number, len: number, x: number, y: number, z: number, rx: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, len, 8), m);
+  mesh.position.set(x, y, z);
+  mesh.rotation.x = rx;
+  mesh.castShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
+/**
+ * The stand-in geometry per kind, built around the keel origin (+Z forward).
+ * When the kind's authored .glb exists it loads through `loadProp` and the
+ * procedural meshes hide — the same swap the enemy swoop bike already does.
+ */
+function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group): void {
+  const def = VEHICLE_DEFS[kind];
+  const built: THREE.Mesh[] = [];
+  const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
+  const dark = mat(0x2c2f33, 0.7, 0.4);
+  if (kind === 'swoop') {
+    const body = mat(0x8a4b2f, 0.5, 0.5);
+    track(addBox(group, body, 0.36, 0.26, 1.8, 0, 0.4, 0.1));
+    track(addCyl(group, dark, 0.11, 0.15, 0.4, 0, 0.4, -0.85, Math.PI / 2));
+    track(addCyl(group, body, 0.05, 0.1, 0.75, 0, 0.38, 1.2, Math.PI / 2));
+    track(addBox(group, dark, 0.55, 0.04, 0.04, 0, 0.62, 0.55));
+  } else if (kind === 'speederBike') {
+    const body = mat(0x6a6f62, 0.55, 0.4);
+    track(addBox(group, body, 0.34, 0.3, 1.5, 0, 0.5, -0.4));        // saddle + engine
+    track(addCyl(group, body, 0.06, 0.06, 1.6, 0.14, 0.42, 0.9, Math.PI / 2)); // outrigger vanes
+    track(addCyl(group, body, 0.06, 0.06, 1.6, -0.14, 0.42, 0.9, Math.PI / 2));
+    track(addBox(group, dark, 0.5, 0.05, 0.05, 0, 0.68, 0.15));      // bars
+    track(addBox(group, dark, 0.3, 0.35, 0.15, 0, 0.35, 1.55));      // steering fin
+  } else if (kind === 'landspeeder') {
+    const body = mat(0xb0a070, 0.5, 0.45);
+    const hull = track(addBox(group, body, 1.8, 0.42, 3.9, 0, 0.42, 0));
+    hull.receiveShadow = true;
+    track(addBox(group, dark, 0.72, 0.1, 0.72, 0, 0.66, -0.45));      // seat cushion
+    track(addBox(group, dark, 0.8, 0.34, 0.14, 0, 0.85, -0.95));      // seat back
+    for (const sx of [-0.62, 0, 0.62]) track(addCyl(group, dark, 0.2, 0.24, 0.6, sx, 0.55, -1.95, Math.PI / 2));
+    const shield = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.9, 0.32),
+      new THREE.MeshStandardMaterial({ color: 0xcfe4ea, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
+    );
+    shield.position.set(0, 0.78, 0.35);
+    shield.rotation.x = -0.35;
+    group.add(shield);
+    built.push(shield as unknown as THREE.Mesh);
+  } else {
+    // skiff: flat working deck, low rails, tiller platform astern, lashed cargo
+    const hullMat2 = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0xa08a60, roughness: 0.65, metalness: 0.35 });
+    const deck = track(addBox(group, hullMat2, 3, 0.5, 8.6, 0, 0.55, 0));
+    deck.receiveShadow = true;
+    for (const sx of [-1.45, 1.45]) track(addBox(group, dark, 0.08, 0.35, 8.2, sx, 0.95, 0));
+    track(addBox(group, hullMat2, 1.4, 0.3, 1.2, 0, 0.9, -3.4));     // tiller platform
+    track(addCyl(group, dark, 0.04, 0.04, 1.1, 0.5, 1.5, -3.6, 0.3)); // tiller
+    const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.8 });
+    track(addBox(group, crateMat, 1.1, 1.1, 1.1, -0.6, 1.35, 2.9));
+    track(addBox(group, crateMat, 0.9, 0.9, 0.9, 0.7, 1.25, 3.2));
+  }
+  if (def.modelId) {
+    const model = loadProp(def.modelId, def.modelSize ?? def.length, {
+      onLoad: () => { for (const m of built) m.visible = false; },
+    });
+    model.position.y = def.body * 0.35;
+    group.add(model);
+  }
+}

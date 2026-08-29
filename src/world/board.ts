@@ -78,6 +78,15 @@ export interface Breakable {
   onBreak?: (game: Game) => void;
 }
 
+/** Where a pilotable vehicle sits parked when the match starts. */
+export interface VehicleSpec {
+  kind: 'swoop' | 'speederBike' | 'landspeeder' | 'skiff';
+  x: number;
+  z: number;
+  /** resting facing, radians (0 = +Z) */
+  yaw?: number;
+}
+
 export interface Board {
   group: THREE.Group;
   physics: PhysicsWorld;
@@ -155,6 +164,8 @@ export interface Board {
   movers?: Mover[];
   /** props that can be shot apart (ice plates, fuel barrels, consoles) */
   breakables?: Breakable[];
+  /** rides parked around the board — spawned as entities by the game */
+  vehicles?: VehicleSpec[];
   /**
    * Ranged hostiles stay leashed near their spawn instead of chasing firing
    * angles — for boards where the walkable world is islands (station platforms,
