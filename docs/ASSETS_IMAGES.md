@@ -204,3 +204,47 @@ rubble), `kelp_frond` (the kelp is crossed alpha cards now, not cylinders),
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md).
 
 Nothing in this batch is outstanding. Later texture requests go in a new section here.
+
+## Game-mode art — requested 2026-08-29 (the `?modes` build, docs/MODES.md)
+
+The three experimental modes run fully procedural without any of this and upgrade
+in place when files land (same contract as everything above).
+
+### Campaign planet strip (runtime)
+
+Nine planet discs for the campaign select (`src/ui/planets.ts`). Drop-in:
+`public/assets/textures/planet_<boardId>.png` — ids `desert`, `station`, `nevarro`,
+`crevasse`, `trask`, `refinery`, `forge`, `ringworld`, `narkina`. **Spec:** 512×512 PNG,
+the planet a full-bleed circle touching the canvas edges (the UI masks it round and adds
+its own key-light overlay), space-black or transparent corners, no rings of text, no
+stars baked in.
+
+| Id | Prompt |
+|---|---|
+| `planet_desert` | "a desert planet seen from orbit: ochre and burnt-orange dune seas, thin lavender atmosphere rim, two faint sun glints" |
+| `planet_station` | "a deep-space refinery station from a distance rendered as the destination itself: a dark industrial hulk with warm sodium work-lights and a purple-orange nebula behind" |
+| `planet_nevarro` | "a volcanic planet from orbit: black basalt continents veined with glowing lava rivers, grey ash swirls" |
+| `planet_crevasse` | "an ice planet from orbit: blue-white glacial sheets split by deep turquoise crevasse scars" |
+| `planet_trask` | "an ocean moon from orbit: slate-green storm seas, white cyclone spirals, scattered black dock-islands" |
+| `planet_refinery` | "an industrial world from orbit: rust-brown haze bands, gridded refinery lights on the night side" |
+| `planet_forge` | "a glassed war-torn planet from orbit: fused green-grey glass plains, a shattered dome scar, magnetic aurora arcs" |
+| `planet_ringworld` | "a ringed city habitat from orbit: a bright inhabited ring around a dark gas world, city lights along the band" |
+| `planet_narkina` | "a white ocean prison world from orbit: pale seas, geometric white facility platforms in a sparse grid" |
+
+### Corridor interiors (runtime)
+
+The campaign's door-gated corridor segments (`src/world/corridor.ts`) currently use the
+flat hull materials. Tileables, 1024², same spec as the other surface textures:
+
+| Id | Prompt |
+|---|---|
+| `corridor_wall` | "seamless tileable sci-fi corridor wall panel: dark gunmetal plating in tall ribs, recessed bolt lines, faint wear streaks" |
+| `corridor_floor` | "seamless tileable industrial deck floor: dark steel tread plate, scuffed walk path down the middle, oil stains" |
+| `hazard_stripe` | "seamless tileable yellow-black hazard chevron stripe on worn metal, grime in the paint chips" |
+
+### Drop-screen portraits for playable NPCs (runtime, optional)
+
+PvP fields every NPC as a fighter; the drop screen already looks for
+`portrait_<enemyKind>.jpg` and falls back to the drawn marks. Any of the existing
+character sheet subjects can be reframed with the standard portrait recipe above —
+highest value first: `tusken`, `stormtrooper`, `pirate`, `pyke`, `officer`, `enforcer`.

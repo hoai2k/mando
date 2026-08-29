@@ -1,5 +1,6 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
 import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
+import { playableModelId, type PlayableId } from '../characters/roster';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { BOARDS } from '../world/boards';
 import type { BoardId } from '../world/board';
@@ -105,9 +106,14 @@ export function warmTerritory(board: BoardId): void {
   for (const id of MANDO_IDS) warmAuthored(id, 'idle');
 }
 
+/** the authored models behind a set of playables (NPC picks map through the roster) */
+function charModelIds(chars: PlayableId[]): string[] {
+  return chars.map((id) => playableModelId(id)).filter((id): id is string => !!id);
+}
+
 /** Warm whatever a match is about to need at once, for a straight-to-play start. */
-export function warmMatch(board: BoardId, chars: MandoId[]): void {
-  for (const id of chars) warmAuthored(id, 'now');
+export function warmMatch(board: BoardId, chars: PlayableId[]): void {
+  for (const id of charModelIds(chars)) warmAuthored(id, 'now');
   for (const id of boardEnemyIds(board, 1)) warmAuthored(id, 'now');
   const sky = BOARD_SKY[board];
   if (sky) warmTexture(sky, 'now');
@@ -122,10 +128,10 @@ export function warmMatch(board: BoardId, chars: MandoId[]): void {
  * truly knows what it wants. Later waves are deliberately not here: they are
  * warming in the background and the match has ten waves to wait for them.
  */
-export function matchAssets(board: BoardId, chars: MandoId[]): string[] {
+export function matchAssets(board: BoardId, chars: PlayableId[]): string[] {
   const sky = BOARD_SKY[board];
   const keys = [
-    ...chars.map((id) => modelUrl(id)),
+    ...charModelIds(chars).map((id) => modelUrl(id)),
     ...boardEnemyIds(board, 1).map((id) => modelUrl(id)),
     ...(sky ? [textureUrl(sky)] : []),
   ];
@@ -133,7 +139,7 @@ export function matchAssets(board: BoardId, chars: MandoId[]): string[] {
 }
 
 /** True when every file a match needs is already in hand. */
-export function matchReady(board: BoardId, chars: MandoId[]): boolean {
+export function matchReady(board: BoardId, chars: PlayableId[]): boolean {
   return tracked.progress(matchAssets(board, chars)).pending === 0;
 }
 

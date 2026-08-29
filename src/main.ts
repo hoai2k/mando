@@ -14,8 +14,11 @@ import type { Board, BoardId } from './world/board';
 import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
+import { PlanetSelect } from './ui/planets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
+import { PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
 
@@ -92,13 +95,15 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'characters' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+type AppState = 'title' | 'select' | 'planets' | 'characters' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard = BOARDS[0];
 let playerCount = 1;
 let endTimer = 0;
-const chosenChars: MandoId[] = ['din', 'paz'];
+/** which rule set the next match runs under; 'wave' unless ?modes offers more */
+let mode: GameMode = 'wave';
+const chosenChars: PlayableId[] = ['din', 'paz'];
 
 // ----- title screen -----
 const title = new MenuScreen(menuLayer);
@@ -112,9 +117,26 @@ title.addTitle('Mando', 'a Mandalorian fan game');
 // territory select and takes the window fullscreen on the way. Browsers only
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
 // one, so the fullscreen half is best-effort and failure is silent.
-title.addButtons(null, [
-  { label: 'Press Start', action: () => { enterFullscreen(); warmBoardSelect(); setState('select'); } },
-]);
+//
+// With the experimental ?modes flag the single prompt becomes three choices —
+// one per mode (docs/MODES.md). Without the flag nothing here changes.
+if (modesEnabled()) {
+  const pickMode = (m: GameMode, next: AppState): void => {
+    mode = m;
+    enterFullscreen();
+    warmBoardSelect();
+    setState(next);
+  };
+  title.addButtons(null, [
+    { label: 'Wave Battle', action: () => pickMode('wave', 'select') },
+    { label: 'PvP', action: () => pickMode('pvp', 'select') },
+    { label: 'Campaign', action: () => pickMode('campaign', 'planets') },
+  ]);
+} else {
+  title.addButtons(null, [
+    { label: 'Press Start', action: () => { mode = 'wave'; enterFullscreen(); warmBoardSelect(); setState('select'); } },
+  ]);
+}
 function enterFullscreen(): void {
   if (!document.fullscreenElement) {
     try { document.documentElement.requestFullscreen?.()?.catch(() => {}); } catch { /* not a user gesture */ }
@@ -148,6 +170,15 @@ select.addButtons(cards, BOARDS.map((info) => ({
 })));
 select.onBack = () => setState('title');
 
+// ----- campaign planet strip (?modes only) -----
+const planets = new PlanetSelect(menuLayer);
+planets.onPick = (info) => {
+  chosenBoard = info;
+  warmTerritory(info.id);
+  setState('characters');
+};
+planets.onBack = () => setState('title');
+
 // ----- the drop: loading screen between the character select and the match -----
 const loading = new LoadingScreen(menuLayer);
 
@@ -161,7 +192,7 @@ const charSelect = new CharacterSelect(menuLayer, {
     playerCount = count;
     startGame();
   },
-  onBack: () => setState('select'),
+  onBack: () => setState(mode === 'campaign' ? 'planets' : 'select'),
   padForPlayer: () => input.padForPlayer,
   compactPads: () => input.compactPlayerSlots(),
   seatPad: (padIndex, slot) => input.seatPad(padIndex, slot),
@@ -205,7 +236,7 @@ settings.addChoice('Split screen', [
   saveVideoConfig();
   // A match in progress re-lays its HUD immediately; the renderer reads the
   // rectangles fresh every frame, so the viewports follow on their own.
-  if (game) hud.setLayout(playerCount);
+  if (game) hud.setLayout(playerCount, mode === 'campaign');
 });
 settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
@@ -316,8 +347,16 @@ function setState(s: AppState): void {
   state = s;
   (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
   for (const key of Object.keys(screens)) screens[key].hide();
-  if (s === 'characters') { if (!charSelect.visible) charSelect.show(); }
-  else charSelect.hide();
+  if (s === 'characters') {
+    if (!charSelect.visible) {
+      charSelect.configure(mode === 'pvp'
+        ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2 }
+        : { roster: STANDARD_ROSTER, title: 'Choose Your Mandalorian' });
+      charSelect.show();
+    }
+  } else charSelect.hide();
+  if (s === 'planets') planets.show();
+  else planets.hide();
   if (s !== 'loading') loading.hide();
   const scr = activeScreen();
   if (scr) scr.show();
@@ -365,12 +404,12 @@ function buildMatch(): void {
   // and rebuilds the HUD elements. Built the other way round, that opening
   // banner was written into DOM that was destroyed a line later, so "The Dune
   // Sea / Survive 10 waves" never actually appeared.
-  hud.setLayout(playerCount);
+  hud.setLayout(playerCount, mode === 'campaign');
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
-  }, [...chosenChars]);
+  }, [...chosenChars], mode);
   (window as unknown as { __game?: Game }).__game = game; // debug/testing handle
   built = true;
 }
@@ -472,6 +511,19 @@ Object.assign(window, {
     while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     startGame();
   },
+  // start a match in any mode without walking the menus, for tests: the modes
+  // are experimental (?modes) and this is the only scriptable way into them
+  __startMode: (m: GameMode, n: number, boardId?: string, chars?: PlayableId[]) => {
+    mode = m;
+    playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
+    if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
+    if (chars) {
+      chosenChars.length = 0;
+      chosenChars.push(...chars);
+    }
+    while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
+    startGame();
+  },
 });
 
 // clicking the canvas while playing re-locks the pointer
@@ -504,6 +556,8 @@ function frame(now: number): void {
   const scr = activeScreen();
   if (state === 'characters') {
     for (const e of events) charSelect.handle(e.action, e.source);
+  } else if (state === 'planets') {
+    for (const e of events) planets.handle(e.action);
   } else if (state === 'loading') {
     // an impatient player can always drop early: everything still coming has a
     // fallback, so the worst case is a surface that pops in a second later
@@ -527,12 +581,17 @@ function frame(now: number): void {
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;
         if (endTimer <= 0) {
-          endTitle.textContent = game.state === 'victory' ? 'Territory Held' : 'The Mando Has Fallen';
+          const winner = game.winnerSlot >= 0 ? game.players[game.winnerSlot] : null;
+          endTitle.textContent = game.state !== 'victory' ? 'The Mando Has Fallen'
+            : game.mode === 'pvp' ? `${winner?.profile.name ?? 'Nobody'} Takes the Territory`
+            : game.mode === 'campaign' ? 'Territory Liberated'
+            : 'Territory Held';
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
+          const tail = game.mode === 'wave' ? ` · wave ${game.wave} · ${mins}:${secs}` : ` · ${mins}:${secs}`;
           endStats.innerHTML = game.players
             .map((p, i) => `<b>P${i + 1}</b> ${p.kills} kills`)
-            .join(' · ') + ` · wave ${game.wave} · ${mins}:${secs}`;
+            .join(' · ') + tail;
           setState('end');
         }
       }

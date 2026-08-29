@@ -212,6 +212,24 @@ export function enemyBody(kind: EnemyKind): { radius: number; height: number } {
   return { radius: d.radius, height: d.height };
 }
 
+/**
+ * The character build for a kind, without the AI wrapped around it — the PvP
+ * playable-NPC adapter dresses these in the PlayerCharacter surface rather
+ * than re-implementing two dozen characters.
+ */
+export function buildEnemyCharacter(kind: EnemyKind): CharacterInstance {
+  return DEFS[kind].build();
+}
+
+/** Read-only stat sheet for a kind, for deriving player-side PvP profiles. */
+export function enemyStats(kind: EnemyKind): {
+  hp: number; speed: number; radius: number; height: number;
+  style: 'melee' | 'ranged' | 'swoop' | 'hover'; damage: number; attackCd: number;
+} {
+  const d = DEFS[kind];
+  return { hp: d.hp, speed: d.speed, radius: d.radius, height: d.height, style: d.style, damage: d.damage, attackCd: d.attackCd };
+}
+
 export class Enemy {
   id = nextId++;
   def: Def;
@@ -227,6 +245,22 @@ export class Enemy {
   /** set by Game once the death has been scored/FX'd */
   counted = false;
   lastHitBy = -1;
+  /**
+   * PvP squad follower: the player this enemy escorts. Set via setOwner();
+   * the escort AI (the branch wave-mode allies use) anchors to them instead
+   * of to player one, and the follower fights whatever threatens them.
+   */
+  owner: { position: THREE.Vector3; alive: boolean; team: number } | null = null;
+  /**
+   * Boss promotion (promoteBoss): scales outgoing damage at the point each
+   * attack lands, since the shared per-kind def cannot carry per-instance HP.
+   */
+  dmgScale = 1;
+  /** max HP after any boss scaling, for the HUD boss bar */
+  maxHp: number;
+  /** a promoted boss: shrugs off knockdowns, never flees, never crawls */
+  boss = false;
+  bossName = '';
 
   private attackCd = 0;
   private windup = 0;
@@ -359,6 +393,7 @@ export class Enemy {
     this.team = team;
     this.char = this.def.build();
     this.hp = this.def.hp;
+    this.maxHp = this.def.hp;
     this.spawnMark = this.def.hp;
     this.radius = this.def.radius;
     this.height = this.def.height;
@@ -378,13 +413,40 @@ export class Enemy {
     }
   }
 
+  /** Make this enemy a PvP squad follower escorting `p` (see `owner`). */
+  setOwner(p: { position: THREE.Vector3; alive: boolean; team: number }): void {
+    this.owner = p;
+    this.team = p.team;
+    this.awareness = 'engaged';
+  }
+
+  /**
+   * Promote to a boss: more health and hide, harder hits, a bigger frame, a
+   * name for the banner and the HUD bar. Everything else — AI, death, credit —
+   * is the enemy it already was.
+   */
+  promoteBoss(name: string, hpScale = 4.5, dmgScale = 1.5, bulk = 1.3): void {
+    this.boss = true;
+    this.bossName = name;
+    this.hp *= hpScale;
+    this.maxHp = this.hp;
+    this.spawnMark = this.hp;
+    this.dmgScale = dmgScale;
+    this.radius *= bulk;
+    this.height *= bulk;
+    this.char.baseScale *= bulk;
+    this.char.root.scale.setScalar(this.char.baseScale);
+  }
+
   /**
    * Something happened at `pos` worth looking at — a shot, a squadmate's
    * shout, a hit landing. `hard` skips straight to combat (being shot at
    * doesn't need investigating).
    */
   alert(pos: THREE.Vector3, hard = false): boolean {
-    if (!this.alive || this.team === 0) return false;
+    // only wave hostiles keep posts to be alerted from; allies and PvP
+    // followers are permanently engaged escorts
+    if (!this.alive || this.team !== 1) return false;
     const wasCalm = this.awareness === 'idle';
     this.interest.copy(pos);
     if (hard) {
@@ -505,6 +567,7 @@ export class Enemy {
   /** the squad broke — run from `threat`, rally at distance */
   breakAndRun(threat: THREE.Vector3): void {
     if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;
+    if (this.boss) return;               // a warlord does not run from its own arena
     if (this.kind === 'droid') return;   // droids have no morale to break
     if (this.def.relentless) return;     // nor does a war beast: it comes anyway
     if (this.def.style === 'swoop' || this.def.style === 'hover') return;
@@ -532,7 +595,7 @@ export class Enemy {
     // into a wounded crawl instead of a clean fight-on — it is out of the
     // fight, dragging itself away, and bleeds out unless finished.
     if (
-      this.hp > 0 && !this.wounded && this.team === 1 && this.downTimer <= 0 &&
+      this.hp > 0 && !this.wounded && this.team === 1 && this.downTimer <= 0 && !this.boss &&
       (this.def.style === 'melee' || this.def.style === 'ranged') &&
       this.kind !== 'droid' && // droids don't bleed
       this.hp < this.def.hp * 0.25 && Math.random() < 0.4
@@ -607,6 +670,7 @@ export class Enemy {
   knockdown(secs = 1.8): void {
     if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
     if (this.wounded) return; // already on the ground
+    if (this.boss) secs = Math.min(secs, 0.5); // a boss staggers, it doesn't lie down
     this.downTimer = Math.max(this.downTimer, secs);
     this.windup = 0;
     this.volleyLeft = 0;
@@ -638,15 +702,15 @@ export class Enemy {
   private nearestFoe(game: Game): Combatant | null {
     let best: Combatant | null = null;
     let bestD = Infinity;
-    // filled rather than allocated: this runs once per enemy per frame
+    // filled rather than allocated: this runs once per enemy per frame.
+    // Everyone is considered and the team filter decides — which is what
+    // makes PvP fall out of the same code: a follower on player two's team
+    // sees player one, player one's followers, and wave hostiles alike.
     const foes = _foes;
     foes.length = 0;
-    if (this.team === 1) {
-      for (const p of game.players) foes.push(p);
-      for (const a of game.allies) foes.push(a);
-    } else {
-      for (const e of game.enemies) foes.push(e);
-    }
+    for (const p of game.players) foes.push(p);
+    for (const a of game.allies) foes.push(a);
+    for (const e of game.enemies) if (e !== this) foes.push(e);
     for (const f of foes) {
       if (!f.alive || f.team === this.team) continue;
       const d = f.position.distanceToSquared(this.position);
@@ -953,7 +1017,7 @@ export class Enemy {
     this.target = foe;
     this.visible = false;
     this.sightTimer -= dt;
-    if (this.team === 0) {
+    if (this.team === 0 || this.owner) {
       // Allies fight whatever is near, but they escort rather than hunt: with
       // hostiles now posted all over the board, an ally that picked the
       // nearest one would jog off across the desert and never come back.
@@ -962,8 +1026,9 @@ export class Enemy {
       // living player instead made an ally player one's alone: in co-op the
       // marshal would stand beside player two in the middle of a firefight and
       // never fire, because both gates below were measured against a player a
-      // hundred metres away.
-      const p = this.nearestPlayer(game);
+      // hundred metres away. A PvP squad follower is the exception: it is
+      // pinned to its own leader, whoever else is closer.
+      const p = this.owner && this.owner.alive ? this.owner : this.nearestPlayer(game);
       // Leash the engagement to the player, not to the foe: chasing whatever
       // is nearest to *itself* walks an ally across the board one target at a
       // time. Anything worth shooting is near the person being escorted.
@@ -1304,7 +1369,7 @@ export class Enemy {
       if (this.windup <= 0 && this.windupTarget) {
         const hd = this.windupTarget.position.distanceTo(this.position);
         if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
-          this.windupTarget.damage(d.damage, this.position);
+          this.windupTarget.damage(d.damage * this.dmgScale, this.position);
         }
         this.attackCd = d.attackCd;
       }
@@ -1321,7 +1386,7 @@ export class Enemy {
         const pd = target.position.distanceTo(this.position);
         if (pd < d.attackRange + 0.4) {
           this.pounceHit = true;
-          target.damage(d.damage * 1.15, this.position);
+          target.damage(d.damage * 1.15 * this.dmgScale, this.position);
           if ('velocity' in target) target.velocity.addScaledVector(this.velocity.clone().setY(0).normalize(), 5);
           this.attackCd = d.attackCd;
         }
@@ -1528,7 +1593,7 @@ export class Enemy {
     if (tDist > reach + 1.2) return;
     toT.normalize();
     if (toT.dot(dir) < 0.9) return; // stepped out of the stream
-    target.damage(d.damage, from);
+    target.damage(d.damage * this.dmgScale, from);
   }
 
   private hasLineOfSight(game: Game, target: Combatant): boolean {
@@ -1558,7 +1623,7 @@ export class Enemy {
     aim.y += (Math.random() - 0.5) * 1.2 * err;
     aim.z += (Math.random() - 0.5) * 1.6 * err;
     const dir = aim.sub(from).normalize();
-    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage, this.team, -1, d.boltTag);
+    game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage * this.dmgScale, this.team, -1, d.boltTag);
     // a firefight pulls in whoever is posted nearby — an ally's covering fire
     // gives the position away just as readily as a hostile's
     game.director.noise(game, this.position, this.team === 1 ? 30 : 40);
@@ -1598,7 +1663,7 @@ export class Enemy {
     // billed 10 damage on every rendered frame it stayed in contact (~30-60 a
     // pass, and worse the higher the refresh rate).
     if (this.attackCd <= 0 && this.position.distanceTo(target.position) < 1.8 && target.alive) {
-      target.damage(10, this.position);
+      target.damage(10 * this.dmgScale, this.position);
       target.velocity.add(this.velocity.clone().multiplyScalar(0.4));
       this.attackCd = Math.max(this.attackCd, 1);
     }

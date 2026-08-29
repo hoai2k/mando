@@ -1,4 +1,5 @@
 import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
+import { playableDef, type PlayableId } from '../characters/roster';
 import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { ASSET_ROOT } from '../core/assets';
 import type { BoardInfo } from '../world/boards';
@@ -108,18 +109,22 @@ export class LoadingScreen {
   }
 
   /** Dress the screen for a particular drop and show it. */
-  show(board: BoardInfo, chars: MandoId[], enemies: EnemyKind[]): void {
+  show(board: BoardInfo, chars: PlayableId[], enemies: EnemyKind[]): void {
     this.art.style.backgroundImage =
       `url('${ASSET_ROOT}assets/textures/${board.art}'), ${board.gradient}`;
     this.title.textContent = board.name;
     this.sub.textContent = board.desc;
     this.cast.innerHTML = '';
     for (const id of chars) {
-      const c = MANDO_ROSTER[id];
+      // Mandalorians draw their own helmet in their own colours; a playable
+      // NPC (pvp) reuses the hostile mark that already matches its kind
+      const c = MANDO_ROSTER[id as MandoId];
+      const svg = c
+        ? helmetSvg(hex(c.primary), hex(c.accent), hex(c.suit))
+        : hostileSvg(id.replace('npc:', '') as EnemyKind);
       this.cast.appendChild(this.card(
-        MANDO_ROSTER[id].name, 'yours',
-        helmetSvg(hex(c.primary), hex(c.accent), hex(c.suit)),
-        `portrait_${id}`,
+        playableDef(id).profile.name, 'yours', svg,
+        `portrait_${id.replace('npc:', '')}`,
       ));
     }
     for (const kind of enemies) {

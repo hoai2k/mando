@@ -109,3 +109,20 @@ These need a gameplay hook before the audio is worth producing.
 
 Bosses, when built, will each want a set: an entrance roar or line, a taunt, a hurt, and a
 death. Deferred until the boss fights exist (see `ASSETS_MODELS.md`).
+
+## Game modes (`?modes`, 2026-08-29) — open, awaiting dedicated hooks
+
+The three modes shipped on existing voices: doors, checkpoints and pickups reuse UI
+confirms and the wave-clear chime, and every boss speaks with its base kind's barks.
+These become drop-in upgrades once their names are wired in `core/audio.ts`:
+
+| File | Prompt | Hook (today's stand-in) |
+|---|---|---|
+| `door_cycle` | "Heavy blast door cycling open: hydraulic unlock clunk, deep metal slide, pressurized thunk at the stop, 2s" | corridor door teleport (`uiConfirm`) |
+| `checkpoint_chime` | "Small triumphant two-note beacon chime with a metallic shimmer tail, 1.5s" | campaign checkpoint (`waveClear`) |
+| `bacta_pickup` | "Glass-and-liquid pickup slurp with a soft healing shimmer, 1s" | bacta canister (`uiConfirm`) |
+| `boss_horn` | "A war-horn entrance sting: low brassy blast with a threatening sustain, 3s" | boss spawn banner (`waveStart`) |
+| `pvp_round_win` | "Short duel-won sting: two hard timpani hits under a rising metallic flourish, 2.5s" | PvP last-one-standing (`sting(true)`) |
+
+The per-boss voice sets deferred earlier now have their consumer (bosses exist as
+promoted elites); they stay deferred only until bosses get per-boss movesets.

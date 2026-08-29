@@ -136,6 +136,11 @@ export class Radar {
     let alive = 0;
     for (const e of game.enemies) {
       if (!e.alive) continue;
+      // a PvP squadmate is friendly green, not a contact
+      if (e.team === player.team) {
+        blip(e.position.x, e.position.z, e.position.y, COLORS.ally, 3, 0.9);
+        continue;
+      }
       alive++;
       const color = e.awareness === 'engaged' ? COLORS.engaged
         : e.awareness === 'alerted' ? COLORS.alerted
@@ -150,8 +155,18 @@ export class Radar {
     }
     for (const p of game.players) {
       if (p === player || !p.alive) continue;
-      blip(p.position.x, p.position.z, p.position.y, COLORS.mate, 3.2, 0.95);
+      // in pvp a rival player is the reddest thing on the dial
+      if (p.team !== player.team) {
+        alive++;
+        blip(p.position.x, p.position.z, p.position.y, COLORS.engaged, 3.6, 1);
+      } else {
+        blip(p.position.x, p.position.z, p.position.y, COLORS.mate, 3.2, 0.95);
+      }
     }
+
+    // campaign: the beacon's pip, gold, so the bearing survives fog and dunes
+    const obj = game.campaign?.objectivePos;
+    if (obj) blip(obj.x, obj.z, obj.y, '#ffcf6a', 3.6, 1);
 
     // you, at the centre, always pointing up
     ctx.fillStyle = COLORS.self;

@@ -337,3 +337,72 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a7c5c;
 }
 .loading-foot .pct { color: #d8b25a; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }
+
+/* ---- experimental modes (?modes): boss bar, shared-screen HUD, planet strip ---- */
+
+/* boss health bar: top centre, under the wave line */
+.hud-boss {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+  width: min(46%, 460px); display: none; text-align: center; pointer-events: none;
+}
+.hud-boss.show { display: block; }
+.hud-boss .bossname {
+  font-size: 14px; letter-spacing: 0.3em; text-transform: uppercase; color: #ff8a66;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85); margin-bottom: 4px;
+}
+.hud-boss .bossbar {
+  height: 8px; border: 1px solid rgba(255,138,102,0.6); background: rgba(0,0,0,0.55);
+}
+.hud-boss .bossfill {
+  height: 100%; background: linear-gradient(90deg, #b03a2a, #ff6a3a);
+  transform-origin: left; transform: scaleX(1); transition: transform 0.15s ease-out;
+}
+
+/* campaign shared screen: every player gets the whole window; bars fan out
+   along the bottom, and the singleton chrome lives on player one's layer */
+.hud-viewport.shared .hud-bars {
+  left: calc(3% + var(--slot, 0) * 24%); bottom: 20px; width: 20%;
+  min-width: 150px; max-width: 240px;
+}
+.hud-viewport.shared .hud-weapon { display: none; }
+.hud-viewport.shared-follower .hud-wave,
+.hud-viewport.shared-follower .hud-radar,
+.hud-viewport.shared-follower .hud-banner,
+.hud-viewport.shared-follower .hud-boss,
+.hud-viewport.shared-follower .hud-cover,
+.hud-viewport.shared-follower .crosshair,
+.hud-viewport.shared-follower .visor-vignette { display: none; }
+.hud-viewport.shared .crosshair { display: none; }  /* soft-lock carries the aim */
+
+/* ---- campaign planet strip ---- */
+.planet-screen { justify-content: flex-start; padding-top: 7vh; }
+.planet-window {
+  width: 100%; overflow: hidden; margin-top: 3vh; padding: 2vh 0 1vh;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 90%, transparent);
+}
+.planet-strip {
+  display: flex; gap: 4vw; align-items: flex-start; width: max-content;
+  padding-left: 30vw; transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.planet-cell { width: 240px; text-align: center; cursor: pointer; opacity: 0.62; transition: opacity 0.3s; }
+.planet-cell.focused { opacity: 1; }
+.planet-disc {
+  width: 170px; height: 170px; margin: 0 auto; border-radius: 50%;
+  background-size: cover, cover, cover; background-position: center;
+  box-shadow: 0 0 34px rgba(0,0,0,0.7), inset -18px -14px 40px rgba(0,0,0,0.55);
+  transition: transform 0.3s;
+}
+.planet-cell.focused .planet-disc {
+  transform: scale(1.22);
+  box-shadow: 0 0 44px rgba(216,178,90,0.35), inset -18px -14px 40px rgba(0,0,0,0.55);
+}
+.planet-name {
+  margin-top: 26px; font-size: 17px; letter-spacing: 0.24em; text-transform: uppercase; color: #f0e6d2;
+}
+.planet-stage { margin-top: 4px; font-size: 11px; letter-spacing: 0.3em; color: #d8b25a; text-transform: uppercase; }
+.planet-desc {
+  margin-top: 8px; font-size: 12px; line-height: 1.5; color: #a89a80; min-height: 3.2em;
+  opacity: 0; transition: opacity 0.3s;
+}
+.planet-cell.focused .planet-desc { opacity: 1; }
