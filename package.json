@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs",
+    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs && node tools/test-modes.mjs",
     "audit:boards": "node tools/audit-collision.mjs",
     "audit:spawns": "node tools/audit-spawns.mjs"
   },

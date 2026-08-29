@@ -493,3 +493,34 @@ breakables.
 **Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
 jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
 existing explosion. Synth fallbacks under both, per the audio rules.
+
+## 18. Game modes (experimental, behind `?modes` — 2026-08-29)
+
+Three modes as rule sets over the one simulation; full research/design record in
+`docs/MODES.md`, campaign level design in `docs/LEVEL_DESIGN.md`. Without the
+`?modes` URL flag the title shows the single Press Start and the game is exactly
+the wave game; with it, the title offers **Wave Battle**, **PvP** and **Campaign**.
+
+- **Wave Battle** — the game as shipped, plus a **boss wave**: clearing wave 10
+  rings in the territory's warlord (its signature elite, promoted — ×4.5 HP,
+  ×1.5 damage, ×1.3 bulk, a name, a HUD boss bar, retinue calls at ⅔ and ⅓
+  health). Victory on its death.
+- **PvP** — 2–4 players, free-for-all, choose a territory; every fighter is its
+  own team (`team = 2 + slot`), three stands each, last one standing takes the
+  territory. The roster widens to **every NPC that reads as a character**,
+  fielded through a thin adapter over the existing enemy builds
+  (`characters/roster.ts`) with per-kind player-side stat lanes; squad kinds
+  lead 2–3 AI teammates (the ally-escort AI with an `owner`), and flight
+  belongs only to kinds whose in-game version flies.
+- **Campaign** — planet strip (one planet per territory, left to right, all
+  unlocked for now) → a Gauntlet-length liberation run over the territory's own
+  board: a winding tour of its authored posts with squads ramping along it,
+  camp/ambush encounter templates, bacta pickups, a guide beacon + radar pip +
+  distance readout, two door-gated **corridor segments** (procedural interior
+  lanes floating above the board; cover-and-advance combat; door teleports as
+  the future streaming seam), checkpoints, and the territory's **boss arena**
+  as the finale. All players share one screen — a single chase rig follows the
+  party centroid, steered by player one.
+
+Regression-tested end to end by `tools/test-modes.mjs` (part of `npm test`),
+including that the flag off leaves the wave game untouched.

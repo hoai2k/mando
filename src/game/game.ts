@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
-import { Enemy, type EnemyKind } from '../enemies/enemy';
+import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, FINAL_WAVE, spawnWave, standingSpot, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
-import type { MandoId } from '../characters/mandalorians';
+import { playableDef, type PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
@@ -16,6 +16,9 @@ import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, type GameMode } from './modes';
+import { Campaign } from './campaign';
+import { ThirdPersonCamera } from '../core/camera';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
@@ -40,7 +43,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 interface Rocket {
   mesh: THREE.Mesh;
   vel: THREE.Vector3;
-  target: Enemy | null;
+  target: Combatant | null;
   life: number;
   bySlot: number;
 }
@@ -93,8 +96,22 @@ export class Game {
   private waveSpawned = 0;
   private huntCall = 0;
   private huntAnnounced = false;
+  // ---- modes (docs/MODES.md) ----
+  /** the boss capping the wave game and the campaign, once spawned */
+  boss: Enemy | null = null;
+  private bossPhase = 0;
+  /** campaign controller; null outside campaign mode */
+  campaign: Campaign | null = null;
+  /** campaign's one shared screen: the camera the party is watched through */
+  sharedCam: ThirdPersonCamera | null = null;
+  /** PvP: the slot that took the territory, for the end screen */
+  winnerSlot = -1;
+  /** per-frame cache behind hostilesFor */
+  private hostileCache = new Map<number, Combatant[]>();
+  private sharedCentroid = new THREE.Vector3();
 
-  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents, characters: MandoId[] = ['din', 'paz']) {
+  constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
+    characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave') {
     this.scene.add(board.group);
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
@@ -118,10 +135,28 @@ export class Game {
 
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
-      p.spawnAt(this.startFor(board, i));
+      if (mode === 'pvp') {
+        // every fighter is their own side; 0/1 stay meaningful as co-op/hostile
+        p.team = 2 + i;
+        p.lives = 2; // three stands in total
+        p.spawnAt(this.pvpSpawn(i));
+      } else {
+        p.spawnAt(this.startFor(board, i));
+      }
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
+    }
+    // PvP squad leaders bring their fireteam (docs/MODES.md §3)
+    if (mode === 'pvp') for (const p of this.players) this.spawnSquadFor(p);
+
+    if (mode === 'campaign') {
+      // one screen for the whole party: a single rig follows the centroid and
+      // player one's stick steers it (players' own rigs become aim references)
+      this.sharedCam = new ThirdPersonCamera(aspect);
+      this.sharedCam.baseDist = 6.5;
+      this.sharedCam.pitch = -0.5;
+      this.campaign = new Campaign(this);
     }
 
     this.vehicles = spawnVehicles(board, this.scene);
@@ -162,17 +197,127 @@ export class Game {
 
     // The intro banner buys a couple of seconds; spend them fetching the models
     // wave one is about to need, rather than parsing them on the spawn frame.
-    this.preloadWave(1);
-    // The three allies are certain to appear in a full match and are only three
-    // files, so warm them now rather than the instant one walks into a firefight.
-    for (const kind of Object.values(ALLY_WAVES)) {
-      const id = ENEMY_MODEL_ID[kind];
-      if (id) preloadAuthored(id);
+    if (mode === 'wave') {
+      this.preloadWave(1);
+      // The three allies are certain to appear in a full match and are only three
+      // files, so warm them now rather than the instant one walks into a firefight.
+      for (const kind of Object.values(ALLY_WAVES)) {
+        const id = ENEMY_MODEL_ID[kind];
+        if (id) preloadAuthored(id);
+      }
+    }
+    // wave and campaign both end at the territory's boss: warm its model now
+    if (mode !== 'pvp') {
+      const bossId = ENEMY_MODEL_ID[BOSS_KIND[board.kind]];
+      if (bossId) preloadAuthored(bossId);
     }
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music, board.kind);
-    this.events.banner(board.name, board.objective ?? 'Survive 10 waves');
+    const objective = mode === 'pvp' ? 'Last fighter standing takes it'
+      : mode === 'campaign' ? 'Follow the beacon · liberate the territory'
+        : board.objective ?? 'Survive 10 waves';
+    this.events.banner(board.name, objective);
+  }
+
+  /** PvP spawns: the board's own posts, farthest-first so fighters start apart. */
+  private pvpSpawn(slot: number, awayFrom?: THREE.Vector3): THREE.Vector3 {
+    const spawns = this.board.groundSpawns;
+    if (!spawns.length) return this.startFor(this.board, slot);
+    const others = this.players.filter((p) => p.alive).map((p) => p.position);
+    if (awayFrom) others.push(awayFrom);
+    let best = spawns[slot % spawns.length];
+    let bestD = -1;
+    for (const s of spawns) {
+      let d = Infinity;
+      for (const o of others) d = Math.min(d, s.distanceToSquared(o));
+      if (others.length === 0) d = Math.random();
+      if (d > bestD) { bestD = d; best = s; }
+    }
+    return standingSpot(this.board, best.clone().add(new THREE.Vector3(0, 0.2, 0)), 'pyke');
+  }
+
+  /** spawn (or re-spawn) a PvP squad leader's AI fireteam beside them */
+  private spawnSquadFor(p: Player): void {
+    const squad = playableDef(p.characterId).profile.squad;
+    if (!squad) return;
+    // any followers it still has stay; only the missing places are refilled
+    const have = this.enemies.filter((e) => e.owner === p && e.alive).length;
+    for (let i = have; i < squad.count; i++) {
+      const a = (i / squad.count) * Math.PI * 2;
+      const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
+      const e = new Enemy(squad.kind, at, p.team);
+      e.setOwner(p);
+      this.enemies.push(e);
+      this.scene.add(e.char.root);
+      this.particles.dustPuff(at, 6);
+    }
+  }
+
+  /**
+   * Everything alive that `who` may fight: any combatant on another team.
+   * One list per team per frame — every aim cone, melee sweep and rocket
+   * seeker reads the same referee, which is what makes PvP work at all.
+   */
+  hostilesFor(who: { team: number }): Combatant[] {
+    let list = this.hostileCache.get(who.team);
+    if (list) return list;
+    list = [];
+    for (const e of this.enemies) if (e.alive && e.team !== who.team) list.push(e);
+    for (const p of this.players) if (p.alive && p.team !== who.team) list.push(p);
+    for (const a of this.allies) if (a.alive && a.team !== who.team) list.push(a);
+    this.hostileCache.set(who.team, list);
+    return list;
+  }
+
+  /** the campaign controller's mouthpiece (events is private) */
+  announce(text: string, sub?: string): void {
+    this.events.banner(text, sub);
+  }
+
+  /**
+   * Spawn the territory's boss (docs/MODES.md §4a) at `pos` with a small
+   * honour guard. Shared by the wave game's final wave and the campaign arena.
+   */
+  spawnBoss(pos: THREE.Vector3): Enemy {
+    const kind = BOSS_KIND[this.board.kind];
+    const at = standingSpot(this.board, pos.clone(), kind);
+    const boss = new Enemy(kind, at);
+    boss.promoteBoss(BOSS_NAME[this.board.kind]);
+    this.waveSpawned++;
+    this.enemies.push(boss);
+    this.scene.add(boss.char.root);
+    this.particles.explosion(at.clone());
+    this.boss = boss;
+    this.bossPhase = 0;
+    const guard = BOSS_RETINUE[this.board.kind];
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      this.addReinforcement(guard, at.clone().add(new THREE.Vector3(Math.cos(a) * 6, 0.2, Math.sin(a) * 6)), 9900);
+    }
+    this.events.banner(boss.bossName, 'Bring them down');
+    audio.waveStart();
+    return boss;
+  }
+
+  /** boss phases: at ⅔ and ⅓ health the warlord calls its retinue */
+  private updateBoss(): void {
+    const b = this.boss;
+    if (!b || !b.alive) return;
+    const frac = b.hp / b.maxHp;
+    const due = frac < 1 / 3 ? 2 : frac < 2 / 3 ? 1 : 0;
+    if (due > this.bossPhase) {
+      this.bossPhase = due;
+      const guard = BOSS_RETINUE[this.board.kind];
+      const lead = this.players.find((p) => p.alive) ?? this.players[0];
+      for (let i = 0; i < 3 + due; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const e = this.addReinforcement(guard, b.position.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0.2, Math.sin(a) * 10)), 9900 + due);
+        if (lead) e.alert(lead.position, true);
+      }
+      this.events.banner(b.bossName, due === 1 ? 'They call for backup' : 'A last stand');
+      audio.waveStart();
+    }
   }
 
   /**
@@ -261,7 +406,7 @@ export class Game {
     this.players.length = 0;
   }
 
-  fireRocket(origin: THREE.Vector3, dir: THREE.Vector3, target: Enemy | null, bySlot: number): void {
+  fireRocket(origin: THREE.Vector3, dir: THREE.Vector3, target: Combatant | null, bySlot: number): void {
     const mesh = new THREE.Mesh(this.rocketGeo, this.rocketMat);
     mesh.position.copy(origin);
     this.scene.add(mesh);
@@ -307,7 +452,10 @@ export class Game {
     for (const p of this.players) {
       if (!p.alive) continue;
       const d = p.position.distanceTo(point);
-      if (d < 4.5) p.damage(18 * (1 - d / 4.5), point);
+      // in pvp a rocket is a duel-ender against the rival, but never turns
+      // its own thrower into the easier kill
+      const base = this.mode === 'pvp' && bySlot >= 0 && p.slot !== bySlot ? 70 : 18;
+      if (d < 4.5) p.damage(base * (1 - d / 4.5), point, bySlot);
     }
     // parked rides are scenery with hit points — blasts reach them too
     for (const v of this.vehicles) {
@@ -321,8 +469,30 @@ export class Game {
 
   update(dt: number, inputs: FrameInput[]): void {
     this.time += dt;
+    this.hostileCache.clear();
     if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
     this.board.update?.(dt, this.time, this);
+
+    // ---- campaign's shared screen ----
+    // Player one's stick steers the one rig everybody is watched through;
+    // every player's own (unrendered) rig is slaved to its yaw/pitch so
+    // screen-relative movement and aim mean the same thing for the whole party.
+    if (this.sharedCam) {
+      const look = inputs[0];
+      if (look) {
+        this.sharedCam.addLook(look.lookX, look.lookY);
+        if (look.zoomDelta) this.sharedCam.dolly(look.zoomDelta);
+      }
+      for (const p of this.players) {
+        p.cam.yaw = this.sharedCam.yaw;
+        p.cam.pitch = this.sharedCam.pitch;
+      }
+      // the look already landed on the shared rig — don't let each player's
+      // own rig apply it again
+      for (let i = 0; i < inputs.length; i++) {
+        if (inputs[i]) inputs[i] = { ...inputs[i], lookX: 0, lookY: 0, zoomDelta: 0 };
+      }
+    }
 
     // ---- moving platforms carry their riders ----
     // The board has already re-placed each mover's box; whoever is standing on
@@ -344,34 +514,79 @@ export class Game {
       }
     }
 
-    // ---- match flow ----
+    // ---- match flow (per mode) ----
     this.stateTimer -= dt;
-    if (this.state === 'intro' && this.stateTimer <= 0) this.nextWave();
-    if (this.state === 'break' && this.stateTimer <= 0) this.nextWave();
-    // A wave is cleared once everything it spawned is down. Testing
-    // `enemies.length > 0` instead — as a stand-in for "the wave has started" —
-    // stalled the station permanently: enemies knocked into the abyss are
-    // removed the same frame they die, rather than lingering as a corpse, so
-    // the array could empty completely and the check could never fire again.
-    if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
-      // the fallen fade away now that the wave is decided
-      for (const e of this.enemies) if (!e.alive) e.fadeOut();
-      if (this.wave >= FINAL_WAVE) {
+    if (this.mode === 'wave') {
+      if (this.state === 'intro' && this.stateTimer <= 0) this.nextWave();
+      if (this.state === 'break' && this.stateTimer <= 0) this.nextWave();
+      // A wave is cleared once everything it spawned is down. Testing
+      // `enemies.length > 0` instead — as a stand-in for "the wave has started" —
+      // stalled the station permanently: enemies knocked into the abyss are
+      // removed the same frame they die, rather than lingering as a corpse, so
+      // the array could empty completely and the check could never fire again.
+      if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
+        // the fallen fade away now that the wave is decided
+        for (const e of this.enemies) if (!e.alive) e.fadeOut();
+        if (this.wave > FINAL_WAVE) {
+          // the boss wave is down: the territory is truly held
+          this.setState('victory');
+          this.events.banner('Territory held', 'This is the Way');
+          audio.waveClear();
+        } else if (this.wave === FINAL_WAVE) {
+          this.setState('break');
+          this.stateTimer = 4.5;
+          this.events.banner(`Wave ${this.wave} cleared`, 'Something big is coming');
+          audio.waveClear();
+        } else {
+          this.setState('break');
+          this.stateTimer = 4.5;
+          this.events.banner(`Wave ${this.wave} cleared`);
+          audio.waveClear();
+        }
+      }
+    } else if (this.state === 'intro' && this.stateTimer <= 0) {
+      // pvp and campaign have no wave clock: the intro simply opens the match
+      this.setState('fighting');
+      this.wave = 1;
+    }
+
+    // boss phases run wherever a boss stands (wave 11, campaign arena)
+    this.updateBoss();
+
+    // ---- campaign objectives ----
+    if (this.campaign && this.state === 'fighting') {
+      this.campaign.update(dt);
+      if (this.campaign.done && this.state === 'fighting') {
         this.setState('victory');
-        this.events.banner('Territory held', 'This is the Way');
-        audio.waveClear();
-      } else {
-        this.setState('break');
-        this.stateTimer = 4.5;
-        this.events.banner(`Wave ${this.wave} cleared`);
+        this.events.banner('Territory liberated', 'This is the Way');
         audio.waveClear();
       }
     }
 
+    // ---- pvp: lives, credit, the last one standing ----
+    if (this.mode === 'pvp' && this.state === 'fighting') this.updatePvp();
+
     // ---- players ----
+    const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, inputs[p.slot], this);
-      if (!p.alive && p.respawnTimer <= 0 && this.state !== 'defeat' && this.state !== 'victory') {
+      if (p.alive || p.respawnTimer > 0 || ended) continue;
+      if (this.mode === 'pvp') {
+        if (p.lives > 0) {
+          p.lives--;
+          p.deathCounted = false;
+          p.spawnAt(this.pvpSpawn(p.slot, p.position));
+          this.spawnSquadFor(p);   // the fireteam re-forms on its leader
+          this.particles.dustPuff(p.position, 10);
+        }
+        // out of lives: eliminated — updatePvp calls the match
+      } else if (this.mode === 'campaign') {
+        // arcade checkpointing: the walk back is the cost (LEVEL_DESIGN.md §2)
+        const at = this.campaign?.respawnPoint ?? this.board.playerStarts[0];
+        p.spawnAt(standingSpot(this.board, at.clone().add(new THREE.Vector3((p.slot % 2) * 1.5 - 0.75, 0.2, 0)), 'pyke'));
+        p.hp = p.maxHp * 0.8;
+        this.events.banner('Back on your feet', 'the beacon waits');
+      } else {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
         if (this.players.length > 1 && partnerAlive) {
           p.spawnAt(this.board.playerStarts[p.slot] ?? this.board.playerStarts[0]);
@@ -382,7 +597,7 @@ export class Game {
         }
       }
     }
-    if (this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
+    if (this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
       this.events.banner('The Mando has fallen');
     }
@@ -401,10 +616,24 @@ export class Game {
     }
     this.vehicles = this.vehicles.filter((v) => !v.removeMe);
 
-    // ---- hunt escalation ----
+    // ---- shared screen follows the party ----
+    if (this.sharedCam) {
+      const alive = this.players.filter((p) => p.alive);
+      const party = alive.length ? alive : this.players;
+      this.sharedCentroid.set(0, 0, 0);
+      for (const p of party) this.sharedCentroid.add(p.position);
+      this.sharedCentroid.divideScalar(party.length);
+      let speed = 0;
+      for (const p of party) speed = Math.max(speed, Math.hypot(p.velocity.x, p.velocity.z));
+      this.sharedCam.update(dt, this.sharedCentroid, this.board.physics, {
+        aiming: false, speed, dashing: false, flying: false, climb: 0,
+      });
+    }
+
+    // ---- hunt escalation (wave mode only: campaign posts hold their path) ----
     // Posted enemies wait to be found, which must not let a wave stall out: if
     // one drags on, the remnant starts sweeping toward the players instead.
-    if (this.state === 'fighting') {
+    if (this.mode === 'wave' && this.state === 'fighting') {
       this.waveTimer += dt;
       this.huntCall -= dt;
       if (this.waveTimer > 80 && this.huntCall <= 0) {
@@ -460,7 +689,7 @@ export class Game {
       t.player = null;
       t.position.set(e.position.x, e.position.y + e.height * 0.5, e.position.z);
       t.radius = e.radius + 0.35;
-      t.team = 1;
+      t.team = e.team;
       t.alive = true;
       t.shield = e.shieldCollider;
       t.slot = undefined;
@@ -480,7 +709,7 @@ export class Game {
             e.position.z + cos * part.z,
           );
           h.radius = part.r;
-          h.team = 1;
+          h.team = e.team;
           h.alive = true;
           h.shield = null;
           h.slot = undefined;
@@ -497,7 +726,7 @@ export class Game {
       t.player = p;
       t.position.set(p.position.x, p.position.y + 0.9, p.position.z);
       t.radius = p.radius + 0.35;
-      t.team = 0;
+      t.team = p.team;
       t.alive = true;
       // a blade sends the bolt back at somebody, so the player needs to be
       // told who is in front of them before the collider is read
@@ -604,6 +833,17 @@ export class Game {
             break;
           }
         }
+        // pvp: a rival's body sets it off just like a hostile's
+        if (!exploded && this.mode === 'pvp') {
+          for (const p of this.players) {
+            if (!p.alive || p.slot === r.bySlot) continue;
+            if (p.position.distanceTo(r.mesh.position) < p.radius + 0.9) {
+              this.explode(r.mesh.position.clone(), r.bySlot);
+              exploded = true;
+              break;
+            }
+          }
+        }
       }
       if (r.life <= 0 && !exploded) { this.explode(r.mesh.position.clone(), r.bySlot); exploded = true; }
       if (exploded) { this.scene.remove(r.mesh); r.life = -1; }
@@ -623,12 +863,12 @@ export class Game {
    * inside the arc the player is facing. Nothing in front means the blade
    * mirrors the shot instead, which still sends it away from her.
    */
-  private nearestHostileInFront(p: Player): Enemy | null {
+  private nearestHostileInFront(p: Player): Combatant | null {
     const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
-    let best: Enemy | null = null;
+    let best: Combatant | null = null;
     let bestD = 60 * 60;
-    for (const e of this.enemies) {
-      if (!e.alive || e.team !== 1) continue;
+    for (const e of this.hostilesFor(p)) {
+      if (!e.alive) continue;
       const dx = e.position.x - p.position.x, dz = e.position.z - p.position.z;
       const d2 = dx * dx + dz * dz;
       if (d2 > bestD || d2 < 0.01) continue;
@@ -657,9 +897,10 @@ export class Game {
         if (entry.vehicle) { entry.vehicle.damage(dmg, from, bySlot); return; }
         if (entry.player) {
           const p = entry.player;
-          p.damage(dmg, from);
+          p.damage(dmg, from, bySlot);
           // a net barely hurts; being rooted in the open is the damage
           if (tag === 'net' && p.alive) p.snareTimer = Math.max(p.snareTimer, 2.4);
+          if (p.alive && bySlot >= 0 && bySlot !== p.slot) this.hitMarker(bySlot);
           return;
         }
         const e = entry.enemy;
@@ -704,6 +945,53 @@ export class Game {
     this.events.stateChanged(s);
   }
 
+  /** PvP scoring and the last-one-standing call (docs/MODES.md §3). */
+  private updatePvp(): void {
+    for (const p of this.players) {
+      if (p.alive || p.deathCounted) continue;
+      p.deathCounted = true;
+      const killer = p.lastHitBy >= 0 && p.lastHitBy !== p.slot ? this.players[p.lastHitBy] : null;
+      if (killer) {
+        killer.kills++;
+        this.events.hitMarker(killer.slot);
+        this.events.banner(`${killer.profile.name} downs ${p.profile.name}`,
+          p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);
+      } else if (p.lives <= 0) {
+        this.events.banner(`${p.profile.name} is out`);
+      }
+      audio.killConfirm();
+    }
+    const standing = this.players.filter((p) => p.alive || p.lives > 0 || p.respawnTimer > 0);
+    if (this.players.length > 1 && standing.length <= 1) {
+      const winner = standing[0]
+        ?? this.players.reduce((a, b) => (b.kills > a.kills ? b : a), this.players[0]);
+      this.winnerSlot = winner.slot;
+      this.setState('victory');
+      this.events.banner(`${winner.profile.name} takes the territory`, 'This is the Way');
+    }
+  }
+
+  /** HUD top line, per mode (the HUD stays mode-agnostic) */
+  hudTopLine(p: Player): string {
+    if (this.state === 'victory') return 'VICTORY';
+    if (this.mode === 'pvp') {
+      const stands = (p.alive ? 1 : 0) + p.lives;
+      return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
+    }
+    if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
+    if (this.wave > FINAL_WAVE) return this.boss?.bossName ?? 'The warlord';
+    return `Wave ${Math.max(this.wave, 1)}`;
+  }
+
+  /** HUD score line, per mode */
+  hudScoreLine(p: Player): string {
+    if (this.mode === 'pvp') {
+      const rivals = this.players.filter((o) => o !== p && (o.alive || o.lives > 0 || o.respawnTimer > 0)).length;
+      return `${p.kills} kills · ${rivals} rival${rivals === 1 ? '' : 's'} left`;
+    }
+    return `${p.kills} kills · ${this.aliveEnemyCount} hostiles remaining`;
+  }
+
   private nextWave(): void {
     this.wave++;
     this.waveTimer = 0;
@@ -711,6 +999,17 @@ export class Game {
     this.huntCall = 0;
     this.huntAnnounced = false;
     this.setState('fighting');
+    // wave 11 is the boss battle: the warlord posts at the far side with a
+    // guard, instead of another spread of squads
+    if (this.wave > FINAL_WAVE) {
+      const near = this.players[0]?.position ?? this.board.playerStarts[0];
+      let far = this.board.groundSpawns[0] ?? near;
+      for (const s of this.board.groundSpawns) {
+        if (s.distanceToSquared(near) > far.distanceToSquared(near)) far = s;
+      }
+      this.spawnBoss(far.clone());
+      return;
+    }
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     spawnWave(this.board, this.wave, this.players.length, near, (e) => {
       this.waveSpawned++;
@@ -780,6 +1079,26 @@ export class Game {
     renderer.getSize(this.tmpSize);
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
+
+    // campaign: the whole party on one screen through the shared rig
+    if (this.sharedCam) {
+      const cam = this.sharedCam.camera;
+      cam.aspect = w / h;
+      cam.updateProjectionMatrix();
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      renderer.setScissor(0, 0, w, h);
+      const sFog = this.scene.fog;
+      const sBg = this.scene.background;
+      const under = this.board.waterY !== undefined && cam.position.y < this.board.waterY;
+      this.scene.fog = under ? this.underFog : sFog;
+      this.scene.background = under ? this.underColor : sBg;
+      renderer.render(this.scene, cam);
+      this.scene.fog = sFog;
+      this.scene.background = sBg;
+      return;
+    }
+
     const n = this.players.length;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);

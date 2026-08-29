@@ -6,7 +6,8 @@ import { damp } from '../core/math';
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
-import { buildMandalorian, MANDO_ROSTER, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
+import type { PlayerCharacter } from '../characters/mandalorians';
+import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 import { preloadAuthored } from '../characters/authored';
 
 /**
@@ -20,7 +21,6 @@ import { preloadAuthored } from '../characters/authored';
  * so by the time the match starts every picked model is warm in the cache.
  */
 
-const ROSTER = Object.keys(MANDO_ROSTER) as MandoId[];
 const SPINNER_DELAY = 0.7;
 const SPIN_DURATION = 0.9;
 /** half-width and rate of the idle turntable sweep */
@@ -64,7 +64,7 @@ interface Slot {
   arcT: number;                   // idle-sweep clock, restarted per character
   manual: number;                 // right-stick yaw offset, eased back to 0 on release
   group: THREE.Group;             // pedestal-local root the characters stand in
-  chars: Map<MandoId, PlayerCharacter>;
+  chars: Map<PlayableId, PlayerCharacter>;
   pedestal: THREE.Mesh;           // the plinth itself, moved with the group
   ring: THREE.Mesh;
   appear: number;                 // 0 = off stage, 1 = fully in the line
@@ -85,6 +85,12 @@ export class CharacterSelect {
   private startBtn: HTMLElement;
   private panels!: HTMLElement;
   private time = 0;
+  /** the ids on offer — the standard line-up, or PvP's NPC-widened one */
+  private roster: PlayableId[] = [...STANDARD_ROSTER];
+  /** PvP refuses to start alone */
+  private minPlayers = 1;
+  private titleEl!: HTMLElement;
+  private hintEl!: HTMLElement;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
   private drag: { slot: number; lastX: number } | null = null;
   /** live press, to tell a click apart from a drag on release */
@@ -93,7 +99,7 @@ export class CharacterSelect {
   constructor(
     parent: HTMLElement,
     private opts: {
-      onStart: (chars: MandoId[], playerCount: number) => void;
+      onStart: (chars: PlayableId[], playerCount: number) => void;
       onBack: () => void;
       /** gamepad index driving each player slot, -1 for none (from InputManager) */
       padForPlayer: () => number[];
@@ -115,6 +121,7 @@ export class CharacterSelect {
     title.className = 'menu-title charsel-title';
     title.textContent = 'Choose Your Mandalorian';
     this.root.appendChild(title);
+    this.titleEl = title;
 
     const panels = document.createElement('div');
     panels.className = 'charsel-panels';
@@ -134,6 +141,7 @@ export class CharacterSelect {
     hint.className = 'menu-hint';
     hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b>/<b>click</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
     this.root.appendChild(hint);
+    this.hintEl = hint;
 
     // ---- mouse drag turns the model on the pedestal you grabbed ----
     // The stage is drawn behind this overlay rather than into it, so the
@@ -310,7 +318,7 @@ export class CharacterSelect {
     group.position.y = 0.12;
 
     return {
-      phase: 'empty', choice: i % ROSTER.length, spinT: 0, loadingFor: 0,
+      phase: 'empty', choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
       panel, name, status, spinner, arrows,
@@ -320,19 +328,19 @@ export class CharacterSelect {
   // ---------- roster availability ----------
 
   /** ids no OTHER slot has locked in (committed choices are mutually exclusive) */
-  private available(slot: number): Set<MandoId> {
-    const out = new Set(ROSTER);
+  private available(slot: number): Set<PlayableId> {
+    const out = new Set(this.roster);
     this.slots.forEach((s, i) => {
-      if (i !== slot && (s.phase === 'ready' || s.phase === 'spinning')) out.delete(ROSTER[s.choice]);
+      if (i !== slot && (s.phase === 'ready' || s.phase === 'spinning')) out.delete(this.roster[s.choice]);
     });
     return out;
   }
 
   private step(slot: number, from: number, dir: -1 | 1): number {
     const ok = this.available(slot);
-    for (let n = 1; n <= ROSTER.length; n++) {
-      const idx = (from + dir * n + ROSTER.length * n) % ROSTER.length;
-      if (ok.has(ROSTER[idx])) return idx;
+    for (let n = 1; n <= this.roster.length; n++) {
+      const idx = (from + dir * n + this.roster.length * n) % this.roster.length;
+      if (ok.has(this.roster[idx])) return idx;
     }
     return from;
   }
@@ -351,16 +359,22 @@ export class CharacterSelect {
   /** Warm the models one flip away in either direction — the likely next views. */
   private preloadNeighbours(slot: number): void {
     const s = this.slots[slot];
-    preloadAuthored(ROSTER[this.step(slot, s.choice, 1)]);
-    preloadAuthored(ROSTER[this.step(slot, s.choice, -1)]);
+    this.warm(this.roster[this.step(slot, s.choice, 1)]);
+    this.warm(this.roster[this.step(slot, s.choice, -1)]);
   }
 
   // ---------- character instances ----------
 
-  private charFor(s: Slot, id: MandoId): PlayerCharacter {
+  /** warm the authored model behind a playable, if it has one */
+  private warm(id: PlayableId): void {
+    const modelId = playableDef(id).modelId;
+    if (modelId) preloadAuthored(modelId);
+  }
+
+  private charFor(s: Slot, id: PlayableId): PlayerCharacter {
     let c = s.chars.get(id);
     if (!c) {
-      c = buildMandalorian(id);
+      c = playableDef(id).build();
       c.root.traverse((o) => { o.castShadow = true; });
       c.animator?.play('lower', 'idleLower');
       c.animator?.play('upper', 'idleUpper');
@@ -454,7 +468,7 @@ export class CharacterSelect {
     const s = this.slots[slot];
     s.phase = 'browsing';
     // land on a free character, not on something the other player took
-    if (!this.available(slot).has(ROSTER[s.choice])) s.choice = this.step(slot, s.choice, 1);
+    if (!this.available(slot).has(this.roster[s.choice])) s.choice = this.step(slot, s.choice, 1);
     s.loadingFor = 0;
     s.arcT = 0;
     this.preloadNeighbours(slot);
@@ -499,7 +513,7 @@ export class CharacterSelect {
 
   private commit(slot: number): void {
     const s = this.slots[slot];
-    const c = s.chars.get(ROSTER[s.choice]);
+    const c = s.chars.get(this.roster[s.choice]);
     if (!c || !c.modelReady()) return;   // nothing to lock in until the model is here
     audio.uiConfirm();
     s.phase = 'spinning';
@@ -520,8 +534,27 @@ export class CharacterSelect {
     s.phase = 'browsing';
     s.arcT = 0;
     s.group.rotation.y = s.baseYaw + s.manual;
-    s.chars.get(ROSTER[s.choice])?.setHeroLight(BASE_GLOW);
+    s.chars.get(this.roster[s.choice])?.setHeroLight(BASE_GLOW);
     this.refresh();
+  }
+
+  /**
+   * Dress the screen for a mode: which ids are on offer, what the title says,
+   * and how many players the mode insists on (PvP: two). Call before show().
+   */
+  configure(opts: { roster: PlayableId[]; title: string; minPlayers?: number }): void {
+    const changed = opts.roster.length !== this.roster.length
+      || opts.roster.some((id, i) => id !== this.roster[i]);
+    this.roster = [...opts.roster];
+    this.minPlayers = opts.minPlayers ?? 1;
+    this.titleEl.textContent = opts.title;
+    if (changed) {
+      for (const s of this.slots) {
+        s.choice = Math.min(s.choice, this.roster.length - 1);
+        // cached characters from another roster stay cached (same ids reuse
+        // them); ids no longer offered simply never get shown again
+      }
+    }
   }
 
   private start(): void {
@@ -530,7 +563,11 @@ export class CharacterSelect {
     this.compact();
     const joined = this.slots.filter((s) => s.phase === 'ready');
     if (joined.length === 0 || joined.length !== this.slots.filter((s) => s.phase !== 'empty').length) return;
-    this.opts.onStart(joined.map((s) => ROSTER[s.choice]), joined.length);
+    if (joined.length < this.minPlayers) {
+      this.hintEl.innerHTML = `<b>PvP needs ${this.minPlayers} fighters</b> — press <b>A</b> on another controller to join the duel`;
+      return;
+    }
+    this.opts.onStart(joined.map((s) => this.roster[s.choice]), joined.length);
   }
 
   // ---------- per-frame ----------
@@ -547,7 +584,7 @@ export class CharacterSelect {
       anyJoined = true;
       if (s.phase !== 'ready') allReady = false;
 
-      const id = ROSTER[s.choice];
+      const id = this.roster[s.choice];
       const current = this.charFor(s, id);
       for (const [cid, c] of s.chars) c.root.visible = cid === id && c.modelReady();
 
@@ -652,14 +689,14 @@ export class CharacterSelect {
 
   private refresh(): void {
     this.slots.forEach((s, i) => {
-      const id = ROSTER[s.choice];
+      const id = this.roster[s.choice];
       if (s.phase === 'empty') {
         s.name.textContent = '';
         s.status.innerHTML = `<b>Player ${i + 1}</b><br/>Press <b>A</b> to join`;
         s.panel.classList.add('empty');
         s.panel.classList.remove('ready');
       } else {
-        s.name.textContent = MANDO_ROSTER[id].name;
+        s.name.textContent = playableDef(id).profile.name;
         s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>' : `<b>Player ${i + 1}</b>`;
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
@@ -681,7 +718,7 @@ export class CharacterSelect {
       s.loadingFor = 0;
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
-    if (!this.available(0).has(ROSTER[this.slots[0].choice])) this.slots[0].choice = 0;
+    if (!this.available(0).has(this.roster[this.slots[0].choice])) this.slots[0].choice = 0;
     this.preloadNeighbours(0);
     this.layoutStage(0);            // open on the line already spaced, not sliding in
     this.layoutPanels();

@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { buildMandalorian, MANDO_ROSTER, type MandoId, type PlayerCharacter } from '../characters/mandalorians';
+import type { PlayerCharacter } from '../characters/mandalorians';
+import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
 import { ThirdPersonCamera } from '../core/camera';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
-import type { Enemy } from '../enemies/enemy';
+import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
@@ -43,12 +44,20 @@ const ROCKET_CD = 12;
 export class Player {
   char: PlayerCharacter;
   cam: ThirdPersonCamera;
+  /** stats and identity for whoever is being played — Mandalorian or NPC */
+  profile: PlayerProfile;
   position = new THREE.Vector3();
   velocity = new THREE.Vector3();
   radius = 0.45;
   height = 1.75;
   hp = 100;
   maxHp = 100;
+  /** PvP: respawns left; other modes never read it */
+  lives = 0;
+  /** who last hurt this player (their slot), for PvP kill credit */
+  lastHitBy = -1;
+  /** set by Game once a PvP death has been scored */
+  deathCounted = false;
   fuel = 1;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
@@ -155,10 +164,23 @@ export class Player {
   private peekRecheck = 0;
   private pushAwayTime = 0;
 
-  constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
-    this.char = buildMandalorian(characterId);
+  constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
+    const def = playableDef(characterId);
+    this.profile = def.profile;
+    this.char = def.build();
+    this.maxHp = this.profile.maxHp;
+    this.hp = this.maxHp;
+    this.radius = this.profile.radius;
+    this.height = this.profile.height;
     if (this.meleeOnly) this.weapon = 'none';
     this.cam = new ThirdPersonCamera(aspect);
+  }
+
+  /** what the HUD calls the weapon currently in hand */
+  weaponLabel(): string {
+    if (this.weapon === 'none') return `${this.profile.meleeName} · stowed`;
+    if (this.weapon === 'gaffi') return this.profile.meleeName;
+    return this.profile.rangedName ?? this.profile.meleeName;
   }
 
   spawnAt(p: THREE.Vector3): void {
@@ -176,7 +198,7 @@ export class Player {
     this.char.root.visible = true;
   }
 
-  damage(amount: number, from: THREE.Vector3): void {
+  damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
     if (!this.alive) return;
     // Mounted, the hull is your HP: hits on the rider land on the vehicle —
     // until it gives out. Kill zones (999) still kill the rider outright.
@@ -186,10 +208,11 @@ export class Player {
       return;
     }
     this.hp -= amount;
+    if (bySlot >= 0 && bySlot !== this.slot) this.lastHitBy = bySlot;
     this.regenDelay = 5;
     this.hurtFlash = 1;
     this.lastDamageDir.subVectors(from, this.position);
-    audio.hurt(MANDO_ROSTER[this.characterId].voice);
+    audio.hurt(this.profile.voice);
     this.cam.shake(0.12);
     if (this.hp <= 0) this.die();
   }
@@ -212,7 +235,7 @@ export class Player {
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.cover = null;
     this.peeking = false;
-    audio.playerDeath(MANDO_ROSTER[this.characterId].voice);
+    audio.playerDeath(this.profile.voice);
     audio.setJetpackThrust(this.slot, 0);
   }
 
@@ -238,13 +261,13 @@ export class Player {
 
   /** the character fights with blades and carries nothing to shoot with */
   private get meleeOnly(): boolean {
-    return MANDO_ROSTER[this.characterId].ranged === 'none';
+    return this.profile.rangedName === null;
   }
 
   /** blades out and free to work */
   get sabersDrawn(): boolean {
     return this.alive && this.weapon === 'gaffi'
-      && MANDO_ROSTER[this.characterId].melee === 'sabers';
+      && this.profile.meleeKind === 'sabers';
   }
 
   /**
@@ -471,7 +494,7 @@ export class Player {
     this.snareTimer -= dt;
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
-    let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? SPRINT_SPEED : RUN_SPEED;
+    let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
     if (snared) topSpeed *= 0.32;
     if (this.wading) topSpeed *= 0.45; // chest-deep: slow, loud, exposed
     const speedTarget = Math.min(wishLen, 1) * topSpeed;
@@ -498,7 +521,7 @@ export class Player {
       game.particles.dustPuff(this.position, 4);
     }
     this.thrusting = 0;
-    if (input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    if (this.profile.canFly && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -1067,7 +1090,7 @@ export class Player {
    * passes through before it can return early.
    */
   private updateSaberHum(): void {
-    if (MANDO_ROSTER[this.characterId].melee !== 'sabers') return;
+    if (this.profile.meleeKind !== 'sabers') return;
     const drawn = this.alive && this.weapon === 'gaffi' && !this.blocking;
     audio.setSaberHum(this.slot, drawn ? 0.55 + (this.meleeTimer > 0 ? 0.8 : 0) : 0);
   }
@@ -1099,7 +1122,7 @@ export class Player {
     if (input.switchPressed) {
       this.weapon = this.weapon === 'gaffi' ? stowed : 'gaffi';
       this.char.setWeapon(this.weapon);
-      if (this.weapon === 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
+      if (this.weapon === 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
       else audio.uiMove();
       this.saberIdle = 0;
     }
@@ -1109,21 +1132,21 @@ export class Player {
     if (input.meleePressed && this.meleeTimer <= 0) {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // twin blades get their own combo; everyone else swings the staff set
-      const set = MANDO_ROSTER[this.characterId].melee === 'sabers' ? 'saber' : 'melee';
+      const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
-      const dur = this.char.animator!.playOnce('upper', clip, 0.05);
+      const dur = this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * 0.45;
-      this.meleeDamage = this.meleeStep === 3 ? 55 : 32;
+      this.meleeDamage = this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage;
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
       // until the idle timer puts them back.
-      if (this.weapon !== 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
+      if (this.weapon !== 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
       this.weapon = 'gaffi';
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep, MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
+      audio.melee(this.meleeStep, this.profile.meleeKind);
       // lunge toward nearest enemy in front
       const target = this.nearestEnemy(game, 5.5, 0.4);
       if (target) {
@@ -1141,7 +1164,7 @@ export class Player {
       this.meleeHitPending -= dt;
       if (this.meleeHitPending <= 0) {
         let hitAny = false;
-        for (const e of game.enemies) {
+        for (const e of game.hostilesFor(this)) {
           if (!e.alive) continue;
           const to = e.position.clone().sub(this.position);
           const dist = to.length();
@@ -1153,17 +1176,26 @@ export class Player {
           e.damage(this.meleeDamage, this.position, this.slot);
           // the finisher is the haymaker: it puts the target flat on the
           // ground (follow up while they're down and hits land double)
-          if (this.meleeStep === 3) {
-            e.knockback(this.position, 12, 0.35, 0.08);
-            e.knockdown(1.6 + Math.random() * 0.5);
+          const en = e as Partial<Enemy> & typeof e;
+          if (en.knockback && en.knockdown) {
+            if (this.meleeStep === 3) {
+              en.knockback(this.position, 12, 0.35, 0.08);
+              en.knockdown(1.6 + Math.random() * 0.5);
+            } else {
+              en.knockback(this.position, 11, 0.32);
+            }
           } else {
-            e.knockback(this.position, 11, 0.32);
+            // a rival player has no knockdown state: shove the body instead
+            const push = to.multiplyScalar(this.meleeStep === 3 ? 9 : 6);
+            e.velocity.x += push.x;
+            e.velocity.z += push.z;
+            e.velocity.y += 2;
           }
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
         if (hitAny) {
-          audio.meleeHit(MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
+          audio.meleeHit(this.profile.meleeKind);
           this.cam.shake(0.1);
           game.hitMarker(this.slot);
         }
@@ -1172,7 +1204,7 @@ export class Player {
 
     // blaster
     if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0) {
-      this.fireCd = 0.24;
+      this.fireCd = this.profile.fireCd;
       const muzzlePos = new THREE.Vector3();
       this.char.muzzle!.getWorldPosition(muzzlePos);
 
@@ -1184,18 +1216,17 @@ export class Player {
 
       // spread when hip-firing (worse on the move); aiming removes it
       if (!input.aimHeld) {
-        const spread = 0.008 + Math.min(Math.hypot(this.velocity.x, this.velocity.z) / RUN_SPEED, 1) * 0.015;
+        const spread = 0.008 + Math.min(Math.hypot(this.velocity.x, this.velocity.z) / this.profile.runSpeed, 1) * 0.015;
         shotDir.x += (Math.random() - 0.5) * spread;
         shotDir.y += (Math.random() - 0.5) * spread;
         shotDir.z += (Math.random() - 0.5) * spread;
         shotDir.normalize();
       }
-      game.projectiles.fire(muzzlePos, shotDir, 75, 34, 0, this.slot);
+      game.projectiles.fire(muzzlePos, shotDir, this.profile.boltSpeed, this.profile.boltDamage, this.team, this.slot);
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
-      const kind = MANDO_ROSTER[this.characterId].ranged ?? 'carbine';
-      audio.blaster(kind === 'none' ? 'carbine' : kind);
+      audio.blaster(this.profile.blasterVoice);
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
@@ -1235,12 +1266,12 @@ export class Player {
     return aimPoint.sub(from).normalize();
   }
 
-  /** Best enemy near the aim direction (dot threshold), for soft-lock. */
-  private aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Enemy | null {
-    let best: Enemy | null = null;
+  /** Best hostile near the aim direction (dot threshold), for soft-lock. */
+  private aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+    let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
-    for (const e of game.enemies) {
+    for (const e of game.hostilesFor(this)) {
       if (!e.alive) continue;
       to.copy(e.position);
       to.y += e.height * 0.55;
@@ -1258,12 +1289,12 @@ export class Player {
     return best;
   }
 
-  private nearestEnemy(game: Game, maxDist: number, minDot: number): Enemy | null {
-    let best: Enemy | null = null;
+  private nearestEnemy(game: Game, maxDist: number, minDot: number): Combatant | null {
+    let best: Combatant | null = null;
     let bestD = maxDist;
     const facing = new THREE.Vector3(Math.sin(this.cam.yaw), 0, Math.cos(this.cam.yaw));
     const to = new THREE.Vector3();
-    for (const e of game.enemies) {
+    for (const e of game.hostilesFor(this)) {
       if (!e.alive) continue;
       to.copy(e.position).sub(this.position);
       to.y = 0;
@@ -1286,6 +1317,8 @@ export class Player {
       ? clamp(lean * 2.2 - this.velocity.y * 0.09, -0.6, 0.9)
       : this.grounded ? 0 : lean * (this.thrusting ? 1 : 0.4);
     this.char.root.rotation.x = damp(this.char.root.rotation.x, target, 8, dt);
+    // creature playables (PvP heavies) animate themselves off their gait
+    this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
     this.char.cosmetic?.(dt, game.time);
   }
 }

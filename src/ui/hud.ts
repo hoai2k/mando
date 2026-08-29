@@ -1,4 +1,3 @@
-import { weaponDisplayName } from '../characters/mandalorians';
 import type { Game } from '../game/game';
 import { Radar } from './radar';
 import { splitLayout } from '../core/layout';
@@ -17,6 +16,9 @@ interface PlayerHud {
   kills: HTMLElement;
   banner: HTMLElement;
   bannerSub: HTMLElement;
+  boss: HTMLElement;
+  bossName: HTMLElement;
+  bossFill: HTMLElement;
   vignette: HTMLElement;
   crosshair: SVGElement;
   radar: Radar;
@@ -54,21 +56,28 @@ export class Hud {
     parent.appendChild(this.layer);
   }
 
-  setLayout(playerCount: number): void {
+  setLayout(playerCount: number, shared = false): void {
     this.layer.innerHTML = '';
     this.huds = [];
     // the same rectangles the renderer sets its viewports from, so a player's
-    // bars always sit inside that player's picture
+    // bars always sit inside that player's picture. Campaign's shared screen
+    // instead gives every player the whole window and fans the bars out along
+    // the bottom (one picture, several fighters).
     const rects = splitLayout(playerCount);
     for (let i = 0; i < playerCount; i++) {
       const root = document.createElement('div');
       root.className = 'hud-viewport';
-      const r = rects[i];
+      const r = shared ? { x: 0, y: 0, w: 1, h: 1 } : rects[i];
       root.style.left = `${r.x * 100}%`;
       root.style.top = `${r.y * 100}%`;
       root.style.width = `${r.w * 100}%`;
       root.style.height = `${r.h * 100}%`;
       root.classList.toggle('compact', r.h < 0.9 && r.w < 0.9);
+      if (shared) {
+        root.classList.add('shared');
+        root.style.setProperty('--slot', String(i));
+        if (i > 0) root.classList.add('shared-follower');
+      }
       root.innerHTML = `
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
@@ -81,6 +90,7 @@ export class Hud {
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
         <div class="hud-cover"></div>
+        <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
       `;
       this.layer.appendChild(root);
@@ -99,6 +109,9 @@ export class Hud {
         kills: root.querySelector('.wave-kills') as HTMLElement,
         banner: root.querySelector('.btext') as HTMLElement,
         bannerSub: root.querySelector('.bsub') as HTMLElement,
+        boss: root.querySelector('.hud-boss') as HTMLElement,
+        bossName: root.querySelector('.bossname') as HTMLElement,
+        bossFill: root.querySelector('.bossfill') as HTMLElement,
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
         crosshair: root.querySelector('.crosshair') as SVGElement,
         bannerTimer: 0,
@@ -153,13 +166,22 @@ export class Hud {
       else h.coverHint.textContent = '';
       h.coverHint.classList.toggle('active', !!p.cover || !!p.vehicle);
       h.weapon.textContent = p.alive
-        ? weaponDisplayName(p.characterId, p.weapon)
+        ? p.weaponLabel()
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;
       const rc = p.rocketCd;
       h.rocket.textContent = rc <= 0 ? '◆ ROCKET READY' : `◇ rocket ${rc.toFixed(0)}s`;
       h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
-      h.wave.textContent = game.state === 'victory' ? 'VICTORY' : `Wave ${Math.max(game.wave, 1)}`;
-      h.kills.textContent = `${p.kills} kills · ${game.aliveEnemyCount} hostiles remaining`;
+      h.wave.textContent = game.hudTopLine(p);
+      h.kills.textContent = game.hudScoreLine(p);
+      // the boss bar rides every viewport while a warlord stands
+      const boss = game.boss;
+      if (boss && boss.alive) {
+        h.boss.classList.add('show');
+        h.bossName.textContent = boss.bossName;
+        h.bossFill.style.transform = `scaleX(${Math.max(0, boss.hp / boss.maxHp)})`;
+      } else {
+        h.boss.classList.remove('show');
+      }
       h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 

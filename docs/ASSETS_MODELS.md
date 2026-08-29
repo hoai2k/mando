@@ -338,3 +338,17 @@ Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model 
 The sheets are the blocking input, and a playable character sets the art direction for
 everything around it, so it goes first. Nothing in this document is currently waiting on
 that pipeline.
+
+## Game-mode props — requested 2026-08-29 (the `?modes` build)
+
+Rigless props through `loadProp`, procedural stand-ins shipping in
+`src/world/corridor.ts` until the files land. Reference-sheet recipe as above.
+
+| Id | Prompt |
+|---|---|
+| `blast_door` ▣ | "a heavy sci-fi blast door in its frame, about 3.5 meters tall: two interlocking armored leaves with a chevron seam, a riveted gunmetal frame with hazard striping on the lintel, hydraulic rams at the jambs, amber status lamp above" |
+| `corridor_crate` | "a squat armored supply crate about 1.6 meters wide: reinforced corner caps, recessed side handles, stenciled panels worn to bare metal on the edges — chest-high cover, readable from behind" |
+
+The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by design —
+no new boss sculpts are requested; a unique boss model becomes its own request only
+if a boss outgrows its base kind (see the expansion list).
