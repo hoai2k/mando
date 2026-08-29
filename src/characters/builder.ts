@@ -109,7 +109,10 @@ export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: 
   const absHeight = p.spineLen + p.chestLen - 0.13;
   const absCentre = (p.chestLen - p.spineLen + 0.05) / 2;
   addBox(b.spine, opts.skin, 0.34, absHeight, 0.235, 0, absCentre, 0);
-  addBox(b.chest, opts.torso, 0.4, 0.34, 0.26, 0, 0.1, 0);
+  // Chest slab tops out just above the shoulder joints (chestLen * 0.5). The
+  // old 0.34-tall box centred at +0.1 reached ear level, which buried the
+  // shoulders mid-torso and swallowed the neck entirely.
+  addBox(b.chest, opts.torso, 0.4, 0.28, 0.26, 0, 0.06, 0);
   limbMesh(b.upperArmL, opts.skin, p.upperArmLen, 0.055, 0.05);
   limbMesh(b.forearmL, opts.skin, p.forearmLen, 0.05, 0.042);
   limbMesh(b.upperArmR, opts.skin, p.upperArmLen, 0.055, 0.05);

@@ -36,15 +36,27 @@ const AUTHORED_ENEMY: Record<string, number> = {
 };
 
 /**
- * Give an enemy its authored skin, if one exists. The weapon stays on the
- * canonical `weaponR` bone rather than moving into the model's hand: enemy
+ * Give an enemy its authored skin, if one exists. A *ranged* weapon stays on
+ * the canonical `weaponR` bone rather than moving into the model's hand: enemy
  * rifles are aimed by the same clips on either build, and keeping one mount
  * keeps the muzzle where the firing code already looks for it.
+ *
+ * A melee weapon has no muzzle to protect, and the canonical bone rides the
+ * *hidden procedural* arm — whose proportions differ from the sculpt's — so a
+ * gaffi or club left there drifts a hand-width or more from the authored fist
+ * at the top of a swing. Pass it in `handWeapons` and it re-mounts into the
+ * model's hand on load, exactly as the players' weapons do.
  */
-function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
+function authoredEnemy(
+  inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true,
+  handWeapons: THREE.Object3D[] = [],
+): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
+    onLoad: (model) => {
+      if (model.weaponMount) for (const w of handWeapons) model.weaponMount.add(w);
+    },
   });
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
@@ -72,7 +84,7 @@ export function buildTusken(authored = true): CharacterInstance {
   const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), mat(0x8a8f92, { rough: 0.4, metal: 0.6 }));
   gaffi.rotation.x = Math.PI / 2;
   b.weaponR.add(gaffi);
-  authoredEnemy(inst, rig, 'tusken', authored);
+  authoredEnemy(inst, rig, 'tusken', authored, [gaffi]);
   return inst;
 }
 
@@ -113,16 +125,18 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   addSphere(b.head, dark, 0.02, -0.05, 0.06, 0.11, 5, 4);
   addSphere(b.head, dark, 0.02, 0.05, 0.06, 0.11, 5, 4);
   for (let i = 0; i < 4; i++) addCyl(b.head, skinM, 0.01, 0.025, 0.09, -0.06 + i * 0.04, 0.16, -0.04, -0.5, 0, 0, 5);
+  const handWeapons: THREE.Object3D[] = [];
   if (melee) {
     const club = new THREE.Group();
     addCyl(club, dark, 0.025, 0.03, 0.7);
     addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
     club.rotation.x = Math.PI / 2;
     b.weaponR.add(club);
+    handWeapons.push(club);
   } else {
     inst.muzzle = rifle(b.weaponR);
   }
-  authoredEnemy(inst, rig, melee ? 'pirate_melee' : 'pirate', authored);
+  authoredEnemy(inst, rig, melee ? 'pirate_melee' : 'pirate', authored, handWeapons);
   return inst;
 }
 
@@ -300,7 +314,7 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   saber.rotation.x = Math.PI / 2;
   b.weaponR.add(saber);
 
-  authoredEnemy(inst, rig, 'imperial_officer', authored);
+  authoredEnemy(inst, rig, 'imperial_officer', authored, [saber]);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     // the blade breathes, so it reads as energy rather than a painted plank
@@ -837,7 +851,7 @@ export function buildAlamite(authored = true): CharacterInstance {
   addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
   club.rotation.x = Math.PI / 2;
   b.weaponR.add(club);
-  authoredEnemy(inst, rig, 'alamite', authored);
+  authoredEnemy(inst, rig, 'alamite', authored, [club]);
   return inst;
 }
 
