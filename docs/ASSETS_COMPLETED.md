@@ -183,10 +183,25 @@ side view, flat lighting, mid-grey background):
 | `saber_curved` | "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered" |
 | `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
 | `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
+| `pistol` | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 
-They were drawn to unblock the `saber_curved`, `crossbow` and `longrifle` prop models,
-but those models are **parked by decision** (2026-08-29) — the game keeps its procedural
-weapons — and the `pistol` sheet is parked with them. See `ASSETS_MODELS.md`.
+All four unblocked their prop models, and all four models have since landed. The sheets
+were briefly parked along with those models by a 2026-08-29 decision — the procedural
+weapons read well at gameplay distance and nothing was blocked on a file — which the
+sculpts arriving made moot; `pistol` was the last of them, delivered the same day.
+See `ASSETS_MODELS.md`.
+
+---
+
+## Models — 3 files, delivered 2026-08-29
+
+| Id | What it replaced |
+|---|---|
+| `pistol` | The procedural heavy pistol in `makePistol()`. Pre-wired: `swapWeapon()` already pointed at the id, so the file arriving was the whole integration. One file serves a pair — Cad Bane and Rook Vance each carry two instances, on `weaponMount` and `weaponMountL`. |
+| `blast_door` | The whole emissive-trimmed door frame in `buildDoorFrame()` (`world/corridor.ts`), lit pane included — the sculpt carries its own hazard striping and status lamp. Needs a quarter turn: it is wide along its own Z where the frame is wide along X. |
+| `corridor_crate` | The cover crates in `buildCorridor()`. Unlike every other sculpt, this one sizes its collider rather than being scaled into it: a corridor invents its crates each run, so there was no audited shape to preserve, and the delivered sculpt ran 22% taller and 50% deeper than the old box. |
+
+Prompts are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md), which keeps them for re-export.
 
 ---
 

@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the environment batch below and nothing on the character side. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Every model this document has ever asked for has been delivered and integrated** — characters, environment sculpts, weapon props and the game-mode props, the last of them (`pistol`, `blast_door`, `corridor_crate`) on 2026-08-29. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -68,16 +68,16 @@ carrying its authored model and its signature weapon — twin red curved-hilt sa
 (Rook). Paired weapons mount on `weaponR` and `weaponL`; an authored model exposes both
 mounts, so an off-hand weapon sits in the model's other hand rather than beside the body.
 
-**Three of the four signature weapon props are delivered and integrated**
-(2026-08-29): `saber_curved`, `crossbow` and `longrifle` landed and are picked up
-automatically — `swapWeapon()` in `src/characters/builder.ts` already pointed at each id,
-so the file arriving *is* the integration, and the procedural build hides behind it. They
-had been parked by an earlier decision (the procedural versions read well at gameplay
-distance and nothing was blocked on a file); that decision is simply moot now the sculpts
-exist. `pistol`, for Cad Bane's pair, is the one still to come — its prompt is in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) and the procedural pistols stand until it does.
-A character carrying a pair needs only one file, since the off-hand is a second instance
-of it.
+**All four signature weapon props are delivered and integrated** (2026-08-29):
+`saber_curved`, `crossbow`, `longrifle` and now `pistol` are picked up automatically —
+`swapWeapon()` in `src/characters/builder.ts` already pointed at each id, so the file
+arriving *is* the integration, and the procedural build hides behind it. They had been
+parked by an earlier decision (the procedural versions read well at gameplay distance and
+nothing was blocked on a file); that decision is simply moot now the sculpts exist. The
+pair carried by Cad Bane and Rook Vance needed only the one `pistol.glb`: the off-hand is
+a second instance of it, and both land in the model's own hands because an authored model
+exposes `weaponMount` and `weaponMountL` alike (verified in game — two visible sculpt
+meshes on the right mount, one on the left, no procedural weapon left showing).
 
 ## Allies — priority 2
 
@@ -273,10 +273,9 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 `interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
-wired too**, along with the weapon props `saber_curved`, `crossbow` and `longrifle`.
-Open on the model side: `pistol` alone — the game keeps its procedural pistols until it
-lands, and a character who carries a pair needs only the one file, since the off-hand is
-a second instance of the same .glb.**
+wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **Nothing on the
+model side is open.**
 
 ### Three intake paths
 
@@ -340,17 +339,35 @@ clip against a real model.
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
 everything around it, so it goes first. Nothing in this document is currently waiting on
-that pipeline.
+that pipeline — every id it names is on disk and in the game.
 
-## Game-mode props — requested 2026-08-29 (the `?modes` build)
+## Game-mode props — requested and delivered 2026-08-29 (the `?modes` build)
 
-Rigless props through `loadProp`, procedural stand-ins shipping in
-`src/world/corridor.ts` until the files land. Reference-sheet recipe as above.
+Rigless props through `loadProp`, both **delivered and wired** in
+`src/world/corridor.ts`; the procedural stand-ins remain and are hidden behind them, so a
+corridor still builds correctly with no model files at all. Prompts kept for re-export:
 
 | Id | Prompt |
 |---|---|
 | `blast_door` ▣ | "a heavy sci-fi blast door in its frame, about 3.5 meters tall: two interlocking armored leaves with a chevron seam, a riveted gunmetal frame with hazard striping on the lintel, hydraulic rams at the jambs, amber status lamp above" |
 | `corridor_crate` | "a squat armored supply crate about 1.6 meters wide: reinforced corner caps, recessed side handles, stenciled panels worn to bare metal on the edges — chest-high cover, readable from behind" |
+
+Two notes for a re-export, since the corridor is generated rather than authored:
+
+- **The crate sizes the collider, not the other way round.** Everywhere else a sculpt is
+  scaled into a box the board already audited (see `world/props.ts`); a corridor invents
+  its crates every run, so there is no audited shape to preserve, and the cover you see
+  would otherwise not be the cover a bolt stops at — as delivered the sculpt runs 22%
+  taller and 50% deeper than the old box. `corridor.ts` drives both from one height using
+  the sculpt's measured proportions (`CRATE_W_PER_H`, `CRATE_D_PER_H`), which a re-export
+  with different proportions should be re-measured for.
+- **The door needs a quarter turn, and replaces the whole stand-in.** `blast_door.glb` is
+  wide along its own Z where the frame it replaces is wide along X, so without a yaw it
+  stands edge-on to everyone walking up to it. It also takes over the frame's lit pane and
+  emissive strip rather than standing behind them: the sculpt is a closed door with its own
+  hazard striping and status lamp, which is what those were standing in for. Finding the
+  door does not depend on them — the campaign's beacon sits on it and the HUD names the
+  distance.
 
 The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by design —
 no new boss sculpts are requested; a unique boss model becomes its own request only

@@ -8,7 +8,9 @@ briefs, say) cites the resulting filename from there.
 **Outstanding right now:** the environment prop reference sheets, and the optional
 drop-screen portraits for the playable NPCs. Nothing else — the cast, the boards, the
 skies, every surface texture, the campaign's planet strip and corridor interiors, the
-drop-screen portraits, the logo and the favicon are all in and wired.
+drop-screen portraits, the weapon sheets, the logo and the favicon are all in and wired.
+Nothing is parked: `pistol`, the last held sheet, was delivered on 2026-08-29 along with
+the model it was drawn for.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -17,12 +19,6 @@ were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
-
-## Parked — not wanted while the decision holds
-
-| Id | Why | Prompt, for whenever it changes |
-|---|---|---|
-| `pistol` | The signature weapon **models** are parked (see [`ASSETS_MODELS.md`](ASSETS_MODELS.md)): the game keeps its procedural weapons, which read well at gameplay distance, and no code waits on a file. The other three sheets were drawn before that call and are delivered; this one never was. | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 
 ## Making more character reference sheets
 

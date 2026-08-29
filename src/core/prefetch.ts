@@ -86,6 +86,8 @@ export const MANDO_IDS = PLAYABLE_MANDO_IDS;
 
 /** Surfaces the campaign's corridor segments ask for (`world/corridor.ts`). */
 const CORRIDOR_TEXTURES = ['corridor_wall', 'corridor_floor', 'hazard_stripe'];
+/** ...and the sculpts, which the same segments swap in over their stand-ins. */
+const CORRIDOR_PROPS = ['blast_door', 'corridor_crate'];
 
 /** Every enemy kind a board can post, from wave one through `throughWave`. */
 export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[] {
@@ -186,8 +188,9 @@ export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 
     const bossId = ENEMY_MODEL_ID[BOSS_KIND[board]];
     if (bossId) warmAuthored(bossId, 'soon');
     // corridors are built at match start but only walked into minutes later,
-    // so their surfaces can trail the drop
+    // so their art can trail the drop
     for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');
+    for (const id of CORRIDOR_PROPS) warmAuthored(id, 'idle');
   }
   const sky = BOARD_SKY[board];
   if (sky) warmTexture(sky, 'now');

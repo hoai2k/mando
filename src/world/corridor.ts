@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Board } from './board';
 import { mat } from '../characters/builder';
+import { authoredProp } from './props';
 import { loadOptionalTexture } from '../core/assets';
 
 /**
@@ -12,8 +13,9 @@ import { loadOptionalTexture } from '../core/assets';
  *
  * The surfaces take authored tileables where they exist (`corridor_wall`,
  * `corridor_floor`, `hazard_stripe`) and fall back to the flat hull materials
- * where they do not; the corridor door model in docs/ASSETS_MODELS.md is still
- * to come.
+ * where they do not. The cover crates and doors take `corridor_crate.glb` and
+ * `blast_door.glb`, and the stand-ins stay under them, hidden — a corridor with
+ * no model files at all builds and plays exactly the same.
  */
 
 export interface CorridorSpot {
@@ -35,6 +37,24 @@ export interface CorridorSpec {
 
 const WIDTH = 7;
 const WALL_H = 4.2;
+
+/**
+ * Cover crates, sized so the box a bolt stops at is the box you can see.
+ *
+ * `corridor_crate.glb` is deeper than it is wide and stands a little over chest
+ * height; these are its measured proportions per metre of height. Driving both
+ * the collider and the sculpt from one height means the two agree exactly, and
+ * the stand-in takes the same shape — so a corridor whose model has not landed
+ * yet plays identically to one whose has.
+ *
+ * (The usual rule is the reverse: art is scaled into a collider the board
+ * already audited. A corridor invents its own crates every run, so there is no
+ * audited shape here to preserve — see the note in `world/props.ts`.)
+ */
+const CRATE_H_MIN = 1.15;
+const CRATE_H_VAR = 0.35;
+const CRATE_W_PER_H = 1.18;
+const CRATE_D_PER_H = 1.42;
 const LEG_MIN = 18;
 const LEG_MAX = 26;
 
@@ -84,13 +104,16 @@ export function buildCorridor(board: Board, origin: THREE.Vector3, seed: number,
   const pockets: THREE.Vector3[] = [];
   const y = origin.y;
 
-  const solid = (cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, m: THREE.Material): void => {
+  // hands the mesh back so a caller can hang authored art on it; the walls and
+  // caps ignore it, the crates do not
+  const solid = (cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, m: THREE.Material): THREE.Mesh => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m);
     mesh.position.set(cx, cy, cz);
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     group.add(mesh);
     board.physics.addBox(cx, cy, cz, sx, sy, sz);
+    return mesh;
   };
 
   // Legs alternate heading: +X, then ±Z, then +X... Each leg is floor + two
@@ -138,8 +161,11 @@ export function buildCorridor(board: Board, origin: THREE.Vector3, seed: number,
       const side = (c % 2 === 0 ? 1 : -1) * (wide / 2 - 1.6);
       const bx = cx + (alongX ? 0 : side);
       const bz = cz + (alongX ? side : 0);
-      const cw = 1.6 + rand() * 0.8;
-      solid(bx, y + 0.65, bz, cw, 1.3, cw * 0.8, crateMat);
+      // one height drives both the collider and the sculpt, so cover is
+      // exactly as tall as it looks; no yaw, since the box never turns either
+      const ch = CRATE_H_MIN + rand() * CRATE_H_VAR;
+      const box = solid(bx, y + ch / 2, bz, ch * CRATE_W_PER_H, ch, ch * CRATE_D_PER_H, crateMat);
+      authoredProp(group, box, 'corridor_crate', ch, { x: bx, y, z: bz, axis: 'y' });
       // defender post on the exit side of the crate, facing back down the leg
       if (c >= 1) {
         const back = 1.4;
@@ -183,9 +209,15 @@ export function buildCorridor(board: Board, origin: THREE.Vector3, seed: number,
 }
 
 /**
- * A door: an emissive-trimmed frame the guide beacon can sit on. Purely
- * visual — the campaign controller owns the trigger radius and the teleport.
- * Upgrades to `blast_door.glb` when the model lands (ASSETS_MODELS.md).
+ * A door: an emissive-trimmed frame around a lit pane, which the guide beacon
+ * sits on. Purely visual — the campaign controller owns the trigger radius and
+ * the teleport.
+ *
+ * `blast_door.glb` replaces the whole of it, pane included: the sculpt is a
+ * closed door in its own frame with hazard striping and a status lamp, which is
+ * what the pane and the emissive strip were standing in for. Finding the door
+ * does not depend on either — the campaign's beacon sits on it and the HUD
+ * names the distance.
  */
 export function buildDoorFrame(parent: THREE.Object3D, pos: THREE.Vector3, yaw: number): THREE.Group {
   const g = new THREE.Group();
@@ -211,6 +243,10 @@ export function buildDoorFrame(parent: THREE.Object3D, pos: THREE.Vector3, yaw: 
   const strip = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.12, 0.12), glowM);
   strip.position.y = 3.24;
   g.add(strip);
+  // Everything built above is the stand-in. Quarter turn because this sculpt is
+  // wide along its own Z where the frame is wide along X — without it the door
+  // stands edge-on to everyone walking up to it.
+  authoredProp(g, [...g.children], 'blast_door', 3.8, { axis: 'y', yaw: Math.PI / 2 });
   parent.add(g);
   return g;
 }
