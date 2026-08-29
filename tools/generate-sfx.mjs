@@ -33,6 +33,7 @@ const SFX = {
   melee_hit: ['Blunt heavy melee staff impact on armor: deep thud with metallic clank overtone, satisfying crunch, single hit', 0.6],
   // hunter roster signature weapons
   crossbow_shot: ['Sci-fi energy crossbow single shot: taut string release snap into a bright short bolt zap, twangy, single shot only', 0.7],
+  pistol_shot: ['Sci-fi heavy blaster pistol single shot: sharp dry crack with a fast high zap and almost no tail, quick-draw snap, single shot only', 0.6],
   longrifle_shot: ['Long-barrelled sci-fi hunting rifle single shot: heavy deep percussive report, slower descending zap with low barrel resonance tail, single shot only', 0.9],
   saber_swing: ['Energy sword swing: smooth tonal hum sweeping with fast doppler, electric harmonic edge, no air whoosh, single swing, no impact', 0.7],
   saber_ignite: ['Twin energy blades igniting: sharp crackle snap into a fast rising hum that settles into a steady tone, single ignition', 0.8],

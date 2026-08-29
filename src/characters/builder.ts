@@ -278,6 +278,22 @@ export function makeCrossbow(mBody: THREE.Material, mDark: THREE.Material): THRE
   return g;
 }
 
+/**
+ * Heavy blaster pistol — the gunslinger's pair. Short and wrist-carried, so a
+ * two-handed aim clip still reads: the off-hand copy is a second instance of
+ * this on `weaponL`.
+ */
+export function makePistol(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  addBox(g, mBody, 0.042, 0.075, 0.2, 0, 0.01, 0.05);        // receiver
+  addCyl(g, mDark, 0.013, 0.013, 0.17, 0, 0.025, 0.19, Math.PI / 2, 0, 0, 8); // barrel
+  addCyl(g, mDark, 0.024, 0.02, 0.05, 0, 0.025, 0.29, Math.PI / 2, 0, 0, 8);  // flared muzzle
+  addBox(g, mDark, 0.028, 0.11, 0.045, 0, -0.07, -0.01, 0.22); // grip
+  addBox(g, mDark, 0.02, 0.025, 0.06, 0, 0.06, 0.02);          // hammer/sight
+  swapWeapon(g, 'pistol', 0.34);
+  return g;
+}
+
 /** Long-barrelled hunting rifle: the carbine's heavier, slower-looking cousin. */
 export function makeLongRifle(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
   const g = new THREE.Group();

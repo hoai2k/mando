@@ -155,8 +155,37 @@ Signature-weapon voices for the hunter roster, generated with
 `node tools/generate-sfx.mjs crossbow_shot longrifle_shot saber_swing saber_ignite`
 (prompts live in that script): `crossbow_shot` (Karshii's laser crossbow),
 `longrifle_shot` (Skarvek's and VX-9's long rifle), `saber_swing` (Sylla Morvane's
-melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades).
+melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Rook Vance's twin pistols)
+followed on 2026-08-29.
 Synth fallbacks remain in `src/core/audio.ts`.
+
+---
+
+## Images — 29 files, delivered 2026-08-29
+
+**26 drop-screen portraits** at `public/assets/textures/portrait_<id>.jpg` — the
+playable four (`din`, `paz`, `bokatan`, `armorer`) and every enemy kind the drop
+screen shows (`tusken`, `pyke`, `pirate`, `pirateMelee`, `jetpirate`, `droid`,
+`nikto`, `massiff`, `stormtrooper`, `deathtrooper`, `darktrooper`, `duelist`,
+`officer`, `capo`, `enforcer`, `flametrooper`, `krykna`, `broodmother`, `quarren`,
+`alamite`, `drone`, `ringEnforcer`). Made to the recipe in `ASSETS_IMAGES.md`
+(512×614 JPEG, head and shoulders, warm key from the upper left on near-black).
+The loading screen probes these paths already and keeps its drawn mark on a 404, so
+arriving at the path is the integration. Still open: the three playable hunters
+(`ventress`, `embo`, `bossk`), who joined the roster after this batch.
+
+**3 hunter weapon prop sheets** in `reference/characters/` (production inputs, not
+shipped) — original prompts, per the carbine/gaffi recipe (1024×512, orthographic
+side view, flat lighting, mid-grey background):
+
+| Id | Prompt |
+|---|---|
+| `saber_curved` | "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered" |
+| `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
+| `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
+
+These unblock the `saber_curved`, `crossbow` and `longrifle` prop models in
+`ASSETS_MODELS.md`; the `pistol` sheet remains an open request.
 
 ---
 
