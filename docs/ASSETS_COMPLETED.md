@@ -184,8 +184,36 @@ side view, flat lighting, mid-grey background):
 | `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
 | `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
 
-These unblock the `saber_curved`, `crossbow` and `longrifle` prop models in
-`ASSETS_MODELS.md`; the `pistol` sheet remains an open request.
+They were drawn to unblock the `saber_curved`, `crossbow` and `longrifle` prop models,
+but those models are **parked by decision** (2026-08-29) — the game keeps its procedural
+weapons — and the `pistol` sheet is parked with them. See `ASSETS_MODELS.md`.
+
+---
+
+## Board music — 10 tracks
+
+Full-length streamed score in `public/music/`, played through an `<audio>` element on the
+music bus rather than decoded as samples. The map from track to board is
+[`src/core/music.ts`](../src/core/music.ts) — the only file that names a track — and
+`public/music/README.md` documents the directory. Filenames are lowercase and hyphenated
+so they need no URL escaping; uploads with spaces in the name are renamed on the way in.
+
+| Track | Role |
+|---|---|
+| `bone-totem-march-1.mp3`, `bone-totem-march-2.mp3` | the desert playlist (The Dune Sea, The Lava Flats, The Great Forge) |
+| `dust-beyond-orbit-1.mp3`, `dust-beyond-orbit-2.mp3` | the station playlist (every other board) |
+| `mando-african.mp3`, `mando-capoeira.mp3` | any board — they join every rotation |
+| `mando-sea-shanty.mp3` | opens The Storm Docks |
+| `mando-ice.mp3` | opens The Crevasse |
+| `mando-fada.mp3` | opens The Great Forge |
+| `mando-indian.mp3` | opens The Prison Rig |
+
+A board plays its opener first where it has one, then picks at random from the rest of its
+rotation, never the same track twice running. If every track fails to load the engine
+falls back to the `music_combat_desert` / `music_combat_station` samples, and then to a
+synth drone, so a board is never silent.
+
+The seven per-board pairs still wanted are open in [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md).
 
 ---
 

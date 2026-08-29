@@ -3,8 +3,8 @@
 **▶ Play it: https://hoai2k.github.io/mando/**
 
 A fast, arcade-style third-person 3D web game: run, jetpack-fly, blast and brawl your way
-through ten waves on two boards. Built with Three.js + TypeScript + Vite, no server, no
-downloads — it runs in the browser.
+through ten waves on any of nine boards, solo or up to four in split-screen. Built with
+Three.js + TypeScript + Vite, no server, no downloads — it runs in the browser.
 
 Fan project. Audio is generated and most geometry is procedural; nothing is taken from
 the shows. Not affiliated with or endorsed by Lucasfilm or Disney — see
@@ -27,16 +27,15 @@ default — turn on **Keyboard & mouse** in Settings for the left column.
 | Move | `WASD` | Left stick |
 | Look / aim | Mouse | Right stick |
 | Jump → hold to jetpack | `Space` | `A` |
-| Sprint — press while already moving, hold to keep it | hold `Shift` | hold `RB` |
-| Dash — press from a standstill, then push a direction | hold `Shift` | hold `RB` |
+| Sprint — press while already moving, hold to keep it | hold `Shift` | hold `LB` |
+| Dash — press from a standstill, then push a direction | hold `Shift` | hold `LB` |
 | Block — raise the shield (hold) | hold `R` | hold `B` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick) | `F` | `X` |
 | Wrist rocket | `Q` | `Y` |
 | Camera distance | Mouse wheel | hold right stick click + up/down |
-| Take cover (near a box) · ground slam (in air) | `C` · `Ctrl` | `RB` |
-| Ground slam (in air) / Take cover (on ground, near a box) | `Ctrl` / `C` | `LB` |
+| Take cover (on ground, near a box) / ground slam (in air) | `C` / `Ctrl` | `RB` |
 | Switch weapon | `E` | D-pad right |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
@@ -60,10 +59,24 @@ while the others hold the wave; everyone down is a defeat.
 
 ## Playing the game
 
-Pick a board, then pick your Mandalorian — all four play identically, so choose your armor:
+Pick a territory, then pick your fighter. Nine of them, in two families — the covert's
+Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,
+who each bring a weapon of their own:
 
-- **Din Djarin** — bare beskar shine
-- **Paz Vizsla** — heavy blue plate, oversized pauldrons
+| Fighter | | |
+|---|---|---|
+| **Kell Dravan** | Mandalorian | Bare beskar shine — carbine + gaffi stick |
+| **Torva Brekk** | Mandalorian | Heavy blue plate, the broadest silhouette |
+| **Vess Ordane** | Mandalorian | Night-owl blue, rangefinder helmet |
+| **The Forgemistress** | Mandalorian | Gold plate and horned helm |
+| **Sylla Morvane** | Hunter | Twin red curved-hilt sabers in place of the staff |
+| **Karshii** | Hunter | Wide woven-metal hat, laser crossbow |
+| **Skarvek** | Hunter | Reptilian brawn, long rifle |
+| **Rook Vance** | Hunter | Twin heavy pistols, one in each hand |
+| **VX-9** | Hunter | Assassin droid on leg thrusters, long rifle |
+
+The armour is cosmetic; the weapon is not — a crossbow, a rifle and a pair of pistols
+each fire differently, and Sylla's sabers swing where everyone else's staff does.
 
 Hostiles don't queue up to charge you. Each wave is **posted around the board** in
 squads that hold their ground until something gives you away — a shot, an explosion,
@@ -76,7 +89,7 @@ worth pushing.
 
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
-and recoil climbs; You can
+and recoil climbs. You can
 **take cover** like they do: press `C` (or `RB`) near a crate to snap against it —
 slide along the face with the stick, hold aim to lean out past the corner and
 shoot (it picks the corner with a clear shot to your target), release to duck
@@ -88,14 +101,29 @@ explosions and the gaffi finisher (hit them again on the ground for double),
 sometimes crumple into a wounded crawl you have to finish, and the last survivor of
 a shattered squad may break and run for a new position.
 
-**The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
-swoop riders and a sarlacc pit that will eat anything knocked into it.
+### The nine territories
 
-**The Spice Run** — a smugglers' waystation of floating platforms in deep space. The
-jetpack is the only road.
+- **The Dune Sea** — Tatooine wastes: Tusken outcasts, pirate brawlers, Pyke patrols, Nikto
+  swoop riders, war massiffs, and a sarlacc pit that will eat anything knocked into it.
+- **The Spice Run** — a smugglers' waystation of floating platforms in deep space. The
+  jetpack is the only road.
+- **The Lava Flats** — Nevarro's black glass, cut by lava rivers, with geysers that launch
+  whoever is standing on them. Ride one for free altitude.
+- **The Crevasse** — three layers of ice over a canyon floor, low traction, a frozen lake
+  a ground slam opens, and the krykna that own the dark.
+- **The Storm Docks** — a Trask fishing port in a squall: heaving trawler decks, netcasters,
+  and the mamacore circling under the pier. The harbour is safe to cross — briefly.
+- **The Refinery** — the interior board: low halls around a 40 m reactor shaft, chaining
+  rhydonium barrels, and alarm consoles that call the garrison until you shoot them out.
+- **The Great Forge** — Mandalore's glassed ruin under a magnetic storm that strikes
+  anything without a roof over it. The calm is for fighting.
+- **The Ringworld** — a Glavis street under a moving terminator. The night side halves
+  everyone's sight; a tram runs the length of the board.
+- **The Prison Rig** — an Imperial rig on an ocean world: electrified decks above, and a
+  whole sea below to dive, hide in and surface behind the sentries.
 
 From wave 6 the Imperial remnant shows up (stormtroopers, death troopers, flying dark
-troopers). Allies join you along the way: **The Marshal** (wave 4), **IG-11** (wave 7) and
+troopers). Allies join you along the way: **The Marshal** (wave 4), **VX-9** (wave 7) and
 **Fennec Shand** (wave 9).
 
 Survive ten waves to hold the territory.
@@ -116,10 +144,20 @@ Pushes to `main` deploy automatically to GitHub Pages via `.github/workflows/dep
 - [`docs/PROGRESS.md`](docs/PROGRESS.md) — build log and what's still open
 - [`docs/ASSETS_MODELS.md`](docs/ASSETS_MODELS.md) — 3D models wanted, with the skeleton swap contract
 - [`docs/ASSETS_IMAGES.md`](docs/ASSETS_IMAGES.md) / [`docs/ASSETS_AUDIO.md`](docs/ASSETS_AUDIO.md) — texture and audio requests
+- [`docs/ASSETS_COMPLETED.md`](docs/ASSETS_COMPLETED.md) — everything already delivered, with the prompts that made it
 
 Characters, textures and sounds are all swappable without touching gameplay code: authored
 glTF models drop in against the canonical skeleton in `src/anim/skeleton.ts`, and any file
 placed at the documented path under `public/assets/` overrides its procedural stand-in.
+
+## Board music
+
+Full-length tracks stream from [`public/music/`](public/music/). Which board plays what is
+one file — [`src/core/music.ts`](src/core/music.ts): a list of tracks that suit any board,
+a list per board flavor, and the signature opener a board starts on (The Storm Docks opens
+on the sea shanty, The Crevasse on the ice theme, The Great Forge on the forge chant, The
+Prison Rig on its own). After the opener a board picks at random, never the same track
+twice in a row. Adding a track is dropping the .mp3 in that directory and listing it there.
 
 ## Regenerating sound effects
 

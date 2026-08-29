@@ -3,13 +3,15 @@
 **Open image requests only.** Delivered images are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**Open: the `pistol` weapon sheet, three hunter drop-screen portraits, and the
-2026-08-29 environment batch below** (prop reference sheets for the environment models
-plus six runtime textures). The `saber_curved`, `crossbow` and `longrifle` weapon
-sheets and 26 drop-screen portraits landed on 2026-08-29; the `ventress`, `embo` and
-`bossk` turnarounds on 2026-08-28. Everything older — every environment, sky and UI
-texture, all nine boards' card art and skies, the surface textures, and the A-pose
-turnaround sheets for the whole cast — is delivered and integrated.
+**Open: three hunter drop-screen portraits and the 2026-08-29 environment batch below**
+(prop reference sheets for the environment models plus six runtime textures). The
+`saber_curved`, `crossbow` and `longrifle` weapon sheets and 26 drop-screen portraits
+landed on 2026-08-29; the `ventress`, `embo` and `bossk` turnarounds on 2026-08-28. The
+weapon *models* those sheets were drawn for are **parked by decision** — the signature
+weapons keep their procedural builds for now — and the fourth sheet, `pistol`, is parked
+with them. Everything older — every environment, sky and UI texture, all nine boards' card
+art and skies, the surface textures, and the A-pose turnaround sheets for the whole cast —
+is delivered and integrated.
 
 Every image request for the project belongs in this file; once delivered it moves to the
 history doc, and anything it feeds (such as the 3D model briefs) references the resulting
@@ -76,18 +78,18 @@ ignited blade — blades are FX meshes the game manages.
 | `embo` ✅ delivered | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
 | `bossk` ✅ delivered | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
 
-### Hunter weapon prop sheets
+### Hunter weapon prop sheets — delivered, and the models parked
 
-Side-view reference for the signature weapon props (same recipe as the delivered
-`carbine.png` / `gaffi.png`: 1024×512 PNG, orthographic side view, flat even lighting,
-plain mid-grey background, no hands, no text). Ids match the prop .glb names in
-`ASSETS_MODELS.md`; procedural stand-ins are in game today. The `saber_curved`,
-`crossbow` and `longrifle` sheets were delivered 2026-08-29 (recorded in the history
-doc) — only the pistol remains.
+`saber_curved.png`, `crossbow.png` and `longrifle.png` landed in `reference/characters/`
+and are recorded with their prompts in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The
+**models** they were drawn for are **parked by decision** (2026-08-29): the game keeps its
+procedural weapons, which read well at gameplay distance, and no code waits on a file. The
+fourth sheet, `pistol` — Rook Vance's twin heavy pistols — was never produced and is not
+wanted while that holds; its prompt is kept here for whenever it is:
 
 | Id | Prompt |
 |---|---|
-| `pistol` | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
+| `pistol` (parked) | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 
 ## Open — drop-screen portraits: the hunter trio (priority 3)
 

@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-Every character below runs today as a procedural stand-in. An authored glTF (.glb) can replace any of them **without touching gameplay code** via the swap contract.
+**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the environment batch below and nothing on the character side. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -21,20 +21,21 @@ Every character below runs today as a procedural stand-in. An authored glTF (.gl
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
 
-**Authored models are supplied for all four**, and they are the proving ground for the
-swap contract. Other Mandalorians (Bo-Katan Kryze, The Armorer) were built
-procedurally earlier and are now shelved — not in the game and not requested — but the
-config-driven factory in `src/characters/mandalorians.ts` makes restoring any of them a
-matter of re-adding one roster entry.
+**Authored models are supplied for all four**, and they were the proving ground for the
+swap contract. All four are playable today. The roster carries original names — the ids
+below (and the reference-sheet filenames) are unchanged, so nothing in the pipeline moves
+when a name does.
 
-| Character | Reference sheets (`reference/characters/`) | Reference look |
+| Character | Id / reference sheets (`reference/characters/`) | Reference look |
 |---|---|---|
-| **Din Djarin** | `din_front/side/back.png` | Polished bare-silver beskar cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack. |
-| **Paz Vizsla** | `paz_front/side/back.png` | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, bulkiest silhouette (scale ~1.12). |
+| **Kell Dravan** | `din` — `din_front/side/back.png` | Polished bare-silver beskar cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack. |
+| **Torva Brekk** | `paz` — `paz_front/side/back.png` | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette (normalised to 1.67 m, bulk 1.16, width-only broad 1.08 — never scale y, or limbs stretch as they swing). |
+| **Vess Ordane** | `bokatan` — `bokatan_front/side/back.png` | Blue-and-red plate, rangefinder helmet, lighter build (scale ~0.95). |
+| **The Forgemistress** | `armorer` — `armorer_front/side/back.png` | Gold plate over dark underlayers, horned forge-keeper helm, cape. |
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
-## Playable bounty hunters (4) — priority 2
+## Playable bounty hunters (5) — priority 2
 
 A second playable roster: underworld hunters alongside the Mandalorians. (Two more
 concepts — a horned warrior and a snouted hunter — were considered and cut.) Standard swap
@@ -45,33 +46,48 @@ over the costume, thruster mouths low on the pack where the `jetpack` bone's fla
 and empty hands (they mount the shared carbine and gaffi props like the Mandalorians;
 signature weapons below are separate props or FX).
 
-**All four hunter models are delivered and integrated** — the three hunters on
-2026-08-28, and the **blue-skinned gunslinger** on 2026-08-29, who is playable as
-Rook Vance from the delivered `duelist.glb` and its sheets as-is. He is also the
-`duelist` enemy kind on the Ringworld's final wave: the same sculpt on both sides,
-which is deliberate. An optional re-export at playable budget can come later if the
-8k boss version reads poorly up close.
+**Every hunter model is delivered and integrated** — the three hunters on 2026-08-28, and
+the **blue-skinned gunslinger** on 2026-08-29, who is playable as Rook Vance from the
+delivered `duelist.glb` and its sheets as-is. He is also the `duelist` enemy kind on the
+Ringworld's final wave: the same sculpt on both sides, which is deliberate. An optional
+re-export at playable budget can come later if the 8k boss version reads poorly up close.
+The fifth of the family, **VX-9**, rides the delivered ally droid model (`ig11.glb`) on
+the canonical rig, so it needed no new sculpt.
 
-| Character | Reference sheets | Height | Reference look |
+| Character | Id / reference sheets | Height | Reference look |
 |---|---|---|---|
-| **Rook Vance** (`duelist`, delivered) | `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
-| **Pale assassin** (`ventress`) | `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
-| **Hatted hunter** (`embo`) | `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
-| **Reptilian hunter** (`bossk`) | `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
+| **Rook Vance** | `duelist` — `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
+| **Sylla Morvane** | `ventress` — `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
+| **Karshii** | `embo` — `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
+| **Skarvek** | `bossk` — `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
+| **VX-9** | `ig11` — `ig11_front/side/back.png` | 2.20 m | The ally assassin droid, playable: cylindrical red-ringed head, exposed piston limbs. Wears no jetpack — flight flames mount under the foot bones instead (`thrusters: 'feet'` in the roster config), so a re-export must not add a pack. |
 
-Integration note: `ventress`, `embo` and `bossk` are **playable today** — roster entries
-in `src/characters/mandalorians.ts` with procedural stand-in bodies, signature weapons
-(twin red curved-hilt sabers, laser crossbow, long rifle) and hunter heads. The loader is
-already pointed at `public/models/<id>.glb`, so each model replaces its stand-in the
-moment the file lands — the models are the gating asset, not the code. Their signature
-weapons also take authored props: `saber_curved.glb`, `crossbow.glb`, `longrifle.glb`
-via the standard prop path.
+Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
+carrying its authored model and its signature weapon — twin red curved-hilt sabers
+(Sylla), laser crossbow (Karshii), long rifle (Skarvek and VX-9), twin heavy pistols
+(Rook). Paired weapons mount on `weaponR` and `weaponL`; an authored model exposes both
+mounts, so an off-hand weapon sits in the model's other hand rather than beside the body.
+
+**The signature weapons themselves stay procedural — this is a decision, not a gap.**
+Three weapon props were requested as models — `saber_curved`, `crossbow`, `longrifle` —
+and their side-view sheets were delivered (`reference/characters/`), but the .glbs are
+**parked as of 2026-08-29**: the procedurally built weapons read well at gameplay distance
+and nothing is blocked on a file. `pistol`, added later for Rook Vance, is parked with
+them. If that is revisited, the brief is unchanged — one .glb per weapon on the standard
+`loadProp()` path, gripped at origin, and a character carrying a pair needs only one
+file, since the off-hand is a second instance of it.
+
+Weighed once more on 2026-08-29 by rendering all three: the crossbow and the long rifle
+already read at silhouette level from a chase camera 4.6 m back (forward-swept limbs and
+a glowing string; long barrel, scope, stock), and the saber is barely a model at all —
+the hilt is 15 cm of a 1-metre weapon, half-hidden in a fist, while everything the eye
+reads is FX geometry no .glb can supply. The effort went into the blades instead.
 
 ## Allies — priority 2
 
 | Character | Type | Reference sheets | Reference look |
 |---|---|---|---|
-| **IG-11** | `ig11_front/side/back.png` | ranged ally | Tall spindly assassin droid, cylindrical head with red sensor ring, exposed piston limbs (~2.2 m). |
+| **VX-9** (`ig11`) | `ig11_front/side/back.png` | ranged ally — also playable, above | Tall spindly assassin droid, cylindrical head with red sensor ring, exposed piston limbs (~2.2 m). |
 | **The Marshal** | `marshal_front/side/back.png` | ranged ally | Human gunfighter, red-brown duster coat, wide-brim hat, weathered desert lawman. |
 | **Fennec Shand** | `fennec_front/side/back.png` | sniper ally | Sleek dark body armor, helmet cap with orange visor band, long rifle. |
 
@@ -116,7 +132,14 @@ creatures come in through `loadCreature` like the massiff — placed, scaled and
 with movement carried by the enemy code, so any node layout works but the named nodes
 above unlock the procedural animation.
 
-## Bosses — priority 4 (planned, not yet in game)
+## Bosses — delivered, in game as elites
+
+All four models are delivered, integrated and fighting. Rather than wait for dedicated
+boss encounters, each entered as a late-wave elite: the duelist (also playable, above) and
+the darksaber-carrying Imperial officer from waves 7–10, and the Pyke capo and Wookiee
+enforcer one each on the final wave only. Purpose-built boss *fights* — phases, arenas, a
+boss bar — remain future work, and their voice sets are deferred with them
+(see [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md)).
 
 | Character | Reference sheets | Reference look |
 |---|---|---|
@@ -195,32 +218,16 @@ existed before the new boards — `din, paz, bokatan, armorer, marshal, fennec, 
 pyke, nikto, pirate, pirate_melee, droid, stormtrooper, deathtrooper, darktrooper, duelist,
 imperial_officer, pyke_capo, wookiee_enforcer`, plus the props `carbine, gaffi,
 nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board trio
-`flametrooper`, `quarren`, `alamite`. **Everything requested is delivered** — the last batch (`ring_enforcer`, `krykna`,
-`krykna_brood`, `interceptor_drone`, and the playable hunters `ventress`, `embo`,
-`bossk`) landed on 2026-08-28 and is integrated; the fourth hunter, the blue gunslinger,
-reuses the delivered `duelist.glb`. **Nothing on the model side is blocking.**
-
-The three hunter weapon props (`saber_curved`, `crossbow`, `longrifle`) are **deliberately
-staying procedural** — they are a standing offer, not an outstanding request:
-
-- The **twin sabers** are mostly not a model at all. The hilt is 15 cm of a 1-metre
-  weapon and is half-hidden in a fist; everything the eye reads — the white-hot core, the
-  two red sheaths, the light it throws — is FX geometry that no `.glb` can supply. An
-  authored hilt would replace the least visible part of the weapon.
-- The **crossbow** and **long rifle** are held props seen from a chase camera 4.6 m back,
-  and both already read at silhouette level (forward-swept limbs and a glowing string;
-  long barrel, scope, stock). A megabyte of download each buys detail at a scale the
-  player never sees.
-- The swap path stays wired regardless: drop `saber_curved.glb`, `crossbow.glb` or
-  `longrifle.glb` at `public/models/` and `swapWeapon` picks it up with no code change.
-
-Effort that would have gone into the props went into the blades instead — see the saber
-section in [`PLAN.md`](PLAN.md).
-
-Open on the model side: the whole environment batch above, plus the `pistol` prop
-(its reference sheet is still requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)).
-A character who carries a pair needs only one prop: the off-hand is a second
-instance of the same .glb.
+`flametrooper`, `quarren`, `alamite`. **Every character requested is delivered and
+integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
+`interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
+2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
+and the fifth, VX-9, reuses `ig11.glb`. Open on the model side: the environment batch
+above, and nothing else. The signature-weapon props (`saber_curved`, `crossbow`,
+`longrifle`, and `pistol` after them) are **parked by decision** — the game keeps its
+procedural versions for now, as described under the hunters above; a character who
+carries a pair would need only one prop anyway, since the off-hand is a second instance
+of the same .glb.**
 
 ### Three intake paths
 
@@ -257,8 +264,8 @@ is the kind `pirateMelee` but the file `pirate_melee.glb`. The mapping lives in
 
 **The loader is live** (`src/characters/authored.ts`). A model is picked up automatically
 when the file appears; when it is absent the procedural build stands, exactly like the
-texture and audio pipelines. Din Djarin and Paz Vizsla ship with authored models today —
-wiring a new character up is one call to `loadAuthored(id, height)` in its factory.
+texture and audio pipelines. Every character in the game ships with an authored model
+today — wiring a new one up is one call to `loadAuthored(id, height)` in its factory.
 
 What the loader accepts, learned from the first two drops:
 
@@ -281,6 +288,7 @@ plays the animation back with them, they undo and redo, and one export carries t
 session as JSON in the same units `src/anim/clips.ts` is written in — the way to correct a
 clip against a real model.
 
-Order of work: reference sheets (`ASSETS_IMAGES.md`) → models → loader. The sheets are the
-blocking input; the five playable Mandalorians and the two shared weapons are priority 1
-because they share one rig and set the art direction for everything else.
+Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
+The sheets are the blocking input, and a playable character sets the art direction for
+everything around it, so it goes first. Nothing in this document is currently waiting on
+that pipeline.

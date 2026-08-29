@@ -69,12 +69,15 @@ voice until the file exists.
 
 ### Board music (nice-to-have)
 
-Each new board currently borrows one of the two delivered playlists (`music/` README):
-Nevarro and the Great Forge use the desert set, the rest use the station set. The
-dedicated two-track sets below would replace that — same specs as the delivered tracks
-(stereo, 44.1 kHz, loudness-matched, seamless loop; chants and wordless voice fine, no
-lyric vocals). Wire-up is one entry per board in `src/core/music.ts`
-plus the board's `music` field.
+Ten tracks are delivered (see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md)). Four boards
+now open on a signature track of their own — **The Storm Docks**, **The Crevasse**, **The
+Great Forge** and **The Prison Rig** — and two more tracks play on any board; the rest of
+a board's rotation is still one of the two original playlists (desert for Nevarro and the
+Great Forge, station for the others). The dedicated two-track sets below would finish the
+job, giving every board its own pair — same specs as the delivered tracks (stereo,
+44.1 kHz, loudness-matched, seamless loop; chants and wordless voice fine, no lyric
+vocals). Wire-up is one entry per board in `src/core/music.ts`, which is the only file
+that names a track.
 
 The shared scoring DNA across all of them, tuned per board: ritual percussion, low male
 chant, bass wood flutes, analog synth pulse, and a lonely desert-western twang.
