@@ -229,14 +229,17 @@ export function buildNarkina(): Board {
   const FIELD_H = 0.15;
   /** kinks per bolt: enough to look struck, few enough to redraw every flicker */
   const BOLT_STEPS = 7;
-  const SPARKS_PER_ZONE = 26;
+  const SPARKS_PER_ZONE = 44;
   const sparkTex = sparkSprite();
   for (const [zx, zz, w, d, zy, phase] of zoneSpecs) {
     const plate = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
+      // A film, not a glow. The deck is near-white, and additive light on
+      // white stays white — the field has to *tint* the plate to read as a
+      // layer of charged air over it at all.
       new THREE.MeshBasicMaterial({
-        color: 0x5cc4ff, transparent: true, opacity: 0, depthWrite: false,
-        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        color: 0x2f9fd8, transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide,
       }),
     );
     plate.rotation.x = -Math.PI / 2;
@@ -251,9 +254,10 @@ export function buildNarkina(): Board {
     // the bolts are rewritten every flicker, so a fitted sphere would be stale
     // the moment it was computed — quote one big enough for any strike
     arcGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.hypot(w, d));
+    // white-hot lines drawn over the film rather than added to it, for the
+    // same reason: additive white over a white deck is invisible
     const arcs = new THREE.LineSegments(arcGeo, new THREE.LineBasicMaterial({
-      color: 0xdff0ff, transparent: true, opacity: 0, depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      color: 0xf4fdff, transparent: true, opacity: 0, depthWrite: false,
     }));
     arcs.position.set(zx, zy + FIELD_H, zz);
     group.add(arcs);
@@ -262,7 +266,7 @@ export function buildNarkina(): Board {
     sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARKS_PER_ZONE * 3), 3));
     sparkGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.hypot(w, d));
     const sparks = new THREE.Points(sparkGeo, new THREE.PointsMaterial({
-      color: 0xeaf8ff, size: 0.3, map: sparkTex, sizeAttenuation: true,
+      color: 0xeaf8ff, size: 0.22, map: sparkTex, sizeAttenuation: true,
       transparent: true, opacity: 0, depthWrite: false,
       blending: THREE.AdditiveBlending,
     }));
@@ -311,16 +315,32 @@ export function buildNarkina(): Board {
     attr.needsUpdate = true;
     zn.arcs.geometry.setDrawRange(0, count * BOLT_STEPS * 2);
 
-    // sparks jump off wherever the field is biting
+    // Sparks jump off wherever the field is biting. Most of them are beaded
+    // along the bolts just drawn: a line is one pixel wide however close you
+    // stand to it, and glows strung along its path are what give a bolt any
+    // thickness at all. The rest scatter over the plate so the whole zone
+    // crackles rather than only the lit paths.
     const sp = zn.sparks.geometry.getAttribute('position') as THREE.BufferAttribute;
     const spArr = sp.array as Float32Array;
     const lit = Math.max(2, Math.round(SPARKS_PER_ZONE * intensity));
+    const onBolt = Math.round(lit * 0.65);
+    const verts = count * BOLT_STEPS * 2;
     for (let i = 0; i < SPARKS_PER_ZONE; i++) {
-      // the unlit remainder is parked under the deck rather than drawn dim
-      const live = i < lit;
-      spArr[i * 3] = live ? (Math.random() - 0.5) * zn.w : 0;
-      spArr[i * 3 + 1] = live ? Math.random() * Math.random() * 0.7 : -50;
-      spArr[i * 3 + 2] = live ? (Math.random() - 0.5) * zn.d : 0;
+      if (i >= lit) {
+        // the unlit remainder is parked under the deck rather than drawn dim
+        spArr[i * 3] = 0; spArr[i * 3 + 1] = -50; spArr[i * 3 + 2] = 0;
+        continue;
+      }
+      if (i < onBolt && verts > 0) {
+        const v = Math.floor(Math.random() * verts) * 3;
+        spArr[i * 3] = arr[v] + (Math.random() - 0.5) * 0.2;
+        spArr[i * 3 + 1] = arr[v + 1] + Math.random() * 0.12;
+        spArr[i * 3 + 2] = arr[v + 2] + (Math.random() - 0.5) * 0.2;
+      } else {
+        spArr[i * 3] = (Math.random() - 0.5) * zn.w;
+        spArr[i * 3 + 1] = Math.random() * Math.random() * 0.7;
+        spArr[i * 3 + 2] = (Math.random() - 0.5) * zn.d;
+      }
     }
     sp.needsUpdate = true;
   }
@@ -530,7 +550,7 @@ export function buildNarkina(): Board {
       if (charging) {
         // building: the sheet pulses up while the odd arc gropes across it
         const ramp = (t - 11) / 2.2;
-        mat.opacity = (Math.sin(time * 12) * 0.5 + 0.5) * 0.1 + ramp * 0.12;
+        mat.opacity = (Math.sin(time * 12) * 0.5 + 0.5) * 0.08 + ramp * 0.2;
         setFieldVisible(zn, true);
         if (struck) restrike(zn, 0.12 + ramp * 0.3);
         arcMat.opacity = (0.25 + ramp * 0.45) * (0.6 + Math.random() * 0.4);
@@ -540,7 +560,7 @@ export function buildNarkina(): Board {
         // live: the sheet holds bright and the plate is webbed over, each
         // strike a fraction dimmer or brighter than the last so it never
         // settles into a steady glow
-        mat.opacity = 0.3 + Math.sin(time * 30) * 0.08;
+        mat.opacity = 0.4 + Math.sin(time * 30) * 0.07;
         setFieldVisible(zn, true);
         if (struck) restrike(zn, 0.75 + Math.random() * 0.25);
         arcMat.opacity = 0.75 + Math.random() * 0.25;
