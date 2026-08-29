@@ -499,7 +499,7 @@ existing explosion. Synth fallbacks under both, per the audio rules.
 Three modes as rule sets over the one simulation; full research/design record in
 `docs/MODES.md`, campaign level design in `docs/LEVEL_DESIGN.md`. Without the
 `?modes` URL flag the title shows the single Press Start and the game is exactly
-the wave game; with it, the title offers **Wave Battle**, **PvP** and **Campaign**.
+the wave game; with it, the title offers **Wave Battle**, **PvP** and **Missions** (the campaign mode).
 
 - **Wave Battle** — the game as shipped, plus a **boss wave**: clearing wave 10
   rings in the territory's warlord (its signature elite, promoted — ×4.5 HP,
@@ -511,8 +511,10 @@ the wave game; with it, the title offers **Wave Battle**, **PvP** and **Campaign
   fielded through a thin adapter over the existing enemy builds
   (`characters/roster.ts`) with per-kind player-side stat lanes; squad kinds
   lead 2–3 AI teammates (the ally-escort AI with an `owner`), and flight
-  belongs only to kinds whose in-game version flies.
-- **Campaign** — planet strip (one planet per territory, left to right, all
+  belongs only to kinds whose in-game version flies. Locking a line-up in
+  cuts to a Smash-style **VS splash** — angled fighter panels split by
+  slanted seams — that plays over the match's own warm-up, skippable.
+- **Missions (campaign)** — planet strip (one planet per territory, left to right, all
   unlocked for now) → a Gauntlet-length liberation run over the territory's own
   board: a winding tour of its authored posts with squads ramping along it,
   camp/ambush encounter templates, bacta pickups, a guide beacon + radar pip +

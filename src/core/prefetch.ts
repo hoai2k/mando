@@ -1,6 +1,7 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
 import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
-import { playableModelId, type PlayableId } from '../characters/roster';
+import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
+import { BOSS_KIND, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { BOARDS } from '../world/boards';
 import type { BoardId } from '../world/board';
@@ -111,12 +112,49 @@ function charModelIds(chars: PlayableId[]): string[] {
   return chars.map((id) => playableModelId(id)).filter((id): id is string => !!id);
 }
 
+/**
+ * What each mode's opening minute actually posts, beyond the fighters
+ * themselves. The wave game opens on wave one; the campaign posts its whole
+ * path at build (early nodes are wave-one kinds) and ends at the boss, whose
+ * model has the length of the level to arrive — so the drop waits only on the
+ * opening kinds there too. PvP posts no hostiles at all: what it needs is the
+ * squads the chosen fighters lead.
+ */
+function modeEnemyIds(board: BoardId, chars: PlayableId[], mode: GameMode): string[] {
+  if (mode === 'pvp') {
+    const ids = new Set<string>();
+    for (const c of chars) {
+      const squad = playableDef(c).profile.squad;
+      const id = squad ? ENEMY_MODEL_ID[squad.kind] : undefined;
+      if (id) ids.add(id);
+    }
+    return [...ids];
+  }
+  return boardEnemyIds(board, 1);
+}
+
 /** Warm whatever a match is about to need at once, for a straight-to-play start. */
-export function warmMatch(board: BoardId, chars: PlayableId[]): void {
+export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): void {
   for (const id of charModelIds(chars)) warmAuthored(id, 'now');
-  for (const id of boardEnemyIds(board, 1)) warmAuthored(id, 'now');
+  for (const id of modeEnemyIds(board, chars, mode)) warmAuthored(id, 'now');
+  // the campaign's warlord can trail in behind the drop — but start it now
+  if (mode === 'campaign') {
+    const bossId = ENEMY_MODEL_ID[BOSS_KIND[board]];
+    if (bossId) warmAuthored(bossId, 'soon');
+  }
   const sky = BOARD_SKY[board];
   if (sky) warmTexture(sky, 'now');
+}
+
+/**
+ * PvP's select browses the whole NPC roster: pull its models down in the
+ * background while the players flip through, so a pick is usually warm.
+ */
+export function warmPvpRoster(): void {
+  for (const id of PVP_ROSTER) {
+    const model = playableModelId(id);
+    if (model) warmAuthored(model, 'idle');
+  }
 }
 
 /**
@@ -128,19 +166,19 @@ export function warmMatch(board: BoardId, chars: PlayableId[]): void {
  * truly knows what it wants. Later waves are deliberately not here: they are
  * warming in the background and the match has ten waves to wait for them.
  */
-export function matchAssets(board: BoardId, chars: PlayableId[]): string[] {
+export function matchAssets(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): string[] {
   const sky = BOARD_SKY[board];
   const keys = [
     ...charModelIds(chars).map((id) => modelUrl(id)),
-    ...boardEnemyIds(board, 1).map((id) => modelUrl(id)),
+    ...modeEnemyIds(board, chars, mode).map((id) => modelUrl(id)),
     ...(sky ? [textureUrl(sky)] : []),
   ];
   return [...new Set(keys)];
 }
 
 /** True when every file a match needs is already in hand. */
-export function matchReady(board: BoardId, chars: PlayableId[]): boolean {
-  return tracked.progress(matchAssets(board, chars)).pending === 0;
+export function matchReady(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): boolean {
+  return tracked.progress(matchAssets(board, chars, mode)).pending === 0;
 }
 
 /** Warm one specific model at a given urgency (the character select's flips). */

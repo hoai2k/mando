@@ -3,7 +3,8 @@
 Three modes behind the experimental `?modes` URL flag. With the flag off nothing
 changes: the title shows **Press Start** and the game is exactly the wave game.
 With `?modes` in the URL the title shows three choices — **Wave Battle**,
-**PvP**, and **Campaign** — one per mode.
+**PvP**, and **Missions** (the campaign; the mode keeps its internal id
+`campaign`) — one per mode.
 
 This document is the research + design record; `docs/LEVEL_DESIGN.md` carries
 the campaign's level-design strategy in detail. Implementation status lives in
@@ -93,6 +94,13 @@ deflect, rockets) goes through one new helper — `game.hostilesFor(player)` —
 which returns everything alive whose team differs. The projectile system
 already resolves shields, deflects and credit by team inequality.
 
+**The VS splash.** Locking in a PvP line-up cuts to a Smash-style pre-battle
+splash: one angled panel per fighter in their player colour, portrait (drawn
+mark until the authored `portrait_*` lands), name and kit, split by slanted
+seams with the VS emblem on the centre seam. It plays ~3 s (any press skips)
+while the match's files warm behind it, then hands off to the drop screen —
+showmanship at zero cost to the load.
+
 **Implementation shape: an adapter, not new characters.** A playable NPC is
 *not* a re-implemented main character. `buildPlayableNpc(kind)` wraps the
 existing enemy `CharacterInstance` (the same build the wave game spawns, same
@@ -102,9 +110,9 @@ swap visuals, jetpack flames, block shield pane) become no-ops or minimal
 stand-ins, and a per-kind stat profile supplies HP/speed/fire data. One
 adapter, ~two dozen kinds, zero forked character code.
 
-## 4. Campaign — the liberation run
+## 4. Campaign — the liberation run (shown to players as **Missions**)
 
-**Flow.** Title → **Campaign** → planet strip → character select → the run.
+**Flow.** Title → **Missions** → planet strip → character select → the run.
 The planet strip shows one planet per territory, left to right in campaign
 order, continuing offscreen (scroll with stick/arrows, click to pick). All nine
 are unlocked for now; the lock-past-your-frontier rule is designed (see
@@ -212,3 +220,10 @@ New rounds appended to the asset docs: planet discs for the strip
 (`ASSETS_AUDIO.md` — door open/close, checkpoint chime, PvP round stings).
 Everything ships procedural-first per the project rule and upgrades when files
 land.
+
+**Lazy loading is mode-aware.** The drop waits on what the chosen mode's first
+minute actually posts: the wave game's opening wave; the campaign's trailhead
+kinds (its warlord warms in the background with the whole level to arrive);
+PvP's squads for the chosen fighters and nothing else. Entering the PvP select
+also pulls the widened roster's models down on idle bandwidth while players
+flip through it.
