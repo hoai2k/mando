@@ -294,6 +294,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
         dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
         meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
         zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+        throttleHeld: false, brakeHeld: false,
       };
       // one input per possible player: the game indexes by player slot, and a
       // three- or four-player match would read past a two-entry array

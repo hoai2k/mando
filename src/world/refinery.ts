@@ -3,6 +3,7 @@ import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
 import { crateTexture, deckTexture, hullTexture } from '../core/assets';
 import { addBreakable, type Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -107,6 +108,9 @@ export function buildRefinery(): Board {
   core.position.y = 20;
   core.castShadow = core.receiveShadow = true;
   group.add(core);
+  // the column stands the full 40 m of the shaft; the additive glow shell
+  // around it stays game FX and is not part of the sculpt
+  authoredProp(group, core, 'reactor_core', 40, { axis: 'y' });
   // The column tapers 5.5 -> 4.5 over its height; one 5.2 m cylinder sank you
   // 0.3 m into the base and put an invisible wall 0.7 m off the top. Stack a
   // few, each matching the radius over its own slice.
@@ -152,6 +156,35 @@ export function buildRefinery(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, 1.2, cz, 2.4, 2.4, 2.4);
+    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, z: cz, yaw: crate.rotation.y });
+  }
+
+  // ---- pipe runs along the hall walls (PLAN.md §16) ----
+  // Wall-hugging manifolds that break up the long blank partitions. They are
+  // half a metre proud of the wall and chest-high, so they get a collider each
+  // rather than being something you sink a shoulder into.
+  const pipeMat = new THREE.MeshStandardMaterial({ color: 0x6a6f76, roughness: 0.55, metalness: 0.6 });
+  for (const [px, pz, pyaw] of [
+    [-48.6, -30, Math.PI / 2], [48.6, -30, -Math.PI / 2],
+    [-48.6, 30, Math.PI / 2], [48.6, 30, -Math.PI / 2],
+    [-30, -48.6, 0], [30, 48.6, Math.PI],
+  ] as const) {
+    const rack = new THREE.Group();
+    const pipes: THREE.Mesh[] = [];
+    for (const [dy, r] of [[1.4, 0.22], [2.0, 0.16], [2.5, 0.26], [3.0, 0.14]] as const) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 6, 8), pipeMat);
+      pipe.rotation.z = Math.PI / 2;
+      pipe.position.set(0, dy, 0);
+      pipes.push(pipe);
+    }
+    for (const p of pipes) { p.castShadow = true; rack.add(p); }
+    rack.position.set(px, 0, pz);
+    rack.rotation.y = pyaw;
+    group.add(rack);
+    authoredProp(rack, pipes, 'pipe_rack', 6, { axis: 'x' });
+    // the rack runs along the wall it is on; 1.4 m of clearance out from it
+    const along = Math.abs(Math.cos(pyaw)) > 0.5;
+    physics.addBox(px, 2.2, pz, along ? 6 : 1.4, 3.6, along ? 1.4 : 6);
   }
 
   const board: Board = {
@@ -194,9 +227,14 @@ export function buildRefinery(): Board {
     band.position.set(bx, 1.2, bz);
     group.add(band);
     const box = physics.addBox(bx, 0.85, bz, 1.2, 1.7, 1.2);
+    // The rhydonium drum carries its own hazard band, so the procedural stripe
+    // goes with the barrel. `addBreakable` hides the mesh it is given on death,
+    // which is the barrel — so the model has to be hidden by hand there too,
+    // or a shot-out barrel would leave its sculpt standing in the fire.
+    const drum = authoredProp(group, [barrel, band], 'fuel_barrel', 1.7, { x: bx, z: bz, axis: 'y', yaw: barrel.rotation.y });
     addBreakable(board, barrel, box, 45, {
       explosive: true, radius: 1.1,
-      onBreak: () => { band.visible = false; },
+      onBreak: () => { band.visible = false; drum.visible = false; },
     });
   }
 
@@ -209,6 +247,9 @@ export function buildRefinery(): Board {
     body.rotation.y = ry;
     body.castShadow = true;
     group.add(body);
+    // The console's own beacon is a game mesh (it blinks with the alarm state),
+    // so only the cabinet is swapped; it faces the way the stand-in does.
+    const cabinet = authoredProp(group, body, 'alarm_console', 2.6, { x: cx, z: cz, axis: 'y', yaw: ry });
     const light = new THREE.Mesh(
       new THREE.SphereGeometry(0.14, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xff4433 }),
@@ -220,7 +261,7 @@ export function buildRefinery(): Board {
     consoles.push(rec);
     addBreakable(board, body, box, 70, {
       radius: 1.5,
-      onBreak: () => { rec.alive = false; light.visible = false; audio.impact(); },
+      onBreak: () => { rec.alive = false; light.visible = false; cabinet.visible = false; audio.impact(); },
     });
   }
 

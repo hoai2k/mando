@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng } from '../core/math';
-import { rockTexture } from '../core/assets';
+import { loadOptionalTexture, rockTexture } from '../core/assets';
 import { gradientSky } from './sky';
+import { authoredProp } from './props';
 import type { Board } from './board';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
@@ -101,6 +102,16 @@ export function buildForge(): Board {
   group.add(terrain);
 
   const ruinMat = new THREE.MeshStandardMaterial({ map: rockTexture(), color: 0x9aa0a2, roughness: 0.85, flatShading: true });
+  // The dome walls carry carved sigils where the rubble does not, so they get
+  // their own material rather than the relief tiling across every loose slab.
+  const wallMat = ruinMat.clone();
+  loadOptionalTexture('forge_relief', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 1);
+    wallMat.map = tex;
+    wallMat.color.setHex(0xffffff);
+    wallMat.needsUpdate = true;
+  });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x3a4044, roughness: 0.7, metalness: 0.3 });
 
   // ---- the dome: an arc of standing wall segments + surviving roof slabs ----
@@ -111,7 +122,7 @@ export function buildForge(): Board {
     if (i === 2 || i === 3 || i === 7) continue; // collapsed gaps — the ways in
     const wx = Math.cos(a) * 34, wz = Math.sin(a) * 34;
     const h = 12 + ((i * 37) % 9);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(22, h, 3), ruinMat);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(22, h, 3), wallMat);
     const base = heightAt(wx, wz);
     wall.position.set(wx, base + h / 2 - 1.5, wz);
     wall.rotation.y = -a + Math.PI / 2;
@@ -154,6 +165,8 @@ export function buildForge(): Board {
   brazier.position.set(0, daisBase + 3, 0);
   group.add(brazier);
   physics.addCylinder(0, daisBase + 3, 0, 1.6, 1.6);
+  // 3.5 m across the basin, standing on the dais top (its collider's upper face)
+  authoredProp(group, brazier, 'forge_brazier', 3.5, { y: daisBase + 2.2, axis: 'x' });
   const ember = new THREE.PointLight(0xff8a3a, 35, 26);
   ember.position.set(0, daisBase + 4, 0);
   group.add(ember);
@@ -205,6 +218,35 @@ export function buildForge(): Board {
   eye.position.set(POOL.x - 3, poolBase + 0.8, POOL.z + 2);
   group.add(eye);
 
+  // ---- the mythosaur skull ----
+  // Half-buried at the rim of the pool, which is where the eye glows and the
+  // call comes from — the board's oldest story, finally given a body.
+  const skullX = POOL.x + 15, skullZ = POOL.z - 9, skullYaw = -2.3;
+  const skullBase = heightAt(skullX, skullZ);
+  const skull = new THREE.Group();
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0x9aa08c, roughness: 0.85 });
+  const skullParts: THREE.Mesh[] = [];
+  const cranium = new THREE.Mesh(new THREE.SphereGeometry(1.8, 12, 9), boneMat);
+  cranium.scale.set(1, 0.8, 1.5);
+  cranium.position.y = 1.2;
+  skullParts.push(cranium);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 3.4), boneMat);
+  jaw.position.set(0, 0.5, 2.4);
+  skullParts.push(jaw);
+  for (const sx of [-1, 1]) {
+    const horn = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.32, 6, 12, Math.PI * 1.1), boneMat);
+    horn.position.set(sx * 1.6, 1.6, -0.2);
+    horn.rotation.set(Math.PI / 2, 0, sx * 0.5);
+    skullParts.push(horn);
+  }
+  for (const p of skullParts) { p.castShadow = p.receiveShadow = true; skull.add(p); }
+  skull.position.set(skullX, skullBase - 0.6, skullZ);
+  skull.rotation.y = skullYaw;
+  group.add(skull);
+  authoredProp(skull, skullParts, 'mythosaur_skull', 8, { axis: 'z' });
+  // sunk into the glass, so only the crown of it is something to climb on
+  physics.addCylinder(skullX, skullBase + 0.4, skullZ, 2.6, 3);
+
   const board: Board = {
     group, physics, kind: 'forge',
     name: 'The Great Forge',
@@ -227,6 +269,9 @@ export function buildForge(): Board {
     airSpawns: [
       new THREE.Vector3(-30, 24, 20), new THREE.Vector3(40, 26, -30), new THREE.Vector3(0, 30, 60),
     ],
+    // a scout bike abandoned at the dome's collapsed gap — riding out a storm
+    // in the open is the gamble it looks like
+    vehicles: [{ kind: 'speederBike', x: 2, z: 46, yaw: Math.PI }],
   };
 
   let mythosaurIn = 35 + rng() * 30;

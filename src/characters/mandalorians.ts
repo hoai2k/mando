@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
+import type { VoiceId } from '../core/audio';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -17,12 +18,15 @@ export type MandoId =
   | 'ventress' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
-  setWeapon: (w: 'blaster' | 'gaffi') => void;
+  /** 'none' is empty hands — a melee-only fighter with the blades stowed */
+  setWeapon: (w: 'blaster' | 'gaffi' | 'none') => void;
   setThrust: (t: number) => void;
   /** intensity of the fill light that travels with this character */
   setHeroLight: (intensity: number) => void;
   /** raise (1) or drop (0) the block shield; values between animate it */
   setBlock: (t: number) => void;
+  /** blade sweep trails on/off (no-op for anyone without sabers) */
+  setTrail: (on: boolean) => void;
   /** flash the shield where a bolt bounced off it */
   shieldHit: () => void;
   gaffi: THREE.Group;
@@ -61,10 +65,12 @@ interface MandoConfig {
    */
   broad?: number;
   /** signature loadout — defaults are the shared carbine and gaffi */
-  ranged?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
+  ranged?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols' | 'none';
   melee?: 'gaffi' | 'sabers';
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
+  /** whose throat the hurt and death sounds come from; defaults to a helmeted man */
+  voice?: VoiceId;
   /**
    * Where the flight flames live: on the worn jetpack (default), or under the
    * feet for a character that flies on leg thrusters — no pack is built, and
@@ -80,52 +86,63 @@ export const RANGED_NAMES = {
 export const MELEE_NAMES = { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' } as const;
 
 /** What a character's HUD calls the weapon currently in hand. */
-export function weaponDisplayName(id: MandoId, weapon: 'blaster' | 'gaffi'): string {
+export function weaponDisplayName(id: MandoId, weapon: 'blaster' | 'gaffi' | 'none'): string {
   const cfg = MANDO_ROSTER[id];
-  return weapon === 'blaster' ? RANGED_NAMES[cfg.ranged ?? 'carbine'] : MELEE_NAMES[cfg.melee ?? 'gaffi'];
+  // empty hands still name the blades: they are one press away, and a blank
+  // slot reads as a bug rather than as a stance
+  if (weapon === 'none') return `${MELEE_NAMES[cfg.melee ?? 'gaffi']} · stowed`;
+  if (weapon === 'gaffi') return MELEE_NAMES[cfg.melee ?? 'gaffi'];
+  return RANGED_NAMES[cfg.ranged === 'none' ? 'carbine' : cfg.ranged ?? 'carbine'];
 }
 
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
-    name: 'Kell Dravan', desc: 'The wanderer in pure beskar shine — this is the way.',
+    name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
   },
   paz: {
-    name: 'Torva Brekk', desc: 'Heavy infantry of the covert — a walking siege wall.',
+    name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — a walking siege wall.',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
   },
   bokatan: {
-    name: 'Vess Ordane', desc: 'Night owl of the old clans — born to the creed, and to rule it.',
+    name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
+    voice: 'mando_f',
   },
   armorer: {
-    name: 'The Forgemistress', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
+    name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
+    voice: 'mando_f',
   },
   ventress: {
-    name: 'Sylla Morvane', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
+    name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
-    melee: 'sabers', skin: 0xcdc3ba,
+    melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
+    voice: 'human_f',
   },
   embo: {
-    name: 'Karshii', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
+    name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
+    voice: 'masked',
   },
   bossk: {
-    name: 'Skarvek', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
+    name: 'Bossk', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
+    voice: 'reptile',
   },
   duelist: {
-    name: 'Rook Vance', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
+    name: 'Cad Bane', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
+    voice: 'alien_m',
   },
   ig11: {
-    name: 'VX-9', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
+    name: 'IG-11', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
+    voice: 'droid',
   },
 };
 
@@ -261,7 +278,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // ---- weapons: signature ranged + melee per config, carbine/gaffi default ----
   const gunmetal = mat(0x3d3730, { rough: 0.5, metal: 0.5 });
   const rangedKind = cfg.ranged ?? 'carbine';
+  // 'none' still builds a mount, just nothing to hang on it: the empty group
+  // keeps every downstream muzzle and visibility path valid for a fighter who
+  // carries no gun at all, without a null check at each of them.
   const ranged =
+    rangedKind === 'none' ? new THREE.Group() :
     rangedKind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
     rangedKind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
     rangedKind === 'pistols' ? makePistol(gunmetal, dark) :
@@ -269,7 +290,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   ranged.rotation.x = Math.PI / 2;
   b.weaponR.add(ranged);
   const muzzle = new THREE.Group();
-  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95, pistols: 0.3 }[rangedKind]);
+  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95, pistols: 0.3, none: 0 }[rangedKind]);
   ranged.add(muzzle);
   // Either hand's weapon can come in a pair: twin sabers and twin pistols each
   // add a second copy on weaponL that shows and hides with its partner. Shots
@@ -298,6 +319,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   melee.rotation.x = Math.PI / 2;
   melee.visible = false;
   b.weaponR.add(melee);
+
+  // ---- blade trails (sabers only) ----
+  // Ribbons in the wake of both blades while swinging; the player toggles
+  // them with setTrail and the cosmetic tick keeps them fed. They hang off
+  // the rig root so a hidden procedural body doesn't take them with it.
+  const trailUpdates: Array<(dt: number, active: boolean) => void> = [];
+  if (cfg.melee === 'sabers') {
+    trailUpdates.push(makeBladeTrail(rig.root, melee));
+    if (meleeOffhand) trailUpdates.push(makeBladeTrail(rig.root, meleeOffhand));
+  }
+  let trailActive = false;
 
   // ---- block shield ----
   // A force field, not a pane with a border: the body of the dome carries the
@@ -465,7 +497,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   });
 
   let thrust = 0;
-  let weapon: 'blaster' | 'gaffi' = 'blaster';
+  let weapon: 'blaster' | 'gaffi' | 'none' = cfg.ranged === 'none' ? 'none' : 'blaster';
   let shieldUp = false;
   const showWeapon = () => {
     ranged.visible = !shieldUp && weapon === 'blaster';
@@ -483,6 +515,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     gaffi: melee,
     modelReady: () => swap.settled,
     setWeapon: (w) => { weapon = w; showWeapon(); },
+    setTrail: (on) => { trailActive = on; },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
     setBlock: (t) => {
@@ -509,6 +542,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
       shieldMat.uniforms.uFlash.value = shieldFlash;
       swap.update();
+      for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
         const f = flames[i];

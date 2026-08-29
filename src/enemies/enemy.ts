@@ -43,7 +43,7 @@ export const ENEMY_NAME: Record<EnemyKind, string> = {
   duelist: 'Gunslinger', officer: 'Imperial Officer', capo: 'Pyke Capo', enforcer: 'Wookiee Enforcer',
   flametrooper: 'Flametrooper', krykna: 'Krykna', broodmother: 'Broodmother', quarren: 'Quarren',
   alamite: 'Alamite', drone: 'Interceptor Drone', ringEnforcer: 'Ring Enforcer',
-  ig11: 'VX-9', marshal: 'The Marshal', fennec: 'Fennec Shand',
+  ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
 };
 
 interface Def {
@@ -148,6 +148,10 @@ const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
 const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_death', pirate: 'pirate_death', pirateMelee: 'pirate_death',
   stormtrooper: 'imperial_death', deathtrooper: 'imperial_death',
+  // droid_death has existed since the first audio batch and was never wired:
+  // every droid on the board died silently. Nothing mechanical borrows a
+  // human death rattle — they get the power-down that was made for them.
+  droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
   duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
   flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek',
@@ -567,7 +571,14 @@ export class Enemy {
       if (!this.wounded && this.downTimer <= 0) this.startRagdoll();
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
-      this.char.animator.playOnce('upper', 'hitUpper', 0.05);
+      // Flinch away from where the shot came from: rotate the bearing into
+      // the rig's frame and a hit from either flank plays its side variant —
+      // the head snaps toward the shooter, the body rocks off it. Head-on
+      // (or from behind) keeps the frontal flinch.
+      const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
+      const side = Math.sin(bearing);
+      const clip = side > 0.45 ? 'hitFromR' : side < -0.45 ? 'hitFromL' : 'hitUpper';
+      this.char.animator.playOnce('upper', clip, 0.05);
     }
   }
 

@@ -7,7 +7,7 @@ import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
 import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
 import { enemyBody, type EnemyKind } from './enemies/enemy';
-import { audio } from './core/audio';
+import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
 import { BOARDS } from './world/boards';
 import type { Board, BoardId } from './world/board';
@@ -287,6 +287,7 @@ end.onBack = () => quitToTitle();
 // audit in tools/audit-collision.mjs walks every board's meshes against its
 // physics world without having to play nine matches to reach them.
 (window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
+(window as unknown as { __voices?: unknown }).__voices = VOICES;   // debug/testing handle
 // debug/testing handle: plan a wave's spawn positions without building any of
 // it, so tools/audit-spawns.mjs can check every board's every wave for a body
 // standing inside the scenery.

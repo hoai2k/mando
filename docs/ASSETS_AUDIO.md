@@ -1,6 +1,11 @@
 # Asset Requests — Audio
 
-**Open audio requests only.** The original 38 sounds are delivered and integrated — they
+**Open audio requests only.** Every sound the engine can ask for now has a file —
+100 of 100, verified by cross-checking `SampleName` in `src/core/audio.ts` against
+`public/assets/audio/`. What remains below needs a gameplay hook or a feature that does not exist yet —
+plus board music, which needs a music model rather than the sound-effect API.
+
+**Historical note.** The original 38 sounds are delivered and integrated — they
 are recorded in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md), with their regeneration
 prompts living in `tools/generate-sfx.mjs`. Nothing on that list needs making again.
 **The six new boards opened the batch below** — every one already plays through a synth
@@ -18,54 +23,6 @@ README and the track map in `src/core/music.ts`. The `music_combat_desert` /
 **Specs:** OGG Vorbis or MP3, 44.1 kHz, mono for SFX / stereo for ambience and music,
 loudness-matched (SFX peaks ≈ −6 dBFS), seamless where looping. Original or licensed audio
 only — no ripped film audio; prompts describe character without naming trademarked sources.
-
-## Open — the six new boards (priority 1)
-
-All hooks are live in the engine today (`src/core/audio.ts`); each falls back to a synth
-voice until the file exists.
-
-### Ambience loops (stereo, seamless, ~20–40 s)
-
-| File | Board | Prompt |
-|---|---|---|
-| `amb_lava` | Nevarro | "Volcanic plain ambience: deep magma rumble, distant gas vents hissing, occasional rock pops and settling gravel, dry wind, seamless loop" |
-| `amb_ice` | The Crevasse | "Glacial canyon ambience: thin whistling wind, deep distant ice groans and settling cracks, faint snow hiss, empty and cold, seamless loop" |
-| `amb_rain` | Trask | "Harbour storm ambience: steady heavy rain on metal decking, gusting wind, waves slapping pilings, creaking moored boats, distant gulls, seamless loop" |
-| `amb_refinery` | The Refinery | "Industrial plant interior ambience: deep machinery drone, cycling pumps, steam hisses, metallic clanks echoing in a large hall, seamless loop" |
-| `amb_forge` | The Great Forge | "Dead-world ambience: hollow wind over glass dunes, faint electrical crackle on the horizon, occasional deep sub-bass earth groan, desolate, seamless loop" |
-| `amb_city` | The Ringworld | "Quiet alien city-street ambience: low crowd murmur behind walls, neon buzz, distant tram hum, occasional door hiss, night-city calm, seamless loop" |
-| `amb_sea` | The Prison Rig | "Open-ocean facility ambience: steady sea swell against metal pylons, gull-less empty wind, faint sterile facility hum, distant intercom chime, seamless loop" |
-
-### Board effects (mono one-shots unless noted)
-
-| File | Hook | Prompt |
-|---|---|---|
-| `thunder_crack` | Trask lightning, Forge storm front | "Close thunder crack rolling off into a long rumble, 3s" |
-| `geyser_blast` | Nevarro geysers | "Volcanic steam geyser eruption: pressurized blast into a roaring column, 1.5s" |
-| `alarm_klaxon` | Refinery alarm cycle | "Industrial two-tone alarm klaxon, one cycle, harsh and metallic, 700ms" |
-| `ice_crack` | Crevasse lake plates (loud) + glacier groans (quiet, pitch-varied) | "Thick lake ice splitting: sharp crack then a deep resonant groan, 1s" |
-| `flame_burst` | Incinerator trooper's projector | "Flamethrower burst: ignition whump into a sustained roaring jet, 1.5s" |
-| `mythosaur_call` | The Living Waters (Forge) | "Colossal creature call from deep underwater, mournful sub-bass bellow, heavily muffled, felt more than heard, 4s" |
-| `splash_in` | Anyone hitting the water (all water boards) | "Armored body plunging into sea water: deep whump and spray, 800ms" |
-| `splash_out` | Surfacing / breaching / wading footfalls (quiet, pitch-varied) | "Water shedding off a surfacing body, light splash and drips, 600ms" |
-| `mamacore_roar` | Trask's hunter — quiet cue when it turns toward you, loud on the strike | "Huge aquatic predator roar breaking the surface: wet bellow with a gurgling snap, 1.5s" |
-| `floor_charge` | The Prison Rig's electrified decks charging | "Electrical floor plate charging up: rising capacitor whine over a building hum, 1s" |
-
-### Footsteps (mono, ~150 ms; pitch-varied in engine)
-
-| File | Prompt |
-|---|---|
-| `footstep_snow` | "Single armored footstep in dry packed snow, crisp crunch, 150ms" |
-| `footstep_stone` | "Single armored footstep on solid volcanic stone, hard mineral tap with slight grit, 150ms" |
-
-### Enemy voice barks (mono; deliberately silent until the file exists)
-
-| File | Used by | Prompt |
-|---|---|---|
-| `spider_chitter` | Krykna + broodmother (spawn, sighting, death, brood hatch) | "Large insectoid spider vocalization: rapid chitinous clicking rising to a hiss, unsettling, 1s" |
-| `quarren_bark` | Quarren netcaster | "Gruff aquatic alien shout, wet gurgling undertone, aggressive challenge, no real words, 1s" |
-| `alamite_shriek` | Alamite | "Feral humanoid cave-creature shriek, raspy and echoing, 1s" |
-| `drone_whine` | Interceptor drone (dive warning — this is the player's dodge cue, keep it piercing) | "Small aggressive drone spinning up: rising servo whine into an overdriven scream, 1.2s" |
 
 ### Board music (nice-to-have)
 
@@ -123,30 +80,6 @@ chant, bass wood flutes, analog synth pulse, and a lonely desert-western twang.
 |---|---|
 | *White Deck Cadence* | "Sterile penal-facility precision: cold clipped electronic ticking in strict grid time, sequenced bass with a rising charge-up whine motif that peaks and discharges on the loop, pristine icy pads, curt processed drum hits like boots on plated floor, no warmth anywhere. Oppressive order. ~110 BPM, 3 minutes, seamless loop" |
 | *Beneath the Moon Pool* | "The same facility heard from underwater: a muffled low-passed echo of the deck cadence far above, slow sub-aquatic pads, kelp-forest shimmer, sonar-like pings, glowing-reef bell tones — dread turned weightless and strangely beautiful. ~3 minutes, loopable" |
-
-## Open — nice-to-have variation sets
-
-The engine currently pitch-varies a single file for each of these, which is convincing but
-repetitive over a long session. Real variants would replace that.
-
-| Files | Prompt |
-|---|---|
-| `footstep_sand_1..4` | "Single armored footstep on packed desert sand, dry crunch, 150ms, four distinct variations" |
-| `footstep_metal_1..4` | "Single armored footstep on hollow steel deck plate, dull clank, 150ms, four distinct variations" |
-| `melee_whoosh_1..3` | "Heavy metal staff swing whoosh, low airy sweep, 250ms; three variations rising in intensity, the third ending with a weighty grunt of effort (no words)" |
-
-Adding these needs a small engine change too — the loader currently expects one file per
-name, so it would need a variant-picking helper in `src/core/audio.ts`.
-
-## Open — pilotable vehicles (PLAN.md §17)
-
-Hooks are live in the engine (the vehicle system leans the loop with throttle exactly
-like the jetpack voice); synth fallbacks cover both until the files land.
-
-| File | Hook | Prompt |
-|---|---|---|
-| `speeder_loop` | Ridden-vehicle engine, gain and filter riding the throttle | "Repulsor engine loop: a smooth low turbine hum with a faint oscillating throb and a whispery air-rush layer, steady mid throttle, seamless 2s loop" |
-| `speeder_ignite` | Mounting up | "Repulsor engine start: a rising whine spooling into a settled hum with one soft ignition thump, 1.2s" |
 
 ## Open — the ambient life & backdrop pass (PLAN.md §16)
 

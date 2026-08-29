@@ -230,6 +230,9 @@ export function makeSaber(
   blade.position.y = 0.06;
   g.add(blade);
   const BLADE_LEN = 0.92;
+  // the trail builder needs the blade's frame and reach to sample tip arcs
+  g.userData.blade = blade;
+  g.userData.bladeLen = BLADE_LEN;
   for (const [r, color, opacity] of [
     [0.011, 0xfff0f0, 0.95], [0.026, 0xff2a1e, 0.42], [0.045, 0xff2a1e, 0.14],
   ] as const) {
@@ -255,6 +258,73 @@ export function makeSaber(
   }
   swapWeapon(g, 'saber_curved', 0.26, -Math.PI / 2);
   return g;
+}
+
+/**
+ * Ribbon trail behind a saber blade: the last few frames of the blade's sweep
+ * as a fading additive sheet. At combat speed the eye reads the arc, not the
+ * pose — the trail is what makes a 0.2 s cut legible. Samples live in world
+ * space and are rebuilt into `host` local space each frame, so the ribbon
+ * hangs in the air where the blade *was* instead of riding the wrist.
+ *
+ * Cost: one mesh, ≤ (N-1)*2 triangles, rebuilt only while swinging.
+ */
+export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group): (dt: number, active: boolean) => void {
+  const blade = saber.userData.blade as THREE.Object3D | undefined;
+  const len = (saber.userData.bladeLen as number) ?? 0.9;
+  if (!blade) return () => {};
+  const N = 10;            // samples kept
+  const TTL = 0.13;        // seconds a sample lives
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(N * 2 * 3);
+  const colors = new Float32Array(N * 2 * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const index: number[] = [];
+  for (let i = 0; i < N - 1; i++) {
+    const a = i * 2;
+    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  geo.setIndex(index);
+  // per-character material, torn down with the body — deliberately NOT the
+  // shared cache, so match cleanup can dispose it
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide,
+  }));
+  mesh.castShadow = false;
+  mesh.frustumCulled = false;   // bounds change every frame; the mesh is tiny
+  mesh.visible = false;
+  host.add(mesh);
+  const samples: Array<{ base: THREE.Vector3; tip: THREE.Vector3; age: number }> = [];
+  const local = new THREE.Vector3();
+  return (dt: number, active: boolean) => {
+    for (const s of samples) s.age += dt;
+    while (samples.length && samples[samples.length - 1].age > TTL) samples.pop();
+    if (active && saber.visible) {
+      const base = blade.getWorldPosition(new THREE.Vector3());
+      const tip = blade.localToWorld(new THREE.Vector3(0, len, 0));
+      samples.unshift({ base, tip, age: 0 });
+      if (samples.length > N) samples.pop();
+    }
+    if (samples.length < 2) { mesh.visible = false; return; }
+    mesh.visible = true;
+    host.updateWorldMatrix(true, false);
+    geo.setDrawRange(0, (samples.length - 1) * 6);
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const fade = Math.max(0, 1 - s.age / TTL);
+      for (const [j, p] of [[0, s.base], [1, s.tip]] as const) {
+        local.copy(p);
+        host.worldToLocal(local);
+        positions.set([local.x, local.y, local.z], (i * 2 + j) * 3);
+        // additive: darker is more transparent, so the fade lives in the color
+        colors.set([1.0 * fade, 0.22 * fade, 0.16 * fade], (i * 2 + j) * 3);
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+  };
 }
 
 /** Laser crossbow: forward-swept limbs around a rifle core, glowing string line. */

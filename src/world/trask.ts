@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
-import { crateTexture, deckTexture, hullTexture } from '../core/assets';
+import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -68,6 +69,17 @@ export function buildTrask(): Board {
 
   const deckMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0x8a9096, roughness: 0.75, metalness: 0.35 });
   const hullMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x6a7a72, roughness: 0.6, metalness: 0.45 });
+  // Rusted plating over both the trawler hulls and the decks players stand on:
+  // the harbour reads as working boats rather than clean grey boxes.
+  loadOptionalTexture('rust_hull', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    for (const m of [hullMat, deckMat]) {
+      m.map = tex;
+      m.color.setHex(0xffffff);
+      m.needsUpdate = true;
+    }
+  });
   const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.85 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.7, metalness: 0.4 });
   // repeated props share one geometry apiece: fifty pilings and fourteen crates
@@ -102,6 +114,32 @@ export function buildTrask(): Board {
     }
   }
 
+  // Cargo nets hung along the quay edges: dressing, never collision — they are
+  // flagged decor so the audit does not read them as geometry missing a box,
+  // and they only appear where the artwork does, since a net is its cutout.
+  const netMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.95, side: THREE.DoubleSide,
+    transparent: true, alphaTest: 0.4, visible: false,
+  });
+  loadOptionalTexture('net_weave', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    netMat.map = tex;
+    netMat.alphaMap = tex;
+    netMat.visible = true;
+    netMat.needsUpdate = true;
+  }, { exts: ['png'] });
+  const netGeo = new THREE.PlaneGeometry(3.2, 2.2);
+  for (const [nx, nz, turn] of [
+    [-18, 32.2, 0], [6, 32.2, 0], [26, 32.2, 0],
+    [-31.2, -12, Math.PI / 2], [-4.2, -34, Math.PI / 2], [33.2, -10, Math.PI / 2],
+  ] as const) {
+    const net = new THREE.Mesh(netGeo, netMat);
+    net.position.set(nx, DECK_TOP - 1.3, nz);
+    net.rotation.y = turn;
+    net.userData.decor = true;
+    group.add(net);
+  }
+
   // crates and barrels: cover on the quay and fingers
   for (const [cx, cz] of [
     [-8, 26], [-5.4, 26], [-6.6, 28.4], [10, 21], [22, 27], [-24, 24],
@@ -114,14 +152,49 @@ export function buildTrask(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, DECK_TOP + 1.15, cz, 2.3, 2.3, 2.3);
+    authoredProp(group, crate, 'cargo_crate', 2.3, { x: cx, y: DECK_TOP, z: cz, yaw: crate.rotation.y });
   }
 
   // harbour-master's shed on the quay
-  const shed = new THREE.Mesh(new THREE.BoxGeometry(10, 4.5, 7), hullMat);
-  shed.position.set(24, DECK_TOP + 2.25, 24);
+  // 7.1 m to the ridge, which is what the sculpt measures at its 10 m length;
+  // the stand-in and the box follow it rather than the other way round.
+  const shed = new THREE.Mesh(new THREE.BoxGeometry(10, 7.1, 6.8), hullMat);
+  shed.position.set(24, DECK_TOP + 3.55, 24);
   shed.castShadow = shed.receiveShadow = true;
   group.add(shed);
-  physics.addBox(24, DECK_TOP + 2.25, 24, 10, 4.5, 7);
+  physics.addBox(24, DECK_TOP + 3.55, 24, 10, 7.1, 6.8);
+  // 10 m along the quay — the sculpt's long axis is X, which is the way the
+  // shed's box already runs, so it needs no turn
+  authoredProp(group, shed, 'dock_shed', 10, { x: 24, y: DECK_TOP, z: 24, axis: 'x' });
+
+  // ---- fish-drying racks (PLAN.md §16) ----
+  // Quay dressing that is also the only new solid on the board: chest-high, so
+  // it enters the cover system honestly rather than being scenery you shoot
+  // through.
+  const rackMat = new THREE.MeshStandardMaterial({ color: 0x6a5c4a, roughness: 0.95 });
+  for (const [fx, fz, fyaw] of [[-18, 20, 0.2], [14, 28, -0.3], [-30, -14, 1.4]] as const) {
+    const rack = new THREE.Group();
+    const bits: THREE.Mesh[] = [];
+    for (const sx of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2, 0.12), rackMat);
+      leg.position.set(sx * 0.9, 1, 0);
+      bits.push(leg);
+    }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 0.1), rackMat);
+    bar.position.y = 1.95;
+    bits.push(bar);
+    for (let i = 0; i < 4; i++) {
+      const fish = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.06), rackMat);
+      fish.position.set(-0.6 + i * 0.4, 1.6, 0);
+      bits.push(fish);
+    }
+    for (const b of bits) { b.castShadow = true; rack.add(b); }
+    rack.position.set(fx, DECK_TOP, fz);
+    rack.rotation.y = fyaw;
+    group.add(rack);
+    authoredProp(rack, bits, 'fish_rack', 2.2, { axis: 'x' });
+    physics.addBox(fx, DECK_TOP + 1.05, fz, 2.4, 2.1, 1.6);
+  }
 
   // ---- the trawlers: decks that heave and drift on the swell ----
   const movers: Mover[] = [];
@@ -169,6 +242,11 @@ export function buildTrask(): Board {
     boat.traverse((o) => { o.castShadow = o.receiveShadow = true; });
     boat.position.set(bx, 1.0, bz);
     group.add(boat);
+    // The trawler hangs off the boat node, so it heaves on the swell with the
+    // deck box under it. Grounded at the box's underside (local -1.0) and
+    // measured along the hull, which puts its working deck where the collider
+    // top already is — the surface people fight on does not move.
+    authoredProp(boat, [hull, bow, house, mast], 'trawler', 16, { y: -1.0, axis: 'z' });
     // One walkable box over the working deck; the deckhouse is dressing.
     // Its centre matches the boat group's origin so Mover.moveTo keeps the
     // visual hull and the collision box in lockstep.
@@ -255,6 +333,9 @@ export function buildTrask(): Board {
     // thing hunting in it, not the water itself
     waterY: WATER_Y,
     movers,
+    // a cargo skiff moored in the channel between the fingers — it rides the
+    // water, and skims over the mamacore's bite depth
+    vehicles: [{ kind: 'skiff', x: -14, z: 8, yaw: 0 }],
   };
 
   // ---- the mamacore hunts by the clock ----

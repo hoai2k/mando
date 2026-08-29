@@ -108,6 +108,22 @@ docs/PLAN.md
   has her own three-hit combo (`saber1/2/3`): the staff clips park the off hand, which
   reads as a dead arm with a blade in it, so the dual-wield set alternates leads and
   finishes on a cross-slash that throws both blades apart.
+- **The blade fighter carries no gun.** Ventress's loadout is the sabers and nothing
+  else, so every ranged path — firing, aiming down sights, lock-on, peek-fire from
+  cover — switches itself off for her rather than needing a special case at each site:
+  her stowed state is empty hands (`weapon: 'none'`) instead of a shouldered carbine,
+  and everything already gated on holding the blaster is false by construction. What she
+  gets in exchange is **deflection**: bolts arriving from her front are batted back at
+  whoever is in front of her, at full damage and credited to her. It reuses the block
+  shield's collider rather than inventing a second mechanism, with three differences that
+  make it read as a parry and not a wall — a tighter frontal arc (about 70°, so fire from
+  the flank still lands), a short cooldown so one blade sweep cannot answer a whole burst,
+  and a cost on the same gauge sprinting spends, so holding blades into sustained fire
+  runs the gauge down and leaves nothing to dash out with.
+- **The blades stow themselves.** Four seconds without a swing or a deflect and they go
+  away, so she walks the board with empty hands rather than jogging around lit like a road
+  flare; pressing melee lights them again on the spot and swings in the same press, so
+  stowing is never something the player has to undo before they can fight.
 - **Gaffi stick (gaderffii)** — 3-hit combo (swing → backswing → overhead slam) with forward lunge that homes onto the nearest enemy within ~4 m (arcade magnetism). Higher damage than blaster; the finisher puts grounded humanoids flat on their back (a real knockdown state, ~1.6–2.1 s), and any hit on a downed or wounded enemy lands double — the RDR2 brawl loop of haymaker → finish them on the ground. Melee kills refund a chunk of jetpack fuel → encourages weaving in close.
 - **Wrist rocket (Q)** — the Z-6 jetpack's missile: lock-on lob, AoE explosion, 1 charge per ~12 s. Screen shake + big particle payoff.
 - **Feedback / hit reactions (Euphoria-flavoured):** hit markers, enemy hit-flash + stagger, kill confirm sound; explosions and ground slams knock enemies flat (they get back up shaken); a hit that leaves a grounded humanoid under 25% HP has a 40% chance to drop it into a **wounded crawl** — out of the fight, dragging itself away, bleeding out in 8–12 s unless finished.
@@ -130,15 +146,15 @@ This is the flexibility the brief demands:
 
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
-| **Kell Dravan** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
-| **Torva Brekk** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
-| **Vess Ordane** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
-| **The Forgemistress** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
-| **Sylla Morvane** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). |
-| **Karshii** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
-| **Skarvek** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
-| **Rook Vance** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
-| **VX-9** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
+| **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
+| **Paz Vizsla** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
+| **Bo-Katan Kryze** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
+| **The Armorer** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
+| **Asajj Ventress** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). **Melee only** — she carries no ranged weapon, and turns blaster bolts back at their shooter instead. |
+| **Embo** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
+| **Bossk** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
+| **Cad Bane** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
+| **IG-11** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
 | **War massiff** | Tatooine elite (wave 5+) | Armoured quadruped predator: slab-sided hide under a spine of dorsal plates and spikes, flank scutes, heavy tusked skull slung low and forward, thick segmented tail. 2.1 m tall, 5.6 m long. Runs down anyone who tries to jog away and pounces the last 16 m. |
 | **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |
@@ -405,18 +421,20 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
    no sight-block — though a plume that breaks enemy line-of-sight is noted as a
    future stealth hook.
 
-6. **Trask quay dressing** (Trask). Hanging cargo nets between the pilings
-   (`net_weave.png` alpha planes), buoy clusters riding the same swell sinusoid the
+6. **Trask quay dressing** (Trask). **The nets are in** — six `net_weave.png` alpha
+   planes along the quay and finger edges, `decor`, hidden until the artwork loads
+   since a net is its own cutout. Still to come: buoy clusters riding the same swell sinusoid the
    sea already computes (instanced, `decor`), rope coils, and two or three
    fish-drying racks (`fish_rack.glb`) — the racks stand chest-high and get thin box
    colliders, so they enter the cover system honestly as the board's only new solid.
    The delivered `amb_rain` loop already carries the distant gulls.
 
-7. **Ringworld skyline** (Ringworld). Beyond each end bulkhead, two parallax layers
-   of silhouette towers (`skyline_silhouette.png` / `_2`, alpha planes) at ~140 and
-   ~220 m, window dots emissive, fading into the existing fog; blinking
-   hazard beacons ride the tallest towers on the night side. Pure planes, `decor` —
-   the street stops being a corridor in fog and becomes a slice of a city.
+7. **Ringworld skyline** (Ringworld) — **shipped.** Two parallax rows of silhouette
+   towers beyond each end bulkhead (`skyline_silhouette.png` at 58 m and `_2` at 96 m
+   past the bulkhead, the far row taller and cooler-tinted), pure alpha planes flagged
+   `decor` and drawn behind everything, fading into the existing fog. The street stopped
+   being a corridor in fog and became a slice of a city. Still to come: blinking hazard
+   beacons on the tallest towers on the night side.
 
 ## 17. Pilotable vehicles
 
@@ -437,17 +455,28 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
 
 **Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
-contextual button as cover, and a vehicle in range wins the press. RB again dismounts
-in place; A hops off with a jump (straight into a jetpack chain). The rider sits a
+contextual button as cover, and a vehicle in range wins the press. RB is also the only
+exit, and it reads the speedometer: step off a parked ride, **bail out of a moving
+one** — keeping its momentum and popping up into a jetpack chain. The rider sits a
 real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
 skins ride too).
 
-**Driving:** stick steers camera-relative like on foot but with real momentum and
-drift — the vehicle takes a moment to answer, and speed is something you carry, not
-something you have. LB is a boost impulse on a short cooldown. Repulsors hover at a
-fixed ride height over ground or water (`max(ground, waterY)` — the skiff skims the
-harbour, and clears the mamacore's bite depth by inches). Weapons are stowed while
-riding: **the vehicle is the weapon.**
+**Driving is a vehicle scheme, not a character one.** The stick does not point where to
+go; it **turns the nose** (left/right only), and speed comes off pedals: **A is the
+accelerator, B is the brake and then reverse** once it has come to a stop. On the
+keyboard that is W and S (Space and R also work, being the same buttons). LB is a boost
+impulse on a short cooldown.
+
+What the ride carries is a forward speed along its nose plus a sideways slide, and the
+slide is the point: grip bleeds it off over time, so a hard turn drifts before it
+bites. Steering authority is deliberately not monotonic — a repulsor can pivot standing
+still (or you could be nosed into a wall with no way off it), it carves hardest at a
+working speed, and it goes stiff again flat out, so a top-speed run is a commitment and
+the boost is a decision. The chase camera eases around behind the nose while you drive,
+but only while you are not working the right stick, so it never fights a look you are
+actually giving it. Repulsors hover at a fixed ride height over ground or water
+(`max(ground, waterY)` — the skiff skims the harbour, and clears the mamacore's bite
+depth by inches). Weapons are stowed while riding: **the vehicle is the weapon.**
 
 **Ramming:** contact above ~6 m/s damages scaled with speed, with a heavy knockback
 and a knockdown — a swoop through a posted squad is bowling. Every body struck chips

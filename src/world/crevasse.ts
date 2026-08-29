@@ -4,6 +4,7 @@ import { clamp, fbm2, makeRng } from '../core/math';
 import { iceTexture, snowTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import { addBreakable, type Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -172,14 +173,25 @@ export function buildCrevasse(): Board {
 
   // a crashed survey crawler on the north rim: crate cover for the shooters
   const wreckMat = new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.7, metalness: 0.4 });
-  const wreck = new THREE.Mesh(new THREE.BoxGeometry(10, 3.4, 5), wreckMat);
+  // 10 x 8.9 x 7.7 is what the authored crawler measures at its 10 m length —
+  // a far taller machine than the low box that stood in for it. Stand-in,
+  // sculpt and collider are all sized to the art so the three agree, and the
+  // list goes with it: an 8.9 m body rolled 0.18 rad puts a metre of invisible
+  // wall in the corners of an axis-aligned box.
+  const wreck = new THREE.Mesh(new THREE.BoxGeometry(10, 8.9, 7.7), wreckMat);
   const wx = -34, wz = -70;
   const wBase = heightAt(wx, wz);
-  wreck.position.set(wx, wBase + 1.5, wz);
-  wreck.rotation.z = 0.18;
+  wreck.position.set(wx, wBase + 4.45, wz);
   wreck.castShadow = wreck.receiveShadow = true;
   group.add(wreck);
-  physics.addBox(wx, wBase + 1.5, wz, 10, 3.4, 5);
+  physics.addBox(wx, wBase + 4.45, wz, 10, 8.9, 7.7);
+  // Lies along the box's long axis with the same list the stand-in has, and
+  // grounds on the rim rather than on the box's centre.
+  authoredProp(group, wreck, 'survey_crawler', 10, {
+    // settled a little into the snow rather than perched on it — the tracks
+    // of a machine that has been sitting here through a winter
+    x: wx, y: wBase - 0.35, z: wz, axis: 'z', yaw: Math.PI / 2,
+  });
   for (const [cx, cz] of [[wx + 7, wz + 2], [wx + 8.5, wz - 1], [wx - 7, wz - 3]] as const) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), wreckMat);
     const cy = heightAt(cx, cz);
@@ -187,6 +199,7 @@ export function buildCrevasse(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, cy + 1.1, cz, 2.2, 2.2, 2.2);
+    authoredProp(group, crate, 'cargo_crate', 2.2, { x: cx, y: cy, z: cz });
   }
 
   const board: Board = {

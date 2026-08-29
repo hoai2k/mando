@@ -38,6 +38,8 @@ function findBone(root: THREE.Object3D, name: string): THREE.Object3D | null {
 interface Builder {
   /** rotate `bone` by these XYZ degrees at these times, on top of its rest pose */
   rot: (name: string, times: number[], degrees: Array<[number, number, number]>) => void;
+  /** bob `bone` vertically (world metres) around its rest position at these times */
+  lift: (name: string, times: number[], metres: number[]) => void;
   tracks: THREE.KeyframeTrack[];
 }
 
@@ -56,7 +58,27 @@ function builder(root: THREE.Object3D): Builder {
     }
     tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, values));
   };
-  return { rot, tracks };
+  // A position track lives in the bone's parent space, whose axes need not be
+  // world-aligned (the exporter's Y-up fix sits on an ancestor) — so world-up
+  // is carried back into that space and scaled from metres to local units.
+  const lift: Builder['lift'] = (name, times, metres) => {
+    const bone = findBone(root, name);
+    if (!bone || !bone.parent) return;
+    bone.updateWorldMatrix(true, false);
+    const parentQ = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+    const ws = bone.parent.getWorldScale(new THREE.Vector3()).y || 1;
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(parentQ.invert()).normalize().divideScalar(ws);
+    const values: number[] = [];
+    for (const m of metres) {
+      values.push(
+        bone.position.x + up.x * m,
+        bone.position.y + up.y * m,
+        bone.position.z + up.z * m,
+      );
+    }
+    tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, values));
+  };
+  return { rot, lift, tracks };
 }
 
 /** the four legs, and how far through the cycle each one plants */
@@ -121,7 +143,55 @@ function gallop(root: THREE.Object3D): THREE.AnimationClip {
   b.rot('DEF-spine.008', times, head.map((v) => [v * 0.7, 0, 0]));
   b.rot('DEF-spine.009', times, head.map((v) => [v, 0, 0]));
 
+  // The whole mass rises and falls with the bound — twice per stride, timed
+  // to the rear pair's drive. The enemy root never bobs (it carries the clip
+  // instead), and without this the beast galloped on a dead-level spine and
+  // read as a prop on wheels.
+  b.lift('DEF-spine', times, cycle(STEPS, 0.1, (t) => Math.abs(Math.sin(t * Math.PI * 2)) * 0.09 - 0.03));
+
   return new THREE.AnimationClip('gallop', GALLOP, b.tracks);
+}
+
+/**
+ * A four-beat lateral walk for the approach: LH, LF, RH, RF at quarter-cycle
+ * offsets, long stance, small lift. Below ~2.5 m/s the gallop played at 0.4x
+ * was slow motion, not stalking; this is the gait the massiff hunts in.
+ */
+const WALK = 1.1;   // seconds per stride
+
+function walk(root: THREE.Object3D): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * WALK);
+  const WALK_LEGS = [
+    { thigh: 'DEF-front_thigh.L', shin: 'DEF-front_shin.L', foot: 'DEF-front_foot.L', phase: 0.25 },
+    { thigh: 'DEF-front_thigh.R', shin: 'DEF-front_shin.R', foot: 'DEF-front_foot.R', phase: 0.75 },
+    { thigh: 'DEF-thigh.L', shin: 'DEF-shin.L', foot: 'DEF-foot.L', phase: 0 },
+    { thigh: 'DEF-thigh.R', shin: 'DEF-shin.R', foot: 'DEF-foot.R', phase: 0.5 },
+  ] as const;
+  const STANCE = 0.72;   // a walk keeps most feet down most of the time
+  for (const leg of WALK_LEGS) {
+    const swing = cycle(STEPS, leg.phase, (t) => (t < STANCE
+      ? -13 + (t / STANCE) * 26
+      : 13 - ((t - STANCE) / (1 - STANCE)) * 26));
+    const flex = cycle(STEPS, leg.phase, (t) => (t < STANCE
+      ? 3 + 3 * Math.sin((t / STANCE) * Math.PI)
+      : 6 + 26 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));
+    const paw = cycle(STEPS, leg.phase, (t) => (t < STANCE
+      ? -4
+      : -4 - 12 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));
+    b.rot(leg.thigh, times, swing.map((v) => [v, 0, 0]));
+    b.rot(leg.shin, times, flex.map((v) => [v, 0, 0]));
+    b.rot(leg.foot, times, paw.map((v) => [v, 0, 0]));
+  }
+  // weight rolls side to side over the planted pair, and the head prowls low
+  const sway = cycle(STEPS, 0, (t) => 2.5 * Math.sin(t * Math.PI * 2));
+  b.rot('DEF-spine.003', times, sway.map((v) => [0, 0, v]));
+  b.rot('DEF-spine.004', times, sway.map((v) => [0, 0, -v * 0.6]));
+  const prowl = cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2));
+  b.rot('DEF-spine.008', times, prowl.map((v) => [-3 + v * 2, v * 3, 0]));
+  b.rot('DEF-spine.009', times, prowl.map((v) => [-4 + v * 3, v * 4, 0]));
+  b.lift('DEF-spine', times, cycle(STEPS, 0.05, (t) => Math.abs(Math.sin(t * Math.PI * 2)) * 0.03 - 0.01));
+  return new THREE.AnimationClip('walk', WALK, b.tracks);
 }
 
 /** Standing: breathing through the ribs, a slow head sway, weight shifting. */
@@ -153,7 +223,7 @@ function idle(root: THREE.Object3D): THREE.AnimationClip {
 }
 
 export function massiffClips(root: THREE.Object3D): THREE.AnimationClip[] {
-  return [idle(root), gallop(root)];
+  return [idle(root), walk(root), gallop(root)];
 }
 
 
@@ -164,12 +234,17 @@ export function massiffClips(root: THREE.Object3D): THREE.AnimationClip[] {
 // brief asked for. Same conventions as the massiff: rest rotations are baked,
 // bones run along local +Y, X swings a limb fore and aft.
 
-/** alternating tetrapod: two sets of four legs, half a cycle apart */
+/**
+ * Alternating tetrapod: two sets of four legs, half a cycle apart — but each
+ * leg inside a tetrad lands a few hundredths early or late. Locked at exactly
+ * 0 / 0.5 the eight feet struck in two metronome beats and the whole animal
+ * read as a wind-up toy; the ripple is what makes it read as alive.
+ */
 const SPIDER_LEGS = [
-  { root: 'legL1', phase: 0 }, { root: 'legR1', phase: 0.5 },
-  { root: 'legL2', phase: 0.5 }, { root: 'legR2', phase: 0 },
-  { root: 'legL3', phase: 0 }, { root: 'legR3', phase: 0.5 },
-  { root: 'legL4', phase: 0.5 }, { root: 'legR4', phase: 0 },
+  { root: 'legL1', phase: 0 }, { root: 'legR1', phase: 0.55 },
+  { root: 'legL2', phase: 0.47 }, { root: 'legR2', phase: 0.06 },
+  { root: 'legL3', phase: 0.94 }, { root: 'legR3', phase: 0.5 },
+  { root: 'legL4', phase: 0.42 }, { root: 'legR4', phase: 0.97 },
 ] as const;
 
 const SKITTER = 0.45;   // seconds per cycle
@@ -186,6 +261,8 @@ function spiderMove(root: THREE.Object3D): THREE.AnimationClip {
       return swing > 0 ? -16 * swing : 4 * -swing;   // fold up forward, press back
     }).map((v) => [v, 0, 0]));
   }
+  // the carapace rides the churn of the legs — a small, fast bob
+  b.lift('body', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 4) * 0.02));
   return new THREE.AnimationClip('move', SKITTER, b.tracks);
 }
 

@@ -36,15 +36,24 @@ const AUTHORED_ENEMY: Record<string, number> = {
 };
 
 /**
- * Give an enemy its authored skin, if one exists. The weapon stays on the
- * canonical `weaponR` bone rather than moving into the model's hand: enemy
- * rifles are aimed by the same clips on either build, and keeping one mount
- * keeps the muzzle where the firing code already looks for it.
+ * Give an enemy its authored skin, if one exists. On load, everything hanging
+ * off the canonical weapon bones re-mounts into the authored hands — exactly
+ * as the players' weapons do. The canonical bones ride the *hidden
+ * procedural* arms, whose proportions differ from the sculpt's, so a rifle or
+ * gaffi left there floats a hand-width off the authored fist (worst at the
+ * top of a swing, but visible on every aim pose too). The muzzle group lives
+ * inside the weapon group and travels with it, so the firing code keeps
+ * finding it wherever the gun goes; shot direction is computed from the
+ * chest, never from the barrel, so aim is untouched.
  */
 function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
+    onLoad: (model) => {
+      if (model.weaponMount) for (const w of [...rig.bones.weaponR.children]) model.weaponMount.add(w);
+      if (model.weaponMountL) for (const w of [...rig.bones.weaponL.children]) model.weaponMountL.add(w);
+    },
   });
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
@@ -471,9 +480,12 @@ export function buildMassiff(authored = true): CharacterInstance {
   let posed = true;
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
+  let walkAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
   /** metres covered per second of the move clip, for rate-matching the gait */
   let clipStride = 4;
+  /** the walk covers far less ground per cycle than the gallop */
+  let walkStride = 1.5;
   let gaitSpeed = 0;
   if (authored) {
     const model = loadCreature('massiff', {
@@ -484,9 +496,16 @@ export function buildMassiff(authored = true): CharacterInstance {
         if (!clips.length) return;
         const pick = (re: RegExp): THREE.AnimationClip | undefined => clips.find((c) => re.test(c.name));
         const idle = pick(/idle|breath|stand/i);
-        const move = pick(/run|gallop|sprint/i) ?? pick(/walk|trot|move/i);
+        const walk = pick(/walk|trot|prowl/i);
+        const move = pick(/run|gallop|sprint/i) ?? (walk ? undefined : pick(/move/i));
         mixer = new THREE.AnimationMixer(loaded);
         if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+        if (walk) {
+          walkAction = mixer.clipAction(walk);
+          walkAction.play();
+          walkAction.setEffectiveWeight(0);
+          walkStride = 1.6 / Math.max(walk.duration, 0.2);
+        }
         if (move) {
           moveAction = mixer.clipAction(move);
           moveAction.play();
@@ -505,12 +524,19 @@ export function buildMassiff(authored = true): CharacterInstance {
     setGait: (speed: number) => { gaitSpeed = speed; },
     cosmetic: (dt, time) => {
       if (mixer) {
-        // cross-fade idle against the run by how fast the body is travelling,
-        // and drive the run's playback rate off the same speed so it doesn't skate
-        const moving = Math.min(gaitSpeed / 6, 1);
+        // Three gaits, blended by ground speed: still → prowling walk →
+        // full gallop, each rate-matched to the metres actually covered so
+        // no gait skates. Below the gallop threshold the old two-way blend
+        // played the gallop at 0.4x, which is slow motion, not stalking.
+        const moving = Math.min(gaitSpeed / 1.2, 1);
+        const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
         if (moveAction) {
-          moveAction.setEffectiveWeight(moving);
+          moveAction.setEffectiveWeight(walkAction ? moving * gallop : moving);
           moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.4, 2.2);
+        }
+        if (walkAction) {
+          walkAction.setEffectiveWeight(moving * (1 - gallop));
+          walkAction.timeScale = clamp(gaitSpeed / Math.max(walkStride, 0.3), 0.5, 1.8);
         }
         if (idleAction) idleAction.setEffectiveWeight(1 - moving);
         mixer.update(dt);

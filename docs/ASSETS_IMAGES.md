@@ -3,16 +3,15 @@
 **Open image requests only.** Delivered images are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**Open: three hunter drop-screen portraits and the 2026-08-29 environment batch below**
-(prop reference sheets for the environment and ambient-pass models plus the runtime
-textures). The `saber_curved`, `crossbow` and `longrifle` weapon sheets and 26
-drop-screen portraits landed on 2026-08-29; the `ventress`, `embo` and `bossk`
-turnarounds on 2026-08-28. The weapon *models* those sheets were drawn for are
-**parked by decision** — the signature weapons keep their procedural builds for now —
-and the fourth sheet, `pistol`, is parked with them. Everything older — every
-environment, sky and UI texture, all nine boards' card art and skies, the surface
-textures, and the A-pose turnaround sheets for the whole cast — is delivered and
-integrated.
+**Open: one drop-screen portrait (`ig11`) and the environment prop reference sheets
+below.** The eleven runtime environment textures requested on 2026-08-29 all landed and
+are wired into their boards; so did the `ventress`, `embo` and `bossk` portraits, which
+closed that request. The `saber_curved`, `crossbow` and `longrifle` weapon sheets landed
+too, but the weapon *models* they were drawn for are **parked by decision** — the
+signature weapons keep their procedural builds for now — and the fourth sheet, `pistol`,
+is parked with them. Everything older — every environment, sky and UI texture, all nine
+boards' card art and skies, the surface textures, and the A-pose turnaround sheets for
+the whole cast — is delivered and integrated.
 
 Every image request for the project belongs in this file; once delivered it moves to the
 history doc, and anything it feeds (such as the 3D model briefs) references the resulting
@@ -85,20 +84,20 @@ ignited blade — blades are FX meshes the game manages.
 and are recorded with their prompts in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The
 **models** they were drawn for are **parked by decision** (2026-08-29): the game keeps its
 procedural weapons, which read well at gameplay distance, and no code waits on a file. The
-fourth sheet, `pistol` — Rook Vance's twin heavy pistols — was never produced and is not
+fourth sheet, `pistol` — Cad Bane's twin heavy pistols — was never produced and is not
 wanted while that holds; its prompt is kept here for whenever it is:
 
 | Id | Prompt |
 |---|---|
 | `pistol` (parked) | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 
-## Open — drop-screen portraits: the hunter trio (priority 3)
+## Open — drop-screen portrait: `ig11` (priority 3)
 
-26 portraits landed 2026-08-29 (recorded in the history doc) — every Mandalorian and
-every enemy kind the drop screen shows. Still open: the three playable hunters, who
-joined the roster after the batch was made.
+29 portraits are delivered (recorded in the history doc) — every enemy kind the drop
+screen shows and eight of the nine playable characters. Still open: **`ig11`**, who
+became playable after the batches were made and is the last face still drawn as a mark.
 
-Drop them at `public/assets/textures/portrait_<id>.jpg`. Nothing else needs
+Drop it at `public/assets/textures/portrait_ig11.jpg`. Nothing else needs
 changing: the loader tries the file and keeps its drawn mark if it 404s, and a
 missing portrait never delays the drop it illustrates.
 
@@ -106,8 +105,8 @@ missing portrait never delays the drop it illustrates.
 - **Framing:** head and shoulders, facing camera, filling the frame.
 - **Lighting:** single warm key from the upper left against a near-black
   background, matching the menus' lit-from-above look.
-- **Ids:** `ventress`, `embo`, `bossk` — subjects per their delivered turnaround
-  sheets in `reference/characters/`.
+- **Subject:** per the delivered `ig11` turnaround sheets in `reference/characters/` —
+  the tall spindly assassin droid, cylindrical head with a red sensor ring.
 
 ## Open — environment prop reference sheets (for image-to-3D)
 
@@ -193,21 +192,15 @@ player character itself.
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
 
-## Open — environment textures (runtime)
+## Environment textures (runtime) — delivered 2026-08-29
 
-Textures the audit found boards visibly missing, plus the backdrop textures for the
-ambient pass (`PLAN.md` §16). Unlike earlier batches these are
-**not yet requested by name in code** — each needs one `loadOptionalTexture` call (or a
-material swap) wired in its board module when it lands, noted per row. Specs per the
-global rules; seamless tileable unless noted.
+All eleven landed and are wired: `city_facade` + `city_facade_glow` (Ringworld facades,
+albedo and emissive), `neon_sign_2/3` (street signs), `rust_hull` (Trask hulls and
+decks), `panel_white` (the Prison Rig's white surfaces), `forge_relief` (the Forge's
+dome walls, on their own cloned material so the relief does not tile across loose
+rubble), `kelp_frond` (the kelp is crossed alpha cards now, not cylinders),
+`skyline_silhouette` + `_2` (two parallax rows beyond the Ringworld bulkheads) and
+`net_weave` (nets along the Trask quay edges). Prompts are recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md).
 
-| Id | For | Prompt / notes |
-|---|---|---|
-| `city_facade.jpg` + `city_facade_glow.jpg` | Ringworld building blocks (`world/ringworld.ts`) | The buildings are random-sized boxes under the generic hull texture, so a facade texture — not a model — is the upgrade. Albedo: "Seamless tileable texture of a dense sci-fi city building facade: stacked metal panels, narrow horizontal window strips, vents and conduit runs, subtle grime streaks, gunmetal grey-blue, even lighting, 1024×1024". Glow (emissive map, same layout): "matching emissive map, near-black with scattered lit window strips in warm amber and pale teal". Wiring: swap `buildingMat`'s map + add emissiveMap. |
-| `neon_sign_2.png`, `neon_sign_3.png` | Ringworld street signs | Today four flat colour planes. Same recipe as the delivered `neon_sign.png` (glyphs on transparency, invented script): one "glowing magenta-and-amber alien noodle-bar sign", one "glowing violet-and-teal alien hostel sign", 512×256 PNG. Wiring: swap the sign planes' materials. |
-| `rust_hull.jpg` | Trask trawlers + dock decks | "Seamless tileable texture of rusty ship hull plating: green-grey steel plates with riveted seams, rust bleeding from joints and scuppers, flaking paint patches, even lighting, 1024×1024". Wiring: swap `hullMat`/`deckMat` maps in `world/trask.ts`. |
-| `panel_white.jpg` | Prison Rig decks, tower, pylons | "Seamless tileable texture of clean white sci-fi facility wall panels: smooth off-white composite panels with fine seams, recessed bolts, faint scuffs low on the panel, even lighting, 1024×1024". Wiring: swap `whiteMat`/`deckMat` maps in `world/narkina.ts`. |
-| `forge_relief.jpg` | Great Forge dome walls | "Seamless tileable texture of ancient carved stone wall: shallow angular geometric relief of interlocking sigils, grey basalt, chipped and heat-scorched, even lighting, 1024×1024". Wiring: swap `ruinMat`'s map on the dome wall segments in `world/forge.ts`. |
-| `kelp_frond.png` | Prison Rig kelp forest | The kelp is solid cylinders today; crossed alpha-card ribbons would read as plants. "A single kelp frond on a transparent background: long tapering ribbon leaf with a gentle S-curve, olive-green, translucent edges, 512×1024 PNG with alpha". Wiring: replace the cylinder stalks with two crossed cards per plant (small code change, kelp is already `decor`). |
-| `skyline_silhouette.png`, `skyline_silhouette_2.png` | Ringworld backdrop (PLAN.md §16) | Two parallax layers of city beyond the end bulkheads. "A wide row of varied dark sci-fi tower silhouettes on a transparent background: flat near-black shapes of mixed heights with spires, gantries and rooftop tanks, scattered tiny lit windows in warm amber and pale teal, no detail inside the shapes, 2048×512 PNG with alpha". `_2` is a second, differently-composed row for the far layer. Wiring: two alpha planes per bulkhead end in `world/ringworld.ts`, `decor`. |
-| `net_weave.png` | Trask quay nets (PLAN.md §16) | "A hanging cargo net on a transparent background: knotted rope in a sagging diamond mesh, frayed ends, dark tarred brown, 512×512 PNG with alpha". Wiring: alpha planes hung between pilings in `world/trask.ts`, `decor`. |
+Nothing in this batch is outstanding. Later texture requests go in a new section here.

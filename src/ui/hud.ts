@@ -146,10 +146,12 @@ export class Hud {
       h.fuel.style.transform = `scaleX(${p.fuel})`;
       h.energy.style.transform = `scaleX(${p.energy})`;
       h.energy.style.opacity = p.sprinting ? '1' : '0.8';
-      if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
+      if (p.vehicle) h.coverHint.textContent = `${p.vehicle.def.name.toUpperCase()} ${Math.max(0, Math.ceil(p.vehicle.hp))}/${p.vehicle.maxHp} · A gas · B brake · RB off`;
+      else if (p.nearVehicle && p.alive) h.coverHint.textContent = `C / RB — ride the ${p.nearVehicle.def.name.toLowerCase()}`;
+      else if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
       else if (p.nearCover && p.alive) h.coverHint.textContent = 'C / RB — take cover';
       else h.coverHint.textContent = '';
-      h.coverHint.classList.toggle('active', !!p.cover);
+      h.coverHint.classList.toggle('active', !!p.cover || !!p.vehicle);
       h.weapon.textContent = p.alive
         ? weaponDisplayName(p.characterId, p.weapon)
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;

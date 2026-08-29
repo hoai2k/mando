@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { clamp, makeRng } from '../core/math';
-import { deckTexture, hullTexture, texture } from '../core/assets';
+import { deckTexture, hullTexture, loadOptionalTexture, texture } from '../core/assets';
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
+import { authoredProp } from './props';
 
 /**
  * Board 8 — Glavis Ringworld: a city street strip on a ring station, under a
@@ -12,6 +13,9 @@ import { Mover, type Board } from './board';
  * it. A monorail tram runs the length of the street on a loop: an armored
  * ride through hostile territory that anyone can board.
  */
+
+/** the street's sign artworks, cycled down the strip */
+const SIGN_ART = ['neon_sign', 'neon_sign_2', 'neon_sign_3'];
 
 const STRIP_Z = 118;    // half-length of the street
 const DAY_LENGTH = 210; // seconds for a full terminator swing
@@ -44,6 +48,11 @@ const nightGradient = () => texture('ring_night_gradient', (ctx, s) => {
 
 /** the tram's lane, in x */
 const TRAM_X = 24;
+/** how tall and wide the tram sculpt stands at its 12.2 m length */
+const TRAM_H = 3.78;
+const TRAM_W = 4.2;
+/** box centre that puts the tram's keel on the street and its roof on the box */
+const TRAM_Y = TRAM_H / 2;
 /** how far the deck reaches either side of the street's centre-line */
 const STREET_HALF_X = 62;
 
@@ -80,6 +89,24 @@ export function buildRingworld(): Board {
 
   const streetMat = new THREE.MeshStandardMaterial({ map: deckTexture(), color: 0x9a9da2, roughness: 0.8, metalness: 0.3 });
   const buildingMat = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x9aa0aa, roughness: 0.7, metalness: 0.35 });
+  // The buildings are random-sized boxes, so a facade texture is the upgrade a
+  // model would have been: window strips and conduit runs at tiling scale, with
+  // an emissive map lighting a scattering of them on the night side.
+  loadOptionalTexture('city_facade', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 2);
+    buildingMat.map = tex;
+    buildingMat.color.setHex(0xffffff);   // the artwork carries the colour now
+    buildingMat.needsUpdate = true;
+  });
+  loadOptionalTexture('city_facade_glow', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 2);
+    buildingMat.emissiveMap = tex;
+    buildingMat.emissive.setHex(0xffffff);
+    buildingMat.emissiveIntensity = 1.1;
+    buildingMat.needsUpdate = true;
+  });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x272a30, roughness: 0.7, metalness: 0.4 });
 
   // street floor
@@ -87,6 +114,35 @@ export function buildRingworld(): Board {
   street.position.y = -0.5;
   street.receiveShadow = true;
   group.add(street);
+
+  // City beyond the bulkheads: two parallax rows of tower silhouettes at each
+  // end of the strip, the far one wider and dimmer. Decor — they stand outside
+  // the play space entirely and carry no collider.
+  for (const [name, dist, height, tint] of [
+    ['skyline_silhouette_2', 96, 62, 0x39415a],
+    ['skyline_silhouette', 58, 44, 0x2a3040],
+  ] as const) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: tint, transparent: true, alphaTest: 0.25,
+      side: THREE.DoubleSide, depthWrite: false, visible: false,
+    });
+    loadOptionalTexture(name, (tex) => {
+      mat.map = tex;
+      mat.alphaMap = tex;
+      mat.color.setHex(0xffffff);
+      mat.visible = true;
+      mat.needsUpdate = true;
+    }, { exts: ['png'] });
+    const geo = new THREE.PlaneGeometry(300, height);
+    for (const end of [-1, 1]) {
+      const row = new THREE.Mesh(geo, mat);
+      row.position.set(0, height * 0.42, end * (STRIP_Z + dist));
+      row.rotation.y = end > 0 ? Math.PI : 0;
+      row.userData.decor = true;
+      row.renderOrder = dist > 70 ? -2 : -1;
+      group.add(row);
+    }
+  }
 
   // boundary: the strip's end bulkheads and the outer facades
   for (const [wx, wz, w, d] of [
@@ -113,12 +169,14 @@ export function buildRingworld(): Board {
       const w = 14 + rng() * 8;
       const h = 5 + rng() * 8;
       const d = 16 + rng() * 6;
-      // Clear of the tram lane. The tram's box spans x 22.3-25.7 and sweeps the
-      // whole street; a building's inner face could reach x = 23, and where the
-      // two overlapped a player was pinned between them — pushed off the facade
-      // into the tram's box, pushed out of the tram back into the facade — until
-      // the tram had passed.
-      const bx = side * Math.max(34 + rng() * 6, side > 0 ? TRAM_X + 2.2 + w / 2 : 0);
+      // Clear of the tram lane, with half a metre to spare. The tram sweeps the
+      // whole street; a building's inner face could reach into its box, and
+      // where the two overlapped a player was pinned between them — pushed off
+      // the facade into the tram's box, pushed out of the tram back into the
+      // facade — until the tram had passed. Derived from the tram's own width
+      // so widening it to fit the sculpt cannot quietly reopen that.
+      const clear = TRAM_X + TRAM_W / 2 + 0.5;
+      const bx = side * Math.max(34 + rng() * 6, side > 0 ? clear + w / 2 : 0);
       buildings.push([bx, bz, w, h, d]);
       const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), buildingMat);
       block.position.set(bx, h / 2, bz);
@@ -133,11 +191,18 @@ export function buildRingworld(): Board {
         group.add(vent);
         physics.addBox(vent.position.x, h + 0.7, vent.position.z, 2.2, 1.4, 2.2);
       }
-      // neon sign on the street face — the night side's landmarks
+      // neon sign on the street face — the night side's landmarks. Three sign
+      // artworks rotate through the street where they exist; a flat colour
+      // plane stands in for any that has not been drawn.
       const neon = new THREE.MeshBasicMaterial({
         color: [0x33ddc9, 0xd84a9a, 0xd8b02a, 0x6a8aff][(i + (side > 0 ? 1 : 0)) % 4],
         transparent: true, opacity: 0.85, side: THREE.DoubleSide,
       });
+      loadOptionalTexture(SIGN_ART[(i + (side > 0 ? 1 : 0)) % SIGN_ART.length], (tex) => {
+        neon.map = tex;
+        neon.color.setHex(0xffffff);
+        neon.needsUpdate = true;
+      }, { exts: ['png'] });   // glyphs on transparency
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.4), neon);
       sign.position.set(bx - side * (w / 2 + 0.1), h * 0.6, bz);
       sign.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
@@ -154,6 +219,7 @@ export function buildRingworld(): Board {
     kiosk.position.set(px, 1.2, pz);
     kiosk.rotation.y = rng() * 0.7;
     kiosk.castShadow = kiosk.receiveShadow = true;
+    authoredProp(group, kiosk, 'street_kiosk', 2.4, { x: px, z: pz, axis: 'y', yaw: kiosk.rotation.y });
     group.add(kiosk);
     physics.addBox(px, 1.2, pz, 3.2, 2.4, 3.2);
     const planter = new THREE.Mesh(new THREE.BoxGeometry(2, 1.1, 2), buildingMat);
@@ -190,8 +256,11 @@ export function buildRingworld(): Board {
     tram.add(stripe);
   }
   tram.traverse((o) => { o.castShadow = o.receiveShadow = true; });
-  tram.position.set(TRAM_X, 1.6, 0);
+  tram.position.set(TRAM_X, TRAM_Y, 0);
   group.add(tram);
+  // Grounded at the box's underside — which is street level — so the roof the
+  // sculpt draws is the roof the Mover carries riders on.
+  authoredProp(tram, [tramBody, tramNose], 'tram', 12.2, { y: -TRAM_Y, axis: 'z' });
   // rail bed under it, the visual lane
   const rail = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.2, STRIP_Z * 2 + 10), darkMat);
   rail.position.set(TRAM_X, 0.1, 0);
@@ -214,7 +283,15 @@ export function buildRingworld(): Board {
 
   // 12.2 deep, not 9: the nose reaches z = 6.6, and the front two metres of a
   // vehicle moving at 16 m/s were passing straight through people.
-  const tramBox = physics.addBox(TRAM_X, 1.6, 0, 3.4, 2.6, 12.2);
+  //
+  // The height is the one collider on any board that the authored art moved,
+  // and it had to: the tram's roof is a surface people ride, so it has to be
+  // the roof they can see. The sculpt stands 0.31 of its own length, which at
+  // 12.2 m long is TRAM_H — re-measure it if the model is ever re-exported.
+  // 4.2 wide for the same reason the height moved: that is what the sculpt
+  // measures across, and a tram sweeping the street at 16 m/s must not have
+  // flanks you can stand inside.
+  const tramBox = physics.addBox(TRAM_X, TRAM_Y, 0, TRAM_W, TRAM_H, 12.2);
   const tramMover = new Mover(tramBox, tram);
 
   // ---- the terminator's ground shadow: a soft-edged darkness that moves ----
@@ -264,6 +341,8 @@ export function buildRingworld(): Board {
     },
   };
   board.movers = [tramMover];
+  // a street swoop parked mid-strip — the tram is not the only ride here
+  board.vehicles = [{ kind: 'swoop', x: 2, z: 32, yaw: 0.3 }];
 
   board.update = (dt: number, time: number) => {
     timeNow = time;
@@ -281,7 +360,7 @@ export function buildRingworld(): Board {
 
     // the tram works the line, easing at the turnarounds
     const tz = Math.sin(time * 0.16) * (STRIP_Z - 14);
-    tramMover.moveTo(TRAM_X, 1.6, tz);
+    tramMover.moveTo(TRAM_X, TRAM_Y, tz);
 
     // neon flickers now and then, the way neon does
     for (let i = 0; i < neonMats.length; i++) {

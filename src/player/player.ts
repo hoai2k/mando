@@ -8,6 +8,8 @@ import { hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 import type { Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
+import type { DeflectSphere } from '../fx/projectiles';
+import type { Vehicle } from '../game/vehicles';
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -26,6 +28,10 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
+/** gauge spent turning one bolt aside on a blade */
+const DEFLECT_ENERGY = 0.05;
+/** seconds of no swinging and no deflecting before the blades stow themselves */
+const SABER_STOW_DELAY = 4;
 /** seconds of block on a full gauge */
 const BLOCK_SECONDS = 5;
 /** you can shuffle behind the shield, but not run */
@@ -60,7 +66,33 @@ export class Player {
   private dashArmed = false;
   /** RB was pressed while already moving, so this hold is a sprint */
   private sprintLatched = false;
-  weapon: 'blaster' | 'gaffi' = 'blaster';
+  /**
+   * What is in the hands. `none` is empty-handed, which only a melee-only
+   * fighter reaches: for everyone else 'blaster' is the stowed-melee state.
+   * Everything gated on 'blaster' — aiming, firing, lock-on, peek-fire —
+   * therefore switches itself off for a character who carries no gun.
+   */
+  weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
+  /**
+   * Seconds of no swinging and no deflecting before the blades go away again.
+   * A saber fighter walks the board with empty hands and lights up the moment
+   * she needs to, rather than jogging around lit like a road flare.
+   */
+  private saberIdle = 0;
+  /**
+   * Spacing between deflects. Short — the gauge, not the clock, is what limits
+   * a parry, and a squad's shots arriving together should mostly be turned —
+   * but non-zero, so a single burst cannot be met with one blade sweep.
+   */
+  private deflectCd = 0;
+  /** scratch for the saber deflect collider */
+  private saberSphere = {
+    center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
+    kind: 'saber' as const, minDot: 0.35,
+    aim: null as THREE.Vector3 | null,
+    consume: () => this.consumeDeflect(),
+  };
+  private deflectAim = new THREE.Vector3();
   alive = true;
   kills = 0;
   team = 0;
@@ -91,11 +123,19 @@ export class Player {
   private meleeComboWindow = 0;
   private meleeHitPending = 0;
   private meleeDamage = 0;
+  /** seconds of animation freeze left after a landed melee hit */
+  private hitStop = 0;
+  /** the post-combo saber flourish has played (or nothing to flourish) */
+  private flourished = true;
+  /** keeps the blade trail alive through the flourish, which isn't a swing */
+  private trailTimer = 0;
   rocketCd = 0;
   private regenDelay = 0;
   respawnTimer = 0;
   private hurtFlash = 0;
   private facingYaw = Math.PI;
+  /** which way the body is pointed, for anything outside that needs the arc */
+  get yaw(): number { return this.facingYaw; }
   private wasGrounded = true;
   private footTimer = 0;
   private sprintRefillDelay = 0;
@@ -111,6 +151,11 @@ export class Player {
   nearCover = false;
   /** currently leaning out past the corner to shoot */
   peeking = false;
+  // ---- vehicles (PLAN.md §17) ----
+  /** the ride being driven; while set, hits on the rider land on the hull */
+  vehicle: Vehicle | null = null;
+  /** a parked ride in mounting range (drives the HUD prompt) */
+  nearVehicle: Vehicle | null = null;
   /** which corner this peek leans around: -1/+1 along the face tangent, 0 = unset */
   private peekSide = 0;
   private peekRecheck = 0;
@@ -118,6 +163,7 @@ export class Player {
 
   constructor(public slot: number, aspect: number, public characterId: MandoId = 'din') {
     this.char = buildMandalorian(characterId);
+    if (this.meleeOnly) this.weapon = 'none';
     this.cam = new ThirdPersonCamera(aspect);
   }
 
@@ -138,16 +184,30 @@ export class Player {
 
   damage(amount: number, from: THREE.Vector3): void {
     if (!this.alive) return;
+    // Mounted, the hull is your HP: hits on the rider land on the vehicle —
+    // until it gives out. Kill zones (999) still kill the rider outright.
+    if (this.vehicle && amount < 500) {
+      this.vehicle.damage(amount, from, -1);
+      this.noteVehicleHit(from);
+      return;
+    }
     this.hp -= amount;
     this.regenDelay = 5;
     this.hurtFlash = 1;
     this.lastDamageDir.subVectors(from, this.position);
-    audio.hurt();
+    audio.hurt(MANDO_ROSTER[this.characterId].voice);
     this.cam.shake(0.12);
     if (this.hp <= 0) this.die();
   }
 
+  /** the hull took a hit under us: feedback without the health cost */
+  noteVehicleHit(from: THREE.Vector3): void {
+    this.hurtFlash = Math.max(this.hurtFlash, 0.45);
+    this.lastDamageDir.subVectors(from, this.position);
+  }
+
   private die(): void {
+    this.vehicle?.dropRider();
     this.hp = 0;
     this.alive = false;
     this.respawnTimer = 4;
@@ -158,6 +218,7 @@ export class Player {
     anim.playOnce('upper', 'deathUpper', 0.1, true);
     this.cover = null;
     this.peeking = false;
+    audio.playerDeath(MANDO_ROSTER[this.characterId].voice);
     audio.setJetpackThrust(this.slot, 0);
   }
 
@@ -165,18 +226,84 @@ export class Player {
   get meleeActive(): boolean { return this.meleeTimer > 0; }
 
   /**
+   * Animation time for this frame: near-frozen during hit-stop, so a landed
+   * melee hit hangs on its contact frame for a few hundredths of a second.
+   * The world keeps moving — only this body's mixer feels it.
+   */
+  private animDt(dt: number): number {
+    if (this.hitStop <= 0) return dt;
+    this.hitStop -= dt;
+    return dt * 0.05;
+  }
+
+  /**
    * The block shield as the projectile system sees it: a sphere sitting a
    * little in front of the chest, facing the way we are. Null until the pane
    * is most of the way up, so a shield that is still rising does not yet
    * bounce anything.
    */
-  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
-    if (this.blockRaise < 0.6) return null;
-    const s = this.shieldSphere;
+  get shieldCollider(): DeflectSphere | null {
+    if (this.blockRaise >= 0.6) {
+      const s = this.shieldSphere;
+      s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+      s.center.copy(this.position).addScaledVector(s.normal, 0.6);
+      s.center.y += 1.05;
+      return s;
+    }
+    return this.saberCollider;
+  }
+
+  /** the character fights with blades and carries nothing to shoot with */
+  private get meleeOnly(): boolean {
+    return MANDO_ROSTER[this.characterId].ranged === 'none';
+  }
+
+  /** blades out and free to work */
+  get sabersDrawn(): boolean {
+    return this.alive && this.weapon === 'gaffi'
+      && MANDO_ROSTER[this.characterId].melee === 'sabers';
+  }
+
+  /**
+   * Twin blades bat blaster fire away. It reuses the block shield's collider
+   * rather than inventing a second mechanism, with three differences that make
+   * it read as a parry and not a wall: a tighter frontal arc (a bolt from the
+   * flank still lands), a short cooldown so a squad firing together gets shots
+   * through, and an aim point — the bolt goes back at whoever is in front of
+   * her rather than mirroring off a pane, which is the whole fantasy.
+   */
+  private get saberCollider(): DeflectSphere | null {
+    if (!this.sabersDrawn || this.energy <= 0) return null;
+    const s = this.saberSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-    s.center.copy(this.position).addScaledVector(s.normal, 0.6);
-    s.center.y += 1.05;
+    s.center.copy(this.position).addScaledVector(s.normal, 0.55);
+    s.center.y += 1.15;
+    s.aim = this.deflectTarget;
     return s;
+  }
+
+  /** where a deflected bolt is sent: the nearest hostile she is facing */
+  private get deflectTarget(): THREE.Vector3 | null {
+    const e = this.deflectEnemy;
+    if (!e) return null;
+    this.deflectAim.copy(e.position);
+    this.deflectAim.y += 0.9;
+    return this.deflectAim;
+  }
+  /** set each frame by the game, which is the only thing that knows the roster */
+  deflectEnemy: { position: THREE.Vector3 } | null = null;
+
+  /**
+   * Charged per bolt turned, so holding blades into sustained fire costs the
+   * same gauge as sprinting. Returning false lets the bolt through.
+   */
+  private consumeDeflect(): boolean {
+    if (this.deflectCd > 0 || this.energy <= 0) return false;
+    this.deflectCd = 0.05;
+    this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
+    this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
+    this.saberIdle = 0;
+    return true;
   }
 
   /** enemy currently under the crosshair's assist cone, for HUD feedback */
@@ -225,7 +352,25 @@ export class Player {
       }
     }
     this.wasAiming = input.aimHeld;
-    this.aiming = input.aimHeld;
+    // aiming down sights needs sights: a blades-only fighter holding the aim
+    // button just pulls the camera in, and draws no crosshair
+    this.aiming = input.aimHeld && !this.meleeOnly;
+
+    // ---- vehicles: RB near a parked ride mounts, and the ride wins the press ----
+    this.nearVehicle = this.vehicle ? null : this.findVehicle(game);
+    if (!this.vehicle && this.nearVehicle && input.slamPressed) {
+      this.nearVehicle.mount(this);
+      this.cover = null;
+      this.peeking = false;
+      this.nearVehicle = null;
+      // the press that mounted must not also read as the dismount press
+      this.updateRiding(dt, { ...input, slamPressed: false }, game, realDt);
+      return;
+    }
+    if (this.vehicle) {
+      this.updateRiding(dt, input, game, realDt);
+      return;
+    }
 
     // ---- cover: on the ground the slam button snaps to a nearby box ----
     // (the air keeps its ground slam — the button splits by grounded state)
@@ -490,28 +635,48 @@ export class Player {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'airUpper');
     } else if (speed2 > 0.6) {
-      // the gait runs at whatever rate plants the feet at our actual ground
-      // speed, so the stride pushes off instead of skating
-      const gait = anim.gaitRate('runLower', speed2);
-      anim.play('lower', 'runLower', 0.15, gait);
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'runUpper', 0.15, gait);
+      // Which way is travel, relative to the body? Combat facing points the
+      // chest at the camera while the feet go where the stick says, and the
+      // forward run played for all of it — legs pumping forward through a
+      // sidestep is a moonwalk. Pick the cycle by the divergence instead:
+      // forward run, lateral shuffle (one clip and its mirror), or the run
+      // reversed for a back-pedal.
+      let rel = Math.atan2(this.velocity.x, this.velocity.z) - this.facingYaw;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      const arel = Math.abs(rel);
+      let lowerClip = 'runLower';
+      let rate: number;
+      if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
+        rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
+      } else if (arel > 0.8) {    // 46-132°: side-stepping
+        lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
+        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
+      } else {
+        // the gait runs at whatever rate plants the feet at our actual ground
+        // speed, so the stride pushes off instead of skating
+        rate = anim.gaitRate('runLower', speed2, this.char.baseScale);
+      }
+      anim.play('lower', lowerClip, 0.15, rate);
+      const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
+      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
       } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
       // footfalls follow the same cadence, so the sound lands on the plant
       this.footTimer -= dt;
       if (this.footTimer <= 0) {
-        this.footTimer = anim.stepInterval('runLower', gait);
+        this.footTimer = anim.stepInterval(lowerClip, rate);
         if (this.wading) audio.splash(false, 0.18);
         else audio.footstep(game.board.footstep);
       }
     } else {
       anim.play('lower', 'idleLower');
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'idleUpper');
+      const idleUpper = this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper';
+      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : idleUpper);
     }
 
     this.syncVisual(dt, game);
-    anim.update(dt);
+    anim.update(this.animDt(dt));
 
     // camera last (after position settles) — on the wall clock, so the
     // camera stays crisp while the world is in slow motion
@@ -608,7 +773,7 @@ export class Player {
     if (this.meleeTimer <= 0) anim.play('upper', 'flyUpper');
 
     this.syncVisual(dt, game);
-    anim.update(dt);
+    anim.update(this.animDt(dt));
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: false, speed: speed2, dashing: false,
       flying: true, climb: this.velocity.y,
@@ -807,12 +972,127 @@ export class Player {
     const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
     anim.play('lower', 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
+    });
+  }
+
+  /** Nearest parked, riderless vehicle within mounting reach. */
+  private findVehicle(game: Game): Vehicle | null {
+    let best: Vehicle | null = null;
+    let bestD = 2.4;
+    for (const v of game.vehicles) {
+      if (!v.alive || v.rider) continue;
+      const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
+      if (d > bestD) continue;
+      if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
+      bestD = d;
+      best = v;
+    }
+    return best;
+  }
+
+  /**
+   * In the saddle: input drives the vehicle, the rider sits its seat, and the
+   * hull soaks the fire. RB steps off beside the ride; A hops off upward —
+   * straight into a jetpack chain, which is the fun exit.
+   */
+  private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
+    const anim = this.char.animator!;
+    const v = this.vehicle!;
+    // gauges keep ticking and the pack stays cold — mirror of the cover branch
+    this.blocking = false;
+    this.blockRaise = damp(this.blockRaise, 0, 14, dt);
+    this.char.setBlock(this.blockRaise);
+    this.dashArmed = false;
+    this.sprintLatched = false;
+    this.sprinting = false;
+    this.thrusting = 0;
+    this.wasThrusting = false;
+    this.char.setThrust(0);
+    audio.setJetpackThrust(this.slot, 0);
+    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
+    this.sprintRefillDelay -= dt;
+    if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
+    this.snareTimer -= dt;
+    this.meleeTimer = 0;
+    this.meleeHitPending = 0;
+    this.slamming = false;
+    this.swimming = false;
+    this.wading = false;
+    this.waterTime = 0; // the hull is between you and whatever hunts the water
+    this.aiming = false;
+    this.lockedOn = false;
+    this.cover = null;
+
+    // ---- dismount ----
+    // RB is the only exit now that A is the accelerator, and it reads the
+    // speedometer: step off a parked ride, bail out of a moving one. Bailing
+    // keeps the ride's momentum and pops you up into a jetpack chain, which
+    // is both the fun exit and the one you want when the hull is about to go.
+    if (input.slamPressed || !v.alive) {
+      const carry = v.vel.clone();
+      const hop = Math.hypot(carry.x, carry.z) > 6;
+      v.dropRider();
+      this.velocity.copy(carry);
+      if (hop) {
+        this.velocity.y = JUMP_VEL;
+        game.particles.dustPuff(this.position, 6);
+      } else {
+        // step clear sideways so we don't stand inside the newly parked box
+        this.position.x += Math.cos(v.yaw) * (v.def.radius + 0.75);
+        this.position.z -= Math.sin(v.yaw) * (v.def.radius + 0.75);
+      }
+      this.grounded = false;
+      audio.setEngine(this.slot, 0);
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: Math.hypot(carry.x, carry.z), dashing: false,
+      });
+      return;
+    }
+
+    v.drive(dt, input, this, game);
+    // a crash or a ram chip can end the ride inside drive(): destroy() has
+    // already thrown us clear — settle the visuals and let next frame be normal
+    if (!this.vehicle) {
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
+      });
+      return;
+    }
+
+    // sit the seat, carry the ride's momentum (the camera paces off velocity)
+    v.seatWorld(this.position);
+    this.velocity.copy(v.vel);
+    this.grounded = true;
+    this.wasGrounded = true;
+    this.coyote = 0.12;
+
+    // kill zones still end the rider (the hull is not armour against a sarlacc);
+    // burn zones cook the hull instead
+    const hzd = hazardAt(game.board, this.position);
+    if (hzd.kill) { this.damage(999, this.position); return; }
+    if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
+    if (!this.vehicle) return; // the burn just finished the ride
+
+    this.facingYaw = dampAngle(this.facingYaw, v.yaw, 10, dt);
+    const stand = v.def.stance === 'stand';
+    anim.play('lower', stand ? 'idleLower' : 'rideLower');
+    anim.play('upper', stand ? 'idleUpper' : 'rideUpper');
+
+    this.syncVisual(dt, game);
+    anim.update(dt);
+    const speed = Math.hypot(v.vel.x, v.vel.z);
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: false, speed, dashing: false, flying: false, climb: 0,
     });
   }
 
@@ -829,13 +1109,36 @@ export class Player {
     audio.setSaberHum(this.slot, drawn ? 0.55 + (this.meleeTimer > 0 ? 0.8 : 0) : 0);
   }
 
+  /**
+   * Blades put themselves away after a lull. They are lit by swinging or by
+   * turning a bolt — both reset the clock — and the moment the player reaches
+   * for them again (melee, or the swap button) they come straight back out, so
+   * stowing is never something you have to undo before you can fight.
+   */
+  private updateSaberStow(dt: number, input: FrameInput): void {
+    if (!this.meleeOnly) return;
+    if (this.weapon !== 'gaffi') { this.saberIdle = 0; return; }
+    const busy = this.meleeTimer > 0 || this.meleeComboWindow > 0 || input.meleePressed || this.blocking;
+    this.saberIdle = busy ? 0 : this.saberIdle + dt;
+    if (this.saberIdle >= SABER_STOW_DELAY) {
+      this.weapon = 'none';
+      this.saberIdle = 0;
+      this.char.setWeapon('none');
+      audio.saberIgnite();   // the same snap, going the other way
+    }
+  }
+
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
-    // weapon switch
+    this.deflectCd -= dt;
+    // weapon switch: for a melee-only fighter the other half of the toggle is
+    // empty hands, since there is no gun to swap to
+    const stowed = this.meleeOnly ? 'none' : 'blaster';
     if (input.switchPressed) {
-      this.weapon = this.weapon === 'blaster' ? 'gaffi' : 'blaster';
+      this.weapon = this.weapon === 'gaffi' ? stowed : 'gaffi';
       this.char.setWeapon(this.weapon);
       if (this.weapon === 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
       else audio.uiMove();
+      this.saberIdle = 0;
     }
 
     // melee (always available; swaps to gaffi visual during swing)
@@ -850,6 +1153,12 @@ export class Player {
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * 0.45;
       this.meleeDamage = this.meleeStep === 3 ? 55 : 32;
+      // Melee draws: pressing swing with the blades away lights them on the
+      // spot rather than costing a swap first, and they stay lit afterwards
+      // until the idle timer puts them back.
+      if (this.weapon !== 'gaffi' && MANDO_ROSTER[this.characterId].melee === 'sabers') audio.saberIgnite();
+      this.weapon = 'gaffi';
+      this.saberIdle = 0;
       this.char.setWeapon('gaffi');
       audio.melee(this.meleeStep, MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
       // lunge toward nearest enemy in front
@@ -859,11 +1168,29 @@ export class Player {
         this.velocity.x = dir.x * 13;
         this.velocity.z = dir.z * 13;
         this.facingYaw = Math.atan2(dir.x, dir.z);
+      } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
+        // no lunge to carry the body, so the legs join the swing: weight
+        // drop, step, pivot — one-shots matched to each upper's duration
+        this.char.animator!.playOnce('lower', `meleeLower${this.meleeStep}`, 0.08);
       }
+      this.flourished = false;
     }
-    if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon === 'blaster' && this.char.gaffi.visible) {
-      this.char.setWeapon('blaster');
+    // Combo punctuation: when the window lapses with blades still lit, the
+    // wrists circle both sabers once and settle into the guard. The window
+    // was decremented once this frame, so `+ dt` reads its previous value —
+    // this fires exactly on the frame it lapses.
+    if (
+      !this.flourished && this.sabersDrawn && this.meleeTimer <= 0
+      && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
+    ) {
+      this.flourished = true;
+      this.char.animator!.playOnce('upper', 'saberFlourish', 0.12);
+      this.trailTimer = 0.55;
     }
+    if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
+      this.char.setWeapon(stowed);
+    }
+    this.updateSaberStow(dt, input);
     if (this.meleeHitPending > 0) {
       this.meleeHitPending -= dt;
       if (this.meleeHitPending <= 0) {
@@ -893,6 +1220,10 @@ export class Player {
           audio.meleeHit(MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
           this.cam.shake(0.1);
           game.hitMarker(this.slot);
+          // hit-stop: the attacker's animation hangs for a few frames on
+          // contact (heavier on the finisher), which is most of what makes
+          // a hit feel like it landed on something solid
+          this.hitStop = this.meleeStep === 3 ? 0.09 : 0.055;
         }
       }
     }
@@ -921,7 +1252,8 @@ export class Player {
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
-      audio.blaster(MANDO_ROSTER[this.characterId].ranged ?? 'carbine');
+      const kind = MANDO_ROSTER[this.characterId].ranged ?? 'carbine';
+      audio.blaster(kind === 'none' ? 'carbine' : kind);
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
@@ -1005,6 +1337,9 @@ export class Player {
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
+    // blade trails ride the swings (and the flourish), on every update path
+    this.trailTimer -= dt;
+    this.char.setTrail(this.weapon === 'gaffi' && (this.meleeTimer > 0 || this.trailTimer > 0));
     // lean into velocity while flying; underwater the whole body pitches
     // into the stroke — diving tips you prone, rising brings you upright
     const lean = clamp((this.velocity.x * Math.sin(this.facingYaw) + this.velocity.z * Math.cos(this.facingYaw)) / 18, -0.35, 0.35);
