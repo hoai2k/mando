@@ -455,17 +455,28 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
 
 **Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
-contextual button as cover, and a vehicle in range wins the press. RB again dismounts
-in place; A hops off with a jump (straight into a jetpack chain). The rider sits a
+contextual button as cover, and a vehicle in range wins the press. RB is also the only
+exit, and it reads the speedometer: step off a parked ride, **bail out of a moving
+one** — keeping its momentum and popping up into a jetpack chain. The rider sits a
 real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
 skins ride too).
 
-**Driving:** stick steers camera-relative like on foot but with real momentum and
-drift — the vehicle takes a moment to answer, and speed is something you carry, not
-something you have. LB is a boost impulse on a short cooldown. Repulsors hover at a
-fixed ride height over ground or water (`max(ground, waterY)` — the skiff skims the
-harbour, and clears the mamacore's bite depth by inches). Weapons are stowed while
-riding: **the vehicle is the weapon.**
+**Driving is a vehicle scheme, not a character one.** The stick does not point where to
+go; it **turns the nose** (left/right only), and speed comes off pedals: **A is the
+accelerator, B is the brake and then reverse** once it has come to a stop. On the
+keyboard that is W and S (Space and R also work, being the same buttons). LB is a boost
+impulse on a short cooldown.
+
+What the ride carries is a forward speed along its nose plus a sideways slide, and the
+slide is the point: grip bleeds it off over time, so a hard turn drifts before it
+bites. Steering authority is deliberately not monotonic — a repulsor can pivot standing
+still (or you could be nosed into a wall with no way off it), it carves hardest at a
+working speed, and it goes stiff again flat out, so a top-speed run is a commitment and
+the boost is a decision. The chase camera eases around behind the nose while you drive,
+but only while you are not working the right stick, so it never fights a look you are
+actually giving it. Repulsors hover at a fixed ride height over ground or water
+(`max(ground, waterY)` — the skiff skims the harbour, and clears the mamacore's bite
+depth by inches). Weapons are stowed while riding: **the vehicle is the weapon.**
 
 **Ramming:** contact above ~6 m/s damages scaled with speed, with a heavy knockback
 and a knockdown — a swoop through a posted squad is bowling. Every body struck chips

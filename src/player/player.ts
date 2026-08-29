@@ -992,14 +992,20 @@ export class Player {
     this.lockedOn = false;
     this.cover = null;
 
-    // ---- dismount: RB steps off in place, A hops off into the air ----
-    if (input.slamPressed || input.jumpPressed || !v.alive) {
-      const hop = input.jumpPressed;
+    // ---- dismount ----
+    // RB is the only exit now that A is the accelerator, and it reads the
+    // speedometer: step off a parked ride, bail out of a moving one. Bailing
+    // keeps the ride's momentum and pops you up into a jetpack chain, which
+    // is both the fun exit and the one you want when the hull is about to go.
+    if (input.slamPressed || !v.alive) {
       const carry = v.vel.clone();
+      const hop = Math.hypot(carry.x, carry.z) > 6;
       v.dropRider();
       this.velocity.copy(carry);
-      if (hop) this.velocity.y = JUMP_VEL;
-      else {
+      if (hop) {
+        this.velocity.y = JUMP_VEL;
+        game.particles.dustPuff(this.position, 6);
+      } else {
         // step clear sideways so we don't stand inside the newly parked box
         this.position.x += Math.cos(v.yaw) * (v.def.radius + 0.75);
         this.position.z -= Math.sin(v.yaw) * (v.def.radius + 0.75);

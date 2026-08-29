@@ -7,7 +7,7 @@ import type { StaticBox } from '../core/physics';
 import { loadProp } from '../characters/authored';
 import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
-import { damp, dampAngle, yawBasis } from '../core/math';
+import { clamp, damp, dampAngle } from '../core/math';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
@@ -20,10 +20,21 @@ import { damp, dampAngle, yawBasis } from '../core/math';
 export interface VehicleDef {
   name: string;
   hp: number;
-  /** top speed, m/s */
+  /** top speed under throttle, m/s */
   top: number;
-  /** steering response: damp lambda toward the wished velocity — low = drift */
-  accel: number;
+  /** what the accelerator is worth, m/s² */
+  throttle: number;
+  /** what the brake is worth, m/s² — reverse pulls away at 60% of throttle */
+  brake: number;
+  /** how fast it coasts down with both pedals up, m/s² */
+  drag: number;
+  /** how fast the nose comes round at speed, rad/s */
+  turn: number;
+  /**
+   * How quickly sideways slide bleeds off (damp lambda). Low is loose: the
+   * tail steps out through a hard turn and the ride drifts before it bites.
+   */
+  grip: number;
   /** boost impulse, m/s, on the dash button */
   boost: number;
   /** collision capsule radius (moveCapsule is one capsule, so long hulls approximate) */
@@ -45,33 +56,40 @@ export interface VehicleDef {
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
   swoop: {
-    name: 'Swoop', hp: 100, top: 24, accel: 1.8, boost: 9,
+    name: 'Swoop', hp: 100, top: 24, throttle: 15, brake: 24, drag: 4.5,
+    turn: 2.3, grip: 4.5, boost: 9,
     radius: 0.85, body: 1.1, hover: 0.55, length: 2.8,
     seat: { x: 0, y: -0.38, z: -0.15 }, stance: 'saddle',
     modelId: 'nikto_swoop', modelSize: 2.6,
   },
   speederBike: {
-    name: 'Speeder bike', hp: 90, top: 27, accel: 2.0, boost: 10,
+    name: 'Speeder bike', hp: 90, top: 27, throttle: 18, brake: 22, drag: 4,
+    turn: 2.6, grip: 3.8, boost: 10,
     radius: 0.8, body: 1.15, hover: 0.6, length: 3.0,
     seat: { x: 0, y: -0.34, z: -0.3 }, stance: 'saddle',
     modelId: 'speeder_bike', modelSize: 3.0,
   },
   landspeeder: {
-    name: 'Landspeeder', hp: 150, top: 22, accel: 1.5, boost: 8,
+    name: 'Landspeeder', hp: 150, top: 22, throttle: 11, brake: 18, drag: 3.5,
+    turn: 1.7, grip: 5.5, boost: 8,
     radius: 1.15, body: 1.1, hover: 0.45, length: 4.4,
     seat: { x: 0, y: -0.32, z: -0.5 }, stance: 'saddle',
     modelId: 'landspeeder', modelSize: 4.5,
   },
   skiff: {
-    name: 'Cargo skiff', hp: 220, top: 15, accel: 1.1, boost: 6,
+    name: 'Cargo skiff', hp: 220, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
+    turn: 1.0, grip: 6.5, boost: 6,
     radius: 1.7, body: 1.3, hover: 0.9, length: 9,
     seat: { x: 0, y: 1.05, z: -3.1 }, stance: 'stand',
     modelId: 'skiff', modelSize: 9,
   },
 };
 
-const _basisWish = new THREE.Vector3();
-const _seatOut = new THREE.Vector3();
+/** how much of top speed reverse is worth */
+const REVERSE_FRACTION = 0.35;
+/** below this forward speed the brake stops stopping and starts reversing */
+const REVERSE_THRESHOLD = 0.4;
+
 const _ramPoint = new THREE.Vector3();
 
 export class Vehicle {
@@ -92,6 +110,8 @@ export class Vehicle {
   private parkedBox: StaticBox | null = null;
   private bobPhase = Math.random() * Math.PI * 2;
   private boostCd = 0;
+  /** last frame's steering input, for the visual bank into a turn */
+  private steer = 0;
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -218,32 +238,65 @@ export class Vehicle {
 
   /**
    * One frame of driving, called from the rider's update so input flows the
-   * same path it does on foot. Camera-relative wish, heavy momentum, hover
-   * spring, ram damage on contact, crash damage on a hard stop.
+   * same path it does on foot.
+   *
+   * This is a vehicle, not a character: the stick does not point where to go,
+   * it turns the nose, and speed comes off the pedals. So the state that
+   * matters is the nose direction (`yaw`) plus how fast we are travelling
+   * along it and how much we are sliding sideways — the slide is what gives a
+   * hard turn its drift before the grip bites.
    */
   drive(dt: number, input: FrameInput, rider: Player, game: Game): void {
     const def = this.def;
     this.boostCd -= dt;
 
-    // camera-relative wish, like the foot controller but with momentum
-    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(rider.cam.yaw);
-    const wish = _basisWish.set(
-      fwdX * input.moveY + rightX * input.moveX, 0,
-      fwdZ * input.moveY + rightZ * input.moveX,
-    );
-    const wishLen = Math.min(1, wish.length());
-    if (wishLen > 0) wish.normalize();
-    this.vel.x = damp(this.vel.x, wish.x * wishLen * def.top, def.accel, dt);
-    this.vel.z = damp(this.vel.z, wish.z * wishLen * def.top, def.accel, dt);
+    // ---- steering ----
+    // Screen-right is -X for a nose on +Z (see yawBasis), so a stick pushed
+    // right turns the nose by *decreasing* yaw.
+    //
+    // How sharply it comes round depends on how fast it is going, and not
+    // monotonically. A repulsor can pivot standing still — without some
+    // authority at rest you can end up nosed into a wall with no way to turn
+    // off it — it carves hardest at a working speed, and it goes stiff again
+    // flat out, so a top-speed run is a commitment rather than a thing you can
+    // pirouette out of. That last part is what makes the boost a decision.
+    const speedNow = Math.hypot(this.vel.x, this.vel.z);
+    const bite = 0.45 + 0.55 * Math.min(1, speedNow / (def.top * 0.35));
+    const fast = clamp((speedNow - def.top * 0.55) / (def.top * 0.45), 0, 1);
+    this.steer = input.moveX;
+    this.yaw -= this.steer * def.turn * bite * (1 - 0.32 * fast) * dt;
+
+    // the nose, and the axis it slides along
+    const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    let fwd = this.vel.x * nx + this.vel.z * nz;
+    let lat = this.vel.x * rx + this.vel.z * rz;
+
+    // ---- the pedals: A accelerates, B brakes and then reverses ----
+    if (input.throttleHeld && !input.brakeHeld) {
+      fwd = Math.min(def.top, fwd + def.throttle * dt);
+    } else if (input.brakeHeld && !input.throttleHeld) {
+      fwd = fwd > REVERSE_THRESHOLD
+        ? Math.max(0, fwd - def.brake * dt)                                  // hauling it up
+        : Math.max(-def.top * REVERSE_FRACTION, fwd - def.throttle * 0.6 * dt); // backing off
+    } else {
+      // coasting: repulsors bleed speed slowly, so momentum is worth carrying
+      const bleed = def.drag * dt;
+      fwd = fwd > 0 ? Math.max(0, fwd - bleed) : Math.min(0, fwd + bleed);
+    }
 
     // boost: the dash button, a straight shove along the nose
     if (input.dashPressed && this.boostCd <= 0) {
       this.boostCd = 1.4;
-      this.vel.x += Math.sin(this.yaw) * def.boost;
-      this.vel.z += Math.cos(this.yaw) * def.boost;
+      fwd = Math.min(def.top * 1.6, fwd + def.boost);
       audio.dash();
       rider.cam.shake(0.05);
     }
+
+    // grip bleeds the slide off; what is left is the drift through a turn
+    lat = damp(lat, 0, def.grip, dt);
+    this.vel.x = nx * fwd + rx * lat;
+    this.vel.z = nz * fwd + rz * lat;
 
     // hover: spring the keel toward ride height over ground or water
     const target = this.groundAt(this.pos.x, this.pos.z) + def.hover;
@@ -261,9 +314,15 @@ export class Vehicle {
       rider.cam.shake(Math.min(0.3, lost * 0.012));
     }
 
-    // face the way we're moving, banked into the turn
     const speed = Math.hypot(this.vel.x, this.vel.z);
-    if (speed > 1.2) this.yaw = dampAngle(this.yaw, Math.atan2(this.vel.x, this.vel.z), 6, dt);
+
+    // The camera trails the nose while you drive, but only when you are not
+    // working the right stick — steering is the heading now, so a camera left
+    // pointing where you were is a camera you have to fight. It eases rather
+    // than snaps, and it never fights a look the player is actually giving it.
+    if (fwd > 2 && Math.abs(input.lookX) < 1e-4) {
+      rider.cam.yaw = dampAngle(rider.cam.yaw, this.yaw, 2.0, dt);
+    }
 
     // ---- ramming: the vehicle is the weapon ----
     if (speed > 6) {
@@ -318,10 +377,13 @@ export class Vehicle {
   private syncMesh(dt: number, speed: number): void {
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
-    // bank into lateral velocity, nose down a touch with descent
+    // Bank into the turn — both the slide the tail is carrying and the steering
+    // itself, so a ride leans as it is asked to turn rather than only once it
+    // has started sliding. Nose down a touch with descent.
     const latX = Math.cos(this.yaw), latZ = -Math.sin(this.yaw);
     const lateral = (this.vel.x * latX + this.vel.z * latZ) / Math.max(1, this.def.top);
-    this.body.rotation.z = damp(this.body.rotation.z, -lateral * 0.55, 8, dt);
+    const lean = -lateral * 0.4 - this.steer * 0.3 * Math.min(1, speed / (this.def.top * 0.5));
+    this.body.rotation.z = damp(this.body.rotation.z, lean, 8, dt);
     this.body.rotation.x = damp(this.body.rotation.x, -this.vel.y * 0.02 + speed * 0.004, 8, dt);
   }
 }

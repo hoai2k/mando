@@ -150,6 +150,13 @@ boss bar — remain future work, and their voice sets are deferred with them
 
 ## Environment & hazard models — priority by impact
 
+**Nine of these are delivered and integrated** (2026-08-29): the whole priority-1 and
+priority-2 set — `cargo_crate`, `fuel_barrel`, `trawler`, `tram`, `sail_barge`,
+`freighter`, `cargo_crane`, `reactor_core`, `sunken_transport`. Each hides its
+procedural stand-in the moment it loads and keeps it as the fallback. **Open:**
+`adobe_tower`, `adobe_gate`, `forge_brazier`, `survey_crawler`, and the whole
+priority-3 list.
+
 Opened 2026-08-29 by an audit of all nine board modules (`src/world/*.ts`). Every
 structure, vehicle and hazard in the game is procedural primitive geometry today — the
 trawlers players ride on Trask are three boxes, the crashed sail barge is two — while
@@ -169,6 +176,13 @@ footprints below are already tuned and CI-audited (`tools/audit-collision.mjs`) 
 **do not change with the model**, so a model must read solid where its collider is and
 open where it is not; the sizes given are the envelope to fill.
 
+Two of the delivered nine earned an exception, both because the collider was only ever
+a box drawn around a procedural stand-in and the art disagreed with it in a way players
+would feel: the **tram** stands 3.78 m to a roof people ride on, and the **freighter**
+spans 10 m across wings you would otherwise walk through. Both boxes were refitted to
+the sculpt and both boards still audit clean. Everything else fits the shape it was
+given.
+
 **Budgets:** landmarks (⚓) ≤ 10k tris, one 1024² PBR set (baseColor / metal-rough /
 normal, emissive where noted); mid-size props ≤ 4k tris / 512²; small repeated props
 ≤ 1.5k tris / 512². Marked ✷ = a breakable the game removes whole on destruction —
@@ -180,20 +194,20 @@ fan designs only.
 
 | Id | Board(s) | Size | Replaces / constraints |
 |---|---|---|---|
-| `trawler` ⚓ | Trask ×2 | 16 m hull, 7 m beam | The two heaving movers players fight on all match — today a box hull, wedge bow, box deckhouse. Flat working deck across the 7×16 m collider top; deckhouse within 4.5 w × 2.6 h × 4 d at local (0, +2.2, −4.5); mast at (0, +4, +1); bow may reach z +7.4. Deck must stay clean enough to fight on. |
-| `tram` ⚓ | Ringworld | 12.2 m long, 3.4 w × 2.6 h | The rideable armored monorail sweeping the whole street. Body + wedge nose fill the 3.4×2.6×12.2 collider; the roof is where riders stand, so it is flat and walkable; side stripe lights read at 16 m/s. |
-| `sail_barge` ⚓ | Dune Sea | ~26 m, listing | The signature cover playground — today two boxes. Hull silhouette follows the audited row of r 4.4 m colliders along its axis, deck top standable; leaning broken mast + torn sail vane within the three stacked sail boxes. Half-buried, scoured, stripped. |
-| `cargo_crate` | Waystation, Trask, Refinery, Prison Rig (~50 instances) | 2.3–2.6 m cube (scaled per site) | The universal cover box both the enemy AI and the player's snap-to-cover press against — point-blank screen time all game. Cube envelope, recessed X-braced faces in the delivered `crate_side` style, corner lift lugs. Second clean-white texture set for the Prison Rig's containers. |
-| `fuel_barrel` ✷ | Waystation ×8, Refinery ×13 | 1.2 Ø × 1.7 m | One sculpt, two skins: plain steel (station cover, `barrel.jpg` style) and **rhydonium** — hazard-yellow band and a glowing amber fill slit (emissive), because on the Refinery these chain-explode and the read *is* the mechanic. Bake the band into the rhydonium skin. |
+| `trawler` ⚓ ✅ | Trask ×2 | 16 m hull, 7 m beam | The two heaving movers players fight on all match — today a box hull, wedge bow, box deckhouse. Flat working deck across the 7×16 m collider top; deckhouse within 4.5 w × 2.6 h × 4 d at local (0, +2.2, −4.5); mast at (0, +4, +1); bow may reach z +7.4. Deck must stay clean enough to fight on. |
+| `tram` ⚓ ✅ | Ringworld | 12.2 m long, 3.4 w × 2.6 h | The rideable armored monorail sweeping the whole street. Body + wedge nose fill the 3.4×2.6×12.2 collider; the roof is where riders stand, so it is flat and walkable; side stripe lights read at 16 m/s. |
+| `sail_barge` ⚓ ✅ | Dune Sea | ~26 m, listing | The signature cover playground — today two boxes. Hull silhouette follows the audited row of r 4.4 m colliders along its axis, deck top standable; leaning broken mast + torn sail vane within the three stacked sail boxes. Half-buried, scoured, stripped. |
+| `cargo_crate` ✅ | Waystation, Trask, Refinery, Prison Rig (~50 instances) | 2.3–2.6 m cube (scaled per site) | The universal cover box both the enemy AI and the player's snap-to-cover press against — point-blank screen time all game. Cube envelope, recessed X-braced faces in the delivered `crate_side` style, corner lift lugs. Second clean-white texture set for the Prison Rig's containers. |
+| `fuel_barrel` ✷ ✅ | Waystation ×8, Refinery ×13 | 1.2 Ø × 1.7 m | One sculpt, two skins: plain steel (station cover, `barrel.jpg` style) and **rhydonium** — hazard-yellow band and a glowing amber fill slit (emissive), because on the Refinery these chain-explode and the read *is* the mechanic. Bake the band into the rhydonium skin. |
 
 ### Priority 2 — the landmark each board is recognised by
 
 | Id | Board(s) | Size | Replaces / constraints |
 |---|---|---|---|
-| `freighter` ⚓ | Waystation | ~11 m parked | The parked light freighter on the landing pad — today a cylinder, a sphere and two box wings. Fills the 8×4×6 collider plus the cockpit blister (r 1.5) at the nose; landing skids down, boarding ramp lowered, chipped off-white hull. |
-| `cargo_crane` ⚓ | Waystation ×3 | 18 m mast, 20 m arm | Mid-airspace landmarks the jetpack weaves through. Mast on the r 0.85 collider; arm along the audited collider row at +17 m; cable trolley with a hanging cargo container filling the 2.4 m cube collider near deck level. The cable itself stays intangible. |
-| `reactor_core` ⚓ | Refinery | 40 m column, r 5.5→4.5 taper | The board's centrepiece chimney. Segmented industrial column wrapped in pipes and ring flanges, tall emissive orange coolant channels up its height (the additive glow shell stays game FX). Must respect the stacked tapering colliders. |
-| `sunken_transport` ⚓ | Prison Rig | ~15 × 9 × 28 m | The swim-through wreck. Twin parallel hull sections under a roof plate with the **open corridor between them kept swimmable** (≥ 2.5 m — the colliders already leave it open), blunt collapsed nose, torn openings at both ends, silt-streaked. |
+| `freighter` ⚓ ✅ | Waystation | ~11 m parked | The parked light freighter on the landing pad — today a cylinder, a sphere and two box wings. Fills the 8×4×6 collider plus the cockpit blister (r 1.5) at the nose; landing skids down, boarding ramp lowered, chipped off-white hull. |
+| `cargo_crane` ⚓ ✅ | Waystation ×3 | 18 m mast, 20 m arm | Mid-airspace landmarks the jetpack weaves through. Mast on the r 0.85 collider; arm along the audited collider row at +17 m; cable trolley with a hanging cargo container filling the 2.4 m cube collider near deck level. The cable itself stays intangible. |
+| `reactor_core` ⚓ ✅ | Refinery | 40 m column, r 5.5→4.5 taper | The board's centrepiece chimney. Segmented industrial column wrapped in pipes and ring flanges, tall emissive orange coolant channels up its height (the additive glow shell stays game FX). Must respect the stacked tapering colliders. |
+| `sunken_transport` ⚓ ✅ | Prison Rig | ~15 × 9 × 28 m | The swim-through wreck. Twin parallel hull sections under a roof plate with the **open corridor between them kept swimmable** (≥ 2.5 m — the colliders already leave it open), blunt collapsed nose, torn openings at both ends, silt-streaked. |
 | `adobe_tower` | Nevarro ×2 | 11 m tall | The gate watchtowers flanking the town gate anchor. Tapering round adobe tower on the r 3.6 collider, covered lookout top. The 26 m wall runs stay procedural under the delivered `adobe_wall` texture. |
 | `adobe_gate` | Nevarro | 12 m span | The gate arch between the towers: two pylons + lintel filling the 12 × 2.4 m lintel collider at +7.6 m, gate leaves standing open. |
 | `forge_brazier` | Great Forge | ~3.5 m wide | The thematic heart of Mandalore — today a bare cylinder on the dais. Ceremonial forge basin with built-in anvil horn, glowing embers (emissive), blackened iron with worn silver inlay. Sits on the existing procedural dais over the r 1.6 collider. |

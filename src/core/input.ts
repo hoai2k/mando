@@ -23,6 +23,10 @@ export interface FrameInput {
   zoomDelta: number;
   /** hold to raise the block shield */
   blockHeld: boolean;
+  /** driving only: A / W — the accelerator */
+  throttleHeld: boolean;
+  /** driving only: B / S — brake, then reverse once stopped */
+  brakeHeld: boolean;
   slamPressed: boolean;
   switchPressed: boolean;
   pausePressed: boolean;
@@ -48,6 +52,7 @@ function blankInput(): FrameInput {
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
     zoomHeld: false, zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+    throttleHeld: false, brakeHeld: false,
   };
 }
 
@@ -338,6 +343,11 @@ export class InputManager {
       inp.dashPressed ||= this.keysPressed.has('ShiftLeft') || this.keysPressed.has('ShiftRight');
       inp.sprintHeld ||= k.has('ShiftLeft') || k.has('ShiftRight');
       inp.blockHeld ||= k.has('KeyR');
+      // Driving reads its own pedals, so W and S can be the accelerator and the
+      // brake without disturbing anything: on foot the throttle fields are
+      // ignored and W/S are movement, in the saddle it is the other way round.
+      inp.throttleHeld ||= k.has('Space') || k.has('KeyW');
+      inp.brakeHeld ||= k.has('KeyR') || k.has('KeyS');
       inp.slamPressed ||= this.keysPressed.has('ControlLeft') || this.keysPressed.has('KeyC');
       inp.shootHeld ||= this.mouseButtons.has(0);
       inp.aimHeld ||= this.mouseButtons.has(2);
@@ -366,6 +376,9 @@ export class InputManager {
         inp.dashPressed ||= this.edge(pad, BTN.LB);
         inp.sprintHeld ||= b(BTN.LB);
         inp.blockHeld ||= b(BTN.B);
+        // the same two buttons are the pedals in the saddle: A goes, B stops
+        inp.throttleHeld ||= b(BTN.A);
+        inp.brakeHeld ||= b(BTN.B);
         inp.slamPressed ||= this.edge(pad, BTN.RB);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);

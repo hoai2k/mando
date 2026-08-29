@@ -4,6 +4,7 @@ import { makeRng } from '../core/math';
 import { crateTexture, deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { spaceSky } from './sky';
 import type { Board } from './board';
+import { authoredProp } from './props';
 
 /**
  * Board 2 — "The Spice Run" waystation: a constellation of floating platforms
@@ -140,6 +141,10 @@ export function buildWaystation(): Board {
     crane.rotation.y = rot;
     crane.traverse((o) => { o.castShadow = true; });
     group.add(crane);
+    // The mast stands from the crane's own origin up to 18 m with the boom
+    // across the top, so the sculpt is measured by height and grounded there.
+    // Its boom runs down +X to match the procedural arm the colliders follow.
+    authoredProp(crane, [mast, arm, cable, hook], 'cargo_crane', 19, { axis: 'y', yaw: Math.PI / 2 });
     // Cranes were pure scenery: an 18 m mast, a 20 m arm and a hanging
     // container you flew straight through, in the middle of the airspace this
     // board is fought in. Upright cylinders take the yaw for free — the arm
@@ -167,6 +172,8 @@ export function buildWaystation(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, cy + 1.3, cz, 2.6, 2.6, 2.6);
+    // grounded at the crate's base, so the sculpt fills the box it is standing in
+    authoredProp(group, crate, 'cargo_crate', 2.6, { x: cx, y: cy, z: cz, yaw: crate.rotation.y });
   }
 
   // fuel barrels clustered around the pads (cover + set dressing)
@@ -189,6 +196,7 @@ export function buildWaystation(): Board {
     barrel.castShadow = barrel.receiveShadow = true;
     group.add(barrel);
     physics.addBox(bx, by + 0.75, bz, 1.1, 1.5, 1.1);
+    authoredProp(group, barrel, 'fuel_barrel', 1.5, { x: bx, y: by, z: bz, axis: 'y', yaw: barrel.rotation.y });
   }
 
   // parked freighter on a landing pad
@@ -208,7 +216,15 @@ export function buildWaystation(): Board {
   ship.position.set(-38, 4, -16);
   ship.traverse((o) => { o.castShadow = true; });
   group.add(ship);
-  physics.addBox(-38, 6, -16, 8, 4, 6);
+  // The procedural ship lies nose-out along +X, which is where its colliders
+  // are; the sculpt is built along +Z like every other prop, so it takes a
+  // quarter turn to point down the same axis.
+  authoredProp(ship, ship.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 });
+  // Sized to the sculpt rather than the box that fitted the procedural stand-in:
+  // measured in place the ship is 11 m nose to tail and 10 m across the wings,
+  // where the old 8x6 left both wingtips as something you walked through. The
+  // pad is 18x12, so it still parks with room around it.
+  physics.addBox(-38, 6, -16, 11, 4, 10);
   // the cockpit blister sits 2 m proud of the hull box, out over the pad edge
   physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
 

@@ -49,16 +49,17 @@ const mounted = await h.page.evaluate(() => {
 });
 check('RB mounts the swoop', mounted.on && mounted.rider);
 
-// ---- drive: momentum, and the rider stays in the saddle ----
+// ---- drive: the accelerator, momentum, and the rider stays in the saddle ----
 const start = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
-  // aim the camera at open desert (the arena centre) so throttle-forward
+  // point the nose at open desert (the arena centre) so a throttle-open run
   // doesn't drive straight into the camp tents
-  g.players[0].cam.yaw = Math.atan2(-v.pos.x, -v.pos.z);
-  return { x: v.pos.x, z: v.pos.z };
+  v.yaw = Math.atan2(-v.pos.x, -v.pos.z);
+  g.players[0].cam.yaw = v.yaw;
+  return { x: v.pos.x, z: v.pos.z, yaw: v.yaw };
 });
-await h.step(2, { moveY: 1 });
+await h.step(2, { throttleHeld: true });
 const drove = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
@@ -71,8 +72,43 @@ const drove = await h.page.evaluate(() => {
   };
 });
 const dist = Math.hypot(drove.x - start.x, drove.z - start.z);
-check('2 s of throttle covers real ground', dist > 15, `${dist.toFixed(1)} m at ${drove.speed.toFixed(1)} m/s`);
+check('2 s on the accelerator covers real ground', dist > 15, `${dist.toFixed(1)} m at ${drove.speed.toFixed(1)} m/s`);
 check('rider stays on the seat', drove.seatDrift < 1.5, `${drove.seatDrift.toFixed(2)} m off`);
+
+// ---- the brake hauls it up, and then backs it away ----
+const braked = await h.page.evaluate(() => ({ speed: Math.hypot(window.__game.vehicles[0].vel.x, window.__game.vehicles[0].vel.z) }));
+await h.step(1.2, { brakeHeld: true });
+const stopped = await h.page.evaluate(() => {
+  const v = window.__game.vehicles[0];
+  const fwd = v.vel.x * Math.sin(v.yaw) + v.vel.z * Math.cos(v.yaw);
+  return { fwd };
+});
+check('the brake stops it', stopped.fwd < braked.speed * 0.35, `${braked.speed.toFixed(1)} -> ${stopped.fwd.toFixed(1)} m/s`);
+await h.step(1.5, { brakeHeld: true });
+const reversing = await h.page.evaluate(() => {
+  const v = window.__game.vehicles[0];
+  return { fwd: v.vel.x * Math.sin(v.yaw) + v.vel.z * Math.cos(v.yaw) };
+});
+check('holding the brake reverses', reversing.fwd < -1.5, `${reversing.fwd.toFixed(1)} m/s astern`);
+
+// ---- steering: the stick turns the nose, and right means right ----
+const steered = await h.page.evaluate(async () => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  v.yaw = 0;                                   // nose on +Z
+  v.vel.set(0, 0, 12);
+  return { before: v.yaw };
+});
+await h.step(1, { moveX: 1, throttleHeld: true });
+const turn = await h.page.evaluate(() => {
+  const v = window.__game.vehicles[0];
+  const nose = { x: Math.sin(v.yaw), z: Math.cos(v.yaw) };
+  return { yaw: v.yaw, nose };
+});
+// screen-right is -X for a nose on +Z, so a stick pushed right must swing the
+// nose toward -X (yaw decreasing) — the sign this scheme lives or dies on
+check('stick right turns the nose right', turn.nose.x < -0.3 && turn.yaw < steered.before,
+  `nose now (${turn.nose.x.toFixed(2)}, ${turn.nose.z.toFixed(2)})`);
 
 // ---- ramming: a hostile in the path is bowled over and the ride chips ----
 const ramBefore = await h.page.evaluate(() => {
@@ -178,8 +214,12 @@ await h.step(1 / 60, { slamPressed: true });
 const trOn = await h.page.evaluate(() => !!window.__game.players[0].vehicle);
 check('skiff mounts', trOn, JSON.stringify(trMount));
 // steer down the open channel between the dock fingers
-await h.page.evaluate(() => { window.__game.players[0].cam.yaw = Math.PI; });
-await h.step(3, { moveY: 1 });
+await h.page.evaluate(() => {
+  const g = window.__game;
+  g.vehicles[0].yaw = Math.PI;              // point down the channel
+  g.players[0].cam.yaw = Math.PI;
+});
+await h.step(3, { throttleHeld: true });
 const sail = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];

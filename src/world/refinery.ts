@@ -3,6 +3,7 @@ import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
 import { crateTexture, deckTexture, hullTexture } from '../core/assets';
 import { addBreakable, type Board } from './board';
+import { authoredProp } from './props';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
 
@@ -107,6 +108,9 @@ export function buildRefinery(): Board {
   core.position.y = 20;
   core.castShadow = core.receiveShadow = true;
   group.add(core);
+  // the column stands the full 40 m of the shaft; the additive glow shell
+  // around it stays game FX and is not part of the sculpt
+  authoredProp(group, core, 'reactor_core', 40, { axis: 'y' });
   // The column tapers 5.5 -> 4.5 over its height; one 5.2 m cylinder sank you
   // 0.3 m into the base and put an invisible wall 0.7 m off the top. Stack a
   // few, each matching the radius over its own slice.
@@ -152,6 +156,7 @@ export function buildRefinery(): Board {
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
     physics.addBox(cx, 1.2, cz, 2.4, 2.4, 2.4);
+    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, z: cz, yaw: crate.rotation.y });
   }
 
   const board: Board = {
@@ -194,9 +199,14 @@ export function buildRefinery(): Board {
     band.position.set(bx, 1.2, bz);
     group.add(band);
     const box = physics.addBox(bx, 0.85, bz, 1.2, 1.7, 1.2);
+    // The rhydonium drum carries its own hazard band, so the procedural stripe
+    // goes with the barrel. `addBreakable` hides the mesh it is given on death,
+    // which is the barrel — so the model has to be hidden by hand there too,
+    // or a shot-out barrel would leave its sculpt standing in the fire.
+    const drum = authoredProp(group, [barrel, band], 'fuel_barrel', 1.7, { x: bx, z: bz, axis: 'y', yaw: barrel.rotation.y });
     addBreakable(board, barrel, box, 45, {
       explosive: true, radius: 1.1,
-      onBreak: () => { band.visible = false; },
+      onBreak: () => { band.visible = false; drum.visible = false; },
     });
   }
 
