@@ -292,3 +292,27 @@ keeps its drawn mark on a 404. `portrait_ig11` is the last one still open.
 
 0.48 s, verified decoding in-browser at peak 0.666 / rms 0.092. The synth voice (a square
 zap over a bright noise burst) remains the fallback.
+
+## Audio — 25 files, delivered 2026-08-29
+
+The last of the open sound-effect requests: everything the six new boards and the
+Prison Rig opened, plus the two speeder sounds the vehicles work added. Briefs are
+the ones that stood in `ASSETS_AUDIO.md`; durations and loop flags live in
+`tools/generate-sfx.mjs`.
+
+| Group | Files |
+|---|---|
+| Ambience beds (18 s seamless) | `amb_lava`, `amb_ice`, `amb_rain`, `amb_refinery`, `amb_forge`, `amb_city`, `amb_sea` |
+| Board effects | `thunder_crack`, `geyser_blast`, `alarm_klaxon`, `ice_crack`, `flame_burst`, `mythosaur_call`, `splash_in`, `splash_out`, `mamacore_roar`, `floor_charge` |
+| Footsteps | `footstep_snow`, `footstep_stone` |
+| New-board voices | `spider_chitter`, `quarren_bark`, `alamite_shriek`, `drone_whine` |
+| Vehicles | `speeder_loop` (seamless), `speeder_ignite` |
+| Variation sets | `footstep_sand_1..4`, `footstep_metal_1..4`, `melee_whoosh_1..3` |
+
+The variation sets had been blocked on "a variant-picking helper in `src/core/audio.ts`";
+the per-character voices added one, so they went in with it. Footsteps draw at random
+from their four takes, and the three whooshes rise in intensity so the melee combo steps
+through them rather than shuffling.
+
+With these, all nine boards play their own ambience instead of borrowing the desert
+or station bed, and every enemy kind with a bark hook has the voice for it.

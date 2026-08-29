@@ -26,7 +26,7 @@ type SampleName =
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
   | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
-  | VoiceSample;
+  | VoiceSample | VariantSample;
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
 /**
@@ -42,6 +42,15 @@ export const VOICES: VoiceId[] = ['mando_m', 'mando_f', 'human_f', 'masked', 're
 export const HURT_VARIANTS = 3;
 
 type VoiceSample = `hurt_${VoiceId}_${1 | 2 | 3}` | `death_${VoiceId}`;
+
+/**
+ * Takes for the sounds that fire most often in a match. One file pitch-varied
+ * reads fine for a few minutes and turns into a tic over a long session, so
+ * these carry real alternates and go through the same picker as the voices.
+ */
+type VariantSample =
+  | `footstep_sand_${1 | 2 | 3 | 4}` | `footstep_metal_${1 | 2 | 3 | 4}`
+  | `melee_whoosh_${1 | 2 | 3}`;
 
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
@@ -135,6 +144,9 @@ export class AudioEngine {
       ...VOICES.flatMap((v): SampleName[] => [
         `hurt_${v}_1`, `hurt_${v}_2`, `hurt_${v}_3`, `death_${v}`,
       ]),
+      'footstep_sand_1', 'footstep_sand_2', 'footstep_sand_3', 'footstep_sand_4',
+      'footstep_metal_1', 'footstep_metal_2', 'footstep_metal_3', 'footstep_metal_4',
+      'melee_whoosh_1', 'melee_whoosh_2', 'melee_whoosh_3',
     ];
     await Promise.all(names.map(async (n) => {
       // mp3 first: that's what tools/generate-sfx.mjs ships, so the common
@@ -294,6 +306,10 @@ export class AudioEngine {
       this.burst(0.14, 0.08, 700 + step * 150, 0, 0.5);
       return;
     }
+    // the takes rise in intensity, so the combo step picks one rather than
+    // drawing at random — and pitch still nudges it per swing
+    const take = `melee_whoosh_${Math.min(3, Math.max(1, step))}` as SampleName;
+    if (this.playSample(take, 0.6, 0.96 + Math.random() * 0.08)) return;
     if (this.playSample('melee_whoosh', 0.6, 0.9 + step * 0.12)) return;
     this.burst(0.16, 0.22, 500 + step * 200, 0, 0.7);
   }
@@ -420,6 +436,8 @@ export class AudioEngine {
   footstep(surface: FootSurface): void {
     if (!this.ctx) return;
     const rate = 0.9 + Math.random() * 0.25;
+    // sand and metal carry four takes each; the newer surfaces have one file
+    if (this.playVariants(`footstep_${surface}`, 4, 0.3)) return;
     if (this.playSample(`footstep_${surface}` as SampleName, 0.3, rate)) return;
     // authored fallbacks that read close enough until real files land
     if (surface === 'snow' && this.playSample('footstep_sand', 0.24, rate * 0.8)) return;

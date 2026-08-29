@@ -103,8 +103,51 @@ const SFX = {
   swoop_pass: ['Fast hover bike flyby with doppler effect: whining repulsor engine sweep passing close', 1.0],
   imperial_bark: ['Soldier voice through a helmet radio filter shouting a short muffled command, clipped static edge, unintelligible', 0.7],
   imperial_death: ['Soldier death cry through a helmet radio filter, short, cut off with static', 0.6],
+  // ---- the six new boards + the Prison Rig ----
+  // Briefs are the canonical ones from docs/ASSETS_AUDIO.md; durations and the
+  // loop flag are the only thing added here.
+  thunder_crack: ['Close thunder crack rolling off into a long rumble', 3],
+  geyser_blast: ['Volcanic steam geyser eruption: pressurized blast into a roaring column', 1.5],
+  alarm_klaxon: ['Industrial two-tone alarm klaxon, one cycle, harsh and metallic', 0.9],
+  ice_crack: ['Thick lake ice splitting: sharp crack then a deep resonant groan', 1.2],
+  flame_burst: ['Flamethrower burst: ignition whump into a sustained roaring jet', 1.6],
+  mythosaur_call: ['Colossal creature call from deep underwater, mournful sub-bass bellow, heavily muffled, felt more than heard', 4],
+  splash_in: ['Armored body plunging into sea water: deep whump and spray, single splash', 0.9],
+  splash_out: ['Water shedding off a surfacing body, light splash and drips', 0.7],
+  mamacore_roar: ['Huge aquatic predator roar breaking the surface: wet bellow with a gurgling snap', 1.6],
+  floor_charge: ['Electrical floor plate charging up: rising capacitor whine over a building hum', 1.1],
+  // variation sets — the picker in audio.ts chooses among whichever landed
+  footstep_sand_1: ['Single armored boot footstep on packed desert sand, dry crunch, very short, one step only', 0.5],
+  footstep_sand_2: ['Single armored boot footstep on loose dry sand, softer scuffing crunch, very short, one step only', 0.5],
+  footstep_sand_3: ['Single armored boot footstep on gritty sand over rock, crisp crunch with a faint grind, very short, one step only', 0.5],
+  footstep_sand_4: ['Single armored boot footstep landing heavily in sand, deeper compacted crunch, very short, one step only', 0.5],
+  footstep_metal_1: ['Single armored boot footstep on hollow steel deck plate, dull clank, very short, one step only', 0.5],
+  footstep_metal_2: ['Single armored boot footstep on steel decking, brighter ringing clank, very short, one step only', 0.5],
+  footstep_metal_3: ['Single armored boot footstep on loose metal grating, rattling clank, very short, one step only', 0.5],
+  footstep_metal_4: ['Single armored boot footstep landing heavily on steel plate, deep resonant thud with a metallic ring, very short, one step only', 0.5],
+  melee_whoosh_1: ['Heavy metal staff swing whoosh, low airy sweep, quick and light, single swing, no impact', 0.6],
+  melee_whoosh_2: ['Heavy metal staff swing whoosh, stronger low air sweep with more weight behind it, single swing, no impact', 0.6],
+  melee_whoosh_3: ['Heavy metal staff swing whoosh, hardest full-force sweep ending with a weighty grunt of effort, no words, single swing, no impact', 0.9],
+  footstep_snow: ['Single armored footstep in dry packed snow, crisp crunch, one step only', 0.5],
+  footstep_stone: ['Single armored footstep on solid volcanic stone, hard mineral tap with slight grit, one step only', 0.5],
+  // new-board voices (original creature voices, no real-world references)
+  spider_chitter: ['Large insectoid spider vocalization: rapid chitinous clicking rising to a hiss, unsettling, original creature voice', 1.1],
+  quarren_bark: ['Gruff aquatic alien shout, wet gurgling undertone, aggressive challenge, invented alien language, no real words', 1.0],
+  alamite_shriek: ['Feral humanoid cave-creature shriek, raspy and echoing, original creature voice', 1.0],
+  drone_whine: ['Small aggressive drone spinning up: rising servo whine into an overdriven scream, piercing', 1.3],
+  // vehicles
+  speeder_loop: ['Repulsorlift speeder engine loop: steady turbine whine over a low hovering thrum, constant level, seamless continuous loop', 3, true],
+  speeder_ignite: ['Repulsorlift speeder starting up: rising turbine spin-up with a pressurized whoosh, single start', 0.8],
+
   // ambience beds (seamless loops)
   amb_desert: ['Desert planet ambience: dry wind over open dunes, sparse distant sand hiss, lonely and vast, seamless continuous loop, no music', 18, true],
+  amb_lava: ['Volcanic plain ambience: deep magma rumble, distant gas vents hissing, occasional rock pops and settling gravel, dry wind, seamless continuous loop, no music', 18, true],
+  amb_ice: ['Glacial canyon ambience: thin whistling wind, deep distant ice groans and settling cracks, faint snow hiss, empty and cold, seamless continuous loop, no music', 18, true],
+  amb_rain: ['Harbour storm ambience: steady heavy rain on metal decking, gusting wind, waves slapping pilings, creaking moored boats, distant gulls, seamless continuous loop, no music', 18, true],
+  amb_refinery: ['Industrial plant interior ambience: deep machinery drone, cycling pumps, steam hisses, metallic clanks echoing in a large hall, seamless continuous loop, no music', 18, true],
+  amb_forge: ['Dead-world ambience: hollow wind over glass dunes, faint electrical crackle on the horizon, occasional deep sub-bass earth groan, desolate, seamless continuous loop, no music', 18, true],
+  amb_city: ['Quiet alien city-street ambience: low crowd murmur behind walls, neon buzz, distant tram hum, occasional door hiss, night-city calm, seamless continuous loop, no music', 18, true],
+  amb_sea: ['Open-ocean facility ambience: steady sea swell against metal pylons, empty wind, faint sterile facility hum, distant intercom chime, seamless continuous loop, no music', 18, true],
   amb_station: ['Space station exterior ambience: deep hull hum, distant machinery clunks, occasional pressure hiss, cold industrial, seamless continuous loop, no music', 18, true],
   // music loops & stings
   music_title: ['Dark space western title theme: slow lone twangy electric guitar motif over a deep drone and sparse tribal percussion, moody mythic bounty hunter mood, instrumental, seamless loop', 20, true],
