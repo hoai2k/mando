@@ -463,6 +463,26 @@ export class Enemy {
     this.char.root.scale.setScalar(this.char.baseScale);
   }
 
+  /** a phase-two boss stops pacing itself */
+  enraged = false;
+
+  /**
+   * The last phase gets faster instead of only longer: the warlord closes
+   * quicker and swings/fires more often. Done by giving this one instance its
+   * own def — every movement and cooldown site reads `this.def`, so one copy
+   * retunes all of them without touching a shared table.
+   */
+  enrage(): void {
+    if (this.enraged) return;
+    this.enraged = true;
+    this.def = {
+      ...this.def,
+      speed: this.def.speed * 1.28,
+      attackCd: this.def.attackCd * 0.6,
+    };
+    this.dmgScale *= 1.15;
+  }
+
   /**
    * Something happened at `pos` worth looking at — a shot, a squadmate's
    * shout, a hit landing. `hard` skips straight to combat (being shot at

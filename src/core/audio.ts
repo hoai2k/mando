@@ -24,7 +24,7 @@ type SampleName =
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
-  | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite'
+  | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample | VariantSample;
 
@@ -137,7 +137,7 @@ export class AudioEngine {
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
-      'saber_deflect', 'speeder_loop', 'speeder_ignite',
+      'saber_deflect', 'speeder_loop', 'speeder_ignite', 'boss_horn',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
       // match needs is not known until the players have picked
@@ -534,6 +534,20 @@ export class AudioEngine {
     if (!this.ctx || this.playSample('wave_start', 0.7)) return;
     this.zap(190, 170, 0.55, 'sawtooth', 0.28);
     this.zap(95, 85, 0.55, 'sawtooth', 0.22);
+  }
+  /**
+   * The warlord's entrance — and, quieter, each phase turn. A low war-horn
+   * swell with a hit on the end, so the intro card lands on a downbeat.
+   */
+  bossHorn(full = true): void {
+    if (!this.ctx) return;
+    if (this.playSample('boss_horn', full ? 0.85 : 0.5)) return;
+    const g = full ? 1 : 0.6;
+    this.zap(58, 62, 1.4, 'sawtooth', 0.3 * g);
+    this.zap(87, 93, 1.4, 'sawtooth', 0.22 * g);
+    this.zap(116, 124, 1.2, 'triangle', 0.2 * g, 0.1);
+    this.burst(0.5, 0.35 * g, 300, 1.15, 1.2);   // the hit at the crest
+    this.zap(45, 30, 0.7, 'sine', 0.4 * g, 1.15);
   }
   waveClear(): void {
     if (!this.ctx || this.playSample('wave_clear', 0.7)) return;
