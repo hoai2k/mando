@@ -14,11 +14,38 @@ export interface BoltTarget {
   /** player slot, so a bolt this target deflects is credited to them */
   slot?: number;
   /**
-   * A raised block shield. Bolts arriving from the front of `normal` bounce
-   * off it and fly on as the blocker's own fire; the sphere is tested before
-   * the body, so a shield up is a shield that works.
+   * Something in the way that turns bolts around — a raised block shield, or a
+   * pair of blades. Bolts arriving from the front of `normal` bounce off it and
+   * fly on as the blocker's own fire; the sphere is tested before the body, so
+   * a shield up is a shield that works.
    */
-  shield?: { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null;
+  shield?: DeflectSphere | null;
+}
+
+/** A sphere that turns bolts around. See `BoltTarget.shield`. */
+export interface DeflectSphere {
+  center: THREE.Vector3;
+  radius: number;
+  normal: THREE.Vector3;
+  /**
+   * A pane mirrors the bolt about its normal; blades bat it away, which loses
+   * none of its force and lets it be aimed.
+   */
+  kind?: 'shield' | 'saber';
+  /**
+   * How square-on a bolt must arrive to be met, as -cos(angle to the normal).
+   * The pane's default of 0 covers the whole front; blades want a tighter arc,
+   * so fire from the flank still lands.
+   */
+  minDot?: number;
+  /** Where to send the bolt, instead of mirroring it. Read at deflect time. */
+  aim?: THREE.Vector3 | null;
+  /**
+   * Asked before each deflect: false lets the bolt through. This is where a
+   * cooldown or an energy cost lives, so the projectile system stays ignorant
+   * of both.
+   */
+  consume?: () => boolean;
 }
 
 interface Bolt {
@@ -134,14 +161,19 @@ export class ProjectileSystem {
         if (!t.alive || t.team === b.team || !t.shield) continue;
         const sh = t.shield;
         // only the outward face blocks — you cannot shelter behind your own back
-        if (b.vel.dot(sh.normal) >= 0) continue;
+        const face = -b.vel.dot(sh.normal) / (b.vel.length() || 1);
+        if (face <= (sh.minDot ?? 0)) continue;
         if (!segSphere(from, step, stepLen, sh.center, sh.radius)) continue;
-        // bounce: mirror the velocity about the shield normal and hand the
-        // bolt to the blocker's team, so a good block is also a counterattack
-        b.vel.reflect(sh.normal);
+        if (sh.consume && !sh.consume()) continue;
+        // hand the bolt to the blocker's team, so a good block is also a
+        // counterattack: a pane mirrors it, blades throw it at a chosen point
+        const speed = b.vel.length();
+        if (sh.aim) b.vel.copy(sh.aim).sub(sh.center).normalize().multiplyScalar(speed);
+        else b.vel.reflect(sh.normal);
         b.team = t.team;
         b.bySlot = t.slot ?? -1;   // a kill off a good block belongs to the blocker
-        b.damage *= 0.75;
+        // a blade loses the bolt nothing; a pane scatters some of it
+        b.damage *= sh.kind === 'saber' ? 1 : 0.75;
         b.life = Math.min(b.life, 1.6);
         b.mesh.material = t.team === 0 ? this.matPlayer : this.matEnemy;
         b.glow.material = t.team === 0 ? this.glowPlayer : this.glowEnemy;

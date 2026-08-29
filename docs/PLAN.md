@@ -108,6 +108,22 @@ docs/PLAN.md
   has her own three-hit combo (`saber1/2/3`): the staff clips park the off hand, which
   reads as a dead arm with a blade in it, so the dual-wield set alternates leads and
   finishes on a cross-slash that throws both blades apart.
+- **The blade fighter carries no gun.** Ventress's loadout is the sabers and nothing
+  else, so every ranged path — firing, aiming down sights, lock-on, peek-fire from
+  cover — switches itself off for her rather than needing a special case at each site:
+  her stowed state is empty hands (`weapon: 'none'`) instead of a shouldered carbine,
+  and everything already gated on holding the blaster is false by construction. What she
+  gets in exchange is **deflection**: bolts arriving from her front are batted back at
+  whoever is in front of her, at full damage and credited to her. It reuses the block
+  shield's collider rather than inventing a second mechanism, with three differences that
+  make it read as a parry and not a wall — a tighter frontal arc (about 70°, so fire from
+  the flank still lands), a short cooldown so one blade sweep cannot answer a whole burst,
+  and a cost on the same gauge sprinting spends, so holding blades into sustained fire
+  runs the gauge down and leaves nothing to dash out with.
+- **The blades stow themselves.** Four seconds without a swing or a deflect and they go
+  away, so she walks the board with empty hands rather than jogging around lit like a road
+  flare; pressing melee lights them again on the spot and swings in the same press, so
+  stowing is never something the player has to undo before they can fight.
 - **Gaffi stick (gaderffii)** — 3-hit combo (swing → backswing → overhead slam) with forward lunge that homes onto the nearest enemy within ~4 m (arcade magnetism). Higher damage than blaster; the finisher puts grounded humanoids flat on their back (a real knockdown state, ~1.6–2.1 s), and any hit on a downed or wounded enemy lands double — the RDR2 brawl loop of haymaker → finish them on the ground. Melee kills refund a chunk of jetpack fuel → encourages weaving in close.
 - **Wrist rocket (Q)** — the Z-6 jetpack's missile: lock-on lob, AoE explosion, 1 charge per ~12 s. Screen shake + big particle payoff.
 - **Feedback / hit reactions (Euphoria-flavoured):** hit markers, enemy hit-flash + stagger, kill confirm sound; explosions and ground slams knock enemies flat (they get back up shaken); a hit that leaves a grounded humanoid under 25% HP has a 40% chance to drop it into a **wounded crawl** — out of the fight, dragging itself away, bleeding out in 8–12 s unless finished.
@@ -130,15 +146,15 @@ This is the flexibility the brief demands:
 
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
-| **Kell Dravan** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
-| **Torva Brekk** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
-| **Vess Ordane** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
-| **The Forgemistress** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
-| **Sylla Morvane** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). |
-| **Karshii** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
-| **Skarvek** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
-| **Rook Vance** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
-| **VX-9** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
+| **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
+| **Paz Vizsla** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
+| **Bo-Katan Kryze** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
+| **The Armorer** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
+| **Asajj Ventress** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). **Melee only** — she carries no ranged weapon, and turns blaster bolts back at their shooter instead. |
+| **Embo** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
+| **Bossk** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
+| **Cad Bane** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
+| **IG-11** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
 | **War massiff** | Tatooine elite (wave 5+) | Armoured quadruped predator: slab-sided hide under a spine of dorsal plates and spikes, flank scutes, heavy tusked skull slung low and forward, thick segmented tail. 2.1 m tall, 5.6 m long. Runs down anyone who tries to jog away and pounces the last 16 m. |
 | **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |

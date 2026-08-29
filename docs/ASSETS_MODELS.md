@@ -28,10 +28,10 @@ when a name does.
 
 | Character | Id / reference sheets (`reference/characters/`) | Reference look |
 |---|---|---|
-| **Kell Dravan** | `din` — `din_front/side/back.png` | Polished bare-silver beskar cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack. |
-| **Torva Brekk** | `paz` — `paz_front/side/back.png` | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette (normalised to 1.67 m, bulk 1.16, width-only broad 1.08 — never scale y, or limbs stretch as they swing). |
-| **Vess Ordane** | `bokatan` — `bokatan_front/side/back.png` | Blue-and-red plate, rangefinder helmet, lighter build (scale ~0.95). |
-| **The Forgemistress** | `armorer` — `armorer_front/side/back.png` | Gold plate over dark underlayers, horned forge-keeper helm, cape. |
+| **Din Djarin** | `din` — `din_front/side/back.png` | Polished bare-silver beskar cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack. |
+| **Paz Vizsla** | `paz` — `paz_front/side/back.png` | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette (normalised to 1.67 m, bulk 1.16, width-only broad 1.08 — never scale y, or limbs stretch as they swing). |
+| **Bo-Katan Kryze** | `bokatan` — `bokatan_front/side/back.png` | Blue-and-red plate, rangefinder helmet, lighter build (scale ~0.95). |
+| **The Armorer** | `armorer` — `armorer_front/side/back.png` | Gold plate over dark underlayers, horned forge-keeper helm, cape. |
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
@@ -47,24 +47,24 @@ and empty hands (they mount the shared carbine and gaffi props like the Mandalor
 signature weapons below are separate props or FX).
 
 **Every hunter model is delivered and integrated** — the three hunters on 2026-08-28, and
-the **blue-skinned gunslinger** on 2026-08-29, who is playable as Rook Vance from the
+the **blue-skinned gunslinger** on 2026-08-29, who is playable as Cad Bane from the
 delivered `duelist.glb` and its sheets as-is. He is also the `duelist` enemy kind on the
 Ringworld's final wave: the same sculpt on both sides, which is deliberate. An optional
 re-export at playable budget can come later if the 8k boss version reads poorly up close.
-The fifth of the family, **VX-9**, rides the delivered ally droid model (`ig11.glb`) on
+The fifth of the family, **IG-11**, rides the delivered ally droid model (`ig11.glb`) on
 the canonical rig, so it needed no new sculpt.
 
 | Character | Id / reference sheets | Height | Reference look |
 |---|---|---|---|
-| **Rook Vance** | `duelist` — `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
-| **Sylla Morvane** | `ventress` — `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
-| **Karshii** | `embo` — `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
-| **Skarvek** | `bossk` — `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
-| **VX-9** | `ig11` — `ig11_front/side/back.png` | 2.20 m | The ally assassin droid, playable: cylindrical red-ringed head, exposed piston limbs. Wears no jetpack — flight flames mount under the foot bones instead (`thrusters: 'feet'` in the roster config), so a re-export must not add a pack. |
+| **Cad Bane** | `duelist` — `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
+| **Asajj Ventress** | `ventress` — `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
+| **Embo** | `embo` — `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
+| **Bossk** | `bossk` — `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
+| **IG-11** | `ig11` — `ig11_front/side/back.png` | 2.20 m | The ally assassin droid, playable: cylindrical red-ringed head, exposed piston limbs. Wears no jetpack — flight flames mount under the foot bones instead (`thrusters: 'feet'` in the roster config), so a re-export must not add a pack. |
 
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers
-(Sylla), laser crossbow (Karshii), long rifle (Skarvek and VX-9), twin heavy pistols
+(Ventress), laser crossbow (Embo), long rifle (Bossk and IG-11), twin heavy pistols
 (Rook). Paired weapons mount on `weaponR` and `weaponL`; an authored model exposes both
 mounts, so an off-hand weapon sits in the model's other hand rather than beside the body.
 
@@ -72,7 +72,7 @@ mounts, so an off-hand weapon sits in the model's other hand rather than beside 
 Three weapon props were requested as models — `saber_curved`, `crossbow`, `longrifle` —
 and their side-view sheets were delivered (`reference/characters/`), but the .glbs are
 **parked as of 2026-08-29**: the procedurally built weapons read well at gameplay distance
-and nothing is blocked on a file. `pistol`, added later for Rook Vance, is parked with
+and nothing is blocked on a file. `pistol`, added later for Cad Bane, is parked with
 them. If that is revisited, the brief is unchanged — one .glb per weapon on the standard
 `loadProp()` path, gripped at origin, and a character carrying a pair needs only one
 file, since the off-hand is a second instance of it.
@@ -87,7 +87,7 @@ reads is FX geometry no .glb can supply. The effort went into the blades instead
 
 | Character | Type | Reference sheets | Reference look |
 |---|---|---|---|
-| **VX-9** (`ig11`) | `ig11_front/side/back.png` | ranged ally — also playable, above | Tall spindly assassin droid, cylindrical head with red sensor ring, exposed piston limbs (~2.2 m). |
+| **IG-11** (`ig11`) | `ig11_front/side/back.png` | ranged ally — also playable, above | Tall spindly assassin droid, cylindrical head with red sensor ring, exposed piston limbs (~2.2 m). |
 | **The Marshal** | `marshal_front/side/back.png` | ranged ally | Human gunfighter, red-brown duster coat, wide-brim hat, weathered desert lawman. |
 | **Fennec Shand** | `fennec_front/side/back.png` | sniper ally | Sleek dark body armor, helmet cap with orange visor band, long rifle. |
 
@@ -222,7 +222,7 @@ nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board t
 integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 `interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
-and the fifth, VX-9, reuses `ig11.glb`. Open on the model side: the environment batch
+and the fifth, IG-11, reuses `ig11.glb`. Open on the model side: the environment batch
 above, and nothing else. The signature-weapon props (`saber_curved`, `crossbow`,
 `longrifle`, and `pistol` after them) are **parked by decision** — the game keeps its
 procedural versions for now, as described under the hunters above; a character who

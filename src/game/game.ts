@@ -127,10 +127,14 @@ export class Game {
       this.particles.impactSparks(point, 10);
       audio.impact();
       for (const p of this.players) {
-        if (!p.blocking) continue;
-        if (p.position.distanceToSquared(point) < 2.5 * 2.5) {
+        if (p.position.distanceToSquared(point) >= 2.5 * 2.5) continue;
+        if (p.blocking) {
           p.char.shieldHit();
           p.cam.shake(0.05);
+        } else if (p.sabersDrawn) {
+          // no pane to flash: the blade sells it on sound and a short jolt
+          audio.saberDeflect();
+          p.cam.shake(0.035);
         }
       }
     };
@@ -461,6 +465,9 @@ export class Game {
       t.radius = p.radius + 0.35;
       t.team = 0;
       t.alive = true;
+      // a blade sends the bolt back at somebody, so the player needs to be
+      // told who is in front of them before the collider is read
+      p.deflectEnemy = p.sabersDrawn ? this.nearestHostileInFront(p) : null;
       t.shield = p.shieldCollider;
       t.slot = p.slot;
       t.breakable = null;
@@ -549,6 +556,28 @@ export class Game {
     this.rockets = this.rockets.filter((r) => r.life > 0);
 
     this.particles.update(dt);
+  }
+
+  /**
+   * Whoever a deflected bolt should be thrown at: the nearest live hostile
+   * inside the arc the player is facing. Nothing in front means the blade
+   * mirrors the shot instead, which still sends it away from her.
+   */
+  private nearestHostileInFront(p: Player): Enemy | null {
+    const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
+    let best: Enemy | null = null;
+    let bestD = 60 * 60;
+    for (const e of this.enemies) {
+      if (!e.alive || e.team !== 1) continue;
+      const dx = e.position.x - p.position.x, dz = e.position.z - p.position.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > bestD || d2 < 0.01) continue;
+      const d = Math.sqrt(d2);
+      if ((dx * fx + dz * fz) / d < 0.2) continue;   // behind her, or nearly
+      best = e;
+      bestD = d2;
+    }
+    return best;
   }
 
   /**
@@ -645,7 +674,7 @@ export class Game {
       this.allies.push(ally);
       this.scene.add(ally.char.root);
       this.particles.dustPuff(start, 12);
-      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'VX-9 joins the fight', fennec: 'Fennec Shand joins the fight' };
+      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'IG-11 joins the fight', fennec: 'Fennec Shand joins the fight' };
       this.events.banner(`Wave ${this.wave}`, names[allyKind]);
     }
   }

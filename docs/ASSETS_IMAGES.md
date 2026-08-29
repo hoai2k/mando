@@ -84,7 +84,7 @@ ignited blade — blades are FX meshes the game manages.
 and are recorded with their prompts in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The
 **models** they were drawn for are **parked by decision** (2026-08-29): the game keeps its
 procedural weapons, which read well at gameplay distance, and no code waits on a file. The
-fourth sheet, `pistol` — Rook Vance's twin heavy pistols — was never produced and is not
+fourth sheet, `pistol` — Cad Bane's twin heavy pistols — was never produced and is not
 wanted while that holds; its prompt is kept here for whenever it is:
 
 | Id | Prompt |

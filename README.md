@@ -65,15 +65,15 @@ who each bring a weapon of their own:
 
 | Fighter | | |
 |---|---|---|
-| **Kell Dravan** | Mandalorian | Bare beskar shine — carbine + gaffi stick |
-| **Torva Brekk** | Mandalorian | Heavy blue plate, the broadest silhouette |
-| **Vess Ordane** | Mandalorian | Night-owl blue, rangefinder helmet |
-| **The Forgemistress** | Mandalorian | Gold plate and horned helm |
-| **Sylla Morvane** | Hunter | Twin red curved-hilt sabers in place of the staff |
-| **Karshii** | Hunter | Wide woven-metal hat, laser crossbow |
-| **Skarvek** | Hunter | Reptilian brawn, long rifle |
-| **Rook Vance** | Hunter | Twin heavy pistols, one in each hand |
-| **VX-9** | Hunter | Assassin droid on leg thrusters, long rifle |
+| **Din Djarin** | Mandalorian | Bare beskar shine — carbine + gaffi stick |
+| **Paz Vizsla** | Mandalorian | Heavy blue plate, the broadest silhouette |
+| **Bo-Katan Kryze** | Mandalorian | Night-owl blue, rangefinder helmet |
+| **The Armorer** | Mandalorian | Gold plate and horned helm |
+| **Asajj Ventress** | Hunter | Twin red sabers and no gun at all — she deflects blaster fire back at whoever sent it |
+| **Embo** | Hunter | Wide woven-metal hat, laser crossbow |
+| **Bossk** | Hunter | Reptilian brawn, long rifle |
+| **Cad Bane** | Hunter | Twin heavy pistols, one in each hand |
+| **IG-11** | Hunter | Assassin droid on leg thrusters, long rifle |
 
 The armour is cosmetic; the weapon is not — a crossbow, a rifle and a pair of pistols
 each fire differently, and Sylla's sabers swing where everyone else's staff does.
@@ -123,7 +123,7 @@ a shattered squad may break and run for a new position.
   whole sea below to dive, hide in and surface behind the sentries.
 
 From wave 6 the Imperial remnant shows up (stormtroopers, death troopers, flying dark
-troopers). Allies join you along the way: **The Marshal** (wave 4), **VX-9** (wave 7) and
+troopers). Allies join you along the way: **The Marshal** (wave 4), **IG-11** (wave 7) and
 **Fennec Shand** (wave 9).
 
 Survive ten waves to hold the territory.

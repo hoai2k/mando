@@ -43,7 +43,7 @@ export const ENEMY_NAME: Record<EnemyKind, string> = {
   duelist: 'Gunslinger', officer: 'Imperial Officer', capo: 'Pyke Capo', enforcer: 'Wookiee Enforcer',
   flametrooper: 'Flametrooper', krykna: 'Krykna', broodmother: 'Broodmother', quarren: 'Quarren',
   alamite: 'Alamite', drone: 'Interceptor Drone', ringEnforcer: 'Ring Enforcer',
-  ig11: 'VX-9', marshal: 'The Marshal', fennec: 'Fennec Shand',
+  ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
 };
 
 interface Def {

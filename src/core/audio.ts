@@ -264,6 +264,17 @@ export class AudioEngine {
     this.zap(90, 260, 0.16, 'sawtooth', 0.22, 0.02);
     this.zap(140, 390, 0.16, 'triangle', 0.12, 0.02);
   }
+  /**
+   * A bolt turned on a blade: the short, bright ping that tells the player the
+   * parry landed. Pitched above the clash so a deflect in the middle of a
+   * combo still reads as a separate event.
+   */
+  saberDeflect(): void {
+    if (!this.ctx) return;
+    this.zap(1500, 420, 0.1, 'square', 0.26);
+    this.burst(0.06, 0.2, 5200, 0, 1.6);
+    this.zap(600, 900, 0.07, 'sawtooth', 0.14, 0.01);
+  }
   meleeHit(kind: 'gaffi' | 'sabers' = 'gaffi'): void {
     if (!this.ctx) return;
     if (kind === 'sabers') {
