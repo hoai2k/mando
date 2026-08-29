@@ -156,11 +156,45 @@ export function buildTrask(): Board {
   }
 
   // harbour-master's shed on the quay
-  const shed = new THREE.Mesh(new THREE.BoxGeometry(10, 4.5, 7), hullMat);
-  shed.position.set(24, DECK_TOP + 2.25, 24);
+  // 7.1 m to the ridge, which is what the sculpt measures at its 10 m length;
+  // the stand-in and the box follow it rather than the other way round.
+  const shed = new THREE.Mesh(new THREE.BoxGeometry(10, 7.1, 6.8), hullMat);
+  shed.position.set(24, DECK_TOP + 3.55, 24);
   shed.castShadow = shed.receiveShadow = true;
   group.add(shed);
-  physics.addBox(24, DECK_TOP + 2.25, 24, 10, 4.5, 7);
+  physics.addBox(24, DECK_TOP + 3.55, 24, 10, 7.1, 6.8);
+  // 10 m along the quay — the sculpt's long axis is X, which is the way the
+  // shed's box already runs, so it needs no turn
+  authoredProp(group, shed, 'dock_shed', 10, { x: 24, y: DECK_TOP, z: 24, axis: 'x' });
+
+  // ---- fish-drying racks (PLAN.md §16) ----
+  // Quay dressing that is also the only new solid on the board: chest-high, so
+  // it enters the cover system honestly rather than being scenery you shoot
+  // through.
+  const rackMat = new THREE.MeshStandardMaterial({ color: 0x6a5c4a, roughness: 0.95 });
+  for (const [fx, fz, fyaw] of [[-18, 20, 0.2], [14, 28, -0.3], [-30, -14, 1.4]] as const) {
+    const rack = new THREE.Group();
+    const bits: THREE.Mesh[] = [];
+    for (const sx of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2, 0.12), rackMat);
+      leg.position.set(sx * 0.9, 1, 0);
+      bits.push(leg);
+    }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 0.1), rackMat);
+    bar.position.y = 1.95;
+    bits.push(bar);
+    for (let i = 0; i < 4; i++) {
+      const fish = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.06), rackMat);
+      fish.position.set(-0.6 + i * 0.4, 1.6, 0);
+      bits.push(fish);
+    }
+    for (const b of bits) { b.castShadow = true; rack.add(b); }
+    rack.position.set(fx, DECK_TOP, fz);
+    rack.rotation.y = fyaw;
+    group.add(rack);
+    authoredProp(rack, bits, 'fish_rack', 2.2, { axis: 'x' });
+    physics.addBox(fx, DECK_TOP + 1.05, fz, 2.4, 2.1, 1.6);
+  }
 
   // ---- the trawlers: decks that heave and drift on the swell ----
   const movers: Mover[] = [];
