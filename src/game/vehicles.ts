@@ -5,6 +5,7 @@ import type { Board, VehicleSpec } from '../world/board';
 import type { FrameInput } from '../core/input';
 import type { StaticBox } from '../core/physics';
 import { loadProp } from '../characters/authored';
+import { propsUsed } from '../world/props';
 import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
@@ -515,6 +516,7 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel
     track(addBox(group, crateMat, 0.9, 0.9, 0.9, 0.7, 1.25, 3.2));
   }
   if (def.modelId) {
+    propsUsed.add(def.modelId);   // a parked ride is part of the board's art
     const model = loadProp(def.modelId, def.modelSize ?? def.length, {
       onLoad: (root) => { for (const m of built) m.visible = false; onModel?.(root); },
     });

@@ -16,12 +16,19 @@ import { chromium } from 'playwright';
 import { readdir, readFile, writeFile, stat, unlink } from 'fs/promises';
 
 const DIR = new URL('../public/assets/textures/', import.meta.url).pathname;
-const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const CHROME = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
-// PNGs that must stay PNG, and why
+// PNGs that must stay PNG, and why. Anything with real transparency is
+// detected below and kept without being listed; this is for files that are
+// opaque but must not be re-encoded anyway.
 const KEEP_PNG = new Set([
   'sand_normal.png', // normal map: JPEG artefacts become surface artefacts
   'neon_sign.png',   // alpha: sign glyphs sit on transparency
+  // The planet art is loaded by a CSS url() in src/ui/planets.ts, which names
+  // the extension outright rather than probing .jpg then .png the way the
+  // texture loader does — so converting one silently 404s its planet. Two of
+  // the set happen to be fully opaque; they stay PNG with their siblings.
+  'planet_desert.png', 'planet_station.png',
 ]);
 
 const QUALITY = 0.9;

@@ -192,6 +192,70 @@ export function preloadAuthored(id: string): void { loadRaw(id); }
  * eventually spawn: those go through the warm queue, which waits for the
  * browser to be idle and keeps a couple in flight at a time.
  */
+/**
+ * Free cached models the game no longer has a use for.
+ *
+ * The cache is what makes a model cheap to reuse: one download, one parse, and
+ * every instance is a clone sharing its geometries, materials and textures —
+ * which is also why `markSharedTree` puts them beyond the reach of a match's
+ * teardown. That was right when the cache held a couple of dozen characters
+ * that recur in every match. It stopped being right once boards started
+ * carrying a dozen environment sculpts apiece: those are wanted on exactly one
+ * territory, and nothing ever gave them back. Measured across five boards in a
+ * row the renderer's live texture count climbed 28 → 45 → 58 → 61 → 74 and
+ * never fell, and a sixth board took the tab down with it.
+ *
+ * So the cache is emptied of everything outside `keep` whenever a match ends.
+ * The clones are gone with the scene by then, so nothing on screen is holding
+ * these; the bytes stay in the browser's HTTP cache, which makes coming back
+ * to a board a re-parse rather than a re-download.
+ */
+export function releaseModels(keep: Iterable<string>): number {
+  const spare = new Set(keep);
+  let freed = 0;
+  for (const [id, entry] of [...cache]) {
+    if (spare.has(id)) continue;
+    cache.delete(id);
+    freed++;
+    // the entry is a promise: whatever it settles to is what has to be freed,
+    // including a load still in flight when the match ended
+    void entry.then((root) => { if (root) disposeAuthoredTree(root); }).catch(() => {});
+  }
+  return freed;
+}
+
+/**
+ * Dispose one cached .glb's GPU resources, shared flag and all — this is the
+ * one place allowed to, because it is the owner giving them up rather than a
+ * match tearing down around them.
+ */
+function disposeAuthoredTree(root: THREE.Group): void {
+  const done = new Set<unknown>();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const skinned = o as unknown as THREE.SkinnedMesh;
+    if (skinned.isSkinnedMesh && skinned.skeleton && !done.has(skinned.skeleton)) {
+      done.add(skinned.skeleton);
+      skinned.skeleton.dispose();
+    }
+    if (!mesh.isMesh && !skinned.isSkinnedMesh) return;
+    if (mesh.geometry && !done.has(mesh.geometry)) {
+      done.add(mesh.geometry);
+      mesh.geometry.dispose();
+    }
+    const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+    for (const m of mats) {
+      if (done.has(m)) continue;
+      done.add(m);
+      for (const value of Object.values(m as unknown as Record<string, unknown>)) {
+        const tex = value as THREE.Texture;
+        if (tex && tex.isTexture && !done.has(tex)) { done.add(tex); tex.dispose(); }
+      }
+      m.dispose();
+    }
+  });
+}
+
 export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void {
   warmQueue.want(modelUrl(id), priority, () => loadRaw(id));
 }

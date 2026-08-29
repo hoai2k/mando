@@ -21,6 +21,18 @@ import { loadProp } from '../characters/authored';
  *    the box (the tram), the board says so at the collider, in a comment.
  */
 
+/**
+ * Every sculpt id the board currently being built has asked for.
+ *
+ * The prefetcher keeps its own list of these (`BOARD_PROPS`) so it can warm a
+ * territory's art while the player is still choosing a character — it has to,
+ * since nothing knows what a board wants until the board is built. A list kept
+ * by hand next to code that changes is a list that goes stale silently, so this
+ * records the truth and `tools/test-loadperf.mjs` holds the two against each
+ * other.
+ */
+export const propsUsed = new Set<string>();
+
 export interface PropPlacement {
   /** where the model goes in the parent's space; y is its base by default */
   x?: number;
@@ -56,6 +68,7 @@ export function authoredProp(
   size: number,
   place: PropPlacement = {},
 ): THREE.Group {
+  propsUsed.add(id);
   const stand = Array.isArray(hide) ? hide : [hide];
   const holder = loadProp(id, size, {
     axis: place.axis ?? 'longest',
