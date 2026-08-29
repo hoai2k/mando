@@ -116,6 +116,8 @@ export interface AuthoredModel {
   nodes: AuthoredNode[];
   /** hand-space mount whose world transform matches our canonical `weaponR` */
   weaponMount: THREE.Object3D | null;
+  /** the same, in the left hand, for a character who carries a pair */
+  weaponMountL: THREE.Object3D | null;
   /** hips bone, driven positionally as well as rotationally */
   hips: THREE.Object3D | null;
   /** metres per model unit, for anything measured in world space */
@@ -338,25 +340,32 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     node.rest.premultiply(new THREE.Quaternion().setFromUnitVectors(bone, target));
   }
 
-  // 4. a weapon mount inside the hand that reproduces our canonical `weaponR`
-  //    frame: undo the hand's rest rotation and the model's scale, so the
-  //    carbine arrives at the size and orientation the procedural rig gave it.
-  const handNode = nodes.find((n) => n.canonical === 'handR');
-  let weaponMount: THREE.Object3D | null = null;
-  if (handNode) {
-    const handScale = new THREE.Vector3().setFromMatrixScale(handNode.obj.matrixWorld).x || 1;
-    weaponMount = new THREE.Group();
-    weaponMount.name = 'weaponMount';
-    weaponMount.quaternion.copy(handNode.rest).invert();
-    weaponMount.scale.setScalar(1 / handScale);
-    weaponMount.position.set(0, -0.05, 0.02).applyQuaternion(weaponMount.quaternion).divideScalar(handScale);
-    handNode.obj.add(weaponMount);
-  }
+  // 4. a weapon mount inside each hand that reproduces our canonical `weaponR`
+  //    / `weaponL` frame: undo the hand's rest rotation and the model's scale,
+  //    so a weapon arrives at the size and orientation the procedural rig gave
+  //    it. Both hands get one — a gunslinger carries a pistol in each, and an
+  //    off-hand left on our own bone would hang beside the authored body
+  //    rather than in its hand.
+  const handMount = (canonical: BoneName, name: string): THREE.Object3D | null => {
+    const hand = nodes.find((n) => n.canonical === canonical);
+    if (!hand) return null;
+    const handScale = new THREE.Vector3().setFromMatrixScale(hand.obj.matrixWorld).x || 1;
+    const mount = new THREE.Group();
+    mount.name = name;
+    mount.quaternion.copy(hand.rest).invert();
+    mount.scale.setScalar(1 / handScale);
+    mount.position.set(0, -0.05, 0.02).applyQuaternion(mount.quaternion).divideScalar(handScale);
+    hand.obj.add(mount);
+    return mount;
+  };
+  const weaponMount = handMount('handR', 'weaponMount');
+  const weaponMountL = handMount('handL', 'weaponMountL');
 
   return {
     root: wrapper,
     nodes,
     weaponMount,
+    weaponMountL,
     hips: nodes.find((n) => n.canonical === 'hips')?.obj ?? null,
     scale,
     scratch: {

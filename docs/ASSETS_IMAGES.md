@@ -78,7 +78,7 @@ ignited blade — blades are FX meshes the game manages.
 
 ### Hunter weapon prop sheets
 
-Side-view reference for the three signature weapon props (same recipe as the delivered
+Side-view reference for the four signature weapon props (same recipe as the delivered
 `carbine.png` / `gaffi.png`: 1024×512 PNG, orthographic side view, flat even lighting,
 plain mid-grey background, no hands, no text). Ids match the prop .glb names in
 `ASSETS_MODELS.md`; procedural stand-ins are in game today.
@@ -87,6 +87,7 @@ plain mid-grey background, no hands, no text). Ids match the prop .glb names in
 |---|---|
 | `saber_curved` | "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered" |
 | `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
+| `pistol` | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 | `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
 
 ## Open — drop-screen portraits (priority 3)

@@ -23,7 +23,7 @@ type SampleName =
   | 'splash_in' | 'splash_out' | 'mamacore_roar' | 'floor_charge'
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
-  | 'crossbow_shot' | 'longrifle_shot' | 'saber_swing' | 'saber_ignite'
+  | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
@@ -100,7 +100,7 @@ export class AudioEngine {
       'splash_in', 'splash_out', 'mamacore_roar', 'floor_charge',
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
-      'crossbow_shot', 'longrifle_shot', 'saber_swing', 'saber_ignite',
+      'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -198,8 +198,15 @@ export class AudioEngine {
   }
 
   /** Hero ranged shot, voiced per weapon; the carbine is the classic zap. */
-  blaster(kind: 'carbine' | 'crossbow' | 'longrifle' = 'carbine'): void {
+  blaster(kind: 'carbine' | 'crossbow' | 'longrifle' | 'pistols' = 'carbine'): void {
     if (!this.ctx) return;
+    if (kind === 'pistols') {
+      if (this.playSample('pistol_shot', 0.65, 0.97 + Math.random() * 0.06)) return;
+      // snappier and drier than the carbine: a quick-draw crack, no long tail
+      this.zap(2300, 420, 0.08, 'sawtooth', 0.3);
+      this.burst(0.04, 0.14, 2800, 0, 1.6);
+      return;
+    }
     if (kind === 'crossbow') {
       if (this.playSample('crossbow_shot', 0.7)) return;
       // string release then a bright bolt: pluck transient, high short zap

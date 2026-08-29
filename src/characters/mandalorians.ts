@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makeSaber, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 
 /**
@@ -12,7 +12,9 @@ import { attachAuthored } from './authored';
  * (The Mando* names predate the hunters; every id below rides the same type.)
  */
 
-export type MandoId = 'din' | 'paz' | 'bokatan' | 'armorer' | 'ventress' | 'embo' | 'bossk' | 'ig11';
+export type MandoId =
+  | 'din' | 'paz' | 'bokatan' | 'armorer'
+  | 'ventress' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
   setWeapon: (w: 'blaster' | 'gaffi') => void;
@@ -38,7 +40,7 @@ export interface PlayerCharacter extends CharacterInstance {
  */
 const MODEL_HEIGHT: Record<MandoId, number> = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
-  ventress: 1.79, embo: 1.78, bossk: 1.9, ig11: 2.2,
+  ventress: 1.79, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
 interface MandoConfig {
@@ -59,7 +61,7 @@ interface MandoConfig {
    */
   broad?: number;
   /** signature loadout — defaults are the shared carbine and gaffi */
-  ranged?: 'carbine' | 'crossbow' | 'longrifle';
+  ranged?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
   melee?: 'gaffi' | 'sabers';
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
@@ -72,7 +74,9 @@ interface MandoConfig {
 }
 
 /** HUD display names for each loadout slot. */
-export const RANGED_NAMES = { carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle' } as const;
+export const RANGED_NAMES = {
+  carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
+} as const;
 export const MELEE_NAMES = { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' } as const;
 
 /** What a character's HUD calls the weapon currently in hand. */
@@ -112,6 +116,11 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     name: 'Skarvek', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
+  },
+  duelist: {
+    name: 'Rook Vance', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
+    primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
+    ranged: 'pistols', skin: 0x5a86a8,
   },
   ig11: {
     name: 'VX-9', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
@@ -255,23 +264,32 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const ranged =
     rangedKind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
     rangedKind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
+    rangedKind === 'pistols' ? makePistol(gunmetal, dark) :
     makeCarbine(gunmetal, dark);
   ranged.rotation.x = Math.PI / 2;
   b.weaponR.add(ranged);
   const muzzle = new THREE.Group();
-  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95 }[rangedKind]);
+  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95, pistols: 0.3 }[rangedKind]);
   ranged.add(muzzle);
+  // Either hand's weapon can come in a pair: twin sabers and twin pistols each
+  // add a second copy on weaponL that shows and hides with its partner. Shots
+  // still leave the right-hand muzzle — the left one is silhouette.
+  let rangedOffhand: THREE.Group | null = null;
+  let meleeOffhand: THREE.Group | null = null;
+  const pairOn = (make: () => THREE.Group): THREE.Group => {
+    const g = make();
+    g.rotation.x = Math.PI / 2;
+    g.visible = false;
+    b.weaponL.add(g);
+    return g;
+  };
+  if (rangedKind === 'pistols') rangedOffhand = pairOn(() => makePistol(gunmetal, dark));
   // The melee prop keeps the gaffi's mount and orientation whatever it looks
   // like, so the melee clips swing a saber exactly as they swing the staff.
-  // Twin sabers add an off-hand hilt on weaponL that shows and hides with it.
-  let offhand: THREE.Group | null = null;
   let melee: THREE.Group;
   if (cfg.melee === 'sabers') {
     melee = makeSaber(silver, dark);
-    offhand = makeSaber(silver, dark);
-    offhand.rotation.x = Math.PI / 2;
-    offhand.visible = false;
-    b.weaponL.add(offhand);
+    meleeOffhand = pairOn(() => makeSaber(silver, dark));
   } else {
     melee = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
   }
@@ -431,6 +449,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         model.weaponMount.add(ranged);
         model.weaponMount.add(melee);
       }
+      // The off-hand has to move too. Our own weaponL bone still animates, but
+      // it sits where the hidden procedural arm is, so a pistol left on it
+      // floats beside the authored body instead of filling its other hand.
+      if (model.weaponMountL) {
+        if (rangedOffhand) model.weaponMountL.add(rangedOffhand);
+        if (meleeOffhand) model.weaponMountL.add(meleeOffhand);
+      }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
       if (!feetThrusters) flameRoot.position.y = -0.02;
@@ -443,8 +468,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const showWeapon = () => {
     ranged.visible = !shieldUp && weapon === 'blaster';
     melee.visible = !shieldUp && weapon === 'gaffi';
-    if (offhand) offhand.visible = melee.visible;
+    if (rangedOffhand) rangedOffhand.visible = ranged.visible;
+    if (meleeOffhand) meleeOffhand.visible = melee.visible;
   };
+  // Settle the loadout now rather than waiting for the first weapon switch:
+  // an off-hand starts hidden, so a character who spawns with a pair was
+  // holding only one of them until the player happened to swap and swap back.
+  showWeapon();
   return {
     ...inst,
     muzzle,
@@ -542,6 +572,23 @@ function buildHunterHead(
       }
       addCyl(helm, accent, 0.008, 0.008, 0.1, 0.03, 0.22, 0, 0, 0, 0, 6);  // antenna
       addSphere(helm, accent, 0.014, 0.03, 0.27, 0, 6, 5);
+      break;
+    }
+    case 'duelist': {
+      // gaunt, wide-brimmed, and plumbed: the tubes are the whole silhouette
+      addBox(helm, skin, 0.1, 0.06, 0.09, 0, -0.055, 0.06);          // long jaw
+      const eye = mat(0xc23a2a, { rough: 0.3, emissive: 0x3a0f08 });
+      addSphere(helm, eye, 0.019, -0.05, 0.05, 0.105, 6, 5);
+      addSphere(helm, eye, 0.019, 0.05, 0.05, 0.105, 6, 5);
+      const tube = mat(0x8a8f98, { rough: 0.5, metal: 0.5 });
+      addCyl(helm, tube, 0.013, 0.013, 0.14, -0.058, 0.0, 0.075, 0.5, 0, -0.25);
+      addCyl(helm, tube, 0.013, 0.013, 0.14, 0.058, 0.0, 0.075, 0.5, 0, 0.25);
+      const hat = new THREE.Group();
+      hat.position.y = 0.115;
+      helm.add(hat);
+      addCyl(hat, prim, 0.235, 0.245, 0.018, 0, 0, 0, 0, 0, 0, 16);  // brim
+      addCyl(hat, prim, 0.1, 0.115, 0.1, 0, 0.055, 0, 0, 0, 0, 12);  // crown
+      addCyl(hat, accent, 0.118, 0.118, 0.016, 0, 0.018, 0, 0, 0, 0, 12);
       break;
     }
     case 'bossk': {

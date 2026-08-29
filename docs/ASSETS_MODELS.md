@@ -41,15 +41,16 @@ over the costume, thruster mouths low on the pack where the `jetpack` bone's fla
 and empty hands (they mount the shared carbine and gaffi props like the Mandalorians;
 signature weapons below are separate props or FX).
 
-**All three hunter models are delivered and integrated** (2026-08-28) — they wear their
-authored skins in the character select and in game. The **blue-skinned gunslinger** is
-the delivered boss model `duelist.glb` — the playable slot reuses it and its sheets
-as-is; an optional re-export at playable budget can come later if the 8k boss version
-reads poorly up close.
+**All four hunter models are delivered and integrated** — the three hunters on
+2026-08-28, and the **blue-skinned gunslinger** on 2026-08-29, who is playable as
+Rook Vance from the delivered `duelist.glb` and its sheets as-is. He is also the
+`duelist` enemy kind on the Ringworld's final wave: the same sculpt on both sides,
+which is deliberate. An optional re-export at playable budget can come later if the
+8k boss version reads poorly up close.
 
 | Character | Reference sheets | Height | Reference look |
 |---|---|---|---|
-| **Blue gunslinger** (`duelist`, delivered) | `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin holstered pistols. |
+| **Rook Vance** (`duelist`, delivered) | `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
 | **Pale assassin** (`ventress`) | `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
 | **Hatted hunter** (`embo`) | `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
 | **Reptilian hunter** (`bossk`) | `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
@@ -131,8 +132,9 @@ nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board t
 `krykna_brood`, `interceptor_drone`, and the playable hunters `ventress`, `embo`,
 `bossk`) landed on 2026-08-28 and is integrated; the fourth hunter, the blue gunslinger,
 reuses the delivered `duelist.glb`. Open on the model side: only the three hunter weapon
-props (`saber_curved`, `crossbow`, `longrifle` — procedural stand-ins in game, sheet
-requests in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)).**
+props (`saber_curved`, `crossbow`, `longrifle`, `pistol` — procedural stand-ins in game,
+sheet requests in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)). A character who carries a pair
+needs only one prop: the off-hand is a second instance of the same .glb.**
 
 ### Three intake paths
 

@@ -155,5 +155,6 @@ Signature-weapon voices for the hunter roster, generated with
 `node tools/generate-sfx.mjs crossbow_shot longrifle_shot saber_swing saber_ignite`
 (prompts live in that script): `crossbow_shot` (Karshii's laser crossbow),
 `longrifle_shot` (Skarvek's and VX-9's long rifle), `saber_swing` (Sylla Morvane's
-melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades).
+melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Rook Vance's twin pistols)
+followed on 2026-08-29.
 Synth fallbacks remain in `src/core/audio.ts`.
