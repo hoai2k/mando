@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, spawnWave, waveComposition } from '../enemies/spawner';
+import { ALLY_WAVES, FINAL_WAVE, spawnWave, standingSpot, waveComposition } from '../enemies/spawner';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import type { MandoId } from '../characters/mandalorians';
@@ -171,6 +171,10 @@ export class Game {
    * the radar tally stay honest.
    */
   addReinforcement(kind: EnemyKind, pos: THREE.Vector3, squad = 0): Enemy {
+    // Same guard the wave spawner uses: whoever asked for this position was
+    // not looking at the colliders, and a body dropped inside one is ejected
+    // through its nearest face on the first frame.
+    pos = standingSpot(this.board, pos, kind);
     const e = new Enemy(kind, pos);
     e.squad = squad;
     this.waveSpawned++;
@@ -640,7 +644,9 @@ export class Game {
     // ally reinforcements from the covert on milestone waves
     const allyKind = ALLY_WAVES[this.wave] ?? null;
     if (allyKind) {
-      const start = this.board.playerStarts[0].clone().add(new THREE.Vector3(2.5, 0, 2.5));
+      // offset from the player start so the ally doesn't land on top of it —
+      // and checked, because 2.5 m along the diagonal is a wall on some boards
+      const start = standingSpot(this.board, this.board.playerStarts[0].clone().add(new THREE.Vector3(2.5, 0, 2.5)), allyKind);
       const ally = new Enemy(allyKind, start, 0);
       this.allies.push(ally);
       this.scene.add(ally.char.root);

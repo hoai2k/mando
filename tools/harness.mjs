@@ -166,14 +166,27 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   const server = await ensureServer(url);
   const browser = await chromium.launch({
     headless,
+    // CHROMIUM_PATH lets a sandbox with a pre-installed browser run these tools
+    // without playwright downloading its own pinned build; unset in CI, where
+    // `npx playwright install` has already put the matching one in place.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
   });
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
+  // Some 404s are expected and mean nothing is wrong. Optional assets are
+  // probed on purpose — a model, texture, portrait or sound that isn't there
+  // falls back to the procedural build or a drawn mark — and the browser asks
+  // every page for a favicon this one doesn't ship. A 404 for anything else
+  // still fails the suite.
+  const optional = /\/(favicon\.ico|models\/|assets\/(textures|audio)\/)/;
   page.on('console', (m) => {
     // a missing .glb logs by design (procedural fallback), so it isn't an error
-    if (m.type() === 'error' && !/authored/.test(m.text())) errors.push(m.text());
+    if (m.type() !== 'error') return;
+    const url = m.location()?.url ?? '';
+    if (/Failed to load resource/.test(m.text()) && optional.test(url)) return;
+    if (!/authored/.test(m.text())) errors.push(m.text());
   });
   await page.addInitScript(padShim);
   await page.goto(url, { waitUntil: 'networkidle' });

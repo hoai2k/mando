@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Enemy, type EnemyKind } from './enemy';
+import { Enemy, enemyBody, type EnemyKind } from './enemy';
 import { hazardAt, killZones, type Board, type BoardId } from '../world/board';
 
 /** Wave composition per board — grunt-heavy early, mixed later. */
@@ -156,31 +156,98 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
 
 const _probe = new THREE.Vector3();
 
+/** the body used to judge a squad's post, before the kinds standing on it are known */
+const POST_BODY = { radius: 0.6, height: 2.1 };
+
 /**
- * Nudge a post out of any prop it happens to be standing in.
+ * Find somewhere a body of this size actually fits, at or near `p`.
  *
- * Several boards place posts on coordinates that are also a prop's centre —
- * the Ringworld's plaza kiosks are the clearest case, where six of the eight
- * posts are kiosk centres — and an enemy spawned inside a box is ejected
- * through its nearest face on the first frame, with the squad's dust puff
- * playing inside the scenery. Search a small ring for open ground instead.
+ * Two things make this more than a formality. Several boards place posts on
+ * coordinates that are also a prop's centre — the Ringworld's plaza kiosks are
+ * the clearest case, where six of the eight posts are kiosk centres — and the
+ * jitter that spreads a squad out can drop a body into the wall beside its
+ * post. Both used to be checked with a single point probe, which is the wrong
+ * question: the mover treats a body as a capsule, so a spawn half a metre from
+ * the refinery's hall walls passed the check and stood inside the wall until
+ * the push-out threw it somewhere nobody chose. `physics.capsuleFree` asks
+ * what the mover asks.
+ *
+ * Returns null when nothing within reach fits, so the caller can fall back to
+ * ground the board itself vouches for rather than spawning into scenery.
  */
-function freeSpot(board: Board, p: THREE.Vector3): THREE.Vector3 {
+function freeSpot(board: Board, p: THREE.Vector3, body: { radius: number; height: number }): THREE.Vector3 | null {
   const phys = board.physics;
-  if (!phys.solidAt(p.x, p.y + 0.9, p.z)) return p;
-  // out to 13 m: a body can start well inside a cluster of colliders (the
-  // barge's hull cylinders, a stack of crates) and a short search never clears it
-  for (let ring = 1; ring <= 5; ring++) {
-    const r = ring * 2.6;
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2 + ring;
+  if (phys.capsuleFree(p.x, p.y, p.z, body.radius, body.height)) return p;
+  // out to ~14 m: a body can start well inside a cluster of colliders (the
+  // barge's hull cylinders, a stack of crates, a refinery hall) and a short
+  // search never clears it. Rings get denser as they widen, so a corridor
+  // board's one open bearing is not missed for want of samples.
+  for (let ring = 1; ring <= 6; ring++) {
+    const r = ring * 2.3;
+    const steps = 8 + ring * 4;
+    for (let k = 0; k < steps; k++) {
+      const a = (k / steps) * Math.PI * 2 + ring;
       const x = p.x + Math.cos(a) * r;
       const z = p.z + Math.sin(a) * r;
       const y = phys.heightAt ? phys.heightAt(x, z) + 0.3 : p.y;
-      if (!phys.solidAt(x, y + 0.9, z)) return new THREE.Vector3(x, y, z);
+      if (!isFinite(y)) continue;
+      if (phys.capsuleFree(x, y, z, body.radius, body.height)) return new THREE.Vector3(x, y, z);
     }
   }
-  return p;   // boxed in on every side: leave it, the push-out will sort it
+  return null;
+}
+
+/**
+ * Somewhere a flier of this size fits, at or near `p`. Same idea as
+ * `freeSpot`, but altitude is the flier's own business: the ring is searched
+ * at the height asked for, then a little above it, rather than being dropped
+ * onto the ground.
+ */
+function freeAir(board: Board, p: THREE.Vector3, body: { radius: number; height: number }): THREE.Vector3 | null {
+  const phys = board.physics;
+  for (const lift of [0, 3, 7, 12]) {
+    const y = p.y + lift;
+    if (phys.capsuleFree(p.x, y, p.z, body.radius, body.height)) return new THREE.Vector3(p.x, y, p.z);
+    for (let ring = 1; ring <= 3; ring++) {
+      const r = ring * 3;
+      const steps = 8 + ring * 4;
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2 + ring;
+        const x = p.x + Math.cos(a) * r;
+        const z = p.z + Math.sin(a) * r;
+        if (phys.capsuleFree(x, y, z, body.radius, body.height)) return new THREE.Vector3(x, y, z);
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The last word on where a body goes: the spot it wanted, else anywhere near
+ * it, else the first of `fallbacks` (its squad's post, then the board's own
+ * authored spawn points) that a body this size fits in.
+ *
+ * The board's spawn points are the level designer's own ground, so the chain
+ * runs out of options only on a board with nowhere at all to stand — hence the
+ * spawn audit (`tools/audit-spawns.mjs`), which fails a build where any of
+ * this ends up inside geometry.
+ */
+function placeBody(
+  board: Board,
+  wanted: THREE.Vector3,
+  body: { radius: number; height: number },
+  air: boolean,
+  fallbacks: THREE.Vector3[],
+): THREE.Vector3 {
+  const find = air ? freeAir : freeSpot;
+  const spot = find(board, wanted, body);
+  if (spot) return spot;
+  for (const f of fallbacks) {
+    if (board.physics.capsuleFree(f.x, f.y, f.z, body.radius, body.height)) return f.clone();
+    const near = find(board, f.clone(), body);
+    if (near) return near;
+  }
+  return wanted;
 }
 
 /** how far apart posted enemies in one squad stand */
@@ -213,14 +280,37 @@ function disperse(pool: THREE.Vector3[], wave: number): THREE.Vector3[] {
 }
 
 /**
- * Post the wave around the board in squads.
+ * Somewhere a body of `kind` can stand, at or near `pos`.
+ *
+ * The mid-wave spawns go through here for the same reason the wave itself
+ * does: a broodmother's hatchling, dropped two metres from her on a random
+ * bearing, lands in the ice wall she happens to be backed against about as
+ * often as the geometry allows.
+ */
+export function standingSpot(board: Board, pos: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+  return placeBody(board, pos.clone(), enemyBody(kind), false, board.groundSpawns);
+}
+
+/** One planned body: where it goes and which squad it belongs to. */
+export interface Placement {
+  kind: EnemyKind;
+  pos: THREE.Vector3;
+  squad: number;
+  squadSize: number;
+}
+
+/**
+ * Work out where a wave stands, without building anything.
  *
  * Enemies are not funnelled toward the player any more: each squad takes a
  * spawn point somewhere on the map — the far side included — and holds it
  * until something alerts them. Clearing a wave means going and finding them,
  * which is what the radar and the remaining-hostiles count are for.
+ *
+ * Split out from `spawnWave` so the spawn audit can check a hundred waves per
+ * board without building a hundred waves of character meshes.
  */
-export function spawnWave(board: Board, wave: number, players: number, near: THREE.Vector3, addEnemy: (e: Enemy) => void): number {
+export function planWave(board: Board, wave: number, players: number, near: THREE.Vector3): Placement[] {
   const comp = waveComposition(board.kind, wave, players);
 
   // Posts must be away from the players — hostiles should be found, not handed
@@ -229,7 +319,10 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   const rank = (v: THREE.Vector3) => v.distanceTo(near);
   const ground = board.groundSpawns.filter((v) => rank(v) > MIN_PLAYER_DIST);
   const pool = (ground.length >= 3 ? ground : board.groundSpawns).slice();
-  const posts = disperse(pool, wave).map((p) => freeSpot(board, p));
+  // Authored ground, in the order the board lists it: the last resort for a
+  // body that fits nowhere near where it was sent.
+  const authored = board.groundSpawns.map((v) => v.clone());
+  const posts = disperse(pool, wave).map((p) => placeBody(board, p.clone(), POST_BODY, false, authored));
   const air = disperse(board.airSpawns.slice(), wave);
 
   // Late waves field more squads than the board has posts. On solid ground the
@@ -254,7 +347,7 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   const valid = (x: number, y: number, z: number, extent: number): boolean => {
     if (!isFinite(y)) return false;
     if (Math.hypot(x, z) > extent) return false;
-    if (board.physics.solidAt(x, y + 0.9, z)) return false;
+    if (!board.physics.capsuleFree(x, y, z, POST_BODY.radius, POST_BODY.height)) return false;
     const hz = hazardAt(board, _probe.set(x, y, z));
     return !hz.kill && hz.dps <= 0;
   };
@@ -292,10 +385,11 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
   };
   const airPost = (i: number) => air[i % air.length].clone();
 
-  let total = 0;
+  const out: Placement[] = [];
   let gi = 0, ai = 0;
   const jitter = new THREE.Vector3();
   for (const entry of comp) {
+    const body = enemyBody(entry.kind);
     // break each kind into squads of 2–4 rather than one blob
     let left = entry.count;
     while (left > 0) {
@@ -309,16 +403,26 @@ export function spawnWave(board: Board, wave: number, players: number, near: THR
           entry.air ? (Math.random() - 0.5) * 4 : 0.2,
           (Math.random() - 0.5) * SQUAD_SPREAD
         );
-        // The jitter that spreads a squad out can also drop a body inside the
-        // prop next to its post, so each spawn is checked, not just the post.
-        const at = base.clone().add(jitter);
-        const e = new Enemy(entry.kind, entry.air ? at : freeSpot(board, at));
-        e.squad = squad;
-        e.squadSize = size;
-        addEnemy(e);
-        total++;
+        // Every body is placed for its own size: the post was judged against a
+        // nominal one, and a massiff or a broodmother needs a metre more room
+        // than the trooper the post was cleared for.
+        const wanted = base.clone().add(jitter);
+        const fallbacks = entry.air ? [base] : [base, ...authored];
+        out.push({ kind: entry.kind, pos: placeBody(board, wanted, body, !!entry.air, fallbacks), squad, squadSize: size });
       }
     }
   }
-  return total;
+  return out;
+}
+
+/** Post the wave around the board, building an enemy per planned placement. */
+export function spawnWave(board: Board, wave: number, players: number, near: THREE.Vector3, addEnemy: (e: Enemy) => void): number {
+  const plan = planWave(board, wave, players, near);
+  for (const p of plan) {
+    const e = new Enemy(p.kind, p.pos);
+    e.squad = p.squad;
+    e.squadSize = p.squadSize;
+    addEnemy(e);
+  }
+  return plan.length;
 }
