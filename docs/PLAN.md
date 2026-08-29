@@ -368,4 +368,115 @@ two-player).
 ## 15. Notes & Constraints
 
 - **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Mandalorian") if ever needed.
-- **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, vehicles as drivables (swoops are enemy-only), mobile touch controls.
+- **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, mobile touch controls. (*Drivable vehicles were originally out of scope; that changed 2026-08-29 — see §17.*)
+
+## 16. Ambient life & backdrop pass (planned — from the 2026-08-29 territory audit)
+
+Seven features that make the boards read as places rather than arenas. Ground rules for
+all of them: **atmosphere only** — nothing here changes combat balance, posts spawns, or
+shows on the radar; everything intangible carries `userData.decor` so the collision
+audit stays honest, and everything solid must pass it; and, per the project rule,
+**procedural-first** — each ships working with procedural stand-ins and upgrades itself
+when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
+`ASSETS_IMAGES.md` / `ASSETS_AUDIO.md`).
+
+1. **Sky traffic** (Waystation, Ringworld). Two or three ships on long looping paths
+   250–400 m out — below the skybox, above the fog — slow parallax, blinking running
+   lights, with one closer pass per ~90 s carrying a doppler-shifted engine rumble
+   (`ship_pass`). The ships are the `freighter` model (or its procedural stand-in)
+   scaled by distance; `decor`, no colliders, no radar contacts. On the Ringworld the
+   lane follows the ring's curve overhead and reads brightest from the night side.
+
+2. **The working landing pad** (Waystation). One outlying platform becomes a live pad:
+   on a ~100 s cycle a freighter descends on thruster glow and dust wash, sits ~20 s
+   under circling beacons, and lifts off (`ship_landing`). The hull rides the Mover
+   system like Trask's trawlers, so it is real ground — land on it and ride the
+   takeoff for free altitude, the geyser lesson again (pressure for the AI, a gift for
+   a bold player). It never crushes: a body under the descending hull is shoved clear
+   with a knockback, no damage. Touchdown pings `director.noise()` so nearby hostiles
+   turn to look — cover for a loud approach if you time it.
+
+3. **Banthas at the Tusken camp** (Dune Sea, ×2–3). Ambient grazers on the massiff's
+   `loadCreature` intake: their own quadruped rig, a slow code-authored gait in
+   `anim/quadruped.ts`, procedural stand-in until `bantha.glb` lands. They drift at
+   grazing pace (~0.5 m/s) within ~25 m of the camp on mover-carried cylinder
+   colliders, so they are genuinely solid — bolts stop on the hide with a dust puff
+   (`physics.raycast` already sees world boxes), at which they bellow (`bantha_low`)
+   and amble away from the noise. They have no health and no team: not targets, not
+   allies, just the camp's livestock. The slow drift means the moving collider never
+   surprises the AI's pathing.
+
+4. **A sandcrawler on the horizon** (Dune Sea). A ~35 m rusted tracked hauler parked
+   on the rim slope ~170 m out — outside the arena but reachable on foot, so it is
+   solid (hull box + ramp colliders, no spawns posted there). Rows of tiny lit
+   portholes and one blinking mast light give the dusk side of the board a landmark;
+   a low dust haze sits at its tracks. `sandcrawler.glb`; the procedural stand-in is
+   a two-box massing with the angled prow.
+
+5. **Refinery pipes & steam** (Refinery). Procedural pipe runs — cylinders and elbows
+   in the existing dark/hull materials — along the hall walls and under the catwalk
+   rings; an optional `pipe_rack` model upgrades the big manifold by the reactor.
+   Five or six wall and floor vents hiss white plumes on randomized cycles through
+   the existing particle pool (`steam_hiss`, positional). Atmosphere only: no damage,
+   no sight-block — though a plume that breaks enemy line-of-sight is noted as a
+   future stealth hook.
+
+6. **Trask quay dressing** (Trask). Hanging cargo nets between the pilings
+   (`net_weave.png` alpha planes), buoy clusters riding the same swell sinusoid the
+   sea already computes (instanced, `decor`), rope coils, and two or three
+   fish-drying racks (`fish_rack.glb`) — the racks stand chest-high and get thin box
+   colliders, so they enter the cover system honestly as the board's only new solid.
+   The delivered `amb_rain` loop already carries the distant gulls.
+
+7. **Ringworld skyline** (Ringworld). Beyond each end bulkhead, two parallax layers
+   of silhouette towers (`skyline_silhouette.png` / `_2`, alpha planes) at ~140 and
+   ~220 m, window dots emissive, fading into the existing fog; blinking
+   hazard beacons ride the tallest towers on the night side. Pure planes, `decor` —
+   the street stops being a corridor in fog and becomes a slice of a city.
+
+## 17. Pilotable vehicles
+
+Fun rides parked around the boards — a toy with hit points, not transport. Mount one,
+tool around, run hostiles down, and sooner or later it gets shot out from under you or
+you put it into a wall. Nothing here leaves the territory: the boards' rims, bulkheads
+and edges bound a ride exactly as they bound a sprint.
+
+**The kinds** (all rigless props through `loadProp`, procedural builds until the files
+land — `speeder_bike`, `landspeeder` and `skiff` are requested in `ASSETS_MODELS.md`;
+the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stealable):
+
+| Kind | Feel | HP | Where |
+|---|---|---|---|
+| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld plaza |
+| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge dome gap |
+| **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
+| **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+
+**Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
+contextual button as cover, and a vehicle in range wins the press. RB again dismounts
+in place; A hops off with a jump (straight into a jetpack chain). The rider sits a
+real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
+skins ride too).
+
+**Driving:** stick steers camera-relative like on foot but with real momentum and
+drift — the vehicle takes a moment to answer, and speed is something you carry, not
+something you have. LB is a boost impulse on a short cooldown. Repulsors hover at a
+fixed ride height over ground or water (`max(ground, waterY)` — the skiff skims the
+harbour, and clears the mamacore's bite depth by inches). Weapons are stowed while
+riding: **the vehicle is the weapon.**
+
+**Ramming:** contact above ~6 m/s damages scaled with speed, with a heavy knockback
+and a knockdown — a swoop through a posted squad is bowling. Every body struck chips
+the vehicle's own HP, and a hard stop against a wall costs HP proportional to the
+speed lost. Nothing is free.
+
+**Being shot down:** a parked vehicle is solid (a physics box, removed while ridden)
+and a bolt target on the props' team, so a firefight can cost you your ride before
+you reach it. While ridden, hits on the rider redirect to the vehicle — the hull is
+your HP until it isn't — except kill zones, which still kill the rider. At 0 HP the
+rider is thrown clear and the wreck explodes for real: AoE, knockdowns, chained
+breakables.
+
+**Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
+jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
+existing explosion. Synth fallbacks under both, per the audio rules.

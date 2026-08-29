@@ -33,6 +33,9 @@ jobs:
       # Every board's props measured against its colliders: nothing that looks
       # solid may be walked through, and no collider may sit on empty air.
       - run: npm run audit:boards
+      # Every wave on every board, planned and measured: no hostile may be
+      # posted inside the scenery it is supposed to fight in front of.
+      - run: npm run audit:spawns
       - uses: actions/configure-pages@v5
         with:
           enablement: true

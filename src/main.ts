@@ -5,8 +5,8 @@ import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { matchAssets, warmBoardSelect, warmMatch, warmTerritory, warmTitle } from './core/prefetch';
 import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
-import { FINAL_WAVE, waveComposition } from './enemies/spawner';
-import type { EnemyKind } from './enemies/enemy';
+import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
+import { enemyBody, type EnemyKind } from './enemies/enemy';
 import { audio } from './core/audio';
 import { Game } from './game/game';
 import { BOARDS } from './world/boards';
@@ -287,6 +287,13 @@ end.onBack = () => quitToTitle();
 // audit in tools/audit-collision.mjs walks every board's meshes against its
 // physics world without having to play nine matches to reach them.
 (window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
+// debug/testing handle: plan a wave's spawn positions without building any of
+// it, so tools/audit-spawns.mjs can check every board's every wave for a body
+// standing inside the scenery.
+(window as unknown as { __planWave?: unknown }).__planWave =
+  (board: Board, wave: number, players: number, nx: number, ny: number, nz: number) =>
+    planWave(board, wave, players, new THREE.Vector3(nx, ny, nz))
+      .map((p) => ({ kind: p.kind, pos: [p.pos.x, p.pos.y, p.pos.z], body: enemyBody(p.kind) }));
 // debug/testing handle: the playable roster, so a test never has to hardcode a
 // character's name or count — both have changed under it before
 (window as unknown as { __roster?: unknown }).__roster =

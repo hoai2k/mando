@@ -189,6 +189,16 @@ const _jet = new THREE.Vector3();
 /** reused foe list, so nearestFoe doesn't build one per enemy per frame */
 const _foes: Combatant[] = [];
 
+/**
+ * The capsule an enemy of this kind occupies. The spawner needs it before the
+ * enemy exists, to check that where it is about to put one is somewhere a body
+ * of that size actually fits — a massiff needs a lot more room than a Pyke.
+ */
+export function enemyBody(kind: EnemyKind): { radius: number; height: number } {
+  const d = DEFS[kind];
+  return { radius: d.radius, height: d.height };
+}
+
 export class Enemy {
   id = nextId++;
   def: Def;

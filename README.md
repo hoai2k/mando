@@ -187,10 +187,18 @@ npm run build     # tsc --noEmit + vite build
 npm test          # boot the built game in Chromium and play a wave
 ```
 
+```bash
+npm run audit:boards   # every board's props vs. its colliders
+npm run audit:spawns   # every wave's spawns vs. its colliders
+```
+
 `npm test` drives the real build behind a synthetic Xbox pad
 ([`tools/harness.mjs`](tools/harness.mjs)) — it starts its own preview server, walks
 title → board → character select, plays a wave and fails on any console error. It needs
-a browser once: `npx playwright install chromium`. CI runs it before every deploy.
+a browser once: `npx playwright install chromium` (or point `CHROMIUM_PATH` at one you
+already have). CI runs it before every deploy, along with both audits: `audit:boards`
+fails a build where something solid-looking has no collider, and `audit:spawns` fails one
+where any wave, on any board, would post a hostile inside the scenery.
 
 The harness is also a library, for writing one-off probes against a running match:
 
