@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
-import { matchAssets, warmBoardSelect, warmMatch, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
+import { BOARD_PROPS, matchAssets, warmBoardSelect, warmMatch, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
 import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
 import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
@@ -18,7 +18,9 @@ import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
-import { playableDef, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { releaseModels } from './characters/authored';
+import { propsUsed } from './world/props';
 import { BOSS_KIND, modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
@@ -427,6 +429,9 @@ function keyEnemies(board: BoardId): EnemyKind[] {
 }
 
 function buildMatch(): void {
+  // the registry describes the board being raised now, not every board this
+  // tab has ever seen
+  propsUsed.clear();
   const board: Board = chosenBoard.build();
   // seed the cameras with the aspect of the viewport they will actually get;
   // render() recomputes it per frame, but a wrong first frame is a visible pop
@@ -506,6 +511,23 @@ function disposeGame(): void {
   // the debug/testing handle must not outlive the match either: a torn-down
   // Game still answers to `.wave`, which makes it look like one is running
   (window as unknown as { __game?: Game | null }).__game = null;
+  // Give the board's own sculpts back. The model cache is deliberately beyond
+  // a match's teardown — its clones are what make a model cheap to reuse — but
+  // a territory's environment props are wanted on that territory and nowhere
+  // else, and holding every one of them cost the tab: five boards in a row
+  // walked the renderer's live textures from 28 to 74 and a sixth crashed it.
+  // The playable roster stays, since the menus behind this are made of it.
+  releaseModels(rosterModelIds());
+}
+
+/** the models the menus themselves still draw once a match is gone */
+function rosterModelIds(): string[] {
+  const ids: string[] = [];
+  for (const id of PVP_ROSTER) {
+    const model = playableModelId(id);
+    if (model) ids.push(model);
+  }
+  return ids;
 }
 
 function resumeGame(): void {
@@ -537,6 +559,13 @@ Object.assign(window, {
   // how many of this drop's required files are still outstanding, for tests:
   // it must read 0 by the time the match is on screen
   __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount), mode)).pending,
+  // the renderer itself, so a profiling run can read draw calls and GPU memory
+  // off `info` — the only numbers that say what a board actually costs
+  __renderer: renderer,
+  // the sculpt ids the built board actually asked for, so a test can hold the
+  // prefetcher's per-board list against the truth
+  __propsUsed: () => [...propsUsed],
+  __boardProps: () => BOARD_PROPS,
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
     if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
