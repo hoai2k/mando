@@ -138,6 +138,16 @@ repetitive over a long session. Real variants would replace that.
 Adding these needs a small engine change too — the loader currently expects one file per
 name, so it would need a variant-picking helper in `src/core/audio.ts`.
 
+## Open — pilotable vehicles (PLAN.md §17)
+
+Hooks are live in the engine (the vehicle system leans the loop with throttle exactly
+like the jetpack voice); synth fallbacks cover both until the files land.
+
+| File | Hook | Prompt |
+|---|---|---|
+| `speeder_loop` | Ridden-vehicle engine, gain and filter riding the throttle | "Repulsor engine loop: a smooth low turbine hum with a faint oscillating throb and a whispery air-rush layer, steady mid throttle, seamless 2s loop" |
+| `speeder_ignite` | Mounting up | "Repulsor engine start: a rising whine spooling into a settled hum with one soft ignition thump, 1.2s" |
+
 ## Open — the ambient life & backdrop pass (PLAN.md §16)
 
 Voices for the planned atmosphere features. Like the section below, each needs its

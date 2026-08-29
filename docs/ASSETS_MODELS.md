@@ -226,6 +226,20 @@ are textures (see `ASSETS_IMAGES.md`), not models. That leaves four:
 | `pipe_rack` | Refinery | ~6 m modular segment | Upgrades the big manifold by the reactor; the rest of the pipe runs stay procedural cylinders. Four mixed-diameter pipes on a wall rack, flange joints, one elbow branch to a valve wheel. Designed to tile end-to-end. ≤ 2k tris, 512². |
 | `fish_rack` | Trask ×2–3 | ~2 m tall | Quay dressing that doubles as thin cover — the only new solid on the board, with a thin box collider entering the cover system. A-frame strung with drying split fish, hooks, a gutting bench at one end. Single object. ≤ 1.5k tris, 512². |
 
+### Pilotable vehicles (PLAN.md §17)
+
+Player-drivable rides through the same `loadProp` path as the swoop bike. The rider is
+the player character seated by the game's own ride clips, so **model the vehicle empty**:
+an open saddle or seat with nothing in it, controls (bars, wheel, tiller) placed where
+seated hands reach. Origin at the resting ground point, +Z forward. The **swoop is not
+requested** — the delivered `nikto_swoop.glb` is reused as a parked, stealable ride.
+
+| Id | Size | Feel / constraints |
+|---|---|---|
+| `speeder_bike` | ~3 m long | Military scout repulsor bike: long forward outrigger vanes, saddle over a compact engine block, steering vanes at the nose, footrests. Fastest and most fragile ride. ≤ 3k tris, 512². |
+| `landspeeder` | ~4.5 m long | Open-top civilian sand speeder: rounded weathered body, single open seat, low windshield, three engine nacelles at the tail. ≤ 4k tris, 512². |
+| `skiff` | ~9 m long | Repulsor cargo skiff: flat open deck with low rails, a tiller platform at the stern, lashed cargo at the bow. The deck is walkable and the collider footprint is the deck, so keep it flat and clear amidships. ≤ 5k tris, 512². |
+
 ## Delivery & integration
 
 Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character that

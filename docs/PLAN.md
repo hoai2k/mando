@@ -352,7 +352,7 @@ two-player).
 ## 15. Notes & Constraints
 
 - **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Mandalorian") if ever needed.
-- **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, vehicles as drivables (swoops are enemy-only), mobile touch controls.
+- **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, mobile touch controls. (*Drivable vehicles were originally out of scope; that changed 2026-08-29 — see §17.*)
 
 ## 16. Ambient life & backdrop pass (planned — from the 2026-08-29 territory audit)
 
@@ -417,3 +417,50 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
    ~220 m, window dots emissive, fading into the existing fog; blinking
    hazard beacons ride the tallest towers on the night side. Pure planes, `decor` —
    the street stops being a corridor in fog and becomes a slice of a city.
+
+## 17. Pilotable vehicles
+
+Fun rides parked around the boards — a toy with hit points, not transport. Mount one,
+tool around, run hostiles down, and sooner or later it gets shot out from under you or
+you put it into a wall. Nothing here leaves the territory: the boards' rims, bulkheads
+and edges bound a ride exactly as they bound a sprint.
+
+**The kinds** (all rigless props through `loadProp`, procedural builds until the files
+land — `speeder_bike`, `landspeeder` and `skiff` are requested in `ASSETS_MODELS.md`;
+the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stealable):
+
+| Kind | Feel | HP | Where |
+|---|---|---|---|
+| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld plaza |
+| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge dome gap |
+| **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
+| **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+
+**Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
+contextual button as cover, and a vehicle in range wins the press. RB again dismounts
+in place; A hops off with a jump (straight into a jetpack chain). The rider sits a
+real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
+skins ride too).
+
+**Driving:** stick steers camera-relative like on foot but with real momentum and
+drift — the vehicle takes a moment to answer, and speed is something you carry, not
+something you have. LB is a boost impulse on a short cooldown. Repulsors hover at a
+fixed ride height over ground or water (`max(ground, waterY)` — the skiff skims the
+harbour, and clears the mamacore's bite depth by inches). Weapons are stowed while
+riding: **the vehicle is the weapon.**
+
+**Ramming:** contact above ~6 m/s damages scaled with speed, with a heavy knockback
+and a knockdown — a swoop through a posted squad is bowling. Every body struck chips
+the vehicle's own HP, and a hard stop against a wall costs HP proportional to the
+speed lost. Nothing is free.
+
+**Being shot down:** a parked vehicle is solid (a physics box, removed while ridden)
+and a bolt target on the props' team, so a firefight can cost you your ride before
+you reach it. While ridden, hits on the rider redirect to the vehicle — the hull is
+your HP until it isn't — except kill zones, which still kill the rider. At 0 HP the
+rider is thrown clear and the wreck explodes for real: AoE, knockdowns, chained
+breakables.
+
+**Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
+jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
+existing explosion. Synth fallbacks under both, per the audio rules.
