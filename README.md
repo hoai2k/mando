@@ -1,4 +1,4 @@
-# Mando — a *Mandalorian* fan game
+# Bounty Hunters — a *Mandalorian* fan game
 
 **▶ Play it: https://hoai2k.github.io/mando/**
 

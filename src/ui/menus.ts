@@ -1,4 +1,5 @@
 import { audio } from '../core/audio';
+import { ASSET_ROOT } from '../core/assets';
 import type { MenuAction } from '../core/input';
 
 /**
@@ -37,11 +38,28 @@ export class MenuScreen {
     parent.appendChild(this.root);
   }
 
-  addTitle(text: string, sub?: string): void {
+  /**
+   * The screen's heading. `art` names an optional wordmark in
+   * `assets/textures/`: where the file exists it replaces the set type, and
+   * where it does not the text stands — the same "procedural now, authored
+   * when it arrives" contract the rest of the game runs on. The text is kept
+   * as the element's accessible label either way.
+   */
+  addTitle(text: string, sub?: string, art?: string): void {
     const t = document.createElement('div');
     t.className = 'menu-title';
     t.textContent = text;
     this.root.appendChild(t);
+    if (art) {
+      const img = new Image();
+      img.onload = () => {
+        t.textContent = '';
+        t.setAttribute('aria-label', text);
+        t.style.backgroundImage = `url('${img.src}')`;
+        t.classList.add('has-art');
+      };
+      img.src = `${ASSET_ROOT}assets/textures/${art}.png`;
+    }
     if (sub) {
       const s = document.createElement('div');
       s.className = 'menu-subtitle';

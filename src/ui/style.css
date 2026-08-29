@@ -31,6 +31,14 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   color: #d8b25a; text-transform: uppercase;
   text-shadow: 0 0 24px rgba(216,178,90,0.35), 0 2px 0 #5a3c14;
 }
+/* An authored wordmark replaces the set type where the file exists. The box
+   keeps its own height so the title never collapses between the text going and
+   the image painting, and the art is contained rather than cropped. */
+.menu-title.has-art {
+  width: min(72vw, 720px); height: clamp(96px, 15vw, 190px);
+  background-repeat: no-repeat; background-position: center;
+  background-size: contain; text-shadow: none;
+}
 .menu-subtitle { font-size: 15px; letter-spacing: 0.35em; text-transform: uppercase; color: #9a8a6a; margin-top: -10px; }
 .menu-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 26px; align-items: stretch; min-width: 320px; }
 .menu-btn {

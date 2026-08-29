@@ -1,6 +1,6 @@
-# Mando — Game Plan
+# Bounty Hunters — Game Plan
 
-A fan-made, third-person 3D web game following a Mandalorian bounty hunter. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across nine boards, opening with the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates; the other seven are listed in §8.
+A fan-made, third-person 3D web game following a crew of bounty hunters — the covert's Mandalorians and the underworld's freelancers. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across nine boards, opening with the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates; the other seven are listed in §8.
 
 This document describes every component and how it is built. It began as a pre-implementation plan and is now kept as the design reference for what shipped — `docs/PROGRESS.md` is the build log.
 

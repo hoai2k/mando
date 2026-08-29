@@ -378,13 +378,13 @@ export class Game {
           p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
-          this.events.banner('The Mando has fallen');
+          this.events.banner('The hunter has fallen');
         }
       }
     }
     if (this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
-      this.events.banner('The Mando has fallen');
+      this.events.banner('The hunters have fallen');
     }
 
     // ---- vehicles ----
