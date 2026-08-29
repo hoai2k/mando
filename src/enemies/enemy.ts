@@ -562,7 +562,14 @@ export class Enemy {
       if (!this.wounded && this.downTimer <= 0) this.startRagdoll();
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
-      this.char.animator.playOnce('upper', 'hitUpper', 0.05);
+      // Flinch away from where the shot came from: rotate the bearing into
+      // the rig's frame and a hit from either flank plays its side variant —
+      // the head snaps toward the shooter, the body rocks off it. Head-on
+      // (or from behind) keeps the frontal flinch.
+      const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
+      const side = Math.sin(bearing);
+      const clip = side > 0.45 ? 'hitFromR' : side < -0.45 ? 'hitFromL' : 'hitUpper';
+      this.char.animator.playOnce('upper', clip, 0.05);
     }
   }
 

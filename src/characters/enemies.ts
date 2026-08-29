@@ -36,26 +36,23 @@ const AUTHORED_ENEMY: Record<string, number> = {
 };
 
 /**
- * Give an enemy its authored skin, if one exists. A *ranged* weapon stays on
- * the canonical `weaponR` bone rather than moving into the model's hand: enemy
- * rifles are aimed by the same clips on either build, and keeping one mount
- * keeps the muzzle where the firing code already looks for it.
- *
- * A melee weapon has no muzzle to protect, and the canonical bone rides the
- * *hidden procedural* arm — whose proportions differ from the sculpt's — so a
- * gaffi or club left there drifts a hand-width or more from the authored fist
- * at the top of a swing. Pass it in `handWeapons` and it re-mounts into the
- * model's hand on load, exactly as the players' weapons do.
+ * Give an enemy its authored skin, if one exists. On load, everything hanging
+ * off the canonical weapon bones re-mounts into the authored hands — exactly
+ * as the players' weapons do. The canonical bones ride the *hidden
+ * procedural* arms, whose proportions differ from the sculpt's, so a rifle or
+ * gaffi left there floats a hand-width off the authored fist (worst at the
+ * top of a swing, but visible on every aim pose too). The muzzle group lives
+ * inside the weapon group and travels with it, so the firing code keeps
+ * finding it wherever the gun goes; shot direction is computed from the
+ * chest, never from the barrel, so aim is untouched.
  */
-function authoredEnemy(
-  inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true,
-  handWeapons: THREE.Object3D[] = [],
-): void {
+function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
     onLoad: (model) => {
-      if (model.weaponMount) for (const w of handWeapons) model.weaponMount.add(w);
+      if (model.weaponMount) for (const w of [...rig.bones.weaponR.children]) model.weaponMount.add(w);
+      if (model.weaponMountL) for (const w of [...rig.bones.weaponL.children]) model.weaponMountL.add(w);
     },
   });
   const prev = inst.cosmetic;
@@ -84,7 +81,7 @@ export function buildTusken(authored = true): CharacterInstance {
   const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), mat(0x8a8f92, { rough: 0.4, metal: 0.6 }));
   gaffi.rotation.x = Math.PI / 2;
   b.weaponR.add(gaffi);
-  authoredEnemy(inst, rig, 'tusken', authored, [gaffi]);
+  authoredEnemy(inst, rig, 'tusken', authored);
   return inst;
 }
 
@@ -125,18 +122,16 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   addSphere(b.head, dark, 0.02, -0.05, 0.06, 0.11, 5, 4);
   addSphere(b.head, dark, 0.02, 0.05, 0.06, 0.11, 5, 4);
   for (let i = 0; i < 4; i++) addCyl(b.head, skinM, 0.01, 0.025, 0.09, -0.06 + i * 0.04, 0.16, -0.04, -0.5, 0, 0, 5);
-  const handWeapons: THREE.Object3D[] = [];
   if (melee) {
     const club = new THREE.Group();
     addCyl(club, dark, 0.025, 0.03, 0.7);
     addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
     club.rotation.x = Math.PI / 2;
     b.weaponR.add(club);
-    handWeapons.push(club);
   } else {
     inst.muzzle = rifle(b.weaponR);
   }
-  authoredEnemy(inst, rig, melee ? 'pirate_melee' : 'pirate', authored, handWeapons);
+  authoredEnemy(inst, rig, melee ? 'pirate_melee' : 'pirate', authored);
   return inst;
 }
 
@@ -314,7 +309,7 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   saber.rotation.x = Math.PI / 2;
   b.weaponR.add(saber);
 
-  authoredEnemy(inst, rig, 'imperial_officer', authored, [saber]);
+  authoredEnemy(inst, rig, 'imperial_officer', authored);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     // the blade breathes, so it reads as energy rather than a painted plank
@@ -485,9 +480,12 @@ export function buildMassiff(authored = true): CharacterInstance {
   let posed = true;
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
+  let walkAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
   /** metres covered per second of the move clip, for rate-matching the gait */
   let clipStride = 4;
+  /** the walk covers far less ground per cycle than the gallop */
+  let walkStride = 1.5;
   let gaitSpeed = 0;
   if (authored) {
     const model = loadCreature('massiff', {
@@ -498,9 +496,16 @@ export function buildMassiff(authored = true): CharacterInstance {
         if (!clips.length) return;
         const pick = (re: RegExp): THREE.AnimationClip | undefined => clips.find((c) => re.test(c.name));
         const idle = pick(/idle|breath|stand/i);
-        const move = pick(/run|gallop|sprint/i) ?? pick(/walk|trot|move/i);
+        const walk = pick(/walk|trot|prowl/i);
+        const move = pick(/run|gallop|sprint/i) ?? (walk ? undefined : pick(/move/i));
         mixer = new THREE.AnimationMixer(loaded);
         if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+        if (walk) {
+          walkAction = mixer.clipAction(walk);
+          walkAction.play();
+          walkAction.setEffectiveWeight(0);
+          walkStride = 1.6 / Math.max(walk.duration, 0.2);
+        }
         if (move) {
           moveAction = mixer.clipAction(move);
           moveAction.play();
@@ -519,12 +524,19 @@ export function buildMassiff(authored = true): CharacterInstance {
     setGait: (speed: number) => { gaitSpeed = speed; },
     cosmetic: (dt, time) => {
       if (mixer) {
-        // cross-fade idle against the run by how fast the body is travelling,
-        // and drive the run's playback rate off the same speed so it doesn't skate
-        const moving = Math.min(gaitSpeed / 6, 1);
+        // Three gaits, blended by ground speed: still → prowling walk →
+        // full gallop, each rate-matched to the metres actually covered so
+        // no gait skates. Below the gallop threshold the old two-way blend
+        // played the gallop at 0.4x, which is slow motion, not stalking.
+        const moving = Math.min(gaitSpeed / 1.2, 1);
+        const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
         if (moveAction) {
-          moveAction.setEffectiveWeight(moving);
+          moveAction.setEffectiveWeight(walkAction ? moving * gallop : moving);
           moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.4, 2.2);
+        }
+        if (walkAction) {
+          walkAction.setEffectiveWeight(moving * (1 - gallop));
+          walkAction.timeScale = clamp(gaitSpeed / Math.max(walkStride, 0.3), 0.5, 1.8);
         }
         if (idleAction) idleAction.setEffectiveWeight(1 - moving);
         mixer.update(dt);
@@ -851,7 +863,7 @@ export function buildAlamite(authored = true): CharacterInstance {
   addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
   club.rotation.x = Math.PI / 2;
   b.weaponR.add(club);
-  authoredEnemy(inst, rig, 'alamite', authored, [club]);
+  authoredEnemy(inst, rig, 'alamite', authored);
   return inst;
 }
 
