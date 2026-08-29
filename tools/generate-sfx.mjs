@@ -37,6 +37,7 @@ const SFX = {
   longrifle_shot: ['Long-barrelled sci-fi hunting rifle single shot: heavy deep percussive report, slower descending zap with low barrel resonance tail, single shot only', 0.9],
   saber_swing: ['Energy sword swing: smooth tonal hum sweeping with fast doppler, electric harmonic edge, no air whoosh, single swing, no impact', 0.7],
   saber_ignite: ['Twin energy blades igniting: sharp crackle snap into a fast rising hum that settles into a steady tone, single ignition', 0.8],
+  saber_deflect: ['Energy blade parrying a blaster bolt: short bright metallic ping with an electric crackle and a fast sizzling tail, dry, no reverb', 0.5],
   saber_hum: ['Steady energy blade idle hum: low warm electrical drone with a slow beating pulse and faint high harmonic shimmer, constant level, no swings, no crackle, seamless continuous loop', 4, true],
   rocket_launch: ['Small missile launching from a shoulder rack: pressurized whoosh ignition then rising rocket hiss, single launch', 1.0],
   explosion: ['Medium sci-fi explosion: deep sub thump, fiery crackle body, metallic debris tail, single explosion', 1.5],

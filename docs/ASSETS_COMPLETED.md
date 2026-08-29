@@ -258,3 +258,14 @@ flag now inherits down a group so a prop built from parts declares itself once.
 earlier 26-portrait batch (512×614 JPEG, head and shoulders, warm key from the upper left
 on near-black). No code change: the loading screen already probes `portrait_<id>.jpg` and
 keeps its drawn mark on a 404. `portrait_ig11` is the last one still open.
+
+---
+
+## Audio — `saber_deflect`, delivered 2026-08-29
+
+| File | Used by | Original prompt |
+|---|---|---|
+| `saber_deflect.mp3` | Each bolt Ventress turns on a blade (`audio.saberDeflect()`) | "Energy blade parrying a blaster bolt: short bright metallic ping with an electric crackle and a fast sizzling tail, dry, no reverb" |
+
+0.48 s, verified decoding in-browser at peak 0.666 / rms 0.092. The synth voice (a square
+zap over a bright noise burst) remains the fallback.

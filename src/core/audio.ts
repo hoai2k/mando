@@ -24,6 +24,7 @@ type SampleName =
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
+  | 'saber_deflect'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
@@ -110,6 +111,7 @@ export class AudioEngine {
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
+      'saber_deflect',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -270,7 +272,7 @@ export class AudioEngine {
    * combo still reads as a separate event.
    */
   saberDeflect(): void {
-    if (!this.ctx) return;
+    if (!this.ctx || this.playSample('saber_deflect', 0.7)) return;
     this.zap(1500, 420, 0.1, 'square', 0.26);
     this.burst(0.06, 0.2, 5200, 0, 1.6);
     this.zap(600, 900, 0.07, 'sawtooth', 0.14, 0.01);
