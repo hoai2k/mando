@@ -23,8 +23,21 @@ const KEYBOARD: Array<[string, string]> = [
   ['Melee combo (gaffi stick)', 'F · Middle mouse'],
   ['Wrist rocket', 'Q'],
   ['Camera distance', 'Mouse wheel'],
-  ['Take cover · ground slam', 'C · Ctrl'],
+  ['Take cover · ground slam · mount a ride', 'C · Ctrl'],
   ['Switch weapon', 'E · 1 · 2'],
+];
+
+/**
+ * Driving is its own control scheme — the stick turns the nose and the pedals
+ * do the rest — so it gets its own short list rather than footnotes on eight
+ * bindings that all mean something different in the saddle.
+ */
+const DRIVING: Array<[string, string]> = [
+  ['Mount a parked ride · get off', 'RB · C'],
+  ['Accelerate', 'A · W'],
+  ['Brake, then reverse', 'B · S'],
+  ['Steer', 'Left stick · A · D'],
+  ['Boost', 'LB · Shift'],
 ];
 
 /** always available, controller or not */
@@ -158,8 +171,17 @@ function padSvg(): string {
  * left out rather than shown as something that quietly does nothing.
  */
 export function controlsMarkup(keyboard = false): string {
+  // Driving is listed for everyone: the bindings mean something different in
+  // the saddle whether or not the keyboard path is on.
+  const driving = `<div class="controls-keys">
+      <div class="controls-keys-title">While riding a vehicle</div>
+      <dl>${DRIVING.map(([what, keys]) =>
+        `<dt>${what}</dt><dd>${keys.split(' · ').map((k) => `<kbd>${k}</kbd>`).join('<i>·</i>')}</dd>`
+      ).join('')}</dl>
+    </div>`;
   return `<div class="controls-page">
     ${padSvg()}
+    ${driving}
     ${keyboard ? `<div class="controls-keys">
       <div class="controls-keys-title">Keyboard &amp; mouse</div>
       <dl>${[...KEYBOARD, ...ALWAYS].map(([what, keys]) =>
