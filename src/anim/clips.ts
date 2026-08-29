@@ -202,6 +202,29 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 1.6], [[-14, 0, 0], [-14, 0, 0]]),
   ]);
 
+  // ---------- LOWER/UPPER: riding a vehicle (saddle straddle, hands to bars) ----------
+  // Thighs forward and spread over the saddle, shins folded down, a forward
+  // lean with both arms reaching the controls. The hips hold hipY over the
+  // root, so a rider is placed by setting the root to saddleTop - hipHeight.
+  clips.rideLower = new THREE.AnimationClip('rideLower', 2, [
+    pt('hips', [0, 1, 2], [[0, hipY, 0], [0, hipY + 0.015, 0], [0, hipY, 0]]),
+    qt('hips', [0, 2], [[10, 0, 0], [10, 0, 0]]),
+    qt('upperLegL', [0, 2], [[-92, 0, -14], [-92, 0, -14]]),
+    qt('lowerLegL', [0, 2], [[96, 0, 0], [96, 0, 0]]),
+    qt('footL', [0, 2], [[28, 0, 0], [28, 0, 0]]),
+    qt('upperLegR', [0, 2], [[-92, 0, 14], [-92, 0, 14]]),
+    qt('lowerLegR', [0, 2], [[96, 0, 0], [96, 0, 0]]),
+    qt('footR', [0, 2], [[28, 0, 0], [28, 0, 0]]),
+  ]);
+  clips.rideUpper = new THREE.AnimationClip('rideUpper', 2, [
+    qt('chest', [0, 1, 2], [[20, 0, 0], [22, 0, 0], [20, 0, 0]]),
+    qt('upperArmL', [0, 2], [[-66, 22, -12], [-66, 22, -12]]),
+    qt('forearmL', [0, 2], [[-34, 0, 0], [-34, 0, 0]]),
+    qt('upperArmR', [0, 2], [[-66, -22, 12], [-66, -22, 12]]),
+    qt('forearmR', [0, 2], [[-34, 0, 0], [-34, 0, 0]]),
+    qt('head', [0, 2], [[-16, 0, 0], [-16, 0, 0]]),
+  ]);
+
   // ---------- UPPER: aim carbine (two-handed, right shoulder) ----------
   clips.aimUpper = new THREE.AnimationClip('aimUpper', 1, [
     qt('chest', [0, 1], [[2, -18, 0], [2, -18, 0]]),
