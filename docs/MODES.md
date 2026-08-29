@@ -169,6 +169,13 @@ the arena — and shakes off any knockdown. All of it rides existing machinery:
 - **Campaign:** the final waypoint is the boss arena; the guide beacon leads
   straight to it. Victory on its death.
 
+A second tier now has a design: **six large monster bosses** — one per board with a
+monster in its bones (mudhorn, ravinak, mamacore, rancor, greater krayt, mythosaur)
+— fighting as a final stage *after* the promoted elite on those boards, each with a
+bespoke moveset, phases, weak points and arena hazards. The full design and spec is
+`docs/BOSSES.md`; their reference-sheet and model requests are open in the asset
+docs as of 2026-08-29. Not implemented — the sheets are the blocking input.
+
 ## 5. What was deliberately cut (and why)
 
 - **True level streaming** for corridors — the door is the seam, but today both
@@ -205,6 +212,8 @@ the arena — and shakes off any knockdown. All of it rides existing machinery:
 8. **Deeper boss arenas.** The shipped bosses (§4a) are promoted elites with
    phase reinforcements; the next rung is per-boss movesets, arena hazards
    tied to phases, and unique models — PLAN.md's original stretch goal.
+   **Designed 2026-08-29** as the six monster bosses in `docs/BOSSES.md`
+   (asset requests open); implementation is the remaining rung.
 9. **Netplay.** All modes are deterministic-ish single-machine sims; PvP
    online would need rollback or lockstep — out of scope, noted so nobody
    mistakes the team ints for a network design.

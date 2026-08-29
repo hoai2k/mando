@@ -5,10 +5,11 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the environment prop reference sheets, and the optional
-drop-screen portraits for the playable NPCs. Nothing else — the cast, the boards, the
-skies, every surface texture, the campaign's planet strip and corridor interiors, the
-drop-screen portraits, the logo and the favicon are all in and wired.
+**Outstanding right now:** the environment prop reference sheets, the **monster boss
+reference sheets** (opened 2026-08-29 by the boss design round — `docs/BOSSES.md`), and
+the optional drop-screen portraits for the playable NPCs. Nothing else — the cast, the
+boards, the skies, every surface texture, the campaign's planet strip and corridor
+interiors, the drop-screen portraits, the logo and the favicon are all in and wired.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -144,6 +145,48 @@ player character itself.
 | `speeder_bike` ▣ | "a military scout repulsor speeder bike about 3 meters long, no rider: two long forward outrigger vanes ending in steering fins, a narrow saddle over a compact rear engine block, handlebar controls, footrests, no wheels, hovering, drab grey-brown metal, field-worn" |
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
+
+## Open — monster boss reference sheets (for image-to-3D)
+
+The visual reference for the six monster bosses designed in
+[`docs/BOSSES.md`](BOSSES.md); the model briefs are in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--open-2026-08-29). These drive
+image-to-3D generators and hand modelling alike — model from these, not from the
+prose. **The sheets are the blocking input for the whole monster round.**
+
+**Location: `reference/characters/` — NOT under `public/`** (production inputs).
+**Files:** these are creatures, so like the bantha and krykna they take
+**orthographic side, front and top views on one canvas** instead of the biped
+front/side/back triple: one `<id>_ref.png` per monster, 1536×1024. The mamacore,
+krayt and mythosaur are longer than they are tall — keep the side view the large
+one and let front/top share the remaining band, all three at one consistent scale.
+
+**Shared preamble — prepend verbatim to every monster prompt below:**
+
+> A single colossal creature for a stylized-realistic sci-fi video game:
+> orthographic side, front and top views of the identical creature arranged on one
+> canvas at one consistent scale, no perspective distortion. Flat even neutral
+> lighting, no cast shadows, plain mid-grey background, no people, no environment,
+> no text, no watermark. Weathered, battle-scarred, cleanly readable silhouette.
+> Subject:
+
+Weak zones called out in a prompt (a glowing gullet, gill frills, throat) must read
+in the art — they become emissive weak-point meshes on the model, so the sheet is
+where their placement gets decided. Same standing rules as every sheet: original fan
+designs only, described and never named.
+
+| Id | Prompt |
+|---|---|
+| `mudhorn` | "a hulking woolly one-horned beast 2.6 meters at the shoulder and 4.5 meters long: a single huge forward-curved horn on a broad armored nose boss, a coat of shaggy dark-brown matted wool over a humped muscular rhinoceros build, four stout legs with cloven hooves, small furious deep-set eyes, a short tufted tail" |
+| `ravinak` | "a massive tusked sea-beast eight meters long built like an armored walrus-crocodile: a blunt whiskered snout with two great down-curved ivory tusks, a wide blubbered body in slate-grey hide with barnacled bone plates along the back, a pale soft throat, four broad clawed flippers, a heavy tapering tail" |
+| `mamacore` | "a monstrous deep-harbor fish twelve meters long: a cavernous circular mouth ringed with rows of needle teeth, long barbels trailing from the jaw, a scarred storm-grey mottled hide, a pale belly, rows of faintly glowing pale gill frills behind the head, stubby side fins, a broad flat eel tail, small milky eyes" |
+| `rancor` | "a towering hunched reptilian brute five meters tall: massive long-clawed arms longer than its legs, a flat wide skull with an underslung jaw and short tusks, small deep-set eyes, leathery umber-brown hide creased with old fighting-pit scars, thick stumpy legs, a short heavy tail" |
+| `krayt_dragon` | "the front eighteen meters of a colossal burrowing desert dragon emerging from the ground: a broad flat skull with a wide jaw crammed with teeth, four small pale eyes, a frilled bone collar, a thick armored neck of overlapping rings, two clawed burrowing forelimbs, a long tapering serpent body ridged with sand-worn plates, bone-white and ochre hide, a faint amber glow deep inside the open gullet" |
+| `mythosaur` | "the head, neck and forelimbs of an ancient horned leviathan rising from dark water, twelve meters of creature: a broad armored skull with two great down-swept curved horns, glowing pale eyes, a tusked underbite jaw, ridged black-green hide streaked with mineral scale, heavy overlapping neck plates, two powerful clawed forelimbs, paired glowing gill vents on the throat" |
+
+The mythosaur must read as the living animal of the delivered `mythosaur_skull`
+sculpt — same horn sweep, same tusked jaw — since the game half-buries that skull
+thirty meters from where the creature surfaces.
 
 ## Game-mode art — remaining (docs/MODES.md)
 
