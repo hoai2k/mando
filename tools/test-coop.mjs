@@ -31,7 +31,7 @@ const speeds = () => h.page.evaluate(() => window.__game.players.map(
 
 /** title -> board -> the character select, driven by pad 0 */
 async function toCharacterSelect() {
-  await h.waitForText(/PRESS START/i);
+  await h.waitForText(/PRESS START|WAVE BATTLE/i);
   await h.pad.tap(BTN.START);
   await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
   await h.pad.tap(BTN.A);

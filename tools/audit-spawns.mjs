@@ -89,7 +89,7 @@ function audit() {
 
 const only = process.argv[2];
 const h = await launch();
-await h.waitForText(/PRESS START/i);
+await h.waitForText(/PRESS START|WAVE BATTLE/i);
 const results = await h.page.evaluate(`(${audit.toString()})()`);
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();

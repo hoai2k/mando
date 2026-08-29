@@ -41,7 +41,7 @@ const waitForAsset = async (name, ms = 20000) => {
 const state = () => h.page.evaluate(() => window.__state);
 
 // ---- 1. the title screen warms the first fighter and the territory art ----
-await h.waitForText(/PRESS START/i);
+await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await sleep(3000);
 check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
 check('the title warms the territory art', await waitForAsset('board_tatooine.jpg'));

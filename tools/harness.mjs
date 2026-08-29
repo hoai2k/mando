@@ -249,7 +249,12 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   /** title -> board select -> character select -> playing */
   async function startMatch({ board = 0, character = 0 } = {}) {
-    await waitForText(/PRESS START/i);
+    // The title screen has two shapes: the mode select (the default — Wave
+    // Battle / PvP / Missions) and the single Press Start behind `?nomodes`.
+    // Wave Battle is the focused button on the mode select, so START opens the
+    // same board select from either; wait for whichever one is up rather than
+    // for the wording of one of them.
+    await waitForText(/PRESS START|WAVE BATTLE/i);
     await pad.tap(BTN.START);
     await waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
     for (let i = 0; i < board; i++) { await pad.tap(BTN.DRIGHT); }
