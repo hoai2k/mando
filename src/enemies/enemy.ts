@@ -195,6 +195,26 @@ const ESCORT_ENGAGE = 45;
 const ESCORT_NEAR = 5;
 /** how far a milling ally's loiter goal may fall behind the player before it picks a new one */
 const ESCORT_DRIFT = 8;
+
+/**
+ * Blaster heat, the same mechanic the players carry. Volleys are small and
+ * spaced, so a tusken squeezing off pairs every two seconds never troubles it;
+ * a rapid-fire shooter leaning on a firefight does, and has to break off to
+ * vent. That break is the opening — the hostile who never stops shooting was
+ * the one you could never push.
+ */
+const ENEMY_HEAT_PER_SHOT = 0.07;
+/**
+ * Hostiles shed heat far more slowly than a player does. They fire in short
+ * volleys with long gaps, so a player's cooling rate is paid off by every gap
+ * and the meter never climbs — the heat has to survive the gaps for sustained
+ * contact to mean anything.
+ */
+const ENEMY_HEAT_COOL = 0.1;
+/** the barrel sheds nothing until this long after the last bolt */
+const ENEMY_HEAT_HOLD = 0.5;
+/** how long a vented shooter stays out of the fight */
+const ENEMY_VENT_TIME = 2.2;
 /** scratch for the per-frame hot paths: ~45 hostiles all run these every frame */
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
@@ -387,6 +407,11 @@ export class Enemy {
    */
   private sightTimer = 0;
   private sightMemo = false;
+  /** blaster heat, 0..1 — see the constants above */
+  heat = 0;
+  /** seconds left venting; nothing fires while this is running */
+  venting = 0;
+  private heatHold = 0;
 
   constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
     this.def = DEFS[kind];
@@ -830,6 +855,9 @@ export class Enemy {
 
     this.attackCd -= dt;
     this.suppression = Math.max(0, this.suppression - dt * 0.25);
+    this.venting = Math.max(0, this.venting - dt);
+    this.heatHold = Math.max(0, this.heatHold - dt);
+    if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
     const d = DEFS[this.kind];
 
     // ---- flat on the ground after a heavy hit ----
@@ -1536,10 +1564,29 @@ export class Enemy {
       if (this.volleyTimer <= 0) {
         this.volleyLeft--;
         this.volleyTimer = d.flame ? 0.09 : 0.16;
-        if (d.flame) this.flameTick(game, target);
-        else this.fireBoltAt(game, target);
+        if (d.flame) {
+          // a flame stream runs out of fuel, it does not overheat
+          this.flameTick(game, target);
+        } else {
+          this.fireBoltAt(game, target);
+          // heat builds per bolt; a barrel that has had enough cuts the burst
+          // short and goes quiet rather than finishing it
+          this.heat = Math.min(1, this.heat + ENEMY_HEAT_PER_SHOT);
+          this.heatHold = ENEMY_HEAT_HOLD;
+          if (this.heat >= 1) {
+            // The vent is what does the cooling: it purges the barrel outright
+            // rather than waiting on the slow bleed, which would otherwise
+            // leave the shooter at the ceiling and venting again on its very
+            // next bolt.
+            this.heat = 0;
+            this.heatHold = 0;
+            this.volleyLeft = 0;
+            this.venting = ENEMY_VENT_TIME;
+            this.attackCd = Math.max(this.attackCd, ENEMY_VENT_TIME);
+          }
+        }
       }
-    } else if (this.attackCd <= 0 && dist < d.attackRange && this.losThrottled(game, target)) {
+    } else if (this.venting <= 0 && this.attackCd <= 0 && dist < d.attackRange && this.losThrottled(game, target)) {
       this.volleyLeft = d.volley ?? 1;
       // a pinned shooter pops up less often
       this.attackCd = d.attackCd * (this.suppression > 0.55 ? 1.6 : 1);

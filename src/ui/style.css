@@ -93,6 +93,12 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .bar .fill { position: absolute; inset: 1px; transform-origin: left; background: #c33f2e; }
 .bar.fuel .fill { background: #d8b25a; }
 .bar.energy .fill { background: #4fb8d8; transition: opacity 0.15s; }
+/* heat runs cool amber and goes hot as the barrel fills */
+.bar.heat .fill { background: linear-gradient(90deg, #d8a24a, #e8622a); }
+/* vented: the whole bar pulses so it reads without looking away from the fight */
+.bar.heat.overheated { border-color: rgba(232,98,42,0.9); animation: heat-vent 0.45s infinite; }
+.bar.heat.overheated .fill { background: #e8622a; }
+@keyframes heat-vent { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .bar .label { position: absolute; right: 4px; top: -3px; font-size: 10px; letter-spacing: 0.2em; color: rgba(232,220,200,0.75); }
 .hud-wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; }
 .hud-wave .wave-num { font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #f0d08c; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85); }

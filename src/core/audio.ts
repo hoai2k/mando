@@ -495,6 +495,17 @@ export class AudioEngine {
     this.zap(95, 38, 0.8, 'square', 0.2 * gain, 0.05);
     this.burst(0.7, 0.25 * gain, 500, 0, 0.5);
   }
+  /**
+   * A blaster's gas seals letting go: the whine falls away and the barrel
+   * vents. Synth only — it is a mechanical noise, not a voice.
+   */
+  overheat(gain = 0.5): void {
+    if (!this.ctx) return;
+    this.zap(1400, 180, 0.35, 'sawtooth', 0.07 * gain);
+    this.burst(0.55, 0.16 * gain, 2600, 0.05, 0.7);   // steam off the vents
+    this.burst(0.4, 0.09 * gain, 900, 0.12, 1.2);
+  }
+
   /** Electrified floor charging up — the prison rig's warning tone. */
   floorCharge(gain = 0.45): void {
     if (!this.ctx || this.playSample('floor_charge', gain)) return;
