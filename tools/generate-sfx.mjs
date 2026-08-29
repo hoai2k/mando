@@ -42,6 +42,7 @@ const SFX = {
   ship_pass: ['Large spacecraft passing overhead at distance: deep engine rumble sliding through a slow doppler shift, airy wash, four seconds, no other sounds', 3],
   ship_landing: ['Heavy freighter landing thrusters: roaring downdraft swelling then cutting to a hydraulic settle and a metallic clunk of landing gear', 2],
   steam_hiss: ['Industrial steam vent burst: sharp pressurized hiss softening into a fading plume of white noise, two seconds', 1.2],
+  bantha_low: ['Colossal woolly beast lowing: deep mournful bellow with a breathy rumbling tail, three seconds, single call, no other sounds', 3],
   saber_hum: ['Steady energy blade idle hum: low warm electrical drone with a slow beating pulse and faint high harmonic shimmer, constant level, no swings, no crackle, seamless continuous loop', 4, true],
   rocket_launch: ['Small missile launching from a shoulder rack: pressurized whoosh ignition then rising rocket hiss, single launch', 1.0],
   explosion: ['Medium sci-fi explosion: deep sub thump, fiery crackle body, metallic debris tail, single explosion', 1.5],

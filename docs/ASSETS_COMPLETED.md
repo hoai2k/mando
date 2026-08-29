@@ -360,3 +360,18 @@ the earlier portrait batches. Every card on the drop screen carries authored art
 | `planet_<id>.png` ×9 | `public/assets/textures/` → the campaign's planet strip | One disc per territory (`desert`, `station`, `nevarro`, `crevasse`, `trask`, `refinery`, `forge`, `ringworld`, `narkina`). Pre-wired: `ui/planets.ts` builds the url from the board id, under a specular highlight and over the board's gradient, so arriving at the path was the integration. Prefetch now warms all nine when Missions is picked, a couple of screens ahead of the strip. |
 | `corridor_wall.png`, `corridor_floor.png`, `hazard_stripe.png` | `public/assets/textures/` → the campaign's corridor segments | Needed wiring: `world/corridor.ts` was flat hull materials. Each surface now takes its tileable and keeps the flat colour as the fallback — on **cloned** materials, since `mat()` caches by colour and the corridor's floor plate would otherwise have landed on every surface in the game sharing that hex. Warmed at idle for campaign matches, since a corridor is built at match start but walked into minutes later. |
 | `favicon.png` (512×512 PNG, alpha) | `public/` → the browser tab | The T-visored helmet mark in aged gold. Pre-wired: `<link rel="icon">` in `index.html` and `workbench/index.html`. Verified serving at 200, 512×512. |
+
+---
+
+## Audio — boss battle and ambient pass, 5 files, delivered 2026-08-29
+
+| File | Used by | Original prompt |
+|---|---|---|
+| `boss_horn.mp3` | The boss introduction card and, quieter, each phase turn (`audio.bossHorn`) | "Massive dark war horn call announcing a boss battle: deep brassy swell rising over two seconds into a huge percussive orchestral hit with a low drum boom, cinematic, dry tail" |
+| `ship_pass.mp3` | Sky-traffic close pass on the Waystation and Ringworld | "Large spacecraft passing overhead at distance: deep engine rumble sliding through a slow doppler shift, airy wash, four seconds, no other sounds" |
+| `ship_landing.mp3` | The Waystation working pad's touchdown and liftoff | "Heavy freighter landing thrusters: roaring downdraft swelling then cutting to a hydraulic settle and a metallic clunk of landing gear" |
+| `steam_hiss.mp3` | Refinery wall vents, volume by the nearest player's range | "Industrial steam vent burst: sharp pressurized hiss softening into a fading plume of white noise, two seconds" |
+| `bantha_low.mp3` | The Dune Sea herd's idle low | "Colossal woolly beast lowing: deep mournful bellow with a breathy rumbling tail, three seconds, single call, no other sounds" |
+
+All sample-first with synth fallbacks; every one verified decoding in-browser from the
+built bundle.

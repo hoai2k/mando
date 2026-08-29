@@ -166,7 +166,7 @@ This is the flexibility the brief demands:
 | **Alamite** | Melee (Great Forge) | Pale hunched cave-dweller, tusked underbite, bony dorsal ridge, stone club. |
 | **Interceptor drone** | Kamikaze flier (Great Forge) | Black probe-style drone, red eye, dangling arms; stalks, whines, then commits to an unsteered dive — the whine is the dodge cue. |
 | **Ringworld enforcer** | Shielded shooter (Ringworld) | Oxblood plate + tower shield whose energy pane reflects bolts; flank it, rush it, or rocket it. |
-| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated boss *fights* — phases, arenas, boss bars — remain post-MVP. |
+| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated **boss fights** shipped 2026-08-29: wave 11 and the campaign arena both open on a letterboxed introduction card over slow motion, run phase turns at ⅔/⅓ health (repulsor pulse, retinue call, an enrage at the last third), tint the boss bar by phase, and punish camping at the warlord's feet with a telegraphed shock-slam. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
 
@@ -369,7 +369,7 @@ two-player).
 - **Fan project:** original code and procedural assets only — no ripped models, textures, audio, or music. Named as an homage; can be re-skinned with generic names ("The Mandalorian") if ever needed.
 - **Not in scope (v1):** multiplayer, save system, open-world traversal between boards, mobile touch controls. (*Drivable vehicles were originally out of scope; that changed 2026-08-29 — see §17.*)
 
-## 16. Ambient life & backdrop pass (planned — from the 2026-08-29 territory audit)
+## 16. Ambient life & backdrop pass (shipped 2026-08-29, from the territory audit)
 
 Seven features that make the boards read as places rather than arenas. Ground rules for
 all of them: **atmosphere only** — nothing here changes combat balance, posts spawns, or
@@ -379,14 +379,14 @@ audit stays honest, and everything solid must pass it; and, per the project rule
 when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
 `ASSETS_IMAGES.md` / `ASSETS_AUDIO.md`).
 
-1. **Sky traffic** (Waystation, Ringworld). Two or three ships on long looping paths
+1. **Sky traffic** (Waystation, Ringworld) — **shipped.** Ships on long looping paths
    250–400 m out — below the skybox, above the fog — slow parallax, blinking running
    lights, with one closer pass per ~90 s carrying a doppler-shifted engine rumble
    (`ship_pass`). The ships are the `freighter` model (or its procedural stand-in)
    scaled by distance; `decor`, no colliders, no radar contacts. On the Ringworld the
    lane follows the ring's curve overhead and reads brightest from the night side.
 
-2. **The working landing pad** (Waystation). One outlying platform becomes a live pad:
+2. **The working landing pad** (Waystation) — **shipped.** One outlying platform is a live pad:
    on a ~100 s cycle a freighter descends on thruster glow and dust wash, sits ~20 s
    under circling beacons, and lifts off (`ship_landing`). The hull rides the Mover
    system like Trask's trawlers, so it is real ground — land on it and ride the
@@ -412,7 +412,7 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
    a low dust haze sits at its tracks. `sandcrawler.glb`; the procedural stand-in is
    a two-box massing with the angled prow.
 
-5. **Refinery pipes & steam** (Refinery). Procedural pipe runs — cylinders and elbows
+5. **Refinery pipes & steam** (Refinery) — **shipped.** Procedural pipe runs — cylinders and elbows
    in the existing dark/hull materials — along the hall walls and under the catwalk
    rings; an optional `pipe_rack` model upgrades the big manifold by the reactor.
    Five or six wall and floor vents hiss white plumes on randomized cycles through
@@ -420,20 +420,17 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
    no sight-block — though a plume that breaks enemy line-of-sight is noted as a
    future stealth hook.
 
-6. **Trask quay dressing** (Trask). **The nets are in** — six `net_weave.png` alpha
-   planes along the quay and finger edges, `decor`, hidden until the artwork loads
-   since a net is its own cutout. Still to come: buoy clusters riding the same swell sinusoid the
-   sea already computes (instanced, `decor`), rope coils, and two or three
-   fish-drying racks (`fish_rack.glb`) — the racks stand chest-high and get thin box
-   colliders, so they enter the cover system honestly as the board's only new solid.
-   The delivered `amb_rain` loop already carries the distant gulls.
+6. **Trask quay dressing** (Trask) — **shipped.** The nets, the fish-drying racks
+   (chest-high, thin box colliders, honestly in the cover system), eight buoys riding
+   the exact two-sinusoid swell the sea computes so they always sit on the surface,
+   and rope coils by the bollards. The delivered `amb_rain` loop carries the gulls.
 
 7. **Ringworld skyline** (Ringworld) — **shipped.** Two parallax rows of silhouette
    towers beyond each end bulkhead (`skyline_silhouette.png` at 58 m and `_2` at 96 m
    past the bulkhead, the far row taller and cooler-tinted), pure alpha planes flagged
    `decor` and drawn behind everything, fading into the existing fog. The street stopped
-   being a corridor in fog and became a slice of a city. Still to come: blinking hazard
-   beacons on the tallest towers on the night side.
+   being a corridor in fog and became a slice of a city. The blinking red hazard
+   beacons on the tallest towers shipped with the ambient pass.
 
 ## 17. Pilotable vehicles
 

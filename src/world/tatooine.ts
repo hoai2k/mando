@@ -5,6 +5,7 @@ import { adobeTexture, clothTexture, loadOptionalTexture, rockTexture, sandTextu
 import { tatooineSky } from './sky';
 import type { Board } from './board';
 import { authoredProp } from './props';
+import { audio } from '../core/audio';
 
 /**
  * Board 1 — the Dune Sea: rolling dunes flattening into a central arena,
@@ -239,6 +240,7 @@ export function buildTatooine(): Board {
   // tents, and they sway on their own clock rather than wandering, so a moving
   // collider can never shoulder anything into the fire.
   const banthas: Array<{ node: THREE.Group; phase: number }> = [];
+  let banthaLowIn = 8;
   const banthaMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
   const hornMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.8 });
   for (const [bnx, bnz, bnYaw] of [[-58, -70, 1.2], [-52, -62, 2.1], [-62, -78, 0.4]] as const) {
@@ -379,7 +381,17 @@ export function buildTatooine(): Board {
       { kind: 'landspeeder', x: -26, z: 52, yaw: 2.4 },
       { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
     ],
-    update: (dt, time) => {
+    update: (dt, time, game) => {
+      // one of the herd lows every so often, louder the closer you graze
+      banthaLowIn -= dt;
+      if (banthaLowIn <= 0 && game) {
+        banthaLowIn = 16 + Math.random() * 22;
+        const b = banthas[Math.floor(Math.random() * banthas.length)];
+        if (b) {
+          const near = game.players.reduce((m, p) => Math.min(m, p.position.distanceTo(b.node.position)), 999);
+          audio.banthaLow(Math.max(0.04, Math.min(0.4, 30 / Math.max(near, 8))));
+        }
+      }
       // the herd shifts its weight and swings its heads, slowly
       for (const b of banthas) {
         b.node.rotation.z = Math.sin(time * 0.4 + b.phase) * 0.03;

@@ -25,7 +25,7 @@ type SampleName =
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
   | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
-  | 'ship_pass' | 'ship_landing' | 'steam_hiss'
+  | 'ship_pass' | 'ship_landing' | 'steam_hiss' | 'bantha_low'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample | VariantSample;
 
@@ -139,7 +139,7 @@ export class AudioEngine {
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
       'saber_deflect', 'speeder_loop', 'speeder_ignite', 'boss_horn',
-      'ship_pass', 'ship_landing', 'steam_hiss',
+      'ship_pass', 'ship_landing', 'steam_hiss', 'bantha_low',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
       // match needs is not known until the players have picked
@@ -564,6 +564,13 @@ export class AudioEngine {
     if (this.playSample('ship_landing', vol)) return;
     this.burst(1.6, 0.3 * vol * 1.6, 900, 0, 0.7);
     this.zap(90, 40, 1.6, 'sawtooth', 0.14 * vol * 1.6);
+  }
+  /** the camp's livestock lowing at the dusk — ambience, volume by range */
+  banthaLow(vol = 0.4): void {
+    if (!this.ctx || vol < 0.03) return;
+    if (this.playSample('bantha_low', vol)) return;
+    this.zap(70, 55, 1.6, 'sawtooth', 0.18 * vol * 2);
+    this.zap(140, 105, 1.2, 'triangle', 0.1 * vol * 2, 0.15);
   }
   /** a wall vent letting off pressure — ambience, positional by caller's range */
   steamHiss(vol = 0.4): void {

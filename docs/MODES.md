@@ -155,14 +155,30 @@ rather than on new content: each territory names a **boss kind** (its
 signature final-wave elite — the Wookiee enforcer on the Dune Sea, the Pyke
 capo on the Spice Run, the broodmother in the Crevasse, the darksaber officer
 in the Refinery, the duelist pair's senior on the Ringworld, and so on) and
-the boss is that enemy **promoted**: ×4–5 HP, ×1.5 damage, ~×1.3 bulk, a
-named entrance banner, and a **boss health bar** on every player's HUD.
+the boss is that enemy **promoted**: ×4–5 HP, ×1.5 damage, ~×1.3 bulk, and a
+**boss health bar** on every player's HUD that deepens gold → orange → red
+with the phase.
+
+**The introduction (2026-08-29).** The battle opens on a card, so there is
+never any doubt it has begun: letterbox bars, the warlord's name in the
+menus' gold over a red *— Warlord —* kicker and a "Warlord of ⟨territory⟩"
+epithet, a war horn (`boss_horn`, synth swell under it), and three and a half
+seconds of slow motion (0.12×) while every camera pans onto the boss.
+Inputs are blanked and everyone on the field keeps their head down through
+the card, so the reveal is never a cheap shot in either direction.
 
 Phases keep it a fight rather than a sponge: at ⅔ and ⅓ health the boss
-bellows and **calls a retinue** — a squad of the board's grunts spawned around
-the arena — and shakes off any knockdown. All of it rides existing machinery:
-`addReinforcement` for the retinue, per-instance HP/damage/bulk scaling on
-`Enemy`, and the standard death/ragdoll/credit path when it goes down.
+**calls a retinue** — a squad of the board's grunts spawned around the arena
+— behind a **damage-free repulsor pulse** that throws everyone off the
+warlord, so each phase opens at range on both sides' terms; at the last
+third it **enrages** (+28% speed, −40% attack cooldown, +15% damage, via a
+per-instance def copy). Camping inside arm's reach draws a **telegraphed
+shock-slam**: an ember-ring windup with a real get-out window, then 26
+damage and a fling — it only arms when someone is close, so ranged play
+never eats it. The fight punishes standing still, never approaching. All of
+it rides existing machinery: `addReinforcement` for the retinue,
+per-instance scaling on `Enemy`, and the standard death/ragdoll/credit path
+when it goes down.
 
 - **Wave Battle:** clearing wave 10 announces the boss wave; the boss posts
   with a small honour guard. Victory on its death.
