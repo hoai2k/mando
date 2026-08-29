@@ -308,3 +308,194 @@ export function droneClips(root: THREE.Object3D): THREE.AnimationClip[] {
   }
   return [new THREE.AnimationClip('idle', DUR, b.tracks)];
 }
+
+// ---------- monster bosses: gaits for the four creature rigs ----------
+//
+// The boss sculpts (docs/BOSSES.md) ship the node names their briefs asked for
+// and no animation, so — like the massiff and the spiders — these are what move
+// them. They are big, slow animals: the amplitudes here are smaller in degrees
+// than the massiff's and read larger on screen, because the limbs are metres
+// long rather than tens of centimetres.
+//
+// Each set is one `idle` and one `move`, which is the contract the creature
+// builder blends between (`clipStride` rate-matches `move` to ground speed).
+
+/** the mudhorn's and ravinak's legs share a naming shape: `<leg>` over `<leg>_lower` */
+function legPairs(prefix: string): Array<{ root: string; phase: number }> {
+  return [
+    { root: `${prefix}FL`, phase: 0 },
+    { root: `${prefix}FR`, phase: 0.5 },
+    { root: `${prefix}BL`, phase: 0.55 },
+    { root: `${prefix}BR`, phase: 0.05 },
+  ];
+}
+
+/**
+ * A heavy walk on a four-legged rig with one joint per leg: the upper segment
+ * swings fore and aft, the lower folds on the forward half so the foot clears.
+ * Diagonal pairs, which is what a walking quadruped of this weight does.
+ */
+function heavyWalk(
+  root: THREE.Object3D, prefix: string, dur: number,
+  swing: number, fold: number, bodyBone: string, bob: number,
+): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+  for (const leg of legPairs(prefix)) {
+    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * swing).map((v) => [v, 0, 0]));
+    b.rot(`${leg.root}_lower`, times, cycle(STEPS, leg.phase, (t) => {
+      const s = Math.sin(t * Math.PI * 2);
+      return s > 0 ? -fold * s : fold * 0.25 * -s;
+    }).map((v) => [v, 0, 0]));
+  }
+  // the mass rides the stride: two bobs per cycle, one per diagonal pair
+  b.lift(bodyBone, times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 4) * bob));
+  return new THREE.AnimationClip('move', dur, b.tracks);
+}
+
+/** Breathing and a slow cast of the head — what a big animal does standing still. */
+function beastIdle(
+  root: THREE.Object3D, head: string, body: string, dur: number, breath: number,
+): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+  b.rot(body, times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * breath).map((v) => [v, 0, 0]));
+  b.rot(head, times, cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2) * 7).map((v) => [v * 0.4, v, 0]));
+  b.rot('jaw', times, cycle(STEPS, 0.15, (t) => 3 + Math.sin(t * Math.PI * 2) * 3).map((v) => [v, 0, 0]));
+  return new THREE.AnimationClip('idle', dur, b.tracks);
+}
+
+export function mudhornClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const tail = (b: Builder, times: number[], amp: number) => {
+    b.rot('tail1', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * amp).map((v) => [0, v, 0]));
+    b.rot('tail2', times, cycle(STEPS, 0.25, (t) => Math.sin(t * Math.PI * 2) * amp).map((v) => [0, v, 0]));
+  };
+  const move = heavyWalk(root, 'leg', 0.9, 20, 26, 'body', 0.06);
+  const idle = beastIdle(root, 'head', 'body', 3.6, 2.2);
+  // the tail swats on both clips, at its own tempo
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * 3.6);
+  tail(b, times, 9);
+  idle.tracks.push(...b.tracks);
+  return [idle, move];
+}
+
+export function ravinakClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  // Flippers, not legs: a hauled-out pinniped humps along, so the swing is
+  // short and the body carries most of the motion.
+  const move = heavyWalk(root, 'flipper', 1.1, 16, 20, 'body1', 0.09);
+  const b = builder(move ? root : root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * 1.1);
+  // the long body flexes down its length as it hauls
+  b.rot('body2', times, cycle(STEPS, 0.15, (t) => Math.sin(t * Math.PI * 2) * 5).map((v) => [v, 0, 0]));
+  b.rot('body3', times, cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2) * 6).map((v) => [v, 0, 0]));
+  b.rot('tail', times, cycle(STEPS, 0.45, (t) => Math.sin(t * Math.PI * 2) * 10).map((v) => [0, v, 0]));
+  move.tracks.push(...b.tracks);
+  return [beastIdle(root, 'head', 'body1', 4.2, 2.6), move];
+}
+
+export function mamacoreClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  // A fish has no gait: both clips are the same travelling wave down the body,
+  // the move clip simply harder and faster. `clipStride` does the rest.
+  const swim = (name: string, dur: number, amp: number): THREE.AnimationClip => {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+    // the wave runs nose to tail, so each segment lags the one ahead of it
+    const seg = ['body1', 'body2', 'body3', 'body4', 'body5', 'tailFin'];
+    seg.forEach((bone, i) => {
+      b.rot(bone, times, cycle(STEPS, -i * 0.12, (t) => Math.sin(t * Math.PI * 2) * amp * (0.5 + i * 0.14))
+        .map((v) => [0, v, 0]));
+    });
+    for (const fin of ['finL', 'finR']) {
+      b.rot(fin, times, cycle(STEPS, 0.2, (t) => Math.sin(t * Math.PI * 2) * amp * 0.8).map((v) => [v, 0, 0]));
+    }
+    b.rot('jaw', times, cycle(STEPS, 0, (t) => 4 + Math.sin(t * Math.PI * 2) * 4).map((v) => [v, 0, 0]));
+    return new THREE.AnimationClip(name, dur, b.tracks);
+  };
+  return [swim('idle', 4.4, 3.5), swim('move', 1.8, 8)];
+}
+
+export function rancorClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const stride = (name: string, dur: number, amp: number): THREE.AnimationClip => {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+    // legs out of phase with each other, arms counter-swinging to them
+    for (const [leg, phase] of [['L', 0], ['R', 0.5]] as const) {
+      b.rot(`upperLeg${leg}`, times, cycle(STEPS, phase, (t) => Math.sin(t * Math.PI * 2) * amp).map((v) => [v, 0, 0]));
+      b.rot(`lowerLeg${leg}`, times, cycle(STEPS, phase, (t) => {
+        const s = Math.sin(t * Math.PI * 2);
+        return s > 0 ? -amp * 1.4 * s : 0;
+      }).map((v) => [v, 0, 0]));
+      const arm = leg === 'L' ? 'R' : 'L';
+      b.rot(`upperArm${arm}`, times, cycle(STEPS, phase, (t) => Math.sin(t * Math.PI * 2) * amp * 0.55).map((v) => [v, 0, 0]));
+      b.rot(`forearm${arm}`, times, cycle(STEPS, phase, (t) => -amp * 0.4 + Math.sin(t * Math.PI * 2) * amp * 0.3).map((v) => [v, 0, 0]));
+    }
+    // the hunch rolls with the stride and the tail counterweights it
+    b.rot('spine1', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 4) * amp * 0.18).map((v) => [v, 0, 0]));
+    b.rot('spine2', times, cycle(STEPS, 0.1, (t) => Math.sin(t * Math.PI * 2) * amp * 0.25).map((v) => [0, v, 0]));
+    b.rot('tail1', times, cycle(STEPS, 0.5, (t) => Math.sin(t * Math.PI * 2) * amp * 0.5).map((v) => [0, v, 0]));
+    b.rot('tail2', times, cycle(STEPS, 0.7, (t) => Math.sin(t * Math.PI * 2) * amp * 0.7).map((v) => [0, v, 0]));
+    b.rot('head', times, cycle(STEPS, 0.25, (t) => Math.sin(t * Math.PI * 2) * amp * 0.2).map((v) => [v * 0.5, -v, 0]));
+    return new THREE.AnimationClip(name, dur, b.tracks);
+  };
+  return [stride('idle', 4.0, 3), stride('move', 1.25, 17)];
+}
+
+// ---------- the two half-buried colossi ----------
+//
+// The krayt and the mythosaur are only ever *partly* on the surface — the rest
+// of the animal is under the sand or the water (docs/BOSSES.md §2.5, §2.6), and
+// the creature builder sinks and pitches them to sit that way. So their motion
+// is not a gait: there are no legs to walk on, only a body hauling itself
+// through the ground it is buried in. Both clips are the same serpentine drive
+// down the neck, the move clip harder — the same shape as the mamacore's swim,
+// which is the right instinct for an animal that swims through sand.
+
+function serpentine(
+  root: THREE.Object3D, name: string, dur: number, amp: number,
+  spine: string[], head: string, claws: [string, string] | null,
+): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+  // the wave runs from the buried end forward, so the head is the last to move
+  spine.forEach((bone, i) => {
+    b.rot(bone, times, cycle(STEPS, -i * 0.1, (t) => Math.sin(t * Math.PI * 2) * amp * (1 - i * 0.1))
+      .map((v) => [v * 0.35, v, 0]));
+  });
+  b.rot(head, times, cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2) * amp * 0.6).map((v) => [v * 0.5, v, 0]));
+  b.rot('jaw', times, cycle(STEPS, 0.1, (t) => 5 + Math.sin(t * Math.PI * 2) * 5).map((v) => [v, 0, 0]));
+  if (claws) {
+    // the forelimbs claw at the surface, out of phase with each other — this is
+    // what it hauls itself forward on
+    claws.forEach((claw, i) => {
+      b.rot(claw, times, cycle(STEPS, i * 0.5, (t) => Math.sin(t * Math.PI * 2) * amp * 1.4).map((v) => [v, 0, 0]));
+    });
+  }
+  return new THREE.AnimationClip(name, dur, b.tracks);
+}
+
+export function kraytClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const spine = ['body6', 'body5', 'body4', 'body3', 'body2', 'body1', 'collar', 'neck1', 'neck2', 'neck3', 'neck4'];
+  return [
+    serpentine(root, 'idle', 5.2, 3, spine, 'head', ['clawL', 'clawR']),
+    serpentine(root, 'move', 2.2, 8, spine, 'head', ['clawL', 'clawR']),
+  ];
+}
+
+export function mythosaurClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const spine = ['back', 'neck1', 'neck2', 'neck3', 'neck4'];
+  const clips = [
+    serpentine(root, 'idle', 5.6, 2.5, spine, 'head', ['clawL', 'clawR']),
+    serpentine(root, 'move', 2.6, 7, spine, 'head', ['clawL', 'clawR']),
+  ];
+  // the horns swing with the head's weight, a beat behind it
+  for (const clip of clips) {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * clip.duration);
+    for (const horn of ['hornL', 'hornR']) {
+      b.rot(horn, times, cycle(STEPS, 0.42, (t) => Math.sin(t * Math.PI * 2) * 3).map((v) => [v, 0, 0]));
+    }
+    clip.tracks.push(...b.tracks);
+  }
+  return clips;
+}

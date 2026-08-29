@@ -959,3 +959,172 @@ export function buildRingEnforcer(authored = true): CharacterInstance {
   };
   return inst;
 }
+
+// ---------- monster bosses: the four creature sculpts (docs/BOSSES.md) ----------
+
+/**
+ * The shape a monster boss falls back to.
+ *
+ * Every other creature in the game is a procedural animal first and a sculpt
+ * second, because it shipped before its model did. These four are the other way
+ * round — they exist because the models landed — so rather than four bespoke
+ * procedural beasts that nobody will ever see, they share one: a blocked-out
+ * mass on four or two limbs, at the right size and silhouette to fight against.
+ * It is hidden the instant the sculpt lands, which on a warm cache is the same
+ * frame it spawns; it stands only if a file fails, and a boss you cannot see is
+ * a match you cannot finish.
+ */
+function buildMonsterBase(
+  creatureId: CreatureId, height: number, length: number, hide: number,
+  opts: {
+    biped?: boolean;
+    horn?: number;
+    /**
+     * A colossus that is only half on the surface (docs/BOSSES.md §2.5, §2.6).
+     * The sculpt is a whole animal; `sink` drops it into the ground by that
+     * many metres and `pitch` rears the front up out of it, so what stands
+     * above the surface is the head, neck and forelimbs and the body runs away
+     * underneath. The buried part is not hidden — it is *under the terrain*,
+     * which is what makes the intersection read when the ground opens.
+     */
+    buried?: { sink: number; pitch: number };
+  } = {},
+): CharacterInstance {
+  const skin = mat(hide, { rough: 0.9 });
+  const dark = mat(0x2a241e, { rough: 0.8 });
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = height * 0.55;
+  root.add(body);
+
+  const legs: THREE.Group[] = [];
+  if (opts.biped) {
+    addSphere(body, skin, height * 0.3, 0, 0, 0, 10, 8, 1, 1.25);              // hunched torso
+    addSphere(body, skin, height * 0.17, 0, height * 0.3, length * 0.1, 9, 7); // skull
+    for (const sx of [-1, 1]) {
+      // arms longer than the legs, as the design says
+      const arm = new THREE.Group();
+      arm.position.set(sx * height * 0.26, height * 0.12, 0);
+      addCyl(arm, skin, height * 0.07, height * 0.055, height * 0.55, 0, -height * 0.27, 0, 0.25, 0, sx * 0.2, 7);
+      body.add(arm);
+      legs.push(arm);
+      const leg = new THREE.Group();
+      leg.position.set(sx * height * 0.15, -height * 0.2, 0);
+      addCyl(leg, skin, height * 0.09, height * 0.06, height * 0.35, 0, -height * 0.17, 0, 0, 0, 0, 7);
+      root.add(leg);
+      leg.position.y += body.position.y;
+      legs.push(leg);
+    }
+  } else {
+    addSphere(body, skin, height * 0.42, 0, 0, 0, 12, 9, length / height * 0.42, 1);  // barrel
+    addSphere(body, skin, height * 0.26, 0, height * 0.1, length * 0.42, 10, 8);       // head
+    if (opts.horn) addCyl(body, dark, 0.02, opts.horn, opts.horn * 3, 0, height * 0.3, length * 0.5, -0.5, 0, 0, 7);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const leg = new THREE.Group();
+      leg.position.set(sx * height * 0.25, -height * 0.3, sz * length * 0.28);
+      addCyl(leg, skin, height * 0.1, height * 0.07, height * 0.4, 0, -height * 0.2, 0, 0, 0, 0, 7);
+      body.add(leg);
+      legs.push(leg);
+    }
+  }
+
+  // The sculpt: `loadCreature` scales it to its registered height and stands it
+  // on the ground, and its code clips (anim/quadruped.ts) drive it — blended
+  // and rate-matched to ground speed exactly as the massiff and spiders are.
+  let posed = true;
+  let mixer: THREE.AnimationMixer | null = null;
+  let idleAction: THREE.AnimationAction | null = null;
+  let moveAction: THREE.AnimationAction | null = null;
+  let clipStride = 3;
+  const sculpt = loadCreature(creatureId, {
+    onLoad: (loaded) => {
+      body.visible = false;
+      for (const l of legs) l.visible = false;
+      posed = false;
+      const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
+      if (!clips.length) return;
+      mixer = new THREE.AnimationMixer(loaded);
+      const idle = clips.find((c) => c.name === 'idle');
+      const move = clips.find((c) => c.name === 'move');
+      if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+      if (move) {
+        moveAction = mixer.clipAction(move);
+        moveAction.play();
+        moveAction.setEffectiveWeight(0);
+        // one cycle carries the animal about its own length
+        clipStride = length / Math.max(move.duration, 0.2);
+      }
+    },
+  });
+  if (opts.buried) {
+    // `loadCreature` stands the sculpt on the ground; this puts it back under.
+    // The pitch is applied to the holder rather than the model so the clips,
+    // which are authored in the model's own space, are unaffected by it.
+    sculpt.position.y = -opts.buried.sink;
+    sculpt.rotation.x = opts.buried.pitch;
+  }
+  root.add(sculpt);
+
+  let gaitSpeed = 0;
+  return {
+    root, rig: null, animator: null, height, baseScale: 1,
+    setGait: (speed: number) => { gaitSpeed = speed; },
+    cosmetic: (dt, time) => {
+      if (mixer) {
+        const moving = Math.min(gaitSpeed / 3, 1);
+        if (moveAction) {
+          moveAction.setEffectiveWeight(moving);
+          moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.6, 2.2);
+        }
+        if (idleAction) idleAction.setEffectiveWeight(1 - moving);
+        mixer.update(dt);
+        return;
+      }
+      if (!posed) return;
+      // the stand-in's own trudge, so a missing file is still a moving animal
+      const rate = 2.4 + Math.min(gaitSpeed, 8) * 0.9;
+      legs.forEach((l, i) => { l.rotation.x = Math.sin(time * rate + i * 1.7) * (0.1 + Math.min(gaitSpeed, 6) * 0.04); });
+      body.position.y = height * 0.55 + Math.sin(time * rate * 2) * height * 0.012;
+    },
+  };
+}
+
+/** Waystation's smuggled beast: a one-horned woolly bull, 2.6 m at the shoulder. */
+export function buildMudhorn(): CharacterInstance {
+  return buildMonsterBase('mudhorn', 3.0, 4.5, 0x4a3a2a, { horn: 0.16 });
+}
+
+/** The Crevasse ice-breaker: a tusked leviathan on four broad flippers. */
+export function buildRavinak(): CharacterInstance {
+  return buildMonsterBase('ravinak', 3.4, 8, 0x5c6470);
+}
+
+/** Trask's harbour monster, finally surfaced. */
+export function buildMamacore(): CharacterInstance {
+  return buildMonsterBase('mamacore', 4.6, 12, 0x5a6360);
+}
+
+/** Nevarro's pit monster, loosed on the town square. */
+export function buildRancor(): CharacterInstance {
+  return buildMonsterBase('rancor', 5.0, 4, 0x6b5340, { biped: true });
+}
+
+/**
+ * The Dune Sea's burrowing dragon. Only the front of it is ever on the
+ * surface: the sculpt is sunk and reared so the skull, collar and burrowing
+ * claws stand clear of the sand and the body runs away beneath it.
+ */
+export function buildKraytDragon(): CharacterInstance {
+  // Sunk 3 m and reared: measured against the rig, that leaves the skull at
+  // ~4.8 m, the collar and both burrowing claws clear of the sand, the front of
+  // the body breaking the surface, and everything from `body3` back under it.
+  return buildMonsterBase('krayt_dragon', 5.4, 18, 0xcfc0a0, { buried: { sink: 3.0, pitch: -0.34 } });
+}
+
+/** The Great Forge's sleeper, rising out of the Living Waters. */
+export function buildMythosaur(): CharacterInstance {
+  // Same treatment, shallower: the horns, skull, neck and both foreclaws stand
+  // out of the water and `back` sits on the surface, which is the cut the model
+  // brief asked for.
+  return buildMonsterBase('mythosaur', 8.0, 12, 0x30443c, { buried: { sink: 1.6, pitch: -0.34 } });
+}

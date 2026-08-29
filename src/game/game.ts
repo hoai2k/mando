@@ -16,7 +16,7 @@ import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, type GameMode } from './modes';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import { Campaign } from './campaign';
 import { ThirdPersonCamera } from '../core/camera';
 
@@ -24,6 +24,8 @@ export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
 /** length of the boss introduction card, in real seconds */
 const BOSS_INTRO_LEN = 3.4;
+/** the quake between the warlord falling and the monster surfacing */
+const MONSTER_QUAKE_LEN = 4;
 /** simulation rate under the card — slow enough to read as a held breath */
 const BOSS_INTRO_TIMESCALE = 0.12;
 
@@ -128,6 +130,17 @@ export class Game {
   private bossMoveCd = 0;
   /** seconds left of the slam telegraph — the get-out-of-range window */
   private bossTelegraph = 0;
+  /**
+   * The monster stage (docs/BOSSES.md): where the warlord fell, and how long
+   * the ground has left to shake before the thing under it comes up. Both
+   * modes read `monsterStaging` to know the fight is not over yet — the wave
+   * game would otherwise call victory into an empty field, and the campaign
+   * would walk the party on past a boss step that has not finished.
+   */
+  private monsterAt: THREE.Vector3 | null = null;
+  private monsterQuake = 0;
+  /** the monster is on the field; its retinue answers to it, not the board's */
+  private monsterKind: EnemyKind | null = null;
   /** campaign controller; null outside campaign mode */
   campaign: Campaign | null = null;
   /** campaign's one shared screen: the camera the party is watched through */
@@ -319,6 +332,9 @@ export class Game {
     const boss = new Enemy(kind, at);
     if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
     else boss.promoteBoss(BOSS_NAME[this.board.kind]);
+    // On a monster board the warlord is the herald: remember where it made its
+    // stand, and the monster comes up there when it falls.
+    if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();
     this.waveSpawned++;
     this.enemies.push(boss);
     this.scene.add(boss.char.root);
@@ -350,6 +366,64 @@ export class Game {
   get bossPhaseLevel(): number { return this.bossPhase; }
 
   /**
+   * True while the warlord is down but the fight is not over: the ground is
+   * shaking and the monster has not surfaced yet. Nothing that ends an
+   * encounter — the wave game's victory check, the campaign's boss step — may
+   * fire while this holds.
+   */
+  get monsterStaging(): boolean { return this.monsterQuake > 0 || this.monsterAt !== null; }
+
+  /**
+   * The second stage (docs/BOSSES.md §1): the warlord falls, the ground shakes
+   * for a few seconds, and the board's monster erupts with its own entrance.
+   *
+   * Deliberately the same `spawnBoss` furniture rather than a parallel one —
+   * introduction card, bar, phase turns, retinue calls, enrage — because the
+   * monster's `Def` already carries its final numbers. `promoteBoss(name, 1, 1, 1)`
+   * hangs the banner on it and scales nothing.
+   */
+  private updateMonsterStage(dt: number): void {
+    const monster = MONSTER_BOSS[this.board.kind];
+    if (!monster) return;
+
+    // the warlord is down and the monster has not been called: start the quake
+    if (this.monsterAt && this.boss && !this.boss.alive && this.monsterQuake <= 0) {
+      this.monsterQuake = MONSTER_QUAKE_LEN;
+      this.events.banner('Something is coming up', 'the ground will not hold');
+      audio.mythosaur(0.6);
+      for (const p of this.players) p.cam.shake(0.5);
+      return;
+    }
+    if (this.monsterQuake <= 0) return;
+
+    this.monsterQuake -= dt;
+    // a rolling shake rather than one jolt, so the beat builds
+    for (const p of this.players) p.cam.shake(0.12);
+    if (this.monsterQuake > 0) return;
+
+    const at = standingSpot(this.board, (this.monsterAt ?? this.players[0].position).clone(), monster.kind);
+    this.monsterAt = null;
+    const beast = new Enemy(monster.kind, at);
+    beast.promoteBoss(monster.name, 1, 1, 1);
+    this.waveSpawned++;
+    this.enemies.push(beast);
+    this.scene.add(beast.char.root);
+    this.particles.explosion(at.clone());
+    this.boss = beast;
+    this.monsterKind = monster.kind;
+    this.bossPhase = 0;
+    this.bossIntroT = BOSS_INTRO_LEN;
+    this.bossMoveCd = 8;
+    this.bossTelegraph = 0;
+    for (const e of this.enemies) if (e.alive) e.suppress(1.2);
+    const sub = `The ${this.board.name} was never empty`;
+    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub);
+    else this.events.banner(monster.name, sub);
+    audio.bossHorn();
+    audio.beastGrowl(0.9);
+  }
+
+  /**
    * The boss fight's rhythm (docs/MODES.md §4a): phase turns at ⅔ and ⅓ health
    * — a repulsor pulse that throws everyone off the warlord, a retinue call,
    * and at the last third an enrage — plus a telegraphed shock-slam whenever
@@ -366,7 +440,10 @@ export class Game {
     const due = frac < 1 / 3 ? 2 : frac < 2 / 3 ? 1 : 0;
     if (due > this.bossPhase) {
       this.bossPhase = due;
-      const guard = BOSS_RETINUE[this.board.kind];
+      // a monster calls its own hangers-on, not the board's garrison
+      const guard = (this.monsterKind === b.kind
+        ? MONSTER_BOSS[this.board.kind]?.retinue
+        : undefined) ?? BOSS_RETINUE[this.board.kind];
       const lead = this.players.find((p) => p.alive) ?? this.players[0];
       for (let i = 0; i < 3 + due; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -645,7 +722,8 @@ export class Game {
       // stalled the station permanently: enemies knocked into the abyss are
       // removed the same frame they die, rather than lingering as a corpse, so
       // the array could empty completely and the check could never fire again.
-      if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
+      if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0
+          && !this.monsterStaging) {
         // the fallen fade away now that the wave is decided
         for (const e of this.enemies) if (!e.alive) e.fadeOut();
         if (this.wave > FINAL_WAVE) {
@@ -681,6 +759,7 @@ export class Game {
     }
 
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
+    if (this.state === 'fighting') this.updateMonsterStage(dt);
     this.updateBoss(dt);
 
     // ---- campaign objectives ----

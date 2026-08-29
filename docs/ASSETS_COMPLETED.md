@@ -205,6 +205,27 @@ Prompts are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md), which keeps them for re-e
 
 ---
 
+## Monster bosses — 6 files, delivered 2026-08-29
+
+The six creature bosses designed in [`BOSSES.md`](BOSSES.md), requested and delivered
+the same day — and delivered *without* the reference sheets that were meant to precede
+them, which is why that sheet request is now marked not-wanted rather than open.
+
+| Id | Board | What it became |
+|---|---|---|
+| `mudhorn` | Waystation | The Smugglers' Prize, 2600 HP |
+| `ravinak` | Crevasse | The Ice-Breaker, 3000 HP |
+| `mamacore` | Trask | The Mamacore, 3400 HP — the board's timer hazard, finally with a body |
+| `rancor` | Nevarro | The Warlord's Rancor, 3600 HP |
+| `krayt_dragon` | Dune Sea | The Old One of the Dune Sea, 5200 HP — half-buried |
+| `mythosaur` | Great Forge | The Sleeper Below, 5600 HP — half-buried |
+
+Every one shipped its brief's rig verbatim (weak-zone nodes included) and no clips, so
+each has a code gait in `src/anim/quadruped.ts`. Prompts and the two re-export notes
+are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
+
+---
+
 ## Board music — 10 tracks
 
 Full-length streamed score in `public/music/`, played through an `<audio>` element on the

@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the [monster boss batch](#monster-bosses--open-2026-08-29) opened by the boss design round (`docs/BOSSES.md`) and nothing else — the environment batch, the four signature weapon props and the game-mode props (`pistol`, `blast_door`, `corridor_crate`) all landed the same day. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Every model this document asks for has been delivered and integrated**, the six monster bosses included — they landed and were wired on 2026-08-29, the same day they were requested, and with them nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -144,15 +144,18 @@ boss bar — remain future work, and their voice sets are deferred with them
 | **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
 | **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. |
 
-## Monster bosses — OPEN 2026-08-29
+## Monster bosses — requested and delivered 2026-08-29
 
 Six large creature bosses, one per board that has a monster, designed in
 [`docs/BOSSES.md`](BOSSES.md) — the fights, phases, weak points and numbers live
-there; this is the model brief. **All six are open.** Order of work is the standard
-pipeline: reference sheets first
-([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--monster-boss-reference-sheets-for-image-to-3d),
-one `<id>_ref.png` creature canvas each) → model → gameplay. Nothing in the game
-blocks on them — the promoted-elite bosses stand until a monster lands.
+there; this is the model brief. **All six are delivered and in the game.** They
+arrived without their reference sheets, which had been the planned first step of the
+pipeline; the sheets are consequently not wanted (see `ASSETS_IMAGES.md`), and this
+brief is what a re-export works from.
+
+Every sculpt shipped the node list below verbatim, weak zones included, and none of
+them shipped clips — so each has a gait authored in code against its own rig, in
+`src/anim/quadruped.ts`, exactly as the massiff and the spiders do.
 
 **Intake:** all six are ◆ creatures through `loadCreature` — own free-form rigs,
 placed/scaled/grounded by the loader, movement and gait authored in code against the
@@ -180,8 +183,21 @@ geometry, not fur systems.
 | `krayt_dragon` | Dune Sea | front 18 m of ~40 m; skull ~4 m wide | `head, jaw,` **`gullet`**`, collar, neck1..4, clawL/R, body1..6` | Model the forebody only — `body6` tapers to a clean sand-sleeve cut, never seen; **gullet** is an emissive throat mesh visible only through the open jaw; mouth interior modelled deep. |
 | `mythosaur` | Great Forge | visible 12 m (head, neck, claws) | `head, jaw, hornL/R,` **`eyeL/R, vents1..2`**`, neck1..4, clawL/R, back` | Must match the delivered `mythosaur_skull` sculpt (horn sweep, tusked jaw) — it is the same animal alive; `back` ends at the waterline in a clean cut; horns/skull are deflect armor, so make them read as plate; **eyes** and **vents** emissive. |
 
-Delivery as ever: `public/models/<id>.glb`, picked up automatically once the
-gameplay round wires `loadCreature(id)`; sheets to `reference/characters/`.
+Two notes a re-export has to keep, both learned by putting these in the game:
+
+- **The two colossi are posed by the game, not by the sculpt.** `krayt_dragon` and
+  `mythosaur` are whole animals in their files; `buildMonsterBase` sinks each into the
+  ground and rears it (`buried: { sink, pitch }` in `src/characters/enemies.ts`) so
+  what stands above the surface is the skull, neck and forelimbs and the body runs
+  away underneath. Those two numbers were solved against the delivered rigs by
+  measuring every named node's height — a re-export that moves the rig's origin or
+  changes its proportions needs them re-solved, and `tools/test-monsters.mjs` is what
+  says so.
+- **A half-buried body makes the ground answer.** The `plows` field on their `Def`
+  throws dust (or spray, over water) from the surface behind the head while they move,
+  which is what sells a body passing *through* the ground rather than over it.
+
+Delivery as ever: `public/models/<id>.glb`.
 
 ## Environment & hazard models — priority by impact
 

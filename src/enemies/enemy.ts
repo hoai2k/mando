@@ -3,7 +3,9 @@ import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
-  buildQuarren, buildRingEnforcer, buildWookieeEnforcer,
+  buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
+  buildQuarren, buildRancor, buildRavinak,
+  buildRingEnforcer, buildWookieeEnforcer,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -30,7 +32,8 @@ export type EnemyKind =
   | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
   | 'capo' | 'enforcer'
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
-  | 'ig11' | 'marshal' | 'fennec';
+  | 'ig11' | 'marshal' | 'fennec'
+  | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur';
 
 /**
  * Display names, for the places the game talks about a kind rather than
@@ -44,6 +47,8 @@ export const ENEMY_NAME: Record<EnemyKind, string> = {
   flametrooper: 'Flametrooper', krykna: 'Krykna', broodmother: 'Broodmother', quarren: 'Quarren',
   alamite: 'Alamite', drone: 'Interceptor Drone', ringEnforcer: 'Ring Enforcer',
   ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
+  mudhorn: 'Mudhorn', ravinak: 'Ravinak', mamacore: 'Mamacore', rancor: 'Rancor',
+  kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
 };
 
 interface Def {
@@ -52,6 +57,13 @@ interface Def {
   damage: number; attackRange: number; attackCd: number;
   /** how far this kind can spot a foe it is facing, in metres */
   notice: number;
+  /**
+   * Half-buried: this creature's body runs *through* the ground rather than
+   * over it, so the surface has to answer for it. The number is the radius, in
+   * metres, of the wake of thrown ground it drags along behind its head while
+   * it moves (docs/BOSSES.md §2.5, §2.6).
+   */
+  plows?: number;
   /**
    * Never waits its turn. The director's standoff rotation is what stops a
    * crowd of grunts mobbing the player, but a beast that politely holds a
@@ -133,10 +145,35 @@ const DEFS: Record<EnemyKind, Def> = {
   // answer is a flank, a melee rush, or a rocket.
   ringEnforcer: { hp: 260, speed: 3.8, radius: 0.55, height: 2.1, style: 'ranged', damage: 13, attackRange: 30, attackCd: 2.2, notice: 48, boltSpeed: 30, volley: 3, frontShield: true, build: buildRingEnforcer },
   // Allies (spawned on team 0)
+  // Monster bosses (docs/BOSSES.md §1). Their Defs *are* boss-scale — the
+  // health and damage here are the design's final numbers, so they take
+  // `promoteBoss(name, 1, 1, 1)`, which hangs the banner and the bar on them
+  // without scaling anything. Big, slow, relentless: they never lose the scent,
+  // never break morale and cannot be knocked down.
+  mudhorn:  { hp: 2600, speed: 7.2, radius: 1.8, height: 3.0, style: 'melee', damage: 40, attackRange: 4.4, attackCd: 2.0, notice: 90, relentless: true, build: buildMudhorn },
+  ravinak:  { hp: 3000, speed: 5.4, radius: 2.2, height: 3.4, style: 'melee', damage: 40, attackRange: 5.2, attackCd: 2.2, notice: 90, relentless: true, build: buildRavinak },
+  mamacore: { hp: 3400, speed: 5.0, radius: 2.6, height: 4.6, style: 'melee', damage: 50, attackRange: 6.0, attackCd: 2.4, notice: 90, relentless: true, build: buildMamacore },
+  rancor:   { hp: 3600, speed: 6.4, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.0, attackCd: 2.1, notice: 90, relentless: true, build: buildRancor },
+  // The two colossi are half-buried: `plows` is what makes the ground answer
+  // for the part of them that is under it.
+  kraytDragon: { hp: 5200, speed: 5.6, radius: 3.0, height: 5.0, style: 'melee', damage: 45, attackRange: 7.0, attackCd: 2.3, notice: 110, relentless: true, plows: 3.4, build: buildKraytDragon },
+  mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0, build: buildMythosaur },
+
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
   fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
 };
+
+/**
+ * Kinds with an animal's voice rather than a mouth: they growl when they arrive
+ * and yelp when they go down, through the synth beast voices, because none of
+ * the barks in `SPAWN_BARKS` is a sound a creature this size makes. The
+ * monster bosses are here for the same reason the massiff always was — until
+ * their own roar/hurt/death sets land (docs/ASSETS_AUDIO.md).
+ */
+const BEASTS = new Set<EnemyKind>([
+  'massiff', 'mudhorn', 'ravinak', 'mamacore', 'rancor', 'kraytDragon', 'mythosaur',
+]);
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
@@ -221,6 +258,8 @@ const _to = new THREE.Vector3();
 const _jet = new THREE.Vector3();
 /** reused foe list, so nearestFoe doesn't build one per enemy per frame */
 const _foes: Combatant[] = [];
+/** scratch for the half-buried creatures' ground wake */
+const _plow = new THREE.Vector3();
 
 /**
  * The capsule an enemy of this kind occupies. The spawner needs it before the
@@ -407,6 +446,8 @@ export class Enemy {
    */
   private sightTimer = 0;
   private sightMemo = false;
+  /** countdown to the next puff of ground thrown by a half-buried body */
+  private plowT = 0;
   /** blaster heat, 0..1 — see the constants above */
   heat = 0;
   /** seconds left venting; nothing fires while this is running */
@@ -431,7 +472,7 @@ export class Enemy {
     this.char.root.position.copy(pos);
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
-    if (kind === 'massiff') { if (team === 1) audio.beastGrowl(0.4); }
+    if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
     else {
       const bark = SPAWN_BARKS[kind];
       if (bark && team === 1) audio.bark(bark, 0.4);
@@ -657,7 +698,7 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      if (this.kind === 'massiff') audio.beastYelp(0.6);
+      if (BEASTS.has(this.kind)) audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
       else {
         const bark = DEATH_BARKS[this.kind];
         if (bark) audio.bark(bark, 0.5);
@@ -1038,6 +1079,33 @@ export class Enemy {
         if (this.target) hatchling.alert(this.target.position, true);
       }
       audio.bark('spider_chitter', 0.6);
+    }
+
+    // ---- the ground answers for a half-buried body ----
+    // These two are not walking over the terrain, they are ploughing through
+    // it, so the surface has to break where they pass. The wake is thrown from
+    // behind the head, across the width of the body, at a rate set by how fast
+    // it is travelling: standing still it settles to nothing, which is the tell
+    // that the thing has stopped moving under you.
+    if (d.plows) {
+      const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
+      this.plowT -= dt * (0.4 + speed2 * 0.55);
+      if (this.plowT <= 0 && speed2 > 0.4) {
+        this.plowT = 0.08;
+        // spread along the body behind the head, and across its width
+        const back = 1.5 + Math.random() * 3.5;
+        const side = (Math.random() - 0.5) * d.plows * 2;
+        const sin = Math.sin(this.facingYaw), cos = Math.cos(this.facingYaw);
+        _plow.set(
+          this.position.x - sin * back + cos * side,
+          this.position.y + 0.15,
+          this.position.z - cos * back - sin * side,
+        );
+        // water throws spray, ground throws dust — the board decides which
+        const wy = game.board.waterY;
+        if (wy !== undefined && _plow.y < wy + 0.5) game.particles.splash(_plow, 5);
+        else game.particles.dustPuff(_plow, 5);
+      }
     }
 
     // locomotion animation

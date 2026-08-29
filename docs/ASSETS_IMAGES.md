@@ -5,13 +5,12 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the environment prop reference sheets, the **monster boss
-reference sheets** (opened 2026-08-29 by the boss design round — `docs/BOSSES.md`), and
-the optional drop-screen portraits for the playable NPCs. Nothing else — the cast, the
-boards, the skies, every surface texture, the campaign's planet strip and corridor
-interiors, the drop-screen portraits, the weapon sheets, the logo and the favicon are all
-in and wired. Nothing is parked: `pistol`, the last held sheet, was delivered on
-2026-08-29 along with the model it was drawn for.
+**Outstanding right now:** the environment prop reference sheets, and the optional
+drop-screen portraits for the playable NPCs. Nothing else — the cast, the boards, the
+skies, every surface texture, the campaign's planet strip and corridor interiors, the
+drop-screen portraits, the weapon sheets, the logo and the favicon are all in and wired.
+Nothing is parked: `pistol`, the last held sheet, was delivered on 2026-08-29 along with
+the model it was drawn for. The **monster boss sheets are no longer wanted** — see below.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -142,13 +141,16 @@ player character itself.
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
 
-## Open — monster boss reference sheets (for image-to-3D)
+## Not wanted — monster boss reference sheets
 
 The visual reference for the six monster bosses designed in
-[`docs/BOSSES.md`](BOSSES.md); the model briefs are in
-[`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--open-2026-08-29). These drive
-image-to-3D generators and hand modelling alike — model from these, not from the
-prose. **The sheets are the blocking input for the whole monster round.**
+[`docs/BOSSES.md`](BOSSES.md). **They were overtaken by their own models**: all six
+sculpts were delivered and wired on 2026-08-29 without them, so a sheet would now be
+drawn from the model rather than the other way round. The prompts stay below for one
+reason only — if a monster is ever re-sculpted, this is the design it has to match, and
+the model brief in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--requested-and-delivered-2026-08-29)
+carries the rig and the constraints alongside it.
 
 **Location: `reference/characters/` — NOT under `public/`** (production inputs).
 **Files:** these are creatures, so like the bantha and krykna they take

@@ -87,6 +87,35 @@ export const MID_BOSS: Record<BoardId, MidBossDef> = {
  * Grunts a boss calls at its ⅔ and ⅓ health marks — the board's wave-one
  * backbone, spawned on the arena rim so the fight sweeps outward.
  */
+/**
+ * The monster that erupts when the warlord falls (docs/BOSSES.md §1).
+ *
+ * These are a *second, final stage* rather than a replacement: on a board with
+ * a monster the elite going down is not victory — a short quake beat, and the
+ * thing the territory has been sitting on top of comes up. Boards without one
+ * end at the elite exactly as they always have, which is why this map is
+ * partial: the Refinery, the Ringworld and the Prison Rig have no monster in
+ * their bones, and end at the warlord as they always did.
+ *
+ * The `Def` behind each kind already carries its final boss stats, so nothing
+ * here scales anything: `name` is the banner, `retinue` is who it calls at the
+ * phase turns (the monster's own hangers-on rather than the board's garrison).
+ */
+export interface MonsterBossDef {
+  kind: EnemyKind;
+  name: string;
+  retinue: EnemyKind;
+}
+
+export const MONSTER_BOSS: Partial<Record<BoardId, MonsterBossDef>> = {
+  station:  { kind: 'mudhorn',  name: "The Smugglers' Prize",  retinue: 'pirate' },
+  crevasse: { kind: 'ravinak',  name: 'The Ice-Breaker',       retinue: 'krykna' },
+  trask:    { kind: 'mamacore', name: 'The Mamacore',          retinue: 'quarren' },
+  nevarro:  { kind: 'rancor',   name: "The Warlord's Rancor",  retinue: 'pirate' },
+  desert:   { kind: 'kraytDragon', name: 'The Old One of the Dune Sea', retinue: 'massiff' },
+  forge:    { kind: 'mythosaur', name: 'The Sleeper Below',      retinue: 'alamite' },
+};
+
 export const BOSS_RETINUE: Record<BoardId, EnemyKind> = {
   desert: 'tusken', station: 'pirate', nevarro: 'pirate',
   crevasse: 'krykna', trask: 'quarren', refinery: 'stormtrooper',

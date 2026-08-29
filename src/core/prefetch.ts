@@ -1,7 +1,8 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
+import type { EnemyKind } from '../enemies/enemy';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/mandalorians';
 import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
-import { BOSS_KIND, MID_BOSS, type GameMode } from '../game/modes';
+import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { BOARDS } from '../world/boards';
 import type { BoardId } from '../world/board';
@@ -58,6 +59,19 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
  * A stale entry costs one wasted prefetch and nothing else: the board asks for
  * what it asks for, and this list only decides what arrives early.
  */
+/**
+ * Every boss a board can field: its champion, its warlord, and — on the four
+ * boards that have one — the monster that comes up when the warlord falls. The
+ * monster is the largest download of the three and arrives last in the fight,
+ * so warming it with the other two is what keeps it off the critical path.
+ */
+function bossKinds(board: BoardId): EnemyKind[] {
+  const monster = MONSTER_BOSS[board];
+  const kinds: EnemyKind[] = [MID_BOSS[board].kind, BOSS_KIND[board]];
+  if (monster) kinds.push(monster.kind);
+  return kinds;
+}
+
 export const BOARD_PROPS: Record<BoardId, string[]> = {
   desert: ['cargo_crate', 'sail_barge', 'vaporator', 'tusken_tent', 'homestead_dome',
     'sandcrawler', 'bantha', 'nikto_swoop', 'landspeeder', 'skiff'],
@@ -104,7 +118,7 @@ export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[
   }
   // both boss battles are certainties on a full run of the territory
   if (throughWave >= FINAL_WAVE) {
-    for (const kind of [MID_BOSS[board].kind, BOSS_KIND[board]]) {
+    for (const kind of bossKinds(board)) {
       const id = ENEMY_MODEL_ID[kind];
       if (id) ids.add(id);
     }
@@ -192,7 +206,7 @@ export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 
   for (const id of modeEnemyIds(board, chars, mode)) warmAuthored(id, 'now');
   // the campaign's bosses can trail in behind the drop — but start them now
   if (mode === 'campaign') {
-    for (const kind of [MID_BOSS[board].kind, BOSS_KIND[board]]) {
+    for (const kind of bossKinds(board)) {
       const bossId = ENEMY_MODEL_ID[kind];
       if (bossId) warmAuthored(bossId, 'soon');
     }

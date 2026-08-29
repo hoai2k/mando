@@ -126,3 +126,10 @@ introduction card and, quieter, each phase turn):
 
 The per-boss voice sets deferred earlier now have their consumer (bosses exist as
 promoted elites); they stay deferred only until bosses get per-boss movesets.
+
+**The six monster bosses now have one too.** Their fights shipped on 2026-08-29
+(`docs/BOSSES.md`), and each currently speaks with the synth beast voice — a growl as
+it erupts, a yelp as it goes down, both pitched heavier for a boss than for a massiff.
+A roar/hurt/death set per monster (`mudhorn_roar` and so on, the `mamacore_roar`
+pattern) is the upgrade whenever six sets of files feel worth it; nothing waits on
+them, and a delivered file is picked up by name.
