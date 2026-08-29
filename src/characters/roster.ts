@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  buildMandalorian, MANDO_ROSTER, MELEE_NAMES, RANGED_NAMES,
+  buildMandalorian, MANDO_ROSTER, MELEE_NAMES, PLAYABLE_MANDO_IDS, RANGED_NAMES,
   type MandoId, type PlayerCharacter,
 } from './mandalorians';
 import { buildEnemyCharacter, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
@@ -207,7 +207,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
 }
 
 const DEFS = new Map<PlayableId, PlayableDef>();
-for (const id of Object.keys(MANDO_ROSTER) as MandoId[]) {
+for (const id of PLAYABLE_MANDO_IDS) {
   DEFS.set(id, {
     id,
     modelId: id,
@@ -221,7 +221,7 @@ for (const kind of Object.keys(NPC_TUNING) as EnemyKind[]) {
 }
 
 /** the roster the wave game and campaign have always had */
-export const STANDARD_ROSTER: PlayableId[] = Object.keys(MANDO_ROSTER);
+export const STANDARD_ROSTER: PlayableId[] = [...PLAYABLE_MANDO_IDS];
 /** PvP: the standard roster plus every playable NPC */
 export const PVP_ROSTER: PlayableId[] = [
   ...STANDARD_ROSTER,

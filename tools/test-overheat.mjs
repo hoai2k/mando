@@ -22,7 +22,7 @@ function check(name, ok, detail) {
 }
 
 const h = await launch();
-await h.waitForText(/PRESS START/i);
+await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await h.page.evaluate(() => window.__startCoop(1, 'desert'));
 await sleep(9000);
 

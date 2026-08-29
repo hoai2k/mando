@@ -1,5 +1,5 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
-import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
+import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/mandalorians';
 import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
@@ -54,7 +54,10 @@ const BOARD_SKY: Partial<Record<BoardId, string>> = {
   forge: 'sky_mandalore', ringworld: 'sky_ring', narkina: 'sky_narkina',
 };
 
-export const MANDO_IDS = Object.keys(MANDO_ROSTER) as MandoId[];
+export const MANDO_IDS = PLAYABLE_MANDO_IDS;
+
+/** Surfaces the campaign's corridor segments ask for (`world/corridor.ts`). */
+const CORRIDOR_TEXTURES = ['corridor_wall', 'corridor_floor', 'hazard_stripe'];
 
 /** Every enemy kind a board can post, from wave one through `throughWave`. */
 export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[] {
@@ -89,6 +92,16 @@ export function warmTitle(): void {
  */
 export function warmBoardSelect(): void {
   for (const id of MANDO_IDS) warmAuthored(id, 'idle');
+}
+
+/**
+ * The campaign's planet strip: nine discs on one screen, each its own PNG, and
+ * they are the whole screen — a strip that fills in one planet at a time is the
+ * first thing a Missions player sees otherwise. Called alongside the mode pick,
+ * which is a couple of screens ahead of the strip itself.
+ */
+export function warmPlanetStrip(): void {
+  for (const info of BOARDS) warmTexture(`planet_${info.id}`, 'soon', 'png');
 }
 
 /**
@@ -141,6 +154,9 @@ export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 
   if (mode === 'campaign') {
     const bossId = ENEMY_MODEL_ID[BOSS_KIND[board]];
     if (bossId) warmAuthored(bossId, 'soon');
+    // corridors are built at match start but only walked into minutes later,
+    // so their surfaces can trail the drop
+    for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');
   }
   const sky = BOARD_SKY[board];
   if (sky) warmTexture(sky, 'now');

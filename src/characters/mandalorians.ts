@@ -95,6 +95,19 @@ export function weaponDisplayName(id: MandoId, weapon: 'blaster' | 'gaffi' | 'no
   return RANGED_NAMES[cfg.ranged === 'none' ? 'carbine' : cfg.ranged ?? 'carbine'];
 }
 
+/**
+ * Benched: built and selectable everywhere except the game itself.
+ *
+ * Removing a character by deleting their config would throw away the helmet
+ * shape, the palette and the height that took a pass to get right, and the
+ * authored `.glb` on disk would have nothing left pointing at it. So the whole
+ * definition stays and only the *playable* list is narrowed: `PLAYABLE_MANDO_IDS`
+ * is what the game enumerates, the model workbench still builds anyone in
+ * `MANDO_ROSTER`, and putting someone back is deleting their id from this set.
+ */
+export const BENCHED_MANDO_IDS: ReadonlySet<MandoId> = new Set<MandoId>(['bokatan']);
+
+/** Every character the factory can build, benched ones included. */
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
     name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
@@ -145,6 +158,15 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     voice: 'droid',
   },
 };
+
+/**
+ * The roster the game offers: everyone in `MANDO_ROSTER` who is not benched.
+ * Every enumeration in the game — character select, prefetch, the drop screen,
+ * the debug handle — goes through this, so benching a character removes them
+ * from all of them at once.
+ */
+export const PLAYABLE_MANDO_IDS: MandoId[] =
+  (Object.keys(MANDO_ROSTER) as MandoId[]).filter((id) => !BENCHED_MANDO_IDS.has(id));
 
 /**
  * @param opts.authored  false keeps the procedural build even when an authored

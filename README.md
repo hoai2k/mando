@@ -70,7 +70,7 @@ The title screen offers three modes:
 Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
 one-button title and the wave game on its own.
 
-Then pick a territory, and pick your fighter. Nine of them, in two families — the covert's
+Then pick a territory, and pick your fighter. Eight of them, in two families — the covert's
 Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,
 who each bring a weapon of their own:
 
@@ -78,7 +78,6 @@ who each bring a weapon of their own:
 |---|---|---|
 | **Din Djarin** | Mandalorian | Bare beskar shine — carbine + gaffi stick |
 | **Paz Vizsla** | Mandalorian | Heavy blue plate, the broadest silhouette |
-| **Bo-Katan Kryze** | Mandalorian | Night-owl blue, rangefinder helmet |
 | **The Armorer** | Mandalorian | Gold plate and horned helm |
 | **Asajj Ventress** | Hunter | Twin red sabers and no gun at all — she deflects blaster fire back at whoever sent it |
 | **Embo** | Hunter | Wide woven-metal hat, laser crossbow |

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
-import { matchAssets, warmBoardSelect, warmMatch, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
+import { matchAssets, warmBoardSelect, warmMatch, warmPlanetStrip, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
 import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
 import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
@@ -17,7 +17,7 @@ import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
 import { controlsMarkup } from './ui/controls-art';
-import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
+import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
 import { playableDef, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { BOSS_KIND, modesEnabled, type GameMode } from './game/modes';
 
@@ -131,7 +131,7 @@ if (modesEnabled()) {
   title.addButtons(null, [
     { label: 'Wave Battle', action: () => pickMode('wave', 'select') },
     { label: 'PvP', action: () => pickMode('pvp', 'select') },
-    { label: 'Missions', action: () => pickMode('campaign', 'planets') },
+    { label: 'Missions', action: () => { warmPlanetStrip(); pickMode('campaign', 'planets'); } },
   ]);
 } else {
   title.addButtons(null, [
@@ -343,7 +343,7 @@ end.onBack = () => quitToTitle();
 // debug/testing handle: the playable roster, so a test never has to hardcode a
 // character's name or count — both have changed under it before
 (window as unknown as { __roster?: unknown }).__roster =
-  (Object.keys(MANDO_ROSTER) as MandoId[]).map((id) => ({ id, name: MANDO_ROSTER[id].name }));
+  PLAYABLE_MANDO_IDS.map((id) => ({ id, name: MANDO_ROSTER[id].name }));
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

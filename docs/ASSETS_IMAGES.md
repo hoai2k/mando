@@ -5,10 +5,10 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the favicon file, the environment prop reference sheets and
-their runtime textures, and the game-mode art for the `?modes` build. Nothing else — the
-cast, the boards, the skies, the surface textures, the drop-screen portraits and the logo
-are all in and wired.
+**Outstanding right now:** the environment prop reference sheets, and the optional
+drop-screen portraits for the playable NPCs. Nothing else — the cast, the boards, the
+skies, every surface texture, the campaign's planet strip and corridor interiors, the
+drop-screen portraits, the logo and the favicon are all in and wired.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -17,17 +17,6 @@ were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
-
-## Open — `favicon.png`
-
-The artwork is drawn and approved — a front-view T-visored helmet in aged gold with a dark
-visor and vents, on transparency — it just has not been committed to the repository yet.
-**Save it as `public/favicon.png`, 512×512 PNG with alpha** (browsers downscale it; only
-the silhouette survives at 32 px, which this design is built for).
-
-Nothing else is needed: `<link rel="icon">` is already in `index.html` and
-`workbench/index.html`, and until the file exists the request 404s and the browser falls
-back to its default tab icon.
 
 ## Parked — not wanted while the decision holds
 
@@ -156,42 +145,10 @@ player character itself.
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
 
-## Game-mode art — requested 2026-08-29 (the `?modes` build, docs/MODES.md)
+## Game-mode art — remaining (docs/MODES.md)
 
-The three experimental modes run fully procedural without any of this and upgrade
-in place when files land (same contract as everything above).
-
-### Campaign planet strip (runtime)
-
-Nine planet discs for the campaign select (`src/ui/planets.ts`). Drop-in:
-`public/assets/textures/planet_<boardId>.png` — ids `desert`, `station`, `nevarro`,
-`crevasse`, `trask`, `refinery`, `forge`, `ringworld`, `narkina`. **Spec:** 512×512 PNG,
-the planet a full-bleed circle touching the canvas edges (the UI masks it round and adds
-its own key-light overlay), space-black or transparent corners, no rings of text, no
-stars baked in.
-
-| Id | Prompt |
-|---|---|
-| `planet_desert` | "a desert planet seen from orbit: ochre and burnt-orange dune seas, thin lavender atmosphere rim, two faint sun glints" |
-| `planet_station` | "a deep-space refinery station from a distance rendered as the destination itself: a dark industrial hulk with warm sodium work-lights and a purple-orange nebula behind" |
-| `planet_nevarro` | "a volcanic planet from orbit: black basalt continents veined with glowing lava rivers, grey ash swirls" |
-| `planet_crevasse` | "an ice planet from orbit: blue-white glacial sheets split by deep turquoise crevasse scars" |
-| `planet_trask` | "an ocean moon from orbit: slate-green storm seas, white cyclone spirals, scattered black dock-islands" |
-| `planet_refinery` | "an industrial world from orbit: rust-brown haze bands, gridded refinery lights on the night side" |
-| `planet_forge` | "a glassed war-torn planet from orbit: fused green-grey glass plains, a shattered dome scar, magnetic aurora arcs" |
-| `planet_ringworld` | "a ringed city habitat from orbit: a bright inhabited ring around a dark gas world, city lights along the band" |
-| `planet_narkina` | "a white ocean prison world from orbit: pale seas, geometric white facility platforms in a sparse grid" |
-
-### Corridor interiors (runtime)
-
-The campaign's door-gated corridor segments (`src/world/corridor.ts`) currently use the
-flat hull materials. Tileables, 1024², same spec as the other surface textures:
-
-| Id | Prompt |
-|---|---|
-| `corridor_wall` | "seamless tileable sci-fi corridor wall panel: dark gunmetal plating in tall ribs, recessed bolt lines, faint wear streaks" |
-| `corridor_floor` | "seamless tileable industrial deck floor: dark steel tread plate, scuffed walk path down the middle, oil stains" |
-| `hazard_stripe` | "seamless tileable yellow-black hazard chevron stripe on worn metal, grime in the paint chips" |
+The modes' planet strip and corridor interiors are delivered and wired; what is left is
+optional (same upgrade-in-place contract as everything above).
 
 ### Drop-screen portraits for playable NPCs (runtime, optional)
 

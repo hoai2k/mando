@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Board } from './board';
 import { mat } from '../characters/builder';
+import { loadOptionalTexture } from '../core/assets';
 
 /**
  * Campaign corridor segments (docs/LEVEL_DESIGN.md §3): a procedurally
@@ -9,9 +10,10 @@ import { mat } from '../characters/builder';
  * physics, floating high above the territory so it reads as its own interior.
  * Doors teleport the party in and out; the geometry itself never moves.
  *
- * All procedural (dark hull materials); the corridor art round in
- * docs/ASSETS_IMAGES.md / ASSETS_MODELS.md upgrades the surfaces and the door
- * when those files land.
+ * The surfaces take authored tileables where they exist (`corridor_wall`,
+ * `corridor_floor`, `hazard_stripe`) and fall back to the flat hull materials
+ * where they do not; the corridor door model in docs/ASSETS_MODELS.md is still
+ * to come.
  */
 
 export interface CorridorSpot {
@@ -52,10 +54,28 @@ function rng(seed: number): () => number {
  */
 export function buildCorridor(board: Board, origin: THREE.Vector3, seed: number, legs = 3): CorridorSpec {
   const rand = rng(seed);
-  const wall = mat(0x2c3038, { rough: 0.7, metal: 0.5 });
-  const floorMat = mat(0x383c44, { rough: 0.85, metal: 0.3 });
-  const crateMat = mat(0x4a4436, { rough: 0.8, metal: 0.2 });
-  const trim = mat(0x8a6a2a, { rough: 0.5, metal: 0.4, emissive: 0x2a1f08 });
+  // `mat()` hands back a material cached by colour and shared with everything
+  // else built in that colour, so the corridor takes its own copies before
+  // re-mapping them — otherwise its floor plate would land on every 0x383c44
+  // surface in the game.
+  const wall = mat(0x2c3038, { rough: 0.7, metal: 0.5 }).clone();
+  const floorMat = mat(0x383c44, { rough: 0.85, metal: 0.3 }).clone();
+  const crateMat = mat(0x4a4436, { rough: 0.8, metal: 0.2 }).clone();
+  const trim = mat(0x8a6a2a, { rough: 0.5, metal: 0.4, emissive: 0x2a1f08 }).clone();
+  /** authored tileable where it exists; the flat colour stands where it does not */
+  const tile = (m: THREE.MeshStandardMaterial, name: string, rx: number, ry: number): void => {
+    loadOptionalTexture(name, (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(rx, ry);
+      m.map = tex;
+      m.color.setHex(0xffffff);   // the artwork carries the colour now
+      m.needsUpdate = true;
+    }, { exts: ['png', 'jpg'] });
+  };
+  tile(wall, 'corridor_wall', 6, 2);
+  tile(floorMat, 'corridor_floor', 8, 4);
+  tile(crateMat, 'corridor_wall', 1, 1);
+  tile(trim, 'hazard_stripe', 8, 1);
   const group = new THREE.Group();
   group.name = 'corridor';
   board.group.add(group);

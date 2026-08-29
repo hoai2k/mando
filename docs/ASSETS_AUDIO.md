@@ -1,7 +1,8 @@
 # Asset Requests — Audio
 
-**Open audio requests only.** Every sound the engine can ask for now has a file —
-100 of 100, verified by cross-checking `SampleName` in `src/core/audio.ts` against
+**Open audio requests only.** Every sound the engine can ask for has a file —
+111 of 111 as of 2026-08-29 (83 named samples plus four takes each for seven voices),
+verified by cross-checking `SampleName` in `src/core/audio.ts` against
 `public/assets/audio/`. What remains below needs a gameplay hook or a feature that does not exist yet —
 plus board music, which needs a music model rather than the sound-effect API.
 

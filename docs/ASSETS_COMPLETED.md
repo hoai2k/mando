@@ -350,3 +350,13 @@ name is the one thing meant to be readable.
 
 `portrait_ig11.jpg` (512×614), the last face still drawn as a mark, to the same recipe as
 the earlier portrait batches. Every card on the drop screen carries authored art now.
+
+---
+
+## Game-mode art and the favicon — 13 files, delivered 2026-08-29
+
+| Files | Where | Notes |
+|---|---|---|
+| `planet_<id>.png` ×9 | `public/assets/textures/` → the campaign's planet strip | One disc per territory (`desert`, `station`, `nevarro`, `crevasse`, `trask`, `refinery`, `forge`, `ringworld`, `narkina`). Pre-wired: `ui/planets.ts` builds the url from the board id, under a specular highlight and over the board's gradient, so arriving at the path was the integration. Prefetch now warms all nine when Missions is picked, a couple of screens ahead of the strip. |
+| `corridor_wall.png`, `corridor_floor.png`, `hazard_stripe.png` | `public/assets/textures/` → the campaign's corridor segments | Needed wiring: `world/corridor.ts` was flat hull materials. Each surface now takes its tileable and keeps the flat colour as the fallback — on **cloned** materials, since `mat()` caches by colour and the corridor's floor plate would otherwise have landed on every surface in the game sharing that hex. Warmed at idle for campaign matches, since a corridor is built at match start but walked into minutes later. |
+| `favicon.png` (512×512 PNG, alpha) | `public/` → the browser tab | The T-visored helmet mark in aged gold. Pre-wired: `<link rel="icon">` in `index.html` and `workbench/index.html`. Verified serving at 200, 512×512. |

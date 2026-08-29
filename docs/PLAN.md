@@ -148,7 +148,6 @@ This is the flexibility the brief demands:
 |---|---|---|
 | **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
 | **Paz Vizsla** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
-| **Bo-Katan Kryze** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
 | **The Armorer** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
 | **Asajj Ventress** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). **Melee only** — she carries no ranged weapon, and turns blaster bolts back at their shooter instead. |
 | **Embo** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |

@@ -97,7 +97,7 @@ check('pvp: last fighter standing takes the territory, with credit',
   s.state === 'victory' && s.winner === 0 && s.p1kills >= 1, JSON.stringify(s));
 
 // ---- Campaign ----
-await startMode('campaign', 2, 'desert', ['din', 'bokatan']);
+await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 s = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(120);
