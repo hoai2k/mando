@@ -188,6 +188,21 @@ fan designs only.
 | `homestead_dome` | Dune Sea | 10 m Ø | The moisture-farm dome. Keep it a smooth dome — the collider is two stacked discs following that curve — with an entry vestibule, hatch and vent stacks. |
 | `mythosaur_skull` | Great Forge | ~8 m | **New landmark, no procedural stand-in:** a half-buried horned leviathan skull at the rim of the Living Waters, paying off the eye-glow-and-call event that already plays there. Placement and collider are added at integration. |
 
+### Ambient life & backdrop — the atmosphere pass
+
+Assets for the seven planned features in `PLAN.md` §16 (sky traffic, the working
+landing pad, banthas, the horizon sandcrawler, refinery pipes & steam, quay dressing,
+the ringworld skyline). The sky traffic and the landing freighter **reuse the
+`freighter` model above** — no new ship is requested; the skyline and the quay nets
+are textures (see `ASSETS_IMAGES.md`), not models. That leaves four:
+
+| Id | Board | Size | Role / constraints |
+|---|---|---|---|
+| `bantha` ◆ | Dune Sea ×2–3 | 2.5 m shoulder, ~4.5 m long | Ambient grazers at the Tusken camp — the one creature in this batch, through `loadCreature` like the massiff: own quadruped rig, gait authored in code, so keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..3`. Long shaggy wool, great spiral horns, a woven saddle (they are the camp's livestock). ≤ 8k tris, one 1024² PBR set. |
+| `sandcrawler` ⚓ | Dune Sea | ~35 m long | Horizon landmark on the rim slope, reachable on foot: towering rusted slab-sided hull, angled prow with a sealed full-width ramp, continuous tracks, rows of tiny emissive portholes high on the hull. Solid — simple hull colliders added at integration. ≤ 10k tris, 1024² + emissive. |
+| `pipe_rack` | Refinery | ~6 m modular segment | Upgrades the big manifold by the reactor; the rest of the pipe runs stay procedural cylinders. Four mixed-diameter pipes on a wall rack, flange joints, one elbow branch to a valve wheel. Designed to tile end-to-end. ≤ 2k tris, 512². |
+| `fish_rack` | Trask ×2–3 | ~2 m tall | Quay dressing that doubles as thin cover — the only new solid on the board, with a thin box collider entering the cover system. A-frame strung with drying split fish, hooks, a gutting bench at one end. Single object. ≤ 1.5k tris, 512². |
+
 ## Delivery & integration
 
 Drop files at `public/models/<id>.glb`. **Delivered and integrated:** every character that

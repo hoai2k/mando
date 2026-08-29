@@ -135,6 +135,21 @@ repetitive over a long session. Real variants would replace that.
 Adding these needs a small engine change too — the loader currently expects one file per
 name, so it would need a variant-picking helper in `src/core/audio.ts`.
 
+## Open — the ambient life & backdrop pass (PLAN.md §16)
+
+Voices for the planned atmosphere features. Like the section below, each needs its
+feature's hook before the file is worth producing — the hooks are named in the spec.
+
+| File | Prompt | Hook |
+|---|---|---|
+| `ship_pass` | "Large spacecraft passing at a distance: low doppler-shifted engine rumble swelling and receding, 4s" | Sky-traffic close pass (Waystation, Ringworld) |
+| `ship_landing` | "Heavy freighter landing sequence: descending thruster roar building to a touchdown thump, then an engine spool-down, 6s" | The Waystation working-pad cycle |
+| `bantha_low` | "Colossal woolly beast lowing: deep mournful bellow with a breathy rumbling tail, 3s" | Bantha idle timer + startle on a stopped bolt |
+| `steam_hiss` | "Industrial steam vent burst: sharp pressurized hiss softening into a fading plume, 2s" | Refinery vent cycle (positional) |
+
+No gull file is needed — the requested `amb_rain` loop already carries the distant
+gulls the quay dressing wants.
+
 ## Open — not yet consumed by the engine
 
 These need a gameplay hook before the audio is worth producing.

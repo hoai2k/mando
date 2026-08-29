@@ -4,8 +4,8 @@
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
 **Open: the `pistol` weapon sheet, three hunter drop-screen portraits, and the
-2026-08-29 environment batch below** (prop reference sheets for the environment models
-plus six runtime textures). The `saber_curved`, `crossbow` and `longrifle` weapon
+2026-08-29 environment batch below** (prop reference sheets for the environment and
+ambient-pass models plus the runtime textures). The `saber_curved`, `crossbow` and `longrifle` weapon
 sheets and 26 drop-screen portraits landed on 2026-08-29; the `ventress`, `embo` and
 `bossk` turnarounds on 2026-08-28. Everything older — every environment, sky and UI
 texture, all nine boards' card art and skies, the surface textures, and the A-pose
@@ -165,9 +165,23 @@ perspective distortion, identical design and scale".
 | `homestead_dome` | "a desert homestead: a smooth adobe dome about 10 meters across with a short entry vestibule, a rounded doorway with a metal hatch, small vent stacks, pale sand-colored wind-worn stucco" |
 | `mythosaur_skull` | "a colossal fossilized skull of a horned leviathan about 8 meters long, half-buried in glassy grey sand: long tusked jaw, broad brow with two great curved horns, deep eye sockets, bone weathered grey-green, cracked and mineral-streaked" |
 
+### Ambient life & backdrop (PLAN.md §16)
+
+Same recipe. The `bantha` is a creature, so like the krykna sheets it takes
+orthographic **side, front and top** views on one canvas instead of the prop preamble's
+three-quarter view.
+
+| Id | Prompt |
+|---|---|
+| `bantha` ◆ | "a colossal shaggy quadruped beast of burden, 2.5 meters at the shoulder: long dense brown wool hanging in matted curtains, a broad skull with two great spiral-curved horns sweeping down and forward, small placid dark eyes, thick stumpy legs, a swaying heavy build, a saddle of layered woven cloth and leather cinched behind the hump — orthographic side, front and top views" |
+| `sandcrawler` ▣ | "a colossal rusted tracked hauler-fortress about 35 meters long: a towering slab-sided hull of oxidized red-brown plating narrowing to a steeply angled prow, a sealed full-width boarding ramp at the front, rows of tiny lit portholes high on the hull, massive continuous tracks along the base, sand-drifted and ancient" |
+| `pipe_rack` ▣ | "a modular industrial pipe run segment about six meters long: a steel wall rack carrying four parallel pipes of mixed diameters with bolted flange joints, one elbow branch dropping to a hand valve wheel, hazard tape at the rack ends, scuffed gunmetal and oxide-red primer" |
+| `fish_rack` | "a dockside fish-drying rack about two meters tall: a weathered metal A-frame strung with taut lines, rows of split alien fish hanging to dry, iron hooks, a stained gutting bench at one end, storm-worn timber and rusted steel" |
+
 ## Open — environment textures (runtime)
 
-Six textures the audit found boards visibly missing. Unlike earlier batches these are
+Textures the audit found boards visibly missing, plus the backdrop textures for the
+ambient pass (`PLAN.md` §16). Unlike earlier batches these are
 **not yet requested by name in code** — each needs one `loadOptionalTexture` call (or a
 material swap) wired in its board module when it lands, noted per row. Specs per the
 global rules; seamless tileable unless noted.
@@ -180,3 +194,5 @@ global rules; seamless tileable unless noted.
 | `panel_white.jpg` | Prison Rig decks, tower, pylons | "Seamless tileable texture of clean white sci-fi facility wall panels: smooth off-white composite panels with fine seams, recessed bolts, faint scuffs low on the panel, even lighting, 1024×1024". Wiring: swap `whiteMat`/`deckMat` maps in `world/narkina.ts`. |
 | `forge_relief.jpg` | Great Forge dome walls | "Seamless tileable texture of ancient carved stone wall: shallow angular geometric relief of interlocking sigils, grey basalt, chipped and heat-scorched, even lighting, 1024×1024". Wiring: swap `ruinMat`'s map on the dome wall segments in `world/forge.ts`. |
 | `kelp_frond.png` | Prison Rig kelp forest | The kelp is solid cylinders today; crossed alpha-card ribbons would read as plants. "A single kelp frond on a transparent background: long tapering ribbon leaf with a gentle S-curve, olive-green, translucent edges, 512×1024 PNG with alpha". Wiring: replace the cylinder stalks with two crossed cards per plant (small code change, kelp is already `decor`). |
+| `skyline_silhouette.png`, `skyline_silhouette_2.png` | Ringworld backdrop (PLAN.md §16) | Two parallax layers of city beyond the end bulkheads. "A wide row of varied dark sci-fi tower silhouettes on a transparent background: flat near-black shapes of mixed heights with spires, gantries and rooftop tanks, scattered tiny lit windows in warm amber and pale teal, no detail inside the shapes, 2048×512 PNG with alpha". `_2` is a second, differently-composed row for the far layer. Wiring: two alpha planes per bulkhead end in `world/ringworld.ts`, `decor`. |
+| `net_weave.png` | Trask quay nets (PLAN.md §16) | "A hanging cargo net on a transparent background: knotted rope in a sagging diamond mesh, frayed ends, dark tarred brown, 512×512 PNG with alpha". Wiring: alpha planes hung between pilings in `world/trask.ts`, `decor`. |
