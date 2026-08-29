@@ -30,6 +30,20 @@ const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
 /** gauge spent turning one bolt aside on a blade */
 const DEFLECT_ENERGY = 0.05;
+
+/**
+ * Blaster heat. A carbine fires every 0.24 s, so this is a hair over four
+ * seconds of holding the trigger down before the gas seals let go — long
+ * enough that a firefight is never about counting shots, short enough that
+ * leaning on the trigger through a whole wave is not the answer.
+ */
+const HEAT_PER_SHOT = 0.055;
+/** heat shed per second, once the barrel has had a moment */
+const HEAT_COOL = 0.45;
+/** the barrel only starts shedding this long after the last shot */
+const HEAT_COOL_DELAY = 0.35;
+/** an overheated blaster stays locked until it has vented back down to here */
+const HEAT_RESET = 0.15;
 /** seconds of no swinging and no deflecting before the blades stow themselves */
 const SABER_STOW_DELAY = 4;
 /** seconds of block on a full gauge */
@@ -52,6 +66,12 @@ export class Player {
   fuel = 1;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
+  /** blaster heat, 0..1; at 1 the weapon locks out until it has vented */
+  heat = 0;
+  /** true while the blaster is locked out and venting */
+  overheated = false;
+  /** counts down from the last shot; the barrel sheds nothing until it hits 0 */
+  private heatHold = 0;
   sprinting = false;
   /** shield up: drains the same gauge sprinting does */
   blocking = false;
@@ -167,12 +187,39 @@ export class Player {
     this.cam = new ThirdPersonCamera(aspect);
   }
 
+  /**
+   * Shed barrel heat, once the trigger has been off it for a moment.
+   *
+   * The hold is the whole mechanic: without it a weapon cooling every frame
+   * nets out against its own fire rate and never heats at all, so sustained
+   * fire has to out-pace a cooling that is simply not running.
+   */
+  private coolBlaster(dt: number): void {
+    this.heatHold = Math.max(0, this.heatHold - dt);
+    if (this.heatHold > 0) return;
+    this.heat = Math.max(0, this.heat - HEAT_COOL * dt);
+    if (this.overheated && this.heat <= HEAT_RESET) this.overheated = false;
+  }
+
+  /** One shot's worth of heat, and the lockout when the barrel has had enough. */
+  private addHeat(): void {
+    this.heat = Math.min(1, this.heat + HEAT_PER_SHOT);
+    this.heatHold = HEAT_COOL_DELAY;
+    if (this.heat >= 1) {
+      this.overheated = true;
+      audio.overheat();
+    }
+  }
+
   spawnAt(p: THREE.Vector3): void {
     this.position.copy(p);
     this.velocity.set(0, 0, 0);
     this.hp = this.maxHp;
     this.fuel = 1;
     this.energy = 1;
+    this.heat = 0;
+    this.overheated = false;
+    this.heatHold = 0;
     this.alive = true;
     this.respawnTimer = 0;
     this.slamming = false;
@@ -324,6 +371,7 @@ export class Player {
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
+    this.coolBlaster(dt);
     this.fireCd -= dt;
     this.dashCd -= dt;
     this.rocketCd -= dt;
@@ -1229,8 +1277,10 @@ export class Player {
     }
 
     // blaster
-    if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0) {
+    if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0
+        && !this.overheated) {
       this.fireCd = 0.24;
+      this.addHeat();
       const muzzlePos = new THREE.Vector3();
       this.char.muzzle!.getWorldPosition(muzzlePos);
 

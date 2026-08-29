@@ -10,6 +10,8 @@ interface PlayerHud {
   health: HTMLElement;
   fuel: HTMLElement;
   energy: HTMLElement;
+  heat: HTMLElement;
+  heatBar: HTMLElement;
   coverHint: HTMLElement;
   weapon: HTMLElement;
   rocket: HTMLElement;
@@ -77,6 +79,7 @@ export class Hud {
           <div class="bar health"><div class="fill"></div><div class="label">HP</div></div>
           <div class="bar fuel"><div class="fill"></div><div class="label">JET</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">ENERGY</div></div>
+          <div class="bar heat"><div class="fill"></div><div class="label">HEAT</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
@@ -92,6 +95,8 @@ export class Hud {
         health: root.querySelector('.bar.health .fill') as HTMLElement,
         fuel: root.querySelector('.bar.fuel .fill') as HTMLElement,
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
+        heat: root.querySelector('.bar.heat .fill') as HTMLElement,
+        heatBar: root.querySelector('.bar.heat') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
         weapon: root.querySelector('.wname') as HTMLElement,
         rocket: root.querySelector('.rocket') as HTMLElement,
@@ -146,6 +151,11 @@ export class Hud {
       h.fuel.style.transform = `scaleX(${p.fuel})`;
       h.energy.style.transform = `scaleX(${p.energy})`;
       h.energy.style.opacity = p.sprinting ? '1' : '0.8';
+      // the heat bar is only worth screen space on a character who carries
+      // something to overheat
+      h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
+      h.heat.style.transform = `scaleX(${p.heat})`;
+      h.heatBar.classList.toggle('overheated', p.overheated);
       if (p.vehicle) h.coverHint.textContent = `${p.vehicle.def.name.toUpperCase()} ${Math.max(0, Math.ceil(p.vehicle.hp))}/${p.vehicle.maxHp} · A gas · B brake · RB off`;
       else if (p.nearVehicle && p.alive) h.coverHint.textContent = `C / RB — ride the ${p.nearVehicle.def.name.toLowerCase()}`;
       else if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
