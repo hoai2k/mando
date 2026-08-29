@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
-import { fbm2, makeRng, ridge2 } from '../core/math';
+import { clamp, fbm2, makeRng, ridge2 } from '../core/math';
 import { deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
 import type { Board } from './board';
@@ -21,6 +21,25 @@ import type { Game } from '../game/game';
 
 const WATER_Y = 0;
 const DECK_Y = 6;
+
+/**
+ * Soft round glow for the shock sparks. Untextured points render as hard
+ * squares, which read as debris rather than as light coming off the plate.
+ * Built per board so it is torn down with the match, like the board's own
+ * geometry.
+ */
+function sparkSprite(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(16, 16, 1, 16, 16, 15);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(210,240,255,0.6)');
+  g.addColorStop(1, 'rgba(160,220,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(c);
+}
 
 function heightAt(x: number, z: number): number {
   const d = Math.hypot(x, z);
@@ -185,7 +204,18 @@ export function buildNarkina(): Board {
   // Sections charge (blink + rising whine), then go live: everything standing
   // on the plate takes the shock, guards included. The board's rhythm: hop,
   // reposition, or be somewhere else when the hum peaks.
-  interface ShockZone { x: number; z: number; w: number; d: number; y: number; plate: THREE.Mesh; phase: number; charged: boolean; }
+  //
+  // Each zone is three pieces of the same field, all additively blended so
+  // they read as light rather than paint: a bluish sheet floating a hand's
+  // width over the plate, arcs crawling across it, and sparks popping off it.
+  // A plain flickering white rectangle said "hazard" but not "electricity".
+  interface ShockZone {
+    x: number; z: number; w: number; d: number; y: number;
+    plate: THREE.Mesh; arcs: THREE.LineSegments; sparks: THREE.Points;
+    /** how many bolts this plate can carry at once, by its area */
+    bolts: number;
+    phase: number; charged: boolean;
+  }
   const zones: ShockZone[] = [];
   const zoneSpecs: [number, number, number, number, number, number][] = [
     // x, z, w, d, y, cycle phase offset
@@ -195,17 +225,131 @@ export function buildNarkina(): Board {
     [31, 4, 17, 4.4, 6.5, 8.2],
     [4, 36, 4.4, 21, 6.3, 2.8],
   ];
+  /** the field floats this far over the deck — six inches, in metres */
+  const FIELD_H = 0.15;
+  /** kinks per bolt: enough to look struck, few enough to redraw every flicker */
+  const BOLT_STEPS = 7;
+  const SPARKS_PER_ZONE = 44;
+  const sparkTex = sparkSprite();
   for (const [zx, zz, w, d, zy, phase] of zoneSpecs) {
     const plate = new THREE.Mesh(
       new THREE.PlaneGeometry(w, d),
-      new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0, depthWrite: false }),
+      // A film, not a glow. The deck is near-white, and additive light on
+      // white stays white — the field has to *tint* the plate to read as a
+      // layer of charged air over it at all.
+      new THREE.MeshBasicMaterial({
+        color: 0x2f9fd8, transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
     );
     plate.rotation.x = -Math.PI / 2;
-    plate.position.set(zx, zy + 0.06, zz);
+    plate.position.set(zx, zy + FIELD_H, zz);
     group.add(plate);
-    zones.push({ x: zx, z: zz, w, d, y: zy, plate, phase, charged: false });
+
+    // bolts are drawn in the zone's own space, so a strike is generated in
+    // plate-local x/z and the parent puts it over the right piece of deck
+    const bolts = Math.max(3, Math.round(Math.sqrt(w * d) * 0.7));
+    const arcGeo = new THREE.BufferGeometry();
+    arcGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bolts * BOLT_STEPS * 2 * 3), 3));
+    // the bolts are rewritten every flicker, so a fitted sphere would be stale
+    // the moment it was computed — quote one big enough for any strike
+    arcGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.hypot(w, d));
+    // white-hot lines drawn over the film rather than added to it, for the
+    // same reason: additive white over a white deck is invisible
+    const arcs = new THREE.LineSegments(arcGeo, new THREE.LineBasicMaterial({
+      color: 0xf4fdff, transparent: true, opacity: 0, depthWrite: false,
+    }));
+    arcs.position.set(zx, zy + FIELD_H, zz);
+    group.add(arcs);
+
+    const sparkGeo = new THREE.BufferGeometry();
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARKS_PER_ZONE * 3), 3));
+    sparkGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.hypot(w, d));
+    const sparks = new THREE.Points(sparkGeo, new THREE.PointsMaterial({
+      color: 0xeaf8ff, size: 0.22, map: sparkTex, sizeAttenuation: true,
+      transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    sparks.position.set(zx, zy + FIELD_H, zz);
+    group.add(sparks);
+
+    zones.push({ x: zx, z: zz, w, d, y: zy, plate, arcs, sparks, bolts, phase, charged: false });
   }
   const SHOCK_CYCLE = 16;   // seconds: ~11 off, 2.2 charging, 2.8 live
+  /** seconds a set of bolts holds before the next one strikes */
+  const FLICKER = 0.055;
+  let flickerT = 0;
+
+  /**
+   * Re-strike one zone: `intensity` (0..1) scales how much of the plate is lit
+   * at once, so a charging plate skitters with one or two thin arcs and a live
+   * one is webbed over.
+   */
+  function restrike(zn: ShockZone, intensity: number): void {
+    const attr = zn.arcs.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const arr = attr.array as Float32Array;
+    const count = Math.max(1, Math.round(zn.bolts * intensity));
+    const hw = zn.w / 2, hd = zn.d / 2;
+    let o = 0;
+    for (let b = 0; b < count; b++) {
+      // a bolt strikes between two points on the plate, wandering most in the
+      // middle of its run — a straight line between them reads as a laser
+      const x0 = (Math.random() - 0.5) * zn.w;
+      const z0 = (Math.random() - 0.5) * zn.d;
+      const a = Math.random() * Math.PI * 2;
+      const len = 1.2 + Math.random() * Math.min(zn.w, zn.d) * 0.7;
+      const x1 = clamp(x0 + Math.cos(a) * len, -hw, hw);
+      const z1 = clamp(z0 + Math.sin(a) * len, -hd, hd);
+      let px = x0, py = 0, pz = z0;
+      for (let step = 1; step <= BOLT_STEPS; step++) {
+        const t = step / BOLT_STEPS;
+        const wander = Math.sin(t * Math.PI) * 1.35;
+        const nx = clamp(x0 + (x1 - x0) * t + (Math.random() - 0.5) * wander, -hw, hw);
+        const nz = clamp(z0 + (z1 - z0) * t + (Math.random() - 0.5) * wander, -hd, hd);
+        const ny = step === BOLT_STEPS ? 0 : Math.random() * 0.13;
+        arr[o++] = px; arr[o++] = py; arr[o++] = pz;
+        arr[o++] = nx; arr[o++] = ny; arr[o++] = nz;
+        px = nx; py = ny; pz = nz;
+      }
+    }
+    attr.needsUpdate = true;
+    zn.arcs.geometry.setDrawRange(0, count * BOLT_STEPS * 2);
+
+    // Sparks jump off wherever the field is biting. Most of them are beaded
+    // along the bolts just drawn: a line is one pixel wide however close you
+    // stand to it, and glows strung along its path are what give a bolt any
+    // thickness at all. The rest scatter over the plate so the whole zone
+    // crackles rather than only the lit paths.
+    const sp = zn.sparks.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const spArr = sp.array as Float32Array;
+    const lit = Math.max(2, Math.round(SPARKS_PER_ZONE * intensity));
+    const onBolt = Math.round(lit * 0.65);
+    const verts = count * BOLT_STEPS * 2;
+    for (let i = 0; i < SPARKS_PER_ZONE; i++) {
+      if (i >= lit) {
+        // the unlit remainder is parked under the deck rather than drawn dim
+        spArr[i * 3] = 0; spArr[i * 3 + 1] = -50; spArr[i * 3 + 2] = 0;
+        continue;
+      }
+      if (i < onBolt && verts > 0) {
+        const v = Math.floor(Math.random() * verts) * 3;
+        spArr[i * 3] = arr[v] + (Math.random() - 0.5) * 0.2;
+        spArr[i * 3 + 1] = arr[v + 1] + Math.random() * 0.12;
+        spArr[i * 3 + 2] = arr[v + 2] + (Math.random() - 0.5) * 0.2;
+      } else {
+        spArr[i * 3] = (Math.random() - 0.5) * zn.w;
+        spArr[i * 3 + 1] = Math.random() * Math.random() * 0.7;
+        spArr[i * 3 + 2] = (Math.random() - 0.5) * zn.d;
+      }
+    }
+    sp.needsUpdate = true;
+  }
+
+  function setFieldVisible(zn: ShockZone, on: boolean): void {
+    zn.arcs.visible = on;
+    zn.sparks.visible = on;
+  }
+  for (const zn of zones) setFieldVisible(zn, false);
 
   // ---- below: the reasons to dive ----
   // kelp forest on the trench's shoulder
@@ -391,16 +535,36 @@ export function buildNarkina(): Board {
     fp.needsUpdate = true;
 
     // ---- floor-shock cycle ----
+    // one clock for every plate: bolts re-strike together, which is what makes
+    // the whole facility read as running off a single generator
+    flickerT += dt;
+    const struck = flickerT >= FLICKER;
+    if (struck) flickerT = 0;
     for (const zn of zones) {
       const t = (time + zn.phase) % SHOCK_CYCLE;
       const mat = zn.plate.material as THREE.MeshBasicMaterial;
+      const arcMat = zn.arcs.material as THREE.LineBasicMaterial;
+      const sparkMat = zn.sparks.material as THREE.PointsMaterial;
       const charging = t >= 11 && t < 13.2;
       const live = t >= 13.2;
       if (charging) {
-        mat.opacity = (Math.sin(time * 12) * 0.5 + 0.5) * 0.35;
+        // building: the sheet pulses up while the odd arc gropes across it
+        const ramp = (t - 11) / 2.2;
+        mat.opacity = (Math.sin(time * 12) * 0.5 + 0.5) * 0.08 + ramp * 0.2;
+        setFieldVisible(zn, true);
+        if (struck) restrike(zn, 0.12 + ramp * 0.3);
+        arcMat.opacity = (0.25 + ramp * 0.45) * (0.6 + Math.random() * 0.4);
+        sparkMat.opacity = ramp * 0.7;
         if (!zn.charged) { zn.charged = true; audio.floorCharge(0.4); }
       } else if (live) {
-        mat.opacity = 0.55 + Math.sin(time * 30) * 0.2;
+        // live: the sheet holds bright and the plate is webbed over, each
+        // strike a fraction dimmer or brighter than the last so it never
+        // settles into a steady glow
+        mat.opacity = 0.4 + Math.sin(time * 30) * 0.07;
+        setFieldVisible(zn, true);
+        if (struck) restrike(zn, 0.75 + Math.random() * 0.25);
+        arcMat.opacity = 0.75 + Math.random() * 0.25;
+        sparkMat.opacity = 0.8 + Math.random() * 0.2;
         if (game) {
           const on = (px: number, py: number, pz: number): boolean =>
             Math.abs(px - zn.x) < zn.w / 2 && Math.abs(pz - zn.z) < zn.d / 2 &&
@@ -422,7 +586,9 @@ export function buildNarkina(): Board {
           }
         }
       } else {
+        // discharged: the sheet dies away and the arcs cut out at once
         mat.opacity = Math.max(0, mat.opacity - dt * 2);
+        setFieldVisible(zn, false);
         zn.charged = false;
       }
     }
