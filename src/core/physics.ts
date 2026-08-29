@@ -56,6 +56,37 @@ export class PhysicsWorld {
     return false;
   }
 
+  /**
+   * Is there room for a standing body here — feet at `feetY`, nothing touched
+   * by its capsule?
+   *
+   * `solidAt` asks about a single point, which is not the question a spawn
+   * needs to answer: the mover treats a body as a capsule and pushes it out of
+   * any box it overlaps, so a point 30 cm from a wall face reads as free while
+   * the body standing on it is inside the wall until that push-out fires. This
+   * uses the same inflated test `stepCapsule` resolves against, so anywhere it
+   * calls clear is somewhere the mover will leave alone.
+   *
+   * A box whose top is at or below the feet is not touched (that is ground to
+   * stand on, not an obstacle), and neither is one entirely above the head.
+   */
+  capsuleFree(x: number, feetY: number, z: number, radius: number, height: number): boolean {
+    const head = feetY + height;
+    for (const b of this.boxes) {
+      if (head <= b.min.y || feetY >= b.max.y) continue;
+      if (x <= b.min.x - radius || x >= b.max.x + radius) continue;
+      if (z <= b.min.z - radius || z >= b.max.z + radius) continue;
+      return false;
+    }
+    for (const c of this.cylinders) {
+      if (head <= c.minY || feetY >= c.maxY) continue;
+      const dx = x - c.x, dz = z - c.z;
+      const r = c.r + radius;
+      if (dx * dx + dz * dz < r * r) return false;
+    }
+    return true;
+  }
+
   groundHeight(x: number, z: number, feetY: number): number {
     let g = this.heightAt ? this.heightAt(x, z) : -Infinity;
     for (const b of this.boxes) {
