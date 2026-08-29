@@ -3,9 +3,13 @@
 **Open image requests only.** Delivered images are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**Open: the hunter weapon prop sheets below.** The `ventress`, `embo` and `bossk`
-sheets landed on 2026-08-28, and the other two hunter concepts (the horned warrior and
-the snouted hunter) were cut before their sheets were made. Everything else — every
+**Open: the drop-screen portraits below, and nothing else.** The three hunter weapon
+sheets (`saber_curved`, `crossbow`, `longrifle`) were delivered; the weapon *models* they
+were drawn for are **parked by decision** — the signature weapons keep their procedural
+builds for now — and the fourth sheet (`pistol`) is parked with them. The `ventress`,
+`embo` and `bossk` character sheets landed on 2026-08-28, and the other two hunter
+concepts (the horned warrior and the snouted hunter) were cut before their sheets were
+made. Everything else — every
 environment, sky and UI texture, all nine boards' card art and skies, the surface
 textures, and the A-pose turnaround sheets for the rest of the cast — is delivered and
 integrated; The Prison Rig's card and sky landed on 2026-08-28 and the loader picked both
@@ -76,19 +80,18 @@ ignited blade — blades are FX meshes the game manages.
 | `embo` ✅ delivered | 1.78 m | "a broad-shouldered olive-green-skinned bounty hunter alien, pale eyes over a slatted bamboo-like rebreather mask covering the lower face, a very wide circular flat-brimmed woven-metal hat, a fur-trimmed short poncho over banded leather-and-plate armor, heavy gauntlets, a compact crossbow-style blaster holstered at the hip" |
 | `bossk` ✅ delivered | 1.90 m | "a hulking reptilian bounty hunter, yellow-green scaled hide, a wedge-shaped snout full of needle teeth, slit orange eyes, clawed three-fingered hands and heavy clawed feet, wearing a worn yellow-tan flight suit with the sleeves rolled, a padded chest rig and ammo bandoliers" |
 
-### Hunter weapon prop sheets
+### Hunter weapon prop sheets — delivered, and the models parked
 
-Side-view reference for the four signature weapon props (same recipe as the delivered
-`carbine.png` / `gaffi.png`: 1024×512 PNG, orthographic side view, flat even lighting,
-plain mid-grey background, no hands, no text). Ids match the prop .glb names in
-`ASSETS_MODELS.md`; procedural stand-ins are in game today.
+`saber_curved.png`, `crossbow.png` and `longrifle.png` landed in `reference/characters/`
+and are recorded with their prompts in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The
+**models** they were drawn for are **parked by decision** (2026-08-29): the game keeps its
+procedural weapons, which read well at gameplay distance, and no code waits on a file. The
+fourth sheet, `pistol` — Rook Vance's twin heavy pistols — was never produced and is not
+wanted while that holds; its prompt is kept here for whenever it is:
 
 | Id | Prompt |
 |---|---|
-| `saber_curved` | "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered" |
-| `crossbow` | "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown" |
-| `pistol` | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
-| `longrifle` | "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan" |
+| `pistol` (parked) | "a heavy sci-fi blaster pistol: a boxy receiver, a short thick barrel ending in a flared muzzle, an angled grip, a small top sight, scuffed gunmetal and worn dark steel" |
 
 ## Open — drop-screen portraits (priority 3)
 
@@ -106,7 +109,8 @@ missing portrait never delays the drop it illustrates.
 - **Framing:** head and shoulders, facing camera, filling the frame.
 - **Lighting:** single warm key from the upper left against a near-black
   background, matching the menus' lit-from-above look.
-- **Ids:** the playable four — `din`, `paz`, `bokatan`, `armorer` — and any
+- **Ids:** the playable nine — `din`, `paz`, `bokatan`, `armorer`, `ventress`,
+  `embo`, `bossk`, `duelist`, `ig11` — and any
   enemy kind by its game id: `tusken`, `pyke`, `pirate`, `pirateMelee`,
   `jetpirate`, `droid`, `nikto`, `massiff`, `stormtrooper`, `deathtrooper`,
   `darktrooper`, `duelist`, `officer`, `capo`, `enforcer`, `flametrooper`,

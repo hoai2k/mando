@@ -143,6 +143,9 @@ change; the sheets are production inputs in `reference/characters/` and are not 
 | `interceptor_drone` ◆ | 1.7 m — "a sinister black Imperial probe drone: a rounded armored sphere head with one large red photoreceptor and a ring of small amber sensor lights, a skirt of dark plating below, five thin articulated manipulator arms dangling underneath, a small top-mounted thruster — orthographic side, front and top views, hovering, no ground contact" |
 | `carbine` | 1024×512 — "a compact sci-fi blaster carbine rifle, scuffed gunmetal grey and dark brown, a boxy receiver, a short ribbed barrel with a flared muzzle, a compact scope on top, a pistol grip and short stock. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
 | `gaffi` | 1024×512 — "a primitive two-handed alien fighting staff: a long weathered wooden shaft bound with cord, a pointed metal spearhead at the top, a knobbed bludgeon head below it, and a short curved axe blade at the base. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
+| `saber_curved` | 1024×512 — "a curved-hilt energy sword hilt, hilt only with no blade: a short metal grip kinked like a crescent, an emitter shroud at the top, a hooked pommel, silver and dark gunmetal, weathered. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
+| `crossbow` | 1024×512 — "a sci-fi energy crossbow: a compact rifle stock and grip, two bow limbs swept sharply forward, small glowing emitter orbs at the limb tips, a taut glowing energy string between them, scuffed gunmetal and brown. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
+| `longrifle` | 1024×512 — "a very long-barrelled sci-fi hunting rifle: boxy receiver, shoulder stock, a long slim barrel ending in a flared muzzle, a long top-mounted scope, a fore grip, scuffed gunmetal grey and tan. Orthographic side view, flat even lighting, plain mid-grey background, no hands, no text." |
 | `wookiee_enforcer` | 2.6 m — "a towering black-furred ape-like gladiator alien, heavy muscular build, a metal-studded bandolier across the chest, armoured fighting gauntlets, scarred and battle-worn" |
 | `pyke_capo` | 2.0 m — "an ornately dressed alien crime boss with a tall narrow tapered head, embroidered layered robes in deep plum and gold, jewelled rings, a belt-mounted shield generator emitter" |
 | `imperial_officer` | 1.85 m — "a severe uniformed officer in a long black military greatcoat with a peaked cap and rank insignia plaque, gloved hands, gaunt authoritarian bearing" |
@@ -158,3 +161,30 @@ Signature-weapon voices for the hunter roster, generated with
 melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades). `pistol_shot` (Rook Vance's twin pistols)
 followed on 2026-08-29.
 Synth fallbacks remain in `src/core/audio.ts`.
+
+---
+
+## Board music — 10 tracks
+
+Full-length streamed score in `public/music/`, played through an `<audio>` element on the
+music bus rather than decoded as samples. The map from track to board is
+[`src/core/music.ts`](../src/core/music.ts) — the only file that names a track — and
+`public/music/README.md` documents the directory. Filenames are lowercase and hyphenated
+so they need no URL escaping; uploads with spaces in the name are renamed on the way in.
+
+| Track | Role |
+|---|---|
+| `bone-totem-march-1.mp3`, `bone-totem-march-2.mp3` | the desert playlist (The Dune Sea, The Lava Flats, The Great Forge) |
+| `dust-beyond-orbit-1.mp3`, `dust-beyond-orbit-2.mp3` | the station playlist (every other board) |
+| `mando-african.mp3`, `mando-capoeira.mp3` | any board — they join every rotation |
+| `mando-sea-shanty.mp3` | opens The Storm Docks |
+| `mando-ice.mp3` | opens The Crevasse |
+| `mando-fada.mp3` | opens The Great Forge |
+| `mando-indian.mp3` | opens The Prison Rig |
+
+A board plays its opener first where it has one, then picks at random from the rest of its
+rotation, never the same track twice running. If every track fails to load the engine
+falls back to the `music_combat_desert` / `music_combat_station` samples, and then to a
+synth drone, so a board is never silent.
+
+The seven per-board pairs still wanted are open in [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md).

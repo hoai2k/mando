@@ -1,8 +1,8 @@
 # Mando — Game Plan
 
-A fan-made, third-person 3D web game following a Mandalorian bounty hunter. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across two boards: the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates.
+A fan-made, third-person 3D web game following a Mandalorian bounty hunter. Fast, arcade-style movement (run / jump / jetpack-fly) and combat (blaster + gaffi-stick melee) across nine boards, opening with the **Tatooine desert (Dune Sea → Mos Espa outskirts)** and a **space waystation** of floating platforms run by Pyke smugglers and pirates; the other seven are listed in §8.
 
-This document describes every component and how it will be built. Nothing is built yet — it exists so decisions can be steered before implementation.
+This document describes every component and how it is built. It began as a pre-implementation plan and is now kept as the design reference for what shipped — `docs/PROGRESS.md` is the build log.
 
 ---
 
@@ -24,7 +24,7 @@ This document describes every component and how it will be built. Nothing is bui
 | Language | **TypeScript** | The codebase will be ~40+ modules; types keep the entity/combat systems sane. |
 | Build | **Vite** | Instant dev server, one-command static build (deployable to GitHub Pages). |
 | Physics | **Custom lightweight kinematic physics** (capsule vs. heightfield/boxes/spheres) | Full physics engines (Rapier/cannon) fight against arcade feel. Character controllers for this genre are better hand-rolled: exact control of acceleration, air control, snap-to-ground, knockback. Enemies are kinematic too. |
-| Audio | **WebAudio, procedurally synthesized** | Blaster zaps, jetpack roar, impacts, ambient wind — all synthesizable; no copyrighted audio assets. Music: simple dark ambient drone loop via oscillators. |
+| Audio | **WebAudio: synthesized, with authored samples layered over it** | Blaster zaps, jetpack roar, impacts, ambient wind are all synthesizable, so the game is never silent and never ships copyrighted audio. Authored one-shots drop in by filename under `public/assets/audio/`; full-length board music streams from `public/music/` (map in `src/core/music.ts`), with a synth drone as the last-resort bed. |
 | Assets | **100% procedural geometry + canvas-generated textures** | No downloads, no licensing issues, and it forces the rig-first architecture that makes future model swaps clean. |
 
 No frameworks beyond that — no React, no ECS library. A simple `Entity` base class + per-system update loops keeps it debuggable.
@@ -119,8 +119,15 @@ This is the flexibility the brief demands:
 
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
-| **Din Djarin** (player) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
-| **Paz Vizsla** (player) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, bulkiest silhouette; same jetpack and weapon loadout. |
+| **Kell Dravan** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
+| **Torva Brekk** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
+| **Vess Ordane** (player, `bokatan`) | Mandalorian | Blue-and-red plate, rangefinder helmet, lighter build; same loadout. |
+| **The Forgemistress** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
+| **Sylla Morvane** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). |
+| **Karshii** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
+| **Skarvek** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
+| **Rook Vance** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
+| **VX-9** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
 | **War massiff** | Tatooine elite (wave 5+) | Armoured quadruped predator: slab-sided hide under a spine of dorsal plates and spikes, flank scutes, heavy tusked skull slung low and forward, thick segmented tail. 2.1 m tall, 5.6 m long. Runs down anyone who tries to jog away and pounces the last 16 m. |
 | **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |
@@ -133,7 +140,7 @@ This is the flexibility the brief demands:
 | **Alamite** | Melee (Great Forge) | Pale hunched cave-dweller, tusked underbite, bony dorsal ridge, stone club. |
 | **Interceptor drone** | Kamikaze flier (Great Forge) | Black probe-style drone, red eye, dangling arms; stalks, whines, then commits to an unsteered dive — the whine is the dodge cue. |
 | **Ringworld enforcer** | Shielded shooter (Ringworld) | Oxblood plate + tower shield whose energy pane reflects bolts; flank it, rush it, or rocket it. |
-| **Bosses (stretch, post-MVP)** | — | Tatooine: **Krrsantan-class Wookiee enforcer** melee duel. Waystation: **Pyke capo + shield**. |
+| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated boss *fights* — phases, arenas, boss bars — remain post-MVP. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
 
@@ -293,8 +300,8 @@ two-player).
 - **FX:** pooled particle system (dust, sparks, jetpack flame + heat distortion trail, explosions, blood-free "spark/cloth puff" hits), bolt light sources (cheap: few pooled point lights), decal-free scorch flashes.
 - **HUD:** health bar, jetpack fuel arc around crosshair (visible where your eyes are), weapon icon, rocket cooldown pip, wave/kill counter, **hostiles-remaining count**, damage direction indicators, boss bar (later). Diegetic green "helmet visor" vignette + subtle HUD tint.
 - **Radar** (`ui/radar.ts`): a 120 m motion-tracker dial per viewport, rotated so up is where the camera looks. Contacts are coloured by awareness — dim amber for a camp that hasn't noticed you, brighter amber once it is coming to look, red once it is fighting — with allies green and your co-op partner blue. Anything beyond the sweep is pinned to the rim as a chevron, so the bearing is always readable while the distance is not; a tick above or below a blip means it is well above or below you. The count under the dial is the wave's remaining hostiles.
-- **Menus:** title → board select (two illustrated cards) → controls card; pause; death (retry fast); victory (score + time).
-- **Audio:** synthesized blaster (pitch-swept saw + noise), jetpack (filtered noise roar tied to thrust), melee whooshes/clangs, Pyke/pirate death chirps, ambient wind or station hum per board, minimal dark-drum ambient loop. Master/SFX volume sliders.
+- **Menus:** title → board select (a 4×2+ grid of illustrated territory cards, registry-driven) → character select (a line of plinths that grows as players join) → drop screen; pause; death (retry fast); victory (score + time).
+- **Audio:** synthesized blaster (pitch-swept saw + noise), jetpack (filtered noise roar tied to thrust), melee whooshes/clangs, per-weapon voices for the hunters' crossbow, rifle, sabers and pistols, Pyke/pirate death chirps, ambient wind or station hum per board. Authored samples override any synth voice by filename. **Board music** streams full-length tracks from `public/music/`, mapped to boards in `src/core/music.ts`: a board opens on its signature track where it has one, then picks at random from the rest, never the same track twice running. Master/SFX/music volume sliders, persisted per device.
 
 ## 11. Performance Budget
 
@@ -308,12 +315,12 @@ two-player).
 4. **M4 — Tatooine board:** terrain, props, sky/lighting, full enemy roster (Tusken, Nikto swoop, pirates), wave mode, win/lose loop.
 5. **M5 — Waystation board:** platforms, space sky, pirates/jet-pirates/turrets, fall-respawn.
 6. **M6 — Polish:** audio pass, menus/board select, difficulty tuning, performance pass, gamepad.
-7. **Stretch:** bosses (Krrsantan-class duel, Pyke capo), score persistence, photo mode.
+7. **Stretch:** boss *fights* proper (the boss characters themselves ship as final-wave elites), score persistence, photo mode.
 
 ## 13. Addendum (user-requested, v1 scope)
 
 - **Controller-first input.** The game is designed around an Xbox pad, and that is the default: keyboard and mouse gameplay is behind a **Keyboard & mouse** toggle in Settings (off by default, saved per device). While it is off, no key or click moves the player, the pointer is never locked during play, and the Controls screen shows only the pad — the keyboard column is replaced by a note pointing at the setting. Menus are always navigable by mouse and keyboard regardless, since a menu is not gameplay. The cursor follows console convention: hidden while playing, back the moment the mouse moves, hidden again after two idle seconds.
-- **Full Xbox controller support, including menus.** Every menu is navigable with d-pad/left stick + A (confirm) / B (back); gameplay uses the standard twin-stick mapping (LS move, RS look, RT shoot, LT aim, A jump/jetpack, X melee, B dash, Y rocket, LB weapon switch, RB slam, Start pause, View fullscreen). Keyboard+mouse remains fully supported for player 1.
+- **Full Xbox controller support, including menus.** Every menu is navigable with d-pad/left stick + A (confirm) / B (back); gameplay uses the standard twin-stick mapping (LS move, RS look, RT shoot, LT aim, A jump/jetpack, X melee, Y rocket, LB dash/sprint, B block, RB cover on the ground and ground slam in the air, D-pad right weapon switch, RS click + stick camera distance, Start pause, View fullscreen). Keyboard+mouse remains fully supported for player 1.
 - **Fullscreen icon button** fixed at the bottom-right of the screen at all times (menus and gameplay); also bound to the controller View button.
 - **Up to 4-player split-screen co-op.** One shared enemy pool/wave state; per-player camera, HUD, health, fuel. If one player dies they respawn while a partner survives the wave; all down = defeat. Two players split top/bottom, three put two above a full-width third, four take a quadrant each — or, with **Split screen** set to *side by side* in Settings, the same layouts turned on their side (two columns; three as two stacked beside one full-height player) for tall or portrait displays. Four is a quadrant grid either way. The setting takes effect mid-match, and the HUD reads its rectangles from the same `splitLayout` the renderer does, so bars can never drift out of their picture.
 - **Controllers earn their player slot by being used.** A pad takes a seat the first time somebody actually touches it — any button, or a stick pushed past drift — and the seats fill in that order: first pad used is player one, next is player two. Merely being enumerated proves nothing (browsers report pads asleep in a drawer, dongles with nothing paired, one controller twice over two transports), and seating those on sight is what once made a real second controller join as player three and then drive nobody. A pad keeps its seat until its device goes away; losing one mid-match pauses rather than shuffling players between characters. In the character select a player who presses A joins at the first free place and their pad is re-seated to match, so the place in the line and the seat driven in the match are always the same.
@@ -330,7 +337,6 @@ two-player).
 - **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher ≈ 3.1 m, explosions ≈ 4.7 m. The finisher deliberately shoves rather than launches (0.96 m/s of lift vs 6.65 m/s originally) — its job is to clear the target out of your firing line so you can swing to the next one, not to be spectacular.
 - **Blaster readability.** Bolts are longer, fatter, near-white cores with an additive halo, fired at 75 m/s with a muzzle flash. Shots converge on the crosshair via a camera raycast (or the soft-lock target) instead of firing parallel from the muzzle, and the crosshair shows a red lock ring when a target is in the assist cone.
 - **No abyss on the station.** Below the platforms gravity drops to 12% with a 3.2 m/s terminal speed and fuel regenerates, so drifting off is recoverable with a tap of jetpack; the killY backstop repositions without damage.
-- **Grogu rides with Din Djarin only.**
 
 ## 15. Notes & Constraints
 
