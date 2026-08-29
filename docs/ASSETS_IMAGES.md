@@ -3,8 +3,8 @@
 **Open image requests only.** Delivered images are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) with their original prompts.
 
-**Open: one drop-screen portrait (`ig11`) and the environment prop reference sheets
-below.** The eleven runtime environment textures requested on 2026-08-29 all landed and
+**Open: the game logo and favicon, one drop-screen portrait (`ig11`), and the environment
+prop reference sheets below.** The eleven runtime environment textures requested on 2026-08-29 all landed and
 are wired into their boards; so did the `ventress`, `embo` and `bossk` portraits, which
 closed that request. The `saber_curved`, `crossbow` and `longrifle` weapon sheets landed
 too, but the weapon *models* they were drawn for are **parked by decision** — the
@@ -107,6 +107,22 @@ missing portrait never delays the drop it illustrates.
   background, matching the menus' lit-from-above look.
 - **Subject:** per the delivered `ig11` turnaround sheets in `reference/characters/` —
   the tall spindly assassin droid, cylindrical head with a red sensor ring.
+
+## Open — game logo and favicon (priority 2)
+
+The game is called **Bounty Hunters**. The title screen currently sets the name in the
+menus' gold type over the key art; a drawn wordmark would give it an identity. Both
+files are pre-wired — arriving at the path *is* the integration, and each falls back
+cleanly if it never does.
+
+| File | Where it goes | Prompt / notes |
+|---|---|---|
+| `logo.png` | `public/assets/textures/logo.png` → the title screen's heading | Title-screen wordmark, transparent background, **the words "BOUNTY HUNTERS" and nothing else** — this is the one image in the project that carries text, so the spelling has to be exact. "The words BOUNTY HUNTERS as a game logo wordmark on a transparent background: heavy condensed uppercase sans-serif, slightly angular and industrial, weathered aged-gold metal with worn edges and fine scratches, a thin dark bevel, HUNTERS set below and wider than BOUNTY, no other text, no symbols, no background". **1600×600 PNG with alpha.** Palette should sit with the menus' gold (`#d8b25a` over near-black). Wired: `MenuScreen.addTitle(text, sub, 'logo')` swaps the set type for the image on load and keeps the text as the accessible label; missing, the type stands. |
+| `favicon.png` | `public/favicon.png` → the browser tab | A mark, not a wordmark — at 32 px only a silhouette survives. "A simple bold icon on a transparent background: the front view of a T-visored bounty hunter helmet as a flat two-tone silhouette, aged gold on nothing, thick shapes, no fine detail, no text, centred with even margins". **512×512 PNG with alpha** (browsers downscale it). Wired: `<link rel="icon">` in `index.html` and `workbench/index.html`; a 404 falls back to the browser default. |
+
+Both are exceptions to the project's usual "no text, no logos" rule, which exists to keep
+generated art free of invented signage — the game's own name is the one thing that is
+meant to be readable.
 
 ## Open — environment prop reference sheets (for image-to-3D)
 
