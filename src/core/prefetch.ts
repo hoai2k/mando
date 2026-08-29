@@ -1,7 +1,7 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/mandalorians';
 import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
-import { BOSS_KIND, type GameMode } from '../game/modes';
+import { BOSS_KIND, MID_BOSS, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { BOARDS } from '../world/boards';
 import type { BoardId } from '../world/board';
@@ -100,6 +100,13 @@ export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[
     const allyId = ally ? ENEMY_MODEL_ID[ally] : undefined;
     if (allyId) ids.add(allyId);
   }
+  // both boss battles are certainties on a full run of the territory
+  if (throughWave >= FINAL_WAVE) {
+    for (const kind of [MID_BOSS[board].kind, BOSS_KIND[board]]) {
+      const id = ENEMY_MODEL_ID[kind];
+      if (id) ids.add(id);
+    }
+  }
   return [...ids];
 }
 
@@ -181,10 +188,12 @@ function modeEnemyIds(board: BoardId, chars: PlayableId[], mode: GameMode): stri
 export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): void {
   for (const id of charModelIds(chars)) warmAuthored(id, 'now');
   for (const id of modeEnemyIds(board, chars, mode)) warmAuthored(id, 'now');
-  // the campaign's warlord can trail in behind the drop — but start it now
+  // the campaign's bosses can trail in behind the drop — but start them now
   if (mode === 'campaign') {
-    const bossId = ENEMY_MODEL_ID[BOSS_KIND[board]];
-    if (bossId) warmAuthored(bossId, 'soon');
+    for (const kind of [MID_BOSS[board].kind, BOSS_KIND[board]]) {
+      const bossId = ENEMY_MODEL_ID[kind];
+      if (bossId) warmAuthored(bossId, 'soon');
+    }
     // corridors are built at match start but only walked into minutes later,
     // so their surfaces can trail the drop
     for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');

@@ -445,6 +445,7 @@ function buildMatch(): void {
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     bossIntro: (t, s) => hud.bossIntro(t, s),
+    newContacts: (names) => hud.newContacts(names),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars], mode);

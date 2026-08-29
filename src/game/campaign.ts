@@ -3,7 +3,7 @@ import type { Game } from './game';
 import type { Board } from '../world/board';
 import { hazardAt } from '../world/board';
 import { buildCorridor, buildDoorFrame, type CorridorSpec } from '../world/corridor';
-import { standingSpot, waveComposition } from '../enemies/spawner';
+import { FINAL_WAVE, standingSpot, waveComposition } from '../enemies/spawner';
 import { Enemy, type EnemyKind } from '../enemies/enemy';
 import { audio } from '../core/audio';
 
@@ -27,6 +27,9 @@ interface Step {
   corridor?: CorridorSpec;
   /** where the party lands when this step completes with a teleport */
   landing?: THREE.Vector3;
+  /** boss steps: which battle this arena holds — the champion or the warlord */
+  bossTier?: 'mid' | 'final';
+  bossCalled?: boolean;
   label: string;
 }
 
@@ -55,7 +58,6 @@ export class Campaign {
   private beacon: THREE.Mesh;
   private beaconMat: THREE.MeshBasicMaterial;
   private pickups: Pickup[] = [];
-  private bossCalled = false;
   done = false;
 
   constructor(private game: Game) {
@@ -79,15 +81,19 @@ export class Campaign {
     // very short boards still get a run: reuse the ends
     while (path.length < 6 && path.length > 0) path.push(path[path.length - 1].clone());
 
-    // ---- assemble steps: nodes with two corridor dives and a boss finale ----
+    // ---- assemble steps: nodes with two corridor dives, the champion's
+    // arena at the path's midpoint, and the warlord's finale ----
     const doorAfter = new Set([Math.floor(path.length / 3) - 1, Math.floor((2 * path.length) / 3) - 1]);
+    // the mid-board boss battle sits halfway along the level, the same beat
+    // the wave game rings in after wave MID_BOSS_WAVE
+    const midBossAfter = Math.floor((path.length - 1) / 2);
     let corridorSeed = 1;
     for (let i = 0; i < path.length - 1; i++) {
       const node = path[i];
       // encounter templates alternate: posted camp / sprung ambush, with a
       // breather (no squad) on the node right after each corridor
       const template = i % 3 === 2 ? 'ambush' : 'camp';
-      const wave = 1 + Math.round((9 * i) / Math.max(1, path.length - 1));
+      const wave = 1 + Math.round(((FINAL_WAVE - 1) * i) / Math.max(1, path.length - 1));
       const squad = this.squadFor(wave);
       const step: Step = { kind: 'node', pos: node, label: 'Push on' };
       if (template === 'ambush') {
@@ -119,6 +125,14 @@ export class Campaign {
         for (const p of spec.pockets) this.addPickup(p.clone().add(new THREE.Vector3(0, 0.2, 0)));
       }
 
+      // the champion's arena: the next post on the tour becomes a boss beat
+      if (i === midBossAfter) {
+        this.steps.push({
+          kind: 'boss', bossTier: 'mid',
+          pos: this.groundAt(board, path[i + 1].clone()), label: 'Face the champion',
+        });
+      }
+
       // hidden bacta off the golden path every third node (reward for wandering)
       if (i % 3 === 1) {
         const side = new THREE.Vector3(node.z, 0, -node.x).normalize().multiplyScalar(9);
@@ -128,7 +142,7 @@ export class Campaign {
 
     // ---- boss arena: the board's own last post, promoted ----
     const arena = path[path.length - 1];
-    this.steps.push({ kind: 'boss', pos: arena, label: 'Face the warlord' });
+    this.steps.push({ kind: 'boss', bossTier: 'final', pos: arena, label: 'Face the warlord' });
 
     // ---- beacon ----
     this.beaconMat = new THREE.MeshBasicMaterial({
@@ -151,7 +165,7 @@ export class Campaign {
 
   /** a small squad drawn from this board's wave table at `wave` */
   private squadFor(wave: number): EnemyKind[] {
-    const comp = waveComposition(this.game.board.kind, Math.min(10, wave), this.game.players.length);
+    const comp = waveComposition(this.game.board.kind, Math.min(FINAL_WAVE, wave), this.game.players.length);
     const kinds: EnemyKind[] = [];
     for (const entry of comp) for (let i = 0; i < entry.count && kinds.length < 12; i++) kinds.push(entry.kind);
     // 4–6 bodies, biased toward the tail of the list (the wave's newer kinds)
@@ -303,11 +317,21 @@ export class Campaign {
         }
         break;
       case 'boss':
-        if (!this.bossCalled && nearest(38)) {
-          this.bossCalled = true;
-          game.spawnBoss(step.pos);
+        if (!step.bossCalled && nearest(38)) {
+          step.bossCalled = true;
+          game.spawnBoss(step.pos, step.bossTier ?? 'final');
         }
-        if (this.bossCalled && game.boss && !game.boss.alive) this.done = true;
+        if (step.bossCalled && game.boss && !game.boss.alive) {
+          if (step.bossTier === 'mid') {
+            // the champion falls: a checkpoint, and the road to the warlord
+            this.checkpoint.copy(step.pos);
+            this.idx++;
+            game.announce('The champion falls', 'the warlord waits at the end');
+            audio.waveClear();
+          } else {
+            this.done = true;
+          }
+        }
         break;
     }
 

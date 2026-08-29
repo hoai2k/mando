@@ -343,7 +343,7 @@ export function buildTrask(): Board {
   const board: Board = {
     group, physics, kind: 'trask',
     name: 'The Storm Docks',
-    objective: 'Trask · survive 10 waves',
+    objective: 'Trask · survive 7 waves',
     footstep: 'metal',
     ambience: { sample: 'amb_rain', bed: 'wind' },
     music: 'station',

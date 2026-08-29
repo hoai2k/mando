@@ -205,7 +205,7 @@ export function buildCrevasse(): Board {
   const board: Board = {
     group, physics, kind: 'crevasse',
     name: 'The Crevasse',
-    objective: 'Maldo Kreis · survive 10 waves',
+    objective: 'Maldo Kreis · survive 7 waves',
     footstep: 'snow',
     ambience: { sample: 'amb_ice', bed: 'wind' },
     music: 'station',

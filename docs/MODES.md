@@ -40,11 +40,15 @@ campaign levels.
 
 ## 2. Wave Battle
 
-The existing game, now named — plus a **boss battle** to cap it. `mode ===
-'wave'` is the default everywhere, so the flag off ⇒ old behaviour *up to*
-wave 10; clearing wave 10 now rings in a final **boss wave** instead of
-instant victory (see §4a — the same boss system serves both modes). Victory
-comes when the boss falls.
+The existing game, now named — plus **two boss battles** woven through it.
+The run is seven waves: clearing wave 4 rings in the board's **champion**
+(the mid-board boss, `MID_BOSS` in modes.ts — a monster where the board has
+one, an elite lieutenant otherwise, on a lighter promotion), then waves 5–7,
+and clearing wave 7 rings in the territory's **warlord** — always the harder
+of the two (see §4a — the same boss system serves both battles and both
+modes). Waves ramp by adding bodies and debuting kinds sooner, never by
+making an enemy individually harder, and each wave that debuts a kind
+announces it on a new-contact card. Victory comes when the warlord falls.
 
 ## 3. PvP — territory duel
 
@@ -180,10 +184,12 @@ it rides existing machinery: `addReinforcement` for the retinue,
 per-instance scaling on `Enemy`, and the standard death/ragdoll/credit path
 when it goes down.
 
-- **Wave Battle:** clearing wave 10 announces the boss wave; the boss posts
-  with a small honour guard. Victory on its death.
-- **Campaign:** the final waypoint is the boss arena; the guide beacon leads
-  straight to it. Victory on its death.
+- **Wave Battle:** clearing wave 4 announces the champion's battle, clearing
+  wave 7 the warlord's; each boss posts with a small honour guard. Victory on
+  the warlord's death.
+- **Campaign:** the champion's arena sits at the path's midpoint; the final
+  waypoint is the warlord's arena, and the guide beacon leads straight to
+  each. Victory on the warlord's death.
 
 A second tier now has a design: **six large monster bosses** — one per board with a
 monster in its bones (mudhorn, ravinak, mamacore, rancor, greater krayt, mythosaur)
