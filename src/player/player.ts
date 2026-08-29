@@ -184,6 +184,7 @@ export class Player {
 
   update(dt: number, input: FrameInput, game: Game, realDt = dt): void {
     const anim = this.char.animator!;
+    this.updateSaberHum();
     if (!this.alive) {
       this.respawnTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
@@ -815,6 +816,19 @@ export class Player {
     });
   }
 
+  /**
+   * Blade hum while the sabers are out. It leans up during a swing, so the
+   * weapon sounds alive in the hand rather than only at the moment of contact,
+   * and drops to nothing when they are stowed, the shield is up, or she dies.
+   * Called from the top of update(), which every path — cover included —
+   * passes through before it can return early.
+   */
+  private updateSaberHum(): void {
+    if (MANDO_ROSTER[this.characterId].melee !== 'sabers') return;
+    const drawn = this.alive && this.weapon === 'gaffi' && !this.blocking;
+    audio.setSaberHum(this.slot, drawn ? 0.55 + (this.meleeTimer > 0 ? 0.8 : 0) : 0);
+  }
+
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
     // weapon switch
     if (input.switchPressed) {
@@ -828,7 +842,9 @@ export class Player {
     this.meleeTimer -= dt;
     if (input.meleePressed && this.meleeTimer <= 0) {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
-      const clip = this.meleeStep === 1 ? 'melee1' : this.meleeStep === 2 ? 'melee2' : 'melee3';
+      // twin blades get their own combo; everyone else swings the staff set
+      const set = MANDO_ROSTER[this.characterId].melee === 'sabers' ? 'saber' : 'melee';
+      const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
       const dur = this.char.animator!.playOnce('upper', clip, 0.05);
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
@@ -873,7 +889,11 @@ export class Player {
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
-        if (hitAny) { audio.meleeHit(); this.cam.shake(0.1); game.hitMarker(this.slot); }
+        if (hitAny) {
+          audio.meleeHit(MANDO_ROSTER[this.characterId].melee ?? 'gaffi');
+          this.cam.shake(0.1);
+          game.hitMarker(this.slot);
+        }
       }
     }
 

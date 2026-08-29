@@ -268,7 +268,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   let melee: THREE.Group;
   if (cfg.melee === 'sabers') {
     melee = makeSaber(silver, dark);
-    offhand = makeSaber(silver, dark);
+    offhand = makeSaber(silver, dark, { light: false });
     offhand.rotation.x = Math.PI / 2;
     offhand.visible = false;
     b.weaponL.add(offhand);

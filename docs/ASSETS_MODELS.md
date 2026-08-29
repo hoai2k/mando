@@ -130,9 +130,24 @@ nikto_swoop` and the creature `massiff` / `massiff_static`, plus the new-board t
 `flametrooper`, `quarren`, `alamite`. **Everything requested is delivered** — the last batch (`ring_enforcer`, `krykna`,
 `krykna_brood`, `interceptor_drone`, and the playable hunters `ventress`, `embo`,
 `bossk`) landed on 2026-08-28 and is integrated; the fourth hunter, the blue gunslinger,
-reuses the delivered `duelist.glb`. Open on the model side: only the three hunter weapon
-props (`saber_curved`, `crossbow`, `longrifle` — procedural stand-ins in game, sheet
-requests in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md)).**
+reuses the delivered `duelist.glb`. **Nothing on the model side is blocking.**
+
+The three hunter weapon props (`saber_curved`, `crossbow`, `longrifle`) are **deliberately
+staying procedural** — they are a standing offer, not an outstanding request:
+
+- The **twin sabers** are mostly not a model at all. The hilt is 15 cm of a 1-metre
+  weapon and is half-hidden in a fist; everything the eye reads — the white-hot core, the
+  two red sheaths, the light it throws — is FX geometry that no `.glb` can supply. An
+  authored hilt would replace the least visible part of the weapon.
+- The **crossbow** and **long rifle** are held props seen from a chase camera 4.6 m back,
+  and both already read at silhouette level (forward-swept limbs and a glowing string;
+  long barrel, scope, stock). A megabyte of download each buys detail at a scale the
+  player never sees.
+- The swap path stays wired regardless: drop `saber_curved.glb`, `crossbow.glb` or
+  `longrifle.glb` at `public/models/` and `swapWeapon` picks it up with no code change.
+
+Effort that would have gone into the props went into the blades instead — see the saber
+section in [`PLAN.md`](PLAN.md).
 
 ### Three intake paths
 

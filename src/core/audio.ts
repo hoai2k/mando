@@ -23,7 +23,7 @@ type SampleName =
   | 'splash_in' | 'splash_out' | 'mamacore_roar' | 'floor_charge'
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
-  | 'crossbow_shot' | 'longrifle_shot' | 'saber_swing' | 'saber_ignite'
+  | 'crossbow_shot' | 'longrifle_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat';
 
 /** Enemy voice bark names — flavor sounds with no synth fallback. */
@@ -36,6 +36,13 @@ export type BarkName =
 /** Footfall surfaces, one per board flavor. */
 export type FootSurface = 'sand' | 'metal' | 'snow' | 'stone';
 
+/** one wielder's looping blade hum */
+interface SaberVoice {
+  sample: AudioBuffer | null;
+  set: (level: number) => void;
+  stop: () => void;
+}
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -46,6 +53,8 @@ export class AudioEngine {
   private jetpackNodes: ({
     gain: GainNode; filter: BiquadFilterNode; src: AudioBufferSourceNode; sample: AudioBuffer | null;
   } | undefined)[] = [];
+  /** per-player looping blade hum, built the same way */
+  private saberNodes: (SaberVoice | undefined)[] = [];
   private ambientStop: (() => void) | null = null;
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
@@ -100,7 +109,7 @@ export class AudioEngine {
       'splash_in', 'splash_out', 'mamacore_roar', 'floor_charge',
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
-      'crossbow_shot', 'longrifle_shot', 'saber_swing', 'saber_ignite',
+      'crossbow_shot', 'longrifle_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
     ];
     await Promise.all(names.map(async (n) => {
@@ -248,8 +257,16 @@ export class AudioEngine {
     this.zap(90, 260, 0.16, 'sawtooth', 0.22, 0.02);
     this.zap(140, 390, 0.16, 'triangle', 0.12, 0.02);
   }
-  meleeHit(): void {
-    if (!this.ctx || this.playSample('melee_hit', 0.8)) return;
+  meleeHit(kind: 'gaffi' | 'sabers' = 'gaffi'): void {
+    if (!this.ctx) return;
+    if (kind === 'sabers') {
+      // an energy blade biting does not clang: it cracks and sizzles
+      this.zap(880, 120, 0.14, 'sawtooth', 0.34);
+      this.burst(0.16, 0.26, 3200, 0, 1.2);
+      this.burst(0.09, 0.18, 700, 0.01, 2);
+      return;
+    }
+    if (this.playSample('melee_hit', 0.8)) return;
     this.zap(160, 55, 0.12, 'triangle', 0.5);
     this.burst(0.08, 0.3, 900, 0, 1.5);
   }
@@ -413,6 +430,76 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     node.gain.gain.setTargetAtTime(thrust * 0.34, t, 0.05);
     node.filter.frequency.setTargetAtTime(300 + thrust * 1700, t, 0.06);
+  }
+
+  /**
+   * The idle hum of a drawn energy blade. Level 0 stows it; above that it is
+   * the blade's presence, and callers push it up with swing speed so the hum
+   * leans into a movement the way the real thing does.
+   *
+   * Synthesized when no sample is present: two detuned saws an octave apart
+   * through a lowpass, which is what gives it the beating, alive quality a
+   * single tone lacks.
+   */
+  setSaberHum(slot: number, level: number): void {
+    if (!this.ctx) return;
+    let node = this.saberNodes[slot];
+    const sample = this.samples.get('saber_hum') ?? null;
+    // same rebuild rule as the jetpack: a voice built around the synth
+    // fallback must be replaced once the authored loop decodes
+    if (node && node.sample !== sample) {
+      node.stop();
+      node = undefined;
+    }
+    if (!node) node = this.saberNodes[slot] = this.makeSaberVoice(sample);
+    node.set(level);
+  }
+
+  private makeSaberVoice(sample: AudioBuffer | null): SaberVoice {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 900;
+    filter.Q.value = 1.4;
+    filter.connect(gain).connect(this.sfx);
+    const parts: Array<{ stop: () => void }> = [];
+    if (sample) {
+      const src = ctx.createBufferSource();
+      src.buffer = sample;
+      src.loop = true;
+      src.connect(filter);
+      src.start();
+      parts.push({ stop: () => { try { src.stop(); } catch { /* already stopped */ } } });
+    } else {
+      for (const [freq, detune, type] of [[104, -6, 'sawtooth'], [208, 7, 'sawtooth'], [52, 0, 'triangle']] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = freq;
+        o.detune.value = detune;
+        o.connect(filter);
+        o.start();
+        parts.push({ stop: () => { try { o.stop(); } catch { /* already stopped */ } } });
+      }
+    }
+    return {
+      sample,
+      set: (level: number) => {
+        const t = ctx.currentTime;
+        gain.gain.setTargetAtTime(Math.min(level, 1.6) * 0.16, t, 0.08);
+        filter.frequency.setTargetAtTime(700 + Math.min(level, 1.6) * 900, t, 0.1);
+      },
+      stop: () => { for (const p of parts) p.stop(); gain.disconnect(); },
+    };
+  }
+
+  /** Tear down the saber voices — same lifetime problem as the jetpacks. */
+  stopSabers(): void {
+    for (let slot = 0; slot < this.saberNodes.length; slot++) {
+      this.saberNodes[slot]?.stop();
+      this.saberNodes[slot] = undefined;
+    }
   }
 
   /**

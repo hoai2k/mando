@@ -227,6 +227,7 @@ export class Game {
     audio.stopAmbient();
     audio.stopMusic();
     audio.stopJetpacks();
+    audio.stopSabers();
 
     disposeSubtree(this.scene);
     this.rocketGeo.dispose();

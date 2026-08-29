@@ -215,7 +215,11 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
  * an FX mesh (white-hot core in two red sheaths), lives in its own subgroup so
  * an authored hilt swap leaves it alone, and casts no shadow.
  */
-export function makeSaber(mHilt: THREE.Material, mDark: THREE.Material): THREE.Group {
+export function makeSaber(
+  mHilt: THREE.Material,
+  mDark: THREE.Material,
+  opts: { light?: boolean } = {},
+): THREE.Group {
   const g = new THREE.Group();
   // hilt: main grip with a curved hook at the pommel
   addCyl(g, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
@@ -237,6 +241,17 @@ export function makeSaber(mHilt: THREE.Material, mDark: THREE.Material): THREE.G
     tip.position.y = BLADE_LEN;
     tip.castShadow = false;
     blade.add(tip);
+  }
+  // A blade that lights nothing reads as a painted stick. One point light per
+  // wielder — on the main hand only, since two would double the cost for a
+  // glow the eye reads as one — parented to the blade so it travels with the
+  // swing and, because the renderer skips invisible subtrees, costs nothing
+  // while the weapon is stowed.
+  if (opts.light !== false) {
+    const light = new THREE.PointLight(0xff3a24, 3.2, 5, 2);
+    light.position.y = BLADE_LEN * 0.45;
+    light.castShadow = false;
+    blade.add(light);
   }
   swapWeapon(g, 'saber_curved', 0.26, -Math.PI / 2);
   return g;

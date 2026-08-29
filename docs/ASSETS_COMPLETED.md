@@ -157,3 +157,14 @@ Signature-weapon voices for the hunter roster, generated with
 `longrifle_shot` (Skarvek's and VX-9's long rifle), `saber_swing` (Sylla Morvane's
 melee, pitch-varied per combo step), `saber_ignite` (drawing the twin blades).
 Synth fallbacks remain in `src/core/audio.ts`.
+
+---
+
+## Audio — `saber_hum`, delivered 2026-08-29
+
+| File | Used by | Original prompt |
+|---|---|---|
+| `saber_hum.mp3` | Looping blade hum while the twin sabers are drawn (`audio.setSaberHum`) | "Steady energy blade idle hum: low warm electrical drone with a slow beating pulse and faint high harmonic shimmer, constant level, no swings, no crackle, seamless continuous loop" |
+
+The engine synthesizes a fallback (two detuned saws an octave apart plus a sub triangle
+through a lowpass) when the file is absent, so the hum works either way.

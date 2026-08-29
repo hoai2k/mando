@@ -240,6 +240,40 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 0.3, 0.55], [[-12, 0, 0], [14, 0, 0], [0, 0, 0]]),
   ]);
 
+  // ---------- UPPER: twin-saber combo ----------
+  // The staff combo above parks the off hand: it is holding the far end of a
+  // two-handed weapon, so hits one and two swing the right arm alone. With a
+  // blade in each hand that reads as one dead arm, so the dual-wield set
+  // alternates leads and finishes on a cross-slash that throws both out at once.
+  clips.saber1 = new THREE.AnimationClip('saber1', 0.36, [
+    qt('chest', [0, 0.1, 0.22, 0.36], [[2, 26, 0], [2, 32, 0], [4, -26, 0], [2, 0, 0]]),
+    // right leads: cocked high outside, then cuts down across the body
+    qt('upperArmR', [0, 0.1, 0.22, 0.36], [[-100, 34, -24], [-112, 44, -26], [-52, -48, 4], [-30, 0, -8]]),
+    qt('forearmR', [0, 0.1, 0.22, 0.36], [[-58, 0, 0], [-70, 0, 0], [-8, 0, 0], [-25, 0, 0]]),
+    // left counter-poises out and back, so the second blade is always live
+    qt('upperArmL', [0, 0.1, 0.22, 0.36], [[-24, -10, -46], [-34, -14, -58], [-14, -4, -30], [-22, -2, -42]]),
+    qt('forearmL', [0, 0.22, 0.36], [[-40, 14, 18], [-22, 20, 24], [-30, 18, 22]]),
+    qt('head', [0, 0.22, 0.36], [[0, -12, 0], [0, 12, 0], [0, 0, 0]]),
+  ]);
+  clips.saber2 = new THREE.AnimationClip('saber2', 0.38, [
+    qt('chest', [0, 0.1, 0.24, 0.38], [[2, -28, 0], [2, -36, 0], [4, 28, 0], [2, 0, 0]]),
+    // left leads this time, mirroring the first hit
+    qt('upperArmL', [0, 0.1, 0.24, 0.38], [[-100, -34, -24], [-112, -44, -18], [-52, 48, -52], [-22, -2, -42]]),
+    qt('forearmL', [0, 0.1, 0.24, 0.38], [[-58, 10, 10], [-70, 12, 12], [-8, 20, 20], [-30, 18, 22]]),
+    qt('upperArmR', [0, 0.1, 0.24, 0.38], [[-26, 10, -6], [-36, 14, -4], [-16, 4, -10], [-30, 0, -8]]),
+    qt('forearmR', [0, 0.24, 0.38], [[-40, 0, 0], [-18, 0, 0], [-25, 0, 0]]),
+    qt('head', [0, 0.24, 0.38], [[0, 12, 0], [0, -12, 0], [0, 0, 0]]),
+  ]);
+  clips.saber3 = new THREE.AnimationClip('saber3', 0.5, [
+    // finisher: both blades gathered across the chest, then thrown apart
+    qt('chest', [0, 0.18, 0.32, 0.5], [[-6, 0, 0], [-16, 0, 0], [16, 0, 0], [2, 0, 0]]),
+    qt('upperArmR', [0, 0.18, 0.32, 0.5], [[-70, -40, 10], [-84, -52, 14], [-64, 62, -22], [-30, 0, -8]]),
+    qt('forearmR', [0, 0.18, 0.32, 0.5], [[-72, 0, 0], [-88, 0, 0], [-10, 0, 0], [-25, 0, 0]]),
+    qt('upperArmL', [0, 0.18, 0.32, 0.5], [[-70, 40, -10], [-84, 52, -14], [-64, -62, -70], [-22, -2, -42]]),
+    qt('forearmL', [0, 0.18, 0.32, 0.5], [[-72, 10, 10], [-88, 12, 12], [-10, 20, 20], [-30, 18, 22]]),
+    qt('head', [0, 0.32, 0.5], [[-10, 0, 0], [12, 0, 0], [0, 0, 0]]),
+  ]);
+
   // ---------- UPPER: block (shield up, braced behind it) ----------
   clips.blockUpper = new THREE.AnimationClip('blockUpper', 2, [
     qt('chest', [0, 1, 2], [[10, 6, 0], [12, 7, 0], [10, 6, 0]]),
