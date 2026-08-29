@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
-import { matchAssets, warmBoardSelect, warmMatch, warmTerritory, warmTitle } from './core/prefetch';
+import { matchAssets, warmBoardSelect, warmMatch, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
 import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
 import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
@@ -15,10 +15,11 @@ import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
+import { VsScreen } from './ui/vs';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, type MandoId } from './characters/mandalorians';
-import { PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
-import { modesEnabled, type GameMode } from './game/modes';
+import { playableDef, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { BOSS_KIND, modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
 
@@ -95,7 +96,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'planets' | 'characters' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard = BOARDS[0];
@@ -130,7 +131,7 @@ if (modesEnabled()) {
   title.addButtons(null, [
     { label: 'Wave Battle', action: () => pickMode('wave', 'select') },
     { label: 'PvP', action: () => pickMode('pvp', 'select') },
-    { label: 'Campaign', action: () => pickMode('campaign', 'planets') },
+    { label: 'Missions', action: () => pickMode('campaign', 'planets') },
   ]);
 } else {
   title.addButtons(null, [
@@ -170,6 +171,10 @@ select.addButtons(cards, BOARDS.map((info) => ({
 })));
 select.onBack = () => setState('title');
 
+// ----- pvp VS splash (?modes only) -----
+const vs = new VsScreen(menuLayer);
+vs.onDone = () => startGame();
+
 // ----- campaign planet strip (?modes only) -----
 const planets = new PlanetSelect(menuLayer);
 planets.onPick = (info) => {
@@ -190,7 +195,15 @@ const charSelect = new CharacterSelect(menuLayer, {
     // pad out the unused slots so a later index is never undefined
     while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     playerCount = count;
-    startGame();
+    // PvP gets its VS splash first; the match's files warm behind it, so the
+    // showmanship costs the drop nothing
+    if (mode === 'pvp') {
+      warmMatch(chosenBoard.id, chars, mode);
+      vs.show(chars);
+      setState('vs');
+    } else {
+      startGame();
+    }
   },
   onBack: () => setState(mode === 'campaign' ? 'planets' : 'select'),
   padForPlayer: () => input.padForPlayer,
@@ -313,6 +326,7 @@ end.addButtons(null, [
 end.onBack = () => quitToTitle();
 
 (window as unknown as { __charsel?: CharacterSelect }).__charsel = charSelect; // debug/testing handle
+(window as unknown as { __vs?: VsScreen }).__vs = vs;                          // debug/testing handle
 (window as unknown as { __input?: InputManager }).__input = input;              // debug/testing handle
 // Board factories, so a test can build any board on its own — the collision
 // audit in tools/audit-collision.mjs walks every board's meshes against its
@@ -352,11 +366,15 @@ function setState(s: AppState): void {
       charSelect.configure(mode === 'pvp'
         ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2 }
         : { roster: STANDARD_ROSTER, title: 'Choose Your Mandalorian' });
+      // the widened roster is all browsable: pull its models down on idle
+      // bandwidth while the players flip through it
+      if (mode === 'pvp') warmPvpRoster();
       charSelect.show();
     }
   } else charSelect.hide();
   if (s === 'planets') planets.show();
   else planets.hide();
+  if (s !== 'vs') vs.hide();
   if (s !== 'loading') loading.hide();
   const scr = activeScreen();
   if (scr) scr.show();
@@ -379,16 +397,30 @@ function startGame(): void {
   disposeGame();
   const chars = chosenChars.slice(0, playerCount);
   // anything still missing goes to the front of the queue now
-  warmMatch(chosenBoard.id, chars);
+  warmMatch(chosenBoard.id, chars, mode);
   loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
   setState('loading');
   loadTimer = 0;
   requestAnimationFrame(() => requestAnimationFrame(() => buildMatch()));
 }
 
-/** The hostiles worth showing on the loading screen: the opening wave, and the elite that ends it. */
+/**
+ * The hostiles worth showing on the loading screen, per mode: the wave game's
+ * opening wave and its closing elite; the campaign's trailhead kinds and the
+ * warlord waiting at the end; PvP's own squads (the rivals themselves are the
+ * cast, and the VS splash has already introduced them).
+ */
 function keyEnemies(board: BoardId): EnemyKind[] {
+  if (mode === 'pvp') {
+    const squads = chosenChars.slice(0, playerCount)
+      .map((id) => playableDef(id).profile.squad?.kind)
+      .filter((k): k is EnemyKind => !!k);
+    return [...new Set(squads)];
+  }
   const opening = waveComposition(board, 1, 1).map((e) => e.kind);
+  if (mode === 'campaign') {
+    return [...new Set<EnemyKind>([...opening.slice(0, 2), BOSS_KIND[board]])];
+  }
   const last = waveComposition(board, FINAL_WAVE, 1).map((e) => e.kind);
   const picked: EnemyKind[] = [...opening.slice(0, 2), last[last.length - 1]];
   return [...new Set(picked.filter(Boolean))];
@@ -434,7 +466,7 @@ let built = false;
 function updateLoading(dt: number): void {
   loadTimer += dt;
   const chars = chosenChars.slice(0, playerCount);
-  const keys = [...matchAssets(chosenBoard.id, chars), ...(built ? boardLoads() : [])];
+  const keys = [...matchAssets(chosenBoard.id, chars, mode), ...(built ? boardLoads() : [])];
   const p = tracked.progress(keys);
   // the build itself is a real part of the wait, and worth a moving bar
   const ratio = built ? 0.15 + p.ratio * 0.85 : Math.min(0.15, loadTimer * 0.3);
@@ -504,7 +536,7 @@ Object.assign(window, {
   },
   // how many of this drop's required files are still outstanding, for tests:
   // it must read 0 by the time the match is on screen
-  __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount))).pending,
+  __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount), mode)).pending,
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
     if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
@@ -558,6 +590,8 @@ function frame(now: number): void {
     for (const e of events) charSelect.handle(e.action, e.source);
   } else if (state === 'planets') {
     for (const e of events) planets.handle(e.action);
+  } else if (state === 'vs') {
+    for (const e of events) if (e.action === 'confirm') vs.finish();
   } else if (state === 'loading') {
     // an impatient player can always drop early: everything still coming has a
     // fallback, so the worst case is a surface that pops in a second later
@@ -571,6 +605,7 @@ function frame(now: number): void {
   }
 
   if (state === 'loading') updateLoading(dt);
+  if (state === 'vs') vs.update(dt);
 
   if (game && state !== 'title' && state !== 'select' && state !== 'characters' && state !== 'loading') {
     if (state === 'playing') {

@@ -28,7 +28,7 @@ export class PlanetSelect {
 
     const title = document.createElement('div');
     title.className = 'menu-title';
-    title.textContent = 'The Campaign';
+    title.textContent = 'Missions';
     this.root.appendChild(title);
     const sub = document.createElement('div');
     sub.className = 'menu-subtitle';
@@ -52,7 +52,7 @@ export class PlanetSelect {
           ${info.gradient};"></div>
         <div class="planet-name">${info.name}</div>
         <div class="planet-desc">${info.desc}</div>
-        <div class="planet-stage">Chapter ${i + 1}</div>`;
+        <div class="planet-stage">Mission ${i + 1}</div>`;
       cell.addEventListener('click', () => {
         if (this.index === i) this.pick();
         else { this.index = i; audio.uiMove(); this.layout(); }
@@ -63,7 +63,7 @@ export class PlanetSelect {
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> travel the sector · <b>A</b>/<b>Enter</b>/<b>click</b> begin the chapter · <b>B</b>/<b>Esc</b> back';
+    hint.innerHTML = '<b>◀ ▶</b> travel the sector · <b>A</b>/<b>Enter</b>/<b>click</b> begin the mission · <b>B</b>/<b>Esc</b> back';
     this.root.appendChild(hint);
   }
 

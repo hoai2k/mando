@@ -49,7 +49,21 @@ const startMode = async (mode, players, board, chars) => {
 await sleepFrames(6);
 const labels = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
 check('?modes title offers the three modes',
-  labels.includes('Wave Battle') && labels.includes('PvP') && labels.includes('Campaign'), labels.slice(0, 3).join(','));
+  labels.includes('Wave Battle') && labels.includes('PvP') && labels.includes('Missions'), labels.slice(0, 3).join(','));
+
+// ---- the VS splash (shown between the PvP select and the drop) ----
+await page.evaluate(() => {
+  const vs = window.__vs;
+  const done = vs.onDone;
+  vs.onDone = () => {};
+  vs.show(['din', 'npc:enforcer']);
+  window.__vsCounts = [document.querySelectorAll('.vs-panel').length, document.querySelectorAll('.vs-emblem').length];
+  vs.hide();
+  vs.onDone = done;
+});
+const vsCounts = await page.evaluate(() => window.__vsCounts);
+check('pvp: the VS splash builds a panel per fighter and a seam emblem',
+  vsCounts[0] === 2 && vsCounts[1] === 1, vsCounts.join(','));
 
 // ---- PvP ----
 await startMode('pvp', 2, 'desert', ['din', 'npc:tusken']);
@@ -150,7 +164,7 @@ await page.goto('http://localhost:4173/');
 await sleepFrames(8);
 const plain = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
 check('without ?modes the title is the single Press Start',
-  plain.includes('Press Start') && !plain.includes('PvP') && !plain.includes('Campaign'), plain.slice(0, 3).join(','));
+  plain.includes('Press Start') && !plain.includes('PvP') && !plain.includes('Missions'), plain.slice(0, 3).join(','));
 
 // The final flag-off check navigates the page, which cancels any .glb texture
 // still decoding and surfaces as a loader error about a revoked blob URL.

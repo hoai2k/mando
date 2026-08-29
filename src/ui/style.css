@@ -414,3 +414,58 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   opacity: 0; transition: opacity 0.3s;
 }
 .planet-cell.focused .planet-desc { opacity: 1; }
+
+/* ---- PvP VS splash ---- */
+.vs-screen {
+  position: absolute; inset: 0; z-index: 30; overflow: hidden;
+  background: #05060a; cursor: pointer;
+}
+.vs-panel {
+  position: absolute; inset: 0;
+  animation: vs-slam 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.vs-panel.from-left { --vs-from: -60vw; }
+.vs-panel.from-right { --vs-from: 60vw; }
+@keyframes vs-slam {
+  from { transform: translateX(var(--vs-from, -60vw)); }
+  to { transform: translateX(0); }
+}
+.vs-fighter {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  text-align: center; width: 300px; max-width: 24vw;
+}
+.vs-face {
+  width: 170px; height: 200px; margin: 0 auto 18px;
+  background-size: cover; background-position: center top;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.6));
+}
+.vs-face svg { width: 100%; height: 100%; }
+.vs-face.has-art { border-radius: 10px; }
+.vs-face.has-art svg { display: none; }
+.vs-tag {
+  font-size: 13px; letter-spacing: 0.4em; color: rgba(255,255,255,0.75);
+  text-transform: uppercase;
+}
+.vs-name {
+  margin-top: 6px; font-size: clamp(18px, 2.2vw, 30px); letter-spacing: 0.18em;
+  text-transform: uppercase; color: #f4ecdc; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+  white-space: nowrap;
+}
+.vs-kit { margin-top: 6px; font-size: 12px; letter-spacing: 0.22em; color: rgba(255,255,255,0.55); text-transform: uppercase; }
+.vs-emblem {
+  position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(-8deg) scale(1);
+  font-size: 40px; font-style: italic; font-weight: 800; letter-spacing: 0.04em;
+  color: #ffd77a; text-shadow: 0 0 22px rgba(255,170,60,0.55), 0 3px 0 #6b4a12, 0 6px 18px rgba(0,0,0,0.9);
+  animation: vs-pop 0.5s 0.35s cubic-bezier(0.16, 1.6, 0.3, 1) both;
+  pointer-events: none;
+}
+.vs-emblem.main { font-size: clamp(64px, 9vw, 120px); }
+@keyframes vs-pop {
+  from { transform: translate(-50%, -50%) rotate(-8deg) scale(0); opacity: 0; }
+  to { transform: translate(-50%, -50%) rotate(-8deg) scale(1); opacity: 1; }
+}
+/* three- and four-way splits: tighter type so names stay inside their slice */
+.vs-fighter.narrow { max-width: 19vw; }
+.vs-fighter.narrow .vs-name { font-size: clamp(13px, 1.6vw, 21px); white-space: normal; line-height: 1.25; }
+.vs-fighter.narrow .vs-kit { font-size: 10px; }
+.vs-fighter.narrow .vs-face { width: 130px; height: 154px; }
