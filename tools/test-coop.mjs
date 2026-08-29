@@ -29,6 +29,27 @@ const line = () => h.page.evaluate(() => [...document.querySelectorAll('.charsel
 const speeds = () => h.page.evaluate(() => window.__game.players.map(
   (p) => +(Math.hypot(p.velocity.x, p.velocity.z) > 0.5)));
 
+/**
+ * Hold a pad's stick until the expected slot is the one moving.
+ *
+ * A fixed hold and one sample is a coin flip here: software rendering runs the
+ * page at a frame or two a second, so a one-second hold can span no frame in
+ * which the player is up to speed, and the check fails on a game that is
+ * working. Hold, and read until the answer settles or the deadline passes —
+ * a slot that never moves still fails, which is the regression worth catching.
+ */
+async function movesUnder(padIndex, want, timeoutMs = 20000) {
+  await h.pads[padIndex].stick('left', 0, -1);
+  const t0 = Date.now();
+  let got = await speeds();
+  while (JSON.stringify(got) !== JSON.stringify(want) && Date.now() - t0 < timeoutMs) {
+    await sleep(400);
+    got = await speeds();
+  }
+  await h.pads[padIndex].release();
+  return got;
+}
+
 /** title -> board -> the character select, driven by pad 0 */
 async function toCharacterSelect() {
   await h.waitForText(/PRESS START|WAVE BATTLE/i);
@@ -71,9 +92,7 @@ check('the joining pad takes seat two', await seats(), [0, 3, -1, -1]);
 check('the line is two players and one open place', (await line()).length, 3);
 
 check('two players start', await startWith([0, 3]), 2);
-await h.pads[3].stick('left', 0, -1, 1000);
-check('player two moves, and only player two', await speeds(), [0, 1]);
-await h.pads[3].release();
+check('player two moves, and only player two', await movesUnder(3, [0, 1]), [0, 1]);
 
 // ---- 3. a player who drops out closes the line up behind them ----
 await h.page.evaluate(() => window.__quitToTitle?.());
@@ -86,9 +105,7 @@ await sleep(1200);
 check('the line closes up', await seats(), [0, 2, 3, -1]);
 check('one open place returns', (await line()).length, 4);
 check('three players start', await startWith([0, 2, 3]), 3);
-await h.pads[3].stick('left', 0, -1, 1000);
-check('the last player drives their own character', await speeds(), [0, 0, 1]);
-await h.pads[3].release();
+check('the last player drives their own character', await movesUnder(3, [0, 0, 1]), [0, 0, 1]);
 
 // ---- 4. a split-screen match hands the whole canvas back ----
 // The viewport is renderer state that outlives a render: left on the last
