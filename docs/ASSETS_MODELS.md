@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every model this document has ever asked for has been delivered and integrated** — characters, environment sculpts, weapon props and the game-mode props, the last of them (`pistol`, `blast_door`, `corridor_crate`) on 2026-08-29. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the [monster boss batch](#monster-bosses--open-2026-08-29) opened by the boss design round (`docs/BOSSES.md`) and nothing else — the environment batch, the four signature weapon props and the game-mode props (`pistol`, `blast_door`, `corridor_crate`) all landed the same day. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -144,6 +144,45 @@ boss bar — remain future work, and their voice sets are deferred with them
 | **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
 | **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. |
 
+## Monster bosses — OPEN 2026-08-29
+
+Six large creature bosses, one per board that has a monster, designed in
+[`docs/BOSSES.md`](BOSSES.md) — the fights, phases, weak points and numbers live
+there; this is the model brief. **All six are open.** Order of work is the standard
+pipeline: reference sheets first
+([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--monster-boss-reference-sheets-for-image-to-3d),
+one `<id>_ref.png` creature canvas each) → model → gameplay. Nothing in the game
+blocks on them — the promoted-elite bosses stand until a monster lands.
+
+**Intake:** all six are ◆ creatures through `loadCreature` — own free-form rigs,
+placed/scaled/grounded by the loader, movement and gait authored in code against the
+named nodes (the massiff/krykna pattern in `src/anim/quadruped.ts`); clips shipped in
+the .glb win, as everywhere. **The weak-zone nodes are gameplay**, exactly like the
+broodmother's `sac1..3`: the game hangs hit volumes and emissive pulses off them, so
+they must be distinct named meshes/nodes placed where the sheet shows them. Origin at
+the resting ground/waterline point, +Z forward, real-world scale per the size column.
+Style per the character sheets: stylized-realistic, weathered, battle-scarred,
+silhouette readable at 30 m, original fan designs only.
+
+**Budgets:** these are the largest and closest-inspected creatures in the game —
+≤ 15k tris and one 1024² PBR set (baseColor / metal-rough / normal + **emissive**,
+which every one of them uses for its weak zones) for the four full-body monsters;
+the two partial-body colossi (`krayt_dragon`, `mythosaur`) may take ≤ 20k tris and
+a 2048² set. The mudhorn's wool and the mamacore's barbels should be card/shell
+geometry, not fur systems.
+
+| Id | Board | Size | Rig nodes (gameplay in **bold**) | Constraints |
+|---|---|---|---|---|
+| `mudhorn` | Waystation | 2.6 m shoulder, 4.5 m long | `head, jaw, horn,` **`nape`**`, legFL/FR/BL/BR, tail1..2` | Shaggy matted wool as shell/card geometry; the horn is its weapon, so give it real length (~1 m) and a worn tip; **nape** sits under the horn boss, exposed when the head is down. |
+| `ravinak` | Crevasse | 8 m long, ~2.6 m at the back | `head, jaw, tuskL/R,` **`throat`**`, flipperFL/FR/BL/BR, body1..3, tail` | Belly kept smooth for its beached slide; **throat** is a pale soft panel readable from the front; back plates barnacled, not clean. |
+| `mamacore` | Trask | 12 m long | `head, jaw,` **`belly, gills1..3`**`, body1..5, finL/R, tailFin` | Mouth interior modelled (the camera will see down it during breaches); **gills** are three distinct emissive frill rows per flank pair; hide reads wet. |
+| `rancor` | Nevarro | 5 m tall | `head, jaw,` **`skullSoft`**`, spine1..2, upperArmL/R, forearmL/R, handL/R, upperLegL/R, lowerLegL/R, tail1..2` | Own rig even though biped — the arms outreach the legs and the canonical rig fits none of it; hands need spread-finger geometry (it grabs); **skullSoft** is behind the jaw hinge. |
+| `krayt_dragon` | Dune Sea | front 18 m of ~40 m; skull ~4 m wide | `head, jaw,` **`gullet`**`, collar, neck1..4, clawL/R, body1..6` | Model the forebody only — `body6` tapers to a clean sand-sleeve cut, never seen; **gullet** is an emissive throat mesh visible only through the open jaw; mouth interior modelled deep. |
+| `mythosaur` | Great Forge | visible 12 m (head, neck, claws) | `head, jaw, hornL/R,` **`eyeL/R, vents1..2`**`, neck1..4, clawL/R, back` | Must match the delivered `mythosaur_skull` sculpt (horn sweep, tusked jaw) — it is the same animal alive; `back` ends at the waterline in a clean cut; horns/skull are deflect armor, so make them read as plate; **eyes** and **vents** emissive. |
+
+Delivery as ever: `public/models/<id>.glb`, picked up automatically once the
+gameplay round wires `loadCreature(id)`; sheets to `reference/characters/`.
+
 ## Environment & hazard models — priority by impact
 
 **Every model on this page is delivered and integrated** (2026-08-29). The
@@ -154,8 +193,7 @@ rest followed the same day: `adobe_tower`, `adobe_gate`, `forge_brazier`,
 `alarm_console`, `street_kiosk`, `dock_shed`, `homestead_dome`, `mythosaur_skull`),
 the ambient-pass set (`bantha`, `sandcrawler`, `pipe_rack`, `fish_rack`) and the three
 vehicles (`speeder_bike`, `landspeeder`, `skiff`). Each hides its procedural stand-in
-the moment it loads and keeps it as the fallback. **Nothing on the model side is
-open.**
+the moment it loads and keeps it as the fallback. **This batch is closed.**
 
 Opened 2026-08-29 by an audit of all nine board modules (`src/world/*.ts`). Every
 structure, vehicle and hazard in the game is procedural primitive geometry today — the
@@ -274,8 +312,8 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
 wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
-`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **Nothing on the
-model side is open.**
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The monster boss
+batch is the only thing open on the model side.**
 
 ### Three intake paths
 
@@ -338,8 +376,8 @@ clip against a real model.
 
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
-everything around it, so it goes first. Nothing in this document is currently waiting on
-that pipeline — every id it names is on disk and in the game.
+everything around it, so it goes first. The monster bosses are what is in that pipeline
+now; every other id this document names is on disk and in the game.
 
 ## Game-mode props — requested and delivered 2026-08-29 (the `?modes` build)
 
@@ -370,5 +408,6 @@ Two notes for a re-export, since the corridor is generated rather than authored:
   distance.
 
 The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by design —
-no new boss sculpts are requested; a unique boss model becomes its own request only
-if a boss outgrows its base kind (see the expansion list).
+no new sculpts for *them*. The expansion that outgrows that rule now exists: the six
+[monster bosses](#monster-bosses--open-2026-08-29) above are the unique boss models,
+requested 2026-08-29 with their design doc (`docs/BOSSES.md`).

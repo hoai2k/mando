@@ -137,6 +137,29 @@ export class Hud {
     }
   }
 
+  /**
+   * The boss introduction card: letterbox bars and a name plate across the
+   * whole window, over the game's slow-motion reveal (game.ts drives that
+   * side). Built fresh per showing and removed after, so it survives layout
+   * rebuilds and never leaves a stray node behind.
+   */
+  bossIntro(title: string, sub: string): void {
+    const card = document.createElement('div');
+    card.className = 'boss-intro';
+    card.innerHTML = `
+      <div class="bi-bar top"></div>
+      <div class="bi-plate">
+        <div class="bi-kicker">— Warlord —</div>
+        <div class="bi-name">${title}</div>
+        <div class="bi-rule"></div>
+        <div class="bi-sub">${sub}</div>
+      </div>
+      <div class="bi-bar bottom"></div>`;
+    this.layer.appendChild(card);
+    window.setTimeout(() => card.classList.add('out'), 2800);
+    window.setTimeout(() => card.remove(), 3500);
+  }
+
   banner(text: string, sub?: string): void {
     for (const h of this.huds) {
       h.banner.textContent = text;
@@ -187,6 +210,8 @@ export class Hud {
       const boss = game.boss;
       if (boss && boss.alive) {
         h.boss.classList.add('show');
+        h.boss.classList.toggle('ph1', game.bossPhaseLevel === 1);
+        h.boss.classList.toggle('ph2', game.bossPhaseLevel === 2);
         h.bossName.textContent = boss.bossName;
         h.bossFill.style.transform = `scaleX(${Math.max(0, boss.hp / boss.maxHp)})`;
       } else {

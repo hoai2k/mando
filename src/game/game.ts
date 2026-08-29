@@ -22,8 +22,24 @@ import { ThirdPersonCamera } from '../core/camera';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
+/** length of the boss introduction card, in real seconds */
+const BOSS_INTRO_LEN = 3.4;
+/** simulation rate under the card — slow enough to read as a held breath */
+const BOSS_INTRO_TIMESCALE = 0.12;
+
+/** hands-off-the-sticks input, fed to everyone while the boss card is up */
+const BLANK_INPUT: FrameInput = {
+  moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+  dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+  meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+  zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+  throttleHeld: false, brakeHeld: false,
+};
+
 export interface GameEvents {
   banner: (text: string, sub?: string) => void;
+  /** the boss introduction card: letterbox + name, over the slow-motion reveal */
+  bossIntro?: (title: string, sub: string) => void;
   stateChanged: (s: MatchState) => void;
   hitMarker: (slot: number) => void;
 }
@@ -100,6 +116,12 @@ export class Game {
   /** the boss capping the wave game and the campaign, once spawned */
   boss: Enemy | null = null;
   private bossPhase = 0;
+  /** seconds left of the boss introduction: slow-motion, cameras on the warlord */
+  bossIntroT = 0;
+  /** countdown to the boss's shock-slam; re-armed after each one */
+  private bossMoveCd = 0;
+  /** seconds left of the slam telegraph — the get-out-of-range window */
+  private bossTelegraph = 0;
   /** campaign controller; null outside campaign mode */
   campaign: Campaign | null = null;
   /** campaign's one shared screen: the camera the party is watched through */
@@ -295,15 +317,36 @@ export class Game {
       const a = (i / 3) * Math.PI * 2;
       this.addReinforcement(guard, at.clone().add(new THREE.Vector3(Math.cos(a) * 6, 0.2, Math.sin(a) * 6)), 9900);
     }
-    this.events.banner(boss.bossName, 'Bring them down');
-    audio.waveStart();
+    // The introduction: three and a half seconds of slow motion with every
+    // camera on the warlord, under the letterboxed name card. Everyone on the
+    // field keeps their head down through it, so the reveal is never a cheap
+    // shot in either direction.
+    this.bossIntroT = BOSS_INTRO_LEN;
+    this.bossMoveCd = 8;
+    this.bossTelegraph = 0;
+    for (const e of this.enemies) if (e.alive) e.suppress(1.2);
+    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, `Warlord of ${this.board.name}`);
+    else this.events.banner(boss.bossName, 'Bring them down');
+    audio.bossHorn();
     return boss;
   }
 
-  /** boss phases: at ⅔ and ⅓ health the warlord calls its retinue */
-  private updateBoss(): void {
+  /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
+  get bossPhaseLevel(): number { return this.bossPhase; }
+
+  /**
+   * The boss fight's rhythm (docs/MODES.md §4a): phase turns at ⅔ and ⅓ health
+   * — a repulsor pulse that throws everyone off the warlord, a retinue call,
+   * and at the last third an enrage — plus a telegraphed shock-slam whenever
+   * someone camps inside arm's reach too long. The pulse deals no damage and
+   * the slam is survivable but emphatic: the fight punishes standing still,
+   * never punishes approaching.
+   */
+  private updateBoss(dt: number): void {
     const b = this.boss;
-    if (!b || !b.alive) return;
+    if (!b || !b.alive || this.state !== 'fighting') return;
+
+    // ---- phase turns ----
     const frac = b.hp / b.maxHp;
     const due = frac < 1 / 3 ? 2 : frac < 2 / 3 ? 1 : 0;
     if (due > this.bossPhase) {
@@ -315,9 +358,54 @@ export class Game {
         const e = this.addReinforcement(guard, b.position.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0.2, Math.sin(a) * 10)), 9900 + due);
         if (lead) e.alert(lead.position, true);
       }
-      this.events.banner(b.bossName, due === 1 ? 'They call for backup' : 'A last stand');
-      audio.waveStart();
+      // the turn itself is a beat: a damage-free repulsor pulse breaks any
+      // melee scrum so the new phase starts at range, on both sides' terms
+      this.bossShockwave(b, 10, 0, 9);
+      if (due === 2) b.enrage();
+      this.events.banner(b.bossName, due === 1 ? 'They call for backup' : 'Enraged — a last stand');
+      audio.bossHorn(false);
     }
+
+    // ---- the shock-slam: the anti-camping move ----
+    if (this.bossIntroT > 0) return;
+    if (this.bossTelegraph > 0) {
+      // winding up: ember ring so the radius is readable, then the hit
+      this.bossTelegraph -= dt;
+      if (Math.floor((this.bossTelegraph + dt) * 8) !== Math.floor(this.bossTelegraph * 8)) {
+        const a = Math.random() * Math.PI * 2;
+        this.particles.impactSparks(b.position.clone().add(new THREE.Vector3(Math.cos(a) * 3, 0.4, Math.sin(a) * 3)), 4);
+      }
+      if (this.bossTelegraph <= 0) {
+        this.bossShockwave(b, 8.5, 26, 12);
+        this.particles.explosion(b.position.clone());
+        this.bossMoveCd = 11 + Math.random() * 4;
+      }
+      return;
+    }
+    this.bossMoveCd -= dt;
+    if (this.bossMoveCd <= 0) {
+      const near = this.players.some((p) => p.alive && p.position.distanceToSquared(b.position) < 12 * 12);
+      if (!near) { this.bossMoveCd = 2; return; }   // nobody to punish — re-check soon
+      this.bossTelegraph = 1.15;
+      audio.impact();
+    }
+  }
+
+  /** throw every player inside `radius` up and away from the warlord */
+  private bossShockwave(b: Enemy, radius: number, dmg: number, push: number): void {
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      const away = p.position.clone().sub(b.position);
+      const d = away.setY(0).length();
+      if (d > radius) continue;
+      away.normalize();
+      if (dmg > 0) p.damage(dmg, b.position);
+      p.velocity.y = Math.max(p.velocity.y, push * 0.8);
+      p.velocity.x += away.x * push;
+      p.velocity.z += away.z * push;
+      p.cam.shake(dmg > 0 ? 0.3 : 0.15);
+    }
+    audio.explosion();
   }
 
   /**
@@ -468,6 +556,24 @@ export class Game {
   get aliveEnemyCount(): number { return this.enemies.filter((e) => e.alive).length; }
 
   update(dt: number, inputs: FrameInput[]): void {
+    // ---- the boss introduction ----
+    // Real time keeps passing for the card; the simulation runs at a fraction
+    // of it, and nobody's hands are on the sticks — the blanked inputs also
+    // stop a held trigger from firing through the reveal. Cameras converge on
+    // the warlord each frame; snapToward eases, so the pan reads as a shot
+    // rather than a cut.
+    if (this.bossIntroT > 0) {
+      this.bossIntroT -= dt;
+      dt *= BOSS_INTRO_TIMESCALE;
+      inputs = inputs.map(() => BLANK_INPUT);
+      const b = this.boss;
+      if (b && b.alive) {
+        const head = b.position.clone();
+        head.y += b.height * 0.7;
+        for (const p of this.players) p.cam.snapToward(head);
+        this.sharedCam?.snapToward(head);
+      }
+    }
     this.time += dt;
     this.hostileCache.clear();
     if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
@@ -551,7 +657,7 @@ export class Game {
     }
 
     // boss phases run wherever a boss stands (wave 11, campaign arena)
-    this.updateBoss();
+    this.updateBoss(dt);
 
     // ---- campaign objectives ----
     if (this.campaign && this.state === 'fighting') {

@@ -82,17 +82,13 @@ chant, bass wood flutes, analog synth pulse, and a lonely desert-western twang.
 | *White Deck Cadence* | "Sterile penal-facility precision: cold clipped electronic ticking in strict grid time, sequenced bass with a rising charge-up whine motif that peaks and discharges on the loop, pristine icy pads, curt processed drum hits like boots on plated floor, no warmth anywhere. Oppressive order. ~110 BPM, 3 minutes, seamless loop" |
 | *Beneath the Moon Pool* | "The same facility heard from underwater: a muffled low-passed echo of the deck cadence far above, slow sub-aquatic pads, kelp-forest shimmer, sonar-like pings, glowing-reef bell tones — dread turned weightless and strangely beautiful. ~3 minutes, loopable" |
 
-## Open — the ambient life & backdrop pass (PLAN.md §16)
+## Ambient life & backdrop voices — delivered 2026-08-29
 
-Voices for the planned atmosphere features. Like the section below, each needs its
-feature's hook before the file is worth producing — the hooks are named in the spec.
-
-| File | Prompt | Hook |
-|---|---|---|
-| `ship_pass` | "Large spacecraft passing at a distance: low doppler-shifted engine rumble swelling and receding, 4s" | Sky-traffic close pass (Waystation, Ringworld) |
-| `ship_landing` | "Heavy freighter landing sequence: descending thruster roar building to a touchdown thump, then an engine spool-down, 6s" | The Waystation working-pad cycle |
-| `bantha_low` | "Colossal woolly beast lowing: deep mournful bellow with a breathy rumbling tail, 3s" | Bantha idle timer + startle on a stopped bolt |
-| `steam_hiss` | "Industrial steam vent burst: sharp pressurized hiss softening into a fading plume, 2s" | Refinery vent cycle (positional) |
+`ship_pass` (sky-traffic close pass), `ship_landing` (the Waystation's working-pad
+touchdown and liftoff), `steam_hiss` (Refinery vent cycle) and `bantha_low` (the herd's
+idle low) all landed with their hooks — each is sample-first with a synth fallback and
+its volume set by the nearest player's range. Prompts recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md) and `tools/generate-sfx.mjs`.
 
 No gull file is needed — the requested `amb_rain` loop already carries the distant
 gulls the quay dressing wants.
@@ -108,21 +104,24 @@ These need a gameplay hook before the audio is worth producing.
 
 ## Open — future content
 
-Bosses, when built, will each want a set: an entrance roar or line, a taunt, a hurt, and a
-death. Deferred until the boss fights exist (see `ASSETS_MODELS.md`).
+Per-boss voice sets — an entrance roar or line, a taunt at each phase turn, a hurt, a
+death. The consumer exists now (the boss fights shipped 2026-08-29 with the horn, the
+phase banners and the base kind's barks standing in), so these are producible whenever
+distinct warlord voices feel worth nine sets of files.
 
 ## Game modes (`?modes`, 2026-08-29) — open, awaiting dedicated hooks
 
 The three modes shipped on existing voices: doors, checkpoints and pickups reuse UI
 confirms and the wave-clear chime, and every boss speaks with its base kind's barks.
-These become drop-in upgrades once their names are wired in `core/audio.ts`:
+These become drop-in upgrades once their names are wired in `core/audio.ts`
+(`boss_horn` graduated on 2026-08-29 — it is wired and delivered, opening the boss
+introduction card and, quieter, each phase turn):
 
 | File | Prompt | Hook (today's stand-in) |
 |---|---|---|
 | `door_cycle` | "Heavy blast door cycling open: hydraulic unlock clunk, deep metal slide, pressurized thunk at the stop, 2s" | corridor door teleport (`uiConfirm`) |
 | `checkpoint_chime` | "Small triumphant two-note beacon chime with a metallic shimmer tail, 1.5s" | campaign checkpoint (`waveClear`) |
 | `bacta_pickup` | "Glass-and-liquid pickup slurp with a soft healing shimmer, 1s" | bacta canister (`uiConfirm`) |
-| `boss_horn` | "A war-horn entrance sting: low brassy blast with a threatening sustain, 3s" | boss spawn banner (`waveStart`) |
 | `pvp_round_win` | "Short duel-won sting: two hard timpani hits under a rising metallic flourish, 2.5s" | PvP last-one-standing (`sting(true)`) |
 
 The per-boss voice sets deferred earlier now have their consumer (bosses exist as

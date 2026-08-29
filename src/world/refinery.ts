@@ -265,6 +265,33 @@ export function buildRefinery(): Board {
     });
   }
 
+  // ---- steam vents (PLAN.md §16.5) ----
+  // Six wall vents let off pressure on staggered randomized cycles: a hiss
+  // sized by the nearest player's distance and a couple of seconds of rising
+  // plume through the shared dust pool. Atmosphere only — no damage, no
+  // sight-block — though a plume that breaks line of sight is noted in the
+  // plan as a future stealth hook.
+  const ventMat = new THREE.MeshStandardMaterial({ color: 0x3a3e46, roughness: 0.7, metalness: 0.5 });
+  const ventGeo = new THREE.BoxGeometry(0.9, 0.9, 0.3);
+  interface Vent { pos: THREE.Vector3; dir: THREE.Vector3; next: number; plume: number; }
+  const vents: Vent[] = [];
+  for (const [vx, vy, vz, nx, nz] of [
+    [-48.3, 1.1, -12, 1, 0], [-48.3, 1.4, 18, 1, 0], [48.3, 1.2, -20, -1, 0],
+    [48.3, 1.0, 8, -1, 0], [-12, 1.3, -48.3, 0, 1], [22, 1.1, 48.3, 0, 1],
+  ] as const) {
+    const grille = new THREE.Mesh(ventGeo, ventMat);
+    grille.position.set(vx, vy, vz);
+    grille.rotation.y = nx !== 0 ? Math.PI / 2 : 0;
+    group.add(grille);
+    physics.addBox(vx, vy, vz, nx !== 0 ? 0.3 : 0.9, 0.9, nz !== 0 ? 0.3 : 0.9);
+    vents.push({
+      pos: new THREE.Vector3(vx + nx * 0.3, vy, vz + nz * 0.3),
+      dir: new THREE.Vector3(nx, 0.4, nz),
+      next: 4 + Math.random() * 10,
+      plume: 0,
+    });
+  }
+
   let alarmIn = 14;
   let alertPulse = 0;
   board.update = (dt: number, time: number, game?: Game) => {
@@ -284,6 +311,25 @@ export function buildRefinery(): Board {
         if (near) game.director.noise(game, near.position, 400);
       }
     }
+    // vents fire on their own clocks; the plume is a couple of seconds of
+    // upward puffs, the hiss louder the closer anyone is standing
+    for (const v of vents) {
+      if (v.plume > 0) {
+        v.plume -= dt;
+        if (game && Math.floor((v.plume + dt) * 9) !== Math.floor(v.plume * 9)) {
+          game.particles.dustPuff(v.pos.clone().addScaledVector(v.dir, Math.random() * 0.6), 5);
+        }
+      } else {
+        v.next -= dt;
+        if (v.next <= 0) {
+          v.next = 6 + Math.random() * 12;
+          v.plume = 2.2;
+          const near = game?.players.reduce((m, p) => Math.min(m, p.position.distanceTo(v.pos)), 999) ?? 999;
+          audio.steamHiss(Math.max(0.04, Math.min(0.45, 14 / Math.max(near, 4))));
+        }
+      }
+    }
+
     if (alertPulse > 0) {
       alertPulse -= dt;
       alertLight.intensity = (Math.sin(time * 9) * 0.5 + 0.5) * 90;

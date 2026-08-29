@@ -196,6 +196,42 @@ export function buildTrask(): Board {
     physics.addBox(fx, DECK_TOP + 1.05, fz, 2.4, 2.1, 1.6);
   }
 
+  // ---- quay dressing: buoys on the swell, rope coils on the deck (PLAN.md §16.6) ----
+  // The buoys ride the exact swell function the sea computes, so they always
+  // sit on the surface rather than in or above it; all decor, no colliders.
+  const buoyMat = new THREE.MeshStandardMaterial({ color: 0xb03a2a, roughness: 0.8 });
+  const buoyPostMat = new THREE.MeshStandardMaterial({ color: 0x3a352c, roughness: 0.9 });
+  const buoyGeo = new THREE.SphereGeometry(0.55, 8, 6);
+  const buoyPostGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.9, 5);
+  const buoys: THREE.Group[] = [];
+  for (const [ux, uz] of [
+    [-44, 6], [-41, 9], [14, -66], [17.5, -63], [44, -22], [40, 8], [43.5, 10.5], [-18, -70],
+  ] as const) {
+    const buoy = new THREE.Group();
+    const ball = new THREE.Mesh(buoyGeo, buoyMat);
+    ball.scale.y = 0.8;
+    buoy.add(ball);
+    const post = new THREE.Mesh(buoyPostGeo, buoyPostMat);
+    post.position.y = 0.6;
+    buoy.add(post);
+    buoy.position.set(ux, WATER_Y, uz);
+    buoy.userData.decor = true;
+    group.add(buoy);
+    buoys.push(buoy);
+  }
+  // rope coils: flattened tori by the bollards and rack corners — set dressing
+  const coilMat = new THREE.MeshStandardMaterial({ color: 0x5c4a30, roughness: 1 });
+  const coilGeo = new THREE.TorusGeometry(0.42, 0.13, 6, 12);
+  for (const [cx, cz] of [[-10, 30.5], [4, 31], [24, 29.5], [-27.5, -20], [1.5, -44], [29.5, -14]] as const) {
+    const coil = new THREE.Mesh(coilGeo, coilMat);
+    coil.rotation.x = -Math.PI / 2;
+    coil.position.set(cx, DECK_TOP + 0.08, cz);
+    coil.scale.y = 0.5;
+    coil.castShadow = true;
+    coil.userData.decor = true;
+    group.add(coil);
+  }
+
   // ---- the trawlers: decks that heave and drift on the swell ----
   const movers: Mover[] = [];
   interface BoatSpec {
@@ -376,6 +412,15 @@ export function buildTrask(): Board {
     }
     seaPos.needsUpdate = true;
     seaNorm.needsUpdate = true;
+
+    // buoys bob on the same two sinusoids the surface just computed
+    for (const buoy of buoys) {
+      const ax = buoy.position.x * 0.08 + time * 1.1;
+      const az = buoy.position.z * 0.06 + time * 0.8;
+      buoy.position.y = WATER_Y + Math.sin(ax) * 0.22 + Math.cos(az) * 0.18;
+      buoy.rotation.x = Math.sin(az) * 0.12;
+      buoy.rotation.z = Math.cos(ax) * 0.12;
+    }
 
     for (const b of boats) {
       const heave = Math.sin(time * 0.9 + b.phase) * 0.45;

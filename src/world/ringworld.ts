@@ -5,6 +5,7 @@ import { deckTexture, hullTexture, loadOptionalTexture, texture } from '../core/
 import { gradientSky } from './sky';
 import { Mover, type Board } from './board';
 import { authoredProp } from './props';
+import { addSkyTraffic } from './traffic';
 
 /**
  * Board 8 — Glavis Ringworld: a city street strip on a ring station, under a
@@ -141,6 +142,21 @@ export function buildRingworld(): Board {
       row.userData.decor = true;
       row.renderOrder = dist > 70 ? -2 : -1;
       group.add(row);
+    }
+  }
+
+  // hazard beacons on the tallest silhouette towers (PLAN.md §16.7): slow
+  // red blinks past the bulkheads, so the far city keeps moving at night
+  const beaconMat2 = new THREE.MeshBasicMaterial({ color: 0xff3a2a, transparent: true });
+  const beaconGeo2 = new THREE.SphereGeometry(0.9, 6, 5);
+  const skyBeacons: THREE.Mesh[] = [];
+  for (const end of [-1, 1]) {
+    for (const [bx, by] of [[-70, 36], [22, 41], [96, 33]] as const) {
+      const b = new THREE.Mesh(beaconGeo2, beaconMat2.clone());
+      b.position.set(bx, by, end * (STRIP_Z + 57));
+      b.userData.decor = true;
+      group.add(b);
+      skyBeacons.push(b);
     }
   }
 
@@ -344,8 +360,18 @@ export function buildRingworld(): Board {
   // a street swoop parked mid-strip — the tram is not the only ride here
   board.vehicles = [{ kind: 'swoop', x: 2, z: 32, yaw: 0.3 }];
 
-  board.update = (dt: number, time: number) => {
+  // ---- sky traffic (PLAN.md §16.1) ----
+  // The lane follows the ring overhead: long ellipses high above the strip,
+  // running lengthwise so the ships track the habitat's curve, brightest
+  // against the night side where the running lights carry.
+  const trafficUpdate = addSkyTraffic(group, [
+    { center: new THREE.Vector3(0, 170, 0), rx: 160, rz: 420, speed: 0.014, phase: 1.2, scale: 5 },
+    { center: new THREE.Vector3(60, 120, 0), rx: 130, rz: 360, speed: 0.019, phase: 4.0, scale: 3, rumble: true },
+  ]);
+
+  board.update = (dt: number, time: number, game) => {
     timeNow = time;
+    trafficUpdate(time, game);
     const b = terminatorZ(time);
 
     // the darkness follows the terminator: the texture's soft edge sits at
@@ -361,6 +387,11 @@ export function buildRingworld(): Board {
     // the tram works the line, easing at the turnarounds
     const tz = Math.sin(time * 0.16) * (STRIP_Z - 14);
     tramMover.moveTo(TRAM_X, TRAM_Y, tz);
+
+    // the skyline's hazard beacons blink on slow offset clocks
+    for (let i = 0; i < skyBeacons.length; i++) {
+      (skyBeacons[i].material as THREE.MeshBasicMaterial).opacity = Math.sin(time * 1.4 + i * 2.1) > 0.4 ? 0.9 : 0.08;
+    }
 
     // neon flickers now and then, the way neon does
     for (let i = 0; i < neonMats.length; i++) {

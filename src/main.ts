@@ -444,6 +444,7 @@ function buildMatch(): void {
   hud.setLayout(playerCount, mode === 'campaign');
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
+    bossIntro: (t, s) => hud.bossIntro(t, s),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars], mode);

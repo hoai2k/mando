@@ -372,6 +372,52 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   transform-origin: left; transform: scaleX(1); transition: transform 0.15s ease-out;
 }
 
+/* ---- the boss introduction card: letterbox + name plate over slow motion ---- */
+.boss-intro {
+  position: absolute; inset: 0; z-index: 40; pointer-events: none;
+  display: flex; flex-direction: column; justify-content: space-between;
+  transition: opacity 0.6s ease; opacity: 1;
+}
+.boss-intro.out { opacity: 0; }
+.boss-intro .bi-bar {
+  /* flex-basis, not height: a percentage height on these flex items resolved
+     to zero and the letterbox silently vanished */
+  flex: 0 0 13%; background: #000; box-shadow: 0 0 30px rgba(0,0,0,0.9);
+}
+.boss-intro .bi-bar.top { animation: bi-drop 0.4s ease-out; transform-origin: top; }
+.boss-intro .bi-bar.bottom { animation: bi-rise 0.4s ease-out; transform-origin: bottom; }
+@keyframes bi-drop { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes bi-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.boss-intro .bi-plate {
+  align-self: center; text-align: center; padding: 10px 46px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.62), rgba(0,0,0,0) 75%);
+  animation: bi-in 0.9s ease-out 0.25s backwards;
+}
+@keyframes bi-in {
+  from { opacity: 0; letter-spacing: 0.6em; transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
+}
+.boss-intro .bi-kicker {
+  font-size: 15px; letter-spacing: 0.5em; text-transform: uppercase; color: #ff6a3a;
+  text-shadow: 0 0 12px rgba(255,80,40,0.5);
+}
+.boss-intro .bi-name {
+  font-size: clamp(34px, 5.4vw, 68px); font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: #d8b25a; margin-top: 6px;
+  text-shadow: 0 0 26px rgba(216,178,90,0.4), 0 2px 0 #5a3c14;
+}
+.boss-intro .bi-rule {
+  width: 220px; height: 1px; margin: 12px auto;
+  background: linear-gradient(90deg, transparent, #ff6a3a, transparent);
+}
+.boss-intro .bi-sub {
+  font-size: 14px; letter-spacing: 0.32em; text-transform: uppercase; color: #bba97f;
+}
+
+/* the bar deepens to red as the fight turns */
+.hud-boss.ph1 .bossfill { background: linear-gradient(90deg, #b03a2a, #ff9a3a); }
+.hud-boss.ph2 .bossfill { background: linear-gradient(90deg, #d02a1a, #ff3a2a); }
+
 /* campaign shared screen: every player gets the whole window; bars fan out
    along the bottom, and the singleton chrome lives on player one's layer */
 .hud-viewport.shared .hud-bars {
