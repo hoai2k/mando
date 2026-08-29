@@ -455,6 +455,14 @@ function quitToTitle(): void {
 Object.assign(window, {
   // back to the title from wherever we are, so a test can run several matches
   __quitToTitle: () => quitToTitle(),
+  // the renderer's current viewport rectangle, for tests: split-screen narrows
+  // it per player, and every screen that follows a match depends on it having
+  // been handed back whole
+  __viewport: () => {
+    const v = new THREE.Vector4();
+    renderer.getViewport(v);
+    return [v.x, v.y, v.z, v.w];
+  },
   // how many of this drop's required files are still outstanding, for tests:
   // it must read 0 by the time the match is on screen
   __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount))).pending,
