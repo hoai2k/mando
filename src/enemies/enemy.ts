@@ -186,6 +186,15 @@ const _base = new THREE.Vector3();
 const _spin = new THREE.Vector3();
 /** crowd separation, m/s² per metre of overlap (tuned to the old 60 Hz feel) */
 const SEPARATION_ACCEL = 180;
+
+/** how far an ally may drift from the player it escorts before it stops fighting and heads back */
+const ESCORT_LEASH = 34;
+/** a hostile counts as the escort's business inside this much of the player */
+const ESCORT_ENGAGE = 45;
+/** close enough to be *with* the player: the ally stops walking in and mills instead */
+const ESCORT_NEAR = 5;
+/** how far a milling ally's loiter goal may fall behind the player before it picks a new one */
+const ESCORT_DRIFT = 8;
 /** scratch for the per-frame hot paths: ~45 hostiles all run these every frame */
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
@@ -607,6 +616,18 @@ export class Enemy {
     if (this.team !== 0) this.suppression = Math.min(1.2, this.suppression + amount);
   }
 
+  /** the living player this one is closest to, for an ally deciding who to escort */
+  private nearestPlayer(game: Game): Combatant | null {
+    let best: Combatant | null = null;
+    let bestD = Infinity;
+    for (const p of game.players) {
+      if (!p.alive) continue;
+      const d = p.position.distanceToSquared(this.position);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best ?? game.players[0] ?? null;
+  }
+
   private nearestFoe(game: Game): Combatant | null {
     let best: Combatant | null = null;
     let bestD = Infinity;
@@ -842,6 +863,10 @@ export class Enemy {
         case 'swoop': this.updateSwoop(dt, game, target); break;
         case 'hover': this.updateHover(dt, game, target); break;
       }
+    } else if (this.team === 0) {
+      // an ally with nothing to shoot: catch up to the player, or keep them
+      // company once alongside
+      this.updateEscort(dt, game);
     } else if (this.awareness !== 'idle') {
       // lost them, or never saw them: push to the last known position
       this.updateSearch(dt, game, this.awareness === 'engaged' ? 0.8 : 0.5);
@@ -925,13 +950,19 @@ export class Enemy {
       // Allies fight whatever is near, but they escort rather than hunt: with
       // hostiles now posted all over the board, an ally that picked the
       // nearest one would jog off across the desert and never come back.
-      const p = game.players.find((pl) => pl.alive) ?? game.players[0];
+      //
+      // Whoever is *nearest* is the one being escorted. Taking the first
+      // living player instead made an ally player one's alone: in co-op the
+      // marshal would stand beside player two in the middle of a firefight and
+      // never fire, because both gates below were measured against a player a
+      // hundred metres away.
+      const p = this.nearestPlayer(game);
       // Leash the engagement to the player, not to the foe: chasing whatever
       // is nearest to *itself* walks an ally across the board one target at a
       // time. Anything worth shooting is near the person being escorted.
       const anchor = p ? p.position : this.position;
-      const strayed = p ? this.position.distanceTo(p.position) > 34 : false;
-      const close = foe && !strayed && foe.position.distanceTo(anchor) < 45 ? foe : null;
+      const strayed = p ? this.position.distanceTo(p.position) > ESCORT_LEASH : false;
+      const close = foe && !strayed && foe.position.distanceTo(anchor) < ESCORT_ENGAGE ? foe : null;
       this.visible = !!close;
       if (!close && p) this.interest.copy(p.position);
       return close;
@@ -1022,6 +1053,32 @@ export class Enemy {
       this.facingYaw = dampAngle(this.facingYaw, this.idleYaw, 2, dt);
     }
     if (air) this.velocity.y = damp(this.velocity.y, clamp(to.y, -2.5, 2.5), 2.5, dt);
+  }
+
+  /**
+   * An ally between fights. Out of reach of the player they are escorting they
+   * walk in; alongside them they mill — the same loiter a posted hostile does,
+   * but around the player instead of a fixed post.
+   *
+   * The milling is not decoration. `updateSearch` stops dead the moment it is
+   * within a couple of metres of what it is heading for, so an ally who had
+   * caught up simply froze mid-stride and stood there like a prop until a
+   * hostile came within range of the player.
+   */
+  private updateEscort(dt: number, game: Game): void {
+    const p = this.nearestPlayer(game);
+    if (!p) { this.updateSearch(dt, game, 0.8); return; }
+    if (this.position.distanceTo(p.position) > ESCORT_NEAR) {
+      this.updateSearch(dt, game, 0.8);
+      return;
+    }
+    // loiter around the player rather than a post they never took. The goal is
+    // only re-rolled on the idle timer, so a player who walks off drags it out
+    // of range: re-roll early in that case, or the ally mills where the player
+    // used to be until the timer happens to come round.
+    this.post.copy(p.position);
+    if (this.idleGoal.distanceTo(this.post) > ESCORT_DRIFT) this.idleTimer = 0;
+    this.updateIdle(dt, game);
   }
 
   /** heading for the last thing it saw or heard */
