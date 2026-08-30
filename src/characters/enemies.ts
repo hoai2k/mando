@@ -6,6 +6,20 @@ import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterIn
 
 /** Enemy character builders — show-inspired silhouettes, procedural meshes on the canonical rig. */
 
+/**
+ * The coil-and-strike curve the procedural creature attacks share: rises 0→1
+ * through the coil (the mass gathers), snaps through to -1 at the strike, and
+ * eases back to rest. Mirrors the shape of the generated 'attack' clips in
+ * anim/quadruped.ts, so the stand-in sculpt and the authored model read as
+ * the same move.
+ */
+function strikeCurve(t: number, dur: number): number {
+  const ph = clamp(t / dur, 0, 1);
+  if (ph < 0.3) return ph / 0.3;
+  if (ph < 0.55) return 1 - ((ph - 0.3) / 0.25) * 2;
+  return -1 + (ph - 0.55) / 0.45;
+}
+
 function rifle(parent: THREE.Object3D): THREE.Object3D {
   const dark = mat(0x2a2a2a, { rough: 0.5, metal: 0.5 });
   const g = new THREE.Group();
@@ -487,6 +501,10 @@ export function buildMassiff(authored = true): CharacterInstance {
   /** the walk covers far less ground per cycle than the gallop */
   let walkStride = 1.5;
   let gaitSpeed = 0;
+  let attackAction: THREE.AnimationAction | null = null;
+  /** seconds into the current strike; < 0 = not striking (drives the fallback pose too) */
+  let attackT = -1;
+  const ATTACK_DUR = 0.6;
   if (authored) {
     const model = loadCreature('massiff', {
       onLoad: (loaded) => {
@@ -498,7 +516,12 @@ export function buildMassiff(authored = true): CharacterInstance {
         const idle = pick(/idle|breath|stand/i);
         const walk = pick(/walk|trot|prowl/i);
         const move = pick(/run|gallop|sprint/i) ?? (walk ? undefined : pick(/move/i));
+        const atk = pick(/attack|bite|strike/i);
         mixer = new THREE.AnimationMixer(loaded);
+        if (atk) {
+          attackAction = mixer.clipAction(atk);
+          attackAction.setLoop(THREE.LoopOnce, 1);
+        }
         if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
         if (walk) {
           walkAction = mixer.clipAction(walk);
@@ -522,13 +545,25 @@ export function buildMassiff(authored = true): CharacterInstance {
   return {
     root, rig: null, animator: null, height: 2.0, baseScale: 1,
     setGait: (speed: number) => { gaitSpeed = speed; },
+    attack: () => {
+      attackT = 0;
+      if (attackAction) {
+        attackAction.reset();
+        attackAction.setEffectiveWeight(1);
+        attackAction.play();
+      }
+      return ATTACK_DUR;
+    },
     cosmetic: (dt, time) => {
+      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
       if (mixer) {
         // Three gaits, blended by ground speed: still → prowling walk →
         // full gallop, each rate-matched to the metres actually covered so
         // no gait skates. Below the gallop threshold the old two-way blend
         // played the gallop at 0.4x, which is slow motion, not stalking.
-        const moving = Math.min(gaitSpeed / 1.2, 1);
+        // A strike in flight owns the pose: locomotion ducks under it.
+        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const moving = Math.min(gaitSpeed / 1.2, 1) * (1 - striking);
         const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
         if (moveAction) {
           moveAction.setEffectiveWeight(walkAction ? moving * gallop : moving);
@@ -538,7 +573,7 @@ export function buildMassiff(authored = true): CharacterInstance {
           walkAction.setEffectiveWeight(moving * (1 - gallop));
           walkAction.timeScale = clamp(gaitSpeed / Math.max(walkStride, 0.3), 0.5, 1.8);
         }
-        if (idleAction) idleAction.setEffectiveWeight(1 - moving);
+        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
         mixer.update(dt);
         return;
       }
@@ -557,6 +592,14 @@ export function buildMassiff(authored = true): CharacterInstance {
       for (let i = 0; i < tailSegs.length; i++) {
         tailSegs[i].rotation.y = Math.sin(time * 3.4 - i * 0.5) * 0.16;
         tailSegs[i].rotation.x = Math.sin(time * 2.1 - i * 0.4) * 0.05;
+      }
+      // the stand-in's lunge-bite, over the gait: neck coils up and back,
+      // drives down into the bite, jaw thrown open on the way in
+      if (attackT >= 0) {
+        const w = strikeCurve(attackT, ATTACK_DUR);
+        neck.rotation.x += w * -0.45;
+        jaw.rotation.x += Math.max(0, -w) * 0.9;
+        body.position.y += Math.max(0, w) * 0.08;
       }
     },
   };
@@ -622,13 +665,27 @@ export function buildNikto(authored = true): CharacterInstance {
     onLoad: () => { rider.root.position.y = -0.09; },
   });
 
+  // the swoop's melee is a ram: nose dipped and driven forward, then pulled up
+  let attackT = -1;
+  const ATTACK_DUR = 0.45;
   return {
     root: group, rig: null, animator: null, height: 1.6, baseScale: 1,
+    attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
       swap.update();
       bike.position.y = 0.55 + Math.sin(time * 6) * 0.05;
       bike.rotation.z = Math.sin(time * 3.1) * 0.06;
+      bike.rotation.x = 0;
       flame.scale.y = 0.8 + Math.sin(time * 40) * 0.2;
+      if (attackT >= 0) {
+        attackT += dt;
+        if (attackT > ATTACK_DUR) attackT = -1;
+        else {
+          const w = strikeCurve(attackT, ATTACK_DUR);
+          bike.rotation.x = w * 0.28;          // nose down on the coil, whipped up through
+          bike.position.y += Math.max(0, -w) * 0.12;
+        }
+      }
     },
   };
 }
@@ -730,6 +787,9 @@ function buildKryknaBase(
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
+  let attackAction: THREE.AnimationAction | null = null;
+  let attackT = -1;
+  const ATTACK_DUR = 0.55;
   let clipStride = 3;
   if (authored) {
     const model = loadCreature(creatureId, {
@@ -740,7 +800,12 @@ function buildKryknaBase(
         if (!clips.length) return;
         const idle = clips.find((c) => /idle|breath|stand/i.test(c.name));
         const move = clips.find((c) => /run|gallop|sprint|walk|trot|move/i.test(c.name));
+        const atk = clips.find((c) => /attack|strike|bite/i.test(c.name));
         mixer = new THREE.AnimationMixer(loaded);
+        if (atk) {
+          attackAction = mixer.clipAction(atk);
+          attackAction.setLoop(THREE.LoopOnce, 1);
+        }
         if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
         if (move) {
           moveAction = mixer.clipAction(move);
@@ -759,14 +824,25 @@ function buildKryknaBase(
   return {
     root, rig: null, animator: null, height: 1.7 * scale, baseScale: scale,
     setGait: (speed: number) => { gaitSpeed = speed; },
+    attack: () => {
+      attackT = 0;
+      if (attackAction) {
+        attackAction.reset();
+        attackAction.setEffectiveWeight(1);
+        attackAction.play();
+      }
+      return ATTACK_DUR;
+    },
     cosmetic: (dt, time) => {
+      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
       if (mixer) {
-        const moving = Math.min(gaitSpeed / 4, 1);
+        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const moving = Math.min(gaitSpeed / 4, 1) * (1 - striking);
         if (moveAction) {
           moveAction.setEffectiveWeight(moving);
           moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.5, 2.4);
         }
-        if (idleAction) idleAction.setEffectiveWeight(1 - moving);
+        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
         mixer.update(dt);
         return;
       }
@@ -780,6 +856,21 @@ function buildKryknaBase(
       }
       body.position.y = BODY_Y + Math.sin(time * rate * 2) * 0.03 * lift;
       body.rotation.y = Math.sin(time * 1.1) * 0.05;
+      // the stand-in's strike: rear up on the back legs with the front pair
+      // raised, then slam them down as the body drops onto the target
+      if (attackT >= 0) {
+        const w = strikeCurve(attackT, ATTACK_DUR);
+        for (const leg of legs) {
+          // hips sit along ±z; the front row (largest z) leads the strike
+          const front = leg.hip.position.z > 0.5 ? 1 : leg.hip.position.z > 0.2 ? 0.45 : 0;
+          leg.hip.rotation.x += w * -0.9 * front;
+          leg.knee.rotation.z += leg.side * w * -0.4 * front;
+        }
+        body.position.y += Math.max(0, w) * 0.16;
+        body.rotation.x = w * -0.22;
+      } else {
+        body.rotation.x = 0;
+      }
     },
   };
 }
@@ -1035,6 +1126,10 @@ function buildMonsterBase(
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
+  let attackAction: THREE.AnimationAction | null = null;
+  let attackT = -1;
+  /** matches the 'attack' clip durations in anim/quadruped.ts, close enough */
+  const ATTACK_DUR = 0.85;
   let clipStride = 3;
   const sculpt = loadCreature(creatureId, {
     onLoad: (loaded) => {
@@ -1046,6 +1141,11 @@ function buildMonsterBase(
       mixer = new THREE.AnimationMixer(loaded);
       const idle = clips.find((c) => c.name === 'idle');
       const move = clips.find((c) => c.name === 'move');
+      const atk = clips.find((c) => c.name === 'attack') ?? clips.find((c) => /attack|strike|bite/i.test(c.name));
+      if (atk) {
+        attackAction = mixer.clipAction(atk);
+        attackAction.setLoop(THREE.LoopOnce, 1);
+      }
       if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
       if (move) {
         moveAction = mixer.clipAction(move);
@@ -1069,14 +1169,25 @@ function buildMonsterBase(
   return {
     root, rig: null, animator: null, height, baseScale: 1,
     setGait: (speed: number) => { gaitSpeed = speed; },
+    attack: () => {
+      attackT = 0;
+      if (attackAction) {
+        attackAction.reset();
+        attackAction.setEffectiveWeight(1);
+        attackAction.play();
+      }
+      return ATTACK_DUR;
+    },
     cosmetic: (dt, time) => {
+      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
       if (mixer) {
-        const moving = Math.min(gaitSpeed / 3, 1);
+        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const moving = Math.min(gaitSpeed / 3, 1) * (1 - striking);
         if (moveAction) {
           moveAction.setEffectiveWeight(moving);
           moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.6, 2.2);
         }
-        if (idleAction) idleAction.setEffectiveWeight(1 - moving);
+        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
         mixer.update(dt);
         return;
       }
@@ -1085,6 +1196,14 @@ function buildMonsterBase(
       const rate = 2.4 + Math.min(gaitSpeed, 8) * 0.9;
       legs.forEach((l, i) => { l.rotation.x = Math.sin(time * rate + i * 1.7) * (0.1 + Math.min(gaitSpeed, 6) * 0.04); });
       body.position.y = height * 0.55 + Math.sin(time * rate * 2) * height * 0.012;
+      // the stand-in's strike: the whole front rears back, then pitches into it
+      if (attackT >= 0) {
+        const w = strikeCurve(attackT, ATTACK_DUR);
+        body.rotation.x = w * -0.16;
+        body.position.y += Math.max(0, w) * height * 0.05;
+      } else {
+        body.rotation.x = 0;
+      }
     },
   };
 }

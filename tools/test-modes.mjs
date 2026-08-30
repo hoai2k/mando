@@ -85,10 +85,26 @@ check('pvp: the NPC adapter fields player two', s.npc === 'Tusken Raider');
 check('pvp: a ground NPC does not fly', s.npcFly === false);
 check('pvp: squad followers ride their leader\'s team', s.followers === 2 && s.followerTeam === 3, `${s.followers} @ team ${s.followerTeam}`);
 check('pvp: rival and their squad are hostile to player one', s.hostiles0 === 3, String(s.hostiles0));
+// the squad carries its leader: a downed leader with a follower still up
+// takes over the survivor's body instead of spending a stand
 s = await page.evaluate(`(() => {
   const g = window.__game;
   const p2 = g.players[1];
+  const before = g.enemies.filter((e) => e.owner === p2 && e.alive).length;
   p2.lives = 0;
+  p2.damage(9999, p2.position, 0);
+  (${STEP})(30);
+  return {
+    state: g.state, alive: p2.alive, before,
+    followers: g.enemies.filter((e) => e.owner === p2 && e.alive).length,
+  };
+})()`);
+check('pvp: a downed leader carries on in a surviving follower',
+  s.state === 'fighting' && s.alive === true && s.before === 2 && s.followers === 1, JSON.stringify(s));
+s = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p2 = g.players[1];
+  for (const e of g.enemies) if (e.owner === p2 && e.alive) e.damage(9999, e.position, 0);
   p2.damage(9999, p2.position, 0);
   (${STEP})(200);
   return { state: g.state, winner: g.winnerSlot, p1kills: g.players[0].kills };
@@ -129,10 +145,12 @@ const walk = await page.evaluate(`(() => {
     (${STEP})(20);
     if (g.players[0].position.y > 60) out.corridor = true;
     if (c.step.kind === 'boss' && g.boss) {
-      g.boss.damage(g.boss.maxHp * 0.4, g.boss.position, 0);
+      // set hp rather than dealing it: this check is about the phase turns,
+      // and a warlord can parry a single damage() call (by design)
+      g.boss.hp = g.boss.maxHp * 0.6;
       (${STEP})(10);
       out.phases = g.enemies.filter((e) => e.squad >= 9900 && e.squad < 9910).length;
-      g.boss.damage(999999, g.boss.position, 0);
+      g.boss.damage(9999999, g.boss.position, 0);   // lethal even through a parry
       (${STEP})(40);
     }
   }

@@ -322,6 +322,18 @@ export class Enemy {
   /** a promoted boss: shrugs off knockdowns, never flees, never crawls */
   boss = false;
   bossName = '';
+  /** warlords parry; the monster bosses answer with mass instead */
+  private parries = false;
+  /** seconds until the next parry can happen — this is what guarantees hits land */
+  private defenseCd = 0;
+  /** red hurt-flash timer (bosses only — grunts keep the scale pop alone) */
+  private bossHurtT = 0;
+  /** pale parry-flash timer, so a turned hit reads differently from a landed one */
+  private bossParryT = 0;
+  /** this boss's own material copies, mapped to each one's resting emissive */
+  private tintedMats = new Map<THREE.MeshStandardMaterial, THREE.Color>();
+  /** true while a tint is applied, so restore happens exactly once */
+  private tintOn = false;
 
   private attackCd = 0;
   private windup = 0;
@@ -508,17 +520,25 @@ export class Enemy {
    * name for the banner and the HUD bar. Everything else — AI, death, credit —
    * is the enemy it already was.
    */
-  promoteBoss(name: string, hpScale = 4.5, dmgScale = 1.5, bulk = 1.3): void {
+  promoteBoss(name: string, hpScale = 5, dmgScale = 1.5, bulk?: number): void {
     this.boss = true;
     this.bossName = name;
     this.hp *= hpScale;
     this.maxHp = this.hp;
     this.spawnMark = this.hp;
     this.dmgScale = dmgScale;
-    this.radius *= bulk;
-    this.height *= bulk;
-    this.char.baseScale *= bulk;
+    // A warlord has to read as a warlord from across the arena, not as one
+    // more trooper with a health bar: human-sized kinds grow to giant scale,
+    // already-big kinds a step less so they don't turn comical. The monster
+    // bosses pass bulk 1 (and hpScale 1) — their size is already the point.
+    const grow = bulk ?? (this.def.height < 2.2 ? 1.6 : 1.35);
+    this.radius *= grow;
+    this.height *= grow;
+    this.char.baseScale *= grow;
     this.char.root.scale.setScalar(this.char.baseScale);
+    // hpScale 1 is the monsters' banner-only promotion; a scaled warlord is
+    // the one who has learned to turn a hit aside
+    this.parries = hpScale > 1;
   }
 
   /** a phase-two boss stops pacing itself */
@@ -683,6 +703,23 @@ export class Enemy {
 
   damage(amount: number, from: THREE.Vector3, bySlot: number): void {
     if (!this.alive) return;
+    // A warlord turns some hits aside — a sharp sidestep off the line of the
+    // shot, a pale flash, and almost none of the damage. The cooldown is the
+    // fairness: at most one parry every 1.2 s, so sustained fire always gets
+    // through, and the roll means even a single volley usually lands some.
+    if (this.parries && this.defenseCd <= 0 && this.downTimer <= 0 && this.stagger <= 0 && Math.random() < 0.55) {
+      this.defenseCd = 1.2;
+      this.bossParryT = 0.25;
+      amount *= 0.15;
+      // step perpendicular to the incoming line, whichever side is random
+      const lx = this.position.x - from.x, lz = this.position.z - from.z;
+      const ll = Math.hypot(lx, lz) || 1;
+      const side = Math.random() < 0.5 ? 1 : -1;
+      this.velocity.x += (-lz / ll) * 7 * side;
+      this.velocity.z += (lx / ll) * 7 * side;
+      audio.impact();
+    }
+    if (this.boss) this.bossHurtT = 0.3;
     this.alert(from, true); // being shot at is not something you investigate
     this.suppress(0.35);
     // a shooter caught in the open dives for the nearest crate
@@ -861,6 +898,9 @@ export class Enemy {
   update(dt: number, game: Game): void {
     const anim = this.char.animator;
     this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.defenseCd -= dt;
+    this.bossHurtT = Math.max(0, this.bossHurtT - dt);
+    this.bossParryT = Math.max(0, this.bossParryT - dt);
 
     // shot out of the sky (or the water): the parachute goes, the corpse
     // keeps the velocity it died with and the ordinary death physics land it
@@ -1571,6 +1611,7 @@ export class Enemy {
         this.pounce = flight + 0.5;
         this.pounceHit = false;
         this.grounded = false;
+        this.char.attack?.();   // jaws open through the leap
         audio.beastGrowl(0.6);
         game.particles.dustPuff(this.position, 8);
         return;
@@ -1591,7 +1632,11 @@ export class Enemy {
       if (this.attackCd <= 0) {
         this.windup = 0.55;
         this.windupTarget = target;
-        if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
+        // creatures animate their own strike (attack hook); rigged humanoids
+        // play the overhead swing. The damage lands when the wind-up expires,
+        // so time it near the clip's strike frame (~55% in) rather than its tail.
+        if (this.char.attack) this.windup = Math.max(0.4, this.char.attack() * 0.7);
+        else if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
       }
     }
   }
@@ -1824,6 +1869,7 @@ export class Enemy {
     // billed 10 damage on every rendered frame it stayed in contact (~30-60 a
     // pass, and worse the higher the refresh rate).
     if (this.attackCd <= 0 && this.position.distanceTo(target.position) < 1.8 && target.alive) {
+      this.char.attack?.();   // the ram reads on the bike, not just the numbers
       target.damage(10 * this.dmgScale, this.position);
       target.velocity.add(this.velocity.clone().multiplyScalar(0.4));
       this.attackCd = Math.max(this.attackCd, 1);
@@ -2153,5 +2199,50 @@ export class Enemy {
     // in game and rendered smaller than its own hit spheres.
     const base = this.char.baseScale;
     this.char.root.scale.setScalar(this.kind === 'nikto' ? base : base * (1 + this.hitFlash * 0.6));
+    if (this.boss) this.applyBossTint();
+  }
+
+  /**
+   * The boss's damage read: the body flashes red when a hit lands and pale
+   * blue-white when one is turned aside, on the emissive channel so it shows
+   * against any lighting. Materials are adopted lazily — cloned the first
+   * time this boss needs to tint them — which keeps the flash off the shared
+   * material cache and automatically picks up an authored model that swaps
+   * in after promotion, since its fresh materials get adopted on the next
+   * flash. Restore happens exactly once when both timers run out.
+   */
+  private applyBossTint(): void {
+    const hurt = Math.min(1, this.bossHurtT / 0.3);
+    const parry = Math.min(1, this.bossParryT / 0.25);
+    if (hurt <= 0 && parry <= 0) {
+      if (this.tintOn) {
+        for (const [m, rest] of this.tintedMats) m.emissive.copy(rest);
+        this.tintOn = false;
+      }
+      return;
+    }
+    this.tintOn = true;
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (let i = 0; i < mats.length; i++) {
+        let m = mats[i] as THREE.MeshStandardMaterial;
+        if (!m || !('emissive' in m)) continue;   // basic/additive FX materials sit out
+        if (!this.tintedMats.has(m)) {
+          const c = markOwned(m.clone()) as THREE.MeshStandardMaterial;
+          if (Array.isArray(mesh.material)) (mesh.material as THREE.Material[])[i] = c;
+          else mesh.material = c;
+          this.tintedMats.set(c, c.emissive.clone());
+          m = c;
+        }
+        const rest = this.tintedMats.get(m)!;
+        m.emissive.setRGB(
+          Math.min(1, rest.r + hurt * 0.85 + parry * 0.45),
+          Math.min(1, rest.g + hurt * 0.06 + parry * 0.65),
+          Math.min(1, rest.b + hurt * 0.04 + parry * 0.85),
+        );
+      }
+    });
   }
 }

@@ -94,6 +94,21 @@ they stray. They respawn with their leader (a squad lead who is out of squad
 is just a worse trooper). The squad is the skirmisher lane's whole argument:
 your body is cheap, your volume of fire is not.
 
+**The squad carries its leader.** A downed squad leader with a follower still
+alive doesn't spend a stand: the player **takes over the nearest surviving
+squadmate** — the AI shell retires quietly (no kill credit beyond the down
+itself), the player stands up in its body with whatever health it had left,
+and the camera glides across to the new body rather than cutting. Only a
+wiped squad costs a life and a respawn (which re-forms the fireteam).
+
+**Attack buttons.** Every playable answers X with a melee swing — the
+humanoids through the canonical rig's melee combo, the creatures (massiff,
+krykna, broodmother, swoop) through their own `attack` animation (the same
+coil-and-strike the enemy AI plays). RT fires for anyone with a gun. Y is the
+rocket for gun carriers; for a melee-only fighter it is the **heavy lunge** —
+a committed leap onto the nearest target that lands as the knockdown finisher,
+on a 5 s clock.
+
 **What referees it.** All target acquisition (aim assist, melee sweep, saber
 deflect, rockets) goes through one new helper — `game.hostilesFor(player)` —
 which returns everything alive whose team differs. The projectile system
@@ -159,9 +174,17 @@ rather than on new content: each territory names a **boss kind** (its
 signature final-wave elite — the Wookiee enforcer on the Dune Sea, the Pyke
 capo on the Spice Run, the broodmother in the Crevasse, the darksaber officer
 in the Refinery, the duelist pair's senior on the Ringworld, and so on) and
-the boss is that enemy **promoted**: ×4–5 HP, ×1.5 damage, ~×1.3 bulk, and a
+the boss is that enemy **promoted**: ×5 HP, ×1.5 damage, and a
 **boss health bar** on every player's HUD that deepens gold → orange → red
-with the phase.
+with the phase. **A warlord reads as a warlord (2026-08-30):** human-sized
+kinds grow ×1.6 and the already-big ×1.35 — the Pit Warlord stands 3.5 m
+over a 1.8 m raider — the body **flashes red** on every landed hit (pale
+blue-white on a turned one), and warlords **parry**: a 55% roll behind a
+1.2-second cooldown turns a hit into a sharp sidestep off the line of the
+shot for 15% damage. The cooldown is the fairness — sustained fire always
+gets through, and even single volleys usually land most of their hits
+(measured: 40 spaced shots, 11 turned). The monster bosses take none of
+this — their promotion passes scale 1 and their answer is mass.
 
 **The introduction (2026-08-29).** The battle opens on a card, so there is
 never any doubt it has begun: letterbox bars, the warlord's name in the
