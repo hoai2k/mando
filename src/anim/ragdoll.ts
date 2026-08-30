@@ -212,3 +212,229 @@ export class Ragdoll {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Rigless bodies: the same simulation, one rigid piece
+// ---------------------------------------------------------------------------
+
+/**
+ * Ragdoll for a creature that is not on our canonical skeleton — the krykna,
+ * the massiff, the drone. They have no named bones to hang the articulated
+ * solver on, and the canned tip-onto-the-flank they used to get read as a
+ * scripted animation: a spider always fell the same way, never off a ledge,
+ * never onto the crate it died on.
+ *
+ * This is the same Verlet world as `Ragdoll`, with the constraint solver
+ * replaced by shape matching: eight points at the corners of the body's box
+ * fall, hit things and lose energy independently, then every iteration the
+ * cloud is snapped back to the rigid shape it started as, rotated to fit
+ * wherever the corners have got to. What comes out is a body that tumbles,
+ * bounces off its corners, comes to rest against whatever it fell against, and
+ * drops off a platform edge if it dies on one — with the body itself, not a
+ * skeleton, as the thing being simulated.
+ *
+ * The rotation is recovered with Müller's iterative polar decomposition, which
+ * is a handful of cross products per step and needs no matrix library.
+ */
+export class RigidRagdoll {
+  private pos: THREE.Vector3[] = [];
+  private prev: THREE.Vector3[] = [];
+  /** corner offsets from the centroid in the body's own frame at death */
+  private rest: THREE.Vector3[] = [];
+  /** where the object's origin sits relative to the centroid, body frame */
+  private originOffset = new THREE.Vector3();
+  private startQuat = new THREE.Quaternion();
+  /** the body's world rotation now; warm-starts the polar decomposition */
+  private rot = new THREE.Quaternion();
+  private center = new THREE.Vector3();
+  private accum = 0;
+  private radius: number;
+  /** consecutive steps with nothing moving — the corpse's way of falling asleep */
+  private quiet = 0;
+  /** was any corner in contact with the world on the last step? */
+  private touching = false;
+  active = true;
+
+  /**
+   * @param node      the character root; this writes its position and rotation
+   * @param bodyR     body half-width, metres (the enemy's collision radius)
+   * @param bodyH     body height, metres
+   * @param velocity  how fast the body was moving as it died
+   * @param impulse   the killing blow's shove — what sets it spinning
+   */
+  constructor(
+    private node: THREE.Object3D,
+    bodyR: number, bodyH: number,
+    velocity: THREE.Vector3, impulse: THREE.Vector3,
+  ) {
+    node.updateMatrixWorld(true);
+    this.startQuat.copy(node.quaternion);
+    this.rot.copy(node.quaternion);
+    // The box the body lives in: the creature's own collision capsule, squared
+    // off. Its corners are the sim's contact points, and they are drawn in a
+    // little on the horizontal — a capsule is cut to the widest part of the
+    // animal, and a corpse resting on that would float. The drawn mesh is not
+    // used for this: a skinned sculpt's bounds are deliberately padded so
+    // animation cannot cull it, which makes them much larger than the body.
+    this.radius = 0.1;
+    const hw = bodyR * 0.75, hh = bodyH * 0.5, hd = bodyR * 0.75;
+    this.center.set(0, hh, 0).applyQuaternion(this.startQuat).add(node.position);
+    // Spin: mostly about the axis perpendicular to the shove, so a hit from the
+    // side rolls the body over rather than sliding it away flat, plus a little
+    // off-axis wobble so no two bodies turn the same way. It is deliberately
+    // strong — a corpse that lands still standing on its own feet is the thing
+    // this replaced.
+    const spin = new THREE.Vector3(0, 1, 0).cross(impulse);
+    if (spin.lengthSq() < 1e-4) spin.set(1, 0, 0);
+    spin.normalize().multiplyScalar(2.4 + Math.random() * 2.2);
+    spin.x += (Math.random() - 0.5) * 1.6;
+    spin.y += (Math.random() - 0.5) * 1.6;
+    spin.z += (Math.random() - 0.5) * 1.6;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 8; i++) {
+      const local = new THREE.Vector3(
+        i & 1 ? hw : -hw,
+        i & 2 ? hh : -hh,
+        i & 4 ? hd : -hd,
+      );
+      this.rest.push(local.clone());
+      const p = local.clone().applyQuaternion(this.startQuat).add(this.center);
+      this.pos.push(p);
+      // v = linear + ω × r: the corners on one side lead, and the body turns
+      v.copy(velocity).addScaledVector(impulse, 0.55)
+        .add(new THREE.Vector3().copy(spin).cross(p.clone().sub(this.center)));
+      this.prev.push(p.clone().addScaledVector(v, -STEP));
+    }
+    this.originOffset.copy(node.position).sub(this.center).applyQuaternion(
+      this.startQuat.clone().invert(),
+    );
+  }
+
+  /** Where the body is now, for anything still tracking the corpse. */
+  get hips(): THREE.Vector3 { return this.center; }
+
+  step(dt: number, physics: PhysicsWorld): void {
+    this.accum = Math.min(this.accum + dt, 0.1);
+    while (this.active && this.accum >= STEP) {
+      this.accum -= STEP;
+      // Order matters, and only one pass of each: contacts push the corners
+      // out, then the shape match turns that into a rotation of the whole
+      // body. Iterating the pair instead ratchets — each match folds the last
+      // push-out into the centroid, and the corpse climbs the ground it is
+      // lying on.
+      this.integrate(STEP);
+      this.collide(physics);
+      this.matchShape();
+    }
+    this.drive();
+  }
+
+  private integrate(dt: number): void {
+    // A rigid body settling on its corners never goes perfectly still — the
+    // shape match and the contacts trade a millimetre back and forth forever —
+    // so rest is "slow for a while" rather than "stopped".
+    let fastest = 0;
+    for (let i = 0; i < 8; i++) {
+      const p = this.pos[i], q = this.prev[i];
+      _v.copy(p).sub(q).multiplyScalar(DAMPING);
+      fastest = Math.max(fastest, _v.lengthSq());
+      q.copy(p);
+      p.add(_v);
+      p.y -= GRAVITY * dt * dt;
+    }
+    // Asleep means slow *and* touching something: a body drifting down a long
+    // fall is slow too, and freezing it in mid-air is worse than simulating it.
+    this.quiet = fastest < 2e-5 && this.touching ? this.quiet + 1 : 0;
+    if (this.quiet > 40) this.active = false;
+  }
+
+  /**
+   * Snap the cloud back onto the rigid shape: centroid, then the rotation that
+   * best takes the rest corners onto where the points have drifted to.
+   */
+  private matchShape(): void {
+    this.center.set(0, 0, 0);
+    for (const p of this.pos) this.center.add(p);
+    this.center.multiplyScalar(1 / 8);
+    this.extractRotation();
+    for (let i = 0; i < 8; i++) {
+      _v.copy(this.rest[i]).applyQuaternion(this.rot).add(this.center);
+      this.pos[i].copy(_v);
+    }
+  }
+
+  /**
+   * Müller's "robust extraction of the rotation from a matrix": a few
+   * Gauss-Newton steps on the current guess, each one a rotation about the
+   * axis that most reduces the mismatch. Warm-started from last frame's
+   * answer, three iterations are plenty.
+   */
+  private extractRotation(): void {
+    // A = Σ (p_i − c) ⊗ rest_i, held as its three column vectors
+    const a0 = _a0.set(0, 0, 0), a1 = _a1.set(0, 0, 0), a2 = _a2.set(0, 0, 0);
+    for (let i = 0; i < 8; i++) {
+      _v.copy(this.pos[i]).sub(this.center);
+      const r = this.rest[i];
+      a0.addScaledVector(_v, r.x);
+      a1.addScaledVector(_v, r.y);
+      a2.addScaledVector(_v, r.z);
+    }
+    for (let iter = 0; iter < 3; iter++) {
+      // the guess's own axes, which A's columns should line up with
+      _r0.set(1, 0, 0).applyQuaternion(this.rot);
+      _r1.set(0, 1, 0).applyQuaternion(this.rot);
+      _r2.set(0, 0, 1).applyQuaternion(this.rot);
+      _omega.set(0, 0, 0)
+        .add(_cross.copy(_r0).cross(a0))
+        .add(_cross.copy(_r1).cross(a1))
+        .add(_cross.copy(_r2).cross(a2));
+      const denom = Math.abs(_r0.dot(a0) + _r1.dot(a1) + _r2.dot(a2)) + 1e-9;
+      _omega.multiplyScalar(1 / denom);
+      const w = _omega.length();
+      if (w < 1e-9) break;
+      _q.setFromAxisAngle(_omega.multiplyScalar(1 / w), w);
+      this.rot.premultiply(_q).normalize();
+    }
+  }
+
+  private collide(physics: PhysicsWorld): void {
+    this.touching = false;
+    for (let i = 0; i < 8; i++) {
+      const p = this.pos[i], q = this.prev[i];
+      // out of anything solid first, so a corner never comes to rest inside a
+      // crate it fell against
+      if (physics.pushOutPoint(p, this.radius)) {
+        this.touching = true;
+        q.x += (p.x - q.x) * GROUND_FRICTION;
+        q.z += (p.z - q.z) * GROUND_FRICTION;
+      }
+      const g = physics.groundHeight(p.x, p.z, p.y);
+      if (g === -Infinity) continue;
+      const floor = g + this.radius;
+      if (p.y >= floor) continue;
+      this.touching = true;
+      p.y = floor;
+      const vy = p.y - q.y;
+      q.x += (p.x - q.x) * GROUND_FRICTION;
+      q.z += (p.z - q.z) * GROUND_FRICTION;
+      q.y = p.y + vy * BOUNCE;
+    }
+  }
+
+  /** Carry the simulated body back onto the character. */
+  private drive(): void {
+    this.node.quaternion.copy(this.rot);
+    _v.copy(this.originOffset).applyQuaternion(this.rot);
+    this.node.position.copy(this.center).add(_v);
+    this.node.updateMatrixWorld(true);
+  }
+}
+
+const _a0 = new THREE.Vector3();
+const _a1 = new THREE.Vector3();
+const _a2 = new THREE.Vector3();
+const _r0 = new THREE.Vector3();
+const _r1 = new THREE.Vector3();
+const _r2 = new THREE.Vector3();
+const _omega = new THREE.Vector3();
+const _cross = new THREE.Vector3();

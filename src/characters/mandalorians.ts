@@ -20,6 +20,10 @@ export type MandoId =
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
   setWeapon: (w: 'blaster' | 'gaffi' | 'none') => void;
+  /** put a particular carried gun in the right hand (D-pad right cycles these) */
+  setRangedKind: (kind: RangedKind) => void;
+  /** put a particular carried blade in the right hand (D-pad left cycles these) */
+  setMeleeKind: (kind: MeleeKind) => void;
   setThrust: (t: number) => void;
   /** intensity of the fill light that travels with this character */
   setHeroLight: (intensity: number) => void;
@@ -69,9 +73,18 @@ interface MandoConfig {
    * non-uniform parent scale stretch as they swing, invisible below ~10%.
    */
   broad?: number;
-  /** signature loadout — defaults are the shared carbine and gaffi */
-  ranged?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols' | 'none';
-  melee?: 'gaffi' | 'sabers';
+  /**
+   * Signature loadout — defaults are the shared carbine and gaffi. Either slot
+   * can name several weapons; the fighter carries all of them and the D-pad
+   * cycles that slot, and whichever button uses a slot draws it.
+   *
+   * `ranged: 'none'` is a fighter whose trigger is not a gun — Ventress, whose
+   * RT throws a saber instead. It is not "unarmed at range": the throw is her
+   * ranged weapon, and it is always in hand, which is the same promise the
+   * rest of the roster keeps with a blaster.
+   */
+  ranged?: RangedKind | RangedKind[] | 'none';
+  melee?: MeleeKind | MeleeKind[];
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
   /** whose throat the hurt and death sounds come from; defaults to a helmeted man */
@@ -90,14 +103,20 @@ export const RANGED_NAMES = {
 } as const;
 export const MELEE_NAMES = { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' } as const;
 
-/** What a character's HUD calls the weapon currently in hand. */
-export function weaponDisplayName(id: MandoId, weapon: 'blaster' | 'gaffi' | 'none'): string {
-  const cfg = MANDO_ROSTER[id];
-  // empty hands still name the blades: they are one press away, and a blank
-  // slot reads as a bug rather than as a stance
-  if (weapon === 'none') return `${MELEE_NAMES[cfg.melee ?? 'gaffi']} · stowed`;
-  if (weapon === 'gaffi') return MELEE_NAMES[cfg.melee ?? 'gaffi'];
-  return RANGED_NAMES[cfg.ranged === 'none' ? 'carbine' : cfg.ranged ?? 'carbine'];
+export type RangedKind = keyof typeof RANGED_NAMES;
+export type MeleeKind = keyof typeof MELEE_NAMES;
+
+const list = <T>(v: T | T[] | undefined, fallback: T): T[] =>
+  (Array.isArray(v) ? v : v ? [v] : [fallback]);
+
+/** Every gun this character carries, signature first; empty for a thrower. */
+export function rangedKinds(id: MandoId): RangedKind[] {
+  const cfg = MANDO_ROSTER[id].ranged;
+  return cfg === 'none' ? [] : list(cfg as RangedKind | RangedKind[] | undefined, 'carbine');
+}
+/** Every melee weapon this character carries, signature first. */
+export function meleeKinds(id: MandoId): MeleeKind[] {
+  return list(MANDO_ROSTER[id].melee, 'gaffi');
 }
 
 /**
@@ -117,6 +136,8 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
     name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
+    // the staff he took off the raiders, and the blade he won: D-pad left picks
+    melee: ['gaffi', 'sabers'],
   },
   paz: {
     name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — a walking siege wall.',
@@ -135,7 +156,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   ventress: {
     name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
-    melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
+    melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,   // her trigger throws a blade
     voice: 'human_f',
   },
   embo: {
@@ -302,28 +323,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     rig.bones.capeRoot.position.x = -0.12;
   }
 
-  // ---- weapons: signature ranged + melee per config, carbine/gaffi default ----
+  // ---- weapons ----
+  // Every weapon the character carries is built and mounted at once, and only
+  // the pair in hand is visible. Nobody has to holster anything to reach the
+  // other slot: a swing draws the blade, a shot draws the gun, and the D-pad
+  // picks between several of either where a fighter carries them.
   const gunmetal = mat(0x3d3730, { rough: 0.5, metal: 0.5 });
-  const rangedKind = cfg.ranged ?? 'carbine';
-  // 'none' still builds a mount, just nothing to hang on it: the empty group
-  // keeps every downstream muzzle and visibility path valid for a fighter who
-  // carries no gun at all, without a null check at each of them.
-  const ranged =
-    rangedKind === 'none' ? new THREE.Group() :
-    rangedKind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
-    rangedKind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
-    rangedKind === 'pistols' ? makePistol(gunmetal, dark) :
-    makeCarbine(gunmetal, dark);
-  ranged.rotation.x = Math.PI / 2;
-  b.weaponR.add(ranged);
-  const muzzle = new THREE.Group();
-  muzzle.position.set(0, 0.015, { carbine: 0.62, crossbow: 0.5, longrifle: 0.95, pistols: 0.3, none: 0 }[rangedKind]);
-  ranged.add(muzzle);
   // Either hand's weapon can come in a pair: twin sabers and twin pistols each
   // add a second copy on weaponL that shows and hides with its partner. Shots
   // still leave the right-hand muzzle — the left one is silhouette.
-  let rangedOffhand: THREE.Group | null = null;
-  let meleeOffhand: THREE.Group | null = null;
   const pairOn = (make: () => THREE.Group): THREE.Group => {
     const g = make();
     g.rotation.x = Math.PI / 2;
@@ -331,30 +339,67 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     b.weaponL.add(g);
     return g;
   };
-  if (rangedKind === 'pistols') rangedOffhand = pairOn(() => makePistol(gunmetal, dark));
+
+  interface Held { main: THREE.Group; offhand: THREE.Group | null; muzzle?: THREE.Group }
+  const MUZZLE_Z: Record<RangedKind, number> = { carbine: 0.62, crossbow: 0.5, longrifle: 0.95, pistols: 0.3 };
+  const guns = new Map<RangedKind, Held>();
+  for (const kind of rangedKinds(id)) {
+    if (guns.has(kind)) continue;
+    const main =
+      kind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
+      kind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
+      kind === 'pistols' ? makePistol(gunmetal, dark) :
+      makeCarbine(gunmetal, dark);
+    main.rotation.x = Math.PI / 2;
+    main.visible = false;
+    b.weaponR.add(main);
+    const muzzle = new THREE.Group();
+    muzzle.position.set(0, 0.015, MUZZLE_Z[kind]);
+    main.add(muzzle);
+    guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(gunmetal, dark)) : null });
+  }
+
   // The melee prop keeps the gaffi's mount and orientation whatever it looks
   // like, so the melee clips swing a saber exactly as they swing the staff.
-  let melee: THREE.Group;
-  if (cfg.melee === 'sabers') {
-    melee = makeSaber(silver, dark);
-    // One blade light per wielder: the off-hand saber skips it, since two
-    // point lights buy a glow the eye already reads from one.
-    meleeOffhand = pairOn(() => makeSaber(silver, dark, { light: false }));
-  } else {
-    melee = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+  const blades = new Map<MeleeKind, Held>();
+  for (const kind of meleeKinds(id)) {
+    if (blades.has(kind)) continue;
+    let main: THREE.Group;
+    let offhand: THREE.Group | null = null;
+    if (kind === 'sabers') {
+      main = makeSaber(silver, dark);
+      // One blade light per wielder: the off-hand saber skips it, since two
+      // point lights buy a glow the eye already reads from one.
+      offhand = pairOn(() => makeSaber(silver, dark, { light: false }));
+    } else {
+      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+    }
+    main.rotation.x = Math.PI / 2;
+    main.visible = false;
+    b.weaponR.add(main);
+    blades.set(kind, { main, offhand });
   }
-  melee.rotation.x = Math.PI / 2;
-  melee.visible = false;
-  b.weaponR.add(melee);
+
+  // What is in each hand right now; the controller moves these with the D-pad.
+  // A thrower carries no gun at all, so the ranged side can be empty.
+  let gun = guns.get(rangedKinds(id)[0]) ?? null;
+  // An empty right hand still has a muzzle: a point in front of it that
+  // stands in as the origin for anything that asks where a shot would leave
+  // from, so no caller needs a null check for a fighter with no gun.
+  const emptyMuzzle = new THREE.Group();
+  emptyMuzzle.position.set(0, 0.015, 0.1);
+  b.weaponR.add(emptyMuzzle);
+  let blade = blades.get(meleeKinds(id)[0])!;
 
   // ---- blade trails (sabers only) ----
   // Ribbons in the wake of both blades while swinging; the player toggles
   // them with setTrail and the cosmetic tick keeps them fed. They hang off
   // the rig root so a hidden procedural body doesn't take them with it.
   const trailUpdates: Array<(dt: number, active: boolean) => void> = [];
-  if (cfg.melee === 'sabers') {
-    trailUpdates.push(makeBladeTrail(rig.root, melee));
-    if (meleeOffhand) trailUpdates.push(makeBladeTrail(rig.root, meleeOffhand));
+  const sabers = blades.get('sabers');
+  if (sabers) {
+    trailUpdates.push(makeBladeTrail(rig.root, sabers.main));
+    if (sabers.offhand) trailUpdates.push(makeBladeTrail(rig.root, sabers.offhand));
   }
   let trailActive = false;
 
@@ -507,15 +552,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // weapons move onto the authored hand so they track the real fingers; the
       // mount reproduces our canonical weaponR frame, so nothing else changes
       if (model.weaponMount) {
-        model.weaponMount.add(ranged);
-        model.weaponMount.add(melee);
+        for (const w of [...guns.values(), ...blades.values()]) model.weaponMount.add(w.main);
       }
       // The off-hand has to move too. Our own weaponL bone still animates, but
       // it sits where the hidden procedural arm is, so a pistol left on it
       // floats beside the authored body instead of filling its other hand.
       if (model.weaponMountL) {
-        if (rangedOffhand) model.weaponMountL.add(rangedOffhand);
-        if (meleeOffhand) model.weaponMountL.add(meleeOffhand);
+        for (const w of [...guns.values(), ...blades.values()]) {
+          if (w.offhand) model.weaponMountL.add(w.offhand);
+        }
       }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
@@ -524,16 +569,23 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   });
 
   let thrust = 0;
-  let weapon: 'blaster' | 'gaffi' | 'none' = cfg.ranged === 'none' ? 'none' : 'blaster';
+  let weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
   let shieldUp = false;
   // per-hand "still in the hand" mask, so a thrown saber vanishes from its
   // hand alone; always true for anyone who never throws their weapon
   const saberHeld: [boolean, boolean] = [true, true];
   const showWeapon = () => {
-    ranged.visible = !shieldUp && weapon === 'blaster';
-    melee.visible = !shieldUp && weapon === 'gaffi' && saberHeld[0];
-    if (rangedOffhand) rangedOffhand.visible = ranged.visible;
-    if (meleeOffhand) meleeOffhand.visible = !shieldUp && weapon === 'gaffi' && saberHeld[1];
+    for (const w of guns.values()) {
+      w.main.visible = !shieldUp && weapon === 'blaster' && w === gun;
+      if (w.offhand) w.offhand.visible = w.main.visible;
+    }
+    // A thrown blade leaves its own hand empty while the other keeps fighting,
+    // so each hand's visibility carries the per-hand held mask.
+    for (const w of blades.values()) {
+      const out = !shieldUp && weapon === 'gaffi' && w === blade;
+      w.main.visible = out && saberHeld[0];
+      if (w.offhand) w.offhand.visible = out && saberHeld[1];
+    }
   };
   // Settle the loadout now rather than waiting for the first weapon switch:
   // an off-hand starts hidden, so a character who spawns with a pair was
@@ -541,10 +593,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   showWeapon();
   return {
     ...inst,
-    muzzle,
-    gaffi: melee,
+    // the muzzle belongs to whichever gun is in hand — a shot leaves the
+    // barrel the player is actually looking down
+    get muzzle() { return gun?.muzzle ?? emptyMuzzle; },
+    get gaffi() { return blade.main; },
     modelReady: () => swap.settled,
     setWeapon: (w) => { weapon = w; showWeapon(); },
+    setRangedKind: (kind: RangedKind) => { gun = guns.get(kind) ?? gun; showWeapon(); },
+    setMeleeKind: (kind: MeleeKind) => { blade = blades.get(kind) ?? blade; showWeapon(); },
     setTrail: (on) => { trailActive = on; },
     setSaberHeld: (hand, held) => { saberHeld[hand] = held; showWeapon(); },
     nozzles: flames.map((f) => f.group),

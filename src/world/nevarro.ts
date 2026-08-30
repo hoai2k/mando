@@ -194,26 +194,30 @@ export function buildNevarro(): Board {
     tower.position.set(sx * 32, gateBase + 5.5, gateZ);
     tower.castShadow = tower.receiveShadow = true;
     group.add(tower);
-    physics.addCylinder(sx * 32, gateBase + 5.5, gateZ, 3.6, 11);
+    const towerStand = physics.addCylinder(sx * 32, gateBase + 5.5, gateZ, 3.6, 11);
     // 11 m to the lookout, grounded on the flats the collider stands on
-    authoredProp(group, tower, 'adobe_tower', 11, { x: sx * 32, y: gateBase, z: gateZ, axis: 'y' });
+    authoredProp(group, tower, 'adobe_tower', 11, { x: sx * 32, y: gateBase, z: gateZ, axis: 'y' },
+      { physics, replace: [towerStand], maxBoxes: 12 });
   }
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(12, 2.4, 4), adobeMat);
   lintel.position.set(0, gateBase + 7.6, gateZ);
   lintel.castShadow = true;
   group.add(lintel);
-  physics.addBox(0, gateBase + 7.6, gateZ, 12, 2.4, 4);
-  // The arch spans the gap between the two wall runs, so it is measured across
-  // (the sculpt's long axis is X, which is already the way the wall runs) and
-  // grounded on the flats — the lintel it replaces is only the top of it.
-  authoredProp(group, lintel, 'adobe_gate', 12, { y: gateBase, z: gateZ, axis: 'x' });
+  const gateStand = [physics.addBox(0, gateBase + 7.6, gateZ, 12, 2.4, 4)];
   // The arch stands on two pylons, and the lintel's box only ever covered the
   // span above them — so the stonework either side of the doorway was
   // something to walk through. They flank a gateway about six metres wide,
   // which is still an opening a squad can pour through.
   for (const sx of [-1, 1]) {
-    physics.addBox(sx * 4.6, gateBase + 3.4, gateZ, 2.6, 6.8, 4);
+    gateStand.push(physics.addBox(sx * 4.6, gateBase + 3.4, gateZ, 2.6, 6.8, 4));
   }
+  // The arch spans the gap between the two wall runs, so it is measured across
+  // (the sculpt's long axis is X, which is already the way the wall runs) and
+  // grounded on the flats — the lintel it replaces is only the top of it. The
+  // fit then takes the arch as drawn, doorway included: the opening under it
+  // is the opening the sculpt has, not a guess at where the pylons stand.
+  authoredProp(group, lintel, 'adobe_gate', 12, { y: gateBase, z: gateZ, axis: 'x' },
+    { physics, replace: gateStand, maxBoxes: 16 });
 
   const board: Board = {
     group, physics, kind: 'nevarro',

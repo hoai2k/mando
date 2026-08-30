@@ -10,10 +10,10 @@ import {
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
-import { Ragdoll } from '../anim/ragdoll';
+import { Ragdoll, RigidRagdoll } from '../anim/ragdoll';
 import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
-import { hazardAt } from '../world/board';
+import { gravityScale, hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
@@ -96,8 +96,12 @@ interface Def {
   build: () => CharacterInstance;
 }
 
-/** the board's gravity scale — a station in orbit runs light for everyone on it */
-const grav = (game: Game): number => game.board.gravity ?? 1;
+/**
+ * The gravity scale where this body is — a station in orbit runs light for
+ * everyone on it, and a board with a local field (deep space, where the pull
+ * lives over the decks and nowhere else) runs lighter still out in the open.
+ */
+const grav = (game: Game, at: THREE.Vector3): number => gravityScale(game.board, at.x, at.y, at.z);
 
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
@@ -195,10 +199,6 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   ringEnforcer: 'pirate_death',
 };
 
-
-const UP = new THREE.Vector3(0, 1, 0);
-const _q = new THREE.Quaternion();
-const _q2 = new THREE.Quaternion();
 
 let nextId = 1;
 
@@ -368,7 +368,7 @@ export class Enemy {
    * body finds its own way down and drapes over whatever it lands on, so no
    * two deaths are alike and none of them argue with the terrain.
    */
-  private ragdoll: Ragdoll | null = null;
+  private ragdoll: Ragdoll | RigidRagdoll | null = null;
   /**
    * Armed by the killing blow, built on the first dead frame. Waiting a frame
    * lets knockback stacked after damage() — explosions, melee — steer the fall,
@@ -377,12 +377,6 @@ export class Enemy {
   private ragdollArmed = false;
   /** on the floor this frame (drives the massiff's pounce landing) */
   private grounded = true;
-  /**
-   * Roll-over for corpses the articulated solver can't take: free-form rigs
-   * (the war massiff) have no canonical skeleton to hang it on, and without
-   * this they would settle standing upright on their feet.
-   */
-  private corpseTip: { axis: THREE.Vector3; angle: number; vel: number; rest: number } | null = null;
   /** corpse has come to rest: skip physics and limb work from here on */
   private settled = false;
   /** wave ended: corpse fading out, then removed */
@@ -771,7 +765,10 @@ export class Enemy {
       // upright die the ragdoll death; the ragdoll reads its direction from
       // this.velocity on its first frame, so knockbacks applied right after
       // this call (explosions, melee) still steer the fall.
-      if (!this.wounded && this.downTimer <= 0) this.startRagdoll();
+      // A creature has no prone pose to preserve — its animator is a stub, so
+      // a knocked-down spider is still standing as far as the model is
+      // concerned — and it always dies into the sim.
+      if (!this.char.rig || (!this.wounded && this.downTimer <= 0)) this.startRagdoll();
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       // Flinch away from where the shot came from: rotate the bearing into
@@ -922,11 +919,17 @@ export class Enemy {
       // plus any knockback stacked after it, and that is what steers the fall.
       // The upper body takes a larger share, so a hit turns the body over
       // rather than sliding it away flat.
-      if (this.ragdollArmed && this.char.rig) {
+      if (this.ragdollArmed) {
         this.ragdollArmed = false;
         _base.copy(this.velocity).multiplyScalar(0.85);
         _spin.copy(this.velocity).multiplyScalar(0.3);
-        this.ragdoll = new Ragdoll(this.char.rig, _base, _spin);
+        // A free-form rig (the spiders, the massiff, the drone) has no named
+        // skeleton for the articulated solver, so it dies as one rigid body
+        // instead — same Verlet world, same contacts, shape-matched every
+        // step. Both simulate; neither plays a canned fall.
+        this.ragdoll = this.char.rig
+          ? new Ragdoll(this.char.rig, _base, _spin)
+          : new RigidRagdoll(this.char.root, this.radius, this.height, _base, _spin);
       }
 
       if (this.ragdoll) {
@@ -936,40 +939,22 @@ export class Enemy {
         this.position.copy(this.ragdoll.hips);
         if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
         if (!this.ragdoll.active && this.fadeT < 0) this.settled = true;
-        this.char.cosmetic?.(dt, game.time);
+        // A rigged corpse keeps its cosmetic tick (a cape still swings on the
+        // way down). A creature's tick *is* its gait — leave it unrun and the
+        // legs freeze where they were, instead of a dead spider skittering as
+        // it tumbles.
+        if (this.char.rig) this.char.cosmetic?.(dt, game.time);
         return;
       }
 
-      // Rigless bodies (the war massiff) get a plain roll-over instead of the
-      // solver: tip onto the flank away from the killing blow. Anyone already
-      // prone (a crawl or a knockdown) keeps the pose they were holding.
-      if (this.ragdollArmed) {
-        this.ragdollArmed = false;
-        if (!this.char.rig) {
-          const dir = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
-          if (dir.lengthSq() < 0.05) dir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-          dir.normalize();
-          this.corpseTip = {
-            axis: new THREE.Vector3(0, 1, 0).cross(dir).normalize(),
-            angle: 0,
-            vel: 2 + Math.random() * 1.5,
-            rest: (Math.PI / 2) * (0.85 + Math.random() * 0.2),
-          };
-        }
-      }
-      if (this.corpseTip && this.corpseTip.angle < this.corpseTip.rest) {
-        this.corpseTip.vel += 7 * dt;
-        this.corpseTip.angle = Math.min(this.corpseTip.rest, this.corpseTip.angle + this.corpseTip.vel * dt);
-      }
-
-      // no solver: slide and settle
+      // No solver: a body that was already flat when it died (a wounded crawl,
+      // a knockdown) keeps the pose it was holding and simply slides to a stop.
       this.velocity.x = damp(this.velocity.x, 0, 3, dt);
       this.velocity.z = damp(this.velocity.z, 0, 3, dt);
-      this.velocity.y -= 22 * grav(game) * dt;
+      this.velocity.y -= 22 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
-      const rolled = !this.corpseTip || this.corpseTip.angle >= this.corpseTip.rest;
-      if (res.grounded && this.velocity.lengthSq() < 0.1 && rolled && this.fadeT < 0) this.settled = true;
+      if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
 
       this.syncVisual(dt, game);
       return;
@@ -992,7 +977,7 @@ export class Enemy {
       this.downTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 4, dt);
       this.velocity.z = damp(this.velocity.z, 0, 4, dt);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.boardHazards(game, dt)) return;
       if (this.downTimer <= 0) {
@@ -1024,7 +1009,7 @@ export class Enemy {
       if (away.lengthSq() > 1e-4) away.normalize();
       this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
       this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.boardHazards(game, dt)) return;
       if (this.bleedOut <= 0) {
@@ -1056,7 +1041,7 @@ export class Enemy {
         // a morale break is still voluntary movement: it does not get to sprint
         // off a platform lip that the same enemy would have stopped at walking
         this.edgeGuard(game);
-        this.velocity.y -= 24 * grav(game) * dt;
+        this.velocity.y -= 24 * grav(game, this.position) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (this.boardHazards(game, dt)) return;
         if (anim) {
@@ -1123,7 +1108,7 @@ export class Enemy {
 
     if (d.style === 'melee' || d.style === 'ranged') {
       this.edgeGuard(game);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
     } else {
@@ -1598,7 +1583,7 @@ export class Enemy {
     if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
         dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
-      const flight = (2 * vy) / (24 * grav(game));       // ballistic hang time
+      const flight = (2 * vy) / (24 * grav(game, this.position));       // ballistic hang time
       const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.85);
       const ax = aim.x - this.position.x, az = aim.z - this.position.z;
       const gap = Math.hypot(ax, az);
@@ -2052,6 +2037,10 @@ export class Enemy {
     const a = this.arrival!;
     const anim = this.char.animator;
     a.t += dt;
+    // A scripted insertion falls on the board's flat gravity, not the local
+    // field: the drop is timed to land on a chosen post, and a squad coasting
+    // in the station's open-space drift would still be in the air two waves
+    // later.
     const grav = game.board.gravity ?? 1;
 
     if (a.mode === 'drop') {
@@ -2178,14 +2167,6 @@ export class Enemy {
     // and every bone itself, so syncVisual must keep its hands off
     if (this.ragdoll) return;
     this.char.root.position.copy(this.position);
-    if (this.corpseTip) {
-      // yaw first, then tip onto the flank around the impulse axis
-      _q.setFromAxisAngle(UP, this.facingYaw);
-      _q2.setFromAxisAngle(this.corpseTip.axis, this.corpseTip.angle);
-      this.char.root.quaternion.multiplyQuaternions(_q2, _q);
-      this.char.cosmetic?.(dt, game.time);
-      return;
-    }
     this.char.root.rotation.y = this.facingYaw;
     if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);

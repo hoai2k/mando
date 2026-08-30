@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
-  buildMandalorian, MANDO_ROSTER, MELEE_NAMES, PLAYABLE_MANDO_IDS, RANGED_NAMES,
-  type MandoId, type PlayerCharacter,
+  buildMandalorian, MANDO_ROSTER, meleeKinds, MELEE_NAMES, PLAYABLE_MANDO_IDS,
+  rangedKinds, RANGED_NAMES,
+  type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
 import { buildEnemyCharacter, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { ENEMY_MODEL_ID } from './authored';
@@ -41,12 +42,23 @@ export interface PlayerProfile {
   boltSpeed: number;
   meleeDamage: number;
   meleeFinisher: number;
-  meleeKind: 'gaffi' | 'sabers';
+  /**
+   * The weapons this fighter carries in each slot, signature first. Both are
+   * always in the loadout — a shot draws the gun, a swing draws the blade —
+   * and where a slot holds more than one the D-pad cycles it.
+   *
+   * `rangedOptions` is empty only for a fighter who physically cannot hold a
+   * gun: the playable war beasts, whose hands are teeth.
+   */
+  rangedOptions: RangedKind[];
+  meleeOptions: MeleeKind[];
+  /** the signature melee kind — `meleeOptions[0]`, kept for menus */
+  meleeKind: MeleeKind;
   /** null = melee-only fighter (no gun, no ADS, no lock-on) */
   rangedName: string | null;
   meleeName: string;
   /** which blaster report the audio plays */
-  blasterVoice: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
+  blasterVoice: RangedKind;
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
@@ -64,8 +76,8 @@ export interface PlayableDef {
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
   const cfg = MANDO_ROSTER[id];
-  const melee = cfg.melee ?? 'gaffi';
-  const ranged = cfg.ranged ?? 'carbine';
+  const melee = meleeKinds(id);
+  const ranged = rangedKinds(id);
   return {
     name: cfg.name, desc: cfg.desc,
     maxHp: 100, runSpeed: 9.2, sprintSpeed: 14.4,
@@ -74,10 +86,14 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     flight: cfg.helmet === null ? 'superjump' : 'jetpack',
     fireCd: 0.24, boltDamage: 34, boltSpeed: 75,
     meleeDamage: 32, meleeFinisher: 55,
-    meleeKind: melee,
-    rangedName: ranged === 'none' ? null : RANGED_NAMES[ranged],
-    meleeName: MELEE_NAMES[melee],
-    blasterVoice: ranged === 'none' ? 'carbine' : ranged,
+    rangedOptions: ranged,
+    meleeOptions: melee,
+    meleeKind: melee[0],
+    // null names a fighter with no gun — Ventress, whose ranged weapon is the
+    // blade she throws; the HUD then reads off the melee slot
+    rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
+    meleeName: MELEE_NAMES[melee[0]],
+    blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
   };
@@ -174,6 +190,11 @@ function buildPlayableNpc(kind: EnemyKind): PlayerCharacter {
     nozzles: [],
     modelReady: () => true,            // procedural stand-in is fine to show
     setWeapon: () => {},
+    // an NPC's weapon is part of its model — there is nothing to swap, so the
+    // loadout calls land somewhere harmless rather than being special-cased
+    // in the controller
+    setRangedKind: () => {},
+    setMeleeKind: () => {},
     setThrust: () => {},
     setHeroLight: () => {},
     setBlock: () => {},
@@ -202,6 +223,11 @@ function npcDef(kind: EnemyKind): PlayableDef {
       boltSpeed: t.boltSpeed ?? 60,
       meleeDamage: t.melee?.[0] ?? 30,
       meleeFinisher: t.melee?.[1] ?? 50,
+      // A hostile carries what its sculpt carries: one gun, one way to hit
+      // with it. The beasts carry no gun at all, which is the one place a
+      // fighter is genuinely melee-only.
+      rangedOptions: meleeOnly ? [] : [t.blaster ?? 'carbine'],
+      meleeOptions: ['gaffi'],
       meleeKind: 'gaffi',
       rangedName: meleeOnly ? null : ENEMY_NAME[kind] + (t.blaster === 'longrifle' ? ' Rifle' : ' Blaster'),
       meleeName: meleeOnly ? 'Claws & Steel' : 'Rifle Butt',

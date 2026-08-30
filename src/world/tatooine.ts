@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PhysicsWorld } from '../core/physics';
+import { PhysicsWorld, type StaticBox, type StaticCylinder } from '../core/physics';
 import { fbm2, makeRng, ridge2 } from '../core/math';
 import { adobeTexture, clothTexture, loadOptionalTexture, rockTexture, sandTexture } from '../core/assets';
 import { tatooineSky } from './sky';
@@ -162,9 +162,10 @@ export function buildTatooine(): Board {
     v.position.set(vx, base, vz);
     v.traverse((o) => { o.castShadow = true; });
     group.add(v);
-    physics.addBox(vx, base + 3.5, vz, 1.2, 7, 1.2);
+    const stand = physics.addBox(vx, base + 3.5, vz, 1.2, 7, 1.2);
     // 7 m to the top of the condenser stack, standing on the sand
-    authoredProp(group, v, 'vaporator', 7, { x: vx, y: base, z: vz, axis: 'y' });
+    authoredProp(group, v, 'vaporator', 7, { x: vx, y: base, z: vz, axis: 'y' },
+      { physics, replace: [stand], maxBoxes: 8 });
   }
 
   // homestead dome + entry hut
@@ -178,10 +179,13 @@ export function buildTatooine(): Board {
   // the 10 m span of the dome at the sides. Two stacked discs then follow the
   // curve instead of inscribing it — one 4.2 m disc left the skirt, where the
   // dome is widest and lowest, as something you could walk a shoulder into.
-  physics.addCylinder(hx, hBase + 0.85, hz, 4.9, 1.7);
-  physics.addCylinder(hx, hBase + 2.2, hz, 3.7, 4.4);
+  const domeStand = [
+    physics.addCylinder(hx, hBase + 0.85, hz, 4.9, 1.7),
+    physics.addCylinder(hx, hBase + 2.2, hz, 3.7, 4.4),
+  ];
   // 10 m across, matching the dome the two stacked discs were fitted to
-  authoredProp(group, dome, 'homestead_dome', 10, { x: hx, y: hBase, z: hz, axis: 'z' });
+  authoredProp(group, dome, 'homestead_dome', 10, { x: hx, y: hBase, z: hz, axis: 'z' },
+    { physics, replace: domeStand, maxBoxes: 14 });
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
@@ -198,12 +202,14 @@ export function buildTatooine(): Board {
     // Two stacked discs follow the tent's taper: one 3.4 m box stopped well
     // inside a 5.2 m sculpt at the skirt and stood as invisible wall above its
     // peak. Same treatment as the ice spires.
-    physics.addCylinder(tx, base + 1.3, tz, 2.2, 2.6);
-    physics.addCylinder(tx, base + 3.6, tz, 1.3, 2.0);
+    const tentStand = [
+      physics.addCylinder(tx, base + 1.3, tz, 2.2, 2.6),
+      physics.addCylinder(tx, base + 3.6, tz, 1.3, 2.0),
+    ];
     // each tent faces the middle of the camp, the way a ring of them would be pitched
     authoredProp(group, tent, 'tusken_tent', 5.2, {
       x: tx, y: base, z: tz, axis: 'x', yaw: Math.atan2(campC.x - tx, campC.z - tz),
-    });
+    }, { physics, replace: tentStand, maxBoxes: 8 });
   }
 
   // ---- the sandcrawler on the rim (PLAN.md §16) ----
@@ -225,14 +231,15 @@ export function buildTatooine(): Board {
   crawler.rotation.y = scYaw;
   crawler.traverse((o) => { o.castShadow = o.receiveShadow = true; });
   group.add(crawler);
-  authoredProp(crawler, [scHull, scProw], 'sandcrawler', 35, { axis: 'z' });
   // r 6.4, not 5.5: the hull is 12 m across, so a 5.5 m disc left half a metre
   // of each flank as something you walk into and through — which is exactly
-  // what the audit is for.
+  // what the audit is for. The row holds the crawler up until its sculpt
+  // lands; after that the fit follows the tracks and the treads.
   const scAxis = new THREE.Vector2(Math.sin(scYaw), Math.cos(scYaw));
-  for (const t of [-13, -6.5, 0, 6.5, 13]) {
-    physics.addCylinder(scx + scAxis.x * t, scBase + 7, scz + scAxis.y * t, 6.4, 15);
-  }
+  const scStand = [-13, -6.5, 0, 6.5, 13].map((t) =>
+    physics.addCylinder(scx + scAxis.x * t, scBase + 7, scz + scAxis.y * t, 6.4, 15));
+  authoredProp(crawler, [scHull, scProw], 'sandcrawler', 35, { axis: 'z' },
+    { physics, replace: scStand, cell: 0.95, maxBoxes: 26 });
 
   // ---- banthas at the Tusken camp (PLAN.md §16) ----
   // The camp's livestock: solid, so bolts stop on the hide, but no health and
@@ -269,15 +276,16 @@ export function buildTatooine(): Board {
     node.position.set(bnx, base, bnz);
     node.rotation.y = bnYaw;
     group.add(node);
-    authoredProp(node, parts, 'bantha', 4.5, { axis: 'z' });
     // A bantha is nearly six metres nose to tail, so one disc at its middle
     // left both ends — the head most of all — as geometry with nothing under
     // it. Three along the animal's own axis, the way a long body gets extra
-    // hit spheres.
+    // hit spheres. The animal sways on the spot, so its colliders stay put:
+    // the fit is what the sculpt occupies at rest, which is where it is.
     const bnAxis = new THREE.Vector2(Math.sin(bnYaw), Math.cos(bnYaw));
-    for (const [t, r, cy, ch] of [[-1.7, 1.7, 1.9, 3.4], [0.3, 1.8, 1.6, 3.8], [2.4, 1.4, 1.7, 2.8]] as const) {
-      physics.addCylinder(bnx + bnAxis.x * t, base + cy, bnz + bnAxis.y * t, r, ch);
-    }
+    const bnStand = ([[-1.7, 1.7, 1.9, 3.4], [0.3, 1.8, 1.6, 3.8], [2.4, 1.4, 1.7, 2.8]] as const).map(
+      ([t, r, cy, ch]) => physics.addCylinder(bnx + bnAxis.x * t, base + cy, bnz + bnAxis.y * t, r, ch));
+    authoredProp(node, parts, 'bantha', 4.5, { axis: 'z' },
+      { physics, replace: bnStand, maxBoxes: 10 });
     banthas.push({ node, phase: banthas.length * 2.1 });
   }
 
@@ -301,24 +309,30 @@ export function buildTatooine(): Board {
   // The wreck lies along the hull's own yaw, which is the axis its row of
   // colliders follows, and grounds on the sand the barge node sits on. The
   // sculpt carries its own mast, so the procedural sail goes with the hull.
-  authoredProp(barge, [hull, sail], 'sail_barge', 26, { yaw: 0.6, axis: 'z' });
   // The hull is 26 m long and yawed 0.6 rad, which one axis-aligned box cannot
   // describe: the old 20x12 AABB put invisible walls off the bow and let you
   // walk through the hull ends. A short row of cylinders along the hull's own
   // axis follows it at any rotation, and keeps the same deck height to stand on.
   const hullAxis = new THREE.Vector2(Math.cos(0.6), -Math.sin(0.6));
+  const bargeStand: Array<StaticBox | StaticCylinder> = [];
   for (const t of [-9, -4.5, 0, 4.5, 9]) {
-    physics.addCylinder(bx + hullAxis.x * t, bBase + 2.5, bz + hullAxis.y * t, 4.4, 6);
+    bargeStand.push(physics.addCylinder(bx + hullAxis.x * t, bBase + 2.5, bz + hullAxis.y * t, 4.4, 6));
   }
   // The sail is a 9 m plank leaning 0.5 rad, and its own AABB is 4.7 m wide
   // for 0.4 m of canvas — a slab of invisible wall. Three boxes climbing the
   // lean stay where the sail is: solid to shoot past, nothing to snag on.
   for (const k of [-1, 0, 1]) {
-    physics.addBox(
+    bargeStand.push(physics.addBox(
       bx - 6 - Math.sin(0.5) * k * 3, bBase + 6 + Math.cos(0.5) * k * 3, bz + 2,
       1.5, 3.4, 14,
-    );
+    ));
   }
+  // The wreck lies along the hull's own yaw, which is the axis its row of
+  // colliders follows, and grounds on the sand the barge node sits on. The
+  // sculpt carries its own mast, so the procedural sail goes with the hull —
+  // and the fit takes the deck, the mast and the lean together.
+  authoredProp(barge, [hull, sail], 'sail_barge', 26, { yaw: 0.6, axis: 'z' },
+    { physics, replace: bargeStand, cell: 0.9, maxBoxes: 26 });
 
   // sarlacc: teeth ring + tentacles that sway
   const pitBase = heightAt(SARLACC.x, SARLACC.z);
