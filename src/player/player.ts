@@ -55,6 +55,25 @@ const BLOCK_SECONDS = 5;
 const BLOCK_SPEED = 3.2;
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
+
+/**
+ * The aim-glide: sighting a shot on the way down.
+ *
+ * Falling is 18 m/s of the ground rushing up, which is no place to line
+ * anything up — so aiming in the air, with the jetpack off, has the boosters
+ * catch you instead. You do not hover (that is what the jetpack is for) and
+ * you do not stop; you sink slowly enough to shoot, on fuel, which is the
+ * cost. It reads as slow motion and is nothing of the kind: the world runs at
+ * full speed and only you are being held up.
+ */
+const GLIDE_FALL = -1.9;
+/** seconds of glide on a full tank — cheaper than thrust, not free */
+const GLIDE_SECONDS = 7;
+/** the tank has to have this much in it to catch you at all */
+const GLIDE_RESERVE = 0.04;
+/** how fast the fall is caught, and how much the drift bleeds off with it */
+const GLIDE_CATCH = 5;
+const GLIDE_DRAG = 1.1;
 const ROCKET_CD = 12;
 
 export class Player {
@@ -77,6 +96,8 @@ export class Player {
   fuel = 1;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
+  /** riding the boosters down on the sights: slow descent, fuel burning */
+  gliding = false;
   /** blaster heat, 0..1; at 1 the weapon locks out until it has vented */
   heat = 0;
   /** true while the blaster is locked out and venting */
@@ -588,6 +609,7 @@ export class Player {
       game.particles.dustPuff(this.position, 4);
     }
     this.thrusting = 0;
+    this.gliding = false;
     if (this.profile.canFly && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
@@ -604,15 +626,34 @@ export class Player {
         if (ignite) game.particles.jetIgnite(_jetPos, _jetDir);
         game.particles.jetPlume(_jetPos, _jetDir, dt, { power: 1, carrier: this.velocity });
       }
+    } else if (
+      this.profile.canFly && input.aimHeld && !this.grounded && !this.blocking
+      && !this.slamming && this.dashTimer <= 0 && this.fuel > GLIDE_RESERVE && this.velocity.y < 1
+    ) {
+      // Aiming on the way down: the boosters take the fall rather than fight
+      // it. A quarter-power plume, so the pack is visibly doing the work.
+      this.gliding = true;
+      this.fuel = Math.max(0, this.fuel - dt / GLIDE_SECONDS);
+      for (const nozzle of this.char.nozzles) {
+        nozzle.getWorldPosition(_jetPos).sub(this.char.root.position).add(this.position);
+        _jetDir.set(0, -1, 0).applyQuaternion(nozzle.getWorldQuaternion(_jetRot));
+        game.particles.jetPlume(_jetPos, _jetDir, dt, { power: 0.28, carrier: this.velocity });
+      }
     } else if (this.grounded) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
-    } else {
+    } else if (!input.aimHeld) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 3.2));
     }
-    audio.setJetpackThrust(this.slot, this.thrusting * (0.6 + 0.4 * Math.min(1, Math.abs(this.velocity.y) / 8)));
+    // Holding the sights in the air keeps the pack spooled whether or not it
+    // has anything left to give, so a dry tank gets no trickle here. Without
+    // that, the airborne refill handed back a sliver of fuel the instant the
+    // glide stopped and the glide restarted on it, a frame at a time, all the
+    // way down.
+    audio.setJetpackThrust(this.slot,
+      this.thrusting * (0.6 + 0.4 * Math.min(1, Math.abs(this.velocity.y) / 8)) + (this.gliding ? 0.3 : 0));
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
-    this.char.setThrust(this.thrusting);
+    this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
 
     // ---- slam ----
     if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
@@ -626,16 +667,27 @@ export class Player {
     const board = game.board;
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
-      this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
-      // A brace wants the ground under it: raising the shield mid-air kills any
-      // rise you had and pulls you down to meet it.
-      if (this.blocking && !this.grounded) {
-        if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
-        this.velocity.y -= BLOCK_SINK * dt;
-      }
-      if (inVoid) {
-        const terminal = -(board.voidFallSpeed ?? 3.2);
-        if (this.velocity.y < terminal) this.velocity.y = terminal;
+      if (this.gliding) {
+        // The boosters carry the weight, so this replaces gravity rather than
+        // resisting it — damping a fall *against* a full g settles at whatever
+        // speed the two happen to balance at (7.6 m/s, as measured), which is
+        // not a glide. Easing to a set descent is what makes it one.
+        this.velocity.y = damp(this.velocity.y, GLIDE_FALL, GLIDE_CATCH, dt);
+        // the drift bleeds off with it, so a shot can be held on a line
+        this.velocity.x = damp(this.velocity.x, 0, GLIDE_DRAG, dt);
+        this.velocity.z = damp(this.velocity.z, 0, GLIDE_DRAG, dt);
+      } else {
+        this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+        // A brace wants the ground under it: raising the shield mid-air kills
+        // any rise you had and pulls you down to meet it.
+        if (this.blocking && !this.grounded) {
+          if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
+          this.velocity.y -= BLOCK_SINK * dt;
+        }
+        if (inVoid) {
+          const terminal = -(board.voidFallSpeed ?? 3.2);
+          if (this.velocity.y < terminal) this.velocity.y = terminal;
+        }
       }
     }
     // never strand a drifting player with an empty tank
@@ -701,7 +753,7 @@ export class Player {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
       anim.play('upper', 'blockUpper', 0.12);
-    } else if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
+    } else if (this.gliding || this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       anim.play('lower', 'flyLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
     } else if (!this.grounded) {

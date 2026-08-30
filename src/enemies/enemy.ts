@@ -10,6 +10,7 @@ import {
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
+import { bodyLuma, contrastNeed, haloPeak, haloStrength, makeHalo, skylineTone, type HaloTone } from '../fx/skyline';
 import { Ragdoll } from '../anim/ragdoll';
 import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
@@ -462,6 +463,14 @@ export class Enemy {
   private sightMemo = false;
   /** countdown to the next puff of ground thrown by a half-buried body */
   private plowT = 0;
+  /** the skyline halo that keeps this body readable in the air, once airborne */
+  private halo: THREE.Sprite | null = null;
+  private haloTone: HaloTone | null = null;
+  private haloLevel = 0;
+  /** how light this body's own artwork is, once there is artwork to measure */
+  private haloBody: number | null = null;
+  /** staggered clock for the ground probe the halo reads (it is a raycast) */
+  private haloProbe = 0;
   /**
    * How this enemy is getting onto the board, while it still is (waves 2+
    * arrive rather than appear — src/enemies/arrival.ts). Normal AI is
@@ -2173,6 +2182,42 @@ export class Enemy {
     anim?.update(dt);
   }
 
+  /**
+   * Keep this body readable against the sky (src/fx/skyline.ts).
+   *
+   * Only bodies actually up in the air get one, which is why the ground probe
+   * decides it: an enemy standing on a platform has that platform directly
+   * underneath and is not skylined, while the same enemy twenty metres over it
+   * is. The probe is a surface query, so it runs a few times a second on a
+   * per-enemy stagger rather than every frame, and the level it produces is
+   * eased into so a body crossing a rooftop does not blink.
+   */
+  private updateHalo(dt: number, game: Game): void {
+    this.haloProbe -= dt;
+    if (this.haloProbe <= 0) {
+      this.haloProbe = 0.2 + (this.id % 5) * 0.02;
+      const ground = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.4);
+      const skylined = this.alive ? haloStrength(this.position.y - ground) : 0;
+      // Re-read the body until it has been read: the authored sculpt swaps in
+      // a beat after the procedural build, and it is the one that will be
+      // looked at. Textures are averaged once and remembered, so this settles
+      // to a walk over a handful of materials.
+      this.haloTone ??= skylineTone(game.board);
+      this.haloBody ??= bodyLuma(this.char.root);
+      this.haloLevel = skylined * contrastNeed(this.haloTone, this.haloBody);
+    }
+    if (this.haloLevel <= 0 && !this.halo) return;
+    if (!this.halo && this.haloLevel > 0) {
+      this.halo = makeHalo(this.haloTone!, this.height);
+      this.char.root.add(this.halo);
+    }
+    const halo = this.halo!;
+    const want = this.haloLevel * haloPeak(this.haloTone!);
+    const mat = halo.material as THREE.SpriteMaterial;
+    mat.opacity = damp(mat.opacity, want, 4, dt);
+    halo.visible = mat.opacity > 0.01;
+  }
+
   private syncVisual(dt: number, game: Game): void {
     // a ragdolled corpse is placed entirely by the solver — it writes the root
     // and every bone itself, so syncVisual must keep its hands off
@@ -2191,6 +2236,7 @@ export class Enemy {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);
     }
     // creatures that animate themselves need to know how fast they're going
+    this.updateHalo(dt, game);
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
     this.char.cosmetic?.(dt, game.time);
     // Hit flash: a brief scale pop, multiplied into the species bulk rather
