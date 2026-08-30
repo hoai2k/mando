@@ -1012,10 +1012,12 @@ export class Game {
       t.breakable = null;
       t.vehicle = null;
       targets.push(t);
-      // long bodies (the war massiff) need more than the one centre sphere
-      if (e.def.hitParts) {
+      // long bodies (the war massiff) need more than the one centre sphere.
+      // Read off the instance, not the shared Def: a promoted boss carries its
+      // own grown copy.
+      if (e.hitParts.length) {
         const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
-        for (const part of e.def.hitParts) {
+        for (const part of e.hitParts) {
           const h = this.pooledTarget(slot++);
           h.enemy = e;
           h.player = null;
@@ -1040,8 +1042,12 @@ export class Game {
       const t = this.pooledTarget(slot++);
       t.enemy = null;
       t.player = p;
-      t.position.set(p.position.x, p.position.y + 0.9, p.position.z);
-      t.radius = p.radius + 0.35;
+      // Shot as the creature they are, not as the collider they walk in: the
+      // profile's hit volume is the NPC's own, so a playable massiff takes a
+      // bolt anywhere the same animal would as a hostile. A Mandalorian's two
+      // numbers agree, so this is where it has always been for him.
+      t.position.set(p.position.x, p.position.y + p.profile.hitHeight * 0.5, p.position.z);
+      t.radius = p.profile.hitRadius + 0.35;
       t.team = p.team;
       t.alive = true;
       // a blade sends the bolt back at somebody, so the player needs to be
@@ -1052,6 +1058,30 @@ export class Game {
       t.breakable = null;
       t.vehicle = null;
       targets.push(t);
+      // and the same extra spheres a long-bodied kind gets as a hostile
+      if (p.profile.hitParts.length) {
+        const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
+        for (const part of p.profile.hitParts) {
+          const h = this.pooledTarget(slot++);
+          h.enemy = null;
+          h.player = p;
+          h.position.set(
+            p.position.x + sin * part.z,
+            p.position.y + part.y,
+            p.position.z + cos * part.z,
+          );
+          h.radius = part.r;
+          h.team = p.team;
+          h.alive = true;
+          // the raised pane is a real thing in front of the whole fighter, so
+          // it answers for every sphere, not just the one on the chest
+          h.shield = p.shieldCollider;
+          h.slot = p.slot;
+          h.breakable = null;
+          h.vehicle = null;
+          targets.push(h);
+        }
+      }
     }
     // breakable props sit on team 2, so both sides' fire chips at them
     if (this.board.breakables) {

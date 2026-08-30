@@ -543,3 +543,60 @@ a `?modes` URL flag and are now the default; the hatch survives inverted, so
 
 Regression-tested end to end by `tools/test-modes.mjs` (part of `npm test`),
 including that the flag off leaves the wave game untouched.
+
+## 19. Hit volumes (audited 2026-08-30)
+
+What a fighter is *shot* as, versus what it renders as. `tools/audit-hitboxes.mjs`
+(`npm run audit:hitboxes`) builds one of everything — 61 bodies, hostile and playable —
+waits for the authored `.glb`s to swap in over the procedural stand-ins, samples the
+geometry that actually renders, and holds it against the spheres the game fires bolts
+at. Sample points carry their mesh's bulk as weight, so "covered" means how much of the
+body can be hit, not how many of its parts: unweighted, a rifle barrel counted for as
+much as a torso and read a Mandalorian as a third of a fighter.
+
+**Coverage is reported, never gated.** One sphere on a biped tops out near 45–50% no
+matter how well placed — arms, legs and a helmet leave a ball behind whatever you do.
+The column is for comparing a body against its peers. Two things *are* gated, because
+both are wrong however the volume is shaped: spheres reaching more than 0.9 m past the
+head or under the feet, and any kind that is a different target played than it is as a
+hostile.
+
+**The collider and the hit volume are two different numbers, on purpose.** A playable
+NPC's collider is clamped (0.6 × 2.1) so a war beast still fits the cover, doorways and
+corridors every board was built around. That clamp is a level-fit decision and has no
+business deciding hit registration — while it did, a playable massiff was shot as a
+2.1 m cylinder while the identical animal standing next to it as a hostile was shot
+along its whole body. `PlayerProfile.hitRadius/hitHeight/hitParts` carry the creature's
+true size; `radius`/`height` stay the capsule it walks the world in.
+
+**Three defects the audit turned up and closed:**
+
+- Players were hit by one sphere at a hardcoded `y + 0.9`, where every hostile used
+  `height * 0.5`. For a 1.75 m Mandalorian those agree to within 2 cm; for anything
+  else they did not, and long-bodied playables got none of the extra spheres their
+  hostile twin carries.
+- `promoteBoss` scales radius, height and the model together, but `hitParts` were read
+  from the shared Def at fire time and stayed at the unpromoted body's numbers. On a
+  1.35× Pit Beast that put the skull sphere inside the animal's head.
+- Shooters aimed at a fixed `y + 1.1` whatever they were shooting at, which is a
+  creature's ankles once the creature is five metres tall. Aim now follows
+  `aimHeight()` — mid-chest of whatever the target actually is.
+
+**The monster bosses had one sphere each for bodies up to twelve metres long.** Hit
+spheres authored off the measured sculpts took the krayt dragon from 19% to 59% and the
+broodmother from 14% to 61%; the mamacore, mudhorn and ravinak now sit above 90%.
+
+**Open, deliberately not changed** — these are balance decisions, not bugs:
+
+- *Declared heights that overshoot their models.* The ravinak's is 3.4 m against a
+  2.30 m sculpt and the mamacore's 4.6 m against 3.80 m, so both centre spheres reach
+  ~1.5–2 m above the animal. Correcting them is not just a hitbox edit: §17 tunes the
+  skiff's hover so it clears "the mamacore's bite depth by inches", and `height` also
+  sets the collision capsule and the spawn-fit test.
+- *The Mandalorians are the hardest bodies in the game to hit* — 35–49% covered, against
+  83–97% for the procedural hostiles. The 0.45 × 1.75 capsule was tuned against a
+  procedural body; the authored sculpts run 1.66 m (Ventress) to 2.05 m (Bossk) and are
+  broader, so the helmet and the legs sit outside the sphere. Sizing each fighter's hit
+  volume to its own model would make Paz a visibly bigger target than Ventress — correct,
+  readable, and a real difficulty change in every mode, so it wants a decision rather
+  than a commit.

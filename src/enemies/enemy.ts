@@ -23,8 +23,21 @@ export interface Combatant {
   alive: boolean;
   radius: number;
   height: number;
+  /**
+   * The body to *shoot at*, when that differs from the capsule to walk around.
+   * A playable NPC's collider is clamped so a war beast still fits the boards'
+   * doorways, which makes `height` the wrong number to aim by — a shooter
+   * using it puts bolts through a five-metre creature's ankles. Absent means
+   * the two agree, which is true of every hostile.
+   */
+  hitHeight?: number;
   team: number; // 0 = players/allies, 1 = hostiles
   damage(amount: number, from: THREE.Vector3, bySlot?: number): void;
+}
+
+/** where to aim on a body: mid-chest of whatever it actually is */
+export function aimHeight(target: Combatant): number {
+  return (target.hitHeight ?? target.height) * 0.55;
 }
 
 export type EnemyKind =
@@ -133,7 +146,9 @@ const DEFS: Record<EnemyKind, Def> = {
   // HP each — the fight is volume, not weight.
   krykna:       { hp: 55, speed: 8.5, radius: 0.6, height: 1.6, style: 'melee', damage: 12, attackRange: 2.5, attackCd: 1.3, notice: 46, relentless: true, build: buildKrykna },
   broodmother:  { hp: 560, speed: 6.2, radius: 0.95, height: 2.6, style: 'melee', damage: 30, attackRange: 3.8, attackCd: 1.9, notice: 60, relentless: true,
-    hitParts: [{ z: 1.0, y: 1.5, r: 0.7 }, { z: -0.9, y: 1.7, r: 0.95 }],
+    // slung high on its legs: the body rides around y=2.4, well over the
+    // centre sphere, and runs the full 6 m from spinnerets to fangs
+    hitParts: [{ z: 0, y: 2.5, r: 1.5 }, { z: -2.1, y: 2.5, r: 1.4 }, { z: 2.0, y: 2.0, r: 1.4 }],
     spawnOnHurt: { kind: 'krykna', per: 0.22, count: 2, max: 8 }, build: buildBroodmother },
   // The net gun barely hurts; being rooted in front of his friends is the hurt.
   quarren:      { hp: 100, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
@@ -150,14 +165,25 @@ const DEFS: Record<EnemyKind, Def> = {
   // `promoteBoss(name, 1, 1, 1)`, which hangs the banner and the bar on them
   // without scaling anything. Big, slow, relentless: they never lose the scent,
   // never break morale and cannot be knocked down.
-  mudhorn:  { hp: 2600, speed: 7.2, radius: 1.8, height: 3.0, style: 'melee', damage: 40, attackRange: 4.4, attackCd: 2.0, notice: 90, relentless: true, build: buildMudhorn },
-  ravinak:  { hp: 3000, speed: 5.4, radius: 2.2, height: 3.4, style: 'melee', damage: 40, attackRange: 5.2, attackCd: 2.2, notice: 90, relentless: true, build: buildRavinak },
-  mamacore: { hp: 3400, speed: 5.0, radius: 2.6, height: 4.6, style: 'melee', damage: 50, attackRange: 6.0, attackCd: 2.4, notice: 90, relentless: true, build: buildMamacore },
-  rancor:   { hp: 3600, speed: 6.4, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.0, attackCd: 2.1, notice: 90, relentless: true, build: buildRancor },
+  mudhorn:  { hp: 2600, speed: 7.2, radius: 1.8, height: 3.0, style: 'melee', damage: 40, attackRange: 4.4, attackCd: 2.0, notice: 90, relentless: true,
+    hitParts: [{ z: -2.5, y: 1.4, r: 1.2 }], build: buildMudhorn },
+  ravinak:  { hp: 3000, speed: 5.4, radius: 2.2, height: 3.4, style: 'melee', damage: 40, attackRange: 5.2, attackCd: 2.2, notice: 90, relentless: true,
+    hitParts: [{ z: 3.2, y: 1.3, r: 1.6 }, { z: -2.5, y: 0.7, r: 1.3 }], build: buildRavinak },
+  mamacore: { hp: 3400, speed: 5.0, radius: 2.6, height: 4.6, style: 'melee', damage: 50, attackRange: 6.0, attackCd: 2.4, notice: 90, relentless: true,
+    hitParts: [{ z: 4.3, y: 1.9, r: 2.1 }, { z: -3.5, y: 1.9, r: 1.6 }], build: buildMamacore },
+  rancor:   { hp: 3600, speed: 6.4, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.0, attackCd: 2.1, notice: 90, relentless: true,
+    // twelve metres nose to tail, with the reach out front where the centre
+    // sphere has never come close
+    hitParts: [{ z: 3.5, y: 2.1, r: 2.0 }, { z: 5.0, y: 1.3, r: 1.9 }, { z: -2.6, y: 1.9, r: 1.4 }], build: buildRancor },
   // The two colossi are half-buried: `plows` is what makes the ground answer
   // for the part of them that is under it.
-  kraytDragon: { hp: 5200, speed: 5.6, radius: 3.0, height: 5.0, style: 'melee', damage: 45, attackRange: 7.0, attackCd: 2.3, notice: 110, relentless: true, plows: 3.4, build: buildKraytDragon },
-  mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0, build: buildMythosaur },
+  kraytDragon: { hp: 5200, speed: 5.6, radius: 3.0, height: 5.0, style: 'melee', damage: 45, attackRange: 7.0, attackCd: 2.3, notice: 110, relentless: true, plows: 3.4,
+    // the head and the length of neck in front of it; the coils behind are
+    // under the sand, and stay unhittable on purpose
+    hitParts: [{ z: 4.6, y: 2.2, r: 2.4 }, { z: 7.0, y: 2.4, r: 2.0 }], build: buildKraytDragon },
+  mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0,
+    // the skull and horns, five metres up and three forward of the mass
+    hitParts: [{ z: 4.2, y: 5.1, r: 2.1 }, { z: 5.6, y: 5.2, r: 1.6 }], build: buildMythosaur },
 
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
@@ -271,6 +297,16 @@ const _arrTo = new THREE.Vector3();
 export function enemyBody(kind: EnemyKind): { radius: number; height: number } {
   const d = DEFS[kind];
   return { radius: d.radius, height: d.height };
+}
+
+/** Every kind there is, so an audit never has to keep its own list in step. */
+export function enemyKinds(): EnemyKind[] {
+  return Object.keys(DEFS) as EnemyKind[];
+}
+
+/** The kind's extra hit spheres, for the hitbox audit. Empty when it has none. */
+export function enemyHitParts(kind: EnemyKind): { z: number; y: number; r: number }[] {
+  return DEFS[kind].hitParts ?? [];
 }
 
 /**
@@ -483,8 +519,21 @@ export class Enemy {
   venting = 0;
   private heatHold = 0;
 
+  /**
+   * This body's extra hit spheres, in its *current* size.
+   *
+   * Not read straight off the Def at fire time, because a promoted boss grows:
+   * `promoteBoss` scales radius, height and the model together, and hit
+   * spheres left at the shared Def's numbers stay where the unpromoted body
+   * used to be. On a 1.35x Pit Beast that put the skull sphere well inside the
+   * animal's actual head, so shots at the head of the biggest target on the
+   * board passed through it.
+   */
+  hitParts: { z: number; y: number; r: number }[];
+
   constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
     this.def = DEFS[kind];
+    this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
     this.char = this.def.build();
     this.hp = this.def.hp;
@@ -534,6 +583,8 @@ export class Enemy {
     const grow = bulk ?? (this.def.height < 2.2 ? 1.6 : 1.35);
     this.radius *= grow;
     this.height *= grow;
+    // the extra spheres are body-local metres, so they grow with the body
+    for (const p of this.hitParts) { p.z *= grow; p.y *= grow; p.r *= grow; }
     this.char.baseScale *= grow;
     this.char.root.scale.setScalar(this.char.baseScale);
     // hpScale 1 is the monsters' banner-only promotion; a scaled warlord is
@@ -1401,7 +1452,7 @@ export class Enemy {
       const cd = toC.length();
       toC.normalize();
       if (!phys.raycast(eye, toC, cd)) continue;
-      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(chest);
+      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + aimHeight(target), target.position.z).sub(chest);
       const md = muzzleTo.length();
       muzzleTo.normalize();
       if (!phys.raycast(chest, muzzleTo, md)) continue;
@@ -1413,7 +1464,7 @@ export class Enemy {
         const pgy = phys.groundHeight(px, pz, this.position.y + 0.5);
         if (!isFinite(pgy) || Math.abs(pgy - gy) > 1.2) continue;
         const pchest = new THREE.Vector3(px, pgy + this.height * 0.75, pz);
-        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(pchest);
+        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + aimHeight(target), target.position.z).sub(pchest);
         const pmd = pMuzzle.length();
         pMuzzle.normalize();
         if (phys.raycast(pchest, pMuzzle, pmd)) continue; // peek blocked too — useless
@@ -1820,7 +1871,7 @@ export class Enemy {
     else { from.copy(this.position); from.y += this.height * 0.7; }
     // lead the target a little, with error so bolts are dodgeable
     const aim = target.position.clone();
-    aim.y += 1.1;
+    aim.y += aimHeight(target);
     const t = from.distanceTo(aim) / (d.boltSpeed ?? 28);
     aim.addScaledVector(target.velocity, t * 0.55);
     // suppression wrecks the aim: shots snatched from behind cover go wide
