@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs && node tools/test-allies.mjs && node tools/test-modes.mjs && node tools/test-overheat.mjs && node tools/test-vehicles.mjs && node tools/test-loadperf.mjs && node tools/test-monsters.mjs",
+    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs && node tools/test-allies.mjs && node tools/test-modes.mjs && node tools/test-overheat.mjs && node tools/test-vehicles.mjs && node tools/test-loadperf.mjs && node tools/test-monsters.mjs && node tools/test-arrivals.mjs",
     "audit:boards": "node tools/audit-collision.mjs",
     "audit:spawns": "node tools/audit-spawns.mjs"
   },
