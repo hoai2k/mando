@@ -155,8 +155,11 @@ export function buildRefinery(): Board {
     crate.rotation.y = rng() * 0.8;
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
-    physics.addBox(cx, 1.2, cz, 2.4, 2.4, 2.4);
-    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, z: cz, yaw: crate.rotation.y });
+    // set down at an angle: the box around it misses the corners of the turned
+    // sculpt, so the crate fits its own colliders once it lands
+    const box = physics.addBox(cx, 1.2, cz, 2.4, 2.4, 2.4);
+    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, z: cz, yaw: crate.rotation.y },
+      { physics, replace: [box], maxBoxes: 4 });
   }
 
   // ---- pipe runs along the hall walls (PLAN.md §16) ----

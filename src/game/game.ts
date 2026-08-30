@@ -35,7 +35,8 @@ const BLANK_INPUT: FrameInput = {
   moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
   dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
-  zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+  zoomDelta: 0, blockHeld: false, pausePressed: false,
+  meleeSwapPressed: false, rangedSwapPressed: false,
   throttleHeld: false, brakeHeld: false,
 };
 
@@ -807,12 +808,18 @@ export class Game {
     if (this.board.movers) {
       for (const m of this.board.movers) {
         if (m.delta.lengthSq() < 1e-10) continue;
-        const b = m.box;
+        // Anything the mover carries counts as ground: a ship whose colliders
+        // were fitted to its hull is several surfaces, and a rider standing on
+        // any of them travels with it.
+        const surfaces = m.surfaces();
         const carry = (pos: THREE.Vector3, radius: number): void => {
-          if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) return;
-          if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) return;
-          if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) return;
-          pos.add(m.delta);
+          for (const b of surfaces) {
+            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
+            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
+            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
+            pos.add(m.delta);
+            return;
+          }
         };
         for (const p of this.players) if (p.alive) carry(p.position, p.radius);
         for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
