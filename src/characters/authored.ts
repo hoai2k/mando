@@ -130,6 +130,19 @@ export interface AuthoredModel {
 }
 
 const cache = new Map<string, Promise<THREE.Group | null>>();
+/** ids whose .glb has actually arrived and parsed, for synchronous callers */
+const cachedIds = new Set<string>();
+
+/**
+ * Is this model already in hand, right now?
+ *
+ * Most intake is asynchronous and does not care, but a caller that must
+ * commit to a look *before* the load can resolve — the troop carrier pass,
+ * which flies as a jet blur without a hull model and as a slower flyby with
+ * one — needs a synchronous answer about the present, not a promise about
+ * the future.
+ */
+export function authoredCached(id: string): boolean { return cachedIds.has(id); }
 
 function loader(): GLTFLoader {
   const l = new GLTFLoader();
@@ -160,6 +173,7 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
           // every instance is a clone sharing these buffers and materials, and
           // the file is cached for the session — teardown must not free them
           markSharedTree(gltf.scene as THREE.Group);
+          cachedIds.add(id);
           resolve(gltf.scene as THREE.Group);
         },
         (ev) => handle.progress(ev.loaded, ev.total),
