@@ -4,6 +4,7 @@ import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/ma
 import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
+import { carrierShipId } from '../enemies/arrival';
 import { BOARDS } from '../world/boards';
 import type { BoardId } from '../world/board';
 import { textureUrl, warmTexture } from './assets';
@@ -215,6 +216,10 @@ export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 
     for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');
     for (const id of CORRIDOR_PROPS) warmAuthored(id, 'idle');
   }
+  // the board's troop carrier: wave 2's first pass flies as a jet blur if the
+  // hull has not arrived by then, so start it downloading with the match — a
+  // missing file stays the blur, by design
+  if (mode === 'wave') warmAuthored(carrierShipId(board), 'idle');
   const sky = BOARD_SKY[board];
   if (sky) warmTexture(sky, 'now');
 }

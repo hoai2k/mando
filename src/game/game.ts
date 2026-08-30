@@ -3,7 +3,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, spawnWave, standingSpot, waveComposition } from '../enemies/spawner';
+import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
+import { Carrier, carrierShipId, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import { playableDef, type PlayableId } from '../characters/roster';
@@ -59,6 +60,9 @@ interface PooledTarget extends BoltTarget {
 
 /** the rocket mesh's own axis, for orienting it along its velocity */
 const UP = new THREE.Vector3(0, 1, 0);
+/** scratch for laying a drop squad out along its carrier's flight line */
+const _stick = new THREE.Vector3();
+const _stickVel = new THREE.Vector3();
 
 interface Rocket {
   mesh: THREE.Mesh;
@@ -141,6 +145,10 @@ export class Game {
   private monsterQuake = 0;
   /** the monster is on the field; its retinue answers to it, not the board's */
   private monsterKind: EnemyKind | null = null;
+  /** carrier passes currently crossing the sky (src/enemies/arrival.ts) */
+  private carriers: Carrier[] = [];
+  /** bodies a carrier still holds — counted as hostiles, but not yet spawned */
+  private incoming = 0;
   /** campaign controller; null outside campaign mode */
   campaign: Campaign | null = null;
   /** campaign's one shared screen: the camera the party is watched through */
@@ -362,6 +370,81 @@ export class Game {
     return boss;
   }
 
+  /**
+   * Put a staged wave on its way in (docs/PLAN.md; src/enemies/arrival.ts).
+   *
+   * Each squad arrives whole, by the route `squadArrival` picks for it. Drop
+   * squads ride a carrier pass — the carriers launch staggered a second and a
+   * bit apart, so a big wave reads as a stream of ships crossing the sky
+   * rather than one impossible lift — and until a carrier releases, its
+   * bodies exist only in `incoming`, which the wave-clear check and the
+   * hostiles counter both treat as hostiles the wave still owes.
+   */
+  private stageArrivals(plan: Placement[]): void {
+    const squads = new Map<number, Placement[]>();
+    for (const p of plan) {
+      const list = squads.get(p.squad);
+      if (list) list.push(p);
+      else squads.set(p.squad, [p]);
+    }
+    let pass = 0;
+    const field = (p: Placement): Enemy => {
+      const e = new Enemy(p.kind, p.pos);
+      e.squad = p.squad;
+      e.squadSize = p.squadSize;
+      this.enemies.push(e);
+      this.scene.add(e.char.root);
+      return e;
+    };
+    for (const members of squads.values()) {
+      const lead = members[0];
+      const { mode, from } = squadArrival(this.board, lead.kind, !!lead.air, lead.pos);
+      this.waveSpawned += members.length;
+      if (mode === 'post') {
+        // nothing can carry this squad in: stand it up in place, as ever
+        for (const m of members) this.particles.dustPuff(field(m).position, 10);
+      } else if (mode === 'drop') {
+        // centroid, so one pass covers the whole squad's spread of targets
+        const at = new THREE.Vector3();
+        for (const m of members) at.add(m.pos);
+        at.divideScalar(members.length);
+        this.incoming += members.length;
+        const carrier = new Carrier(at, pass * 1.35 + Math.random() * 0.5, carrierShipId(this.board.kind), (release, vel) => {
+          this.incoming -= members.length;
+          if (this.disposed) return;
+          members.forEach((m, i) => {
+            const e = field(m);
+            // let go in a stick: each body a couple of metres behind the
+            // last along the flight line, with a shove of the ship's speed
+            const back = _stick.copy(vel).normalize().multiplyScalar(-i * 2.2);
+            back.x += (Math.random() - 0.5) * 1.5;
+            back.z += (Math.random() - 0.5) * 1.5;
+            e.beginArrival('drop', back.add(release), m.pos, {
+              chute: Math.random() < 0.38,
+              // a fraction of the ship's speed: enough that the fall arcs
+              // out of the pass instead of stopping dead, small enough that
+              // the steering always wins before a platform edge does
+              velocity: _stickVel.copy(vel).multiplyScalar(0.12).setY(0),
+            });
+          });
+        });
+        pass++;
+        this.carriers.push(carrier);
+        this.scene.add(carrier.group);
+      } else {
+        // edge squads enter now, spread a little along the boundary
+        members.forEach((m, i) => {
+          const e = field(m);
+          const enter = from!.clone();
+          enter.x += (Math.random() - 0.5) * 6;
+          enter.z += (Math.random() - 0.5) * 6;
+          if (mode === 'fly') enter.y += i * 2;
+          e.beginArrival(mode, enter, m.pos);
+        });
+      }
+    }
+  }
+
   /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
   get bossPhaseLevel(): number { return this.bossPhase; }
 
@@ -569,6 +652,10 @@ export class Game {
     audio.stopSabers();
     audio.stopEngines();
 
+    for (const c of this.carriers) c.dispose();
+    this.carriers.length = 0;
+    this.incoming = 0;
+
     disposeSubtree(this.scene);
     this.rocketGeo.dispose();
     this.rocketMat.dispose();
@@ -646,6 +733,10 @@ export class Game {
   }
 
   get aliveEnemyCount(): number { return this.enemies.filter((e) => e.alive).length; }
+  /** hostiles the wave has staged that are not on the field yet (aboard a carrier) */
+  get incomingCount(): number { return this.incoming; }
+  /** carrier passes currently in the sky, for the tests */
+  get carrierCount(): number { return this.carriers.length; }
 
   update(dt: number, inputs: FrameInput[]): void {
     // ---- the boss introduction ----
@@ -670,6 +761,15 @@ export class Game {
     this.hostileCache.clear();
     if (this.state === 'fighting' || this.state === 'break' || this.state === 'intro') this.elapsed += dt;
     this.board.update?.(dt, this.time, this);
+
+    // carrier passes: fly, release their squads over the posts, leave
+    for (let i = this.carriers.length - 1; i >= 0; i--) {
+      if (!this.carriers[i].update(dt)) {
+        const gone = this.carriers.splice(i, 1)[0];
+        this.scene.remove(gone.group);
+        gone.dispose();
+      }
+    }
 
     // ---- campaign's shared screen ----
     // Player one's stick steers the one rig everybody is watched through;
@@ -723,7 +823,7 @@ export class Game {
       // removed the same frame they die, rather than lingering as a corpse, so
       // the array could empty completely and the check could never fire again.
       if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0
-          && !this.monsterStaging) {
+          && this.incoming === 0 && !this.monsterStaging) {
         // the fallen fade away now that the wave is decided
         for (const e of this.enemies) if (!e.alive) e.fadeOut();
         if (this.wave > FINAL_WAVE) {
@@ -1239,7 +1339,7 @@ export class Game {
       const rivals = this.players.filter((o) => o !== p && (o.alive || o.lives > 0 || o.respawnTimer > 0)).length;
       return `${p.kills} kills · ${rivals} rival${rivals === 1 ? '' : 's'} left`;
     }
-    return `${p.kills} kills · ${this.aliveEnemyCount} hostiles remaining`;
+    return `${p.kills} kills · ${this.aliveEnemyCount + this.incoming} hostiles remaining`;
   }
 
   /** the far side of the board, where a boss battle posts its warlord */
@@ -1272,15 +1372,24 @@ export class Game {
       return;
     }
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
-    spawnWave(this.board, this.wave, this.players.length, near, (e) => {
-      this.waveSpawned++;
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      this.particles.dustPuff(e.position, 10);
-    });
+    if (this.wave <= 1) {
+      // the first wave is the garrison already holding the territory: it is
+      // simply there, posted, waiting to be found
+      spawnWave(this.board, this.wave, this.players.length, near, (e) => {
+        this.waveSpawned++;
+        this.enemies.push(e);
+        this.scene.add(e.char.root);
+        this.particles.dustPuff(e.position, 10);
+      });
+    } else {
+      // every later wave is reinforcements, and reinforcements arrive:
+      // carriers streak over and drop squads, locals run in over the edge,
+      // quarren surface from the sea, fliers cross in at altitude
+      this.stageArrivals(planWave(this.board, this.wave, this.players.length, near));
+    }
     // the break before the next wave is the lead time for its new arrivals
     this.preloadWave(this.wave + 1);
-    const scattered = this.aliveEnemyCount;
+    const scattered = this.aliveEnemyCount + this.incoming;
     this.events.banner(
       `Wave ${this.wave}`,
       this.wave === FINAL_WAVE ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`

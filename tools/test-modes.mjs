@@ -145,10 +145,12 @@ const walk = await page.evaluate(`(() => {
     (${STEP})(20);
     if (g.players[0].position.y > 60) out.corridor = true;
     if (c.step.kind === 'boss' && g.boss) {
-      g.boss.damage(g.boss.maxHp * 0.4, g.boss.position, 0);
+      // set hp rather than dealing it: this check is about the phase turns,
+      // and a warlord can parry a single damage() call (by design)
+      g.boss.hp = g.boss.maxHp * 0.6;
       (${STEP})(10);
       out.phases = g.enemies.filter((e) => e.squad >= 9900 && e.squad < 9910).length;
-      g.boss.damage(999999, g.boss.position, 0);
+      g.boss.damage(9999999, g.boss.position, 0);   // lethal even through a parry
       (${STEP})(40);
     }
   }

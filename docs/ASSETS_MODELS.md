@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every model this document asks for has been delivered and integrated**, the six monster bosses included — they landed and were wired on 2026-08-29, the same day they were requested, and with them nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open right now: the two [troop carriers](#troop-carriers--open-2026-08-30), and nothing else.** Every other model this document asks for has been delivered and integrated, the six monster bosses included — they landed and were wired on 2026-08-29, the same day they were requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -422,6 +422,27 @@ Two notes for a re-export, since the corridor is generated rather than authored:
   hazard striping and status lamp, which is what those were standing in for. Finding the
   door does not depend on them — the campaign's beacon sits on it and the HUD names the
   distance.
+
+## Troop carriers — OPEN 2026-08-30
+
+The wave game's reinforcements now *arrive*: from wave 2 on, carrier passes streak
+over the board and drop squads on their posts (parachutes and all —
+`src/enemies/arrival.ts`). Without a hull model the pass renders as a deliberate
+**jet blur** — a stretched dark shape and additive streaks at 85 m/s, which reads as
+speed. With one, the pass slows to a watchable 46 m/s flyby. **Both ships are
+pre-wired**: the `Carrier` swaps its procedural blur for the sculpt the moment the
+file is cached, so delivery is the whole integration. Two ships cover all nine
+territories — the faction map in `arrival.ts` picks per board.
+
+Rigless props through `loadProp`, long axis **Z** (the flight direction), origin at
+the hull's centre, real scale ~15 m. Budget ≤ 6k tris, one 1024² PBR set. Reference
+sheets first, as ever — prompts in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--troop-carrier-reference-sheets).
+
+| Id | Flies for | Prompt |
+|---|---|---|
+| `troop_carrier` | Imperial boards (Dune Sea, Lava Flats, Crevasse, Refinery, Prison Rig) | "a boxy military sci-fi troop transport aircraft about 15 meters long: slab-sided gunmetal-grey armored fuselage, a blunt cockpit with a narrow visor band, two short anhedral wings with a big engine nacelle each, open side drop-doors along the belly, hazard striping at the door sills, no landing gear, in level flight" |
+| `raider_dropship` | Outlaw boards (Spice Run, Storm Docks, Great Forge, Ringworld) | "a scabbed-together outlaw dropship about 14 meters long: asymmetric rust-brown and bare-metal hull plates over an old cargo lifter frame, mismatched welded patches, a bulbous scavenged cockpit, four crooked engine pods on pylons, an underslung open drop bay with chain rigging, no landing gear, in level flight" |
 
 The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by design —
 no new sculpts for *them*. The expansion that outgrows that rule now exists: the six
