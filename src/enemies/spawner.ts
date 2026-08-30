@@ -175,24 +175,37 @@ const _probe = new THREE.Vector3();
 const POST_BODY = { radius: 0.6, height: 2.1 };
 
 /**
+ * Room for a capsule is necessary but not sufficient: a spot also has to be
+ * somewhere the game can be played from. Three failure modes all passed the
+ * bare capsule test and all produced the "enemy in a wall / nowhere reachable"
+ * reports — a ring sample landing in empty air past a platform edge (free by
+ * definition: there is nothing there, including a floor), one landing in a
+ * burn pool or a kill zone, and one landing on ground metres below the post it
+ * was displaced from (the far side of a wall, reached by sampling *through*
+ * it). So a candidate must also have real ground under its feet, close enough
+ * beneath to be the ground it was aimed at, and no hazard cooking it.
+ */
+function standable(board: Board, x: number, y: number, z: number, body: { radius: number; height: number }): boolean {
+  if (!board.physics.capsuleFree(x, y, z, body.radius, body.height)) return false;
+  const g = board.physics.groundHeight(x, z, y + 0.4);
+  if (!isFinite(g) || y - g > 3) return false;
+  const hz = hazardAt(board, _probe.set(x, y, z));
+  return !hz.kill && hz.dps <= 0;
+}
+
+/**
  * Find somewhere a body of this size actually fits, at or near `p`.
  *
- * Two things make this more than a formality. Several boards place posts on
- * coordinates that are also a prop's centre — the Ringworld's plaza kiosks are
- * the clearest case, where six of the eight posts are kiosk centres — and the
- * jitter that spreads a squad out can drop a body into the wall beside its
- * post. Both used to be checked with a single point probe, which is the wrong
- * question: the mover treats a body as a capsule, so a spawn half a metre from
- * the refinery's hall walls passed the check and stood inside the wall until
- * the push-out threw it somewhere nobody chose. `physics.capsuleFree` asks
- * what the mover asks.
- *
- * Returns null when nothing within reach fits, so the caller can fall back to
- * ground the board itself vouches for rather than spawning into scenery.
+ * Several boards place posts on coordinates that are also a prop's centre —
+ * the Ringworld's plaza kiosks are the clearest case — and the jitter that
+ * spreads a squad out can drop a body into the wall beside its post. The test
+ * is `standable` above: what the mover asks (`capsuleFree`), plus ground and
+ * hazards. Returns null when nothing within reach passes, so the caller can
+ * fall back to ground the board itself vouches for.
  */
 function freeSpot(board: Board, p: THREE.Vector3, body: { radius: number; height: number }): THREE.Vector3 | null {
   const phys = board.physics;
-  if (phys.capsuleFree(p.x, p.y, p.z, body.radius, body.height)) return p;
+  if (standable(board, p.x, p.y, p.z, body)) return p;
   // out to ~14 m: a body can start well inside a cluster of colliders (the
   // barge's hull cylinders, a stack of crates, a refinery hall) and a short
   // search never clears it. Rings get denser as they widen, so a corridor
@@ -206,7 +219,7 @@ function freeSpot(board: Board, p: THREE.Vector3, body: { radius: number; height
       const z = p.z + Math.sin(a) * r;
       const y = phys.heightAt ? phys.heightAt(x, z) + 0.3 : p.y;
       if (!isFinite(y)) continue;
-      if (phys.capsuleFree(x, y, z, body.radius, body.height)) return new THREE.Vector3(x, y, z);
+      if (standable(board, x, y, z, body)) return new THREE.Vector3(x, y, z);
     }
   }
   return null;
@@ -262,7 +275,12 @@ function placeBody(
     const near = find(board, f.clone(), body);
     if (near) return near;
   }
-  return wanted;
+  // Nothing anywhere fits — a board bug, but the choice of failure matters:
+  // returning `wanted` put the body inside whatever scenery `wanted` named,
+  // and the push-out threw it somewhere nobody chose (this was the last way a
+  // spawn could still end up in a wall). Authored ground is where the level
+  // designer said a body can stand; even crowded, it beats a wall.
+  return (fallbacks[fallbacks.length - 1] ?? wanted).clone();
 }
 
 /** how far apart posted enemies in one squad stand */
@@ -312,6 +330,8 @@ export interface Placement {
   pos: THREE.Vector3;
   squad: number;
   squadSize: number;
+  /** placed at an air post — a flier, which arrives flying rather than dropped */
+  air?: boolean;
 }
 
 /**
@@ -423,7 +443,7 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
         // than the trooper the post was cleared for.
         const wanted = base.clone().add(jitter);
         const fallbacks = entry.air ? [base] : [base, ...authored];
-        out.push({ kind: entry.kind, pos: placeBody(board, wanted, body, !!entry.air, fallbacks), squad, squadSize: size });
+        out.push({ kind: entry.kind, pos: placeBody(board, wanted, body, !!entry.air, fallbacks), squad, squadSize: size, air: !!entry.air });
       }
     }
   }

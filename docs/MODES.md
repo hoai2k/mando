@@ -163,9 +163,17 @@ rather than on new content: each territory names a **boss kind** (its
 signature final-wave elite — the Wookiee enforcer on the Dune Sea, the Pyke
 capo on the Spice Run, the broodmother in the Crevasse, the darksaber officer
 in the Refinery, the duelist pair's senior on the Ringworld, and so on) and
-the boss is that enemy **promoted**: ×4–5 HP, ×1.5 damage, ~×1.3 bulk, and a
+the boss is that enemy **promoted**: ×5 HP, ×1.5 damage, and a
 **boss health bar** on every player's HUD that deepens gold → orange → red
-with the phase.
+with the phase. **A warlord reads as a warlord (2026-08-30):** human-sized
+kinds grow ×1.6 and the already-big ×1.35 — the Pit Warlord stands 3.5 m
+over a 1.8 m raider — the body **flashes red** on every landed hit (pale
+blue-white on a turned one), and warlords **parry**: a 55% roll behind a
+1.2-second cooldown turns a hit into a sharp sidestep off the line of the
+shot for 15% damage. The cooldown is the fairness — sustained fire always
+gets through, and even single volleys usually land most of their hits
+(measured: 40 spaced shots, 11 turned). The monster bosses take none of
+this — their promotion passes scale 1 and their answer is mass.
 
 **The introduction (2026-08-29).** The battle opens on a card, so there is
 never any doubt it has begun: letterbox bars, the warlord's name in the
