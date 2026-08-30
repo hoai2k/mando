@@ -26,17 +26,20 @@ these load-bearing pieces:
 | Enemy AI | `enemies/enemy.ts` | posted/alerted/engaged awareness, cover, suppression, morale, escort allies (team 0) | campaign reuses posting untouched (squads along a path *are* posts); PvP squads reuse the ally-escort branch, generalised to "escort your owner" |
 | Spawning | `enemies/spawner.ts` | `planWave`/`spawnWave`, `standingSpot`, capsule-validated placement | campaign posts hand-picked squads with the same placement guard; PvP spawns no waves at all |
 | Character factory | `characters/*` | every enemy build returns a `CharacterInstance` on the shared rig with a muzzle | the PvP playable-NPC adapter wraps any of them in the `PlayerCharacter` surface `Player` expects |
-| Camera | `core/camera.ts` | third-person orbit rig, collision, pace-driven distance | campaign's shared screen is *one more instance* of the same rig, following the party centroid |
+| Camera | `core/camera.ts` | third-person orbit rig, collision, pace-driven distance | campaign uses each player's own rig and the wave game's split-screen render, unchanged (a shared centroid camera was tried first and cut — see §4) |
 | Menus | `ui/menus.ts`, `ui/charselect.ts` | pad+keyboard navigable screens; a roster-driven 3D select | title gains two buttons; the select's roster becomes a parameter (PvP hands it the NPC list) |
 
 Genre research that shaped the campaign design (see LEVEL_DESIGN.md for the
-numbers): **Gauntlet** (Slayer Edition) runs 8–12 minutes per chapter as a
-chain of combat pockets with a readable "go this way"; **Minecraft Dungeons**
-dresses a fixed golden path as open terrain — wide pockets for fights, pinches
-between them, and a beacon/arrow so nobody reads a map. Both alternate *arena
-beats* with *corridor beats*; the corridor is where ranged discipline (cover,
-advance, cover) replaces circle-strafing. That alternation is the spine of our
-campaign levels.
+numbers): **Gauntlet** (2014/Slayer) runs 8–12 minutes per chapter as a
+chain of hand-shaped chambers — including arena floors where waves keep
+coming until the room is cleared — with a readable "go this way";
+**Minecraft Dungeons** chains authored rooms along one golden path — wide
+pockets for fights, pinches between them, landmark rooms to mark progress,
+and a beacon/arrow so nobody reads a map. Both alternate *arena beats* with
+*corridor beats*; the corridor is where ranged discipline (cover, advance,
+cover) replaces circle-strafing. That alternation — room, pinch, room, with
+the fight rooms sealed while their waves run — is the spine of our mission
+levels.
 
 ## 2. Wave Battle
 
@@ -123,34 +126,44 @@ order, continuing offscreen (scroll with stick/arrows, click to pick). All nine
 are unlocked for now; the lock-past-your-frontier rule is designed (see
 expansion) but deliberately not enforced yet.
 
-**The run.** One territory = one level ≈ one Gauntlet chapter (8–12 min). The
-territory's existing board becomes an *open world to cross*: a winding path of
-8–10 waypoints is laid over it, each with a posted squad, ramping from wave-1
-kinds at the trailhead to the board's elites at the finale. A **guide beacon**
-(light pillar + radar pip + on-screen hint) always marks the next objective —
-you can see where to go, never how much fighting you can skip (the awareness
-system decides that: sneak wide, or wake the camp).
+**The run.** One territory = one level ≈ one Gauntlet chapter (8–12 min),
+played in a **purpose-built mission level** (`world/mission.ts`): an authored
+chain of walled fight rooms joined by real, walkable corridor pinches, raised
+high over the territory so it keeps the board's sky, fog, ambience, gravity
+and wave tables while getting clean, intentional geometry. (The first design
+laid a waypoint tour over the open wave arena; it played as the open arena
+with a to-do list, and was redesigned into the room chain — 2026-08-30.)
+Three room templates alternate along the chain (docs/LEVEL_DESIGN.md §2):
+**camp** rooms hold a posted garrison under the normal awareness rules —
+fight it or slip through to the far gate; **assault** rooms seal both gates
+behind an energy pane and run 2–3 waves from wall vents until the room is
+held (Gauntlet's arena floor); and the two **boss arenas** — the champion's
+mid-chain, the warlord's at the end, oversized on monster boards for what
+comes up after. A **guide beacon** (light pillar + radar pip + on-screen
+hint) always marks the one next objective. Difficulty ramps by *place*: room
+*i* draws its squads from the board's wave table at a wave proportional to
+how deep in the chain it sits.
 
-**Corridors.** Twice per level the path dives through a **door** into an
-interior corridor segment — a procedurally built, crate-lined interior (its
-own little board volume floating high above the territory, reached and left by
-door teleports; the same trick keeps it out of the skyline and means nothing
-about board loading changes today, while leaving the door in place as the
-natural seam for real streaming later). Corridors are the cover-discipline
-beat: shooters posted behind crates, advance pocket by pocket, exit door at the
-end returns the party to the next stretch of the surface path.
+**Corridors.** Between rooms the path pinches into crate-lined corridor legs
+with at most one bend — continuous geometry, walked through rather than
+teleported into (the old door-teleport segments are gone). Corridors are the
+cover-discipline beat: defenders posted behind crates butted flush against
+the walls, advance leg by leg. Door frames at both mouths carry the energy
+gates the assault rooms seal.
 
-**Shared screen.** All players enter at once and play on one screen: a single
-camera (the same third-person rig) follows the party centroid; player 1's
-right stick steers it, and everyone's movement is screen-relative. Aim assist
-carries the aiming load, as in every couch brawler. Split-screen remains the
-wave game's and PvP's presentation.
+**Per-player cameras.** Every player watches through their own third-person
+rig, and Missions splits the screen exactly like the wave game and PvP. (v1
+shipped a single shared camera on the party centroid, steered by player 1;
+it framed poorly the moment the party split around cover and it cost every
+player their own aim — cut 2026-08-30, and the HUD's shared-screen layout
+went with it.)
 
-**Checkpoints & death.** The last reached waypoint is the checkpoint; death
-respawns you there after 4 s (arcade — Gauntlet's food-and-keys economy is in
-the expansion list, not v1). The level ends in a **boss arena** (§4a): the
-final waypoint spawns the territory's boss with its retinue, and the level is
-won when the boss falls.
+**Checkpoints & death.** The last safe ground — a cleared room's far end, or
+the entry of the room being fought — is the checkpoint; death respawns you
+there after 4 s (arcade — Gauntlet's food-and-keys economy is in the
+expansion list, not v1). Going over a wall or off the level teleports you
+back to it. The level ends in the **warlord's arena** (§4a), and the run is
+won when the warlord — and on a monster board, the monster under it — falls.
 
 ## 4a. Boss battles (shared by Wave Battle and Campaign)
 
@@ -187,9 +200,9 @@ when it goes down.
 - **Wave Battle:** clearing wave 4 announces the champion's battle, clearing
   wave 7 the warlord's; each boss posts with a small honour guard. Victory on
   the warlord's death.
-- **Campaign:** the champion's arena sits at the path's midpoint; the final
-  waypoint is the warlord's arena, and the guide beacon leads straight to
-  each. Victory on the warlord's death.
+- **Campaign:** the champion's arena sits mid-chain and the warlord's ends
+  the level; each seals its gates on entry, and the guide beacon leads
+  straight to each. Victory on the warlord's death.
 
 A second tier now has a design: **six large monster bosses** — one per board with a
 monster in its bones (mudhorn, ravinak, mamacore, rancor, greater krayt, mythosaur)
@@ -200,9 +213,9 @@ docs as of 2026-08-29. Not implemented — the sheets are the blocking input.
 
 ## 5. What was deliberately cut (and why)
 
-- **True level streaming** for corridors — the door is the seam, but today both
-  sides are one scene. Streaming is a pure optimisation behind an existing
-  fade, listed below.
+- **True level streaming** for mission levels — the whole room chain is built
+  at match start; it is cheap (boxes and a handful of props), and the gates
+  remain the natural seams if streaming is ever wanted.
 - **Campaign progression locks/saves** — the strip is all-unlocked; the save
   format is one localStorage key away when wanted.
 - **Team PvP (2v2)** — free-for-all shipped first; teams are a lobby UI
@@ -215,9 +228,9 @@ docs as of 2026-08-29. Not implemented — the sheets are the blocking input.
    liberated territory index. Planet strip renders locked planets dark with a
    chain icon; passed ones get a banner. One evening of work; the strip already
    reads its state from a function.
-2. **Corridor streaming.** Build corridor geometry lazily on first door use and
-   dispose it on exit; then build *the next open area* the same way and the
-   whole level becomes streamed. The door teleport already hides the seam.
+2. **Room streaming.** Build each mission room lazily as its entry gate first
+   opens and dispose cleared ones behind the party (they are one-way in
+   spirit already). The gates are the seams.
 3. **Gauntlet economy.** Food (HP pickups) hidden off the golden path to reward
    wandering; keys gating optional side doors (loot: rocket charges, shield
    batteries). Pickups are one pooled mesh + a radius check.

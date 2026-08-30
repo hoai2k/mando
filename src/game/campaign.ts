@@ -1,37 +1,33 @@
 import * as THREE from 'three';
 import type { Game } from './game';
-import type { Board } from '../world/board';
-import { hazardAt } from '../world/board';
-import { buildCorridor, buildDoorFrame, type CorridorSpec } from '../world/corridor';
-import { FINAL_WAVE, standingSpot, waveComposition } from '../enemies/spawner';
-import { Enemy, type EnemyKind } from '../enemies/enemy';
+import { buildMission, MISSION_LAYOUTS, type MissionLevel, type MissionRoom } from '../world/mission';
+import { FINAL_WAVE, waveComposition } from '../enemies/spawner';
+import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
 import { audio } from '../core/audio';
 
 /**
- * The campaign run (docs/MODES.md §4, docs/LEVEL_DESIGN.md): a winding path
- * of fight waypoints laid over the territory's own authored ground, two
- * door-gated corridor segments, bacta pickups, a guide beacon, checkpoints,
- * and the boss arena at the end. All players share one screen; the Game owns
- * the shared camera, this controller owns the level.
+ * The Missions run (docs/MODES.md §4, docs/LEVEL_DESIGN.md): the territory's
+ * purpose-built mission level — an authored chain of walled fight rooms and
+ * corridor pinches (world/mission.ts) — driven room by room. Camp rooms hold
+ * posted garrisons you can fight or slip past; assault rooms seal their gates
+ * and run waves from the wall vents until the room is held; the champion's
+ * arena sits mid-chain and the warlord's ends it. A guide beacon always marks
+ * the way forward, the last safe ground is the checkpoint, and every player
+ * watches through their own camera — Missions splits the screen exactly like
+ * the wave game.
  */
 
-type StepKind = 'node' | 'door' | 'corridor' | 'boss';
-
-interface Step {
-  kind: StepKind;
-  /** where the beacon points for this step */
-  pos: THREE.Vector3;
-  /** squad that springs at close range instead of being posted (ambush template) */
-  ambush?: { kind: EnemyKind; count: number }[];
-  ambushSprung?: boolean;
-  corridor?: CorridorSpec;
-  /** where the party lands when this step completes with a teleport */
-  landing?: THREE.Vector3;
-  /** boss steps: which battle this arena holds — the champion or the warlord */
-  bossTier?: 'mid' | 'final';
-  bossCalled?: boolean;
-  label: string;
-}
+/** how close to the exit point counts as "through" a camp room */
+const EXIT_R = 3.4;
+/** vertical slack when judging who is inside a room (jetpack hops included) */
+const ROOM_Y_SLACK = 8;
+/** falling this far below the level floor reads as "off the path" */
+const FALL_DROP = 9;
+/** ranged kinds, for corridor defenders — the pinch is the cover-discipline beat */
+const RANGED = new Set<EnemyKind>([
+  'pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper',
+  'quarren', 'ringEnforcer', 'droid', 'duelist',
+]);
 
 interface Pickup {
   pos: THREE.Vector3;
@@ -39,168 +35,130 @@ interface Pickup {
   taken: boolean;
 }
 
-/** how close counts as "reached" for a plain waypoint */
-const ARRIVE_R = 7;
-/** door trigger radius */
-const DOOR_R = 2.6;
-/** ambush squads spring at this range */
-const AMBUSH_R = 24;
-/** corridors float this far above the territory */
-const CORRIDOR_Y = 90;
-
 export class Campaign {
-  steps: Step[] = [];
-  idx = 0;
-  /** where the fallen return: the last surface footing the party earned */
-  checkpoint = new THREE.Vector3();
-  /** true while the party is inside a corridor (spawns go to its entry) */
-  private inCorridor = false;
+  level: MissionLevel;
+  /** index of the room the party is pushing toward, or fighting in */
+  idx = 1;
+  private phase: 'travel' | 'fight' = 'travel';
+  private waveNum = 0;
+  private waveCount = 0;
+  private waveDelay = 0;
+  /** the sealed room's own hostiles; the gates release when the last falls */
+  private roomForce: Enemy[] = [];
+  private bossCalled = false;
+  /** where the fallen return: the last safe ground the party earned */
+  checkpoint: THREE.Vector3;
+  done = false;
   private beacon: THREE.Mesh;
   private beaconMat: THREE.MeshBasicMaterial;
   private pickups: Pickup[] = [];
-  done = false;
+  private fallNote = 0;
 
   constructor(private game: Game) {
-    const board = game.board;
-    this.checkpoint.copy(board.playerStarts[0]);
+    this.level = buildMission(game.board, MISSION_LAYOUTS[game.board.kind]);
+    // the party drops at the trailhead, not on the territory below
+    game.players.forEach((p, i) => p.spawnAt(this.level.starts[i % this.level.starts.length]));
+    this.checkpoint = this.level.rooms[0].center.clone();
 
-    // ---- the tour: nearest-unvisited-neighbour over the board's own posts ----
-    const left = board.groundSpawns.map((v) => v.clone());
-    const path: THREE.Vector3[] = [];
-    let cur = board.playerStarts[0].clone();
-    while (left.length) {
-      let bi = 0;
-      let bd = Infinity;
-      for (let i = 0; i < left.length; i++) {
-        const d = left[i].distanceToSquared(cur);
-        if (d < bd) { bd = d; bi = i; }
-      }
-      cur = left.splice(bi, 1)[0];
-      path.push(cur);
-    }
-    // very short boards still get a run: reuse the ends
-    while (path.length < 6 && path.length > 0) path.push(path[path.length - 1].clone());
+    // The level's garrison is posted from the start: camp squads in their
+    // rooms and defenders behind the pinch crates, found under the normal
+    // awareness rules — a quiet route past a camp is a real option.
+    const rooms = this.level.rooms;
+    rooms.forEach((room, i) => {
+      if (room.spec.kind !== 'camp') return;
+      const size = Math.min(room.posts.length + 2, 3 + Math.floor(this.rampWave(i) / 3) + this.game.players.length);
+      this.postSquad(this.squadFor(this.rampWave(i), size), room.posts, 9000 + i);
+    });
+    this.level.defenders.forEach((posts, i) => {
+      if (!posts.length) return;
+      let pool = this.squadFor(this.rampWave(i + 1), posts.length + 2).filter((k) => RANGED.has(k));
+      if (!pool.length) pool = game.board.kind === 'crevasse' ? ['krykna'] : ['stormtrooper'];
+      posts.forEach((post, j) => {
+        const e = new Enemy(pool[j % pool.length], this.placeNear(post.pos.clone(), pool[j % pool.length]));
+        e.squad = 9300 + i;
+        e.squadSize = posts.length;
+        game.enemies.push(e);
+        game.scene.add(e.char.root);
+      });
+    });
 
-    // ---- assemble steps: nodes with two corridor dives, the champion's
-    // arena at the path's midpoint, and the warlord's finale ----
-    const doorAfter = new Set([Math.floor(path.length / 3) - 1, Math.floor((2 * path.length) / 3) - 1]);
-    // the mid-board boss battle sits halfway along the level, the same beat
-    // the wave game rings in after wave MID_BOSS_WAVE
-    const midBossAfter = Math.floor((path.length - 1) / 2);
-    let corridorSeed = 1;
-    for (let i = 0; i < path.length - 1; i++) {
-      const node = path[i];
-      // encounter templates alternate: posted camp / sprung ambush, with a
-      // breather (no squad) on the node right after each corridor
-      const template = i % 3 === 2 ? 'ambush' : 'camp';
-      const wave = 1 + Math.round(((FINAL_WAVE - 1) * i) / Math.max(1, path.length - 1));
-      const squad = this.squadFor(wave);
-      const step: Step = { kind: 'node', pos: node, label: 'Push on' };
-      if (template === 'ambush') {
-        step.ambush = squad.map((kind) => ({ kind, count: 1 }));
-        step.label = 'Something is wrong here';
-      } else {
-        this.postSquad(squad, node);
-      }
-      this.steps.push(step);
+    for (const pos of this.level.pickups) this.addPickup(pos);
 
-      if (doorAfter.has(i)) {
-        // the corridor dive: a door on the surface, the lane in the sky
-        const origin = new THREE.Vector3(node.x * 0.5, CORRIDOR_Y + corridorSeed * 14, node.z * 0.5);
-        const spec = buildCorridor(board, origin, (corridorSeed + 7) * 1013, 3);
-        corridorSeed++;
-        const doorPos = this.groundAt(board, node.clone().add(new THREE.Vector3(6, 0, 6)));
-        buildDoorFrame(board.group, doorPos, Math.atan2(-doorPos.x, -doorPos.z));
-        const next = path[i + 1];
-        this.steps.push({ kind: 'door', pos: doorPos, corridor: spec, label: 'Enter the door' });
-        const exitDoorYaw = 0;
-        buildDoorFrame(board.group, spec.exit.clone(), exitDoorYaw);
-        this.steps.push({
-          kind: 'corridor', pos: spec.exit, corridor: spec,
-          landing: this.groundAt(board, next.clone()), label: 'Fight through',
-        });
-        // corridor defenders: the board's shooters, posted behind the crates
-        this.postCorridorDefenders(spec);
-        // bacta in each pocket — the corridor is the attrition beat
-        for (const p of spec.pockets) this.addPickup(p.clone().add(new THREE.Vector3(0, 0.2, 0)));
-      }
-
-      // the champion's arena: the next post on the tour becomes a boss beat
-      if (i === midBossAfter) {
-        this.steps.push({
-          kind: 'boss', bossTier: 'mid',
-          pos: this.groundAt(board, path[i + 1].clone()), label: 'Face the champion',
-        });
-      }
-
-      // hidden bacta off the golden path every third node (reward for wandering)
-      if (i % 3 === 1) {
-        const side = new THREE.Vector3(node.z, 0, -node.x).normalize().multiplyScalar(9);
-        this.addPickup(this.groundAt(board, node.clone().add(side)));
-      }
-    }
-
-    // ---- boss arena: the board's own last post, promoted ----
-    const arena = path[path.length - 1];
-    this.steps.push({ kind: 'boss', bossTier: 'final', pos: arena, label: 'Face the warlord' });
-
-    // ---- beacon ----
+    // ---- the guide beacon: one pillar, always the next objective ----
     this.beaconMat = new THREE.MeshBasicMaterial({
       color: 0xffc860, transparent: true, opacity: 0.4,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     });
     this.beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.3, 60, 12, 1, true), this.beaconMat);
-    this.beacon.position.copy(this.steps[0].pos);
+    this.beacon.position.copy(this.objectivePos);
     this.beacon.position.y += 30;
     this.beacon.frustumCulled = false;
-    board.group.add(this.beacon);
+    game.board.group.add(this.beacon);
   }
 
-  /** ground-snapped copy of a point, so doors and pickups sit on the dirt */
-  private groundAt(board: Board, p: THREE.Vector3): THREE.Vector3 {
-    const g = board.physics.groundHeight(p.x, p.z, p.y + 12);
-    if (isFinite(g)) p.y = g + 0.1;
-    return p;
+  /**
+   * The difficulty ramp is *place*, not time: room `i` of the chain draws its
+   * squads from the board's wave table at this wave — wave-one kinds at the
+   * trailhead, the board's elites by the last stretch.
+   */
+  private rampWave(i: number): number {
+    const n = this.level.rooms.length;
+    return 1 + Math.round(((FINAL_WAVE - 1) * Math.max(0, i - 1)) / Math.max(1, n - 2));
   }
 
-  /** a small squad drawn from this board's wave table at `wave` */
-  private squadFor(wave: number): EnemyKind[] {
-    const comp = waveComposition(this.game.board.kind, Math.min(FINAL_WAVE, wave), this.game.players.length);
+  /** a squad of ~budget bodies drawn across the board's wave-`wave` table */
+  private squadFor(wave: number, budget: number): EnemyKind[] {
+    const comp = waveComposition(this.game.board.kind,
+      Math.min(FINAL_WAVE, Math.max(1, wave)), this.game.players.length);
     const kinds: EnemyKind[] = [];
-    for (const entry of comp) for (let i = 0; i < entry.count && kinds.length < 12; i++) kinds.push(entry.kind);
-    // 4–6 bodies, biased toward the tail of the list (the wave's newer kinds)
-    const size = Math.min(kinds.length, 4 + (wave > 5 ? 2 : 1));
+    for (const entry of comp) for (let i = 0; i < entry.count; i++) kinds.push(entry.kind);
+    if (!kinds.length) return ['stormtrooper'];
+    const take = Math.min(budget, kinds.length);
     const out: EnemyKind[] = [];
-    for (let i = 0; i < size; i++) out.push(kinds[(kinds.length - 1 - i * 2 + kinds.length * 4) % kinds.length]);
+    const stride = Math.max(1, Math.floor(kinds.length / take));
+    for (let i = 0; out.length < take && i < kinds.length; i += stride) out.push(kinds[i]);
+    // the wave's newest kind always makes the room's mix
+    out[out.length - 1] = kinds[kinds.length - 1];
     return out;
   }
 
-  private postSquad(kinds: EnemyKind[], node: THREE.Vector3): void {
-    const squad = 9000 + this.steps.length;
-    for (const kind of kinds) {
-      const jitter = new THREE.Vector3((Math.random() - 0.5) * 8, 0.2, (Math.random() - 0.5) * 8);
-      const pos = standingSpot(this.game.board, node.clone().add(jitter), kind);
-      const e = new Enemy(kind, pos);
-      e.squad = squad;
-      e.squadSize = kinds.length;
-      this.game.enemies.push(e);
-      this.game.scene.add(e.char.root);
+  /**
+   * Somewhere inside the level a body of `kind` can stand, at or near `pos`.
+   * The board-wide `standingSpot` falls back to the territory's own ground —
+   * ninety metres below the level — so mission placement never uses it: a
+   * hostile dropped onto the surface could never be reached, and a sealed
+   * room waiting on it would never open.
+   */
+  placeNear(pos: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+    const body = enemyBody(kind);
+    const phys = this.game.board.physics;
+    const y = this.level.floorY + 0.2;
+    if (this.level.contains(pos.x, pos.z) && phys.capsuleFree(pos.x, y, pos.z, body.radius, body.height)) {
+      pos.y = y;
+      return pos;
     }
+    for (let ring = 1; ring <= 5; ring++) {
+      const r = ring * 1.7;
+      const steps = 8 + ring * 4;
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2 + ring;
+        const x = pos.x + Math.cos(a) * r;
+        const z = pos.z + Math.sin(a) * r;
+        if (!this.level.contains(x, z)) continue;
+        if (phys.capsuleFree(x, y, z, body.radius, body.height)) return new THREE.Vector3(x, y, z);
+      }
+    }
+    return new THREE.Vector3(pos.x, y, pos.z);
   }
 
-  private postCorridorDefenders(spec: CorridorSpec): void {
-    const shooters = this.squadFor(4).filter((k) => {
-      // corridors are the cover beat: shooters only (melee swarms on ice boards)
-      const ranged = new Set<EnemyKind>(['pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper', 'quarren', 'ringEnforcer', 'droid']);
-      return ranged.has(k);
-    });
-    const pool: EnemyKind[] = shooters.length ? shooters
-      : this.game.board.kind === 'crevasse' ? ['krykna'] : ['stormtrooper'];
-    spec.enemySpots.forEach((spot, i) => {
-      const kind = pool[i % pool.length];
-      const e = new Enemy(kind, spot.pos.clone());
-      e.squad = 9500 + i % 3;
-      e.squadSize = 3;
+  private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): void {
+    kinds.forEach((kind, i) => {
+      const base = posts[i % posts.length].clone();
+      base.x += (Math.random() - 0.5) * 3;
+      base.z += (Math.random() - 0.5) * 3;
+      const e = new Enemy(kind, this.placeNear(base, kind));
+      e.squad = squad;
+      e.squadSize = kinds.length;
       this.game.enemies.push(e);
       this.game.scene.add(e.char.root);
     });
@@ -224,38 +182,130 @@ export class Campaign {
     this.pickups.push({ pos: pos.clone(), mesh: g, taken: false });
   }
 
-  get step(): Step { return this.steps[Math.min(this.idx, this.steps.length - 1)]; }
-  get objectivePos(): THREE.Vector3 { return this.step.pos; }
+  private get room(): MissionRoom {
+    return this.level.rooms[Math.min(this.idx, this.level.rooms.length - 1)];
+  }
 
-  /** HUD line: what to do and how far it is (from player one) */
+  /** where the beacon stands and the radar pip points */
+  get objectivePos(): THREE.Vector3 {
+    const room = this.room;
+    if (this.phase === 'travel') return room.entry;
+    // boss arenas: the beacon walks you onto the battle. Everything else
+    // points at the way out — never at a set piece (the pit room's centre is
+    // the pit), and a sealed exit gate reads as "clear the room to open it".
+    if (room.spec.kind === 'champion' || room.spec.kind === 'warlord') return room.center;
+    return room.exit;
+  }
+
+  /** HUD line: what to do and (on the move) how far it is */
   hint(from: THREE.Vector3): string {
-    const d = Math.round(Math.hypot(this.step.pos.x - from.x, this.step.pos.z - from.z));
-    return `${this.step.label} · ${d} m`;
+    const room = this.room;
+    const obj = this.objectivePos;
+    const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
+    if (this.phase === 'travel') return `Make for ${room.spec.label} · ${d} m`;
+    switch (room.spec.kind) {
+      case 'assault': return `Hold ${room.spec.label} · wave ${Math.max(1, this.waveNum)} of ${this.waveCount}`;
+      case 'champion': return 'Bring down the champion';
+      case 'warlord': return 'Bring down the warlord';
+      default: return `Push through ${room.spec.label} · ${d} m`;
+    }
   }
 
-  /** where a fallen player comes back */
-  get respawnPoint(): THREE.Vector3 {
-    return this.inCorridor && this.step.corridor ? this.step.corridor.entry : this.checkpoint;
+  /** where player `slot` comes back: the checkpoint, fanned out and validated */
+  respawnSpot(slot: number): THREE.Vector3 {
+    const at = this.checkpoint.clone();
+    at.x += (slot % 2) * 1.6 - 0.8;
+    at.z += Math.floor(slot / 2) * 1.6 - 0.8;
+    return this.placeNear(at, 'pyke');
   }
 
-  private teleportParty(to: THREE.Vector3): void {
-    this.game.players.forEach((p, i) => {
-      p.position.set(to.x + (i % 2) * 1.6 - 0.8, to.y + 0.2, to.z + Math.floor(i / 2) * 1.6);
-      p.velocity.set(0, 0, 0);
-      p.cover = null;
-      p.peeking = false;
+  private anyInside(room: MissionRoom): boolean {
+    const r = room.rect;
+    return this.game.players.some((p) => p.alive
+      && p.position.x >= r.minX && p.position.x <= r.maxX
+      && p.position.z >= r.minZ && p.position.z <= r.maxZ
+      && Math.abs(p.position.y - this.level.floorY) < ROOM_Y_SLACK);
+  }
+
+  private nearExit(room: MissionRoom): boolean {
+    return this.game.players.some((p) => p.alive
+      && p.position.distanceToSquared(room.exit) < EXIT_R * EXIT_R);
+  }
+
+  private enterRoom(room: MissionRoom): void {
+    this.phase = 'fight';
+    this.checkpoint.copy(room.entry);
+    switch (room.spec.kind) {
+      case 'camp':
+        this.game.announce(room.spec.label, 'clear it, or slip through');
+        break;
+      case 'assault':
+        room.entryGate?.close();
+        room.exitGate?.close();
+        this.waveCount = room.spec.waves ?? 2;
+        this.waveNum = 0;
+        this.roomForce = [];
+        this.waveDelay = 0.9;
+        this.game.announce('Sealed in', `hold ${room.spec.label}`);
+        audio.waveStart();
+        break;
+      default:
+        // a boss arena: the gates seal and the battle owns the room
+        room.entryGate?.close();
+        room.exitGate?.close();
+        this.bossCalled = true;
+        this.game.spawnBoss(room.center, room.spec.kind === 'champion' ? 'mid' : 'final');
+        break;
+    }
+  }
+
+  private spawnRoomWave(room: MissionRoom): void {
+    this.waveNum++;
+    // later waves of the same room draw from deeper in the table
+    const wave = this.rampWave(this.idx) + this.waveNum - 1;
+    const budget = Math.min(12, 3 + wave + this.game.players.length);
+    const kinds = this.squadFor(wave, budget);
+    const lead = this.game.players.find((p) => p.alive) ?? this.game.players[0];
+    kinds.forEach((kind, i) => {
+      const vent = room.vents[i % room.vents.length].clone();
+      vent.x += (Math.random() - 0.5) * 3;
+      vent.z += (Math.random() - 0.5) * 3;
+      const e = new Enemy(kind, this.placeNear(vent, kind));
+      e.squad = 9500 + this.idx * 10 + this.waveNum;
+      e.squadSize = kinds.length;
+      this.game.enemies.push(e);
+      this.game.scene.add(e.char.root);
+      this.game.particles.dustPuff(e.position, 8);
+      e.alert(lead.position, true);
     });
-    audio.uiConfirm();
+    this.roomForce = this.roomForce.concat(
+      this.game.enemies.slice(this.game.enemies.length - kinds.length));
+    audio.waveStart();
+    this.game.announce(`Wave ${this.waveNum} of ${this.waveCount}`, `hold ${room.spec.label}`);
+  }
+
+  private clearRoom(room: MissionRoom, fought: boolean): void {
+    room.entryGate?.open();
+    room.exitGate?.open();
+    // the far end of the room is the safe ground — never a set piece's centre
+    this.checkpoint.copy(room.exit);
+    this.idx++;
+    this.phase = 'travel';
+    this.bossCalled = false;
+    if (fought) audio.waveClear();
+    else audio.uiConfirm();
+    if (this.idx < this.level.rooms.length) {
+      this.game.announce('Checkpoint', `push on to ${this.level.rooms[this.idx].spec.label}`);
+    }
   }
 
   update(dt: number): void {
-    void dt;
     const game = this.game;
     if (this.done) return;
-    const step = this.step;
 
     // beacon rides the objective and breathes
-    this.beacon.position.set(step.pos.x, step.pos.y + 30, step.pos.z);
+    const obj = this.objectivePos;
+    this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
 
     // pickups: touch to heal
@@ -275,76 +325,52 @@ export class Campaign {
       }
     }
 
-    const nearest = (r: number): boolean =>
-      game.players.some((p) => p.alive && p.position.distanceToSquared(step.pos) < r * r);
-
-    // ambush template: the squad springs when the party walks in
-    if (step.ambush && !step.ambushSprung && nearest(AMBUSH_R)) {
-      step.ambushSprung = true;
-      const lead = game.players.find((p) => p.alive) ?? game.players[0];
-      for (const spec of step.ambush) {
-        for (let i = 0; i < spec.count; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const at = step.pos.clone().add(new THREE.Vector3(Math.cos(a) * 12, 0.2, Math.sin(a) * 12));
-          const e = game.addReinforcement(spec.kind, at);
-          e.alert(lead.position, true);
-        }
+    // off the path (over a wall, down to the territory): back to the checkpoint
+    this.fallNote -= dt;
+    for (const p of game.players) {
+      if (!p.alive || p.position.y > this.level.floorY - FALL_DROP) continue;
+      const at = this.respawnSpot(p.slot);
+      p.position.copy(at);
+      p.velocity.set(0, 0, 0);
+      p.cover = null;
+      p.peeking = false;
+      if (this.fallNote <= 0) {
+        this.fallNote = 4;
+        game.announce('Off the path', 'back to the last checkpoint');
       }
-      game.announce('Ambush!');
-      audio.waveStart();
     }
 
-    switch (step.kind) {
-      case 'node':
-        if (nearest(ARRIVE_R)) this.arrive(step.pos);
+    const room = this.room;
+    if (this.phase === 'travel') {
+      if (this.anyInside(room)) this.enterRoom(room);
+      return;
+    }
+    switch (room.spec.kind) {
+      case 'camp':
+        if (this.nearExit(room)) this.clearRoom(room, false);
         break;
-      case 'door':
-        if (nearest(DOOR_R) && step.corridor) {
-          this.inCorridor = true;
-          this.teleportParty(step.corridor.entry);
-          this.idx++;
-          game.announce('Corridor', 'take cover, advance, clear it');
+      case 'assault':
+        if (this.waveDelay > 0) {
+          this.waveDelay -= dt;
+          if (this.waveDelay <= 0) this.spawnRoomWave(room);
+        } else if (this.roomForce.every((e) => !e.alive)) {
+          if (this.waveNum < this.waveCount) this.waveDelay = 1.6;
+          else this.clearRoom(room, true);
         }
         break;
-      case 'corridor':
-        if (nearest(DOOR_R) && step.landing) {
-          this.inCorridor = false;
-          this.teleportParty(step.landing);
-          this.checkpoint.copy(step.landing);
-          this.idx++;
-          game.announce('Checkpoint', 'back to the surface');
-          audio.waveClear();
-        }
-        break;
-      case 'boss':
-        if (!step.bossCalled && nearest(38)) {
-          step.bossCalled = true;
-          game.spawnBoss(step.pos, step.bossTier ?? 'final');
-        }
+      default:
         // `monsterStaging` covers the beat between the warlord falling and the
-        // board's monster coming up: the step is not done until that is
-        if (step.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
-          if (step.bossTier === 'mid') {
-            // the champion falls: a checkpoint, and the road to the warlord
-            this.checkpoint.copy(step.pos);
-            this.idx++;
+        // board's monster coming up: the arena is not done until that is
+        if (this.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
+          if (room.spec.kind === 'champion') {
+            this.clearRoom(room, true);
             game.announce('The champion falls', 'the warlord waits at the end');
-            audio.waveClear();
           } else {
+            room.entryGate?.open();
             this.done = true;
           }
         }
         break;
     }
-
-    // a checkpoint you cannot stand on is no checkpoint: nudge off hazards
-    if (hazardAt(game.board, this.checkpoint).kill) this.checkpoint.copy(game.board.playerStarts[0]);
-  }
-
-  private arrive(pos: THREE.Vector3): void {
-    this.checkpoint.copy(pos);
-    this.idx++;
-    this.game.announce('Checkpoint', this.step.label);
-    audio.waveClear();
   }
 }

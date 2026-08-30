@@ -61,28 +61,22 @@ export class Hud {
     parent.appendChild(this.layer);
   }
 
-  setLayout(playerCount: number, shared = false): void {
+  setLayout(playerCount: number): void {
     this.layer.innerHTML = '';
     this.huds = [];
     // the same rectangles the renderer sets its viewports from, so a player's
-    // bars always sit inside that player's picture. Campaign's shared screen
-    // instead gives every player the whole window and fans the bars out along
-    // the bottom (one picture, several fighters).
+    // bars always sit inside that player's picture — every mode splits the
+    // screen the same way now that Missions gives each player their own camera
     const rects = splitLayout(playerCount);
     for (let i = 0; i < playerCount; i++) {
       const root = document.createElement('div');
       root.className = 'hud-viewport';
-      const r = shared ? { x: 0, y: 0, w: 1, h: 1 } : rects[i];
+      const r = rects[i];
       root.style.left = `${r.x * 100}%`;
       root.style.top = `${r.y * 100}%`;
       root.style.width = `${r.w * 100}%`;
       root.style.height = `${r.h * 100}%`;
       root.classList.toggle('compact', r.h < 0.9 && r.w < 0.9);
-      if (shared) {
-        root.classList.add('shared');
-        root.style.setProperty('--slot', String(i));
-        if (i > 0) root.classList.add('shared-follower');
-      }
       root.innerHTML = `
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
