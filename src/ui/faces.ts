@@ -60,6 +60,4 @@ export function faceSvg(id: PlayableId): string {
 }
 
 /** the authored portrait basename a playable answers to */
-export function portraitName(id: PlayableId): string {
-  return `portrait_${id.replace('npc:', '')}`;
-}
+export { portraitName } from '../core/assets';
