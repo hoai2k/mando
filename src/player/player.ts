@@ -245,6 +245,12 @@ export class Player {
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
   get yaw(): number { return this.facingYaw; }
+  /**
+   * What this fighter is shot at as. `height` is the clamped collider — the
+   * level-fit capsule a playable war beast walks the boards in — so anything
+   * aiming or registering a hit reads this instead. See PlayerProfile.
+   */
+  get hitHeight(): number { return this.profile.hitHeight; }
   private wasGrounded = true;
   private footTimer = 0;
   private sprintRefillDelay = 0;
@@ -978,7 +984,7 @@ export class Player {
       if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
         rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
       } else if (arel > 0.8) {    // 46-132°: side-stepping
-        lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
+        lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
         rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       } else {
         // the gait runs at whatever rate plants the feet at our actual ground

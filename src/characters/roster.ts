@@ -4,7 +4,7 @@ import {
   rangedKinds, RANGED_NAMES,
   type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
-import { buildEnemyCharacter, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
+import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { ENEMY_MODEL_ID } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
@@ -62,8 +62,28 @@ export interface PlayerProfile {
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
+  /**
+   * The collider. A playable NPC's is deliberately clamped (below), so a war
+   * beast still fits the cover, doorways and corridors every board was built
+   * around — it describes what this fighter pushes through the world as, not
+   * what it looks like.
+   */
   radius: number;
   height: number;
+  /**
+   * What this fighter is *shot* as: the creature's true size, unclamped.
+   *
+   * Kept apart from the collider on purpose. The clamp above is a level-fit
+   * decision and has no business deciding hit registration — sharing one
+   * number meant a playable massiff was hit as a 2.1 m cylinder while the
+   * identical animal, standing next to it as an NPC, was hit along its whole
+   * five-metre body. Same creature, two different targets, depending only on
+   * who was driving.
+   */
+  hitRadius: number;
+  hitHeight: number;
+  /** extra hit spheres, body-local, matching the NPC's own (empty for a Mandalorian) */
+  hitParts: { z: number; y: number; r: number }[];
 }
 
 export interface PlayableDef {
@@ -96,6 +116,8 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
+    // a Mandalorian is exactly his own size: collider and hit volume agree
+    hitRadius: 0.45, hitHeight: 1.75, hitParts: [],
   };
 };
 
@@ -236,6 +258,10 @@ function npcDef(kind: EnemyKind): PlayableDef {
       squad: t.squad,
       radius: Math.min(s.radius, 0.6),
       height: Math.min(s.height, 2.1),
+      // hit as the creature, not as the clamped capsule it walks around in
+      hitRadius: s.radius,
+      hitHeight: s.height,
+      hitParts: enemyHitParts(kind),
     },
   };
 }

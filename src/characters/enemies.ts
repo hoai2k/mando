@@ -82,7 +82,7 @@ export function buildTusken(authored = true): CharacterInstance {
   addCyl(b.hips, wrap, 0.24, 0.3, 0.5, 0, -0.22, 0, 0, 0, 0, 10);
   addCyl(b.chest, wrap, 0.2, 0.24, 0.3, 0, 0.08, 0, 0, 0, 0, 10);
   // bandolier
-  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.09, 0.4, 0.28, 0, 0.06, 0, 0, 0, 0.6);
+  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.09, 0.4, 0.28, 0, 0.06, 0, 0, 0, -0.6);
   // head: wrapped mask, low-profile eye stalks, rebreather spikes
   const head = b.head;
   addSphere(head, wrap, 0.14, 0, 0.05, 0, 10, 8, 1.05, 1);
@@ -128,7 +128,7 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   const shirt = mat(0x6e6250, { rough: 0.95 });
   const { inst, rig } = buildBiped({ skin: shirt, torso: leather, scale: 1.05 });
   const b = rig.bones;
-  addBox(b.shoulderL, mat(0x71716d, { rough: 0.5, metal: 0.5 }), 0.18, 0.08, 0.2, -0.05, 0.05, 0, 0, 0, 0.3);
+  addBox(b.shoulderL, mat(0x71716d, { rough: 0.5, metal: 0.5 }), 0.18, 0.08, 0.2, 0.05, 0.05, 0, 0, 0, -0.3);
   // leathery alien head with head-tail nubs / horns
   const skinM = mat(0x9c7050, { rough: 0.9 });
   addSphere(b.head, skinM, 0.13, 0, 0.04, 0, 10, 8, 1.1, 1);
@@ -300,7 +300,7 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   addCyl(b.head, coat, 0.19, 0.19, 0.015, 0, 0.09, 0.03, 0, 0, 0, 12);      // peak
   addBox(b.chest, coat, 0.42, 0.46, 0.28, 0, 0.08, 0);                      // greatcoat
   addBox(b.hips, coat, 0.4, 0.5, 0.3, 0, -0.18, 0);                         // skirt of the coat
-  addBox(b.chest, mat(0x9aa2b0, { rough: 0.4, metal: 0.6 }), 0.07, 0.03, 0.02, -0.13, 0.2, 0.15);  // rank plaque
+  addBox(b.chest, mat(0x9aa2b0, { rough: 0.4, metal: 0.6 }), 0.07, 0.03, 0.02, 0.13, 0.2, 0.15);  // rank plaque
 
   // darksaber: black blade, white edge glow
   const saber = new THREE.Group();
@@ -379,7 +379,7 @@ export function buildWookieeEnforcer(authored = true): CharacterInstance {
   const { inst, rig } = buildBiped({ skin: fur, torso: fur, proportions: WOOKIEE_P, scale: 1.05 });
   const b = rig.bones;
   addSphere(b.head, fur, 0.19, 0, 0.06, 0.02, 12, 10);
-  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.11, 0.5, 0.34, 0, 0.06, 0, 0, 0, 0.5);  // bandolier
+  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.11, 0.5, 0.34, 0, 0.06, 0, 0, 0, -0.5);  // bandolier
   const gauntlet = mat(0x6d6a63, { rough: 0.4, metal: 0.6 });
   addCyl(b.forearmL, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
   addCyl(b.forearmR, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
@@ -639,10 +639,10 @@ export function buildNikto(authored = true): CharacterInstance {
   for (let i = 0; i < 5; i++) addCyl(rb.head, skinM, 0.008, 0.018, 0.06, -0.06 + i * 0.03, 0.13, 0.06, -0.4, 0, 0, 5);
   const D = Math.PI / 180;
   const pose: Array<[THREE.Object3D, number, number, number]> = [
-    [rb.upperLegL, -95 * D, 0, 8 * D], [rb.upperLegR, -95 * D, 0, -8 * D],
+    [rb.upperLegL, -95 * D, 0, -8 * D], [rb.upperLegR, -95 * D, 0, 8 * D],
     [rb.lowerLegL, 100 * D, 0, 0], [rb.lowerLegR, 100 * D, 0, 0],
     [rb.chest, 22 * D, 0, 0],
-    [rb.upperArmL, -70 * D, -20 * D, 0], [rb.upperArmR, -70 * D, 20 * D, 0],
+    [rb.upperArmL, -70 * D, 20 * D, 0], [rb.upperArmR, -70 * D, -20 * D, 0],
     [rb.forearmL, -30 * D, 0, 0], [rb.forearmR, -30 * D, 0, 0],
     [rb.head, -14 * D, 0, 0],
   ];
@@ -911,8 +911,8 @@ export function buildQuarren(authored = true): CharacterInstance {
     tentacles.push(t);
   }
   // rolled net slung over the shoulder + hip floats
-  addCyl(b.chest, mat(0x7a6c50, { rough: 1 }), 0.07, 0.09, 0.5, 0, 0.06, -0.02, 0, 0, 0.9, 7);
-  addSphere(b.hips, mat(0xc26a2a, { rough: 0.8 }), 0.06, -0.2, 0.02, 0, 6, 5);
+  addCyl(b.chest, mat(0x7a6c50, { rough: 1 }), 0.07, 0.09, 0.5, 0, 0.06, -0.02, 0, 0, -0.9, 7);
+  addSphere(b.hips, mat(0xc26a2a, { rough: 0.8 }), 0.06, 0.2, 0.02, 0, 6, 5);
   // net launcher: a stubby wide-mouthed tube
   const launcher = new THREE.Group();
   addCyl(launcher, dark, 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);

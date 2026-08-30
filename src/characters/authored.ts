@@ -75,26 +75,12 @@ const CANON_ORDER = BONES.filter((b) => b === 'hips' || CANON_PARENT[b]) as Bone
 const CANON_DIR: Partial<Record<BoneName, THREE.Vector3>> = {
   hips: new THREE.Vector3(0, 1, 0), spine: new THREE.Vector3(0, 1, 0),
   chest: new THREE.Vector3(0, 1, 0), neck: new THREE.Vector3(0, 1, 0),
-  shoulderL: new THREE.Vector3(-1, 0, 0), shoulderR: new THREE.Vector3(1, 0, 0),
+  shoulderL: new THREE.Vector3(1, 0, 0), shoulderR: new THREE.Vector3(-1, 0, 0),
   upperArmL: new THREE.Vector3(0, -1, 0), upperArmR: new THREE.Vector3(0, -1, 0),
   forearmL: new THREE.Vector3(0, -1, 0), forearmR: new THREE.Vector3(0, -1, 0),
   upperLegL: new THREE.Vector3(0, -1, 0), upperLegR: new THREE.Vector3(0, -1, 0),
   lowerLegL: new THREE.Vector3(0, -1, 0), lowerLegR: new THREE.Vector3(0, -1, 0),
 };
-
-/**
- * Our canonical rig labels its `L` bones on +X. For a character facing +Z that
- * is the *right* side (right = forward x up = -X), so the rig's side labels are
- * anatomically flipped, while the authored Rigify skeletons are not: DEF-*.L
- * really is the model's left. Rather than reverse the map — which would drive
- * each authored arm with a pose authored for the opposite side — the source
- * pose is mirrored through the X=0 plane, which is exactly the conjugation
- * `q -> (x, -y, -z, w)`. Sides then line up and the blaster ends up in the
- * model's right hand.
- */
-function mirrorX(q: THREE.Quaternion): THREE.Quaternion {
-  return q.set(q.x, -q.y, -q.z, q.w);
-}
 
 /**
  * Three's GLTFLoader runs node names through PropertyBinding.sanitizeNodeName,
@@ -414,8 +400,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     const want = node.canonical && CANON_DIR[node.canonical];
     if (!want) continue;
     bone.set(0, 1, 0).applyQuaternion(node.rest);  // Blender bones run along local +Y
-    const target = want.clone().setX(-want.x);     // ...into the mirrored source frame
-    node.rest.premultiply(new THREE.Quaternion().setFromUnitVectors(bone, target));
+    node.rest.premultiply(new THREE.Quaternion().setFromUnitVectors(bone, want));
   }
 
   // 4. a weapon mount inside each hand that reproduces our canonical `weaponR`
@@ -468,7 +453,10 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
 export function retarget(source: Rig, model: AuthoredModel): void {
   const { world, src, tmp } = model.scratch;
 
-  // accumulate the source pose, parents first, and mirror it into model space
+  // accumulate the source pose, parents first. Both skeletons put their `L`
+  // bones on +X (see skeleton.ts), so the pose transfers as it stands: no
+  // mirroring, and the model reproduces the procedural build's pose exactly
+  // rather than its reflection.
   for (const name of CANON_ORDER) {
     const q = src.get(name)!;
     const bone = source.bones[name];
@@ -476,7 +464,6 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     if (parent) q.copy(src.get(parent)!); else q.identity();
     if (bone) q.multiply(bone.quaternion);
   }
-  for (const q of src.values()) mirrorX(q);
 
   for (let i = 0; i < model.nodes.length; i++) {
     const node = model.nodes[i];
