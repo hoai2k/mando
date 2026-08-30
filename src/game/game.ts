@@ -589,6 +589,8 @@ export class Game {
       const near = this.players.some((p) => p.alive && p.position.distanceToSquared(b.position) < 12 * 12);
       if (!near) { this.bossMoveCd = 2; return; }   // nobody to punish — re-check soon
       this.bossTelegraph = 1.15;
+      // the ember ring promises where the slam lands: no super jump mid-promise
+      b.superJumpCd = Math.max(b.superJumpCd, 1.4);
       audio.impact();
     }
   }
