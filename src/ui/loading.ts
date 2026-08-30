@@ -1,7 +1,7 @@
 import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import { playableDef, type PlayableId } from '../characters/roster';
 import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, portraitName } from '../core/assets';
 import { faceSvg, helmetSvg, hex, hostileSvg } from './faces';
 import type { BoardInfo } from '../world/boards';
 
@@ -68,12 +68,11 @@ export class LoadingScreen {
         ? helmetSvg(hex(c.primary), hex(c.accent), hex(c.suit))
         : hostileSvg(id.replace('npc:', '') as EnemyKind);
       this.cast.appendChild(this.card(
-        playableDef(id).profile.name, 'yours', svg,
-        `portrait_${id.replace('npc:', '')}`,
+        playableDef(id).profile.name, 'yours', svg, portraitName(id),
       ));
     }
     for (const kind of enemies) {
-      this.cast.appendChild(this.card(ENEMY_NAME[kind] ?? kind, 'hostile', hostileSvg(kind), `portrait_${kind}`));
+      this.cast.appendChild(this.card(ENEMY_NAME[kind] ?? kind, 'hostile', hostileSvg(kind), portraitName(kind)));
     }
     this.progress(0, 'Preparing the drop');
     this.root.style.display = '';

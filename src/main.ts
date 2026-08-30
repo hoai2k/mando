@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
-import { BOARD_PROPS, matchAssets, warmBoardSelect, warmMatch, warmPlanetStrip, warmPvpRoster, warmTerritory, warmTitle } from './core/prefetch';
+import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type WarmScreen } from './core/prefetch';
 import { tracked } from './core/warm';
 import { LoadingScreen } from './ui/loading';
-import { FINAL_WAVE, planWave, waveComposition } from './enemies/spawner';
+import { planWave } from './enemies/spawner';
 import { enemyBody, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
@@ -18,10 +18,10 @@ import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
-import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
-import { BOSS_KIND, modesEnabled, type GameMode } from './game/modes';
+import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
 
@@ -107,6 +107,8 @@ let endTimer = 0;
 /** which rule set the next match runs under; the title screen picks it */
 let mode: GameMode = 'wave';
 const chosenChars: PlayableId[] = ['din', 'paz'];
+/** who the character select is showing right now, for the warm plan */
+let browsing: PlayableId[] = [];
 
 // ----- title screen -----
 const title = new MenuScreen(menuLayer);
@@ -127,17 +129,16 @@ if (modesEnabled()) {
   const pickMode = (m: GameMode, next: AppState): void => {
     mode = m;
     enterFullscreen();
-    warmBoardSelect();
     setState(next);
   };
   title.addButtons(null, [
     { label: 'Wave Battle', action: () => pickMode('wave', 'select') },
     { label: 'PvP', action: () => pickMode('pvp', 'select') },
-    { label: 'Missions', action: () => { warmPlanetStrip(); pickMode('campaign', 'planets'); } },
+    { label: 'Missions', action: () => pickMode('campaign', 'planets') },
   ]);
 } else {
   title.addButtons(null, [
-    { label: 'Press Start', action: () => { mode = 'wave'; enterFullscreen(); warmBoardSelect(); setState('select'); } },
+    { label: 'Press Start', action: () => { mode = 'wave'; enterFullscreen(); setState('select'); } },
   ]);
 }
 function enterFullscreen(): void {
@@ -164,9 +165,8 @@ select.addButtons(cards, BOARDS.map((info) => ({
   label: '',
   action: () => {
     chosenBoard = info;
-    // the player is about to spend a while picking a fighter: spend it
-    // pulling down this territory's sky, ground and opening waves
-    warmTerritory(info.id);
+    // the plan re-runs on the transition and now knows the territory, so the
+    // seconds spent picking a fighter buy the drop screen and the match
     setState('characters');
   },
   el: makeCard(info.name, info.desc, info.art, info.gradient),
@@ -181,7 +181,6 @@ vs.onDone = () => startGame();
 const planets = new PlanetSelect(menuLayer);
 planets.onPick = (info) => {
   chosenBoard = info;
-  warmTerritory(info.id);
   setState('characters');
 };
 planets.onBack = () => setState('title');
@@ -200,7 +199,6 @@ const charSelect = new CharacterSelect(menuLayer, {
     // PvP gets its VS splash first; the match's files warm behind it, so the
     // showmanship costs the drop nothing
     if (mode === 'pvp') {
-      warmMatch(chosenBoard.id, chars, mode);
       vs.show(chars);
       setState('vs');
     } else {
@@ -208,6 +206,9 @@ const charSelect = new CharacterSelect(menuLayer, {
     }
   },
   onBack: () => setState(mode === 'campaign' ? 'planets' : 'select'),
+  // every flip re-plans: whoever is on a plinth leads, and the territory keeps
+  // filling in behind them on whatever idle time is left
+  onBrowse: (focus) => { browsing = focus; warmFor(planContext()); },
   padForPlayer: () => input.padForPlayer,
   compactPads: () => input.compactPlayerSlots(),
   seatPad: (padIndex, slot) => input.seatPad(padIndex, slot),
@@ -359,6 +360,36 @@ function activeScreen(): MenuScreen | null {
   return null;
 }
 
+/**
+ * Where each app state sits on the warm plan's route.
+ *
+ * Mostly one for one. The PvP VS splash is not a stop of its own — it is a beat
+ * on the way to the drop, wanting exactly the drop's pictures — so it plans as
+ * the drop. States missing from this table are overlays (pause, controls,
+ * settings, the end card) that leave the last plan standing.
+ */
+const PLAN_SCREEN: Partial<Record<AppState, WarmScreen>> = {
+  title: 'title', select: 'select', planets: 'planets', characters: 'characters',
+  vs: 'loading', loading: 'loading', playing: 'playing',
+};
+
+/** Everything the plan is allowed to assume right now — and nothing it isn't. */
+function planContext(): WarmContext {
+  const committed = state === 'vs' || state === 'loading' || state === 'playing';
+  return {
+    screen: PLAN_SCREEN[state] ?? 'title',
+    // the title has not committed to a mode yet, and both routes lead off it
+    mode: state === 'title' ? undefined : mode,
+    // ...nor to a territory until one is picked, two screens later
+    board: state === 'title' || state === 'select' || state === 'planets'
+      ? undefined : chosenBoard.id,
+    // on the select, whoever is on a plinth; past it, the fighters taken
+    focus: state === 'characters' ? browsing
+      : committed ? chosenChars.slice(0, playerCount)
+      : undefined,
+  };
+}
+
 function setState(s: AppState): void {
   state = s;
   (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
@@ -368,9 +399,6 @@ function setState(s: AppState): void {
       charSelect.configure(mode === 'pvp'
         ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2 }
         : { roster: STANDARD_ROSTER, title: 'Choose Your Mandalorian' });
-      // the widened roster is all browsable: pull its models down on idle
-      // bandwidth while the players flip through it
-      if (mode === 'pvp') warmPvpRoster();
       charSelect.show();
     }
   } else charSelect.hide();
@@ -383,6 +411,10 @@ function setState(s: AppState): void {
   input.menuMode = s !== 'playing';
   if (s === 'playing') hud.show();
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
+  // one place, every transition: re-plan from wherever the player now stands.
+  // The overlays (pause, controls, settings, the end card) are not stops on the
+  // route and leave the last plan in force.
+  if (PLAN_SCREEN[s]) warmFor(planContext());
 }
 
 /**
@@ -398,34 +430,20 @@ function startGame(): void {
   audio.init();
   disposeGame();
   const chars = chosenChars.slice(0, playerCount);
-  // anything still missing goes to the front of the queue now
-  warmMatch(chosenBoard.id, chars, mode);
   loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
+  // setState re-plans with the picks settled, so anything the drop still needs
+  // goes to the front of the queue here
   setState('loading');
   loadTimer = 0;
   requestAnimationFrame(() => requestAnimationFrame(() => buildMatch()));
 }
 
 /**
- * The hostiles worth showing on the loading screen, per mode: the wave game's
- * opening wave and its closing elite; the campaign's trailhead kinds and the
- * warlord waiting at the end; PvP's own squads (the rivals themselves are the
- * cast, and the VS splash has already introduced them).
+ * The hostiles worth showing on the loading screen. The rule lives with the
+ * prefetcher, which warms these same faces a screen earlier — see `dropCast`.
  */
 function keyEnemies(board: BoardId): EnemyKind[] {
-  if (mode === 'pvp') {
-    const squads = chosenChars.slice(0, playerCount)
-      .map((id) => playableDef(id).profile.squad?.kind)
-      .filter((k): k is EnemyKind => !!k);
-    return [...new Set(squads)];
-  }
-  const opening = waveComposition(board, 1, 1).map((e) => e.kind);
-  if (mode === 'campaign') {
-    return [...new Set<EnemyKind>([...opening.slice(0, 2), BOSS_KIND[board]])];
-  }
-  const last = waveComposition(board, FINAL_WAVE, 1).map((e) => e.kind);
-  const picked: EnemyKind[] = [...opening.slice(0, 2), last[last.length - 1]];
-  return [...new Set(picked.filter(Boolean))];
+  return dropCast(board, chosenChars.slice(0, playerCount), mode);
 }
 
 function buildMatch(): void {
@@ -672,8 +690,8 @@ function frame(now: number): void {
   input.endFrame();
 }
 
-// The title screen is the longest anyone sits still: start pulling down the
-// first Mandalorian and the territory art behind the next screen while they do.
-warmTitle();
+// The title screen is the longest anyone sits still, and `setState` starts the
+// warm plan: the territory pictures behind the next screen and the fighter the
+// one after opens on are pulled down while nobody is playing.
 setState('title');
 requestAnimationFrame(frame);

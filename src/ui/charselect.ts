@@ -8,7 +8,6 @@ const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
 import type { PlayerCharacter } from '../characters/mandalorians';
 import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
-import { preloadAuthored } from '../characters/authored';
 
 /**
  * 3D character select: two pedestals rendered by the game's own renderer, with
@@ -101,6 +100,12 @@ export class CharacterSelect {
     private opts: {
       onStart: (chars: PlayableId[], playerCount: number) => void;
       onBack: () => void;
+      /**
+       * Who the stage is showing, most-likely-committed first: every plinth's
+       * current face, then the two each is one flip from. The prefetcher plans
+       * off this, so a flip is what re-ranks the downloads.
+       */
+      onBrowse: (focus: PlayableId[]) => void;
       /** gamepad index driving each player slot, -1 for none (from InputManager) */
       padForPlayer: () => number[];
       /** close gaps in the pad-to-slot assignment after a player drops out */
@@ -352,23 +357,30 @@ export class CharacterSelect {
     s.choice = this.step(slot, s.choice, dir);
     s.loadingFor = 0;
     s.arcT = 0;                       // each new face starts square to the camera
-    this.preloadNeighbours(slot);
+    this.preloadAround();
     this.refresh();
   }
 
-  /** Warm the models one flip away in either direction — the likely next views. */
-  private preloadNeighbours(slot: number): void {
-    const s = this.slots[slot];
-    this.warm(this.roster[this.step(slot, s.choice, 1)]);
-    this.warm(this.roster[this.step(slot, s.choice, -1)]);
-  }
-
-  // ---------- character instances ----------
-
-  /** warm the authored model behind a playable, if it has one */
-  private warm(id: PlayableId): void {
-    const modelId = playableDef(id).modelId;
-    if (modelId) preloadAuthored(modelId);
+  /**
+   * Tell the prefetcher what the stage is showing, so it can rank its
+   * downloads: every plinth's current face first, then the two either side of
+   * each — one button press from being on screen — ahead of everything the
+   * territory behind them is still pulling down.
+   *
+   * The faces of every joined slot come before anyone's neighbours: with two
+   * players browsing, both of the things actually on screen outrank either
+   * one's guess at what comes next.
+   */
+  private preloadAround(): void {
+    const live = this.slots
+      .map((s, slot) => ({ s, slot }))
+      .filter(({ s }) => s.phase !== 'empty');
+    const here = live.map(({ s }) => this.roster[s.choice]);
+    const next = live.flatMap(({ s, slot }) => [
+      this.roster[this.step(slot, s.choice, 1)],
+      this.roster[this.step(slot, s.choice, -1)],
+    ]);
+    this.opts.onBrowse([...new Set([...here, ...next])]);
   }
 
   private charFor(s: Slot, id: PlayableId): PlayerCharacter {
@@ -471,13 +483,14 @@ export class CharacterSelect {
     if (!this.available(slot).has(this.roster[s.choice])) s.choice = this.step(slot, s.choice, 1);
     s.loadingFor = 0;
     s.arcT = 0;
-    this.preloadNeighbours(slot);
+    this.preloadAround();
     this.refresh();
   }
 
   private leave(slot: number): void {
     this.slots[slot].phase = 'empty';
     this.compact();
+    this.preloadAround();     // one fewer face on stage: re-rank around the rest
     this.refresh();
   }
 
@@ -526,6 +539,7 @@ export class CharacterSelect {
         other.arcT = 0;
       }
     });
+    this.preloadAround();     // a lock-in can bump someone else onto a new face
     this.refresh();
   }
 
@@ -535,6 +549,7 @@ export class CharacterSelect {
     s.arcT = 0;
     s.group.rotation.y = s.baseYaw + s.manual;
     s.chars.get(this.roster[s.choice])?.setHeroLight(BASE_GLOW);
+    this.preloadAround();     // browsable again: its neighbours are back in play
     this.refresh();
   }
 
@@ -719,7 +734,7 @@ export class CharacterSelect {
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
     if (!this.available(0).has(this.roster[this.slots[0].choice])) this.slots[0].choice = 0;
-    this.preloadNeighbours(0);
+    this.preloadAround();
     this.layoutStage(0);            // open on the line already spaced, not sliding in
     this.layoutPanels();
     this.refresh();

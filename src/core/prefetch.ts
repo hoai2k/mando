@@ -1,13 +1,12 @@
 import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
 import type { EnemyKind } from '../enemies/enemy';
-import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/mandalorians';
-import { playableDef, playableModelId, PVP_ROSTER, type PlayableId } from '../characters/roster';
+import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { carrierShipId } from '../enemies/arrival';
-import { BOARDS } from '../world/boards';
+import { BOARDS, type BoardInfo } from '../world/boards';
 import type { BoardId } from '../world/board';
-import { textureUrl, warmTexture } from './assets';
+import { portraitName, textureUrl, warmTexture } from './assets';
 import { tracked, type WarmPriority } from './warm';
 
 /**
@@ -15,11 +14,28 @@ import { tracked, type WarmPriority } from './warm';
  *
  * The player spends real seconds on the title, the territory grid and the
  * character select, and none of those screens needs the megabytes the match
- * after them does. So each screen quietly pulls down what the *next* one will
- * want: the title warms the first Mandalorian, choosing a territory warms that
- * territory's sky and the enemies its opening waves post, and so on. By the
- * time Start is pressed the heavy files are usually already local and the
- * loading screen is a formality.
+ * after them does. So those seconds are spent pulling down what is coming.
+ *
+ * The shape of it is a **plan** rather than a set of per-screen errands. Each
+ * screen declares, once, what it is made of; `warmFor` is told where the player
+ * is standing and walks the screens ahead, handing each stage a lane: the one
+ * on screen now downloads at `now`, the next at `soon`, everything past that on
+ * idle time. Two things fall out of that and are worth stating, because they
+ * are the whole design:
+ *
+ * - **A screen only ever declares what it knows.** There is no board in the
+ *   plan until a territory has been picked, no drop-screen cast until there is
+ *   a board whose hostiles it can name. Nothing speculative is queued, so
+ *   "fetch everything you know you will need" stays honest.
+ * - **Certain is not the same as soon.** A need marked `soft` — the rest of a
+ *   roster, the waves after the first, a corridor an hour into a campaign — is
+ *   real, and rides the idle lane whatever screen declared it. Otherwise seven
+ *   character models the player is not looking at would outrank the two files
+ *   the very next screen blocks on.
+ *
+ * The plan is re-run at every transition, and priorities only ever rise (see
+ * `WarmQueue.want`), which is exactly right for a player moving forward: a
+ * file's screen only ever gets nearer.
  *
  * Everything here is a hint. If a guess is wrong the file is simply downloaded
  * later, in the same place it always was; nothing renders differently because
@@ -46,6 +62,19 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
 };
 
 /**
+ * Every boss a board can field: its champion, its warlord, and — on the four
+ * boards that have one — the monster that comes up when the warlord falls. The
+ * monster is the largest download of the three and arrives last in the fight,
+ * so warming it with the other two is what keeps it off the critical path.
+ */
+function bossKinds(board: BoardId): EnemyKind[] {
+  const monster = MONSTER_BOSS[board];
+  const kinds: EnemyKind[] = [MID_BOSS[board].kind, BOSS_KIND[board]];
+  if (monster) kinds.push(monster.kind);
+  return kinds;
+}
+
+/**
  * The environment sculpts each territory builds itself out of.
  *
  * These are not warmed for the loading screen's benefit — the drop deliberately
@@ -60,19 +89,6 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
  * A stale entry costs one wasted prefetch and nothing else: the board asks for
  * what it asks for, and this list only decides what arrives early.
  */
-/**
- * Every boss a board can field: its champion, its warlord, and — on the four
- * boards that have one — the monster that comes up when the warlord falls. The
- * monster is the largest download of the three and arrives last in the fight,
- * so warming it with the other two is what keeps it off the critical path.
- */
-function bossKinds(board: BoardId): EnemyKind[] {
-  const monster = MONSTER_BOSS[board];
-  const kinds: EnemyKind[] = [MID_BOSS[board].kind, BOSS_KIND[board]];
-  if (monster) kinds.push(monster.kind);
-  return kinds;
-}
-
 export const BOARD_PROPS: Record<BoardId, string[]> = {
   desert: ['cargo_crate', 'sail_barge', 'vaporator', 'tusken_tent', 'homestead_dome',
     'sandcrawler', 'bantha', 'nikto_swoop', 'landspeeder', 'skiff'],
@@ -96,8 +112,6 @@ const BOARD_SKY: Partial<Record<BoardId, string>> = {
   crevasse: 'sky_ice', trask: 'sky_trask',
   forge: 'sky_mandalore', ringworld: 'sky_ring', narkina: 'sky_narkina',
 };
-
-export const MANDO_IDS = PLAYABLE_MANDO_IDS;
 
 /** Surfaces the campaign's corridor segments ask for (`world/corridor.ts`). */
 const CORRIDOR_TEXTURES = ['corridor_wall', 'corridor_floor', 'hazard_stripe'];
@@ -127,52 +141,220 @@ export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[
   return [...ids];
 }
 
-/**
- * Boot: the title screen is the longest anyone sits still, and the first thing
- * they will see rendered is a Mandalorian on a plinth. Warm that one model and
- * the territory art the next screen is made of — the art is small, and a grid
- * of nine cards popping in one at a time is the first impression otherwise.
- */
-export function warmTitle(): void {
-  warmAuthored(MANDO_IDS[0], 'soon');
-  for (const info of BOARDS) warmTexture(info.art.replace(/\.\w+$/, ''), 'idle', info.art.split('.').pop());
+// ---------------------------------------------------------------------------
+// The plan
+// ---------------------------------------------------------------------------
+
+/** one thing some screen is made of */
+type Need =
+  | { kind: 'model'; id: string; soft?: boolean }
+  | { kind: 'texture'; name: string; ext: string; soft?: boolean };
+
+const model = (id: string, soft = false): Need => ({ kind: 'model', id, soft });
+const tex = (name: string, ext = 'jpg', soft = false): Need => ({ kind: 'texture', name, ext, soft });
+
+/** the screens the warmer plans for; `title` is the boot state */
+export type WarmScreen = 'title' | 'select' | 'planets' | 'characters' | 'loading' | 'playing';
+
+/** what the warmer knows when it is asked to plan */
+export interface WarmContext {
+  screen: WarmScreen;
+  /** undefined until a mode is picked — at the title, either path is still open */
+  mode?: GameMode;
+  /** the chosen territory, once there is one */
+  board?: BoardId;
+  /** who is on the plinths right now, most-likely-committed first */
+  focus?: PlayableId[];
 }
 
 /**
- * The territory grid: the roster is next, and any of them could be picked, so
- * warm all of them. The first is usually already here from the title.
+ * The route from here to the ground, one stage per screen the player passes
+ * through. The title is a fork: until a mode is picked, both the territory grid
+ * and the planet strip are "the next screen", so both are planned as one stage.
  */
-export function warmBoardSelect(): void {
-  for (const id of MANDO_IDS) warmAuthored(id, 'idle');
+function stages(mode: GameMode | undefined): WarmScreen[][] {
+  const pick: WarmScreen[] = mode === undefined ? ['select', 'planets']
+    : mode === 'campaign' ? ['planets'] : ['select'];
+  return [['title'], pick, ['characters'], ['loading'], ['playing']];
 }
 
 /**
- * The campaign's planet strip: nine discs on one screen, each its own PNG, and
- * they are the whole screen — a strip that fills in one planet at a time is the
- * first thing a Missions player sees otherwise. Called alongside the mode pick,
- * which is a couple of screens ahead of the strip itself.
+ * How hard to pull, by how many screens away the thing that wants it is.
+ *
+ * A `soft` need goes to the idle lane whatever the distance. Soft is for what a
+ * stage will want but is not on it and not one press from it — the seven
+ * fighters the select is not showing, the waves after the first, the corridors
+ * an hour into a campaign. Ranking those by distance would put the rest of a
+ * roster ahead of the two files the very next screen actually blocks on, which
+ * is the wrong way round: they are certain, but they are not soon.
  */
-export function warmPlanetStrip(): void {
-  for (const info of BOARDS) warmTexture(`planet_${info.id}`, 'soon', 'png');
+const LANES: WarmPriority[] = ['now', 'soon', 'idle'];
+function lane(distance: number, soft: boolean): WarmPriority {
+  return soft ? 'idle' : LANES[Math.min(distance, LANES.length - 1)];
+}
+
+/** the select-card picture for a territory, split into the name and extension
+ * `warmTexture` wants (BoardInfo carries it as one filename). */
+function artName(info: BoardInfo): string { return info.art.replace(/\.\w+$/, ''); }
+function artExt(info: BoardInfo): string { return info.art.split('.').pop() ?? 'jpg'; }
+
+/**
+ * The fighters, in the order this screen would want them: whoever is on a
+ * plinth right now first and hard, then the rest of the browsable roster soft —
+ * any of them is one flip away, but none of them is on screen.
+ */
+function rosterNeeds(ctx: WarmContext): Need[] {
+  const roster = ctx.mode === 'pvp' ? PVP_ROSTER : STANDARD_ROSTER;
+  const out: Need[] = [];
+  const seen = new Set<string>();
+  const add = (id: PlayableId, soft: boolean): void => {
+    const m = playableModelId(id);
+    if (!m || seen.has(m)) return;
+    seen.add(m);
+    out.push(model(m, soft));
+  };
+  for (const id of ctx.focus ?? []) add(id, false);
+  // nobody has been focused yet (the title, the grid): the select opens on the
+  // head of the roster, so that one is still the certain first render
+  if (!ctx.focus?.length && roster.length) add(roster[0], false);
+  for (const id of roster) add(id, true);
+  return out;
 }
 
 /**
- * A territory has been chosen and the player is now picking a character, which
- * takes them a good few seconds: fetch that board's sky, its surfaces, and the
- * models its first waves will post. The opening waves come first — those are
- * what the match will need in its first minute — and the later ones trail
- * behind them at idle priority.
+ * The drop screen: a full-bleed territory picture and a row of faces, and
+ * nothing else. It is also the screen that *blocks*, so the two files it waits
+ * on — the sky and wave one's hostiles — are declared here rather than with the
+ * match, which is what stops the match's bulk from being confused for them.
+ *
+ * Nothing here is soft. A portrait that misses shows the drawn helmet and then
+ * pops to a photograph a beat later, on the one screen whose whole job is to be
+ * looked at, and the two blocking files are what the wait is made of.
  */
-export function warmTerritory(board: BoardId): void {
+function dropNeeds(board: BoardId, ctx: WarmContext): Need[] {
+  const mode = ctx.mode ?? 'wave';
+  const out: Need[] = [];
+  const info = BOARDS.find((b) => b.id === board);
+  if (info) out.push(tex(artName(info), artExt(info)));
+  // which fighters get picked is not settled until this screen is entered, so
+  // cover the browsable roster; PvP's cast depends on the picks twice over
+  // (the rivals, and the squads they lead), hence the roster there too
+  const roster = mode === 'pvp' ? PVP_ROSTER : STANDARD_ROSTER;
+  const faces = new Set(roster.map((id) => portraitName(id)));
+  for (const kind of dropCast(board, ctx.focus?.length ? ctx.focus : roster, mode)) {
+    faces.add(portraitName(kind));
+  }
+  for (const name of faces) out.push(tex(name));
   const sky = BOARD_SKY[board];
-  if (sky) warmTexture(sky, 'soon');
-  for (const name of BOARD_TEXTURES[board]) warmTexture(name, 'soon');
-  for (const id of boardEnemyIds(board, 2)) warmAuthored(id, 'soon');
-  // the territory's own sculpts, behind its opening waves: the match starts
-  // every one of these at build, so arriving early is the whole point
-  for (const id of BOARD_PROPS[board]) warmAuthored(id, 'soon');
-  for (const id of boardEnemyIds(board)) warmAuthored(id, 'idle');
-  for (const id of MANDO_IDS) warmAuthored(id, 'idle');
+  if (sky) out.push(tex(sky));
+  // the fighters going in are the third thing the drop blocks on. They are
+  // normally in hand already — the select will not let a pick be committed
+  // until its model is here — but a match started without passing through the
+  // select (the test harness, a rematch) has no such guarantee
+  for (const id of charModelIds(ctx.focus ?? [])) out.push(model(id));
+  for (const id of modeEnemyIds(board, ctx.focus ?? [], mode)) out.push(model(id));
+  return out;
+}
+
+/**
+ * The match itself: everything a territory asks for as it builds and fights,
+ * which the drop deliberately does *not* wait on. Warming it is still the
+ * difference between a board that is already local and 54 MB arriving across a
+ * firefight — bandwidth taken from the files the drop does wait on, and a parse
+ * hitch per file on the main thread.
+ *
+ * A stale entry in any of these lists costs one wasted prefetch and nothing
+ * else: the board asks for what it asks for, and this only decides what arrives
+ * early.
+ */
+function matchNeeds(board: BoardId, ctx: WarmContext): Need[] {
+  const mode = ctx.mode ?? 'wave';
+  const out: Need[] = [];
+  for (const id of boardEnemyIds(board, 2)) out.push(model(id));
+  for (const name of BOARD_TEXTURES[board]) out.push(tex(name));
+  for (const id of BOARD_PROPS[board]) out.push(model(id));
+  // the later waves and the boss ladder: real needs on a full run, but the
+  // match has ten waves to find them, so they stay behind the opening minute
+  for (const id of boardEnemyIds(board)) out.push(model(id, true));
+  if (mode === 'wave') {
+    // the board's troop carrier: wave 2's first pass flies as a jet blur if the
+    // hull has not arrived by then — a missing file stays the blur, by design
+    out.push(model(carrierShipId(board), true));
+  }
+  if (mode === 'campaign') {
+    // corridors are built at match start but only walked into minutes later
+    for (const t of CORRIDOR_TEXTURES) out.push(tex(t, 'png', true));
+    for (const id of CORRIDOR_PROPS) out.push(model(id, true));
+  }
+  return out;
+}
+
+/** What a screen is made of. Unknowns yield nothing: the plan never guesses. */
+function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
+  switch (screen) {
+    // the key art and the logo behind the title are in the page's own CSS and
+    // are already on their way before any of this runs
+    case 'title': return [];
+    case 'select': return BOARDS.map((info) => tex(artName(info), artExt(info)));
+    case 'planets': return BOARDS.map((info) => tex(`planet_${info.id}`, 'png'));
+    case 'characters': return rosterNeeds(ctx);
+    case 'loading': return ctx.board ? dropNeeds(ctx.board, ctx) : [];
+    case 'playing': return ctx.board ? matchNeeds(ctx.board, ctx) : [];
+  }
+}
+
+function request(need: Need, priority: WarmPriority): void {
+  if (need.kind === 'model') warmAuthored(need.id, priority);
+  else warmTexture(need.name, priority, need.ext);
+}
+
+/**
+ * Plan from here: fetch what this screen is made of, then what the next one is,
+ * and so on to the ground — each stage a lane softer than the one before it.
+ *
+ * There are only three lanes and the route is five stages, so everything past
+ * the next screen shares the idle lane. Order is not lost there: stages are
+ * walked near-to-far and the queue sorts by priority only, stably, so within a
+ * lane the nearer screen's files keep the head of the line.
+ *
+ * Safe to call as often as the state changes; that is the intended use. A file
+ * already in hand is skipped, one already downloading is left alone, and one
+ * still queued only ever moves up.
+ */
+export function warmFor(ctx: WarmContext): void {
+  const route = stages(ctx.mode);
+  const at = Math.max(0, route.findIndex((stage) => stage.includes(ctx.screen)));
+  for (let i = at; i < route.length; i++) {
+    for (const screen of route[i]) {
+      for (const need of needs(screen, ctx)) request(need, lane(i - at, !!need.soft));
+    }
+  }
+}
+
+/**
+ * The hostiles the drop screen puts on cards, per mode: the wave game's opening
+ * wave and its closing elite; the campaign's trailhead kinds and the warlord
+ * waiting at the end; PvP's own squads (the rivals themselves are the cast, and
+ * the VS splash has already introduced them).
+ *
+ * The drop screen asks for this to know what to draw; the plan asks for it a
+ * screen earlier to know which portraits to pull down. One function, so the two
+ * cannot drift apart and warm a face that never appears.
+ */
+export function dropCast(board: BoardId, chars: PlayableId[], mode: GameMode): EnemyKind[] {
+  if (mode === 'pvp') {
+    const squads = chars
+      .map((id) => playableDef(id).profile.squad?.kind)
+      .filter((k): k is EnemyKind => !!k);
+    return [...new Set(squads)];
+  }
+  const opening = waveComposition(board, 1, 1).map((e) => e.kind);
+  if (mode === 'campaign') {
+    return [...new Set<EnemyKind>([...opening.slice(0, 2), BOSS_KIND[board]])];
+  }
+  const last = waveComposition(board, FINAL_WAVE, 1).map((e) => e.kind);
+  const picked: EnemyKind[] = [...opening.slice(0, 2), last[last.length - 1]];
+  return [...new Set(picked.filter(Boolean))];
 }
 
 /** the authored models behind a set of playables (NPC picks map through the roster) */
@@ -201,40 +383,6 @@ function modeEnemyIds(board: BoardId, chars: PlayableId[], mode: GameMode): stri
   return boardEnemyIds(board, 1);
 }
 
-/** Warm whatever a match is about to need at once, for a straight-to-play start. */
-export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): void {
-  for (const id of charModelIds(chars)) warmAuthored(id, 'now');
-  for (const id of modeEnemyIds(board, chars, mode)) warmAuthored(id, 'now');
-  // the campaign's bosses can trail in behind the drop — but start them now
-  if (mode === 'campaign') {
-    for (const kind of bossKinds(board)) {
-      const bossId = ENEMY_MODEL_ID[kind];
-      if (bossId) warmAuthored(bossId, 'soon');
-    }
-    // corridors are built at match start but only walked into minutes later,
-    // so their art can trail the drop
-    for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');
-    for (const id of CORRIDOR_PROPS) warmAuthored(id, 'idle');
-  }
-  // the board's troop carrier: wave 2's first pass flies as a jet blur if the
-  // hull has not arrived by then, so start it downloading with the match — a
-  // missing file stays the blur, by design
-  if (mode === 'wave') warmAuthored(carrierShipId(board), 'idle');
-  const sky = BOARD_SKY[board];
-  if (sky) warmTexture(sky, 'now');
-}
-
-/**
- * PvP's select browses the whole NPC roster: pull its models down in the
- * background while the players flip through, so a pick is usually warm.
- */
-export function warmPvpRoster(): void {
-  for (const id of PVP_ROSTER) {
-    const model = playableModelId(id);
-    if (model) warmAuthored(model, 'idle');
-  }
-}
-
 /**
  * The files a match must actually have before it is worth showing: the players'
  * own models, the enemies wave one will post, and the board's sky.
@@ -257,9 +405,4 @@ export function matchAssets(board: BoardId, chars: PlayableId[], mode: GameMode 
 /** True when every file a match needs is already in hand. */
 export function matchReady(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): boolean {
   return tracked.progress(matchAssets(board, chars, mode)).pending === 0;
-}
-
-/** Warm one specific model at a given urgency (the character select's flips). */
-export function warmModel(id: string, priority: WarmPriority = 'idle'): void {
-  warmAuthored(id, priority);
 }

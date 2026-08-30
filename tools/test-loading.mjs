@@ -45,6 +45,9 @@ await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await sleep(3000);
 check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
 check('the title warms the territory art', await waitForAsset('board_tatooine.jpg'));
+// the planet discs are the Missions strip two screens on, and they are the
+// whole screen there — warming them is not conditional on picking that mode
+check('the title warms the planet discs', await waitForAsset('planet_desert.png'));
 
 // ---- 2. the territory grid warms the rest of the roster ----
 await h.pad.tap(BTN.START);
@@ -67,6 +70,11 @@ check('the character select warms the chosen sky', await waitForAsset('sky_deser
 check('...and its ground textures', await waitForAsset('sand_albedo.jpg'));
 check('...and wave one\'s hostiles', await waitForAsset('tusken.glb'),
   `glb fetched: ${(await fetched()).filter((f) => f.endsWith('.glb')).join(' ') || 'none'}`);
+// the drop screen is the next screen and is nothing but pictures: its cast
+// should be local before it is shown, or every face pops from drawn helmet to
+// photograph a beat after it appears
+check('...and the drop screen\'s portraits', await waitForAsset('portrait_din.jpg'));
+check('...for the hostiles it will name too', await waitForAsset('portrait_tusken.jpg'));
 
 // ---- 4. the drop screen, and what it is allowed to reveal ----
 // Whoever the select is showing is who the next A press picks; hold onto the

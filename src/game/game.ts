@@ -14,7 +14,7 @@ import { yawBasis } from '../core/math';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
-import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
+import { ENEMY_MODEL_ID, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
@@ -252,7 +252,7 @@ export class Game {
       // files, so warm them now rather than the instant one walks into a firefight.
       for (const kind of Object.values(ALLY_WAVES)) {
         const id = ENEMY_MODEL_ID[kind];
-        if (id) preloadAuthored(id);
+        if (id) warmAuthored(id, 'soon');
       }
     }
     // wave and campaign both run the champion and end at the territory's
@@ -260,7 +260,7 @@ export class Game {
     if (mode !== 'pvp') {
       for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
         const bossId = ENEMY_MODEL_ID[kind];
-        if (bossId) preloadAuthored(bossId);
+        if (bossId) warmAuthored(bossId, 'soon');
       }
     }
 
@@ -1231,19 +1231,25 @@ export class Game {
     return this.pooledTarget(i);
   }
 
-  /** Warm the .glb cache for everything a wave can put on the board. */
+  /**
+   * Warm the .glb cache for everything a wave can put on the board.
+   *
+   * `now`, because the wave is the next thing to happen — but through the warm
+   * queue all the same, so a six-kind wave cannot open six downloads at once
+   * across a connection the match is already using for its scenery.
+   */
   private preloadWave(wave: number): void {
     if (wave > FINAL_WAVE) return;
     for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
       const id = ENEMY_MODEL_ID[entry.kind];
-      if (id) preloadAuthored(id);
+      if (id) warmAuthored(id, 'now');
     }
     // Allies are not part of a wave's composition, so they were downloading
     // cold at the moment they walked in — mid-fight, against a spawn storm.
     const ally = ALLY_WAVES[wave];
     if (ally) {
       const id = ENEMY_MODEL_ID[ally];
-      if (id) preloadAuthored(id);
+      if (id) warmAuthored(id, 'now');
     }
   }
 
