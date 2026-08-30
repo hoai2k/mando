@@ -28,6 +28,12 @@ const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
 const FUEL_SECONDS = 3.4;
 const DASH_SPEED = 19;
+/** super jump: sustained climb speed while A stays held from the leap, m/s */
+const SUPERJUMP_RISE = 9;
+/** super jump: gravity multiplier while feathering the fall with A held */
+const SUPERJUMP_GLIDE = 0.35;
+/** super jump: terminal fall speed while feathering, m/s */
+const SUPERJUMP_FALL = 5.2;
 const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
@@ -156,6 +162,13 @@ export class Player {
   waterTime = 0;
 
   grounded = false;
+  // ---- super jump (flight: 'superjump') ----
+  /** the A hold from the take-off is still unbroken: the climb is live */
+  private riseHold = false;
+  /** climbing under the hold this frame (gravity stands aside) */
+  private superRising = false;
+  /** feathering the fall with A held (reduced gravity, capped fall) */
+  private superGliding = false;
   private coyote = 0;
   private fireCd = 0;
   private thrusting = 0;
@@ -609,21 +622,29 @@ export class Player {
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
-      const lambda = this.grounded ? 13 * traction : (this.thrusting > 0 ? 9 : AIR_CONTROL * 0.6);
+      // a rising or gliding super jumper steers like a flyer (flags are a
+      // frame stale here, which the eye cannot see)
+      const airLambda = this.thrusting > 0 || this.superRising || this.superGliding ? 9 : AIR_CONTROL * 0.6;
+      const lambda = this.grounded ? 13 * traction : airLambda;
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
 
-    // ---- jump / jetpack ----
+    // ---- jump / flight ----
+    const superjump = this.profile.flight === 'superjump';
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
+    if (this.grounded) this.riseHold = false;
     if (input.jumpPressed && this.coyote > 0 && !this.blocking && this.snareTimer <= 0) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
       game.particles.dustPuff(this.position, 4);
+      // the super jump is armed by the take-off itself: the hold that leaves
+      // the ground is the one that keeps climbing
+      this.riseHold = superjump;
     }
     this.thrusting = 0;
-    if (this.profile.canFly && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    if (this.profile.flight === 'jetpack' && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -649,6 +670,20 @@ export class Player {
     this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting);
 
+    // ---- super jump: the non-Mandalorian answer to the jetpack ----
+    // Hold A from the leap and she just keeps rising — as high as the hold
+    // lasts, no fuel, no flames. The moment the button lifts (or the shield
+    // comes up) the climb is spent for good: nothing relights mid-air, and
+    // the way down is a commitment, softened only by the glide below.
+    this.superRising = false;
+    if (superjump && this.riseHold) {
+      if (!input.jumpHeld || this.blocking) this.riseHold = false;
+      else if (!this.grounded) {
+        this.superRising = true;
+        this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
+      }
+    }
+
     // ---- slam ----
     if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
       this.slamming = true;
@@ -661,7 +696,13 @@ export class Player {
     const board = game.board;
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
-      this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
+      // a super jumper feathers the fall: holding A on the way down is a
+      // controlled drop — lighter gravity, a capped fall speed — never a rise
+      this.superGliding = superjump && !this.grounded && !this.superRising
+        && input.jumpHeld && this.velocity.y < 2 && !this.blocking;
+      const gScale = this.superRising ? 0 : this.superGliding ? SUPERJUMP_GLIDE : 1;
+      this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * gScale * dt;
+      if (this.superGliding && this.velocity.y < -SUPERJUMP_FALL) this.velocity.y = -SUPERJUMP_FALL;
       // A brace wants the ground under it: raising the shield mid-air kills any
       // rise you had and pulls you down to meet it.
       if (this.blocking && !this.grounded) {

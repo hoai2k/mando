@@ -77,12 +77,14 @@ let s = await page.evaluate(`(() => {
     followers: g.enemies.filter((e) => e.owner).length,
     followerTeam: g.enemies.find((e) => e.owner)?.team,
     hostiles0: g.hostilesFor(g.players[0]).length,
-    npcFly: g.players[1].profile.canFly,
+    npcFlight: g.players[1].profile.flight,
+    mandoFlight: g.players[0].profile.flight,
   };
 })()`);
 check('pvp: match opens, every fighter its own team', s.state === 'fighting' && s.teams[0] === 2 && s.teams[1] === 3, JSON.stringify(s.teams));
 check('pvp: the NPC adapter fields player two', s.npc === 'Tusken Raider');
-check('pvp: a ground NPC does not fly', s.npcFly === false);
+check('pvp: an NPC super-jumps, never a jetpack; the Mandalorian keeps his',
+  s.npcFlight === 'superjump' && s.mandoFlight === 'jetpack', `${s.npcFlight}/${s.mandoFlight}`);
 check('pvp: squad followers ride their leader\'s team', s.followers === 2 && s.followerTeam === 3, `${s.followers} @ team ${s.followerTeam}`);
 check('pvp: rival and their squad are hostile to player one', s.hostiles0 === 3, String(s.hostiles0));
 // the squad carries its leader: a downed leader with a follower still up
