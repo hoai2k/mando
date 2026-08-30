@@ -347,6 +347,9 @@ end.onBack = () => quitToTitle();
 // character's name or count — both have changed under it before
 (window as unknown as { __roster?: unknown }).__roster =
   PLAYABLE_MANDO_IDS.map((id) => ({ id, name: MANDO_ROSTER[id].name }));
+// debug/testing handle: the widened PvP roster, so a test can put a fighter on
+// the select stage without walking the menus to get there
+(window as unknown as { __pvpRoster?: unknown }).__pvpRoster = PVP_ROSTER;
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 

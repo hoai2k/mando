@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { PlayerCharacter } from '../characters/mandalorians';
 import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
 import { ThirdPersonCamera } from '../core/camera';
+import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
@@ -12,6 +13,12 @@ import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
 import { ThrownSaber } from './saberthrow';
+
+/** scratch for measuring the body the camera is framing */
+const _bodyBox = new THREE.Box3();
+const _bodySize = new THREE.Vector3();
+/** how often the body is re-measured for the camera, seconds */
+const FRAME_RECHECK = 0.5;
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -218,6 +225,10 @@ export class Player {
   private peekSide = 0;
   private peekRecheck = 0;
   private pushAwayTime = 0;
+  /** subtree size the camera framing was last measured against (see frameCamera) */
+  private framedNodes = -1;
+  /** how long until the body is measured again, seconds */
+  private frameCheck = 0;
 
   constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
     const def = playableDef(characterId);
@@ -229,6 +240,30 @@ export class Player {
     this.height = this.profile.height;
     if (this.meleeOnly) this.weapon = 'none';
     this.cam = new ThirdPersonCamera(aspect);
+    this.frameCamera();
+  }
+
+  /**
+   * Tell the chase rig how big this fighter actually is.
+   *
+   * It has to be measured rather than read off the profile: a playable NPC's
+   * collider is clamped so a war beast still fits the cover and doorways the
+   * boards were built around, which leaves `radius`/`height` describing a
+   * capsule that a massiff is four metres longer than. The camera framed by
+   * those numbers sits inside the animal.
+   *
+   * Re-measured when the subtree changes shape, because a character is born as
+   * a procedural stand-in and its authored model swaps in seconds later at its
+   * own size — a frame computed once is a frame of the wrong body.
+   */
+  private frameCamera(): void {
+    const nodes = nodeCount(this.char.root);
+    if (nodes === this.framedNodes) return;
+    visibleBounds(this.char.root, _bodyBox);
+    if (_bodyBox.isEmpty()) return;
+    this.framedNodes = nodes;
+    _bodyBox.getSize(_bodySize);
+    this.cam.setSubject(_bodySize.y, Math.max(_bodySize.x, _bodySize.z) / 2);
   }
 
   /** what the HUD calls the weapon currently in hand */
@@ -441,6 +476,14 @@ export class Player {
       this.syncVisual(dt, game);
       anim.update(dt);
       return;
+    }
+
+    // the authored model lands seconds into a match and is a different size
+    // from the stand-in it replaces; the camera wants to hear about it
+    this.frameCheck -= dt;
+    if (this.frameCheck <= 0) {
+      this.frameCheck = FRAME_RECHECK;
+      this.frameCamera();
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
