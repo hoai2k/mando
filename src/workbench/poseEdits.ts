@@ -148,10 +148,16 @@ export class PoseEdits {
   }
 
   /**
-   * Rewrite the clips from the pristine keys plus the current deltas. Tracks
-   * are rebuilt rather than nudged, so undoing an edit really restores the
-   * clip. Returns true when a track was added or removed — the mixer binds its
-   * actions when a clip is first played, and has to be rebuilt after that.
+   * Rewrite the clips from the pristine keys plus the current deltas. Values
+   * are recomputed from the originals rather than nudged, so undoing an edit
+   * really restores the clip.
+   *
+   * Where the track already has the right shape its sample values are written
+   * *in place*: a playing action holds an interpolant over the track's own
+   * `values` array, so writing into that array is seen immediately, while
+   * swapping in a fresh track would leave the action reading the old numbers
+   * until the mixer re-bound. Returns true only when a track was added or
+   * removed, which does need the actions rebuilt (`Animator.invalidate`).
    */
   apply(clips: ClipSet): boolean {
     let structural = false;
@@ -169,12 +175,11 @@ export class PoseEdits {
           continue;
         }
         const q = quatOf(delta);
-        const track = new THREE.QuaternionKeyframeTrack(name, [0, clip.duration],
-          [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w]);
+        const values = [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w];
         if (at >= 0) {
-          clip.tracks[at] = track;
+          (clip.tracks[at].values as Float32Array).set(values);
         } else {
-          clip.tracks.push(track);
+          clip.tracks.push(new THREE.QuaternionKeyframeTrack(name, [0, clip.duration], values));
           structural = true;
         }
         continue;
@@ -185,7 +190,9 @@ export class PoseEdits {
         const q = quatOf(delta ? eulerAdd(frame.deg, delta) : frame.deg);
         values.push(q.x, q.y, q.z, q.w);
       }
-      clip.tracks[at] = new THREE.QuaternionKeyframeTrack(name, keys.map((f) => f.t), values);
+      const track = clip.tracks[at];
+      if (track.values.length === values.length) track.values.set(values);
+      else clip.tracks[at] = new THREE.QuaternionKeyframeTrack(name, keys.map((f) => f.t), values);
     }
     return structural;
   }

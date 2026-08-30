@@ -29,6 +29,8 @@ type Mode = 'authored' | 'procedural' | 'both';
 
 interface Figure {
   inst: CharacterInstance;
+  /** the rig as built, before any clip touched it — see `applyPose` */
+  rest: Array<{ bone: THREE.Object3D; quaternion: THREE.Quaternion; position: THREE.Vector3 }>;
   /** the character factory hands back extras on the Mandalorians */
   extras: {
     setThrust?: (t: number) => void;
@@ -156,7 +158,14 @@ function spawn(): void {
     inst.root.position.x = wants.length > 1 ? (i === 0 ? -0.75 : 0.75) : 0;
     inst.root.traverse((o) => { o.castShadow ||= (o as THREE.Mesh).isMesh; });
     turntable.add(inst.root);
-    return { inst, extras: inst, label: sides[i] ? `${sides[i]} — ${label}` : label };
+    // Snapshot the rig before anything animates it: a clip only writes the
+    // bones it has tracks for, so without a rest to fall back to, a bone left
+    // behind by an edit (or by a change of pose) keeps its last rotation for
+    // the rest of the session.
+    const rest = Object.values(inst.rig?.bones ?? {}).map((bone) => ({
+      bone, quaternion: bone.quaternion.clone(), position: bone.position.clone(),
+    }));
+    return { inst, extras: inst, rest, label: sides[i] ? `${sides[i]} — ${label}` : label };
   });
 
   for (const f of figures) {
@@ -171,7 +180,6 @@ function spawn(): void {
     if (!f.inst.animator) continue;
     edits.capture(f.inst.animator.clips);
     edits.apply(f.inst.animator.clips);
-    f.inst.animator.invalidate();
   }
   applyPose();
   editor.setTargets(figures
@@ -226,8 +234,17 @@ function applyPose(): void {
     const anim = f.inst.animator;
     if (!anim) continue;
     anim.releaseAll();
+    // Back to rest first, so bones the new pose has no track for read as
+    // untouched rather than keeping the last pose's — or the last edit's —
+    // rotation. Undoing an edit to a bone the clip never animated has nothing
+    // else to put it back: dropping the edit drops the track with it.
+    for (const r of f.rest) { r.bone.quaternion.copy(r.quaternion); r.bone.position.copy(r.position); }
     if (pose.lower) anim.play('lower', pose.lower, 0, pose.rate ?? 1);
     if (pose.upper) anim.play('upper', pose.upper, 0, pose.rate ?? 1);
+    // Write the first frame now. The mixer restores every bone it owns to its
+    // bind pose as the old actions stop, and without this the figure stands in
+    // that neutral pose until the next animation frame lands on it.
+    anim.update(0);
     f.extras.setThrust?.(pose.thrust ?? 0);
     f.extras.setWeapon?.(pose.melee ? 'gaffi' : 'blaster');
     f.extras.setBlock?.(pose.block ? 1 : 0);
@@ -301,12 +318,19 @@ function commitBone(bone: string): void {
   refreshEdits();
 }
 
-/** Push the ledger into the clips and put the figures back in the frozen pose. */
+/**
+ * Push the ledger into the clips and put the figures back in the frozen pose.
+ *
+ * `apply` rewrites sample values in place, which a playing action picks up on
+ * its own; only adding or dropping a whole track needs the mixer's bindings
+ * rebuilt, and that is worth avoiding — `invalidate` resets every bone to its
+ * bind pose on the way through, so doing it on every drag made the figure
+ * flicker through a neutral stance between edits.
+ */
 function refreshEdits(): void {
   for (const f of figures) {
     if (!f.inst.animator) continue;
-    edits.apply(f.inst.animator.clips);
-    f.inst.animator.invalidate();
+    if (edits.apply(f.inst.animator.clips)) f.inst.animator.invalidate();
   }
   applyPose();
   if (editing) freezePose();

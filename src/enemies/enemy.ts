@@ -780,7 +780,7 @@ export class Enemy {
       // (or from behind) keeps the frontal flinch.
       const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
       const side = Math.sin(bearing);
-      const clip = side > 0.45 ? 'hitFromR' : side < -0.45 ? 'hitFromL' : 'hitUpper';
+      const clip = side > 0.45 ? 'hitFromL' : side < -0.45 ? 'hitFromR' : 'hitUpper';
       this.char.animator.playOnce('upper', clip, 0.05);
     }
   }
