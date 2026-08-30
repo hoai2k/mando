@@ -18,9 +18,10 @@ import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
-import { playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
+import { fitStats } from './world/collide';
 import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
@@ -588,6 +589,11 @@ Object.assign(window, {
   // the sculpt ids the built board actually asked for, so a test can hold the
   // prefetcher's per-board list against the truth
   __propsUsed: () => [...propsUsed],
+  // what fitting colliders to the sculpts has cost, for the prop audit
+  __fitStats: () => ({ ...fitStats }),
+  // every playable fighter's definition, so a test can hold the whole roster
+  // against a rule — that everyone is armed in both hands, for one
+  __playables: () => PVP_ROSTER.map((id) => playableDef(id)),
   __boardProps: () => BOARD_PROPS,
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));

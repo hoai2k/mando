@@ -184,22 +184,23 @@ export function buildCrevasse(): Board {
   wreck.position.set(wx, wBase + 4.45, wz);
   wreck.castShadow = wreck.receiveShadow = true;
   group.add(wreck);
-  physics.addBox(wx, wBase + 4.45, wz, 10, 8.9, 7.7);
+  const wreckBox = physics.addBox(wx, wBase + 4.45, wz, 10, 8.9, 7.7);
   // Lies along the box's long axis with the same list the stand-in has, and
   // grounds on the rim rather than on the box's centre.
   authoredProp(group, wreck, 'survey_crawler', 10, {
     // settled a little into the snow rather than perched on it — the tracks
     // of a machine that has been sitting here through a winter
     x: wx, y: wBase - 0.35, z: wz, axis: 'z', yaw: Math.PI / 2,
-  });
+  }, { physics, replace: [wreckBox], maxBoxes: 16 });
   for (const [cx, cz] of [[wx + 7, wz + 2], [wx + 8.5, wz - 1], [wx - 7, wz - 3]] as const) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), wreckMat);
     const cy = heightAt(cx, cz);
     crate.position.set(cx, cy + 1.1, cz);
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
-    physics.addBox(cx, cy + 1.1, cz, 2.2, 2.2, 2.2);
-    authoredProp(group, crate, 'cargo_crate', 2.2, { x: cx, y: cy, z: cz });
+    const box = physics.addBox(cx, cy + 1.1, cz, 2.2, 2.2, 2.2);
+    authoredProp(group, crate, 'cargo_crate', 2.2, { x: cx, y: cy, z: cz },
+      { physics, replace: [box], maxBoxes: 4 });
   }
 
   const board: Board = {

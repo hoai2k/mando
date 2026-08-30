@@ -87,6 +87,82 @@ export class PhysicsWorld {
     return true;
   }
 
+  /**
+   * Push a loose point out of any solid it has ended up inside, through the
+   * nearest face. Corpse solvers work in points rather than capsules — this is
+   * what stops a body settling half inside the crate it fell against.
+   *
+   * @returns true if the point was moved.
+   */
+  pushOutPoint(p: THREE.Vector3, radius = 0): boolean {
+    let moved = false;
+    for (const b of this.boxes) {
+      if (p.x <= b.min.x - radius || p.x >= b.max.x + radius) continue;
+      if (p.y <= b.min.y - radius || p.y >= b.max.y + radius) continue;
+      if (p.z <= b.min.z - radius || p.z >= b.max.z + radius) continue;
+      // six faces, shallowest wins — the same rule the capsule mover uses,
+      // with the vertical pair included since a point has no "up"
+      const out: [number, () => void][] = [
+        [p.x - (b.min.x - radius), () => { p.x = b.min.x - radius; }],
+        [(b.max.x + radius) - p.x, () => { p.x = b.max.x + radius; }],
+        [p.y - (b.min.y - radius), () => { p.y = b.min.y - radius; }],
+        [(b.max.y + radius) - p.y, () => { p.y = b.max.y + radius; }],
+        [p.z - (b.min.z - radius), () => { p.z = b.min.z - radius; }],
+        [(b.max.z + radius) - p.z, () => { p.z = b.max.z + radius; }],
+      ];
+      let best = out[0];
+      for (const o of out) if (o[0] < best[0]) best = o;
+      best[1]();
+      moved = true;
+    }
+    for (const c of this.cylinders) {
+      if (p.y <= c.minY - radius || p.y >= c.maxY + radius) continue;
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const reach = c.r + radius;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= reach * reach) continue;
+      const d = Math.sqrt(d2) || 1e-5;
+      const side = reach - d;
+      const up = (c.maxY + radius) - p.y, down = p.y - (c.minY - radius);
+      if (side <= up && side <= down) {
+        p.x = c.x + (dx / d) * reach;
+        p.z = c.z + (dz / d) * reach;
+      } else if (up <= down) p.y = c.maxY + radius;
+      else p.y = c.minY - radius;
+      moved = true;
+    }
+    return moved;
+  }
+
+  /**
+   * Height of the nearest solid surface below `y` at (x, z), or -Infinity when
+   * there is nothing under this spot within `maxDrop`.
+   *
+   * Unlike `groundHeight` this asks about the whole column rather than what a
+   * standing body could step onto, which is what a local gravity field wants
+   * to know: is there anything down there to fall towards?
+   */
+  supportBelow(x: number, y: number, z: number, maxDrop = Infinity): number {
+    const floor = y - maxDrop;
+    let best = -Infinity;
+    if (this.heightAt) {
+      const h = this.heightAt(x, z);
+      if (h <= y && h >= floor) best = h;
+    }
+    for (const b of this.boxes) {
+      if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+      if (b.max.y > y || b.max.y < floor || b.max.y <= best) continue;
+      best = b.max.y;
+    }
+    for (const c of this.cylinders) {
+      const dx = x - c.x, dz = z - c.z;
+      if (dx * dx + dz * dz > c.r * c.r) continue;
+      if (c.maxY > y || c.maxY < floor || c.maxY <= best) continue;
+      best = c.maxY;
+    }
+    return best;
+  }
+
   groundHeight(x: number, z: number, feetY: number): number {
     let g = this.heightAt ? this.heightAt(x, z) : -Infinity;
     for (const b of this.boxes) {
