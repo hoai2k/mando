@@ -10,7 +10,7 @@ export interface Pose {
   name: string;
   lower: string | null;
   upper: string | null;
-  /** playback rate for the lower channel, e.g. sprint is run played faster */
+  /** playback rate for the lower channel, e.g. the back-pedal is its cycle reversed */
   rate?: number;
   /** jetpack thrust to show while this pose runs */
   thrust?: number;
@@ -24,10 +24,10 @@ export const POSES: Pose[] = [
   { id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null },
   { id: 'idle', name: 'Idle', lower: 'idleLower', upper: 'idleUpper' },
   { id: 'run', name: 'Run', lower: 'runLower', upper: 'runUpper' },
-  { id: 'sprint', name: 'Sprint', lower: 'runLower', upper: 'runUpper', rate: 1.35 },
+  { id: 'sprint', name: 'Sprint', lower: 'sprintLower', upper: 'runUpper', rate: 1.35 },
   { id: 'strafe', name: 'Strafe — right', lower: 'strafeLower', upper: 'aimUpper' },
   { id: 'strafeL', name: 'Strafe — left', lower: 'strafeLLower', upper: 'aimUpper' },
-  { id: 'backpedal', name: 'Back-pedal (run reversed)', lower: 'runLower', upper: 'aimUpper', rate: -0.9 },
+  { id: 'backpedal', name: 'Back-pedal', lower: 'backpedalLower', upper: 'aimUpper', rate: -0.9 },
   { id: 'saberIdle', name: 'Saber stance — idle', lower: 'idleLower', upper: 'saberIdleUpper', melee: true },
   { id: 'saberRun', name: 'Saber stance — run', lower: 'runLower', upper: 'saberRunUpper', melee: true },
   { id: 'flourish', name: 'Saber flourish', lower: 'idleLower', upper: 'saberFlourish', melee: true },

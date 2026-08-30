@@ -190,6 +190,42 @@ function makeClips(p: Proportions): ClipSet {
     qt('footR', rt, [[-14, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-14, 0, 0]]),
   ]);
 
+  // ---------- LOWER: sprint (0.6s cycle) ----------
+  // The run opened up: the lead thigh reaches further forward and the shin
+  // straightens into that reach, so the stride lands ahead of where the run
+  // would put it, with a deeper hip pitch behind it. Longer strides also mean
+  // cycleDistance measures a bigger number, so gaitRate plays it *slower* per
+  // metre than the run — fewer, longer steps at speed rather than the same
+  // gait spun faster.
+  clips.sprintLower = new THREE.AnimationClip('sprintLower', 0.6, [
+    pt('hips', rt, [[0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0]]),
+    qt('hips', rt, [[12, 0, 3], [12, 0, 0], [12, 0, -3], [12, 0, 0], [12, 0, 3]]),
+    qt('spine', rt, [[6, -5, 0], [6, 0, 0], [6, 5, 0], [6, 0, 0], [6, -5, 0]]),
+    qt('upperLegL', rt, [[-76, 0, 0], [-14, 0, 0], [46, 0, 0], [-8, 0, 0], [-76, 0, 0]]),
+    qt('lowerLegL', rt, [[12, 0, 0], [10, 0, 0], [74, 0, 0], [100, 0, 0], [12, 0, 0]]),
+    qt('upperLegR', rt, [[46, 0, 0], [-8, 0, 0], [-76, 0, 0], [-14, 0, 0], [46, 0, 0]]),
+    qt('lowerLegR', rt, [[74, 0, 0], [100, 0, 0], [12, 0, 0], [10, 0, 0], [74, 0, 0]]),
+    qt('footL', rt, [[14, 0, 0], [2, 0, 0], [-18, 0, 0], [-5, 0, 0], [14, 0, 0]]),
+    qt('footR', rt, [[-16, 0, 0], [-7, 0, 0], [10, 0, 0], [0, 0, 0], [-16, 0, 0]]),
+  ]);
+
+  // ---------- LOWER: back-pedal (0.6s cycle, played in reverse) ----------
+  // Backing up is this cycle run backward, so the poses are the run's with the
+  // reach rebalanced for it: the trailing leg no longer stretches far behind
+  // (nothing is being pushed off toward), while the leading leg reaches a
+  // little further forward to catch the body's weight as it travels back.
+  clips.backpedalLower = new THREE.AnimationClip('backpedalLower', 0.6, [
+    pt('hips', rt, [[0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0]]),
+    qt('hips', rt, [[8, 0, 3], [8, 0, 0], [8, 0, -3], [8, 0, 0], [8, 0, 3]]),
+    qt('spine', rt, [[4, -4, 0], [4, 0, 0], [4, 4, 0], [4, 0, 0], [4, -4, 0]]),
+    qt('upperLegL', rt, [[-70, 0, 0], [-14, 0, 0], [24, 0, 0], [-6, 0, 0], [-70, 0, 0]]),
+    qt('lowerLegL', rt, [[22, 0, 0], [14, 0, 0], [62, 0, 0], [88, 0, 0], [22, 0, 0]]),
+    qt('upperLegR', rt, [[24, 0, 0], [-6, 0, 0], [-70, 0, 0], [-14, 0, 0], [24, 0, 0]]),
+    qt('lowerLegR', rt, [[62, 0, 0], [88, 0, 0], [22, 0, 0], [14, 0, 0], [62, 0, 0]]),
+    qt('footL', rt, [[12, 0, 0], [1, 0, 0], [-14, 0, 0], [-4, 0, 0], [12, 0, 0]]),
+    qt('footR', rt, [[-12, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-12, 0, 0]]),
+  ]);
+
   // ---------- LOWER: strafe (lateral shuffle, 0.6s cycle) ----------
   // Side-stepping toward +X: the +X leg reaches wide, the other pushes and
   // gathers under the body, knees lifting on the gather so the feet step
@@ -241,6 +277,8 @@ function makeClips(p: Proportions): ClipSet {
   clips.flyLower = new THREE.AnimationClip('flyLower', 1.6, [
     pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.02, 0], [0, hipY, 0]]),
     qt('hips', [0, 0.8, 1.6], [[18, 0, 0], [22, 0, 0], [18, 0, 0]]),
+    // pose-edit pass: a touch more forward lean through the torso in flight
+    qt('spine', [0, 1.6], [[11.16, -0.89, -0.13], [11.16, -0.89, -0.13]]),
     qt('upperLegL', [0, 0.8, 1.6], [[14, 0, -3], [18, 0, -3], [14, 0, -3]]),
     qt('lowerLegL', [0, 0.8, 1.6], [[28, 0, 0], [32, 0, 0], [28, 0, 0]]),
     qt('upperLegR', [0, 0.8, 1.6], [[18, 0, 3], [14, 0, 3], [18, 0, 3]]),
@@ -250,6 +288,8 @@ function makeClips(p: Proportions): ClipSet {
   ]);
   clips.flyUpper = new THREE.AnimationClip('flyUpper', 1.6, [
     qt('chest', [0, 0.8, 1.6], [[-8, 0, 0], [-10, 0, 0], [-8, 0, 0]]),
+    // ...with the neck tipping back against it so the visor still reads level
+    qt('neck', [0, 1.6], [[-4.16, 0.31, 0.14], [-4.16, 0.31, 0.14]]),
     qt('upperArmL', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
     qt('forearmL', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
     qt('upperArmR', [0, 0.8, 1.6], [[10, 0, 28], [12, 0, 32], [10, 0, 28]]),

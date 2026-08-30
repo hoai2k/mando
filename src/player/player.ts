@@ -754,15 +754,18 @@ export class Player {
       const arel = Math.abs(rel);
       let lowerClip = 'runLower';
       let rate: number;
-      if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
-        rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
+      if (arel > 2.3) {           // > ~132°: backing up — its own cycle, played backward
+        lowerClip = 'backpedalLower';
+        rate = -anim.gaitRate(lowerClip, speed2, this.char.baseScale) * 0.9;
       } else if (arel > 0.8) {    // 46-132°: side-stepping
         lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
         rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       } else {
+        // a sprint is its own longer-reaching cycle, not the run spun faster
+        if (this.sprinting) lowerClip = 'sprintLower';
         // the gait runs at whatever rate plants the feet at our actual ground
         // speed, so the stride pushes off instead of skating
-        rate = anim.gaitRate('runLower', speed2, this.char.baseScale);
+        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       }
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
