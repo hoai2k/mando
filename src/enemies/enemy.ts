@@ -1611,6 +1611,7 @@ export class Enemy {
         this.pounce = flight + 0.5;
         this.pounceHit = false;
         this.grounded = false;
+        this.char.attack?.();   // jaws open through the leap
         audio.beastGrowl(0.6);
         game.particles.dustPuff(this.position, 8);
         return;
@@ -1631,7 +1632,11 @@ export class Enemy {
       if (this.attackCd <= 0) {
         this.windup = 0.55;
         this.windupTarget = target;
-        if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
+        // creatures animate their own strike (attack hook); rigged humanoids
+        // play the overhead swing. The damage lands when the wind-up expires,
+        // so time it near the clip's strike frame (~55% in) rather than its tail.
+        if (this.char.attack) this.windup = Math.max(0.4, this.char.attack() * 0.7);
+        else if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
       }
     }
   }
@@ -1864,6 +1869,7 @@ export class Enemy {
     // billed 10 damage on every rendered frame it stayed in contact (~30-60 a
     // pass, and worse the higher the refresh rate).
     if (this.attackCd <= 0 && this.position.distanceTo(target.position) < 1.8 && target.alive) {
+      this.char.attack?.();   // the ram reads on the bike, not just the numbers
       target.damage(10 * this.dmgScale, this.position);
       target.velocity.add(this.velocity.clone().multiplyScalar(0.4));
       this.attackCd = Math.max(this.attackCd, 1);

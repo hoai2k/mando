@@ -1221,7 +1221,10 @@ export class Player {
       // twin blades get their own combo; everyone else swings the staff set
       const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
-      const dur = this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
+      // creatures (the playable heavies) animate their own strike — their
+      // Animator is a stub, so without the attack hook an X press showed
+      // nothing at all
+      const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * 0.45;
@@ -1342,18 +1345,60 @@ export class Player {
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
     }
 
-    // rocket
+    // Y: ordnance for whoever carries a gun, the heavy lunge for whoever
+    // doesn't. A blades-only fighter (or a war beast) has no rocket rack —
+    // theirs is a committed leap onto the nearest target that lands as the
+    // finisher: knockdown, finisher damage, the works.
     if (input.rocketPressed && this.rocketCd <= 0) {
-      this.rocketCd = ROCKET_CD;
-      const dir = new THREE.Vector3();
-      this.cam.aimDir(dir);
-      const origin = this.position.clone();
-      origin.y += 1.9;
-      const lock = this.aimAssistTarget(game, dir, origin, 0.85, 80);
-      game.fireRocket(origin, dir, lock, this.slot);
-      audio.rocket();
-      this.cam.shake(0.15);
+      if (this.meleeOnly) {
+        this.heavyLunge(game);
+      } else {
+        this.rocketCd = ROCKET_CD;
+        const dir = new THREE.Vector3();
+        this.cam.aimDir(dir);
+        const origin = this.position.clone();
+        origin.y += 1.9;
+        const lock = this.aimAssistTarget(game, dir, origin, 0.85, 80);
+        game.fireRocket(origin, dir, lock, this.slot);
+        audio.rocket();
+        this.cam.shake(0.15);
+      }
     }
+  }
+
+  /**
+   * The melee-only signature on Y: a leaping heavy strike. The body is thrown
+   * at the nearest hostile ahead (or camera-forward with nobody in reach), and
+   * the hit resolves through the ordinary melee pipeline as a step-3 finisher,
+   * so it knocks down whatever it lands on. Its clock is the rocket's slot but
+   * far shorter — a pounce, not ordnance.
+   */
+  private heavyLunge(game: Game): void {
+    this.rocketCd = 5;
+    const target = this.nearestEnemy(game, 14, 0.2);
+    const dir = target
+      ? target.position.clone().sub(this.position).setY(0).normalize()
+      : new THREE.Vector3(Math.sin(this.cam.yaw), 0, Math.cos(this.cam.yaw));
+    this.velocity.x = dir.x * 16;
+    this.velocity.z = dir.z * 16;
+    this.velocity.y = Math.max(this.velocity.y, 6.5);
+    this.facingYaw = Math.atan2(dir.x, dir.z);
+    this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
+    const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
+    if (this.weapon !== 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
+    this.weapon = 'gaffi';
+    this.char.setWeapon('gaffi');
+    this.saberIdle = 0;
+    const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', `${set}3`, 0.05) ?? 0.6;
+    this.meleeTimer = dur + 0.1;
+    this.meleeComboWindow = dur + 0.55;
+    this.meleeHitPending = dur * 0.6;
+    this.meleeDamage = this.profile.meleeFinisher;
+    this.flourished = false;
+    audio.melee(3, this.profile.meleeKind);
+    audio.dash();
+    this.cam.shake(0.12);
+    game.particles.dustPuff(this.position, 8);
   }
 
   /**

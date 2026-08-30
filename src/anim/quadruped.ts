@@ -222,8 +222,50 @@ function idle(root: THREE.Object3D): THREE.AnimationClip {
   return new THREE.AnimationClip('idle', DUR, b.tracks);
 }
 
+// ---------- attacks: the coil-and-strike every creature shares ----------
+//
+// One shape covers all of them: a short coil (the mass gathers, the head or
+// limbs draw back) and then the strike, snapping through to the far side of
+// rest before recovering. Enemy AI wind-ups and the player controller both
+// time the damage to land around the strike frame (~55% of the clip), which
+// is exactly where these clips put the hit.
+
+interface StrikeSpec {
+  dur: number;
+  /** per bone: degrees at the coil, degrees at the strike (rest at both ends) */
+  bones: Array<{ name: string; coil: [number, number, number]; hit: [number, number, number] }>;
+  /** optional body bob: metres at the coil and at the strike */
+  lift?: { bone: string; coil: number; hit: number };
+}
+
+function strikeClip(root: THREE.Object3D, spec: StrikeSpec): THREE.AnimationClip {
+  const b = builder(root);
+  const t = [0, spec.dur * 0.3, spec.dur * 0.55, spec.dur];
+  const zero: [number, number, number] = [0, 0, 0];
+  for (const bone of spec.bones) b.rot(bone.name, t, [zero, bone.coil, bone.hit, zero]);
+  if (spec.lift) b.lift(spec.lift.bone, t, [0, spec.lift.coil, spec.lift.hit, 0]);
+  return new THREE.AnimationClip('attack', spec.dur, b.tracks);
+}
+
+/** The massiff's lunge-bite: the neck coils up and back, then drives forward and down. */
+function massiffAttack(root: THREE.Object3D): THREE.AnimationClip {
+  return strikeClip(root, {
+    dur: 0.6,
+    bones: [
+      { name: 'DEF-spine.007', coil: [10, 0, 0], hit: [-14, 0, 0] },
+      { name: 'DEF-spine.008', coil: [14, 0, 0], hit: [-20, 0, 0] },
+      { name: 'DEF-spine.009', coil: [16, 0, 0], hit: [-26, 0, 0] },
+      { name: 'DEF-spine.004', coil: [8, 0, 0], hit: [-10, 0, 0] },
+      // the forelegs brace back as the chest rises, then plant into the bite
+      { name: 'DEF-front_thigh.L', coil: [18, 0, 0], hit: [-10, 0, 0] },
+      { name: 'DEF-front_thigh.R', coil: [18, 0, 0], hit: [-10, 0, 0] },
+    ],
+    lift: { bone: 'DEF-spine', coil: 0.08, hit: -0.05 },
+  });
+}
+
 export function massiffClips(root: THREE.Object3D): THREE.AnimationClip[] {
-  return [idle(root), walk(root), gallop(root)];
+  return [idle(root), walk(root), gallop(root), massiffAttack(root)];
 }
 
 
@@ -277,8 +319,29 @@ function spiderIdle(root: THREE.Object3D): THREE.AnimationClip {
   return new THREE.AnimationClip('idle', DUR, b.tracks);
 }
 
+/**
+ * The spider's strike: rear up on the back legs, front pair raised, then slam
+ * them down with the head driving in. Front legs are the L1/R1 pair (the hips
+ * sit furthest along +z), with the second pair joining softer.
+ */
+function spiderAttack(root: THREE.Object3D): THREE.AnimationClip {
+  return strikeClip(root, {
+    dur: 0.55,
+    bones: [
+      { name: 'legL1', coil: [-55, 0, 0], hit: [20, 0, 0] },
+      { name: 'legR1', coil: [-55, 0, 0], hit: [20, 0, 0] },
+      { name: 'legL1_mid', coil: [-45, 0, 0], hit: [12, 0, 0] },
+      { name: 'legR1_mid', coil: [-45, 0, 0], hit: [12, 0, 0] },
+      { name: 'legL2', coil: [-25, 0, 0], hit: [8, 0, 0] },
+      { name: 'legR2', coil: [-25, 0, 0], hit: [8, 0, 0] },
+      { name: 'head', coil: [-10, 0, 0], hit: [18, 0, 0] },
+    ],
+    lift: { bone: 'body', coil: 0.14, hit: -0.06 },
+  });
+}
+
 export function kryknaClips(root: THREE.Object3D): THREE.AnimationClip[] {
-  return [spiderIdle(root), spiderMove(root)];
+  return [spiderIdle(root), spiderMove(root), spiderAttack(root)];
 }
 
 // ---------- interceptor drone: hover bob and dangling arms ----------
@@ -377,7 +440,18 @@ export function mudhornClips(root: THREE.Object3D): THREE.AnimationClip[] {
   const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * 3.6);
   tail(b, times, 9);
   idle.tracks.push(...b.tracks);
-  return [idle, move];
+  // the gore: head dropped to the horn, then tossed up and through
+  const attack = strikeClip(root, {
+    dur: 0.8,
+    bones: [
+      { name: 'head', coil: [24, 0, 0], hit: [-32, 0, 0] },
+      { name: 'jaw', coil: [4, 0, 0], hit: [26, 0, 0] },
+      { name: 'legFL', coil: [12, 0, 0], hit: [-8, 0, 0] },
+      { name: 'legFR', coil: [12, 0, 0], hit: [-8, 0, 0] },
+    ],
+    lift: { bone: 'body', coil: -0.06, hit: 0.12 },
+  });
+  return [idle, move, attack];
 }
 
 export function ravinakClips(root: THREE.Object3D): THREE.AnimationClip[] {
@@ -391,7 +465,19 @@ export function ravinakClips(root: THREE.Object3D): THREE.AnimationClip[] {
   b.rot('body3', times, cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2) * 6).map((v) => [v, 0, 0]));
   b.rot('tail', times, cycle(STEPS, 0.45, (t) => Math.sin(t * Math.PI * 2) * 10).map((v) => [0, v, 0]));
   move.tracks.push(...b.tracks);
-  return [beastIdle(root, 'head', 'body1', 4.2, 2.6), move];
+  // rears back with the mouth wide, then the whole front slams down into the bite
+  const attack = strikeClip(root, {
+    dur: 0.85,
+    bones: [
+      { name: 'head', coil: [-16, 0, 0], hit: [26, 0, 0] },
+      { name: 'jaw', coil: [32, 0, 0], hit: [4, 0, 0] },
+      { name: 'body2', coil: [-8, 0, 0], hit: [10, 0, 0] },
+      { name: 'flipperFL', coil: [14, 0, 0], hit: [-10, 0, 0] },
+      { name: 'flipperFR', coil: [14, 0, 0], hit: [-10, 0, 0] },
+    ],
+    lift: { bone: 'body1', coil: 0.12, hit: -0.08 },
+  });
+  return [beastIdle(root, 'head', 'body1', 4.2, 2.6), move, attack];
 }
 
 export function mamacoreClips(root: THREE.Object3D): THREE.AnimationClip[] {
@@ -412,7 +498,19 @@ export function mamacoreClips(root: THREE.Object3D): THREE.AnimationClip[] {
     b.rot('jaw', times, cycle(STEPS, 0, (t) => 4 + Math.sin(t * Math.PI * 2) * 4).map((v) => [v, 0, 0]));
     return new THREE.AnimationClip(name, dur, b.tracks);
   };
-  return [swim('idle', 4.4, 3.5), swim('move', 1.8, 8)];
+  // the lunge-bite: the body whips forward down its length, jaws thrown wide
+  // through the coil and snapped shut on the strike
+  const attack = strikeClip(root, {
+    dur: 0.75,
+    bones: [
+      { name: 'jaw', coil: [42, 0, 0], hit: [4, 0, 0] },
+      { name: 'body1', coil: [-10, 0, 0], hit: [14, 0, 0] },
+      { name: 'body2', coil: [-6, 0, 0], hit: [10, 0, 0] },
+      { name: 'finL', coil: [18, 0, 0], hit: [-12, 0, 0] },
+      { name: 'finR', coil: [18, 0, 0], hit: [-12, 0, 0] },
+    ],
+  });
+  return [swim('idle', 4.4, 3.5), swim('move', 1.8, 8), attack];
 }
 
 export function rancorClips(root: THREE.Object3D): THREE.AnimationClip[] {
@@ -438,7 +536,20 @@ export function rancorClips(root: THREE.Object3D): THREE.AnimationClip[] {
     b.rot('head', times, cycle(STEPS, 0.25, (t) => Math.sin(t * Math.PI * 2) * amp * 0.2).map((v) => [v * 0.5, -v, 0]));
     return new THREE.AnimationClip(name, dur, b.tracks);
   };
-  return [stride('idle', 4.0, 3), stride('move', 1.25, 17)];
+  // the double overhead slam: both arms hauled up past the shoulders, then
+  // driven down and through with the spine pitching into it
+  const attack = strikeClip(root, {
+    dur: 0.85,
+    bones: [
+      { name: 'upperArmL', coil: [-75, 0, 0], hit: [38, 0, 0] },
+      { name: 'upperArmR', coil: [-75, 0, 0], hit: [38, 0, 0] },
+      { name: 'forearmL', coil: [-40, 0, 0], hit: [18, 0, 0] },
+      { name: 'forearmR', coil: [-40, 0, 0], hit: [18, 0, 0] },
+      { name: 'spine1', coil: [-8, 0, 0], hit: [14, 0, 0] },
+      { name: 'head', coil: [-10, 0, 0], hit: [8, 0, 0] },
+    ],
+  });
+  return [stride('idle', 4.0, 3), stride('move', 1.25, 17), attack];
 }
 
 // ---------- the two half-buried colossi ----------
@@ -474,11 +585,34 @@ function serpentine(
   return new THREE.AnimationClip(name, dur, b.tracks);
 }
 
+/**
+ * A half-buried colossus strikes like a snake: the neck rears away, jaws
+ * thrown wide, then plunges down at the ground in front of it with both
+ * foreclaws raking in.
+ */
+function colossusStrike(root: THREE.Object3D, necks: string[], dur: number): THREE.AnimationClip {
+  return strikeClip(root, {
+    dur,
+    bones: [
+      ...necks.map((name, i): StrikeSpec['bones'][number] => ({
+        name,
+        coil: [-8 - i * 4, 0, 0],
+        hit: [9 + i * 5, 0, 0],
+      })),
+      { name: 'head', coil: [-16, 0, 0], hit: [26, 0, 0] },
+      { name: 'jaw', coil: [38, 0, 0], hit: [5, 0, 0] },
+      { name: 'clawL', coil: [-35, 0, 0], hit: [28, 0, 0] },
+      { name: 'clawR', coil: [-35, 0, 0], hit: [28, 0, 0] },
+    ],
+  });
+}
+
 export function kraytClips(root: THREE.Object3D): THREE.AnimationClip[] {
   const spine = ['body6', 'body5', 'body4', 'body3', 'body2', 'body1', 'collar', 'neck1', 'neck2', 'neck3', 'neck4'];
   return [
     serpentine(root, 'idle', 5.2, 3, spine, 'head', ['clawL', 'clawR']),
     serpentine(root, 'move', 2.2, 8, spine, 'head', ['clawL', 'clawR']),
+    colossusStrike(root, ['neck1', 'neck2', 'neck3', 'neck4'], 0.95),
   ];
 }
 
@@ -497,5 +631,6 @@ export function mythosaurClips(root: THREE.Object3D): THREE.AnimationClip[] {
     }
     clip.tracks.push(...b.tracks);
   }
+  clips.push(colossusStrike(root, ['neck1', 'neck2', 'neck3', 'neck4'], 1.05));
   return clips;
 }

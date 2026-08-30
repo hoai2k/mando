@@ -24,6 +24,15 @@ export interface CharacterInstance {
    * on their own rig, whose gait has to keep up with how fast they are moving.
    */
   setGait?: (speed: number) => void;
+  /**
+   * Play this character's attack — a lunge-bite, a leg strike, a claw swipe —
+   * and return its duration in seconds. Only the self-animating creatures
+   * carry this: characters on the canonical humanoid rig attack through their
+   * Animator's melee clips instead. Both the enemy AI's melee wind-up and the
+   * player controller's melee press call it when it exists, which is what
+   * keeps a beast's attack visible whether the beast is hostile or played.
+   */
+  attack?: () => number;
   height: number;
   /**
    * Species bulk, as a uniform scale on `root`. Gameplay code also writes

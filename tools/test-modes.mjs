@@ -85,10 +85,26 @@ check('pvp: the NPC adapter fields player two', s.npc === 'Tusken Raider');
 check('pvp: a ground NPC does not fly', s.npcFly === false);
 check('pvp: squad followers ride their leader\'s team', s.followers === 2 && s.followerTeam === 3, `${s.followers} @ team ${s.followerTeam}`);
 check('pvp: rival and their squad are hostile to player one', s.hostiles0 === 3, String(s.hostiles0));
+// the squad carries its leader: a downed leader with a follower still up
+// takes over the survivor's body instead of spending a stand
 s = await page.evaluate(`(() => {
   const g = window.__game;
   const p2 = g.players[1];
+  const before = g.enemies.filter((e) => e.owner === p2 && e.alive).length;
   p2.lives = 0;
+  p2.damage(9999, p2.position, 0);
+  (${STEP})(30);
+  return {
+    state: g.state, alive: p2.alive, before,
+    followers: g.enemies.filter((e) => e.owner === p2 && e.alive).length,
+  };
+})()`);
+check('pvp: a downed leader carries on in a surviving follower',
+  s.state === 'fighting' && s.alive === true && s.before === 2 && s.followers === 1, JSON.stringify(s));
+s = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p2 = g.players[1];
+  for (const e of g.enemies) if (e.owner === p2 && e.alive) e.damage(9999, e.position, 0);
   p2.damage(9999, p2.position, 0);
   (${STEP})(200);
   return { state: g.state, winner: g.winnerSlot, p1kills: g.players[0].kills };
