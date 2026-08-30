@@ -79,6 +79,24 @@ projectile with a face, and a playable kamikaze deletes itself from the match
 and the nikto swoop get the fuel gauge; everyone else's jump button is just a
 jump. (The jetpack fantasy stays a Mandalorian selling point.)
 
+**Size** (2026-08-30). The roster is not one species, and three places have to
+answer for that. The **collider** is clamped — `radius ≤ 0.6`, `height ≤ 2.1`
+in the roster — so a war beast still fits the cover, doorways and mission
+corridors every board was built around. The **character select** scales a
+fighter down onto its plinth (`FIT_HEIGHT` / `FIT_FOOTPRINT`): a massiff
+measures 3.2 × 4.9 m against a line spaced 1.9 m apart at four players, so at
+its own size it did not overhang the plinth so much as swallow whoever stood
+next to it. The **chase camera** is told the body's real height and reach
+(`ThirdPersonCamera.setSubject`) and keeps a floor under its distance, because
+the rig's numbers are tuned around a 1.8 m Mandalorian and framed a massiff
+from *inside* it — a wall of hide across the whole screen.
+
+None of that shrinks anyone in play: the collider clamp is about fitting the
+world, the other two are about framing. A massiff played is a massiff. The
+select measures the built model rather than the stat table, and re-measures
+when the authored `.glb` swaps in over the procedural stand-in, since the two
+are different sizes and a fit computed once is a fit of the wrong body.
+
 **Balance philosophy** (imperfect on purpose, per the brief): player-side NPCs
 are re-statted, not copied. Enemy-side HP/damage are tuned against a 100 HP
 player under AI aim; under human aim they'd be either sponges or wet paper. The
