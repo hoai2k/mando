@@ -11,11 +11,14 @@ import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
+import { ThrownSaber } from './saberthrow';
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
 const _jetDir = new THREE.Vector3();
 const _jetRot = new THREE.Quaternion();
+// scratch for where a returning saber is caught
+const _catch = new THREE.Vector3();
 
 const GRAVITY = 26;
 const RUN_SPEED = 9.2;
@@ -124,6 +127,17 @@ export class Player {
     consume: () => this.consumeDeflect(),
   };
   private deflectAim = new THREE.Vector3();
+  // ---- saber throw (RT, saber fighters only) ----
+  /** the blades in flight, one slot per hand (0 = main, 1 = off) */
+  private thrownSabers: [ThrownSaber | null, ThrownSaber | null] = [null, null];
+  /** scene-level container for the flying blades and their trails */
+  private throwFx: THREE.Group | null = null;
+  /** last frame's RT, for press-edge detection independent of the masks */
+  private prevThrowHeld = false;
+  /** reach of the current swing — bare hands are shorter than a blade */
+  private meleeRange = 3;
+  /** the current swing is bare-handed (both blades thrown away) */
+  private meleeBare = false;
   alive = true;
   kills = 0;
   team = 0;
@@ -207,7 +221,10 @@ export class Player {
   /** what the HUD calls the weapon currently in hand */
   weaponLabel(): string {
     if (this.weapon === 'none') return `${this.profile.meleeName} · stowed`;
-    if (this.weapon === 'gaffi') return this.profile.meleeName;
+    if (this.weapon === 'gaffi') {
+      if (this.profile.meleeKind === 'sabers' && this.sabersHeld < 2) return `${this.profile.meleeName} · thrown`;
+      return this.profile.meleeName;
+    }
     return this.profile.rangedName ?? this.profile.meleeName;
   }
 
@@ -249,6 +266,13 @@ export class Player {
     this.slamming = false;
     this.cover = null;
     this.peeking = false;
+    // any blade still in flight snaps straight back into the hand
+    this.thrownSabers.forEach((t, h) => {
+      if (t && t.state !== 'held') {
+        t.reset();
+        this.char.setSaberHeld?.(h as 0 | 1, true);
+      }
+    });
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
   }
@@ -336,6 +360,13 @@ export class Player {
       && this.profile.meleeKind === 'sabers';
   }
 
+  /** blades physically in hand — thrown ones are out in the world */
+  get sabersHeld(): number {
+    let held = 2;
+    for (const t of this.thrownSabers) if (t && t.state !== 'held') held--;
+    return held;
+  }
+
   /**
    * Twin blades bat blaster fire away. It reuses the block shield's collider
    * rather than inventing a second mechanism, with three differences that make
@@ -345,7 +376,8 @@ export class Player {
    * her rather than mirroring off a pane, which is the whole fantasy.
    */
   private get saberCollider(): DeflectSphere | null {
-    if (!this.sabersDrawn || this.energy <= 0) return null;
+    // empty hands turn nothing: with both blades thrown there is no parry
+    if (!this.sabersDrawn || this.sabersHeld === 0 || this.energy <= 0) return null;
     const s = this.saberSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
     s.center.copy(this.position).addScaledVector(s.normal, 0.55);
@@ -384,6 +416,9 @@ export class Player {
   update(dt: number, input: FrameInput, game: Game, realDt = dt): void {
     const anim = this.char.animator!;
     this.updateSaberHum();
+    // Thrown blades fly on every path — cover, saddle, water, even death
+    // (they come home to the body) — so they tick before any early return.
+    this.updateSaberThrow(dt, input, game);
     if (!this.alive) {
       this.respawnTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
@@ -1191,7 +1226,10 @@ export class Player {
   private updateSaberStow(dt: number, input: FrameInput): void {
     if (!this.meleeOnly) return;
     if (this.weapon !== 'gaffi') { this.saberIdle = 0; return; }
-    const busy = this.meleeTimer > 0 || this.meleeComboWindow > 0 || input.meleePressed || this.blocking;
+    // a blade still in flight keeps the set out — stowing a hand that is
+    // about to catch a returning saber would hide the catch
+    const busy = this.meleeTimer > 0 || this.meleeComboWindow > 0 || input.meleePressed
+      || this.blocking || this.sabersHeld < 2;
     this.saberIdle = busy ? 0 : this.saberIdle + dt;
     if (this.saberIdle >= SABER_STOW_DELAY) {
       this.weapon = 'none';
@@ -1199,6 +1237,85 @@ export class Player {
       this.char.setWeapon('none');
       audio.saberIgnite();   // the same snap, going the other way
     }
+  }
+
+  /**
+   * RT for the saber fighter: a pull throws a blade, which spins out ahead
+   * for as long as the trigger stays down and comes home when it is released.
+   * A second pull while the first blade is still away throws the other hand's
+   * blade. With both gone she fights bare-handed — shorter, weaker, and with
+   * nothing to deflect on — until they return.
+   *
+   * Reads the raw input (not the masked copies handed to updateCombat), and
+   * runs on every update path, so a blade in flight keeps flying while she
+   * blocks, hugs cover, rides, swims, or dies.
+   */
+  private updateSaberThrow(dt: number, input: FrameInput, game: Game): void {
+    if (!this.meleeOnly || this.profile.meleeKind !== 'sabers') return;
+    const pressed = input.shootHeld && !this.prevThrowHeld;
+    this.prevThrowHeld = input.shootHeld;
+    // letting go — or losing the ability to hold on — turns the blades home
+    const held = input.shootHeld && this.alive && !this.blocking;
+
+    if (pressed && this.alive && !this.blocking && !this.cover && !this.vehicle
+        && !this.swimming && this.meleeTimer <= 0 && this.snareTimer <= 0) {
+      const t0 = this.thrownSabers[0];
+      const t1 = this.thrownSabers[1];
+      const hand = (!t0 || t0.state === 'held') ? 0 : (!t1 || t1.state === 'held') ? 1 : -1;
+      if (hand >= 0) this.throwSaber(hand as 0 | 1, game);
+    }
+
+    const catchPoint = _catch.set(this.position.x, this.position.y + 1.25, this.position.z);
+    for (const hand of [0, 1] as const) {
+      const t = this.thrownSabers[hand];
+      if (!t || t.state === 'held') continue;
+      if (!held) t.recall();
+      if (t.update(dt, game, this, catchPoint)) {
+        // caught: the hand closes around it and it is a weapon again
+        this.char.setSaberHeld?.(hand, true);
+        this.saberIdle = 0;
+        audio.saberIgnite();
+      }
+    }
+  }
+
+  /** Send one blade out along the crosshair (soft-locked when a target sits in the cone). */
+  private throwSaber(hand: 0 | 1, game: Game): void {
+    if (!this.throwFx) this.throwFx = new THREE.Group();
+    if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
+    let t = this.thrownSabers[hand];
+    if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, { light: hand === 0 });
+    // throwing draws, the same way a melee press does
+    if (this.weapon !== 'gaffi') {
+      audio.saberIgnite();
+      this.weapon = 'gaffi';
+      this.char.setWeapon('gaffi');
+    }
+    this.saberIdle = 0;
+    this.char.setSaberHeld?.(hand, false);
+
+    const from = this.position.clone();
+    from.y += 1.35;
+    const camDir = this.cam.aimDir(new THREE.Vector3());
+    const lock = this.aimAssistTarget(game, camDir, this.cam.camera.position, 0.93, 45);
+    let dir: THREE.Vector3;
+    if (lock) {
+      dir = lock.position.clone();
+      dir.y += lock.height * 0.55;
+      dir.sub(from).normalize();
+    } else {
+      dir = camDir;
+    }
+    from.addScaledVector(dir, 0.5);
+    t.launch(from, dir);
+    this.facingYaw = Math.atan2(dir.x, dir.z);
+    // the arm follows through: a one-shot swing, held briefly via meleeTimer
+    // so the locomotion poses don't stamp on it (no hit rides on this timer —
+    // meleeHitPending stays wherever it was, which is spent)
+    this.char.animator!.playOnce('upper', 'saber1', 0.06);
+    this.meleeTimer = Math.max(this.meleeTimer, 0.22);
+    audio.melee(2, 'sabers');
+    this.cam.shake(0.045);
   }
 
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
@@ -1218,6 +1335,12 @@ export class Player {
     this.meleeTimer -= dt;
     if (input.meleePressed && this.meleeTimer <= 0) {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
+      // Both blades away means both hands empty: the same combo swings, but
+      // as fists — shorter reach, less than half the damage, and no saber
+      // sound to sell a blade that isn't there.
+      const bare = this.profile.meleeKind === 'sabers' && this.sabersHeld === 0;
+      this.meleeBare = bare;
+      this.meleeRange = bare ? 1.8 : 3;
       // twin blades get their own combo; everyone else swings the staff set
       const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
@@ -1228,7 +1351,8 @@ export class Player {
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * 0.45;
-      this.meleeDamage = this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage;
+      this.meleeDamage = (this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage)
+        * (bare ? 0.4 : 1);
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
       // until the idle timer puts them back.
@@ -1236,13 +1360,13 @@ export class Player {
       this.weapon = 'gaffi';
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep, this.profile.meleeKind);
-      // lunge toward nearest enemy in front
-      const target = this.nearestEnemy(game, 5.5, 0.4);
+      audio.melee(this.meleeStep, bare ? 'gaffi' : this.profile.meleeKind);
+      // lunge toward nearest enemy in front (fists don't carry as far)
+      const target = this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
       if (target) {
         const dir = target.position.clone().sub(this.position).setY(0).normalize();
-        this.velocity.x = dir.x * 13;
-        this.velocity.z = dir.z * 13;
+        this.velocity.x = dir.x * (bare ? 10 : 13);
+        this.velocity.z = dir.z * (bare ? 10 : 13);
         this.facingYaw = Math.atan2(dir.x, dir.z);
       } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
         // no lunge to carry the body, so the legs join the swing: weight
@@ -1275,7 +1399,7 @@ export class Player {
           if (!e.alive) continue;
           const to = e.position.clone().sub(this.position);
           const dist = to.length();
-          if (dist > 3 + e.radius) continue;
+          if (dist > this.meleeRange + e.radius) continue;
           to.normalize();
           const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
           if (to.dot(facing) < 0.25) continue;
@@ -1302,7 +1426,7 @@ export class Player {
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
         if (hitAny) {
-          audio.meleeHit(this.profile.meleeKind);
+          audio.meleeHit(this.meleeBare ? 'gaffi' : this.profile.meleeKind);
           this.cam.shake(0.1);
           game.hitMarker(this.slot);
           // hit-stop: the attacker's animation hangs for a few frames on
@@ -1375,6 +1499,11 @@ export class Player {
    */
   private heavyLunge(game: Game): void {
     this.rocketCd = 5;
+    // both blades away: the leap still goes, but it lands as a body-check —
+    // bare-hand reach and bare-hand damage
+    const bare = this.profile.meleeKind === 'sabers' && this.sabersHeld === 0;
+    this.meleeBare = bare;
+    this.meleeRange = bare ? 1.8 : 3;
     const target = this.nearestEnemy(game, 14, 0.2);
     const dir = target
       ? target.position.clone().sub(this.position).setY(0).normalize()
@@ -1393,9 +1522,9 @@ export class Player {
     this.meleeTimer = dur + 0.1;
     this.meleeComboWindow = dur + 0.55;
     this.meleeHitPending = dur * 0.6;
-    this.meleeDamage = this.profile.meleeFinisher;
+    this.meleeDamage = this.profile.meleeFinisher * (bare ? 0.4 : 1);
     this.flourished = false;
-    audio.melee(3, this.profile.meleeKind);
+    audio.melee(3, bare ? 'gaffi' : this.profile.meleeKind);
     audio.dash();
     this.cam.shake(0.12);
     game.particles.dustPuff(this.position, 8);
