@@ -1565,7 +1565,7 @@ export class Enemy {
     if (!this.losThrottled(game, target)) return false;
     // aim at where they'll be when the arc comes down
     const vy = 9 + Math.min(dist * 0.12, 3.5);
-    const flight = (2 * vy) / (24 * grav(game));
+    const flight = (2 * vy) / (24 * grav(game, this.position));
     const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.8);
     const ax = aim.x - this.position.x, az = aim.z - this.position.z;
     const gap = Math.hypot(ax, az);
@@ -1592,7 +1592,7 @@ export class Enemy {
   /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
   private updateLeap(dt: number, game: Game): void {
     this.leapT -= dt;
-    this.velocity.y -= 24 * grav(game) * dt;
+    this.velocity.y -= 24 * grav(game, this.position) * dt;
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     if (this.boardHazards(game, dt)) return;
