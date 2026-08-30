@@ -321,7 +321,9 @@ export class Campaign {
           step.bossCalled = true;
           game.spawnBoss(step.pos, step.bossTier ?? 'final');
         }
-        if (step.bossCalled && game.boss && !game.boss.alive) {
+        // `monsterStaging` covers the beat between the warlord falling and the
+        // board's monster coming up: the step is not done until that is
+        if (step.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
           if (step.bossTier === 'mid') {
             // the champion falls: a checkpoint, and the road to the warlord
             this.checkpoint.copy(step.pos);

@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every character in this document has been delivered and integrated.** What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style. Anything still open is called out where it appears; as of 2026-08-29 that is the [monster boss batch](#monster-bosses--open-2026-08-29) opened by the boss design round (`docs/BOSSES.md`) — the environment batch landed the same day, and nothing on the humanoid character side is open. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Every model this document asks for has been delivered and integrated**, the six monster bosses included — they landed and were wired on 2026-08-29, the same day they were requested, and with them nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -68,16 +68,16 @@ carrying its authored model and its signature weapon — twin red curved-hilt sa
 (Rook). Paired weapons mount on `weaponR` and `weaponL`; an authored model exposes both
 mounts, so an off-hand weapon sits in the model's other hand rather than beside the body.
 
-**Three of the four signature weapon props are delivered and integrated**
-(2026-08-29): `saber_curved`, `crossbow` and `longrifle` landed and are picked up
-automatically — `swapWeapon()` in `src/characters/builder.ts` already pointed at each id,
-so the file arriving *is* the integration, and the procedural build hides behind it. They
-had been parked by an earlier decision (the procedural versions read well at gameplay
-distance and nothing was blocked on a file); that decision is simply moot now the sculpts
-exist. `pistol`, for Cad Bane's pair, is the one still to come — its prompt is in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) and the procedural pistols stand until it does.
-A character carrying a pair needs only one file, since the off-hand is a second instance
-of it.
+**All four signature weapon props are delivered and integrated** (2026-08-29):
+`saber_curved`, `crossbow`, `longrifle` and now `pistol` are picked up automatically —
+`swapWeapon()` in `src/characters/builder.ts` already pointed at each id, so the file
+arriving *is* the integration, and the procedural build hides behind it. They had been
+parked by an earlier decision (the procedural versions read well at gameplay distance and
+nothing was blocked on a file); that decision is simply moot now the sculpts exist. The
+pair carried by Cad Bane and Rook Vance needed only the one `pistol.glb`: the off-hand is
+a second instance of it, and both land in the model's own hands because an authored model
+exposes `weaponMount` and `weaponMountL` alike (verified in game — two visible sculpt
+meshes on the right mount, one on the left, no procedural weapon left showing).
 
 ## Allies — priority 2
 
@@ -144,15 +144,18 @@ boss bar — remain future work, and their voice sets are deferred with them
 | **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
 | **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. |
 
-## Monster bosses — OPEN 2026-08-29
+## Monster bosses — requested and delivered 2026-08-29
 
 Six large creature bosses, one per board that has a monster, designed in
 [`docs/BOSSES.md`](BOSSES.md) — the fights, phases, weak points and numbers live
-there; this is the model brief. **All six are open.** Order of work is the standard
-pipeline: reference sheets first
-([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--monster-boss-reference-sheets-for-image-to-3d),
-one `<id>_ref.png` creature canvas each) → model → gameplay. Nothing in the game
-blocks on them — the promoted-elite bosses stand until a monster lands.
+there; this is the model brief. **All six are delivered and in the game.** They
+arrived without their reference sheets, which had been the planned first step of the
+pipeline; the sheets are consequently not wanted (see `ASSETS_IMAGES.md`), and this
+brief is what a re-export works from.
+
+Every sculpt shipped the node list below verbatim, weak zones included, and none of
+them shipped clips — so each has a gait authored in code against its own rig, in
+`src/anim/quadruped.ts`, exactly as the massiff and the spiders do.
 
 **Intake:** all six are ◆ creatures through `loadCreature` — own free-form rigs,
 placed/scaled/grounded by the loader, movement and gait authored in code against the
@@ -180,8 +183,21 @@ geometry, not fur systems.
 | `krayt_dragon` | Dune Sea | front 18 m of ~40 m; skull ~4 m wide | `head, jaw,` **`gullet`**`, collar, neck1..4, clawL/R, body1..6` | Model the forebody only — `body6` tapers to a clean sand-sleeve cut, never seen; **gullet** is an emissive throat mesh visible only through the open jaw; mouth interior modelled deep. |
 | `mythosaur` | Great Forge | visible 12 m (head, neck, claws) | `head, jaw, hornL/R,` **`eyeL/R, vents1..2`**`, neck1..4, clawL/R, back` | Must match the delivered `mythosaur_skull` sculpt (horn sweep, tusked jaw) — it is the same animal alive; `back` ends at the waterline in a clean cut; horns/skull are deflect armor, so make them read as plate; **eyes** and **vents** emissive. |
 
-Delivery as ever: `public/models/<id>.glb`, picked up automatically once the
-gameplay round wires `loadCreature(id)`; sheets to `reference/characters/`.
+Two notes a re-export has to keep, both learned by putting these in the game:
+
+- **The two colossi are posed by the game, not by the sculpt.** `krayt_dragon` and
+  `mythosaur` are whole animals in their files; `buildMonsterBase` sinks each into the
+  ground and rears it (`buried: { sink, pitch }` in `src/characters/enemies.ts`) so
+  what stands above the surface is the skull, neck and forelimbs and the body runs
+  away underneath. Those two numbers were solved against the delivered rigs by
+  measuring every named node's height — a re-export that moves the rig's origin or
+  changes its proportions needs them re-solved, and `tools/test-monsters.mjs` is what
+  says so.
+- **A half-buried body makes the ground answer.** The `plows` field on their `Def`
+  throws dust (or spray, over water) from the surface behind the head while they move,
+  which is what sells a body passing *through* the ground rather than over it.
+
+Delivery as ever: `public/models/<id>.glb`.
 
 ## Environment & hazard models — priority by impact
 
@@ -193,8 +209,7 @@ rest followed the same day: `adobe_tower`, `adobe_gate`, `forge_brazier`,
 `alarm_console`, `street_kiosk`, `dock_shed`, `homestead_dome`, `mythosaur_skull`),
 the ambient-pass set (`bantha`, `sandcrawler`, `pipe_rack`, `fish_rack`) and the three
 vehicles (`speeder_bike`, `landspeeder`, `skiff`). Each hides its procedural stand-in
-the moment it loads and keeps it as the fallback. **Nothing on the model side is
-open.**
+the moment it loads and keeps it as the fallback. **This batch is closed.**
 
 Opened 2026-08-29 by an audit of all nine board modules (`src/world/*.ts`). Every
 structure, vehicle and hazard in the game is procedural primitive geometry today — the
@@ -312,10 +327,9 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 `interceptor_drone`, and the playable hunters `ventress`, `embo`, `bossk`) landed on
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
-wired too**, along with the weapon props `saber_curved`, `crossbow` and `longrifle`.
-Open on the model side: `pistol` alone — the game keeps its procedural pistols until it
-lands, and a character who carries a pair needs only the one file, since the off-hand is
-a second instance of the same .glb.**
+wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The monster boss
+batch is the only thing open on the model side.**
 
 ### Three intake paths
 
@@ -378,18 +392,36 @@ clip against a real model.
 
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
-everything around it, so it goes first. Nothing in this document is currently waiting on
-that pipeline.
+everything around it, so it goes first. The monster bosses are what is in that pipeline
+now; every other id this document names is on disk and in the game.
 
-## Game-mode props — requested 2026-08-29 (the `?modes` build)
+## Game-mode props — requested and delivered 2026-08-29 (the `?modes` build)
 
-Rigless props through `loadProp`, procedural stand-ins shipping in
-`src/world/corridor.ts` until the files land. Reference-sheet recipe as above.
+Rigless props through `loadProp`, both **delivered and wired** in
+`src/world/corridor.ts`; the procedural stand-ins remain and are hidden behind them, so a
+corridor still builds correctly with no model files at all. Prompts kept for re-export:
 
 | Id | Prompt |
 |---|---|
 | `blast_door` ▣ | "a heavy sci-fi blast door in its frame, about 3.5 meters tall: two interlocking armored leaves with a chevron seam, a riveted gunmetal frame with hazard striping on the lintel, hydraulic rams at the jambs, amber status lamp above" |
 | `corridor_crate` | "a squat armored supply crate about 1.6 meters wide: reinforced corner caps, recessed side handles, stenciled panels worn to bare metal on the edges — chest-high cover, readable from behind" |
+
+Two notes for a re-export, since the corridor is generated rather than authored:
+
+- **The crate sizes the collider, not the other way round.** Everywhere else a sculpt is
+  scaled into a box the board already audited (see `world/props.ts`); a corridor invents
+  its crates every run, so there is no audited shape to preserve, and the cover you see
+  would otherwise not be the cover a bolt stops at — as delivered the sculpt runs 22%
+  taller and 50% deeper than the old box. `corridor.ts` drives both from one height using
+  the sculpt's measured proportions (`CRATE_W_PER_H`, `CRATE_D_PER_H`), which a re-export
+  with different proportions should be re-measured for.
+- **The door needs a quarter turn, and replaces the whole stand-in.** `blast_door.glb` is
+  wide along its own Z where the frame it replaces is wide along X, so without a yaw it
+  stands edge-on to everyone walking up to it. It also takes over the frame's lit pane and
+  emissive strip rather than standing behind them: the sculpt is a closed door with its own
+  hazard striping and status lamp, which is what those were standing in for. Finding the
+  door does not depend on them — the campaign's beacon sits on it and the HUD names the
+  distance.
 
 The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by design —
 no new sculpts for *them*. The expansion that outgrows that rule now exists: the six

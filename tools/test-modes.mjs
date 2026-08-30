@@ -157,9 +157,15 @@ const wv = await page.evaluate(`(() => {
   }
   return { wave: g.wave, boss: g.boss?.bossName, bossHp: g.boss?.maxHp, bosses, state: g.state };
 })()`);
-check('wave: two boss battles — the champion after wave 4, the warlord after wave 7',
-  wv.wave === 8 && wv.bosses.length === 2 && !!wv.boss, JSON.stringify(wv));
+// The Dune Sea has a monster, so its run is three battles, not two: the
+// champion after wave 4, the warlord after wave 7, and then the thing the
+// warlord was standing on top of (docs/BOSSES.md). A board without a monster
+// still ends at the warlord — the ?nomodes pass below walks one of those.
+check('wave: three boss battles on a monster board — champion, warlord, monster',
+  wv.wave === 8 && wv.bosses.length === 3 && !!wv.boss, JSON.stringify(wv));
 check('wave: the warlord is a promoted elite', (wv.bossHp ?? 0) > 1000, String(wv.bossHp));
+check('wave: the monster is the last of them, at its own boss-scale health',
+  wv.boss === 'The Old One of the Dune Sea' && wv.bossHp === 5200, JSON.stringify(wv));
 check('wave: its death holds the territory', wv.state === 'victory');
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----

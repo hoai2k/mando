@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
-import { droneClips, kryknaClips, massiffClips } from '../anim/quadruped';
+import {
+  droneClips, kryknaClips, massiffClips,
+  kraytClips, mamacoreClips, mudhornClips, mythosaurClips, rancorClips, ravinakClips,
+} from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
@@ -276,6 +279,9 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   // the three creatures come through loadCreature, but the file is the same
   // download, so warming it here is what stops a first-spawn hitch
   krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',
+  // the monster bosses, same path
+  mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore', rancor: 'rancor',
+  kraytDragon: 'krayt_dragon', mythosaur: 'mythosaur',
 };
 
 /**
@@ -522,6 +528,13 @@ const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationC
   krykna: kryknaClips,
   krykna_brood: kryknaClips,
   interceptor_drone: droneClips,
+  // the monster bosses: their sculpts ship the rig and no clips
+  mudhorn: mudhornClips,
+  ravinak: ravinakClips,
+  mamacore: mamacoreClips,
+  rancor: rancorClips,
+  krayt_dragon: kraytClips,
+  mythosaur: mythosaurClips,
 };
 
 export function loadProp(
@@ -594,6 +607,23 @@ export function loadProp(
  * choice while nothing is deforming it.
  */
 export const CREATURE_MODELS = {
+  // ---- monster bosses (docs/BOSSES.md) ----
+  // Heights, not lengths: `loadCreature` fits the sculpt by its Y extent and
+  // stands it on the ground. The doc specifies each animal by its most
+  // legible dimension (a mudhorn by the shoulder, a ravinak by its length),
+  // so these are those figures converted through the sculpts' own
+  // proportions — see `tools/test-monsters.mjs`, which holds the delivered
+  // models to the sizes the design asked for.
+  mudhorn: 3.0,
+  ravinak: 2.3,
+  mamacore: 3.8,
+  rancor: 5.0,
+  // The two colossi are sized by what *surfaces*, since the rest is buried:
+  // these heights are the whole sculpt, and the builder sinks and pitches it
+  // so the front is what stands above the ground (docs/BOSSES.md §2.5, §2.6).
+  krayt_dragon: 5.4,
+  mythosaur: 8.0,
+
   // the war massiff is an elite beast, not the knee-high hound the sculpt was
   // scaled for — see the size note in ASSETS_MODELS.md
   massiff: 2.05,

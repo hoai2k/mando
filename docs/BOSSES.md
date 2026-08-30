@@ -9,11 +9,14 @@ systems already carry most of its fight. Every design below is an original fan
 interpretation; asset prompts describe designs and never name trademarked characters,
 per the standing rule in `ASSETS_IMAGES.md`.
 
-**Status: designed, asset requests open, not implemented.** Reference sheets are
-requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--monster-boss-reference-sheets-for-image-to-3d)
-and models in [`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--open-2026-08-29);
-order of work is the standard pipeline: sheets → models → gameplay. The fights are
-specced against existing machinery so the gameplay round is wiring, not invention.
+**Status: all six models delivered and in the game; the fights are at v1.** The
+sculpts landed on 2026-08-29 and each is now a real boss battle — see §4 for exactly
+what of the design below is standing and what is not. In short: every monster spawns
+as the second, final stage of its board's boss fight, at the health and damage
+specced here, with the entrance card, the boss bar, the phase turns, the retinue
+calls and the enrage; the bespoke movesets in §2 (the charge, the ice-burst, the
+breach, the grab, the inhale) are **not** implemented, and each monster fights with
+its own melee inside the shared boss rhythm.
 
 ---
 
@@ -291,6 +294,25 @@ is scoped before it starts:
 | Persistent arena holes/rubble | reuse | hazard zones (holes) and a spawned collider (rubble) |
 | Darkness beat | reuse | the forge light field already dims for its event |
 | Monster gaits | reuse pattern | code clips against own rigs, `quadruped.ts` style; clips shipped in a .glb win, as everywhere |
+
+### What v1 actually implements
+
+| Piece | State |
+|---|---|
+| Six monsters as `EnemyKind`s at the specced HP/damage, `relentless`, boss-scale `Def` | **done** |
+| Two-stage boss wave: warlord falls → 4 s quake → monster erupts, victory only when it falls | **done** (`Game.updateMonsterStage`, shared by the wave game and the campaign arena) |
+| Entrance card, boss bar, phase turns at ⅔/⅓, repulsor pulse, enrage, anti-camp shock-slam | **done** — reused wholesale from §4a |
+| Per-monster retinue (pirate, krykna, quarren, pirate, massiff, alamite) | **done** (`MONSTER_BOSS[board].retinue`) |
+| Models: `loadCreature`, own rigs, code gaits against the delivered node names | **done** (`src/anim/quadruped.ts`) |
+| Half-buried colossi: krayt and mythosaur sunk and reared, ground thrown where the body passes | **done** (`buried` and `plows`) |
+| Prefetch: the monster warms with the board's other two bosses | **done** |
+| The §2 movesets — charge/skid-stun, ice-burst, breach bite, debris hurl, grab, inhale, sarlacc bait, darkness beat | **not implemented** |
+| Weak/deflect zones (×2 / ×0.5 / ×0 on the named nodes) | **not implemented** — the sculpts ship the nodes, so this is the natural next round; until then a monster takes normal damage everywhere, which is why the specced HP still reads right |
+| Submerged/emerged states, arena holes, persistent rubble | **not implemented** |
+
+The order matters: the weak zones are the set's shared vocabulary and want the
+multi-volume hit pipeline the ledger above calls "new (shared)"; the bespoke moves sit
+on top of that. Neither is blocked on art any more.
 
 **Audio** follows the boss-voice precedent in [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md):
 each monster wants a roar/hurt/death set (sample ids `<id>_roar` etc., the
