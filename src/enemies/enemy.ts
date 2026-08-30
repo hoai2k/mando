@@ -352,6 +352,17 @@ export class Enemy {
   /** massiff leap: >0 while airborne mid-pounce, damage lands on contact */
   private pounce = 0;
   private pounceHit = false;
+  /** boss super jump: >0 while airborne mid-leap; the slam lands on touchdown */
+  private leapT = 0;
+  /**
+   * Spacing between super jumps; starts short so the fight opens with one.
+   * Public because the warlord's shock-slam (game.ts updateBoss) pushes it
+   * out while its telegraph runs — the ember ring promises where the hit
+   * lands, so the boss must not leap somewhere else mid-promise.
+   */
+  superJumpCd = 2;
+  /** leaps taken, for the test harness */
+  superJumps = 0;
   private windupTarget: Combatant | null = null;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
@@ -594,7 +605,9 @@ export class Enemy {
    * station board.
    */
   private edgeGuard(game: Game): void {
-    if (this.stagger > 0) return;
+    // a super jump is committed the moment it leaves the ground — the guard
+    // must not zero the launch velocity at a platform lip
+    if (this.stagger > 0 || this.leapT > 0) return;
     const sp = Math.hypot(this.velocity.x, this.velocity.z);
     // gate must be near zero: steering re-adds a trickle of velocity every
     // frame after a block, and a 0.3 m/s creep still walks off the lip
@@ -811,6 +824,7 @@ export class Enemy {
     this.downTimer = Math.max(this.downTimer, secs);
     this.windup = 0;
     this.volleyLeft = 0;
+    this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
     const anim = this.char.animator;
     if (anim) {
       anim.release('lower'); anim.release('upper');
@@ -966,6 +980,7 @@ export class Enemy {
     }
 
     this.attackCd -= dt;
+    this.superJumpCd -= dt;
     this.suppression = Math.max(0, this.suppression - dt * 0.25);
     this.venting = Math.max(0, this.venting - dt);
     this.heatHold = Math.max(0, this.heatHold - dt);
@@ -1022,6 +1037,12 @@ export class Enemy {
 
     const target = this.senses(dt, game);
 
+    // ---- boss super jump: airborne and committed ----
+    if (this.leapT > 0) {
+      this.updateLeap(dt, game);
+      return;
+    }
+
     // ---- broke and ran ----
     if (this.fleeing) {
       this.fleeTimer -= dt;
@@ -1068,11 +1089,13 @@ export class Enemy {
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
     } else if (target && this.visible) {
-      switch (d.style) {
-        case 'melee': this.updateMelee(dt, game, target); break;
-        case 'ranged': this.updateRanged(dt, game, target); break;
-        case 'swoop': this.updateSwoop(dt, game, target); break;
-        case 'hover': this.updateHover(dt, game, target); break;
+      if (!this.trySuperJump(game, target)) {
+        switch (d.style) {
+          case 'melee': this.updateMelee(dt, game, target); break;
+          case 'ranged': this.updateRanged(dt, game, target); break;
+          case 'swoop': this.updateSwoop(dt, game, target); break;
+          case 'hover': this.updateHover(dt, game, target); break;
+        }
       }
     } else if (this.team === 0) {
       // an ally with nothing to shoot: catch up to the player, or keep them
@@ -1162,7 +1185,7 @@ export class Enemy {
     // locomotion animation
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
-      if (this.windup <= 0) {
+      if (this.windup <= 0 && this.leapT <= 0) {
         anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
         if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
         else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
@@ -1520,6 +1543,101 @@ export class Enemy {
   private faceToward(dt: number, x: number, z: number, rate = 10): void {
     const yaw = Math.atan2(x - this.position.x, z - this.position.z);
     this.facingYaw = dampAngle(this.facingYaw, yaw, rate, dt);
+  }
+
+  /**
+   * The boss gap-closer: a committed ballistic super jump onto where the
+   * target is headed, ending in a ground slam (docs/MODES.md §4a). Only
+   * promoted bosses jump — never the half-buried colossi, whose bodies are
+   * part of the terrain, and never the fliers, who don't need it. Committed
+   * like the massiff's pounce: no steering in the air, so a dash or a
+   * jetpack hop as the shadow arrives beats the landing.
+   */
+  private trySuperJump(game: Game, target: Combatant): boolean {
+    const d = DEFS[this.kind];
+    if (!this.boss || d.plows) return false;
+    if (d.style !== 'melee' && d.style !== 'ranged') return false;
+    if (this.superJumpCd > 0 || this.windup > 0 || this.pounce > 0 || !this.grounded) return false;
+    const dist = Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z);
+    // a melee boss leaps to close mid-range; a ranged boss only crosses a
+    // real gap — it should not leap out of its own firing band every clock
+    if (dist < (d.style === 'ranged' ? 14 : 7) || dist > 34) return false;
+    if (!this.losThrottled(game, target)) return false;
+    // aim at where they'll be when the arc comes down
+    const vy = 9 + Math.min(dist * 0.12, 3.5);
+    const flight = (2 * vy) / (24 * grav(game));
+    const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.8);
+    const ax = aim.x - this.position.x, az = aim.z - this.position.z;
+    const gap = Math.hypot(ax, az);
+    const need = gap / flight;
+    if (need > 30 || gap < 1) return false;
+    this.velocity.x = (ax / gap) * need;
+    this.velocity.z = (az / gap) * need;
+    this.velocity.y = vy;
+    this.leapT = flight + 0.6;
+    this.grounded = false;
+    this.superJumpCd = this.enraged ? 4 : 7;
+    this.superJumps++;
+    this.volleyLeft = 0;          // nothing fires through a leap
+    this.char.attack?.();         // a creature coils into the jump
+    if (BEASTS.has(this.kind)) audio.beastGrowl(0.8);
+    else {
+      const bark = SPAWN_BARKS[this.kind];
+      if (bark) audio.bark(bark, 0.6);
+    }
+    game.particles.dustPuff(this.position, 14);
+    return true;
+  }
+
+  /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
+  private updateLeap(dt: number, game: Game): void {
+    this.leapT -= dt;
+    this.velocity.y -= 24 * grav(game) * dt;
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    if (this.boardHazards(game, dt)) return;
+    const anim = this.char.animator;
+    if (anim) {
+      anim.play('lower', 'airLower', 0.12);
+      anim.play('upper', 'airUpper', 0.12);
+    }
+    if (this.leapT <= 0 || (this.grounded && this.leapT < 0.5)) {
+      this.leapT = 0;
+      this.landSlam(game);
+    }
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+  }
+
+  /**
+   * The super jump's landing: the ground answers. Splash damage and a shove
+   * on anyone underneath, and every nearby camera feels the impact. The slam
+   * hits softer than the boss's swing — it is pressure and displacement; the
+   * swing stays the killer.
+   */
+  private landSlam(game: Game): void {
+    const d = DEFS[this.kind];
+    const r = 4 + this.radius * 1.5;
+    game.particles.dustPuff(this.position, 20);
+    audio.land(true);
+    game.director.noise(game, this.position, 40);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
+      if (!p.alive || dd > r) continue;
+      p.damage(d.damage * this.dmgScale * 0.6, this.position);
+      const push = p.position.clone().sub(this.position).setY(0).normalize();
+      p.velocity.addScaledVector(push, 10);
+      p.velocity.y += 4;
+    }
+    for (const a of game.allies) {
+      if (!a.alive || a.team === this.team) continue;
+      if (a.position.distanceTo(this.position) > r) continue;
+      a.damage(d.damage * this.dmgScale * 0.6, this.position, -1);
+      a.knockback(this.position, 12, 0.4);
+    }
+    this.attackCd = Math.max(this.attackCd, 0.6);
+    this.char.attack?.();   // a creature punctuates the landing with its strike
   }
 
   private updateMelee(dt: number, game: Game, target: Combatant): void {
