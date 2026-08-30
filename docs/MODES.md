@@ -237,7 +237,17 @@ third it **enrages** (+28% speed, −40% attack cooldown, +15% damage, via a
 per-instance def copy). Camping inside arm's reach draws a **telegraphed
 shock-slam**: an ember-ring windup with a real get-out window, then 26
 damage and a fling — it only arms when someone is close, so ranged play
-never eats it. The fight punishes standing still, never approaching. All of
+never eats it. The fight punishes standing still, never approaching. The
+range side has its own answer: every promoted boss (bar the half-buried
+colossi and the fliers) carries a **super jump** — a committed ballistic
+leap onto where the target is headed, opened with the creature's coil (or
+the air pose on a humanoid) and closed with a ground slam that hits for
+0.6× the boss's swing, shoves everyone underneath and shakes every nearby
+camera. Committed like the massiff's pounce, so a dash or a jetpack hop as
+the shadow arrives beats the landing; melee bosses leap from mid-range,
+ranged bosses only to cross a real gap, and the enrage roughly halves the
+leap's clock. It never fires while the shock-slam's ember ring is up — the
+telegraph's promise about where the hit lands is kept. All of
 it rides existing machinery: `addReinforcement` for the retinue,
 per-instance scaling on `Enemy`, and the standard death/ragdoll/credit path
 when it goes down.

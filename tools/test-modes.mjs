@@ -30,7 +30,8 @@ const STEP = `(n) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
     rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    pausePressed:false });
   const g = window.__game;
   const inputs = [blank(), blank(), blank(), blank()];
   for (let i = 0; i < n; i++) g.update(1/30, inputs);
@@ -271,6 +272,33 @@ check('wave: the warlord is a promoted elite', (wv.bossHp ?? 0) > 1000, String(w
 check('wave: the monster is the last of them, at its own boss-scale health',
   wv.boss === 'The Old One of the Dune Sea' && wv.bossHp === 5200, JSON.stringify(wv));
 check('wave: its death holds the territory', wv.state === 'victory');
+
+// ---- boss super jump ----
+// A promoted boss with a target holding mid-range closes the gap in a
+// committed ballistic leap and lands a slam (enemy.ts trySuperJump). Post the
+// warlord 20 m out on open desert, wake it, and watch it go airborne.
+await startMode('wave', 1, 'desert', ['din']);
+const sj = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const at = p.position.clone(); at.x += 20;
+  const boss = g.spawnBoss(at, 'final');
+  boss.alert(p.position, true);
+  let airborne = 0, jumps = 0, minDist = 1e9;
+  for (let i = 0; i < 500; i++) {
+    (${STEP})(1);
+    p.hp = p.maxHp; p.alive = true;         // the leap, not the loss, is under test
+    if (!boss.alive) break;
+    if (boss.velocity.y > 4) airborne++;
+    jumps = boss.superJumps;
+    minDist = Math.min(minDist, boss.position.distanceTo(p.position));
+    if (jumps > 0 && airborne > 3 && minDist < 12) break;
+  }
+  return { jumps, airborne, minDist: +minDist.toFixed(1), boss: boss.bossName };
+})()`);
+check('wave: the warlord super jumps to close the gap',
+  sj.jumps > 0 && sj.airborne > 3, JSON.stringify(sj));
+check('wave: the leap actually carries it to the player', sj.minDist < 12, JSON.stringify(sj));
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });

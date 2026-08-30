@@ -42,6 +42,8 @@ export class Mover {
   delta = new THREE.Vector3();
   private half = new THREE.Vector3();
   private center = new THREE.Vector3();
+  /** colliders fitted to the sculpt, carried rigidly alongside `box` */
+  private carried: { box: StaticBox; min: THREE.Vector3; max: THREE.Vector3 }[] = [];
 
   constructor(public box: StaticBox, public node: THREE.Object3D | null) {
     this.half.subVectors(box.max, box.min).multiplyScalar(0.5);
@@ -50,11 +52,45 @@ export class Mover {
 
   get top(): number { return this.box.max.y; }
 
+  /**
+   * Hand the mover the colliders fitted to its sculpt. They travel with it as
+   * one rigid piece, offset from wherever it is standing now.
+   *
+   * `box` stays what it was — the ride's envelope, kept as one of the surfaces
+   * a rider can be standing on. Once the fitted set is in the physics world,
+   * `box` is usually out of it: the envelope says where the deck is, the
+   * fitted boxes say where the hull is.
+   */
+  carry(boxes: StaticBox[]): void {
+    this.carried = boxes.map((b) => ({
+      box: b,
+      min: b.min.clone().sub(this.center),
+      max: b.max.clone().sub(this.center),
+    }));
+  }
+
+  /**
+   * Every surface of this mover a body could be standing on — the envelope box
+   * and each fitted collider. A ride is not one flat lid: the trawler has a
+   * working deck, a deckhouse roof and a hull rail, and whoever is on any of
+   * them travels with the boat.
+   */
+  surfaces(): StaticBox[] {
+    if (!this.carried.length) return [this.box];
+    const out: StaticBox[] = [this.box];
+    for (const c of this.carried) out.push(c.box);
+    return out;
+  }
+
   moveTo(x: number, y: number, z: number): void {
     this.delta.set(x - this.center.x, y - this.center.y, z - this.center.z);
     this.center.set(x, y, z);
     this.box.min.set(x - this.half.x, y - this.half.y, z - this.half.z);
     this.box.max.set(x + this.half.x, y + this.half.y, z + this.half.z);
+    for (const c of this.carried) {
+      c.box.min.set(x + c.min.x, y + c.min.y, z + c.min.z);
+      c.box.max.set(x + c.max.x, y + c.max.y, z + c.max.z);
+    }
     if (this.node) this.node.position.set(x, y, z);
   }
 }
@@ -119,6 +155,13 @@ export interface Board {
    */
   gravity?: number;
   /**
+   * Gravity that varies with where you are, overriding `gravity` where it is
+   * set. The station board is the case it exists for: deep space pulls at
+   * almost nothing, so the jetpack takes you anywhere, and the pull only comes
+   * back over a deck — enough to land on it, and nowhere else.
+   */
+  gravityAt?: (x: number, y: number, z: number) => number;
+  /**
    * The sea's surface height. Below it the water rules apply: the player
    * wades where the bottom is within standing depth and swims where it
    * isn't, bolts die at the surface in both directions, hostiles all but
@@ -173,6 +216,14 @@ export interface Board {
    */
   rangedLeash?: boolean;
   update?: (dt: number, time: number, game?: Game) => void;
+}
+
+/**
+ * The gravity scale acting at a point: the board's field where it has one,
+ * its flat scale otherwise, and 1 (Tatooine) for a board that says nothing.
+ */
+export function gravityScale(board: Board, x: number, y: number, z: number): number {
+  return board.gravityAt ? board.gravityAt(x, y, z) : board.gravity ?? 1;
 }
 
 const _out = { kill: false, dps: 0 };

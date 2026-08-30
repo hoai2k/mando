@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PhysicsWorld } from '../core/physics';
+import { PhysicsWorld, type StaticCylinder } from '../core/physics';
 import { clamp, fbm2, makeRng, ridge2 } from '../core/math';
 import { deckTexture, hullTexture, loadOptionalTexture } from '../core/assets';
 import { gradientSky } from './sky';
@@ -196,8 +196,9 @@ export function buildNarkina(): Board {
     crate.rotation.y = rng() * 0.7;
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
-    physics.addBox(cx, cy + 1.2, cz, 2.4, 2.4, 2.4);
-    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, y: cy, z: cz, yaw: crate.rotation.y });
+    const box = physics.addBox(cx, cy + 1.2, cz, 2.4, 2.4, 2.4);
+    authoredProp(group, crate, 'cargo_crate', 2.4, { x: cx, y: cy, z: cz, yaw: crate.rotation.y },
+      { physics, replace: [box], maxBoxes: 4 });
   }
 
   // ---- the electrified floors ----
@@ -433,7 +434,6 @@ export function buildNarkina(): Board {
   // Hung off the wreck node, so it inherits the yaw and roll the collider rows
   // below were built around — and the corridor between the hulls, which is the
   // whole point of the wreck, stays where the physics says it is.
-  authoredProp(wreck, [hullL, hullR, hullTop, nose], 'sunken_transport', 28, { axis: 'z' });
   // Collision follows the wreck's own axes. It lies yawed 0.6 rad and rolled
   // 0.12, which no axis-aligned box describes: the old three boxes left the
   // hull sides open at the ends and put invisible steel out in the water
@@ -450,20 +450,27 @@ export function buildNarkina(): Board {
       48 - x1 * Math.sin(wyaw) + lz * Math.cos(wyaw),
     ];
   };
+  const wreckStand: StaticCylinder[] = [];
   for (const lz of [-10, -5, 0, 5, 10]) {
     for (const lx of [-4.5, 4.5]) {                       // the two hull walls
       const [x, y, z] = local(lx, 3, lz);
-      physics.addCylinder(x, y, z, 3, 6);
+      wreckStand.push(physics.addCylinder(x, y, z, 3, 6));
     }
     for (const lx of [-3.6, 3.6]) {                       // the roof over them
       const [x, y, z] = local(lx, 7, lz);
-      physics.addCylinder(x, y, z, 4.2, 2);
+      wreckStand.push(physics.addCylinder(x, y, z, 4.2, 2));
     }
   }
   for (const lz of [10, 14]) {                            // the blunt nose
     const [x, y, z] = local(0, 4, lz);
-    physics.addCylinder(x, y, z, 3.6, 7);
+    wreckStand.push(physics.addCylinder(x, y, z, 3.6, 7));
   }
+  // Hung off the wreck node, so it inherits the yaw and roll the collider rows
+  // above were built around — and the corridor between the hulls, which is the
+  // whole point of the wreck, stays where the physics says it is. The fit is
+  // strictly better at keeping it: the sculpt's own gap is the gap.
+  authoredProp(wreck, [hullL, hullR, hullTop, nose], 'sunken_transport', 28, { axis: 'z' },
+    { physics, replace: wreckStand, maxBoxes: 24 });
 
   // fish: a slow school circling the reef
   const fishCount = 120;
