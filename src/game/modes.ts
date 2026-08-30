@@ -30,6 +30,28 @@ export function modesEnabled(): boolean {
 }
 
 /**
+ * Infinite lives in the PvE modes (2026-08-30, "for now"): Waves and Missions
+ * never end in defeat — every fall plays the full dissolve-and-re-form and
+ * the fight goes on, the walk back being the cost. PvP is *not* covered:
+ * its three stands are the mode's win condition and stay finite. Flip this
+ * to false to restore the wave game's defeat state; the machinery is intact.
+ */
+export const INFINITE_LIVES = true;
+
+/**
+ * ?waves=boss — boss rush, for testing the boss battles: a single wave
+ * before each boss. Wave 1 rings in the champion, wave 2 the warlord (and
+ * the monster, where the territory has one).
+ */
+export function bossRush(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('waves') === 'boss';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Each territory's boss: its signature final-wave elite, promoted
  * (Enemy.promoteBoss) rather than a new character. Caps the wave game after
  * the final wave and holds the campaign's final arena — docs/MODES.md §4a.

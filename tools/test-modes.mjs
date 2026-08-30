@@ -104,6 +104,28 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: a downed leader carries on in a surviving follower',
   s.state === 'fighting' && s.alive === true && s.before === 2 && s.followers === 1, JSON.stringify(s));
+// a death with a stand left plays the full cycle: dissolve, then re-form at
+// a far spawn — the wait is the performance, not a countdown
+s = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p2 = g.players[1];
+  p2.lives = 1;
+  for (const e of g.enemies) if (e.owner === p2 && e.alive) e.damage(9999, e.position, 0);
+  p2.damage(9999, p2.position, 0);
+  let dissolved = false, formed = false;
+  for (let i = 0; i < 200; i++) {
+    (${STEP})(1);
+    if (p2.dissolving) dissolved = true;
+    if (p2.alive && p2.formT > 0) formed = true;
+    if (p2.alive && p2.formT <= 0 && formed) break;
+  }
+  return { state: g.state, alive: p2.alive, dissolved, formed, lives: p2.lives };
+})()`);
+check('pvp: a death with a stand left dissolves, then re-forms at the new spawn',
+  s.state === 'fighting' && s.alive === true && s.dissolved && s.formed && s.lives === 0,
+  JSON.stringify(s));
+// ...and the last stand is still the last: squad wiped, lives spent → the
+// duel ends, with credit, and the end screen holds the champion's portrait
 s = await page.evaluate(`(() => {
   const g = window.__game;
   const p2 = g.players[1];
@@ -114,6 +136,21 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: last fighter standing takes the territory, with credit',
   s.state === 'victory' && s.winner === 0 && s.p1kills >= 1, JSON.stringify(s));
+// the celebration: the end-screen transition lives in the real frame loop
+// (endTimer runs 3 s on the wall clock), so un-pause it and give it its beat —
+// then the hero block holds the winner's face art
+await page.evaluate(() => { window.__manual = false; });
+await sleepFrames(280);
+const hero = await page.evaluate(() => {
+  const el = document.querySelector('.end-hero');
+  return {
+    shown: !!el && el.style.display !== 'none',
+    face: !!el?.querySelector('.end-face svg'),
+    tag: el?.querySelector('.end-tag')?.textContent ?? '',
+  };
+});
+check('pvp: the end screen celebrates the champion with their portrait',
+  hero.shown && hero.face && /Champion/.test(hero.tag), JSON.stringify(hero));
 
 // ---- PvP: the roster is not one species ----
 // The chase rig is tuned around a 1.8 m Mandalorian, and PvP fields a war
@@ -299,6 +336,50 @@ const sj = await page.evaluate(`(() => {
 check('wave: the warlord super jumps to close the gap',
   sj.jumps > 0 && sj.airborne > 3, JSON.stringify(sj));
 check('wave: the leap actually carries it to the player', sj.minDist < 12, JSON.stringify(sj));
+
+// ---- death is a performance: dissolve, then re-form (infinite lives) ----
+// The fall plays, the pose freezes and the body burns away into motes; the
+// respawn re-forms it at the landing spot. Solo wave death used to be the
+// defeat screen — with INFINITE_LIVES it is a walk back instead.
+await startMode('wave', 1, 'desert', ['din']);
+const dz = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  (${STEP})(150);
+  p.damage(9999, p.position);
+  let dissolved = false, hidden = false, formed = false, visibleAgain = false;
+  for (let i = 0; i < 240; i++) {
+    (${STEP})(1);
+    if (p.dissolving) dissolved = true;
+    if (!p.alive && !p.char.root.visible) hidden = true;
+    if (p.alive && p.formT > 0) formed = true;
+    if (p.alive && formed && p.formT <= 0) { visibleAgain = p.char.root.visible; break; }
+  }
+  return { dissolved, hidden, formed, visibleAgain, alive: p.alive, state: g.state };
+})()`);
+check('wave: a death dissolves the body, then re-forms it — no defeat',
+  dz.dissolved && dz.hidden && dz.formed && dz.visibleAgain && dz.alive && dz.state === 'fighting',
+  JSON.stringify(dz));
+
+// ---- ?waves=boss: a single wave before each boss battle ----
+await page.evaluate(() => { window.__manual = false; });
+await page.goto('http://localhost:4173/?waves=boss');
+await sleepFrames(8);
+await startMode('wave', 1, 'desert', ['din']);
+const br = await page.evaluate(`(() => {
+  const g = window.__game;
+  let guard = 0;
+  const bosses = [];
+  while (g.state !== 'victory' && guard++ < 40) {
+    if (g.boss && g.boss.alive && !bosses.includes(g.boss.bossName)) bosses.push(g.boss.bossName);
+    for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
+    g.players[0].hp = g.players[0].maxHp; g.players[0].alive = true;
+    (${STEP})(200);
+  }
+  return { wave: g.wave, bosses, state: g.state };
+})()`);
+check('?waves=boss: one wave to the champion, one more to the warlord and its monster',
+  br.state === 'victory' && br.wave === 3 && br.bosses.length === 3, JSON.stringify(br));
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });

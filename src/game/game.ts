@@ -17,7 +17,7 @@ import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, INFINITE_LIVES, MID_BOSS, MONSTER_BOSS, bossRush, type GameMode } from './modes';
 import { AllyCrate } from './allycrate';
 import { Campaign } from './campaign';
 
@@ -126,6 +126,13 @@ export class Game {
   boss: Enemy | null = null;
   /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
   private midBossActive = false;
+  /**
+   * The waves each boss battle rings in after. Normally the design's schedule
+   * (spawner.ts MID_BOSS_WAVE / FINAL_WAVE); ?waves=boss compresses it to a
+   * single wave before each battle, for testing the bosses themselves.
+   */
+  private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
+  private finalWave = bossRush() ? 2 : FINAL_WAVE;
   /** the champion has fallen; the second run of waves is open */
   private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
@@ -854,7 +861,7 @@ export class Game {
           this.allyCrate.retire(this);
           this.allyCrate = null;
         }
-        if (this.wave > FINAL_WAVE) {
+        if (this.wave > this.finalWave) {
           // the warlord is down: the territory is truly held
           this.setState('victory');
           this.events.banner('Territory held', 'This is the Way');
@@ -867,7 +874,7 @@ export class Game {
           this.stateTimer = 4.5;
           this.events.banner('The champion falls', 'The warlord is watching');
           audio.waveClear();
-        } else if (this.wave === FINAL_WAVE || (this.wave === MID_BOSS_WAVE && !this.midBossDown)) {
+        } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
           // a boss battle rings in on the next bell
           this.setState('break');
           this.stateTimer = 4.5;
@@ -912,6 +919,7 @@ export class Game {
       p.update(dt, inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       if (this.mode === 'pvp') {
+        // PvP keeps its finite stands: elimination is the mode's win condition
         if (p.lives > 0) {
           p.lives--;
           p.deathCounted = false;
@@ -927,16 +935,16 @@ export class Game {
         this.events.banner('Back on your feet', 'the beacon waits');
       } else {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
-        if (this.players.length > 1 && partnerAlive) {
+        if (INFINITE_LIVES || (this.players.length > 1 && partnerAlive)) {
           p.spawnAt(this.board.playerStarts[p.slot] ?? this.board.playerStarts[0]);
-          p.hp = p.maxHp * 0.6;
+          if (this.players.length > 1) p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
           this.events.banner('The hunter has fallen');
         }
       }
     }
-    if (this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
+    if (!INFINITE_LIVES && this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
       this.events.banner('The hunters have fallen');
     }
@@ -1285,7 +1293,7 @@ export class Game {
    * across a connection the match is already using for its scenery.
    */
   private preloadWave(wave: number): void {
-    if (wave > FINAL_WAVE) return;
+    if (wave > this.finalWave) return;
     for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
       const id = ENEMY_MODEL_ID[entry.kind];
       if (id) warmAuthored(id, 'now');
@@ -1381,7 +1389,7 @@ export class Game {
       return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
     }
     if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
-    if (this.midBossActive || this.wave > FINAL_WAVE) return this.boss?.bossName ?? 'The warlord';
+    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? 'The warlord';
     return `Wave ${Math.max(this.wave, 1)}`;
   }
 
@@ -1412,14 +1420,14 @@ export class Game {
     this.setState('fighting');
     // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
     // the next wave: the board's first boss posts at the far side with a guard
-    if (this.wave === MID_BOSS_WAVE && !this.midBossDown) {
+    if (this.wave === this.midBossWave && !this.midBossDown) {
       this.midBossActive = true;
       this.spawnBoss(this.farPost(), 'mid');
       return;
     }
     this.wave++;
     // past the final wave is the warlord's battle, and the last bell
-    if (this.wave > FINAL_WAVE) {
+    if (this.wave > this.finalWave) {
       this.spawnBoss(this.farPost(), 'final');
       return;
     }
@@ -1444,7 +1452,7 @@ export class Game {
     const scattered = this.aliveEnemyCount + this.incoming;
     this.events.banner(
       `Wave ${this.wave}`,
-      this.wave === FINAL_WAVE ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
+      this.wave === this.finalWave ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
     );
     // the little card naming kinds that debut this wave — the wave tables
     // are deterministic in which kinds appear, so a diff against every

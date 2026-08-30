@@ -382,10 +382,12 @@ export class ParticleFX {
   private spray = new Pool(300, 0xdceaf4, 0.3, 8, false, 0.55);
   /** air bubbles — negative gravity, they rise */
   private bubble = new Pool(300, 0xbfe4ff, 0.1, -2.4, true, 0.4);
+  /** amber motes a disintegrating body sheds — they drift up and burn out */
+  private ash = new Pool(400, 0xe8b96a, 0.13, -1.5, true, 0.75);
   private jet = new FlamePool(2600);
 
   constructor() {
-    for (const p of [this.sparks, this.dust, this.boom, this.smoke, this.flash, this.spray, this.bubble]) this.group.add(p.points);
+    for (const p of [this.sparks, this.dust, this.boom, this.smoke, this.flash, this.spray, this.bubble, this.ash]) this.group.add(p.points);
     this.group.add(this.jet.points);
   }
 
@@ -463,6 +465,15 @@ export class ParticleFX {
     if (Math.random() < dt * 14) this.bubble.spawn(p, new THREE.Vector3(0, 1.4, 0), 0.7, 1.4, 1);
   }
 
+  /**
+   * A body coming apart (or re-forming): slow amber motes shed at `p`,
+   * drifting upward. Callers sweep the emit point along the body's height to
+   * sell the direction — feet-to-head burning away, head-to-feet assembling.
+   */
+  disintegrate(p: THREE.Vector3, n = 4): void {
+    this.ash.spawn(p, new THREE.Vector3(0, 0.9, 0), 1.3, 0.9, n);
+  }
+
   dustPuff(p: THREE.Vector3, n = 8): void { this.dust.spawn(p, new THREE.Vector3(0, 1.2, 0), 2.4, 0.9, n); }
   runDust(p: THREE.Vector3): void { this.dust.spawn(p, new THREE.Vector3(0, 0.5, 0), 1, 0.5, 1); }
   explosion(p: THREE.Vector3): void {
@@ -483,6 +494,7 @@ export class ParticleFX {
     this.flash.update(dt);
     this.spray.update(dt);
     this.bubble.update(dt);
+    this.ash.update(dt);
     this.jet.update(dt);
   }
 }

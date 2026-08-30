@@ -5,7 +5,20 @@ Three modes, **on by default** as of 2026-08-29: the title shows three choices �
 internal id `campaign`) — one per mode. They spent their build behind a `?modes`
 URL flag; that escape hatch survives inverted, so `?nomodes` (or `?modes=off`)
 puts the single **Press Start** back and the game is exactly the wave game. The
-regression test drives both paths.
+regression test drives both paths. A second testing flag, **`?waves=boss`**,
+compresses the wave game to a boss rush: a single wave before each boss battle
+(wave 1 → champion, wave 2 → warlord → monster), for iterating on the bosses.
+
+**Death is a performance (2026-08-30).** Dying no longer parks the player on a
+countdown: the death animation plays, the pose freezes, and the body
+**disintegrates** into drifting amber motes swept feet-to-head; the respawn
+**re-forms** it at the new spot — motes converging, the figure fading back in,
+the camera gliding over rather than cutting. The timers *are* the respawn wait,
+so the player watches the cycle instead of a clock. A re-forming body takes no
+input and no damage until it is whole. Paired with `INFINITE_LIVES` (modes.ts,
+on "for now") in the PvE modes: Waves and Missions have no defeat screens —
+every fall is a walk back. PvP keeps its three stands; there the cycle plays
+on each of them, and running out is still elimination.
 
 This document is the research + design record; `docs/LEVEL_DESIGN.md` carries
 the campaign's level-design strategy in detail. Implementation status lives in
@@ -61,8 +74,13 @@ wave) walks out to fight for the rest of that wave only. Victory comes when the 
 
 **Rules.** 2–4 players (the select refuses to start with one). Free-for-all:
 every player is their own team (`team = 2 + slot`). Each fighter has **3
-lives**; a death costs one and respawns them at a spawn far from the killer
-after 4 s. Last fighter standing takes the territory. Kills and the winner go
+lives**; a death costs one, plays the dissolve, and re-forms them at a spawn
+far from the killer (`INFINITE_LIVES` covers only the PvE modes — the stands
+here are the win condition and stay finite).
+Last fighter standing takes the territory, and the end screen celebrates the
+champion with their portrait held over the tally (the authored
+`portrait_<id>.jpg` where one exists, the drawn face mark otherwise).
+Kills and the winner go
 to the end screen. No waves, no allies; parked vehicles stay (they are part of
 the territory, and a swoop duel is the good kind of chaos).
 

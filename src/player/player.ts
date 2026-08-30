@@ -15,6 +15,7 @@ import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
+import { markOwned } from '../core/dispose';
 import { ThrownSaber } from './saberthrow';
 
 /** scratch for measuring the body the camera is framing */
@@ -81,6 +82,16 @@ const BLOCK_SPEED = 3.2;
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 const ROCKET_CD = 12;
+/**
+ * The death-to-respawn performance (docs/MODES.md): the death animation plays,
+ * the pose freezes, and the body disintegrates into drifting motes; on the
+ * respawn it re-forms at the new spot, motes converging as it fades back in.
+ * The timers are the whole respawn wait — the player watches the cycle rather
+ * than a countdown.
+ */
+const DEATH_ANIM_TIME = 1.1;
+/** seconds the disintegration takes — and the re-form on the other side */
+const DISSOLVE_TIME = 1.3;
 
 export class Player {
   char: PlayerCharacter;
@@ -220,6 +231,12 @@ export class Player {
   rocketCd = 0;
   private regenDelay = 0;
   respawnTimer = 0;
+  /** seconds since death — drives the death-anim → freeze → disintegrate timeline */
+  private deadT = 0;
+  /** re-form countdown after a respawn; while > 0 the body is assembling: no input, no damage */
+  formT = 0;
+  /** original materials, swapped out for the dissolve's transparent clones */
+  private savedMats: Map<THREE.Mesh, THREE.Material | THREE.Material[]> | null = null;
   private hurtFlash = 0;
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
@@ -370,10 +387,23 @@ export class Player {
     });
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
+    // A body that burned away re-forms where it respawns: it starts invisible
+    // and fades in as the motes converge, and the camera flies over to the
+    // new spot rather than cutting. A spawn with no dissolve behind it (match
+    // start, the PvP squad takeover) skips all of this.
+    if (this.savedMats) {
+      this.formT = DISSOLVE_TIME;
+      this.setOpacity(0);
+      this.cam.glideFrom(0.9);
+      const look = p.clone();
+      look.y += this.height;
+      this.cam.snapToward(look, 0.5);
+    }
   }
 
   damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
-    if (!this.alive) return;
+    // a body still assembling isn't there to hit yet
+    if (!this.alive || this.formT > 0) return;
     // Mounted, the hull is your HP: hits on the rider land on the vehicle —
     // until it gives out. Kill zones (999) still kill the rider outright.
     if (this.vehicle && amount < 500) {
@@ -401,7 +431,9 @@ export class Player {
     this.vehicle?.dropRider();
     this.hp = 0;
     this.alive = false;
-    this.respawnTimer = 4;
+    this.deadT = 0;
+    // the wait *is* the performance: fall, freeze, burn away — then respawn
+    this.respawnTimer = DEATH_ANIM_TIME + DISSOLVE_TIME + 0.1;
     const anim = this.char.animator!;
     anim.release('lower');
     anim.release('upper');
@@ -415,6 +447,60 @@ export class Player {
 
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
+  /** the corpse is mid-burn: pose frozen, body fading into motes */
+  get dissolving(): boolean { return !this.alive && this.deadT > DEATH_ANIM_TIME; }
+
+  /** swap every material for a per-body transparent clone the dissolve can fade */
+  private ensureDissolveMats(): void {
+    if (this.savedMats) return;
+    const saved = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      saved.set(mesh, mesh.material);
+      const clone = (m: THREE.Material): THREE.Material => {
+        const c = markOwned(m.clone());
+        c.transparent = true;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
+    });
+    this.savedMats = saved;
+  }
+
+  /** the body is whole again: the original (shared, opaque) materials return */
+  private restoreMats(): void {
+    if (!this.savedMats) return;
+    for (const [mesh, mats] of this.savedMats) {
+      const cur = mesh.material;
+      mesh.material = mats;
+      for (const m of Array.isArray(cur) ? cur : [cur]) m.dispose();
+    }
+    this.savedMats = null;
+  }
+
+  private setOpacity(alpha: number): void {
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) m.opacity = alpha;
+    });
+  }
+
+  /**
+   * One frame of the corpse burning away, `k` 0→1: the body fades as amber
+   * motes stream off it, the emit point swept from the feet toward the head.
+   */
+  private setDissolve(k: number, game: Game): void {
+    this.ensureDissolveMats();
+    this.setOpacity(1 - k);
+    if (k >= 1) { this.char.root.visible = false; return; }
+    const at = this.position.clone();
+    at.y += k * this.height;
+    at.x += (Math.random() - 0.5) * this.radius * 2;
+    at.z += (Math.random() - 0.5) * this.radius * 2;
+    game.particles.disintegrate(at, 4);
+  }
 
   /**
    * Animation time for this frame: near-frozen during hit-stop, so a landed
@@ -515,12 +601,39 @@ export class Player {
     this.updateSaberThrow(dt, input, game);
     if (!this.alive) {
       this.respawnTimer -= dt;
+      this.deadT += dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
       this.velocity.y -= GRAVITY * this.gravity(game.board) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.syncVisual(dt, game);
+      // the fall plays out, then the pose freezes and the body burns away
+      const dis = (this.deadT - DEATH_ANIM_TIME) / DISSOLVE_TIME;
+      if (dis <= 0) anim.update(dt);
+      else this.setDissolve(Math.min(dis, 1), game);
+      return;
+    }
+
+    // re-forming after a respawn: motes converge head-to-feet and the figure
+    // fades back in where it will stand — watchable, untouchable, and deaf to
+    // input until it is whole
+    if (this.formT > 0) {
+      this.formT -= dt;
+      const k = clamp(this.formT / DISSOLVE_TIME, 0, 1);   // 1 = still gone
+      this.setOpacity(1 - k);
+      const at = this.position.clone();
+      at.y += k * this.height;
+      at.x += (Math.random() - 0.5) * this.radius * 2;
+      at.z += (Math.random() - 0.5) * this.radius * 2;
+      game.particles.disintegrate(at, 4);
+      if (this.formT <= 0) this.restoreMats();
+      anim.play('lower', 'idleLower');
+      anim.play('upper', 'idleUpper');
+      this.syncVisual(dt, game);
       anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: 0, dashing: false,
+      });
       return;
     }
 
