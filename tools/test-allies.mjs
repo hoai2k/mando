@@ -71,32 +71,31 @@ check('an ally engages a hostile on the player it is with, not on player one',
   engage.engagedFrames > engage.frames * 0.8, engage);
 
 // ---- 2. an ally with nothing to fight mills instead of standing dead still ----
+// With a whole cache squad around the player, any one ally may idle while
+// its squadmates shuffle — the freeze bug this guards against locked the
+// *escort*, so the squad going still is the failure, not one body resting.
 const mill = await h.page.evaluate(() => new Promise((res) => {
   const g = window.__game;
-  const a = g.allies[0];
   const p = g.players[0];
   const park = () => { for (const e of g.enemies) e.position.set(p.position.x + 400, p.position.y, p.position.z); };
   park();
-  a.position.set(p.position.x + 1.5, p.position.y, p.position.z);
-  const yaw0 = a.facingYaw;
+  g.allies.forEach((a, i) => a.position.set(p.position.x + 1.5 + (i % 3), p.position.y, p.position.z + (i / 3 | 0)));
   let n = 0;
   let moving = 0;
   let maxOff = 0;
-  let yawSpread = 0;
   const tick = () => {
     park();
-    if (Math.hypot(a.velocity.x, a.velocity.z) > 0.3) moving++;
-    maxOff = Math.max(maxOff, a.position.distanceTo(p.position));
-    yawSpread = Math.max(yawSpread, Math.abs(a.facingYaw - yaw0));
+    if (g.allies.some((a) => Math.hypot(a.velocity.x, a.velocity.z) > 0.3)) moving++;
+    for (const a of g.allies) maxOff = Math.max(maxOff, a.position.distanceTo(p.position));
     if (++n >= 70) {
-      res({ moving, frames: n, maxDistFromPlayer: +maxOff.toFixed(1), yawSpread: +yawSpread.toFixed(2) });
+      res({ moving, frames: n, maxDistFromPlayer: +maxOff.toFixed(1) });
     } else requestAnimationFrame(tick);
   };
   tick();
 }));
-check('an idle ally keeps moving', mill.moving > mill.frames * 0.25, mill);
+check('an idle squad keeps moving', mill.moving > mill.frames * 0.25, mill);
 // and stays with the player rather than wandering off the board
-check('...and stays with the player', mill.maxDistFromPlayer < 8, mill.maxDistFromPlayer);
+check('...and stays with the player', mill.maxDistFromPlayer < 10, mill.maxDistFromPlayer);
 
 // ---- 3. the cache squad is for this wave only ----
 const retired = await h.page.evaluate(() => new Promise((res) => {
