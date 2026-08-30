@@ -4,7 +4,7 @@ import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
-import { Carrier, carrierShipId, squadArrival } from '../enemies/arrival';
+import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
 import { playableDef, type PlayableId } from '../characters/roster';
@@ -149,6 +149,8 @@ export class Game {
   private carriers: Carrier[] = [];
   /** bodies a carrier still holds — counted as hostiles, but not yet spawned */
   private incoming = 0;
+  /** alternates eligible transports between setting down and overflying */
+  private landToggle = 0;
   /** campaign controller; null outside campaign mode */
   campaign: Campaign | null = null;
   /** campaign's one shared screen: the camera the party is watched through */
@@ -404,6 +406,30 @@ export class Game {
         // nothing can carry this squad in: stand it up in place, as ever
         for (const m of members) this.particles.dustPuff(field(m).position, 10);
       } else if (mode === 'drop') {
+        // Where the ground is open enough, every other transport sets down to
+        // unload instead of overflying — a landing is the better show, but a
+        // sky full of parked ships is a car park, so they alternate.
+        const site = landingSite(this.board, members.map((m) => m.pos));
+        if (site && this.landToggle++ % 2 === 0) {
+          this.incoming += members.length;
+          const carrier = new Carrier(site, pass * 1.35 + Math.random() * 0.5, carrierShipId(this.board.kind), () => {
+            this.incoming -= members.length;
+            if (this.disposed) return;
+            // skids down, ramp open: the squad steps off around the hull and
+            // walks the last stretch to its posts
+            this.particles.dustPuff(site, 18);
+            members.forEach((m, i) => {
+              const e = field(m);
+              const a = (i / members.length) * Math.PI * 2 + 0.7;
+              const off = _stick.set(site.x + Math.cos(a) * 3.8, site.y + 0.2, site.z + Math.sin(a) * 3.8);
+              e.beginArrival('run', off, m.pos);
+            });
+          }, { landAt: site });
+          pass++;
+          this.carriers.push(carrier);
+          this.scene.add(carrier.group);
+          continue;
+        }
         // centroid, so one pass covers the whole squad's spread of targets
         const at = new THREE.Vector3();
         for (const m of members) at.add(m.pos);
@@ -737,6 +763,8 @@ export class Game {
   get incomingCount(): number { return this.incoming; }
   /** carrier passes currently in the sky, for the tests */
   get carrierCount(): number { return this.carriers.length; }
+  /** how many of those set down to unload rather than overflying */
+  get landingPassCount(): number { return this.carriers.filter((c) => c.lands).length; }
 
   update(dt: number, inputs: FrameInput[]): void {
     // ---- the boss introduction ----

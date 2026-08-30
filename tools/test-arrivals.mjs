@@ -101,8 +101,41 @@ for (const [board, wave] of [['desert', 2], ['trask', 2], ['station', 3]]) {
   }
 }
 
-// chutes must have been seen somewhere across the run — the desert wave has
-// carrier squads every time
+// ---- landings: where the ground allows it, every other transport sets down ----
+await h.page.evaluate((b) => { window.__quitToTitle?.(); window.__startCoop(1, b); }, 'desert');
+await sleep(9000);
+const land = await h.page.evaluate(`(async () => {
+  const g = window.__game;
+  for (const e of g.enemies) e.removeMe = true;
+  (${STEP})(2);
+  // squad posts are random per wave; a couple of waves is enough for one to
+  // sit by open ground
+  let staged = 0;
+  for (let w = 0; w < 3 && g.landingPassCount === 0; w++) {
+    g.nextWave();
+    staged = g.enemies.length + g.incomingCount;
+  }
+  const landings = g.landingPassCount;
+  if (!landings) return { landings };
+  for (let i = 0; i < 80 && (g.incomingCount > 0 || g.enemies.some((e) => e.alive && e.arriving)); i++) (${STEP})(20);
+  const alive = g.enemies.filter((e) => e.alive);
+  let bad = 0;
+  for (const e of alive) {
+    const air = e.def.style === 'hover' || e.def.style === 'swoop';
+    if (air) continue;
+    const ok = g.board.physics.capsuleFree(e.position.x, e.position.y + 0.05, e.position.z, e.radius * 0.9, e.height * 0.9);
+    const gd = g.board.physics.groundHeight(e.position.x, e.position.z, e.position.y + 0.4);
+    if (!ok || !isFinite(gd)) bad++;
+  }
+  return { landings, staged, arrived: alive.length, bad,
+    stillArriving: alive.filter((e) => e.arriving).length, incoming: g.incomingCount };
+})()`);
+check('a transport sets down where the ground allows', land.landings > 0, land);
+if (land.landings > 0) {
+  check('...and its squad walks off and takes its posts',
+    land.stillArriving === 0 && land.incoming === 0 && land.bad === 0 && land.arrived > 0, land);
+}
+
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
 if (failures.length || h.errors.length) {

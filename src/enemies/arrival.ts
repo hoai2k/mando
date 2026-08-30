@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { audio } from '../core/audio';
 import { authoredCached, loadProp } from '../characters/authored';
+import { hazardAt } from '../world/board';
 import type { Board, BoardId } from '../world/board';
 import type { EnemyKind } from './enemy';
 
@@ -53,7 +54,58 @@ export function carrierShipId(board: BoardId): string {
 }
 
 const _down = new THREE.Vector3(0, -1, 0);
+const _hover = new THREE.Vector3();
 const _o = new THREE.Vector3();
+const _flat = new THREE.Vector3();
+
+/** the ship's footprint when it sets down: this much clear, this flat */
+const PAD_RADIUS = 6;
+
+/**
+ * Somewhere a carrier can actually set down near these posts: open, flat
+ * enough for the skids, nothing standing in the footprint, clear sky above,
+ * and no hazard cooking the disembark. Tries the squad's centroid first, then
+ * each post. Null means this squad gets a flying drop instead — landing is a
+ * privilege of open ground and pads, exactly as it should be.
+ */
+export function landingSite(board: Board, targets: THREE.Vector3[]): THREE.Vector3 | null {
+  const centroid = new THREE.Vector3();
+  for (const t of targets) centroid.add(t);
+  centroid.divideScalar(targets.length);
+  // A clearing a few strides from the posts is as good as the posts — the
+  // squad walks the difference — so a ring of nearby spots joins the
+  // candidates before landing is ruled out.
+  const candidates = [centroid, ...targets];
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const c = centroid.clone();
+    c.x += Math.cos(a) * 11;
+    c.z += Math.sin(a) * 11;
+    if (board.physics.heightAt) c.y = board.physics.heightAt(c.x, c.z) + 0.3;
+    candidates.push(c);
+  }
+  outer:
+  for (const c of candidates) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let k = 0; k < 5; k++) {
+      const x = c.x + (k === 0 ? 0 : Math.cos((k / 4) * Math.PI * 2) * PAD_RADIUS);
+      const z = c.z + (k === 0 ? 0 : Math.sin((k / 4) * Math.PI * 2) * PAD_RADIUS);
+      const g = board.physics.groundHeight(x, z, c.y + 1.5);
+      if (!isFinite(g)) continue outer;                       // footprint over the void
+      if (!board.physics.capsuleFree(x, g + 0.1, z, 1.2, 3)) continue outer;
+      lo = Math.min(lo, g);
+      hi = Math.max(hi, g);
+    }
+    if (hi - lo > 2.2) continue;                              // too steep for skids
+    const site = new THREE.Vector3(c.x, hi + 0.05, c.z);
+    if (!dropClear(board, site)) continue;                    // roofed
+    const hz = hazardAt(board, _flat.copy(site));
+    if (hz.kill || hz.dps > 0) continue;
+    return site;
+  }
+  return null;
+}
 
 /** the level's authored reach — beyond this is the surrounding country */
 function boardExtent(board: Board): number {
@@ -117,40 +169,75 @@ export function squadArrival(board: Board, kind: EnemyKind, air: boolean, target
   return { mode: 'post', from: null };
 }
 
+/** the lander profile's phase lengths: approach, descend, hold, climb, exit */
+const LAND_A = 4.5, LAND_D = 2.4, LAND_H = 2.6, LAND_C = 2.2, LAND_E = 4.5;
+const easeOut = (u: number): number => 1 - (1 - u) * (1 - u);
+const easeIn = (u: number): number => u * u;
+const easeInOut = (u: number): number => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u));
+
 /**
- * A troop carrier pass: a jet blur that streaks over the drop point, lets the
- * squad go as it crosses it, and runs off the far side of the sky.
+ * A troop carrier pass, in one of two profiles.
  *
+ * **Flyby** (the default): a jet blur that streaks over the drop point, lets
+ * the squad go as it crosses it, and runs off the far side of the sky.
  * Deliberately a blur rather than a ship — at 85 m/s and forty metres up, a
  * hull is a dark shape and a light streak, and that is exactly what is built:
  * a stretched hull, two engine glows, and a pair of crossed additive streak
  * planes doing the work a motion-blur pass would.
+ *
+ * **Lander** (`landAt`): where the ground is open and flat enough
+ * (`landingSite`), the ship comes in decelerating, descends onto the spot,
+ * sits a couple of seconds while the squad steps off, then climbs out and
+ * leaves. The blur streaks fade with airspeed, so the same visual reads as a
+ * streak in the pass and as a ship on the pad.
  */
 export class Carrier {
   group = new THREE.Group();
+  /** true for the lander profile — it sets down instead of overflying */
+  readonly lands: boolean;
   private t = 0;
   private delay: number;
   private released = false;
+  private flaredAt = -1;
   private start = new THREE.Vector3();
   private vel = new THREE.Vector3();
+  private site: THREE.Vector3 | null = null;
+  private dir = new THREE.Vector3();
   private dropT: number;
   private life: number;
+  private streakMat: THREE.MeshBasicMaterial | null = null;
+  private prev = new THREE.Vector3();
   private owned: Array<{ dispose(): void }> = [];
 
-  constructor(drop: THREE.Vector3, delay: number, shipId: string, private onRelease: (at: THREE.Vector3, along: THREE.Vector3) => void) {
+  constructor(
+    drop: THREE.Vector3, delay: number, shipId: string,
+    private onRelease: (at: THREE.Vector3, along: THREE.Vector3) => void,
+    opts: { landAt?: THREE.Vector3 } = {},
+  ) {
     const a = Math.random() * Math.PI * 2;
     const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    this.dir.copy(dir);
+    this.lands = !!opts.landAt;
     // with a real hull in hand the ship earns a slower, watchable pass;
     // without one it stays a streak the eye reads as speed instead of shape
     const modeled = authoredCached(shipId);
     const SPEED = modeled ? 46 : 85;
     const LEAD = modeled ? 170 : 280;
     const TAIL = modeled ? 220 : 320;
-    this.start.copy(drop).addScaledVector(dir, -LEAD);
-    this.start.y = drop.y + DROP_HEIGHT;
+    if (opts.landAt) {
+      this.site = opts.landAt.clone();
+      this.start.copy(this.site).addScaledVector(dir, -200);
+      this.start.y = this.site.y + DROP_HEIGHT;
+      // release a beat after the skids touch, while the ship holds the pad
+      this.dropT = LAND_A + LAND_D + 0.5;
+      this.life = LAND_A + LAND_D + LAND_H + LAND_C + LAND_E;
+    } else {
+      this.start.copy(drop).addScaledVector(dir, -LEAD);
+      this.start.y = drop.y + DROP_HEIGHT;
+      this.dropT = LEAD / SPEED;
+      this.life = (LEAD + TAIL) / SPEED;
+    }
     this.vel.copy(dir).multiplyScalar(SPEED);
-    this.dropT = LEAD / SPEED;
-    this.life = (LEAD + TAIL) / SPEED;
     this.delay = delay;
 
     const keep = <T extends { dispose(): void }>(r: T): T => { this.owned.push(r); return r; };
@@ -176,6 +263,7 @@ export class Carrier {
       color: 0x9fc8ff, transparent: true, opacity: 0.28, depthWrite: false,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     }));
+    this.streakMat = streakMat;
     for (const roll of [0, Math.PI / 2]) {
       const streak = new THREE.Mesh(streakGeo, streakMat);
       streak.rotation.x = Math.PI / 2;
@@ -191,9 +279,53 @@ export class Carrier {
       axis: 'z',
       onLoad: () => { for (const c of standIn) c.visible = false; },
     }));
+    // A lander gets subtle skids under the hull — added after the stand-in
+    // snapshot, so they survive the authored model swapping in: the sculpts
+    // were generated in level flight with no gear, and these are what the
+    // ship parks on.
+    if (this.lands) {
+      const skidMat = keep(new THREE.MeshStandardMaterial({ color: 0x14171c, roughness: 0.7, metalness: 0.5 }));
+      const railGeo = keep(new THREE.BoxGeometry(0.24, 0.16, 5.2));
+      const strutGeo = keep(new THREE.BoxGeometry(0.12, 0.55, 0.12));
+      for (const sx of [-1, 1]) {
+        const rail = new THREE.Mesh(railGeo, skidMat);
+        rail.position.set(sx * 1.05, -1.0, 0.4);
+        this.group.add(rail);
+        for (const sz of [-1, 1]) {
+          const strut = new THREE.Mesh(strutGeo, skidMat);
+          strut.position.set(sx * 1.05, -0.75, 0.4 + sz * 1.9);
+          strut.rotation.z = sx * 0.3;
+          this.group.add(strut);
+        }
+      }
+    }
     this.group.rotation.y = Math.atan2(dir.x, dir.z);
     this.group.position.copy(this.start);
     this.group.visible = false;
+  }
+
+  /** where the ship is at second `t` of a landing profile */
+  private landerPos(t: number, out: THREE.Vector3): void {
+    const site = this.site!;
+    if (t < LAND_A) {
+      // decelerating approach, shedding altitude the whole way in
+      const u = easeOut(t / LAND_A);
+      out.copy(this.start).lerp(_hover.set(site.x, site.y + 14, site.z), u);
+    } else if (t < LAND_A + LAND_D) {
+      const u = easeInOut((t - LAND_A) / LAND_D);
+      out.set(site.x, site.y + 14 - u * 12.9, site.z);
+    } else if (t < LAND_A + LAND_D + LAND_H) {
+      // on the skids, engines idling: the faintest hover breath
+      out.set(site.x, site.y + 1.1 + Math.sin(t * 3) * 0.04, site.z);
+    } else if (t < LAND_A + LAND_D + LAND_H + LAND_C) {
+      const u = easeIn((t - LAND_A - LAND_D - LAND_H) / LAND_C);
+      out.set(site.x, site.y + 1.1 + u * 14, site.z);
+    } else {
+      const u = easeIn(Math.min(1, (t - LAND_A - LAND_D - LAND_H - LAND_C) / LAND_E));
+      out.set(site.x, site.y + 15.1, site.z)
+        .addScaledVector(this.dir, u * 240);
+      out.y += u * (DROP_HEIGHT - 15);
+    }
   }
 
   /** advance the pass; false once it has left the sky and can be removed */
@@ -202,10 +334,24 @@ export class Carrier {
       this.delay -= dt;
       if (this.delay > 0) return true;
       this.group.visible = true;
-      audio.shipPass(0.4);
+      audio.shipPass(this.lands ? 0.3 : 0.4);
     }
     this.t += dt;
-    this.group.position.copy(this.start).addScaledVector(this.vel, this.t);
+    this.prev.copy(this.group.position);
+    if (this.site) {
+      this.landerPos(this.t, this.group.position);
+      if (this.flaredAt < 0 && this.t >= LAND_A) {
+        this.flaredAt = this.t;
+        audio.shipLanding(0.5);
+      }
+      // the blur is airspeed: a parked ship is a ship, not a streak
+      if (this.streakMat && dt > 0) {
+        const speed = this.prev.distanceTo(this.group.position) / dt;
+        this.streakMat.opacity = 0.28 * Math.min(1, speed / 70);
+      }
+    } else {
+      this.group.position.copy(this.start).addScaledVector(this.vel, this.t);
+    }
     if (!this.released && this.t >= this.dropT) {
       this.released = true;
       this.onRelease(this.group.position, this.vel);

@@ -435,7 +435,11 @@ file is cached, so delivery is the whole integration. Two ships cover all nine
 territories — the faction map in `arrival.ts` picks per board.
 
 Rigless props through `loadProp`, long axis **Z** (the flight direction), origin at
-the hull's centre, real scale ~15 m. Budget ≤ 6k tris, one 1024² PBR set. Reference
+the hull's centre, real scale ~15 m. Both ships also **land**: where the ground near
+a squad's posts is open and flat, every other transport sets down, unloads and
+climbs out (`landingSite` in `arrival.ts`). The sculpts need no landing gear — the
+game slides subtle procedural skids under the hull for the parked beat — so a hull
+generated "in level flight" reads parked as well. Budget ≤ 6k tris, one 1024² PBR set. Reference
 sheets first, as ever — prompts in
 [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--troop-carrier-reference-sheets).
 
