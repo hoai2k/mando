@@ -358,7 +358,14 @@ export function buildRingworld(): Board {
   };
   board.movers = [tramMover];
   // a street swoop parked mid-strip — the tram is not the only ride here
-  board.vehicles = [{ kind: 'swoop', x: 2, z: 32, yaw: 0.3 }];
+  // Two swoops on the strip. The mid-street one is where the gang left it;
+  // the second waits on the dark end by the start, west of the tram lane, so
+  // a wave run can reach a ride without walking the whole 136 m of street
+  // first.
+  board.vehicles = [
+    { kind: 'swoop', x: 2, z: 32, yaw: 0.3 },
+    { kind: 'swoop', x: -15, z: -86, yaw: 0.15 },
+  ];
 
   // ---- sky traffic (PLAN.md §16.1) ----
   // The lane follows the ring overhead: long ellipses high above the strip,

@@ -206,7 +206,12 @@ export class Game {
       this.campaign = new Campaign(this);
     }
 
-    this.vehicles = spawnVehicles(board, this.scene);
+    // Parked rides belong to the territory's own ground, so they only make
+    // sense in the modes fought on it. A mission level is raised to
+    // MISSION_Y, which left every ride sitting 82-89 m below the floor the
+    // party walks: unreachable, un-mountable, and still costing a model, a
+    // collider and a bolt target. Waves and PvP get them; Missions does not.
+    if (mode !== 'campaign') this.vehicles = spawnVehicles(board, this.scene);
 
 
     // a bolt turned around by a shield: sparks at the pane, and the blocker

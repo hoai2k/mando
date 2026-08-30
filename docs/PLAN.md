@@ -445,10 +445,24 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 
 | Kind | Feel | HP | Where |
 |---|---|---|---|
-| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld plaza |
-| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge dome gap |
+| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld street ×2 |
+| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge (dome gap + approach) |
 | **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+
+**Where they are parked is a reachability constraint, not just flavour** (audited
+2026-08-30). A ride the party never walks past may as well not exist: the Forge and
+the Ringworld each had exactly one, 146 m and 136 m from where a wave run lands, and
+in practice nobody ever reached them. Every territory that declares vehicles now
+parks one within **60 m of the wave start** — half the radar's sweep, so it is on the
+dial the moment you land — and `tools/test-vehicles.mjs` holds that line per board.
+The four territories with none (the Spice Run's floating platforms, the Crevasse, the
+Refinery's corridors, the Prison Rig) are deliberate: there is no road to drive.
+
+**Modes.** Rides belong to the territory's own ground, so they are a **Wave Battle and
+PvP** feature. Missions is fought on a level raised to `MISSION_Y`, which left every
+ride parked 82–89 m *below* the floor the party walks — unreachable, un-mountable, and
+still costing a model, a collider and a bolt target — so Missions no longer spawns them.
 
 **Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
 contextual button as cover, and a vehicle in range wins the press. RB is also the only
@@ -478,6 +492,12 @@ depth by inches). Weapons are stowed while riding: **the vehicle is the weapon.*
 and a knockdown — a swoop through a posted squad is bowling. Every body struck chips
 the vehicle's own HP, and a hard stop against a wall costs HP proportional to the
 speed lost. Nothing is free.
+
+**Finding one:** a parked, riderless ride shows on the radar as a dim steel **square**
+— distinct from every round contact by shape as well as hue, and it drops off the dial
+past the sweep rather than pinning to the rim, since a rim chevron means "something is
+over there", not "an opportunity is". A ridden one is not drawn: whoever is on it
+already has a blip.
 
 **Being shot down:** a parked vehicle is solid (a physics box, removed while ridden)
 and a bolt target on the props' team, so a firefight can cost you your ride before
