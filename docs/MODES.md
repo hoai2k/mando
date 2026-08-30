@@ -94,6 +94,21 @@ they stray. They respawn with their leader (a squad lead who is out of squad
 is just a worse trooper). The squad is the skirmisher lane's whole argument:
 your body is cheap, your volume of fire is not.
 
+**The squad carries its leader.** A downed squad leader with a follower still
+alive doesn't spend a stand: the player **takes over the nearest surviving
+squadmate** — the AI shell retires quietly (no kill credit beyond the down
+itself), the player stands up in its body with whatever health it had left,
+and the camera glides across to the new body rather than cutting. Only a
+wiped squad costs a life and a respawn (which re-forms the fireteam).
+
+**Attack buttons.** Every playable answers X with a melee swing — the
+humanoids through the canonical rig's melee combo, the creatures (massiff,
+krykna, broodmother, swoop) through their own `attack` animation (the same
+coil-and-strike the enemy AI plays). RT fires for anyone with a gun. Y is the
+rocket for gun carriers; for a melee-only fighter it is the **heavy lunge** —
+a committed leap onto the nearest target that lands as the knockdown finisher,
+on a 5 s clock.
+
 **What referees it.** All target acquisition (aim assist, melee sweep, saber
 deflect, rockets) goes through one new helper — `game.hostilesFor(player)` —
 which returns everything alive whose team differs. The projectile system

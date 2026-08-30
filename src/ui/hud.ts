@@ -223,8 +223,11 @@ export class Hud {
       h.weapon.textContent = p.alive
         ? p.weaponLabel()
         : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;
+      // Y is the rocket for gun carriers; for a blades-only fighter or a war
+      // beast it is the heavy lunge, and the HUD should call it what it is
       const rc = p.rocketCd;
-      h.rocket.textContent = rc <= 0 ? '◆ ROCKET READY' : `◇ rocket ${rc.toFixed(0)}s`;
+      const ord = p.profile.rangedName === null ? 'LUNGE' : 'ROCKET';
+      h.rocket.textContent = rc <= 0 ? `◆ ${ord} READY` : `◇ ${ord.toLowerCase()} ${rc.toFixed(0)}s`;
       h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
       h.wave.textContent = game.hudTopLine(p);
       h.kills.textContent = game.hudScoreLine(p);

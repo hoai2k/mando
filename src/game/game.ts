@@ -1159,16 +1159,21 @@ export class Game {
     for (const p of this.players) {
       if (p.alive || p.deathCounted) continue;
       p.deathCounted = true;
+      // a squad leader with a living follower isn't done: the player carries
+      // on in the survivor's body, and only a wiped squad spends a stand
+      const heir = this.squadHeir(p);
       const killer = p.lastHitBy >= 0 && p.lastHitBy !== p.slot ? this.players[p.lastHitBy] : null;
       if (killer) {
         killer.kills++;
         this.events.hitMarker(killer.slot);
         this.events.banner(`${killer.profile.name} downs ${p.profile.name}`,
-          p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);
-      } else if (p.lives <= 0) {
+          heir ? 'the squad fights on'
+            : p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);
+      } else if (!heir && p.lives <= 0) {
         this.events.banner(`${p.profile.name} is out`);
       }
       audio.killConfirm();
+      if (heir) this.takeOverFollower(p, heir);
     }
     const standing = this.players.filter((p) => p.alive || p.lives > 0 || p.respawnTimer > 0);
     if (this.players.length > 1 && standing.length <= 1) {
@@ -1178,6 +1183,42 @@ export class Game {
       this.setState('victory');
       this.events.banner(`${winner.profile.name} takes the territory`, 'This is the Way');
     }
+  }
+
+  /** the nearest living squad follower a fallen PvP leader can carry on as */
+  private squadHeir(p: Player): Enemy | null {
+    let best: Enemy | null = null;
+    let bestD = Infinity;
+    for (const e of this.enemies) {
+      if (e.owner !== p || !e.alive) continue;
+      const d = e.position.distanceToSquared(p.position);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    return best;
+  }
+
+  /**
+   * The fallen leader lives on in a surviving squadmate: the AI shell retires
+   * without a death (no credit, no burst of its own) and the player stands up
+   * in its place with whatever health the survivor had left. The camera flies
+   * over rather than cutting — glideFrom eases the position across while
+   * snapToward swings the look onto the new body.
+   */
+  private takeOverFollower(p: Player, heir: Enemy): void {
+    const healthFrac = Math.max(0.3, Math.min(1, heir.hp / heir.maxHp));
+    heir.alive = false;
+    heir.counted = true;   // not a kill: no score, no death FX
+    heir.removeMe = true;
+    // the leader's body goes down in a burst where it fell
+    this.particles.deathBurst(p.position.clone().add(new THREE.Vector3(0, p.height * 0.5, 0)));
+    p.cam.glideFrom(0.8);
+    p.spawnAt(heir.position);
+    p.hp = p.maxHp * healthFrac;
+    p.deathCounted = false;   // the next death counts fresh
+    const look = heir.position.clone();
+    look.y += p.height;
+    p.cam.snapToward(look, 0.45);
+    this.particles.dustPuff(p.position, 6);
   }
 
   /** HUD top line, per mode (the HUD stays mode-agnostic) */

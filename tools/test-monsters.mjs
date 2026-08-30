@@ -74,8 +74,9 @@ const sizes = await h.page.evaluate(async () => {
 /** the two colossi are meant to be half under the surface, not standing on it */
 const BURIED = new Set(['kraytDragon', 'mythosaur']);
 for (const [kind, m] of Object.entries(sizes)) {
+  // idle + move + attack (anim/quadruped.ts builds all three per rig)
   check(`${kind}: the sculpt arrives and is driven`,
-    m !== 'no sculpt' && m.clips === 2 && (m.standsOnGround || BURIED.has(kind)), m);
+    m !== 'no sculpt' && m.clips === 3 && (m.standsOnGround || BURIED.has(kind)), m);
 }
 // the design's figures: a mudhorn stands about as tall as two people, a
 // mamacore is the length of the trawler it swims under

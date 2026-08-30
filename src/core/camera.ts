@@ -95,6 +95,10 @@ export class ThirdPersonCamera {
   private snapYaw = 0;
   private snapPitch = 0;
   private snapT = 0;
+  // body hand-off glide: eases position from where the camera stood (see glideFrom)
+  private glideT = 0;
+  private glideDur = 0;
+  private glidePos = new THREE.Vector3();
   private tmpTarget = new THREE.Vector3();
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -116,13 +120,26 @@ export class ThirdPersonCamera {
   }
 
   /** Pull the view onto a world point over ~0.15 s (aim-press lock-on). */
-  snapToward(point: THREE.Vector3): void {
+  snapToward(point: THREE.Vector3, duration = 0.15): void {
     const dx = point.x - this.camera.position.x;
     const dy = point.y - this.camera.position.y;
     const dz = point.z - this.camera.position.z;
     this.snapYaw = Math.atan2(dx, dz);
     this.snapPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -1.25, 1.05);
-    this.snapT = 0.15;
+    this.snapT = duration;
+  }
+
+  /**
+   * Fly, don't cut: ease the camera from wherever it stands now to its next
+   * framing over `duration` seconds. The chase update below hard-sets position
+   * every frame, so a body handed to the camera at a new spot (the PvP squad
+   * takeover) would otherwise teleport the view. Pair with snapToward at the
+   * new body so the look swings over while the position glides.
+   */
+  glideFrom(duration = 0.8): void {
+    this.glideT = duration;
+    this.glideDur = duration;
+    this.glidePos.copy(this.camera.position);
   }
 
   /** Forward direction of aim (unit). */
@@ -194,6 +211,14 @@ export class ThirdPersonCamera {
     const back = this.tmpDir.clone().multiplyScalar(-1);
     const hit = physics.raycast(head, back, this.dist + 0.3);
     if (hit) this.tmpDesired.copy(head).addScaledVector(back, Math.max(hit.dist - 0.25, 0.3));
+
+    // hand-off glide: blend from the stored start toward the live chase
+    // framing, so a body swap flies the view over instead of cutting
+    if (this.glideT > 0) {
+      this.glideT -= dt;
+      const k = smoothstep(clamp(1 - this.glideT / this.glideDur, 0, 1));
+      this.tmpDesired.lerpVectors(this.glidePos, this.tmpDesired, k);
+    }
 
     this.camera.position.copy(this.tmpDesired);
     if (this.shakeAmt > 0.001) {
