@@ -41,6 +41,12 @@ const SUPERJUMP_RISE = 9;
 const SUPERJUMP_GLIDE = 0.35;
 /** super jump: terminal fall speed while feathering, m/s */
 const SUPERJUMP_FALL = 5.2;
+/** a jetpack A-tap released within this many seconds reads as a toggle, not a thrust hold */
+const JET_TAP = 0.22;
+/** eased jetpack descent: gravity multiplier while the pack idles against the fall */
+const JET_DESCENT_GRAV = 0.3;
+/** eased jetpack descent: terminal fall speed, m/s */
+const JET_DESCENT_FALL = 4.5;
 const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
@@ -169,6 +175,17 @@ export class Player {
   waterTime = 0;
 
   grounded = false;
+  // ---- jetpack eased descent (flight: 'jetpack') ----
+  /**
+   * A quick airborne A tap toggles this: the pack idles against gravity so
+   * the fall becomes a slow, steerable drop. Off by default, off again on
+   * landing — falling normally is always the state you take off from.
+   */
+  slowDescent = false;
+  /** seconds since an airborne A press being classified; -1 = none pending */
+  private airTap = -1;
+  /** easing the fall this frame (the gravity block reads it) */
+  private jetEasing = false;
   // ---- super jump (flight: 'superjump') ----
   /** the A hold from the take-off is still unbroken: the climb is live */
   private riseHold = false;
@@ -611,7 +628,11 @@ export class Player {
     // One press arms one dodge. If the stick is already pushed it fires on the
     // spot; if the stick is centred the dodge waits for a direction and goes
     // the instant one arrives. Either way, holding LB on past the dodge rolls
-    // into a sprint. In the air sprint means nothing, so it is the jet burst.
+    // into a sprint (which means nothing in the air). The same arming works
+    // airborne: a falling Mandalorian holds LB and flicks the stick to dart
+    // that way — it used to fire camera-forward the instant LB was pressed
+    // with the stick centred, which spent the dodge before a direction could
+    // be chosen.
     const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking && this.snareTimer <= 0 && !this.wading;
     if (input.dashPressed && !this.blocking) {
       this.dashArmed = true;
@@ -621,7 +642,7 @@ export class Player {
     }
     if (!input.sprintHeld) { this.dashArmed = false; this.sprintLatched = false; }
 
-    const dashNow = this.dashArmed && canDash && (moving || !this.grounded);
+    const dashNow = this.dashArmed && canDash && moving;
     if (dashNow) {
       this.dashArmed = false;
       this.dashTimer = 0.24;
@@ -675,19 +696,44 @@ export class Player {
 
     // ---- jump / flight ----
     const superjump = this.profile.flight === 'superjump';
+    const jetpack = this.profile.flight === 'jetpack';
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
-    if (this.grounded) this.riseHold = false;
+    if (this.grounded) {
+      this.riseHold = false;
+      // the ground resets the descent toggle: you always take off falling normally
+      this.slowDescent = false;
+      this.airTap = -1;
+    }
+    let jumped = false;
     if (input.jumpPressed && this.coyote > 0 && !this.blocking && this.snareTimer <= 0) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
       game.particles.dustPuff(this.position, 4);
+      jumped = true;
       // the super jump is armed by the take-off itself: the hold that leaves
       // the ground is the one that keeps climbing
       this.riseHold = superjump;
     }
+    // A quick airborne A tap — no jump left to spend, and released before it
+    // reads as a thrust hold — toggles the eased descent. The classification
+    // happens on release, so a real hold (which starts thrusting immediately)
+    // never flips the mode.
+    if (jetpack) {
+      if (input.jumpPressed && !jumped && !this.grounded) this.airTap = 0;
+      else if (this.airTap >= 0) {
+        this.airTap += dt;
+        if (!input.jumpHeld) {
+          if (this.airTap <= JET_TAP) this.slowDescent = !this.slowDescent;
+          this.airTap = -1;
+        } else if (this.airTap > JET_TAP) {
+          this.airTap = -1;   // held on: that press was a thrust, not a toggle
+        }
+      }
+    }
     this.thrusting = 0;
-    if (this.profile.flight === 'jetpack' && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    this.jetEasing = false;
+    if (jetpack && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -705,6 +751,12 @@ export class Player {
       }
     } else if (this.grounded) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
+    } else if (jetpack && this.slowDescent && this.velocity.y < 0 && this.fuel > 0 && !this.blocking) {
+      // eased descent: the pack idles against gravity — a visible low burn,
+      // a sip of fuel, and the gravity block below softens the fall
+      this.jetEasing = true;
+      this.thrusting = 0.35;
+      this.fuel = Math.max(0, this.fuel - dt / (FUEL_SECONDS * 5));
     } else {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 3.2));
     }
@@ -743,9 +795,12 @@ export class Player {
       // controlled drop — lighter gravity, a capped fall speed — never a rise
       this.superGliding = superjump && !this.grounded && !this.superRising
         && input.jumpHeld && this.velocity.y < 2 && !this.blocking;
-      const gScale = this.superRising ? 0 : this.superGliding ? SUPERJUMP_GLIDE : 1;
+      const gScale = this.superRising ? 0
+        : this.superGliding ? SUPERJUMP_GLIDE
+        : this.jetEasing ? JET_DESCENT_GRAV : 1;
       this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * gScale * dt;
       if (this.superGliding && this.velocity.y < -SUPERJUMP_FALL) this.velocity.y = -SUPERJUMP_FALL;
+      if (this.jetEasing && this.velocity.y < -JET_DESCENT_FALL) this.velocity.y = -JET_DESCENT_FALL;
       // A brace wants the ground under it: raising the shield mid-air kills any
       // rise you had and pulls you down to meet it.
       if (this.blocking && !this.grounded) {
