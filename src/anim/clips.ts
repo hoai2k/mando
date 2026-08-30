@@ -273,6 +273,27 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
   ]);
 
+  // ---------- LOWER: landing (absorb the drop) ----------
+  //
+  // A one-shot under whatever the upper body is doing: the knees fold to take
+  // the impact in the first tenth of a second, then push back up to standing.
+  // The controller plays it from the speed the ground was met at, faster for a
+  // light landing than a heavy one, so a hop and a rooftop drop do not read the
+  // same. Nothing here moves the character — the crouch is hips-down over feet
+  // that stay planted, which is what keeps it from looking like a second fall.
+  clips.landLower = new THREE.AnimationClip('landLower', 0.38, [
+    pt('hips', [0, 0.1, 0.24, 0.38], [[0, hipY - 0.04, 0], [0, hipY - 0.26, 0], [0, hipY - 0.1, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.1, 0.24, 0.38], [[6, 0, 0], [16, 0, 0], [9, 0, 0], [0, 0, 0]]),
+    qt('spine', [0, 0.1, 0.24, 0.38], [[3, 0, 0], [10, 0, 0], [5, 0, 0], [2, 0, 0]]),
+    qt('upperLegL', [0, 0.1, 0.24, 0.38], [[-18, 0, -5], [-48, 0, -9], [-24, 0, -6], [-3, 0, -2]]),
+    qt('lowerLegL', [0, 0.1, 0.24, 0.38], [[26, 0, 0], [70, 0, 0], [34, 0, 0], [5, 0, 0]]),
+    qt('footL', [0, 0.1, 0.24, 0.38], [[-4, 0, 0], [-18, 0, 0], [-8, 0, 0], [0, 0, 0]]),
+    // a couple of degrees between the legs so the absorb isn't a piston
+    qt('upperLegR', [0, 0.1, 0.24, 0.38], [[-15, 0, 5], [-44, 0, 9], [-21, 0, 6], [-3, 0, 2]]),
+    qt('lowerLegR', [0, 0.1, 0.24, 0.38], [[23, 0, 0], [64, 0, 0], [31, 0, 0], [5, 0, 0]]),
+    qt('footR', [0, 0.1, 0.24, 0.38], [[-3, 0, 0], [-16, 0, 0], [-7, 0, 0], [0, 0, 0]]),
+  ]);
+
   // ---------- LOWER/UPPER: jetpack flight (legs trail, superman-lite) ----------
   clips.flyLower = new THREE.AnimationClip('flyLower', 1.6, [
     pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.02, 0], [0, hipY, 0]]),
@@ -472,9 +493,16 @@ function makeClips(p: Proportions): ClipSet {
   ]);
 
   // ---------- UPPER: block (shield up, braced behind it) ----------
+  //
+  // The shield hangs off the chest and opens along its +Z, so every degree the
+  // chest is pitched forward is a degree the shield is aimed at the floor.
+  // Stacked on the spine and the braced hips this came to about 20°, and the
+  // block read as cowering into the ground rather than facing what is shooting
+  // at it. The lean is now a few degrees of brace, and the head tips up over
+  // the rim by as much, so the visor and the dome both point down the sights.
   clips.blockUpper = new THREE.AnimationClip('blockUpper', 2, [
-    qt('chest', [0, 1, 2], [[10, 6, 0], [12, 7, 0], [10, 6, 0]]),
-    qt('head', [0, 2], [[6, -10, 0], [6, -10, 0]]),
+    qt('chest', [0, 1, 2], [[2, 6, 0], [3, 7, 0], [2, 6, 0]]),
+    qt('head', [0, 2], [[-3, -10, 0], [-3, -10, 0]]),
     // forearm across the body, the other bracing it — the shield hangs off both
     qt('upperArmL', [0, 1, 2], [[-64, -22, -14], [-66, -24, -15], [-64, -22, -14]]),
     qt('forearmL', [0, 2], [[-74, 0, 0], [-74, 0, 0]]),
@@ -484,8 +512,10 @@ function makeClips(p: Proportions): ClipSet {
   // legs braced wide, weight back
   clips.blockLower = new THREE.AnimationClip('blockLower', 2, [
     pt('hips', [0, 1, 2], [[0, hipY - 0.08, 0], [0, hipY - 0.09, 0], [0, hipY - 0.08, 0]]),
-    qt('hips', [0, 2], [[6, 12, 0], [6, 12, 0]]),
-    qt('spine', [0, 2], [[4, 0, 0], [4, 0, 0]]),
+    // the crouch and the bladed stance stay; the forward pitch does not — it is
+    // what tipped the shield toward the ground (see blockUpper)
+    qt('hips', [0, 2], [[2, 12, 0], [2, 12, 0]]),
+    qt('spine', [0, 2], [[1, 0, 0], [1, 0, 0]]),
     qt('upperLegL', [0, 2], [[-26, 0, -8], [-26, 0, -8]]),
     qt('lowerLegL', [0, 2], [[34, 0, 0], [34, 0, 0]]),
     qt('upperLegR', [0, 2], [[16, 0, 10], [16, 0, 10]]),

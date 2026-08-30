@@ -2030,6 +2030,9 @@ export class Enemy {
   /** touched down / walked in: this ground is the post now */
   private finishArrival(game: Game, dust: boolean): void {
     if (dust) game.particles.dustPuff(this.position, 8);
+    // a drop-in takes the ground in the knees, the same crouch the player uses;
+    // one that walked in off the edge of the board has nothing to absorb
+    if (dust) this.char.animator?.playOnce('lower', 'landLower', 0.05);
     this.post.copy(this.position);
     this.spawnPos.copy(this.position);
     this.idleGoal.copy(this.position);
