@@ -1,133 +1,144 @@
-# Campaign Level Design — strategy & per-territory notes
+# Mission Level Design — strategy & per-territory layouts
 
-How a wave arena becomes a Gauntlet-length liberation run. Companion to
-`docs/MODES.md` §4; this file is the level designer's side of it.
+How a territory becomes a Gauntlet-length liberation run. Companion to
+`docs/MODES.md` §4; this file is the level designer's side of it. Rewritten
+2026-08-30 when the waypoint-tour design (a path laid over the open wave
+arena, watched through one shared camera) was replaced by purpose-built
+mission levels and per-player cameras.
 
-## 1. The pacing target, with numbers
+## 1. The research, and what it demanded
 
-A Gauntlet (2014/Slayer) chapter runs **8–12 minutes**: roughly 8–12 combat
-pockets of 30–60 s, separated by 10–20 s of traversal, with one mid-level
-set-piece and a finale. Minecraft Dungeons levels run longer (15–20 min) but
-share the shape: *pocket → pinch → pocket*, with the golden path always
-readable and the fights always optional-ish (you can run, but running wakes
-things that follow).
+- **Gauntlet (2014/Slayer).** Chapters run 8–12 minutes as a chain of
+  hand-shaped chambers; its signature floor type is the **arena room** —
+  waves keep coming until the room is cleared, often from spawners at the
+  walls — and its co-op holds together because the chamber walls hold the
+  party together. Rooms are contained; the way forward is never in doubt.
+- **Minecraft Dungeons.** Levels are authored room chains along one golden
+  path: wide pockets for fights, pinches between them, landmark rooms so
+  players feel their progress, and lockdown encounters that seal an area
+  while its mobs pour in. It *dresses* the path as terrain, but the
+  underlying structure is rooms-and-connectors, not open world.
 
-Our budget per territory:
+The v1 campaign laid a waypoint tour over the territory's open wave arena.
+It technically had pockets and pinches, but the player experience was the
+open arena with a to-do list: no containment, fights bled into each other,
+and the "corridors" were teleports to a separate volume. The lesson from
+both references is that the *feel* comes from walls — contained areas the
+fight cannot leave, pinches that reset the tempo, and a chain you walk in
+one direction. So Missions now builds exactly that.
 
-| Beat | Count | Time each | Total |
-|---|---|---|---|
-| Open-path fight waypoints | 6–7 | 40–60 s | ~5–6 min |
-| Corridor segments (door → door) | 2 | 60–90 s | ~2–3 min |
-| Traversal between beats | 8–9 gaps | 10–15 s | ~1.5–2 min |
-| Boss arena finale | 1 | 60–120 s | ~1–2 min |
-| **Level** | | | **~9.5–13 min** |
+## 2. The mission level (`world/mission.ts`)
 
-That lands on Gauntlet's chapter length with co-op skewing shorter (squads die
-faster to four guns; enemy counts scale ×1.5 per extra player via the existing
-multiplier, which claws most of it back).
+One territory = one authored **room chain**: 8 rooms joined by 7 corridor
+links, built from a per-territory `MissionSpec` (sizes, bends, palette, set
+pieces) and raised ~90 m over the territory — the altitude trick the old
+corridor segments proved out — so the level keeps the board's sky, fog,
+ambience, gravity, traction and wave tables while getting clean, flat,
+intentional geometry on every board. Rooms are open-roofed (the territory's
+sky is the ceiling; jetpack verticality stays); corridors are roofed and
+low. Everything is walked — no teleports, one continuous path.
 
-## 2. The winding path
+Room templates, alternating along the chain:
 
-The path is generated over the board's own authored ground: the 8–12
-`groundSpawns` every board already declares are the level designer's vetted
-"places a fight can happen", so the campaign path is a **tour of them** —
-nearest-unvisited-neighbour from the player start, which on every board
-produces a winding S-curve rather than a straight march (the spawns were
-placed to spread waves out, so consecutive nearest hops naturally zig-zag).
-Rules layered on the tour:
+- **start** — the trailhead. The party spawns here; no fight.
+- **camp** — a posted garrison under the normal awareness rules, standing
+  among cover crates in the room's far half. Fight it or slip through: the
+  room clears when someone reaches the far gate, and blaster fire travels,
+  so the loud way compounds. No lockdown.
+- **assault** — the Gauntlet arena floor. Crossing the threshold seals both
+  gates behind an energy pane and runs **2–3 waves** from vents along the
+  walls, each alerted the moment it lands. The gates release on the last
+  body; the wave counter rides the HUD hint.
+- **champion / warlord** — the boss arenas (MODES.md §4a), mid-chain and
+  final. Gates seal for the battle; on monster boards the warlord's arena is
+  sized (up to 40×34 m, walls raised) for the second-stage monster that
+  erupts where the warlord fell.
 
-- **Ramp along the path.** Waypoint *i* of *n* posts a squad drawn from the
-  board's wave table at wave `1 + round(9 · i/(n−1))` — trailhead squads are
-  wave-1 grunts, the last stretch posts the board's elites. Difficulty is
-  *place*, not time.
-- **Squads are posted, not triggered.** They stand at their waypoint under the
-  normal awareness rules. Fights start when you're seen or heard — a wide,
-  quiet route past a camp is a real (and intended) option, but blaster fire
-  travels 55 m, so the loud way compounds.
-- **The guide never marks enemies.** A light-pillar beacon + radar pip + HUD
-  distance marks the *next waypoint only*. Exploration feel comes from what
-  the beacon doesn't tell you: what's between you and it.
-- **Checkpoints ride the path.** Reaching a waypoint makes it the respawn
-  point, with the wave-clear chime and a banner so "safe" is announced. No
-  lives economy in v1.
-- **Encounter templates alternate** (the Gauntlet/Dungeons standard —
-  identical pockets go flat by the third one): *camp* nodes post their squad
-  under the normal awareness rules; every third node is an *ambush* — its
-  squad springs from the surrounding ground at ~24 m with a hard alert and an
-  "Ambush!" sting. The node after each corridor carries no squad at all: a
-  breather beat, so the corridor's pressure has somewhere to land.
+Rules layered on the chain:
+
+- **Ramp by place, not time.** Room *i* of *n* draws squads from the board's
+  wave table at wave `1 + round(6 · (i−1)/(n−2))`; an assault room's later
+  waves draw one wave deeper each. Trailhead rooms post wave-1 grunts, the
+  last stretch posts the board's elites, and the newest kind in the table
+  always makes the room's mix.
+- **One beacon.** A light pillar + radar pip + HUD distance marks the single
+  next objective: the next room's entry gate on the move, the exit gate
+  during a fight, the boss himself in an arena.
+- **Checkpoints are earned ground.** Entering a room checkpoints its entry;
+  clearing it checkpoints its far end (never a set piece's centre — the pit
+  room taught that). Death respawns there after 4 s; going over a wall or
+  off the level teleports you back to it.
 - **A pickup economy, small on purpose.** Bacta canisters (+45 HP) sit in
-  every corridor pocket — the attrition beat pays for itself — and one hides
-  ~9 m off the golden path every third node, the standing reward for
-  wandering that both references teach. Keys/food economies stay in the
-  expansion list.
+  wall alcoves off two rooms per level (the reward for poking into corners)
+  and midway down every other corridor (the attrition beat pays for itself).
+- **Set pieces are per-territory** (§4): a kill-pit maw, lava or shock
+  channels with a narrow safe bridge, explosive rhydonium barrels seeded in
+  the fight, hard-cover pillars, extra crate cover.
 
-## 3. Corridors — the cover beat
+## 3. Corridors — the pinch
 
-Twice per level (after roughly ⅓ and ⅔ of the waypoints) the beacon leads to a
-**door**. Doors teleport the whole party into a corridor segment: a
-procedurally assembled interior lane, built high above the territory so it
-reads as its own space (and so the door remains the seam where real streaming
-can later slot in — see MODES.md expansion §2).
+Links between rooms are 5–6 m wide crate-lined legs with **at most one 90°
+bend** through a small junction, 12–18 m per leg, 3.8 m ceiling. A staggered
+pair of crates sits **butted flush against the walls** — flush matters: a
+crate floating off the wall leaves a gap too narrow for a body, and that
+pocket catches anyone hugging the wall (the walkthrough audit wedged in it
+until the geometry was fixed). Ranged defenders post behind the crates
+facing the entrance; the loop is *tuck, peek, drop one, advance*. Door
+frames stand in both mouths and carry the energy gates. The low ceiling
+makes the jetpack a hop, not a route — the cover button's classroom, exactly
+as before, just walked into instead of teleported into.
 
-Corridor grammar (each segment rolls its own from these pieces):
+## 4. Per-territory layouts (`MISSION_LAYOUTS`)
 
-- **Lane**: 6–8 m wide, 55–80 m long, 2–3 bends (left/right alternating), 4 m
-  ceiling. Bends break sightlines so each leg is its own micro-encounter.
-- **Cover rows**: chest-high crates in staggered pairs every 8–12 m, usable by
-  both sides — the enemy cover AI (`findCover`/peek/suppression) is the whole
-  point of the beat, and the player's snap-to-cover faces it.
-- **Pockets**: 1–2 wider rooms (12×14 m) mid-lane with a crate cluster —
-  the "advance under fire" set-piece, 2 squads posted.
-- **Defenders**: ranged kinds only (the board's shooters — troopers, pykes,
-  pirates; flametroopers on Imperial boards as the push-punisher), posted
-  *behind* cover facing the entrance. One squad per leg, one per pocket:
-  ~8–12 defenders per corridor.
-- **Exit door** at the far end returns the party to the surface at the next
-  waypoint. Doors close behind you (no backtracking through a cleared
-  corridor; keeps pacing forward, avoids stale-post edge cases).
+All nine share the chain grammar; what changes is palette, corridor width,
+bend pattern, set pieces, room proportions and the labels the banners use.
+Every room label is authored (— "the cistern court", "the warden bridge") so
+the HUD reads like a place, not a quest log.
 
-Design intent: corridors invert the open field. Outside, the jetpack and the
-dash rule and cover is optional; inside, the ceiling is low (jetpack is a
-hop, not a route), the lane is enfiladed, and the loop is *tuck, peek, drop
-one, advance*. Ten seconds of it teaches what the cover button is for.
+| Territory | Shape & set pieces | Warlord arena |
+|---|---|---|
+| Dune Sea | sandstone yards; a sarlacc-maw **kill pit** in the cistern court (fight around it, beacon never in it) | 40×34 — the Old One erupts |
+| Spice Run | dark-metal decks, 5 m service corridors; **rhydonium barrels** in the spice vault | 34×30 — the mudhorn |
+| Lava Flats | basalt; **lava channels** with a centre bridge cross two rooms | 38×32 — the rancor pen |
+| Crevasse | ice palette and **0.55 traction** over the whole footprint; ice **pillars** in two rooms | 36×32 — the ravinak |
+| Storm Docks | plank-and-iron docks; barrels in the cold stores | 38×32 — the mamacore pool |
+| Refinery | tightest chain: 5 m corridors, a bend in every link, **barrels** twice | 30×26 — no monster |
+| Great Forge | glassed stone; ruin **pillars** in two rooms | 40×34 — the mythosaur |
+| Ringworld | long straight avenues (rooms elongated along travel, links up to 18 m) for the street feel | 28×26 — no monster |
+| Prison Rig | white panels, 5 m corridors; **shock floors** in two work halls | 30×26 — no monster |
 
-## 4. Boss arena
+## 5. Readability rules (the Gauntlet lessons, kept)
 
-The last waypoint sits in the board's most arena-shaped spot (widest clear
-radius among the spawns — computed, not hand-tagged). The territory's boss
-(MODES.md §4a) posts there with a 3-strong honour guard; the beacon walks you
-in. Phase reinforcements spawn on the arena rim at ⅔ and ⅓ HP so the fight
-sweeps outward, not into a corner. Death mid-boss respawns at the previous
-waypoint — the walk back is the retry cost.
-
-## 5. Per-territory notes (what each board's path leans on)
-
-| Territory | Path character | Corridor flavour | Boss |
-|---|---|---|---|
-| Dune Sea | dune crests and rock arches; sarlacc as a path-adjacent hazard the beacon skirts | moisture-farm cellars (sandstone kit) | Wookiee enforcer |
-| Spice Run | platform-to-platform; the jetpack *is* the traversal beat, corridors are the respite | station service decks | Pyke capo |
-| Lava Flats | path crosses the crust bridges; geysers as free altitude at two waypoints | gate blockhouse | Imperial officer |
-| Crevasse | descends rim → ledges → canyon floor and climbs back; ice traction on legs 3–5 | ice tunnels (krykna nests: melee corridor variant — swarm instead of shooters) | Broodmother |
-| Storm Docks | finger-to-finger with two trawler-mover crossings; mamacore timer discourages swimming the gaps | fish-hold below decks | Pyke capo |
-| Refinery | already interior: the "open" beats are the reactor shaft ring, corridors are its own halls (most corridor-native board) | rhydonium galleries (breakable barrels seeded in cover rows) | Imperial officer (darksaber) |
-| Great Forge | storm cycle gates the open legs — move on the calm, fight under cover in the storm | dome undercrofts | Wookiee enforcer |
-| Ringworld | street runs with the terminator: night-side legs favour sneaking, tram as a moving waypoint | maintenance spine under the street | Gunslinger |
-| Prison Rig | deck hops over live floors; one leg dives the moon pool (the stealth showpiece) | white cell blocks (Narkina look, electrified-floor pocket) | Imperial officer |
-
-v1 generates all of this from each board's existing data (spawns, hazards,
-movers, wave tables) with one shared generator; the table above is the tuning
-guide for the per-board passes that follow playtesting.
-
-## 6. Readability rules (the Gauntlet lessons, kept)
-
-1. **One beacon.** Never two objectives on screen; the pillar is tall enough
-   to read over dunes and through fog.
-2. **Distance on the HUD**, not a map. `142 m` under the objective name is
+1. **One beacon.** Never two objectives on screen; the pillar reads over
+   walls and through fog.
+2. **Distance on the HUD**, not a map. `— 42 m` under the objective name is
    enough to know "far"; the radar pip gives bearing.
-3. **Doors glow.** A door-waypoint's beacon sits *on* the door; the door
-   frame carries its own emissive trim so the last 20 m needs no beacon.
-4. **Fights end audibly.** The existing wave-clear chime plays when a
-   waypoint's squad dies, marking "safe to move" without any UI.
-5. **The path never doubles back through a cleared pocket** — the tour visits
-   each spawn once, corridors are one-way, and the boss arena is terminal.
+3. **Doors glow.** Gates carry emissive-trimmed frames; a sealed gate's
+   energy pane in the territory's accent colour says "clear the room" with
+   no UI at all.
+4. **Fights end audibly.** The wave-clear chime plays when an assault room
+   opens; camp rooms confirm quietly.
+5. **The path never doubles back.** The chain is one-way in spirit: cleared
+   rooms hold nothing new, and the trim skirting along the walls points the
+   eye forward.
+
+## 6. Cameras
+
+Every player has their own third-person rig and viewport; Missions splits
+the screen exactly like the wave game. The v1 shared centroid camera (one
+screen, player 1 steering) died on contact with the room design: walls and
+crates split the party out of frame, and screen-relative aim meant nobody
+owned their own crosshair. Per-player cameras also mean every mechanic —
+ADS, lock-on, cover peek, the boss-intro pan — behaves identically across
+all three modes.
+
+## 7. Verification
+
+Two audits drove the geometry (and both caught real bugs — the corridor
+wall notch at bends, the floating-crate pocket, the beacon standing in the
+pit): a build audit (rooms don't overlap, every room keeps ≥3 validated
+spawn vents, garrisons post, no hostile strands below the level) and an
+**on-foot walkthrough** — a steering autopilot walking a real player through
+every room, gate and bend of all nine levels to liberation with zero falls
+and zero wedges. `tools/test-modes.mjs` keeps the regression: room chain
+shape, sealed assault waves, boss retinue, liberation, per-player cameras.

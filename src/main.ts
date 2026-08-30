@@ -251,7 +251,7 @@ settings.addChoice('Split screen', [
   saveVideoConfig();
   // A match in progress re-lays its HUD immediately; the renderer reads the
   // rectangles fresh every frame, so the viewports follow on their own.
-  if (game) hud.setLayout(playerCount, mode === 'campaign');
+  if (game) hud.setLayout(playerCount);
 });
 settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
@@ -441,7 +441,7 @@ function buildMatch(): void {
   // and rebuilds the HUD elements. Built the other way round, that opening
   // banner was written into DOM that was destroyed a line later, so "The Dune
   // Sea / Survive 10 waves" never actually appeared.
-  hud.setLayout(playerCount, mode === 'campaign');
+  hud.setLayout(playerCount);
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     bossIntro: (t, s) => hud.bossIntro(t, s),

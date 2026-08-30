@@ -99,9 +99,9 @@ const BOARD_SKY: Partial<Record<BoardId, string>> = {
 
 export const MANDO_IDS = PLAYABLE_MANDO_IDS;
 
-/** Surfaces the campaign's corridor segments ask for (`world/corridor.ts`). */
+/** Surfaces the campaign's mission levels tile over their walls and floors (`world/mission.ts`). */
 const CORRIDOR_TEXTURES = ['corridor_wall', 'corridor_floor', 'hazard_stripe'];
-/** ...and the sculpts, which the same segments swap in over their stand-ins. */
+/** ...and the sculpts the same levels swap in over their stand-ins (gates, cover crates). */
 const CORRIDOR_PROPS = ['blast_door', 'corridor_crate'];
 
 /** Every enemy kind a board can post, from wave one through `throughWave`. */
@@ -211,8 +211,8 @@ export function warmMatch(board: BoardId, chars: PlayableId[], mode: GameMode = 
       const bossId = ENEMY_MODEL_ID[kind];
       if (bossId) warmAuthored(bossId, 'soon');
     }
-    // corridors are built at match start but only walked into minutes later,
-    // so their art can trail the drop
+    // the mission level is built at match start but its later rooms are only
+    // walked into minutes in, so its art can trail the drop
     for (const t of CORRIDOR_TEXTURES) warmTexture(t, 'idle', 'png');
     for (const id of CORRIDOR_PROPS) warmAuthored(id, 'idle');
   }

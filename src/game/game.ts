@@ -19,7 +19,6 @@ import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import { Campaign } from './campaign';
-import { ThirdPersonCamera } from '../core/camera';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
@@ -151,13 +150,10 @@ export class Game {
   private incoming = 0;
   /** campaign controller; null outside campaign mode */
   campaign: Campaign | null = null;
-  /** campaign's one shared screen: the camera the party is watched through */
-  sharedCam: ThirdPersonCamera | null = null;
   /** PvP: the slot that took the territory, for the end screen */
   winnerSlot = -1;
   /** per-frame cache behind hostilesFor */
   private hostileCache = new Map<number, Combatant[]>();
-  private sharedCentroid = new THREE.Vector3();
 
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
     characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave') {
@@ -200,11 +196,8 @@ export class Game {
     if (mode === 'pvp') for (const p of this.players) this.spawnSquadFor(p);
 
     if (mode === 'campaign') {
-      // one screen for the whole party: a single rig follows the centroid and
-      // player one's stick steers it (players' own rigs become aim references)
-      this.sharedCam = new ThirdPersonCamera(aspect);
-      this.sharedCam.baseDist = 6.5;
-      this.sharedCam.pitch = -0.5;
+      // raises the mission level over the territory and moves the party to its
+      // trailhead; every player keeps their own camera, split-screen as ever
       this.campaign = new Campaign(this);
     }
 
@@ -336,7 +329,9 @@ export class Game {
   spawnBoss(pos: THREE.Vector3, tier: 'mid' | 'final' = 'final'): Enemy {
     const mid = MID_BOSS[this.board.kind];
     const kind = tier === 'mid' ? mid.kind : BOSS_KIND[this.board.kind];
-    const at = standingSpot(this.board, pos.clone(), kind);
+    const at = this.campaign
+      ? this.campaign.placeNear(pos.clone(), kind)
+      : standingSpot(this.board, pos.clone(), kind);
     const boss = new Enemy(kind, at);
     if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
     else boss.promoteBoss(BOSS_NAME[this.board.kind]);
@@ -484,7 +479,10 @@ export class Game {
     for (const p of this.players) p.cam.shake(0.12);
     if (this.monsterQuake > 0) return;
 
-    const at = standingSpot(this.board, (this.monsterAt ?? this.players[0].position).clone(), monster.kind);
+    const wanted = (this.monsterAt ?? this.players[0].position).clone();
+    const at = this.campaign
+      ? this.campaign.placeNear(wanted, monster.kind)
+      : standingSpot(this.board, wanted, monster.kind);
     this.monsterAt = null;
     const beast = new Enemy(monster.kind, at);
     beast.promoteBoss(monster.name, 1, 1, 1);
@@ -591,8 +589,9 @@ export class Game {
   addReinforcement(kind: EnemyKind, pos: THREE.Vector3, squad = 0): Enemy {
     // Same guard the wave spawner uses: whoever asked for this position was
     // not looking at the colliders, and a body dropped inside one is ejected
-    // through its nearest face on the first frame.
-    pos = standingSpot(this.board, pos, kind);
+    // through its nearest face on the first frame. In a mission the placement
+    // stays inside the level — the board-wide fallback is ninety metres down.
+    pos = this.campaign ? this.campaign.placeNear(pos, kind) : standingSpot(this.board, pos, kind);
     const e = new Enemy(kind, pos);
     e.squad = squad;
     this.waveSpawned++;
@@ -754,7 +753,6 @@ export class Game {
         const head = b.position.clone();
         head.y += b.height * 0.7;
         for (const p of this.players) p.cam.snapToward(head);
-        this.sharedCam?.snapToward(head);
       }
     }
     this.time += dt;
@@ -768,27 +766,6 @@ export class Game {
         const gone = this.carriers.splice(i, 1)[0];
         this.scene.remove(gone.group);
         gone.dispose();
-      }
-    }
-
-    // ---- campaign's shared screen ----
-    // Player one's stick steers the one rig everybody is watched through;
-    // every player's own (unrendered) rig is slaved to its yaw/pitch so
-    // screen-relative movement and aim mean the same thing for the whole party.
-    if (this.sharedCam) {
-      const look = inputs[0];
-      if (look) {
-        this.sharedCam.addLook(look.lookX, look.lookY);
-        if (look.zoomDelta) this.sharedCam.dolly(look.zoomDelta);
-      }
-      for (const p of this.players) {
-        p.cam.yaw = this.sharedCam.yaw;
-        p.cam.pitch = this.sharedCam.pitch;
-      }
-      // the look already landed on the shared rig — don't let each player's
-      // own rig apply it again
-      for (let i = 0; i < inputs.length; i++) {
-        if (inputs[i]) inputs[i] = { ...inputs[i], lookX: 0, lookY: 0, zoomDelta: 0 };
       }
     }
 
@@ -891,8 +868,7 @@ export class Game {
         // out of lives: eliminated — updatePvp calls the match
       } else if (this.mode === 'campaign') {
         // arcade checkpointing: the walk back is the cost (LEVEL_DESIGN.md §2)
-        const at = this.campaign?.respawnPoint ?? this.board.playerStarts[0];
-        p.spawnAt(standingSpot(this.board, at.clone().add(new THREE.Vector3((p.slot % 2) * 1.5 - 0.75, 0.2, 0)), 'pyke'));
+        p.spawnAt(this.campaign?.respawnSpot(p.slot) ?? this.board.playerStarts[0].clone());
         p.hp = p.maxHp * 0.8;
         this.events.banner('Back on your feet', 'the beacon waits');
       } else {
@@ -924,20 +900,6 @@ export class Game {
       if (v.removeMe) this.scene.remove(v.group);
     }
     this.vehicles = this.vehicles.filter((v) => !v.removeMe);
-
-    // ---- shared screen follows the party ----
-    if (this.sharedCam) {
-      const alive = this.players.filter((p) => p.alive);
-      const party = alive.length ? alive : this.players;
-      this.sharedCentroid.set(0, 0, 0);
-      for (const p of party) this.sharedCentroid.add(p.position);
-      this.sharedCentroid.divideScalar(party.length);
-      let speed = 0;
-      for (const p of party) speed = Math.max(speed, Math.hypot(p.velocity.x, p.velocity.z));
-      this.sharedCam.update(dt, this.sharedCentroid, this.board.physics, {
-        aiming: false, speed, dashing: false, flying: false, climb: 0,
-      });
-    }
 
     // ---- hunt escalation (wave mode only: campaign posts hold their path) ----
     // Posted enemies wait to be found, which must not let a wave stall out: if
@@ -1460,25 +1422,6 @@ export class Game {
     renderer.getSize(this.tmpSize);
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
-
-    // campaign: the whole party on one screen through the shared rig
-    if (this.sharedCam) {
-      const cam = this.sharedCam.camera;
-      cam.aspect = w / h;
-      cam.updateProjectionMatrix();
-      renderer.setScissorTest(false);
-      renderer.setViewport(0, 0, w, h);
-      renderer.setScissor(0, 0, w, h);
-      const sFog = this.scene.fog;
-      const sBg = this.scene.background;
-      const under = this.board.waterY !== undefined && cam.position.y < this.board.waterY;
-      this.scene.fog = under ? this.underFog : sFog;
-      this.scene.background = under ? this.underColor : sBg;
-      renderer.render(this.scene, cam);
-      this.scene.fog = sFog;
-      this.scene.background = sBg;
-      return;
-    }
 
     const n = this.players.length;
     const rects = splitLayout(n);

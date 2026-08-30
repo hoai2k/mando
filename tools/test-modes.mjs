@@ -1,10 +1,10 @@
 /**
  * Regression test for the game modes (docs/MODES.md): the three-way title,
  * PvP rules (distinct teams, the playable-NPC adapter, squad followers,
- * last-one-standing), the campaign (shared screen, path with door-gated
- * corridors, boss arena, liberation), the wave game's boss wave, and — since
- * the modes became the default — that `?nomodes` still puts the original
- * one-button title back.
+ * last-one-standing), the campaign (per-player cameras, the mission level's
+ * room chain with sealed assault waves, boss arenas, liberation), the wave
+ * game's boss wave, and — since the modes became the default — that
+ * `?nomodes` still puts the original one-button title back.
  *
  * The headless GPU renders this game at a crawl, so the checks drive the
  * *simulation* directly: `__manual` pauses the live loop and `game.update`
@@ -120,44 +120,52 @@ s = await page.evaluate(`(() => {
   const c = g.campaign;
   return {
     shared: !!g.sharedCam, state: g.state,
-    steps: c.steps.map((st) => st.kind).join(','),
+    camsApart: g.players[0].cam !== g.players[1].cam,
+    rooms: c.level.rooms.map((r) => r.spec.kind).join(','),
+    elevated: g.players.every((p) => p.position.y > 60),
     posted: g.enemies.filter((e) => e.alive).length,
     hint: g.hudTopLine(g.players[0]),
   };
 })()`);
-check('campaign: shared screen, fight open', s.shared && s.state === 'fighting');
-check('campaign: path of nodes, two door-gated corridors, boss finale',
-  (s.steps.match(/door/g) || []).length === 2 && s.steps.endsWith('boss'), s.steps);
-check('campaign: squads posted along the path', s.posted > 10, String(s.posted));
+check('campaign: every player their own camera, no shared rig',
+  !s.shared && s.camsApart && s.state === 'fighting');
+check('campaign: the mission level is a room chain — start to warlord, champion mid-run',
+  s.rooms.startsWith('start') && s.rooms.endsWith('warlord')
+  && s.rooms.includes('champion') && s.rooms.includes('assault') && s.rooms.includes('camp'), s.rooms);
+check('campaign: the party stands on the mission level, garrison posted',
+  s.elevated && s.posted > 6, `elevated ${s.elevated} · posted ${s.posted}`);
 check('campaign: the guide reads a bearing and a distance', / \d+ m$/.test(s.hint), s.hint);
 const walk = await page.evaluate(`(() => {
   const g = window.__game;
   const c = g.campaign;
-  const out = { corridor: false, phases: 0 };
+  const out = { sealed: false, assaultWave: false, phases: 0 };
   let guard = 0;
-  while (!c.done && guard++ < 80) {
-    const step = c.step;
+  while (!c.done && guard++ < 300) {
+    const obj = c.objectivePos;
     for (const p of g.players) {
-      p.position.set(step.pos.x, step.pos.y + 0.2, step.pos.z);
+      p.position.set(obj.x, obj.y + 0.2, obj.z);
       p.velocity.set(0, 0, 0);
       p.hp = p.maxHp; p.alive = true;
     }
     (${STEP})(20);
-    if (g.players[0].position.y > 60) out.corridor = true;
-    if (c.step.kind === 'boss' && g.boss) {
+    for (const room of c.level.rooms) {
+      if (room.entryGate?.closed || room.exitGate?.closed) out.sealed = true;
+    }
+    if (g.enemies.some((e) => e.alive && e.squad >= 9500 && e.squad < 9900)) out.assaultWave = true;
+    if (g.boss && g.boss.alive && out.phases === 0) {
       // set hp rather than dealing it: this check is about the phase turns,
       // and a warlord can parry a single damage() call (by design)
       g.boss.hp = g.boss.maxHp * 0.6;
       (${STEP})(10);
       out.phases = g.enemies.filter((e) => e.squad >= 9900 && e.squad < 9910).length;
-      g.boss.damage(9999999, g.boss.position, 0);   // lethal even through a parry
-      (${STEP})(40);
     }
+    for (const e of g.enemies) if (e.alive) e.damage(9999999, e.position, 0);   // lethal even through a parry
+    (${STEP})(20);
   }
-  (${STEP})(10);
+  (${STEP})(20);
   return { ...out, done: c.done, state: g.state };
 })()`);
-check('campaign: the party goes through a corridor', walk.corridor);
+check('campaign: assault rooms seal their gates and run waves', walk.sealed && walk.assaultWave, JSON.stringify(walk));
 check('campaign: the boss calls its retinue at the health marks', walk.phases > 3, String(walk.phases));
 check('campaign: liberation', walk.done && walk.state === 'victory', JSON.stringify(walk));
 
