@@ -294,7 +294,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   let capeUpdate: ((dt: number, time: number) => void) | null = null;
   if (cfg.cape !== null) {
     capeUpdate = attachCape(rig, mat(cfg.cape, { rough: 1 }), 0.26, 4, 0.19);
-    rig.bones.capeRoot.position.x = -0.12;
+    rig.bones.capeRoot.position.x = 0.12;
   }
 
   // ---- weapons: signature ranged + melee per config, carbine/gaffi default ----

@@ -722,7 +722,7 @@ export class Player {
       if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
         rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
       } else if (arel > 0.8) {    // 46-132°: side-stepping
-        lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
+        lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
         rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       } else {
         // the gait runs at whatever rate plants the feet at our actual ground
