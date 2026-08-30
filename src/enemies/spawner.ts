@@ -17,13 +17,16 @@ export const FINAL_WAVE = 7;
 export const MID_BOSS_WAVE = 4;
 
 /**
- * Which ally reinforces on which wave.
+ * Which ally kind the covert's supply cache holds on which wave. Nobody walks
+ * in on their own any more: these waves drop a glowing crate near the party
+ * instead (game/allycrate.ts), and cracking it open frees a squad of this
+ * kind for the rest of that wave.
  *
  * It lives beside the wave tables rather than in the match, because two other
- * things read it: the match warms an ally's model before it walks in, and the
- * prefetcher counts allies among the models a territory will eventually want.
- * The beats bracket the boss battles: one before the champion, one right
- * after it, one for the final wave before the warlord.
+ * things read it: the match warms an ally's model before its cache lands, and
+ * the prefetcher counts allies among the models a territory will eventually
+ * want. The beats bracket the boss battles: one before the champion, one
+ * right after it, one for the final wave before the warlord.
  */
 export const ALLY_WAVES: Record<number, EnemyKind> = { 3: 'marshal', 5: 'ig11', 7: 'fennec' };
 

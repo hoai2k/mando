@@ -51,7 +51,11 @@ and clearing wave 7 rings in the territory's **warlord** — always the harder
 of the two (see §4a — the same boss system serves both battles and both
 modes). Waves ramp by adding bodies and debuting kinds sooner, never by
 making an enemy individually harder, and each wave that debuts a kind
-announces it on a new-contact card. Victory comes when the warlord falls.
+announces it on a new-contact card. On the old ally-milestone waves nobody
+walks in on their own any more: a glowing **covert supply cache** drops near
+the party instead (`game/allycrate.ts`) — one solid hit springs it, the side
+panels blow outward, and a squad of five allies (Marshal / IG-11 / Fennec by
+wave) walks out to fight for the rest of that wave only. Victory comes when the warlord falls.
 
 ## 3. PvP — territory duel
 
