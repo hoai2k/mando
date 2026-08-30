@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open right now: the two [troop carriers](#troop-carriers--open-2026-08-30), and nothing else.** Every other model this document asks for has been delivered and integrated, the six monster bosses included — they landed and were wired on 2026-08-29, the same day they were requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Every model this document asks for has been delivered and integrated** — the six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. Nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -423,16 +423,17 @@ Two notes for a re-export, since the corridor is generated rather than authored:
   door does not depend on them — the campaign's beacon sits on it and the HUD names the
   distance.
 
-## Troop carriers — OPEN 2026-08-30
+## Troop carriers — requested and delivered 2026-08-30
 
 The wave game's reinforcements now *arrive*: from wave 2 on, carrier passes streak
 over the board and drop squads on their posts (parachutes and all —
-`src/enemies/arrival.ts`). Without a hull model the pass renders as a deliberate
-**jet blur** — a stretched dark shape and additive streaks at 85 m/s, which reads as
-speed. With one, the pass slows to a watchable 46 m/s flyby. **Both ships are
-pre-wired**: the `Carrier` swaps its procedural blur for the sculpt the moment the
-file is cached, so delivery is the whole integration. Two ships cover all nine
-territories — the faction map in `arrival.ts` picks per board.
+`src/enemies/arrival.ts`). **Both ships are delivered and flying**, and the
+pre-wiring was the whole integration, as designed: without a hull the pass renders
+as a jet blur at 85 m/s; with the sculpt cached it slows to a watchable 46 m/s
+flyby, and a landing transport parks the sculpt on the game's procedural skids
+(verified in-game — stand-in and streaks hidden, the hull sitting on the dunes with
+the squad walking off). Two ships cover all nine territories — the faction map in
+`arrival.ts` picks per board. Prompts kept for re-export:
 
 Rigless props through `loadProp`, long axis **Z** (the flight direction), origin at
 the hull's centre, real scale ~15 m. Both ships also **land**: where the ground near

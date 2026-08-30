@@ -226,6 +226,21 @@ are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
 
 ---
 
+## Troop carriers — 2 files, delivered 2026-08-30
+
+The wave-arrival transports (`src/enemies/arrival.ts`), requested and delivered the
+same day, without their reference sheets — that request is marked not-wanted, like
+the monsters' before it.
+
+| Id | Flies for | Integration |
+|---|---|---|
+| `troop_carrier` | Imperial boards | Pre-wired `loadProp` swap in `Carrier`; the pass slows from the 85 m/s jet blur to a 46 m/s flyby once cached, and landers park it on procedural skids (the sculpts carry no gear, by design). |
+| `raider_dropship` | Outlaw boards | Same contract, same day. |
+
+Prompts are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md), which keeps them for re-export.
+
+---
+
 ## Board music — 10 tracks
 
 Full-length streamed score in `public/music/`, played through an `<audio>` element on the

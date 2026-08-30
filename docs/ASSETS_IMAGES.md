@@ -5,10 +5,10 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the environment prop reference sheets, the **troop
-carrier sheets** (opened 2026-08-30 — the wave game's reinforcements now arrive by
-carrier pass, and both ships are pre-wired for their models), and the optional
-drop-screen portraits for the playable NPCs. Nothing else — the cast, the boards, the
+**Outstanding right now:** the environment prop reference sheets, and the optional
+drop-screen portraits for the playable NPCs. The troop carrier sheets went the way
+of the monster sheets — both ships' models were delivered on 2026-08-30 without
+them, so they are no longer wanted. Nothing else — the cast, the boards, the
 skies, every surface texture, the campaign's planet strip and corridor interiors, the
 drop-screen portraits, the weapon sheets, the logo and the favicon are all in and wired.
 Nothing is parked: `pistol`, the last held sheet, was delivered on 2026-08-29 along with
@@ -143,11 +143,12 @@ player character itself.
 | `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
 | `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
 
-## Open — troop carrier reference sheets
+## Not wanted — troop carrier reference sheets
 
-Two flying transports for the wave game's reinforcement drops
-(`src/enemies/arrival.ts`); model briefs in
-[`ASSETS_MODELS.md`](ASSETS_MODELS.md#troop-carriers--open-2026-08-30). Vehicle
+Overtaken by their own models, delivered 2026-08-30: a sheet drawn now would be
+traced from the sculpt rather than the other way round. Prompts kept below as the
+design a re-sculpt has to match; model briefs in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#troop-carriers--requested-and-delivered-2026-08-30). Vehicle
 recipe, like the swoop and the skiff: **orthographic side, front and top views on one
 canvas**, 1536×1024, one consistent scale, flat even lighting, plain mid-grey
 background, no pilots, no text. Files to `reference/props/`.
