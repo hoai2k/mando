@@ -17,6 +17,7 @@ import { ENEMY_MODEL_ID, preloadAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, type GameMode } from './modes';
+import { AllyCrate } from './allycrate';
 import { Campaign } from './campaign';
 import { ThirdPersonCamera } from '../core/camera';
 
@@ -121,6 +122,8 @@ export class Game {
   private midBossActive = false;
   /** the champion has fallen; the second run of waves is open */
   private midBossDown = false;
+  /** the covert's supply cache on the old ally-milestone waves, if one is down */
+  allyCrate: AllyCrate | null = null;
   private bossPhase = 0;
   /** seconds left of the boss introduction: slow-motion, cameras on the warlord */
   bossIntroT = 0;
@@ -648,6 +651,12 @@ export class Game {
       if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0) {
         // the fallen fade away now that the wave is decided
         for (const e of this.enemies) if (!e.alive) e.fadeOut();
+        // cache backup was for this wave only: the squad melts back into the
+        // covert, and an uncracked crate leaves with its chance
+        if (this.allyCrate) {
+          this.allyCrate.retire(this);
+          this.allyCrate = null;
+        }
         if (this.wave > FINAL_WAVE) {
           // the warlord is down: the territory is truly held
           this.setState('victory');
@@ -682,6 +691,9 @@ export class Game {
 
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     this.updateBoss(dt);
+
+    // the supply cache pulses until someone cracks it, then sheds its panels
+    this.allyCrate?.update(dt);
 
     // ---- campaign objectives ----
     if (this.campaign && this.state === 'fighting') {
@@ -1178,18 +1190,12 @@ export class Game {
     if (fresh.length) this.events.newContacts?.(fresh.map((k) => ENEMY_NAME[k]));
     audio.waveStart();
 
-    // ally reinforcements from the covert on milestone waves
-    const allyKind = ALLY_WAVES[this.wave] ?? null;
-    if (allyKind) {
-      // offset from the player start so the ally doesn't land on top of it —
-      // and checked, because 2.5 m along the diagonal is a wall on some boards
-      const start = standingSpot(this.board, this.board.playerStarts[0].clone().add(new THREE.Vector3(2.5, 0, 2.5)), allyKind);
-      const ally = new Enemy(allyKind, start, 0);
-      this.allies.push(ally);
-      this.scene.add(ally.char.root);
-      this.particles.dustPuff(start, 12);
-      const names: Record<string, string> = { marshal: 'The Marshal joins the fight', ig11: 'IG-11 joins the fight', fennec: 'Fennec Shand joins the fight' };
-      this.events.banner(`Wave ${this.wave}`, names[allyKind]);
+    // the covert's supply cache on milestone waves: a glowing crate near the
+    // party, holding a squad of allies for whoever cracks it open (allycrate.ts)
+    const cacheKind = ALLY_WAVES[this.wave] ?? null;
+    if (cacheKind) {
+      this.allyCrate = new AllyCrate(this, cacheKind, this.players[0]?.position ?? this.board.playerStarts[0]);
+      this.events.banner(`Wave ${this.wave}`, 'A covert supply cache is down — crack it open');
     }
   }
 

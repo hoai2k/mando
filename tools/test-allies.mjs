@@ -24,15 +24,21 @@ await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await h.page.evaluate(() => window.__startCoop(2, 'desert'));
 await sleep(9000);
 
-// The ally waves are milestone waves; jump to the first one rather than
-// clearing three waves of hostiles by hand.
+// The cache waves are milestone waves; jump to the first one rather than
+// clearing waves of hostiles by hand, then crack the crate open directly.
 const spawned = await h.page.evaluate(() => {
   const g = window.__game;
   g.wave = 2;
   g.nextWave();
-  return g.allies.map((a) => a.kind);
+  const crate = g.allyCrate;
+  const walkIns = g.allies.length;   // nobody joins for free any more
+  crate?.open(g);
+  return { crate: !!crate, opened: crate?.opened, walkIns, kinds: g.allies.map((a) => a.kind) };
 });
-check('the ally wave puts an ally on the board', spawned.length === 1, spawned);
+check('the milestone wave drops a supply cache, no walk-in ally', spawned.crate && spawned.walkIns === 0,
+  { crate: spawned.crate, walkIns: spawned.walkIns });
+check('cracking the cache frees a squad of five', spawned.kinds.length === 5 && spawned.kinds.every((k) => k === 'marshal'),
+  spawned.kinds.join(','));
 
 // ---- 1. an ally fights alongside the player it is actually with ----
 const engage = await h.page.evaluate(() => new Promise((res) => {
@@ -91,6 +97,19 @@ const mill = await h.page.evaluate(() => new Promise((res) => {
 check('an idle ally keeps moving', mill.moving > mill.frames * 0.25, mill);
 // and stays with the player rather than wandering off the board
 check('...and stays with the player', mill.maxDistFromPlayer < 8, mill.maxDistFromPlayer);
+
+// ---- 3. the cache squad is for this wave only ----
+const retired = await h.page.evaluate(() => new Promise((res) => {
+  const g = window.__game;
+  for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
+  let n = 0;
+  const tick = () => {
+    if (++n >= 40) res({ allies: g.allies.length, crate: !!g.allyCrate, state: g.state });
+    else requestAnimationFrame(tick);
+  };
+  tick();
+}));
+check('the squad melts away when the wave is decided', retired.allies === 0 && !retired.crate, retired);
 
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
