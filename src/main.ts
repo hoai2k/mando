@@ -17,6 +17,8 @@ import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
+import { faceSvg, portraitName } from './ui/faces';
+import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
 import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
@@ -317,6 +319,12 @@ pause.onBack = () => resumeGame();
 
 // ----- end (victory/defeat) -----
 const end = new MenuScreen(menuLayer);
+// the PvP winner's celebration: their portrait held up over the tally —
+// filled in (and shown) only when a duel ends with a champion
+const endHero = document.createElement('div');
+endHero.className = 'end-hero';
+endHero.style.display = 'none';
+end.root.appendChild(endHero);
 const endTitle = document.createElement('div');
 endTitle.className = 'menu-title';
 endTitle.style.fontSize = 'clamp(34px, 5vw, 64px)';
@@ -748,6 +756,23 @@ function frame(now: number): void {
             : game.mode === 'pvp' ? `${winner?.profile.name ?? 'Nobody'} Takes the Territory`
             : game.mode === 'campaign' ? 'Territory Liberated'
             : 'Territory Held';
+          // a duel's end screen celebrates the champion: portrait held high,
+          // authored art taking over the drawn mark when the file exists
+          if (game.mode === 'pvp' && game.state === 'victory' && winner) {
+            endHero.innerHTML = `
+              <div class="end-face">${faceSvg(winner.characterId)}</div>
+              <div class="end-tag">Champion · P${winner.slot + 1} · ${winner.kills} kills</div>`;
+            endHero.style.display = '';
+            const face = endHero.querySelector('.end-face') as HTMLElement;
+            const img = new Image();
+            img.onload = () => {
+              face.style.backgroundImage = `url('${img.src}')`;
+              face.classList.add('has-art');
+            };
+            img.src = `${ASSET_ROOT}assets/textures/${portraitName(winner.characterId)}.jpg`;
+          } else {
+            endHero.style.display = 'none';
+          }
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
           const tail = game.mode === 'wave' ? ` · wave ${game.wave} · ${mins}:${secs}` : ` · ${mins}:${secs}`;

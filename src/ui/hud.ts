@@ -219,9 +219,11 @@ export class Hud {
       else if (p.nearCover && p.alive) h.coverHint.textContent = 'C / RB — take cover';
       else h.coverHint.textContent = '';
       h.coverHint.classList.toggle('active', !!p.cover || !!p.vehicle);
+      // the wait is a performance now, not a countdown: the body burns away
+      // and re-forms at the next spawn, so the label narrates rather than ticks
       h.weapon.textContent = p.alive
-        ? p.weaponLabel()
-        : `Respawn ${Math.max(0, p.respawnTimer).toFixed(1)}`;
+        ? p.formT > 0 ? 'RE-FORMING' : p.weaponLabel()
+        : p.dissolving ? 'DISINTEGRATING' : 'DOWN';
       // Y is the rocket for gun carriers; for a blades-only fighter or a war
       // beast it is the heavy lunge, and the HUD should call it what it is
       const rc = p.rocketCd;
