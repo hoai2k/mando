@@ -195,21 +195,6 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
 }
 
 /**
- * Warm the .glb cache for a character we expect to need soon — the character
- * select uses it on the neighbours of the current choice, so flipping to them
- * doesn't start the download from zero.
- */
-export function preloadAuthored(id: string): void { loadRaw(id); }
-
-/**
- * Queue a model to be fetched *and parsed* when there is time for it.
- *
- * `preloadAuthored` starts immediately, which is right for the two characters
- * either side of the one being looked at and wrong for the ten a board might
- * eventually spawn: those go through the warm queue, which waits for the
- * browser to be idle and keeps a couple in flight at a time.
- */
-/**
  * Free cached models the game no longer has a use for.
  *
  * The cache is what makes a model cheap to reuse: one download, one parse, and
@@ -273,6 +258,15 @@ function disposeAuthoredTree(root: THREE.Group): void {
   });
 }
 
+/**
+ * Queue a model to be fetched *and parsed* when there is time for it.
+ *
+ * Everything that wants a model ahead of time comes through here, urgency and
+ * all: the queue keeps a couple in flight at a time and, below `now`, waits for
+ * the browser to be idle first. That cap is the point — a screen that flicked
+ * through a roster used to open a download per character and leave the one on
+ * screen queued behind them.
+ */
 export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void {
   warmQueue.want(modelUrl(id), priority, () => loadRaw(id));
 }

@@ -53,6 +53,18 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
  */
 export function textureUrl(name: string): string { return `${ASSET_ROOT}assets/textures/${name}`; }
 
+/**
+ * The authored portrait basename a playable or an enemy kind answers to —
+ * `portrait_<id>.jpg` under assets/textures (see docs/ASSETS_IMAGES.md).
+ *
+ * It lives here rather than with the drawn faces because the prefetcher needs
+ * it too: the drop screen's cast is warmed from the character select, and both
+ * halves have to agree on the filename or the warm request misses.
+ */
+export function portraitName(id: string): string {
+  return `portrait_${id.replace('npc:', '')}`;
+}
+
 /** Try each extension in order, calling back on the first that loads. */
 function tryLoadImage(
   name: string,

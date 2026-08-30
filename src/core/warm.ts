@@ -178,6 +178,8 @@ class WarmQueue {
 
   private pump(): void {
     if (this.running >= this.limit || this.queued.length === 0) return;
+    // a stable sort, and deliberately so: the planner queues near screens before
+    // far ones, and that order is what ranks everything sharing a priority
     this.queued.sort((a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority));
     const job = this.queued.shift()!;
     this.running++;
