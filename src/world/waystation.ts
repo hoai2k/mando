@@ -15,6 +15,20 @@ import { audio } from '../core/audio';
 
 interface Plat { x: number; y: number; z: number; w: number; d: number; }
 
+/**
+ * The station's gravity field: this board is a vacuum, not a planet, and the
+ * only reason it has a down at all is that there are decks to land on.
+ * `DRIFT_GRAVITY` is what acts on you anywhere with nothing beneath
+ * you: barely enough to give the scene an up. `PAD_GRAVITY` is what acts
+ * directly over a deck, unchanged from the flat 0.45 the board used to run, so
+ * fighting on a platform feels exactly as it did. Between `GRAV_FULL` and
+ * `GRAV_REACH` metres above a surface the two blend.
+ */
+const DRIFT_GRAVITY = 0.05;
+const PAD_GRAVITY = 0.45;
+const GRAV_FULL = 5;
+const GRAV_REACH = 18;
+
 export function buildWaystation(): Board {
   const group = new THREE.Group();
   const physics = new PhysicsWorld();
@@ -143,23 +157,28 @@ export function buildWaystation(): Board {
     crane.rotation.y = rot;
     crane.traverse((o) => { o.castShadow = true; });
     group.add(crane);
-    // The mast stands from the crane's own origin up to 18 m with the boom
-    // across the top, so the sculpt is measured by height and grounded there.
-    // Its boom runs down +X to match the procedural arm the colliders follow.
-    authoredProp(crane, [mast, arm, cable, hook], 'cargo_crane', 19, { axis: 'y', yaw: Math.PI / 2 });
     // Cranes were pure scenery: an 18 m mast, a 20 m arm and a hanging
     // container you flew straight through, in the middle of the airspace this
-    // board is fought in. Upright cylinders take the yaw for free — the arm
-    // becomes a row of them along its own axis, the way the barge hull is done.
+    // board is fought in. These cylinders are the stand-in's shape — mast,
+    // boom, hook — and they hold the crane up until the sculpt lands, at which
+    // point the fit replaces them with the crane that is actually drawn: cab,
+    // counterweight, slung container and all, every one of them landable.
+    // Upright cylinders take the yaw for free — the arm becomes a row of them
+    // along its own axis, the way the barge hull is done.
     const ax = Math.cos(rot), az = -Math.sin(rot);
-    physics.addCylinder(cx, cy - 1, cz, 0.85, 18);                       // mast
+    const stand = [physics.addCylinder(cx, cy - 1, cz, 0.85, 18)];        // mast
     // The arm runs local x −3..17. Step it closer than the collider is wide
     // or the beam is a row of stepping stones with holes between them.
     for (let t = -3; t <= 17.01; t += 1.5) {
-      physics.addCylinder(cx + ax * t, cy + 7, cz + az * t, 0.85, 1.1);
+      stand.push(physics.addCylinder(cx + ax * t, cy + 7, cz + az * t, 0.85, 1.1));
     }
-    physics.addCylinder(cx + ax * 14, cy - 0.5, cz + az * 14, 1.45, 2.4); // hook
+    stand.push(physics.addCylinder(cx + ax * 14, cy - 0.5, cz + az * 14, 1.45, 2.4)); // hook
     // the cable stays intangible — 10 cm of wire is not something to bump into
+    // The mast stands from the crane's own origin up to 18 m with the boom
+    // across the top, so the sculpt is measured by height and grounded there.
+    // Its boom runs down +X to match the procedural arm the colliders follow.
+    authoredProp(crane, [mast, arm, cable, hook], 'cargo_crane', 19, { axis: 'y', yaw: Math.PI / 2 },
+      { physics, replace: stand, cell: 0.85, maxBoxes: 26 });
   }
 
   // spice container stacks on the main pad (cover)
@@ -173,9 +192,10 @@ export function buildWaystation(): Board {
     crate.rotation.y = rng() * 0.6;
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
-    physics.addBox(cx, cy + 1.3, cz, 2.6, 2.6, 2.6);
+    const box = physics.addBox(cx, cy + 1.3, cz, 2.6, 2.6, 2.6);
     // grounded at the crate's base, so the sculpt fills the box it is standing in
-    authoredProp(group, crate, 'cargo_crate', 2.6, { x: cx, y: cy, z: cz, yaw: crate.rotation.y });
+    authoredProp(group, crate, 'cargo_crate', 2.6, { x: cx, y: cy, z: cz, yaw: crate.rotation.y },
+      { physics, replace: [box], maxBoxes: 4 });
   }
 
   // fuel barrels clustered around the pads (cover + set dressing)
@@ -197,8 +217,9 @@ export function buildWaystation(): Board {
     barrel.rotation.y = rng() * Math.PI;
     barrel.castShadow = barrel.receiveShadow = true;
     group.add(barrel);
-    physics.addBox(bx, by + 0.75, bz, 1.1, 1.5, 1.1);
-    authoredProp(group, barrel, 'fuel_barrel', 1.5, { x: bx, y: by, z: bz, axis: 'y', yaw: barrel.rotation.y });
+    const box = physics.addBox(bx, by + 0.75, bz, 1.1, 1.5, 1.1);
+    authoredProp(group, barrel, 'fuel_barrel', 1.5, { x: bx, y: by, z: bz, axis: 'y', yaw: barrel.rotation.y },
+      { physics, replace: [box], maxBoxes: 3 });
   }
 
   // freighter hull, built twice: once parked on its pad, once as the working
@@ -228,14 +249,21 @@ export function buildWaystation(): Board {
   // The procedural ship lies nose-out along +X, which is where its colliders
   // are; the sculpt is built along +Z like every other prop, so it takes a
   // quarter turn to point down the same axis.
-  authoredProp(ship, ship.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 });
   // Sized to the sculpt rather than the box that fitted the procedural stand-in:
   // measured in place the ship is 11 m nose to tail and 10 m across the wings,
   // where the old 8x6 left both wingtips as something you walked through. The
   // pad is 18x12, so it still parks with room around it.
-  physics.addBox(-38, 6, -16, 11, 4, 10);
+  //
+  // A single box around a hull is still a lie you can feel — walking the spine
+  // of the ship you stand on a lid stretched over the whole silhouette, wings
+  // and canopy included. Once the sculpt lands the fit follows the hull
+  // instead, and the box and blister below are only what holds the ship up
+  // until then.
+  const hullBox = physics.addBox(-38, 6, -16, 11, 4, 10);
   // the cockpit blister sits 2 m proud of the hull box, out over the pad edge
-  physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
+  const blister = physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
+  authoredProp(ship, ship.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 },
+    { physics, replace: [hullBox, blister], cell: 0.55, maxBoxes: 22 });
 
   // ---- the working landing pad (PLAN.md §16.2) ----
   // The x8 z60 outrigger is a live pad: on a ~100 s cycle a freighter comes
@@ -249,9 +277,20 @@ export function buildWaystation(): Board {
   const visitor = makeFreighter();
   visitor.position.set(PAD.x, PAD.y + CRUISE, PAD.z);
   group.add(visitor);
-  authoredProp(visitor, visitor.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 });
   const visitorBox = physics.addBox(PAD.x, PAD.y + CRUISE + 2, PAD.z, 11, 4, 10);
   const visitorMover = new Mover(visitorBox, visitor);
+  // The working ship gets the same treatment as the parked one, and its fitted
+  // hull rides the mover: the envelope box keeps deciding who is standing on
+  // the ship (and so gets carried by it), while the hull the fit found is what
+  // you actually walk on.
+  authoredProp(visitor, visitor.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 },
+    {
+      physics,
+      replace: [visitorBox],
+      cell: 0.55,
+      maxBoxes: 22,
+      onFit: (boxes) => visitorMover.carry(boxes),
+    });
   // thruster wash: two glow planes under the hull, shown only while moving
   const washMat = new THREE.MeshBasicMaterial({ color: 0x9ac8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
   for (const sx of [-2.2, 2.2]) {
@@ -308,6 +347,17 @@ export function buildWaystation(): Board {
     skyFile: 'sky_space',
     // drifting between platforms should never feel like a death sentence
     gravity: 0.45,
+    // Deep space pulls at almost nothing: out in the open you fly wherever you
+    // point, and the pull only exists over something you could land on. It
+    // comes up over a deck (or a crate, or a crane arm) and fades out again
+    // within a few body-lengths of leaving it — enough to bring you down onto
+    // a platform, never enough to drag you off one.
+    gravityAt: (x, y, z) => {
+      const top = physics.supportBelow(x, y, z, GRAV_REACH);
+      if (top === -Infinity) return DRIFT_GRAVITY;
+      const t = Math.min(1, Math.max(0, (GRAV_REACH - (y - top)) / (GRAV_REACH - GRAV_FULL)));
+      return DRIFT_GRAVITY + (PAD_GRAVITY - DRIFT_GRAVITY) * t * t;
+    },
     heroLight: 0.34,
     voidY: -3,
     voidGravity: 0.12,

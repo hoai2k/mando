@@ -70,8 +70,15 @@ export class Animator {
     next.setLoop(THREE.LoopRepeat, Infinity);
     next.timeScale = timeScale;
     next.enabled = true;
-    next.fadeIn(fade).play();
-    if (cur) this.action(cur)?.fadeOut(fade);
+    // A zero-length fade has to be a plain cut, not a fade of duration 0: the
+    // mixer's weight interpolant reads 0 at the instant it starts, so a clip
+    // faded in over 0 s contributes nothing on the very next update and the
+    // bones fall back to their bind pose. Harmless mid-run, where the next
+    // frame carries the weight to 1 — but the workbench freezes the pose with
+    // a single `update(0)` right after playing it, and got a neutral figure.
+    if (fade > 0) next.fadeIn(fade); else next.setEffectiveWeight(1);
+    next.play();
+    if (cur) { const a = this.action(cur); if (fade > 0) a?.fadeOut(fade); else a?.stop(); }
     this.current[channel] = name;
   }
 

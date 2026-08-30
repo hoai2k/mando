@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
-  buildMandalorian, MANDO_ROSTER, MELEE_NAMES, PLAYABLE_MANDO_IDS, RANGED_NAMES,
-  type MandoId, type PlayerCharacter,
+  buildMandalorian, MANDO_ROSTER, meleeKinds, MELEE_NAMES, PLAYABLE_MANDO_IDS,
+  rangedKinds, RANGED_NAMES,
+  type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
 import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { ENEMY_MODEL_ID } from './authored';
@@ -28,19 +29,36 @@ export interface PlayerProfile {
   maxHp: number;
   runSpeed: number;
   sprintSpeed: number;
-  /** the jetpack/fuel loop is live only where the in-game version flies */
-  canFly: boolean;
+  /**
+   * How this character fights gravity. 'jetpack' is the Mandalorian loop:
+   * hold jump in the air to thrust, on a fuel budget. 'superjump' is
+   * everyone else's: hold A from the leap and keep rising as long as it
+   * stays down, release and the climb is spent — nothing relights mid-air,
+   * though holding A on the way down feathers the fall a little.
+   */
+  flight: 'jetpack' | 'superjump';
   fireCd: number;
   boltDamage: number;
   boltSpeed: number;
   meleeDamage: number;
   meleeFinisher: number;
-  meleeKind: 'gaffi' | 'sabers';
+  /**
+   * The weapons this fighter carries in each slot, signature first. Both are
+   * always in the loadout — a shot draws the gun, a swing draws the blade —
+   * and where a slot holds more than one the D-pad cycles it.
+   *
+   * `rangedOptions` is empty only for a fighter who physically cannot hold a
+   * gun: the playable war beasts, whose hands are teeth.
+   */
+  rangedOptions: RangedKind[];
+  meleeOptions: MeleeKind[];
+  /** the signature melee kind — `meleeOptions[0]`, kept for menus */
+  meleeKind: MeleeKind;
   /** null = melee-only fighter (no gun, no ADS, no lock-on) */
   rangedName: string | null;
   meleeName: string;
   /** which blaster report the audio plays */
-  blasterVoice: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
+  blasterVoice: RangedKind;
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
@@ -78,17 +96,24 @@ export interface PlayableDef {
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
   const cfg = MANDO_ROSTER[id];
-  const melee = cfg.melee ?? 'gaffi';
-  const ranged = cfg.ranged ?? 'carbine';
+  const melee = meleeKinds(id);
+  const ranged = rangedKinds(id);
   return {
     name: cfg.name, desc: cfg.desc,
-    maxHp: 100, runSpeed: 9.2, sprintSpeed: 14.4, canFly: true,
+    maxHp: 100, runSpeed: 9.2, sprintSpeed: 14.4,
+    // the jetpack is a Mandalorian thing: the bare-headed hunters get the
+    // held-A super jump instead
+    flight: cfg.helmet === null ? 'superjump' : 'jetpack',
     fireCd: 0.24, boltDamage: 34, boltSpeed: 75,
     meleeDamage: 32, meleeFinisher: 55,
-    meleeKind: melee,
-    rangedName: ranged === 'none' ? null : RANGED_NAMES[ranged],
-    meleeName: MELEE_NAMES[melee],
-    blasterVoice: ranged === 'none' ? 'carbine' : ranged,
+    rangedOptions: ranged,
+    meleeOptions: melee,
+    meleeKind: melee[0],
+    // null names a fighter with no gun — Ventress, whose ranged weapon is the
+    // blade she throws; the HUD then reads off the melee slot
+    rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
+    meleeName: MELEE_NAMES[melee[0]],
+    blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
     // a Mandalorian is exactly his own size: collider and hit volume agree
@@ -106,7 +131,6 @@ interface NpcTuning {
   hp: number;
   run: number;
   sprint?: number;
-  fly?: boolean;
   fireCd?: number;
   boltDamage?: number;
   boltSpeed?: number;
@@ -127,11 +151,11 @@ const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   quarren:      { desc: 'A dock hand with a net gun and two mates off the trawler.', hp: 105, run: 8.4, fireCd: 0.5, boltDamage: 20, boltSpeed: 45, squad: { kind: 'quarren', count: 2 }, voice: 'alien_m' },
   alamite:      { desc: 'A cave-dweller and its pack — stone clubs, no manners.', hp: 95, run: 9.6, melee: [38, 58], meleeOnly: true, squad: { kind: 'alamite', count: 2 }, voice: 'masked' },
   krykna:       { desc: 'One spider you steer, three that follow. The nest hunts as one.', hp: 85, run: 10.4, melee: [34, 52], meleeOnly: true, squad: { kind: 'krykna', count: 3 }, voice: 'reptile' },
-  nikto:        { desc: 'A swoop rider — the bike flies, and so do you.', hp: 90, run: 9.6, fly: true, fireCd: 0.26, boltDamage: 24, voice: 'alien_m' },
+  nikto:        { desc: 'A swoop rider — the bike flies, and so do you.', hp: 90, run: 9.6, fireCd: 0.26, boltDamage: 24, voice: 'alien_m' },
   // ---- elites: one hook each, no squad ----
   deathtrooper: { desc: 'Black armour, better rifle, no backup needed.', hp: 140, run: 9.4, fireCd: 0.22, boltDamage: 30, voice: 'masked', blaster: 'longrifle' },
-  darktrooper:  { desc: 'A war droid on thrusters. Slow trigger, heavy bolt, real flight.', hp: 160, run: 8.2, fly: true, fireCd: 0.34, boltDamage: 32, voice: 'droid' },
-  jetpirate:    { desc: 'A pirate with a stolen jetpack and everything that implies.', hp: 105, run: 8.8, fly: true, fireCd: 0.28, boltDamage: 25, voice: 'masked' },
+  darktrooper:  { desc: 'A war droid on thrusters. Slow trigger, heavy bolt, real flight.', hp: 160, run: 8.2, fireCd: 0.34, boltDamage: 32, voice: 'droid' },
+  jetpirate:    { desc: 'A pirate with a stolen jetpack and everything that implies.', hp: 105, run: 8.8, fireCd: 0.28, boltDamage: 25, voice: 'masked' },
   droid:        { desc: 'A security frame: walks slowly, hits like a turret.', hp: 170, run: 6.2, sprint: 9.5, fireCd: 0.5, boltDamage: 40, boltSpeed: 85, voice: 'droid' },
   flametrooper: { desc: 'Short reach, terrible opinions about your cover.', hp: 130, run: 8.6, fireCd: 0.09, boltDamage: 7, boltSpeed: 40, voice: 'masked' },
   officer:      { desc: 'The darksaber does the talking.', hp: 150, run: 9.8, melee: [46, 72], meleeOnly: true, voice: 'masked' },
@@ -188,6 +212,11 @@ function buildPlayableNpc(kind: EnemyKind): PlayerCharacter {
     nozzles: [],
     modelReady: () => true,            // procedural stand-in is fine to show
     setWeapon: () => {},
+    // an NPC's weapon is part of its model — there is nothing to swap, so the
+    // loadout calls land somewhere harmless rather than being special-cased
+    // in the controller
+    setRangedKind: () => {},
+    setMeleeKind: () => {},
     setThrust: () => {},
     setHeroLight: () => {},
     setBlock: () => {},
@@ -210,12 +239,17 @@ function npcDef(kind: EnemyKind): PlayableDef {
       maxHp: t.hp,
       runSpeed: t.run,
       sprintSpeed: t.sprint ?? Math.max(t.run + 4.5, 13),
-      canFly: t.fly ?? false,
+      flight: 'superjump',   // no NPC wears a jetpack; they all get the held-A leap
       fireCd: t.fireCd ?? 0.3,
       boltDamage: t.boltDamage ?? 24,
       boltSpeed: t.boltSpeed ?? 60,
       meleeDamage: t.melee?.[0] ?? 30,
       meleeFinisher: t.melee?.[1] ?? 50,
+      // A hostile carries what its sculpt carries: one gun, one way to hit
+      // with it. The beasts carry no gun at all, which is the one place a
+      // fighter is genuinely melee-only.
+      rangedOptions: meleeOnly ? [] : [t.blaster ?? 'carbine'],
+      meleeOptions: ['gaffi'],
       meleeKind: 'gaffi',
       rangedName: meleeOnly ? null : ENEMY_NAME[kind] + (t.blaster === 'longrifle' ? ' Rifle' : ' Blaster'),
       meleeName: meleeOnly ? 'Claws & Steel' : 'Rifle Butt',

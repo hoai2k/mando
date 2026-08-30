@@ -164,9 +164,10 @@ export function buildForge(): Board {
   const brazier = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 1.6, 10), darkMat);
   brazier.position.set(0, daisBase + 3, 0);
   group.add(brazier);
-  physics.addCylinder(0, daisBase + 3, 0, 1.6, 1.6);
+  const brazierStand = physics.addCylinder(0, daisBase + 3, 0, 1.6, 1.6);
   // 3.5 m across the basin, standing on the dais top (its collider's upper face)
-  authoredProp(group, brazier, 'forge_brazier', 3.5, { y: daisBase + 2.2, axis: 'x' });
+  authoredProp(group, brazier, 'forge_brazier', 3.5, { y: daisBase + 2.2, axis: 'x' },
+    { physics, replace: [brazierStand], maxBoxes: 8 });
   const ember = new THREE.PointLight(0xff8a3a, 35, 26);
   ember.position.set(0, daisBase + 4, 0);
   group.add(ember);
@@ -243,9 +244,13 @@ export function buildForge(): Board {
   skull.position.set(skullX, skullBase - 0.6, skullZ);
   skull.rotation.y = skullYaw;
   group.add(skull);
-  authoredProp(skull, skullParts, 'mythosaur_skull', 8, { axis: 'z' });
   // sunk into the glass, so only the crown of it is something to climb on
-  physics.addCylinder(skullX, skullBase + 0.4, skullZ, 2.6, 3);
+  const skullStand = physics.addCylinder(skullX, skullBase + 0.4, skullZ, 2.6, 3);
+  // …and the fit keeps that: the skirt line drops everything below the crown,
+  // so the horns and the crest are climbable and the buried jaw is not a kerb
+  // to trip over.
+  authoredProp(skull, skullParts, 'mythosaur_skull', 8, { axis: 'z' },
+    { physics, replace: [skullStand], skirt: 0.9, maxBoxes: 12 });
 
   const board: Board = {
     group, physics, kind: 'forge',
