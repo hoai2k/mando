@@ -8,6 +8,7 @@ interface PlayerHud {
   root: HTMLElement;
   health: HTMLElement;
   fuel: HTMLElement;
+  fuelBar: HTMLElement;
   energy: HTMLElement;
   heat: HTMLElement;
   heatBar: HTMLElement;
@@ -102,6 +103,7 @@ export class Hud {
         radar,
         health: root.querySelector('.bar.health .fill') as HTMLElement,
         fuel: root.querySelector('.bar.fuel .fill') as HTMLElement,
+        fuelBar: root.querySelector('.bar.fuel') as HTMLElement,
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
@@ -200,6 +202,9 @@ export class Hud {
       if (!p) continue;
       h.health.style.transform = `scaleX(${Math.max(0, p.hp / p.maxHp)})`;
       h.health.style.background = p.hp < 30 ? '#e0301e' : '#c33f2e';
+      // only a jetpack burns fuel — a super jumper's gauge would sit full
+      // forever, so the bar only earns its row on a Mandalorian
+      h.fuelBar.style.display = p.profile.flight === 'jetpack' ? '' : 'none';
       h.fuel.style.transform = `scaleX(${p.fuel})`;
       h.energy.style.transform = `scaleX(${p.energy})`;
       h.energy.style.opacity = p.sprinting ? '1' : '0.8';

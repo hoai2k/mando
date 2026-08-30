@@ -27,6 +27,11 @@ export interface PlayerCharacter extends CharacterInstance {
   setBlock: (t: number) => void;
   /** blade sweep trails on/off (no-op for anyone without sabers) */
   setTrail: (on: boolean) => void;
+  /**
+   * A thrown blade leaves the hand: show/hide one saber (0 = main, 1 = off)
+   * independently of the weapon state. Only the saber fighters implement it.
+   */
+  setSaberHeld?: (hand: 0 | 1, held: boolean) => void;
   /** flash the shield where a bolt bounced off it */
   shieldHit: () => void;
   gaffi: THREE.Group;
@@ -521,11 +526,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   let thrust = 0;
   let weapon: 'blaster' | 'gaffi' | 'none' = cfg.ranged === 'none' ? 'none' : 'blaster';
   let shieldUp = false;
+  // per-hand "still in the hand" mask, so a thrown saber vanishes from its
+  // hand alone; always true for anyone who never throws their weapon
+  const saberHeld: [boolean, boolean] = [true, true];
   const showWeapon = () => {
     ranged.visible = !shieldUp && weapon === 'blaster';
-    melee.visible = !shieldUp && weapon === 'gaffi';
+    melee.visible = !shieldUp && weapon === 'gaffi' && saberHeld[0];
     if (rangedOffhand) rangedOffhand.visible = ranged.visible;
-    if (meleeOffhand) meleeOffhand.visible = melee.visible;
+    if (meleeOffhand) meleeOffhand.visible = !shieldUp && weapon === 'gaffi' && saberHeld[1];
   };
   // Settle the loadout now rather than waiting for the first weapon switch:
   // an off-hand starts hidden, so a character who spawns with a pair was
@@ -538,6 +546,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     modelReady: () => swap.settled,
     setWeapon: (w) => { weapon = w; showWeapon(); },
     setTrail: (on) => { trailActive = on; },
+    setSaberHeld: (hand, held) => { saberHeld[hand] = held; showWeapon(); },
     nozzles: flames.map((f) => f.group),
     setThrust: (t) => { thrust = t; },
     setBlock: (t) => {

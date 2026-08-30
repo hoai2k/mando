@@ -77,12 +77,14 @@ let s = await page.evaluate(`(() => {
     followers: g.enemies.filter((e) => e.owner).length,
     followerTeam: g.enemies.find((e) => e.owner)?.team,
     hostiles0: g.hostilesFor(g.players[0]).length,
-    npcFly: g.players[1].profile.canFly,
+    npcFlight: g.players[1].profile.flight,
+    mandoFlight: g.players[0].profile.flight,
   };
 })()`);
 check('pvp: match opens, every fighter its own team', s.state === 'fighting' && s.teams[0] === 2 && s.teams[1] === 3, JSON.stringify(s.teams));
 check('pvp: the NPC adapter fields player two', s.npc === 'Tusken Raider');
-check('pvp: a ground NPC does not fly', s.npcFly === false);
+check('pvp: an NPC super-jumps, never a jetpack; the Mandalorian keeps his',
+  s.npcFlight === 'superjump' && s.mandoFlight === 'jetpack', `${s.npcFlight}/${s.mandoFlight}`);
 check('pvp: squad followers ride their leader\'s team', s.followers === 2 && s.followerTeam === 3, `${s.followers} @ team ${s.followerTeam}`);
 check('pvp: rival and their squad are hostile to player one', s.hostiles0 === 3, String(s.hostiles0));
 // the squad carries its leader: a downed leader with a follower still up
@@ -111,6 +113,82 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: last fighter standing takes the territory, with credit',
   s.state === 'victory' && s.winner === 0 && s.p1kills >= 1, JSON.stringify(s));
+
+// ---- PvP: the roster is not one species ----
+// The chase rig is tuned around a 1.8 m Mandalorian, and PvP fields a war
+// massiff four metres from nose to tail. Framed as a Mandalorian it put the
+// camera *inside* the animal: a wall of hide across the whole screen and no
+// view of the world. The collider does not catch it — the roster clamps a
+// playable NPC's capsule to 0.6 × 2.1 so a beast still fits the cover and
+// doorways the boards were built around — so this measures the body.
+await startMode('pvp', 2, 'desert', ['npc:massiff', 'npc:stormtrooper']);
+const framing = await page.evaluate(`(() => {
+  const g = window.__game;
+  (${STEP})(60);
+  // world bounds of the geometry actually on screen, pruning hidden subtrees
+  // (a character wears its procedural stand-in under the model that replaced it)
+  const bodyOf = (root) => {
+    const V3 = root.position.constructor;
+    const v = new V3();
+    let mnx = Infinity, mny = Infinity, mnz = Infinity;
+    let mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+    root.updateWorldMatrix(true, true);
+    const walk = (o, isRoot) => {
+      if (!isRoot && !o.visible) return;
+      const geo = o.geometry;
+      if (geo && geo.attributes && geo.attributes.position) {
+        const pos = geo.attributes.position;
+        const stride = Math.max(1, Math.floor(pos.count / 200));
+        for (let i = 0; i < pos.count; i += stride) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+          mnx = Math.min(mnx, v.x); mny = Math.min(mny, v.y); mnz = Math.min(mnz, v.z);
+          mxx = Math.max(mxx, v.x); mxy = Math.max(mxy, v.y); mxz = Math.max(mxz, v.z);
+        }
+      }
+      for (const c of o.children) walk(c, false);
+    };
+    walk(root, true);
+    return { mnx, mny, mnz, mxx, mxy, mxz };
+  };
+  return g.players.slice(0, 2).map((p) => {
+    const b = bodyOf(p.char.root);
+    const c = p.cam.camera.position;
+    return {
+      id: p.characterId,
+      span: +Math.max(b.mxx - b.mnx, b.mxz - b.mnz).toFixed(2),
+      inside: c.x > b.mnx && c.x < b.mxx && c.y > b.mny && c.y < b.mxy && c.z > b.mnz && c.z < b.mxz,
+      dist: +Math.hypot(c.x - p.position.x, c.y - p.position.y, c.z - p.position.z).toFixed(2),
+    };
+  });
+})()`);
+const beast = framing[0];
+const human = framing[1];
+check('pvp: the camera stays outside the body it follows, however big it is',
+  !beast.inside && !human.inside, JSON.stringify(framing));
+check('pvp: a four-metre fighter is framed further out than a trooper',
+  beast.span > 3 && beast.dist > human.dist + 1, JSON.stringify(framing));
+// ...and the same body is scaled down to fit its plinth on the select, where
+// at its own size it swallowed whoever was standing next to it
+const fitted = await page.evaluate(async () => {
+  window.__quitToTitle();
+  await new Promise((r) => requestAnimationFrame(r));
+  const cs = window.__charsel;
+  cs.configure({ roster: window.__pvpRoster, title: 'Choose Your Fighter', minPlayers: 2 });
+  cs.show();
+  const slot = cs.slots[0];
+  const scaleOf = (id) => {
+    const i = cs.roster.indexOf(id);
+    if (i < 0) return null;
+    slot.choice = i;
+    slot.phase = 'browsing';
+    cs.update(1 / 60);
+    const c = slot.chars.get(id);
+    return c ? +c.root.scale.x.toFixed(3) : null;
+  };
+  return { massiff: scaleOf('npc:massiff'), trooper: scaleOf('npc:stormtrooper') };
+});
+check('select: a giant fighter is scaled onto its plinth, a humanoid is left alone',
+  fitted.massiff !== null && fitted.massiff < 0.6 && fitted.trooper === 1, JSON.stringify(fitted));
 
 // ---- Campaign ----
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
