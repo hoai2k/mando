@@ -100,10 +100,14 @@ check('...and stays with the player', mill.maxDistFromPlayer < 10, mill.maxDistF
 // ---- 3. the cache squad is for this wave only ----
 const retired = await h.page.evaluate(() => new Promise((res) => {
   const g = window.__game;
-  for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
+  // Deciding the wave means killing everything it staged — and since waves
+  // arrive now, that includes bodies a carrier has not released yet. Cull
+  // every tick rather than once, and give the last transports time to let go.
   let n = 0;
   const tick = () => {
-    if (++n >= 40) res({ allies: g.allies.length, crate: !!g.allyCrate, state: g.state });
+    for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
+    const done = g.allies.length === 0 && !g.allyCrate;
+    if (done || ++n >= 400) res({ allies: g.allies.length, crate: !!g.allyCrate, state: g.state });
     else requestAnimationFrame(tick);
   };
   tick();
