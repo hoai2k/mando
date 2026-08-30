@@ -234,6 +234,70 @@ const sail = await h.page.evaluate(() => {
 check('skiff sails the channel without sinking or biting', sail.on && sail.y > 0.4 && sail.hp > 60 && sail.dist > 10,
   `${sail.dist.toFixed(1)} m at y=${sail.y.toFixed(2)}, rider hp=${sail.hp.toFixed(0)}`);
 
+// ---- reachability: a wave run can actually get to a ride ----
+// Every territory that declares vehicles must park at least one within a
+// walk of where the party lands. The Forge and the Ringworld each used to
+// have exactly one, at the far end of the board (146 m and 136 m from the
+// start), which in a wave run meant the ride existed but was never reached.
+// Half the radar's 120 m sweep: a ride at that distance is not just walkable,
+// it is already on the dial when the party lands, which is what makes taking
+// it a decision rather than a lucky find.
+const REACH = 60;
+const waveBoards = await h.page.evaluate(() =>
+  window.__boards.map((b) => b.id));
+
+const settle = async (id) => {
+  for (let i = 0; i < 400; i++) {
+    const ok = await h.page.evaluate((b) =>
+      window.__game?.board.kind === b && window.__state === 'playing', id);
+    if (ok) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+};
+
+for (const id of waveBoards) {
+  await h.page.evaluate((b) => window.__startMode('wave', 1, b), id);
+  if (!await settle(id)) { check(`${id} boots in wave mode`, false); continue; }
+  const r = await h.page.evaluate(() => {
+    const g = window.__game;
+    const p = g.players[0];
+    return {
+      declared: (g.board.vehicles ?? []).length,
+      spawned: g.vehicles.length,
+      nearest: g.vehicles.length
+        ? Math.min(...g.vehicles.map((v) =>
+            Math.hypot(v.pos.x - p.position.x, v.pos.z - p.position.z)))
+        : Infinity,
+      // NB: no automated "is there standing room beside it" check here. A
+      // parked ride registers its own collider, and from outside the class
+      // there is no way to test the ground around it without that collider
+      // answering first — which reports even the swoop this suite mounts
+      // above as unreachable. The end-to-end mounts (desert swoop, trask
+      // skiff) are the real coverage; audit-collision.mjs covers scenery.
+    };
+  });
+  check(`${id}: every declared ride spawns`, r.spawned === r.declared,
+    `${r.spawned}/${r.declared}`);
+  if (!r.declared) continue;
+  check(`${id}: a ride is within ${REACH} m of the wave start`, r.nearest <= REACH,
+    `nearest ${r.nearest.toFixed(1)} m`);
+}
+
+// ---- Missions runs on a level 90 m up: no ground rides down below ----
+await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
+await settle('desert');
+const mission = await h.page.evaluate(() => {
+  const g = window.__game;
+  return {
+    n: g.vehicles.length,
+    declared: (g.board.vehicles ?? []).length,
+    floorY: g.campaign?.level.floorY ?? null,
+  };
+});
+check('missions spawns no unreachable ground rides', mission.n === 0,
+  `${mission.n} spawned, ${mission.declared} declared on the territory, floor at y=${mission.floorY}`);
+
 const bad = h.errors.length;
 console.log('page errors:', bad ? h.errors.slice(0, 3) : 'none');
 await h.close();

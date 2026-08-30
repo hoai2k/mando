@@ -269,9 +269,15 @@ export function buildForge(): Board {
     airSpawns: [
       new THREE.Vector3(-30, 24, 20), new THREE.Vector3(40, 26, -30), new THREE.Vector3(0, 30, 60),
     ],
-    // a scout bike abandoned at the dome's collapsed gap — riding out a storm
-    // in the open is the gamble it looks like
-    vehicles: [{ kind: 'speederBike', x: 2, z: 46, yaw: Math.PI }],
+    // Two scout bikes. The one at the dome's collapsed gap is the gamble it
+    // looks like — riding out a magnetic storm in the open — but it sits 146 m
+    // from where the party lands, which in a wave run means nobody ever got to
+    // take that gamble. The second is parked out on the approach, near enough
+    // to the start that the ride is a choice you make rather than a trek.
+    vehicles: [
+      { kind: 'speederBike', x: 2, z: 46, yaw: Math.PI },
+      { kind: 'speederBike', x: -14, z: -84, yaw: 0.35 },
+    ],
   };
 
   let mythosaurIn = 35 + rng() * 30;

@@ -188,6 +188,12 @@ export class Player {
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
   get yaw(): number { return this.facingYaw; }
+  /**
+   * What this fighter is shot at as. `height` is the clamped collider — the
+   * level-fit capsule a playable war beast walks the boards in — so anything
+   * aiming or registering a hit reads this instead. See PlayerProfile.
+   */
+  get hitHeight(): number { return this.profile.hitHeight; }
   private wasGrounded = true;
   private footTimer = 0;
   private sprintRefillDelay = 0;
