@@ -436,23 +436,6 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-boss.ph1 .bossfill { background: linear-gradient(90deg, #b03a2a, #ff9a3a); }
 .hud-boss.ph2 .bossfill { background: linear-gradient(90deg, #d02a1a, #ff3a2a); }
 
-/* campaign shared screen: every player gets the whole window; bars fan out
-   along the bottom, and the singleton chrome lives on player one's layer */
-.hud-viewport.shared .hud-bars {
-  left: calc(3% + var(--slot, 0) * 24%); bottom: 20px; width: 20%;
-  min-width: 150px; max-width: 240px;
-}
-.hud-viewport.shared .hud-weapon { display: none; }
-.hud-viewport.shared-follower .hud-wave,
-.hud-viewport.shared-follower .hud-radar,
-.hud-viewport.shared-follower .hud-banner,
-.hud-viewport.shared-follower .hud-contacts,
-.hud-viewport.shared-follower .hud-boss,
-.hud-viewport.shared-follower .hud-cover,
-.hud-viewport.shared-follower .crosshair,
-.hud-viewport.shared-follower .visor-vignette { display: none; }
-.hud-viewport.shared .crosshair { display: none; }  /* soft-lock carries the aim */
-
 /* ---- campaign planet strip ---- */
 .planet-screen { justify-content: flex-start; padding-top: 7vh; }
 .planet-window {
