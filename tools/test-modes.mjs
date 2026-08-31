@@ -300,12 +300,16 @@ const fitted = await page.evaluate(async () => {
   cs.configure({ roster: window.__pvpRoster, title: 'Choose Your Fighter', minPlayers: 2 });
   cs.show();
   const slot = cs.slots[0];
+  // A flip now shows the pre-rendered picture and builds nothing until the
+  // choice has settled (src/ui/posters.ts), so drive past that before asking
+  // what the body measures.
+  const settle = () => { for (let i = 0; i < 60; i++) cs.update(1 / 60); };
   const scaleOf = (id) => {
     const i = cs.roster.indexOf(id);
     if (i < 0) return null;
     slot.choice = i;
     slot.phase = 'browsing';
-    cs.update(1 / 60);
+    settle();
     const c = slot.chars.get(id);
     return c ? +c.root.scale.x.toFixed(3) : null;
   };
@@ -314,10 +318,37 @@ const fitted = await page.evaluate(async () => {
 check('select: a giant fighter is scaled onto its plinth, a humanoid is left alone',
   fitted.massiff !== null && fitted.massiff < 0.6 && fitted.trooper === 1, JSON.stringify(fitted));
 
+// A flip shows the fighter's pre-rendered picture and builds nothing: the body
+// costs a download, a parse and an upload, and paying that per keypress is
+// what made flipping feel stuck (src/ui/posters.ts).
+const flipped = await page.evaluate(() => {
+  const cs = window.__charsel;
+  const slot = cs.slots[0];
+  const id = 'npc:pyke';
+  slot.choice = cs.roster.indexOf(id);
+  slot.phase = 'browsing';
+  slot.loadingFor = 0;
+  cs.update(1 / 60);
+  const img = document.querySelector('.charsel-poster');
+  return {
+    poster: slot.poster?.id ?? null,
+    built: slot.chars.has(id),
+    // the picture is laid over the rect the body will occupy, so it has to
+    // have real width and height on screen rather than collapsing to a point
+    w: img ? Math.round(parseFloat(img.style.width)) : 0,
+    h: img ? Math.round(parseFloat(img.style.height)) : 0,
+  };
+});
+check('select: flipping onto a fighter shows its picture and builds nothing',
+  flipped.poster === 'npc:pyke' && flipped.built === false, JSON.stringify(flipped));
+check('select: ...laid over the rect the body will stand in',
+  flipped.w > 20 && flipped.h > flipped.w, JSON.stringify(flipped));
+
 // A fighter whose sculpt has not landed is never shown as the procedural body
-// underneath it — the plinth holds a spinner and waits. The playable NPCs used
-// to get this wrong: the adapter answered "my model is ready" unconditionally,
-// so a stand-in stood on the PvP stage as though it were the fighter.
+// underneath it — something covers it, and that something is its picture where
+// one was generated and a spinner where none was. The playable NPCs used to
+// get this wrong: the adapter answered "my model is ready" unconditionally, so
+// a stand-in stood on the PvP stage as though it were the fighter.
 const pendingNpc = await page.evaluate(async () => {
   const cs = window.__charsel;
   const slot = cs.slots[0];
@@ -325,27 +356,33 @@ const pendingNpc = await page.evaluate(async () => {
   slot.choice = cs.roster.indexOf(id);
   slot.phase = 'browsing';
   slot.loadingFor = 0;
-  cs.update(1 / 60);                          // builds it and starts the load
+  // past the settle timer, so the real body is built under the picture
+  for (let i = 0; i < 60; i++) cs.update(1 / 60);
+  cs.update(1);                               // past the spinner's grace period too
   const c = slot.chars.get(id);
-  const born = { ready: c.modelReady(), visible: c.root.visible };
-  cs.update(1);                               // past the spinner's grace period
-  const waiting = slot.spinner.style.display !== 'none';
+  const born = {
+    ready: c.modelReady(),
+    visible: c.root.visible,
+    covered: !!slot.poster || slot.spinner.style.display !== 'none',
+  };
   for (let i = 0; i < 900 && !c.modelReady(); i++) {
     await new Promise((r) => requestAnimationFrame(r));
     cs.update(1 / 60);
   }
   cs.update(1 / 60);
   return {
-    born, waiting,
+    born,
     ready: c.modelReady(), visible: c.root.visible,
     spinner: slot.spinner.style.display !== 'none',
+    poster: !!slot.poster,
   };
 });
-check('select: an NPC is hidden behind a spinner until its sculpt lands',
-  pendingNpc.born.ready === false && pendingNpc.born.visible === false && pendingNpc.waiting,
+check('select: an NPC never shows the procedural body while its sculpt is pending',
+  pendingNpc.born.ready === false && pendingNpc.born.visible === false && pendingNpc.born.covered,
   JSON.stringify(pendingNpc));
-check('select: ...and stands on the plinth once it has',
-  pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner, JSON.stringify(pendingNpc));
+check('select: ...and stands on the plinth once it has, picture retired',
+  pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner && !pendingNpc.poster,
+  JSON.stringify(pendingNpc));
 
 // ---- Campaign ----
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
