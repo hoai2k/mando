@@ -152,6 +152,27 @@ rocket for gun carriers; for a melee-only fighter it is the **heavy lunge** —
 a committed leap onto the nearest target that lands as the knockdown finisher,
 on a 5 s clock.
 
+**The brood-queen loop.** The playable broodmother fights with eggs. The
+sacs on her back are her **clutch and her ammunition readout**: capacity is
+exactly the sacs the model shows (`BROOD_EGG_RACK`, 3), every sac starts
+shaded dark, and one charges every **3 seconds** — flashing blue a couple of
+times as it finishes, then holding white until spent. **Y lays** a charged
+egg behind her; **RT lobs** one on an arc at whatever is under the aim, and
+the flying egg is a soft cannonball: the first body it meets is knocked
+back, unhurt. Either way the egg physically leaves **from the sac that goes
+dark** — spawned at that sac's world position and tossed or thrown from
+there — so it reads as the same egg being delivered. Either way the egg takes **5 s to hatch** and is destroyable
+the whole time — it is a real combatant on her team, so rivals can shoot it
+out from under her; what crawls out is a half-size krykna **hatchling** that
+hunts for her through the squad-escort AI (the nest is capped at 8 living
+brood). When she falls with a hatchling still alive, the takeover puts the
+player *in the hatchling's body* (a mid-match morph — position, camera,
+kills and lives carry over), and surviving **ten seconds** in it grows them
+back into the broodmother, health fraction preserved. Dying as the hatchling
+spends the stand as normal and respawns the fighter that was picked. The
+hatchling body (`npc:spiderling`) exists only to be morphed into — it is
+filtered off the select screen.
+
 **What referees it.** All target acquisition (aim assist, melee sweep, saber
 deflect, rockets) goes through one new helper — `game.hostilesFor(player)` —
 which returns everything alive whose team differs. The projectile system

@@ -879,18 +879,92 @@ export function buildKrykna(authored = true): CharacterInstance {
   return buildKryknaBase(1, 0xcfc6b4, authored, 'krykna');
 }
 
+/**
+ * A laid krykna egg (the playable broodmother's Y): the same pale sac that
+ * rides her abdomen, set down whole. It breathes — a slow pulse that
+ * quickens as nothing in particular, since the egg doesn't know its own
+ * clock; the wobble is what tells a rival it's live and worth shooting.
+ */
+export function buildSpiderEgg(): CharacterInstance {
+  const sac = mat(0xd8e4da, { rough: 0.5, emissive: 0x2a3a24 });
+  const web = mat(0x8d867a, { rough: 0.9 });
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = 0.42;
+  root.add(body);
+  addSphere(body, sac, 0.4, 0, 0, 0, 12, 9, 1.15, 0.95);
+  addSphere(body, sac, 0.18, 0.2, 0.28, 0.12, 8, 6);
+  addSphere(body, sac, 0.14, -0.22, 0.24, -0.1, 8, 6);
+  // web strands anchoring it to the ground
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    addCyl(root, web, 0.01, 0.02, 0.5, Math.cos(a) * 0.34, 0.2, Math.sin(a) * 0.34, 0.9 * Math.sin(a), 0, 0.9 * Math.cos(a), 5);
+  }
+  return {
+    root, rig: null, animator: null, height: 0.9, baseScale: 1,
+    cosmetic: (dt, time) => {
+      const pulse = 1 + Math.sin(time * 4.2) * 0.04 + Math.sin(time * 13) * 0.015;
+      body.scale.set(pulse, 2 - pulse, pulse);
+    },
+  };
+}
+
+/** What hatches from it: a half-size krykna on the same rig and clips. */
+export function buildSpiderling(): CharacterInstance {
+  return buildKryknaBase(0.55, 0xcfc6b4, true, 'krykna');
+}
+
+/** how many eggs the broodmother's back visibly carries — her whole clutch */
+export const BROOD_EGG_RACK = 3;
+
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
-  const sac = mat(0xd8e4da, { rough: 0.55, emissive: 0x24301f });
-  // Egg sacs cling to the abdomen — the thing the whole fight is about. They
-  // ride the body group (positions are root-space minus its 0.95 m lift) so
-  // they disappear with it when the authored model, which carries its own
-  // sculpted sacs, takes over.
-  return buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood', (body) => {
-    for (const [x, y, z, r] of [[-0.25, 0.3, -0.5, 0.2], [0.22, 0.35, -0.62, 0.24], [0, 0.1, -0.75, 0.18]] as const) {
-      addSphere(body, sac, r, x, y, z, 8, 7);
+  // The egg sacs on her back are no longer decoration: they are the playable
+  // broodmother's ammunition readout (docs/MODES.md §3). They ride the root —
+  // not the procedural body — so they stay visible over the authored sculpt,
+  // and each carries its own material so the Player controller can shade it:
+  // dark while spent, flashing blue as it charges up, white when ready.
+  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
+  const rackMats: THREE.MeshStandardMaterial[] = [];
+  const rackMeshes: THREE.Mesh[] = [];
+  const RACK_SPOTS = [
+    [-0.25, 1.25, -0.5, 0.2], [0.22, 1.3, -0.62, 0.24], [0, 1.05, -0.75, 0.18],
+  ] as const;
+  for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
+    const m = new THREE.MeshStandardMaterial({ color: 0x232823, roughness: 0.55 });
+    rackMats.push(m);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 7), m);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    inst.root.add(mesh);
+    rackMeshes.push(mesh);
+  }
+  // the delivered egg spawns at the sac it left, so it reads as the same egg
+  inst.eggSpot = (index, out) => {
+    const mesh = rackMeshes[index];
+    if (!mesh) return false;
+    mesh.getWorldPosition(out);
+    return true;
+  };
+  inst.setEggs = (states) => {
+    for (let i = 0; i < rackMats.length; i++) {
+      const m = rackMats[i];
+      const s = states[i] ?? -1;
+      if (s >= 1) {
+        m.color.setHex(0xf2f5ee);              // charged: pale and ready
+        m.emissive.setHex(0x6a705e);
+      } else if (s >= 0.72) {
+        // the last beat of the charge: a couple of blue flashes
+        const flash = Math.sin(((s - 0.72) / 0.28) * Math.PI * 4) > 0;
+        m.color.setHex(flash ? 0x6fa8ff : 0x2a3448);
+        m.emissive.setHex(flash ? 0x2a5fc0 : 0x101a30);
+      } else {
+        m.color.setHex(0x232823);              // spent (or still gathering): dark
+        m.emissive.setHex(0x000000);
+      }
     }
-  });
+  };
+  return inst;
 }
 
 // ---------- Quarren netcaster: squid-faced dock hand turned hostile ----------

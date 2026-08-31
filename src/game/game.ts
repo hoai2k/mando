@@ -923,6 +923,9 @@ export class Game {
         if (p.lives > 0) {
           p.lives--;
           p.deathCounted = false;
+          // a player who fell mid-morph (died as the hatchling) comes back
+          // as the fighter they picked, not the body they borrowed
+          if (p.characterId !== p.baseCharacterId) p.morph(p.baseCharacterId, this);
           p.spawnAt(this.pvpSpawn(p.slot, p.position));
           this.spawnSquadFor(p);   // the fireteam re-forms on its leader
           this.particles.dustPuff(p.position, 10);
@@ -1351,6 +1354,7 @@ export class Game {
     let bestD = Infinity;
     for (const e of this.enemies) {
       if (e.owner !== p || !e.alive) continue;
+      if (e.def.egg) continue;   // an unhatched egg is not a body to carry on in
       const d = e.position.distanceToSquared(p.position);
       if (d < bestD) { bestD = d; best = e; }
     }
@@ -1363,6 +1367,10 @@ export class Game {
    * in its place with whatever health the survivor had left. The camera flies
    * over rather than cutting — glideFrom eases the position across while
    * snapToward swings the look onto the new body.
+   *
+   * When the survivor is a different kind — the broodmother's hatchling —
+   * the player morphs into *its* body, and the growth clock arms: survive
+   * ten seconds as the hatchling and grow back into what fell.
    */
   private takeOverFollower(p: Player, heir: Enemy): void {
     const healthFrac = Math.max(0.3, Math.min(1, heir.hp / heir.maxHp));
@@ -1371,7 +1379,13 @@ export class Game {
     heir.removeMe = true;
     // the leader's body goes down in a burst where it fell
     this.particles.deathBurst(p.position.clone().add(new THREE.Vector3(0, p.height * 0.5, 0)));
+    const wasId = p.characterId;
+    if (`npc:${heir.kind}` !== wasId) {
+      p.morph(`npc:${heir.kind}`, this);
+      p.beginGrowth(wasId, 10);
+    }
     p.cam.glideFrom(0.8);
+    p.cancelRebirth();   // possessing a standing body: no re-form to play
     p.spawnAt(heir.position);
     p.hp = p.maxHp * healthFrac;
     p.deathCounted = false;   // the next death counts fresh
@@ -1379,6 +1393,47 @@ export class Game {
     look.y += p.height;
     p.cam.snapToward(look, 0.45);
     this.particles.dustPuff(p.position, 6);
+  }
+
+  /**
+   * The playable broodmother puts an egg down at `at` (her Y — docs/MODES.md
+   * §3). It hatches into a hunting spiderling on her team after 5 s and can
+   * be destroyed the whole time. The nest is capped so a long match doesn't
+   * bury the board in spiders.
+   */
+  layEgg(p: Player, from: THREE.Vector3, vel: THREE.Vector3): boolean {
+    // born at the back-sac it left and tossed gently off: it falls with real
+    // physics and settles behind her, rather than snapping to the ground
+    const egg = this.spawnEggFor(p, from);
+    if (!egg) return false;
+    egg.velocity.copy(vel);
+    return true;
+  }
+
+  /**
+   * The broodmother's RT: the same egg, lobbed on an arc at the aim. On the
+   * way it is a soft cannonball — the first body it meets is knocked back,
+   * unhurt — and wherever it lands it incubates on the ordinary 5 s clock.
+   */
+  throwEgg(p: Player, from: THREE.Vector3, dir: THREE.Vector3): boolean {
+    const egg = this.spawnEggFor(p, from);
+    if (!egg) return false;
+    egg.eggThrown = true;
+    egg.velocity.copy(dir).multiplyScalar(17);
+    egg.velocity.y += 4.5;
+    return true;
+  }
+
+  private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
+    const brood = this.enemies.filter((e) => e.owner === p && e.alive).length;
+    if (brood >= 8) return null;   // the nest is full
+    const egg = new Enemy('spiderEgg', at, p.team);
+    egg.setOwner(p);
+    this.enemies.push(egg);
+    this.scene.add(egg.char.root);
+    this.particles.dustPuff(at, 5);
+    audio.bark('spider_chitter', 0.5);
+    return egg;
   }
 
   /** HUD top line, per mode (the HUD stays mode-agnostic) */
