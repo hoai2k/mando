@@ -14,7 +14,7 @@ import { yawBasis } from '../core/math';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
-import { ENEMY_MODEL_ID, warmAuthored } from '../characters/authored';
+import { enemyModelIds, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, INFINITE_LIVES, MID_BOSS, MONSTER_BOSS, bossRush, type GameMode } from './modes';
@@ -138,6 +138,8 @@ export class Game {
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
   private bossPhase = 0;
+  /** true while the warlord's theme has the music bus (see updateBossMusic) */
+  private bossMusic = false;
   /** seconds left of the boss introduction: slow-motion, cameras on the warlord */
   bossIntroT = 0;
   /** countdown to the boss's shock-slam; re-armed after each one */
@@ -262,16 +264,14 @@ export class Game {
       // The three allies are certain to appear in a full match and are only three
       // files, so warm them now rather than the instant one walks into a firefight.
       for (const kind of Object.values(ALLY_WAVES)) {
-        const id = ENEMY_MODEL_ID[kind];
-        if (id) warmAuthored(id, 'soon');
+        for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
       }
     }
     // wave and campaign both run the champion and end at the territory's
     // warlord: warm both models now
     if (mode !== 'pvp') {
       for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
-        const bossId = ENEMY_MODEL_ID[kind];
-        if (bossId) warmAuthored(bossId, 'soon');
+        for (const bossId of enemyModelIds(kind)) warmAuthored(bossId, 'soon');
       }
     }
 
@@ -380,6 +380,10 @@ export class Game {
     if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
     else this.events.banner(boss.bossName, 'Bring them down');
     audio.bossHorn();
+    // The warlord brings his own music. The champion does not: the board's
+    // score carrying on through the mid-board fight is what leaves the change
+    // at the last one meaning something.
+    if (tier === 'final') this.startBossMusic();
     return boss;
   }
 
@@ -544,6 +548,31 @@ export class Game {
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
     audio.beastGrowl(0.9);
+    // the monster is the same battle continuing, so the theme carries over
+    // rather than starting again under it
+    this.startBossMusic();
+  }
+
+  /** Hand the music bus to the warlord's theme, unless it already has it. */
+  private startBossMusic(): void {
+    if (this.bossMusic) return;
+    this.bossMusic = true;
+    audio.startBossMusic(this.board.music, this.board.kind);
+  }
+
+  /**
+   * Give the board its own score back once the boss battle is over.
+   *
+   * The theme belongs to the fight, not to the rest of the match: a campaign
+   * arena carries on after its boss falls, and on a monster board the warlord
+   * going down is an interval, not the end — so the handover waits for the
+   * monster too.
+   */
+  private updateBossMusic(): void {
+    if (!this.bossMusic || this.state !== 'fighting') return;
+    if (this.boss?.alive || this.monsterAt || this.monsterQuake > 0) return;
+    this.bossMusic = false;
+    audio.startMusic(this.board.music, this.board.kind);
   }
 
   /**
@@ -896,11 +925,15 @@ export class Game {
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     if (this.state === 'fighting') this.updateMonsterStage(dt);
     this.updateBoss(dt);
+    this.updateBossMusic();
 
     // the supply cache pulses until someone cracks it, then sheds its panels
     this.allyCrate?.update(dt);
 
     // ---- campaign objectives ----
+    // the doors move whatever the match is doing; what they are *for* is only
+    // decided while it is being fought
+    this.campaign?.animateGates(dt);
     if (this.campaign && this.state === 'fighting') {
       this.campaign.update(dt);
       if (this.campaign.done && this.state === 'fighting') {
@@ -923,6 +956,9 @@ export class Game {
         if (p.lives > 0) {
           p.lives--;
           p.deathCounted = false;
+          // a player who fell mid-morph (died as the hatchling) comes back
+          // as the fighter they picked, not the body they borrowed
+          if (p.characterId !== p.baseCharacterId) p.morph(p.baseCharacterId, this);
           p.spawnAt(this.pvpSpawn(p.slot, p.position));
           this.spawnSquadFor(p);   // the fireteam re-forms on its leader
           this.particles.dustPuff(p.position, 10);
@@ -1295,15 +1331,13 @@ export class Game {
   private preloadWave(wave: number): void {
     if (wave > this.finalWave) return;
     for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
-      const id = ENEMY_MODEL_ID[entry.kind];
-      if (id) warmAuthored(id, 'now');
+      for (const id of enemyModelIds(entry.kind)) warmAuthored(id, 'now');
     }
     // Allies are not part of a wave's composition, so they were downloading
     // cold at the moment they walked in — mid-fight, against a spawn storm.
     const ally = ALLY_WAVES[wave];
     if (ally) {
-      const id = ENEMY_MODEL_ID[ally];
-      if (id) warmAuthored(id, 'now');
+      for (const id of enemyModelIds(ally)) warmAuthored(id, 'now');
     }
   }
 
@@ -1351,6 +1385,7 @@ export class Game {
     let bestD = Infinity;
     for (const e of this.enemies) {
       if (e.owner !== p || !e.alive) continue;
+      if (e.def.egg) continue;   // an unhatched egg is not a body to carry on in
       const d = e.position.distanceToSquared(p.position);
       if (d < bestD) { bestD = d; best = e; }
     }
@@ -1363,6 +1398,10 @@ export class Game {
    * in its place with whatever health the survivor had left. The camera flies
    * over rather than cutting — glideFrom eases the position across while
    * snapToward swings the look onto the new body.
+   *
+   * When the survivor is a different kind — the broodmother's hatchling —
+   * the player morphs into *its* body, and the growth clock arms: survive
+   * ten seconds as the hatchling and grow back into what fell.
    */
   private takeOverFollower(p: Player, heir: Enemy): void {
     const healthFrac = Math.max(0.3, Math.min(1, heir.hp / heir.maxHp));
@@ -1371,7 +1410,13 @@ export class Game {
     heir.removeMe = true;
     // the leader's body goes down in a burst where it fell
     this.particles.deathBurst(p.position.clone().add(new THREE.Vector3(0, p.height * 0.5, 0)));
+    const wasId = p.characterId;
+    if (`npc:${heir.kind}` !== wasId) {
+      p.morph(`npc:${heir.kind}`, this);
+      p.beginGrowth(wasId, 10);
+    }
     p.cam.glideFrom(0.8);
+    p.cancelRebirth();   // possessing a standing body: no re-form to play
     p.spawnAt(heir.position);
     p.hp = p.maxHp * healthFrac;
     p.deathCounted = false;   // the next death counts fresh
@@ -1379,6 +1424,47 @@ export class Game {
     look.y += p.height;
     p.cam.snapToward(look, 0.45);
     this.particles.dustPuff(p.position, 6);
+  }
+
+  /**
+   * The playable broodmother puts an egg down at `at` (her Y — docs/MODES.md
+   * §3). It hatches into a hunting spiderling on her team after 5 s and can
+   * be destroyed the whole time. The nest is capped so a long match doesn't
+   * bury the board in spiders.
+   */
+  layEgg(p: Player, from: THREE.Vector3, vel: THREE.Vector3): boolean {
+    // born at the back-sac it left and tossed gently off: it falls with real
+    // physics and settles behind her, rather than snapping to the ground
+    const egg = this.spawnEggFor(p, from);
+    if (!egg) return false;
+    egg.velocity.copy(vel);
+    return true;
+  }
+
+  /**
+   * The broodmother's RT: the same egg, lobbed on an arc at the aim. On the
+   * way it is a soft cannonball — the first body it meets is knocked back,
+   * unhurt — and wherever it lands it incubates on the ordinary 5 s clock.
+   */
+  throwEgg(p: Player, from: THREE.Vector3, dir: THREE.Vector3): boolean {
+    const egg = this.spawnEggFor(p, from);
+    if (!egg) return false;
+    egg.eggThrown = true;
+    egg.velocity.copy(dir).multiplyScalar(17);
+    egg.velocity.y += 4.5;
+    return true;
+  }
+
+  private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
+    const brood = this.enemies.filter((e) => e.owner === p && e.alive).length;
+    if (brood >= 8) return null;   // the nest is full
+    const egg = new Enemy('spiderEgg', at, p.team);
+    egg.setOwner(p);
+    this.enemies.push(egg);
+    this.scene.add(egg.char.root);
+    this.particles.dustPuff(at, 5);
+    audio.bark('spider_chitter', 0.5);
+    return egg;
   }
 
   /** HUD top line, per mode (the HUD stays mode-agnostic) */

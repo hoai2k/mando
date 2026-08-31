@@ -241,7 +241,7 @@ Prompts are in [`ASSETS_MODELS.md`](ASSETS_MODELS.md), which keeps them for re-e
 
 ---
 
-## Board music — 10 tracks
+## Board music — 11 tracks
 
 Full-length streamed score in `public/music/`, played through an `<audio>` element on the
 music bus rather than decoded as samples. The map from track to board is
@@ -258,6 +258,7 @@ so they need no URL escaping; uploads with spaces in the name are renamed on the
 | `mando-ice.mp3` | opens The Crevasse |
 | `mando-fada.mp3` | opens The Great Forge |
 | `mando-indian.mp3` | opens The Prison Rig |
+| `mando-boss.mp3` | the warlord's theme — every board's final boss battle, and never anything else |
 
 A board plays its opener first where it has one, then picks at random from the rest of its
 rotation, never the same track twice running. If every track fails to load the engine

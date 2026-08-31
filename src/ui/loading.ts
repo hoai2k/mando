@@ -29,6 +29,7 @@ export class LoadingScreen {
   private fill: HTMLElement;
   private pct: HTMLElement;
   private note: HTMLElement;
+  private skip: HTMLElement;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -41,7 +42,7 @@ export class LoadingScreen {
         <div class="loading-sub"></div>
         <div class="loading-cast"></div>
         <div class="loading-bar"><div class="fill"></div></div>
-        <div class="loading-foot"><span class="pct"></span><span class="note"></span></div>
+        <div class="loading-foot"><span class="pct"></span><span class="note"></span><span class="skip"></span></div>
       </div>`;
     parent.appendChild(this.root);
     this.art = this.root.querySelector('.loading-art') as HTMLElement;
@@ -51,6 +52,7 @@ export class LoadingScreen {
     this.fill = this.root.querySelector('.fill') as HTMLElement;
     this.pct = this.root.querySelector('.pct') as HTMLElement;
     this.note = this.root.querySelector('.note') as HTMLElement;
+    this.skip = this.root.querySelector('.skip') as HTMLElement;
   }
 
   /** Dress the screen for a particular drop and show it. */
@@ -98,12 +100,22 @@ export class LoadingScreen {
     return el;
   }
 
-  /** Move the bar. `note` is the line under it: what is being waited on. */
-  progress(ratio: number, note: string): void {
+  /**
+   * Move the bar. `note` is the line under it: what is being waited on.
+   *
+   * `skip` puts up the offer to drop without waiting, which is the only way
+   * off this screen other than the files arriving — the wait is uncapped by
+   * design, so that a stand-in is something the player chooses rather than
+   * something a slow connection chose for them. It gets its own bright span
+   * for that reason: dimmed into the tail of the status line, the one control
+   * on the screen read as a footnote.
+   */
+  progress(ratio: number, note: string, skip = false): void {
     const pct = Math.round(Math.max(0, Math.min(1, ratio)) * 100);
     this.fill.style.width = `${pct}%`;
     this.pct.textContent = `${pct}%`;
     this.note.textContent = note;
+    this.skip.textContent = skip ? 'A · drop in now' : '';
   }
 
   hide(): void { this.root.style.display = 'none'; }

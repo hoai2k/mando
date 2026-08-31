@@ -130,6 +130,53 @@ check('the drop revealed with nothing outstanding',
   await h.page.evaluate(() => window.__loadPending()) === 0);
 check('the spiders fell back to their procedural build', kryknaBlocked > 0,
   `${kryknaBlocked} blocked request(s)`);
+// The blocked file is now re-attempted in the background, and those attempts
+// must stay off the ledger the drop screen reads. They report under a key of
+// their own for that reason: counted as real loads they would reopen a file
+// the drop had already settled and, with nothing capping that wait, hold the
+// screen on a model nothing is waiting for.
+// Wait for one rather than guess when it is due: the re-attempts back off (3s,
+// 8s, 20s...) and some of this file's tries are already spent by the time the
+// match is up, so a fixed sleep lands in a gap and reads as "no retry".
+const blockedBefore = kryknaBlocked;
+for (let waited = 0; waited < 30000 && kryknaBlocked === blockedBefore; waited += 500) await sleep(500);
+check('a re-attempt is made in the background', kryknaBlocked > blockedBefore,
+  `${blockedBefore} -> ${kryknaBlocked} blocked request(s)`);
+const outstanding = await h.page.evaluate(() => window.__loadPending());
+check('...and does not put the drop back to waiting on it', outstanding === 0,
+  `${outstanding} outstanding`);
+
+// ---- 6. a file that missed on a bad connection is asked for again in play ----
+// A 404 is an answer — most characters have no .glb and the procedural build is
+// their finished look — but a dropped connection is not, and the file behind it
+// is one we know exists. Fail the ringworld enforcer's model once at the
+// transport level (an abort, not a 404), build one, and the retry should go out
+// on its own a few seconds later with nothing new having asked for it.
+let enforcerTries = 0;
+await h.page.route('**/ring_enforcer.glb', (route) => {
+  enforcerTries++;
+  if (enforcerTries === 1) route.abort('connectionfailed');
+  else route.continue();
+});
+check('the match is still running for the retry to happen during',
+  await state() === 'playing', await state());
+await h.page.evaluate(() => window.__buildBody('npc:ringEnforcer'));
+const cached = () => h.page.evaluate(() => window.__modelCached('ring_enforcer'));
+await sleep(1500);
+const missed = await cached();
+// The first re-attempt is armed a few seconds out and nothing else asks in the
+// meantime — but "has it landed?" is a question with a deadline here, not an
+// instant: this runs over a live match on a software renderer, where the
+// download and the parse both take their time. Sampling once raced them.
+let recovered = false;
+for (let waited = 0; waited < 25000 && !recovered; waited += 500) {
+  await sleep(500);
+  recovered = await cached();
+}
+check('a dropped model is asked for again without anything new requesting it',
+  enforcerTries >= 2, `${enforcerTries} request(s)`);
+check('...and the retry lands, so the character is not stuck on its stand-in',
+  missed === false && recovered === true, `missed ${missed} -> recovered ${recovered}`);
 
 // The blocked krykna request above logs a console error in the page. That is
 // this test staging a failure on purpose, so it must not count as one.

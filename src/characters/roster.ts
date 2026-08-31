@@ -5,7 +5,7 @@ import {
   type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
 import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { ENEMY_MODEL_ID } from './authored';
+import { enemyModelIds } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
 
@@ -62,6 +62,8 @@ export interface PlayerProfile {
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
+  /** signature Y move replacing the rocket/heavy lunge, when one exists */
+  special?: 'layEgg';
   /**
    * The collider. A playable NPC's is deliberately clamped (below), so a war
    * beast still fits the cover, doorways and corridors every board was built
@@ -90,8 +92,15 @@ export interface PlayableDef {
   id: PlayableId;
   profile: PlayerProfile;
   build: () => PlayerCharacter;
-  /** authored .glb id for warming, or null when none exists */
-  modelId: string | null;
+  /**
+   * Every authored .glb this fighter renders as — usually one, but the swoop
+   * rider is a rider *and* a bike, and empty for a fighter with no model at
+   * all. This is what "the art for this character has arrived" is measured
+   * against, by the prefetcher and by the drop's blocking set alike, so it has
+   * to name every file or a plinth clears its spinner on a half-authored
+   * fighter.
+   */
+  modelIds: string[];
 }
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
@@ -137,6 +146,8 @@ interface NpcTuning {
   melee?: [number, number];
   meleeOnly?: boolean;
   squad?: { kind: EnemyKind; count: number };
+  /** signature Y move that replaces the rocket/lunge — the broodmother lays eggs */
+  special?: 'layEgg';
   voice: VoiceId;
   blaster?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
 }
@@ -165,7 +176,11 @@ const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   fennec:       { desc: 'One shot, one answer. The rifle decides at any range.', hp: 110, run: 9.6, fireCd: 0.9, boltDamage: 65, boltSpeed: 110, voice: 'human_f', blaster: 'longrifle' },
   // ---- heavies: melee monsters ----
   massiff:      { desc: 'Five and a half metres of war beast. You are the pounce now.', hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
-  broodmother:  { desc: 'The Crevasse made flesh. Slow, vast, and very final up close.', hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, voice: 'reptile' },
+  broodmother:  { desc: 'The Crevasse made flesh. Lay eggs on Y; the brood hunts for you.', hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, special: 'layEgg', voice: 'reptile' },
+  // Not on the select screen: the body the broodmother's player carries on in
+  // when she falls with a hatchling still alive (docs/MODES.md §3). Survive
+  // ten seconds in it and you grow back into her.
+  spiderling:   { desc: 'A hatchling of the brood. Small, quick, and ten seconds from motherhood.', hp: 40, run: 10.5, melee: [16, 26], meleeOnly: true, voice: 'reptile' },
   enforcer:     { desc: 'A Wookiee gladiator. Doors are a suggestion.', hp: 260, run: 8.4, melee: [52, 80], meleeOnly: true, voice: 'reptile' },
 };
 
@@ -210,7 +225,12 @@ function buildPlayableNpc(kind: EnemyKind): PlayerCharacter {
     muzzle,
     gaffi: new THREE.Group(),          // no swap prop: the model owns its weapon
     nozzles: [],
-    modelReady: () => true,            // procedural stand-in is fine to show
+    // The enemy build knows whether its sculpt is on yet; pass that straight
+    // through. Answering `true` unconditionally is what put procedural bodies
+    // on the PvP select stage — the plinth believed a stand-in was the
+    // finished fighter and showed it instead of waiting behind a spinner. A
+    // kind with no .glb at all settles ready immediately, as it should.
+    modelReady: inst.modelReady ?? (() => true),
     setWeapon: () => {},
     // an NPC's weapon is part of its model — there is nothing to swap, so the
     // loadout calls land somewhere harmless rather than being special-cased
@@ -231,7 +251,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
   const meleeOnly = t.meleeOnly ?? false;
   return {
     id: `npc:${kind}`,
-    modelId: ENEMY_MODEL_ID[kind] ?? null,
+    modelIds: enemyModelIds(kind),
     build: () => buildPlayableNpc(kind),
     profile: {
       name: ENEMY_NAME[kind],
@@ -256,6 +276,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
       blasterVoice: t.blaster ?? 'carbine',
       voice: t.voice,
       squad: t.squad,
+      special: t.special,
       radius: Math.min(s.radius, 0.6),
       height: Math.min(s.height, 2.1),
       // hit as the creature, not as the clamped capsule it walks around in
@@ -270,7 +291,7 @@ const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
   DEFS.set(id, {
     id,
-    modelId: id,
+    modelIds: [id],
     build: () => buildMandalorian(id),
     profile: mandoProfile(id),
   });
@@ -282,17 +303,20 @@ for (const kind of Object.keys(NPC_TUNING) as EnemyKind[]) {
 
 /** the roster the wave game and campaign have always had */
 export const STANDARD_ROSTER: PlayableId[] = [...PLAYABLE_MANDO_IDS];
+/** playable bodies that exist only to be morphed into, never selected */
+const HIDDEN_PLAYABLES = new Set<EnemyKind>(['spiderling']);
+
 /** PvP: the standard roster plus every playable NPC */
 export const PVP_ROSTER: PlayableId[] = [
   ...STANDARD_ROSTER,
-  ...(Object.keys(NPC_TUNING) as EnemyKind[]).map((k) => `npc:${k}`),
+  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k) => `npc:${k}`),
 ];
 
 export function playableDef(id: PlayableId): PlayableDef {
   return DEFS.get(id) ?? DEFS.get('din')!;
 }
 
-/** authored model id behind a playable, for the prefetcher; null = none */
-export function playableModelId(id: PlayableId): string | null {
-  return playableDef(id).modelId;
+/** every authored model a playable renders as — a swoop rider is two files */
+export function playableModelIds(id: PlayableId): string[] {
+  return playableDef(id).modelIds;
 }

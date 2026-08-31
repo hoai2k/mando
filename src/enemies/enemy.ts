@@ -5,6 +5,7 @@ import {
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
   buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
   buildQuarren, buildRancor, buildRavinak,
+  buildSpiderEgg, buildSpiderling,
   buildRingEnforcer, buildWookieeEnforcer,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
@@ -47,7 +48,8 @@ export type EnemyKind =
   | 'capo' | 'enforcer'
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
   | 'ig11' | 'marshal' | 'fennec'
-  | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur';
+  | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
+  | 'spiderEgg' | 'spiderling';
 
 /**
  * Display names, for the places the game talks about a kind rather than
@@ -63,6 +65,7 @@ export const ENEMY_NAME: Record<EnemyKind, string> = {
   ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
   mudhorn: 'Mudhorn', ravinak: 'Ravinak', mamacore: 'Mamacore', rancor: 'Rancor',
   kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
+  spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
 };
 
 interface Def {
@@ -107,6 +110,12 @@ interface Def {
   burnImmune?: boolean;
   /** every `per` fraction of max HP lost, `count` of `kind` crawl out (≤ max) */
   spawnOnHurt?: { kind: EnemyKind; per: number; count: number; max: number };
+  /**
+   * This kind does not fight — it sits, wobbles, and hatches: after `hatchIn`
+   * seconds a `hatchTo` stands up in its place, on the egg's team and owner.
+   * Destroyable the whole time through the ordinary damage path.
+   */
+  egg?: { hatchIn: number; hatchTo: EnemyKind };
   build: () => CharacterInstance;
 }
 
@@ -193,6 +202,13 @@ const DEFS: Record<EnemyKind, Def> = {
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
   fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
+
+  // ---- the playable broodmother's brood (docs/MODES.md §3) ----
+  // The egg is a target, not a fighter: 5 s on the clock, destroyable the
+  // whole time, and what crawls out is a half-size krykna that hunts for
+  // whoever laid it.
+  spiderEgg:  { hp: 60, speed: 0, radius: 0.45, height: 0.9, style: 'melee', damage: 0, attackRange: 0, attackCd: 9, notice: 0, egg: { hatchIn: 5, hatchTo: 'spiderling' }, build: buildSpiderEgg },
+  spiderling: { hp: 40, speed: 9.0, radius: 0.35, height: 0.9, style: 'melee', damage: 8, attackRange: 1.8, attackCd: 1.1, notice: 46, relentless: true, build: buildSpiderling },
 };
 
 /**
@@ -210,6 +226,7 @@ const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
   duelist: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
   flametrooper: 'imperial_bark', krykna: 'spider_chitter', broodmother: 'spider_chitter',
+  spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek', drone: 'drone_whine',
   ringEnforcer: 'pirate_taunt',
 };
@@ -222,6 +239,7 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
   duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
   flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
+  spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek',
   ringEnforcer: 'pirate_death',
 };
@@ -400,6 +418,11 @@ export class Enemy {
   superJumpCd = 2;
   /** leaps taken, for the test harness */
   superJumps = 0;
+  /** egg kinds: seconds to the hatch; < 0 = not started (lazy-armed on first tick) */
+  private hatchT = -1;
+  /** this egg was lobbed (RT): it flies an arc and shoves the first body it meets */
+  eggThrown = false;
+  private eggHit = false;
   private windupTarget: Combatant | null = null;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
@@ -545,7 +568,15 @@ export class Enemy {
    */
   hitParts: { z: number; y: number; r: number }[];
 
-  constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
+  /**
+   * @param opts.silent  no arrival bark or growl. For a body that is *already
+   *   there* when the match begins — a mission level's posted garrison — as
+   *   opposed to one arriving mid-fight. Building the garrison used to play
+   *   every one of its spawn barks at once, so a Missions board opened on a
+   *   chorus of grunts from bodies standing quietly three rooms away.
+   */
+  constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1,
+    opts: { silent?: boolean } = {}) {
     this.def = DEFS[kind];
     this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
@@ -564,10 +595,12 @@ export class Enemy {
     this.char.root.position.copy(pos);
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
-    if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
-    else {
-      const bark = SPAWN_BARKS[kind];
-      if (bark && team === 1) audio.bark(bark, 0.4);
+    if (!opts.silent) {
+      if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
+      else {
+        const bark = SPAWN_BARKS[kind];
+        if (bark && team === 1) audio.bark(bark, 0.4);
+      }
     }
   }
 
@@ -879,6 +912,7 @@ export class Enemy {
    */
   knockdown(secs = 1.8): void {
     if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
+    if (this.def.egg) return;   // an egg has nothing to knock over
     if (this.wounded) return; // already on the ground
     if (this.boss) secs = Math.min(secs, 0.5); // a boss staggers, it doesn't lie down
     this.downTimer = Math.max(this.downTimer, secs);
@@ -1047,6 +1081,12 @@ export class Enemy {
     if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
     const d = DEFS[this.kind];
 
+    // ---- an egg: no AI, just the clock to the hatch ----
+    if (d.egg) {
+      this.updateEgg(dt, game);
+      return;
+    }
+
     // ---- flat on the ground after a heavy hit ----
     if (this.downTimer > 0) {
       this.downTimer -= dt;
@@ -1194,6 +1234,15 @@ export class Enemy {
       this.velocity.y -= 24 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
+      // A half-buried colossus is *of* the ground: it swims through the
+      // surface rather than standing on it, never jumps and never falls. Left
+      // to the capsule it can be squeezed off a ledge by a push-out — a
+      // three-metre body against a one-metre wall picks whichever face is
+      // nearer, and that is sometimes the outside — and then it drops away
+      // under the floor and is deleted at the kill plane, taking the fight
+      // with it. Pinning it to the surface each step is what its own design
+      // already claims: the ground answers for it.
+      if (d.plows) this.pinToGround(game);
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
@@ -1606,6 +1655,66 @@ export class Enemy {
   }
 
   /**
+   * An egg's whole life: settle, wobble, and count down to the hatch. It
+   * never fights or flees, and dying (the ordinary damage path — bolts,
+   * melee, hazards) simply ends it before anything crawls out. On the hatch
+   * the sac retires without a death (no burst, no credit) and the hatchling
+   * stands up in its place: same team, same owner, so a PvP broodmother's
+   * eggs grow into her escort.
+   */
+  private updateEgg(dt: number, game: Game): void {
+    if (this.hatchT < 0) this.hatchT = this.def.egg!.hatchIn;
+    // a lobbed egg keeps its arc; a laid (or landed) one settles where it is
+    const settle = this.grounded ? 6 : this.eggThrown && !this.eggHit ? 0.3 : 2;
+    this.velocity.x = damp(this.velocity.x, 0, settle, dt);
+    this.velocity.z = damp(this.velocity.z, 0, settle, dt);
+    this.velocity.y -= 24 * grav(game, this.position) * dt;
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    if (this.boardHazards(game, dt)) return;
+
+    // the throw's payoff: the first body the flying egg meets is shoved off
+    // its feet, unhurt — the hurt is what hatches if nobody deals with it
+    if (this.eggThrown && !this.eggHit) {
+      const sp = Math.hypot(this.velocity.x, this.velocity.z);
+      if (sp > 4) {
+        for (const f of game.hostilesFor(this)) {
+          if (this.position.distanceTo(f.position) > f.radius + this.radius + 0.4) continue;
+          const en = f as Partial<Enemy> & typeof f;
+          if (en.knockback) {
+            en.knockback(this.position, 12, 0.4);
+          } else {
+            const push = f.position.clone().sub(this.position).setY(0).normalize();
+            f.velocity.addScaledVector(push, 9);
+            f.velocity.y += 3.5;
+          }
+          this.eggHit = true;
+          this.velocity.multiplyScalar(0.2);
+          audio.impact();
+          game.particles.dustPuff(this.position, 5);
+          break;
+        }
+      } else if (this.grounded) {
+        this.eggHit = true;   // landed without meeting anyone: just an egg now
+      }
+    }
+    this.hatchT -= dt;
+    if (this.hatchT <= 0) {
+      this.alive = false;
+      this.counted = true;   // hatched, not killed
+      this.removeMe = true;
+      const spider = new Enemy(this.def.egg!.hatchTo, this.position, this.team);
+      if (this.owner) spider.setOwner(this.owner);
+      game.enemies.push(spider);
+      game.scene.add(spider.char.root);
+      game.particles.dustPuff(this.position, 8);
+      audio.bark('spider_chitter', 0.6);
+      return;
+    }
+    this.syncVisual(dt, game);
+  }
+
+  /**
    * The boss gap-closer: a committed ballistic super jump onto where the
    * target is headed, ending in a ground slam (docs/MODES.md §4a). Only
    * promoted bosses jump — never the half-buried colossi, whose bodies are
@@ -1647,6 +1756,15 @@ export class Enemy {
     }
     game.particles.dustPuff(this.position, 14);
     return true;
+  }
+
+  /** Glue a burrowing body to the surface under it; it has no airborne state. */
+  private pinToGround(game: Game): void {
+    const g = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 2);
+    if (g === -Infinity) return;
+    this.position.y = g;
+    if (this.velocity.y < 0) this.velocity.y = 0;
+    this.grounded = true;
   }
 
   /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
