@@ -19,7 +19,13 @@ import * as THREE from 'three';
  *    once the model is loaded and its rest pose can be read.
  *  - Every bone runs along its local +Y (Blender's convention), so a rotation
  *    about local X swings a limb fore and aft, which is the whole of a gait.
- *    Positive X swings a leg *backward*.
+ *    *Which* way it swings is not a constant, though: on the boss rigs
+ *    positive X carries a leg backward, and on the massiff and the spiders the
+ *    same rotation carries it forward. This file used to assert the first as a
+ *    universal rule, and the massiff duly galloped backwards. So nothing here
+ *    assumes it any more — `swing` and `fold` take the motion the gait wants
+ *    (forward-positive, and fold-positive for "draw the foot up toward the
+ *    hip") and measure the rig to find the local sign that produces it.
  *
  * If the model is ever re-exported with real animation baked in, those win:
  * the loader only falls back to these when the file carries none.
@@ -35,9 +41,70 @@ function findBone(root: THREE.Object3D, name: string): THREE.Object3D | null {
   return hit;
 }
 
+/**
+ * The bone's own tip, in its local frame: bones run along +Y, as far as the
+ * child sitting on the end of them. A bone with no child (the last segment of
+ * a leg on several of the rigs) is assumed to be about as long as the step
+ * that placed it, which is close enough to measure a direction with.
+ */
+function tipOf(bone: THREE.Object3D): THREE.Vector3 {
+  const kid = bone.children.find((c) => (c as THREE.Bone).isBone) ?? bone.children[0];
+  const len = (kid ? kid.position.length() : bone.position.length()) || 1;
+  return new THREE.Vector3(0, len, 0);
+}
+
+/** where this bone's tip ends up in world space with `deg` of local X on top of its rest */
+function tipAt(bone: THREE.Object3D, tip: THREE.Vector3, deg: number): THREE.Vector3 {
+  const rest = bone.quaternion.clone();
+  bone.quaternion.multiply(_probe.setFromEuler(_probeE.set(deg * D, 0, 0)));
+  bone.updateWorldMatrix(true, false);
+  const out = tip.clone().applyMatrix4(bone.matrixWorld);
+  bone.quaternion.copy(rest);
+  bone.updateWorldMatrix(true, false);
+  return out;
+}
+
+const _probe = new THREE.Quaternion();
+const _probeE = new THREE.Euler();
+
+/**
+ * Does a positive local-X rotation carry this bone *forward*?
+ *
+ * Every model in the game faces +Z, so "forward" is a question about world Z,
+ * and the rig answers it: swing the bone's tip and see which way it went. The
+ * boss rigs say -1 and the massiff and spiders say +1 — which is exactly the
+ * assumption this file used to hard-code, and exactly why the massiff ran
+ * backwards.
+ */
+function swingSign(bone: THREE.Object3D): number {
+  const tip = tipOf(bone);
+  return tipAt(bone, tip, 15).z >= tipAt(bone, tip, -15).z ? 1 : -1;
+}
+
+/**
+ * Which way this joint folds: the sign that draws its tip in toward the root
+ * of the limb, shortening it so the foot clears the ground on the way through.
+ * Measured the same way — the leg's effective length is the distance from the
+ * segment's parent (the hip, for a knee) to the tip, and folding is whichever
+ * direction makes that smaller.
+ */
+function foldSign(bone: THREE.Object3D): number {
+  if (!bone.parent) return 1;
+  const tip = tipOf(bone);
+  const hip = bone.parent.getWorldPosition(new THREE.Vector3());
+  return tipAt(bone, tip, 25).distanceTo(hip) <= tipAt(bone, tip, -25).distanceTo(hip) ? 1 : -1;
+}
+
 interface Builder {
   /** rotate `bone` by these XYZ degrees at these times, on top of its rest pose */
   rot: (name: string, times: number[], degrees: Array<[number, number, number]>) => void;
+  /**
+   * Swing `bone` fore and aft, in degrees that mean the same thing on every
+   * rig: positive is forward, the way the animal is facing.
+   */
+  swing: (name: string, times: number[], degrees: number[]) => void;
+  /** Fold `bone` up under the body — positive draws its tip toward the limb's root. */
+  fold: (name: string, times: number[], degrees: number[]) => void;
   /** bob `bone` vertically (world metres) around its rest position at these times */
   lift: (name: string, times: number[], metres: number[]) => void;
   tracks: THREE.KeyframeTrack[];
@@ -45,9 +112,7 @@ interface Builder {
 
 function builder(root: THREE.Object3D): Builder {
   const tracks: THREE.KeyframeTrack[] = [];
-  const rot: Builder['rot'] = (name, times, degrees) => {
-    const bone = findBone(root, name);
-    if (!bone) return;                      // a rig without this bone just misses that motion
+  const rotBone = (bone: THREE.Object3D, times: number[], degrees: Array<[number, number, number]>) => {
     const rest = bone.quaternion.clone();
     const values: number[] = [];
     const q = new THREE.Quaternion();
@@ -57,6 +122,23 @@ function builder(root: THREE.Object3D): Builder {
       values.push(q.x, q.y, q.z, q.w);
     }
     tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, values));
+  };
+  const rot: Builder['rot'] = (name, times, degrees) => {
+    const bone = findBone(root, name);
+    if (!bone) return;                      // a rig without this bone just misses that motion
+    rotBone(bone, times, degrees);
+  };
+  const swing: Builder['swing'] = (name, times, degrees) => {
+    const bone = findBone(root, name);
+    if (!bone) return;
+    const sign = swingSign(bone);
+    rotBone(bone, times, degrees.map((v): [number, number, number] => [v * sign, 0, 0]));
+  };
+  const fold: Builder['fold'] = (name, times, degrees) => {
+    const bone = findBone(root, name);
+    if (!bone) return;
+    const sign = foldSign(bone);
+    rotBone(bone, times, degrees.map((v): [number, number, number] => [v * sign, 0, 0]));
   };
   // A position track lives in the bone's parent space, whose axes need not be
   // world-aligned (the exporter's Y-up fix sits on an ancestor) — so world-up
@@ -78,7 +160,7 @@ function builder(root: THREE.Object3D): Builder {
     }
     tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, values));
   };
-  return { rot, lift, tracks };
+  return { rot, swing, fold, lift, tracks };
 }
 
 /** the four legs, and how far through the cycle each one plants */
@@ -97,7 +179,44 @@ function cycle(steps: number, phase: number, f: (t: number) => number): number[]
 }
 
 const GALLOP = 0.5;   // seconds per stride
-const STEPS = 8;
+
+/**
+ * Samples per cycle.
+ *
+ * This was 8, which is where the gaits got their shudder: a stride is a
+ * piecewise curve — planted, then whipped through — and eight evenly spaced
+ * samples land nowhere near the corner between the two, so each leg planted at
+ * a slightly wrong time at a slightly wrong angle and the body bob (two per
+ * stride, so *four* samples an oscillation) aliased into a jitter. Sampling
+ * finely enough to resolve the shape costs a few dozen keyframes per clip and
+ * nothing at all at runtime.
+ */
+const STEPS = 24;
+
+/**
+ * One leg's stride at phase `t`, in terms every rig understands: where the
+ * limb is fore and aft (forward-positive degrees) and how far it is folded up.
+ *
+ * The first `stance` of the cycle is planted — the body travels over a fixed
+ * foot at a constant speed, so the limb sweeps from its forward reach to its
+ * back extreme at a constant rate, and the leg stays long to carry the weight.
+ * The rest is airborne: the limb eases forward again to catch the next stride,
+ * folding at mid-swing so the foot clears the ground rather than dragging
+ * through it. Easing the airborne half is what keeps the whip from snapping.
+ */
+function stride(t: number, stance: number, reach: number, fold: number): { swing: number; fold: number } {
+  if (t < stance) return { swing: reach * (1 - 2 * (t / stance)), fold: 0 };
+  const u = (t - stance) / (1 - stance);
+  // The fold peaks early and is gone by three-quarters through, which is what
+  // a leg actually does: gather the moment it leaves the ground, then extend
+  // into the reach before it lands. Folded symmetrically about mid-swing it
+  // instead drew the foot back exactly as hard as the swing carried it
+  // forward, and the front paw hung in place while the leg passed under it.
+  return {
+    swing: reach * (1 - 2 * Math.cos(u * Math.PI * 0.5) ** 2),
+    fold: fold * Math.sin(Math.PI * Math.min(1, u * 1.4)),
+  };
+}
 
 /**
  * A transverse gallop: the front pair reaches, the rear pair gathers and
@@ -116,20 +235,13 @@ function gallop(root: THREE.Object3D): THREE.AnimationClip {
   // pushing off.
   const STANCE = 0.55;
   for (const leg of LEGS) {
-    const swing = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      // planted: the body travels over a fixed foot, so the thigh sweeps back
-      ? -22 + (t / STANCE) * 44
-      // airborne: whipped forward again to catch the next stride
-      : 22 - ((t - STANCE) / (1 - STANCE)) * 44));
-    const flex = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      ? 4 + 8 * Math.sin((t / STANCE) * Math.PI)          // barely bent under load
-      : 10 + 42 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));  // folds up to clear
-    const paw = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      ? -6
-      : -6 - 20 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));
-    b.rot(leg.thigh, times, swing.map((v) => [v, 0, 0]));
-    b.rot(leg.shin, times, flex.map((v) => [v, 0, 0]));
-    b.rot(leg.foot, times, paw.map((v) => [v, 0, 0]));
+    b.swing(leg.thigh, times, cycle(STEPS, leg.phase, (t) => stride(t, STANCE, 22, 0).swing));
+    // barely bent under load, folding right up to clear on the way through
+    b.fold(leg.shin, times, cycle(STEPS, leg.phase, (t) => {
+      const s = stride(t, STANCE, 22, 42);
+      return s.fold + (t < STANCE ? 4 + 8 * Math.sin((t / STANCE) * Math.PI) : 10);
+    }));
+    b.fold(leg.foot, times, cycle(STEPS, leg.phase, (t) => 6 + stride(t, STANCE, 22, 20).fold));
   }
 
   // the back bunches and extends twice per stride, which is what sells a bound
@@ -170,18 +282,12 @@ function walk(root: THREE.Object3D): THREE.AnimationClip {
   ] as const;
   const STANCE = 0.72;   // a walk keeps most feet down most of the time
   for (const leg of WALK_LEGS) {
-    const swing = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      ? -13 + (t / STANCE) * 26
-      : 13 - ((t - STANCE) / (1 - STANCE)) * 26));
-    const flex = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      ? 3 + 3 * Math.sin((t / STANCE) * Math.PI)
-      : 6 + 26 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));
-    const paw = cycle(STEPS, leg.phase, (t) => (t < STANCE
-      ? -4
-      : -4 - 12 * Math.sin(((t - STANCE) / (1 - STANCE)) * Math.PI)));
-    b.rot(leg.thigh, times, swing.map((v) => [v, 0, 0]));
-    b.rot(leg.shin, times, flex.map((v) => [v, 0, 0]));
-    b.rot(leg.foot, times, paw.map((v) => [v, 0, 0]));
+    b.swing(leg.thigh, times, cycle(STEPS, leg.phase, (t) => stride(t, STANCE, 13, 0).swing));
+    b.fold(leg.shin, times, cycle(STEPS, leg.phase, (t) => {
+      const s = stride(t, STANCE, 13, 26);
+      return s.fold + (t < STANCE ? 3 + 3 * Math.sin((t / STANCE) * Math.PI) : 6);
+    }));
+    b.fold(leg.foot, times, cycle(STEPS, leg.phase, (t) => 4 + stride(t, STANCE, 13, 12).fold));
   }
   // weight rolls side to side over the planted pair, and the head prowls low
   const sway = cycle(STEPS, 0, (t) => 2.5 * Math.sin(t * Math.PI * 2));
@@ -295,13 +401,13 @@ function spiderMove(root: THREE.Object3D): THREE.AnimationClip {
   const b = builder(root);
   const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * SKITTER);
   for (const leg of SPIDER_LEGS) {
-    // fore-aft swing on the leg root, and a lift at mid-swing so the tip
+    // fore-aft swing on the leg root, and a fold at mid-swing so the tip
     // clears the ground on the way forward instead of dragging through it
-    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * 20).map((v) => [v, 0, 0]));
-    b.rot(`${leg.root}_mid`, times, cycle(STEPS, leg.phase, (t) => {
-      const swing = Math.sin(t * Math.PI * 2);
-      return swing > 0 ? -16 * swing : 4 * -swing;   // fold up forward, press back
-    }).map((v) => [v, 0, 0]));
+    b.swing(leg.root, times, cycle(STEPS, leg.phase, (t) => stride(t, 0.6, 20, 0).swing));
+    b.fold(`${leg.root}_mid`, times, cycle(STEPS, leg.phase, (t) => {
+      const s = stride(t, 0.6, 20, 16);
+      return s.fold + (t < 0.6 ? -4 : 0);   // pressed out under load, folded up to clear
+    }));
   }
   // the carapace rides the churn of the legs — a small, fast bob
   b.lift('body', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 4) * 0.02));
@@ -313,7 +419,7 @@ function spiderIdle(root: THREE.Object3D): THREE.AnimationClip {
   const DUR = 2.8;
   const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * DUR);
   for (const leg of SPIDER_LEGS) {
-    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * 2.5).map((v) => [v, 0, 0]));
+    b.swing(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * 2.5));
   }
   b.rot('head', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * 6).map((v) => [0, v, 0]));
   return new THREE.AnimationClip('idle', DUR, b.tracks);
@@ -404,12 +510,13 @@ function heavyWalk(
 ): THREE.AnimationClip {
   const b = builder(root);
   const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
+  // Stance is the long half of a heavy walk: three feet down while the fourth
+  // swings. The fold belongs to that airborne quarter and nowhere else — as a
+  // plain sine against a plain sine it sat a quarter-cycle out, folding the
+  // leg while it was planted and straightening it while it was in the air.
   for (const leg of legPairs(prefix)) {
-    b.rot(leg.root, times, cycle(STEPS, leg.phase, (t) => Math.sin(t * Math.PI * 2) * swing).map((v) => [v, 0, 0]));
-    b.rot(`${leg.root}_lower`, times, cycle(STEPS, leg.phase, (t) => {
-      const s = Math.sin(t * Math.PI * 2);
-      return s > 0 ? -fold * s : fold * 0.25 * -s;
-    }).map((v) => [v, 0, 0]));
+    b.swing(leg.root, times, cycle(STEPS, leg.phase, (t) => stride(t, 0.7, swing, 0).swing));
+    b.fold(`${leg.root}_lower`, times, cycle(STEPS, leg.phase, (t) => stride(t, 0.7, swing, fold).fold));
   }
   // the mass rides the stride: two bobs per cycle, one per diagonal pair
   b.lift(bodyBone, times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 4) * bob));
@@ -514,18 +621,15 @@ export function mamacoreClips(root: THREE.Object3D): THREE.AnimationClip[] {
 }
 
 export function rancorClips(root: THREE.Object3D): THREE.AnimationClip[] {
-  const stride = (name: string, dur: number, amp: number): THREE.AnimationClip => {
+  const gait = (name: string, dur: number, amp: number): THREE.AnimationClip => {
     const b = builder(root);
     const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * dur);
     // legs out of phase with each other, arms counter-swinging to them
     for (const [leg, phase] of [['L', 0], ['R', 0.5]] as const) {
-      b.rot(`upperLeg${leg}`, times, cycle(STEPS, phase, (t) => Math.sin(t * Math.PI * 2) * amp).map((v) => [v, 0, 0]));
-      b.rot(`lowerLeg${leg}`, times, cycle(STEPS, phase, (t) => {
-        const s = Math.sin(t * Math.PI * 2);
-        return s > 0 ? -amp * 1.4 * s : 0;
-      }).map((v) => [v, 0, 0]));
+      b.swing(`upperLeg${leg}`, times, cycle(STEPS, phase, (t) => stride(t, 0.62, amp, 0).swing));
+      b.fold(`lowerLeg${leg}`, times, cycle(STEPS, phase, (t) => stride(t, 0.62, amp, amp * 1.4).fold));
       const arm = leg === 'L' ? 'R' : 'L';
-      b.rot(`upperArm${arm}`, times, cycle(STEPS, phase, (t) => Math.sin(t * Math.PI * 2) * amp * 0.55).map((v) => [v, 0, 0]));
+      b.swing(`upperArm${arm}`, times, cycle(STEPS, phase, (t) => Math.sin(t * Math.PI * 2) * amp * 0.55));
       b.rot(`forearm${arm}`, times, cycle(STEPS, phase, (t) => -amp * 0.4 + Math.sin(t * Math.PI * 2) * amp * 0.3).map((v) => [v, 0, 0]));
     }
     // the hunch rolls with the stride and the tail counterweights it
@@ -549,7 +653,7 @@ export function rancorClips(root: THREE.Object3D): THREE.AnimationClip[] {
       { name: 'head', coil: [-10, 0, 0], hit: [8, 0, 0] },
     ],
   });
-  return [stride('idle', 4.0, 3), stride('move', 1.25, 17), attack];
+  return [gait('idle', 4.0, 3), gait('move', 1.25, 17), attack];
 }
 
 // ---------- the two half-buried colossi ----------

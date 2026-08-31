@@ -247,7 +247,7 @@ reads fine; the controller's root motion does the rest. No action.
 
 | # | Work | Status |
 |---|---|---|
-| 1 | Strafe/back-pedal lower clips + picker (§4.1) | ✅ `strafeLower` + programmatic mirror + reversed run; picker in `player.ts` by facing/velocity divergence; `cycleDistance` measures lateral sweeps; `gaitRate` takes the character's world scale so heavies stride slower instead of skating |
+| 1 | Strafe/back-pedal lower clips + picker (§4.1) | ✅ `strafeLower` + programmatic mirror + `backpedalLower` (its own cycle, played reversed — shorter reach behind, longer in front) and `sprintLower` (the run opened up: lead thigh to -76°, shin straightening into the reach); picker in `player.ts` by facing/velocity divergence; `cycleDistance` measures lateral sweeps; `gaitRate` takes the character's world scale so heavies stride slower instead of skating |
 | 2 | Saber stance idles/run for Ventress (§3.2.1) | ✅ `saberIdleUpper` / `saberRunUpper`, picked whenever `sabersDrawn` |
 | 3 | Melee velocity shaping + hit-stop (§3.1.2-3) | ✅ strike keys pulled tight behind held windups on all seven combat clips (contact times re-checked); 55-90 ms attacker hit-stop on landed hits |
 | 4 | Lower-body melee stances (§3.1.1, §3.2.2) | ✅ `meleeLower1-3` one-shots under the swings, played when grounded and near-stationary (the lunge owns the legs otherwise) |

@@ -83,7 +83,7 @@ export class Animator {
   }
 
   /** Play a one-shot (melee swing, hit react, death); channel returns to normal after. */
-  playOnce(channel: 'lower' | 'upper', name: string, fade = 0.06, clamp = false): number {
+  playOnce(channel: 'lower' | 'upper', name: string, fade = 0.06, clamp = false, timeScale = 1): number {
     const next = this.action(name);
     if (!next) return 0;
     const cur = this.current[channel];
@@ -91,10 +91,13 @@ export class Animator {
     next.reset();
     next.setLoop(THREE.LoopOnce, 1);
     next.clampWhenFinished = clamp;
+    next.timeScale = timeScale;
     next.enabled = true;
     next.fadeIn(fade).play();
     this.current[channel] = name;
-    const dur = this.clips[name].duration;
+    // `timeScale` shortens the clip in wall-clock seconds, so what the caller
+    // is told (and what holds the channel) is how long it will really take
+    const dur = this.clips[name].duration / Math.max(0.05, timeScale);
     this.oneShotUntil[channel] = this.time + (clamp ? Infinity : dur - 0.05);
     return dur;
   }

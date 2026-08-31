@@ -84,6 +84,18 @@ const BLOCK_SECONDS = 5;
 const BLOCK_SPEED = 3.2;
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
+/**
+ * Landing, by the speed the ground was met at (m/s).
+ *
+ * A plain jump tops out at JUMP_VEL and comes back down at it, so the floor
+ * sits just under that: step off a kerb and you keep running, land a jump and
+ * the knees take it. Past HEAVY the legs have to be put back under you before
+ * you can run again, which is the beat a rooftop drop is supposed to cost.
+ */
+const LAND_ABSORB = 9.5;
+const LAND_HEAVY = 17;
+/** how long a heavy landing keeps you from simply running off */
+const LAND_RECOVER = 0.3;
 
 /**
  * The aim-glide: sighting a shot on the way down.
@@ -133,6 +145,13 @@ export class Player {
   /** set by Game once a PvP death has been scored */
   deathCounted = false;
   fuel = 1;
+  /**
+   * Seconds left of a heavy landing's recovery: the legs are absorbing the
+   * drop and there is no running out of it yet.
+   */
+  private landRecovery = 0;
+  /** seconds left of the landing crouch, so leaving the ground can release it */
+  private landTimer = 0;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
   /** riding the boosters down on the sights: slow descent, fuel burning */
@@ -1002,6 +1021,11 @@ export class Player {
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
     if (snared) topSpeed *= 0.32;
     if (this.wading) topSpeed *= 0.45; // chest-deep: slow, loud, exposed
+    // a heavy landing has to be absorbed before it can be run out of: the top
+    // speed comes back over the recovery rather than switching on at the end
+    this.landRecovery = Math.max(0, this.landRecovery - dt);
+    this.landTimer = Math.max(0, this.landTimer - dt);
+    if (this.landRecovery > 0) topSpeed *= 1 - 0.85 * (this.landRecovery / LAND_RECOVER);
     const speedTarget = Math.min(wishLen, 1) * topSpeed;
 
     if (this.dashTimer > 0) {
@@ -1175,10 +1199,21 @@ export class Player {
     }
     // never strand a drifting player with an empty tank
     if (inVoid) this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.9));
+    // how hard the ground is about to be met: the collision resolve takes the
+    // downward velocity away, so the impact has to be read before the move
+    const impact = this.grounded ? 0 : -this.velocity.y;
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     if (res.grounded && !this.wasGrounded) {
-      audio.land(this.slamming || this.velocity.y < -14);
+      audio.land(this.slamming || impact > 14);
       game.particles.dustPuff(this.position, this.slamming ? 18 : 6);
+      // Take the drop in the knees. A light landing is the same crouch played
+      // brisk, a heavy one is the full absorb plus a beat before you can run
+      // out of it; a kerb-step gets neither.
+      if (impact > LAND_ABSORB || this.slamming) {
+        const heavy = impact > LAND_HEAVY || this.slamming;
+        this.landTimer = anim.playOnce('lower', 'landLower', 0.05, false, heavy ? 1 : 1.5);
+        if (heavy) this.landRecovery = LAND_RECOVER;
+      }
       if (this.slamming) {
         this.slamming = false;
         this.cam.shake(0.2);
@@ -1235,6 +1270,10 @@ export class Player {
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
 
     // ---- animation state ----
+    // Jumping, dashing or thrusting straight back out of a landing cancels the
+    // crouch: a one-shot holds the channel to its end, and the legs would stay
+    // folded under a body that is already in the air.
+    if (this.landTimer > 0 && !this.grounded) { anim.release('lower'); this.landTimer = 0; }
     if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
@@ -1257,15 +1296,18 @@ export class Player {
       const arel = Math.abs(rel);
       let lowerClip = 'runLower';
       let rate: number;
-      if (arel > 2.3) {           // > ~132°: backing up — the run, played backward
-        rate = -anim.gaitRate('runLower', speed2, this.char.baseScale) * 0.9;
+      if (arel > 2.3) {           // > ~132°: backing up — its own cycle, played backward
+        lowerClip = 'backpedalLower';
+        rate = -anim.gaitRate(lowerClip, speed2, this.char.baseScale) * 0.9;
       } else if (arel > 0.8) {    // 46-132°: side-stepping
         lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
         rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       } else {
+        // a sprint is its own longer-reaching cycle, not the run spun faster
+        if (this.sprinting) lowerClip = 'sprintLower';
         // the gait runs at whatever rate plants the feet at our actual ground
         // speed, so the stride pushes off instead of skating
-        rate = anim.gaitRate('runLower', speed2, this.char.baseScale);
+        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       }
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
