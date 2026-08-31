@@ -3,6 +3,10 @@ import { audio } from '../core/audio';
 import { MAX_PLAYERS } from '../core/layout';
 import { damp } from '../core/math';
 import { nodeCount, visibleBounds } from '../core/bounds';
+import {
+  loadPosterIndex, posterMeta, posterUrl, POSTER_ASPECT, POSTER_PAD, POSTER_PX, SETTLE_MS,
+  type PosterBox,
+} from './posters';
 
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
@@ -108,6 +112,43 @@ interface Slot {
   arrows: HTMLElement[];
   /** last state the status line was written for, so it is only rewritten on a change */
   waiting: boolean;
+  /** the pre-rendered picture standing in for this slot's pick, if there is one */
+  poster: Poster | null;
+}
+
+/** What a poster returns to `tools/posters.mjs`. */
+export interface PosterShot {
+  /** the cropped picture, as a data URL */
+  png: string;
+  /** the box it spans, in world units off the fighter's feet */
+  box: PosterBox;
+  w: number;
+  h: number;
+  /** node count of the body it was rendered from, so the tool can say what it got */
+  nodes: number;
+  /**
+   * Fraction of the cropped picture that is transparent.
+   *
+   * The generator refuses a poster with almost none: that means something
+   * composited in behind the fighter and the PNG is a solid rectangle, which
+   * on the stage reads as a card sitting behind them rather than as a body.
+   */
+  clear: number;
+}
+
+/**
+ * A picture standing on a plinth in place of a body that has not been built.
+ *
+ * `settle` counts down while the choice sits still; at zero the real fighter
+ * is built underneath and the picture is retired once that body has actually
+ * been drawn — never before, or the plinth is empty for the frames between.
+ */
+interface Poster {
+  id: PlayableId;
+  img: HTMLImageElement;
+  settle: number;
+  /** true once the real body has been asked for */
+  promoted: boolean;
 }
 
 export class CharacterSelect {
@@ -123,6 +164,11 @@ export class CharacterSelect {
   private slots: Slot[] = [];
   private startBtn: HTMLElement;
   private panels!: HTMLElement;
+  /**
+   * Where the flip pictures hang. Its own layer under the panels, so a poster
+   * sits over the 3D stage but never over a name plate or an arrow.
+   */
+  private posterLayer!: HTMLElement;
   private time = 0;
   /** the ids on offer — the standard line-up, or PvP's NPC-widened one */
   private roster: PlayableId[] = [...STANDARD_ROSTER];
@@ -167,6 +213,14 @@ export class CharacterSelect {
     title.textContent = 'Choose Your Mandalorian';
     this.root.appendChild(title);
     this.titleEl = title;
+
+    // Before the panels, so a picture sits over the 3D stage and under every
+    // name plate and arrow — the plates are what a player reads while the
+    // pictures are flipping past.
+    const posterLayer = document.createElement('div');
+    posterLayer.className = 'charsel-posters';
+    this.root.appendChild(posterLayer);
+    this.posterLayer = posterLayer;
 
     const panels = document.createElement('div');
     panels.className = 'charsel-panels';
@@ -256,6 +310,10 @@ export class CharacterSelect {
     // and spaces it from there, every frame, as players come and go.
     for (const s of this.slots) this.scene.add(s.pedestal, s.ring, s.group);
     this.layoutStage(0);
+
+    // Fire and forget. No index means no posters, which is the behaviour this
+    // screen had before they existed: build the body, hold a spinner.
+    void loadPosterIndex();
   }
 
   /**
@@ -366,7 +424,7 @@ export class CharacterSelect {
       phase: 'empty', choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
-      panel, name, status, spinner, arrows, waiting: false,
+      panel, name, status, spinner, arrows, waiting: false, poster: null,
     };
   }
 
@@ -421,6 +479,71 @@ export class CharacterSelect {
       this.roster[this.step(slot, s.choice, -1)],
     ]);
     this.opts.onBrowse([...new Set([...here, ...next])]);
+  }
+
+  /**
+   * Put the pre-rendered picture of `id` on this plinth, if there is one and
+   * the body is not already built.
+   *
+   * Nothing is built here — that is the whole point. A picture costs a DOM
+   * node and a cached PNG; a body costs a download, a parse and an upload, and
+   * paying that on every press of ◀ is what made flipping feel stuck.
+   */
+  private showPoster(s: Slot, id: PlayableId): boolean {
+    if (s.chars.has(id)) return false;              // already built: it stays built
+    if (!posterMeta(id)) return false;              // no picture for this fighter
+    this.dropPoster(s);
+    const img = document.createElement('img');
+    img.src = posterUrl(id);
+    img.alt = '';
+    img.decoding = 'sync';
+    img.className = 'charsel-poster';
+    this.posterLayer.appendChild(img);
+    s.poster = { id, img, settle: SETTLE_MS / 1000, promoted: false };
+    this.layoutPosters();
+    return true;
+  }
+
+  private dropPoster(s: Slot): void {
+    s.poster?.img.remove();
+    s.poster = null;
+  }
+
+  /**
+   * Lay every live poster over the rect its fighter's body will occupy.
+   *
+   * The stored box is in world units off the fighter's feet, so this projects
+   * it through whatever the stage is doing right now — which is what makes one
+   * reference render serve one plinth or four, at any window shape, while the
+   * camera eases back and the line re-spaces itself. Runs every frame for that
+   * reason: the framing is in motion for most of the time a poster is up.
+   */
+  private layoutPosters(): void {
+    const canvas = this.root.parentElement ?? document.body;
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    this.camera.updateMatrixWorld();
+    for (const s of this.slots) {
+      const poster = s.poster;
+      if (!poster) continue;
+      const box = posterMeta(poster.id);
+      if (!box) continue;
+      const x = s.group.position.x;
+      const origin = PROJECT.set(x, 0, 0).project(this.camera).clone();
+      const perX = PROJECT.set(x + 1, 0, 0).project(this.camera).x - origin.x;
+      const perY = PROJECT.set(x, 1, 0).project(this.camera).y - origin.y;
+      const left = ((origin.x + box.u0 * perX + 1) / 2) * w;
+      const right = ((origin.x + box.u1 * perX + 1) / 2) * w;
+      // NDC y is up, screen y is down
+      const top = ((1 - (origin.y + box.v1 * perY)) / 2) * h;
+      const bottom = ((1 - (origin.y + box.v0 * perY)) / 2) * h;
+      poster.img.style.left = `${left.toFixed(1)}px`;
+      poster.img.style.top = `${top.toFixed(1)}px`;
+      poster.img.style.width = `${Math.max(0, right - left).toFixed(1)}px`;
+      poster.img.style.height = `${Math.max(0, bottom - top).toFixed(1)}px`;
+      // the plinth grows in and shrinks out; its picture goes with it
+      poster.img.style.opacity = `${Math.min(1, s.appear * 1.4)}`;
+    }
   }
 
   private charFor(s: Slot, id: PlayableId): PlayerCharacter {
@@ -597,6 +720,9 @@ export class CharacterSelect {
 
   private commit(slot: number): void {
     const s = this.slots[slot];
+    // Locking in is the answer the settle timer was waiting for, so stop
+    // waiting: build the body now rather than a beat from now.
+    if (s.poster && !s.poster.promoted) { s.poster.promoted = true; this.charFor(s, this.roster[s.choice]); }
     const c = s.chars.get(this.roster[s.choice]);
     if (!c || !c.modelReady()) return;   // nothing to lock in until the model is here
     audio.uiConfirm();
@@ -666,19 +792,44 @@ export class CharacterSelect {
     let anyJoined = false;
     for (let i = 0; i < this.slots.length; i++) {
       const s = this.slots[i];
-      if (s.phase === 'empty') { s.spinner.style.display = 'none'; continue; }
+      if (s.phase === 'empty') { s.spinner.style.display = 'none'; this.dropPoster(s); continue; }
       anyJoined = true;
       if (s.phase !== 'ready') allReady = false;
 
       const id = this.roster[s.choice];
+      // FLIPPING: a picture, and nothing built. The real body is created once
+      // this choice has sat still for SETTLE_MS, or the moment it is locked
+      // in; a fighter already built never comes back here.
+      if (s.poster?.id !== id && this.showPoster(s, id)) {
+        for (const c of s.chars.values()) c.root.visible = false;
+        s.spinner.style.display = 'none';
+        continue;
+      }
+      if (s.poster && !s.poster.promoted) {
+        s.poster.settle -= dt;
+        if (s.poster.settle > 0) {
+          for (const c of s.chars.values()) c.root.visible = false;
+          continue;
+        }
+        // Build underneath the picture, and leave the picture up until the body
+        // is really standing there. Retiring it here left a hole: the .glb may
+        // still be coming, and even a cached one is not on screen until the
+        // next render, so the plinth went empty for a frame or twenty first.
+        s.poster.promoted = true;
+      }
       const current = this.charFor(s, id);
       for (const [cid, c] of s.chars) c.root.visible = cid === id && c.modelReady();
+      // the handover: they are pixel-aligned by construction, so there is
+      // nothing to see in it
+      if (s.poster && current.modelReady()) this.dropPoster(s);
       // sized to the plinth once it is the one on show — and again if its
       // authored model arrives and changes what "this fighter" measures
       this.fitToPlinth(current);
 
-      // no procedural stand-in: wait it out, spinner after a grace period
-      const waiting = !current.modelReady();
+      // no procedural stand-in: wait it out, spinner after a grace period. A
+      // poster covers this whenever there is one — the spinner is what a
+      // fighter with no generated picture still falls back to.
+      const waiting = !current.modelReady() && !s.poster;
       if (waiting) {
         s.loadingFor += dt;
         s.spinner.style.display = s.loadingFor > SPINNER_DELAY ? '' : 'none';
@@ -746,7 +897,136 @@ export class CharacterSelect {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.layoutPanels();
+    this.layoutPosters();
     renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Render the fighter on the first plinth as a poster: a transparent picture
+   * of the body alone, through this screen's own camera, plus the box it
+   * occupies in world units off its own feet.
+   *
+   * This lives here, on the screen the pictures are for, rather than in the
+   * tool that calls it — the whole value of a poster is that it lands on the
+   * same pixels the model will, and a generator with a camera of its own would
+   * drift from this one the first time the stage was re-framed. See
+   * `src/ui/posters.ts` for the contract; `tools/posters.mjs` drives this.
+   *
+   * Everything but the body is taken out of the shot: the floor, the plinths
+   * and their rings, the fog and the background. The silhouette is measured
+   * off the rendered alpha rather than off the geometry, because alpha is what
+   * the picture actually covers — a bounding box includes a cape's rest pose
+   * and every transparent margin around it.
+   */
+  posterShot(px = POSTER_PX, aspect = POSTER_ASPECT): PosterShot | null {
+    const s = this.slots[0];
+    const c = s.chars.get(this.roster[s.choice]);
+    if (!c || !c.modelReady()) return null;
+
+    const w = Math.round(px * aspect);
+    const h = px;
+    const gl = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    gl.setSize(w, h, false);
+    gl.setPixelRatio(1);
+    gl.setClearAlpha(0);
+
+    // strip the stage back to the one body
+    const background = this.scene.background;
+    const fog = this.scene.fog;
+    this.scene.background = null;
+    this.scene.fog = null;
+    const hidden: THREE.Object3D[] = [];
+    const hide = (o: THREE.Object3D): void => { if (o.visible) { o.visible = false; hidden.push(o); } };
+    for (const o of this.scene.children) if ((o as THREE.Mesh).isMesh) hide(o);   // the floor
+    this.slots.forEach((slot, i) => {
+      hide(slot.pedestal);
+      hide(slot.ring);
+      if (i !== 0) hide(slot.group);
+    });
+    // the plinth carries every fighter it has ever shown; only this one poses
+    for (const [cid, other] of s.chars) if (cid !== this.roster[s.choice]) hide(other.root);
+    c.root.visible = true;
+    s.group.visible = true;
+
+    const cam = this.camera.clone();
+    cam.aspect = aspect;
+    cam.updateProjectionMatrix();
+    gl.render(this.scene, cam);
+
+    const pixels = new Uint8Array(w * h * 4);
+    gl.getContext().readPixels(0, 0, w, h, gl.getContext().RGBA, gl.getContext().UNSIGNED_BYTE, pixels);
+
+    // restore the stage before anything can throw
+    for (const o of hidden) o.visible = true;
+    this.scene.background = background;
+    this.scene.fog = fog;
+
+    // the silhouette, off the alpha the render actually produced
+    let x0 = w; let x1 = -1; let y0 = h; let y1 = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (pixels[(y * w + x) * 4 + 3] <= 8) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) { gl.dispose(); return null; }   // nothing rendered
+    const padX = ((x1 - x0 + 1) * (POSTER_PAD - 1)) / 2;
+    const padY = ((y1 - y0 + 1) * (POSTER_PAD - 1)) / 2;
+    const l = Math.round(Math.max(0, x0 - padX));
+    const r = Math.round(Math.min(w, x1 + 1 + padX));
+    const b = Math.round(Math.max(0, y0 - padY));
+    const t = Math.round(Math.min(h, y1 + 1 + padY));
+
+    // The crop in NDC only means anything at the framing it was shot in. World
+    // units off the fighter's own feet are a property of the body, so the
+    // runtime can re-project them for any plinth count and any window shape.
+    const plinthX = s.group.position.x;
+    const project = (x: number, y: number): THREE.Vector3 =>
+      new THREE.Vector3(x, y, 0).project(cam);
+    const origin = project(plinthX, 0);
+    const perX = project(plinthX + 1, 0).x - origin.x;
+    const perY = project(plinthX, 1).y - origin.y;
+    const ndc = {
+      x0: (l / w) * 2 - 1, x1: (r / w) * 2 - 1,
+      y0: (b / h) * 2 - 1, y1: (t / h) * 2 - 1,
+    };
+    const round = (v: number): number => +v.toFixed(4);
+    const box: PosterBox = {
+      u0: round((ndc.x0 - origin.x) / perX), u1: round((ndc.x1 - origin.x) / perX),
+      v0: round((ndc.y0 - origin.y) / perY), v1: round((ndc.y1 - origin.y) / perY),
+    };
+
+    // readPixels is bottom-up, canvas ImageData is top-down
+    const cw = r - l;
+    const ch = t - b;
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d')!;
+    const out = ctx.createImageData(cw, ch);
+    for (let y = 0; y < ch; y++) {
+      for (let x = 0; x < cw; x++) {
+        const src = ((b + (ch - 1 - y)) * w + (l + x)) * 4;
+        const dst = (y * cw + x) * 4;
+        out.data[dst] = pixels[src];
+        out.data[dst + 1] = pixels[src + 1];
+        out.data[dst + 2] = pixels[src + 2];
+        out.data[dst + 3] = pixels[src + 3];
+      }
+    }
+    ctx.putImageData(out, 0, 0);
+    let clear = 0;
+    for (let i = 3; i < out.data.length; i += 4) if (out.data[i] <= 8) clear++;
+    const png = canvas.toDataURL('image/png');
+    gl.dispose();
+    return {
+      png, box, w: cw, h: ch,
+      nodes: nodeCount(c.root),
+      clear: +(clear / (cw * ch)).toFixed(4),
+    };
   }
 
   /**
@@ -815,6 +1095,7 @@ export class CharacterSelect {
       s.group.rotation.y = s.baseYaw;
       s.loadingFor = 0;
       s.waiting = false;
+      this.dropPoster(s);
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
     if (!this.available(0).has(this.roster[this.slots[0].choice])) this.slots[0].choice = 0;
@@ -827,6 +1108,8 @@ export class CharacterSelect {
     this.root.style.display = 'none';
     this.drag = null;
     this.root.classList.remove('dragging');
+    // the pictures are DOM over the stage, and the stage stops being drawn
+    for (const s of this.slots) this.dropPoster(s);
   }
   get visible(): boolean { return this.root.style.display !== 'none'; }
 }

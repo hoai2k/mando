@@ -7,6 +7,7 @@ import { carrierShipId } from '../enemies/arrival';
 import { BOARDS, type BoardInfo } from '../world/boards';
 import type { BoardId } from '../world/board';
 import { portraitName, textureUrl, warmTexture } from './assets';
+import { warmPoster } from '../ui/posters';
 import { tracked, type WarmPriority } from './warm';
 
 /**
@@ -148,7 +149,9 @@ type Need =
   /** `dom` marks a picture the page draws (a portrait, a card, a planet disc)
    *  rather than a surface three wears — the two are fetched differently and a
    *  warm request has to match, or the file comes down twice. */
-  | { kind: 'texture'; name: string; ext: string; soft?: boolean; dom?: boolean };
+  | { kind: 'texture'; name: string; ext: string; soft?: boolean; dom?: boolean }
+  /** a fighter's pre-rendered select-screen picture (src/ui/posters.ts) */
+  | { kind: 'poster'; id: PlayableId; soft?: boolean };
 
 const model = (id: string, soft = false): Need => ({ kind: 'model', id, soft });
 const tex = (name: string, ext = 'jpg', soft = false): Need => ({ kind: 'texture', name, ext, soft });
@@ -211,11 +214,28 @@ function rosterNeeds(ctx: WarmContext): Need[] {
   const out: Need[] = [];
   const seen = new Set<string>();
   const add = (id: PlayableId, soft: boolean): void => {
+    // The picture comes before the body it stands in for, deliberately: while
+    // the player is flipping, the poster is the thing on screen and the model
+    // is what a settled choice will need a moment later. A few tens of KB
+    // ahead of a few MB is also simply the right order to spend a connection
+    // in.
+    out.push({ kind: 'poster', id, soft });
     for (const m of playableModelIds(id)) {
       if (seen.has(m)) continue;
       seen.add(m);
       out.push(model(m, soft));
     }
+    // The fighter's own face, from the screen that first knows who is on
+    // offer rather than from the drop screen that displays it. A portrait is
+    // on screen within a beat of leaving the select — the VS splash, then the
+    // drop's cast, then the end screen — and it used to be declared only by
+    // `dropNeeds`, which needs a chosen territory, so nothing was queued until
+    // one was picked and the faces raced the screen that shows them.
+    //
+    // Soft, always: they are certain, but a 40 KB face must never be fetched
+    // ahead of the megabytes of model the plinth in front of the player is
+    // waiting on.
+    out.push(pic(portraitName(id), 'jpg', true));
   };
   for (const id of ctx.focus ?? []) add(id, false);
   // nobody has been focused yet (the title, the grid): the select opens on the
@@ -310,6 +330,7 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
 
 function request(need: Need, priority: WarmPriority): void {
   if (need.kind === 'model') warmAuthored(need.id, priority);
+  else if (need.kind === 'poster') warmPoster(need.id, priority);
   else warmTexture(need.name, priority, need.ext, need.dom);
 }
 

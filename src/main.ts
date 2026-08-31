@@ -370,6 +370,29 @@ end.onBack = () => quitToTitle();
 // path in characters/authored.ts is otherwise invisible from outside — a model
 // that missed on a bad connection and is asked for again while the match runs
 // looks, from the DOM, exactly like one that never existed.
+/**
+ * Poster generator hook (tools/posters.mjs).
+ *
+ * Stands one fighter on the select screen's first plinth, waits for its
+ * authored model, and renders the picture through that screen's own camera —
+ * see src/ui/posters.ts for why the shot has to come from the screen itself
+ * rather than from a camera the tool sets up.
+ */
+(window as unknown as { __posterShot?: unknown }).__posterShot =
+  async (id: string, timeoutMs = 60000): Promise<unknown> => {
+    charSelect.configure({ roster: [id], title: 'Poster', minPlayers: 1 });
+    charSelect.show();
+    const t0 = performance.now();
+    // drive the screen's own update, so the body is built and fitted to the
+    // plinth exactly as a player flipping onto it would see
+    for (;;) {
+      charSelect.update(1 / 60);
+      const shot = charSelect.posterShot();
+      if (shot) return { ...shot, id };
+      if (performance.now() - t0 > timeoutMs) return { id, error: 'model never arrived' };
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+  };
 (window as unknown as { __modelCached?: unknown }).__modelCached =
   (id: string): boolean => authoredCached(id);
 const bodyBench: THREE.Object3D[] = [];
