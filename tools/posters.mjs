@@ -55,6 +55,18 @@ try {
 let failed = 0;
 for (const target of targets) {
   const file = target.id.replace('npc:', '');
+  // A FRESH PAGE PER FIGHTER — or rather a fresh app, which a reload is.
+  //
+  // The select screen is one long-lived object, and shooting thirty fighters
+  // through one of them carries state between them: every fighter built so
+  // far is still parked on the plinth, and the screen's own clock has been
+  // running the whole time. Both feed the pose, so the same fighter came out
+  // differently depending on what had been shot before it — a dozen of the
+  // thirty pictures churned between two runs that produced identical output
+  // when either was shot on its own. Reloading is the cheap way to be sure
+  // each one is rendered from the same starting point.
+  await h.page.reload({ waitUntil: 'load' });
+  await h.page.waitForFunction(() => typeof window.__posterShot === 'function');
   const shot = await h.page.evaluate(
     ([id]) => window.__posterShot(id), [target.id]);
   if (!shot || shot.error) {

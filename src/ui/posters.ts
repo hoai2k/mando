@@ -57,6 +57,18 @@ export const POSTER_ASPECT = 16 / 9;
  */
 export const SETTLE_MS = 550;
 
+/**
+ * The point in the idle loop every poster is posed at.
+ *
+ * A fixed absolute time rather than "however far the idle had run by the time
+ * the model landed", which is what it used to be: the generator drives the
+ * screen's own update loop while it waits for a .glb, so the pose depended on
+ * how long the download took and the same fighter came out differently on
+ * every run. Any settled point in the loop will do; what matters is that it is
+ * the same one every time.
+ */
+export const POSTER_ANIM_T = 1.2;
+
 /** Where the generator writes, relative to the site root. */
 export const POSTER_DIR = 'posters';
 

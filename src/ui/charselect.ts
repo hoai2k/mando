@@ -4,7 +4,8 @@ import { MAX_PLAYERS } from '../core/layout';
 import { damp } from '../core/math';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import {
-  loadPosterIndex, posterMeta, posterUrl, POSTER_ASPECT, POSTER_PAD, POSTER_PX, SETTLE_MS,
+  loadPosterIndex, posterMeta, posterUrl,
+  POSTER_ANIM_T, POSTER_ASPECT, POSTER_PAD, POSTER_PX, SETTLE_MS,
   type PosterBox,
 } from './posters';
 
@@ -937,6 +938,31 @@ export class CharacterSelect {
     const s = this.slots[0];
     const c = s.chars.get(this.roster[s.choice]);
     if (!c || !c.modelReady()) return null;
+
+    // Pin the plinth to the pose the handover happens at.
+    //
+    // The idle turntable keeps sweeping while a body is being waited for, and
+    // how long that takes varies from run to run — so without this a poster
+    // was shot at whatever yaw the sweep had reached, which made the pictures
+    // irreproducible AND left them at an angle the model never appears at:
+    // the runtime holds the sweep at zero for as long as a picture is up, so
+    // the body it hands over to is always square to the camera. Same yaw on
+    // both sides of the swap and there is nothing to see in it.
+    s.arcT = 0;
+    s.manual = 0;
+    s.group.rotation.y = s.baseYaw;
+
+    // ...and to a fixed point in the idle loop, for the same reason. The
+    // animation had run for however many frames the .glb took to arrive, so
+    // the same fighter was posed differently on every run — 14 of 30 pictures
+    // changed between two back-to-back regenerations, on nothing but download
+    // timing.
+    c.animator?.poseAt(POSTER_ANIM_T);
+    // and let whatever rides on the rig follow it there: an authored skin is
+    // retargeted from the procedural pose by `cosmetic`, so the model is still
+    // standing in the old pose until this runs. dt 0 so nothing advances.
+    c.cosmetic?.(0, POSTER_ANIM_T);
+    s.group.updateMatrixWorld(true);
 
     const w = Math.round(px * aspect);
     const h = px;
