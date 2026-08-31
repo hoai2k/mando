@@ -247,6 +247,13 @@ seconds of slow motion (0.12×) while every camera pans onto the boss.
 Inputs are blanked and everyone on the field keeps their head down through
 the card, so the reveal is never a cheap shot in either direction.
 
+**The theme (2026-08-31).** The warlord's battle takes the music over:
+`mando-boss.mp3` replaces the board's rotation the moment the card comes up
+and holds until the fight is over — through the monster stage too, where a
+board has one — then the board's own score comes back. The champion's battle
+keeps the board music, which is what leaves the change at the last fight
+meaning something. Nothing else on any board plays that track.
+
 Phases keep it a fight rather than a sponge: at ⅔ and ⅓ health the boss
 **calls a retinue** — a squad of the board's grunts spawned around the arena
 — behind a **damage-free repulsor pulse** that throws everyone off the
