@@ -84,7 +84,11 @@ export class Ragdoll {
   private radius: number[] = [];
   private rest: number[] = [];
   private accum = 0;
-  /** false once every point has gone quiet — the sim can stop being stepped */
+  /** consecutive quiet steps — a corpse's way of falling asleep */
+  private quiet = 0;
+  /** did any point rest on the world during the last step? */
+  private touching = false;
+  /** false once the body has gone quiet on the ground — stop stepping it */
   active = true;
 
   /**
@@ -133,16 +137,25 @@ export class Ragdoll {
   }
 
   private integrate(dt: number): void {
-    let moving = false;
+    let fastest = 0;
     for (let i = 0; i < COUNT; i++) {
       const p = this.pos[i], q = this.prev[i];
       _v.copy(p).sub(q).multiplyScalar(DAMPING);
-      if (_v.lengthSq() > 1e-6) moving = true;
+      fastest = Math.max(fastest, _v.lengthSq());
       q.copy(p);
       p.add(_v);
       p.y -= GRAVITY * dt * dt;
     }
-    this.active = moving;
+    // Asleep means slow *and* resting on something — the same rule the rigid
+    // solver next door already uses. On speed alone a body falls asleep at the
+    // top of its arc: the knockback that throws a corpse up ends with every
+    // point momentarily still, the sim stops there, and the body freezes
+    // standing in the air with its legs in the sand. That is the tusken left
+    // sticking up out of the dune; it only happened to the ones whose throw
+    // peaked with every point quiet, which is why it looked random.
+    this.quiet = fastest < 1e-6 && this.touching ? this.quiet + 1 : 0;
+    if (this.quiet > 40) this.active = false;
+    this.touching = false;
   }
 
   private solveLinks(): void {
@@ -167,6 +180,7 @@ export class Ragdoll {
       const floor = g + this.radius[i];
       if (p.y >= floor) continue;
       const q = this.prev[i];
+      this.touching = true;
       p.y = floor;
       // friction bleeds the horizontal slide, and the little bounce left keeps
       // a body from looking glued the instant it touches down
