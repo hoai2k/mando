@@ -422,6 +422,15 @@ Two notes for a re-export, since the corridor is generated rather than authored:
   hazard striping and status lamp, which is what those were standing in for. Finding the
   door does not depend on them — the campaign's beacon sits on it and the HUD names the
   distance.
+- **…and it cannot open, so a mission gate does not use it.** The brief asked for "two
+  interlocking armored leaves"; the file arrived as a single mesh (`mesh_0`) of a *shut*
+  door, with no leaf nodes to move. A gate that loaded it could only ever look closed —
+  which is exactly what happened: the leaves slid apart behind a sculpt that kept covering
+  the opening, so a door that was open in every other respect (no blocker, bolts passing
+  through) still read as shut. Mission doorways now take the surround only
+  (`buildDoorFrame(..., { leaf: false })`) and the `Gate` draws and animates its own
+  leaves. **A re-export with the two leaves as separate named nodes would let the sculpt
+  back in** — that is the one change needed; nothing else about the file is wrong.
 
 ## Troop carriers — requested and delivered 2026-08-30
 

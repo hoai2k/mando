@@ -111,7 +111,7 @@ export class Gate {
     dir: { x: number; z: number }, wallH: number, accent: number) {
     this.pos = pos.clone();
     const yaw = Math.atan2(dir.x, dir.z);
-    buildDoorFrame(parent, pos.clone(), yaw);
+    buildDoorFrame(parent, pos.clone(), yaw, { leaf: false });
     // blocker half-extents: thin along the travel axis, spanning the gap
     const across = GATE_W / 2 + 0.5;
     this.half = new THREE.Vector3(
