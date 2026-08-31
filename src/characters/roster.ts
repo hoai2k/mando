@@ -62,6 +62,8 @@ export interface PlayerProfile {
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
+  /** signature Y move replacing the rocket/heavy lunge, when one exists */
+  special?: 'layEgg';
   /**
    * The collider. A playable NPC's is deliberately clamped (below), so a war
    * beast still fits the cover, doorways and corridors every board was built
@@ -137,6 +139,8 @@ interface NpcTuning {
   melee?: [number, number];
   meleeOnly?: boolean;
   squad?: { kind: EnemyKind; count: number };
+  /** signature Y move that replaces the rocket/lunge — the broodmother lays eggs */
+  special?: 'layEgg';
   voice: VoiceId;
   blaster?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
 }
@@ -165,7 +169,11 @@ const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   fennec:       { desc: 'One shot, one answer. The rifle decides at any range.', hp: 110, run: 9.6, fireCd: 0.9, boltDamage: 65, boltSpeed: 110, voice: 'human_f', blaster: 'longrifle' },
   // ---- heavies: melee monsters ----
   massiff:      { desc: 'Five and a half metres of war beast. You are the pounce now.', hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
-  broodmother:  { desc: 'The Crevasse made flesh. Slow, vast, and very final up close.', hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, voice: 'reptile' },
+  broodmother:  { desc: 'The Crevasse made flesh. Lay eggs on Y; the brood hunts for you.', hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, special: 'layEgg', voice: 'reptile' },
+  // Not on the select screen: the body the broodmother's player carries on in
+  // when she falls with a hatchling still alive (docs/MODES.md §3). Survive
+  // ten seconds in it and you grow back into her.
+  spiderling:   { desc: 'A hatchling of the brood. Small, quick, and ten seconds from motherhood.', hp: 40, run: 10.5, melee: [16, 26], meleeOnly: true, voice: 'reptile' },
   enforcer:     { desc: 'A Wookiee gladiator. Doors are a suggestion.', hp: 260, run: 8.4, melee: [52, 80], meleeOnly: true, voice: 'reptile' },
 };
 
@@ -256,6 +264,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
       blasterVoice: t.blaster ?? 'carbine',
       voice: t.voice,
       squad: t.squad,
+      special: t.special,
       radius: Math.min(s.radius, 0.6),
       height: Math.min(s.height, 2.1),
       // hit as the creature, not as the clamped capsule it walks around in
@@ -282,10 +291,13 @@ for (const kind of Object.keys(NPC_TUNING) as EnemyKind[]) {
 
 /** the roster the wave game and campaign have always had */
 export const STANDARD_ROSTER: PlayableId[] = [...PLAYABLE_MANDO_IDS];
+/** playable bodies that exist only to be morphed into, never selected */
+const HIDDEN_PLAYABLES = new Set<EnemyKind>(['spiderling']);
+
 /** PvP: the standard roster plus every playable NPC */
 export const PVP_ROSTER: PlayableId[] = [
   ...STANDARD_ROSTER,
-  ...(Object.keys(NPC_TUNING) as EnemyKind[]).map((k) => `npc:${k}`),
+  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k) => `npc:${k}`),
 ];
 
 export function playableDef(id: PlayableId): PlayableDef {

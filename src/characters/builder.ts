@@ -25,6 +25,19 @@ export interface CharacterInstance {
    */
   setGait?: (speed: number) => void;
   /**
+   * The broodmother's egg rack: one entry per visible sac on her back.
+   * < 0 = spent (shaded dark); 0..1 = the sac currently charging (dark
+   * through most of it, flashing blue near the end); >= 1 = ready (white).
+   * The Player controller drives it every frame from its clutch state.
+   */
+  setEggs?: (states: number[]) => void;
+  /**
+   * World position of egg-rack sac `index`, written into `out`. The laid or
+   * thrown egg spawns exactly there — the sac goes dark and the same egg
+   * visibly leaves her back. Returns false when there is no such sac.
+   */
+  eggSpot?: (index: number, out: THREE.Vector3) => boolean;
+  /**
    * Play this character's attack — a lunge-bite, a leg strike, a claw swipe —
    * and return its duration in seconds. Only the self-animating creatures
    * carry this: characters on the canonical humanoid rig attack through their

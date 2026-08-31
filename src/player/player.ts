@@ -16,6 +16,7 @@ import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
 import { markOwned } from '../core/dispose';
+import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 
 /** scratch for measuring the body the camera is framing */
@@ -258,6 +259,25 @@ export class Player {
   formT = 0;
   /** original materials, swapped out for the dissolve's transparent clones */
   private savedMats: Map<THREE.Mesh, THREE.Material | THREE.Material[]> | null = null;
+  /** set by death: the next spawnAt plays the re-form (a takeover cancels it) */
+  private rebirth = false;
+  /** the fighter picked on the select screen — what a respawn morphs back into */
+  readonly baseCharacterId: PlayableId;
+  /** the brood-queen loop: what this body grows back into once growT runs out */
+  growInto: PlayableId | null = null;
+  private growT = 0;
+  /**
+   * The broodmother's clutch: eggs charged and ready on her back. Starts
+   * empty (every sac shaded dark) and gains one every three seconds — the
+   * sac flashes blue as it finishes, then holds white until spent. Y lays
+   * one behind her; RT lobs one at the aim. Capacity is exactly the sacs
+   * the model shows (BROOD_EGG_RACK).
+   */
+  private eggsReady = 0;
+  private eggCharge = 0;
+  private eggStates: number[] = new Array(BROOD_EGG_RACK).fill(-1);
+  /** ready eggs on the broodmother's back, for the HUD */
+  get eggClutch(): number { return this.eggsReady; }
   private hurtFlash = 0;
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
@@ -298,6 +318,7 @@ export class Player {
   private frameCheck = 0;
 
   constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
+    this.baseCharacterId = characterId;
     const def = playableDef(characterId);
     this.profile = def.profile;
     this.char = def.build();
@@ -397,6 +418,8 @@ export class Player {
     this.alive = true;
     this.respawnTimer = 0;
     this.slamming = false;
+    this.eggsReady = 0;   // a fresh body starts with every sac dark
+    this.eggCharge = 0;
     this.cover = null;
     this.peeking = false;
     // any blade still in flight snaps straight back into the hand
@@ -410,9 +433,13 @@ export class Player {
     this.char.root.visible = true;
     // A body that burned away re-forms where it respawns: it starts invisible
     // and fades in as the motes converge, and the camera flies over to the
-    // new spot rather than cutting. A spawn with no dissolve behind it (match
-    // start, the PvP squad takeover) skips all of this.
-    if (this.savedMats) {
+    // new spot rather than cutting. Armed by die() rather than keyed off the
+    // dissolve clones, so a respawn that morphed back to the base fighter (a
+    // fresh body, no clones yet) still re-forms; a spawn with no death behind
+    // it (match start) and the PvP squad takeover (cancelRebirth) skip it.
+    if (this.rebirth) {
+      this.rebirth = false;
+      this.ensureDissolveMats();
       this.formT = DISSOLVE_TIME;
       this.setOpacity(0);
       this.cam.glideFrom(0.9);
@@ -420,6 +447,50 @@ export class Player {
       look.y += this.height;
       this.cam.snapToward(look, 0.5);
     }
+  }
+
+  /** the takeover possesses a body already standing: no re-form on its spawnAt */
+  cancelRebirth(): void {
+    this.rebirth = false;
+  }
+
+  /**
+   * Become a different playable mid-match, in place: the body and the stat
+   * sheet swap; position, camera, team, kills and lives stay. This is the
+   * brood-queen loop's engine — broodmother → hatchling on the takeover,
+   * hatchling → broodmother on growth — and how a respawn walks a morphed
+   * player back to the fighter they picked.
+   */
+  morph(id: PlayableId, game: Game): void {
+    this.restoreMats();   // any dissolve clones belong to the body being shed
+    game.scene.remove(this.char.root);
+    const def = playableDef(id);
+    this.characterId = id;
+    this.profile = def.profile;
+    this.char = def.build();
+    this.char.setHeroLight(game.board.heroLight ?? 0);
+    this.maxHp = this.profile.maxHp;
+    this.hp = Math.min(this.hp, this.maxHp);
+    this.radius = this.profile.radius;
+    this.height = this.profile.height;
+    this.weapon = this.profile.rangedName === null ? 'none' : 'blaster';
+    this.rangedIdx = 0;
+    this.meleeIdx = 0;
+    this.growInto = null;
+    this.growT = 0;
+    this.eggsReady = 0;
+    this.eggCharge = 0;
+    this.formT = 0;
+    this.char.root.position.copy(this.position);
+    game.scene.add(this.char.root);
+    this.framedNodes = -1;   // the camera re-measures the new silhouette
+    this.frameCheck = 0;
+  }
+
+  /** arm the growth clock: survive `secs` in this body and become `into` */
+  beginGrowth(into: PlayableId, secs: number): void {
+    this.growInto = into;
+    this.growT = secs;
   }
 
   damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
@@ -453,6 +524,7 @@ export class Player {
     this.hp = 0;
     this.alive = false;
     this.deadT = 0;
+    this.rebirth = true;
     // the wait *is* the performance: fall, freeze, burn away — then respawn
     this.respawnTimer = DEATH_ANIM_TIME + DISSOLVE_TIME + 0.1;
     const anim = this.char.animator!;
@@ -656,6 +728,37 @@ export class Player {
         aiming: false, speed: 0, dashing: false,
       });
       return;
+    }
+
+    // the brood-queen loop: survive the growth clock in this body and grow
+    // back into what it was laid by (docs/MODES.md §3)
+    if (this.growInto && this.growT > 0) {
+      this.growT -= dt;
+      if (this.growT <= 0) {
+        const into = this.growInto;
+        const frac = clamp(this.hp / this.maxHp, 0.3, 1);
+        this.morph(into, game);   // clears growInto
+        this.hp = this.maxHp * frac;
+        game.particles.dustPuff(this.position, 14);
+        audio.bark('spider_chitter', 0.8);
+        game.announce(`${this.profile.name} grows`, 'the brood has its queen again');
+      }
+    }
+
+    // the broodmother's clutch charges one egg at a time, three seconds each
+    if (this.profile.special === 'layEgg') {
+      if (this.eggsReady < BROOD_EGG_RACK) {
+        this.eggCharge += dt / 3;
+        if (this.eggCharge >= 1) {
+          this.eggsReady++;
+          this.eggCharge = 0;
+        }
+      }
+      for (let i = 0; i < BROOD_EGG_RACK; i++) {
+        this.eggStates[i] = i < this.eggsReady ? 1
+          : i === this.eggsReady && this.eggsReady < BROOD_EGG_RACK ? this.eggCharge : -1;
+      }
+      this.char.setEggs?.(this.eggStates);
     }
 
     // the authored model lands seconds into a match and is a different size
@@ -1816,6 +1919,12 @@ export class Player {
       this.meleeComboWindow = 0;
       this.saberIdle = 0;
     }
+    // the broodmother's trigger: she has no gun — RT lobs a charged egg
+    if (input.shootHeld && this.profile.special === 'layEgg'
+        && this.fireCd <= 0 && this.meleeTimer <= 0) {
+      this.throwEgg(game);
+    }
+
     if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0
         && !this.overheated) {
       this.fireCd = this.profile.fireCd;
@@ -1852,7 +1961,9 @@ export class Player {
     // theirs is a committed leap onto the nearest target that lands as the
     // finisher: knockdown, finisher damage, the works.
     if (input.rocketPressed && this.rocketCd <= 0) {
-      if (this.meleeOnly) {
+      if (this.profile.special === 'layEgg') {
+        this.layEgg(game);
+      } else if (this.meleeOnly) {
         this.heavyLunge(game);
       } else {
         this.rocketCd = ROCKET_CD;
@@ -1875,6 +1986,52 @@ export class Player {
    * so it knocks down whatever it lands on. Its clock is the rocket's slot but
    * far shorter — a pounce, not ordnance.
    */
+  /**
+   * The broodmother's signature Y: set a charged egg down behind her. It
+   * takes 5 s to hatch, is destroyable the whole time, and what crawls out
+   * hunts for her (docs/MODES.md §3). Y and the RT throw draw from the same
+   * clutch — the real clock is the 3 s an egg takes to charge — so both
+   * buttons only carry a short anti-spam throttle. The Game owns the nest
+   * and refuses when it is full.
+   */
+  private layEgg(game: Game): void {
+    this.rocketCd = 0.5;
+    if (this.eggsReady <= 0) return;   // nothing charged yet
+    // the egg leaves from the sac that goes dark: same egg, delivered
+    const from = this.eggOrigin();
+    const vel = new THREE.Vector3(-Math.sin(this.facingYaw) * 2.2, 1.1, -Math.cos(this.facingYaw) * 2.2);
+    if (!game.layEgg(this, from, vel)) return;
+    this.eggsReady--;
+    this.char.attack?.();   // she rears to set it down
+    this.cam.shake(0.06);
+  }
+
+  /** where the next egg physically leaves her: the last charged sac's spot */
+  private eggOrigin(): THREE.Vector3 {
+    const from = new THREE.Vector3();
+    if (this.char.eggSpot?.(this.eggsReady - 1, from)) return from;
+    from.copy(this.position);
+    from.y += this.height * 0.8;
+    return from;
+  }
+
+  /**
+   * The broodmother's RT: lob a charged egg at whatever is under the aim.
+   * The hit shoves its target back without hurting them — the hurt is the
+   * hatchling five seconds later, if nobody destroys the egg where it fell.
+   */
+  private throwEgg(game: Game): void {
+    this.fireCd = 0.5;
+    if (this.eggsReady <= 0) return;
+    const from = this.eggOrigin();   // it flies off the sac that empties
+    const dir = this.aimPointFrom(game, from);
+    if (!game.throwEgg(this, from, dir)) return;
+    this.eggsReady--;
+    this.char.attack?.();
+    audio.bark('spider_chitter', 0.45);
+    this.cam.shake(0.05);
+  }
+
   private heavyLunge(game: Game): void {
     this.rocketCd = 5;
     // both blades away: the leap still goes, but it lands as a body-check —
