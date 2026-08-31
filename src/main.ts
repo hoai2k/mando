@@ -21,7 +21,7 @@ import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
-import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
 import { fitStats } from './world/collide';
@@ -624,10 +624,10 @@ function disposeGame(): void {
 /** the models the menus themselves still draw once a match is gone */
 function rosterModelIds(): string[] {
   const ids: string[] = [];
-  for (const id of PVP_ROSTER) {
-    const model = playableModelId(id);
-    if (model) ids.push(model);
-  }
+  // every file a fighter renders as, the swoop rider's bike included: the
+  // select stage will not show a fighter until all of them are in hand, so
+  // dropping one here means a spinner on a plinth that was warm a moment ago
+  for (const id of PVP_ROSTER) ids.push(...playableModelIds(id));
   return ids;
 }
 

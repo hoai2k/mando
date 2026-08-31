@@ -33,6 +33,20 @@ export interface CharacterInstance {
    * keeps a beast's attack visible whether the beast is hostile or played.
    */
   attack?: () => number;
+  /**
+   * Has this character's authored .glb question been answered?
+   *
+   * False while a model that is known to exist is still downloading, true once
+   * it is on — or once the load settled with no file, which makes the
+   * procedural build the final look rather than a stand-in. Builds that never
+   * ask for a model leave it undefined, which reads as ready.
+   *
+   * The menus use this to decide what they are allowed to *show*: a character
+   * whose sculpt is still coming is drawn as a spinner, never as the body it
+   * is about to stop being. In a match the procedural build still stands —
+   * that is the fallback the drop screen's skip is knowingly buying.
+   */
+  modelReady?: () => boolean;
   height: number;
   /**
    * Species bulk, as a uniform scale on `root`. Gameplay code also writes

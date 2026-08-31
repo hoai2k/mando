@@ -279,6 +279,24 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
 };
 
 /**
+ * Files a kind is made of *besides* its own body, keyed the same way.
+ *
+ * Only the swoop rider has any: he is two downloads, a rider and the bike
+ * under him. Anything that asks "is this fighter's art here yet" has to mean
+ * both, or the select stage clears its spinner on an authored rider sitting
+ * astride a procedural box.
+ */
+const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
+  nikto: ['nikto_swoop'],
+};
+
+/** Every .glb a kind renders as: its own model plus any companion piece. */
+export function enemyModelIds(kind: string): string[] {
+  const id = ENEMY_MODEL_ID[kind];
+  return [...(id ? [id] : []), ...(ENEMY_EXTRA_MODEL_IDS[kind] ?? [])];
+}
+
+/**
  * Widen a skinned mesh's bounding sphere so animation cannot take it outside
  * its own bounds, and leave frustum culling on. A rest-pose sphere is measured
  * with the arms down; a flight pose, a swing or a ragdoll all reach further.
@@ -540,6 +558,13 @@ export function loadProp(
     /** sit the model on y = 0 instead of on its own origin — creatures want this */
     ground?: boolean;
     onLoad?: (root: THREE.Object3D) => void;
+    /**
+     * Called once the question is answered either way — the sculpt is in, or
+     * there is no usable file and the stand-in is the final look. `onLoad`
+     * only fires on the happy path, so a caller that has to know when to stop
+     * waiting (a menu holding a spinner) needs this instead.
+     */
+    onSettle?: () => void;
   } = {},
 ): THREE.Group {
   const holder = new THREE.Group();
@@ -585,7 +610,12 @@ export function loadProp(
     if (opts.ground) root.position.y = -box.min.y * scale;
     holder.add(root);
     opts.onLoad?.(root);
-  }).catch((err) => console.warn(`[authored] prop ${id} failed:`, err));
+  })
+    .catch((err) => console.warn(`[authored] prop ${id} failed:`, err))
+    // after `onLoad`, and on every path out of it — a missing file, a broken
+    // one, a sculpt with no geometry to measure — so a waiter is never left
+    // holding a spinner for a model that is never coming
+    .then(() => opts.onSettle?.());
   return holder;
 }
 
@@ -640,14 +670,17 @@ export type CreatureId = keyof typeof CREATURE_MODELS;
  */
 export function loadCreature(
   id: CreatureId,
-  opts: { onLoad?: (root: THREE.Object3D) => void } = {},
+  opts: { onLoad?: (root: THREE.Object3D) => void; onSettle?: () => void } = {},
 ): THREE.Group {
   const height = CREATURE_MODELS[id];
   if (!height) {
     console.warn(`[authored] creature "${id}" has no registered height; add it to CREATURE_MODELS`);
+    // nothing will ever load for an unregistered id: settle now rather than
+    // leave a caller waiting on a file this will never ask for
+    opts.onSettle?.();
     return new THREE.Group();
   }
-  return loadProp(id, height, { axis: 'y', ground: true, onLoad: opts.onLoad });
+  return loadProp(id, height, { axis: 'y', ground: true, onLoad: opts.onLoad, onSettle: opts.onSettle });
 }
 
 export interface AuthoredSwap {

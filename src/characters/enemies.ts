@@ -71,6 +71,10 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
   });
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
+  // the menus show a spinner rather than the body underneath until this turns
+  // true; `settled` covers "no file exists" too, so a kind without a sculpt is
+  // presentable immediately
+  inst.modelReady = () => swap.settled;
 }
 
 export function buildTusken(authored = true): CharacterInstance {
@@ -505,8 +509,11 @@ export function buildMassiff(authored = true): CharacterInstance {
   /** seconds into the current strike; < 0 = not striking (drives the fallback pose too) */
   let attackT = -1;
   const ATTACK_DUR = 0.6;
+  /** false only while a sculpt that exists is still on its way (see CharacterInstance.modelReady) */
+  let settled = !authored;
   if (authored) {
     const model = loadCreature('massiff', {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         body.visible = false;
         posed = false;
@@ -544,6 +551,7 @@ export function buildMassiff(authored = true): CharacterInstance {
 
   return {
     root, rig: null, animator: null, height: 2.0, baseScale: 1,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;
@@ -624,9 +632,11 @@ export function buildNikto(authored = true): CharacterInstance {
   group.add(bike);
   // The bike is a vehicle, not a character — nothing animates it, so it comes
   // in through the prop path and simply replaces the procedural box.
+  let bikeSettled = !authored;
   if (authored) {
     const swoop = loadProp('nikto_swoop', 2.6, {
       onLoad: () => { for (const m of bike.children) if ((m as THREE.Mesh).isMesh) m.visible = false; },
+      onSettle: () => { bikeSettled = true; },
     });
     bike.add(swoop);
   }
@@ -670,6 +680,9 @@ export function buildNikto(authored = true): CharacterInstance {
   const ATTACK_DUR = 0.45;
   return {
     root: group, rig: null, animator: null, height: 1.6, baseScale: 1,
+    // rider and bike are two separate files: this fighter is only presentable
+    // once both have answered, or a menu shows an authored rider on a box
+    modelReady: () => bikeSettled && swap.settled,
     attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
       swap.update();
@@ -791,8 +804,10 @@ function buildKryknaBase(
   let attackT = -1;
   const ATTACK_DUR = 0.55;
   let clipStride = 3;
+  let settled = !authored;
   if (authored) {
     const model = loadCreature(creatureId, {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         body.visible = false;
         posed = false;
@@ -823,6 +838,7 @@ function buildKryknaBase(
   let gaitSpeed = 0;
   return {
     root, rig: null, animator: null, height: 1.7 * scale, baseScale: scale,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;
@@ -983,8 +999,10 @@ export function buildInterceptorDrone(authored = true): CharacterInstance {
   addCyl(core, dark, 0.05, 0.08, 0.16, 0, 0.3, 0, 0, 0, 0, 8);          // top thruster
   let posed = true;
   let mixer: THREE.AnimationMixer | null = null;
+  let settled = !authored;
   if (authored) {
     const model = loadCreature('interceptor_drone', {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         core.visible = false;
         posed = false;
@@ -999,6 +1017,7 @@ export function buildInterceptorDrone(authored = true): CharacterInstance {
   }
   return {
     root, rig: null, animator: null, height: 1.7, baseScale: 1,
+    modelReady: () => settled,
     cosmetic: (dt, time) => {
       if (mixer) { mixer.update(dt); return; }
       if (!posed) return;
@@ -1131,7 +1150,9 @@ function buildMonsterBase(
   /** matches the 'attack' clip durations in anim/quadruped.ts, close enough */
   const ATTACK_DUR = 0.85;
   let clipStride = 3;
+  let settled = false;
   const sculpt = loadCreature(creatureId, {
+    onSettle: () => { settled = true; },
     onLoad: (loaded) => {
       body.visible = false;
       for (const l of legs) l.visible = false;
@@ -1168,6 +1189,7 @@ function buildMonsterBase(
   let gaitSpeed = 0;
   return {
     root, rig: null, animator: null, height, baseScale: 1,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;
