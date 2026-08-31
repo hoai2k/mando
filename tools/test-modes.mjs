@@ -477,6 +477,26 @@ const doors = await h.page.evaluate(async () => {
   const ahead = rooms[rooms.length - 1];
   const out = { aheadShut: !!ahead.entryGate?.closed, aheadBolt: shootThrough(ahead) };
 
+  // What the doorway *looks* like has to follow what it is. The leaves are the
+  // door now: the authored blast_door sculpt is a single mesh of a shut door,
+  // so a gate that drew it stayed visibly closed while standing wide open.
+  const leafX = (gate) => gate.leaves.map((l) => +l.position.x.toFixed(2));
+  out.leavesShut = leafX(ahead.entryGate);
+  ahead.entryGate.open();
+  for (let i = 0; i < 300; i++) c.animateGates(1 / 60);
+  out.leavesOpen = leafX(ahead.entryGate);
+  out.sculptInDoorway = (() => {
+    let found = false;
+    g.board.group.traverse((o) => {
+      if (o.userData?.prop !== 'blast_door') return;
+      const w = o.getWorldPosition(p.position.clone());
+      if (Math.hypot(w.x - ahead.entry.x, w.z - ahead.entry.z) < 4) found = true;
+    });
+    return found;
+  })();
+  ahead.entryGate.close();
+  for (let i = 0; i < 300; i++) c.animateGates(1 / 60);
+
   // find the first room that seals, and put ONE player inside it
   const i = rooms.findIndex((r, n) => n > 0 && r.spec.kind !== 'camp');
   const room = rooms[i];
@@ -495,6 +515,12 @@ const doors = await h.page.evaluate(async () => {
   return out;
 });
 check('campaign: a door ahead of the party is shut', doors.aheadShut, JSON.stringify(doors));
+// the leaves have to actually part, and nothing static may cover the opening
+check('campaign: opening a door moves its leaves clear',
+  doors.leavesOpen.every((x, i) => Math.abs(x) > Math.abs(doors.leavesShut[i]) + 1.5),
+  JSON.stringify({ shut: doors.leavesShut, open: doors.leavesOpen }));
+check('campaign: no static door sculpt left covering the doorway',
+  doors.sculptInDoorway === false, JSON.stringify(doors));
 check('campaign: and nothing shoots through it', !doors.aheadBolt, JSON.stringify(doors));
 // The seal is the same door the party walks in by, so sealing on the first
 // body through locked everyone else out of their own boss fight.

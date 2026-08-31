@@ -453,6 +453,39 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 0.29, 0.5], [[-10, 0, 0], [12, 0, 0], [0, 0, 0]]),
   ]);
 
+  // ---------- UPPER: throwing a blade, and catching it coming back ----------
+  // A thrown saber has to read as thrown. Reusing the first combo swing meant
+  // the blade simply left during a slash, which looks like a slash — nothing
+  // says the weapon has been let go of. So: the arm cocks back past the
+  // shoulder with the chest wound away from the target (all the anticipation
+  // is here), then whips forward and opens, and the blade leaves the hand on
+  // that beat rather than on the button. The follow-through carries past the
+  // aim line before settling, the way a real throw overshoots.
+  clips.saberThrowR = new THREE.AnimationClip('saberThrowR', 0.46, [
+    qt('chest', [0, 0.17, 0.27, 0.46], [[2, -30, 0], [0, -44, 0], [6, 30, 0], [2, 0, 0]]),
+    // back over the shoulder, elbow folded, then straight out and across
+    qt('upperArmR', [0, 0.17, 0.27, 0.46], [[-30, 0, 8], [-128, -56, 22], [-46, 58, -14], [-30, 0, 8]]),
+    qt('forearmR', [0, 0.17, 0.27, 0.46], [[-25, 0, 0], [-104, 0, 0], [-6, 0, 0], [-25, 0, 0]]),
+    // the off hand counterbalances the wind-up rather than hanging dead
+    qt('upperArmL', [0, 0.17, 0.27, 0.46], [[-22, 2, 42], [-30, 26, 52], [-18, -10, 34], [-22, 2, 42]]),
+    qt('forearmL', [0, 0.17, 0.46], [[-30, -18, -22], [-44, -18, -22], [-30, -18, -22]]),
+    // eyes stay on where it is going through the whole action
+    qt('head', [0, 0.17, 0.27, 0.46], [[0, 22, 0], [-6, 30, 0], [4, -6, 0], [0, 0, 0]]),
+  ]);
+  clips.saberThrowL = mirrorClip(clips.saberThrowR, 'saberThrowL');
+
+  // The catch is the throw run backwards and shorter: the hand goes out to
+  // meet the blade, then folds in as it arrives, absorbing it.
+  clips.saberCatchR = new THREE.AnimationClip('saberCatchR', 0.34, [
+    qt('chest', [0, 0.12, 0.34], [[2, 14, 0], [4, 6, 0], [2, 0, 0]]),
+    // reach: arm out and open toward the incoming blade
+    qt('upperArmR', [0, 0.12, 0.22, 0.34], [[-30, 0, 8], [-74, 26, -8], [-52, 12, 2], [-30, 0, 8]]),
+    qt('forearmR', [0, 0.12, 0.22, 0.34], [[-25, 0, 0], [-8, 0, 0], [-38, 0, 0], [-25, 0, 0]]),
+    qt('upperArmL', [0, 0.12, 0.34], [[-22, 2, 42], [-26, -4, 38], [-22, 2, 42]]),
+    qt('head', [0, 0.12, 0.34], [[0, 10, 0], [0, 4, 0], [0, 0, 0]]),
+  ]);
+  clips.saberCatchL = mirrorClip(clips.saberCatchR, 'saberCatchL');
+
   // ---------- UPPER: saber stance (blades lit, between swings) ----------
   // A duelist reads from the ready, not the swing. Out of a swing the twin
   // blades used to hang from the generic idle/run arms like tools; these hold

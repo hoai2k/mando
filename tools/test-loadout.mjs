@@ -112,6 +112,64 @@ const ventress = armed.ventress;
 check('and the one who carries no gun throws a blade instead',
   !!ventress && ventress.ranged === 0 && ventress.throws, ventress);
 
+// ---- the throw itself: tap swings, hold throws, release brings it home ----
+await h.page.evaluate(() => window.__startMode('wave', 1, 'desert', ['ventress']));
+for (let i = 0; i < 400; i++) {
+  const there = await h.page.evaluate(() =>
+    window.__game?.board.kind === 'desert' && window.__state === 'playing');
+  if (there) break;
+  await new Promise((r) => setTimeout(r, 250));
+}
+await new Promise((r) => setTimeout(r, 9000));
+const rt = await h.page.evaluate(() => {
+  window.__manual = true;
+  const blank = () => ({
+    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+    zoomDelta: 0, blockHeld: false, pausePressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false,
+    throttleHeld: false, brakeHeld: false,
+  });
+  const inputs = [blank(), blank(), blank(), blank()];
+  const DT = 1 / 60, g = window.__game, p = g.players[0];
+  const step = (secs, rtHeld) => {
+    inputs[0].shootHeld = !!rtHeld;
+    for (let t = 0; t < secs; t += DT) g.update(DT, inputs);
+    inputs[0].shootHeld = false;
+  };
+  // any ribbon geometry still drawn in the throw's own container
+  const ribbon = () => {
+    let on = false;
+    p.throwFx?.traverse((o) => { if (o.isMesh && o.visible && o.geometry?.attributes?.color) on = true; });
+    return on;
+  };
+  const out = {};
+  step(0.10, true); step(0.4, false);
+  out.tapKeptBlades = p.sabersHeld;
+  out.tapSwung = p.meleeComboWindow > 0 || p.meleeTimer > 0;
+  step(1.2, false);
+  step(0.5, true);
+  out.holdThrew = p.sabersHeld;
+  step(1.0, true);
+  out.stayedOut = p.sabersHeld;
+  step(2.5, false);
+  out.cameHome = p.sabersHeld;
+  step(3.0, false);
+  out.ribbonAfter = ribbon();
+  window.__manual = false;
+  return out;
+});
+// A pull is her attack button first: throwing on every press left her unable
+// to swing with RT at all without disarming herself.
+check('a quick pull swings and keeps both blades', rt.tapKeptBlades === 2 && rt.tapSwung, rt);
+check('holding sends one out, and it stays out', rt.holdThrew === 1 && rt.stayedOut === 1, rt);
+check('releasing brings it back to her hand', rt.cameHome === 2, rt);
+// The blade's trail stopped being ticked once it was home, so its last samples
+// never aged out and the mesh stayed visible — a sweep hanging in the air for
+// the rest of the match.
+check('and leaves no ribbon hanging in the air', rt.ribbonAfter === false, rt);
+
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
 console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall loadout checks passed');

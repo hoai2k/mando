@@ -13,7 +13,19 @@ import { authoredProp } from './props';
  * does not depend on either — the campaign's beacon sits on it and the HUD
  * names the distance.
  */
-export function buildDoorFrame(parent: THREE.Object3D, pos: THREE.Vector3, yaw: number): THREE.Group {
+/**
+ * @param opts.leaf  false = surround only, no door in it.
+ *
+ * A gate supplies its own leaves and slides them apart, so it wants the posts
+ * and the lintel and nothing across the opening. The `blast_door` sculpt is
+ * one mesh of a *shut* door — there is no separable panel in the file — so a
+ * gate that used it could only ever look closed, whatever it was doing. Until
+ * a re-export splits the leaves out, an animated door has to be built rather
+ * than loaded (see docs/ASSETS_MODELS.md).
+ */
+export function buildDoorFrame(parent: THREE.Object3D, pos: THREE.Vector3, yaw: number,
+  opts: { leaf?: boolean } = {}): THREE.Group {
+  const leaf = opts.leaf !== false;
   const g = new THREE.Group();
   g.position.copy(pos);
   g.rotation.y = yaw;
@@ -28,19 +40,22 @@ export function buildDoorFrame(parent: THREE.Object3D, pos: THREE.Vector3, yaw: 
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.5, 0.5), frame);
   lintel.position.y = 3.55;
   g.add(lintel);
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.1), new THREE.MeshBasicMaterial({
-    color: 0x63b4ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending,
-    depthWrite: false, side: THREE.DoubleSide,
-  }));
-  glow.position.y = 1.75;
-  g.add(glow);
+  if (leaf) {
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 3.1), new THREE.MeshBasicMaterial({
+      color: 0x63b4ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide,
+    }));
+    glow.position.y = 1.75;
+    g.add(glow);
+  }
   const strip = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.12, 0.12), glowM);
   strip.position.y = 3.24;
   g.add(strip);
   // Everything built above is the stand-in. Quarter turn because this sculpt is
   // wide along its own Z where the frame is wide along X — without it the door
   // stands edge-on to everyone walking up to it.
-  authoredProp(g, [...g.children], 'blast_door', 3.8, { axis: 'y', yaw: Math.PI / 2 });
+  // the sculpt is the whole door; only a surround-less doorway can take it
+  if (leaf) authoredProp(g, [...g.children], 'blast_door', 3.8, { axis: 'y', yaw: Math.PI / 2 });
   parent.add(g);
   return g;
 }
