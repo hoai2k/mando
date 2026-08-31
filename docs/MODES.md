@@ -212,8 +212,9 @@ with a to-do list, and was redesigned into the room chain — 2026-08-30.)
 Three room templates alternate along the chain (docs/LEVEL_DESIGN.md §2):
 **camp** rooms hold a posted garrison under the normal awareness rules —
 fight it or slip through to the far gate; **assault** rooms seal both gates
-behind an energy pane and run 2–3 waves from wall vents until the room is
-held (Gauntlet's arena floor); and the two **boss arenas** — the champion's
+behind an energy pane and run 2–3 waves until the room is held (Gauntlet's
+arena floor) — the waves come in by transport, the same carrier pass the
+wave game flies, since a mission room is walled but roofless; and the two **boss arenas** — the champion's
 mid-chain, the warlord's at the end, oversized on monster boards for what
 comes up after. A **guide beacon** (light pillar + radar pip + on-screen
 hint) always marks the one next objective. Difficulty ramps by *place*: room

@@ -78,6 +78,15 @@ export const SETTLE_MS = 550;
  * how long the download took and the same fighter came out differently on
  * every run. Any settled point in the loop will do; what matters is that it is
  * the same one every time.
+ *
+ * The plinth holds a body at this same instant for as long as its picture is
+ * still the thing on screen, so the swap lands on the frame the picture froze
+ * and the fighter does not change stance as it happens. (`Animator.poseAt`
+ * also has to finish the idle's crossfade: a fade that has never been stepped
+ * sits at no weight, and a mixer update of zero seconds spends none of the
+ * time it needs — which is how every poster came to be shot with the rig in
+ * its bind stance, arms flat at the sides, while the live model stood there
+ * in the idle with its arms relaxed out.)
  */
 export const POSTER_ANIM_T = 1.2;
 
