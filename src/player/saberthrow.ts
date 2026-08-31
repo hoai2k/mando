@@ -86,6 +86,9 @@ export class ThrownSaber {
   reset(): void {
     this.state = 'held';
     this.spinner.visible = false;
+    // and drop the ribbon on the spot: a respawn should not trail the last
+    // life's throw across the map
+    this.trail(1, false);
   }
 
   /**
@@ -93,7 +96,15 @@ export class ThrownSaber {
    * Returns true on the frame the owner's hand closes around it again.
    */
   update(dt: number, game: Game, owner: Player, catchPoint: THREE.Vector3): boolean {
-    if (this.state === 'held') return false;
+    if (this.state === 'held') {
+      // Keep ageing the ribbon after the blade is home. Returning here without
+      // ticking it left the last samples frozen at the age they had, so the
+      // mesh stayed visible carrying a spin's worth of geometry — the arc that
+      // hung in the air for the rest of the match. The trail empties itself
+      // once nothing is being added; it just has to be asked.
+      this.trail(dt, false);
+      return false;
+    }
     this.spin += dt * SPIN_RATE;
     this.spinner.rotation.y = this.spin;
 

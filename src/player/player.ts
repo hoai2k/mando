@@ -24,6 +24,10 @@ const _bodyBox = new THREE.Box3();
 const _bodySize = new THREE.Vector3();
 /** how often the body is re-measured for the camera, seconds */
 const FRAME_RECHECK = 0.5;
+/** how long RT must be held before a blade leaves the hand, seconds */
+const THROW_HOLD = 0.22;
+/** wind-up before the blade leaves the hand, seconds — the arm's cock-back */
+const THROW_WINDUP = 0.18;
 /** what a hit washes the body toward */
 const HURT_TINT = new THREE.Color(0xd41f14);
 
@@ -209,6 +213,13 @@ export class Player {
   // ---- saber throw (RT, saber fighters only) ----
   /** the blades in flight, one slot per hand (0 = main, 1 = off) */
   private thrownSabers: [ThrownSaber | null, ThrownSaber | null] = [null, null];
+  /** seconds RT has been held since the pull, or -1 when not tracking one */
+  private throwHold = -1;
+  /** seconds left of the wind-up before the blade leaves the hand, or -1 */
+  private throwWind = -1;
+  private throwHand: 0 | 1 = 0;
+  /** a tap that ended before the hold matured, waiting to become a swing */
+  private pendingMelee = false;
   /** scene-level container for the flying blades and their trails */
   private throwFx: THREE.Group | null = null;
   /** last frame's RT, for press-edge detection independent of the masks */
@@ -1791,11 +1802,15 @@ export class Player {
   }
 
   /**
-   * RT for the saber fighter: a pull throws a blade, which spins out ahead
-   * for as long as the trigger stays down and comes home when it is released.
-   * A second pull while the first blade is still away throws the other hand's
-   * blade. With both gone she fights bare-handed — shorter, weaker, and with
-   * nothing to deflect on — until they return.
+   * RT for the saber fighter, tap or hold.
+   *
+   * A quick pull is just a swing — the trigger is her attack button, and
+   * every pull throwing a blade meant she could not strike with RT at all
+   * without disarming herself. Hold it past THROW_HOLD and the blade leaves
+   * the hand instead, spins out ahead for as long as the trigger stays down,
+   * and comes home the moment it is released. Holding again while the first
+   * blade is away sends the other hand's. With both gone she fights
+   * bare-handed — shorter, weaker, nothing to deflect on — until they return.
    *
    * Reads the raw input (not the masked copies handed to updateCombat), and
    * runs on every update path, so a blade in flight keeps flying while she
@@ -1807,41 +1822,85 @@ export class Player {
     this.prevThrowHeld = input.shootHeld;
     // letting go — or losing the ability to hold on — turns the blades home
     const held = input.shootHeld && this.alive && !this.blocking;
+    const free = this.alive && !this.blocking && !this.cover && !this.vehicle
+      && !this.swimming && this.snareTimer <= 0;
 
-    if (pressed && this.alive && !this.blocking && !this.cover && !this.vehicle
-        && !this.swimming && this.meleeTimer <= 0 && this.snareTimer <= 0) {
-      const t0 = this.thrownSabers[0];
-      const t1 = this.thrownSabers[1];
-      const hand = (!t0 || t0.state === 'held') ? 0 : (!t1 || t1.state === 'held') ? 1 : -1;
-      if (hand >= 0) this.throwSaber(hand as 0 | 1, game);
+    if (pressed && free && this.meleeTimer <= 0) this.throwHold = 0;
+    if (this.throwHold >= 0) {
+      if (!input.shootHeld || !free) {
+        // let go before the hold matured: she meant to hit something with it
+        if (input.shootHeld === false && free) this.pendingMelee = true;
+        this.throwHold = -1;
+      } else {
+        this.throwHold += dt;
+        if (this.throwHold >= THROW_HOLD) {
+          this.throwHold = -1;
+          const t0 = this.thrownSabers[0];
+          const t1 = this.thrownSabers[1];
+          const hand = (!t0 || t0.state === 'held') ? 0 : (!t1 || t1.state === 'held') ? 1 : -1;
+          if (hand >= 0) this.beginThrow(hand as 0 | 1);
+        }
+      }
+    }
+
+    // the blade leaves on the forward whip, not on the button
+    if (this.throwWind >= 0) {
+      this.throwWind -= dt;
+      if (this.throwWind <= 0) {
+        this.throwWind = -1;
+        if (free) this.releaseSaber(this.throwHand, game);
+      }
     }
 
     const catchPoint = _catch.set(this.position.x, this.position.y + 1.25, this.position.z);
     for (const hand of [0, 1] as const) {
       const t = this.thrownSabers[hand];
-      if (!t || t.state === 'held') continue;
-      if (!held) t.recall();
+      // A blade already home is still stepped: its trail has to be told to
+      // age out, and skipping it left the ribbon hanging in mid-air.
+      if (!t) continue;
+      if (t.state !== 'held' && !held) t.recall();
       if (t.update(dt, game, this, catchPoint)) {
-        // caught: the hand closes around it and it is a weapon again
+        // caught: the hand goes out to meet it and folds in around the hilt
         this.char.setSaberHeld?.(hand, true);
         this.saberIdle = 0;
         audio.saberIgnite();
+        this.char.animator?.playOnce('upper', hand === 0 ? 'saberCatchR' : 'saberCatchL', 0.05);
+        this.meleeTimer = Math.max(this.meleeTimer, 0.3);
       }
     }
   }
 
-  /** Send one blade out along the crosshair (soft-locked when a target sits in the cone). */
-  private throwSaber(hand: 0 | 1, game: Game): void {
-    if (!this.throwFx) this.throwFx = new THREE.Group();
-    if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
-    let t = this.thrownSabers[hand];
-    if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, { light: hand === 0 });
+  /**
+   * Wind up: the arm cocks back and the blade stays in the hand.
+   *
+   * The throw is two beats, because one beat does not read as a throw — the
+   * blade used to leave on the button, during a borrowed slash animation, so
+   * nothing on her body said she had let go of it. `saberThrow*` cocks back
+   * over the shoulder, and `releaseSaber` runs on the forward whip.
+   */
+  private beginThrow(hand: 0 | 1): void {
     // throwing draws, the same way a melee press does
     if (this.weapon !== 'gaffi') {
       audio.saberIgnite();
       this.weapon = 'gaffi';
       this.char.setWeapon('gaffi');
     }
+    this.saberIdle = 0;
+    this.throwWind = THROW_WINDUP;
+    this.throwHand = hand;
+    this.char.animator?.playOnce('upper', hand === 0 ? 'saberThrowR' : 'saberThrowL', 0.05);
+    // hold the one-shot against the locomotion poses for the whole action; no
+    // hit rides on this timer, meleeHitPending stays where it was
+    this.meleeTimer = Math.max(this.meleeTimer, THROW_WINDUP + 0.2);
+    audio.melee(2, 'sabers');
+  }
+
+  /** Send one blade out along the crosshair (soft-locked when a target sits in the cone). */
+  private releaseSaber(hand: 0 | 1, game: Game): void {
+    if (!this.throwFx) this.throwFx = new THREE.Group();
+    if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
+    let t = this.thrownSabers[hand];
+    if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, { light: hand === 0 });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
 
@@ -1860,12 +1919,6 @@ export class Player {
     from.addScaledVector(dir, 0.5);
     t.launch(from, dir);
     this.facingYaw = Math.atan2(dir.x, dir.z);
-    // the arm follows through: a one-shot swing, held briefly via meleeTimer
-    // so the locomotion poses don't stamp on it (no hit rides on this timer —
-    // meleeHitPending stays wherever it was, which is spent)
-    this.char.animator!.playOnce('upper', 'saber1', 0.06);
-    this.meleeTimer = Math.max(this.meleeTimer, 0.22);
-    audio.melee(2, 'sabers');
     this.cam.shake(0.045);
   }
 
@@ -1906,7 +1959,10 @@ export class Player {
 
     // melee (always available; swaps to gaffi visual during swing)
     this.meleeTimer -= dt;
-    if (input.meleePressed && this.meleeTimer <= 0) {
+    // a short RT pull from the saber fighter arrives here as a swing
+    const swing = input.meleePressed || this.pendingMelee;
+    this.pendingMelee = false;
+    if (swing && this.meleeTimer <= 0) {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
