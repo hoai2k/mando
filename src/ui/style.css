@@ -390,6 +390,17 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a7c5c;
 }
 .loading-foot .pct { color: #d8b25a; font-variant-numeric: tabular-nums; min-width: 3em; text-align: right; }
+/* The offer to drop early — the one control on this screen, and on a stalled
+   connection the only way off it, so it reads as a prompt rather than as the
+   tail of the status line. Empty until it is on offer, hence :not(:empty). */
+.loading-foot .skip:not(:empty) {
+  color: #0f0c08;
+  background: #d8b25a;
+  padding: 3px 10px;
+  border-radius: 3px;
+  animation: loading-skip 1.6s ease-in-out infinite;
+}
+@keyframes loading-skip { 50% { background: #f0d492; } }
 
 /* ---- game modes: boss bar, shared-screen HUD, planet strip ---- */
 

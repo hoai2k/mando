@@ -5,7 +5,7 @@ import {
   type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
 import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { ENEMY_MODEL_ID } from './authored';
+import { enemyModelIds } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
 
@@ -92,8 +92,15 @@ export interface PlayableDef {
   id: PlayableId;
   profile: PlayerProfile;
   build: () => PlayerCharacter;
-  /** authored .glb id for warming, or null when none exists */
-  modelId: string | null;
+  /**
+   * Every authored .glb this fighter renders as — usually one, but the swoop
+   * rider is a rider *and* a bike, and empty for a fighter with no model at
+   * all. This is what "the art for this character has arrived" is measured
+   * against, by the prefetcher and by the drop's blocking set alike, so it has
+   * to name every file or a plinth clears its spinner on a half-authored
+   * fighter.
+   */
+  modelIds: string[];
 }
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
@@ -218,7 +225,12 @@ function buildPlayableNpc(kind: EnemyKind): PlayerCharacter {
     muzzle,
     gaffi: new THREE.Group(),          // no swap prop: the model owns its weapon
     nozzles: [],
-    modelReady: () => true,            // procedural stand-in is fine to show
+    // The enemy build knows whether its sculpt is on yet; pass that straight
+    // through. Answering `true` unconditionally is what put procedural bodies
+    // on the PvP select stage — the plinth believed a stand-in was the
+    // finished fighter and showed it instead of waiting behind a spinner. A
+    // kind with no .glb at all settles ready immediately, as it should.
+    modelReady: inst.modelReady ?? (() => true),
     setWeapon: () => {},
     // an NPC's weapon is part of its model — there is nothing to swap, so the
     // loadout calls land somewhere harmless rather than being special-cased
@@ -239,7 +251,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
   const meleeOnly = t.meleeOnly ?? false;
   return {
     id: `npc:${kind}`,
-    modelId: ENEMY_MODEL_ID[kind] ?? null,
+    modelIds: enemyModelIds(kind),
     build: () => buildPlayableNpc(kind),
     profile: {
       name: ENEMY_NAME[kind],
@@ -279,7 +291,7 @@ const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
   DEFS.set(id, {
     id,
-    modelId: id,
+    modelIds: [id],
     build: () => buildMandalorian(id),
     profile: mandoProfile(id),
   });
@@ -304,7 +316,7 @@ export function playableDef(id: PlayableId): PlayableDef {
   return DEFS.get(id) ?? DEFS.get('din')!;
 }
 
-/** authored model id behind a playable, for the prefetcher; null = none */
-export function playableModelId(id: PlayableId): string | null {
-  return playableDef(id).modelId;
+/** every authored model a playable renders as — a swoop rider is two files */
+export function playableModelIds(id: PlayableId): string[] {
+  return playableDef(id).modelIds;
 }

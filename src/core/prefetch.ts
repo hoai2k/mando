@@ -1,6 +1,6 @@
-import { ENEMY_MODEL_ID, modelUrl, warmAuthored } from '../characters/authored';
+import { enemyModelIds, modelUrl, warmAuthored } from '../characters/authored';
 import type { EnemyKind } from '../enemies/enemy';
-import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
+import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { carrierShipId } from '../enemies/arrival';
@@ -124,18 +124,15 @@ export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[
   for (let wave = 1; wave <= throughWave; wave++) {
     // the kinds a wave posts don't depend on the player count, only the counts do
     for (const entry of waveComposition(board, wave, 1)) {
-      const id = ENEMY_MODEL_ID[entry.kind];
-      if (id) ids.add(id);
+      for (const id of enemyModelIds(entry.kind)) ids.add(id);
     }
     const ally = ALLY_WAVES[wave];
-    const allyId = ally ? ENEMY_MODEL_ID[ally] : undefined;
-    if (allyId) ids.add(allyId);
+    if (ally) for (const id of enemyModelIds(ally)) ids.add(id);
   }
   // both boss battles are certainties on a full run of the territory
   if (throughWave >= FINAL_WAVE) {
     for (const kind of bossKinds(board)) {
-      const id = ENEMY_MODEL_ID[kind];
-      if (id) ids.add(id);
+      for (const id of enemyModelIds(kind)) ids.add(id);
     }
   }
   return [...ids];
@@ -208,10 +205,11 @@ function rosterNeeds(ctx: WarmContext): Need[] {
   const out: Need[] = [];
   const seen = new Set<string>();
   const add = (id: PlayableId, soft: boolean): void => {
-    const m = playableModelId(id);
-    if (!m || seen.has(m)) return;
-    seen.add(m);
-    out.push(model(m, soft));
+    for (const m of playableModelIds(id)) {
+      if (seen.has(m)) continue;
+      seen.add(m);
+      out.push(model(m, soft));
+    }
   };
   for (const id of ctx.focus ?? []) add(id, false);
   // nobody has been focused yet (the title, the grid): the select opens on the
@@ -360,7 +358,7 @@ export function dropCast(board: BoardId, chars: PlayableId[], mode: GameMode): E
 
 /** the authored models behind a set of playables (NPC picks map through the roster) */
 function charModelIds(chars: PlayableId[]): string[] {
-  return chars.map((id) => playableModelId(id)).filter((id): id is string => !!id);
+  return [...new Set(chars.flatMap((id) => playableModelIds(id)))];
 }
 
 /**
@@ -376,8 +374,7 @@ function modeEnemyIds(board: BoardId, chars: PlayableId[], mode: GameMode): stri
     const ids = new Set<string>();
     for (const c of chars) {
       const squad = playableDef(c).profile.squad;
-      const id = squad ? ENEMY_MODEL_ID[squad.kind] : undefined;
-      if (id) ids.add(id);
+      if (squad) for (const id of enemyModelIds(squad.kind)) ids.add(id);
     }
     return [...ids];
   }

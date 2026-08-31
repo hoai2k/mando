@@ -21,8 +21,8 @@ import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
-import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
-import { releaseModels } from './characters/authored';
+import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { authoredCached, releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
 import { fitStats } from './world/collide';
 import { modesEnabled, type GameMode } from './game/modes';
@@ -366,6 +366,12 @@ end.onBack = () => quitToTitle();
 // is born a procedural stand-in and swaps to its authored .glb seconds later,
 // so the bench is built once and measured after the models have landed.
 (window as unknown as { __enemyKinds?: unknown }).__enemyKinds = enemyKinds();
+// debug/testing handle: has this .glb actually arrived and parsed? The retry
+// path in characters/authored.ts is otherwise invisible from outside — a model
+// that missed on a bad connection and is asked for again while the match runs
+// looks, from the DOM, exactly like one that never existed.
+(window as unknown as { __modelCached?: unknown }).__modelCached =
+  (id: string): boolean => authoredCached(id);
 const bodyBench: THREE.Object3D[] = [];
 /** a roster id builds as a fighter; anything else is a bare hostile kind */
 const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId);
@@ -561,10 +567,15 @@ function buildMatch(): void {
  * settles like any other: the procedural version of that surface is what the
  * game has always fallen back to, and waiting longer would not produce it.
  *
- * The wait is capped. A slow connection should not be able to strand someone
- * on this screen, and every asset here has a fallback that works.
+ * The wait is not capped, and that is the point. A stand-in is something the
+ * player *chooses* — the offer to drop early goes up after LOAD_SKIP_AFTER
+ * seconds and A takes it, knowingly trading a procedural surface or two for
+ * getting in sooner. A cap made that same trade on their behalf, which is how
+ * a first look at a territory ended up being a look at its stand-in on any
+ * connection slow enough. Everything here settles one way or the other, so
+ * the wait ends by itself; a connection that hangs a request outright has the
+ * skip standing on screen as its way out.
  */
-const LOAD_CAP = 30;
 const LOAD_SKIP_AFTER = 5;
 let loadTimer = 0;
 let built = false;
@@ -579,11 +590,11 @@ function updateLoading(dt: number): void {
   const note = !built ? 'Raising the territory'
     : p.pending > 0 ? `${p.pending} file${p.pending === 1 ? '' : 's'} to go`
       : 'Ready';
-  loading.progress(ratio, loadTimer > LOAD_SKIP_AFTER && p.pending > 0 ? `${note} · A to drop now` : note);
+  loading.progress(ratio, note, built && p.pending > 0 && loadTimer > LOAD_SKIP_AFTER);
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
   if (dbg.__holdLoading) return;
-  if (built && (p.pending === 0 || loadTimer > LOAD_CAP)) enterMatch();
+  if (built && p.pending === 0) enterMatch();
 }
 
 /**
@@ -624,10 +635,10 @@ function disposeGame(): void {
 /** the models the menus themselves still draw once a match is gone */
 function rosterModelIds(): string[] {
   const ids: string[] = [];
-  for (const id of PVP_ROSTER) {
-    const model = playableModelId(id);
-    if (model) ids.push(model);
-  }
+  // every file a fighter renders as, the swoop rider's bike included: the
+  // select stage will not show a fighter until all of them are in hand, so
+  // dropping one here means a spinner on a plinth that was warm a moment ago
+  for (const id of PVP_ROSTER) ids.push(...playableModelIds(id));
   return ids;
 }
 

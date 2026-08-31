@@ -314,6 +314,39 @@ const fitted = await page.evaluate(async () => {
 check('select: a giant fighter is scaled onto its plinth, a humanoid is left alone',
   fitted.massiff !== null && fitted.massiff < 0.6 && fitted.trooper === 1, JSON.stringify(fitted));
 
+// A fighter whose sculpt has not landed is never shown as the procedural body
+// underneath it — the plinth holds a spinner and waits. The playable NPCs used
+// to get this wrong: the adapter answered "my model is ready" unconditionally,
+// so a stand-in stood on the PvP stage as though it were the fighter.
+const pendingNpc = await page.evaluate(async () => {
+  const cs = window.__charsel;
+  const slot = cs.slots[0];
+  const id = 'npc:pyke';                      // has an authored .glb, not built yet
+  slot.choice = cs.roster.indexOf(id);
+  slot.phase = 'browsing';
+  slot.loadingFor = 0;
+  cs.update(1 / 60);                          // builds it and starts the load
+  const c = slot.chars.get(id);
+  const born = { ready: c.modelReady(), visible: c.root.visible };
+  cs.update(1);                               // past the spinner's grace period
+  const waiting = slot.spinner.style.display !== 'none';
+  for (let i = 0; i < 900 && !c.modelReady(); i++) {
+    await new Promise((r) => requestAnimationFrame(r));
+    cs.update(1 / 60);
+  }
+  cs.update(1 / 60);
+  return {
+    born, waiting,
+    ready: c.modelReady(), visible: c.root.visible,
+    spinner: slot.spinner.style.display !== 'none',
+  };
+});
+check('select: an NPC is hidden behind a spinner until its sculpt lands',
+  pendingNpc.born.ready === false && pendingNpc.born.visible === false && pendingNpc.waiting,
+  JSON.stringify(pendingNpc));
+check('select: ...and stands on the plinth once it has',
+  pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner, JSON.stringify(pendingNpc));
+
 // ---- Campaign ----
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 s = await page.evaluate(`(() => {
