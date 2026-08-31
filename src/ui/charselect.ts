@@ -522,7 +522,7 @@ export class CharacterSelect {
     const canvas = this.root.parentElement ?? document.body;
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
-    this.camera.updateMatrixWorld();
+    this.aimCamera();
     for (const s of this.slots) {
       const poster = s.poster;
       if (!poster) continue;
@@ -893,9 +893,24 @@ export class CharacterSelect {
     }
   }
 
-  render(renderer: THREE.WebGLRenderer): void {
+  /**
+   * Point the stage camera at the window it is actually being shown in.
+   *
+   * Anything that projects a world point to the screen needs this to have run
+   * first, and "first" cannot be taken on trust: a poster is laid out the
+   * moment it is created, which is not necessarily after a render. Left to
+   * `render` alone the projection still carried the PerspectiveCamera default
+   * aspect of 1, and a fighter two metres tall and half a metre wide was laid
+   * out in a square.
+   */
+  private aimCamera(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld();
+  }
+
+  render(renderer: THREE.WebGLRenderer): void {
+    this.aimCamera();
     this.layoutPanels();
     this.layoutPosters();
     renderer.render(this.scene, this.camera);
