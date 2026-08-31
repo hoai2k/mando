@@ -561,10 +561,15 @@ function buildMatch(): void {
  * settles like any other: the procedural version of that surface is what the
  * game has always fallen back to, and waiting longer would not produce it.
  *
- * The wait is capped. A slow connection should not be able to strand someone
- * on this screen, and every asset here has a fallback that works.
+ * The wait is not capped, and that is the point. A stand-in is something the
+ * player *chooses* — the offer to drop early goes up after LOAD_SKIP_AFTER
+ * seconds and A takes it, knowingly trading a procedural surface or two for
+ * getting in sooner. A cap made that same trade on their behalf, which is how
+ * a first look at a territory ended up being a look at its stand-in on any
+ * connection slow enough. Everything here settles one way or the other, so
+ * the wait ends by itself; a connection that hangs a request outright has the
+ * skip standing on screen as its way out.
  */
-const LOAD_CAP = 30;
 const LOAD_SKIP_AFTER = 5;
 let loadTimer = 0;
 let built = false;
@@ -579,11 +584,11 @@ function updateLoading(dt: number): void {
   const note = !built ? 'Raising the territory'
     : p.pending > 0 ? `${p.pending} file${p.pending === 1 ? '' : 's'} to go`
       : 'Ready';
-  loading.progress(ratio, loadTimer > LOAD_SKIP_AFTER && p.pending > 0 ? `${note} · A to drop now` : note);
+  loading.progress(ratio, note, built && p.pending > 0 && loadTimer > LOAD_SKIP_AFTER);
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
   if (dbg.__holdLoading) return;
-  if (built && (p.pending === 0 || loadTimer > LOAD_CAP)) enterMatch();
+  if (built && p.pending === 0) enterMatch();
 }
 
 /**
