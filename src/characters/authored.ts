@@ -118,6 +118,70 @@ export interface AuthoredModel {
 const cache = new Map<string, Promise<THREE.Group | null>>();
 /** ids whose .glb has actually arrived and parsed, for synchronous callers */
 const cachedIds = new Set<string>();
+/** transiently failed ids, and how many re-attempts have been spent on each */
+const retryCount = new Map<string, number>();
+/** ids with a re-attempt armed right now, and the timer that will fire it */
+const retrying = new Map<string, ReturnType<typeof setTimeout>>();
+/** who is standing on a procedural build, waiting for a re-attempt to land */
+const latecomers = new Map<string, Set<() => void>>();
+
+/**
+ * How long to wait before each re-attempt of a model whose download failed for
+ * a reason that might not repeat.
+ *
+ * Spread out and finite. These run while the player is fighting, sharing the
+ * connection with a match that is already loading its own scenery, so they
+ * hang well back; and a file that has missed five times across two and a half
+ * minutes is not coming, so the stand-in becomes the look and the game stops
+ * asking.
+ */
+const RETRY_DELAYS = [3, 8, 20, 45, 90];
+
+/**
+ * Ask for a failed model again, later.
+ *
+ * A 404 is an answer — most characters have no .glb and their procedural build
+ * is the finished look — but a dropped connection, a proxy hiccup or a 5xx is
+ * not, and the file behind it is one we know exists. The drop screen does not
+ * wait on any of this: the load has already settled, the match has already
+ * started on the stand-in, and a model that lands mid-fight swaps in over it
+ * exactly as one that lands mid-menu does.
+ */
+function scheduleRetry(id: string): void {
+  const spent = retryCount.get(id) ?? 0;
+  if (spent >= RETRY_DELAYS.length) {
+    // out of tries: whoever fell back keeps what they are standing in
+    retrying.delete(id);
+    latecomers.delete(id);
+    return;
+  }
+  retryCount.set(id, spent + 1);
+  retrying.set(id, setTimeout(() => {
+    void loadRaw(id).then((raw) => {
+      // failed again: that attempt's own handler armed the next one, or gave up
+      if (!raw) return;
+      retrying.delete(id);
+      const waiting = latecomers.get(id);
+      latecomers.delete(id);
+      for (const use of waiting ?? []) use();
+    });
+  }, RETRY_DELAYS[spent] * 1000));
+}
+
+/**
+ * Stand `use` by in case a model that failed still turns up.
+ *
+ * Called by whoever has just settled for a procedural build. If the file is
+ * genuinely absent, or its re-attempts are spent, this does nothing at all and
+ * the stand-in is the final look — which is the common case and has to stay
+ * free.
+ */
+function onRetryArrival(id: string, use: () => void): void {
+  if (!retrying.has(id)) return;   // absent for good, or out of tries: nothing to wait for
+  let set = latecomers.get(id);
+  if (!set) { set = new Set(); latecomers.set(id, set); }
+  set.add(use);
+}
 
 /**
  * Is this model already in hand, right now?
@@ -165,12 +229,27 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
         (ev) => handle.progress(ev.loaded, ev.total),
         (err) => {
           handle.finish(false);
-          // absent is normal (procedural fallback); anything else is worth saying
+          // Three rejects an HTTP error with the Response attached, which is
+          // the whole difference between "there is no such file" and "the file
+          // is there and we did not get it this time".
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 404 || status === 410) {
+            // Absent is normal: most characters have no .glb and the procedural
+            // build is their finished look. Leaving this resolved promise in
+            // the cache is what remembers that, so the next instance of the
+            // same character does not go and ask for the missing file again.
+            resolve(null);
+            return;
+          }
           console.warn(`[authored] ${id}.glb failed to load:`, err);
           // Drop the rejection from the cache. Keeping it meant one dropped
           // request downgraded that character to procedural for the rest of
-          // the session, with no way back short of a reload.
+          // the session, with no way back short of a reload. Asking again on a
+          // backoff is the other half of that: a file we know is there should
+          // not be lost to one bad moment on the connection, and nothing has to
+          // wait on the retry for the match to start.
           cache.delete(id);
+          scheduleRetry(id);
           resolve(null);
         },
       );
@@ -201,6 +280,15 @@ function loadRaw(id: string): Promise<THREE.Group | null> {
 export function releaseModels(keep: Iterable<string>): number {
   const spare = new Set(keep);
   let freed = 0;
+  // A re-attempt outliving the match that wanted it would re-download a
+  // territory's sculpt for a board nobody is standing on, and hand it to
+  // objects the teardown has already let go. Whoever was waiting is gone.
+  for (const [id, timer] of [...retrying]) {
+    if (spare.has(id)) continue;
+    clearTimeout(timer);
+    retrying.delete(id);
+    latecomers.delete(id);
+  }
   for (const [id, entry] of [...cache]) {
     if (spare.has(id)) continue;
     cache.delete(id);
@@ -568,8 +656,7 @@ export function loadProp(
   } = {},
 ): THREE.Group {
   const holder = new THREE.Group();
-  loadRaw(id).then((raw) => {
-    if (!raw) return;
+  const place = (raw: THREE.Group): void => {
     const root = raw.clone(true);
     root.updateMatrixWorld(true);
     // A prop is usually static, but a creature model can be skinned (the
@@ -610,12 +697,21 @@ export function loadProp(
     if (opts.ground) root.position.y = -box.min.y * scale;
     holder.add(root);
     opts.onLoad?.(root);
-  })
+  };
+  const attempt = (): Promise<void> => loadRaw(id)
+    .then((raw) => {
+      if (raw) place(raw);
+      // the sculpt this holder is standing in for keeps standing; if the file
+      // is one that missed rather than one that is not there, take it when a
+      // re-attempt brings it in
+      else onRetryArrival(id, () => { void attempt(); });
+    })
     .catch((err) => console.warn(`[authored] prop ${id} failed:`, err))
     // after `onLoad`, and on every path out of it — a missing file, a broken
     // one, a sculpt with no geometry to measure — so a waiter is never left
     // holding a spinner for a model that is never coming
     .then(() => opts.onSettle?.());
+  void attempt();
   return holder;
 }
 
@@ -713,16 +809,25 @@ export function attachAuthored(
 
   const swap: { model: AuthoredModel | null; settled: boolean } = { model: null, settled: opts.enabled === false };
   if (opts.enabled !== false) {
-    loadAuthored(id, targetHeight)
+    const wear = (model: AuthoredModel | null): void => {
+      swap.settled = true;
+      if (!model) {
+        // Nothing came, and the procedural build is what stands. If the file
+        // is one we know is there and simply missed, come back to this the
+        // moment a re-attempt lands: the skin goes on mid-match the same way
+        // it would have gone on mid-menu, over a character already fighting.
+        onRetryArrival(id, () => { void attempt(); });
+        return;
+      }
+      swap.model = model;
+      for (const m of procedural) m.visible = false;
+      rig.root.add(model.root);
+      opts.onLoad?.(model);
+    };
+    const attempt = (): Promise<void> => loadAuthored(id, targetHeight)
       .catch((err) => { console.warn(`[authored] ${id} preparation failed:`, err); return null; })
-      .then((model) => {
-        swap.settled = true;
-        if (!model) return;
-        swap.model = model;
-        for (const m of procedural) m.visible = false;
-        rig.root.add(model.root);
-        opts.onLoad?.(model);
-      });
+      .then(wear);
+    void attempt();
   }
 
   return {

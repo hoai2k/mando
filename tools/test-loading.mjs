@@ -131,6 +131,31 @@ check('the drop revealed with nothing outstanding',
 check('the spiders fell back to their procedural build', kryknaBlocked > 0,
   `${kryknaBlocked} blocked request(s)`);
 
+// ---- 6. a file that missed on a bad connection is asked for again in play ----
+// A 404 is an answer — most characters have no .glb and the procedural build is
+// their finished look — but a dropped connection is not, and the file behind it
+// is one we know exists. Fail the ringworld enforcer's model once at the
+// transport level (an abort, not a 404), build one, and the retry should go out
+// on its own a few seconds later with nothing new having asked for it.
+let enforcerTries = 0;
+await h.page.route('**/ring_enforcer.glb', (route) => {
+  enforcerTries++;
+  if (enforcerTries === 1) route.abort('connectionfailed');
+  else route.continue();
+});
+check('the match is still running for the retry to happen during',
+  await state() === 'playing', await state());
+await h.page.evaluate(() => window.__buildBody('npc:ringEnforcer'));
+await sleep(1500);
+const missed = await h.page.evaluate(() => window.__modelCached('ring_enforcer'));
+// the first re-attempt is armed a few seconds out; nothing else asks meanwhile
+await sleep(8000);
+const recovered = await h.page.evaluate(() => window.__modelCached('ring_enforcer'));
+check('a dropped model is asked for again without anything new requesting it',
+  enforcerTries >= 2, `${enforcerTries} request(s)`);
+check('...and the retry lands, so the character is not stuck on its stand-in',
+  missed === false && recovered === true, `missed ${missed} -> recovered ${recovered}`);
+
 // The blocked krykna request above logs a console error in the page. That is
 // this test staging a failure on purpose, so it must not count as one.
 const unexpected = h.errors.filter((e) => !/ERR_FAILED|Failed to load resource/.test(e));

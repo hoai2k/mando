@@ -22,7 +22,7 @@ import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
-import { releaseModels } from './characters/authored';
+import { authoredCached, releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
 import { fitStats } from './world/collide';
 import { modesEnabled, type GameMode } from './game/modes';
@@ -366,6 +366,12 @@ end.onBack = () => quitToTitle();
 // is born a procedural stand-in and swaps to its authored .glb seconds later,
 // so the bench is built once and measured after the models have landed.
 (window as unknown as { __enemyKinds?: unknown }).__enemyKinds = enemyKinds();
+// debug/testing handle: has this .glb actually arrived and parsed? The retry
+// path in characters/authored.ts is otherwise invisible from outside — a model
+// that missed on a bad connection and is asked for again while the match runs
+// looks, from the DOM, exactly like one that never existed.
+(window as unknown as { __modelCached?: unknown }).__modelCached =
+  (id: string): boolean => authoredCached(id);
 const bodyBench: THREE.Object3D[] = [];
 /** a roster id builds as a fighter; anything else is a bare hostile kind */
 const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId);
