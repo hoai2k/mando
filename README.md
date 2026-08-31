@@ -170,7 +170,9 @@ one file — [`src/core/music.ts`](src/core/music.ts): a list of tracks that sui
 a list per board flavor, and the signature opener a board starts on (The Storm Docks opens
 on the sea shanty, The Crevasse on the ice theme, The Great Forge on the forge chant, The
 Prison Rig on its own). After the opener a board picks at random, never the same track
-twice in a row. Adding a track is dropping the .mp3 in that directory and listing it there.
+twice in a row. The **warlord's theme** stands outside the rotation: it takes over for the
+final boss battle on every board, and the board's own score comes back when the fight is
+done. Adding a track is dropping the .mp3 in that directory and listing it there.
 
 ## Regenerating sound effects
 

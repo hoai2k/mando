@@ -227,9 +227,16 @@ export class Hud {
       // Y is the rocket for gun carriers; for a blades-only fighter or a war
       // beast it is the heavy lunge, and the HUD should call it what it is
       const rc = p.rocketCd;
-      const ord = p.profile.rangedName === null ? 'LUNGE' : 'ROCKET';
-      h.rocket.textContent = rc <= 0 ? `◆ ${ord} READY` : `◇ ${ord.toLowerCase()} ${rc.toFixed(0)}s`;
-      h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
+      if (p.profile.special === 'layEgg') {
+        // the clutch is the readout: Y lays, RT throws, eggs charge on the clock
+        const n = p.eggClutch;
+        h.rocket.textContent = n > 0 ? `◆ EGGS ×${n}` : '◇ egg charging';
+        h.rocket.className = n > 0 ? 'rocket' : 'rocket cooling';
+      } else {
+        const ord = p.profile.rangedName === null ? 'LUNGE' : 'ROCKET';
+        h.rocket.textContent = rc <= 0 ? `◆ ${ord} READY` : `◇ ${ord.toLowerCase()} ${rc.toFixed(0)}s`;
+        h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
+      }
       h.wave.textContent = game.hudTopLine(p);
       h.kills.textContent = game.hudScoreLine(p);
       // the boss bar rides every viewport while a warlord stands

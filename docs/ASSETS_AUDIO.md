@@ -27,7 +27,8 @@ only — no ripped film audio; prompts describe character without naming tradema
 
 ### Board music (nice-to-have)
 
-Ten tracks are delivered (see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md)). Four boards
+Eleven tracks are delivered (see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md)), including
+the warlord's theme that every board's final boss battle plays. Four boards
 now open on a signature track of their own — **The Storm Docks**, **The Crevasse**, **The
 Great Forge** and **The Prison Rig** — and two more tracks play on any board; the rest of
 a board's rotation is still one of the two original playlists (desert for Nevarro and the

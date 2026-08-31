@@ -71,6 +71,10 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
   });
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
+  // the menus show a spinner rather than the body underneath until this turns
+  // true; `settled` covers "no file exists" too, so a kind without a sculpt is
+  // presentable immediately
+  inst.modelReady = () => swap.settled;
 }
 
 export function buildTusken(authored = true): CharacterInstance {
@@ -505,8 +509,11 @@ export function buildMassiff(authored = true): CharacterInstance {
   /** seconds into the current strike; < 0 = not striking (drives the fallback pose too) */
   let attackT = -1;
   const ATTACK_DUR = 0.6;
+  /** false only while a sculpt that exists is still on its way (see CharacterInstance.modelReady) */
+  let settled = !authored;
   if (authored) {
     const model = loadCreature('massiff', {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         body.visible = false;
         posed = false;
@@ -544,6 +551,7 @@ export function buildMassiff(authored = true): CharacterInstance {
 
   return {
     root, rig: null, animator: null, height: 2.0, baseScale: 1,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;
@@ -624,9 +632,11 @@ export function buildNikto(authored = true): CharacterInstance {
   group.add(bike);
   // The bike is a vehicle, not a character — nothing animates it, so it comes
   // in through the prop path and simply replaces the procedural box.
+  let bikeSettled = !authored;
   if (authored) {
     const swoop = loadProp('nikto_swoop', 2.6, {
       onLoad: () => { for (const m of bike.children) if ((m as THREE.Mesh).isMesh) m.visible = false; },
+      onSettle: () => { bikeSettled = true; },
     });
     bike.add(swoop);
   }
@@ -670,6 +680,9 @@ export function buildNikto(authored = true): CharacterInstance {
   const ATTACK_DUR = 0.45;
   return {
     root: group, rig: null, animator: null, height: 1.6, baseScale: 1,
+    // rider and bike are two separate files: this fighter is only presentable
+    // once both have answered, or a menu shows an authored rider on a box
+    modelReady: () => bikeSettled && swap.settled,
     attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
       swap.update();
@@ -791,8 +804,10 @@ function buildKryknaBase(
   let attackT = -1;
   const ATTACK_DUR = 0.55;
   let clipStride = 3;
+  let settled = !authored;
   if (authored) {
     const model = loadCreature(creatureId, {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         body.visible = false;
         posed = false;
@@ -823,6 +838,7 @@ function buildKryknaBase(
   let gaitSpeed = 0;
   return {
     root, rig: null, animator: null, height: 1.7 * scale, baseScale: scale,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;
@@ -879,18 +895,92 @@ export function buildKrykna(authored = true): CharacterInstance {
   return buildKryknaBase(1, 0xcfc6b4, authored, 'krykna');
 }
 
+/**
+ * A laid krykna egg (the playable broodmother's Y): the same pale sac that
+ * rides her abdomen, set down whole. It breathes — a slow pulse that
+ * quickens as nothing in particular, since the egg doesn't know its own
+ * clock; the wobble is what tells a rival it's live and worth shooting.
+ */
+export function buildSpiderEgg(): CharacterInstance {
+  const sac = mat(0xd8e4da, { rough: 0.5, emissive: 0x2a3a24 });
+  const web = mat(0x8d867a, { rough: 0.9 });
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = 0.42;
+  root.add(body);
+  addSphere(body, sac, 0.4, 0, 0, 0, 12, 9, 1.15, 0.95);
+  addSphere(body, sac, 0.18, 0.2, 0.28, 0.12, 8, 6);
+  addSphere(body, sac, 0.14, -0.22, 0.24, -0.1, 8, 6);
+  // web strands anchoring it to the ground
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    addCyl(root, web, 0.01, 0.02, 0.5, Math.cos(a) * 0.34, 0.2, Math.sin(a) * 0.34, 0.9 * Math.sin(a), 0, 0.9 * Math.cos(a), 5);
+  }
+  return {
+    root, rig: null, animator: null, height: 0.9, baseScale: 1,
+    cosmetic: (dt, time) => {
+      const pulse = 1 + Math.sin(time * 4.2) * 0.04 + Math.sin(time * 13) * 0.015;
+      body.scale.set(pulse, 2 - pulse, pulse);
+    },
+  };
+}
+
+/** What hatches from it: a half-size krykna on the same rig and clips. */
+export function buildSpiderling(): CharacterInstance {
+  return buildKryknaBase(0.55, 0xcfc6b4, true, 'krykna');
+}
+
+/** how many eggs the broodmother's back visibly carries — her whole clutch */
+export const BROOD_EGG_RACK = 3;
+
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
-  const sac = mat(0xd8e4da, { rough: 0.55, emissive: 0x24301f });
-  // Egg sacs cling to the abdomen — the thing the whole fight is about. They
-  // ride the body group (positions are root-space minus its 0.95 m lift) so
-  // they disappear with it when the authored model, which carries its own
-  // sculpted sacs, takes over.
-  return buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood', (body) => {
-    for (const [x, y, z, r] of [[-0.25, 0.3, -0.5, 0.2], [0.22, 0.35, -0.62, 0.24], [0, 0.1, -0.75, 0.18]] as const) {
-      addSphere(body, sac, r, x, y, z, 8, 7);
+  // The egg sacs on her back are no longer decoration: they are the playable
+  // broodmother's ammunition readout (docs/MODES.md §3). They ride the root —
+  // not the procedural body — so they stay visible over the authored sculpt,
+  // and each carries its own material so the Player controller can shade it:
+  // dark while spent, flashing blue as it charges up, white when ready.
+  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
+  const rackMats: THREE.MeshStandardMaterial[] = [];
+  const rackMeshes: THREE.Mesh[] = [];
+  const RACK_SPOTS = [
+    [-0.25, 1.25, -0.5, 0.2], [0.22, 1.3, -0.62, 0.24], [0, 1.05, -0.75, 0.18],
+  ] as const;
+  for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
+    const m = new THREE.MeshStandardMaterial({ color: 0x232823, roughness: 0.55 });
+    rackMats.push(m);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 7), m);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    inst.root.add(mesh);
+    rackMeshes.push(mesh);
+  }
+  // the delivered egg spawns at the sac it left, so it reads as the same egg
+  inst.eggSpot = (index, out) => {
+    const mesh = rackMeshes[index];
+    if (!mesh) return false;
+    mesh.getWorldPosition(out);
+    return true;
+  };
+  inst.setEggs = (states) => {
+    for (let i = 0; i < rackMats.length; i++) {
+      const m = rackMats[i];
+      const s = states[i] ?? -1;
+      if (s >= 1) {
+        m.color.setHex(0xf2f5ee);              // charged: pale and ready
+        m.emissive.setHex(0x6a705e);
+      } else if (s >= 0.72) {
+        // the last beat of the charge: a couple of blue flashes
+        const flash = Math.sin(((s - 0.72) / 0.28) * Math.PI * 4) > 0;
+        m.color.setHex(flash ? 0x6fa8ff : 0x2a3448);
+        m.emissive.setHex(flash ? 0x2a5fc0 : 0x101a30);
+      } else {
+        m.color.setHex(0x232823);              // spent (or still gathering): dark
+        m.emissive.setHex(0x000000);
+      }
     }
-  });
+  };
+  return inst;
 }
 
 // ---------- Quarren netcaster: squid-faced dock hand turned hostile ----------
@@ -983,8 +1073,10 @@ export function buildInterceptorDrone(authored = true): CharacterInstance {
   addCyl(core, dark, 0.05, 0.08, 0.16, 0, 0.3, 0, 0, 0, 0, 8);          // top thruster
   let posed = true;
   let mixer: THREE.AnimationMixer | null = null;
+  let settled = !authored;
   if (authored) {
     const model = loadCreature('interceptor_drone', {
+      onSettle: () => { settled = true; },
       onLoad: (loaded) => {
         core.visible = false;
         posed = false;
@@ -999,6 +1091,7 @@ export function buildInterceptorDrone(authored = true): CharacterInstance {
   }
   return {
     root, rig: null, animator: null, height: 1.7, baseScale: 1,
+    modelReady: () => settled,
     cosmetic: (dt, time) => {
       if (mixer) { mixer.update(dt); return; }
       if (!posed) return;
@@ -1131,7 +1224,9 @@ function buildMonsterBase(
   /** matches the 'attack' clip durations in anim/quadruped.ts, close enough */
   const ATTACK_DUR = 0.85;
   let clipStride = 3;
+  let settled = false;
   const sculpt = loadCreature(creatureId, {
+    onSettle: () => { settled = true; },
     onLoad: (loaded) => {
       body.visible = false;
       for (const l of legs) l.visible = false;
@@ -1168,6 +1263,7 @@ function buildMonsterBase(
   let gaitSpeed = 0;
   return {
     root, rig: null, animator: null, height, baseScale: 1,
+    modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
       attackT = 0;

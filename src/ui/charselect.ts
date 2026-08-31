@@ -19,6 +19,12 @@ import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/ros
  * born with stays hidden, and a pedestal shows a spinner instead if its model
  * takes longer than SPINNER_DELAY to arrive. Committing needs a loaded model,
  * so by the time the match starts every picked model is warm in the cache.
+ *
+ * That holds for every fighter on offer, the playable NPCs included: a hostile
+ * kind is wrapped, not re-implemented, so it reports the same "has my .glb
+ * landed" answer its wave-game twin does and waits behind the same spinner. A
+ * fighter that has no authored file at all answers ready at once, since there
+ * the procedural build is the finished look rather than a stand-in for one.
  */
 
 const SPINNER_DELAY = 0.7;
@@ -100,6 +106,8 @@ interface Slot {
   status: HTMLElement;
   spinner: HTMLElement;
   arrows: HTMLElement[];
+  /** last state the status line was written for, so it is only rewritten on a change */
+  waiting: boolean;
 }
 
 export class CharacterSelect {
@@ -358,7 +366,7 @@ export class CharacterSelect {
       phase: 'empty', choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
-      panel, name, status, spinner, arrows,
+      panel, name, status, spinner, arrows, waiting: false,
     };
   }
 
@@ -543,6 +551,7 @@ export class CharacterSelect {
     // land on a free character, not on something the other player took
     if (!this.available(slot).has(this.roster[s.choice])) s.choice = this.step(slot, s.choice, 1);
     s.loadingFor = 0;
+    s.waiting = false;
     s.arcT = 0;
     this.preloadAround();
     this.refresh();
@@ -580,6 +589,7 @@ export class CharacterSelect {
       s.arcT = h ? h.arcT : 0;
       s.manual = h ? h.manual : 0;
       s.loadingFor = 0;
+      s.waiting = false;
       if (!h) for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
     this.opts.compactPads();
@@ -668,12 +678,19 @@ export class CharacterSelect {
       this.fitToPlinth(current);
 
       // no procedural stand-in: wait it out, spinner after a grace period
-      if (!current.modelReady()) {
+      const waiting = !current.modelReady();
+      if (waiting) {
         s.loadingFor += dt;
         s.spinner.style.display = s.loadingFor > SPINNER_DELAY ? '' : 'none';
       } else {
         s.loadingFor = 0;
         s.spinner.style.display = 'none';
+      }
+      // A press on a fighter that has not arrived is refused (see `commit`),
+      // so say why rather than letting A read as broken.
+      if (waiting !== s.waiting) {
+        s.waiting = waiting;
+        this.refresh();
       }
 
       current.animator?.update(dt);
@@ -776,7 +793,9 @@ export class CharacterSelect {
         s.panel.classList.remove('ready');
       } else {
         s.name.textContent = playableDef(id).profile.name;
-        s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>' : `<b>Player ${i + 1}</b>`;
+        s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>'
+          : s.waiting ? `<b>Player ${i + 1}</b><br/>Loading…`
+            : `<b>Player ${i + 1}</b>`;
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
       }
@@ -795,6 +814,7 @@ export class CharacterSelect {
       s.manual = 0;
       s.group.rotation.y = s.baseYaw;
       s.loadingFor = 0;
+      s.waiting = false;
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });
     if (!this.available(0).has(this.roster[this.slots[0].choice])) this.slots[0].choice = 0;

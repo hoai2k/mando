@@ -152,6 +152,92 @@ const hero = await page.evaluate(() => {
 check('pvp: the end screen celebrates the champion with their portrait',
   hero.shown && hero.face && /Champion/.test(hero.tag), JSON.stringify(hero));
 
+// ---- the brood-queen loop (docs/MODES.md §3) ----
+// Y lays an egg; 5 s hatches it into a hatchling escort (destroyable in the
+// shell); the fallen queen carries on in the hatchling's body; ten survived
+// seconds grow her back.
+await startMode('pvp', 2, 'desert', ['din', 'npc:broodmother']);
+s = await page.evaluate(`(() => {
+  const g = window.__game;
+  const blankIn = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
+    dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
+    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+  const stepWith = (n, mut) => {
+    for (let i = 0; i < n; i++) {
+      const inputs = [blankIn(), blankIn(), blankIn(), blankIn()];
+      if (mut) mut(inputs);
+      g.update(1/30, inputs);
+    }
+  };
+  const p2 = g.players[1];
+  stepWith(200);
+  const out = {};
+  // ~6.7 s in: two sacs have charged (one every 3 s), the rack is live
+  out.clutch = p2.eggClutch;
+  out.rack = typeof p2.char.setEggs === 'function';
+  stepWith(1, (ins) => { ins[1].rocketPressed = true; });
+  const egg = g.enemies.find((e) => e.kind === 'spiderEgg');
+  out.eggLaid = !!egg && egg.owner === p2 && egg.team === p2.team && egg.alive;
+  out.clutchSpent = p2.eggClutch === out.clutch - 1;
+  // it leaves from the sac on her back — born up high beside her, not on the dirt
+  out.fromBack = !!egg && egg.position.y - p2.position.y > 0.7
+    && Math.hypot(egg.position.x - p2.position.x, egg.position.z - p2.position.z) < 3;
+  stepWith(170);
+  out.eggGone = !g.enemies.some((e) => e.kind === 'spiderEgg' && e.alive);
+  const kid = g.enemies.find((e) => e.kind === 'spiderling' && e.alive);
+  out.hatched = !!kid && kid.owner === p2 && kid.team === p2.team;
+  // RT lobs an egg: it flies, and the first body it meets is shoved, unhurt
+  stepWith(1, (ins) => { ins[1].shootHeld = true; });
+  const thrown = g.enemies.find((e) => e.kind === 'spiderEgg' && e.alive);
+  out.thrown = !!thrown && thrown.eggThrown === true
+    && Math.hypot(thrown.velocity.x, thrown.velocity.z) > 6;
+  if (thrown) {
+    const p1 = g.players[0];
+    thrown.position.set(p1.position.x + 1.0, p1.position.y + 0.6, p1.position.z);
+    thrown.velocity.set(-10, 0.5, 0);
+    const hpBefore = p1.hp;
+    stepWith(2);
+    out.knocked = Math.hypot(p1.velocity.x, p1.velocity.z) > 3 && p1.hp === hpBefore;
+    thrown.damage(999, thrown.position, 0);
+  }
+  // an empty clutch lays nothing — the 3 s charge is the real clock
+  p2.eggsReady = 0; p2.eggCharge = 0;
+  stepWith(20);
+  const eggsBefore = g.enemies.filter((e) => e.kind === 'spiderEgg' && e.alive).length;
+  stepWith(1, (ins) => { ins[1].rocketPressed = true; });
+  out.emptyLay = g.enemies.filter((e) => e.kind === 'spiderEgg' && e.alive).length === eggsBefore;
+  // a destroyed egg hatches nothing
+  p2.eggsReady = 1;
+  stepWith(20, undefined);
+  stepWith(1, (ins) => { ins[1].rocketPressed = true; });
+  const egg2 = g.enemies.find((e) => e.kind === 'spiderEgg' && e.alive);
+  out.egg2 = !!egg2;
+  if (egg2) egg2.damage(999, egg2.position, 0);
+  stepWith(170);
+  out.spiderlings = g.enemies.filter((e) => e.kind === 'spiderling' && e.alive).length;
+  p2.damage(9999, p2.position, 0);
+  stepWith(30);
+  out.tookOver = p2.alive && p2.characterId === 'npc:spiderling';
+  out.smallHp = p2.maxHp;
+  stepWith(330);
+  out.grew = p2.alive && p2.characterId === 'npc:broodmother';
+  out.state = g.state;
+  return out;
+})()`);
+check('pvp: the clutch charges an egg every 3 s onto a live rack',
+  s.clutch === 2 && s.rack, JSON.stringify(s));
+check('pvp: the broodmother lays an egg on Y, spending the clutch',
+  s.eggLaid && s.clutchSpent, JSON.stringify(s));
+check('pvp: the delivered egg leaves from the sac on her back', s.fromBack, JSON.stringify(s));
+check('pvp: the egg hatches into a hatchling escort after 5 s', s.eggGone && s.hatched, JSON.stringify(s));
+check('pvp: RT lobs an egg that shoves its target without hurting them',
+  s.thrown && s.knocked, JSON.stringify(s));
+check('pvp: an empty clutch lays nothing', s.emptyLay, JSON.stringify(s));
+check('pvp: a destroyed egg hatches nothing', s.egg2 && s.spiderlings === 1, JSON.stringify(s));
+check('pvp: the fallen queen carries on as her hatchling', s.tookOver && s.smallHp === 40, JSON.stringify(s));
+check('pvp: ten survived seconds grow her back', s.grew && s.state === 'fighting', JSON.stringify(s));
+
 // ---- PvP: the roster is not one species ----
 // The chase rig is tuned around a 1.8 m Mandalorian, and PvP fields a war
 // massiff four metres from nose to tail. Framed as a Mandalorian it put the
@@ -227,6 +313,39 @@ const fitted = await page.evaluate(async () => {
 });
 check('select: a giant fighter is scaled onto its plinth, a humanoid is left alone',
   fitted.massiff !== null && fitted.massiff < 0.6 && fitted.trooper === 1, JSON.stringify(fitted));
+
+// A fighter whose sculpt has not landed is never shown as the procedural body
+// underneath it — the plinth holds a spinner and waits. The playable NPCs used
+// to get this wrong: the adapter answered "my model is ready" unconditionally,
+// so a stand-in stood on the PvP stage as though it were the fighter.
+const pendingNpc = await page.evaluate(async () => {
+  const cs = window.__charsel;
+  const slot = cs.slots[0];
+  const id = 'npc:pyke';                      // has an authored .glb, not built yet
+  slot.choice = cs.roster.indexOf(id);
+  slot.phase = 'browsing';
+  slot.loadingFor = 0;
+  cs.update(1 / 60);                          // builds it and starts the load
+  const c = slot.chars.get(id);
+  const born = { ready: c.modelReady(), visible: c.root.visible };
+  cs.update(1);                               // past the spinner's grace period
+  const waiting = slot.spinner.style.display !== 'none';
+  for (let i = 0; i < 900 && !c.modelReady(); i++) {
+    await new Promise((r) => requestAnimationFrame(r));
+    cs.update(1 / 60);
+  }
+  cs.update(1 / 60);
+  return {
+    born, waiting,
+    ready: c.modelReady(), visible: c.root.visible,
+    spinner: slot.spinner.style.display !== 'none',
+  };
+});
+check('select: an NPC is hidden behind a spinner until its sculpt lands',
+  pendingNpc.born.ready === false && pendingNpc.born.visible === false && pendingNpc.waiting,
+  JSON.stringify(pendingNpc));
+check('select: ...and stands on the plinth once it has',
+  pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner, JSON.stringify(pendingNpc));
 
 // ---- Campaign ----
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);

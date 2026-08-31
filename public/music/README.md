@@ -18,6 +18,10 @@ A board plays the any-board tracks plus the list for its flavor, in random order
 never the same track twice in a row. A board can also name a signature opener, which
 plays first and then joins the rotation:
 
+The **boss theme** is separate from all of that: `mando-boss.mp3` is never in a rotation
+— it takes the music over for the final boss battle on every board (`MUSIC_BOSS`), and the
+board's own score returns when the fight ends.
+
 | Board | Opens with |
 |---|---|
 | The Storm Docks | `mando-sea-shanty.mp3` |
