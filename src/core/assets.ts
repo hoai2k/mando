@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { fbm2, makeRng } from './math';
 import { markShared } from './dispose';
-import { tracked, warmImage, warmQueue, type WarmPriority } from './warm';
+import { RETRY_DELAYS, tracked, warmFetch, warmImage, warmQueue, type WarmPriority } from './warm';
 
 /**
  * Texture pipeline: procedural canvas textures by default; if an authored
@@ -39,11 +39,10 @@ export function texture(name: string, make: (ctx: CanvasRenderingContext2D, size
   // authored override, fire and forget; jpg first since that is what
   // tools/optimize-textures.mjs emits for opaque maps
   const handle = tracked.start(textureUrl(name));
-  tryLoadImage(name, ['jpg', 'png'], (img) => {
+  loadAuthoredImage(name, ['jpg', 'png'], (img) => {
     tex.image = img;
     tex.needsUpdate = true;
-    handle.finish(true);
-  }, () => handle.finish(false));
+  }, (ok) => handle.finish(ok));
   return tex;
 }
 
@@ -65,20 +64,96 @@ export function portraitName(id: string): string {
   return `portrait_${id.replace('npc:', '')}`;
 }
 
-/** Try each extension in order, calling back on the first that loads. */
-function tryLoadImage(
+/**
+ * What asking for one authored image turned out to mean.
+ *
+ * The distinction is the whole reason this goes through `fetch` rather than
+ * three's loaders. Those use an `<img>`, which reports failure as a bare error
+ * event: a file that is not there and a file that did not arrive look
+ * identical. That was fine while absence was the only case worth acting on —
+ * most procedural surfaces have no authored override and never will — and
+ * stopped being fine once a file that merely missed was meant to be asked for
+ * again. Retrying blind would re-request an override for every surface in the
+ * game, none of which have one.
+ *
+ * The bytes come back with the status, so the picture is decoded from what we
+ * already hold rather than requested a second time.
+ */
+type ImageAnswer =
+  | { got: HTMLImageElement }
+  /** the server answered for it: there is no such file */
+  | { absent: true }
+  /** network, 5xx, a body that would not decode: it may well be there */
+  | { missed: true };
+
+async function fetchImage(url: string): Promise<ImageAnswer> {
+  let res: Response;
+  try {
+    res = await fetch(url, { credentials: 'same-origin' });
+  } catch {
+    return { missed: true };
+  }
+  if (res.status === 404 || res.status === 410) return { absent: true };
+  if (!res.ok) return { missed: true };
+  let blob: Blob;
+  try {
+    blob = await res.blob();
+  } catch {
+    return { missed: true };
+  }
+  const href = URL.createObjectURL(blob);
+  return new Promise<ImageAnswer>((resolve) => {
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(href); resolve({ got: img }); };
+    // bytes in hand that will not decode are not going to decode next time
+    img.onerror = () => { URL.revokeObjectURL(href); resolve({ absent: true }); };
+    img.src = href;
+  });
+}
+
+/** logical texture files that missed, and how many re-attempts are spent */
+const textureRetries = new Map<string, number>();
+
+/**
+ * Work down a texture's extension list and hand back the first picture that is
+ * really there — coming back to the whole list later if one of them missed
+ * rather than turned out to be absent.
+ *
+ * `settled` is called once the question is answered as far as it can be, so a
+ * drop screen waiting on this file stops waiting: a re-attempt is a background
+ * improvement and nothing is ever held for it. If a later attempt does land,
+ * `use` runs then, and the surface upgrades under a match already being played
+ * exactly as a late-arriving model does.
+ */
+function loadAuthoredImage(
   name: string,
   exts: string[],
-  onLoad: (img: HTMLImageElement) => void,
-  onMissing: () => void,
+  use: (img: HTMLImageElement) => void,
+  settled: (ok: boolean) => void,
 ): void {
-  if (exts.length === 0) { onMissing(); return; }  // none present — procedural look stands
-  new THREE.ImageLoader().load(
-    `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
-    onLoad,
-    undefined,
-    () => tryLoadImage(name, exts.slice(1), onLoad, onMissing)
-  );
+  const key = textureUrl(name);
+  const attempt = async (): Promise<void> => {
+    for (const ext of exts) {
+      const answer = await fetchImage(`${key}.${ext}`);
+      if ('got' in answer) {
+        use(answer.got);
+        settled(true);
+        textureRetries.delete(key);
+        return;
+      }
+      if ('absent' in answer) continue;   // not under this extension; try the next
+      // A miss says nothing about which extension is right, so stop walking the
+      // list and come back to the whole of it later.
+      settled(false);
+      const spent = textureRetries.get(key) ?? 0;
+      if (spent >= RETRY_DELAYS.length) return;
+      textureRetries.set(key, spent + 1);
+      setTimeout(() => { void attempt(); }, RETRY_DELAYS[spent] * 1000);
+      return;
+    }
+    settled(false);   // none of them exist: the procedural look is the final one
+  };
+  void attempt();
 }
 
 /**
@@ -94,29 +169,14 @@ export function loadOptionalTexture(
   const exts = opts.exts ?? ['jpg', 'png'];
   // the tracker hears about this the first time round, not once per extension
   const handle = opts.exts === undefined ? tracked.start(textureUrl(name)) : undefined;
-  attemptTexture(name, exts, onLoad, opts.srgb, handle);
-}
-
-function attemptTexture(
-  name: string,
-  exts: string[],
-  onLoad: (tex: THREE.Texture) => void,
-  srgb: boolean | undefined,
-  handle: ReturnType<typeof tracked.start> | undefined,
-): void {
-  if (exts.length === 0) { handle?.finish(false); return; }  // absent — procedural look stands
-  new THREE.TextureLoader().load(
-    `${ASSET_ROOT}assets/textures/${name}.${exts[0]}`,
-    (tex) => {
-      // normal/data maps must stay linear, colour maps are sRGB
-      tex.colorSpace = srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-      tex.anisotropy = 4;
-      onLoad(tex);
-      handle?.finish(true);
-    },
-    undefined,
-    () => attemptTexture(name, exts.slice(1), onLoad, srgb, handle),
-  );
+  loadAuthoredImage(name, exts, (img) => {
+    const tex = new THREE.Texture(img);
+    // normal/data maps must stay linear, colour maps are sRGB
+    tex.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;   // the loaders did this; building the texture by hand does not
+    onLoad(tex);
+  }, (ok) => handle?.finish(ok));
 }
 
 /**
@@ -125,9 +185,14 @@ function attemptTexture(
  * `texture()` or `loadOptionalTexture()` call happens later, as it always did,
  * and finds the bytes already local.
  */
-export function warmTexture(name: string, priority: WarmPriority = 'idle', ext = 'jpg'): void {
+export function warmTexture(name: string, priority: WarmPriority = 'idle', ext = 'jpg', dom = false): void {
   const url = `${textureUrl(name)}.${ext}`;
-  warmQueue.want(url, priority, () => warmImage(url));
+  // Warm a file the way it will really be asked for, or the two land in
+  // different caches and it is downloaded twice. A picture the DOM draws — a
+  // portrait, a territory card, a planet disc — is asked for by an <img> or by
+  // CSS; a surface three wears comes through `loadAuthoredImage`, which fetches
+  // it for the status.
+  warmQueue.want(url, priority, () => (dom ? warmImage(url) : warmFetch(url)));
 }
 
 function grain(ctx: CanvasRenderingContext2D, size: number, seed: number, alpha: number, dark = true): void {

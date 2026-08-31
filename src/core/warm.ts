@@ -28,6 +28,20 @@ const ESTIMATE_TEXTURE = 260_000;
 export type WarmPriority = 'now' | 'soon' | 'idle';
 const ORDER: WarmPriority[] = ['now', 'soon', 'idle'];
 
+/**
+ * How long to wait before each re-attempt of a file that failed for a reason
+ * that might not repeat — a dropped connection, a proxy hiccup, a 5xx.
+ *
+ * One policy, shared by the model intake and the texture intake, because it is
+ * one judgement: these run while the player is fighting, sharing the connection
+ * with a match already pulling in its own scenery, so they hang well back; and
+ * a file that has missed five times across two and a half minutes is not
+ * coming, so whatever fell back keeps what it is standing in and the game stops
+ * asking. Absence is *not* one of these cases — a 404 is an answer, and neither
+ * intake retries one.
+ */
+export const RETRY_DELAYS = [3, 8, 20, 45, 90];
+
 /** How much of a file has arrived, and whether it got there. */
 interface Item {
   key: string;
