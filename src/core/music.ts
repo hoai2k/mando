@@ -35,6 +35,14 @@ export const BOARD_MUSIC_LEAD: Partial<Record<BoardId, string>> = {
 };
 
 /**
+ * The warlord's theme. It takes the music over for the final boss battle on
+ * every board — the fight that ends a match, and the monster that comes up
+ * after it where a board has one — and the board's own rotation resumes when
+ * the field is clear. Nothing else plays it, so hearing it means one thing.
+ */
+export const MUSIC_BOSS = 'music/mando-boss.mp3';
+
+/**
  * Everything a board can play, opener first when it has one: the lead, then
  * the any-board tracks, then the ones for its flavor, each listed once.
  */

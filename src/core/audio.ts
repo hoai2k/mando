@@ -6,7 +6,7 @@
 
 import { ASSET_ROOT } from './assets';
 import { config } from '../config';
-import { playlistFor } from './music';
+import { MUSIC_BOSS, playlistFor } from './music';
 import type { BoardId } from '../world/board';
 
 type SampleName =
@@ -846,6 +846,18 @@ export class AudioEngine {
     const sampled = this.loopSample(name, 0.5);
     if (sampled) { this.musicStop = sampled; return; }
     this.startSynthMusic(kind);
+  }
+
+  /**
+   * The final boss battle's own track, on repeat until the fight is over.
+   * Falls back to the board's normal music if the file will not play, since a
+   * silent boss fight is worse than one scored like the rest of the board.
+   */
+  startBossMusic(kind: 'desert' | 'station', board?: BoardId): void {
+    if (!this.ctx) return;
+    this.stopMusic();
+    if (this.startPlaylist([MUSIC_BOSS], kind, 0)) return;
+    this.startMusic(kind, board);
   }
 
   /**
