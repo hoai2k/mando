@@ -29,7 +29,25 @@ const THROW_HOLD = 0.22;
 /** wind-up before the blade leaves the hand, seconds — the arm's cock-back */
 const THROW_WINDUP = 0.18;
 /** what a hit washes the body toward */
+const _knock = new THREE.Vector3();
 const HURT_TINT = new THREE.Color(0xd41f14);
+/** the cold pulse a body wears while it cannot be hit */
+const GUARD_TINT = new THREE.Color(0x4fc8ff);
+/**
+ * Untouchable for this long after a hit lands.
+ *
+ * Third person against a firing line, every bolt landing the instant it
+ * arrives reads as no hits at all and then death: the flashes stack into one
+ * smear and nothing separates them. A short window per hit turns that into a
+ * countable sequence — flash, shove, breath, flash — which is the whole point.
+ * Continuous damage (fire, hazards, drips) is exempt at both ends: it neither
+ * checks the window nor opens one, so a lava field still kills.
+ */
+const HIT_IFRAMES = 0.3;
+/** and a fresh body gets a moment to find its feet before it can be shot */
+const RESPAWN_IFRAMES = 1.6;
+/** shove per hit, m/s, before the damage scale */
+const HIT_KNOCKBACK = 5;
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -63,7 +81,14 @@ const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
 /** gauge spent turning one bolt aside on a blade */
-const DEFLECT_ENERGY = 0.05;
+/**
+ * Gauge spent turning one bolt on the blades, when the blades are *idle*. A
+ * live swing costs nothing — see `consumeDeflect`.
+ */
+const DEFLECT_ENERGY = 0.035;
+/** the forward block pane's radius, and the closed bubble's (IG-11) */
+const SHIELD_PANE_R = 0.78;
+const SHIELD_BUBBLE_R = 1.25;
 
 /**
  * Blaster heat, charged per shot rather than per second: a fast gun fills the
@@ -170,7 +195,10 @@ export class Player {
   /** shield up: drains the same gauge sprinting does */
   blocking = false;
   /** scratch for the shield collider handed to the projectile system */
-  private shieldSphere = { center: new THREE.Vector3(), radius: 0.78, normal: new THREE.Vector3() };
+  private shieldSphere = {
+    center: new THREE.Vector3(), radius: SHIELD_PANE_R, normal: new THREE.Vector3(),
+    minDot: 0,
+  };
   /** 0..1 raise animation for the shield pane */
   private blockRaise = 0;
   /**
@@ -205,7 +233,10 @@ export class Player {
   /** scratch for the saber deflect collider */
   private saberSphere = {
     center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
-    kind: 'saber' as const, minDot: 0.35,
+    // Past the shoulders, short of the back. The old ±69° cone measured out as
+    // a real gap: fire from three quarters on landed while the blades were
+    // plainly working, which is what "some attacks get through" was.
+    kind: 'saber' as const, minDot: -0.2,
     aim: null as THREE.Vector3 | null,
     consume: () => this.consumeDeflect(),
   };
@@ -311,6 +342,10 @@ export class Player {
   /** ready eggs on the broodmother's back, for the HUD */
   get eggClutch(): number { return this.eggsReady; }
   private hurtFlash = 0;
+  /** counts down the window in which nothing discrete can land (see HIT_IFRAMES) */
+  private hitGuard = 0;
+  /** true while that window came from respawning rather than from a hit */
+  private freshBody = false;
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
   get yaw(): number { return this.facingYaw; }
@@ -359,6 +394,7 @@ export class Player {
   private tintNodes = -1;
   /** last tint written, so an unhurt fighter costs nothing per frame */
   private tintAt = -1;
+  private guardAt = -1;
 
   constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
     this.baseCharacterId = characterId;
@@ -446,9 +482,19 @@ export class Player {
    */
   private applyHurtTint(): void {
     const t = Math.min(1, this.hurtFlash * 0.9);
-    if (t === this.tintAt) return;
+    // A body that just re-formed pulses cold instead, so the moment where it
+    // cannot be shot is visible to the person holding the pad and to everyone
+    // shooting at them. A hit always wins the colour — there is never both.
+    const guard = t > 0.01 || !this.freshBody || this.hitGuard <= 0
+      ? 0 : 0.3 + Math.sin(this.hitGuard * 24) * 0.22;
+    if (t === this.tintAt && guard === this.guardAt) return;
     this.tintAt = t;
-    for (const e of this.tintMats) e.m.color.copy(e.base).lerp(HURT_TINT, t);
+    this.guardAt = guard;
+    for (const e of this.tintMats) {
+      e.m.color.copy(e.base);
+      if (t > 0.01) e.m.color.lerp(HURT_TINT, t);
+      else if (guard > 0) e.m.color.lerp(GUARD_TINT, guard);
+    }
   }
 
   /**
@@ -505,6 +551,10 @@ export class Player {
     this.heatHold = 0;
     this.alive = true;
     this.respawnTimer = 0;
+    // a fresh body is briefly untouchable — long enough to see where it
+    // landed and move, rather than dying again into the same firing line
+    this.hitGuard = RESPAWN_IFRAMES;
+    this.freshBody = true;
     this.slamming = false;
     this.eggsReady = 0;   // a fresh body starts with every sac dark
     this.eggCharge = 0;
@@ -581,9 +631,17 @@ export class Player {
     this.growT = secs;
   }
 
-  damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
+  /**
+   * @param opts.dot  continuous damage — fire, hazards, a shocking floor. It
+   *   ignores the post-hit window and does not open one, so a burn keeps
+   *   burning and standing in lava is still fatal.
+   */
+  damage(amount: number, from: THREE.Vector3, bySlot = -1, opts: { dot?: boolean } = {}): void {
     // a body still assembling isn't there to hit yet
     if (!this.alive || this.formT > 0) return;
+    // A kill zone is not an attack and is never shrugged off; everything else
+    // discrete waits its turn.
+    if (!opts.dot && amount < 500 && this.hitGuard > 0) return;
     // Mounted, the hull is your HP: hits on the rider land on the vehicle —
     // until it gives out. Kill zones (999) still kill the rider outright.
     if (this.vehicle && amount < 500) {
@@ -597,7 +655,23 @@ export class Player {
     this.hurtFlash = 1;
     this.lastDamageDir.subVectors(from, this.position);
     audio.hurt(this.profile.voice);
-    this.cam.shake(0.12);
+    if (!opts.dot) {
+      this.hitGuard = HIT_IFRAMES;
+      this.freshBody = false;
+      // Every hit moves you. A bolt is a nudge, a slam is a shove; the scale
+      // keeps a trooper's pot-shot from launching anyone while still being the
+      // thing that says "that one landed". Cover holds you where you are.
+      const heft = clamp(amount / 30, 0.35, 1.6);
+      this.cam.shake(0.1 + heft * 0.12);
+      if (!this.cover && this.snareTimer <= 0) {
+        _knock.subVectors(this.position, from).setY(0);
+        if (_knock.lengthSq() > 1e-6) {
+          _knock.normalize();
+          this.velocity.addScaledVector(_knock, HIT_KNOCKBACK * heft);
+          if (this.grounded && amount >= 20) this.velocity.y += 1.1;
+        }
+      }
+    } else this.cam.shake(0.06);
     if (this.hp <= 0) this.die();
   }
 
@@ -627,6 +701,8 @@ export class Player {
   }
 
   get hurtIntensity(): number { return this.hurtFlash; }
+  /** true while nothing discrete can land: just hit, or just respawned */
+  get invulnerable(): boolean { return this.hitGuard > 0; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
   /** the corpse is mid-burn: pose frozen, body fading into motes */
   get dissolving(): boolean { return !this.alive && this.deadT > DEATH_ANIM_TIME; }
@@ -704,8 +780,23 @@ export class Player {
     if (this.blockRaise >= 0.6) {
       const s = this.shieldSphere;
       s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-      s.center.copy(this.position).addScaledVector(s.normal, 0.6);
-      s.center.y += 1.05;
+      if (this.profile.shield360) {
+        // A closed bubble is centred on the body it encloses and answers from
+        // every bearing: minDot -1 accepts a bolt arriving from behind, which
+        // a forward pane deliberately does not. The normal still points ahead
+        // so a mirrored bolt goes somewhere sensible.
+        s.center.copy(this.position);
+        s.center.y += this.profile.hitHeight * 0.5;
+        s.radius = SHIELD_BUBBLE_R;
+        // below -1 on purpose: the test is `face <= minDot`, so exactly -1
+        // would still exclude a bolt arriving from dead astern
+        s.minDot = -1.1;
+      } else {
+        s.center.copy(this.position).addScaledVector(s.normal, 0.6);
+        s.center.y += 1.05;
+        s.radius = SHIELD_PANE_R;
+        s.minDot = 0;
+      }
       return s;
     }
     return this.saberCollider;
@@ -738,7 +829,9 @@ export class Player {
    */
   private get saberCollider(): DeflectSphere | null {
     // empty hands turn nothing: with both blades thrown there is no parry
-    if (!this.sabersDrawn || this.sabersHeld === 0 || this.energy <= 0) return null;
+    if (!this.sabersDrawn || this.sabersHeld === 0) return null;
+    // an empty gauge stops the *idle* guard, never a swing that is underway
+    if (this.energy <= 0 && this.meleeTimer <= 0) return null;
     const s = this.saberSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
     s.center.copy(this.position).addScaledVector(s.normal, 0.55);
@@ -763,10 +856,19 @@ export class Player {
    * same gauge as sprinting. Returning false lets the bolt through.
    */
   private consumeDeflect(): boolean {
-    if (this.deflectCd > 0 || this.energy <= 0) return false;
+    if (this.deflectCd > 0) return false;
+    // A blade that is *moving* turns whatever it meets, and costs nothing to
+    // do it: while a swing is live the parry is the swing. Standing with the
+    // guard up still works, and that is what the gauge pays for. Without this
+    // split, sustained fire emptied the gauge in a couple of seconds and then
+    // everything landed while she was visibly swinging through it.
+    const swinging = this.meleeTimer > 0;
+    if (!swinging) {
+      if (this.energy <= 0) return false;
+      this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
+      this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
+    }
     this.deflectCd = 0.05;
-    this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
-    this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
     this.saberIdle = 0;
     return true;
   }
@@ -859,6 +961,8 @@ export class Player {
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
+    this.hitGuard = Math.max(0, this.hitGuard - dt);
+    if (this.hitGuard <= 0) this.freshBody = false;
     this.applyHurtTint();
     this.coolBlaster(dt);
     this.fireCd -= dt;
@@ -1457,7 +1561,7 @@ export class Player {
       this.burnTick -= dt;
       if (this.burnTick <= 0) {
         this.burnTick = 0.4;
-        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position); this.burnAcc = 0; }
+        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1, { dot: true }); this.burnAcc = 0; }
       }
     }
   }
@@ -1915,6 +2019,19 @@ export class Player {
       dir.sub(from).normalize();
     } else {
       dir = camDir;
+    }
+    // Never thrown downhill. A blade that leaves her hand at chest height and
+    // noses into the dirt two strides on reads as a dropped sword, not a
+    // thrown one, and the aim assist happily points there — a short enemy on
+    // lower ground puts the lock point below the throwing hand. So the pitch
+    // is floored at level: level or climbing, never descending. The blade
+    // circle is a metre across, which covers the height it gives up.
+    if (dir.y < 0) {
+      dir = dir.clone();
+      dir.y = 0;
+      // straight down leaves nothing to normalise; face her instead
+      if (dir.lengthSq() < 1e-6) dir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+      dir.normalize();
     }
     from.addScaledVector(dir, 0.5);
     t.launch(from, dir);

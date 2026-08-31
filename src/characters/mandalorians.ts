@@ -74,6 +74,13 @@ interface MandoConfig {
    */
   broad?: number;
   /**
+   * A full bubble instead of the forward dome: the field closes around the
+   * whole body and turns fire from every bearing, back included. A droid
+   * projecting a sphere is a droid that does not have to face its attacker,
+   * which is the point — it costs the same gauge as anyone else's.
+   */
+  bubbleShield?: boolean;
+  /**
    * Signature loadout — defaults are the shared carbine and gaffi. Either slot
    * can name several weapons; the fighter carries all of them and the D-pad
    * cycles that slot, and whichever button uses a slot draws it.
@@ -181,7 +188,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     name: 'IG-11', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
-    voice: 'droid',
+    voice: 'droid', bubbleShield: true,
   },
 };
 
@@ -411,9 +418,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // energised rather than painted; and a hit sends a ring out from the point
   // of impact. The old bright torus rim did all the work and left the middle
   // empty, so the whole thing read as an outline.
+  const bubble = !!cfg.bubbleShield;
   const shieldRoot = new THREE.Group();
   b.chest.add(shieldRoot);
-  shieldRoot.position.set(0, 0.14, 0.34);
+  // a forward dome sits off the chest; a bubble is centred on the body it encloses
+  shieldRoot.position.set(0, bubble ? 0.02 : 0.14, bubble ? 0 : 0.34);
   const shieldMat = new THREE.ShaderMaterial({
     uniforms: {
       uStrength: { value: 0 },
@@ -485,20 +494,24 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  // a little bigger than before, and opened out slightly so it covers more
-  const SHIELD_R = 0.72, SHIELD_ARC = Math.PI * 0.46;
+  // a little bigger than before, and opened out slightly so it covers more —
+  // and for a bubble carrier, all the way round and wide enough to clear the
+  // body it has to enclose
+  const SHIELD_R = bubble ? 1.12 : 0.72, SHIELD_ARC = bubble ? Math.PI : Math.PI * 0.46;
   const shieldGeo = new THREE.SphereGeometry(SHIELD_R, 30, 16, 0, Math.PI * 2, 0, SHIELD_ARC);
   const shieldSkin = new THREE.Mesh(shieldGeo, shieldMat);
   shieldSkin.rotation.x = Math.PI / 2;   // cap opens forward, along +Z
   shieldRoot.add(shieldSkin);
   // a faint edge, sitting exactly on the dome's lip so it reads as the field
-  // ending rather than as a frame drawn around it
+  // ending rather than as a frame drawn around it. A closed bubble has no lip,
+  // so the ring becomes its equator.
   const rimMat = new THREE.MeshBasicMaterial({
     color: 0x9fd0ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(SHIELD_R * Math.sin(SHIELD_ARC), 0.012, 8, 40), rimMat);
-  rim.position.z = SHIELD_R * Math.cos(SHIELD_ARC);
+    new THREE.TorusGeometry(SHIELD_R * (bubble ? 1 : Math.sin(SHIELD_ARC)), 0.012, 8, 40), rimMat);
+  if (bubble) rim.rotation.x = Math.PI / 2;
+  else rim.position.z = SHIELD_R * Math.cos(SHIELD_ARC);
   shieldRoot.add(rim);
   shieldRoot.visible = false;
   let shieldFlash = 0;

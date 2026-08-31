@@ -86,6 +86,12 @@ export interface PlayerProfile {
   hitHeight: number;
   /** extra hit spheres, body-local, matching the NPC's own (empty for a Mandalorian) */
   hitParts: { z: number; y: number; r: number }[];
+  /**
+   * The block shield closes all the way round instead of facing forward, so it
+   * turns fire from any bearing. IG-11's, and nobody else's — see
+   * `bubbleShield` in characters/mandalorians.ts for the field it draws.
+   */
+  shield360?: boolean;
 }
 
 export interface PlayableDef {
@@ -127,6 +133,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     radius: 0.45, height: 1.75,
     // a Mandalorian is exactly his own size: collider and hit volume agree
     hitRadius: 0.45, hitHeight: 1.75, hitParts: [],
+    shield360: !!cfg.bubbleShield,
   };
 };
 
