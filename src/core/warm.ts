@@ -225,10 +225,13 @@ export const warmQueue = new WarmQueue();
  * for a multi-megabyte panorama.
  */
 export function warmImage(url: string, key = `warm:${url}`): Promise<void> {
-  // Images are warmed through an <img>, not fetch(), because that is how they
-  // will really be asked for later — three's texture loaders and CSS both use
-  // one, and a fetch lands in a different cache bucket, so warming that way
-  // downloads every picture twice.
+  // Warmed through an <img>, not fetch(), because that is how the pictures
+  // this is for will really be asked for later: the portraits, territory cards
+  // and planet discs the page draws, through an <img> or through CSS. A fetch
+  // lands in a different cache bucket, so warming that way downloads every one
+  // of them twice. (The surfaces three wears go the other way — they come in
+  // through `loadAuthoredImage`, which fetches them for the status, and are
+  // warmed by `warmFetch` to match.)
   const handle = tracked.start(key);
   return new Promise<void>((resolve) => {
     const img = new Image();
