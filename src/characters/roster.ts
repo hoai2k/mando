@@ -203,6 +203,7 @@ function stubAnimator(): NonNullable<CharacterInstance['animator']> {
     release: () => {},
     releaseAll: () => {},
     invalidate: () => {},
+    poseAt: () => {},
     update: () => {},
     gaitRate: () => 1,
     stepInterval: () => 0.34,

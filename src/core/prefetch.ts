@@ -7,6 +7,7 @@ import { carrierShipId } from '../enemies/arrival';
 import { BOARDS, type BoardInfo } from '../world/boards';
 import type { BoardId } from '../world/board';
 import { portraitName, textureUrl, warmTexture } from './assets';
+import { warmPoster } from '../ui/posters';
 import { tracked, type WarmPriority } from './warm';
 
 /**
@@ -145,10 +146,18 @@ export function boardEnemyIds(board: BoardId, throughWave = FINAL_WAVE): string[
 /** one thing some screen is made of */
 type Need =
   | { kind: 'model'; id: string; soft?: boolean }
-  | { kind: 'texture'; name: string; ext: string; soft?: boolean };
+  /** `dom` marks a picture the page draws (a portrait, a card, a planet disc)
+   *  rather than a surface three wears — the two are fetched differently and a
+   *  warm request has to match, or the file comes down twice. */
+  | { kind: 'texture'; name: string; ext: string; soft?: boolean; dom?: boolean }
+  /** a fighter's pre-rendered select-screen picture (src/ui/posters.ts) */
+  | { kind: 'poster'; id: PlayableId; soft?: boolean };
 
 const model = (id: string, soft = false): Need => ({ kind: 'model', id, soft });
 const tex = (name: string, ext = 'jpg', soft = false): Need => ({ kind: 'texture', name, ext, soft });
+/** a picture the DOM draws: warmed as an <img>, since that is how it is asked for */
+const pic = (name: string, ext = 'jpg', soft = false): Need =>
+  ({ kind: 'texture', name, ext, soft, dom: true });
 
 /** the screens the warmer plans for; `title` is the boot state */
 export type WarmScreen = 'title' | 'select' | 'planets' | 'characters' | 'loading' | 'playing';
@@ -205,11 +214,28 @@ function rosterNeeds(ctx: WarmContext): Need[] {
   const out: Need[] = [];
   const seen = new Set<string>();
   const add = (id: PlayableId, soft: boolean): void => {
+    // The picture comes before the body it stands in for, deliberately: while
+    // the player is flipping, the poster is the thing on screen and the model
+    // is what a settled choice will need a moment later. A few tens of KB
+    // ahead of a few MB is also simply the right order to spend a connection
+    // in.
+    out.push({ kind: 'poster', id, soft });
     for (const m of playableModelIds(id)) {
       if (seen.has(m)) continue;
       seen.add(m);
       out.push(model(m, soft));
     }
+    // The fighter's own face, from the screen that first knows who is on
+    // offer rather than from the drop screen that displays it. A portrait is
+    // on screen within a beat of leaving the select — the VS splash, then the
+    // drop's cast, then the end screen — and it used to be declared only by
+    // `dropNeeds`, which needs a chosen territory, so nothing was queued until
+    // one was picked and the faces raced the screen that shows them.
+    //
+    // Soft, always: they are certain, but a 40 KB face must never be fetched
+    // ahead of the megabytes of model the plinth in front of the player is
+    // waiting on.
+    out.push(pic(portraitName(id), 'jpg', true));
   };
   for (const id of ctx.focus ?? []) add(id, false);
   // nobody has been focused yet (the title, the grid): the select opens on the
@@ -233,7 +259,7 @@ function dropNeeds(board: BoardId, ctx: WarmContext): Need[] {
   const mode = ctx.mode ?? 'wave';
   const out: Need[] = [];
   const info = BOARDS.find((b) => b.id === board);
-  if (info) out.push(tex(artName(info), artExt(info)));
+  if (info) out.push(pic(artName(info), artExt(info)));
   // which fighters get picked is not settled until this screen is entered, so
   // cover the browsable roster; PvP's cast depends on the picks twice over
   // (the rivals, and the squads they lead), hence the roster there too
@@ -242,7 +268,7 @@ function dropNeeds(board: BoardId, ctx: WarmContext): Need[] {
   for (const kind of dropCast(board, ctx.focus?.length ? ctx.focus : roster, mode)) {
     faces.add(portraitName(kind));
   }
-  for (const name of faces) out.push(tex(name));
+  for (const name of faces) out.push(pic(name));
   const sky = BOARD_SKY[board];
   if (sky) out.push(tex(sky));
   // the fighters going in are the third thing the drop blocks on. They are
@@ -294,8 +320,8 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
     // the key art and the logo behind the title are in the page's own CSS and
     // are already on their way before any of this runs
     case 'title': return [];
-    case 'select': return BOARDS.map((info) => tex(artName(info), artExt(info)));
-    case 'planets': return BOARDS.map((info) => tex(`planet_${info.id}`, 'png'));
+    case 'select': return BOARDS.map((info) => pic(artName(info), artExt(info)));
+    case 'planets': return BOARDS.map((info) => pic(`planet_${info.id}`, 'png'));
     case 'characters': return rosterNeeds(ctx);
     case 'loading': return ctx.board ? dropNeeds(ctx.board, ctx) : [];
     case 'playing': return ctx.board ? matchNeeds(ctx.board, ctx) : [];
@@ -304,7 +330,8 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
 
 function request(need: Need, priority: WarmPriority): void {
   if (need.kind === 'model') warmAuthored(need.id, priority);
-  else warmTexture(need.name, priority, need.ext);
+  else if (need.kind === 'poster') warmPoster(need.id, priority);
+  else warmTexture(need.name, priority, need.ext, need.dom);
 }
 
 /**

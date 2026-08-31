@@ -7,7 +7,7 @@ import {
   kraytClips, mamacoreClips, mudhornClips, mythosaurClips, rancorClips, ravinakClips,
 } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
-import { tracked, warmQueue, type WarmPriority } from '../core/warm';
+import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 
 /**
@@ -124,18 +124,6 @@ const retryCount = new Map<string, number>();
 const retrying = new Map<string, ReturnType<typeof setTimeout>>();
 /** who is standing on a procedural build, waiting for a re-attempt to land */
 const latecomers = new Map<string, Set<() => void>>();
-
-/**
- * How long to wait before each re-attempt of a model whose download failed for
- * a reason that might not repeat.
- *
- * Spread out and finite. These run while the player is fighting, sharing the
- * connection with a match that is already loading its own scenery, so they
- * hang well back; and a file that has missed five times across two and a half
- * minutes is not coming, so the stand-in becomes the look and the game stops
- * asking.
- */
-const RETRY_DELAYS = [3, 8, 20, 45, 90];
 
 /**
  * Ask for a failed model again, later.

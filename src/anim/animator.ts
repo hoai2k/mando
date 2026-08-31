@@ -140,6 +140,28 @@ export class Animator {
     this.release('upper');
   }
 
+  /**
+   * Seek whatever is playing to an absolute time and apply that pose, without
+   * disturbing the blend weights.
+   *
+   * For a reproducible still — the character select's posters, which have to
+   * show the same pose on every regeneration or the pictures churn and the
+   * handover to the live model pops. The obvious `mixer.setTime` is wrong for
+   * this: it rewinds every action's clock *and* re-runs the crossfade
+   * interpolants from zero, which leaves the idle at no weight at all and the
+   * rig standing in its bind pose — arms out, weapon jutting. This moves the
+   * clock and nothing else.
+   */
+  poseAt(t: number): void {
+    for (const name of [this.current.lower, this.current.upper]) {
+      if (!name) continue;
+      const clip = this.clips[name];
+      const action = clip && this.mixer.existingAction(clip);
+      if (action) action.time = clip.duration > 0 ? t % clip.duration : 0;
+    }
+    this.mixer.update(0);
+  }
+
   update(dt: number): void {
     this.time += dt;
     this.mixer.update(dt);
