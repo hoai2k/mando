@@ -4,9 +4,10 @@ import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type WarmScreen } from './core/prefetch';
 import { tracked } from './core/warm';
+import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
 import { planWave } from './enemies/spawner';
-import { enemyBody, type EnemyKind } from './enemies/enemy';
+import { buildEnemyCharacter, enemyBody, enemyHitParts, enemyKinds, enemyStats, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
 import { BOARDS } from './world/boards';
@@ -16,11 +17,14 @@ import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
 import { VsScreen } from './ui/vs';
+import { faceSvg, portraitName } from './ui/faces';
+import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
-import { playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
+import { playableDef, playableModelId, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
+import { fitStats } from './world/collide';
 import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
@@ -315,6 +319,12 @@ pause.onBack = () => resumeGame();
 
 // ----- end (victory/defeat) -----
 const end = new MenuScreen(menuLayer);
+// the PvP winner's celebration: their portrait held up over the tally —
+// filled in (and shown) only when a duel ends with a champion
+const endHero = document.createElement('div');
+endHero.className = 'end-hero';
+endHero.style.display = 'none';
+end.root.appendChild(endHero);
 const endTitle = document.createElement('div');
 endTitle.className = 'menu-title';
 endTitle.style.fontSize = 'clamp(34px, 5vw, 64px)';
@@ -347,6 +357,77 @@ end.onBack = () => quitToTitle();
 // character's name or count — both have changed under it before
 (window as unknown as { __roster?: unknown }).__roster =
   PLAYABLE_MANDO_IDS.map((id) => ({ id, name: MANDO_ROSTER[id].name }));
+// debug/testing handle: the widened PvP roster, so a test can put a fighter on
+// the select stage without walking the menus to get there
+(window as unknown as { __pvpRoster?: unknown }).__pvpRoster = PVP_ROSTER;
+// debug/testing handles: a bench for building one of anything outside a match
+// and measuring what it actually renders as, for tools/audit-hitboxes.mjs.
+// A Def's declared radius/height cannot answer this on its own — a character
+// is born a procedural stand-in and swaps to its authored .glb seconds later,
+// so the bench is built once and measured after the models have landed.
+(window as unknown as { __enemyKinds?: unknown }).__enemyKinds = enemyKinds();
+const bodyBench: THREE.Object3D[] = [];
+/** a roster id builds as a fighter; anything else is a bare hostile kind */
+const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId);
+(window as unknown as { __buildBody?: unknown }).__buildBody = (id: string): number => {
+  const inst = isPlayable(id)
+    ? playableDef(id as PlayableId).build()
+    : buildEnemyCharacter(id as EnemyKind);
+  bodyBench.push(inst.root);
+  return bodyBench.length - 1;
+};
+(window as unknown as { __bodySize?: unknown }).__bodySize = (i: number) => {
+  const root = bodyBench[i];
+  const box = new THREE.Box3();
+  visibleBounds(root, box);
+  if (box.isEmpty()) return null;
+  // A downsampled point cloud of the body as it actually renders, in the local
+  // frame the game positions it in (feet at the origin, +z forward). The audit
+  // needs real geometry, not a bounding box: a box says a krayt dragon is five
+  // metres tall, and cannot say which of those metres a bolt would pass
+  // through.
+  const pts: number[] = [];
+  const wts: number[] = [];
+  const v = new THREE.Vector3();
+  const part = new THREE.Box3();
+  const psize = new THREE.Vector3();
+  root.updateWorldMatrix(false, true);
+  root.traverse((o) => {
+    if (!o.visible) return;
+    const geo = (o as THREE.Mesh).geometry;
+    const pos = geo?.attributes?.position;
+    if (!pos) return;
+    // Each mesh contributes a capped number of points so a dense sculpt and a
+    // coarse stand-in are sampled alike — but the points carry the mesh's
+    // *bulk* as their weight, so coverage means "how much of the body can be
+    // hit", not "how many of its parts". Unweighted, a rifle barrel counted
+    // for as much as a torso and read as a third of the fighter.
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    if (!geo.boundingBox) return;
+    part.copy(geo.boundingBox).applyMatrix4(o.matrixWorld);
+    part.getSize(psize);
+    const bulk = Math.max(psize.x * psize.y * psize.z, 1e-6);
+    const step = Math.max(1, Math.floor(pos.count / 120));
+    const taken = Math.ceil(pos.count / step);
+    for (let k = 0; k < pos.count; k += step) {
+      v.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+      pts.push(+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3));
+      wts.push(bulk / taken);
+    }
+  });
+  return {
+    nodes: nodeCount(root),
+    min: [box.min.x, box.min.y, box.min.z],
+    max: [box.max.x, box.max.y, box.max.z],
+    pts, wts,
+  };
+};
+// the declared collider + stat sheet behind a kind, so the audit compares
+// against the same numbers the game itself fights with
+(window as unknown as { __bodyDecl?: unknown }).__bodyDecl = (id: string) =>
+  isPlayable(id)
+    ? { kind: 'playable', ...playableDef(id as PlayableId).profile }
+    : { kind: 'enemy', ...enemyStats(id as EnemyKind), hitParts: enemyHitParts(id as EnemyKind) };
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 
@@ -585,6 +666,11 @@ Object.assign(window, {
   // the sculpt ids the built board actually asked for, so a test can hold the
   // prefetcher's per-board list against the truth
   __propsUsed: () => [...propsUsed],
+  // what fitting colliders to the sculpts has cost, for the prop audit
+  __fitStats: () => ({ ...fitStats }),
+  // every playable fighter's definition, so a test can hold the whole roster
+  // against a rule — that everyone is armed in both hands, for one
+  __playables: () => PVP_ROSTER.map((id) => playableDef(id)),
   __boardProps: () => BOARD_PROPS,
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
@@ -670,6 +756,23 @@ function frame(now: number): void {
             : game.mode === 'pvp' ? `${winner?.profile.name ?? 'Nobody'} Takes the Territory`
             : game.mode === 'campaign' ? 'Territory Liberated'
             : 'Territory Held';
+          // a duel's end screen celebrates the champion: portrait held high,
+          // authored art taking over the drawn mark when the file exists
+          if (game.mode === 'pvp' && game.state === 'victory' && winner) {
+            endHero.innerHTML = `
+              <div class="end-face">${faceSvg(winner.characterId)}</div>
+              <div class="end-tag">Champion · P${winner.slot + 1} · ${winner.kills} kills</div>`;
+            endHero.style.display = '';
+            const face = endHero.querySelector('.end-face') as HTMLElement;
+            const img = new Image();
+            img.onload = () => {
+              face.style.backgroundImage = `url('${img.src}')`;
+              face.classList.add('has-art');
+            };
+            img.src = `${ASSET_ROOT}assets/textures/${portraitName(winner.characterId)}.jpg`;
+          } else {
+            endHero.style.display = 'none';
+          }
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
           const tail = game.mode === 'wave' ? ` · wave ${game.wave} · ${mins}:${secs}` : ` · ${mins}:${secs}`;

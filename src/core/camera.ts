@@ -29,6 +29,34 @@ const AIM_RATIO = 0.59;
 const SHOULDER_HIP = 0.55;
 const SHOULDER_AIM = 0.8;
 
+// ---- the body being followed ----
+// Every number above is tuned around a Mandalorian: 1.8 m tall, half a metre
+// across, eye at 1.58. PvP hands the same rig bodies that are nothing like
+// that — a war massiff is 4.2 m from nose to tail, a broodmother 6.5 m across
+// and 3.9 m tall — and their colliders do not say so, because the roster
+// clamps a playable NPC's capsule to 0.6 × 2.1 so it still fits the cover and
+// doorways the boards were built around. Framed as if they were a Mandalorian,
+// the camera sat *inside* them: the massiff's player got a wall of hide across
+// the whole screen and no view of the world at all.
+//
+// So the rig is told what it is following, and the reference below is what
+// makes that free for everyone else: a Mandalorian measures REF exactly, so
+// the ratios come out at 1 and the framing is the one that was tuned by hand.
+const REF_EYE = 1.58;
+const REF_HEIGHT = 1.8;
+const REF_REACH = 0.5;
+/**
+ * Air the camera keeps between itself and the body's own outline.
+ *
+ * Chosen so a Mandalorian's floor (0.47 + this) still sits under the closest
+ * framing the tuning above ever asks for — 1.41 m, the standstill end of the
+ * dynamic follow. That is the point: the floor exists for bodies the tuning
+ * never anticipated, and must not quietly re-frame the eight it did.
+ */
+const BODY_CLEARANCE = 0.85;
+/** a wide body pushes the over-the-shoulder step out too, but only so far */
+const MAX_SHOULDER_SCALE = 3;
+
 // ---- dynamic follow ----
 // The chase distance is the dialled-in `baseDist` times a pace multiplier, so
 // the right-stick dolly still scales both ends of the range together: pull the
@@ -99,6 +127,9 @@ export class ThirdPersonCamera {
   private glideT = 0;
   private glideDur = 0;
   private glidePos = new THREE.Vector3();
+  /** where the look sits above the feet, and how far the body reaches sideways */
+  private eye = REF_EYE;
+  private reach = REF_REACH;
   private tmpTarget = new THREE.Vector3();
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -118,6 +149,28 @@ export class ThirdPersonCamera {
   dolly(delta: number): void {
     this.baseDist = clamp(this.baseDist + delta * BASE_DIST, MIN_DIST, MAX_DIST);
   }
+
+  /**
+   * Tell the rig how big the body it follows is: `height` and `reach` (half the
+   * body's widest horizontal span) in metres, measured off the built character
+   * rather than its clamped collider.
+   *
+   * A Mandalorian measures the reference, so this is a no-op for the eight of
+   * them and for every humanoid NPC — the framing stays the one that was tuned
+   * by hand. Anything bigger gets its eye line lifted to its own head and a
+   * floor under the chase distance that keeps the lens outside its hide.
+   */
+  setSubject(height: number, reach: number): void {
+    this.eye = REF_EYE * (height / REF_HEIGHT);
+    this.reach = reach;
+  }
+
+  /**
+   * The closest the camera may sit to the look point: far enough that the body
+   * itself is not the shot. Aiming and the dolly both defer to it — pushing the
+   * lens inside a war beast is not a framing anyone chose.
+   */
+  private get clearance(): number { return this.reach + BODY_CLEARANCE; }
 
   /** Pull the view onto a world point over ~0.15 s (aim-press lock-on). */
   snapToward(point: THREE.Vector3, duration = 0.15): void {
@@ -188,7 +241,11 @@ export class ThirdPersonCamera {
     // aiming pulls in proportionally, so the over-the-shoulder framing keeps
     // its relationship to whatever chase distance the player has dialled in.
     // ADS is its own framing: it ignores the pace and sits where it always did.
-    const targetDist = this.baseDist * (opts.aiming ? AIM_RATIO : follow);
+    // ...and never nearer than the body's own outline, so a big fighter is
+    // something you are looking at rather than something you are looking from
+    // inside. A Mandalorian's outline sits under even the closest framing the
+    // tuning asks for, so for the eight of them this max() never binds.
+    const targetDist = Math.max(this.clearance, this.baseDist * (opts.aiming ? AIM_RATIO : follow));
     const targetFov = opts.aiming ? 52 : 72 + Math.min(opts.speed / 14, 1) * 7 + (opts.dashing ? 6 : 0);
     this.dist = this.framed ? damp(this.dist, targetDist, 10, dt) : targetDist;
     this.framed = true;
@@ -197,10 +254,15 @@ export class ThirdPersonCamera {
     this.camera.updateProjectionMatrix();
 
     const head = this.tmpTarget.copy(feetPos);
-    head.y += 1.58;
+    head.y += this.eye;
     // over-the-right-shoulder offset, matching the right-handed carbine
     const { rightX, rightZ } = yawBasis(this.yaw);
-    const shoulder = opts.aiming ? SHOULDER_AIM : SHOULDER_HIP;
+    // A wide body needs the step out to clear its own flank, or the shoulder
+    // view is a view of the shoulder. Only ever outward: a body narrower than
+    // the reference keeps the offset that was tuned for it, rather than having
+    // it quietly shaved because it measured a few centimetres under.
+    const shoulder = (opts.aiming ? SHOULDER_AIM : SHOULDER_HIP)
+      * clamp(this.reach / REF_REACH, 1, MAX_SHOULDER_SCALE);
     head.x += rightX * shoulder;
     head.z += rightZ * shoulder;
 

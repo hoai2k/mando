@@ -523,3 +523,33 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .vs-fighter.narrow .vs-name { font-size: clamp(13px, 1.6vw, 21px); white-space: normal; line-height: 1.25; }
 .vs-fighter.narrow .vs-kit { font-size: 10px; }
 .vs-fighter.narrow .vs-face { width: 130px; height: 154px; }
+
+/* ---- PvP winner celebration: the end screen's hero block ---- */
+.end-hero {
+  display: flex; flex-direction: column; align-items: center;
+  margin-bottom: 14px;
+  animation: heroIn 0.7s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.end-hero .end-face {
+  width: 200px; height: 240px;
+  background-size: cover; background-position: center top;
+  border-radius: 12px;
+  border: 2px solid rgba(230, 195, 120, 0.85);
+  box-shadow: 0 0 38px rgba(230, 195, 120, 0.35), 0 14px 30px rgba(0, 0, 0, 0.65);
+  animation: heroGlow 2.4s ease-in-out infinite;
+}
+.end-hero .end-face svg { width: 100%; height: 100%; }
+.end-hero .end-face.has-art svg { display: none; }
+.end-hero .end-tag {
+  margin-top: 12px; font-size: 13px; letter-spacing: 0.45em;
+  text-transform: uppercase; color: #d8bd7f;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+@keyframes heroIn {
+  from { opacity: 0; transform: translateY(22px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes heroGlow {
+  0%, 100% { box-shadow: 0 0 30px rgba(230, 195, 120, 0.3), 0 14px 30px rgba(0, 0, 0, 0.65); }
+  50% { box-shadow: 0 0 58px rgba(230, 195, 120, 0.6), 0 14px 30px rgba(0, 0, 0, 0.65); }
+}

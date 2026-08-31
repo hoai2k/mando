@@ -17,7 +17,7 @@ import { disposeSubtree } from '../core/dispose';
 import { ENEMY_MODEL_ID, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, INFINITE_LIVES, MID_BOSS, MONSTER_BOSS, bossRush, type GameMode } from './modes';
 import { AllyCrate } from './allycrate';
 import { Campaign } from './campaign';
 
@@ -35,7 +35,8 @@ const BLANK_INPUT: FrameInput = {
   moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
   dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
-  zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+  zoomDelta: 0, blockHeld: false, pausePressed: false,
+  meleeSwapPressed: false, rangedSwapPressed: false,
   throttleHeld: false, brakeHeld: false,
 };
 
@@ -125,6 +126,13 @@ export class Game {
   boss: Enemy | null = null;
   /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
   private midBossActive = false;
+  /**
+   * The waves each boss battle rings in after. Normally the design's schedule
+   * (spawner.ts MID_BOSS_WAVE / FINAL_WAVE); ?waves=boss compresses it to a
+   * single wave before each battle, for testing the bosses themselves.
+   */
+  private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
+  private finalWave = bossRush() ? 2 : FINAL_WAVE;
   /** the champion has fallen; the second run of waves is open */
   private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
@@ -206,7 +214,12 @@ export class Game {
       this.campaign = new Campaign(this);
     }
 
-    this.vehicles = spawnVehicles(board, this.scene);
+    // Parked rides belong to the territory's own ground, so they only make
+    // sense in the modes fought on it. A mission level is raised to
+    // MISSION_Y, which left every ride sitting 82-89 m below the floor the
+    // party walks: unreachable, un-mountable, and still costing a model, a
+    // collider and a bolt target. Waves and PvP get them; Missions does not.
+    if (mode !== 'campaign') this.vehicles = spawnVehicles(board, this.scene);
 
 
     // a bolt turned around by a shield: sparks at the pane, and the blocker
@@ -589,6 +602,8 @@ export class Game {
       const near = this.players.some((p) => p.alive && p.position.distanceToSquared(b.position) < 12 * 12);
       if (!near) { this.bossMoveCd = 2; return; }   // nobody to punish — re-check soon
       this.bossTelegraph = 1.15;
+      // the ember ring promises where the slam lands: no super jump mid-promise
+      b.superJumpCd = Math.max(b.superJumpCd, 1.4);
       audio.impact();
     }
   }
@@ -807,12 +822,18 @@ export class Game {
     if (this.board.movers) {
       for (const m of this.board.movers) {
         if (m.delta.lengthSq() < 1e-10) continue;
-        const b = m.box;
+        // Anything the mover carries counts as ground: a ship whose colliders
+        // were fitted to its hull is several surfaces, and a rider standing on
+        // any of them travels with it.
+        const surfaces = m.surfaces();
         const carry = (pos: THREE.Vector3, radius: number): void => {
-          if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) return;
-          if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) return;
-          if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) return;
-          pos.add(m.delta);
+          for (const b of surfaces) {
+            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
+            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
+            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
+            pos.add(m.delta);
+            return;
+          }
         };
         for (const p of this.players) if (p.alive) carry(p.position, p.radius);
         for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
@@ -840,7 +861,7 @@ export class Game {
           this.allyCrate.retire(this);
           this.allyCrate = null;
         }
-        if (this.wave > FINAL_WAVE) {
+        if (this.wave > this.finalWave) {
           // the warlord is down: the territory is truly held
           this.setState('victory');
           this.events.banner('Territory held', 'This is the Way');
@@ -853,7 +874,7 @@ export class Game {
           this.stateTimer = 4.5;
           this.events.banner('The champion falls', 'The warlord is watching');
           audio.waveClear();
-        } else if (this.wave === FINAL_WAVE || (this.wave === MID_BOSS_WAVE && !this.midBossDown)) {
+        } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
           // a boss battle rings in on the next bell
           this.setState('break');
           this.stateTimer = 4.5;
@@ -898,6 +919,7 @@ export class Game {
       p.update(dt, inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       if (this.mode === 'pvp') {
+        // PvP keeps its finite stands: elimination is the mode's win condition
         if (p.lives > 0) {
           p.lives--;
           p.deathCounted = false;
@@ -913,16 +935,16 @@ export class Game {
         this.events.banner('Back on your feet', 'the beacon waits');
       } else {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
-        if (this.players.length > 1 && partnerAlive) {
+        if (INFINITE_LIVES || (this.players.length > 1 && partnerAlive)) {
           p.spawnAt(this.board.playerStarts[p.slot] ?? this.board.playerStarts[0]);
-          p.hp = p.maxHp * 0.6;
+          if (this.players.length > 1) p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
           this.events.banner('The hunter has fallen');
         }
       }
     }
-    if (this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
+    if (!INFINITE_LIVES && this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
       this.events.banner('The hunters have fallen');
     }
@@ -1007,10 +1029,12 @@ export class Game {
       t.breakable = null;
       t.vehicle = null;
       targets.push(t);
-      // long bodies (the war massiff) need more than the one centre sphere
-      if (e.def.hitParts) {
+      // long bodies (the war massiff) need more than the one centre sphere.
+      // Read off the instance, not the shared Def: a promoted boss carries its
+      // own grown copy.
+      if (e.hitParts.length) {
         const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
-        for (const part of e.def.hitParts) {
+        for (const part of e.hitParts) {
           const h = this.pooledTarget(slot++);
           h.enemy = e;
           h.player = null;
@@ -1035,8 +1059,12 @@ export class Game {
       const t = this.pooledTarget(slot++);
       t.enemy = null;
       t.player = p;
-      t.position.set(p.position.x, p.position.y + 0.9, p.position.z);
-      t.radius = p.radius + 0.35;
+      // Shot as the creature they are, not as the collider they walk in: the
+      // profile's hit volume is the NPC's own, so a playable massiff takes a
+      // bolt anywhere the same animal would as a hostile. A Mandalorian's two
+      // numbers agree, so this is where it has always been for him.
+      t.position.set(p.position.x, p.position.y + p.profile.hitHeight * 0.5, p.position.z);
+      t.radius = p.profile.hitRadius + 0.35;
       t.team = p.team;
       t.alive = true;
       // a blade sends the bolt back at somebody, so the player needs to be
@@ -1047,6 +1075,30 @@ export class Game {
       t.breakable = null;
       t.vehicle = null;
       targets.push(t);
+      // and the same extra spheres a long-bodied kind gets as a hostile
+      if (p.profile.hitParts.length) {
+        const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
+        for (const part of p.profile.hitParts) {
+          const h = this.pooledTarget(slot++);
+          h.enemy = null;
+          h.player = p;
+          h.position.set(
+            p.position.x + sin * part.z,
+            p.position.y + part.y,
+            p.position.z + cos * part.z,
+          );
+          h.radius = part.r;
+          h.team = p.team;
+          h.alive = true;
+          // the raised pane is a real thing in front of the whole fighter, so
+          // it answers for every sphere, not just the one on the chest
+          h.shield = p.shieldCollider;
+          h.slot = p.slot;
+          h.breakable = null;
+          h.vehicle = null;
+          targets.push(h);
+        }
+      }
     }
     // breakable props sit on team 2, so both sides' fire chips at them
     if (this.board.breakables) {
@@ -1241,7 +1293,7 @@ export class Game {
    * across a connection the match is already using for its scenery.
    */
   private preloadWave(wave: number): void {
-    if (wave > FINAL_WAVE) return;
+    if (wave > this.finalWave) return;
     for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
       const id = ENEMY_MODEL_ID[entry.kind];
       if (id) warmAuthored(id, 'now');
@@ -1337,7 +1389,7 @@ export class Game {
       return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
     }
     if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
-    if (this.midBossActive || this.wave > FINAL_WAVE) return this.boss?.bossName ?? 'The warlord';
+    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? 'The warlord';
     return `Wave ${Math.max(this.wave, 1)}`;
   }
 
@@ -1368,14 +1420,14 @@ export class Game {
     this.setState('fighting');
     // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
     // the next wave: the board's first boss posts at the far side with a guard
-    if (this.wave === MID_BOSS_WAVE && !this.midBossDown) {
+    if (this.wave === this.midBossWave && !this.midBossDown) {
       this.midBossActive = true;
       this.spawnBoss(this.farPost(), 'mid');
       return;
     }
     this.wave++;
     // past the final wave is the warlord's battle, and the last bell
-    if (this.wave > FINAL_WAVE) {
+    if (this.wave > this.finalWave) {
       this.spawnBoss(this.farPost(), 'final');
       return;
     }
@@ -1400,7 +1452,7 @@ export class Game {
     const scattered = this.aliveEnemyCount + this.incoming;
     this.events.banner(
       `Wave ${this.wave}`,
-      this.wave === FINAL_WAVE ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
+      this.wave === this.finalWave ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
     );
     // the little card naming kinds that debut this wave — the wave tables
     // are deterministic in which kinds appear, so a diff against every

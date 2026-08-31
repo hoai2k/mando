@@ -8,9 +8,10 @@ import type { Proportions } from './skeleton';
  * over any locomotion state. All clips are standard THREE.AnimationClips,
  * so authored clips from a glTF can replace them 1:1.
  *
- * ARM/LEG SPLAY SIGN: the rig's `L` bones sit at -X and `R` at +X, and a
+ * ARM/LEG SPLAY SIGN: the rig's `L` bones sit at +X and `R` at -X (the rig
+ * faces +Z, so +X is the character's own left — see skeleton.ts), and a
  * positive Z rotation swings a downward-pointing bone toward +X. So a limb
- * spreads *away* from the body on negative Z for `L` and positive Z for `R`.
+ * spreads *away* from the body on positive Z for `L` and negative Z for `R`.
  * Getting this backwards tucks the arms into the torso, which is invisible on
  * a stick-figure build and clips straight through an authored one.
  *
@@ -156,30 +157,30 @@ function makeClips(p: Proportions): ClipSet {
   // ---------- LOWER: idle ----------
   clips.idleLower = new THREE.AnimationClip('idleLower', 3, [
     pt('hips', [0, 1.5, 3], [[0, hipY, 0], [0, hipY - 0.015, 0], [0, hipY, 0]]),
-    qt('hips', [0, 1.5, 3], [[0, 0, 0], [1, 0, 1], [0, 0, 0]]),
+    qt('hips', [0, 1.5, 3], [[0, 0, 0], [1, 0, -1], [0, 0, 0]]),
     qt('spine', [0, 1.5, 3], [[2, 0, 0], [3.5, 0, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 3], [[-3, 0, -2], [-3, 0, -2]]),
-    qt('upperLegR', [0, 3], [[-3, 0, 2], [-3, 0, 2]]),
+    qt('upperLegL', [0, 3], [[-3, 0, 2], [-3, 0, 2]]),
+    qt('upperLegR', [0, 3], [[-3, 0, -2], [-3, 0, -2]]),
     qt('lowerLegL', [0, 3], [[5, 0, 0], [5, 0, 0]]),
     qt('lowerLegR', [0, 3], [[5, 0, 0], [5, 0, 0]]),
   ]);
 
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
-    qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, 1, 0], [1, 0, 0]]),
-    qt('upperArmL', [0, 1.5, 3], [[8, 0, -21], [10, 0, -22], [8, 0, -21]]),
-    qt('upperArmR', [0, 1.5, 3], [[8, 0, 21], [10, 0, 22], [8, 0, 21]]),
+    qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),
+    qt('upperArmL', [0, 1.5, 3], [[8, 0, 21], [10, 0, 22], [8, 0, 21]]),
+    qt('upperArmR', [0, 1.5, 3], [[8, 0, -21], [10, 0, -22], [8, 0, -21]]),
     qt('forearmL', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
     qt('forearmR', [0, 3], [[-18, 0, 0], [-18, 0, 0]]),
-    qt('head', [0, 1.5, 3], [[0, 0, 0], [1, 3, 0], [0, 0, 0]]),
+    qt('head', [0, 1.5, 3], [[0, 0, 0], [1, -3, 0], [0, 0, 0]]),
   ]);
 
   // ---------- LOWER: run (0.6s cycle) ----------
   const rt = [0, 0.15, 0.3, 0.45, 0.6];
   clips.runLower = new THREE.AnimationClip('runLower', 0.6, [
     pt('hips', rt, [[0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0]]),
-    qt('hips', rt, [[8, 0, 3], [8, 0, 0], [8, 0, -3], [8, 0, 0], [8, 0, 3]]),
-    qt('spine', rt, [[4, -4, 0], [4, 0, 0], [4, 4, 0], [4, 0, 0], [4, -4, 0]]),
+    qt('hips', rt, [[8, 0, -3], [8, 0, 0], [8, 0, 3], [8, 0, 0], [8, 0, -3]]),
+    qt('spine', rt, [[4, 4, 0], [4, 0, 0], [4, -4, 0], [4, 0, 0], [4, 4, 0]]),
     qt('upperLegL', rt, [[-62, 0, 0], [-12, 0, 0], [42, 0, 0], [-6, 0, 0], [-62, 0, 0]]),
     qt('lowerLegL', rt, [[20, 0, 0], [12, 0, 0], [70, 0, 0], [92, 0, 0], [20, 0, 0]]),
     qt('upperLegR', rt, [[42, 0, 0], [-6, 0, 0], [-62, 0, 0], [-12, 0, 0], [42, 0, 0]]),
@@ -199,8 +200,8 @@ function makeClips(p: Proportions): ClipSet {
   // gait spun faster.
   clips.sprintLower = new THREE.AnimationClip('sprintLower', 0.6, [
     pt('hips', rt, [[0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0]]),
-    qt('hips', rt, [[12, 0, 3], [12, 0, 0], [12, 0, -3], [12, 0, 0], [12, 0, 3]]),
-    qt('spine', rt, [[6, -5, 0], [6, 0, 0], [6, 5, 0], [6, 0, 0], [6, -5, 0]]),
+    qt('hips', rt, [[12, 0, -3], [12, 0, 0], [12, 0, 3], [12, 0, 0], [12, 0, -3]]),
+    qt('spine', rt, [[6, 5, 0], [6, 0, 0], [6, -5, 0], [6, 0, 0], [6, 5, 0]]),
     qt('upperLegL', rt, [[-76, 0, 0], [-14, 0, 0], [46, 0, 0], [-8, 0, 0], [-76, 0, 0]]),
     qt('lowerLegL', rt, [[12, 0, 0], [10, 0, 0], [74, 0, 0], [100, 0, 0], [12, 0, 0]]),
     qt('upperLegR', rt, [[46, 0, 0], [-8, 0, 0], [-76, 0, 0], [-14, 0, 0], [46, 0, 0]]),
@@ -216,8 +217,8 @@ function makeClips(p: Proportions): ClipSet {
   // little further forward to catch the body's weight as it travels back.
   clips.backpedalLower = new THREE.AnimationClip('backpedalLower', 0.6, [
     pt('hips', rt, [[0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0]]),
-    qt('hips', rt, [[8, 0, 3], [8, 0, 0], [8, 0, -3], [8, 0, 0], [8, 0, 3]]),
-    qt('spine', rt, [[4, -4, 0], [4, 0, 0], [4, 4, 0], [4, 0, 0], [4, -4, 0]]),
+    qt('hips', rt, [[8, 0, -3], [8, 0, 0], [8, 0, 3], [8, 0, 0], [8, 0, -3]]),
+    qt('spine', rt, [[4, 4, 0], [4, 0, 0], [4, -4, 0], [4, 0, 0], [4, 4, 0]]),
     qt('upperLegL', rt, [[-70, 0, 0], [-14, 0, 0], [24, 0, 0], [-6, 0, 0], [-70, 0, 0]]),
     qt('lowerLegL', rt, [[22, 0, 0], [14, 0, 0], [62, 0, 0], [88, 0, 0], [22, 0, 0]]),
     qt('upperLegR', rt, [[24, 0, 0], [-6, 0, 0], [-70, 0, 0], [-14, 0, 0], [24, 0, 0]]),
@@ -227,18 +228,19 @@ function makeClips(p: Proportions): ClipSet {
   ]);
 
   // ---------- LOWER: strafe (lateral shuffle, 0.6s cycle) ----------
-  // Side-stepping toward +X: the +X leg reaches wide, the other pushes and
+  // Side-stepping toward -X — the character's own right, so `strafeLower` is
+  // the step to the right: the -X leg reaches wide, the other pushes and
   // gathers under the body, knees lifting on the gather so the feet step
-  // rather than mop. The -X direction is this clip mirrored (strafeLLower).
-  // The controller picks it whenever combat facing and travel diverge by
-  // 45-135°, which is what stops sidesteps playing the forward run.
+  // rather than mop. Travel toward +X is this clip mirrored (strafeLLower).
+  // The controller picks between them whenever combat facing and travel
+  // diverge by 45-135°, which is what stops sidesteps playing the forward run.
   clips.strafeLower = new THREE.AnimationClip('strafeLower', 0.6, [
     pt('hips', rt, [[0, hipY - 0.02, 0], [0, hipY + 0.02, 0], [0, hipY - 0.03, 0], [0, hipY + 0.02, 0], [0, hipY - 0.02, 0]]),
-    qt('hips', rt, [[4, 0, -5], [4, 0, -3], [4, 0, -5], [4, 0, -3], [4, 0, -5]]),   // lean into the travel
-    qt('spine', rt, [[2, 0, 3], [2, 0, 2], [2, 0, 3], [2, 0, 2], [2, 0, 3]]),       // counter so the head stays level
-    qt('upperLegR', rt, [[0, 0, 28], [-4, 0, 10], [2, 0, -4], [-4, 0, 12], [0, 0, 28]]),
+    qt('hips', rt, [[4, 0, 5], [4, 0, 3], [4, 0, 5], [4, 0, 3], [4, 0, 5]]),   // lean into the travel
+    qt('spine', rt, [[2, 0, -3], [2, 0, -2], [2, 0, -3], [2, 0, -2], [2, 0, -3]]),       // counter so the head stays level
+    qt('upperLegR', rt, [[0, 0, -28], [-4, 0, -10], [2, 0, 4], [-4, 0, -12], [0, 0, -28]]),
     qt('lowerLegR', rt, [[8, 0, 0], [34, 0, 0], [10, 0, 0], [30, 0, 0], [8, 0, 0]]),
-    qt('upperLegL', rt, [[0, 0, -2], [-4, 0, 8], [2, 0, 20], [-4, 0, 8], [0, 0, -2]]),
+    qt('upperLegL', rt, [[0, 0, 2], [-4, 0, -8], [2, 0, -20], [-4, 0, -8], [0, 0, 2]]),
     qt('lowerLegL', rt, [[10, 0, 0], [28, 0, 0], [8, 0, 0], [32, 0, 0], [10, 0, 0]]),
     qt('footL', rt, [[4, 0, 0], [-6, 0, 0], [4, 0, 0], [-6, 0, 0], [4, 0, 0]]),
     qt('footR', rt, [[4, 0, 0], [-6, 0, 0], [4, 0, 0], [-6, 0, 0], [4, 0, 0]]),
@@ -248,10 +250,10 @@ function makeClips(p: Proportions): ClipSet {
   // ---------- UPPER: run (arm swing) ----------
   clips.runUpper = new THREE.AnimationClip('runUpper', 0.6, [
     // a touch of roll against the yaw twist, so the shoulders ride the stride
-    qt('chest', rt, [[6, 5, -1.5], [6, 0, 0], [6, -5, 1.5], [6, 0, 0], [6, 5, -1.5]]),
-    qt('upperArmL', rt, [[35, 0, -19], [5, 0, -19], [-30, 0, -19], [5, 0, -19], [35, 0, -19]]),
+    qt('chest', rt, [[6, -5, 1.5], [6, 0, 0], [6, 5, -1.5], [6, 0, 0], [6, -5, 1.5]]),
+    qt('upperArmL', rt, [[35, 0, 19], [5, 0, 19], [-30, 0, 19], [5, 0, 19], [35, 0, 19]]),
     qt('forearmL', rt, [[-40, 0, 0], [-55, 0, 0], [-70, 0, 0], [-55, 0, 0], [-40, 0, 0]]),
-    qt('upperArmR', rt, [[-30, 0, 19], [5, 0, 19], [35, 0, 19], [5, 0, 19], [-30, 0, 19]]),
+    qt('upperArmR', rt, [[-30, 0, -19], [5, 0, -19], [35, 0, -19], [5, 0, -19], [-30, 0, -19]]),
     qt('forearmR', rt, [[-70, 0, 0], [-55, 0, 0], [-40, 0, 0], [-55, 0, 0], [-70, 0, 0]]),
     qt('head', rt, [[-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
   ]);
@@ -260,16 +262,16 @@ function makeClips(p: Proportions): ClipSet {
   clips.airLower = new THREE.AnimationClip('airLower', 1, [
     pt('hips', [0, 1], [[0, hipY, 0], [0, hipY, 0]]),
     qt('hips', [0, 1], [[5, 0, 0], [5, 0, 0]]),
-    qt('upperLegL', [0, 0.5, 1], [[-35, 0, -4], [-30, 0, -4], [-35, 0, -4]]),
+    qt('upperLegL', [0, 0.5, 1], [[-35, 0, 4], [-30, 0, 4], [-35, 0, 4]]),
     qt('lowerLegL', [0, 1], [[60, 0, 0], [60, 0, 0]]),
-    qt('upperLegR', [0, 0.5, 1], [[-12, 0, 4], [-8, 0, 4], [-12, 0, 4]]),
+    qt('upperLegR', [0, 0.5, 1], [[-12, 0, -4], [-8, 0, -4], [-12, 0, -4]]),
     qt('lowerLegR', [0, 1], [[35, 0, 0], [35, 0, 0]]),
   ]);
   clips.airUpper = new THREE.AnimationClip('airUpper', 1, [
     qt('chest', [0, 1], [[-4, 0, 0], [-4, 0, 0]]),
-    qt('upperArmL', [0, 0.5, 1], [[15, 0, -45], [18, 0, -50], [15, 0, -45]]),
+    qt('upperArmL', [0, 0.5, 1], [[15, 0, 45], [18, 0, 50], [15, 0, 45]]),
     qt('forearmL', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
-    qt('upperArmR', [0, 0.5, 1], [[15, 0, 45], [18, 0, 50], [15, 0, 45]]),
+    qt('upperArmR', [0, 0.5, 1], [[15, 0, -45], [18, 0, -50], [15, 0, -45]]),
     qt('forearmR', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
   ]);
 
@@ -285,11 +287,11 @@ function makeClips(p: Proportions): ClipSet {
     pt('hips', [0, 0.1, 0.24, 0.38], [[0, hipY - 0.04, 0], [0, hipY - 0.26, 0], [0, hipY - 0.1, 0], [0, hipY, 0]]),
     qt('hips', [0, 0.1, 0.24, 0.38], [[6, 0, 0], [16, 0, 0], [9, 0, 0], [0, 0, 0]]),
     qt('spine', [0, 0.1, 0.24, 0.38], [[3, 0, 0], [10, 0, 0], [5, 0, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 0.1, 0.24, 0.38], [[-18, 0, -5], [-48, 0, -9], [-24, 0, -6], [-3, 0, -2]]),
+    qt('upperLegL', [0, 0.1, 0.24, 0.38], [[-18, 0, 5], [-48, 0, 9], [-24, 0, 6], [-3, 0, 2]]),
     qt('lowerLegL', [0, 0.1, 0.24, 0.38], [[26, 0, 0], [70, 0, 0], [34, 0, 0], [5, 0, 0]]),
     qt('footL', [0, 0.1, 0.24, 0.38], [[-4, 0, 0], [-18, 0, 0], [-8, 0, 0], [0, 0, 0]]),
     // a couple of degrees between the legs so the absorb isn't a piston
-    qt('upperLegR', [0, 0.1, 0.24, 0.38], [[-15, 0, 5], [-44, 0, 9], [-21, 0, 6], [-3, 0, 2]]),
+    qt('upperLegR', [0, 0.1, 0.24, 0.38], [[-15, 0, -5], [-44, 0, -9], [-21, 0, -6], [-3, 0, -2]]),
     qt('lowerLegR', [0, 0.1, 0.24, 0.38], [[23, 0, 0], [64, 0, 0], [31, 0, 0], [5, 0, 0]]),
     qt('footR', [0, 0.1, 0.24, 0.38], [[-3, 0, 0], [-16, 0, 0], [-7, 0, 0], [0, 0, 0]]),
   ]);
@@ -299,10 +301,10 @@ function makeClips(p: Proportions): ClipSet {
     pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.02, 0], [0, hipY, 0]]),
     qt('hips', [0, 0.8, 1.6], [[18, 0, 0], [22, 0, 0], [18, 0, 0]]),
     // pose-edit pass: a touch more forward lean through the torso in flight
-    qt('spine', [0, 1.6], [[11.16, -0.89, -0.13], [11.16, -0.89, -0.13]]),
-    qt('upperLegL', [0, 0.8, 1.6], [[14, 0, -3], [18, 0, -3], [14, 0, -3]]),
+    qt('spine', [0, 1.6], [[11.16, 0.89, 0.13], [11.16, 0.89, 0.13]]),
+    qt('upperLegL', [0, 0.8, 1.6], [[14, 0, 3], [18, 0, 3], [14, 0, 3]]),
     qt('lowerLegL', [0, 0.8, 1.6], [[28, 0, 0], [32, 0, 0], [28, 0, 0]]),
-    qt('upperLegR', [0, 0.8, 1.6], [[18, 0, 3], [14, 0, 3], [18, 0, 3]]),
+    qt('upperLegR', [0, 0.8, 1.6], [[18, 0, -3], [14, 0, -3], [18, 0, -3]]),
     qt('lowerLegR', [0, 0.8, 1.6], [[32, 0, 0], [28, 0, 0], [32, 0, 0]]),
     qt('footL', [0, 1.6], [[35, 0, 0], [35, 0, 0]]),
     qt('footR', [0, 1.6], [[35, 0, 0], [35, 0, 0]]),
@@ -310,10 +312,10 @@ function makeClips(p: Proportions): ClipSet {
   clips.flyUpper = new THREE.AnimationClip('flyUpper', 1.6, [
     qt('chest', [0, 0.8, 1.6], [[-8, 0, 0], [-10, 0, 0], [-8, 0, 0]]),
     // ...with the neck tipping back against it so the visor still reads level
-    qt('neck', [0, 1.6], [[-4.16, 0.31, 0.14], [-4.16, 0.31, 0.14]]),
-    qt('upperArmL', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
+    qt('neck', [0, 1.6], [[-4.16, -0.31, -0.14], [-4.16, -0.31, -0.14]]),
+    qt('upperArmL', [0, 0.8, 1.6], [[10, 0, 28], [12, 0, 32], [10, 0, 28]]),
     qt('forearmL', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
-    qt('upperArmR', [0, 0.8, 1.6], [[10, 0, 28], [12, 0, 32], [10, 0, 28]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
     qt('forearmR', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
     qt('head', [0, 1.6], [[-14, 0, 0], [-14, 0, 0]]),
   ]);
@@ -325,33 +327,33 @@ function makeClips(p: Proportions): ClipSet {
   clips.rideLower = new THREE.AnimationClip('rideLower', 2, [
     pt('hips', [0, 1, 2], [[0, hipY, 0], [0, hipY + 0.015, 0], [0, hipY, 0]]),
     qt('hips', [0, 2], [[10, 0, 0], [10, 0, 0]]),
-    qt('upperLegL', [0, 2], [[-92, 0, -14], [-92, 0, -14]]),
+    qt('upperLegL', [0, 2], [[-92, 0, 14], [-92, 0, 14]]),
     qt('lowerLegL', [0, 2], [[96, 0, 0], [96, 0, 0]]),
     qt('footL', [0, 2], [[28, 0, 0], [28, 0, 0]]),
-    qt('upperLegR', [0, 2], [[-92, 0, 14], [-92, 0, 14]]),
+    qt('upperLegR', [0, 2], [[-92, 0, -14], [-92, 0, -14]]),
     qt('lowerLegR', [0, 2], [[96, 0, 0], [96, 0, 0]]),
     qt('footR', [0, 2], [[28, 0, 0], [28, 0, 0]]),
   ]);
   clips.rideUpper = new THREE.AnimationClip('rideUpper', 2, [
     qt('chest', [0, 1, 2], [[20, 0, 0], [22, 0, 0], [20, 0, 0]]),
-    qt('upperArmL', [0, 2], [[-66, 22, -12], [-66, 22, -12]]),
+    qt('upperArmL', [0, 2], [[-66, -22, 12], [-66, -22, 12]]),
     qt('forearmL', [0, 2], [[-34, 0, 0], [-34, 0, 0]]),
-    qt('upperArmR', [0, 2], [[-66, -22, 12], [-66, -22, 12]]),
+    qt('upperArmR', [0, 2], [[-66, 22, -12], [-66, 22, -12]]),
     qt('forearmR', [0, 2], [[-34, 0, 0], [-34, 0, 0]]),
     qt('head', [0, 2], [[-16, 0, 0], [-16, 0, 0]]),
   ]);
 
   // ---------- UPPER: aim carbine (two-handed, right shoulder) ----------
   clips.aimUpper = new THREE.AnimationClip('aimUpper', 1, [
-    qt('chest', [0, 1], [[2, -18, 0], [2, -18, 0]]),
-    qt('shoulderR', [0, 1], [[0, -8, 10], [0, -8, 10]]),
-    qt('shoulderL', [0, 1], [[0, 8, -10], [0, 8, -10]]),
-    qt('upperArmR', [0, 1], [[-62, 12, 12], [-62, 12, 12]]),
+    qt('chest', [0, 1], [[2, 18, 0], [2, 18, 0]]),
+    qt('shoulderR', [0, 1], [[0, 8, -10], [0, 8, -10]]),
+    qt('shoulderL', [0, 1], [[0, -8, 10], [0, -8, 10]]),
+    qt('upperArmR', [0, 1], [[-62, -12, -12], [-62, -12, -12]]),
     qt('forearmR', [0, 1], [[-38, 0, 0], [-38, 0, 0]]),
-    qt('handR', [0, 1], [[11.1, 9.6, -8.4], [11.1, 9.6, -8.4]]),
-    qt('upperArmL', [0, 1], [[-78, -36, -8], [-78, -36, -8]]),
-    qt('forearmL', [0, 1], [[-56.5, 29.7, 108.3], [-56.5, 29.7, 108.3]]),
-    qt('head', [0, 1], [[0, 16, 0], [0, 16, 0]]),
+    qt('handR', [0, 1], [[11.1, -9.6, 8.4], [11.1, -9.6, 8.4]]),
+    qt('upperArmL', [0, 1], [[-78, 36, 8], [-78, 36, 8]]),
+    qt('forearmL', [0, 1], [[-56.5, -29.7, -108.3], [-56.5, -29.7, -108.3]]),
+    qt('head', [0, 1], [[0, -16, 0], [0, -16, 0]]),
   ]);
 
   // ---------- UPPER: melee combo (gaffi stick in right hand) ----------
@@ -362,26 +364,26 @@ function makeClips(p: Proportions): ClipSet {
   // clip (player.ts `meleeHitPending`), which every strike interval below
   // still straddles — re-check that before re-timing again.
   clips.melee1 = new THREE.AnimationClip('melee1', 0.38, [
-    qt('chest', [0, 0.14, 0.2, 0.38], [[2, 28, 0], [2, 34, 0], [4, -30, 0], [2, 0, 0]]),
-    qt('upperArmR', [0, 0.14, 0.2, 0.38], [[-95, 30, -20], [-105, 40, -20], [-55, -45, 0], [-30, 0, -8]]),
+    qt('chest', [0, 0.14, 0.2, 0.38], [[2, -28, 0], [2, -34, 0], [4, 30, 0], [2, 0, 0]]),
+    qt('upperArmR', [0, 0.14, 0.2, 0.38], [[-95, -30, 20], [-105, -40, 20], [-55, 45, 0], [-30, 0, 8]]),
     qt('forearmR', [0, 0.14, 0.2, 0.38], [[-55, 0, 0], [-65, 0, 0], [-10, 0, 0], [-25, 0, 0]]),
-    qt('upperArmL', [0, 0.2, 0.38], [[-10.6, -0.6, -24.9], [4.4, -0.6, -12.9], [-18.6, -0.6, -39.9]]),
-    qt('forearmL', [0, 0.38], [[-27.3, 19.6, 22.1], [-27.3, 19.6, 22.1]]),
-    qt('head', [0, 0.2, 0.38], [[0, -10, 0], [0, 10, 0], [0, 0, 0]]),
+    qt('upperArmL', [0, 0.2, 0.38], [[-10.6, 0.6, 24.9], [4.4, 0.6, 12.9], [-18.6, 0.6, 39.9]]),
+    qt('forearmL', [0, 0.38], [[-27.3, -19.6, -22.1], [-27.3, -19.6, -22.1]]),
+    qt('head', [0, 0.2, 0.38], [[0, 10, 0], [0, -10, 0], [0, 0, 0]]),
   ]);
   clips.melee2 = new THREE.AnimationClip('melee2', 0.42, [
-    qt('chest', [0, 0.15, 0.22, 0.42], [[2, -30, 0], [2, -38, 0], [4, 32, 0], [2, 0, 0]]),
-    qt('upperArmR', [0, 0.15, 0.22, 0.42], [[-60, -50, 10], [-70, -60, 10], [-85, 55, -10], [-30, 0, -8]]),
+    qt('chest', [0, 0.15, 0.22, 0.42], [[2, 30, 0], [2, 38, 0], [4, -32, 0], [2, 0, 0]]),
+    qt('upperArmR', [0, 0.15, 0.22, 0.42], [[-60, 50, -10], [-70, 60, -10], [-85, -55, 10], [-30, 0, 8]]),
     qt('forearmR', [0, 0.15, 0.22, 0.42], [[-15, 0, 0], [-20, 0, 0], [-60, 0, 0], [-25, 0, 0]]),
-    qt('upperArmL', [0, 0.22, 0.42], [[-0.6, -0.6, -16.9], [-20.6, -0.6, -42.9], [-18.6, -0.6, -39.9]]),
-    qt('forearmL', [0, 0.42], [[-27.3, 19.6, 22.1], [-27.3, 19.6, 22.1]]),
+    qt('upperArmL', [0, 0.22, 0.42], [[-0.6, 0.6, 16.9], [-20.6, 0.6, 42.9], [-18.6, 0.6, 39.9]]),
+    qt('forearmL', [0, 0.42], [[-27.3, -19.6, -22.1], [-27.3, -19.6, -22.1]]),
   ]);
   clips.melee3 = new THREE.AnimationClip('melee3', 0.55, [
     qt('chest', [0, 0.22, 0.3, 0.55], [[-14, 0, 0], [-20, 0, 0], [30, 0, 0], [2, 0, 0]]),
-    qt('upperArmR', [0, 0.22, 0.3, 0.55], [[-150, 0, -10], [-165, 0, -10], [-40, 0, -5], [-30, 0, -8]]),
+    qt('upperArmR', [0, 0.22, 0.3, 0.55], [[-150, 0, 10], [-165, 0, 10], [-40, 0, 5], [-30, 0, 8]]),
     qt('forearmR', [0, 0.22, 0.3, 0.55], [[-70, 0, 0], [-80, 0, 0], [-5, 0, 0], [-25, 0, 0]]),
-    qt('upperArmL', [0, 0.22, 0.3, 0.55], [[-120, 0, 20], [-140, 0, 25], [-70, 0, -15], [-18.6, -0.6, -39.9]]),
-    qt('forearmL', [0, 0.3, 0.55], [[-60, 0, 0], [-18, 12, 12], [-27.3, 19.6, 22.1]]),
+    qt('upperArmL', [0, 0.22, 0.3, 0.55], [[-120, 0, -20], [-140, 0, -25], [-70, 0, 15], [-18.6, 0.6, 39.9]]),
+    qt('forearmL', [0, 0.3, 0.55], [[-60, 0, 0], [-18, -12, -12], [-27.3, -19.6, -22.1]]),
     qt('head', [0, 0.3, 0.55], [[-12, 0, 0], [14, 0, 0], [0, 0, 0]]),
   ]);
 
@@ -393,26 +395,26 @@ function makeClips(p: Proportions): ClipSet {
   // near-stationary — at speed the lunge impulse owns the legs.
   clips.meleeLower1 = new THREE.AnimationClip('meleeLower1', 0.38, [
     pt('hips', [0, 0.14, 0.2, 0.38], [[0, hipY - 0.01, 0], [0, hipY - 0.03, 0], [0, hipY - 0.06, 0], [0, hipY - 0.01, 0]]),
-    qt('hips', [0, 0.14, 0.2, 0.38], [[4, 12, 0], [4, 16, 0], [6, -10, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 0.14, 0.2, 0.38], [[-14, 0, -4], [-18, 0, -4], [-24, 0, -4], [-4, 0, -2]]),
+    qt('hips', [0, 0.14, 0.2, 0.38], [[4, -12, 0], [4, -16, 0], [6, 10, 0], [2, 0, 0]]),
+    qt('upperLegL', [0, 0.14, 0.2, 0.38], [[-14, 0, 4], [-18, 0, 4], [-24, 0, 4], [-4, 0, 2]]),
     qt('lowerLegL', [0, 0.2, 0.38], [[16, 0, 0], [30, 0, 0], [6, 0, 0]]),
-    qt('upperLegR', [0, 0.2, 0.38], [[6, 0, 4], [14, 0, 4], [-2, 0, 2]]),
+    qt('upperLegR', [0, 0.2, 0.38], [[6, 0, -4], [14, 0, -4], [-2, 0, -2]]),
     qt('lowerLegR', [0, 0.2, 0.38], [[14, 0, 0], [24, 0, 0], [6, 0, 0]]),
   ]);
   clips.meleeLower2 = new THREE.AnimationClip('meleeLower2', 0.42, [
     pt('hips', [0, 0.15, 0.22, 0.42], [[0, hipY - 0.01, 0], [0, hipY - 0.03, 0], [0, hipY - 0.06, 0], [0, hipY - 0.01, 0]]),
-    qt('hips', [0, 0.15, 0.22, 0.42], [[4, -12, 0], [4, -16, 0], [6, 10, 0], [2, 0, 0]]),
-    qt('upperLegR', [0, 0.15, 0.22, 0.42], [[-14, 0, 4], [-18, 0, 4], [-24, 0, 4], [-4, 0, 2]]),
+    qt('hips', [0, 0.15, 0.22, 0.42], [[4, 12, 0], [4, 16, 0], [6, -10, 0], [2, 0, 0]]),
+    qt('upperLegR', [0, 0.15, 0.22, 0.42], [[-14, 0, -4], [-18, 0, -4], [-24, 0, -4], [-4, 0, -2]]),
     qt('lowerLegR', [0, 0.22, 0.42], [[16, 0, 0], [30, 0, 0], [6, 0, 0]]),
-    qt('upperLegL', [0, 0.22, 0.42], [[6, 0, -4], [14, 0, -4], [-2, 0, -2]]),
+    qt('upperLegL', [0, 0.22, 0.42], [[6, 0, 4], [14, 0, 4], [-2, 0, 2]]),
     qt('lowerLegL', [0, 0.22, 0.42], [[14, 0, 0], [24, 0, 0], [6, 0, 0]]),
   ]);
   clips.meleeLower3 = new THREE.AnimationClip('meleeLower3', 0.55, [
     pt('hips', [0, 0.22, 0.3, 0.55], [[0, hipY - 0.02, 0], [0, hipY - 0.04, 0], [0, hipY - 0.11, 0.06], [0, hipY - 0.02, 0]]),
     qt('hips', [0, 0.22, 0.3, 0.55], [[-6, 0, 0], [-8, 0, 0], [10, 0, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 0.22, 0.3, 0.55], [[-18, 0, -5], [-24, 0, -5], [-38, 0, -5], [-4, 0, -2]]),
+    qt('upperLegL', [0, 0.22, 0.3, 0.55], [[-18, 0, 5], [-24, 0, 5], [-38, 0, 5], [-4, 0, 2]]),
     qt('lowerLegL', [0, 0.3, 0.55], [[20, 0, 0], [42, 0, 0], [6, 0, 0]]),
-    qt('upperLegR', [0, 0.3, 0.55], [[10, 0, 5], [24, 0, 5], [-2, 0, 2]]),
+    qt('upperLegR', [0, 0.3, 0.55], [[10, 0, -5], [24, 0, -5], [-2, 0, -2]]),
     qt('lowerLegR', [0, 0.3, 0.55], [[18, 0, 0], [34, 0, 0], [6, 0, 0]]),
   ]);
 
@@ -422,32 +424,32 @@ function makeClips(p: Proportions): ClipSet {
   // blade in each hand that reads as one dead arm, so the dual-wield set
   // alternates leads and finishes on a cross-slash that throws both out at once.
   clips.saber1 = new THREE.AnimationClip('saber1', 0.36, [
-    qt('chest', [0, 0.13, 0.19, 0.36], [[2, 26, 0], [2, 32, 0], [4, -26, 0], [2, 0, 0]]),
+    qt('chest', [0, 0.13, 0.19, 0.36], [[2, -26, 0], [2, -32, 0], [4, 26, 0], [2, 0, 0]]),
     // right leads: cocked high outside, then cuts down across the body
-    qt('upperArmR', [0, 0.13, 0.19, 0.36], [[-100, 34, -24], [-112, 44, -26], [-52, -48, 4], [-30, 0, -8]]),
+    qt('upperArmR', [0, 0.13, 0.19, 0.36], [[-100, -34, 24], [-112, -44, 26], [-52, 48, -4], [-30, 0, 8]]),
     qt('forearmR', [0, 0.13, 0.19, 0.36], [[-58, 0, 0], [-70, 0, 0], [-8, 0, 0], [-25, 0, 0]]),
     // left counter-poises out and back, so the second blade is always live
-    qt('upperArmL', [0, 0.13, 0.19, 0.36], [[-24, -10, -46], [-34, -14, -58], [-14, -4, -30], [-22, -2, -42]]),
-    qt('forearmL', [0, 0.19, 0.36], [[-40, 14, 18], [-22, 20, 24], [-30, 18, 22]]),
-    qt('head', [0, 0.19, 0.36], [[0, -12, 0], [0, 12, 0], [0, 0, 0]]),
+    qt('upperArmL', [0, 0.13, 0.19, 0.36], [[-24, 10, 46], [-34, 14, 58], [-14, 4, 30], [-22, 2, 42]]),
+    qt('forearmL', [0, 0.19, 0.36], [[-40, -14, -18], [-22, -20, -24], [-30, -18, -22]]),
+    qt('head', [0, 0.19, 0.36], [[0, 12, 0], [0, -12, 0], [0, 0, 0]]),
   ]);
   clips.saber2 = new THREE.AnimationClip('saber2', 0.38, [
-    qt('chest', [0, 0.15, 0.21, 0.38], [[2, -28, 0], [2, -36, 0], [4, 28, 0], [2, 0, 0]]),
+    qt('chest', [0, 0.15, 0.21, 0.38], [[2, 28, 0], [2, 36, 0], [4, -28, 0], [2, 0, 0]]),
     // left leads this time, mirroring the first hit
-    qt('upperArmL', [0, 0.15, 0.21, 0.38], [[-100, -34, -24], [-112, -44, -18], [-52, 48, -52], [-22, -2, -42]]),
-    qt('forearmL', [0, 0.15, 0.21, 0.38], [[-58, 10, 10], [-70, 12, 12], [-8, 20, 20], [-30, 18, 22]]),
-    qt('upperArmR', [0, 0.15, 0.21, 0.38], [[-26, 10, -6], [-36, 14, -4], [-16, 4, -10], [-30, 0, -8]]),
+    qt('upperArmL', [0, 0.15, 0.21, 0.38], [[-100, 34, 24], [-112, 44, 18], [-52, -48, 52], [-22, 2, 42]]),
+    qt('forearmL', [0, 0.15, 0.21, 0.38], [[-58, -10, -10], [-70, -12, -12], [-8, -20, -20], [-30, -18, -22]]),
+    qt('upperArmR', [0, 0.15, 0.21, 0.38], [[-26, -10, 6], [-36, -14, 4], [-16, -4, 10], [-30, 0, 8]]),
     qt('forearmR', [0, 0.21, 0.38], [[-40, 0, 0], [-18, 0, 0], [-25, 0, 0]]),
-    qt('head', [0, 0.21, 0.38], [[0, 12, 0], [0, -12, 0], [0, 0, 0]]),
+    qt('head', [0, 0.21, 0.38], [[0, -12, 0], [0, 12, 0], [0, 0, 0]]),
   ]);
   clips.saber3 = new THREE.AnimationClip('saber3', 0.5, [
     // finisher: both blades gathered across the chest, held a beat, then
     // thrown apart fast — the gather is the anticipation, the throw the snap
     qt('chest', [0, 0.22, 0.29, 0.5], [[-6, 0, 0], [-16, 0, 0], [16, 0, 0], [2, 0, 0]]),
-    qt('upperArmR', [0, 0.22, 0.29, 0.5], [[-70, -40, 10], [-84, -52, 14], [-64, 62, -22], [-30, 0, -8]]),
+    qt('upperArmR', [0, 0.22, 0.29, 0.5], [[-70, 40, -10], [-84, 52, -14], [-64, -62, 22], [-30, 0, 8]]),
     qt('forearmR', [0, 0.22, 0.29, 0.5], [[-72, 0, 0], [-88, 0, 0], [-10, 0, 0], [-25, 0, 0]]),
-    qt('upperArmL', [0, 0.22, 0.29, 0.5], [[-70, 40, -10], [-84, 52, -14], [-64, -62, -70], [-22, -2, -42]]),
-    qt('forearmL', [0, 0.22, 0.29, 0.5], [[-72, 10, 10], [-88, 12, 12], [-10, 20, 20], [-30, 18, 22]]),
+    qt('upperArmL', [0, 0.22, 0.29, 0.5], [[-70, -40, 10], [-84, -52, 14], [-64, 62, 70], [-22, 2, 42]]),
+    qt('forearmL', [0, 0.22, 0.29, 0.5], [[-72, -10, -10], [-88, -12, -12], [-10, -20, -20], [-30, -18, -22]]),
     qt('head', [0, 0.29, 0.5], [[-10, 0, 0], [12, 0, 0], [0, 0, 0]]),
   ]);
 
@@ -457,24 +459,24 @@ function makeClips(p: Proportions): ClipSet {
   // a right-lead guard — main blade low and forward, off blade high and back —
   // and the controller picks them whenever the sabers are drawn.
   clips.saberIdleUpper = new THREE.AnimationClip('saberIdleUpper', 3, [
-    qt('chest', [0, 1.5, 3], [[4, 18, 0], [5, 21, 0], [4, 18, 0]]),
-    qt('head', [0, 1.5, 3], [[2, -15, 0], [2, -13, 0], [2, -15, 0]]),
+    qt('chest', [0, 1.5, 3], [[4, -18, 0], [5, -21, 0], [4, -18, 0]]),
+    qt('head', [0, 1.5, 3], [[2, 15, 0], [2, 13, 0], [2, 15, 0]]),
     // main blade: low guard, point toward the threat
-    qt('upperArmR', [0, 1.5, 3], [[-38, 8, 16], [-41, 8, 17], [-38, 8, 16]]),
-    qt('forearmR', [0, 1.5, 3], [[-42, -10, 0], [-45, -10, 0], [-42, -10, 0]]),
+    qt('upperArmR', [0, 1.5, 3], [[-38, -8, -16], [-41, -8, -17], [-38, -8, -16]]),
+    qt('forearmR', [0, 1.5, 3], [[-42, 10, 0], [-45, 10, 0], [-42, 10, 0]]),
     // off blade: raised behind the lead shoulder, live and visible
-    qt('upperArmL', [0, 1.5, 3], [[-26, -18, -38], [-29, -19, -40], [-26, -18, -38]]),
-    qt('forearmL', [0, 1.5, 3], [[-64, 12, 16], [-67, 12, 17], [-64, 12, 16]]),
+    qt('upperArmL', [0, 1.5, 3], [[-26, 18, 38], [-29, 19, 40], [-26, 18, 38]]),
+    qt('forearmL', [0, 1.5, 3], [[-64, -12, -16], [-67, -12, -17], [-64, -12, -16]]),
   ]);
   clips.saberRunUpper = new THREE.AnimationClip('saberRunUpper', 0.6, [
     // blades carried, not pumped: held out of the legs' way with a small
     // counter-swing, so a lit run doesn't windmill plasma past her own hips
-    qt('chest', rt, [[6, 8, -1], [6, 4, 0], [6, 0, 1], [6, 4, 0], [6, 8, -1]]),
-    qt('head', rt, [[-4, -6, 0], [-4, -4, 0], [-4, -2, 0], [-4, -4, 0], [-4, -6, 0]]),
-    qt('upperArmR', rt, [[-30, 6, 22], [-24, 6, 20], [-18, 6, 22], [-24, 6, 20], [-30, 6, 22]]),
-    qt('forearmR', rt, [[-38, -8, 0], [-32, -8, 0], [-26, -8, 0], [-32, -8, 0], [-38, -8, 0]]),
-    qt('upperArmL', rt, [[-16, -12, -34], [-22, -12, -36], [-28, -12, -34], [-22, -12, -36], [-16, -12, -34]]),
-    qt('forearmL', rt, [[-52, 10, 14], [-58, 10, 16], [-64, 10, 14], [-58, 10, 16], [-52, 10, 14]]),
+    qt('chest', rt, [[6, -8, 1], [6, -4, 0], [6, 0, -1], [6, -4, 0], [6, -8, 1]]),
+    qt('head', rt, [[-4, 6, 0], [-4, 4, 0], [-4, 2, 0], [-4, 4, 0], [-4, 6, 0]]),
+    qt('upperArmR', rt, [[-30, -6, -22], [-24, -6, -20], [-18, -6, -22], [-24, -6, -20], [-30, -6, -22]]),
+    qt('forearmR', rt, [[-38, 8, 0], [-32, 8, 0], [-26, 8, 0], [-32, 8, 0], [-38, 8, 0]]),
+    qt('upperArmL', rt, [[-16, 12, 34], [-22, 12, 36], [-28, 12, 34], [-22, 12, 36], [-16, 12, 34]]),
+    qt('forearmL', rt, [[-52, -10, -14], [-58, -10, -16], [-64, -10, -14], [-58, -10, -16], [-52, -10, -14]]),
   ]);
 
   // ---------- UPPER: saber flourish (combo punctuation) ----------
@@ -482,14 +484,14 @@ function makeClips(p: Proportions): ClipSet {
   // wrists circle the blades once and settle back into the guard. Pure
   // theatre, no hitbox — the beat between phrases of the fight.
   clips.saberFlourish = new THREE.AnimationClip('saberFlourish', 0.55, [
-    qt('chest', [0, 0.2, 0.4, 0.55], [[2, 0, 0], [3, 10, 0], [4, 16, 0], [4, 18, 0]]),
-    qt('upperArmR', [0, 0.14, 0.28, 0.42, 0.55], [[-30, 0, -8], [-52, 24, 10], [-46, -30, 24], [-40, 4, 18], [-38, 8, 16]]),
-    qt('forearmR', [0, 0.14, 0.28, 0.42, 0.55], [[-25, 0, 0], [-48, 60, 0], [-40, -70, 0], [-44, -16, 0], [-42, -10, 0]]),
-    qt('handR', [0, 0.14, 0.28, 0.42, 0.55], [[0, 0, 0], [26, 0, 30], [-26, 0, -30], [6, 0, 8], [0, 0, 0]]),
-    qt('upperArmL', [0, 0.18, 0.32, 0.46, 0.55], [[-22, -2, -42], [-38, -20, -50], [-32, 22, -34], [-27, -16, -39], [-26, -18, -38]]),
-    qt('forearmL', [0, 0.18, 0.32, 0.46, 0.55], [[-30, 18, 22], [-56, -48, 18], [-48, 58, 20], [-62, 14, 17], [-64, 12, 16]]),
-    qt('handL', [0, 0.18, 0.32, 0.46, 0.55], [[0, 0, 0], [-26, 0, -28], [26, 0, 28], [-5, 0, -6], [0, 0, 0]]),
-    qt('head', [0, 0.28, 0.55], [[0, 0, 0], [1, -8, 0], [2, -15, 0]]),
+    qt('chest', [0, 0.2, 0.4, 0.55], [[2, 0, 0], [3, -10, 0], [4, -16, 0], [4, -18, 0]]),
+    qt('upperArmR', [0, 0.14, 0.28, 0.42, 0.55], [[-30, 0, 8], [-52, -24, -10], [-46, 30, -24], [-40, -4, -18], [-38, -8, -16]]),
+    qt('forearmR', [0, 0.14, 0.28, 0.42, 0.55], [[-25, 0, 0], [-48, -60, 0], [-40, 70, 0], [-44, 16, 0], [-42, 10, 0]]),
+    qt('handR', [0, 0.14, 0.28, 0.42, 0.55], [[0, 0, 0], [26, 0, -30], [-26, 0, 30], [6, 0, -8], [0, 0, 0]]),
+    qt('upperArmL', [0, 0.18, 0.32, 0.46, 0.55], [[-22, 2, 42], [-38, 20, 50], [-32, -22, 34], [-27, 16, 39], [-26, 18, 38]]),
+    qt('forearmL', [0, 0.18, 0.32, 0.46, 0.55], [[-30, -18, -22], [-56, 48, -18], [-48, -58, -20], [-62, -14, -17], [-64, -12, -16]]),
+    qt('handL', [0, 0.18, 0.32, 0.46, 0.55], [[0, 0, 0], [-26, 0, 28], [26, 0, -28], [-5, 0, 6], [0, 0, 0]]),
+    qt('head', [0, 0.28, 0.55], [[0, 0, 0], [1, 8, 0], [2, 15, 0]]),
   ]);
 
   // ---------- UPPER: block (shield up, braced behind it) ----------
@@ -501,12 +503,12 @@ function makeClips(p: Proportions): ClipSet {
   // at it. The lean is now a few degrees of brace, and the head tips up over
   // the rim by as much, so the visor and the dome both point down the sights.
   clips.blockUpper = new THREE.AnimationClip('blockUpper', 2, [
-    qt('chest', [0, 1, 2], [[2, 6, 0], [3, 7, 0], [2, 6, 0]]),
-    qt('head', [0, 2], [[-3, -10, 0], [-3, -10, 0]]),
+    qt('chest', [0, 1, 2], [[2, -6, 0], [3, -7, 0], [2, -6, 0]]),
+    qt('head', [0, 2], [[-3, 10, 0], [-3, 10, 0]]),
     // forearm across the body, the other bracing it — the shield hangs off both
-    qt('upperArmL', [0, 1, 2], [[-64, -22, -14], [-66, -24, -15], [-64, -22, -14]]),
+    qt('upperArmL', [0, 1, 2], [[-64, 22, 14], [-66, 24, 15], [-64, 22, 14]]),
     qt('forearmL', [0, 2], [[-74, 0, 0], [-74, 0, 0]]),
-    qt('upperArmR', [0, 1, 2], [[-52, 26, 18], [-54, 28, 19], [-52, 26, 18]]),
+    qt('upperArmR', [0, 1, 2], [[-52, -26, -18], [-54, -28, -19], [-52, -26, -18]]),
     qt('forearmR', [0, 2], [[-62, 0, 0], [-62, 0, 0]]),
   ]);
   // legs braced wide, weight back
@@ -514,47 +516,48 @@ function makeClips(p: Proportions): ClipSet {
     pt('hips', [0, 1, 2], [[0, hipY - 0.08, 0], [0, hipY - 0.09, 0], [0, hipY - 0.08, 0]]),
     // the crouch and the bladed stance stay; the forward pitch does not — it is
     // what tipped the shield toward the ground (see blockUpper)
-    qt('hips', [0, 2], [[2, 12, 0], [2, 12, 0]]),
+    qt('hips', [0, 2], [[2, -12, 0], [2, -12, 0]]),
     qt('spine', [0, 2], [[1, 0, 0], [1, 0, 0]]),
-    qt('upperLegL', [0, 2], [[-26, 0, -8], [-26, 0, -8]]),
+    qt('upperLegL', [0, 2], [[-26, 0, 8], [-26, 0, 8]]),
     qt('lowerLegL', [0, 2], [[34, 0, 0], [34, 0, 0]]),
-    qt('upperLegR', [0, 2], [[16, 0, 10], [16, 0, 10]]),
+    qt('upperLegR', [0, 2], [[16, 0, -10], [16, 0, -10]]),
     qt('lowerLegR', [0, 2], [[26, 0, 0], [26, 0, 0]]),
   ]);
 
   // ---------- UPPER: hit flinch ----------
   clips.hitUpper = new THREE.AnimationClip('hitUpper', 0.28, [
-    qt('chest', [0, 0.08, 0.28], [[-14, 6, 0], [-18, 8, 0], [1, 0, 0]]),
-    qt('head', [0, 0.08, 0.28], [[-16, 0, 0], [-20, 4, 0], [0, 0, 0]]),
-    qt('upperArmL', [0, 0.08, 0.28], [[20, 0, -30], [26, 0, -36], [8, 0, -10]]),
-    qt('upperArmR', [0, 0.08, 0.28], [[20, 0, 30], [26, 0, 36], [8, 0, 10]]),
+    qt('chest', [0, 0.08, 0.28], [[-14, -6, 0], [-18, -8, 0], [1, 0, 0]]),
+    qt('head', [0, 0.08, 0.28], [[-16, 0, 0], [-20, -4, 0], [0, 0, 0]]),
+    qt('upperArmL', [0, 0.08, 0.28], [[20, 0, 30], [26, 0, 36], [8, 0, 10]]),
+    qt('upperArmR', [0, 0.08, 0.28], [[20, 0, -30], [26, 0, -36], [8, 0, -10]]),
   ]);
   // Directional variants: a bolt from the flank rocks the body away from it
   // and snaps the head toward the shooter. `hitFromR` is a hit arriving from
-  // the rig's +X side; the -X side is its mirror. The controller picks by the
-  // attacker's bearing and falls back to the frontal flinch.
+  // the rig's `R` side (-X, the character's right); the +X side is its mirror.
+  // The controller picks by the attacker's bearing and falls back to the
+  // frontal flinch.
   clips.hitFromR = new THREE.AnimationClip('hitFromR', 0.28, [
-    qt('chest', [0, 0.08, 0.28], [[-6, 10, -9], [-8, 14, -12], [1, 0, 0]]),
-    qt('head', [0, 0.08, 0.28], [[-6, 18, -6], [-8, 26, -8], [0, 0, 0]]),
-    qt('upperArmR', [0, 0.08, 0.28], [[14, 0, 34], [18, 0, 42], [8, 0, 10]]),
-    qt('upperArmL', [0, 0.08, 0.28], [[10, 0, -16], [12, 0, -20], [8, 0, -10]]),
+    qt('chest', [0, 0.08, 0.28], [[-6, -10, 9], [-8, -14, 12], [1, 0, 0]]),
+    qt('head', [0, 0.08, 0.28], [[-6, -18, 6], [-8, -26, 8], [0, 0, 0]]),
+    qt('upperArmR', [0, 0.08, 0.28], [[14, 0, -34], [18, 0, -42], [8, 0, -10]]),
+    qt('upperArmL', [0, 0.08, 0.28], [[10, 0, 16], [12, 0, 20], [8, 0, 10]]),
   ]);
   clips.hitFromL = mirrorClip(clips.hitFromR, 'hitFromL');
 
   // ---------- FULL: death (crumple back) ----------
   clips.deathLower = new THREE.AnimationClip('deathLower', 0.8, [
     pt('hips', [0, 0.35, 0.8], [[0, hipY, 0], [0, hipY * 0.45, -0.2], [0, 0.22, -0.45]]),
-    qt('hips', [0, 0.35, 0.8], [[0, 0, 0], [-38, 0, 6], [-78, 0, 10]]),
-    qt('upperLegL', [0, 0.8], [[-20, 0, -6], [-40, 0, -10]]),
+    qt('hips', [0, 0.35, 0.8], [[0, 0, 0], [-38, 0, -6], [-78, 0, -10]]),
+    qt('upperLegL', [0, 0.8], [[-20, 0, 6], [-40, 0, 10]]),
     qt('lowerLegL', [0, 0.8], [[30, 0, 0], [55, 0, 0]]),
-    qt('upperLegR', [0, 0.8], [[-30, 0, 8], [-25, 0, 12]]),
+    qt('upperLegR', [0, 0.8], [[-30, 0, -8], [-25, 0, -12]]),
     qt('lowerLegR', [0, 0.8], [[40, 0, 0], [30, 0, 0]]),
   ]);
   clips.deathUpper = new THREE.AnimationClip('deathUpper', 0.8, [
-    qt('chest', [0, 0.35, 0.8], [[-10, 0, 0], [-18, 8, 0], [-14, 12, 0]]),
-    qt('head', [0, 0.8], [[-10, 0, 0], [-24, 14, 0]]),
-    qt('upperArmL', [0, 0.8], [[20, 0, -40], [40, 0, -70]]),
-    qt('upperArmR', [0, 0.8], [[20, 0, 40], [50, 0, 60]]),
+    qt('chest', [0, 0.35, 0.8], [[-10, 0, 0], [-18, -8, 0], [-14, -12, 0]]),
+    qt('head', [0, 0.8], [[-10, 0, 0], [-24, -14, 0]]),
+    qt('upperArmL', [0, 0.8], [[20, 0, 40], [40, 0, 70]]),
+    qt('upperArmR', [0, 0.8], [[20, 0, -40], [50, 0, -60]]),
     qt('forearmL', [0, 0.8], [[-30, 0, 0], [-10, 0, 0]]),
     qt('forearmR', [0, 0.8], [[-30, 0, 0], [-15, 0, 0]]),
   ]);
@@ -566,31 +569,31 @@ function makeClips(p: Proportions): ClipSet {
   // the corpse bent double, half-upright, instead of prone.
   clips.collapseLower = new THREE.AnimationClip('collapseLower', 0.6, [
     pt('hips', [0, 0.6], [[0, hipY, 0], [0, hipY * 0.94, 0]]),
-    qt('hips', [0, 0.6], [[0, 0, 0], [-7, 0, 5]]),
-    qt('upperLegL', [0, 0.6], [[0, 0, -4], [-7, 0, -14]]),
+    qt('hips', [0, 0.6], [[0, 0, 0], [-7, 0, -5]]),
+    qt('upperLegL', [0, 0.6], [[0, 0, 4], [-7, 0, 14]]),
     qt('lowerLegL', [0, 0.6], [[0, 0, 0], [16, 0, 0]]),
-    qt('upperLegR', [0, 0.6], [[0, 0, 4], [-3, 0, 11]]),
+    qt('upperLegR', [0, 0.6], [[0, 0, -4], [-3, 0, -11]]),
     qt('lowerLegR', [0, 0.6], [[0, 0, 0], [23, 0, 0]]),
   ]);
   clips.collapseUpper = new THREE.AnimationClip('collapseUpper', 0.6, [
-    qt('chest', [0, 0.6], [[0, 0, 0], [7, 7, 0]]),
-    qt('head', [0, 0.6], [[0, 0, 0], [12, 14, 0]]),
-    qt('upperArmL', [0, 0.6], [[10, 0, -30], [26, 0, -64]]),
-    qt('upperArmR', [0, 0.6], [[10, 0, 30], [30, 0, 60]]),
+    qt('chest', [0, 0.6], [[0, 0, 0], [7, -7, 0]]),
+    qt('head', [0, 0.6], [[0, 0, 0], [12, -14, 0]]),
+    qt('upperArmL', [0, 0.6], [[10, 0, 30], [26, 0, 64]]),
+    qt('upperArmR', [0, 0.6], [[10, 0, -30], [30, 0, -60]]),
     qt('forearmL', [0, 0.6], [[-14, 0, 0], [-24, 0, 0]]),
     qt('forearmR', [0, 0.6], [[-14, 0, 0], [-18, 0, 0]]),
   ]);
 
   // ---------- UPPER: one-hand pistol/rifle aim for enemies ----------
   clips.enemyAimUpper = new THREE.AnimationClip('enemyAimUpper', 1, [
-    qt('chest', [0, 1], [[2, -12, 0], [2, -12, 0]]),
-    qt('shoulderR', [0, 1], [[0, -7, 9], [0, -7, 9]]),
-    qt('shoulderL', [0, 1], [[0, 7, -9], [0, 7, -9]]),
-    qt('upperArmR', [0, 1], [[-68, 8, 10], [-68, 8, 10]]),
+    qt('chest', [0, 1], [[2, 12, 0], [2, 12, 0]]),
+    qt('shoulderR', [0, 1], [[0, 7, -9], [0, 7, -9]]),
+    qt('shoulderL', [0, 1], [[0, -7, 9], [0, -7, 9]]),
+    qt('upperArmR', [0, 1], [[-68, -8, -10], [-68, -8, -10]]),
     qt('forearmR', [0, 1], [[-24, 0, 0], [-24, 0, 0]]),
-    qt('handR', [0, 1], [[7.5, 12.7, -4.7], [7.5, 12.7, -4.7]]),
-    qt('upperArmL', [0, 1], [[-52, -28, -8], [-52, -28, -8]]),
-    qt('forearmL', [0, 1], [[-58, 12, 34], [-58, 12, 34]]),
+    qt('handR', [0, 1], [[7.5, -12.7, 4.7], [7.5, -12.7, 4.7]]),
+    qt('upperArmL', [0, 1], [[-52, 28, 8], [-52, 28, 8]]),
+    qt('forearmL', [0, 1], [[-58, -12, -34], [-58, -12, -34]]),
   ]);
 
   // ---------- UPPER: two-hand overhead swing for melee enemies ----------
@@ -600,10 +603,10 @@ function makeClips(p: Proportions): ClipSet {
   // in follow-through when the hit landed.
   clips.enemySwing = new THREE.AnimationClip('enemySwing', 0.7, [
     qt('chest', [0, 0.42, 0.55, 0.7], [[-16, 0, 0], [-24, 0, 0], [34, 0, 0], [2, 0, 0]]),
-    qt('upperArmR', [0, 0.42, 0.55, 0.7], [[-150, 0, -14], [-168, 0, -14], [-45, 0, -6], [-20, 0, -8]]),
+    qt('upperArmR', [0, 0.42, 0.55, 0.7], [[-150, 0, 14], [-168, 0, 14], [-45, 0, 6], [-20, 0, 8]]),
     qt('forearmR', [0, 0.42, 0.55, 0.7], [[-65, 0, 0], [-80, 0, 0], [-8, 0, 0], [-20, 0, 0]]),
-    qt('upperArmL', [0, 0.42, 0.55, 0.7], [[-130, 0, 18], [-150, 0, 22], [-70, 0, -15], [-18.6, -0.6, -39.9]]),
-    qt('forearmL', [0, 0.55, 0.7], [[-60, 0, 0], [-18, 12, 12], [-27.3, 19.6, 22.1]]),
+    qt('upperArmL', [0, 0.42, 0.55, 0.7], [[-130, 0, -18], [-150, 0, -22], [-70, 0, 15], [-18.6, 0.6, 39.9]]),
+    qt('forearmL', [0, 0.55, 0.7], [[-60, 0, 0], [-18, -12, -12], [-27.3, -19.6, -22.1]]),
   ]);
 
   return clips;

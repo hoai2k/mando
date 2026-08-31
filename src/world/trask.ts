@@ -151,8 +151,12 @@ export function buildTrask(): Board {
     crate.rotation.y = rng() * 0.8;
     crate.castShadow = crate.receiveShadow = true;
     group.add(crate);
-    physics.addBox(cx, DECK_TOP + 1.15, cz, 2.3, 2.3, 2.3);
-    authoredProp(group, crate, 'cargo_crate', 2.3, { x: cx, y: DECK_TOP, z: cz, yaw: crate.rotation.y });
+    // The crate is set down at an angle, and an axis-aligned box around a
+    // turned cube misses its corners entirely — a third of the sculpt with
+    // nothing under it. The fit follows the crate as it lies.
+    const box = physics.addBox(cx, DECK_TOP + 1.15, cz, 2.3, 2.3, 2.3);
+    authoredProp(group, crate, 'cargo_crate', 2.3, { x: cx, y: DECK_TOP, z: cz, yaw: crate.rotation.y },
+      { physics, replace: [box], maxBoxes: 4 });
   }
 
   // harbour-master's shed on the quay
@@ -192,8 +196,9 @@ export function buildTrask(): Board {
     rack.position.set(fx, DECK_TOP, fz);
     rack.rotation.y = fyaw;
     group.add(rack);
-    authoredProp(rack, bits, 'fish_rack', 2.2, { axis: 'x' });
-    physics.addBox(fx, DECK_TOP + 1.05, fz, 2.4, 2.1, 1.6);
+    const rackBox = physics.addBox(fx, DECK_TOP + 1.05, fz, 2.4, 2.1, 1.6);
+    authoredProp(rack, bits, 'fish_rack', 2.2, { axis: 'x' },
+      { physics, replace: [rackBox], cell: 0.4, maxBoxes: 8 });
   }
 
   // ---- quay dressing: buoys on the swell, rope coils on the deck (PLAN.md §16.6) ----
@@ -282,7 +287,6 @@ export function buildTrask(): Board {
     // deck box under it. Grounded at the box's underside (local -1.0) and
     // measured along the hull, which puts its working deck where the collider
     // top already is — the surface people fight on does not move.
-    authoredProp(boat, [hull, bow, house, mast], 'trawler', 16, { y: -1.0, axis: 'z' });
     // One walkable box over the working deck; the deckhouse is dressing.
     // Its centre matches the boat group's origin so Mover.moveTo keeps the
     // visual hull and the collision box in lockstep.
@@ -296,6 +300,24 @@ export function buildTrask(): Board {
     // the mast stands 6 m off a deck people fight on, so it blocks too
     const mastBox = physics.addBox(bx, 1.0 + 4, bz + 1, 0.45, 6, 0.45);
     const mastMover = new Mover(mastBox, null);
+    // The trawler hangs off the boat node, so it heaves on the swell with the
+    // deck box under it. Grounded at the box's underside (local -1.0) and
+    // measured along the hull, which puts its working deck where the collider
+    // top already is — the surface people fight on does not move.
+    //
+    // The deck box stays: it is the flat everyone fights on, and it is what
+    // decides who rides the swell. What the fit adds is the rest of the boat —
+    // the flare of the hull, the deckhouse, the mast — carried by the same
+    // mover, so the superstructure is solid wherever the sculpt actually put it
+    // rather than where two hand-placed boxes guessed.
+    authoredProp(boat, [hull, bow, house, mast], 'trawler', 16, { y: -1.0, axis: 'z' },
+      {
+        physics,
+        replace: [houseBox, mastBox],
+        cell: 0.7,
+        maxBoxes: 18,
+        onFit: (fitted) => mover.carry(fitted),
+      });
     boats.push({
       home: new THREE.Vector3(bx, 1.0, bz), phase, node: boat, mover,
       house: houseMover, mast: mastMover,

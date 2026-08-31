@@ -27,6 +27,7 @@ const COLORS = {
   ally: '#5fd08a',
   mate: '#4fb8d8',
   self: '#f0d08c',
+  ride: '#8ea9bb',      // a parked, riderless vehicle: steel, and square
 };
 
 export class Radar {
@@ -90,7 +91,8 @@ export class Radar {
     const scale = (r - 8) / RANGE;
 
     const blip = (
-      wx: number, wz: number, wy: number, color: string, size: number, dim: number
+      wx: number, wz: number, wy: number, color: string, size: number, dim: number,
+      opts: { square?: boolean; pinToRim?: boolean } = {}
     ): void => {
       const dx = wx - player.position.x;
       const dz = wz - player.position.z;
@@ -102,6 +104,10 @@ export class Radar {
       const len = Math.hypot(px, py);
       const max = r - 7;
       const offEdge = len > max;
+      // rim chevrons mean "a contact lies this way"; a ride is not a contact,
+      // so it simply drops off the dial past the sweep instead of adding a
+      // mark that reads like something hunting you
+      if (offEdge && opts.pinToRim === false) return;
       if (offEdge && len > 0) {
         const k = max / len;
         px *= k; py *= k;
@@ -121,7 +127,8 @@ export class Radar {
         ctx.restore();
       } else {
         ctx.beginPath();
-        ctx.arc(r + px, r + py, size, 0, Math.PI * 2);
+        if (opts.square) ctx.rect(r + px - size, r + py - size, size * 2, size * 2);
+        else ctx.arc(r + px, r + py, size, 0, Math.PI * 2);
         ctx.fill();
         // height offset tick: above or below you
         const dy = wy - player.position.y;
@@ -162,6 +169,16 @@ export class Radar {
       } else {
         blip(p.position.x, p.position.z, p.position.y, COLORS.mate, 3.2, 0.95);
       }
+    }
+
+    // Parked rides, so a swoop across the board is something you can go and
+    // find rather than stumble over. Square and steel: distinct from every
+    // round contact by shape as well as hue, and dimmer than a hostile, since
+    // it is an opportunity and not a threat. A ridden one is skipped — whoever
+    // is on it already has their own blip.
+    for (const v of game.vehicles) {
+      if (!v.alive || v.rider) continue;
+      blip(v.pos.x, v.pos.z, v.pos.y, COLORS.ride, 2.4, 0.7, { square: true, pinToRim: false });
     }
 
     // campaign: the beacon's pip, gold, so the bearing survives fog and dunes

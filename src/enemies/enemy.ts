@@ -10,10 +10,11 @@ import {
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
 import { clamp, damp, dampAngle } from '../core/math';
-import { Ragdoll } from '../anim/ragdoll';
+import { bodyLuma, contrastNeed, haloPeak, haloStrength, makeHalo, skylineTone, type HaloTone } from '../fx/skyline';
+import { Ragdoll, RigidRagdoll } from '../anim/ragdoll';
 import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
-import { hazardAt } from '../world/board';
+import { gravityScale, hazardAt } from '../world/board';
 import type { Game } from '../game/game';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
@@ -23,8 +24,21 @@ export interface Combatant {
   alive: boolean;
   radius: number;
   height: number;
+  /**
+   * The body to *shoot at*, when that differs from the capsule to walk around.
+   * A playable NPC's collider is clamped so a war beast still fits the boards'
+   * doorways, which makes `height` the wrong number to aim by — a shooter
+   * using it puts bolts through a five-metre creature's ankles. Absent means
+   * the two agree, which is true of every hostile.
+   */
+  hitHeight?: number;
   team: number; // 0 = players/allies, 1 = hostiles
   damage(amount: number, from: THREE.Vector3, bySlot?: number): void;
+}
+
+/** where to aim on a body: mid-chest of whatever it actually is */
+export function aimHeight(target: Combatant): number {
+  return (target.hitHeight ?? target.height) * 0.55;
 }
 
 export type EnemyKind =
@@ -96,8 +110,12 @@ interface Def {
   build: () => CharacterInstance;
 }
 
-/** the board's gravity scale — a station in orbit runs light for everyone on it */
-const grav = (game: Game): number => game.board.gravity ?? 1;
+/**
+ * The gravity scale where this body is — a station in orbit runs light for
+ * everyone on it, and a board with a local field (deep space, where the pull
+ * lives over the decks and nowhere else) runs lighter still out in the open.
+ */
+const grav = (game: Game, at: THREE.Vector3): number => gravityScale(game.board, at.x, at.y, at.z);
 
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
@@ -133,7 +151,9 @@ const DEFS: Record<EnemyKind, Def> = {
   // HP each — the fight is volume, not weight.
   krykna:       { hp: 55, speed: 8.5, radius: 0.6, height: 1.6, style: 'melee', damage: 12, attackRange: 2.5, attackCd: 1.3, notice: 46, relentless: true, build: buildKrykna },
   broodmother:  { hp: 560, speed: 6.2, radius: 0.95, height: 2.6, style: 'melee', damage: 30, attackRange: 3.8, attackCd: 1.9, notice: 60, relentless: true,
-    hitParts: [{ z: 1.0, y: 1.5, r: 0.7 }, { z: -0.9, y: 1.7, r: 0.95 }],
+    // slung high on its legs: the body rides around y=2.4, well over the
+    // centre sphere, and runs the full 6 m from spinnerets to fangs
+    hitParts: [{ z: 0, y: 2.5, r: 1.5 }, { z: -2.1, y: 2.5, r: 1.4 }, { z: 2.0, y: 2.0, r: 1.4 }],
     spawnOnHurt: { kind: 'krykna', per: 0.22, count: 2, max: 8 }, build: buildBroodmother },
   // The net gun barely hurts; being rooted in front of his friends is the hurt.
   quarren:      { hp: 100, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
@@ -150,14 +170,25 @@ const DEFS: Record<EnemyKind, Def> = {
   // `promoteBoss(name, 1, 1, 1)`, which hangs the banner and the bar on them
   // without scaling anything. Big, slow, relentless: they never lose the scent,
   // never break morale and cannot be knocked down.
-  mudhorn:  { hp: 2600, speed: 7.2, radius: 1.8, height: 3.0, style: 'melee', damage: 40, attackRange: 4.4, attackCd: 2.0, notice: 90, relentless: true, build: buildMudhorn },
-  ravinak:  { hp: 3000, speed: 5.4, radius: 2.2, height: 3.4, style: 'melee', damage: 40, attackRange: 5.2, attackCd: 2.2, notice: 90, relentless: true, build: buildRavinak },
-  mamacore: { hp: 3400, speed: 5.0, radius: 2.6, height: 4.6, style: 'melee', damage: 50, attackRange: 6.0, attackCd: 2.4, notice: 90, relentless: true, build: buildMamacore },
-  rancor:   { hp: 3600, speed: 6.4, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.0, attackCd: 2.1, notice: 90, relentless: true, build: buildRancor },
+  mudhorn:  { hp: 2600, speed: 7.2, radius: 1.8, height: 3.0, style: 'melee', damage: 40, attackRange: 4.4, attackCd: 2.0, notice: 90, relentless: true,
+    hitParts: [{ z: -2.5, y: 1.4, r: 1.2 }], build: buildMudhorn },
+  ravinak:  { hp: 3000, speed: 5.4, radius: 2.2, height: 3.4, style: 'melee', damage: 40, attackRange: 5.2, attackCd: 2.2, notice: 90, relentless: true,
+    hitParts: [{ z: 3.2, y: 1.3, r: 1.6 }, { z: -2.5, y: 0.7, r: 1.3 }], build: buildRavinak },
+  mamacore: { hp: 3400, speed: 5.0, radius: 2.6, height: 4.6, style: 'melee', damage: 50, attackRange: 6.0, attackCd: 2.4, notice: 90, relentless: true,
+    hitParts: [{ z: 4.3, y: 1.9, r: 2.1 }, { z: -3.5, y: 1.9, r: 1.6 }], build: buildMamacore },
+  rancor:   { hp: 3600, speed: 6.4, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.0, attackCd: 2.1, notice: 90, relentless: true,
+    // twelve metres nose to tail, with the reach out front where the centre
+    // sphere has never come close
+    hitParts: [{ z: 3.5, y: 2.1, r: 2.0 }, { z: 5.0, y: 1.3, r: 1.9 }, { z: -2.6, y: 1.9, r: 1.4 }], build: buildRancor },
   // The two colossi are half-buried: `plows` is what makes the ground answer
   // for the part of them that is under it.
-  kraytDragon: { hp: 5200, speed: 5.6, radius: 3.0, height: 5.0, style: 'melee', damage: 45, attackRange: 7.0, attackCd: 2.3, notice: 110, relentless: true, plows: 3.4, build: buildKraytDragon },
-  mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0, build: buildMythosaur },
+  kraytDragon: { hp: 5200, speed: 5.6, radius: 3.0, height: 5.0, style: 'melee', damage: 45, attackRange: 7.0, attackCd: 2.3, notice: 110, relentless: true, plows: 3.4,
+    // the head and the length of neck in front of it; the coils behind are
+    // under the sand, and stay unhittable on purpose
+    hitParts: [{ z: 4.6, y: 2.2, r: 2.4 }, { z: 7.0, y: 2.4, r: 2.0 }], build: buildKraytDragon },
+  mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0,
+    // the skull and horns, five metres up and three forward of the mass
+    hitParts: [{ z: 4.2, y: 5.1, r: 2.1 }, { z: 5.6, y: 5.2, r: 1.6 }], build: buildMythosaur },
 
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
@@ -195,10 +226,6 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   ringEnforcer: 'pirate_death',
 };
 
-
-const UP = new THREE.Vector3(0, 1, 0);
-const _q = new THREE.Quaternion();
-const _q2 = new THREE.Quaternion();
 
 let nextId = 1;
 
@@ -271,6 +298,16 @@ const _arrTo = new THREE.Vector3();
 export function enemyBody(kind: EnemyKind): { radius: number; height: number } {
   const d = DEFS[kind];
   return { radius: d.radius, height: d.height };
+}
+
+/** Every kind there is, so an audit never has to keep its own list in step. */
+export function enemyKinds(): EnemyKind[] {
+  return Object.keys(DEFS) as EnemyKind[];
+}
+
+/** The kind's extra hit spheres, for the hitbox audit. Empty when it has none. */
+export function enemyHitParts(kind: EnemyKind): { z: number; y: number; r: number }[] {
+  return DEFS[kind].hitParts ?? [];
 }
 
 /**
@@ -352,6 +389,17 @@ export class Enemy {
   /** massiff leap: >0 while airborne mid-pounce, damage lands on contact */
   private pounce = 0;
   private pounceHit = false;
+  /** boss super jump: >0 while airborne mid-leap; the slam lands on touchdown */
+  private leapT = 0;
+  /**
+   * Spacing between super jumps; starts short so the fight opens with one.
+   * Public because the warlord's shock-slam (game.ts updateBoss) pushes it
+   * out while its telegraph runs — the ember ring promises where the hit
+   * lands, so the boss must not leap somewhere else mid-promise.
+   */
+  superJumpCd = 2;
+  /** leaps taken, for the test harness */
+  superJumps = 0;
   private windupTarget: Combatant | null = null;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
@@ -368,7 +416,7 @@ export class Enemy {
    * body finds its own way down and drapes over whatever it lands on, so no
    * two deaths are alike and none of them argue with the terrain.
    */
-  private ragdoll: Ragdoll | null = null;
+  private ragdoll: Ragdoll | RigidRagdoll | null = null;
   /**
    * Armed by the killing blow, built on the first dead frame. Waiting a frame
    * lets knockback stacked after damage() — explosions, melee — steer the fall,
@@ -377,12 +425,6 @@ export class Enemy {
   private ragdollArmed = false;
   /** on the floor this frame (drives the massiff's pounce landing) */
   private grounded = true;
-  /**
-   * Roll-over for corpses the articulated solver can't take: free-form rigs
-   * (the war massiff) have no canonical skeleton to hang it on, and without
-   * this they would settle standing upright on their feet.
-   */
-  private corpseTip: { axis: THREE.Vector3; angle: number; vel: number; rest: number } | null = null;
   /** corpse has come to rest: skip physics and limb work from here on */
   private settled = false;
   /** wave ended: corpse fading out, then removed */
@@ -462,6 +504,14 @@ export class Enemy {
   private sightMemo = false;
   /** countdown to the next puff of ground thrown by a half-buried body */
   private plowT = 0;
+  /** the skyline halo that keeps this body readable in the air, once airborne */
+  private halo: THREE.Sprite | null = null;
+  private haloTone: HaloTone | null = null;
+  private haloLevel = 0;
+  /** how light this body's own artwork is, once there is artwork to measure */
+  private haloBody: number | null = null;
+  /** staggered clock for the ground probe the halo reads (it is a raycast) */
+  private haloProbe = 0;
   /**
    * How this enemy is getting onto the board, while it still is (waves 2+
    * arrive rather than appear — src/enemies/arrival.ts). Normal AI is
@@ -483,8 +533,21 @@ export class Enemy {
   venting = 0;
   private heatHold = 0;
 
+  /**
+   * This body's extra hit spheres, in its *current* size.
+   *
+   * Not read straight off the Def at fire time, because a promoted boss grows:
+   * `promoteBoss` scales radius, height and the model together, and hit
+   * spheres left at the shared Def's numbers stay where the unpromoted body
+   * used to be. On a 1.35x Pit Beast that put the skull sphere well inside the
+   * animal's actual head, so shots at the head of the biggest target on the
+   * board passed through it.
+   */
+  hitParts: { z: number; y: number; r: number }[];
+
   constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
     this.def = DEFS[kind];
+    this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
     this.char = this.def.build();
     this.hp = this.def.hp;
@@ -534,6 +597,8 @@ export class Enemy {
     const grow = bulk ?? (this.def.height < 2.2 ? 1.6 : 1.35);
     this.radius *= grow;
     this.height *= grow;
+    // the extra spheres are body-local metres, so they grow with the body
+    for (const p of this.hitParts) { p.z *= grow; p.y *= grow; p.r *= grow; }
     this.char.baseScale *= grow;
     this.char.root.scale.setScalar(this.char.baseScale);
     // hpScale 1 is the monsters' banner-only promotion; a scaled warlord is
@@ -600,7 +665,9 @@ export class Enemy {
    * station board.
    */
   private edgeGuard(game: Game): void {
-    if (this.stagger > 0) return;
+    // a super jump is committed the moment it leaves the ground — the guard
+    // must not zero the launch velocity at a platform lip
+    if (this.stagger > 0 || this.leapT > 0) return;
     const sp = Math.hypot(this.velocity.x, this.velocity.z);
     // gate must be near zero: steering re-adds a trickle of velocity every
     // frame after a block, and a 0.3 m/s creep still walks off the lip
@@ -771,7 +838,10 @@ export class Enemy {
       // upright die the ragdoll death; the ragdoll reads its direction from
       // this.velocity on its first frame, so knockbacks applied right after
       // this call (explosions, melee) still steer the fall.
-      if (!this.wounded && this.downTimer <= 0) this.startRagdoll();
+      // A creature has no prone pose to preserve — its animator is a stub, so
+      // a knocked-down spider is still standing as far as the model is
+      // concerned — and it always dies into the sim.
+      if (!this.char.rig || (!this.wounded && this.downTimer <= 0)) this.startRagdoll();
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       // Flinch away from where the shot came from: rotate the bearing into
@@ -780,7 +850,7 @@ export class Enemy {
       // (or from behind) keeps the frontal flinch.
       const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
       const side = Math.sin(bearing);
-      const clip = side > 0.45 ? 'hitFromR' : side < -0.45 ? 'hitFromL' : 'hitUpper';
+      const clip = side > 0.45 ? 'hitFromL' : side < -0.45 ? 'hitFromR' : 'hitUpper';
       this.char.animator.playOnce('upper', clip, 0.05);
     }
   }
@@ -814,6 +884,7 @@ export class Enemy {
     this.downTimer = Math.max(this.downTimer, secs);
     this.windup = 0;
     this.volleyLeft = 0;
+    this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
     const anim = this.char.animator;
     if (anim) {
       anim.release('lower'); anim.release('upper');
@@ -922,11 +993,17 @@ export class Enemy {
       // plus any knockback stacked after it, and that is what steers the fall.
       // The upper body takes a larger share, so a hit turns the body over
       // rather than sliding it away flat.
-      if (this.ragdollArmed && this.char.rig) {
+      if (this.ragdollArmed) {
         this.ragdollArmed = false;
         _base.copy(this.velocity).multiplyScalar(0.85);
         _spin.copy(this.velocity).multiplyScalar(0.3);
-        this.ragdoll = new Ragdoll(this.char.rig, _base, _spin);
+        // A free-form rig (the spiders, the massiff, the drone) has no named
+        // skeleton for the articulated solver, so it dies as one rigid body
+        // instead — same Verlet world, same contacts, shape-matched every
+        // step. Both simulate; neither plays a canned fall.
+        this.ragdoll = this.char.rig
+          ? new Ragdoll(this.char.rig, _base, _spin)
+          : new RigidRagdoll(this.char.root, this.radius, this.height, _base, _spin);
       }
 
       if (this.ragdoll) {
@@ -936,40 +1013,22 @@ export class Enemy {
         this.position.copy(this.ragdoll.hips);
         if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
         if (!this.ragdoll.active && this.fadeT < 0) this.settled = true;
-        this.char.cosmetic?.(dt, game.time);
+        // A rigged corpse keeps its cosmetic tick (a cape still swings on the
+        // way down). A creature's tick *is* its gait — leave it unrun and the
+        // legs freeze where they were, instead of a dead spider skittering as
+        // it tumbles.
+        if (this.char.rig) this.char.cosmetic?.(dt, game.time);
         return;
       }
 
-      // Rigless bodies (the war massiff) get a plain roll-over instead of the
-      // solver: tip onto the flank away from the killing blow. Anyone already
-      // prone (a crawl or a knockdown) keeps the pose they were holding.
-      if (this.ragdollArmed) {
-        this.ragdollArmed = false;
-        if (!this.char.rig) {
-          const dir = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
-          if (dir.lengthSq() < 0.05) dir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-          dir.normalize();
-          this.corpseTip = {
-            axis: new THREE.Vector3(0, 1, 0).cross(dir).normalize(),
-            angle: 0,
-            vel: 2 + Math.random() * 1.5,
-            rest: (Math.PI / 2) * (0.85 + Math.random() * 0.2),
-          };
-        }
-      }
-      if (this.corpseTip && this.corpseTip.angle < this.corpseTip.rest) {
-        this.corpseTip.vel += 7 * dt;
-        this.corpseTip.angle = Math.min(this.corpseTip.rest, this.corpseTip.angle + this.corpseTip.vel * dt);
-      }
-
-      // no solver: slide and settle
+      // No solver: a body that was already flat when it died (a wounded crawl,
+      // a knockdown) keeps the pose it was holding and simply slides to a stop.
       this.velocity.x = damp(this.velocity.x, 0, 3, dt);
       this.velocity.z = damp(this.velocity.z, 0, 3, dt);
-      this.velocity.y -= 22 * grav(game) * dt;
+      this.velocity.y -= 22 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
       if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
-      const rolled = !this.corpseTip || this.corpseTip.angle >= this.corpseTip.rest;
-      if (res.grounded && this.velocity.lengthSq() < 0.1 && rolled && this.fadeT < 0) this.settled = true;
+      if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
 
       this.syncVisual(dt, game);
       return;
@@ -981,6 +1040,7 @@ export class Enemy {
     }
 
     this.attackCd -= dt;
+    this.superJumpCd -= dt;
     this.suppression = Math.max(0, this.suppression - dt * 0.25);
     this.venting = Math.max(0, this.venting - dt);
     this.heatHold = Math.max(0, this.heatHold - dt);
@@ -992,7 +1052,7 @@ export class Enemy {
       this.downTimer -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 4, dt);
       this.velocity.z = damp(this.velocity.z, 0, 4, dt);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.boardHazards(game, dt)) return;
       if (this.downTimer <= 0) {
@@ -1024,7 +1084,7 @@ export class Enemy {
       if (away.lengthSq() > 1e-4) away.normalize();
       this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
       this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
       if (this.boardHazards(game, dt)) return;
       if (this.bleedOut <= 0) {
@@ -1036,6 +1096,12 @@ export class Enemy {
     }
 
     const target = this.senses(dt, game);
+
+    // ---- boss super jump: airborne and committed ----
+    if (this.leapT > 0) {
+      this.updateLeap(dt, game);
+      return;
+    }
 
     // ---- broke and ran ----
     if (this.fleeing) {
@@ -1056,7 +1122,7 @@ export class Enemy {
         // a morale break is still voluntary movement: it does not get to sprint
         // off a platform lip that the same enemy would have stopped at walking
         this.edgeGuard(game);
-        this.velocity.y -= 24 * grav(game) * dt;
+        this.velocity.y -= 24 * grav(game, this.position) * dt;
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (this.boardHazards(game, dt)) return;
         if (anim) {
@@ -1083,11 +1149,13 @@ export class Enemy {
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
     } else if (target && this.visible) {
-      switch (d.style) {
-        case 'melee': this.updateMelee(dt, game, target); break;
-        case 'ranged': this.updateRanged(dt, game, target); break;
-        case 'swoop': this.updateSwoop(dt, game, target); break;
-        case 'hover': this.updateHover(dt, game, target); break;
+      if (!this.trySuperJump(game, target)) {
+        switch (d.style) {
+          case 'melee': this.updateMelee(dt, game, target); break;
+          case 'ranged': this.updateRanged(dt, game, target); break;
+          case 'swoop': this.updateSwoop(dt, game, target); break;
+          case 'hover': this.updateHover(dt, game, target); break;
+        }
       }
     } else if (this.team === 0) {
       // an ally with nothing to shoot: catch up to the player, or keep them
@@ -1123,7 +1191,7 @@ export class Enemy {
 
     if (d.style === 'melee' || d.style === 'ranged') {
       this.edgeGuard(game);
-      this.velocity.y -= 24 * grav(game) * dt;
+      this.velocity.y -= 24 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
     } else {
@@ -1177,7 +1245,7 @@ export class Enemy {
     // locomotion animation
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
-      if (this.windup <= 0) {
+      if (this.windup <= 0 && this.leapT <= 0) {
         anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
         if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
         else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
@@ -1401,7 +1469,7 @@ export class Enemy {
       const cd = toC.length();
       toC.normalize();
       if (!phys.raycast(eye, toC, cd)) continue;
-      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(chest);
+      const muzzleTo = new THREE.Vector3(target.position.x, target.position.y + aimHeight(target), target.position.z).sub(chest);
       const md = muzzleTo.length();
       muzzleTo.normalize();
       if (!phys.raycast(chest, muzzleTo, md)) continue;
@@ -1413,7 +1481,7 @@ export class Enemy {
         const pgy = phys.groundHeight(px, pz, this.position.y + 0.5);
         if (!isFinite(pgy) || Math.abs(pgy - gy) > 1.2) continue;
         const pchest = new THREE.Vector3(px, pgy + this.height * 0.75, pz);
-        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + 1, target.position.z).sub(pchest);
+        const pMuzzle = new THREE.Vector3(target.position.x, target.position.y + aimHeight(target), target.position.z).sub(pchest);
         const pmd = pMuzzle.length();
         pMuzzle.normalize();
         if (phys.raycast(pchest, pMuzzle, pmd)) continue; // peek blocked too — useless
@@ -1537,6 +1605,101 @@ export class Enemy {
     this.facingYaw = dampAngle(this.facingYaw, yaw, rate, dt);
   }
 
+  /**
+   * The boss gap-closer: a committed ballistic super jump onto where the
+   * target is headed, ending in a ground slam (docs/MODES.md §4a). Only
+   * promoted bosses jump — never the half-buried colossi, whose bodies are
+   * part of the terrain, and never the fliers, who don't need it. Committed
+   * like the massiff's pounce: no steering in the air, so a dash or a
+   * jetpack hop as the shadow arrives beats the landing.
+   */
+  private trySuperJump(game: Game, target: Combatant): boolean {
+    const d = DEFS[this.kind];
+    if (!this.boss || d.plows) return false;
+    if (d.style !== 'melee' && d.style !== 'ranged') return false;
+    if (this.superJumpCd > 0 || this.windup > 0 || this.pounce > 0 || !this.grounded) return false;
+    const dist = Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z);
+    // a melee boss leaps to close mid-range; a ranged boss only crosses a
+    // real gap — it should not leap out of its own firing band every clock
+    if (dist < (d.style === 'ranged' ? 14 : 7) || dist > 34) return false;
+    if (!this.losThrottled(game, target)) return false;
+    // aim at where they'll be when the arc comes down
+    const vy = 9 + Math.min(dist * 0.12, 3.5);
+    const flight = (2 * vy) / (24 * grav(game, this.position));
+    const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.8);
+    const ax = aim.x - this.position.x, az = aim.z - this.position.z;
+    const gap = Math.hypot(ax, az);
+    const need = gap / flight;
+    if (need > 30 || gap < 1) return false;
+    this.velocity.x = (ax / gap) * need;
+    this.velocity.z = (az / gap) * need;
+    this.velocity.y = vy;
+    this.leapT = flight + 0.6;
+    this.grounded = false;
+    this.superJumpCd = this.enraged ? 4 : 7;
+    this.superJumps++;
+    this.volleyLeft = 0;          // nothing fires through a leap
+    this.char.attack?.();         // a creature coils into the jump
+    if (BEASTS.has(this.kind)) audio.beastGrowl(0.8);
+    else {
+      const bark = SPAWN_BARKS[this.kind];
+      if (bark) audio.bark(bark, 0.6);
+    }
+    game.particles.dustPuff(this.position, 14);
+    return true;
+  }
+
+  /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
+  private updateLeap(dt: number, game: Game): void {
+    this.leapT -= dt;
+    this.velocity.y -= 24 * grav(game, this.position) * dt;
+    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.grounded = res.grounded;
+    if (this.boardHazards(game, dt)) return;
+    const anim = this.char.animator;
+    if (anim) {
+      anim.play('lower', 'airLower', 0.12);
+      anim.play('upper', 'airUpper', 0.12);
+    }
+    if (this.leapT <= 0 || (this.grounded && this.leapT < 0.5)) {
+      this.leapT = 0;
+      this.landSlam(game);
+    }
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+  }
+
+  /**
+   * The super jump's landing: the ground answers. Splash damage and a shove
+   * on anyone underneath, and every nearby camera feels the impact. The slam
+   * hits softer than the boss's swing — it is pressure and displacement; the
+   * swing stays the killer.
+   */
+  private landSlam(game: Game): void {
+    const d = DEFS[this.kind];
+    const r = 4 + this.radius * 1.5;
+    game.particles.dustPuff(this.position, 20);
+    audio.land(true);
+    game.director.noise(game, this.position, 40);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
+      if (!p.alive || dd > r) continue;
+      p.damage(d.damage * this.dmgScale * 0.6, this.position);
+      const push = p.position.clone().sub(this.position).setY(0).normalize();
+      p.velocity.addScaledVector(push, 10);
+      p.velocity.y += 4;
+    }
+    for (const a of game.allies) {
+      if (!a.alive || a.team === this.team) continue;
+      if (a.position.distanceTo(this.position) > r) continue;
+      a.damage(d.damage * this.dmgScale * 0.6, this.position, -1);
+      a.knockback(this.position, 12, 0.4);
+    }
+    this.attackCd = Math.max(this.attackCd, 0.6);
+    this.char.attack?.();   // a creature punctuates the landing with its strike
+  }
+
   private updateMelee(dt: number, game: Game, target: Combatant): void {
     const d = DEFS[this.kind];
     const to = target.position.clone().sub(this.position);
@@ -1598,7 +1761,7 @@ export class Enemy {
     if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
         dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
-      const flight = (2 * vy) / (24 * grav(game));       // ballistic hang time
+      const flight = (2 * vy) / (24 * grav(game, this.position));       // ballistic hang time
       const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.85);
       const ax = aim.x - this.position.x, az = aim.z - this.position.z;
       const gap = Math.hypot(ax, az);
@@ -1820,7 +1983,7 @@ export class Enemy {
     else { from.copy(this.position); from.y += this.height * 0.7; }
     // lead the target a little, with error so bolts are dodgeable
     const aim = target.position.clone();
-    aim.y += 1.1;
+    aim.y += aimHeight(target);
     const t = from.distanceTo(aim) / (d.boltSpeed ?? 28);
     aim.addScaledVector(target.velocity, t * 0.55);
     // suppression wrecks the aim: shots snatched from behind cover go wide
@@ -2055,6 +2218,10 @@ export class Enemy {
     const a = this.arrival!;
     const anim = this.char.animator;
     a.t += dt;
+    // A scripted insertion falls on the board's flat gravity, not the local
+    // field: the drop is timed to land on a chosen post, and a squad coasting
+    // in the station's open-space drift would still be in the air two waves
+    // later.
     const grav = game.board.gravity ?? 1;
 
     if (a.mode === 'drop') {
@@ -2176,24 +2343,53 @@ export class Enemy {
     anim?.update(dt);
   }
 
+  /**
+   * Keep this body readable against the sky (src/fx/skyline.ts).
+   *
+   * Only bodies actually up in the air get one, which is why the ground probe
+   * decides it: an enemy standing on a platform has that platform directly
+   * underneath and is not skylined, while the same enemy twenty metres over it
+   * is. The probe is a surface query, so it runs a few times a second on a
+   * per-enemy stagger rather than every frame, and the level it produces is
+   * eased into so a body crossing a rooftop does not blink.
+   */
+  private updateHalo(dt: number, game: Game): void {
+    this.haloProbe -= dt;
+    if (this.haloProbe <= 0) {
+      this.haloProbe = 0.2 + (this.id % 5) * 0.02;
+      const ground = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 0.4);
+      const skylined = this.alive ? haloStrength(this.position.y - ground) : 0;
+      // Re-read the body until it has been read: the authored sculpt swaps in
+      // a beat after the procedural build, and it is the one that will be
+      // looked at. Textures are averaged once and remembered, so this settles
+      // to a walk over a handful of materials.
+      this.haloTone ??= skylineTone(game.board);
+      this.haloBody ??= bodyLuma(this.char.root);
+      this.haloLevel = skylined * contrastNeed(this.haloTone, this.haloBody);
+    }
+    if (this.haloLevel <= 0 && !this.halo) return;
+    if (!this.halo && this.haloLevel > 0) {
+      this.halo = makeHalo(this.haloTone!, this.height);
+      this.char.root.add(this.halo);
+    }
+    const halo = this.halo!;
+    const want = this.haloLevel * haloPeak(this.haloTone!);
+    const mat = halo.material as THREE.SpriteMaterial;
+    mat.opacity = damp(mat.opacity, want, 4, dt);
+    halo.visible = mat.opacity > 0.01;
+  }
+
   private syncVisual(dt: number, game: Game): void {
     // a ragdolled corpse is placed entirely by the solver — it writes the root
     // and every bone itself, so syncVisual must keep its hands off
     if (this.ragdoll) return;
     this.char.root.position.copy(this.position);
-    if (this.corpseTip) {
-      // yaw first, then tip onto the flank around the impulse axis
-      _q.setFromAxisAngle(UP, this.facingYaw);
-      _q2.setFromAxisAngle(this.corpseTip.axis, this.corpseTip.angle);
-      this.char.root.quaternion.multiplyQuaternions(_q2, _q);
-      this.char.cosmetic?.(dt, game.time);
-      return;
-    }
     this.char.root.rotation.y = this.facingYaw;
     if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);
     }
     // creatures that animate themselves need to know how fast they're going
+    this.updateHalo(dt, game);
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
     this.char.cosmetic?.(dt, game.time);
     // Hit flash: a brief scale pop, multiplied into the species bulk rather

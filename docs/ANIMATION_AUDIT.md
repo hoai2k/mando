@@ -236,9 +236,12 @@ reads fine; the controller's root motion does the rest. No action.
   move the contact to per-clip metadata (`{ clip, hitAt }`) first, or the
   whip-crack re-time will land hits before the blade moves.
 - Convention corrections that were wrong or missing in comments are now in
-  `clips.ts` (splay sign *and* amount); `authored.ts`'s side-label comment
-  has the X-signs backwards too but its mirror logic and conclusion are
-  correct — worth a one-line fix next time that file is touched.
+  `clips.ts` (splay sign *and* amount). The side-label confusion behind that
+  note is settled at the root as of 2026-08-30: the rig's `L` bones sit at
+  +X, which for a character facing +Z really is its left, so `authored.ts`
+  maps the two skeletons name for name and no longer mirrors the pose into
+  the model. Every clip was mirrored to match, which is why splay now
+  spreads on *positive* Z for `L` and negative for `R`.
 
 **Roadmap → all implemented** (same change set as this doc's second revision):
 

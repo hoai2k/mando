@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { audio } from '../core/audio';
 import { MAX_PLAYERS } from '../core/layout';
 import { damp } from '../core/math';
+import { nodeCount, visibleBounds } from '../core/bounds';
 
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
@@ -49,6 +50,31 @@ function stageX(i: number, n: number): number {
   return (i - (n - 1) / 2) * STAGE_GAP[Math.max(1, Math.min(MAX_PLAYERS, n))];
 }
 
+/**
+ * How big a fighter is allowed to stand on its plinth.
+ *
+ * The PvP roster is not a line-up of one species: beside a 2.2 m trooper it
+ * fields a war massiff that measures 3.2 × 4.9 m and a broodmother at 2.7 m
+ * across, against a line spaced 1.9 m apart once four players have joined. At
+ * their own size those two do not overshoot the plinth so much as swallow
+ * whoever is standing next to it, and a spinning massiff sweeps that footprint
+ * through both neighbours. So the select scales a fighter down to fit the
+ * space — the game does not, and a massiff played is a massiff.
+ *
+ * The footprint budget is measured against the *tightest* spacing rather than
+ * the current one, so a fighter is the same size on the plinth whether it is
+ * alone or fourth in a line: a model that resized itself every time somebody
+ * joined would read as a bug.
+ *
+ * Only ever shrinks. Scaling the small up would flatten the roster into one
+ * size, and a krykna reading as smaller than a Wookiee is the truth.
+ */
+const FIT_HEIGHT = 2.4;
+const FIT_FOOTPRINT = 1.8;
+
+const _fitBox = new THREE.Box3();
+const _fitSize = new THREE.Vector3();
+
 type Phase = 'empty' | 'browsing' | 'spinning' | 'ready';
 
 /** shortest signed equivalent of an angle, so a full manual spin unwinds the near way */
@@ -80,6 +106,12 @@ export class CharacterSelect {
   root: HTMLElement;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
+  /**
+   * Plinth fit per character root: the scale its build asked for, and the node
+   * count that fit was measured against (see `fitToPlinth`). Weak, so a
+   * character dropped with its slot takes its entry with it.
+   */
+  private fits = new WeakMap<THREE.Object3D, { nodes: number; base: number }>();
   private slots: Slot[] = [];
   private startBtn: HTMLElement;
   private panels!: HTMLElement;
@@ -398,6 +430,35 @@ export class CharacterSelect {
     return c;
   }
 
+  /**
+   * Scale a fighter down to its plinth (see FIT_HEIGHT / FIT_FOOTPRINT), and
+   * keep it there when its authored model lands.
+   *
+   * The measurement has to be redone after that swap: a character is born as a
+   * procedural stand-in and the .glb replaces it seconds later at its own size,
+   * so a fit computed once is a fit of the wrong body. Rather than reach into
+   * the loader for a hook, this notices the swap by the shape of the subtree —
+   * counting nodes is cheap enough to do every frame for the one fighter each
+   * plinth is showing, where re-measuring geometry would not be.
+   */
+  private fitToPlinth(c: PlayerCharacter): void {
+    const root = c.root;
+    const nodes = nodeCount(root);
+    const seen = this.fits.get(root);
+    if (seen && seen.nodes === nodes) return;
+    // measure at the size the build asked for, never at a fit already applied
+    const base = seen ? seen.base : root.scale.x;
+    root.scale.setScalar(base);
+    visibleBounds(root, _fitBox);
+    if (_fitBox.isEmpty()) return;    // nothing on screen yet: leave it alone
+    _fitBox.getSize(_fitSize);
+    const fit = Math.min(1,
+      FIT_HEIGHT / Math.max(_fitSize.y, 1e-3),
+      FIT_FOOTPRINT / Math.max(_fitSize.x, _fitSize.z, 1e-3));
+    root.scale.setScalar(base * fit);
+    this.fits.set(root, { nodes, base });
+  }
+
   // ---------- input ----------
 
   /**
@@ -602,6 +663,9 @@ export class CharacterSelect {
       const id = this.roster[s.choice];
       const current = this.charFor(s, id);
       for (const [cid, c] of s.chars) c.root.visible = cid === id && c.modelReady();
+      // sized to the plinth once it is the one on show — and again if its
+      // authored model arrives and changes what "this fighter" measures
+      this.fitToPlinth(current);
 
       // no procedural stand-in: wait it out, spinner after a grace period
       if (!current.modelReady()) {

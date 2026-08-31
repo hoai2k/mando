@@ -363,6 +363,9 @@ two-player).
 - **Knockback reads.** Hits apply an impulse *and* a stagger window; without the stagger the AI's per-frame steering damp erased the impulse before it was visible. Bolt ≈ 0.7 m, melee swing ≈ 2.7 m, finisher ≈ 3.1 m, explosions ≈ 4.7 m. The finisher deliberately shoves rather than launches (0.96 m/s of lift vs 6.65 m/s originally) — its job is to clear the target out of your firing line so you can swing to the next one, not to be spectacular.
 - **Blaster readability.** Bolts are longer, fatter, near-white cores with an additive halo, fired at 75 m/s with a muzzle flash. Shots converge on the crosshair via a camera raycast (or the soft-lock target) instead of firing parallel from the muzzle, and the crosshair shows a red lock ring when a target is in the assist cone.
 - **No abyss on the station.** Below the platforms gravity drops to 12% with a 3.2 m/s terminal speed and fuel regenerates, so drifting off is recoverable with a tap of jetpack; the killY backstop repositions without damage.
+- **The station's gravity is local.** Deep space pulls at almost nothing (0.05 g), so the jetpack takes you anywhere between the islands without fighting a floor that isn't there; the full 0.45 g exists only over something you could land on, fading in over the last several metres of the approach. Fighting on a deck is unchanged. (`Board.gravityAt`; the void below the board keeps the flat scale above, so a fall is still a fall.)
+- **Weapons draw themselves.** X swings and RT fires, and whichever you press puts that weapon in your hands — no swap button, no dead trigger coming out of a combo. The D-pad picks *within* a slot (left: blades, right: guns) for a fighter carrying more than one. Nobody is left with a slot they cannot use: the roster carries a gun and a blade, Ventress' trigger throws a blade instead of firing one, and the playable war beasts fight with teeth.
+- **Sculpts carry their own colliders.** An authored prop's colliders are fitted to the model when it lands (voxelised, merged, replacing the stand-in's), so anything that looks solid can be landed on and nothing has an invisible shell wider than itself. `npm run audit:props` measures both failures across every board.
 
 ## 15. Notes & Constraints
 
@@ -445,10 +448,24 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 
 | Kind | Feel | HP | Where |
 |---|---|---|---|
-| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld plaza |
-| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge dome gap |
+| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld street ×2 |
+| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge (dome gap + approach) |
 | **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+
+**Where they are parked is a reachability constraint, not just flavour** (audited
+2026-08-30). A ride the party never walks past may as well not exist: the Forge and
+the Ringworld each had exactly one, 146 m and 136 m from where a wave run lands, and
+in practice nobody ever reached them. Every territory that declares vehicles now
+parks one within **60 m of the wave start** — half the radar's sweep, so it is on the
+dial the moment you land — and `tools/test-vehicles.mjs` holds that line per board.
+The four territories with none (the Spice Run's floating platforms, the Crevasse, the
+Refinery's corridors, the Prison Rig) are deliberate: there is no road to drive.
+
+**Modes.** Rides belong to the territory's own ground, so they are a **Wave Battle and
+PvP** feature. Missions is fought on a level raised to `MISSION_Y`, which left every
+ride parked 82–89 m *below* the floor the party walks — unreachable, un-mountable, and
+still costing a model, a collider and a bolt target — so Missions no longer spawns them.
 
 **Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
 contextual button as cover, and a vehicle in range wins the press. RB is also the only
@@ -478,6 +495,12 @@ depth by inches). Weapons are stowed while riding: **the vehicle is the weapon.*
 and a knockdown — a swoop through a posted squad is bowling. Every body struck chips
 the vehicle's own HP, and a hard stop against a wall costs HP proportional to the
 speed lost. Nothing is free.
+
+**Finding one:** a parked, riderless ride shows on the radar as a dim steel **square**
+— distinct from every round contact by shape as well as hue, and it drops off the dial
+past the sweep rather than pinning to the rim, since a rim chevron means "something is
+over there", not "an opportunity is". A ridden one is not drawn: whoever is on it
+already has a blip.
 
 **Being shot down:** a parked vehicle is solid (a physics box, removed while ridden)
 and a bolt target on the props' team, so a firefight can cost you your ride before
@@ -523,3 +546,60 @@ a `?modes` URL flag and are now the default; the hatch survives inverted, so
 
 Regression-tested end to end by `tools/test-modes.mjs` (part of `npm test`),
 including that the flag off leaves the wave game untouched.
+
+## 19. Hit volumes (audited 2026-08-30)
+
+What a fighter is *shot* as, versus what it renders as. `tools/audit-hitboxes.mjs`
+(`npm run audit:hitboxes`) builds one of everything — 61 bodies, hostile and playable —
+waits for the authored `.glb`s to swap in over the procedural stand-ins, samples the
+geometry that actually renders, and holds it against the spheres the game fires bolts
+at. Sample points carry their mesh's bulk as weight, so "covered" means how much of the
+body can be hit, not how many of its parts: unweighted, a rifle barrel counted for as
+much as a torso and read a Mandalorian as a third of a fighter.
+
+**Coverage is reported, never gated.** One sphere on a biped tops out near 45–50% no
+matter how well placed — arms, legs and a helmet leave a ball behind whatever you do.
+The column is for comparing a body against its peers. Two things *are* gated, because
+both are wrong however the volume is shaped: spheres reaching more than 0.9 m past the
+head or under the feet, and any kind that is a different target played than it is as a
+hostile.
+
+**The collider and the hit volume are two different numbers, on purpose.** A playable
+NPC's collider is clamped (0.6 × 2.1) so a war beast still fits the cover, doorways and
+corridors every board was built around. That clamp is a level-fit decision and has no
+business deciding hit registration — while it did, a playable massiff was shot as a
+2.1 m cylinder while the identical animal standing next to it as a hostile was shot
+along its whole body. `PlayerProfile.hitRadius/hitHeight/hitParts` carry the creature's
+true size; `radius`/`height` stay the capsule it walks the world in.
+
+**Three defects the audit turned up and closed:**
+
+- Players were hit by one sphere at a hardcoded `y + 0.9`, where every hostile used
+  `height * 0.5`. For a 1.75 m Mandalorian those agree to within 2 cm; for anything
+  else they did not, and long-bodied playables got none of the extra spheres their
+  hostile twin carries.
+- `promoteBoss` scales radius, height and the model together, but `hitParts` were read
+  from the shared Def at fire time and stayed at the unpromoted body's numbers. On a
+  1.35× Pit Beast that put the skull sphere inside the animal's head.
+- Shooters aimed at a fixed `y + 1.1` whatever they were shooting at, which is a
+  creature's ankles once the creature is five metres tall. Aim now follows
+  `aimHeight()` — mid-chest of whatever the target actually is.
+
+**The monster bosses had one sphere each for bodies up to twelve metres long.** Hit
+spheres authored off the measured sculpts took the krayt dragon from 19% to 59% and the
+broodmother from 14% to 61%; the mamacore, mudhorn and ravinak now sit above 90%.
+
+**Open, deliberately not changed** — these are balance decisions, not bugs:
+
+- *Declared heights that overshoot their models.* The ravinak's is 3.4 m against a
+  2.30 m sculpt and the mamacore's 4.6 m against 3.80 m, so both centre spheres reach
+  ~1.5–2 m above the animal. Correcting them is not just a hitbox edit: §17 tunes the
+  skiff's hover so it clears "the mamacore's bite depth by inches", and `height` also
+  sets the collision capsule and the spawn-fit test.
+- *The Mandalorians are the hardest bodies in the game to hit* — 35–49% covered, against
+  83–97% for the procedural hostiles. The 0.45 × 1.75 capsule was tuned against a
+  procedural body; the authored sculpts run 1.66 m (Ventress) to 2.05 m (Bossk) and are
+  broader, so the helmet and the legs sit outside the sphere. Sizing each fighter's hit
+  volume to its own model would make Paz a visibly bigger target than Ventress — correct,
+  readable, and a real difficulty change in every mode, so it wants a decision rather
+  than a commit.

@@ -20,11 +20,12 @@ const KEYBOARD: Array<[string, string]> = [
   ['Block — raise shield (hold)', 'R'],
   ['Fire blaster', 'Left mouse'],
   ['Aim — zoom', 'Right mouse'],
-  ['Melee combo (gaffi stick)', 'F · Middle mouse'],
+  ['Melee combo — draws the blade', 'F · Middle mouse'],
   ['Wrist rocket', 'Q'],
   ['Camera distance', 'Mouse wheel'],
   ['Take cover · ground slam · mount a ride', 'C · Ctrl'],
-  ['Switch weapon', 'E · 1 · 2'],
+  ['Next blade carried', '1'],
+  ['Next gun carried', '2 · E'],
 ];
 
 /**
@@ -133,11 +134,11 @@ function padSvg(): string {
     ${lead('252,176 318,176 350,156')}${dot(375, 150)}
     ${label(244, 181, 'end', [['Left stick', 'Move']])}
     ${lead('252,272 356,272 404,234')}${dot(430, 222)}
-    ${label(244, 271, 'end', [['D-pad →', 'Switch weapon'], ['', 'Navigate menus']])}
+    ${label(244, 271, 'end', [['D-pad ←→', 'Next blade · next gun'], ['', 'Navigate menus']])}
 
     <!-- callouts: right -->
     ${lead('728,44 650,44 608,50')}${dot(589, 52)}
-    ${label(736, 45, 'start', [['RT', 'Fire blaster']])}
+    ${label(736, 45, 'start', [['RT', 'Fire blaster — draws it']])}
     ${lead('728,112 664,112 624,90')}${dot(604, 86)}
     ${label(736, 102, 'start', [['RB', 'Take cover (on ground)'], ['', 'Ground slam (in air)']])}
     ${lead('728,190 692,190 640,155')}${dot(618, 150)}
@@ -145,7 +146,7 @@ function padSvg(): string {
       ['Y', 'Wrist rocket'],
       ['B', 'Block — raise shield'],
       ['A', 'Jump → hold to jetpack'],
-      ['X', 'Melee combo (gaffi)'],
+      ['X', 'Melee combo — draws the blade'],
     ])}
     ${lead('728,300 686,300 634,238')}${dot(605, 222)}
     ${label(736, 296, 'start', [

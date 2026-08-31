@@ -5,7 +5,20 @@ Three modes, **on by default** as of 2026-08-29: the title shows three choices �
 internal id `campaign`) — one per mode. They spent their build behind a `?modes`
 URL flag; that escape hatch survives inverted, so `?nomodes` (or `?modes=off`)
 puts the single **Press Start** back and the game is exactly the wave game. The
-regression test drives both paths.
+regression test drives both paths. A second testing flag, **`?waves=boss`**,
+compresses the wave game to a boss rush: a single wave before each boss battle
+(wave 1 → champion, wave 2 → warlord → monster), for iterating on the bosses.
+
+**Death is a performance (2026-08-30).** Dying no longer parks the player on a
+countdown: the death animation plays, the pose freezes, and the body
+**disintegrates** into drifting amber motes swept feet-to-head; the respawn
+**re-forms** it at the new spot — motes converging, the figure fading back in,
+the camera gliding over rather than cutting. The timers *are* the respawn wait,
+so the player watches the cycle instead of a clock. A re-forming body takes no
+input and no damage until it is whole. Paired with `INFINITE_LIVES` (modes.ts,
+on "for now") in the PvE modes: Waves and Missions have no defeat screens —
+every fall is a walk back. PvP keeps its three stands; there the cycle plays
+on each of them, and running out is still elimination.
 
 This document is the research + design record; `docs/LEVEL_DESIGN.md` carries
 the campaign's level-design strategy in detail. Implementation status lives in
@@ -61,8 +74,13 @@ wave) walks out to fight for the rest of that wave only. Victory comes when the 
 
 **Rules.** 2–4 players (the select refuses to start with one). Free-for-all:
 every player is their own team (`team = 2 + slot`). Each fighter has **3
-lives**; a death costs one and respawns them at a spawn far from the killer
-after 4 s. Last fighter standing takes the territory. Kills and the winner go
+lives**; a death costs one, plays the dissolve, and re-forms them at a spawn
+far from the killer (`INFINITE_LIVES` covers only the PvE modes — the stands
+here are the win condition and stay finite).
+Last fighter standing takes the territory, and the end screen celebrates the
+champion with their portrait held over the tally (the authored
+`portrait_<id>.jpg` where one exists, the drawn face mark otherwise).
+Kills and the winner go
 to the end screen. No waves, no allies; parked vehicles stay (they are part of
 the territory, and a swoop duel is the good kind of chaos).
 
@@ -78,6 +96,24 @@ projectile with a face, and a playable kamikaze deletes itself from the match
 **Flight** only where the in-game version flies: jetpack pirate, dark trooper
 and the nikto swoop get the fuel gauge; everyone else's jump button is just a
 jump. (The jetpack fantasy stays a Mandalorian selling point.)
+
+**Size** (2026-08-30). The roster is not one species, and three places have to
+answer for that. The **collider** is clamped — `radius ≤ 0.6`, `height ≤ 2.1`
+in the roster — so a war beast still fits the cover, doorways and mission
+corridors every board was built around. The **character select** scales a
+fighter down onto its plinth (`FIT_HEIGHT` / `FIT_FOOTPRINT`): a massiff
+measures 3.2 × 4.9 m against a line spaced 1.9 m apart at four players, so at
+its own size it did not overhang the plinth so much as swallow whoever stood
+next to it. The **chase camera** is told the body's real height and reach
+(`ThirdPersonCamera.setSubject`) and keeps a floor under its distance, because
+the rig's numbers are tuned around a 1.8 m Mandalorian and framed a massiff
+from *inside* it — a wall of hide across the whole screen.
+
+None of that shrinks anyone in play: the collider clamp is about fitting the
+world, the other two are about framing. A massiff played is a massiff. The
+select measures the built model rather than the stat table, and re-measures
+when the authored `.glb` swaps in over the procedural stand-in, since the two
+are different sizes and a fit computed once is a fit of the wrong body.
 
 **Balance philosophy** (imperfect on purpose, per the brief): player-side NPCs
 are re-statted, not copied. Enemy-side HP/damage are tuned against a 100 HP
@@ -219,7 +255,17 @@ third it **enrages** (+28% speed, −40% attack cooldown, +15% damage, via a
 per-instance def copy). Camping inside arm's reach draws a **telegraphed
 shock-slam**: an ember-ring windup with a real get-out window, then 26
 damage and a fling — it only arms when someone is close, so ranged play
-never eats it. The fight punishes standing still, never approaching. All of
+never eats it. The fight punishes standing still, never approaching. The
+range side has its own answer: every promoted boss (bar the half-buried
+colossi and the fliers) carries a **super jump** — a committed ballistic
+leap onto where the target is headed, opened with the creature's coil (or
+the air pose on a humanoid) and closed with a ground slam that hits for
+0.6× the boss's swing, shoves everyone underneath and shakes every nearby
+camera. Committed like the massiff's pounce, so a dash or a jetpack hop as
+the shadow arrives beats the landing; melee bosses leap from mid-range,
+ranged bosses only to cross a real gap, and the enrage roughly halves the
+leap's clock. It never fires while the shock-slam's ember ring is up — the
+telegraph's promise about where the hit lands is kept. All of
 it rides existing machinery: `addReinforcement` for the retinue,
 per-instance scaling on `Enemy`, and the standard death/ragdoll/credit path
 when it goes down.

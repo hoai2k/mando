@@ -7,6 +7,14 @@ import * as THREE from 'three';
  * SWAP CONTRACT: an authored glTF character can replace a procedural one by
  * shipping a skeleton whose nodes use these exact names — the animator,
  * controller, and combat code never reference meshes, only bone names.
+ *
+ * SIDES: the rig faces +Z with +Y up, so the character's own left is +X and
+ * its right is -X — stand in front of one and its left hand is on your right.
+ * The `L` bones therefore sit at +X and the `R` bones at -X, which is also
+ * where a Rigify `DEF-*.L` / `DEF-*.R` pair sits in the authored models. That
+ * agreement is what lets the retargeter map the two skeletons name for name
+ * (see `src/characters/authored.ts`); the labels used to be the other way
+ * round, which drove every authored model as its own mirror image.
  */
 
 export const BONES = [
@@ -65,23 +73,23 @@ export function buildRig(p: Proportions = HUMAN): Rig {
   const neck = bones.neck = bone('neck', chest, 0, p.neckLen, 0);
   bones.head = bone('head', neck, 0, p.headSize * 0.4, 0);
 
-  bones.shoulderL = bone('shoulderL', chest, -p.shoulderWidth, p.neckLen * 0.4, 0);
-  bones.upperArmL = bone('upperArmL', bones.shoulderL, -0.06, 0, 0);
+  bones.shoulderL = bone('shoulderL', chest, p.shoulderWidth, p.neckLen * 0.4, 0);
+  bones.upperArmL = bone('upperArmL', bones.shoulderL, 0.06, 0, 0);
   bones.forearmL = bone('forearmL', bones.upperArmL, 0, -p.upperArmLen, 0);
   bones.handL = bone('handL', bones.forearmL, 0, -p.forearmLen, 0);
   bones.weaponL = bone('weaponL', bones.handL, 0, -0.05, 0.02);
 
-  bones.shoulderR = bone('shoulderR', chest, p.shoulderWidth, p.neckLen * 0.4, 0);
-  bones.upperArmR = bone('upperArmR', bones.shoulderR, 0.06, 0, 0);
+  bones.shoulderR = bone('shoulderR', chest, -p.shoulderWidth, p.neckLen * 0.4, 0);
+  bones.upperArmR = bone('upperArmR', bones.shoulderR, -0.06, 0, 0);
   bones.forearmR = bone('forearmR', bones.upperArmR, 0, -p.upperArmLen, 0);
   bones.handR = bone('handR', bones.forearmR, 0, -p.forearmLen, 0);
   bones.weaponR = bone('weaponR', bones.handR, 0, -0.05, 0.02);
 
-  bones.upperLegL = bone('upperLegL', hips, -p.hipWidth, -0.02, 0);
+  bones.upperLegL = bone('upperLegL', hips, p.hipWidth, -0.02, 0);
   bones.lowerLegL = bone('lowerLegL', bones.upperLegL, 0, -p.upperLegLen, 0);
   bones.footL = bone('footL', bones.lowerLegL, 0, -p.lowerLegLen, 0.03);
 
-  bones.upperLegR = bone('upperLegR', hips, p.hipWidth, -0.02, 0);
+  bones.upperLegR = bone('upperLegR', hips, -p.hipWidth, -0.02, 0);
   bones.lowerLegR = bone('lowerLegR', bones.upperLegR, 0, -p.upperLegLen, 0);
   bones.footR = bone('footR', bones.lowerLegR, 0, -p.lowerLegLen, 0.03);
 

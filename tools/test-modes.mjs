@@ -30,7 +30,8 @@ const STEP = `(n) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
     rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    pausePressed:false });
   const g = window.__game;
   const inputs = [blank(), blank(), blank(), blank()];
   for (let i = 0; i < n; i++) g.update(1/30, inputs);
@@ -77,12 +78,14 @@ let s = await page.evaluate(`(() => {
     followers: g.enemies.filter((e) => e.owner).length,
     followerTeam: g.enemies.find((e) => e.owner)?.team,
     hostiles0: g.hostilesFor(g.players[0]).length,
-    npcFly: g.players[1].profile.canFly,
+    npcFlight: g.players[1].profile.flight,
+    mandoFlight: g.players[0].profile.flight,
   };
 })()`);
 check('pvp: match opens, every fighter its own team', s.state === 'fighting' && s.teams[0] === 2 && s.teams[1] === 3, JSON.stringify(s.teams));
 check('pvp: the NPC adapter fields player two', s.npc === 'Tusken Raider');
-check('pvp: a ground NPC does not fly', s.npcFly === false);
+check('pvp: an NPC super-jumps, never a jetpack; the Mandalorian keeps his',
+  s.npcFlight === 'superjump' && s.mandoFlight === 'jetpack', `${s.npcFlight}/${s.mandoFlight}`);
 check('pvp: squad followers ride their leader\'s team', s.followers === 2 && s.followerTeam === 3, `${s.followers} @ team ${s.followerTeam}`);
 check('pvp: rival and their squad are hostile to player one', s.hostiles0 === 3, String(s.hostiles0));
 // the squad carries its leader: a downed leader with a follower still up
@@ -101,6 +104,28 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: a downed leader carries on in a surviving follower',
   s.state === 'fighting' && s.alive === true && s.before === 2 && s.followers === 1, JSON.stringify(s));
+// a death with a stand left plays the full cycle: dissolve, then re-form at
+// a far spawn — the wait is the performance, not a countdown
+s = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p2 = g.players[1];
+  p2.lives = 1;
+  for (const e of g.enemies) if (e.owner === p2 && e.alive) e.damage(9999, e.position, 0);
+  p2.damage(9999, p2.position, 0);
+  let dissolved = false, formed = false;
+  for (let i = 0; i < 200; i++) {
+    (${STEP})(1);
+    if (p2.dissolving) dissolved = true;
+    if (p2.alive && p2.formT > 0) formed = true;
+    if (p2.alive && p2.formT <= 0 && formed) break;
+  }
+  return { state: g.state, alive: p2.alive, dissolved, formed, lives: p2.lives };
+})()`);
+check('pvp: a death with a stand left dissolves, then re-forms at the new spawn',
+  s.state === 'fighting' && s.alive === true && s.dissolved && s.formed && s.lives === 0,
+  JSON.stringify(s));
+// ...and the last stand is still the last: squad wiped, lives spent → the
+// duel ends, with credit, and the end screen holds the champion's portrait
 s = await page.evaluate(`(() => {
   const g = window.__game;
   const p2 = g.players[1];
@@ -111,6 +136,97 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: last fighter standing takes the territory, with credit',
   s.state === 'victory' && s.winner === 0 && s.p1kills >= 1, JSON.stringify(s));
+// the celebration: the end-screen transition lives in the real frame loop
+// (endTimer runs 3 s on the wall clock), so un-pause it and give it its beat —
+// then the hero block holds the winner's face art
+await page.evaluate(() => { window.__manual = false; });
+await sleepFrames(280);
+const hero = await page.evaluate(() => {
+  const el = document.querySelector('.end-hero');
+  return {
+    shown: !!el && el.style.display !== 'none',
+    face: !!el?.querySelector('.end-face svg'),
+    tag: el?.querySelector('.end-tag')?.textContent ?? '',
+  };
+});
+check('pvp: the end screen celebrates the champion with their portrait',
+  hero.shown && hero.face && /Champion/.test(hero.tag), JSON.stringify(hero));
+
+// ---- PvP: the roster is not one species ----
+// The chase rig is tuned around a 1.8 m Mandalorian, and PvP fields a war
+// massiff four metres from nose to tail. Framed as a Mandalorian it put the
+// camera *inside* the animal: a wall of hide across the whole screen and no
+// view of the world. The collider does not catch it — the roster clamps a
+// playable NPC's capsule to 0.6 × 2.1 so a beast still fits the cover and
+// doorways the boards were built around — so this measures the body.
+await startMode('pvp', 2, 'desert', ['npc:massiff', 'npc:stormtrooper']);
+const framing = await page.evaluate(`(() => {
+  const g = window.__game;
+  (${STEP})(60);
+  // world bounds of the geometry actually on screen, pruning hidden subtrees
+  // (a character wears its procedural stand-in under the model that replaced it)
+  const bodyOf = (root) => {
+    const V3 = root.position.constructor;
+    const v = new V3();
+    let mnx = Infinity, mny = Infinity, mnz = Infinity;
+    let mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
+    root.updateWorldMatrix(true, true);
+    const walk = (o, isRoot) => {
+      if (!isRoot && !o.visible) return;
+      const geo = o.geometry;
+      if (geo && geo.attributes && geo.attributes.position) {
+        const pos = geo.attributes.position;
+        const stride = Math.max(1, Math.floor(pos.count / 200));
+        for (let i = 0; i < pos.count; i += stride) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+          mnx = Math.min(mnx, v.x); mny = Math.min(mny, v.y); mnz = Math.min(mnz, v.z);
+          mxx = Math.max(mxx, v.x); mxy = Math.max(mxy, v.y); mxz = Math.max(mxz, v.z);
+        }
+      }
+      for (const c of o.children) walk(c, false);
+    };
+    walk(root, true);
+    return { mnx, mny, mnz, mxx, mxy, mxz };
+  };
+  return g.players.slice(0, 2).map((p) => {
+    const b = bodyOf(p.char.root);
+    const c = p.cam.camera.position;
+    return {
+      id: p.characterId,
+      span: +Math.max(b.mxx - b.mnx, b.mxz - b.mnz).toFixed(2),
+      inside: c.x > b.mnx && c.x < b.mxx && c.y > b.mny && c.y < b.mxy && c.z > b.mnz && c.z < b.mxz,
+      dist: +Math.hypot(c.x - p.position.x, c.y - p.position.y, c.z - p.position.z).toFixed(2),
+    };
+  });
+})()`);
+const beast = framing[0];
+const human = framing[1];
+check('pvp: the camera stays outside the body it follows, however big it is',
+  !beast.inside && !human.inside, JSON.stringify(framing));
+check('pvp: a four-metre fighter is framed further out than a trooper',
+  beast.span > 3 && beast.dist > human.dist + 1, JSON.stringify(framing));
+// ...and the same body is scaled down to fit its plinth on the select, where
+// at its own size it swallowed whoever was standing next to it
+const fitted = await page.evaluate(async () => {
+  window.__quitToTitle();
+  await new Promise((r) => requestAnimationFrame(r));
+  const cs = window.__charsel;
+  cs.configure({ roster: window.__pvpRoster, title: 'Choose Your Fighter', minPlayers: 2 });
+  cs.show();
+  const slot = cs.slots[0];
+  const scaleOf = (id) => {
+    const i = cs.roster.indexOf(id);
+    if (i < 0) return null;
+    slot.choice = i;
+    slot.phase = 'browsing';
+    cs.update(1 / 60);
+    const c = slot.chars.get(id);
+    return c ? +c.root.scale.x.toFixed(3) : null;
+  };
+  return { massiff: scaleOf('npc:massiff'), trooper: scaleOf('npc:stormtrooper') };
+});
+check('select: a giant fighter is scaled onto its plinth, a humanoid is left alone',
+  fitted.massiff !== null && fitted.massiff < 0.6 && fitted.trooper === 1, JSON.stringify(fitted));
 
 // ---- Campaign ----
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
@@ -193,6 +309,77 @@ check('wave: the warlord is a promoted elite', (wv.bossHp ?? 0) > 1000, String(w
 check('wave: the monster is the last of them, at its own boss-scale health',
   wv.boss === 'The Old One of the Dune Sea' && wv.bossHp === 5200, JSON.stringify(wv));
 check('wave: its death holds the territory', wv.state === 'victory');
+
+// ---- boss super jump ----
+// A promoted boss with a target holding mid-range closes the gap in a
+// committed ballistic leap and lands a slam (enemy.ts trySuperJump). Post the
+// warlord 20 m out on open desert, wake it, and watch it go airborne.
+await startMode('wave', 1, 'desert', ['din']);
+const sj = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const at = p.position.clone(); at.x += 20;
+  const boss = g.spawnBoss(at, 'final');
+  boss.alert(p.position, true);
+  let airborne = 0, jumps = 0, minDist = 1e9;
+  for (let i = 0; i < 500; i++) {
+    (${STEP})(1);
+    p.hp = p.maxHp; p.alive = true;         // the leap, not the loss, is under test
+    if (!boss.alive) break;
+    if (boss.velocity.y > 4) airborne++;
+    jumps = boss.superJumps;
+    minDist = Math.min(minDist, boss.position.distanceTo(p.position));
+    if (jumps > 0 && airborne > 3 && minDist < 12) break;
+  }
+  return { jumps, airborne, minDist: +minDist.toFixed(1), boss: boss.bossName };
+})()`);
+check('wave: the warlord super jumps to close the gap',
+  sj.jumps > 0 && sj.airborne > 3, JSON.stringify(sj));
+check('wave: the leap actually carries it to the player', sj.minDist < 12, JSON.stringify(sj));
+
+// ---- death is a performance: dissolve, then re-form (infinite lives) ----
+// The fall plays, the pose freezes and the body burns away into motes; the
+// respawn re-forms it at the landing spot. Solo wave death used to be the
+// defeat screen — with INFINITE_LIVES it is a walk back instead.
+await startMode('wave', 1, 'desert', ['din']);
+const dz = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  (${STEP})(150);
+  p.damage(9999, p.position);
+  let dissolved = false, hidden = false, formed = false, visibleAgain = false;
+  for (let i = 0; i < 240; i++) {
+    (${STEP})(1);
+    if (p.dissolving) dissolved = true;
+    if (!p.alive && !p.char.root.visible) hidden = true;
+    if (p.alive && p.formT > 0) formed = true;
+    if (p.alive && formed && p.formT <= 0) { visibleAgain = p.char.root.visible; break; }
+  }
+  return { dissolved, hidden, formed, visibleAgain, alive: p.alive, state: g.state };
+})()`);
+check('wave: a death dissolves the body, then re-forms it — no defeat',
+  dz.dissolved && dz.hidden && dz.formed && dz.visibleAgain && dz.alive && dz.state === 'fighting',
+  JSON.stringify(dz));
+
+// ---- ?waves=boss: a single wave before each boss battle ----
+await page.evaluate(() => { window.__manual = false; });
+await page.goto('http://localhost:4173/?waves=boss');
+await sleepFrames(8);
+await startMode('wave', 1, 'desert', ['din']);
+const br = await page.evaluate(`(() => {
+  const g = window.__game;
+  let guard = 0;
+  const bosses = [];
+  while (g.state !== 'victory' && guard++ < 40) {
+    if (g.boss && g.boss.alive && !bosses.includes(g.boss.bossName)) bosses.push(g.boss.bossName);
+    for (const e of g.enemies) if (e.alive) e.damage(999999, e.position, 0);
+    g.players[0].hp = g.players[0].maxHp; g.players[0].alive = true;
+    (${STEP})(200);
+  }
+  return { wave: g.wave, bosses, state: g.state };
+})()`);
+check('?waves=boss: one wave to the champion, one more to the warlord and its monster',
+  br.state === 'victory' && br.wave === 3 && br.bosses.length === 3, JSON.stringify(br));
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });

@@ -1,17 +1,28 @@
 import * as THREE from 'three';
-import type { PlayerCharacter } from '../characters/mandalorians';
+import {
+  MELEE_NAMES, RANGED_NAMES,
+  type MeleeKind, type PlayerCharacter, type RangedKind,
+} from '../characters/mandalorians';
 import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
 import { ThirdPersonCamera } from '../core/camera';
+import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
-import { hazardAt } from '../world/board';
+import { gravityScale, hazardAt, type Board } from '../world/board';
 import type { Game } from '../game/game';
 import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
+import { markOwned } from '../core/dispose';
 import { ThrownSaber } from './saberthrow';
+
+/** scratch for measuring the body the camera is framing */
+const _bodyBox = new THREE.Box3();
+const _bodySize = new THREE.Vector3();
+/** how often the body is re-measured for the camera, seconds */
+const FRAME_RECHECK = 0.5;
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -28,6 +39,18 @@ const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
 const FUEL_SECONDS = 3.4;
 const DASH_SPEED = 19;
+/** super jump: sustained climb speed while A stays held from the leap, m/s */
+const SUPERJUMP_RISE = 9;
+/** super jump: gravity multiplier while feathering the fall with A held */
+const SUPERJUMP_GLIDE = 0.35;
+/** super jump: terminal fall speed while feathering, m/s */
+const SUPERJUMP_FALL = 5.2;
+/** a jetpack A-tap released within this many seconds reads as a toggle, not a thrust hold */
+const JET_TAP = 0.22;
+/** eased jetpack descent: gravity multiplier while the pack idles against the fall */
+const JET_DESCENT_GRAV = 0.3;
+/** eased jetpack descent: terminal fall speed, m/s */
+const JET_DESCENT_FALL = 4.5;
 const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
@@ -70,7 +93,36 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+
+/**
+ * The aim-glide: sighting a shot on the way down.
+ *
+ * Falling is 18 m/s of the ground rushing up, which is no place to line
+ * anything up — so aiming in the air, with the jetpack off, has the boosters
+ * catch you instead. You do not hover (that is what the jetpack is for) and
+ * you do not stop; you sink slowly enough to shoot, on fuel, which is the
+ * cost. It reads as slow motion and is nothing of the kind: the world runs at
+ * full speed and only you are being held up.
+ */
+const GLIDE_FALL = -1.9;
+/** seconds of glide on a full tank — cheaper than thrust, not free */
+const GLIDE_SECONDS = 7;
+/** the tank has to have this much in it to catch you at all */
+const GLIDE_RESERVE = 0.04;
+/** how fast the fall is caught, and how much the drift bleeds off with it */
+const GLIDE_CATCH = 5;
+const GLIDE_DRAG = 1.1;
 const ROCKET_CD = 12;
+/**
+ * The death-to-respawn performance (docs/MODES.md): the death animation plays,
+ * the pose freezes, and the body disintegrates into drifting motes; on the
+ * respawn it re-forms at the new spot, motes converging as it fades back in.
+ * The timers are the whole respawn wait — the player watches the cycle rather
+ * than a countdown.
+ */
+const DEATH_ANIM_TIME = 1.1;
+/** seconds the disintegration takes — and the re-form on the other side */
+const DISSOLVE_TIME = 1.3;
 
 export class Player {
   char: PlayerCharacter;
@@ -99,6 +151,8 @@ export class Player {
   private landTimer = 0;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
+  /** riding the boosters down on the sights: slow descent, fuel burning */
+  gliding = false;
   /** blaster heat, 0..1; at 1 the weapon locks out until it has vented */
   heat = 0;
   /** true while the blaster is locked out and venting */
@@ -126,6 +180,9 @@ export class Player {
    * therefore switches itself off for a character who carries no gun.
    */
   weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
+  /** which of the carried weapons is in each slot; the D-pad moves these */
+  private rangedIdx = 0;
+  private meleeIdx = 0;
   /**
    * Seconds of no swinging and no deflecting before the blades go away again.
    * A saber fighter walks the board with empty hands and lights up the moment
@@ -175,6 +232,24 @@ export class Player {
   waterTime = 0;
 
   grounded = false;
+  // ---- jetpack eased descent (flight: 'jetpack') ----
+  /**
+   * A quick airborne A tap toggles this: the pack idles against gravity so
+   * the fall becomes a slow, steerable drop. Off by default, off again on
+   * landing — falling normally is always the state you take off from.
+   */
+  slowDescent = false;
+  /** seconds since an airborne A press being classified; -1 = none pending */
+  private airTap = -1;
+  /** easing the fall this frame (the gravity block reads it) */
+  private jetEasing = false;
+  // ---- super jump (flight: 'superjump') ----
+  /** the A hold from the take-off is still unbroken: the climb is live */
+  private riseHold = false;
+  /** climbing under the hold this frame (gravity stands aside) */
+  private superRising = false;
+  /** feathering the fall with A held (reduced gravity, capped fall) */
+  private superGliding = false;
   private coyote = 0;
   private fireCd = 0;
   private thrusting = 0;
@@ -196,10 +271,22 @@ export class Player {
   rocketCd = 0;
   private regenDelay = 0;
   respawnTimer = 0;
+  /** seconds since death — drives the death-anim → freeze → disintegrate timeline */
+  private deadT = 0;
+  /** re-form countdown after a respawn; while > 0 the body is assembling: no input, no damage */
+  formT = 0;
+  /** original materials, swapped out for the dissolve's transparent clones */
+  private savedMats: Map<THREE.Mesh, THREE.Material | THREE.Material[]> | null = null;
   private hurtFlash = 0;
   private facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
   get yaw(): number { return this.facingYaw; }
+  /**
+   * What this fighter is shot at as. `height` is the clamped collider — the
+   * level-fit capsule a playable war beast walks the boards in — so anything
+   * aiming or registering a hit reads this instead. See PlayerProfile.
+   */
+  get hitHeight(): number { return this.profile.hitHeight; }
   private wasGrounded = true;
   private footTimer = 0;
   private sprintRefillDelay = 0;
@@ -224,6 +311,10 @@ export class Player {
   private peekSide = 0;
   private peekRecheck = 0;
   private pushAwayTime = 0;
+  /** subtree size the camera framing was last measured against (see frameCamera) */
+  private framedNodes = -1;
+  /** how long until the body is measured again, seconds */
+  private frameCheck = 0;
 
   constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
     const def = playableDef(characterId);
@@ -235,16 +326,58 @@ export class Player {
     this.height = this.profile.height;
     if (this.meleeOnly) this.weapon = 'none';
     this.cam = new ThirdPersonCamera(aspect);
+    this.frameCamera();
   }
 
-  /** what the HUD calls the weapon currently in hand */
+  /**
+   * Tell the chase rig how big this fighter actually is.
+   *
+   * It has to be measured rather than read off the profile: a playable NPC's
+   * collider is clamped so a war beast still fits the cover and doorways the
+   * boards were built around, which leaves `radius`/`height` describing a
+   * capsule that a massiff is four metres longer than. The camera framed by
+   * those numbers sits inside the animal.
+   *
+   * Re-measured when the subtree changes shape, because a character is born as
+   * a procedural stand-in and its authored model swaps in seconds later at its
+   * own size — a frame computed once is a frame of the wrong body.
+   */
+  private frameCamera(): void {
+    const nodes = nodeCount(this.char.root);
+    if (nodes === this.framedNodes) return;
+    visibleBounds(this.char.root, _bodyBox);
+    if (_bodyBox.isEmpty()) return;
+    this.framedNodes = nodes;
+    _bodyBox.getSize(_bodySize);
+    this.cam.setSubject(_bodySize.y, Math.max(_bodySize.x, _bodySize.z) / 2);
+  }
+
+  /** the gun currently drawn (or the one a trigger pull would draw) */
+  get rangedKind(): RangedKind | null {
+    return this.profile.rangedOptions[this.rangedIdx] ?? null;
+  }
+  /** the blade currently drawn (or the one a swing would draw) */
+  get meleeKind(): MeleeKind {
+    return this.profile.meleeOptions[this.meleeIdx] ?? this.profile.meleeKind;
+  }
+
+  /**
+   * What the HUD calls the weapon currently in hand.
+   *
+   * The signature slot keeps the name the character sheet gave it — a beast's
+   * "Claws & Steel", a trooper's "<kind> Blaster" — and anything cycled to
+   * from there is named for what it is.
+   */
   weaponLabel(): string {
-    if (this.weapon === 'none') return `${this.profile.meleeName} · stowed`;
+    const melee = this.meleeIdx === 0 ? this.profile.meleeName : MELEE_NAMES[this.meleeKind];
+    if (this.weapon === 'none') return `${melee} · stowed`;
     if (this.weapon === 'gaffi') {
-      if (this.profile.meleeKind === 'sabers' && this.sabersHeld < 2) return `${this.profile.meleeName} · thrown`;
-      return this.profile.meleeName;
+      if (this.meleeKind === 'sabers' && this.sabersHeld < 2) return `${melee} · thrown`;
+      return melee;
     }
-    return this.profile.rangedName ?? this.profile.meleeName;
+    const gun = this.rangedKind;
+    if (!gun) return melee;
+    return this.rangedIdx === 0 ? this.profile.rangedName ?? RANGED_NAMES[gun] : RANGED_NAMES[gun];
   }
 
   /**
@@ -294,10 +427,23 @@ export class Player {
     });
     this.char.animator!.releaseAll();
     this.char.root.visible = true;
+    // A body that burned away re-forms where it respawns: it starts invisible
+    // and fades in as the motes converge, and the camera flies over to the
+    // new spot rather than cutting. A spawn with no dissolve behind it (match
+    // start, the PvP squad takeover) skips all of this.
+    if (this.savedMats) {
+      this.formT = DISSOLVE_TIME;
+      this.setOpacity(0);
+      this.cam.glideFrom(0.9);
+      const look = p.clone();
+      look.y += this.height;
+      this.cam.snapToward(look, 0.5);
+    }
   }
 
   damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
-    if (!this.alive) return;
+    // a body still assembling isn't there to hit yet
+    if (!this.alive || this.formT > 0) return;
     // Mounted, the hull is your HP: hits on the rider land on the vehicle —
     // until it gives out. Kill zones (999) still kill the rider outright.
     if (this.vehicle && amount < 500) {
@@ -325,7 +471,9 @@ export class Player {
     this.vehicle?.dropRider();
     this.hp = 0;
     this.alive = false;
-    this.respawnTimer = 4;
+    this.deadT = 0;
+    // the wait *is* the performance: fall, freeze, burn away — then respawn
+    this.respawnTimer = DEATH_ANIM_TIME + DISSOLVE_TIME + 0.1;
     const anim = this.char.animator!;
     anim.release('lower');
     anim.release('upper');
@@ -339,6 +487,60 @@ export class Player {
 
   get hurtIntensity(): number { return this.hurtFlash; }
   get meleeActive(): boolean { return this.meleeTimer > 0; }
+  /** the corpse is mid-burn: pose frozen, body fading into motes */
+  get dissolving(): boolean { return !this.alive && this.deadT > DEATH_ANIM_TIME; }
+
+  /** swap every material for a per-body transparent clone the dissolve can fade */
+  private ensureDissolveMats(): void {
+    if (this.savedMats) return;
+    const saved = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      saved.set(mesh, mesh.material);
+      const clone = (m: THREE.Material): THREE.Material => {
+        const c = markOwned(m.clone());
+        c.transparent = true;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
+    });
+    this.savedMats = saved;
+  }
+
+  /** the body is whole again: the original (shared, opaque) materials return */
+  private restoreMats(): void {
+    if (!this.savedMats) return;
+    for (const [mesh, mats] of this.savedMats) {
+      const cur = mesh.material;
+      mesh.material = mats;
+      for (const m of Array.isArray(cur) ? cur : [cur]) m.dispose();
+    }
+    this.savedMats = null;
+  }
+
+  private setOpacity(alpha: number): void {
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) m.opacity = alpha;
+    });
+  }
+
+  /**
+   * One frame of the corpse burning away, `k` 0→1: the body fades as amber
+   * motes stream off it, the emit point swept from the feet toward the head.
+   */
+  private setDissolve(k: number, game: Game): void {
+    this.ensureDissolveMats();
+    this.setOpacity(1 - k);
+    if (k >= 1) { this.char.root.visible = false; return; }
+    const at = this.position.clone();
+    at.y += k * this.height;
+    at.x += (Math.random() - 0.5) * this.radius * 2;
+    at.z += (Math.random() - 0.5) * this.radius * 2;
+    game.particles.disintegrate(at, 4);
+  }
 
   /**
    * Animation time for this frame: near-frozen during hit-stop, so a landed
@@ -370,13 +572,12 @@ export class Player {
 
   /** the character fights with blades and carries nothing to shoot with */
   private get meleeOnly(): boolean {
-    return this.profile.rangedName === null;
+    return this.profile.rangedOptions.length === 0;
   }
 
   /** blades out and free to work */
   get sabersDrawn(): boolean {
-    return this.alive && this.weapon === 'gaffi'
-      && this.profile.meleeKind === 'sabers';
+    return this.alive && this.weapon === 'gaffi' && this.meleeKind === 'sabers';
   }
 
   /** blades physically in hand — thrown ones are out in the world */
@@ -440,13 +641,48 @@ export class Player {
     this.updateSaberThrow(dt, input, game);
     if (!this.alive) {
       this.respawnTimer -= dt;
+      this.deadT += dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
-      this.velocity.y -= GRAVITY * (game.board.gravity ?? 1) * dt;
+      this.velocity.y -= GRAVITY * this.gravity(game.board) * dt;
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.syncVisual(dt, game);
-      anim.update(dt);
+      // the fall plays out, then the pose freezes and the body burns away
+      const dis = (this.deadT - DEATH_ANIM_TIME) / DISSOLVE_TIME;
+      if (dis <= 0) anim.update(dt);
+      else this.setDissolve(Math.min(dis, 1), game);
       return;
+    }
+
+    // re-forming after a respawn: motes converge head-to-feet and the figure
+    // fades back in where it will stand — watchable, untouchable, and deaf to
+    // input until it is whole
+    if (this.formT > 0) {
+      this.formT -= dt;
+      const k = clamp(this.formT / DISSOLVE_TIME, 0, 1);   // 1 = still gone
+      this.setOpacity(1 - k);
+      const at = this.position.clone();
+      at.y += k * this.height;
+      at.x += (Math.random() - 0.5) * this.radius * 2;
+      at.z += (Math.random() - 0.5) * this.radius * 2;
+      game.particles.disintegrate(at, 4);
+      if (this.formT <= 0) this.restoreMats();
+      anim.play('lower', 'idleLower');
+      anim.play('upper', 'idleUpper');
+      this.syncVisual(dt, game);
+      anim.update(dt);
+      this.cam.update(realDt, this.position, game.board.physics, {
+        aiming: false, speed: 0, dashing: false,
+      });
+      return;
+    }
+
+    // the authored model lands seconds into a match and is a different size
+    // from the stand-in it replaces; the camera wants to hear about it
+    this.frameCheck -= dt;
+    if (this.frameCheck <= 0) {
+      this.frameCheck = FRAME_RECHECK;
+      this.frameCamera();
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
@@ -574,7 +810,11 @@ export class Player {
     // One press arms one dodge. If the stick is already pushed it fires on the
     // spot; if the stick is centred the dodge waits for a direction and goes
     // the instant one arrives. Either way, holding LB on past the dodge rolls
-    // into a sprint. In the air sprint means nothing, so it is the jet burst.
+    // into a sprint (which means nothing in the air). The same arming works
+    // airborne: a falling Mandalorian holds LB and flicks the stick to dart
+    // that way — it used to fire camera-forward the instant LB was pressed
+    // with the stick centred, which spent the dodge before a direction could
+    // be chosen.
     const canDash = this.dashCd <= 0 && this.energy > DASH_ENERGY && !this.blocking && this.snareTimer <= 0 && !this.wading;
     if (input.dashPressed && !this.blocking) {
       this.dashArmed = true;
@@ -584,7 +824,7 @@ export class Player {
     }
     if (!input.sprintHeld) { this.dashArmed = false; this.sprintLatched = false; }
 
-    const dashNow = this.dashArmed && canDash && (moving || !this.grounded);
+    const dashNow = this.dashArmed && canDash && moving;
     if (dashNow) {
       this.dashArmed = false;
       this.dashTimer = 0.24;
@@ -633,21 +873,55 @@ export class Player {
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
-      const lambda = this.grounded ? 13 * traction : (this.thrusting > 0 ? 9 : AIR_CONTROL * 0.6);
+      // a rising or gliding super jumper steers like a flyer (flags are a
+      // frame stale here, which the eye cannot see)
+      const airLambda = this.thrusting > 0 || this.superRising || this.superGliding ? 9 : AIR_CONTROL * 0.6;
+      const lambda = this.grounded ? 13 * traction : airLambda;
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
 
-    // ---- jump / jetpack ----
+    // ---- jump / flight ----
+    const superjump = this.profile.flight === 'superjump';
+    const jetpack = this.profile.flight === 'jetpack';
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
+    if (this.grounded) {
+      this.riseHold = false;
+      // the ground resets the descent toggle: you always take off falling normally
+      this.slowDescent = false;
+      this.airTap = -1;
+    }
+    let jumped = false;
     if (input.jumpPressed && this.coyote > 0 && !this.blocking && this.snareTimer <= 0) {
       this.velocity.y = JUMP_VEL;
       this.coyote = 0;
       this.grounded = false;
       game.particles.dustPuff(this.position, 4);
+      jumped = true;
+      // the super jump is armed by the take-off itself: the hold that leaves
+      // the ground is the one that keeps climbing
+      this.riseHold = superjump;
+    }
+    // A quick airborne A tap — no jump left to spend, and released before it
+    // reads as a thrust hold — toggles the eased descent. The classification
+    // happens on release, so a real hold (which starts thrusting immediately)
+    // never flips the mode.
+    if (jetpack) {
+      if (input.jumpPressed && !jumped && !this.grounded) this.airTap = 0;
+      else if (this.airTap >= 0) {
+        this.airTap += dt;
+        if (!input.jumpHeld) {
+          if (this.airTap <= JET_TAP) this.slowDescent = !this.slowDescent;
+          this.airTap = -1;
+        } else if (this.airTap > JET_TAP) {
+          this.airTap = -1;   // held on: that press was a thrust, not a toggle
+        }
+      }
     }
     this.thrusting = 0;
-    if (this.profile.canFly && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
+    this.gliding = false;
+    this.jetEasing = false;
+    if (jetpack && input.jumpHeld && !this.grounded && !this.blocking && this.velocity.y < JUMP_VEL * 0.7 && this.fuel > 0) {
       this.thrusting = 1;
       this.velocity.y = Math.min(this.velocity.y + JET_ACCEL * dt, JET_MAX_UP);
       this.fuel = Math.max(0, this.fuel - dt / FUEL_SECONDS);
@@ -663,15 +937,54 @@ export class Player {
         if (ignite) game.particles.jetIgnite(_jetPos, _jetDir);
         game.particles.jetPlume(_jetPos, _jetDir, dt, { power: 1, carrier: this.velocity });
       }
+    } else if (
+      jetpack && input.aimHeld && !this.grounded && !this.blocking
+      && !this.slamming && this.dashTimer <= 0 && this.fuel > GLIDE_RESERVE && this.velocity.y < 1
+    ) {
+      // Aiming on the way down: the boosters take the fall rather than fight
+      // it. A quarter-power plume, so the pack is visibly doing the work.
+      this.gliding = true;
+      this.fuel = Math.max(0, this.fuel - dt / GLIDE_SECONDS);
+      for (const nozzle of this.char.nozzles) {
+        nozzle.getWorldPosition(_jetPos).sub(this.char.root.position).add(this.position);
+        _jetDir.set(0, -1, 0).applyQuaternion(nozzle.getWorldQuaternion(_jetRot));
+        game.particles.jetPlume(_jetPos, _jetDir, dt, { power: 0.28, carrier: this.velocity });
+      }
     } else if (this.grounded) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
-    } else {
+    } else if (jetpack && this.slowDescent && this.velocity.y < 0 && this.fuel > 0 && !this.blocking) {
+      // eased descent: the pack idles against gravity — a visible low burn,
+      // a sip of fuel, and the gravity block below softens the fall
+      this.jetEasing = true;
+      this.thrusting = 0.35;
+      this.fuel = Math.max(0, this.fuel - dt / (FUEL_SECONDS * 5));
+    } else if (!input.aimHeld) {
       this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 3.2));
     }
-    audio.setJetpackThrust(this.slot, this.thrusting * (0.6 + 0.4 * Math.min(1, Math.abs(this.velocity.y) / 8)));
+    // Holding the sights in the air keeps the pack spooled whether or not it
+    // has anything left to give, so a dry tank gets no trickle here. Without
+    // that, the airborne refill handed back a sliver of fuel the instant the
+    // glide stopped and the glide restarted on it, a frame at a time, all the
+    // way down.
+    audio.setJetpackThrust(this.slot,
+      this.thrusting * (0.6 + 0.4 * Math.min(1, Math.abs(this.velocity.y) / 8)) + (this.gliding ? 0.3 : 0));
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
-    this.char.setThrust(this.thrusting);
+    this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
+
+    // ---- super jump: the non-Mandalorian answer to the jetpack ----
+    // Hold A from the leap and she just keeps rising — as high as the hold
+    // lasts, no fuel, no flames. The moment the button lifts (or the shield
+    // comes up) the climb is spent for good: nothing relights mid-air, and
+    // the way down is a commitment, softened only by the glide below.
+    this.superRising = false;
+    if (superjump && this.riseHold) {
+      if (!input.jumpHeld || this.blocking) this.riseHold = false;
+      else if (!this.grounded) {
+        this.superRising = true;
+        this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
+      }
+    }
 
     // ---- slam ----
     if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
@@ -685,16 +998,40 @@ export class Player {
     const board = game.board;
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
     if (this.dashTimer <= 0) {
-      this.velocity.y -= GRAVITY * (board.gravity ?? 1) * (inVoid ? (board.voidGravity ?? 0.15) : 1) * dt;
-      // A brace wants the ground under it: raising the shield mid-air kills any
-      // rise you had and pulls you down to meet it.
-      if (this.blocking && !this.grounded) {
-        if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
-        this.velocity.y -= BLOCK_SINK * dt;
-      }
-      if (inVoid) {
-        const terminal = -(board.voidFallSpeed ?? 3.2);
-        if (this.velocity.y < terminal) this.velocity.y = terminal;
+      // a super jumper feathers the fall: holding A on the way down is a
+      // controlled drop — lighter gravity, a capped fall speed — never a rise
+      this.superGliding = superjump && !this.grounded && !this.superRising
+        && input.jumpHeld && this.velocity.y < 2 && !this.blocking;
+      if (this.gliding) {
+        // The boosters carry the weight, so this replaces gravity rather than
+        // resisting it — damping a fall *against* a full g settles at whatever
+        // speed the two happen to balance at (7.6 m/s, as measured), which is
+        // not a glide. Easing to a set descent is what makes it one.
+        this.velocity.y = damp(this.velocity.y, GLIDE_FALL, GLIDE_CATCH, dt);
+        // the drift bleeds off with it, so a shot can be held on a line
+        this.velocity.x = damp(this.velocity.x, 0, GLIDE_DRAG, dt);
+        this.velocity.z = damp(this.velocity.z, 0, GLIDE_DRAG, dt);
+      } else {
+        const gScale = this.superRising ? 0
+          : this.superGliding ? SUPERJUMP_GLIDE
+          : this.jetEasing ? JET_DESCENT_GRAV : 1;
+        // The void keeps the board's flat scale: a local field is about where
+        // you can land, and under the board there is nowhere — leaving the drift
+        // on the field would hang a fallen player in the dark forever.
+        const g = inVoid ? (board.gravity ?? 1) * (board.voidGravity ?? 0.15) : this.gravity(board);
+        this.velocity.y -= GRAVITY * g * gScale * dt;
+        if (this.superGliding && this.velocity.y < -SUPERJUMP_FALL) this.velocity.y = -SUPERJUMP_FALL;
+        if (this.jetEasing && this.velocity.y < -JET_DESCENT_FALL) this.velocity.y = -JET_DESCENT_FALL;
+        // A brace wants the ground under it: raising the shield mid-air kills
+        // any rise you had and pulls you down to meet it.
+        if (this.blocking && !this.grounded) {
+          if (this.velocity.y > 0) this.velocity.y = damp(this.velocity.y, 0, 9, dt);
+          this.velocity.y -= BLOCK_SINK * dt;
+        }
+        if (inVoid) {
+          const terminal = -(board.voidFallSpeed ?? 3.2);
+          if (this.velocity.y < terminal) this.velocity.y = terminal;
+        }
       }
     }
     // never strand a drifting player with an empty tank
@@ -755,7 +1092,10 @@ export class Player {
     // Both hands are on the shield: no firing, no swinging, no weapon swap
     // from behind it. Everything else in updateCombat still ticks down.
     this.updateCombat(dt, this.blocking
-      ? { ...input, shootHeld: false, aimHeld: false, meleePressed: false, rocketPressed: false, switchPressed: false }
+      ? {
+        ...input, shootHeld: false, aimHeld: false, meleePressed: false, rocketPressed: false,
+        meleeSwapPressed: false, rangedSwapPressed: false,
+      }
       : input, game);
 
     // ---- facing ----
@@ -775,7 +1115,7 @@ export class Player {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
       anim.play('upper', 'blockUpper', 0.12);
-    } else if (this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
+    } else if (this.gliding || this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       anim.play('lower', 'flyLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
     } else if (!this.grounded) {
@@ -797,7 +1137,7 @@ export class Player {
         lowerClip = 'backpedalLower';
         rate = -anim.gaitRate(lowerClip, speed2, this.char.baseScale) * 0.9;
       } else if (arel > 0.8) {    // 46-132°: side-stepping
-        lowerClip = rel > 0 ? 'strafeLower' : 'strafeLLower';
+        lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
         rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
       } else {
         // a sprint is its own longer-reaching cycle, not the run spun faster
@@ -1094,7 +1434,7 @@ export class Player {
     }
     this.velocity.x = clamp(dx * 12, -6.5, 6.5);
     this.velocity.z = clamp(dz * 12, -6.5, 6.5);
-    this.velocity.y -= GRAVITY * (game.board.gravity ?? 1) * dt;
+    this.velocity.y -= GRAVITY * this.gravity(game.board) * dt;
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
@@ -1114,7 +1454,9 @@ export class Player {
       shootHeld: input.shootHeld && this.peeking,
       rocketPressed: input.rocketPressed && this.peeking,
       meleePressed: false,
-      switchPressed: false, // the gaffi has no place in cover
+      // no swinging and no rummaging through the loadout from behind cover
+      meleeSwapPressed: false,
+      rangedSwapPressed: false,
     };
     this.updateCombat(dt, masked, game);
 
@@ -1254,16 +1596,20 @@ export class Player {
    * passes through before it can return early.
    */
   private updateSaberHum(): void {
-    if (this.profile.meleeKind !== 'sabers') return;
+    if (this.meleeKind !== 'sabers') return;
     const drawn = this.alive && this.weapon === 'gaffi' && !this.blocking;
     audio.setSaberHum(this.slot, drawn ? 0.55 + (this.meleeTimer > 0 ? 0.8 : 0) : 0);
   }
 
   /**
-   * Blades put themselves away after a lull. They are lit by swinging or by
-   * turning a bolt — both reset the clock — and the moment the player reaches
-   * for them again (melee, or the swap button) they come straight back out, so
-   * stowing is never something you have to undo before you can fight.
+   * Blades put themselves away after a lull, for a fighter who carries nothing
+   * else — the playable war beasts, whose other hand is empty rather than
+   * holding a gun. They are lit by swinging or by turning a bolt (both reset
+   * the clock) and the next swing brings them straight back out, so stowing is
+   * never something you have to undo before you can fight.
+   *
+   * Anyone carrying a gun never reaches this: their blade goes away when they
+   * pull the trigger, which is the same idea with a better cue.
    */
   private updateSaberStow(dt: number, input: FrameInput): void {
     if (!this.meleeOnly) return;
@@ -1293,7 +1639,7 @@ export class Player {
    * blocks, hugs cover, rides, swims, or dies.
    */
   private updateSaberThrow(dt: number, input: FrameInput, game: Game): void {
-    if (!this.meleeOnly || this.profile.meleeKind !== 'sabers') return;
+    if (!this.meleeOnly || this.meleeKind !== 'sabers') return;
     const pressed = input.shootHeld && !this.prevThrowHeld;
     this.prevThrowHeld = input.shootHeld;
     // letting go — or losing the ability to hold on — turns the blades home
@@ -1360,18 +1706,40 @@ export class Player {
     this.cam.shake(0.045);
   }
 
+  /** D-pad left: next blade in the loadout, drawn as it is chosen. */
+  private cycleMelee(): void {
+    const opts = this.profile.meleeOptions;
+    if (opts.length > 1) this.meleeIdx = (this.meleeIdx + 1) % opts.length;
+    this.char.setMeleeKind(this.meleeKind);
+    // picking a blade is reaching for it: it comes out, whatever was in hand
+    this.weapon = 'gaffi';
+    this.char.setWeapon('gaffi');
+    this.saberIdle = 0;
+    if (this.meleeKind === 'sabers') audio.saberIgnite();
+    else audio.uiMove();
+  }
+
+  /** D-pad right: next gun in the loadout, drawn as it is chosen. */
+  private cycleRanged(): void {
+    const opts = this.profile.rangedOptions;
+    if (!opts.length) return;         // a beast has nothing to cycle
+    if (opts.length > 1) this.rangedIdx = (this.rangedIdx + 1) % opts.length;
+    const kind = this.rangedKind;
+    if (kind) this.char.setRangedKind(kind);
+    this.weapon = 'blaster';
+    this.char.setWeapon('blaster');
+    audio.uiMove();
+  }
+
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
     this.deflectCd -= dt;
-    // weapon switch: for a melee-only fighter the other half of the toggle is
-    // empty hands, since there is no gun to swap to
+    // Which slot is in hand is never something the player has to arrange: the
+    // button that uses a weapon is the button that draws it. All the D-pad
+    // does is pick *which* blade or which gun that is, for a fighter carrying
+    // more than one of either.
     const stowed = this.meleeOnly ? 'none' : 'blaster';
-    if (input.switchPressed) {
-      this.weapon = this.weapon === 'gaffi' ? stowed : 'gaffi';
-      this.char.setWeapon(this.weapon);
-      if (this.weapon === 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
-      else audio.uiMove();
-      this.saberIdle = 0;
-    }
+    if (input.meleeSwapPressed) this.cycleMelee();
+    if (input.rangedSwapPressed) this.cycleRanged();
 
     // melee (always available; swaps to gaffi visual during swing)
     this.meleeTimer -= dt;
@@ -1380,11 +1748,11 @@ export class Player {
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
       // sound to sell a blade that isn't there.
-      const bare = this.profile.meleeKind === 'sabers' && this.sabersHeld === 0;
+      const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
       // twin blades get their own combo; everyone else swings the staff set
-      const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
+      const set = this.meleeKind === 'sabers' ? 'saber' : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
@@ -1398,11 +1766,11 @@ export class Player {
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
       // until the idle timer puts them back.
-      if (this.weapon !== 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
+      if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
       this.weapon = 'gaffi';
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep, bare ? 'gaffi' : this.profile.meleeKind);
+      audio.melee(this.meleeStep, bare ? 'gaffi' : this.meleeKind);
       // lunge toward nearest enemy in front (fists don't carry as far)
       const target = this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
       if (target) {
@@ -1468,7 +1836,7 @@ export class Player {
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
         if (hitAny) {
-          audio.meleeHit(this.meleeBare ? 'gaffi' : this.profile.meleeKind);
+          audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
           this.cam.shake(0.1);
           game.hitMarker(this.slot);
           // hit-stop: the attacker's animation hangs for a few frames on
@@ -1479,7 +1847,17 @@ export class Player {
       }
     }
 
-    // blaster
+    // Blaster. The trigger is also the draw: a player who just swung comes out
+    // of it shooting rather than losing a beat to a swap they never asked for.
+    // The swing itself still finishes — the gun comes up as the blade comes
+    // down, not through it.
+    if ((input.shootHeld || input.aimHeld) && !this.meleeOnly
+        && this.weapon !== 'blaster' && this.meleeTimer <= 0) {
+      this.weapon = 'blaster';
+      this.char.setWeapon('blaster');
+      this.meleeComboWindow = 0;
+      this.saberIdle = 0;
+    }
     if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0
         && !this.overheated) {
       this.fireCd = this.profile.fireCd;
@@ -1505,7 +1883,7 @@ export class Player {
       game.particles.muzzleFlash(muzzlePos, shotDir);
       // blaster fire carries: nearby posted enemies come looking
       game.director.noise(game, this.position, 55);
-      audio.blaster(this.profile.blasterVoice);
+      audio.blaster(this.rangedKind ?? this.profile.blasterVoice);
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
@@ -1543,7 +1921,7 @@ export class Player {
     this.rocketCd = 5;
     // both blades away: the leap still goes, but it lands as a body-check —
     // bare-hand reach and bare-hand damage
-    const bare = this.profile.meleeKind === 'sabers' && this.sabersHeld === 0;
+    const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
     this.meleeBare = bare;
     this.meleeRange = bare ? 1.8 : 3;
     const target = this.nearestEnemy(game, 14, 0.2);
@@ -1555,8 +1933,8 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.profile.meleeKind === 'sabers' ? 'saber' : 'melee';
-    if (this.weapon !== 'gaffi' && this.profile.meleeKind === 'sabers') audio.saberIgnite();
+    const set = this.meleeKind === 'sabers' ? 'saber' : 'melee';
+    if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');
     this.saberIdle = 0;
@@ -1566,10 +1944,15 @@ export class Player {
     this.meleeHitPending = dur * 0.6;
     this.meleeDamage = this.profile.meleeFinisher * (bare ? 0.4 : 1);
     this.flourished = false;
-    audio.melee(3, bare ? 'gaffi' : this.profile.meleeKind);
+    audio.melee(3, bare ? 'gaffi' : this.meleeKind);
     audio.dash();
     this.cam.shake(0.12);
     game.particles.dustPuff(this.position, 8);
+  }
+
+  /** the gravity acting on this body where it is standing (or flying) */
+  private gravity(board: Board): number {
+    return gravityScale(board, this.position.x, this.position.y, this.position.z);
   }
 
   /**

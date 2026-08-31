@@ -28,7 +28,10 @@ export interface FrameInput {
   /** driving only: B / S — brake, then reverse once stopped */
   brakeHeld: boolean;
   slamPressed: boolean;
-  switchPressed: boolean;
+  /** D-pad left: cycle to the next melee weapon carried */
+  meleeSwapPressed: boolean;
+  /** D-pad right: cycle to the next gun carried */
+  rangedSwapPressed: boolean;
   pausePressed: boolean;
 }
 
@@ -51,7 +54,8 @@ function blankInput(): FrameInput {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
     aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
-    zoomHeld: false, zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
+    zoomHeld: false, zoomDelta: 0, blockHeld: false, pausePressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false,
     throttleHeld: false, brakeHeld: false,
   };
 }
@@ -353,7 +357,8 @@ export class InputManager {
       inp.aimHeld ||= this.mouseButtons.has(2);
       inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
       inp.rocketPressed ||= this.keysPressed.has('KeyQ');
-      inp.switchPressed ||= this.keysPressed.has('KeyE') || this.keysPressed.has('Digit1') || this.keysPressed.has('Digit2');
+      inp.meleeSwapPressed ||= this.keysPressed.has('Digit1');
+      inp.rangedSwapPressed ||= this.keysPressed.has('Digit2') || this.keysPressed.has('KeyE');
       inp.zoomDelta += this.wheelDY * 0.0016;
     }
 
@@ -391,7 +396,11 @@ export class InputManager {
           inp.lookY = 0;
           inp.zoomDelta += dz(pad.axes[3] ?? 0) * 2.4 * dt;
         }
-        inp.switchPressed ||= this.edge(pad, BTN.DRIGHT);
+        // The D-pad picks *within* a slot, never between them: left cycles the
+        // blades, right cycles the guns. Which slot is in hand is decided by
+        // what you press to use it — X swings, RT shoots.
+        inp.meleeSwapPressed ||= this.edge(pad, BTN.DLEFT);
+        inp.rangedSwapPressed ||= this.edge(pad, BTN.DRIGHT);
       }
     }
     inp.moveX = Math.max(-1, Math.min(1, inp.moveX));
