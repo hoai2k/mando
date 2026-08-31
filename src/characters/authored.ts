@@ -157,7 +157,13 @@ function scheduleRetry(id: string): void {
   }
   retryCount.set(id, spent + 1);
   retrying.set(id, setTimeout(() => {
-    void loadRaw(id).then((raw) => {
+    // Under a key of its own, the way warm fetches are. The tracker reopens a
+    // failed entry when it is loaded again, which is right for a real request
+    // and wrong for this one: the drop screen counts what is outstanding, and
+    // this file was answered for and fell back before the match even started.
+    // Reopening it would put the drop back to waiting on a model nothing is
+    // waiting for — and with no cap on that wait, hold the screen there.
+    void loadRaw(id, `retry:${modelUrl(id)}`).then((raw) => {
       // failed again: that attempt's own handler armed the next one, or gave up
       if (!raw) return;
       retrying.delete(id);
@@ -203,14 +209,21 @@ function loader(): GLTFLoader {
 /** Where a character or creature model lives, and what the tracker calls it. */
 export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}.glb`; }
 
-/** Load and cache a .glb, resolving null when it isn't present. */
-function loadRaw(id: string): Promise<THREE.Group | null> {
+/**
+ * Load and cache a .glb, resolving null when it isn't present.
+ *
+ * `trackKey` is the name the load reports under. It is the file's own url for
+ * every real load, and something else only for a background re-attempt — see
+ * `scheduleRetry`, which must not reopen the ledger entry a drop screen has
+ * already settled.
+ */
+function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | null> {
   let p = cache.get(id);
   if (!p) {
     const url = modelUrl(id);
     // report to the tracker, so a loading screen can wait on this file and
     // show how much of it has arrived without knowing anything about models
-    const handle = tracked.start(url);
+    const handle = tracked.start(trackKey);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,

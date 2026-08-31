@@ -130,6 +130,18 @@ check('the drop revealed with nothing outstanding',
   await h.page.evaluate(() => window.__loadPending()) === 0);
 check('the spiders fell back to their procedural build', kryknaBlocked > 0,
   `${kryknaBlocked} blocked request(s)`);
+// The blocked file is now re-attempted in the background, and those attempts
+// must stay off the ledger the drop screen reads. They report under a key of
+// their own for that reason: counted as real loads they would reopen a file
+// the drop had already settled and, with nothing capping that wait, hold the
+// screen on a model nothing is waiting for.
+const blockedBefore = kryknaBlocked;
+await sleep(5000);            // past the first re-attempt of the blocked spiders
+check('a re-attempt is made in the background', kryknaBlocked > blockedBefore,
+  `${blockedBefore} -> ${kryknaBlocked} blocked request(s)`);
+check('...and does not put the drop back to waiting on it',
+  await h.page.evaluate(() => window.__loadPending()) === 0,
+  `${await h.page.evaluate(() => window.__loadPending())} outstanding`);
 
 // ---- 6. a file that missed on a bad connection is asked for again in play ----
 // A 404 is an answer — most characters have no .glb and the procedural build is
