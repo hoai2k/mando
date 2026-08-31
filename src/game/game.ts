@@ -138,6 +138,8 @@ export class Game {
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
   private bossPhase = 0;
+  /** true while the warlord's theme has the music bus (see updateBossMusic) */
+  private bossMusic = false;
   /** seconds left of the boss introduction: slow-motion, cameras on the warlord */
   bossIntroT = 0;
   /** countdown to the boss's shock-slam; re-armed after each one */
@@ -380,6 +382,10 @@ export class Game {
     if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
     else this.events.banner(boss.bossName, 'Bring them down');
     audio.bossHorn();
+    // The warlord brings his own music. The champion does not: the board's
+    // score carrying on through the mid-board fight is what leaves the change
+    // at the last one meaning something.
+    if (tier === 'final') this.startBossMusic();
     return boss;
   }
 
@@ -544,6 +550,31 @@ export class Game {
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
     audio.beastGrowl(0.9);
+    // the monster is the same battle continuing, so the theme carries over
+    // rather than starting again under it
+    this.startBossMusic();
+  }
+
+  /** Hand the music bus to the warlord's theme, unless it already has it. */
+  private startBossMusic(): void {
+    if (this.bossMusic) return;
+    this.bossMusic = true;
+    audio.startBossMusic(this.board.music, this.board.kind);
+  }
+
+  /**
+   * Give the board its own score back once the boss battle is over.
+   *
+   * The theme belongs to the fight, not to the rest of the match: a campaign
+   * arena carries on after its boss falls, and on a monster board the warlord
+   * going down is an interval, not the end — so the handover waits for the
+   * monster too.
+   */
+  private updateBossMusic(): void {
+    if (!this.bossMusic || this.state !== 'fighting') return;
+    if (this.boss?.alive || this.monsterAt || this.monsterQuake > 0) return;
+    this.bossMusic = false;
+    audio.startMusic(this.board.music, this.board.kind);
   }
 
   /**
@@ -896,6 +927,7 @@ export class Game {
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     if (this.state === 'fighting') this.updateMonsterStage(dt);
     this.updateBoss(dt);
+    this.updateBossMusic();
 
     // the supply cache pulses until someone cracks it, then sheds its panels
     this.allyCrate?.update(dt);
