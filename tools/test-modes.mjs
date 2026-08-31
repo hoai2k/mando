@@ -412,8 +412,17 @@ const walk = await page.evaluate(`(() => {
   const c = g.campaign;
   const out = { sealed: false, assaultWave: false, phases: 0 };
   let guard = 0;
-  while (!c.done && guard++ < 300) {
-    const obj = c.objectivePos;
+  // 60 rooms' worth of turns for an eight-room level: enough slack for a
+  // stall to be a stall, small enough that one fails in a minute instead of
+  // spinning for twenty.
+  while (!c.done && guard++ < 60) {
+    // Walk to the middle of the room being approached, not to its doorway.
+    // objectivePos is a HUD bearing and points at the threshold, which is
+    // where the blast door's blocker stands until it has finished opening —
+    // teleporting onto it just gets the body pushed back out into the
+    // corridor, and the room never counts anyone as inside.
+    const room = c.level.rooms[Math.min(c.idx, c.level.rooms.length - 1)];
+    const obj = c.phase === 'travel' ? room.center : c.objectivePos;
     for (const p of g.players) {
       p.position.set(obj.x, obj.y + 0.2, obj.z);
       p.velocity.set(0, 0, 0);
@@ -440,6 +449,59 @@ const walk = await page.evaluate(`(() => {
 check('campaign: assault rooms seal their gates and run waves', walk.sealed && walk.assaultWave, JSON.stringify(walk));
 check('campaign: the boss calls its retinue at the health marks', walk.phases > 3, String(walk.phases));
 check('campaign: liberation', walk.done && walk.state === 'victory', JSON.stringify(walk));
+
+// ---- blast doors, and who they wait for -------------------------------------
+await startMode('campaign', 2, 'desert', ['din', 'armorer']);
+const doors = await h.page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, phys = g.board.physics;
+  const rooms = c.level.rooms, p = g.players[0], q = g.players[1];
+  const V = (x, y, z) => p.position.clone().set(x, y, z);
+  // can a bolt cross this doorway at chest height?
+  const shootThrough = (room) => {
+    const at = room.entry, to = room.center;
+    const dx = to.x - at.x, dz = to.z - at.z, len = Math.hypot(dx, dz) || 1;
+    const dir = V(dx / len, 0, dz / len);
+    return !phys.raycast(V(at.x - dir.x * 5, at.y + 1.2, at.z - dir.z * 5), dir, 10);
+  };
+  const blank = () => ({
+    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+    zoomDelta: 0, blockHeld: false, pausePressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false,
+    throttleHeld: false, brakeHeld: false,
+  });
+  const inputs = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  const step = (secs) => { for (let t = 0; t < secs; t += 1 / 60) g.update(1 / 60, inputs); };
+  const ahead = rooms[rooms.length - 1];
+  const out = { aheadShut: !!ahead.entryGate?.closed, aheadBolt: shootThrough(ahead) };
+
+  // find the first room that seals, and put ONE player inside it
+  const i = rooms.findIndex((r, n) => n > 0 && r.spec.kind !== 'camp');
+  const room = rooms[i];
+  c.idx = i;
+  c.phase = 'travel';
+  step(2);
+  p.position.copy(room.center); p.velocity.set(0, 0, 0);
+  q.position.copy(rooms[0].center); q.velocity.set(0, 0, 0);
+  step(1.5);
+  out.oneInside = c.phase;
+  // now bring the other one in
+  q.position.copy(room.center); q.velocity.set(0, 0, 0);
+  step(1.5);
+  out.bothInside = c.phase;
+  out.sealed = !!room.entryGate?.closed && !!room.exitGate?.closed;
+  return out;
+});
+check('campaign: a door ahead of the party is shut', doors.aheadShut, JSON.stringify(doors));
+check('campaign: and nothing shoots through it', !doors.aheadBolt, JSON.stringify(doors));
+// The seal is the same door the party walks in by, so sealing on the first
+// body through locked everyone else out of their own boss fight.
+check('campaign: a sealing room waits for the whole party',
+  doors.oneInside === 'travel', JSON.stringify(doors));
+check('campaign: and seals once nobody is left outside',
+  doors.bothInside === 'fight' && doors.sealed, JSON.stringify(doors));
 
 // ---- Wave boss ----
 await startMode('wave', 1, 'desert', ['din']);

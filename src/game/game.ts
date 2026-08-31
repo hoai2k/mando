@@ -931,6 +931,9 @@ export class Game {
     this.allyCrate?.update(dt);
 
     // ---- campaign objectives ----
+    // the doors move whatever the match is doing; what they are *for* is only
+    // decided while it is being fought
+    this.campaign?.animateGates(dt);
     if (this.campaign && this.state === 'fighting') {
       this.campaign.update(dt);
       if (this.campaign.done && this.state === 'fighting') {

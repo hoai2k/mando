@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { CharacterInstance } from '../characters/builder';
 import { loadOptionalTexture } from '../core/assets';
-import { findPose, POSES, type Pose } from './poses';
+import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './poses';
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
@@ -181,6 +181,11 @@ function spawn(): void {
     edits.capture(f.inst.animator.clips);
     edits.apply(f.inst.animator.clips);
   }
+  // What the new subject can do decides what the picker offers, so the panel is
+  // rebuilt here rather than by whoever called us — at first paint there were
+  // no figures yet to ask, and the picker came up holding only the rest pose.
+  available();
+  renderPanel();
   applyPose();
   editor.setTargets(figures
     .filter((f) => f.inst.rig)
@@ -225,12 +230,29 @@ function frameSubject(): void {
   controls.update();
 }
 
+/** What each figure on the turntable can be asked to do — see `posesFor`. */
+function capabilities(): PoseCapabilities[] {
+  return figures.map((f) => ({
+    clips: new Set(Object.keys(f.inst.animator?.clips ?? {})),
+    gait: !!f.extras.setGait,
+    strike: !!f.inst.attack,
+  }));
+}
+
+/** The poses this turntable can actually play, with the current pick kept valid. */
+function available(): Pose[] {
+  const list = posesFor(capabilities());
+  if (!list.some((p) => p.id === pose.id)) pose = list.find((p) => p.id === 'idle') ?? list[0];
+  return list;
+}
+
 function applyPose(): void {
+  strikeAt = 0;
   for (const f of figures) {
     // A creature with its own gait has no channels to play, but it does take a
-    // speed — so the run poses drive it and everything else stands it still.
+    // speed — so the creature poses hand it one and it picks its own gait.
     // This runs before the animator check: creatures have no animator at all.
-    f.extras.setGait?.(/run|sprint/.test(pose.id) ? 12 : 0);
+    f.extras.setGait?.(pose.gait ?? 0);
     const anim = f.inst.animator;
     if (!anim) continue;
     anim.releaseAll();
@@ -372,7 +394,7 @@ function renderPanel(): void {
 
     <div class="field">
       <label for="pose">Animation</label>
-      <select id="pose">${POSES.map((p) => option(p.id, p.name, p.id === pose.id)).join('')}</select>
+      <select id="pose">${available().map((p) => option(p.id, p.name, p.id === pose.id)).join('')}</select>
     </div>
 
     <div class="field">
@@ -665,6 +687,8 @@ addEventListener('resize', resize);
 
 let last = performance.now();
 let time = 0;
+/** when the looping creature-attack pose may strike again */
+let strikeAt = 0;
 function frame(now: number): void {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.05);
@@ -673,6 +697,13 @@ function frame(now: number): void {
   if (spin) turntable.rotation.y += dt * 0.4;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
+  // a creature's attack is a one-shot method, not a clip we can loop: replay it
+  // with a beat between strikes so it can be watched rather than glimpsed
+  if (pose.strike && !editing && time >= strikeAt) {
+    let next = 1;
+    for (const f of figures) next = Math.max(next, f.inst.attack?.() ?? 0);
+    strikeAt = time + next + 0.4;
+  }
   for (const f of figures) {
     // edit mode owns the bones; the mixer would write over them every frame
     if (!editing) f.inst.animator?.update(dt);

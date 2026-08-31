@@ -672,11 +672,6 @@ export function loadProp(
       skinned.bind(new THREE.Skeleton(bones, skinned.skeleton.boneInverses), skinned.bindMatrix);
       padBounds(skinned);
     });
-    // Clips the file ships always win; a model with none falls back to a set
-    // authored in code against its own skeleton. That way a later re-export
-    // with real animation baked in simply takes over.
-    const own = (raw.userData.clips ?? []) as THREE.AnimationClip[];
-    root.userData.clips = own.length ? own : (GENERATED_CLIPS[id]?.(root) ?? []);
     const box = new THREE.Box3();
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -696,6 +691,18 @@ export function loadProp(
     // a sculpt's origin is wherever the artist left it, which for a standing
     // creature is usually its middle — put its feet on the floor
     if (opts.ground) root.position.y = -box.min.y * scale;
+    // Clips the file ships always win; a model with none falls back to a set
+    // authored in code against its own skeleton. That way a later re-export
+    // with real animation baked in simply takes over.
+    //
+    // Built *after* the fit scale is on, because the code-authored gaits
+    // measure the rig they are handed: a bob asked for in metres is written
+    // into a bone's local units, and against the unscaled model that came out
+    // multiplied by the fit scale — on the massiff a 9 cm ride turned into 40
+    // cm of bounce, which is what its gallop was jittering with.
+    root.updateMatrixWorld(true);
+    const own = (raw.userData.clips ?? []) as THREE.AnimationClip[];
+    root.userData.clips = own.length ? own : (GENERATED_CLIPS[id]?.(root) ?? []);
     holder.add(root);
     opts.onLoad?.(root);
   };

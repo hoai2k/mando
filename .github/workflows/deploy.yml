@@ -17,14 +17,19 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # The suite is ten browser suites now — every one of them boots the built
-    # game in Chromium under software rendering and plays it — and it grew past
-    # the 20 minutes this used to allow. A job killed on the timeout reports as
-    # `cancelled`, which reads exactly like a run superseded by the next push,
-    # so this cost a day of deploys that looked merely skipped: `npm test` ran
-    # 19m17s, was cut off, and every step after it — the audits, the artifact,
-    # the deploy itself — was skipped in silence. Headroom, not a fitted budget.
-    timeout-minutes: 45
+    # The suite is fourteen browser suites now — every one of them boots the
+    # built game in Chromium under software rendering and plays it — and it
+    # keeps growing. A job killed on the timeout reports as `cancelled`, which
+    # reads exactly like a run superseded by the next push, so this once cost a
+    # day of deploys that looked merely skipped: `npm test` ran 19m17s against
+    # a 20-minute budget, was cut off, and every step after it — the audits,
+    # the artifact, the deploy itself — was skipped in silence.
+    #
+    # Raised to 45 after that, and the suite has already eaten it: 2026-08-31
+    # ran 41m48s, three minutes short of being killed the same way again. This
+    # is meant to be headroom, not a fitted budget — if a run ever approaches
+    # it, raise it again rather than trimming coverage to fit.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

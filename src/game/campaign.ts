@@ -74,7 +74,8 @@ export class Campaign {
       let pool = this.squadFor(this.rampWave(i + 1), posts.length + 2).filter((k) => RANGED.has(k));
       if (!pool.length) pool = game.board.kind === 'crevasse' ? ['krykna'] : ['stormtrooper'];
       posts.forEach((post, j) => {
-        const e = new Enemy(pool[j % pool.length], this.placeNear(post.pos.clone(), pool[j % pool.length]));
+        const e = new Enemy(pool[j % pool.length],
+          this.placeNear(post.pos.clone(), pool[j % pool.length]), 1, { silent: true });
         e.squad = 9300 + i;
         e.squadSize = posts.length;
         game.enemies.push(e);
@@ -156,7 +157,7 @@ export class Campaign {
       const base = posts[i % posts.length].clone();
       base.x += (Math.random() - 0.5) * 3;
       base.z += (Math.random() - 0.5) * 3;
-      const e = new Enemy(kind, this.placeNear(base, kind));
+      const e = new Enemy(kind, this.placeNear(base, kind), 1, { silent: true });
       e.squad = squad;
       e.squadSize = kinds.length;
       this.game.enemies.push(e);
@@ -219,12 +220,29 @@ export class Campaign {
     return this.placeNear(at, 'pyke');
   }
 
-  private anyInside(room: MissionRoom): boolean {
+  private inside(room: MissionRoom, p: { position: THREE.Vector3 }): boolean {
     const r = room.rect;
-    return this.game.players.some((p) => p.alive
-      && p.position.x >= r.minX && p.position.x <= r.maxX
+    return p.position.x >= r.minX && p.position.x <= r.maxX
       && p.position.z >= r.minZ && p.position.z <= r.maxZ
-      && Math.abs(p.position.y - this.level.floorY) < ROOM_Y_SLACK);
+      && Math.abs(p.position.y - this.level.floorY) < ROOM_Y_SLACK;
+  }
+
+  private anyInside(room: MissionRoom): boolean {
+    return this.game.players.some((p) => p.alive && this.inside(room, p));
+  }
+
+  /**
+   * Everyone still standing is in the room.
+   *
+   * The gate that seals a fight is the same gate the party walks in through,
+   * so sealing on the *first* body through it locked everyone else out of
+   * their own boss fight. A sealed room waits for the whole party; the dead
+   * are not counted, since they come back at the checkpoint rather than
+   * walking in, and a wipe would otherwise stall the level forever.
+   */
+  private allInside(room: MissionRoom): boolean {
+    const alive = this.game.players.filter((p) => p.alive);
+    return alive.length > 0 && alive.every((p) => this.inside(room, p));
   }
 
   private nearExit(room: MissionRoom): boolean {
@@ -299,9 +317,52 @@ export class Campaign {
     }
   }
 
+  /**
+   * Which doors stand open.
+   *
+   * A blast door's resting state is shut, so something has to say when the way
+   * is clear. Rooms behind the party stay open — a door you have been through
+   * is a door you can come back through — the room being approached opens the
+   * one you walk in by, and a camp keeps both open because it never seals.
+   * Everything ahead of the party stays shut, which is what stops a fight
+   * three rooms away being shot into from the corridor.
+   *
+   * Sealing is not done here: `enterRoom` shuts a fight room's doors and
+   * `clearRoom` opens them, and this runs first each frame so it never
+   * re-opens a door the seal just closed.
+   */
+  private syncGates(): void {
+    const rooms = this.level.rooms;
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i];
+      if (i < this.idx) { r.entryGate?.open(); r.exitGate?.open(); continue; }
+      if (i > this.idx) continue;
+      if (this.phase === 'travel') { r.entryGate?.open(); continue; }
+      if (r.spec.kind === 'camp') { r.entryGate?.open(); r.exitGate?.open(); }
+    }
+  }
+
+  /**
+   * Run the doors' animation.
+   *
+   * Separate from `update` because that only ticks while the match is
+   * `fighting`, and a door caught mid-slide by an intro or a victory card
+   * would freeze there — still carrying its blocker, since the way is not
+   * clear until the leaves are. Which doors *should* be open is a question
+   * about the run's progress and stays in `update`; moving the leaves is not.
+   */
+  animateGates(dt: number): void {
+    for (const r of this.level.rooms) {
+      r.entryGate?.update(dt);
+      r.exitGate?.update(dt);
+    }
+  }
+
   update(dt: number): void {
     const game = this.game;
     if (this.done) return;
+
+    this.syncGates();
 
     // beacon rides the objective and breathes
     const obj = this.objectivePos;
@@ -340,9 +401,24 @@ export class Campaign {
       }
     }
 
+    // Hostiles get the same catch as the party. The level is a plate in the
+    // sky and the kill plane is 130 m below it, so anything that leaves the
+    // floor is deleted — and a boss deleted mid-fight is a room that never
+    // clears and a run that cannot be finished. Put it back on the arena
+    // instead of losing it.
+    const here = this.room;
+    for (const e of game.enemies) {
+      if (!e.alive || e.position.y > this.level.floorY - FALL_DROP) continue;
+      e.position.copy(this.placeNear(here.center.clone(), e.kind));
+      e.velocity.set(0, 0, 0);
+    }
+
     const room = this.room;
     if (this.phase === 'travel') {
-      if (this.anyInside(room)) this.enterRoom(room);
+      // A camp is not sealed, so the first body through starts it; a room that
+      // shuts its doors waits until nobody is left outside them.
+      const seals = room.spec.kind !== 'camp';
+      if (seals ? this.allInside(room) : this.anyInside(room)) this.enterRoom(room);
       return;
     }
     switch (room.spec.kind) {
