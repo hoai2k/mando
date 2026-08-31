@@ -36,6 +36,18 @@ import { warmImage, warmQueue, type WarmPriority } from '../core/warm';
 // already contains what a perspective camera does to a body with depth, which
 // a flat quad in the world cannot reproduce.
 //
+// WHAT IS NOT PINNED. A cape is a spring simulation that integrates over dt
+// (see `cape` in characters/builder.ts), so its hang depends on how many
+// frames it has been stepped — which is how long that fighter's .glb took.
+// The rig pose, the yaw and the framing are all pinned, so a regeneration
+// reproduces most fighters exactly; the half-dozen who wear cloth come back a
+// few pixels wider or narrower as the cape sits differently. It is a still of
+// a swinging cape either way, and the live model's cape starts from its own
+// state regardless, so there is nothing to match. Left alone deliberately:
+// forcing it would mean either running the sim to a steady state (which also
+// winds on every creature's animation mixer, trading a settled cape for an
+// unsettled beast) or freezing cloth that is supposed to move.
+//
 // Regenerate after any change to a fighter's model, rig, rest pose or scale,
 // or to the select screen's camera:
 //     npm run build && node tools/posters.mjs
