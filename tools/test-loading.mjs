@@ -146,11 +146,18 @@ await h.page.route('**/ring_enforcer.glb', (route) => {
 check('the match is still running for the retry to happen during',
   await state() === 'playing', await state());
 await h.page.evaluate(() => window.__buildBody('npc:ringEnforcer'));
+const cached = () => h.page.evaluate(() => window.__modelCached('ring_enforcer'));
 await sleep(1500);
-const missed = await h.page.evaluate(() => window.__modelCached('ring_enforcer'));
-// the first re-attempt is armed a few seconds out; nothing else asks meanwhile
-await sleep(8000);
-const recovered = await h.page.evaluate(() => window.__modelCached('ring_enforcer'));
+const missed = await cached();
+// The first re-attempt is armed a few seconds out and nothing else asks in the
+// meantime — but "has it landed?" is a question with a deadline here, not an
+// instant: this runs over a live match on a software renderer, where the
+// download and the parse both take their time. Sampling once raced them.
+let recovered = false;
+for (let waited = 0; waited < 25000 && !recovered; waited += 500) {
+  await sleep(500);
+  recovered = await cached();
+}
 check('a dropped model is asked for again without anything new requesting it',
   enforcerTries >= 2, `${enforcerTries} request(s)`);
 check('...and the retry lands, so the character is not stuck on its stand-in',
