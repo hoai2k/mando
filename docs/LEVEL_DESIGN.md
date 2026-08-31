@@ -46,9 +46,13 @@ Room templates, alternating along the chain:
   room clears when someone reaches the far gate, and blaster fire travels,
   so the loud way compounds. No lockdown.
 - **assault** — the Gauntlet arena floor. Crossing the threshold seals both
-  gates behind an energy pane and runs **2–3 waves** from vents along the
-  walls, each alerted the moment it lands. The gates release on the last
-  body; the wave counter rides the HUD hint.
+  doors and runs **2–3 waves** from vents along the walls, each alerted the
+  moment it lands. The doors release on the last body; the wave counter rides
+  the HUD hint. **The seal waits for the whole party** — it is the same door
+  everyone walks in through, so sealing on the first body inside locked the
+  rest out of their own boss fight. The dead are not counted: they come back
+  at the checkpoint rather than walking in, and a wipe would otherwise stall
+  the level for good.
 - **champion / warlord** — the boss arenas (MODES.md §4a), mid-chain and
   final. Gates seal for the battle; on monster boards the warlord's arena is
   sized (up to 40×34 m, walls raised) for the second-stage monster that
@@ -113,9 +117,19 @@ the HUD reads like a place, not a quest log.
    walls and through fog.
 2. **Distance on the HUD**, not a map. `— 42 m` under the objective name is
    enough to know "far"; the radar pip gives bearing.
-3. **Doors glow.** Gates carry emissive-trimmed frames; a sealed gate's
-   energy pane in the territory's accent colour says "clear the room" with
-   no UI at all.
+3. **Doors are doors.** Every doorway carries a real blast door: two leaves
+   that part down the middle over 0.75 s, in a frame trimmed in the
+   territory's accent colour. Shut is the resting state and shut means shut —
+   the leaves fill the whole full-height opening, not just the frame's 3.6 m,
+   and the blocker stands until they have actually cleared the way, so a door
+   is never passable while it still looks closed and nothing is ever shot
+   through one. What opens them is progress: rooms behind the party stay
+   open, the room being approached opens the door you walk in by, a camp
+   keeps both open because it never seals, and everything ahead stays shut —
+   which is what stops a fight three rooms away being sniped from a corridor.
+   Their animation is driven outside the match's `fighting` state, so a door
+   caught mid-slide by a boss intro or a victory card does not freeze there
+   holding its blocker.
 4. **Fights end audibly.** The wave-clear chime plays when an assault room
    opens; camp rooms confirm quietly.
 5. **The path never doubles back.** The chain is one-way in spirit: cleared

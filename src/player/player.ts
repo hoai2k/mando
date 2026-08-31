@@ -23,6 +23,8 @@ const _bodyBox = new THREE.Box3();
 const _bodySize = new THREE.Vector3();
 /** how often the body is re-measured for the camera, seconds */
 const FRAME_RECHECK = 0.5;
+/** what a hit washes the body toward */
+const HURT_TINT = new THREE.Color(0xd41f14);
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -296,6 +298,17 @@ export class Player {
   private framedNodes = -1;
   /** how long until the body is measured again, seconds */
   private frameCheck = 0;
+  /**
+   * Per-instance copies of this fighter's materials, with the colour they
+   * started at. Cloned rather than tinted in place: an authored sculpt hands
+   * every instance the same material objects, so reddening a hit player would
+   * redden every other body wearing that model — the rest of the party, and
+   * every hostile of the same kind.
+   */
+  private tintMats: { m: THREE.MeshStandardMaterial; base: THREE.Color }[] = [];
+  private tintNodes = -1;
+  /** last tint written, so an unhurt fighter costs nothing per frame */
+  private tintAt = -1;
 
   constructor(public slot: number, aspect: number, public characterId: PlayableId = 'din') {
     const def = playableDef(characterId);
@@ -340,6 +353,51 @@ export class Player {
   /** the blade currently drawn (or the one a swing would draw) */
   get meleeKind(): MeleeKind {
     return this.profile.meleeOptions[this.meleeIdx] ?? this.profile.meleeKind;
+  }
+
+  /**
+   * Take private copies of the body's materials, once per shape change.
+   *
+   * Same trigger as `frameCamera`: a character is born a procedural stand-in
+   * and swaps to its authored .glb seconds later, and the new body arrives
+   * wearing the shared materials this has to replace.
+   */
+  private adoptTintMats(): void {
+    const nodes = nodeCount(this.char.root);
+    if (nodes === this.tintNodes) return;
+    this.tintNodes = nodes;
+    this.tintMats = [];
+    this.tintAt = -1;
+    this.char.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.material) return;
+      const many = Array.isArray(mesh.material);
+      const list = (many ? mesh.material : [mesh.material]) as THREE.Material[];
+      const mine = list.map((src) => {
+        if (!(src as THREE.MeshStandardMaterial).color) return src;
+        const m = src.clone() as THREE.MeshStandardMaterial;
+        this.tintMats.push({ m, base: m.color.clone() });
+        return m;
+      });
+      mesh.material = many ? mine : mine[0];
+    });
+  }
+
+  /**
+   * Flash the body red on a hit.
+   *
+   * Third person means the shooter's hit marker is no use to the person being
+   * shot: you are looking at your own back, and in split-screen at your
+   * squad's. Reddening the whole fighter is the one cue that reads at any
+   * range and any camera angle. Colour rather than emissive, so it does not
+   * fight `setHeroLight`, which owns the emissive channel on these same
+   * materials.
+   */
+  private applyHurtTint(): void {
+    const t = Math.min(1, this.hurtFlash * 0.9);
+    if (t === this.tintAt) return;
+    this.tintAt = t;
+    for (const e of this.tintMats) e.m.color.copy(e.base).lerp(HURT_TINT, t);
   }
 
   /**
@@ -664,9 +722,11 @@ export class Player {
     if (this.frameCheck <= 0) {
       this.frameCheck = FRAME_RECHECK;
       this.frameCamera();
+      this.adoptTintMats();
     }
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
+    this.applyHurtTint();
     this.coolBlaster(dt);
     this.fireCd -= dt;
     this.dashCd -= dt;

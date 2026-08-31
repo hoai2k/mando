@@ -545,7 +545,15 @@ export class Enemy {
    */
   hitParts: { z: number; y: number; r: number }[];
 
-  constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1) {
+  /**
+   * @param opts.silent  no arrival bark or growl. For a body that is *already
+   *   there* when the match begins — a mission level's posted garrison — as
+   *   opposed to one arriving mid-fight. Building the garrison used to play
+   *   every one of its spawn barks at once, so a Missions board opened on a
+   *   chorus of grunts from bodies standing quietly three rooms away.
+   */
+  constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1,
+    opts: { silent?: boolean } = {}) {
     this.def = DEFS[kind];
     this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
@@ -564,10 +572,12 @@ export class Enemy {
     this.char.root.position.copy(pos);
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
-    if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
-    else {
-      const bark = SPAWN_BARKS[kind];
-      if (bark && team === 1) audio.bark(bark, 0.4);
+    if (!opts.silent) {
+      if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
+      else {
+        const bark = SPAWN_BARKS[kind];
+        if (bark && team === 1) audio.bark(bark, 0.4);
+      }
     }
   }
 
@@ -1194,6 +1204,15 @@ export class Enemy {
       this.velocity.y -= 24 * grav(game, this.position) * dt;
       const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
+      // A half-buried colossus is *of* the ground: it swims through the
+      // surface rather than standing on it, never jumps and never falls. Left
+      // to the capsule it can be squeezed off a ledge by a push-out — a
+      // three-metre body against a one-metre wall picks whichever face is
+      // nearer, and that is sometimes the outside — and then it drops away
+      // under the floor and is deleted at the kill plane, taking the fight
+      // with it. Pinning it to the surface each step is what its own design
+      // already claims: the ground answers for it.
+      if (d.plows) this.pinToGround(game);
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
@@ -1647,6 +1666,15 @@ export class Enemy {
     }
     game.particles.dustPuff(this.position, 14);
     return true;
+  }
+
+  /** Glue a burrowing body to the surface under it; it has no airborne state. */
+  private pinToGround(game: Game): void {
+    const g = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y + 2);
+    if (g === -Infinity) return;
+    this.position.y = g;
+    if (this.velocity.y < 0) this.velocity.y = 0;
+    this.grounded = true;
   }
 
   /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
