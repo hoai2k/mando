@@ -135,13 +135,16 @@ check('the spiders fell back to their procedural build', kryknaBlocked > 0,
 // their own for that reason: counted as real loads they would reopen a file
 // the drop had already settled and, with nothing capping that wait, hold the
 // screen on a model nothing is waiting for.
+// Wait for one rather than guess when it is due: the re-attempts back off (3s,
+// 8s, 20s...) and some of this file's tries are already spent by the time the
+// match is up, so a fixed sleep lands in a gap and reads as "no retry".
 const blockedBefore = kryknaBlocked;
-await sleep(5000);            // past the first re-attempt of the blocked spiders
+for (let waited = 0; waited < 30000 && kryknaBlocked === blockedBefore; waited += 500) await sleep(500);
 check('a re-attempt is made in the background', kryknaBlocked > blockedBefore,
   `${blockedBefore} -> ${kryknaBlocked} blocked request(s)`);
-check('...and does not put the drop back to waiting on it',
-  await h.page.evaluate(() => window.__loadPending()) === 0,
-  `${await h.page.evaluate(() => window.__loadPending())} outstanding`);
+const outstanding = await h.page.evaluate(() => window.__loadPending());
+check('...and does not put the drop back to waiting on it', outstanding === 0,
+  `${outstanding} outstanding`);
 
 // ---- 6. a file that missed on a bad connection is asked for again in play ----
 // A 404 is an answer — most characters have no .glb and the procedural build is
