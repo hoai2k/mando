@@ -388,17 +388,27 @@ export class CharacterSelect {
   }
 
   /**
-   * How many plinths belong on stage: everyone who has joined, plus a single
-   * open place inviting the next player — and nothing beyond four.
+   * How many plinths belong on stage: everyone in the line, plus a single open
+   * place — but only where something could actually take it.
+   *
+   * Another human can join while there are fewer than MAX_PLAYERS of them (the
+   * screen only divides so many ways), a bot can be added where the mode has
+   * them, and neither can once the line is MAX_FIGHTERS long. With no room for
+   * either, the invitation is a lie: an empty plinth nobody can stand on, which
+   * is what a full four-player line grew the moment the line was widened past
+   * four.
    *
    * Counting to the *highest* joined slot rather than the number joined keeps
-   * the invitation honest when a pad drops out mid-screen and leaves a hole:
-   * the hole is itself the open place, and the players past it stay put.
+   * it honest when a pad drops out mid-screen and leaves a hole: the hole is
+   * itself the open place, and the players past it stay put.
    */
   private onStage(): number {
     let last = 0;
     this.slots.forEach((s, i) => { if (s.phase !== 'empty') last = i; });
-    return Math.min(MAX_FIGHTERS, last + 2);
+    const filled = last + 1;
+    const canJoin = this.humanCount() < MAX_PLAYERS || (this.allowBots && this.humanCount() > 0);
+    const inviting = filled < MAX_FIGHTERS && canJoin;
+    return Math.min(MAX_FIGHTERS, filled + (inviting ? 1 : 0));
   }
 
   private makeSlot(i: number, panels: HTMLElement): Slot {
