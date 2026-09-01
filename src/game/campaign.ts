@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Game } from './game';
 import { buildMission, MISSION_LAYOUTS, type MissionLevel, type MissionRoom } from '../world/mission';
@@ -205,12 +206,12 @@ export class Campaign {
     const room = this.room;
     const obj = this.objectivePos;
     const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
-    if (this.phase === 'travel') return `Make for ${room.spec.label} · ${d} m`;
+    if (this.phase === 'travel') return TEXT.missions.makeFor(room.spec.label, d);
     switch (room.spec.kind) {
-      case 'assault': return `Hold ${room.spec.label} · wave ${Math.max(1, this.waveNum)} of ${this.waveCount}`;
-      case 'champion': return 'Bring down the champion';
-      case 'warlord': return 'Bring down the warlord';
-      default: return `Push through ${room.spec.label} · ${d} m`;
+      case 'assault': return TEXT.missions.holdRoom(room.spec.label, Math.max(1, this.waveNum), this.waveCount);
+      case 'champion': return TEXT.missions.bringDownChampion;
+      case 'warlord': return TEXT.missions.bringDownWarlord;
+      default: return TEXT.missions.pushThrough(room.spec.label, d);
     }
   }
 
@@ -267,7 +268,7 @@ export class Campaign {
         this.roomForce = [];
         this.dropping = false;
         this.waveDelay = 0.9;
-        this.game.announce('Sealed in', `hold ${room.spec.label}`);
+        this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(room.spec.label));
         audio.waveStart();
         break;
       default:
@@ -315,7 +316,7 @@ export class Campaign {
       for (const e of bodies) e.alert(lead.position, true);
     });
     audio.waveStart();
-    this.game.announce(`Wave ${this.waveNum} of ${this.waveCount}`, `hold ${room.spec.label}`);
+    this.game.announce(TEXT.banners.waveOf(this.waveNum, this.waveCount), TEXT.banners.hold(room.spec.label));
   }
 
   private clearRoom(room: MissionRoom, fought: boolean): void {
@@ -329,7 +330,7 @@ export class Campaign {
     if (fought) audio.waveClear();
     else audio.uiConfirm();
     if (this.idx < this.level.rooms.length) {
-      this.game.announce('Checkpoint', `push on to ${this.level.rooms[this.idx].spec.label}`);
+      this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(this.level.rooms[this.idx].spec.label));
     }
   }
 
@@ -396,7 +397,7 @@ export class Campaign {
           pk.mesh.visible = false;
           p.hp = Math.min(p.maxHp, p.hp + 45);
           audio.uiConfirm();
-          game.announce('Bacta canister', '+45 health');
+          game.announce(TEXT.banners.bacta.title, TEXT.banners.bacta.sub);
           break;
         }
       }
@@ -413,7 +414,7 @@ export class Campaign {
       p.peeking = false;
       if (this.fallNote <= 0) {
         this.fallNote = 4;
-        game.announce('Off the path', 'back to the last checkpoint');
+        game.announce(TEXT.banners.offPath.title, TEXT.banners.offPath.sub);
       }
     }
 
@@ -456,7 +457,7 @@ export class Campaign {
         if (this.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
           if (room.spec.kind === 'champion') {
             this.clearRoom(room, true);
-            game.announce('The champion falls', 'the warlord waits at the end');
+            game.announce(TEXT.banners.championFallsMission.title, TEXT.banners.championFallsMission.sub);
           } else {
             room.entryGate?.open();
             this.done = true;

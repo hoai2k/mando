@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import { playableDef, type PlayableId } from '../characters/roster';
 import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
@@ -76,7 +77,7 @@ export class LoadingScreen {
     for (const kind of enemies) {
       this.cast.appendChild(this.card(ENEMY_NAME[kind] ?? kind, 'hostile', hostileSvg(kind), portraitName(kind)));
     }
-    this.progress(0, 'Preparing the drop');
+    this.progress(0, TEXT.loading.preparing);
     this.root.style.display = '';
   }
 
@@ -115,7 +116,7 @@ export class LoadingScreen {
     this.fill.style.width = `${pct}%`;
     this.pct.textContent = `${pct}%`;
     this.note.textContent = note;
-    this.skip.textContent = skip ? 'A · drop in now' : '';
+    this.skip.textContent = skip ? TEXT.loading.skip : '';
   }
 
   hide(): void { this.root.style.display = 'none'; }

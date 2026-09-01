@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Board } from './board';
 import type { StaticBox } from '../core/physics';
@@ -635,18 +636,20 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
  * The champion's arena is always mid-chain, the warlord's ends it — sized up
  * on monster boards for the thing that comes out of the floor afterwards.
  */
+const ROOMS = TEXT.missions.rooms;
+
 export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   desert: {
     palette: { wall: 0xa8824f, floor: 0xbf9a5e, trim: 0x8a6a2a, accent: 0xffb347 },
     rooms: [
-      { kind: 'start', label: 'the trailhead', w: 12, l: 10 },
-      { kind: 'camp', label: 'the outpost yard', w: 20, l: 16, feature: 'crates' },
-      { kind: 'assault', label: 'the cistern court', w: 20, l: 18, waves: 2, feature: 'pit', alcove: true },
-      { kind: 'camp', label: 'the caravan graves', w: 24, l: 14, feature: 'crates' },
-      { kind: 'champion', label: 'the fighting pit', w: 26, l: 22 },
-      { kind: 'assault', label: 'the spice cellars', w: 18, l: 16, waves: 3 },
-      { kind: 'camp', label: 'the dune gate', w: 20, l: 14, alcove: true },
-      { kind: 'warlord', label: "the Old One's hollow", w: 40, l: 34 },
+      { kind: 'start', label: ROOMS.desert[0], w: 12, l: 10 },
+      { kind: 'camp', label: ROOMS.desert[1], w: 20, l: 16, feature: 'crates' },
+      { kind: 'assault', label: ROOMS.desert[2], w: 20, l: 18, waves: 2, feature: 'pit', alcove: true },
+      { kind: 'camp', label: ROOMS.desert[3], w: 24, l: 14, feature: 'crates' },
+      { kind: 'champion', label: ROOMS.desert[4], w: 26, l: 22 },
+      { kind: 'assault', label: ROOMS.desert[5], w: 18, l: 16, waves: 3 },
+      { kind: 'camp', label: ROOMS.desert[6], w: 20, l: 14, alcove: true },
+      { kind: 'warlord', label: ROOMS.desert[7], w: 40, l: 34 },
     ],
     links: [
       { len: 16 }, { len: 14, turn: 1, len2: 12 }, { len: 16 },
@@ -657,14 +660,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     palette: { wall: 0x2c3040, floor: 0x353a4a, trim: 0x8a6a2a, accent: 0x63b4ff },
     corrW: 5,
     rooms: [
-      { kind: 'start', label: 'the docking bay', w: 12, l: 10 },
-      { kind: 'assault', label: 'the cargo deck', w: 18, l: 16, waves: 2, feature: 'crates' },
-      { kind: 'camp', label: 'the smuggler den', w: 20, l: 14, alcove: true },
-      { kind: 'assault', label: 'the spice vault', w: 20, l: 18, waves: 2, feature: 'barrels' },
-      { kind: 'champion', label: 'the loading gantry', w: 24, l: 20 },
-      { kind: 'camp', label: 'the crew quarters', w: 18, l: 14, feature: 'crates', alcove: true },
-      { kind: 'assault', label: 'the reactor ring', w: 20, l: 16, waves: 3 },
-      { kind: 'warlord', label: 'the hold of the prize', w: 34, l: 30 },
+      { kind: 'start', label: ROOMS.station[0], w: 12, l: 10 },
+      { kind: 'assault', label: ROOMS.station[1], w: 18, l: 16, waves: 2, feature: 'crates' },
+      { kind: 'camp', label: ROOMS.station[2], w: 20, l: 14, alcove: true },
+      { kind: 'assault', label: ROOMS.station[3], w: 20, l: 18, waves: 2, feature: 'barrels' },
+      { kind: 'champion', label: ROOMS.station[4], w: 24, l: 20 },
+      { kind: 'camp', label: ROOMS.station[5], w: 18, l: 14, feature: 'crates', alcove: true },
+      { kind: 'assault', label: ROOMS.station[6], w: 20, l: 16, waves: 3 },
+      { kind: 'warlord', label: ROOMS.station[7], w: 34, l: 30 },
     ],
     links: [
       { len: 14 }, { len: 12, turn: -1, len2: 12 }, { len: 14 },
@@ -674,14 +677,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   nevarro: {
     palette: { wall: 0x4a3a34, floor: 0x33241e, trim: 0x6a2a1a, accent: 0xff5a2a },
     rooms: [
-      { kind: 'start', label: 'the ash flats', w: 12, l: 10 },
-      { kind: 'camp', label: 'the lava trench', w: 18, l: 18, feature: 'lava' },
-      { kind: 'assault', label: 'the garrison yard', w: 22, l: 16, waves: 2, feature: 'crates', alcove: true },
-      { kind: 'camp', label: 'the glass fields', w: 24, l: 14 },
-      { kind: 'champion', label: 'the magistrate court', w: 24, l: 22 },
-      { kind: 'assault', label: 'the crossing', w: 20, l: 20, waves: 3, feature: 'lava' },
-      { kind: 'camp', label: 'the cantina row', w: 18, l: 14, feature: 'crates', alcove: true },
-      { kind: 'warlord', label: 'the rancor pen', w: 38, l: 32 },
+      { kind: 'start', label: ROOMS.nevarro[0], w: 12, l: 10 },
+      { kind: 'camp', label: ROOMS.nevarro[1], w: 18, l: 18, feature: 'lava' },
+      { kind: 'assault', label: ROOMS.nevarro[2], w: 22, l: 16, waves: 2, feature: 'crates', alcove: true },
+      { kind: 'camp', label: ROOMS.nevarro[3], w: 24, l: 14 },
+      { kind: 'champion', label: ROOMS.nevarro[4], w: 24, l: 22 },
+      { kind: 'assault', label: ROOMS.nevarro[5], w: 20, l: 20, waves: 3, feature: 'lava' },
+      { kind: 'camp', label: ROOMS.nevarro[6], w: 18, l: 14, feature: 'crates', alcove: true },
+      { kind: 'warlord', label: ROOMS.nevarro[7], w: 38, l: 32 },
     ],
     links: [
       { len: 16 }, { len: 12, turn: 1, len2: 14 }, { len: 14 },
@@ -692,14 +695,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     palette: { wall: 0xa9c4d6, floor: 0x8fb0c4, trim: 0x3a6484, accent: 0x63d0ff },
     traction: 0.55,
     rooms: [
-      { kind: 'start', label: 'the rim shelf', w: 12, l: 10 },
-      { kind: 'camp', label: 'the frozen gallery', w: 18, l: 16, feature: 'pillars' },
-      { kind: 'assault', label: 'the nest mouth', w: 20, l: 18, waves: 2, alcove: true },
-      { kind: 'camp', label: 'the cracked lake', w: 26, l: 16 },
-      { kind: 'champion', label: 'the queen tunnel', w: 24, l: 20 },
-      { kind: 'assault', label: 'the hatchery', w: 20, l: 18, waves: 3, feature: 'pillars' },
-      { kind: 'camp', label: 'the ice chimney', w: 16, l: 14, feature: 'crates', alcove: true },
-      { kind: 'warlord', label: 'the breaker deep', w: 36, l: 32 },
+      { kind: 'start', label: ROOMS.crevasse[0], w: 12, l: 10 },
+      { kind: 'camp', label: ROOMS.crevasse[1], w: 18, l: 16, feature: 'pillars' },
+      { kind: 'assault', label: ROOMS.crevasse[2], w: 20, l: 18, waves: 2, alcove: true },
+      { kind: 'camp', label: ROOMS.crevasse[3], w: 26, l: 16 },
+      { kind: 'champion', label: ROOMS.crevasse[4], w: 24, l: 20 },
+      { kind: 'assault', label: ROOMS.crevasse[5], w: 20, l: 18, waves: 3, feature: 'pillars' },
+      { kind: 'camp', label: ROOMS.crevasse[6], w: 16, l: 14, feature: 'crates', alcove: true },
+      { kind: 'warlord', label: ROOMS.crevasse[7], w: 36, l: 32 },
     ],
     links: [
       { len: 14 }, { len: 12, turn: -1, len2: 14 }, { len: 16 },
@@ -709,14 +712,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   trask: {
     palette: { wall: 0x3e4a52, floor: 0x4a3f30, trim: 0x2a4a44, accent: 0x63d0a8 },
     rooms: [
-      { kind: 'start', label: 'the quay steps', w: 12, l: 10 },
-      { kind: 'assault', label: 'the fish market', w: 20, l: 16, waves: 2, feature: 'crates' },
-      { kind: 'camp', label: 'the net lofts', w: 18, l: 14, alcove: true },
-      { kind: 'camp', label: 'the trawler deck', w: 24, l: 16, feature: 'crates' },
-      { kind: 'champion', label: 'the freighter hold', w: 24, l: 20 },
-      { kind: 'assault', label: 'the cold stores', w: 18, l: 16, waves: 2, feature: 'barrels' },
-      { kind: 'camp', label: 'the pier heads', w: 20, l: 14, alcove: true },
-      { kind: 'warlord', label: 'the mamacore pool', w: 38, l: 32 },
+      { kind: 'start', label: ROOMS.trask[0], w: 12, l: 10 },
+      { kind: 'assault', label: ROOMS.trask[1], w: 20, l: 16, waves: 2, feature: 'crates' },
+      { kind: 'camp', label: ROOMS.trask[2], w: 18, l: 14, alcove: true },
+      { kind: 'camp', label: ROOMS.trask[3], w: 24, l: 16, feature: 'crates' },
+      { kind: 'champion', label: ROOMS.trask[4], w: 24, l: 20 },
+      { kind: 'assault', label: ROOMS.trask[5], w: 18, l: 16, waves: 2, feature: 'barrels' },
+      { kind: 'camp', label: ROOMS.trask[6], w: 20, l: 14, alcove: true },
+      { kind: 'warlord', label: ROOMS.trask[7], w: 38, l: 32 },
     ],
     links: [
       { len: 14 }, { len: 14, turn: 1, len2: 12 }, { len: 16 },
@@ -727,14 +730,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     palette: { wall: 0x3a3f48, floor: 0x2c3036, trim: 0x6a4a12, accent: 0xffb347 },
     corrW: 5,
     rooms: [
-      { kind: 'start', label: 'the intake hall', w: 12, l: 10 },
-      { kind: 'assault', label: 'the barrel stores', w: 18, l: 16, waves: 2, feature: 'barrels' },
-      { kind: 'camp', label: 'the pipe gallery', w: 16, l: 18, feature: 'crates', alcove: true },
-      { kind: 'assault', label: 'the pump hall', w: 20, l: 16, waves: 2, feature: 'crates' },
-      { kind: 'champion', label: 'the furnace floor', w: 22, l: 20 },
-      { kind: 'assault', label: 'the rhydonium line', w: 18, l: 18, waves: 3, feature: 'barrels', alcove: true },
-      { kind: 'camp', label: 'the control deck', w: 18, l: 14 },
-      { kind: 'warlord', label: 'the reactor shaft', w: 30, l: 26 },
+      { kind: 'start', label: ROOMS.refinery[0], w: 12, l: 10 },
+      { kind: 'assault', label: ROOMS.refinery[1], w: 18, l: 16, waves: 2, feature: 'barrels' },
+      { kind: 'camp', label: ROOMS.refinery[2], w: 16, l: 18, feature: 'crates', alcove: true },
+      { kind: 'assault', label: ROOMS.refinery[3], w: 20, l: 16, waves: 2, feature: 'crates' },
+      { kind: 'champion', label: ROOMS.refinery[4], w: 22, l: 20 },
+      { kind: 'assault', label: ROOMS.refinery[5], w: 18, l: 18, waves: 3, feature: 'barrels', alcove: true },
+      { kind: 'camp', label: ROOMS.refinery[6], w: 18, l: 14 },
+      { kind: 'warlord', label: ROOMS.refinery[7], w: 30, l: 26 },
     ],
     links: [
       { len: 12, turn: 1, len2: 12 }, { len: 14 }, { len: 12, turn: -1, len2: 12 },
@@ -744,14 +747,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   forge: {
     palette: { wall: 0x6a7468, floor: 0x4a544c, trim: 0x8a6a2a, accent: 0xffd090 },
     rooms: [
-      { kind: 'start', label: 'the shattered gate', w: 12, l: 10 },
-      { kind: 'camp', label: 'the ruined concourse', w: 22, l: 16, feature: 'pillars' },
-      { kind: 'assault', label: 'the dome undercroft', w: 20, l: 18, waves: 2, feature: 'crates', alcove: true },
-      { kind: 'camp', label: 'the glassed court', w: 24, l: 14 },
-      { kind: 'champion', label: 'the rockfall den', w: 24, l: 22 },
-      { kind: 'assault', label: 'the armoury vault', w: 20, l: 16, waves: 3, feature: 'pillars' },
-      { kind: 'camp', label: 'the forge steps', w: 18, l: 14, feature: 'crates', alcove: true },
-      { kind: 'warlord', label: 'the sleeper cavern', w: 40, l: 34 },
+      { kind: 'start', label: ROOMS.forge[0], w: 12, l: 10 },
+      { kind: 'camp', label: ROOMS.forge[1], w: 22, l: 16, feature: 'pillars' },
+      { kind: 'assault', label: ROOMS.forge[2], w: 20, l: 18, waves: 2, feature: 'crates', alcove: true },
+      { kind: 'camp', label: ROOMS.forge[3], w: 24, l: 14 },
+      { kind: 'champion', label: ROOMS.forge[4], w: 24, l: 22 },
+      { kind: 'assault', label: ROOMS.forge[5], w: 20, l: 16, waves: 3, feature: 'pillars' },
+      { kind: 'camp', label: ROOMS.forge[6], w: 18, l: 14, feature: 'crates', alcove: true },
+      { kind: 'warlord', label: ROOMS.forge[7], w: 40, l: 34 },
     ],
     links: [
       { len: 16 }, { len: 14, turn: -1, len2: 12 }, { len: 16 },
@@ -762,14 +765,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     // long straight avenues under the terminator: fewer bends, longer sightlines
     palette: { wall: 0x3a4458, floor: 0x2e3648, trim: 0x2a3a5a, accent: 0x9fd0ff },
     rooms: [
-      { kind: 'start', label: 'the tram stop', w: 12, l: 10 },
-      { kind: 'camp', label: 'the market arcade', w: 16, l: 24, feature: 'crates' },
-      { kind: 'assault', label: 'the plaza', w: 22, l: 18, waves: 2, alcove: true },
-      { kind: 'camp', label: 'the night-side row', w: 16, l: 24, feature: 'crates' },
-      { kind: 'champion', label: 'the sentinel walk', w: 22, l: 22 },
-      { kind: 'assault', label: 'the terminus', w: 20, l: 18, waves: 3, feature: 'crates' },
-      { kind: 'camp', label: 'the service spine', w: 14, l: 20, alcove: true },
-      { kind: 'warlord', label: 'the high street', w: 28, l: 26 },
+      { kind: 'start', label: ROOMS.ringworld[0], w: 12, l: 10 },
+      { kind: 'camp', label: ROOMS.ringworld[1], w: 16, l: 24, feature: 'crates' },
+      { kind: 'assault', label: ROOMS.ringworld[2], w: 22, l: 18, waves: 2, alcove: true },
+      { kind: 'camp', label: ROOMS.ringworld[3], w: 16, l: 24, feature: 'crates' },
+      { kind: 'champion', label: ROOMS.ringworld[4], w: 22, l: 22 },
+      { kind: 'assault', label: ROOMS.ringworld[5], w: 20, l: 18, waves: 3, feature: 'crates' },
+      { kind: 'camp', label: ROOMS.ringworld[6], w: 14, l: 20, alcove: true },
+      { kind: 'warlord', label: ROOMS.ringworld[7], w: 28, l: 26 },
     ],
     links: [
       { len: 18 }, { len: 16 }, { len: 12, turn: 1, len2: 14 },
@@ -780,14 +783,14 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     palette: { wall: 0xd8e2e8, floor: 0xc8d4dc, trim: 0x4a90a8, accent: 0x63d0ff },
     corrW: 5,
     rooms: [
-      { kind: 'start', label: 'the intake lift', w: 12, l: 10 },
-      { kind: 'assault', label: 'the work floor', w: 20, l: 16, waves: 2, feature: 'shock' },
-      { kind: 'camp', label: 'the cell block', w: 18, l: 16, feature: 'crates', alcove: true },
-      { kind: 'assault', label: 'the assembly line', w: 20, l: 18, waves: 2, feature: 'crates' },
-      { kind: 'champion', label: 'the supervisor deck', w: 22, l: 20 },
-      { kind: 'camp', label: 'the maintenance bay', w: 18, l: 14, alcove: true },
-      { kind: 'assault', label: 'the discharge hall', w: 20, l: 18, waves: 3, feature: 'shock' },
-      { kind: 'warlord', label: 'the warden bridge', w: 30, l: 26 },
+      { kind: 'start', label: ROOMS.narkina[0], w: 12, l: 10 },
+      { kind: 'assault', label: ROOMS.narkina[1], w: 20, l: 16, waves: 2, feature: 'shock' },
+      { kind: 'camp', label: ROOMS.narkina[2], w: 18, l: 16, feature: 'crates', alcove: true },
+      { kind: 'assault', label: ROOMS.narkina[3], w: 20, l: 18, waves: 2, feature: 'crates' },
+      { kind: 'champion', label: ROOMS.narkina[4], w: 22, l: 20 },
+      { kind: 'camp', label: ROOMS.narkina[5], w: 18, l: 14, alcove: true },
+      { kind: 'assault', label: ROOMS.narkina[6], w: 20, l: 18, waves: 3, feature: 'shock' },
+      { kind: 'warlord', label: ROOMS.narkina[7], w: 30, l: 26 },
     ],
     links: [
       { len: 14 }, { len: 12, turn: -1, len2: 12 }, { len: 14 },
@@ -795,3 +798,12 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
 };
+
+// A room the layout has and the text does not would be announced to the player
+// as "undefined" — the sort of thing that reaches a build because nobody walks
+// every room of every territory. Caught here instead, at load, by name.
+for (const [board, spec] of Object.entries(MISSION_LAYOUTS)) {
+  for (const [i, room] of spec.rooms.entries()) {
+    if (!room.label) console.warn(`[mission] ${board} room ${i} has no name in TEXT.missions.rooms`);
+  }
+}

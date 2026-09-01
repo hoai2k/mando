@@ -259,7 +259,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     await waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
     for (let i = 0; i < board; i++) { await pad.tap(BTN.DRIGHT); }
     await pad.tap(BTN.A);
-    await waitForText(/MANDALORIAN|DIN DJARIN/i);
+    await waitForText(/CHOOSE YOUR|DIN DJARIN/i);
     for (let i = 0; i < character; i++) { await pad.tap(BTN.DRIGHT); }
     // Character select is two beats: A locks the pick in and spins the figure
     // into a READY pose, and a second A on that ready slot starts the match.

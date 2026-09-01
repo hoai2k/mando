@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
@@ -337,7 +338,7 @@ export function buildWaystation(): Board {
 
   return {
     group, physics, kind: 'station',
-    name: 'The Spice Run',
+    name: TEXT.boards.station.name,
     footstep: 'metal',
     ambience: { sample: 'amb_station', bed: 'hum' },
     music: 'station',

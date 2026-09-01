@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { audio } from '../core/audio';
 import { MAX_FIGHTERS, MAX_PLAYERS } from '../core/layout';
+import { TEXT } from '../text';
 import { damp } from '../core/math';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import {
@@ -233,7 +234,7 @@ export class CharacterSelect {
 
     const title = document.createElement('div');
     title.className = 'menu-title charsel-title';
-    title.textContent = 'Choose Your Mandalorian';
+    title.textContent = TEXT.charSelect.title;
     this.root.appendChild(title);
     this.titleEl = title;
 
@@ -254,14 +255,14 @@ export class CharacterSelect {
 
     this.startBtn = document.createElement('button');
     this.startBtn.className = 'menu-btn charsel-start';
-    this.startBtn.textContent = 'Start Game';
+    this.startBtn.textContent = TEXT.charSelect.start;
     this.startBtn.style.display = 'none';
     this.startBtn.addEventListener('click', () => { audio.uiConfirm(); this.start(); });
     this.root.appendChild(this.startBtn);
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b>/<b>click</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
+    hint.innerHTML = TEXT.charSelect.hint;
     this.root.appendChild(hint);
     this.hintEl = hint;
 
@@ -910,7 +911,7 @@ export class CharacterSelect {
     const joined = this.slots.filter((s) => s.phase === 'ready');
     if (joined.length === 0 || joined.length !== this.slots.filter((s) => s.phase !== 'empty').length) return;
     if (joined.length < this.minPlayers) {
-      this.hintEl.innerHTML = `<b>PvP needs ${this.minPlayers} fighters</b> — press <b>A</b> on another controller to join the duel`;
+      this.hintEl.innerHTML = TEXT.charSelect.needFighters(this.minPlayers);
       return;
     }
     // humans first, bots after — the order the line is standing in, which is
@@ -1260,29 +1261,30 @@ export class CharacterSelect {
       const id = this.roster[s.choice];
       if (s.phase === 'empty') {
         s.name.textContent = '';
-        const join = `<b>Player ${this.humanCount() + 1}</b><br/>Press <b>A</b> to join`;
+        const join = `<b>${TEXT.charSelect.player(this.humanCount() + 1)}</b><br/>${TEXT.charSelect.join}`;
         // the invitation only offers a bot where the mode has them, and only
         // to a line with somebody in it to pick for one
         s.status.innerHTML = this.allowBots && this.humanCount() > 0
-          ? `${join}<br/>Press <b>Y</b> for Bot`
+          ? `${join}<br/>${TEXT.charSelect.joinBot}`
           : join;
         s.panel.classList.add('empty');
         s.panel.classList.remove('ready');
       } else if (s.bot) {
         s.name.textContent = playableDef(id).profile.name;
-        const owner = `Player ${s.owner + 1}`;
-        s.status.innerHTML = s.phase === 'ready' ? '<b>BOT</b><br/>READY'
-          : s.waiting ? '<b>BOT</b><br/>Loading…'
+        const owner = TEXT.charSelect.player(s.owner + 1);
+        const tag = `<b>${TEXT.charSelect.bot}</b><br/>`;
+        s.status.innerHTML = s.phase === 'ready' ? `${tag}${TEXT.charSelect.ready}`
+          : s.waiting ? `${tag}${TEXT.charSelect.loading}`
             : this.slots[s.owner]?.phase === 'ready'
-              ? `<b>BOT</b><br/>${owner} is picking`
-              : `<b>BOT</b><br/>${owner} picks after locking in`;
+              ? `${tag}${TEXT.charSelect.botPicking(owner)}`
+              : `${tag}${TEXT.charSelect.botWaiting(owner)}`;
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
       } else {
         s.name.textContent = playableDef(id).profile.name;
-        s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>'
-          : s.waiting ? `<b>Player ${i + 1}</b><br/>Loading…`
-            : `<b>Player ${i + 1}</b>`;
+        s.status.innerHTML = s.phase === 'ready' ? `<b>${TEXT.charSelect.ready}</b>`
+          : s.waiting ? `<b>${TEXT.charSelect.player(i + 1)}</b><br/>${TEXT.charSelect.loading}`
+            : `<b>${TEXT.charSelect.player(i + 1)}</b>`;
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
       }

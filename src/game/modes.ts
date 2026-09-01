@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import type { BoardId } from '../world/board';
 import type { EnemyKind } from '../enemies/enemy';
 
@@ -66,17 +67,7 @@ export const BOSS_KIND: Record<BoardId, EnemyKind> = {
 };
 
 /** Banner/boss-bar name per territory. */
-export const BOSS_NAME: Record<BoardId, string> = {
-  desert: 'The Pit Warlord',
-  station: 'The Spice Baron',
-  nevarro: 'The Garrison Commander',
-  crevasse: 'The Broodmother',
-  trask: 'The Harbourmaster',
-  refinery: 'The Darksaber Officer',
-  forge: 'The Forge Tyrant',
-  ringworld: 'The Fastest Gun on Glavis',
-  narkina: 'The Prison Warden',
-};
+export const BOSS_NAME: Record<BoardId, string> = TEXT.bosses.warlord;
 
 /**
  * The mid-board boss battle: after wave MID_BOSS_WAVE (and at the campaign
@@ -94,15 +85,15 @@ export interface MidBossDef {
 }
 
 export const MID_BOSS: Record<BoardId, MidBossDef> = {
-  desert:    { kind: 'massiff',      name: 'The Pit Beast',         hp: 3.0, dmg: 1.3,  bulk: 1.35 },
-  station:   { kind: 'duelist',      name: 'The Dock Assassin',     hp: 3.0, dmg: 1.3,  bulk: 1.15 },
-  nevarro:   { kind: 'massiff',      name: "The Magistrate's Hound", hp: 2.6, dmg: 1.2, bulk: 1.3 },
-  crevasse:  { kind: 'krykna',       name: 'The Tunnel Queen',      hp: 14,  dmg: 2.0,  bulk: 1.9 },
-  trask:     { kind: 'officer',      name: 'The Freighter Captain', hp: 2.6, dmg: 1.25, bulk: 1.15 },
-  refinery:  { kind: 'flametrooper', name: 'The Furnace Master',    hp: 4.2, dmg: 1.5,  bulk: 1.25 },
-  forge:     { kind: 'alamite',      name: 'The Rockdweller Alpha', hp: 11,  dmg: 1.9,  bulk: 1.6 },
-  ringworld: { kind: 'ringEnforcer', name: 'The Silent Sentinel',   hp: 2.4, dmg: 1.3,  bulk: 1.2 },
-  narkina:   { kind: 'deathtrooper', name: 'The Floor Supervisor',  hp: 4.0, dmg: 1.4,  bulk: 1.2 },
+  desert:    { kind: 'massiff',      name: TEXT.bosses.champion.desert, hp: 3.0, dmg: 1.3,  bulk: 1.35 },
+  station:   { kind: 'duelist',      name: TEXT.bosses.champion.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
+  nevarro:   { kind: 'massiff',      name: TEXT.bosses.champion.nevarro, hp: 2.6, dmg: 1.2, bulk: 1.3 },
+  crevasse:  { kind: 'krykna',       name: TEXT.bosses.champion.crevasse, hp: 14,  dmg: 2.0,  bulk: 1.9 },
+  trask:     { kind: 'officer',      name: TEXT.bosses.champion.trask, hp: 2.6, dmg: 1.25, bulk: 1.15 },
+  refinery:  { kind: 'flametrooper', name: TEXT.bosses.champion.refinery, hp: 4.2, dmg: 1.5,  bulk: 1.25 },
+  forge:     { kind: 'alamite',      name: TEXT.bosses.champion.forge, hp: 11,  dmg: 1.9,  bulk: 1.6 },
+  ringworld: { kind: 'ringEnforcer', name: TEXT.bosses.champion.ringworld, hp: 2.4, dmg: 1.3,  bulk: 1.2 },
+  narkina:   { kind: 'deathtrooper', name: TEXT.bosses.champion.narkina, hp: 4.0, dmg: 1.4,  bulk: 1.2 },
 };
 
 /**
@@ -130,12 +121,12 @@ export interface MonsterBossDef {
 }
 
 export const MONSTER_BOSS: Partial<Record<BoardId, MonsterBossDef>> = {
-  station:  { kind: 'mudhorn',  name: "The Smugglers' Prize",  retinue: 'pirate' },
-  crevasse: { kind: 'ravinak',  name: 'The Ice-Breaker',       retinue: 'krykna' },
-  trask:    { kind: 'mamacore', name: 'The Mamacore',          retinue: 'quarren' },
-  nevarro:  { kind: 'rancor',   name: "The Warlord's Rancor",  retinue: 'pirate' },
-  desert:   { kind: 'kraytDragon', name: 'The Old One of the Dune Sea', retinue: 'massiff' },
-  forge:    { kind: 'mythosaur', name: 'The Sleeper Below',      retinue: 'alamite' },
+  station:  { kind: 'mudhorn',  name: TEXT.bosses.champion.station, retinue: 'pirate' },
+  crevasse: { kind: 'ravinak',  name: TEXT.bosses.champion.crevasse, retinue: 'krykna' },
+  trask:    { kind: 'mamacore', name: TEXT.bosses.champion.trask, retinue: 'quarren' },
+  nevarro:  { kind: 'rancor',   name: TEXT.bosses.champion.nevarro, retinue: 'pirate' },
+  desert:   { kind: 'kraytDragon', name: TEXT.bosses.champion.desert, retinue: 'massiff' },
+  forge:    { kind: 'mythosaur', name: TEXT.bosses.champion.forge, retinue: 'alamite' },
 };
 
 export const BOSS_RETINUE: Record<BoardId, EnemyKind> = {

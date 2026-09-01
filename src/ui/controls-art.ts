@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 /**
  * The controls reference: an Xbox pad drawn to scale with its bindings called
  * out. Gameplay is controller-only, so the keyboard column lists the few keys
@@ -12,43 +13,17 @@
  * Keyboard and mouse are the secondary path: the game is designed around a
  * controller, but nothing needs one.
  */
-const KEYBOARD: Array<[string, string]> = [
-  ['Move', 'W A S D'],
-  ['Look / aim', 'Mouse'],
-  ['Jump → hold to jetpack', 'Space'],
-  ['Sprint (moving) · dash (from a stop)', 'Shift'],
-  ['Block — raise shield (hold)', 'R'],
-  ['Fire blaster', 'Left mouse'],
-  ['Aim — zoom', 'Right mouse'],
-  ['Melee combo — draws the blade', 'F · Middle mouse'],
-  ['Wrist rocket', 'Q'],
-  ['Camera distance', 'Mouse wheel'],
-  ['Take cover · ground slam · mount a ride', 'C · Ctrl'],
-  ['Next blade carried', '1'],
-  ['Next gun carried', '2 · E'],
-];
+const KEYBOARD = TEXT.controls.keyboard;
 
 /**
  * Driving is its own control scheme — the stick turns the nose and the pedals
  * do the rest — so it gets its own short list rather than footnotes on eight
  * bindings that all mean something different in the saddle.
  */
-const DRIVING: Array<[string, string]> = [
-  ['Mount a parked ride · get off', 'RB · C'],
-  ['Accelerate', 'A · W'],
-  ['Brake, then reverse', 'B · S'],
-  ['Steer', 'Left stick · A · D'],
-  ['Boost', 'LB · Shift'],
-];
+const DRIVING = TEXT.controls.driving;
 
 /** always available, controller or not */
-const ALWAYS: Array<[string, string]> = [
-  ['Navigate menus', '↑ ↓ ← → · click'],
-  ['Select · back', 'Enter · Esc'],
-  ['Pause', 'Esc'],
-  ['Join co-op (up to 4)', 'A on a free pad'],
-  ['Fullscreen', 'Alt + F'],
-];
+const ALWAYS = TEXT.controls.always;
 
 /**
  * Controller diagram.
@@ -71,7 +46,7 @@ function padSvg(): string {
   const dot = (x: number, y: number): string => `<circle class="cl-dot" cx="${x}" cy="${y}" r="3.5"/>`;
 
   return `<svg class="pad-art" viewBox="0 0 980 470" role="img"
-      aria-label="Xbox controller with the game's button bindings labelled">
+      aria-label="${TEXT.controls.padAlt}">
     <defs>
       <linearGradient id="padBody" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#3b3f47"/><stop offset="1" stop-color="#22252b"/>
@@ -128,30 +103,30 @@ function padSvg(): string {
 
     <!-- callouts: left -->
     ${lead('252,44 330,44 372,50')}${dot(391, 52)}
-    ${label(244, 45, 'end', [['LT', 'Aim (zoom)']])}
+    ${label(244, 45, 'end', [TEXT.controls.pad.lt])}
     ${lead('252,112 316,112 356,90')}${dot(376, 86)}
-    ${label(244, 106, 'end', [['LB', 'Dodge — tap with a direction'], ['', 'Hold on to sprint']])}
+    ${label(244, 106, 'end', [TEXT.controls.pad.lb, TEXT.controls.pad.lbHold])}
     ${lead('252,176 318,176 350,156')}${dot(375, 150)}
-    ${label(244, 181, 'end', [['Left stick', 'Move']])}
+    ${label(244, 181, 'end', [TEXT.controls.pad.leftStick])}
     ${lead('252,272 356,272 404,234')}${dot(430, 222)}
-    ${label(244, 271, 'end', [['D-pad ←→', 'Next blade · next gun'], ['', 'Navigate menus']])}
+    ${label(244, 271, 'end', [TEXT.controls.pad.dpad, TEXT.controls.pad.dpadMenus])}
 
     <!-- callouts: right -->
     ${lead('728,44 650,44 608,50')}${dot(589, 52)}
-    ${label(736, 45, 'start', [['RT', 'Fire blaster — draws it']])}
+    ${label(736, 45, 'start', [TEXT.controls.pad.rt])}
     ${lead('728,112 664,112 624,90')}${dot(604, 86)}
-    ${label(736, 102, 'start', [['RB', 'Take cover (on ground)'], ['', 'Ground slam (in air)']])}
+    ${label(736, 102, 'start', [TEXT.controls.pad.rb, TEXT.controls.pad.rbAir])}
     ${lead('728,190 692,190 640,155')}${dot(618, 150)}
     ${label(736, 172, 'start', [
-      ['Y', 'Wrist rocket'],
-      ['B', 'Block — raise shield'],
-      ['A', 'Jump → hold to jetpack'],
-      ['X', 'Melee combo — draws the blade'],
+      TEXT.controls.pad.y,
+      TEXT.controls.pad.b,
+      TEXT.controls.pad.a,
+      TEXT.controls.pad.x,
     ])}
     ${lead('728,300 686,300 634,238')}${dot(605, 222)}
     ${label(736, 296, 'start', [
-      ['Right stick', 'Look &amp; aim'],
-      ['Click + up/down', 'Camera distance'],
+      TEXT.controls.pad.rightStick,
+      TEXT.controls.pad.rightStickClick,
     ])}
 
     <!-- View and Menu: routed down through the gap between the grips, which is

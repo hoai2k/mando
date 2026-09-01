@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { clamp, fbm2, makeRng } from '../core/math';
@@ -205,8 +206,8 @@ export function buildCrevasse(): Board {
 
   const board: Board = {
     group, physics, kind: 'crevasse',
-    name: 'The Crevasse',
-    objective: 'Maldo Kreis · survive 7 waves',
+    name: TEXT.boards.crevasse.name,
+    objective: TEXT.boards.crevasse.objective,
     footstep: 'snow',
     ambience: { sample: 'amb_ice', bed: 'wind' },
     music: 'station',

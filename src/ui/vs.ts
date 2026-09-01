@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import { audio } from '../core/audio';
 import { ASSET_ROOT } from '../core/assets';
 import { playableDef, type PlayableId } from '../characters/roster';
@@ -71,9 +72,9 @@ export class VsScreen {
       panel.innerHTML = `
         <div class="vs-fighter${n > 2 ? ' narrow' : ''}" style="left:${cx}%">
           <div class="vs-face">${faceSvg(id)}</div>
-          <div class="vs-tag">${i < humans ? `P${i + 1}` : 'BOT'}</div>
+          <div class="vs-tag">${i < humans ? TEXT.vs.player(i + 1) : TEXT.vs.bot}</div>
           <div class="vs-name">${def.profile.name}</div>
-          <div class="vs-kit">${def.profile.rangedName ?? def.profile.meleeName}${def.profile.squad ? ' · squad ×' + def.profile.squad.count : ''}</div>
+          <div class="vs-kit">${def.profile.rangedName ?? def.profile.meleeName}${def.profile.squad ? TEXT.vs.squad(def.profile.squad.count) : ''}</div>
         </div>`;
       this.root.appendChild(panel);
       // authored portrait takes over the drawn mark when the file exists

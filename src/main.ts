@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TEXT } from './text';
 import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputConfig, saveVideoConfig } from './config';
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
@@ -74,14 +75,14 @@ function cornerButton(title: string, svg: string, onClick: () => void): HTMLButt
   return b;
 }
 
-cornerButton('Controls', '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm-1 3h2v2h-2V7zm0 4h2v6h-2v-6z"/></svg>',
+cornerButton(TEXT.controls.title, '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm-1 3h2v2h-2V7zm0 4h2v6h-2v-6z"/></svg>',
   () => openOverlay('controls'));
-cornerButton('Settings', '<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3.4h-4l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4-2-1.6zM12 15.2A3.2 3.2 0 1112 8.8a3.2 3.2 0 010 6.4z"/></svg>',
+cornerButton(TEXT.controls.settingsButton, '<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3.4h-4l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4-2-1.6zM12 15.2A3.2 3.2 0 1112 8.8a3.2 3.2 0 010 6.4z"/></svg>',
   () => openOverlay('settings'));
 
 const fsBtn = document.createElement('button');
 fsBtn.className = 'corner-btn';
-fsBtn.title = 'Fullscreen (controller: View button)';
+fsBtn.title = TEXT.controls.fullscreen;
 const FS_EXPAND = '<svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>';
 const FS_SHRINK = '<svg viewBox="0 0 24 24"><path d="M10 4v6H4V8h4V4h2zm4 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>';
 fsBtn.innerHTML = FS_EXPAND;
@@ -129,7 +130,7 @@ title.root.style.backgroundImage =
   "radial-gradient(ellipse at 50% 30%, rgba(30,22,12,0.55), rgba(0,0,0,0.92) 75%), url('assets/textures/title_bg.jpg')";
 title.root.style.backgroundSize = 'cover';
 title.root.style.backgroundPosition = 'center';
-title.addTitle('Bounty Hunters', 'a Mandalorian fan game', 'logo');
+title.addTitle(TEXT.game.title, TEXT.game.tagline, 'logo');
 // One prompt, arcade style: Start (or Enter, or a click) drops straight into
 // territory select and takes the window fullscreen on the way. Browsers only
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
@@ -144,13 +145,13 @@ if (modesEnabled()) {
     setState(next);
   };
   title.addButtons(null, [
-    { label: 'Wave Battle', action: () => pickMode('wave', 'select') },
-    { label: 'PvP', action: () => pickMode('pvp', 'select') },
-    { label: 'Missions', action: () => pickMode('campaign', 'planets') },
+    { label: TEXT.title.waveBattle, action: () => pickMode('wave', 'select') },
+    { label: TEXT.title.pvp, action: () => pickMode('pvp', 'select') },
+    { label: TEXT.title.missions, action: () => pickMode('campaign', 'planets') },
   ]);
 } else {
   title.addButtons(null, [
-    { label: 'Press Start', action: () => { mode = 'wave'; enterFullscreen(); setState('select'); } },
+    { label: TEXT.title.pressStart, action: () => { mode = 'wave'; enterFullscreen(); setState('select'); } },
   ]);
 }
 function enterFullscreen(): void {
@@ -161,7 +162,7 @@ function enterFullscreen(): void {
 
 // ----- board select -----
 const select = new MenuScreen(menuLayer);
-select.addTitle('Choose Territory');
+select.addTitle(TEXT.boardSelect.title);
 const cards = document.createElement('div');
 cards.className = 'board-cards';
 select.root.appendChild(cards);
@@ -237,32 +238,32 @@ const charSelect = new CharacterSelect(menuLayer, {
 let overlayReturn: AppState = 'title';
 
 const controls = new MenuScreen(menuLayer);
-controls.addTitle('Controls');
+controls.addTitle(TEXT.controls.title);
 const controlsArt = document.createElement('div');
 const paintControls = (): void => { controlsArt.innerHTML = controlsMarkup(config.input.keyboardMouse); };
 paintControls();
 controls.root.appendChild(controlsArt);
-controls.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
+controls.addButtons(null, [{ label: TEXT.controls.back, action: () => closeOverlay() }]);
 controls.onBack = () => closeOverlay();
 
 const settings = new MenuScreen(menuLayer);
-settings.addTitle('Settings');
+settings.addTitle(TEXT.settings.title);
 const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
   settings.addSlider(label, () => config.audio[key], (v) => {
     config.audio[key] = v;
     audio.applyConfig();
     saveAudioConfig();
   });
-volume('Master volume', 'master');
-volume('Sound effects', 'sfx');
-volume('Music', 'music');
-settings.addToggle('Dynamic camera', () => config.camera.dynamic, (on) => {
+volume(TEXT.settings.master, 'master');
+volume(TEXT.settings.sfx, 'sfx');
+volume(TEXT.settings.music, 'music');
+settings.addToggle(TEXT.settings.dynamicCamera, () => config.camera.dynamic, (on) => {
   config.camera.dynamic = on;
   saveCameraConfig();
 });
-settings.addChoice('Split screen', [
-  { value: 'stacked' as const, label: 'Stacked' },
-  { value: 'columns' as const, label: 'Side by side' },
+settings.addChoice(TEXT.settings.splitScreen, [
+  { value: 'stacked' as const, label: TEXT.settings.stacked },
+  { value: 'columns' as const, label: TEXT.settings.sideBySide },
 ], () => config.video.split, (v) => {
   config.video.split = v;
   saveVideoConfig();
@@ -270,7 +271,7 @@ settings.addChoice('Split screen', [
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
 });
-settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
+settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
   paintControls();
@@ -281,13 +282,8 @@ settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) =>
     else input.releasePointerLock();
   }
 });
-settings.addButtons(null, [{ label: 'Back', action: () => closeOverlay() }]);
-settings.addHint('Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
-  + '<b>Dynamic camera</b> — the chase camera closes in when you are still and opens out when you sprint, '
-  + 'dash or fly. Off, it holds the one distance the right stick dials in.<br/>'
-  + '<b>Split screen</b> — which way co-op divides the window: <b>stacked</b> gives each player a wide strip, '
-  + '<b>side by side</b> turns the same layout on its side. Four players get a quadrant either way.<br/>'
-  + '<b>Keyboard &amp; mouse</b> — adds WASD and mouse aiming; while it is off the cursor stays free during play.');
+settings.addButtons(null, [{ label: TEXT.settings.back, action: () => closeOverlay() }]);
+settings.addHint(TEXT.settings.hint);
 
 settings.onBack = () => closeOverlay();
 
@@ -319,13 +315,13 @@ function closeOverlay(): void {
 
 // ----- pause -----
 const pause = new MenuScreen(menuLayer);
-pause.addTitle('Paused');
+pause.addTitle(TEXT.pause.title);
 pause.addButtons(null, [
-  { label: 'Resume', action: () => resumeGame() },
-  { label: 'Controls', action: () => openOverlay('controls') },
-  { label: 'Settings', action: () => openOverlay('settings') },
-  { label: 'Restart Board', action: () => { startGame(); } },
-  { label: 'Quit to Title', action: () => quitToTitle() },
+  { label: TEXT.pause.resume, action: () => resumeGame() },
+  { label: TEXT.pause.controls, action: () => openOverlay('controls') },
+  { label: TEXT.pause.settings, action: () => openOverlay('settings') },
+  { label: TEXT.pause.restart, action: () => { startGame(); } },
+  { label: TEXT.pause.quit, action: () => quitToTitle() },
 ]);
 pause.onBack = () => resumeGame();
 
@@ -345,8 +341,8 @@ const endStats = document.createElement('div');
 endStats.className = 'menu-hint';
 end.root.appendChild(endStats);
 end.addButtons(null, [
-  { label: 'Retry Board', action: () => startGame() },
-  { label: 'Quit to Title', action: () => quitToTitle() },
+  { label: TEXT.end.retry, action: () => startGame() },
+  { label: TEXT.end.quit, action: () => quitToTitle() },
 ]);
 end.onBack = () => quitToTitle();
 
@@ -519,8 +515,8 @@ function setState(s: AppState): void {
   if (s === 'characters') {
     if (!charSelect.visible) {
       charSelect.configure(mode === 'pvp'
-        ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2, allowBots: true }
-        : { roster: STANDARD_ROSTER, title: 'Choose Your Bounty Hunter' });
+        ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true }
+        : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title });
       charSelect.show();
     }
   } else charSelect.hide();
@@ -622,9 +618,9 @@ function updateLoading(dt: number): void {
   const p = tracked.progress(keys);
   // the build itself is a real part of the wait, and worth a moving bar
   const ratio = built ? 0.15 + p.ratio * 0.85 : Math.min(0.15, loadTimer * 0.3);
-  const note = !built ? 'Raising the territory'
-    : p.pending > 0 ? `${p.pending} file${p.pending === 1 ? '' : 's'} to go`
-      : 'Ready';
+  const note = !built ? TEXT.loading.raising
+    : p.pending > 0 ? TEXT.loading.filesToGo(p.pending)
+      : TEXT.loading.ready;
   loading.progress(ratio, note, built && p.pending > 0 && loadTimer > LOAD_SKIP_AFTER);
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
@@ -800,16 +796,18 @@ function frame(now: number): void {
         endTimer -= dt;
         if (endTimer <= 0) {
           const winner = game.winnerSlot >= 0 ? game.players[game.winnerSlot] : null;
-          endTitle.textContent = game.state !== 'victory' ? 'The Hunters Have Fallen'
-            : game.mode === 'pvp' ? `${winner?.profile.name ?? 'Nobody'} Takes the Territory`
-            : game.mode === 'campaign' ? 'Territory Liberated'
-            : 'Territory Held';
+          endTitle.textContent = game.state !== 'victory' ? TEXT.end.defeat
+            : game.mode === 'pvp' ? TEXT.end.champion(winner?.profile.name ?? TEXT.end.nobody)
+            : game.mode === 'campaign' ? TEXT.end.liberated
+            : TEXT.end.held;
           // a duel's end screen celebrates the champion: portrait held high,
           // authored art taking over the drawn mark when the file exists
           if (game.mode === 'pvp' && game.state === 'victory' && winner) {
             endHero.innerHTML = `
               <div class="end-face">${faceSvg(winner.characterId)}</div>
-              <div class="end-tag">Champion · P${winner.slot + 1} · ${winner.kills} kills</div>`;
+              <div class="end-tag">${TEXT.end.championTag(
+                winner.isBot ? TEXT.vs.bot : TEXT.vs.player(winner.slot + 1), winner.kills,
+              )}</div>`;
             endHero.style.display = '';
             const face = endHero.querySelector('.end-face') as HTMLElement;
             const img = new Image();
@@ -823,9 +821,10 @@ function frame(now: number): void {
           }
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
-          const tail = game.mode === 'wave' ? ` · wave ${game.wave} · ${mins}:${secs}` : ` · ${mins}:${secs}`;
+          const clock = `${mins}:${secs}`;
+          const tail = game.mode === 'wave' ? TEXT.end.waveAndTime(game.wave, clock) : TEXT.end.time(clock);
           endStats.innerHTML = game.players
-            .map((p, i) => `<b>P${i + 1}</b> ${p.kills} kills`)
+            .map((p, i) => TEXT.end.playerKills(p.isBot ? TEXT.vs.bot : TEXT.vs.player(i + 1), p.kills))
             .join(' · ') + tail;
           setState('end');
         }

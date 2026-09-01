@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
@@ -112,10 +113,8 @@ interface MandoConfig {
 }
 
 /** HUD display names for each loadout slot. */
-export const RANGED_NAMES = {
-  carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
-} as const;
-export const MELEE_NAMES = { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' } as const;
+export const RANGED_NAMES = TEXT.weapons.ranged;
+export const MELEE_NAMES = TEXT.weapons.melee;
 
 export type RangedKind = keyof typeof RANGED_NAMES;
 export type MeleeKind = keyof typeof MELEE_NAMES;
@@ -148,51 +147,51 @@ export const BENCHED_MANDO_IDS: ReadonlySet<MandoId> = new Set<MandoId>(['bokata
 /** Every character the factory can build, benched ones included. */
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
-    name: 'Din Djarin', desc: 'The Mandalorian — pure beskar shine, this is the way.',
+    ...TEXT.characters.din,
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
     // the staff he took off the raiders, and the blade he won: D-pad left picks
     melee: ['gaffi', 'sabers'],
   },
   paz: {
-    name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — a walking siege wall.',
+    ...TEXT.characters.paz,
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
   },
   bokatan: {
-    name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.',
+    ...TEXT.characters.bokatan,
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
     voice: 'mando_f',
   },
   armorer: {
-    name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.',
+    ...TEXT.characters.armorer,
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
     voice: 'mando_f',
   },
   ventress: {
-    name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
+    ...TEXT.characters.ventress,
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,   // her trigger throws a blade
     voice: 'human_f', acrobat: true,
   },
   embo: {
-    name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
+    ...TEXT.characters.embo,
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
     voice: 'masked',
   },
   bossk: {
-    name: 'Bossk', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.',
+    ...TEXT.characters.bossk,
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
     voice: 'reptile',
   },
   duelist: {
-    name: 'Cad Bane', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
+    ...TEXT.characters.duelist,
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
     voice: 'alien_m', acrobat: true,
   },
   ig11: {
-    name: 'IG-11', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',
+    ...TEXT.characters.ig11,
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
     voice: 'droid', bubbleShield: true,

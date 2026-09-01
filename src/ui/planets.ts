@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import { audio } from '../core/audio';
 import type { MenuAction } from '../core/input';
 import { BOARDS, type BoardInfo } from '../world/boards';
@@ -82,11 +83,11 @@ export class PlanetSelect {
 
     const title = document.createElement('div');
     title.className = 'menu-title';
-    title.textContent = 'Missions';
+    title.textContent = TEXT.planets.title;
     this.root.appendChild(title);
     const sub = document.createElement('div');
     sub.className = 'menu-subtitle';
-    sub.textContent = 'Nine territories to liberate, one warlord at a time';
+    sub.textContent = TEXT.planets.sub;
     this.root.appendChild(sub);
 
     // The viewport is the window onto the map; it clips only at the screen's
@@ -168,7 +169,7 @@ export class PlanetSelect {
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> travel the sector · <b>A</b>/<b>Enter</b>/<b>click</b> begin the mission · <b>B</b>/<b>Esc</b> back';
+    hint.innerHTML = TEXT.planets.hint;
     this.root.appendChild(hint);
 
     // the fit-to-height scale is measured, so it has to be re-measured

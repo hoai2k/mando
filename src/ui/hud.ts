@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import type { Game } from '../game/game';
 import { Radar } from './radar';
 import { splitLayout } from '../core/layout';
@@ -83,17 +84,17 @@ export class Hud {
         <div class="damage-vignette"></div>
         ${CROSSHAIR_SVG}
         <div class="hud-bars">
-          <div class="bar health"><div class="fill"></div><div class="label">HP</div></div>
-          <div class="bar fuel"><div class="fill"></div><div class="label">JET</div></div>
-          <div class="bar energy"><div class="fill"></div><div class="label">ENERGY</div></div>
-          <div class="bar heat"><div class="fill"></div><div class="label">HEAT</div></div>
+          <div class="bar health"><div class="fill"></div><div class="label">${TEXT.hud.bars.health}</div></div>
+          <div class="bar fuel"><div class="fill"></div><div class="label">${TEXT.hud.bars.fuel}</div></div>
+          <div class="bar energy"><div class="fill"></div><div class="label">${TEXT.hud.bars.energy}</div></div>
+          <div class="bar heat"><div class="fill"></div><div class="label">${TEXT.hud.bars.heat}</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
         <div class="hud-cover"></div>
         <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
-        <div class="hud-contacts"><div class="nc-kicker">◢ New contact</div><div class="nc-names"></div></div>
+        <div class="hud-contacts"><div class="nc-kicker">${TEXT.hud.newContact}</div><div class="nc-names"></div></div>
       `;
       this.layer.appendChild(root);
       const radar = new Radar();
@@ -152,7 +153,7 @@ export class Hud {
     card.innerHTML = `
       <div class="bi-bar top"></div>
       <div class="bi-plate">
-        <div class="bi-kicker">— ${sub.startsWith('Champion') ? 'Champion' : 'Warlord'} —</div>
+        <div class="bi-kicker">— ${sub.startsWith(TEXT.hud.champion) ? TEXT.hud.champion : TEXT.hud.warlord} —</div>
         <div class="bi-name">${title}</div>
         <div class="bi-rule"></div>
         <div class="bi-sub">${sub}</div>
@@ -180,7 +181,7 @@ export class Hud {
   newContacts(names: string[]): void {
     for (const h of this.huds) {
       h.contacts.querySelector('.nc-kicker')!.textContent =
-        names.length > 1 ? '◢ New contacts' : '◢ New contact';
+        names.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
       h.contactNames.textContent = names.join(' · ');
       h.contacts.classList.add('show');
       h.contactsTimer = 6;
@@ -213,28 +214,31 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
-      if (p.vehicle) h.coverHint.textContent = `${p.vehicle.def.name.toUpperCase()} ${Math.max(0, Math.ceil(p.vehicle.hp))}/${p.vehicle.maxHp} · A gas · B brake · RB off`;
-      else if (p.nearVehicle && p.alive) h.coverHint.textContent = `C / RB — ride the ${p.nearVehicle.def.name.toLowerCase()}`;
-      else if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
-      else if (p.nearCover && p.alive) h.coverHint.textContent = 'C / RB — take cover';
+      if (p.vehicle) {
+        h.coverHint.textContent = TEXT.hud.driving(
+          p.vehicle.def.name.toUpperCase(), Math.max(0, Math.ceil(p.vehicle.hp)), p.vehicle.maxHp,
+        );
+      } else if (p.nearVehicle && p.alive) h.coverHint.textContent = TEXT.hud.rideVehicle(p.nearVehicle.def.name.toLowerCase());
+      else if (p.cover) h.coverHint.textContent = p.peeking ? TEXT.hud.firingFromCover : TEXT.hud.inCover;
+      else if (p.nearCover && p.alive) h.coverHint.textContent = TEXT.hud.takeCover;
       else h.coverHint.textContent = '';
       h.coverHint.classList.toggle('active', !!p.cover || !!p.vehicle);
       // the wait is a performance now, not a countdown: the body burns away
       // and re-forms at the next spawn, so the label narrates rather than ticks
       h.weapon.textContent = p.alive
-        ? p.formT > 0 ? 'RE-FORMING' : p.weaponLabel()
-        : p.dissolving ? 'DISINTEGRATING' : 'DOWN';
+        ? p.formT > 0 ? TEXT.hud.reforming : p.weaponLabel()
+        : p.dissolving ? TEXT.hud.disintegrating : TEXT.hud.down;
       // Y is the rocket for gun carriers; for a blades-only fighter or a war
       // beast it is the heavy lunge, and the HUD should call it what it is
       const rc = p.rocketCd;
       if (p.profile.special === 'layEgg') {
         // the clutch is the readout: Y lays, RT throws, eggs charge on the clock
         const n = p.eggClutch;
-        h.rocket.textContent = n > 0 ? `◆ EGGS ×${n}` : '◇ egg charging';
+        h.rocket.textContent = n > 0 ? TEXT.hud.eggs(n) : TEXT.hud.eggCharging;
         h.rocket.className = n > 0 ? 'rocket' : 'rocket cooling';
       } else {
-        const ord = p.profile.rangedName === null ? 'LUNGE' : 'ROCKET';
-        h.rocket.textContent = rc <= 0 ? `◆ ${ord} READY` : `◇ ${ord.toLowerCase()} ${rc.toFixed(0)}s`;
+        const ord = p.profile.rangedName === null ? TEXT.hud.lunge : TEXT.hud.rocket;
+        h.rocket.textContent = rc <= 0 ? TEXT.hud.specialReady(ord) : TEXT.hud.specialCooling(ord, rc.toFixed(0));
         h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
       }
       h.wave.textContent = game.hudTopLine(p);

@@ -17,6 +17,7 @@ import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
 import { gravityScale, hazardAt } from '../world/board';
 import type { Game } from '../game/game';
+import { TEXT } from '../text';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
 export interface Combatant {
@@ -55,18 +56,7 @@ export type EnemyKind =
  * Display names, for the places the game talks about a kind rather than
  * spawning it — the loading screen names who is waiting on the territory.
  */
-export const ENEMY_NAME: Record<EnemyKind, string> = {
-  tusken: 'Tusken Raider', massiff: 'War Massiff', pirateMelee: 'Pirate Brawler', pyke: 'Pyke Syndicate',
-  pirate: 'Pirate Gunner', droid: 'Battle Droid', nikto: 'Nikto Swoop', jetpirate: 'Jetpack Pirate',
-  stormtrooper: 'Stormtrooper', deathtrooper: 'Death Trooper', darktrooper: 'Dark Trooper',
-  duelist: 'Gunslinger', officer: 'Imperial Officer', capo: 'Pyke Capo', enforcer: 'Wookiee Enforcer',
-  flametrooper: 'Flametrooper', krykna: 'Krykna', broodmother: 'Broodmother', quarren: 'Quarren',
-  alamite: 'Alamite', drone: 'Interceptor Drone', ringEnforcer: 'Ring Enforcer',
-  ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
-  mudhorn: 'Mudhorn', ravinak: 'Ravinak', mamacore: 'Mamacore', rancor: 'Rancor',
-  kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
-  spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
-};
+export const ENEMY_NAME: Record<EnemyKind, string> = TEXT.enemies;
 
 interface Def {
   hp: number; speed: number; radius: number; height: number;

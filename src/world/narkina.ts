@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld, type StaticCylinder } from '../core/physics';
 import { clamp, fbm2, makeRng, ridge2 } from '../core/math';
@@ -491,8 +492,8 @@ export function buildNarkina(): Board {
 
   const board: Board = {
     group, physics, kind: 'narkina',
-    name: 'The Prison Rig',
-    objective: 'Imperial ocean facility · survive 7 waves',
+    name: TEXT.boards.narkina.name,
+    objective: TEXT.boards.narkina.objective,
     footstep: 'metal',
     ambience: { sample: 'amb_sea', bed: 'wind' },
     music: 'station',
