@@ -102,6 +102,13 @@ interface MandoConfig {
    * the flames ride the foot bones so they angle with the legs in flight.
    */
   thrusters?: 'jetpack' | 'feet';
+  /**
+   * An acrobat somersaults: tapping jump again in the air tucks them into a
+   * roll that keeps turning while the button is held, and unwinds to a normal
+   * falling stance when it is let go. Only for fighters who read as tumblers —
+   * a jetpack rides its thrust, and a hunter with a rifle just falls.
+   */
+  acrobat?: boolean;
 }
 
 /** HUD display names for each loadout slot. */
@@ -164,7 +171,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.',
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,   // her trigger throws a blade
-    voice: 'human_f',
+    voice: 'human_f', acrobat: true,
   },
   embo: {
     name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.',
@@ -182,7 +189,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     name: 'Cad Bane', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.',
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
-    voice: 'alien_m',
+    voice: 'alien_m', acrobat: true,
   },
   ig11: {
     name: 'IG-11', desc: 'Hunter-killer droid on its second conscience \u2014 precision, now with mercy by choice.',

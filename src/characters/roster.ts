@@ -30,6 +30,11 @@ export interface PlayerProfile {
   runSpeed: number;
   sprintSpeed: number;
   /**
+   * Tapping jump again in the air rolls this fighter into a somersault for as
+   * long as the button is held. Acrobats only — see `acrobat` in the roster.
+   */
+  airFlip: boolean;
+  /**
    * How this character fights gravity. 'jetpack' is the Mandalorian loop:
    * hold jump in the air to thrust, on a fuel budget. 'superjump' is
    * everyone else's: hold A from the leap and keep rising as long as it
@@ -119,6 +124,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // the jetpack is a Mandalorian thing: the bare-headed hunters get the
     // held-A super jump instead
     flight: cfg.helmet === null ? 'superjump' : 'jetpack',
+    airFlip: !!cfg.acrobat,
     fireCd: 0.24, boltDamage: 34, boltSpeed: 75,
     meleeDamage: 32, meleeFinisher: 55,
     rangedOptions: ranged,
@@ -268,6 +274,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
       runSpeed: t.run,
       sprintSpeed: t.sprint ?? Math.max(t.run + 4.5, 13),
       flight: 'superjump',   // no NPC wears a jetpack; they all get the held-A leap
+      airFlip: false,        // and none of them tumble: the somersault is an acrobat's
       fireCd: t.fireCd ?? 0.3,
       boltDamage: t.boltDamage ?? 24,
       boltSpeed: t.boltSpeed ?? 60,

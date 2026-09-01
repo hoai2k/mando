@@ -52,6 +52,9 @@ const HIT_KNOCKBACK = 5;
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
 const _jetDir = new THREE.Vector3();
+const _flipPivot = new THREE.Vector3();
+const _flipSwung = new THREE.Vector3();
+const _flipAxis = new THREE.Vector3();
 const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
@@ -72,6 +75,19 @@ const SUPERJUMP_GLIDE = 0.35;
 const SUPERJUMP_FALL = 5.2;
 /** a jetpack A-tap released within this many seconds reads as a toggle, not a thrust hold */
 const JET_TAP = 0.22;
+/**
+ * The acrobat's air somersault (`airFlip` in the profile).
+ *
+ * SPIN is how fast the tuck turns once it is up to speed, in radians a second
+ * — a little over a turn and a half, which is quick enough to read as a
+ * tumble and slow enough to follow. Letting go does not stop the turn dead:
+ * the body carries on to the next whole revolution and unwinds into it, never
+ * slower than SETTLE_MIN so it always arrives, easing in over the last of it.
+ */
+const FLIP_SPIN = 11;
+const FLIP_SPIN_UP = 9;
+const FLIP_SETTLE_MIN = 5;
+const FLIP_SETTLE_EASE = 4.5;
 /** eased jetpack descent: gravity multiplier while the pack idles against the fall */
 const JET_DESCENT_GRAV = 0.3;
 /** eased jetpack descent: terminal fall speed, m/s */
@@ -295,6 +311,17 @@ export class Player {
   private superRising = false;
   /** feathering the fall with A held (reduced gravity, capped fall) */
   private superGliding = false;
+  // ---- air somersault (profile.airFlip) ----
+  /** the button is down and the tuck is turning */
+  private flipping = false;
+  /** how far through the somersault, radians; 0 when upright and idle */
+  private flipAngle = 0;
+  /** current turn rate, radians a second */
+  private flipSpin = 0;
+  /** where the unwind is heading: the next whole revolution, radians */
+  private flipTarget = 0;
+  /** the body lean the flight code asks for, kept apart from the somersault */
+  private leanX = 0;
   private coyote = 0;
   private fireCd = 0;
   private thrusting = 0;
@@ -1266,6 +1293,7 @@ export class Player {
         this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
       }
     }
+    this.updateAirFlip(dt, input, jumped);
 
     // ---- slam ----
     if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
@@ -1396,6 +1424,11 @@ export class Player {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
       anim.play('upper', 'blockUpper', 0.12);
+    } else if (this.flipping) {
+      // the tuck holds while the button does; letting go cross-fades back to
+      // the falling stance, which is the body unfolding out of the roll
+      anim.play('lower', 'tuckLower', 0.12);
+      if (this.meleeTimer <= 0) anim.play('upper', 'tuckUpper', 0.12);
     } else if (this.gliding || this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
       anim.play('lower', 'flyLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
@@ -2409,6 +2442,51 @@ export class Player {
     return best;
   }
 
+  /**
+   * The acrobat's air somersault.
+   *
+   * Jump again once you are already airborne and the body tucks and turns for
+   * as long as the button stays down — no thrust, no fuel, nothing that
+   * changes where you are going. Letting go does not stop it mid-turn, which
+   * would leave a fighter falling head-down: the roll carries on to the next
+   * whole revolution and unwinds into a normal fall, arriving upright every
+   * time. Landing takes precedence over both — feet come first.
+   *
+   * `jumped` says this frame's press was the take-off, which is the one press
+   * that must not start a roll.
+   */
+  private updateAirFlip(dt: number, input: FrameInput, jumped: boolean): void {
+    if (!this.profile.airFlip || this.grounded || !this.alive || this.blocking) {
+      // upright on the ground, whatever the roll was doing a moment ago
+      this.flipping = false;
+      this.flipAngle = 0;
+      this.flipSpin = 0;
+      return;
+    }
+    if (input.jumpPressed && !jumped) this.flipping = true;
+    if (this.flipping && !input.jumpHeld) {
+      // the button is gone: pick the revolution to finish on and unwind to it
+      this.flipping = false;
+      this.flipTarget = (Math.floor(this.flipAngle / (Math.PI * 2)) + 1) * Math.PI * 2;
+    }
+    if (this.flipping) {
+      this.flipSpin = damp(this.flipSpin, FLIP_SPIN, FLIP_SPIN_UP, dt);
+      this.flipAngle += this.flipSpin * dt;
+      return;
+    }
+    if (this.flipSpin <= 0) return;
+    // Easing in on what is left, floored so it always gets there: damping
+    // alone approaches the target without ever reaching it, and a fighter
+    // frozen a few degrees short of upright is the bug this avoids.
+    const left = this.flipTarget - this.flipAngle;
+    this.flipSpin = Math.max(FLIP_SETTLE_MIN, Math.min(this.flipSpin, left * FLIP_SETTLE_EASE));
+    this.flipAngle += this.flipSpin * dt;
+    if (this.flipAngle >= this.flipTarget - 0.02) {
+      this.flipAngle = 0;   // a whole number of turns is the pose it started in
+      this.flipSpin = 0;
+    }
+  }
+
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
@@ -2421,7 +2499,18 @@ export class Player {
     const target = this.swimming
       ? clamp(lean * 2.2 - this.velocity.y * 0.09, -0.6, 0.9)
       : this.grounded ? 0 : lean * (this.thrusting ? 1 : 0.4);
-    this.char.root.rotation.x = damp(this.char.root.rotation.x, target, 8, dt);
+    this.leanX = damp(this.leanX, target, 8, dt);
+    this.char.root.rotation.x = this.leanX + this.flipAngle;
+    if (this.flipAngle !== 0) {
+      // A somersault turns about the body, and `position` is where the boots
+      // are — spun about that the fighter scythes round their own feet like a
+      // vaulting pole. So the root is shifted by whatever the turn moved the
+      // hips, which pins the turn to the hips and leaves the feet to swing.
+      _flipPivot.set(0, this.height * 0.55, 0);
+      _flipAxis.set(Math.cos(this.facingYaw), 0, -Math.sin(this.facingYaw));
+      _flipSwung.copy(_flipPivot).applyAxisAngle(_flipAxis, this.flipAngle);
+      this.char.root.position.copy(this.position).add(_flipPivot).sub(_flipSwung);
+    }
     // creature playables (PvP heavies) animate themselves off their gait
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
     this.char.cosmetic?.(dt, game.time);
