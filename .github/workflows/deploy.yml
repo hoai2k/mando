@@ -10,26 +10,31 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
+# THE BROWSER SUITES DO NOT GATE THE DEPLOY, DELIBERATELY.
+#
+# They used to. Everything that boots Chromium — twenty browser suites and two
+# collision audits, each one playing the built game under software rendering —
+# sat between the build and the publish, so a run needed the better part of an
+# hour of nobody else pushing to reach the deploy step at all. With several
+# sessions working on this repository that is not a wait the deploy usually
+# gets: of runs 169-173, three were killed mid-suite by the next push landing
+# (`cancel-in-progress`) and only one was a real failure. `main` was green and
+# the live site was hours behind it, for no reason anyone could see — a
+# cancelled run reads exactly like a superseded one.
+#
+# So the deploy now rides the build alone: `npm run build` is `tsc --noEmit &&
+# vite build`, which means a tree that does not typecheck or does not bundle
+# still cannot publish. That takes a couple of minutes and comfortably outruns
+# the next push. The suites run beside it and report on their own; a red suite
+# marks the run failed and is what tells us to fix or roll back, it just no
+# longer holds the site hostage while it does.
 jobs:
   build:
     runs-on: ubuntu-latest
-    # The suite is fourteen browser suites now — every one of them boots the
-    # built game in Chromium under software rendering and plays it — and it
-    # keeps growing. A job killed on the timeout reports as `cancelled`, which
-    # reads exactly like a run superseded by the next push, so this once cost a
-    # day of deploys that looked merely skipped: `npm test` ran 19m17s against
-    # a 20-minute budget, was cut off, and every step after it — the audits,
-    # the artifact, the deploy itself — was skipped in silence.
-    #
-    # Raised to 45 after that, and the suite has already eaten it: 2026-08-31
-    # ran 41m48s, three minutes short of being killed the same way again. This
-    # is meant to be headroom, not a fitted budget — if a run ever approaches
-    # it, raise it again rather than trimming coverage to fit.
-    timeout-minutes: 90
+    timeout-minutes: 15
+    concurrency:
+      group: pages-build
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,17 +42,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # typecheck and bundle — the one gate the published site has
       - run: npm run build
-      # Boot the built game in Chromium behind a synthetic pad and play a wave
-      # before publishing it — the deploy used to go out on a typecheck alone.
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
-      # Every board's props measured against its colliders: nothing that looks
-      # solid may be walked through, and no collider may sit on empty air.
-      - run: npm run audit:boards
-      # Every wave on every board, planned and measured: no hostile may be
-      # posted inside the scenery it is supposed to fight in front of.
-      - run: npm run audit:spawns
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -58,9 +54,47 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # Deployments queue rather than cancel: two pushes in quick succession
+    # should both reach Pages in order, and the later one wins by arriving
+    # later. Cancelling here would be cancelling the thing we came for.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  test:
+    runs-on: ubuntu-latest
+    # Headroom, not a fitted budget. A job killed on the timeout reports as
+    # `cancelled`, which reads exactly like a run superseded by the next push,
+    # so a too-tight budget is a failure mode that hides itself — it once cost
+    # a day of deploys that looked merely skipped. If a run ever approaches
+    # this, raise it rather than trimming coverage to fit.
+    timeout-minutes: 90
+    # A newer commit's suites supersede an older commit's: the answer for a
+    # tree nobody is on any more is not worth an hour of runner.
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # the suites serve and play `dist/`, so they need it built here too
+      - run: npm run build
+      # Boot the built game in Chromium behind a synthetic pad and play a wave.
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      # Every board's props measured against its colliders: nothing that looks
+      # solid may be walked through, and no collider may sit on empty air.
+      - run: npm run audit:boards
+      # Every wave on every board, planned and measured: no hostile may be
+      # posted inside the scenery it is supposed to fight in front of.
+      - run: npm run audit:spawns
