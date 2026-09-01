@@ -305,7 +305,8 @@ export class Game {
     const squad = playableDef(p.characterId).profile.squad;
     if (!squad) return;
     // any followers it still has stay; only the missing places are refilled
-    const have = this.enemies.filter((e) => e.owner === p && e.alive).length;
+    // hunters (a broodmother's brood) share the owner but are not the squad
+    const have = this.enemies.filter((e) => e.owner === p && e.alive && !e.hunts).length;
     for (let i = have; i < squad.count; i++) {
       const a = (i / squad.count) * Math.PI * 2;
       const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
@@ -1429,8 +1430,7 @@ export class Game {
   /**
    * The playable broodmother puts an egg down at `at` (her Y — docs/MODES.md
    * §3). It hatches into a hunting spiderling on her team after 5 s and can
-   * be destroyed the whole time. The nest is capped so a long match doesn't
-   * bury the board in spiders.
+   * be destroyed the whole time.
    */
   layEgg(p: Player, from: THREE.Vector3, vel: THREE.Vector3): boolean {
     // born at the back-sac it left and tossed gently off: it falls with real
@@ -1455,9 +1455,14 @@ export class Game {
     return true;
   }
 
+  /**
+   * There is no ceiling on the brood, by design: the only thing rationing it
+   * is how fast she can grow eggs (one every three seconds, six on her back),
+   * so a queen who spends a whole match laying earns the swarm she built. The
+   * old head-count cap of eight made the sixth egg silently do nothing, which
+   * read as the button being broken rather than as a limit.
+   */
   private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
-    const brood = this.enemies.filter((e) => e.owner === p && e.alive).length;
-    if (brood >= 8) return null;   // the nest is full
     const egg = new Enemy('spiderEgg', at, p.team);
     egg.setOwner(p);
     this.enemies.push(egg);

@@ -368,6 +368,16 @@ export class Enemy {
    */
   owner: { position: THREE.Vector3; alive: boolean; team: number } | null = null;
   /**
+   * A hunter rather than a follower: it keeps its `owner` — for the team it
+   * fights on and the credit its kills earn — but takes none of the escort
+   * leash. The broodmother's brood is what this exists for. They used to be
+   * plain followers, which pinned them to her: the escort AI anchors to the
+   * leader and only engages what comes within `ESCORT_ENGAGE` of *her*, so a
+   * hatchling would trot at her heels past anything worth biting. A brood
+   * that hunts is the whole point of laying it.
+   */
+  hunts = false;
+  /**
    * Boss promotion (promoteBoss): scales outgoing damage at the point each
    * attack lands, since the shared per-kind def cannot carry per-instance HP.
    */
@@ -604,10 +614,15 @@ export class Enemy {
     }
   }
 
-  /** Make this enemy a PvP squad follower escorting `p` (see `owner`). */
-  setOwner(p: { position: THREE.Vector3; alive: boolean; team: number }): void {
+  /**
+   * Put this enemy under `p`: their team, their kill credit. `hunt` chooses
+   * the posture — a follower escorts them (the PvP squad), a hunter goes after
+   * the enemy on its own (the broodmother's brood).
+   */
+  setOwner(p: { position: THREE.Vector3; alive: boolean; team: number }, hunt = false): void {
     this.owner = p;
     this.team = p.team;
+    this.hunts = hunt;
     this.awareness = 'engaged';
   }
 
@@ -1197,7 +1212,7 @@ export class Enemy {
           case 'hover': this.updateHover(dt, game, target); break;
         }
       }
-    } else if (this.team === 0) {
+    } else if (this.team === 0 && !this.hunts) {
       // an ally with nothing to shoot: catch up to the player, or keep them
       // company once alongside
       this.updateEscort(dt, game);
@@ -1316,6 +1331,18 @@ export class Enemy {
     this.target = foe;
     this.visible = false;
     this.sightTimer -= dt;
+    if (this.hunts) {
+      // A hunter needs no line of sight to know where the prey is: the brood
+      // is one animal with the mother, and she can see the whole board. It
+      // crosses to whatever is nearest and bites it.
+      this.visible = !!foe;
+      if (foe) {
+        this.awareness = 'engaged';
+        this.memory = MEMORY;
+        this.interest.copy(foe.position);
+      }
+      return foe;
+    }
     if (this.team === 0 || this.owner) {
       // Allies fight whatever is near, but they escort rather than hunt: with
       // hostiles now posted all over the board, an ally that picked the
@@ -1704,7 +1731,7 @@ export class Enemy {
       this.counted = true;   // hatched, not killed
       this.removeMe = true;
       const spider = new Enemy(this.def.egg!.hatchTo, this.position, this.team);
-      if (this.owner) spider.setOwner(this.owner);
+      if (this.owner) spider.setOwner(this.owner, true);   // the brood hunts
       game.enemies.push(spider);
       game.scene.add(spider.char.root);
       game.particles.dustPuff(this.position, 8);

@@ -422,6 +422,9 @@ export class Player {
     this.char.root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.material) return;
+      // a readout (the broodmother's egg rack) says what it says: the flash
+      // would overwrite the clutch with the colour of being hit
+      if (mesh.userData.readout) return;
       const many = Array.isArray(mesh.material);
       const list = (many ? mesh.material : [mesh.material]) as THREE.Material[];
       const mine = list.map((src) => {
