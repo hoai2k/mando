@@ -286,6 +286,34 @@ const results = await h.page.evaluate(async () => {
     run(0.2);
   }
   out.__felled = felled;
+
+  // ---- a corpse is still a body in the world ----
+  //
+  // The promise for a creature that comes to rest the way it lived — a wide
+  // flat animal has its own underside for a resting face, and no amount of
+  // physics keeps one propped at an angle — is that you can shoot it again and
+  // move it. Checked on the spider, which is the shape that provokes it.
+  const shoved = [];
+  for (let trial = 0; trial < TRIALS; trial++) {
+    const spot = p.position.clone();
+    spot.x += 12;
+    spot.z += 10 + trial * 3;
+    const e = g.addReinforcement('krykna', spot);
+    for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+    run(0.6);
+    const from = p.position.clone();
+    e.damage(9999, from, 0);
+    e.knockback(from, 5.5, 0.2);
+    run(5);
+    const target = !!e.corpse;
+    const before = e.char.root.position.clone();
+    if (target) e.shoveCorpse(e.position.clone().setX(e.position.x + 2), 9);
+    run(1.5);
+    shoved.push({ target, moved: +e.char.root.position.distanceTo(before).toFixed(2) });
+    e.removeMe = true;
+    run(0.2);
+  }
+  out.__shoved = shoved;
   window.__manual = false;
   return out;
 });
@@ -296,6 +324,11 @@ const most = (trials, pred) => trials.filter(pred).length >= MOST;
 
 const felled = results.__felled;
 delete results.__felled;
+const shoved = results.__shoved;
+delete results.__shoved;
+check('a settled corpse is still something you can shoot',
+  shoved.every((r) => r.target), shoved);
+check('...and shooting it moves it', most(shoved, (r) => r.moved > 0.4), shoved);
 // A body on the ground is wider than it is tall. One left standing measures
 // its own height — 1.5 m of tusken against a metre of shoulders.
 check('a body killed the instant it is knocked over still ends up flat',
