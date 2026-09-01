@@ -266,6 +266,9 @@ const _JET_DOWN = new THREE.Vector3(0, -1, 0);
 /** scratch for seeding a ragdoll */
 const _base = new THREE.Vector3();
 const _spin = new THREE.Vector3();
+/** scratch for reading how upright a dying body is */
+const _hip = new THREE.Vector3();
+const _torso = new THREE.Vector3();
 /** crowd separation, m/s² per metre of overlap (tuned to the old 60 Hz feel) */
 const SEPARATION_ACCEL = 180;
 
@@ -889,7 +892,16 @@ export class Enemy {
       // A creature has no prone pose to preserve — its animator is a stub, so
       // a knocked-down spider is still standing as far as the model is
       // concerned — and it always dies into the sim.
-      if (!this.char.rig || (!this.wounded && this.downTimer <= 0)) this.startRagdoll();
+      //
+      // But the flags are not the question — the body is. `downTimer` runs
+      // through the *get-up* as well as the fall, so a raider knocked over and
+      // finished halfway back to his feet was frozen in that pose and slid to
+      // a stop still standing: the tusken left sticking diagonally out of the
+      // sand. Anyone whose torso is still up dies into the solver whatever the
+      // flags say, and only a body that is genuinely flat keeps its pose.
+      if (!this.char.rig || (!this.wounded && this.downTimer <= 0) || this.torsoUp()) {
+        this.startRagdoll();
+      }
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       // Flinch away from where the shot came from: rotate the bearing into
@@ -977,6 +989,24 @@ export class Enemy {
       if (d < bestD) { bestD = d; best = f; }
     }
     return best;
+  }
+
+  /**
+   * Is this body still standing, as the rig has it?
+   *
+   * Asked of the bones rather than of a state flag, because the flags describe
+   * what was *done* to the body and this needs to know what shape it is in.
+   */
+  private torsoUp(): boolean {
+    const b = this.char.rig?.bones;
+    if (!b?.hips || !b?.chest) return false;
+    this.char.root.updateMatrixWorld(true);
+    b.hips.getWorldPosition(_hip);
+    b.chest.getWorldPosition(_torso);
+    _torso.sub(_hip);
+    const len = _torso.length();
+    // half way over still counts as up: there is somewhere left to fall
+    return len > 1e-5 && _torso.y / len > 0.45;
   }
 
   /** arm the ragdoll; it is seeded from velocity on the first dead frame */

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs && node tools/test-allies.mjs && node tools/test-modes.mjs && node tools/test-overheat.mjs && node tools/test-vehicles.mjs && node tools/test-loadperf.mjs && node tools/test-monsters.mjs && node tools/test-arrivals.mjs && node tools/test-airplay.mjs && node tools/test-ragdoll.mjs && node tools/test-loadout.mjs && node tools/test-station.mjs && node tools/test-brood.mjs && node tools/check-creature-gaits.mjs && node tools/check-landing.mjs && node tools/check-block-facing.mjs",
+    "test": "node tools/harness.mjs && node tools/test-coop.mjs && node tools/test-loading.mjs && node tools/test-allies.mjs && node tools/test-modes.mjs && node tools/test-overheat.mjs && node tools/test-vehicles.mjs && node tools/test-loadperf.mjs && node tools/test-monsters.mjs && node tools/test-arrivals.mjs && node tools/test-airplay.mjs && node tools/test-ragdoll.mjs && node tools/test-loadout.mjs && node tools/test-station.mjs && node tools/test-block.mjs && node tools/test-hits.mjs && node tools/test-brood.mjs && node tools/check-creature-gaits.mjs && node tools/check-landing.mjs && node tools/check-block-facing.mjs",
     "audit:boards": "node tools/audit-collision.mjs",
     "audit:spawns": "node tools/audit-spawns.mjs",
     "audit:hitboxes": "node tools/audit-hitboxes.mjs",

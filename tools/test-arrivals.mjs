@@ -137,6 +137,80 @@ if (land.landings > 0) {
     land.stillArriving === 0 && land.incoming === 0 && land.bad === 0 && land.arrived > 0, land);
 }
 
+// ---- Missions: a sealed room's waves come in by transport too ----
+// A mission level is a chain of walled rooms with the open sky above them, so
+// the same carrier pass serves it. What has to hold is that the room is not
+// declared clear while its defenders are still aboard, and that they end up on
+// the room's floor rather than wherever the fall took them.
+await h.page.evaluate(() => {
+  window.__quitToTitle?.();
+  window.__startMode('campaign', 1, 'desert', ['din']);
+});
+// the campaign opens on an intro card and the controller only ticks while the
+// match is fighting — probing before that finds a level nobody is playing yet
+await h.page.waitForFunction(() => window.__game?.state === 'fighting', null, { timeout: 120000 });
+await sleep(500);
+const miss = await h.page.evaluate(`(async () => {
+  const g = window.__game;
+  const c = g.campaign;
+  const rooms = c.level.rooms;
+  const i = rooms.findIndex((r) => r.spec.kind === 'assault');
+  if (i < 0) return { skipped: true };
+  const room = rooms[i];
+  // stand the party in the middle of that room and let the seal happen
+  c.idx = i;
+  c.phase = 'travel';
+  for (const p of g.players) {
+    p.position.set(room.center.x, room.center.y + 0.2, room.center.z);
+    p.velocity.set(0, 0, 0);
+    p.hp = p.maxHp;
+    p.alive = true;
+  }
+  for (const e of g.enemies) e.removeMe = true;
+  (${STEP})(60);
+  const calledWave = c.phase === 'fight';
+  // the transport is inbound: nothing on the field, and the room must hold
+  const inboundBefore = g.incomingCount;
+  const carriers = g.carrierCount;
+  (${STEP})(20);
+  const clearedEarly = c.idx !== i;
+
+  // fly it in
+  let chutes = 0;
+  for (let n = 0; n < 120 && (g.incomingCount > 0 || g.enemies.some((e) => e.alive && e.arriving)); n++) {
+    (${STEP})(10);
+    for (const e of g.enemies) {
+      if (!e.alive || !e.arriving) continue;
+      e.char.root.traverse((o) => {
+        if (o.isMesh && o.geometry?.type === 'SphereGeometry' && o.material?.side === 2) chutes++;
+      });
+    }
+  }
+  const alive = g.enemies.filter((e) => e.alive);
+  const r = room.rect;
+  let outside = 0, offFloor = 0;
+  for (const e of alive) {
+    // two metres of slack: the wall itself is a metre thick and a body can
+    // settle with its centre just inside it
+    if (e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
+      || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2) outside++;
+    if (Math.abs(e.position.y - c.level.floorY) > 2) offFloor++;
+  }
+  return { calledWave, inboundBefore, carriers, clearedEarly, chutes,
+    arrived: alive.length, stillArriving: alive.filter((e) => e.arriving).length,
+    incoming: g.incomingCount, outside, offFloor };
+})()`);
+if (!miss.skipped) {
+  check('missions: a sealed room calls its wave by transport',
+    miss.calledWave && miss.carriers > 0 && miss.inboundBefore > 0, miss);
+  check('missions: the room is not cleared while the squad is still aboard',
+    !miss.clearedEarly, miss);
+  check('missions: the squad lands on the room floor',
+    miss.arrived > 0 && miss.stillArriving === 0 && miss.incoming === 0
+    && miss.outside === 0 && miss.offFloor === 0, miss);
+  check('missions: no parachutes indoors', miss.chutes === 0, miss.chutes);
+}
+
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
 if (failures.length || h.errors.length) {

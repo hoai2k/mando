@@ -126,6 +126,57 @@ const results = await h.page.evaluate(async () => {
    }
    out[kind] = trials;
   }
+
+  // ---- and the case the flags used to hide: killed on the way down ----
+  //
+  // `downTimer` runs from the moment a body is knocked over until it is back
+  // on its feet, and a rigged enemy that died anywhere inside that window used
+  // to skip the solver entirely and keep whatever pose it was holding — which,
+  // in the first fraction of a second, is still standing. That is the raider
+  // left sticking diagonally out of the sand.
+  //
+  // Measured on the body that is DRAWN, not on the procedural rig: the sculpt
+  // is what the player sees, and a rig lying flat under a standing model has
+  // fooled this test before. A fallen body is wider than it is tall.
+  const felled = [];
+  for (let trial = 0; trial < TRIALS; trial++) {
+    const spot = p.position.clone();
+    spot.x += 14;
+    spot.z -= 8;
+    const e = g.addReinforcement('tusken', spot);
+    for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+    run(0.8);
+    // the .glb lands on wall-clock time, not simulated time
+    const skinCount = () => { let n = 0; e.char.root.traverse((o) => { if (o.isSkinnedMesh) n++; }); return n; };
+    for (let i = 0; i < 60 && !skinCount(); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      run(0.1);
+    }
+    e.velocity.set(0, 0, 0);
+    e.knockdown(1.8);
+    run(0.1);                       // over, but nowhere near flat yet
+    e.velocity.set(0, 0, 0);
+    e.damage(9999, e.position.clone(), 0);
+    run(3.5);
+    e.char.root.updateMatrixWorld(true);
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9, bones = 0;
+    e.char.root.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      for (const bone of o.skeleton.bones) {
+        const el = bone.matrixWorld.elements;
+        bones++;
+        minX = Math.min(minX, el[12]); maxX = Math.max(maxX, el[12]);
+        minY = Math.min(minY, el[13]); maxY = Math.max(maxY, el[13]);
+        minZ = Math.min(minZ, el[14]); maxZ = Math.max(maxZ, el[14]);
+      }
+    });
+    felled.push(bones
+      ? { tall: +(maxY - minY).toFixed(2), wide: +Math.max(maxX - minX, maxZ - minZ).toFixed(2) }
+      : null);
+    e.removeMe = true;
+    run(0.2);
+  }
+  out.__felled = felled;
   window.__manual = false;
   return out;
 });
@@ -133,6 +184,13 @@ const results = await h.page.evaluate(async () => {
 /** how many of the three trials have to hold for the property to count */
 const MOST = 2;
 const most = (trials, pred) => trials.filter(pred).length >= MOST;
+
+const felled = results.__felled;
+delete results.__felled;
+// A body on the ground is wider than it is tall. One left standing measures
+// its own height — 1.5 m of tusken against a metre of shoulders.
+check('a body killed the instant it is knocked over still ends up flat',
+  felled.filter((v) => v && v.wide > v.tall).length >= MOST, { felled });
 
 for (const [kind, trials] of Object.entries(results)) {
   const height = trials[0].height;
