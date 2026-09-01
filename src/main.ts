@@ -107,6 +107,14 @@ let state: AppState = 'title';
 let game: Game | null = null;
 let chosenBoard = BOARDS[0];
 let playerCount = 1;
+/** AI fighters riding along after the humans in `chosenChars` (PvP only) */
+let botCount = 0;
+/**
+ * Everyone in the match: the humans, then the bots standing behind them. A bot
+ * needs its model downloaded and its plinth on the drop screen exactly as a
+ * player does — only the split-screen cares that it has nobody holding it.
+ */
+const matchCast = (): PlayableId[] => chosenChars.slice(0, playerCount + botCount);
 let endTimer = 0;
 /** which rule set the next match runs under; the title screen picks it */
 let mode: GameMode = 'wave';
@@ -197,13 +205,17 @@ const charSelect = new CharacterSelect(menuLayer, {
   onStart: (chars, count) => {
     chosenChars.length = 0;
     chosenChars.push(...chars);
+    // Everyone in the line, humans first and bots after it; `playerCount` is
+    // only the humans, because that is what the screen has to be split
+    // between. Anything that needs the whole cast reads `chosenChars`.
+    botCount = Math.max(0, chars.length - count);
     // pad out the unused slots so a later index is never undefined
     while (chosenChars.length < MAX_PLAYERS) chosenChars.push('paz');
     playerCount = count;
     // PvP gets its VS splash first; the match's files warm behind it, so the
     // showmanship costs the drop nothing
     if (mode === 'pvp') {
-      vs.show(chars);
+      vs.show(chars, count);
       setState('vs');
     } else {
       startGame();
@@ -495,7 +507,7 @@ function planContext(): WarmContext {
       ? undefined : chosenBoard.id,
     // on the select, whoever is on a plinth; past it, the fighters taken
     focus: state === 'characters' ? browsing
-      : committed ? chosenChars.slice(0, playerCount)
+      : committed ? matchCast()
       : undefined,
   };
 }
@@ -507,8 +519,8 @@ function setState(s: AppState): void {
   if (s === 'characters') {
     if (!charSelect.visible) {
       charSelect.configure(mode === 'pvp'
-        ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2 }
-        : { roster: STANDARD_ROSTER, title: 'Choose Your Mandalorian' });
+        ? { roster: PVP_ROSTER, title: 'Choose Your Fighter', minPlayers: 2, allowBots: true }
+        : { roster: STANDARD_ROSTER, title: 'Choose Your Bounty Hunter' });
       charSelect.show();
     }
   } else charSelect.hide();
@@ -539,7 +551,7 @@ function setState(s: AppState): void {
 function startGame(): void {
   audio.init();
   disposeGame();
-  const chars = chosenChars.slice(0, playerCount);
+  const chars = matchCast();
   loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
   // setState re-plans with the picks settled, so anything the drop still needs
   // goes to the front of the queue here
@@ -553,7 +565,7 @@ function startGame(): void {
  * prefetcher, which warms these same faces a screen earlier — see `dropCast`.
  */
 function keyEnemies(board: BoardId): EnemyKind[] {
-  return dropCast(board, chosenChars.slice(0, playerCount), mode);
+  return dropCast(board, matchCast(), mode);
 }
 
 function buildMatch(): void {
@@ -576,7 +588,7 @@ function buildMatch(): void {
     newContacts: (names) => hud.newContacts(names),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
-  }, [...chosenChars], mode);
+  }, [...chosenChars], mode, botCount);
   (window as unknown as { __game?: Game }).__game = game; // debug/testing handle
   built = true;
 }
@@ -605,7 +617,7 @@ let built = false;
 
 function updateLoading(dt: number): void {
   loadTimer += dt;
-  const chars = chosenChars.slice(0, playerCount);
+  const chars = matchCast();
   const keys = [...matchAssets(chosenBoard.id, chars, mode), ...(built ? boardLoads() : [])];
   const p = tracked.progress(keys);
   // the build itself is a real part of the wait, and worth a moving bar
@@ -693,7 +705,9 @@ Object.assign(window, {
   },
   // how many of this drop's required files are still outstanding, for tests:
   // it must read 0 by the time the match is on screen
-  __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, chosenChars.slice(0, playerCount), mode)).pending,
+  __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, matchCast(), mode)).pending,
+  // the character-select line as it stands, for tests: humans, then bots
+  __charsel: () => charSelect.lineState(),
   // the renderer itself, so a profiling run can read draw calls and GPU memory
   // off `info` — the only numbers that say what a board actually costs
   __renderer: renderer,

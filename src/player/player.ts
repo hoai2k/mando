@@ -197,6 +197,12 @@ export class Player {
   private landRecovery = 0;
   /** seconds left of the landing crouch, so leaving the ground can release it */
   private landTimer = 0;
+  /**
+   * Nobody is holding this one's controller: its input comes from a `BotBrain`
+   * rather than a pad. It is a player in every other respect — same body, same
+   * weapons, same rules — and only the split-screen and the HUD care.
+   */
+  isBot = false;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
   /** riding the boosters down on the sights: slow descent, fuel burning */

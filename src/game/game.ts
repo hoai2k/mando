@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
+import { BotBrain } from './bot';
 import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
@@ -170,8 +171,15 @@ export class Game {
   /** per-frame cache behind hostilesFor */
   private hostileCache = new Map<number, Combatant[]>();
 
+  /**
+   * How many of `players` are human, and so how many pieces the screen is cut
+   * into. Bots sit after them in the same list — they are players in every way
+   * that matters to the match, and in none that matters to the window.
+   */
+  readonly humans: number;
+
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
-    characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave') {
+    characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave', bots = 0) {
     this.scene.add(board.group);
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
@@ -193,8 +201,12 @@ export class Game {
       });
     }
 
-    for (let i = 0; i < playerCount; i++) {
+    this.humans = playerCount;
+    for (let i = 0; i < playerCount + bots; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
+      // a bot is a player with nobody holding the controller: same body, same
+      // weapons, same rules — its input comes from `BotBrain` instead of a pad
+      p.isBot = i >= playerCount;
       if (mode === 'pvp') {
         // every fighter is their own side; 0/1 stay meaningful as co-op/hostile
         p.team = 2 + i;
@@ -332,6 +344,19 @@ export class Game {
     for (const a of this.allies) if (a.alive && a.team !== who.team) list.push(a);
     this.hostileCache.set(who.team, list);
     return list;
+  }
+
+  /**
+   * One hand on the controller per bot, made when that bot first needs one and
+   * kept for the life of the match so its burst timing and the way it circles
+   * are its own rather than reset every frame.
+   */
+  private brains = new Map<number, BotBrain>();
+
+  private botInput(p: Player, dt: number): FrameInput {
+    let brain = this.brains.get(p.slot);
+    if (!brain) { brain = new BotBrain(); this.brains.set(p.slot, brain); }
+    return brain.think(p, this, dt);
   }
 
   /** the campaign controller's mouthpiece (events is private) */
@@ -1001,7 +1026,7 @@ export class Game {
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
-      p.update(dt, inputs[p.slot], this);
+      p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       if (this.mode === 'pvp') {
         // PvP keeps its finite stands: elimination is the mode's win condition
@@ -1657,7 +1682,7 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
 
-    const n = this.players.length;
+    const n = this.humans;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to
