@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
-import { clamp } from '../core/math';
+import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
 
@@ -943,13 +943,41 @@ export const BROOD_EGG_RACK = 6;
  * dark, and a pale sculpt bump showing around the edge would spoil that.
  */
 const RACK_SPOTS: readonly (readonly [number, number, number, number])[] = [
-  [-0.58, 1.92, -1.30, 0.30],
-  [0.58, 1.92, -1.30, 0.30],
-  [-0.52, 2.22, -1.48, 0.30],
-  [0.52, 2.22, -1.48, 0.30],
-  [-0.20, 2.42, -1.38, 0.28],
-  [0.20, 2.42, -1.38, 0.28],
+  [-0.54, 1.92, -1.28, 0.27],
+  [0.54, 1.92, -1.28, 0.26],
+  [-0.49, 2.20, -1.45, 0.26],
+  [0.49, 2.20, -1.45, 0.27],
+  [-0.19, 2.38, -1.36, 0.24],
+  [0.19, 2.38, -1.36, 0.25],
 ];
+
+/**
+ * How small a spent sac gets. Not zero, and not a free choice: the sculpt's
+ * own pale egg is underneath every one of these, so the floor is whatever
+ * still covers it. Measured against the sculpted clutch, 0.7 of full clears
+ * it with a little to spare.
+ */
+const EMPTY_FILL = 0.38;
+/** and a slack sac is flatter than a full one, not merely smaller */
+const SLACK_SQUASH = 0.55;
+/**
+ * How far the sculpt's own three egg-sac bones are wound in once the game is
+ * driving the rack. The abdomen is skinned to them too, but only lightly —
+ * collapsing them takes the sculpted clutch off her back and leaves the body
+ * itself untouched, which is what lets a spent sac deflate properly instead
+ * of shrinking down to reveal a bright egg underneath it.
+ */
+const SAC_HIDE = 0.01;
+/** how fast a sac fills and empties, in units of fullness per second */
+const FILL_RATE = 3.5;
+const EMPTY_RATE = 7;
+
+const EGG_SPENT = new THREE.Color(0x0a0c0a);
+// the sculpt's own eggs are a warm cream, not white; a readout that ignored
+// that read as six plastic balls stuck on her back
+const EGG_READY = new THREE.Color(0xdfdcc4);
+const GLOW_SPENT = new THREE.Color(0x000000);
+const GLOW_READY = new THREE.Color(0x4c5142);
 
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
@@ -962,7 +990,9 @@ export function buildBroodmother(authored = true): CharacterInstance {
   const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
   const rackMeshes: THREE.Mesh[] = [];
   for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
-    const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.5 });
+    // a shell, not a bead: rough enough that six of them do not read as one
+    // glossy mass when the whole clutch is up
+    const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.78 });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), m);
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
@@ -986,29 +1016,77 @@ export function buildBroodmother(authored = true): CharacterInstance {
     mesh.getWorldPosition(out);
     return true;
   };
+  // How full each sac is *on screen*, which lags what the clutch says: a sac
+  // fills as the egg grows in it and collapses when the egg leaves, and both
+  // read better eased than snapped. `want` is the clutch's answer, `fill` is
+  // what the body is showing on the way there.
+  const want = new Array(BROOD_EGG_RACK).fill(0);
+  const fill = new Array(BROOD_EGG_RACK).fill(0);
+  const raw = new Array(BROOD_EGG_RACK).fill(-1);
+  let driven = false;
+
+  /** Paint and size sac `i` from its eased fullness. */
+  const dress = (i: number): void => {
+    const mesh = rackMeshes[i];
+    const f = fill[i];
+    // A spent sac is slack, not gone: it collapses to a flattened shell on
+    // her back and swells as the egg inside it grows.
+    const k = EMPTY_FILL + (1 - EMPTY_FILL) * f;
+    mesh.scale.set(k, k * (SLACK_SQUASH + (1 - SLACK_SQUASH) * f), k);
+    const m = mesh.material as THREE.MeshStandardMaterial;
+    const s = raw[i];
+    if (s >= 0.72 && s < 1) {
+      // the last beat of the charge: a couple of blue flashes
+      const flash = Math.sin(((s - 0.72) / 0.28) * Math.PI * 4) > 0;
+      m.color.setHex(flash ? 0x6fa8ff : 0x2a3448);
+      m.emissive.setHex(flash ? 0x2a5fc0 : 0x101a30);
+      return;
+    }
+    // black when empty through pale when ready, so a half-grown egg is visibly
+    // half-grown in colour as well as in size
+    m.color.copy(EGG_SPENT).lerp(EGG_READY, f);
+    m.emissive.copy(GLOW_SPENT).lerp(GLOW_READY, f);
+  };
+
   inst.setEggs = (states) => {
+    driven = true;
     for (let i = 0; i < rackMeshes.length; i++) {
-      // the mesh's *current* material, never one captured at build time: a
-      // player body has its materials cloned and swapped when the hit flash
-      // adopts them, and writing to the original would shade nothing
       rackMeshes[i].visible = true;
-      const m = rackMeshes[i].material as THREE.MeshStandardMaterial;
       const s = states[i] ?? -1;
-      if (s >= 1) {
-        m.color.setHex(0xf2f5ee);              // charged: pale and ready
-        m.emissive.setHex(0x6a705e);
-      } else if (s >= 0.72) {
-        // the last beat of the charge: a couple of blue flashes
-        const flash = Math.sin(((s - 0.72) / 0.28) * Math.PI * 4) > 0;
-        m.color.setHex(flash ? 0x6fa8ff : 0x2a3448);
-        m.emissive.setHex(flash ? 0x2a5fc0 : 0x101a30);
-      } else {
-        // spent, or still gathering: black, so the back reads as an empty rack
-        m.color.setHex(0x0a0c0a);
-        m.emissive.setHex(0x000000);
-      }
+      raw[i] = s;
+      want[i] = s >= 1 ? 1 : Math.max(0, s);
+      dress(i);
     }
   };
+
+  // The sculpt's own clutch, retired once the game drives the rack — found
+  // lazily, because the authored model arrives seconds into a match, and
+  // re-applied every frame, because whatever poses the rig owns these bones.
+  const sacBones: THREE.Object3D[] = [];
+  let boneScan = 0;
+
+  const prevCosmetic = inst.cosmetic;
+  inst.cosmetic = (dt, time) => {
+    prevCosmetic?.(dt, time);
+    if (!driven) return;
+    boneScan -= dt;
+    if (!sacBones.length && boneScan <= 0) {
+      boneScan = 0.5;
+      inst.root.traverse((o) => { if (/^sac\d/i.test(o.name)) sacBones.push(o); });
+    }
+    for (const b of sacBones) b.scale.setScalar(SAC_HIDE);
+    for (let i = 0; i < rackMeshes.length; i++) {
+      // Filling is slow because the egg is: it tracks the three-second charge
+      // rather than racing it. Emptying is quick — the egg physically left her
+      // back — but not instant, or the sac would pop out of existence.
+      const rate = want[i] > fill[i] ? FILL_RATE : EMPTY_RATE;
+      fill[i] = damp(fill[i], want[i], rate, dt);
+      dress(i);
+    }
+  };
+  // the mesh's *current* material is what dress() writes to, never one captured
+  // at build time: a player body has its materials cloned and swapped when the
+  // hit flash adopts them, and writing to the original would shade nothing
   return inst;
 }
 

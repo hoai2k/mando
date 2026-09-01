@@ -59,6 +59,8 @@ interface PooledTarget extends BoltTarget {
   player: Player | null;
   breakable?: Breakable | null;
   vehicle?: Vehicle | null;
+  /** this entry stands for `enemy`'s corpse, not the living body */
+  corpse?: boolean;
 }
 
 /** the rocket mesh's own axis, for orienting it along its velocity */
@@ -866,6 +868,13 @@ export class Game {
         e.knockdown(1.4 + Math.random() * 0.8); // blast wave puts them flat
       }
     }
+    // a blast scatters what is already lying there, which is half of what an
+    // explosion looks like
+    for (const e of this.enemies) {
+      if (!e.corpse) continue;
+      const d = e.position.distanceTo(point);
+      if (d < 9) e.shoveCorpse(point, 26 * (1 - d / 10));
+    }
     for (const p of this.players) {
       if (!p.alive) continue;
       const d = p.position.distanceTo(point);
@@ -1142,6 +1151,7 @@ export class Game {
       t.slot = undefined;
       t.breakable = null;
       t.vehicle = null;
+      t.corpse = false;
       targets.push(t);
       // long bodies (the war massiff) need more than the one centre sphere.
       // Read off the instance, not the shared Def: a promoted boss carries its
@@ -1164,6 +1174,7 @@ export class Game {
           h.slot = undefined;
           h.breakable = null;
           h.vehicle = null;
+          h.corpse = false;
           targets.push(h);
         }
       }
@@ -1188,6 +1199,7 @@ export class Game {
       t.slot = p.slot;
       t.breakable = null;
       t.vehicle = null;
+      t.corpse = false;
       targets.push(t);
       // and the same extra spheres a long-bodied kind gets as a hostile
       if (p.profile.hitParts.length) {
@@ -1210,10 +1222,36 @@ export class Game {
           h.slot = p.slot;
           h.breakable = null;
           h.vehicle = null;
+          h.corpse = false;
           targets.push(h);
         }
       }
     }
+    // ---- corpses ----
+    // A body that has stopped moving is still a body. Team 2 is the scenery
+    // team, hit by both sides and hitting neither back, which is what a corpse
+    // is now: no damage, no kill credit, no lock-on (aim assist only ever
+    // considers the living) — just something that moves when it is shot. It is
+    // also the answer for a wide flat animal that settles the right way up
+    // despite the roll: another bolt tips it the rest of the way.
+    for (const e of this.enemies) {
+      const body = e.corpse;
+      if (!body) continue;
+      const t = this.pooledTarget(slot++);
+      t.enemy = e;
+      t.player = null;
+      t.corpse = true;
+      t.position.copy(body.at);
+      t.radius = body.radius;
+      t.team = 2;
+      t.alive = true;
+      t.shield = null;
+      t.slot = undefined;
+      t.breakable = null;
+      t.vehicle = null;
+      targets.push(t);
+    }
+
     // breakable props sit on team 2, so both sides' fire chips at them
     if (this.board.breakables) {
       for (const b of this.board.breakables) {
@@ -1282,6 +1320,7 @@ export class Game {
       t.slot = undefined;
       t.breakable = null;
       t.vehicle = null;
+      t.corpse = false;
       targets.push(t);
     }
     this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
@@ -1370,6 +1409,8 @@ export class Game {
       position: new THREE.Vector3(), radius: 0, team: 0, alive: false,
       shield: null, slot: undefined, enemy: null, player: null,
       onHit: (dmg: number, from: THREE.Vector3, bySlot: number, tag?: string): void => {
+        // A corpse takes no damage — it is already dead — but it moves.
+        if (entry.corpse) { entry.enemy?.shoveCorpse(from, 9); return; }
         if (entry.breakable) { this.hurtBreakable(entry.breakable, dmg); return; }
         if (entry.vehicle) { entry.vehicle.damage(dmg, from, bySlot); return; }
         if (entry.player) {

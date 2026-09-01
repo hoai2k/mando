@@ -185,6 +185,10 @@ select.addButtons(cards, BOARDS.map((info) => ({
   el: makeCard(info.name, info.desc, info.art, info.gradient),
 })));
 select.onBack = () => setState('title');
+// debug/testing handle: put the territory focus on a known card, so a test can
+// check where a direction press goes from there without walking to it first
+(window as unknown as { __selectFocus?: unknown }).__selectFocus =
+  (i: number): void => select.setFocus(i);
 
 // ----- pvp VS splash (mode select only) -----
 const vs = new VsScreen(menuLayer);

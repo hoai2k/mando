@@ -55,6 +55,104 @@ const results = await h.page.evaluate(async () => {
     for (let t = 0; t < seconds; t += DT) g.update(DT, inputs);
   };
   const p = g.players[0];
+
+  /**
+   * The body as it is DRAWN, in world space.
+   *
+   * Everything here used to be measured off `char.root` — its position and its
+   * quaternion — and neither means what it reads as once a solver has posed
+   * the body. The articulated solver parks the root quaternion at identity
+   * every frame, so "how far did it turn" was really "which way was it facing
+   * when it died"; and the root origin stops being the feet the moment the
+   * body lies down, so "how far off the ground" drifted by up to a body
+   * height. Both were dice rolls that flipped run to run.
+   *
+   * A skinned mesh's geometry bounding box is its REST pose, so for an
+   * authored body the posed truth is the bones; a rigless model is
+   * transformed whole, so its mesh boxes are honest. Hidden subtrees are
+   * skipped, which is what keeps the procedural stand-in out of the answer
+   * once the sculpt has replaced it.
+   */
+  const drawn = (root) => {
+    root.updateMatrixWorld(true);
+    let lo = [Infinity, Infinity, Infinity];
+    let hi = [-Infinity, -Infinity, -Infinity];
+    let pts = 0;
+    let skinned = false;
+    const add = (x, y, z) => {
+      pts++;
+      lo = [Math.min(lo[0], x), Math.min(lo[1], y), Math.min(lo[2], z)];
+      hi = [Math.max(hi[0], x), Math.max(hi[1], y), Math.max(hi[2], z)];
+    };
+    const walk = (o, useBones) => {
+      if (!o.visible) return;
+      if (o.isSkinnedMesh) {
+        for (const b of o.skeleton.bones) {
+          const m = b.matrixWorld.elements;
+          add(m[12], m[13], m[14]);
+        }
+      } else if (o.isMesh && !useBones) {
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        const bb = o.geometry.boundingBox;
+        if (bb) {
+          // the eight corners through the world matrix, by hand, so the probe
+          // needs no THREE of its own
+          const e = o.matrixWorld.elements;
+          for (const cx of [bb.min.x, bb.max.x]) {
+            for (const cy of [bb.min.y, bb.max.y]) {
+              for (const cz of [bb.min.z, bb.max.z]) {
+                add(
+                  e[0] * cx + e[4] * cy + e[8] * cz + e[12],
+                  e[1] * cx + e[5] * cy + e[9] * cz + e[13],
+                  e[2] * cx + e[6] * cy + e[10] * cz + e[14],
+                );
+              }
+            }
+          }
+        }
+      }
+      for (const c of o.children) walk(c, useBones);
+    };
+    root.traverse((o) => { if (o.isSkinnedMesh && o.visible) skinned = true; });
+    walk(root, skinned);
+    if (!pts) return null;
+    return {
+      skinned,
+      cx: (lo[0] + hi[0]) / 2, cz: (lo[2] + hi[2]) / 2,
+      bottom: lo[1],
+      tall: hi[1] - lo[1],
+      wide: Math.max(hi[0] - lo[0], hi[2] - lo[2]),
+    };
+  };
+
+  /**
+   * How far this body's own up-axis has tipped away from world up, radians.
+   *
+   * Read off whichever thing is actually posing the body. A rigless corpse is
+   * transformed whole, so its root quaternion is its orientation; a rigged one
+   * has that root parked at identity by the solver every frame, so the torso —
+   * hips to chest — is where the truth is. Reading the root for both is what
+   * made this check report which way a trooper happened to be *facing* when he
+   * died, and pass or fail on that.
+   *
+   * Height is no use here: a massiff lying on its side is no shorter than one
+   * standing, and neither is a spider.
+   */
+  const upTilt = (e) => {
+    const b = e.char.rig?.bones;
+    if (b?.hips && b?.chest) {
+      e.char.root.updateMatrixWorld(true);
+      const m = b.hips.matrixWorld.elements, n = b.chest.matrixWorld.elements;
+      const dx = n[12] - m[12], dy = n[13] - m[13], dz = n[14] - m[14];
+      const len = Math.hypot(dx, dy, dz);
+      return len > 1e-5 ? Math.acos(Math.max(-1, Math.min(1, dy / len))) : null;
+    }
+    // (0,1,0) through the root's rotation, then the angle to world up
+    const q = e.char.root.quaternion;
+    const uy = 1 - 2 * (q.x * q.x + q.z * q.z);
+    return Math.acos(Math.max(-1, Math.min(1, uy)));
+  };
+
   const out = {};
   // one of each family: a spider and a beast on free-form rigs, a trooper on
   // the canonical one
@@ -80,11 +178,16 @@ const results = await h.page.evaluate(async () => {
     // on; give it a little settling afterwards.
     for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
     run(0.6);
+    // The sculpt arrives on wall-clock time, not simulated time, and the
+    // sculpt is the body the player watches fall: measuring the procedural
+    // stand-in would be measuring something that is about to be replaced.
+    for (let i = 0; i < 60 && !(e.char.modelReady?.() ?? true); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      run(0.1);
+    }
     const root = e.char.root;
-    const before = {
-      pos: root.position.clone(),
-      quat: root.quaternion.clone(),
-    };
+    const standing = drawn(root);
+    const before = { pos: root.position.clone() };
     // Killed from one side, hard, so the body is thrown as well as dropped —
     // which means killing it the way the game does. A bolt's onHit runs
     // damage() *and then* knockback() on a hostile, and it is the knockback
@@ -98,27 +201,33 @@ const results = await h.page.evaluate(async () => {
     e.damage(9999, from, 0);
     e.knockback(from, 5.5, 0.2);
     run(2.6);
-    const tilt = before.quat.angleTo(root.quaternion);
+    const fallen = drawn(root);
+    const tipped = upTilt(e);
     const moved = root.position.distanceTo(before.pos);
-    // Ground under the body, sampled in a small ring rather than at the one
-    // centre point. A corpse settling against a crate has the crate's lid
-    // directly over its origin, so a single sample reads the body as buried
-    // 1.6 m inside the sand it is plainly lying on top of. Every sample the
-    // body could legitimately be resting on is kept, and the check below
-    // passes if any of them puts it on the deck.
-    const grounds = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]
-      .map(([dx, dz]) => g.board.physics.groundHeight(
-        root.position.x + dx, root.position.z + dz, root.position.y + 2))
-      .filter((v) => v > -Infinity);
+    // Ground under the DRAWN body, sampled in a small ring rather than at one
+    // point. A corpse settling against a crate has the crate's lid directly
+    // over its middle, so a single sample reads the body as buried in the sand
+    // it is plainly lying on top of. Every surface it could legitimately be
+    // resting on is kept and the check below takes the best of them.
+    const grounds = fallen
+      ? [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]
+        .map(([dx, dz]) => g.board.physics.groundHeight(
+          fallen.cx + dx, fallen.cz + dz, fallen.bottom + 2))
+        .filter((v) => v > -Infinity)
+      : [];
     trials.push({
       rigged: !!e.char.rig,
       alive: e.alive,
-      height: e.height,
-      tilt: +tilt.toFixed(2),
+      skinned: !!fallen?.skinned,
+      // how far the body's own up-axis has tipped from world up, radians
+      tipped: tipped === null ? null : +tipped.toFixed(2),
+      // did this creature stand taller than it was wide? Only such a body has
+      // an upright it can be wrongly left in — see the check below
+      upright: standing ? standing.tall > standing.wide : null,
       moved: +moved.toFixed(2),
-      // how far the body's origin sits off each candidate surface under it
-      offGround: grounds.length
-        ? grounds.map((v) => +(root.position.y - v).toFixed(2))
+      // and how far the lowest drawn point sits off each surface under it
+      offGround: fallen && grounds.length
+        ? grounds.map((v) => +(fallen.bottom - v).toFixed(2))
         : null,
     });
     e.removeMe = true;
@@ -177,6 +286,34 @@ const results = await h.page.evaluate(async () => {
     run(0.2);
   }
   out.__felled = felled;
+
+  // ---- a corpse is still a body in the world ----
+  //
+  // The promise for a creature that comes to rest the way it lived — a wide
+  // flat animal has its own underside for a resting face, and no amount of
+  // physics keeps one propped at an angle — is that you can shoot it again and
+  // move it. Checked on the spider, which is the shape that provokes it.
+  const shoved = [];
+  for (let trial = 0; trial < TRIALS; trial++) {
+    const spot = p.position.clone();
+    spot.x += 12;
+    spot.z += 10 + trial * 3;
+    const e = g.addReinforcement('krykna', spot);
+    for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+    run(0.6);
+    const from = p.position.clone();
+    e.damage(9999, from, 0);
+    e.knockback(from, 5.5, 0.2);
+    run(5);
+    const target = !!e.corpse;
+    const before = e.char.root.position.clone();
+    if (target) e.shoveCorpse(e.position.clone().setX(e.position.x + 2), 9);
+    run(1.5);
+    shoved.push({ target, moved: +e.char.root.position.distanceTo(before).toFixed(2) });
+    e.removeMe = true;
+    run(0.2);
+  }
+  out.__shoved = shoved;
   window.__manual = false;
   return out;
 });
@@ -187,30 +324,51 @@ const most = (trials, pred) => trials.filter(pred).length >= MOST;
 
 const felled = results.__felled;
 delete results.__felled;
+const shoved = results.__shoved;
+delete results.__shoved;
+check('a settled corpse is still something you can shoot',
+  shoved.every((r) => r.target), shoved);
+check('...and shooting it moves it', most(shoved, (r) => r.moved > 0.4), shoved);
 // A body on the ground is wider than it is tall. One left standing measures
 // its own height — 1.5 m of tusken against a metre of shoulders.
 check('a body killed the instant it is knocked over still ends up flat',
   felled.filter((v) => v && v.wide > v.tall).length >= MOST, { felled });
 
 for (const [kind, trials] of Object.entries(results)) {
-  const height = trials[0].height;
   check(`${kind} dies`, trials.every((r) => r.alive === false),
     trials.map((r) => r.alive));
-  // A ragdoll turns the body over — a corpse left standing bolt upright is the
-  // bug this test exists for.
-  check(`${kind} ragdolls (body turns over)`, most(trials, (r) => r.tilt > 0.5),
-    { tilt: trials.map((r) => r.tilt), rigged: trials[0].rigged });
+  // A body that stood taller than it was wide has an upright it can be left
+  // wrongly standing in, and a ragdoll has to take it out of that: its own
+  // up-axis ends up well away from world up. Measured on whatever is posing
+  // the body — see `upTilt` — since reading the root quaternion for a rigged
+  // corpse reported which way the creature happened to be facing when it
+  // died, and nothing else.
+  //
+  // A low, wide animal is exempt, and deliberately: a spider's resting shape
+  // *is* its standing one, and a dead krykna settling onto its own underside
+  // is what a wide flat body does. It used to tumble to a random angle here,
+  // and that was the bug — the solver was falling on a cube cut from its
+  // collision capsule rather than on the shape of the animal. Travel and
+  // grounding are what those bodies are held to, and both are checked below.
+  const standsTall = trials.some((r) => r.upright);
+  if (standsTall) {
+    check(`${kind} ragdolls (body goes over)`,
+      most(trials, (r) => r.tipped !== null && r.tipped > 0.6),
+      { tipped: trials.map((r) => r.tipped) });
+  } else {
+    console.log(`  --   ${kind} is wider than it is tall: no upright to be left in`);
+  }
   // and it goes somewhere: thrown by the killing blow, then settled
   check(`${kind} corpse is thrown clear`, most(trials, (r) => r.moved > 0.4),
     { moved: trials.map((r) => r.moved) });
-  // It must end on the ground it fell onto, not sunk into it or floating. The
-  // measurement is of the model's origin, which sits at the creature's feet —
-  // so a body lying on its side legitimately carries that origin up by about
-  // its own half-width, and the tolerance scales with the animal.
+  // It must end on the ground it fell onto, not sunk into it or floating.
+  // The lowest drawn point is the contact: bones sit inside the flesh, so a
+  // little clearance is expected, and a body draped over something the ring
+  // missed is allowed a little more.
   check(`${kind} rests on the ground`,
     most(trials, (r) => r.offGround === null
-      || r.offGround.some((off) => off > -height * 0.4 && off < height * 0.9)),
-    { offGround: trials.map((r) => r.offGround), height });
+      || r.offGround.some((off) => off > -0.5 && off < 0.75)),
+    { offGround: trials.map((r) => r.offGround) });
 }
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));

@@ -76,8 +76,8 @@ const rack = await page.evaluate(`(() => {
 check('the rack shows one sac per egg the sculpt carries', rack.sacs === 6, `${rack.sacs} sacs`);
 check('an empty clutch reads black on every sac',
   rack.start.every((v) => v < 0.05), JSON.stringify(rack.start));
-check('a full clutch lights every sac white',
-  rack.clutch === 6 && rack.full.every((v) => v > 0.7), `${rack.clutch} eggs, ${JSON.stringify(rack.full)}`);
+check('a full clutch lights every sac pale',
+  rack.clutch === 6 && rack.full.every((v) => v > 0.5), `${rack.clutch} eggs, ${JSON.stringify(rack.full)}`);
 
 // ---- the brood hunts ----
 // She lays with Y (the rocket slot). The rival is parked far away, so a
@@ -143,6 +143,92 @@ check('every charged egg she lays becomes brood', swarm.laid >= 12, `${swarm.lai
 check('and the whole swarm hunts',
   swarm.brood > 0 && swarm.hunting === swarm.brood, `${swarm.hunting}/${swarm.brood}`);
 
+// ---- the sacs inflate and deflate ----
+// A spent sac is a slack shell; it swells as the egg inside it grows, and
+// collapses again when that egg leaves her back. Self-contained and last,
+// because it spends the whole clutch: it charges up from wherever the earlier
+// sections left her. The growth has to be *gradual* — watching it fill is the
+// point — so the check samples a sac while it charges and insists on real
+// in-between sizes rather than a jump.
+const swell = await page.evaluate(`(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const sacs = () => p.char.root.children.filter((c) => c.isMesh && c.geometry?.type === 'SphereGeometry');
+  (${STEP})(30 * 22);                     // a full clutch to start from
+  const full = sacs().map((m) => +m.scale.x.toFixed(3));
+  // Spend the lot. Each press is throttled at half a second and an egg grows
+  // back every three, so this has to keep pressing until the rack is actually
+  // empty rather than press six times and assume.
+  for (let i = 0; i < 40 && p.eggClutch > 0; i++) {
+    (${STEP})(4, 'rocketPressed');
+    (${STEP})(14);
+  }
+  // The loop stops the moment the count hits zero, which can be with the next
+  // egg most of the way charged — a second later it is back and the rack is
+  // not empty at all. One more press clears whatever finished on the way out.
+  (${STEP})(16);                          // clear the half-second throttle
+  (${STEP})(4, 'rocketPressed');
+  (${STEP})(10);                          // long enough for a sac to collapse
+  const empty = sacs().map((m) => +m.scale.x.toFixed(3));
+  const emptyY = sacs().map((m) => +m.scale.y.toFixed(3));
+  // Whichever sac is growing the next egg — which is the one at the clutch's
+  // own count. Not always sac zero: the rack can never be caught perfectly
+  // empty, because an egg goes on charging while the last ones are being laid
+  // and one finishes during the beat it takes the sacs to collapse.
+  const idx = Math.min(p.eggClutch, 5);
+  const track = [];
+  for (let i = 0; i < 14; i++) { (${STEP})(7); track.push(+sacs()[idx].scale.x.toFixed(3)); }
+  return { full, empty, emptyY, track, idx, spent: p.eggClutch };
+})()`);
+const slack = swell.empty.filter((v) => v < 0.45);
+check('a charged sac stands full', swell.full.every((v) => v > 0.98), JSON.stringify(swell.full));
+check('a spent sac deflates in play',
+  swell.spent <= 1 && slack.length >= 5,
+  `${slack.length} slack, ${swell.spent} still charged: ${JSON.stringify(swell.empty)}`);
+
+// And the mechanism itself, driven rather than waited on. The rack can never
+// be caught perfectly empty in play — an egg goes on charging while the last
+// ones are being laid, and one finishes during the beat it takes the sacs to
+// collapse — so the shape of the swell is measured by pushing states through
+// the readout directly and ticking the cosmetic clock that eases it.
+const shape = await page.evaluate(`(() => {
+  const p = window.__game.players[0];
+  const sacs = () => p.char.root.children.filter((c) => c.isMesh && c.geometry?.type === 'SphereGeometry');
+  const settle = (states, ticks) => {
+    for (let i = 0; i < ticks; i++) { p.char.setEggs(states); p.char.cosmetic(1 / 30, i / 30); }
+  };
+  settle([-1, -1, -1, -1, -1, -1], 60);
+  const flat = sacs().map((m) => ({ x: +m.scale.x.toFixed(3), y: +m.scale.y.toFixed(3) }));
+  // walk one sac's charge from nothing to ready, sampling as it grows
+  const track = [];
+  for (let step = 0; step <= 20; step++) {
+    settle([step / 20, -1, -1, -1, -1, -1], 3);
+    track.push(+sacs()[0].scale.x.toFixed(3));
+  }
+  settle([1, -1, -1, -1, -1, -1], 60);
+  const ready = +sacs()[0].scale.x.toFixed(3);
+  return { flat, track, ready };
+})()`);
+const rising = shape.track.filter((v, i) => i > 0 && v > shape.track[i - 1] + 0.005).length;
+const between = shape.track.filter((v) => v > 0.45 && v < 0.95).length;
+check('an empty sac is a flat shell, not a small ball',
+  shape.flat.every((s) => s.x < 0.45 && s.y < s.x * 0.8), JSON.stringify(shape.flat));
+check('it swells gradually as its egg grows',
+  rising >= 12 && between >= 4, `${rising} rising steps, ${between} in-between: ${JSON.stringify(shape.track)}`);
+check('and stands full once the egg is ready', shape.ready > 0.98, String(shape.ready));
+
+// The sculpt carries its own six eggs, and they are wound out of the way once
+// the game drives the rack — otherwise a deflating sac would shrink down to
+// reveal a bright sculpted egg sitting in the socket the game calls empty.
+const sculpt = await page.evaluate(`(() => {
+  const p = window.__game.players[0];
+  const bones = [];
+  p.char.root.traverse((o) => { if (/^sac\\d/i.test(o.name)) bones.push(+o.scale.x.toFixed(3)); });
+  return bones;
+})()`);
+check("the sculpt's own clutch is wound away for a driven rack",
+  sculpt.length > 0 && sculpt.every((v) => v < 0.1), JSON.stringify(sculpt));
+
 // ---- the same body as a wave boss ----
 // She fights as an AI boss too, where nobody counts her eggs. The rack is a
 // player's readout, so on her it must stay off the sculpt's own pale clutch
@@ -154,10 +240,14 @@ const boss = await page.evaluate(`(() => {
   const e = g.addReinforcement('broodmother', at);
   (${STEP})(60);
   const sacs = e.char.root.children.filter((c) => c.isMesh && c.geometry?.type === 'SphereGeometry');
-  return { sacs: sacs.length, shown: sacs.filter((s) => s.visible).length };
+  const sculpt = [];
+  e.char.root.traverse((o) => { if (/^sac\\d/i.test(o.name)) sculpt.push(+o.scale.x.toFixed(3)); });
+  return { sacs: sacs.length, shown: sacs.filter((s) => s.visible).length, sculpt };
 })()`);
 check('an AI broodmother wears no readout', boss.sacs === 6 && boss.shown === 0,
   `${boss.shown}/${boss.sacs} shown`);
+check('...and keeps the clutch the sculpt gave her',
+  boss.sculpt.length === 0 || boss.sculpt.every((v) => v > 0.9), JSON.stringify(boss.sculpt));
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();

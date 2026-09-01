@@ -795,6 +795,24 @@ export class Enemy {
   /** true once this enemy is actually in the fight (used by the HUD radar) */
   get isEngaged(): boolean { return this.awareness === 'engaged'; }
 
+  /**
+   * A corpse the solver has finished with is still a body lying in the world:
+   * shooting it knocks it about. Null while it is alive, still falling, or
+   * already fading out — there is no point handing back a target that is on
+   * its way to being deleted.
+   */
+  get corpse(): { at: THREE.Vector3; radius: number } | null {
+    if (this.alive || !this.ragdoll || this.fadeT >= 0) return null;
+    return { at: this.ragdoll.hips, radius: Math.max(0.45, this.radius * 0.8) };
+  }
+
+  /** Knock a settled corpse about; it goes back to simulating. */
+  shoveCorpse(from: THREE.Vector3, force: number): void {
+    if (this.alive || !this.ragdoll) return;
+    this.settled = false;
+    this.ragdoll.shove(from, force);
+  }
+
   /** the squad broke — run from `threat`, rally at distance */
   breakAndRun(threat: THREE.Vector3): void {
     if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;

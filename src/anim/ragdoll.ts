@@ -153,6 +153,26 @@ export class Ragdoll {
     for (let i = 0; i < COUNT; i++) { this.pos[i].y += dy; this.prev[i].y += dy; }
   }
 
+  /**
+   * Hit a body that has already come to rest: wake it and knock it about.
+   *
+   * A corpse is still a thing in the world, so a bolt into one should move it.
+   * The upper points take more of the shove than the lower, which is what
+   * turns a hit into a roll rather than a slide.
+   */
+  shove(from: THREE.Vector3, force: number): void {
+    _v.copy(this.pos[CHEST]).sub(from).setY(0);
+    if (_v.lengthSq() < 1e-6) _v.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    _v.normalize();
+    this.active = true;
+    this.quiet = 0;
+    for (let i = 0; i < COUNT; i++) {
+      const high = i === HEAD || i === CHEST || i === SHL || i === SHR ? 1.4 : 0.5;
+      this.prev[i].addScaledVector(_v, -force * high * STEP);
+      this.prev[i].y -= force * 0.25 * high * STEP;
+    }
+  }
+
   step(dt: number, physics: PhysicsWorld): void {
     // fixed substeps: Verlet with a variable dt changes stiffness frame to frame
     this.accum = Math.min(this.accum + dt, 0.1);
@@ -298,6 +318,105 @@ export class Ragdoll {
  * The rotation is recovered with Müller's iterative polar decomposition, which
  * is a handful of cross products per step and needs no matrix library.
  */
+/** how deep a contact box must be, as a fraction of its width (see `drawnBox`) */
+const MIN_BOX_ASPECT = 0.8;
+/** speed of the roll-over couple, m/s, and the lift that helps the top clear */
+const ROLL_SPEED = 7;
+const ROLL_LIFT = 4.5;
+/** how many times a corpse may be rolled off its feet before it is left alone */
+const MAX_ROLLS = 3;
+
+const _up = new THREE.Vector3();
+const _lo = new THREE.Vector3();
+const _hi = new THREE.Vector3();
+const _pt = new THREE.Vector3();
+const _inv = new THREE.Quaternion();
+
+/**
+ * The box the drawn body actually occupies, in its own frame: half-extents in
+ * metres and where its middle sits relative to the node's origin.
+ *
+ * The collision capsule is what a creature *walks* in, not what it looks like.
+ * A massiff is five metres of animal inside a 0.9 m capsule, so falling on the
+ * capsule gave the solver a nearly cubic box: it tumbled to any angle at all
+ * and left the long body standing on its nose with a metre and a half of it
+ * underground. Measured on the drawn body, the same corpse has a long box and
+ * lies down along its length, which is the whole difference.
+ *
+ * Bones for a skinned sculpt, mesh bounds otherwise. A skinned mesh's geometry
+ * bounds are padded so animation cannot cull it — which is why they were
+ * rejected here — but the bones are not padded and they are the posed truth.
+ * Hidden subtrees are skipped, so the procedural stand-in under an authored
+ * body never joins in.
+ */
+function drawnBox(node: THREE.Object3D, facing: THREE.Quaternion):
+{ half: THREE.Vector3; centre: THREE.Vector3 } | null {
+  node.updateMatrixWorld(true);
+  _inv.copy(facing).invert();
+  _lo.set(Infinity, Infinity, Infinity);
+  _hi.set(-Infinity, -Infinity, -Infinity);
+  let n = 0;
+  let skinned = false;
+  node.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.visible) skinned = true;
+  });
+  const add = (x: number, y: number, z: number): void => {
+    _pt.set(x, y, z).sub(node.position).applyQuaternion(_inv);
+    _lo.min(_pt);
+    _hi.max(_pt);
+    n++;
+  };
+  const walk = (o: THREE.Object3D): void => {
+    if (!o.visible) return;
+    const sk = o as THREE.SkinnedMesh;
+    const mesh = o as THREE.Mesh;
+    if (sk.isSkinnedMesh) {
+      for (const b of sk.skeleton.bones) {
+        const e = b.matrixWorld.elements;
+        add(e[12], e[13], e[14]);
+      }
+    } else if (!skinned && mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const bb = mesh.geometry.boundingBox;
+      if (bb) {
+        for (const cx of [bb.min.x, bb.max.x]) {
+          for (const cy of [bb.min.y, bb.max.y]) {
+            for (const cz of [bb.min.z, bb.max.z]) {
+              _pt.set(cx, cy, cz).applyMatrix4(mesh.matrixWorld);
+              add(_pt.x, _pt.y, _pt.z);
+            }
+          }
+        }
+      }
+    }
+    for (const c of o.children) walk(c);
+  };
+  walk(node);
+  if (n < 4) return null;
+  const half = new THREE.Vector3().subVectors(_hi, _lo).multiplyScalar(0.5);
+  // Nothing may be paper-thin: eight coplanar corners give the shape match no
+  // rotation to find, and a bone chain down one limb can be exactly that.
+  half.set(Math.max(half.x, 0.18), Math.max(half.y, 0.18), Math.max(half.z, 0.18));
+  const centre = new THREE.Vector3().addVectors(_lo, _hi).multiplyScalar(0.5);
+  // And nothing may be a slab. A spider measures two and a half times wider
+  // than it is deep, and a box that flat has exactly one stable face: it lands
+  // squarely back on its feet however it is thrown, which reads as a live
+  // animal that has stopped moving. Squaring it up gives the body sides to
+  // come to rest on. Raised from the top alone — the bottom face is what the
+  // corpse rests on, and moving that is what buries a body or floats it.
+  //
+  // Against the body's NARROW side, never its long one. A massiff is low and
+  // long: measured against its length this would build a box two metres deep
+  // around a knee-high animal, and a corpse coming to rest on the side of that
+  // hangs in the air by the difference. Measured across, it barely moves.
+  const flat = Math.min(half.x, half.z) * MIN_BOX_ASPECT;
+  if (half.y < flat) {
+    centre.y += flat - half.y;
+    half.y = flat;
+  }
+  return { half, centre };
+}
+
 export class RigidRagdoll {
   private pos: THREE.Vector3[] = [];
   private prev: THREE.Vector3[] = [];
@@ -315,6 +434,10 @@ export class RigidRagdoll {
   private quiet = 0;
   /** was any corner in contact with the world on the last step? */
   private touching = false;
+  /** the bearing this body rolls off on while it is still the right way up */
+  private tip = new THREE.Vector3();
+  /** how many times it has been rolled off its feet (see MAX_ROLLS) */
+  private rolls = 0;
   active = true;
 
   /**
@@ -339,8 +462,15 @@ export class RigidRagdoll {
     // used for this: a skinned sculpt's bounds are deliberately padded so
     // animation cannot cull it, which makes them much larger than the body.
     this.radius = 0.1;
-    const hw = bodyR * 0.75, hh = bodyH * 0.5, hd = bodyR * 0.75;
-    this.center.set(0, hh, 0).applyQuaternion(this.startQuat).add(node.position);
+    // The body as drawn, where that can be read; the capsule, squared off and
+    // drawn in a little, as the fallback. See `drawnBox` for why the capsule
+    // was never a good description of a long animal.
+    const box = drawnBox(node, this.startQuat);
+    const hw = box ? box.half.x : bodyR * 0.75;
+    const hh = box ? box.half.y : bodyH * 0.5;
+    const hd = box ? box.half.z : bodyR * 0.75;
+    if (box) this.center.copy(box.centre).applyQuaternion(this.startQuat).add(node.position);
+    else this.center.set(0, hh, 0).applyQuaternion(this.startQuat).add(node.position);
     // Spin: mostly about the axis perpendicular to the shove, so a hit from the
     // side rolls the body over rather than sliding it away flat, plus a little
     // off-axis wobble so no two bodies turn the same way. It is deliberately
@@ -370,6 +500,33 @@ export class RigidRagdoll {
     this.originOffset.copy(node.position).sub(this.center).applyQuaternion(
       this.startQuat.clone().invert(),
     );
+    // roll off the way the blow was going, or pick a bearing if it had none
+    this.tip.set(impulse.x, 0, impulse.z);
+    if (this.tip.lengthSq() < 0.04) {
+      const a = Math.random() * Math.PI * 2;
+      this.tip.set(Math.cos(a), 0, Math.sin(a));
+    }
+    this.tip.normalize();
+  }
+
+  /**
+   * Hit a body that has already come to rest: wake it and knock it about.
+   *
+   * The corners nearest the shot take the most of it, so a bolt into one side
+   * of a corpse rolls it away rather than sliding the whole thing.
+   */
+  shove(from: THREE.Vector3, force: number): void {
+    _dir.copy(this.center).sub(from).setY(0);
+    if (_dir.lengthSq() < 1e-6) _dir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    _dir.normalize();
+    this.active = true;
+    this.quiet = 0;
+    for (let i = 0; i < 8; i++) {
+      // how exposed this corner is to the shot: the near side leads
+      const face = 0.6 + 0.8 * Math.max(0, -_v.copy(this.pos[i]).sub(this.center).normalize().dot(_dir));
+      this.prev[i].addScaledVector(_dir, -force * face * STEP);
+      this.prev[i].y -= force * 0.3 * face * STEP;
+    }
   }
 
   /** Where the body is now, for anything still tracking the corpse. */
@@ -407,7 +564,30 @@ export class RigidRagdoll {
     // Asleep means slow *and* touching something: a body drifting down a long
     // fall is slow too, and freezing it in mid-air is worse than simulating it.
     this.quiet = fastest < 2e-5 && this.touching ? this.quiet + 1 : 0;
-    if (this.quiet > 40) this.active = false;
+    if (this.quiet <= 40) return;
+    // ...but not asleep the way it lived.
+    //
+    // A wide flat animal — a spider, a massiff — has its own underside for a
+    // resting face, and once the contact box was fitted to the drawn body it
+    // settled back onto its feet as often as not. A dead thing standing
+    // squarely on its own feet reads as alive. A steady lean does nothing to a
+    // box three times wider than it is tall, which is genuinely stable that
+    // way up, so this is a shove rather than a lean: the top of the body one
+    // way, the bottom the other, which is a couple and turns it. Capped,
+    // because a body that keeps landing back on its feet has made its point —
+    // and a corpse is shootable, so the player can finish the job.
+    _up.set(0, 1, 0).applyQuaternion(this.rot);
+    if (_up.y > TIP_MIN && this.rolls < MAX_ROLLS) {
+      this.rolls++;
+      this.quiet = 0;
+      for (let i = 0; i < 8; i++) {
+        const top = this.rest[i].y > 0;
+        this.prev[i].addScaledVector(this.tip, (top ? -1 : 1) * ROLL_SPEED * STEP);
+        if (top) this.prev[i].y -= ROLL_LIFT * STEP;
+      }
+      return;
+    }
+    this.active = false;
   }
 
   /**

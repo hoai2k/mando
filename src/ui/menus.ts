@@ -231,6 +231,69 @@ export class MenuScreen {
     if (idx >= 0) this.setFocus(idx);
   }
 
+  /**
+   * Where a direction press lands, by where things actually are on screen.
+   *
+   * A menu is not always a list. The territory grid is three cards across, and
+   * stepping the focus by one index through it meant DOWN from the top middle
+   * card moved *right* to its neighbour — the order the cards were declared in
+   * rather than the shape the player is looking at. So the move is measured
+   * against the laid-out rectangles instead.
+   *
+   * Candidates must lie in the direction pressed; among them the nearest wins,
+   * with distance across the press weighted heavily so a column is followed
+   * down rather than drifting into the next one over. Nothing that way and the
+   * axis wraps — DOWN from the bottom row returns to the top of the same
+   * column, which is the list behaviour generalised rather than replaced.
+   *
+   * A press along an axis the menu does not use at all — LEFT on a single
+   * column of buttons — falls back to stepping the order, so a stack of
+   * buttons still cycles whichever way it is nudged. That is worth keeping:
+   * it costs nothing here and is what someone spinning a stick expects.
+   */
+  private step(dir: 'up' | 'down' | 'left' | 'right'): number {
+    const n = this.focusables.length;
+    const vertical = dir === 'up' || dir === 'down';
+    const sign = dir === 'down' || dir === 'right' ? 1 : -1;
+    // a hidden focusable measures zero and is not somewhere focus can go
+    const boxes = this.focusables.map((f) => f.el.getBoundingClientRect());
+    const live = (i: number): boolean => boxes[i].width > 0 && boxes[i].height > 0;
+    if (!live(this.focusIndex)) return (this.focusIndex + sign + n) % n;
+    const here = boxes[this.focusIndex];
+    const cx = (b: DOMRect): number => b.left + b.width / 2;
+    const cy = (b: DOMRect): number => b.top + b.height / 2;
+    // how far along the press, and how far off to the side of it
+    const along = (b: DOMRect): number => (vertical ? cy(b) - cy(here) : cx(b) - cx(here)) * sign;
+    const aside = (b: DOMRect): number => Math.abs(vertical ? cx(b) - cx(here) : cy(b) - cy(here));
+    /** below this two things are on the same row (or column) and neither is "past" the other */
+    const SAME = 4;
+    /** how much more a step sideways costs than a step along the press */
+    const DRIFT = 3;
+
+    let best = -1;
+    let bestScore = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (i === this.focusIndex || !live(i)) continue;
+      if (along(boxes[i]) <= SAME) continue;
+      const score = along(boxes[i]) + aside(boxes[i]) * DRIFT;
+      if (score < bestScore) { bestScore = score; best = i; }
+    }
+    if (best >= 0) return best;
+
+    // Nothing ahead: wrap the axis. The far end of this column is whatever sits
+    // furthest back along the press while staying closest to it sideways.
+    for (let i = 0; i < n; i++) {
+      if (i === this.focusIndex || !live(i)) continue;
+      if (along(boxes[i]) >= -SAME) continue;
+      const score = along(boxes[i]) + aside(boxes[i]) * DRIFT;
+      if (score < bestScore) { bestScore = score; best = i; }
+    }
+    if (best >= 0) return best;
+
+    // the menu has no extent along this axis at all — step the order
+    return (this.focusIndex + sign + n) % n;
+  }
+
   setFocus(idx: number): void {
     this.focusables.forEach((f, i) => f.el.classList.toggle('focused', i === idx));
     this.focusIndex = idx;
@@ -250,20 +313,16 @@ export class MenuScreen {
     if (n === 0) return;
     switch (action) {
       case 'left': case 'right': {
-        const dir = action === 'left' ? -1 : 1;
         const focused = this.focusables[this.focusIndex];
-        if (focused.adjust) { focused.adjust(dir); break; }
+        if (focused.adjust) { focused.adjust(action === 'left' ? -1 : 1); break; }
         audio.uiMove();
-        this.setFocus((this.focusIndex + dir + n) % n);
+        this.setFocus(this.step(action));
         break;
       }
       case 'up':
-        audio.uiMove();
-        this.setFocus((this.focusIndex - 1 + n) % n);
-        break;
       case 'down':
         audio.uiMove();
-        this.setFocus((this.focusIndex + 1) % n);
+        this.setFocus(this.step(action));
         break;
       case 'confirm':
         audio.uiConfirm();
