@@ -45,6 +45,8 @@ export class Campaign {
   private waveDelay = 0;
   /** the sealed room's own hostiles; the gates release when the last falls */
   private roomForce: Enemy[] = [];
+  /** a wave is called and its transport is still inbound — the room is owed it */
+  private dropping = false;
   private bossCalled = false;
   /** where the fallen return: the last safe ground the party earned */
   checkpoint: THREE.Vector3;
@@ -263,6 +265,7 @@ export class Campaign {
         this.waveCount = room.spec.waves ?? 2;
         this.waveNum = 0;
         this.roomForce = [];
+        this.dropping = false;
         this.waveDelay = 0.9;
         this.game.announce('Sealed in', `hold ${room.spec.label}`);
         audio.waveStart();
@@ -277,27 +280,40 @@ export class Campaign {
     }
   }
 
+  /**
+   * Send in the next wave of a sealed room — by transport, exactly as the wave
+   * game does it (src/enemies/arrival.ts).
+   *
+   * The vents still choose *where* the squad ends up; what changed is how it
+   * gets there. Bodies standing up beside the wall read as a spawn, and a
+   * mission level is roofless by construction, so the same carrier pass that
+   * serves the open boards works over a sealed room without a special case.
+   *
+   * The squad does not exist until the ship lets it go, so `dropping` holds the
+   * room open across the flight — without it the clear check finds an empty
+   * force the frame after the wave is called and opens the doors on a room
+   * whose defenders are still in the air.
+   */
   private spawnRoomWave(room: MissionRoom): void {
     this.waveNum++;
     // later waves of the same room draw from deeper in the table
     const wave = this.rampWave(this.idx) + this.waveNum - 1;
     const budget = Math.min(12, 3 + wave + this.game.players.length);
     const kinds = this.squadFor(wave, budget);
-    const lead = this.game.players.find((p) => p.alive) ?? this.game.players[0];
-    kinds.forEach((kind, i) => {
+    const spots = kinds.map((_, i) => {
       const vent = room.vents[i % room.vents.length].clone();
       vent.x += (Math.random() - 0.5) * 3;
       vent.z += (Math.random() - 0.5) * 3;
-      const e = new Enemy(kind, this.placeNear(vent, kind));
-      e.squad = 9500 + this.idx * 10 + this.waveNum;
-      e.squadSize = kinds.length;
-      this.game.enemies.push(e);
-      this.game.scene.add(e.char.root);
-      this.game.particles.dustPuff(e.position, 8);
-      e.alert(lead.position, true);
+      return vent;
     });
-    this.roomForce = this.roomForce.concat(
-      this.game.enemies.slice(this.game.enemies.length - kinds.length));
+    this.dropping = true;
+    this.game.dropReinforcements(kinds, spots, 9500 + this.idx * 10 + this.waveNum, (bodies) => {
+      this.dropping = false;
+      this.roomForce = this.roomForce.concat(bodies);
+      // whoever is on their feet when the ramp opens is what the squad came for
+      const lead = this.game.players.find((p) => p.alive) ?? this.game.players[0];
+      for (const e of bodies) e.alert(lead.position, true);
+    });
     audio.waveStart();
     this.game.announce(`Wave ${this.waveNum} of ${this.waveCount}`, `hold ${room.spec.label}`);
   }
@@ -429,7 +445,7 @@ export class Campaign {
         if (this.waveDelay > 0) {
           this.waveDelay -= dt;
           if (this.waveDelay <= 0) this.spawnRoomWave(room);
-        } else if (this.roomForce.every((e) => !e.alive)) {
+        } else if (!this.dropping && this.roomForce.every((e) => !e.alive)) {
           if (this.waveNum < this.waveCount) this.waveDelay = 1.6;
           else this.clearRoom(room, true);
         }

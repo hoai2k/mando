@@ -154,8 +154,10 @@ on a 5 s clock.
 
 **The brood-queen loop.** The playable broodmother fights with eggs. The
 sacs on her back are her **clutch and her ammunition readout**: capacity is
-exactly the sacs the model shows (`BROOD_EGG_RACK`, 3), every sac starts
-shaded dark, and one charges every **3 seconds** — flashing blue a couple of
+exactly the sacs the model shows (`BROOD_EGG_RACK`, **6** — the authored
+sculpt carries six eggs on her abdomen and the rack sits on them, measured
+off `krykna_brood.glb` rather than guessed), every sac starts shaded black,
+and one charges every **3 seconds** — flashing blue a couple of
 times as it finishes, then holding white until spent. **Y lays** a charged
 egg behind her; **RT lobs** one on an arc at whatever is under the aim, and
 the flying egg is a soft cannonball: the first body it meets is knocked
@@ -164,8 +166,22 @@ dark** — spawned at that sac's world position and tossed or thrown from
 there — so it reads as the same egg being delivered. Either way the egg takes **5 s to hatch** and is destroyable
 the whole time — it is a real combatant on her team, so rivals can shoot it
 out from under her; what crawls out is a half-size krykna **hatchling** that
-hunts for her through the squad-escort AI (the nest is capped at 8 living
-brood). When she falls with a hatchling still alive, the takeover puts the
+**hunts**: it takes her team and her kill credit through `owner`, but sets
+`hunts` so it skips the squad-escort leash entirely and crosses the board to
+whatever is hostile. (As a plain follower it was pinned to her — the escort
+AI anchors to its leader and only engages what strays near *her* — so a laid
+brood trotted at her heels, which is not what laying it is for.) **Nothing
+caps the swarm but her laying rate**: one egg every three seconds, six on her
+back. The old ceiling of eight living brood made every egg past it silently
+do nothing.
+
+The rack is a **readout**, and two things follow from that. It is hidden until
+something drives it, because the same body fights as a wave boss where nobody
+counts her eggs — an undriven rack would cover the sculpt's own pale clutch
+with six black balls. And the player's hit flash skips it (`userData.readout`):
+the flash clones every material it finds and drives it red, which would both
+steal the rack out from under the builder's closure and paint the clutch a
+colour that means something else. When she falls with a hatchling still alive, the takeover puts the
 player *in the hatchling's body* (a mid-match morph — position, camera,
 kills and lives carry over), and surviving **ten seconds** in it grows them
 back into the broodmother, health fraction preserved. Dying as the hatchling
@@ -212,8 +228,9 @@ with a to-do list, and was redesigned into the room chain — 2026-08-30.)
 Three room templates alternate along the chain (docs/LEVEL_DESIGN.md §2):
 **camp** rooms hold a posted garrison under the normal awareness rules —
 fight it or slip through to the far gate; **assault** rooms seal both gates
-behind an energy pane and run 2–3 waves from wall vents until the room is
-held (Gauntlet's arena floor); and the two **boss arenas** — the champion's
+behind an energy pane and run 2–3 waves until the room is held (Gauntlet's
+arena floor) — the waves come in by transport, the same carrier pass the
+wave game flies, since a mission room is walled but roofless; and the two **boss arenas** — the champion's
 mid-chain, the warlord's at the end, oversized on monster boards for what
 comes up after. A **guide beacon** (light pillar + radar pip + on-screen
 hint) always marks the one next objective. Difficulty ramps by *place*: room

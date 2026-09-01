@@ -157,7 +157,20 @@ export class Animator {
       if (!name) continue;
       const clip = this.clips[name];
       const action = clip && this.mixer.existingAction(clip);
-      if (action) action.time = clip.duration > 0 ? t % clip.duration : 0;
+      if (!action) continue;
+      action.time = clip.duration > 0 ? t % clip.duration : 0;
+      // ...and finish the crossfade, which is the half that was missing.
+      //
+      // `play` fades a clip in over real seconds, and a mixer update of zero
+      // seconds does not spend any: an action that has never been stepped sits
+      // at no weight at all, so posing it changed nothing and the rig stood in
+      // its bind stance — arms flat at the sides. That is the pose every
+      // character-select picture was shot in, while the live model beside it
+      // stood in the idle with its arms relaxed out. This call means "be at
+      // this frame of this clip", so it has to mean the clip is fully on.
+      action.enabled = true;
+      action.setEffectiveWeight(1);
+      action.play();
     }
     this.mixer.update(0);
   }

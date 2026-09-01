@@ -207,15 +207,34 @@ export function attachCape(rig: Rig, m: THREE.Material, width = 0.42, segs = 5, 
  * swings them are untouched by the swap.
  */
 function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0): void {
+  // Marked while the file is in flight, so anything that has to depict the
+  // finished fighter can wait for the weapon as well as the body — a
+  // character-select picture shot with the stand-in in hand shows a thin
+  // stick where the model carries a rifle. Cleared either way: a weapon with
+  // no sculpt is settled the moment that is known.
+  g.userData.propPending = true;
   const prop = loadProp(id, length, {
     axis: 'longest',
     onLoad: () => { for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false; },
+    onSettle: () => { g.userData.propPending = false; },
   });
   // The sculpts lie along their longest axis, which is Z; a procedural weapon
   // built along Y needs the model turned to match before anything that holds it
   // will hold it the same way.
   prop.rotation.x = orientX;
   g.add(prop);
+}
+
+/**
+ * Is every authored prop under `root` either in place or known not to exist?
+ *
+ * "Settled", not "loaded": a weapon with no sculpt on disk answers true, since
+ * the stand-in is then the final look and there is nothing left to wait for.
+ */
+export function propsSettled(root: THREE.Object3D): boolean {
+  let waiting = false;
+  root.traverse((o) => { if (o.userData.propPending) waiting = true; });
+  return !waiting;
 }
 
 export function makeGaffi(m1: THREE.Material, m2: THREE.Material): THREE.Group {

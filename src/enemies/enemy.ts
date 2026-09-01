@@ -266,6 +266,9 @@ const _JET_DOWN = new THREE.Vector3(0, -1, 0);
 /** scratch for seeding a ragdoll */
 const _base = new THREE.Vector3();
 const _spin = new THREE.Vector3();
+/** scratch for reading how upright a dying body is */
+const _hip = new THREE.Vector3();
+const _torso = new THREE.Vector3();
 /** crowd separation, m/s² per metre of overlap (tuned to the old 60 Hz feel) */
 const SEPARATION_ACCEL = 180;
 
@@ -367,6 +370,16 @@ export class Enemy {
    * of to player one, and the follower fights whatever threatens them.
    */
   owner: { position: THREE.Vector3; alive: boolean; team: number } | null = null;
+  /**
+   * A hunter rather than a follower: it keeps its `owner` — for the team it
+   * fights on and the credit its kills earn — but takes none of the escort
+   * leash. The broodmother's brood is what this exists for. They used to be
+   * plain followers, which pinned them to her: the escort AI anchors to the
+   * leader and only engages what comes within `ESCORT_ENGAGE` of *her*, so a
+   * hatchling would trot at her heels past anything worth biting. A brood
+   * that hunts is the whole point of laying it.
+   */
+  hunts = false;
   /**
    * Boss promotion (promoteBoss): scales outgoing damage at the point each
    * attack lands, since the shared per-kind def cannot carry per-instance HP.
@@ -604,10 +617,15 @@ export class Enemy {
     }
   }
 
-  /** Make this enemy a PvP squad follower escorting `p` (see `owner`). */
-  setOwner(p: { position: THREE.Vector3; alive: boolean; team: number }): void {
+  /**
+   * Put this enemy under `p`: their team, their kill credit. `hunt` chooses
+   * the posture — a follower escorts them (the PvP squad), a hunter goes after
+   * the enemy on its own (the broodmother's brood).
+   */
+  setOwner(p: { position: THREE.Vector3; alive: boolean; team: number }, hunt = false): void {
     this.owner = p;
     this.team = p.team;
+    this.hunts = hunt;
     this.awareness = 'engaged';
   }
 
@@ -874,7 +892,16 @@ export class Enemy {
       // A creature has no prone pose to preserve — its animator is a stub, so
       // a knocked-down spider is still standing as far as the model is
       // concerned — and it always dies into the sim.
-      if (!this.char.rig || (!this.wounded && this.downTimer <= 0)) this.startRagdoll();
+      //
+      // But the flags are not the question — the body is. `downTimer` runs
+      // through the *get-up* as well as the fall, so a raider knocked over and
+      // finished halfway back to his feet was frozen in that pose and slid to
+      // a stop still standing: the tusken left sticking diagonally out of the
+      // sand. Anyone whose torso is still up dies into the solver whatever the
+      // flags say, and only a body that is genuinely flat keeps its pose.
+      if (!this.char.rig || (!this.wounded && this.downTimer <= 0) || this.torsoUp()) {
+        this.startRagdoll();
+      }
       this.settled = false;
     } else if (this.char.animator && this.windup <= 0 && !this.wounded && !this.downed) {
       // Flinch away from where the shot came from: rotate the bearing into
@@ -962,6 +989,24 @@ export class Enemy {
       if (d < bestD) { bestD = d; best = f; }
     }
     return best;
+  }
+
+  /**
+   * Is this body still standing, as the rig has it?
+   *
+   * Asked of the bones rather than of a state flag, because the flags describe
+   * what was *done* to the body and this needs to know what shape it is in.
+   */
+  private torsoUp(): boolean {
+    const b = this.char.rig?.bones;
+    if (!b?.hips || !b?.chest) return false;
+    this.char.root.updateMatrixWorld(true);
+    b.hips.getWorldPosition(_hip);
+    b.chest.getWorldPosition(_torso);
+    _torso.sub(_hip);
+    const len = _torso.length();
+    // half way over still counts as up: there is somewhere left to fall
+    return len > 1e-5 && _torso.y / len > 0.45;
   }
 
   /** arm the ragdoll; it is seeded from velocity on the first dead frame */
@@ -1197,7 +1242,7 @@ export class Enemy {
           case 'hover': this.updateHover(dt, game, target); break;
         }
       }
-    } else if (this.team === 0) {
+    } else if (this.team === 0 && !this.hunts) {
       // an ally with nothing to shoot: catch up to the player, or keep them
       // company once alongside
       this.updateEscort(dt, game);
@@ -1316,6 +1361,18 @@ export class Enemy {
     this.target = foe;
     this.visible = false;
     this.sightTimer -= dt;
+    if (this.hunts) {
+      // A hunter needs no line of sight to know where the prey is: the brood
+      // is one animal with the mother, and she can see the whole board. It
+      // crosses to whatever is nearest and bites it.
+      this.visible = !!foe;
+      if (foe) {
+        this.awareness = 'engaged';
+        this.memory = MEMORY;
+        this.interest.copy(foe.position);
+      }
+      return foe;
+    }
     if (this.team === 0 || this.owner) {
       // Allies fight whatever is near, but they escort rather than hunt: with
       // hostiles now posted all over the board, an ally that picked the
@@ -1704,7 +1761,7 @@ export class Enemy {
       this.counted = true;   // hatched, not killed
       this.removeMe = true;
       const spider = new Enemy(this.def.egg!.hatchTo, this.position, this.team);
-      if (this.owner) spider.setOwner(this.owner);
+      if (this.owner) spider.setOwner(this.owner, true);   // the brood hunts
       game.enemies.push(spider);
       game.scene.add(spider.char.root);
       game.particles.dustPuff(this.position, 8);

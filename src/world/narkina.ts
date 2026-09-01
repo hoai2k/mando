@@ -580,7 +580,7 @@ export function buildNarkina(): Board {
           if (Math.floor(time * 2) !== Math.floor((time - dt) * 2)) {
             for (const p of game.players) {
               if (p.alive && on(p.position.x, p.position.y, p.position.z)) {
-                p.damage(7, p.position.clone().setY(p.position.y - 1));
+                p.damage(7, p.position.clone().setY(p.position.y - 1), -1, { dot: true });
                 game.particles.impactSparks(p.position.clone().add(new THREE.Vector3(0, 0.2, 0)), 8);
               }
             }

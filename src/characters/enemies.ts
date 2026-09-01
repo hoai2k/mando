@@ -931,27 +931,51 @@ export function buildSpiderling(): CharacterInstance {
 }
 
 /** how many eggs the broodmother's back visibly carries — her whole clutch */
-export const BROOD_EGG_RACK = 3;
+export const BROOD_EGG_RACK = 6;
+
+/**
+ * Where the sculpt's own six eggs sit, in the character root's frame, measured
+ * off `krykna_brood.glb` rather than guessed: the sac bones' vertices were
+ * taken, a dome fitted to the abdomen, and what stands proud of it is the
+ * clutch. Two outer eggs sit low on the flanks and four ride the top of the
+ * abdomen. The radii cover the sculpted egg underneath — these meshes *are*
+ * the eggs as far as the player is concerned, so a spent one has to read as
+ * dark, and a pale sculpt bump showing around the edge would spoil that.
+ */
+const RACK_SPOTS: readonly (readonly [number, number, number, number])[] = [
+  [-0.58, 1.92, -1.30, 0.30],
+  [0.58, 1.92, -1.30, 0.30],
+  [-0.52, 2.22, -1.48, 0.30],
+  [0.52, 2.22, -1.48, 0.30],
+  [-0.20, 2.42, -1.38, 0.28],
+  [0.20, 2.42, -1.38, 0.28],
+];
 
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
-  // The egg sacs on her back are no longer decoration: they are the playable
-  // broodmother's ammunition readout (docs/MODES.md §3). They ride the root —
-  // not the procedural body — so they stay visible over the authored sculpt,
-  // and each carries its own material so the Player controller can shade it:
-  // dark while spent, flashing blue as it charges up, white when ready.
+  // The egg sacs on her back are the playable broodmother's ammunition readout
+  // (docs/MODES.md §3), and there are six because the sculpt carries six. They
+  // ride the root — not the procedural body — so they stay visible over the
+  // authored sculpt, sitting on its own eggs rather than beside them, and each
+  // carries its own material so the Player controller can shade it: black
+  // while spent, flashing blue as it charges, white when ready to lay.
   const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
-  const rackMats: THREE.MeshStandardMaterial[] = [];
   const rackMeshes: THREE.Mesh[] = [];
-  const RACK_SPOTS = [
-    [-0.25, 1.25, -0.5, 0.2], [0.22, 1.3, -0.62, 0.24], [0, 1.05, -0.75, 0.18],
-  ] as const;
   for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
-    const m = new THREE.MeshStandardMaterial({ color: 0x232823, roughness: 0.55 });
-    rackMats.push(m);
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 7), m);
+    const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.5 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), m);
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
+    // A readout, not skin: the player's hurt flash clones every material it
+    // finds and drives it red, which would both steal these out from under
+    // the closure below and paint the clutch a colour that means something
+    // else. This flag is what keeps the flash off them.
+    mesh.userData.readout = true;
+    // Hidden until something drives it. The same body fights as a wave boss,
+    // where nobody is counting her eggs and no one calls setEggs — she would
+    // otherwise wear six black balls over the sculpt's own pale clutch. The
+    // first push of the rack state is what brings it out.
+    mesh.visible = false;
     inst.root.add(mesh);
     rackMeshes.push(mesh);
   }
@@ -963,8 +987,12 @@ export function buildBroodmother(authored = true): CharacterInstance {
     return true;
   };
   inst.setEggs = (states) => {
-    for (let i = 0; i < rackMats.length; i++) {
-      const m = rackMats[i];
+    for (let i = 0; i < rackMeshes.length; i++) {
+      // the mesh's *current* material, never one captured at build time: a
+      // player body has its materials cloned and swapped when the hit flash
+      // adopts them, and writing to the original would shade nothing
+      rackMeshes[i].visible = true;
+      const m = rackMeshes[i].material as THREE.MeshStandardMaterial;
       const s = states[i] ?? -1;
       if (s >= 1) {
         m.color.setHex(0xf2f5ee);              // charged: pale and ready
@@ -975,7 +1003,8 @@ export function buildBroodmother(authored = true): CharacterInstance {
         m.color.setHex(flash ? 0x6fa8ff : 0x2a3448);
         m.emissive.setHex(flash ? 0x2a5fc0 : 0x101a30);
       } else {
-        m.color.setHex(0x232823);              // spent (or still gathering): dark
+        // spent, or still gathering: black, so the back reads as an empty rack
+        m.color.setHex(0x0a0c0a);
         m.emissive.setHex(0x000000);
       }
     }

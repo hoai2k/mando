@@ -412,10 +412,11 @@ const walk = await page.evaluate(`(() => {
   const c = g.campaign;
   const out = { sealed: false, assaultWave: false, phases: 0 };
   let guard = 0;
-  // 60 rooms' worth of turns for an eight-room level: enough slack for a
-  // stall to be a stall, small enough that one fails in a minute instead of
-  // spinning for twenty.
-  while (!c.done && guard++ < 60) {
+  // 100 rooms' worth of turns for an eight-room level: enough slack for a
+  // stall to be a stall, small enough that one fails in a couple of minutes
+  // instead of spinning for twenty. A room's waves now arrive by transport,
+  // so each one costs a few seconds of ship before there is anything to kill.
+  while (!c.done && guard++ < 100) {
     // Walk to the middle of the room being approached, not to its doorway.
     // objectivePos is a HUD bearing and points at the threshold, which is
     // where the blast door's blocker stands until it has finished opening —

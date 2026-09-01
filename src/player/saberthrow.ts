@@ -7,8 +7,9 @@ import type { Player } from './player';
 
 /**
  * A lightsaber in flight (Ventress's RT). The blade leaves the hand spinning
- * flat like a thrown disc, sails out for as long as the trigger stays down,
- * and comes home the moment it is released. Two of these exist at most — one
+ * flat like a thrown disc, sails out while the trigger stays down, and comes
+ * home the moment it is released — or of its own accord, once it has spent
+ * its range or met a wall. Two of these exist at most — one
  * per hand — and while one is out that hand is empty, which the Player feeds
  * back into melee and deflection.
  */
@@ -17,7 +18,7 @@ import type { Player } from './player';
 const THROW_SPEED = 26;
 /** homing speed on the way back — faster than out, so a recall feels eager */
 const RETURN_SPEED = 32;
-/** metres of travel before an out blade stalls and hovers instead */
+/** metres of travel before an out blade turns for home on its own */
 const MAX_RANGE = 30;
 /** spin, rad/s — a touch over three revolutions a second */
 const SPIN_RATE = 21;
@@ -38,8 +39,6 @@ export class ThrownSaber {
   private trail: (dt: number, active: boolean) => void;
   private dir = new THREE.Vector3();
   private traveled = 0;
-  /** true once the blade has met a wall or its range and hovers in place */
-  private stalled = false;
   private spin = 0;
   /** per-target cut spacing */
   private hitCd = new Map<Combatant, number>();
@@ -72,7 +71,6 @@ export class ThrownSaber {
     this.spinner.position.copy(from);
     this.dir.copy(dir).normalize();
     this.traveled = 0;
-    this.stalled = false;
     this.spinner.visible = true;
     this.hitCd.clear();
   }
@@ -109,19 +107,19 @@ export class ThrownSaber {
     this.spinner.rotation.y = this.spin;
 
     if (this.state === 'out') {
-      if (!this.stalled) {
-        const step = THROW_SPEED * dt;
-        // world geometry stops the advance: the blade hovers there, spinning,
-        // until the trigger lets it come home
-        const hit = game.board.physics.raycast(this.spinner.position, this.dir, step + 0.5);
-        if (hit) {
-          this.stalled = true;
-          this.spinner.position.copy(hit.point).addScaledVector(this.dir, -0.5);
-        } else {
-          this.spinner.position.addScaledVector(this.dir, step);
-          this.traveled += step;
-          if (this.traveled >= MAX_RANGE) this.stalled = true;
-        }
+      const step = THROW_SPEED * dt;
+      // A blade that has run out of flight — met a wall, or spent its range —
+      // turns for home rather than hanging in the air waiting on the trigger.
+      // Hovering was the old behaviour and it read as a bug: a sword parked
+      // in mid-air across the room with nothing bringing it back.
+      const hit = game.board.physics.raycast(this.spinner.position, this.dir, step + 0.5);
+      if (hit) {
+        this.spinner.position.copy(hit.point).addScaledVector(this.dir, -0.5);
+        this.state = 'return';
+      } else {
+        this.spinner.position.addScaledVector(this.dir, step);
+        this.traveled += step;
+        if (this.traveled >= MAX_RANGE) this.state = 'return';
       }
     } else {
       // homing back to the hand — pulled through anything in the way

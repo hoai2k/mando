@@ -46,8 +46,13 @@ Room templates, alternating along the chain:
   room clears when someone reaches the far gate, and blaster fire travels,
   so the loud way compounds. No lockdown.
 - **assault** — the Gauntlet arena floor. Crossing the threshold seals both
-  doors and runs **2–3 waves** from vents along the walls, each alerted the
-  moment it lands. The doors release on the last body; the wave counter rides
+  doors and runs **2–3 waves**, each alerted the moment it lands. The vents
+  along the walls choose *where* a squad ends up; how it gets there is a
+  carrier pass overhead (`src/enemies/arrival.ts`), exactly as in the wave
+  game — the rooms have walls but no roof, so the same drop works, and a
+  squad descending into the room reads as reinforcements being committed
+  where bodies standing up beside the wall read as a spawn. The room is not
+  clear while a transport still holds its wave. The doors release on the last body; the wave counter rides
   the HUD hint. **The seal waits for the whole party** — it is the same door
   everyone walks in through, so sealing on the first body inside locked the
   rest out of their own boss fight. The dead are not counted: they come back

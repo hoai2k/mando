@@ -12,6 +12,7 @@ import {
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
+import { propsSettled } from '../characters/builder';
 import type { PlayerCharacter } from '../characters/mandalorians';
 import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 
@@ -845,8 +846,19 @@ export class CharacterSelect {
         this.refresh();
       }
 
-      current.animator?.update(dt);
-      current.cosmetic?.(dt, this.time);
+      // While the picture is still what is on screen, hold the body underneath
+      // it at exactly the pose the picture was shot in, rather than letting its
+      // idle run on unseen. The handover then lands on the same frame the
+      // picture froze — the fighter does not change stance as the swap
+      // happens — and the idle picks up from there. A model that is already in
+      // hand never comes through here, so nothing is delayed for it.
+      if (s.poster) {
+        current.animator?.poseAt(POSTER_ANIM_T);
+        current.cosmetic?.(0, POSTER_ANIM_T);
+      } else {
+        current.animator?.update(dt);
+        current.cosmetic?.(dt, this.time);
+      }
 
       if (s.phase === 'spinning') {
         s.spinT = Math.min(1, s.spinT + dt / SPIN_DURATION);
@@ -937,7 +949,11 @@ export class CharacterSelect {
   posterShot(px = POSTER_PX, aspect = POSTER_ASPECT): PosterShot | null {
     const s = this.slots[0];
     const c = s.chars.get(this.roster[s.choice]);
-    if (!c || !c.modelReady()) return null;
+    // The weapon has to have landed too. `modelReady` answers for the body
+    // alone, and a fighter shot in between carried the procedural stand-in —
+    // a thin stick in the picture where the model on the plinth holds a
+    // rifle. Waiting is free here: this runs in the generator, not in play.
+    if (!c || !c.modelReady() || !propsSettled(c.root)) return null;
 
     // Pin the plinth to the pose the handover happens at.
     //

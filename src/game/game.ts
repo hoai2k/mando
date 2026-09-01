@@ -305,7 +305,8 @@ export class Game {
     const squad = playableDef(p.characterId).profile.squad;
     if (!squad) return;
     // any followers it still has stay; only the missing places are refilled
-    const have = this.enemies.filter((e) => e.owner === p && e.alive).length;
+    // hunters (a broodmother's brood) share the owner but are not the squad
+    const have = this.enemies.filter((e) => e.owner === p && e.alive && !e.hunts).length;
     for (let i = have; i < squad.count; i++) {
       const a = (i / squad.count) * Math.PI * 2;
       const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
@@ -445,33 +446,8 @@ export class Game {
           this.scene.add(carrier.group);
           continue;
         }
-        // centroid, so one pass covers the whole squad's spread of targets
-        const at = new THREE.Vector3();
-        for (const m of members) at.add(m.pos);
-        at.divideScalar(members.length);
-        this.incoming += members.length;
-        const carrier = new Carrier(at, pass * 1.35 + Math.random() * 0.5, carrierShipId(this.board.kind), (release, vel) => {
-          this.incoming -= members.length;
-          if (this.disposed) return;
-          members.forEach((m, i) => {
-            const e = field(m);
-            // let go in a stick: each body a couple of metres behind the
-            // last along the flight line, with a shove of the ship's speed
-            const back = _stick.copy(vel).normalize().multiplyScalar(-i * 2.2);
-            back.x += (Math.random() - 0.5) * 1.5;
-            back.z += (Math.random() - 0.5) * 1.5;
-            e.beginArrival('drop', back.add(release), m.pos, {
-              chute: Math.random() < 0.38,
-              // a fraction of the ship's speed: enough that the fall arcs
-              // out of the pass instead of stopping dead, small enough that
-              // the steering always wins before a platform edge does
-              velocity: _stickVel.copy(vel).multiplyScalar(0.12).setY(0),
-            });
-          });
-        });
+        this.flybyDrop(members, pass * 1.35 + Math.random() * 0.5, field);
         pass++;
-        this.carriers.push(carrier);
-        this.scene.add(carrier.group);
       } else {
         // edge squads enter now, spread a little along the boundary
         members.forEach((m, i) => {
@@ -484,6 +460,82 @@ export class Game {
         });
       }
     }
+  }
+
+  /**
+   * Fly one transport over these placements and let a squad go over them.
+   *
+   * The bodies do not exist until the ship releases them: until then they are
+   * `incoming`, which the wave-clear check and the hostiles counter both read
+   * as hostiles the wave still owes. `field` builds each body at the moment of
+   * release, so what the squad belongs to stays the caller's business.
+   */
+  private flybyDrop<T extends { kind: EnemyKind; pos: THREE.Vector3 }>(
+    members: T[], delay: number, field: (m: T) => Enemy,
+    opts: { chute?: number; onRelease?: (bodies: Enemy[]) => void } = {},
+  ): void {
+    // centroid, so one pass covers the whole squad's spread of targets
+    const at = new THREE.Vector3();
+    for (const m of members) at.add(m.pos);
+    at.divideScalar(members.length);
+    this.incoming += members.length;
+    const chute = opts.chute ?? 0.38;
+    const carrier = new Carrier(at, delay, carrierShipId(this.board.kind), (release, vel) => {
+      this.incoming -= members.length;
+      if (this.disposed) return;
+      const bodies = members.map((m, i) => {
+        const e = field(m);
+        // let go in a stick: each body a couple of metres behind the
+        // last along the flight line, with a shove of the ship's speed
+        const back = _stick.copy(vel).normalize().multiplyScalar(-i * 2.2);
+        back.x += (Math.random() - 0.5) * 1.5;
+        back.z += (Math.random() - 0.5) * 1.5;
+        e.beginArrival('drop', back.add(release), m.pos, {
+          chute: Math.random() < chute,
+          // a fraction of the ship's speed: enough that the fall arcs
+          // out of the pass instead of stopping dead, small enough that
+          // the steering always wins before a platform edge does
+          velocity: _stickVel.copy(vel).multiplyScalar(0.12).setY(0),
+        });
+        return e;
+      });
+      opts.onRelease?.(bodies);
+    });
+    this.carriers.push(carrier);
+    this.scene.add(carrier.group);
+  }
+
+  /**
+   * Missions: bring a room's wave in by transport instead of standing it up in
+   * the room (src/game/campaign.ts).
+   *
+   * A mission level is a chain of walled rooms with the open sky for a ceiling,
+   * so the wave game's carrier pass works over it unchanged — which is the
+   * point: a squad that descends into the room reads as reinforcements being
+   * committed, where bodies appearing beside the wall read as a spawn. No
+   * parachutes: a canopy takes seven seconds to cover the drop and a sealed
+   * room is not the place to wait it out.
+   *
+   * `onRelease` receives the bodies the moment the ship lets them go, which is
+   * the first moment they exist. Until then the room is still owed them.
+   */
+  dropReinforcements(
+    kinds: EnemyKind[], spots: THREE.Vector3[], squad: number,
+    onRelease: (bodies: Enemy[]) => void,
+  ): void {
+    const members = kinds.map((kind, i) => ({
+      kind,
+      pos: this.campaign ? this.campaign.placeNear(spots[i].clone(), kind) : spots[i].clone(),
+    }));
+    this.waveSpawned += members.length;
+    this.flybyDrop(members, 0.2 + Math.random() * 0.5, (m) => {
+      const e = new Enemy(m.kind, m.pos);
+      e.squad = squad;
+      e.squadSize = members.length;
+      this.enemies.push(e);
+      this.scene.add(e.char.root);
+      return e;
+    }, { chute: 0, onRelease });
   }
 
   /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
@@ -1429,8 +1481,7 @@ export class Game {
   /**
    * The playable broodmother puts an egg down at `at` (her Y — docs/MODES.md
    * §3). It hatches into a hunting spiderling on her team after 5 s and can
-   * be destroyed the whole time. The nest is capped so a long match doesn't
-   * bury the board in spiders.
+   * be destroyed the whole time.
    */
   layEgg(p: Player, from: THREE.Vector3, vel: THREE.Vector3): boolean {
     // born at the back-sac it left and tossed gently off: it falls with real
@@ -1455,9 +1506,14 @@ export class Game {
     return true;
   }
 
+  /**
+   * There is no ceiling on the brood, by design: the only thing rationing it
+   * is how fast she can grow eggs (one every three seconds, six on her back),
+   * so a queen who spends a whole match laying earns the swarm she built. The
+   * old head-count cap of eight made the sixth egg silently do nothing, which
+   * read as the button being broken rather than as a limit.
+   */
   private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
-    const brood = this.enemies.filter((e) => e.owner === p && e.alive).length;
-    if (brood >= 8) return null;   // the nest is full
     const egg = new Enemy('spiderEgg', at, p.team);
     egg.setOwner(p);
     this.enemies.push(egg);

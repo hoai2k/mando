@@ -67,6 +67,28 @@ const DRIVE: { bone: string; from: number; to: number; axis: THREE.Vector3 }[] =
 const RELAX = ['spine', 'chest', 'head', 'shoulderL', 'shoulderR', 'footL', 'footR'];
 
 const GRAVITY = 20;
+/**
+ * A corpse standing upright is a *stable* arrangement of distance constraints.
+ *
+ * That is the whole reason tuskens kept dying on their feet. Nothing in a
+ * Verlet chain resists a lean, but nothing creates one either: gravity pulls
+ * straight down, the feet are clamped on the sand pushing straight up, and a
+ * body whose points happen to stack vertically will balance there forever. The
+ * killing blow usually knocks it off that stack — which is why it looked
+ * random, and why a raider shot square in the chest while standing still was
+ * the one left sticking out of the dune.
+ *
+ * So the topple is supplied: while the torso is still near vertical and the
+ * body is in contact with the ground, the upper points get a steady sideways
+ * push in one direction chosen at death. It fades out as the body goes over
+ * and is gone entirely by the time it is halfway down, so it tips a corpse
+ * rather than dragging one.
+ */
+const TIP_ACCEL = 11;
+/** how upright (torso · up) the body must still be for the push to apply */
+const TIP_MIN = 0.5;
+/** the points it pushes: everything above the waist */
+const TIP_POINTS = [HEAD, CHEST, SHL, SHR];
 const DAMPING = 0.992;
 const GROUND_FRICTION = 0.62;
 const BOUNCE = 0.12;
@@ -74,6 +96,7 @@ const STEP = 1 / 90;
 const ITERATIONS = 7;
 
 const _v = new THREE.Vector3();
+const _lean = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _pq = new THREE.Quaternion();
@@ -88,6 +111,8 @@ export class Ragdoll {
   private quiet = 0;
   /** did any point rest on the world during the last step? */
   private touching = false;
+  /** the bearing this body falls over on, fixed at death (see TIP_ACCEL) */
+  private tip = new THREE.Vector3();
   /** false once the body has gone quiet on the ground — stop stepping it */
   active = true;
 
@@ -110,6 +135,14 @@ export class Ragdoll {
       this.radius.push(i === HEAD ? 0.13 : i === CHEST || i === HIPS ? 0.15 : 0.08);
     }
     for (const [a, b] of LINKS) this.rest.push(this.pos[a].distanceTo(this.pos[b]));
+    // fall the way the blow was going, where it was going anywhere flat;
+    // a body shot straight down the barrel picks its own bearing
+    this.tip.set(impulse.x, 0, impulse.z);
+    if (this.tip.lengthSq() < 0.04) {
+      const a = Math.random() * Math.PI * 2;
+      this.tip.set(Math.cos(a), 0, Math.sin(a));
+    }
+    this.tip.normalize();
   }
 
   /** Where the body is now, for anything still tracking the corpse. */
@@ -145,6 +178,21 @@ export class Ragdoll {
       q.copy(p);
       p.add(_v);
       p.y -= GRAVITY * dt * dt;
+    }
+    // Tip a body that is still on its feet (see TIP_ACCEL). Only once it is
+    // touching the world: in the air it is already going somewhere, and a
+    // sideways shove there would read as wind.
+    if (this.touching) {
+      _lean.copy(this.pos[CHEST]).sub(this.pos[HIPS]);
+      const len = _lean.length();
+      const upright = len > 1e-5 ? _lean.y / len : 0;
+      if (upright > TIP_MIN) {
+        const push = TIP_ACCEL * ((upright - TIP_MIN) / (1 - TIP_MIN)) * dt * dt;
+        for (const i of TIP_POINTS) {
+          this.pos[i].x += this.tip.x * push;
+          this.pos[i].z += this.tip.z * push;
+        }
+      }
     }
     // Asleep means slow *and* resting on something — the same rule the rigid
     // solver next door already uses. On speed alone a body falls asleep at the

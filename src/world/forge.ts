@@ -327,7 +327,7 @@ export function buildForge(): Board {
         for (const p of game.players) {
           if (!p.alive || sheltered(p.position)) continue;
           if (Math.random() < 0.65) {
-            p.damage(5, from.copy(p.position).setY(p.position.y + 8));
+            p.damage(5, from.copy(p.position).setY(p.position.y + 8), -1, { dot: true });
             game.particles.impactSparks(at.copy(p.position).setY(p.position.y + 1.6), 14);
           }
         }
