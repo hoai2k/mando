@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const h = await launch();
 let failures = 0;
 const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
-const line = () => h.page.evaluate(() => window.__charsel());
+const line = () => h.page.evaluate(() => window.__charselLine());
 
 // ---- to the PvP character select ----
 await h.waitForText(/PRESS START|WAVE BATTLE/i);

@@ -702,8 +702,9 @@ Object.assign(window, {
   // how many of this drop's required files are still outstanding, for tests:
   // it must read 0 by the time the match is on screen
   __loadPending: () => tracked.progress(matchAssets(chosenBoard.id, matchCast(), mode)).pending,
-  // the character-select line as it stands, for tests: humans, then bots
-  __charsel: () => charSelect.lineState(),
+  // the character-select line as it stands, for tests: humans, then bots.
+  // Its own name: `__charsel` is the screen itself, which other tests drive.
+  __charselLine: () => charSelect.lineState(),
   // the renderer itself, so a profiling run can read draw calls and GPU memory
   // off `info` — the only numbers that say what a board actually costs
   __renderer: renderer,
