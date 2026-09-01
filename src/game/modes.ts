@@ -121,12 +121,12 @@ export interface MonsterBossDef {
 }
 
 export const MONSTER_BOSS: Partial<Record<BoardId, MonsterBossDef>> = {
-  station:  { kind: 'mudhorn',  name: TEXT.bosses.champion.station, retinue: 'pirate' },
-  crevasse: { kind: 'ravinak',  name: TEXT.bosses.champion.crevasse, retinue: 'krykna' },
-  trask:    { kind: 'mamacore', name: TEXT.bosses.champion.trask, retinue: 'quarren' },
-  nevarro:  { kind: 'rancor',   name: TEXT.bosses.champion.nevarro, retinue: 'pirate' },
-  desert:   { kind: 'kraytDragon', name: TEXT.bosses.champion.desert, retinue: 'massiff' },
-  forge:    { kind: 'mythosaur', name: TEXT.bosses.champion.forge, retinue: 'alamite' },
+  station:  { kind: 'mudhorn',  name: TEXT.bosses.monster.station, retinue: 'pirate' },
+  crevasse: { kind: 'ravinak',  name: TEXT.bosses.monster.crevasse, retinue: 'krykna' },
+  trask:    { kind: 'mamacore', name: TEXT.bosses.monster.trask, retinue: 'quarren' },
+  nevarro:  { kind: 'rancor',   name: TEXT.bosses.monster.nevarro, retinue: 'pirate' },
+  desert:   { kind: 'kraytDragon', name: TEXT.bosses.monster.desert, retinue: 'massiff' },
+  forge:    { kind: 'mythosaur', name: TEXT.bosses.monster.forge, retinue: 'alamite' },
 };
 
 export const BOSS_RETINUE: Record<BoardId, EnemyKind> = {

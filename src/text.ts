@@ -377,6 +377,19 @@ export const TEXT = {
       ringworld: 'The Fastest Gun on Glavis',
       narkina: 'The Prison Warden',
     },
+    /**
+     * The thing that comes out of the floor after the warlord, on the boards
+     * that have one — the third and last boss battle there, and its own
+     * animal rather than another armoured officer.
+     */
+    monster: {
+      station: "The Smugglers' Prize",
+      crevasse: 'The Ice-Breaker',
+      trask: 'The Mamacore',
+      nevarro: "The Warlord's Rancor",
+      desert: 'The Old One of the Dune Sea',
+      forge: 'The Sleeper Below',
+    },
     /** the champion it sends first, halfway through */
     champion: {
       desert: 'The Pit Beast',
