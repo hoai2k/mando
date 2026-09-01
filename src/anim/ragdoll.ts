@@ -298,6 +298,80 @@ export class Ragdoll {
  * The rotation is recovered with Müller's iterative polar decomposition, which
  * is a handful of cross products per step and needs no matrix library.
  */
+const _lo = new THREE.Vector3();
+const _hi = new THREE.Vector3();
+const _pt = new THREE.Vector3();
+const _inv = new THREE.Quaternion();
+
+/**
+ * The box the drawn body actually occupies, in its own frame: half-extents in
+ * metres and where its middle sits relative to the node's origin.
+ *
+ * The collision capsule is what a creature *walks* in, not what it looks like.
+ * A massiff is five metres of animal inside a 0.9 m capsule, so falling on the
+ * capsule gave the solver a nearly cubic box: it tumbled to any angle at all
+ * and left the long body standing on its nose with a metre and a half of it
+ * underground. Measured on the drawn body, the same corpse has a long box and
+ * lies down along its length, which is the whole difference.
+ *
+ * Bones for a skinned sculpt, mesh bounds otherwise. A skinned mesh's geometry
+ * bounds are padded so animation cannot cull it — which is why they were
+ * rejected here — but the bones are not padded and they are the posed truth.
+ * Hidden subtrees are skipped, so the procedural stand-in under an authored
+ * body never joins in.
+ */
+function drawnBox(node: THREE.Object3D, facing: THREE.Quaternion):
+{ half: THREE.Vector3; centre: THREE.Vector3 } | null {
+  node.updateMatrixWorld(true);
+  _inv.copy(facing).invert();
+  _lo.set(Infinity, Infinity, Infinity);
+  _hi.set(-Infinity, -Infinity, -Infinity);
+  let n = 0;
+  let skinned = false;
+  node.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh && o.visible) skinned = true;
+  });
+  const add = (x: number, y: number, z: number): void => {
+    _pt.set(x, y, z).sub(node.position).applyQuaternion(_inv);
+    _lo.min(_pt);
+    _hi.max(_pt);
+    n++;
+  };
+  const walk = (o: THREE.Object3D): void => {
+    if (!o.visible) return;
+    const sk = o as THREE.SkinnedMesh;
+    const mesh = o as THREE.Mesh;
+    if (sk.isSkinnedMesh) {
+      for (const b of sk.skeleton.bones) {
+        const e = b.matrixWorld.elements;
+        add(e[12], e[13], e[14]);
+      }
+    } else if (!skinned && mesh.isMesh && mesh.geometry) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const bb = mesh.geometry.boundingBox;
+      if (bb) {
+        for (const cx of [bb.min.x, bb.max.x]) {
+          for (const cy of [bb.min.y, bb.max.y]) {
+            for (const cz of [bb.min.z, bb.max.z]) {
+              _pt.set(cx, cy, cz).applyMatrix4(mesh.matrixWorld);
+              add(_pt.x, _pt.y, _pt.z);
+            }
+          }
+        }
+      }
+    }
+    for (const c of o.children) walk(c);
+  };
+  walk(node);
+  if (n < 4) return null;
+  const half = new THREE.Vector3().subVectors(_hi, _lo).multiplyScalar(0.5);
+  // Nothing may be paper-thin: eight coplanar corners give the shape match no
+  // rotation to find, and a bone chain down one limb can be exactly that.
+  half.set(Math.max(half.x, 0.18), Math.max(half.y, 0.18), Math.max(half.z, 0.18));
+  const centre = new THREE.Vector3().addVectors(_lo, _hi).multiplyScalar(0.5);
+  return { half, centre };
+}
+
 export class RigidRagdoll {
   private pos: THREE.Vector3[] = [];
   private prev: THREE.Vector3[] = [];
@@ -339,8 +413,15 @@ export class RigidRagdoll {
     // used for this: a skinned sculpt's bounds are deliberately padded so
     // animation cannot cull it, which makes them much larger than the body.
     this.radius = 0.1;
-    const hw = bodyR * 0.75, hh = bodyH * 0.5, hd = bodyR * 0.75;
-    this.center.set(0, hh, 0).applyQuaternion(this.startQuat).add(node.position);
+    // The body as drawn, where that can be read; the capsule, squared off and
+    // drawn in a little, as the fallback. See `drawnBox` for why the capsule
+    // was never a good description of a long animal.
+    const box = drawnBox(node, this.startQuat);
+    const hw = box ? box.half.x : bodyR * 0.75;
+    const hh = box ? box.half.y : bodyH * 0.5;
+    const hd = box ? box.half.z : bodyR * 0.75;
+    if (box) this.center.copy(box.centre).applyQuaternion(this.startQuat).add(node.position);
+    else this.center.set(0, hh, 0).applyQuaternion(this.startQuat).add(node.position);
     // Spin: mostly about the axis perpendicular to the shove, so a hit from the
     // side rolls the body over rather than sliding it away flat, plus a little
     // off-axis wobble so no two bodies turn the same way. It is deliberately

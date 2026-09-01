@@ -156,9 +156,19 @@ on a 5 s clock.
 sacs on her back are her **clutch and her ammunition readout**: capacity is
 exactly the sacs the model shows (`BROOD_EGG_RACK`, **6** — the authored
 sculpt carries six eggs on her abdomen and the rack sits on them, measured
-off `krykna_brood.glb` rather than guessed), every sac starts shaded black,
-and one charges every **3 seconds** — flashing blue a couple of
-times as it finishes, then holding white until spent. **Y lays** a charged
+off `krykna_brood.glb` rather than guessed), and one charges every **3
+seconds**. A sac reads its state twice over: **it inflates as well as
+lightens**. Spent, it is a slack shell — 0.38 of full size and flattened
+against her back; as its egg grows it swells and pales in step, standing
+full and cream when it is ready to lay, and collapsing again the moment the
+egg leaves. Filling eases at 3.5/s so it tracks the three-second charge
+rather than racing it; emptying at 7/s, because the egg physically left. The
+sculpt's own three egg-sac **bones are wound in** (`SAC_HIDE`) once the game
+drives the rack — the abdomen is only lightly skinned to them, so this takes
+the sculpted clutch off her back and leaves the body untouched, which is what
+lets a sac deflate at all instead of shrinking to reveal a bright sculpted egg
+in the socket the game is calling empty. The last beat of a charge still
+flashes blue a couple of times before the sac settles to ready. **Y lays** a charged
 egg behind her; **RT lobs** one on an arc at whatever is under the aim, and
 the flying egg is a soft cannonball: the first body it meets is knocked
 back, unhurt. Either way the egg physically leaves **from the sac that goes
