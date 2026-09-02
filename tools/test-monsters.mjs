@@ -247,6 +247,72 @@ check('under the sand it cannot be hurt', worm.underIgnored === true, worm);
 check('on the surface it can', worm.upLanded === true, worm);
 check('and the body actually goes under and comes back up', worm.sunkDepth < -5 && worm.raisedDepth > -0.5, worm);
 
+// ---- 6. the massiff's jaw, added at load rather than sculpted in ----
+// The bone does not exist in the .glb: `jawrig.ts` inserts it, rebinds the skin
+// and moves the weights over. Two ways that fails silently — a pivot in the
+// wrong space, or a bind matrix taken from a rest pose that is not the bind
+// pose — both leave the model looking fine until the bone turns, and then fling
+// the weighted vertices to the horizon. So this measures the travel.
+await h.page.evaluate(() => window.__quitToTitle());
+await sleep(1500);
+await h.page.evaluate(() => window.__startCoop(1, 'desert'));
+await sleep(10000);
+const jawRig = await h.page.evaluate(async () => {
+  const g = window.__game, p = g.players[0];
+  for (const e of g.enemies) e.removeMe = true;
+  await new Promise((r) => setTimeout(r, 400));
+  const spot = p.position.clone(); spot.z += 12;
+  const e = g.addReinforcement('massiff', spot);
+  let mesh = null;
+  for (let i = 0; i < 120 && !mesh; i++) {
+    e.char.root.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+    if (!mesh) await new Promise((r) => setTimeout(r, 250));
+  }
+  if (!mesh) return { error: 'no skinned mesh' };
+  e.update = () => {};
+  const jaw = mesh.skeleton.bones.find((b) => b.name === 'jaw');
+  if (!jaw) return { error: 'no jaw bone was added' };
+  const ji = mesh.skeleton.bones.indexOf(jaw);
+  const geo = mesh.geometry;
+  const idxA = geo.attributes.skinIndex, wA = geo.attributes.skinWeight;
+  const picks = [];
+  for (let v = 0; v < geo.attributes.position.count && picks.length < 300; v += 13) {
+    let jw = 0;
+    for (const c of ['X', 'Y', 'Z', 'W']) if (idxA['get' + c](v) === ji) jw += wA['get' + c](v);
+    if (jw > 0.7) picks.push(v);
+  }
+  const sample = () => {
+    mesh.updateMatrixWorld(true);
+    mesh.skeleton.update();
+    return picks.map((v) => {
+      const t = new mesh.position.constructor();
+      t.fromBufferAttribute(geo.attributes.position, v);
+      mesh.applyBoneTransform(v, t);
+      return [t.x, t.y, t.z];
+    });
+  };
+  jaw.rotation.x = 0; jaw.updateMatrixWorld(true);
+  const shut = sample();
+  jaw.rotation.x = -0.7; jaw.updateMatrixWorld(true);   // ~40 degrees
+  const open = sample();
+  jaw.rotation.x = 0; jaw.updateMatrixWorld(true);
+  let travel = 0;
+  for (let i = 0; i < shut.length; i++) {
+    travel = Math.max(travel, Math.hypot(
+      open[i][0] - shut[i][0], open[i][1] - shut[i][1], open[i][2] - shut[i][2]));
+  }
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const height = geo.boundingBox.max.y - geo.boundingBox.min.y;
+  e.removeMe = true;
+  // as a fraction of the animal, so the quantised model units cancel out
+  return { jawVerts: picks.length, travelFrac: +(travel / height).toFixed(4) };
+});
+check('the massiff is given a jaw it was not sculpted with', !jawRig.error && jawRig.jawVerts > 20, jawRig);
+// A jaw tip on a 2 m animal swings tens of centimetres, not tens of metres: a
+// tenth of the animal's own height is a jaw, ten times it is a broken bind pose.
+check('...and opening it moves the jaw, not the horizon',
+  jawRig.travelFrac > 0.03 && jawRig.travelFrac < 0.4, jawRig);
+
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
 if (failures.length || h.errors.length) {

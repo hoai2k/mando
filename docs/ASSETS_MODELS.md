@@ -270,18 +270,42 @@ Two things the audit does say, for the briefs that follow:
   splits those zones into their own meshes and material, or a shader-side approach.
 
 **Three older creature rigs have no jaw bone**, so their bites are closed-mouthed —
-they were rigged before that was asked for. Each wants a re-export that changes
-nothing else:
+they were rigged before that was asked for.
+
+**The massiff no longer needs a re-export for it: the bone is added in code.** A jaw is
+a rig addition, not a sculpt change, so rather than wait on a new file the game grows
+one at load — the same trick `skinfix` uses to re-weight a leaking skirt panel, on the
+loaded geometry, leaving the .glb exactly as delivered. `tools/jaw-rig.mjs` picks the
+lower-jaw vertices offline against a cutting plane through the head and writes them to
+`public/models/jawrig/massiff.json`; `src/characters/jawrig.ts` inserts the bone into
+the skeleton, rebinds the mesh and moves the weights over, before the model is cached
+and cloned. The lunge-bite clip already names `jaw`, so the mouth opens from there on.
+Measured on the delivered sculpt: 1169 vertices on the jaw, and a 40° opening carries
+the jaw tip 30 cm on a 2.05 m animal, which is what a jaw that size should do.
+
+One thing a re-export would still buy: the vertex selection is a plane through a head
+that was sculpted with its mouth shut, so the mouth opens by stretching the skin rather
+than parting modelled lips. It reads as a dark cavity — the same way the monster
+sculpts do — but a re-export with a real jaw would read better.
+
+**The two spiders are still a request.** They want spreading chelicerae rather than a
+hinged jaw, and their mouthparts are a few centimetres across on a body you fight at
+running speed, so the same trick is much harder to aim and buys much less. They stay
+here:
 
 | Id | What is missing | The ask |
 |---|---|---|
-| `massiff` | no jaw; delivered on a 44-bone Rigify chain (`DEF-spine.004`…`DEF-spine.011` is the neck and skull) | Add **one `jaw` bone** parented to the skull, weighted to the lower jaw only. **Do not rename, renumber or reparent any existing `DEF-*` bone** — the gait and lunge-bite clips are written against those exact names and will break. |
 | `krykna` | no mouthparts; clean custom rig (`head`, `body`, `legL1..L4`/`legR1..R4` with `_mid`/`_tip`) | Add **`fangL` and `fangR`** — the chelicerae — parented to `head`, weighted to the fangs that are already modelled, spreading outward when rotated. Same do-not-rename rule for the existing nodes. |
 | `krykna_brood` | same, plus it carries `sac1..3` | Same two fang bones. Leave `sac1..3` exactly as they are — the playable brood-queen's egg rack drives them. |
 
 Optional and much lower value: `bantha` is on the same Rigify chain as the massiff and
 also has no jaw. It is an ambient grazer that never bites, so a jaw only buys a chewing
-idle. Take it only if the massiff re-export makes it free.
+idle — and if it is ever wanted, `tools/jaw-rig.mjs` is the cheaper way to get it.
+
+**If a re-export does arrive, it wins and nothing has to be undone.** A file that ships
+its own `jaw` is detected before the generated one is applied, so the code-added bone
+simply stops being needed; delete the model's entry from `public/models/jawrig/index.json`
+and the rig is gone.
 
 Nothing else about these sculpts changes — no new reference art is wanted
 ([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#not-wanted--reference-sheets-for-the-mouth-re-exports-2026-09-02)),

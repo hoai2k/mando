@@ -365,6 +365,11 @@ function massiffAttack(root: THREE.Object3D): THREE.AnimationClip {
       // the forelegs brace back as the chest rises, then plant into the bite
       { name: 'DEF-front_thigh.L', coil: [18, 0, 0], hit: [-10, 0, 0] },
       { name: 'DEF-front_thigh.R', coil: [18, 0, 0], hit: [-10, 0, 0] },
+      // The jaw is not in the delivered rig — `jawrig.ts` adds it at load, and
+      // this is what it is for: the mouth is thrown wide through the coil and
+      // snapped shut on the strike. The lookup misses harmlessly on a rig that
+      // has no jaw, so this costs nothing if the bone is ever dropped.
+      { name: 'jaw', coil: [34, 0, 0], hit: [2, 0, 0] },
     ],
     lift: { bone: 'DEF-spine', coil: 0.08, hit: -0.05 },
   });

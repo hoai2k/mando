@@ -11,6 +11,7 @@ import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
+import { applyJawRig, loadJawRig } from './jawrig';
 
 /**
  * Authored glTF characters.
@@ -217,6 +218,8 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
     // models without one cost nothing here beyond a shared index lookup
     const fixes = loadSkinFix(id);
+    // ...and the bones it was delivered without (see jawrig.ts)
+    const jaw = loadJawRig(id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
@@ -233,6 +236,11 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           const doc = await fixes;
           // on the file's own geometry, which every clone shares: one pass
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
+          // After the fixes, not before: a jaw is an addition to the weights
+          // the fixes have finished settling, and it folds itself into their
+          // baseline so toggling one in the workbench cannot undo it.
+          const jawDoc = await jaw;
+          if (jawDoc) applyJawRig(gltf.scene, jawDoc);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.

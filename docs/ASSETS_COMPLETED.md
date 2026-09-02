@@ -427,3 +427,197 @@ the earlier portrait batches. Every card on the drop screen carries authored art
 
 All sample-first with synth fallbacks; every one verified decoding in-browser from the
 built bundle.
+
+---
+
+## Environment prop reference sheets — 27 subjects, delivered 2026-08-29 → 09-02
+
+**All delivered, and every one of the 27 has its model in the game.** Verified against
+`reference/props/` on 2026-09-02: each subject below has its `_ref.png` (the larger
+props their second `_side.png` too) and a matching `public/models/<id>.glb`. They were
+the visual reference for the environment models opened in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#environment--hazard-models--priority-by-impact),
+in the models' priority order — these drive image-to-3D generators (Tripo, Meshy,
+Rodin) and hand modelling alike, same as the character sheets. Model from these, not
+from the prose.
+
+**Location: `reference/props/` — NOT under `public/`** (production inputs, not runtime
+assets). **Files:** `<id>_ref.png` per prop, 1024×1024. Vehicles and structures whose
+proportions carry gameplay (marked ▣) also get `<id>_side.png` — a true orthographic
+side profile, same recipe — since image-to-3D keeps whatever proportions the input
+has, and these have colliders to fit.
+
+**Shared preamble — prepend verbatim to every prop prompt below:**
+
+> A single environment prop for a stylized-realistic sci-fi video game, centered,
+> whole object in frame with a small margin, three-quarter view from slightly above,
+> flat even neutral lighting, no cast shadows, plain mid-grey background, no people,
+> no text, no watermark. Weathered, used, cleanly readable silhouette. Subject:
+
+For `_side` swap the view phrase for "true orthographic side profile view, no
+perspective distortion, identical design and scale".
+
+### Priority 1
+
+| Id | Prompt |
+|---|---|
+| `trawler` ▣ | "a rusty alien fishing trawler about 16 meters long: high blunt bow, low flat open working deck, boxy deckhouse set aft, a single mast with a boom crane, coiled nets and floats lashed along the gunwales, hull plated in weathered green-grey steel with rust streaks" |
+| `tram` ▣ | "an armored monorail tram car about 12 meters long: sleek boxy body with a wedge-shaped nose, riveted gunmetal plating, a completely flat walkable roof with low grab rails, narrow lit windows, amber warning stripes along both sides" |
+| `sail_barge` ▣ | "a crashed desert sail barge about 26 meters long listing into the sand: layered bronze-brown armored hull with an open top deck and railings, a leaning broken mast with a torn dark-red sail vane, half-buried and wind-scoured, no wheels" |
+| `cargo_crate` | "a cubic sci-fi cargo crate: olive-drab reinforced metal box with a recessed X-braced panel on each face, stenciled faded-yellow hazard chevrons, corner lift lugs, scuffed edges" |
+| `fuel_barrel` | "an industrial sci-fi fuel barrel: dark steel drum with two horizontal reinforcement ribs, a bright hazard-yellow band around the upper third, a narrow glowing amber fill-level slit, grimy and dented" |
+
+### Priority 2
+
+| Id | Prompt |
+|---|---|
+| `freighter` ▣ | "a small parked cargo freighter starship about 11 meters long: cylindrical hull with a rounded dark cockpit blister on the nose, two stubby side wings, deployed landing skids, a lowered boarding ramp, off-white and grey hull with chipped paint and grime streaks" |
+| `cargo_crane` ▣ | "an industrial gantry crane: a latticed steel mast about 18 meters tall, a long horizontal boom arm, a cable trolley holding a hanging olive cargo container, a sodium work lamp on the mast, gunmetal and faded safety-orange, greasy" |
+| `reactor_core` ▣ | "a sci-fi reactor column forty meters tall, slightly tapering: a segmented industrial cylinder wrapped in pipe runs and conduit bundles, ring flanges every few meters, tall glowing orange coolant channels running its full height, scorched grey metal" |
+| `sunken_transport` ▣ | "a sunken prison transport ship about 28 meters long, broken open: two parallel boxy hull sections joined by a flat roof plate leaving an open flooded corridor between them, a blunt collapsed nose, buckled and torn plating, chalky grey-white paint streaked with silt and corrosion" |
+| `adobe_tower` ▣ | "a desert adobe watchtower about 11 meters tall: tapering rounded clay tower, a covered lookout platform at the top with slit windows, a ladder up one side, pale sand-colored wind-worn stucco" |
+| `adobe_gate` ▣ | "a desert town gate: two thick adobe pylons carrying a wide flat lintel span, carved lantern niches, heavy riveted metal gate leaves standing open, pale sand-colored stucco over stone" |
+| `forge_brazier` | "an ancient ceremonial forge brazier about 3.5 meters wide: a broad iron basin on a stepped ring base, glowing embers inside, an anvil horn and hammer rest built into the rim, hanging chain links, blackened cast iron with worn silver inlay" |
+| `survey_crawler` | "a wrecked tracked survey crawler about 10 meters long: boxy crew cabin on two broad crawler tracks, a bent sensor mast, cracked windows, a door hanging open, pale grey-blue paint, frost-scoured and abandoned" |
+
+### Priority 3
+
+| Id | Prompt |
+|---|---|
+| `vaporator` | "a moisture vaporator: a slim seven-meter tapering metal column with stacked square condenser vanes near the top, small pipes and a control box at the base, brushed grey metal, sand-pitted" |
+| `tusken_tent` | "a nomad hide tent about 3.5 meters tall: a cone of stitched leather hides and sun-bleached cloth lashed over a frame of crooked poles, bone and horn trophies hung at the entrance flap, dusty earth tones" |
+| `alarm_console` | "a freestanding industrial alarm console: an angled dark metal cabinet with a screen, chunky buttons and a keyed panel, conduit running down to the floor, hazard striping on the edges, worn gunmetal" |
+| `street_kiosk` | "a compact sci-fi street vendor kiosk: a boxy metal stall with a half-open roll-down shutter, a small counter, a canvas awning, a glowing holographic menu panel, layered stickers and grime, teal and dark grey" |
+| `dock_shed` | "a harbour-master's shed about 10 meters long: corrugated metal walls on a riveted frame, a shallow-pitched roof with a stove pipe, round porthole windows, a sliding door, coiled rope and floats hung on the wall, storm-faded green paint and rust" |
+| `homestead_dome` | "a desert homestead: a smooth adobe dome about 10 meters across with a short entry vestibule, a rounded doorway with a metal hatch, small vent stacks, pale sand-colored wind-worn stucco" |
+| `mythosaur_skull` | "a colossal fossilized skull of a horned leviathan about 8 meters long, half-buried in glassy grey sand: long tusked jaw, broad brow with two great curved horns, deep eye sockets, bone weathered grey-green, cracked and mineral-streaked" |
+
+### Ambient life & backdrop (PLAN.md §16)
+
+Same recipe. The `bantha` is a creature, so like the krykna sheets it takes
+orthographic **side, front and top** views on one canvas instead of the prop preamble's
+three-quarter view.
+
+| Id | Prompt |
+|---|---|
+| `bantha` ◆ | "a colossal shaggy quadruped beast of burden, 2.5 meters at the shoulder: long dense brown wool hanging in matted curtains, a broad skull with two great spiral-curved horns sweeping down and forward, small placid dark eyes, thick stumpy legs, a swaying heavy build, a saddle of layered woven cloth and leather cinched behind the hump — orthographic side, front and top views" |
+| `sandcrawler` ▣ | "a colossal rusted tracked hauler-fortress about 35 meters long: a towering slab-sided hull of oxidized red-brown plating narrowing to a steeply angled prow, a sealed full-width boarding ramp at the front, rows of tiny lit portholes high on the hull, massive continuous tracks along the base, sand-drifted and ancient" |
+| `pipe_rack` ▣ | "a modular industrial pipe run segment about six meters long: a steel wall rack carrying four parallel pipes of mixed diameters with bolted flange joints, one elbow branch dropping to a hand valve wheel, hazard tape at the rack ends, scuffed gunmetal and oxide-red primer" |
+| `fish_rack` | "a dockside fish-drying rack about two meters tall: a weathered metal A-frame strung with taut lines, rows of split alien fish hanging to dry, iron hooks, a stained gutting bench at one end, storm-worn timber and rusted steel" |
+
+### Pilotable vehicles (PLAN.md §17)
+
+Same recipe, all ▣ (their colliders and saddle positions are tuned in code, so the
+side profile matters). Every one is **empty** — no rider, no hands: the game seats the
+player character itself.
+
+| Id | Prompt |
+|---|---|
+| `speeder_bike` ▣ | "a military scout repulsor speeder bike about 3 meters long, no rider: two long forward outrigger vanes ending in steering fins, a narrow saddle over a compact rear engine block, handlebar controls, footrests, no wheels, hovering, drab grey-brown metal, field-worn" |
+| `landspeeder` ▣ | "an open-topped civilian repulsor landspeeder about 4.5 meters long, no driver: rounded weathered bodywork, a single open seat behind a low curved windshield, three turbine engine nacelles across the tail, no wheels, hovering, sun-faded paint over dented metal" |
+| `skiff` ▣ | "a repulsor cargo skiff about 9 meters long, no crew: a flat open deck with low side rails, a raised tiller steering platform at the stern, crates lashed down at the bow, no wheels, hovering low, weathered tan and rust-brown plating" |
+
+---
+
+## Monster batch two — 5 canvases, delivered 2026-09-02
+
+Four new creature bosses and one body-section prop, designed in
+[`docs/BOSSES.md`](BOSSES.md) §2.7–2.10 so that **every territory has a monster and no
+monster serves two** — the Refinery, the Ringworld and the Prison Rig had none, and
+the Dune Sea's champion was a war massiff the Lava Flats also field. All are in the
+game already as procedural stand-ins; these canvases are the first step of the
+standard pipeline (sheet → model → swap), and the model briefs that consume them are
+in [`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--batch-two).
+
+**All delivered.** The `sandworm` canvas took two passes — the first was modelled
+pre-curved into a hook, which the single-body design cannot use — and the replacement
+below is the one to model from. `sandworm_arch` was delivered and then retired by that
+same design change; it is kept as a record, and no model is wanted for it.
+
+**Status at delivery:**
+
+| Id | Canvas | Verdict |
+|---|---|---|
+| `zillo` | delivered | **Approved.** Plates and the cyan seams read as the weak zone, three claws a foot, back low enough for the Refinery's 7.2 m ceilings, one scale across all three views. |
+| `nexu` | delivered | **Approved.** All four eyes placed as specced, red-tipped quills, forked tail, long-limbed for the pounce. |
+| `kwazel_maw` | delivered | **Approved, with one note for the modeller:** the flank stripes came back as thin dashes. Widen them into continuous bands on the sculpt, or they will not read as a weak point at 30 m. |
+| `sandworm_arch` | delivered | **Retired, not the art's fault** — see the design change below. Kept in `reference/` as the record; no model is wanted. |
+| `sandworm` | delivered | **Superseded — regenerate** (below). |
+
+### The prompts as delivered
+
+The three approved canvases were made from these. Kept as the record a re-sculpt works
+from; the two worm rows are gone, superseded by the replacement below.
+
+**Location: `reference/characters/` — NOT under `public/`** (production inputs).
+**Files:** one `<id>_ref.png` per subject, 1536×1024, **orthographic side, front and
+top views on one canvas** at one consistent scale (the creature recipe above, not
+the biped triple). The zillo and the kwazel maw are longer than they are
+tall — keep the side view the large one.
+
+**Shared preamble — prepend verbatim to every prompt below:**
+
+> A single colossal creature for a stylized-realistic sci-fi video game:
+> orthographic side, front and top views of the identical creature arranged on one
+> canvas at one consistent scale, no perspective distortion. Flat even neutral
+> lighting, no cast shadows, plain mid-grey background, no people, no environment,
+> no text, no watermark. Weathered, battle-scarred, cleanly readable silhouette.
+> Subject:
+
+Weak zones called out in a prompt (glowing seams, eyes, flank stripes, the gullet)
+must read in the art — they become emissive weak-point meshes on the model. Same
+standing rules as every sheet: original fan designs only, described and never named.
+
+| Id | Board | Prompt |
+|---|---|---|
+| `zillo` | Refinery | "an enormous armored reptilian crawler five meters at the shoulder and twelve meters long, a long flat skull with a lipless underslung jaw and small deep-set eyes, the whole body clad in large overlapping slate-green armor plates with pale flesh glowing faintly cyan in the seams between the plates, four splayed powerful limbs each ending in three heavy claws, a long tail ridged with spines to the tip" |
+| `nexu` | Ringworld | "a giant hunting cat the size of a small speeder, 2.2 meters at the shoulder and five meters long, lean and long-limbed: a wide head with a jaw that splits far back past the cheeks, four eyes, two forward and two on the temples, all glowing pale green, a ridge of red-tipped quills standing up along the spine, tawny hide with black rosettes, long claws, a forked tail" |
+| `kwazel_maw` | Prison Rig | "a huge amphibious swamp beast 4.2 meters tall and nine meters long hauling itself along on four splayed webbed limbs: a wide flat toad-like head with a mouth that opens the full width of it, bulbous side-set milky eyes, a long low body, a broad flat rudder tail, slick dark blue-black hide with rows of bioluminescent cyan stripes running down both flanks from behind the head to the tail" |
+
+### Replacement generation — `sandworm` (2026-09-02)
+
+The first `sandworm` canvas is good art that the design outgrew, plus three faults of
+its own. **What changed in the design:** the worm's body was going to be three separate
+arch props following the head. It is now **one continuous animal** whose spine the game
+bends along the path the head has travelled, so the humps that break the surface are
+the same body, they follow its turns, and they can carry weak points later. That means
+the sculpt must be modelled **dead straight**, because a body that is bent in the mesh
+cannot be laid along a path. The delivered canvas is modelled pre-curved into a forward
+hook, which is unusable for it.
+
+Three faults independent of that, all worth fixing in the regeneration:
+
+- **The three views disagree on proportion.** The top view shows a long segmented tube,
+  the side view a short hooked stub, and the front view sits at a smaller scale than
+  either. Image-to-3D averages disagreeing views into a confused mesh — one scale, as
+  the preamble asks.
+- **The maw splits four ways**, where the rig and the animation code name three parts.
+  Four is the better look, so the **rig brief has been changed to match the art**
+  (`mandibleL/R/T/B`); keep the four-way maw and keep it symmetrical.
+- **There is almost no neck** — it reads as a head and a collar. The body must run the
+  full length now, so this resolves itself.
+
+`sandworm_arch` is **not** to be regenerated: the single body replaces it.
+
+| Id | Board | Prompt |
+|---|---|---|
+| `sandworm` (replacement) | Dune Sea (champion) | "the full body of a colossal burrowing desert worm lying perfectly straight and horizontal, forty meters long and two meters thick, in a rigid straight line from end to end with no curve or bend anywhere: a blunt eyeless domed head at one end split four ways by long curved mandibles, two lateral, one upper and one lower, spread open around a circular gullet ringed with rows of inward-curving teeth glowing faintly amber deep inside, behind the head a uniform segmented body of overlapping bone-pale armor plates over sand-ochre hide with a low ridge of dorsal spines along its length, tapering to a blunt tail" |
+
+Because the subject is forty metres long and two thick, the side and top views want the
+full width of the canvas as two long bands, with the front view (looking down the
+throat) small in a corner. That is the one place this subject departs from the shared
+creature layout.
+
+---
+
+## Drop-screen portraits for the playable NPCs — 6 files, delivered
+
+PvP fields every NPC as a fighter; the drop screen already looks for
+`portrait_<enemyKind>.jpg` and falls back to the drawn marks. Any of the existing
+character sheet subjects can be reframed with the standard portrait recipe above —
+highest value first: `tusken`, `stormtrooper`, `pirate`, `pyke`, `officer`, `enforcer`.
+
+All six are on disk as `portrait_<kind>.jpg` and live with no code change — the drop
+screen probes for the file and falls back to its drawn marks when there is none. The
+playable hunters' three (`ventress`, `embo`, `bossk`) and `ig11` landed earlier and have
+their own entries above.
