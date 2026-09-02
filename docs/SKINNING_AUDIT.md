@@ -73,10 +73,13 @@ raised; after, the skirt hangs. Verified in the workbench and in the
 before/after sheet for every model (`docs/skinning/<id>.png`, test pose,
 as delivered on the left, with the applied fixes on the right). Pyke's and
 the Marshal's long coats, IG-11's hanging plates and the Tusken's strap are
-the other big visible changes. What the applied set leaves behind is in the
-review queue: the Marshal's right coat panel still lifts with the arm until
-`marshal/arm-drives-lower/left/review` (763 vertices the geodesic labelling
-could not call) is approved — with every pending fix on, the coat hangs.
+the other big visible changes. Two decisions were taken from the first sheet
+and folded in with `skin-decide.mjs`: the Marshal's ambiguous coat-panel
+vertices (`marshal/arm-drives-lower/*/review`) are approved, since the panel
+still lifted with the arm without them; and `tusken/lower-drives-arm/left` is
+discarded — it is the sculpt's own staff end hanging at knee height, which
+the labelling read as arm, and taking the leg weight off it turned a strap
+that folded away into a stiff rod.
 
 ### Reviewing the pending fixes
 
