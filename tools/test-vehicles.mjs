@@ -260,13 +260,25 @@ const trampled = await h.page.evaluate(([id]) => {
 check('the charge tramples what is in front of it', trampled.hp < trample.hp,
   `${trample.hp.toFixed(0)} -> ${trampled.hp.toFixed(0)}`);
 
-// the gun hand is free on an animal: RT fires from the saddle
+// The gun hand is free on an animal: RT fires from the saddle. Read the
+// evidence a shot leaves rather than the trigger's own frame — the page's
+// live loop runs its own blank-input update between our stepped ones, so
+// `aiming` is already back down by the time an evaluate can look at it.
+const beforeShots = await h.page.evaluate(() => ({ heat: window.__game.players[0].heat }));
 await h.step(0.6, { shootHeld: true, aimHeld: true });
 const shots = await h.page.evaluate(([i]) => {
   const g = window.__game;
-  return { on: !!g.players[0].vehicle, aiming: g.players[0].aiming, kind: g.vehicles[i]?.spec.kind };
+  const p = g.players[0];
+  return {
+    on: !!p.vehicle, heat: p.heat, weapon: p.weapon,
+    pose: p.char.animator?.playing?.('upper') ?? null,
+    kind: g.vehicles[i]?.spec.kind,
+  };
 }, [banthaAt.i]);
-check('you can aim from the saddle of a mount', shots.on && shots.aiming, JSON.stringify(shots));
+check('the blaster fires from the saddle of a mount',
+  shots.on && shots.weapon === 'blaster' && shots.heat > beforeShots.heat,
+  `heat ${beforeShots.heat.toFixed(2)} -> ${shots.heat.toFixed(2)} on the ${shots.kind}`);
+check('the gun comes up in the saddle', shots.pose === 'aimUpper', `upper: ${shots.pose}`);
 
 // dismount and leave the herd as we found it
 await h.step(1 / 60, { slamPressed: true });
