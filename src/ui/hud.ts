@@ -1,6 +1,7 @@
 import type { Game } from '../game/game';
 import { Radar } from './radar';
 import { splitLayout } from '../core/layout';
+import { yawBasis } from '../core/math';
 
 /** Per-player DOM HUD, laid out per split-screen viewport. */
 
@@ -13,6 +14,9 @@ interface PlayerHud {
   heat: HTMLElement;
   heatBar: HTMLElement;
   coverHint: HTMLElement;
+  hpNum: HTMLElement;
+  healthBar: HTMLElement;
+  hurtArc: HTMLElement;
   weapon: HTMLElement;
   rocket: HTMLElement;
   wave: HTMLElement;
@@ -46,6 +50,7 @@ const CROSSHAIR_SVG = `
     <circle cx="32" cy="32" r="2.1" fill="#fff" stroke="#000" stroke-opacity="0.6" stroke-width="1"/>
   </g>
   <circle class="lockring" cx="32" cy="32" r="13" fill="none" stroke="#ff5533" stroke-width="2.2" opacity="0"/>
+  <circle class="lowring" cx="32" cy="32" r="17" fill="none" stroke="#ff3a2a" stroke-width="2.6"/>
   <g class="hitmark" stroke="#ffcf6a" stroke-width="3" stroke-linecap="round" opacity="0">
     <line x1="20" y1="20" x2="26" y2="26"/><line x1="44" y1="20" x2="38" y2="26"/>
     <line x1="20" y1="44" x2="26" y2="38"/><line x1="44" y1="44" x2="38" y2="38"/>
@@ -83,7 +88,7 @@ export class Hud {
         <div class="damage-vignette"></div>
         ${CROSSHAIR_SVG}
         <div class="hud-bars">
-          <div class="bar health"><div class="fill"></div><div class="label">HP</div></div>
+          <div class="bar health"><div class="fill"></div><div class="hpnum"></div><div class="label">HP</div></div>
           <div class="bar fuel"><div class="fill"></div><div class="label">JET</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">ENERGY</div></div>
           <div class="bar heat"><div class="fill"></div><div class="label">HEAT</div></div>
@@ -91,6 +96,7 @@ export class Hud {
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
         <div class="hud-cover"></div>
+        <div class="hurt-arc"><svg viewBox="0 0 120 120"><path d="M60 6 A54 54 0 0 1 98 22" fill="none" stroke="#ff4a36" stroke-width="8" stroke-linecap="round" transform="rotate(-22 60 60)"/></svg></div>
         <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
         <div class="hud-contacts"><div class="nc-kicker">◢ New contact</div><div class="nc-names"></div></div>
@@ -108,6 +114,9 @@ export class Hud {
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
+        hpNum: root.querySelector('.bar.health .hpnum') as HTMLElement,
+        healthBar: root.querySelector('.bar.health') as HTMLElement,
+        hurtArc: root.querySelector('.hurt-arc') as HTMLElement,
         weapon: root.querySelector('.wname') as HTMLElement,
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
@@ -202,6 +211,21 @@ export class Hud {
       if (!p) continue;
       h.health.style.transform = `scaleX(${Math.max(0, p.hp / p.maxHp)})`;
       h.health.style.background = p.hp < 30 ? '#e0301e' : '#c33f2e';
+      h.hpNum.textContent = p.alive ? String(Math.max(0, Math.ceil(p.hp))) : '';
+      const low = p.alive && p.hp < 30;
+      h.healthBar.classList.toggle('low', low);
+      h.crosshair.classList.toggle('low', low);
+      // where the last hit came from, as an arc on the reticle ring: up is
+      // the way the camera looks, so an arc on the right means "to your
+      // right". Fades with the hurt flash it belongs to.
+      const hurt = p.hurtIntensity;
+      if (hurt > 0.12 && p.alive) {
+        const { fwdX, fwdZ, rightX, rightZ } = yawBasis(p.cam.yaw);
+        const d = p.lastDamageDir;
+        const a = Math.atan2(d.x * rightX + d.z * rightZ, d.x * fwdX + d.z * fwdZ);
+        h.hurtArc.style.transform = `rotate(${(a * 180) / Math.PI}deg)`;
+        h.hurtArc.style.opacity = String(Math.min(1, hurt * 1.4));
+      } else h.hurtArc.style.opacity = '0';
       // only a jetpack burns fuel — a super jumper's gauge would sit full
       // forever, so the bar only earns its row on a Mandalorian
       h.fuelBar.style.display = p.profile.flight === 'jetpack' ? '' : 'none';
@@ -237,7 +261,10 @@ export class Hud {
         h.rocket.textContent = rc <= 0 ? `◆ ${ord} READY` : `◇ ${ord.toLowerCase()} ${rc.toFixed(0)}s`;
         h.rocket.className = rc <= 0 ? 'rocket' : 'rocket cooling';
       }
-      h.wave.textContent = game.hudTopLine(p);
+      // the boss bar carries the boss's name; the top line does not need to
+      // say it a second time directly above it
+      const top = game.hudTopLine(p);
+      h.wave.textContent = game.boss?.alive && top === game.boss.bossName ? '' : top;
       h.kills.textContent = game.hudScoreLine(p);
       // the boss bar rides every viewport while a warlord stands
       const boss = game.boss;

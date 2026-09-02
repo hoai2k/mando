@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelClip } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES,
   type MeleeKind, type PlayerCharacter, type RangedKind,
@@ -44,10 +45,14 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
  * checks the window nor opens one, so a lava field still kills.
  */
 const HIT_IFRAMES = 0.3;
+/** how long an X press during a swing waits for the swing to clear */
+const MELEE_BUFFER = 0.25;
 /** and a fresh body gets a moment to find its feet before it can be shot */
 const RESPAWN_IFRAMES = 1.6;
 /** shove per hit, m/s, before the damage scale */
 const HIT_KNOCKBACK = 5;
+/** scratch for the block's facing test */
+const _facing = new THREE.Vector3();
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -125,6 +130,14 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+/** how long the firing arm's recoil kick lasts, seconds */
+const ARM_KICK = 0.06;
+/** the kick's peak, radians — the shoulder rolls the muzzle up and rides it down */
+const ARM_KICK_ANGLE = 0.16;
+/** how much of the camera pitch the chest takes when aiming; the rest is the arms' fixed pose */
+const AIM_PITCH_SHARE = 0.6;
+/** the chest will not fold further than this either way, radians */
+const AIM_PITCH_MAX = 0.55;
 
 /**
  * The aim-glide: sighting a shot on the way down.
@@ -306,9 +319,15 @@ export class Player {
   private meleeTimer = 0;
   private meleeComboWindow = 0;
   private meleeHitPending = 0;
+  /** seconds a swing press is remembered while the current swing plays out */
+  private meleeBuffer = 0;
   private meleeDamage = 0;
   /** seconds of animation freeze left after a landed melee hit */
   private hitStop = 0;
+  /** seconds left of the arm's recoil kick after a shot (see ARM_KICK) */
+  private armKick = 0;
+  /** the chest's current aim pitch, radians, eased toward the camera's */
+  private aimPitch = 0;
   /** the post-combo saber flourish has played (or nothing to flourish) */
   private flourished = true;
   /** keeps the blade trail alive through the flourish, which isn't a swing */
@@ -662,6 +681,19 @@ export class Player {
       this.noteVehicleHit(from);
       return;
     }
+    // A raised shield is a shield: the pane already turns bolts, and now a
+    // swing, a flame or a slam arriving from the front lands at half force,
+    // with the pane's own flash and a sip of energy for it. From behind, or
+    // with the pane not yet up, nothing changes.
+    if (!opts.dot && amount < 500 && this.blockRaise > 0.6) {
+      const fx = Math.sin(this.facingYaw), fz = Math.cos(this.facingYaw);
+      _knock.subVectors(from, this.position).setY(0);
+      if (_knock.lengthSq() > 1e-6 && _knock.normalize().dot(_facing.set(fx, 0, fz)) > 0.2) {
+        amount *= 0.5;
+        this.energy = Math.max(0, this.energy - 0.06);
+        this.char.shieldHit();
+      }
+    }
     this.hp -= amount;
     if (bySlot >= 0 && bySlot !== this.slot) this.lastHitBy = bySlot;
     this.regenDelay = 5;
@@ -676,6 +708,11 @@ export class Player {
       // thing that says "that one landed". Cover holds you where you are.
       const heft = clamp(amount / 30, 0.35, 1.6);
       this.cam.shake(0.1 + heft * 0.12);
+      // the body says it too: a short flinch on the upper channel, unless a
+      // swing or the shield is already using the arms
+      if (this.meleeTimer <= 0 && this.blockRaise < 0.3 && this.hp - amount > 0) {
+        this.char.animator?.playOnce('upper', 'hitUpper', 0.05);
+      }
       if (!this.cover && this.snareTimer <= 0) {
         _knock.subVectors(this.position, from).setY(0);
         if (_knock.lengthSq() > 1e-6) {
@@ -1118,6 +1155,12 @@ export class Player {
     const dashNow = this.dashArmed && canDash && moving;
     if (dashNow) {
       this.dashArmed = false;
+      // a dodge cuts a swing short once its contact frame has passed: the
+      // lunge no longer owns the body, so the recovery is the player's to spend
+      if (this.meleeTimer > 0 && this.meleeHitPending <= 0) {
+        this.meleeTimer = 0;
+        this.char.animator?.release('upper');
+      }
       this.dashTimer = 0.24;
       this.dashCd = 0.75;
       this.energy = Math.max(0, this.energy - DASH_ENERGY);
@@ -1403,6 +1446,13 @@ export class Player {
     // crouch: a one-shot holds the channel to its end, and the legs would stay
     // folded under a body that is already in the air.
     if (this.landTimer > 0 && !this.grounded) { anim.release('lower'); this.landTimer = 0; }
+    // The same for running out of one on the ground: a light landing at run
+    // speed held the crouch for the whole clip while the body kept going —
+    // ~1.9 m of frozen-legged slide after every hop. Once the feet are
+    // clearly travelling, hand the channel back to the gait. A heavy landing
+    // is not affected in practice: its recovery holds the speed under this
+    // until the clip has all but finished.
+    if (this.landTimer > 0 && this.grounded && speed2 > 3) { anim.release('lower'); this.landTimer = 0; }
     if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
@@ -1420,24 +1470,14 @@ export class Player {
       // sidestep is a moonwalk. Pick the cycle by the divergence instead:
       // forward run, lateral shuffle (one clip and its mirror), or the run
       // reversed for a back-pedal.
-      let rel = Math.atan2(this.velocity.x, this.velocity.z) - this.facingYaw;
-      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-      const arel = Math.abs(rel);
-      let lowerClip = 'runLower';
-      let rate: number;
-      if (arel > 2.3) {           // > ~132°: backing up — its own cycle, played backward
-        lowerClip = 'backpedalLower';
-        rate = -anim.gaitRate(lowerClip, speed2, this.char.baseScale) * 0.9;
-      } else if (arel > 0.8) {    // 46-132°: side-stepping
-        lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
-        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
-      } else {
-        // a sprint is its own longer-reaching cycle, not the run spun faster
-        if (this.sprinting) lowerClip = 'sprintLower';
-        // the gait runs at whatever rate plants the feet at our actual ground
-        // speed, so the stride pushes off instead of skating
-        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
-      }
+      const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+      let lowerClip: string = travel.clip;
+      // a sprint is its own longer-reaching cycle, not the run spun faster
+      if (lowerClip === 'runLower' && this.sprinting) lowerClip = 'sprintLower';
+      // the gait runs at whatever rate plants the feet at our actual ground
+      // speed, so the stride pushes off instead of skating; the back-pedal
+      // is its cycle played backward, a touch slower
+      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
@@ -2091,9 +2131,15 @@ export class Player {
     // melee (always available; swaps to gaffi visual during swing)
     this.meleeTimer -= dt;
     // a short RT pull from the saber fighter arrives here as a swing
-    const swing = input.meleePressed || this.pendingMelee;
+    // A press during a swing is kept for a moment rather than dropped, so a
+    // combo is played on intent and not on rhythm: the next swing starts the
+    // frame the current one clears.
+    this.meleeBuffer -= dt;
+    if ((input.meleePressed || this.pendingMelee) && this.meleeTimer > 0) this.meleeBuffer = MELEE_BUFFER;
+    const swing = input.meleePressed || this.pendingMelee || this.meleeBuffer > 0;
     this.pendingMelee = false;
     if (swing && this.meleeTimer <= 0) {
+      this.meleeBuffer = 0;
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
@@ -2243,6 +2289,9 @@ export class Player {
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
+      // ...and the arm takes it: a short kick on the firing shoulder, laid
+      // over the aim pose (syncVisual), so the body recoils and not just the view
+      this.armKick = ARM_KICK;
     }
 
     // Y: ordnance for whoever carries a gun, the heavy lunge for whoever
@@ -2384,6 +2433,7 @@ export class Player {
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
+    const solids = game.board.physics;
     for (const e of game.hostilesFor(this)) {
       if (!e.alive) continue;
       to.copy(e.position);
@@ -2396,8 +2446,17 @@ export class Player {
       // widen the cone slightly for close targets
       const need = d < 12 ? minDot - 0.02 : minDot;
       if (dot < need) continue;
-      const score = dot * 10 - d * 0.02;
-      if (score > bestScore) { bestScore = score; best = e; }
+      let score = dot * 10 - d * 0.02;
+      // a body dragging itself away is a target of last resort: never let it
+      // win the lock over a live shooter at the same angle
+      if ((e as { wounded?: boolean }).wounded) score -= 4;
+      if (score <= bestScore) continue;
+      // Line of sight, against the solid colliders only (the terrain never
+      // hides anyone the camera can see): the lock used to snap onto a body
+      // behind a crate and plant every bolt in the crate face.
+      const hit = solids.raycastSolids(from, to, d - 0.6);
+      if (hit) continue;
+      bestScore = score; best = e;
     }
     return best;
   }
@@ -2420,9 +2479,44 @@ export class Player {
     return best;
   }
 
+  /**
+   * The aim layer: two additive offsets laid over the mixer's pose.
+   *
+   * The carbine's aim clip is a fixed pose, so shooting up or down the rifle
+   * stayed level while the bolts left along the camera. The chest now takes
+   * a share of the camera pitch as an extra rotation applied after the clips
+   * (the animator undoes and reapplies it around each update), and the arms
+   * and head ride along — the muzzle follows the reticle. Only while the aim
+   * pose is on the upper channel, which is exactly while aiming or firing
+   * (and peeking from cover); it eases out again as the arms come down.
+   *
+   * The second is the recoil kick: for a few hundredths of a second after a
+   * shot the firing shoulder rolls up and settles, so the body recoils and
+   * not only the view.
+   */
+  private syncAimLayer(dt: number): void {
+    const anim = this.char.animator;
+    if (!anim) return;
+    const aiming = this.alive && anim.playing('upper') === 'aimUpper';
+    // +pitch looks up; +X on the chest folds it forward and down, so the sign flips
+    const want = aiming ? clamp(-this.cam.pitch * AIM_PITCH_SHARE, -AIM_PITCH_MAX, AIM_PITCH_MAX) : 0;
+    this.aimPitch = damp(this.aimPitch, want, aiming ? 18 : 10, dt);
+    anim.setAdditive('chest', Math.abs(this.aimPitch) < 1e-4 ? 0 : this.aimPitch, 0, 0);
+    if (this.armKick > 0) {
+      this.armKick = Math.max(0, this.armKick - dt);
+      // a fast rise and a longer settle: peak in the first third, then ease out
+      const k = this.armKick / ARM_KICK;
+      const shape = k > 0.66 ? (1 - k) / 0.34 : k / 0.66;
+      anim.setAdditive('upperArmR', -ARM_KICK_ANGLE * shape, 0, 0);
+    } else {
+      anim.setAdditive('upperArmR', 0, 0, 0);
+    }
+  }
+
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
+    this.syncAimLayer(dt);
     // blade trails ride the swings (and the flourish), on every update path
     this.trailTimer -= dt;
     this.char.setTrail(this.weapon === 'gaffi' && (this.meleeTimer > 0 || this.trailTimer > 0));

@@ -9,7 +9,7 @@
  */
 import { launch } from './harness.mjs';
 
-const h = await launch({ url: 'http://localhost:4173/workbench/?character=din' });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/workbench/?character=din` });
 let failures = 0;
 
 const pitches = await h.page.evaluate(async () => {

@@ -27,6 +27,10 @@ export interface InputConfig {
    * someone turns it on in Settings.
    */
   keyboardMouse: boolean;
+  /** look speed multiplier on stick and mouse, 0.25–1.75 (1 = the tuned default) */
+  lookSensitivity: number;
+  /** push the stick (or mouse) forward to look down */
+  invertY: boolean;
 }
 
 export interface CameraConfig {
@@ -66,7 +70,7 @@ export interface Config {
 }
 
 export const config: Config = {
-  input: { keyboardMouse: false },
+  input: { keyboardMouse: false, lookSensitivity: 1, invertY: false },
   camera: { dynamic: true },
   video: { split: 'stacked' },
   audio: {
@@ -139,6 +143,10 @@ export function loadSavedConfig(): void {
     const raw = localStorage.getItem(INPUT_STORE);
     const saved = raw ? JSON.parse(raw) as Partial<InputConfig> : null;
     if (saved && typeof saved.keyboardMouse === 'boolean') config.input.keyboardMouse = saved.keyboardMouse;
+    if (saved && typeof saved.lookSensitivity === 'number' && saved.lookSensitivity >= 0.25 && saved.lookSensitivity <= 1.75) {
+      config.input.lookSensitivity = saved.lookSensitivity;
+    }
+    if (saved && typeof saved.invertY === 'boolean') config.input.invertY = saved.invertY;
   } catch {
     // same
   }

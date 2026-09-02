@@ -371,7 +371,8 @@ export function buildWaystation(): Board {
     // on it every hundred seconds shoves everything off the deck — a squad
     // posted there was bulldozed into the void, and the warlord's battle,
     // posted at the far side of the board, was staged on it
-    groundSpawns: [plat(1), plat(2), plat(3), plat(4), plat(5), plat(6), plat(7), plat(0).add(new THREE.Vector3(10, 0, -10))],
+    // plat(2) carries the docked ship: its post stands on the strip beside the hull
+    groundSpawns: [plat(1), plat(2).add(new THREE.Vector3(-7.5, 0, 0)), plat(3), plat(4), plat(5), plat(6), plat(7), plat(0).add(new THREE.Vector3(10, 0, -10))],
     airSpawns: [
       new THREE.Vector3(20, 26, 20), new THREE.Vector3(-30, 30, 10), new THREE.Vector3(10, 36, -30),
       plat(9, 6), plat(10, 6), plat(11, 8),

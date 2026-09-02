@@ -39,7 +39,10 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
      the title off the top and the hint off the bottom. `justify-content` stays
      centred, so screens that do fit look exactly as they did. */
   position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 18px;
+  /* `safe center`: a centred column taller than the window used to push its
+     top past the edge where no scroll could reach it — Settings lost its
+     title once it grew two more rows. Safe centring falls back to `start`. */
+  align-items: center; justify-content: safe center; gap: 14px;
   overflow-y: auto; padding: 10px 0;
   background: radial-gradient(ellipse at 50% 30%, rgba(60,45,25,0.55), rgba(0,0,0,0.92) 75%);
   pointer-events: auto;
@@ -106,7 +109,19 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-viewport { position: absolute; pointer-events: none; overflow: hidden; }
 .crosshair .reticle { transition: opacity 0.1s ease; }
 .crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 58px; height: 58px; }
-.hud-bars { position: absolute; left: 26px; bottom: 22px; width: 240px; }
+.hud-bars { position: absolute; left: 26px; bottom: 22px; width: 300px; }
+/* health is the bar that decides fights: taller, and with its number on it */
+.bar.health { height: 18px; }
+.bar.health .hpnum { position: absolute; left: 6px; top: -1px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.9); font-variant-numeric: tabular-nums; }
+.bar.health.low { animation: hp-low 0.7s infinite; }
+@keyframes hp-low { 50% { border-color: rgba(255,80,60,0.95); box-shadow: 0 0 10px rgba(255,60,40,0.55); } }
+/* where the last hit came from: an arc on the reticle ring, up = ahead */
+.hurt-arc { position: absolute; left: 50%; top: 50%; width: 190px; height: 190px; margin: -95px 0 0 -95px; pointer-events: none; opacity: 0; }
+.hurt-arc svg { width: 100%; height: 100%; display: block; }
+/* the reticle pulses red when health is low, so the warning is where the eyes are */
+.crosshair .lowring { opacity: 0; }
+.crosshair.low .lowring { animation: ring-low 0.7s infinite; }
+@keyframes ring-low { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.85; } }
 .bar { height: 12px; background: rgba(0,0,0,0.55); border: 1px solid rgba(232,220,200,0.35); margin-top: 6px; position: relative; }
 .bar .fill { position: absolute; inset: 1px; transform-origin: left; background: #c33f2e; }
 .bar.fuel .fill { background: #d8b25a; }
@@ -147,7 +162,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
 .hud-banner {
-  position: absolute; top: 34%; left: 0; right: 0; text-align: center;
+  position: absolute; top: 20%; left: 0; right: 0; text-align: center;
   font-size: 34px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
   color: #f0d08c; text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
 }
@@ -157,7 +172,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   /* hung under the banner by its height, not by its own percentage: in a
      two-player strip (360 px tall) 34% and 47% are 47 px apart, and the
      banner's subtitle was printed straight across the card */
-  position: absolute; top: calc(34% + 74px); left: 50%; transform: translateX(-50%);
+  position: absolute; top: calc(20% + 74px); left: 50%; transform: translateX(-50%);
   padding: 7px 16px 8px; text-align: center;
   border: 1px solid rgba(240, 208, 140, 0.45); border-radius: 3px;
   background: rgba(12, 14, 10, 0.62);
@@ -195,6 +210,8 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-viewport.compact .crosshair { transform: translate(-50%, -50%) scale(0.8); }
 
 /* ---------- fullscreen button ---------- */
+body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
+#corner-buttons { transition: opacity 0.25s; }
 #corner-buttons {
   position: absolute; right: 14px; bottom: 14px; z-index: 50;
   display: flex; gap: 8px; pointer-events: auto;
@@ -322,6 +339,9 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .charsel-arrow:hover { background: rgba(216,178,90,0.15); }
 .charsel-arrow:last-child { animation-delay: 0.8s; }
 @keyframes charsel-nudge { 50% { border-color: rgba(240,212,146,0.95); color: #f0d492; } }
+.charsel-kit { font-size: 12.5px; letter-spacing: 0.04em; color: #b9aa87; text-align: center; max-width: 30ch; line-height: 1.35; }
+.charsel-kit b { color: #e2d3ac; font-weight: 600; }
+.charsel-panel.empty .charsel-kit { display: none; }
 .charsel-status { font-size: 15px; letter-spacing: 0.12em; color: #9a8a64; text-transform: uppercase; text-align: center; }
 .charsel-status b { color: #d8b25a; }
 .charsel-panel.ready .charsel-status b { color: #f0d492; text-shadow: 0 0 14px rgba(216,178,90,0.9); }

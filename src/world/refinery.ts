@@ -206,7 +206,7 @@ export function buildRefinery(): Board {
       new THREE.Vector3(-36, 0.3, -36), new THREE.Vector3(36, 0.3, -36),
       new THREE.Vector3(-36, 0.3, 36), new THREE.Vector3(36, 0.3, 36),
       new THREE.Vector3(-40, 0.3, 0), new THREE.Vector3(40, 0.3, 0),
-      new THREE.Vector3(0, 0.3, -42), new THREE.Vector3(-10, 8.3, -14),
+      new THREE.Vector3(14, 0.3, -42), new THREE.Vector3(-10, 8.3, -14),
     ],
     airSpawns: [
       new THREE.Vector3(0, 20, -12), new THREE.Vector3(12, 26, 8), new THREE.Vector3(-12, 14, 6),

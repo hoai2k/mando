@@ -5,8 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the environment prop reference sheets, and the optional
-drop-screen portraits for the playable NPCs. The troop carrier sheets went the way
+**Outstanding right now:** the **second monster batch's reference canvases** (below —
+five creatures, opened 2026-09-02 and the first thing to make), the environment prop
+reference sheets, and the optional drop-screen portraits for the playable NPCs. The troop carrier sheets went the way
 of the monster sheets — both ships' models were delivered on 2026-08-30 without
 them, so they are no longer wanted. Nothing else — the cast, the boards, the
 skies, every surface texture, the campaign's planet strip and corridor interiors, the
@@ -58,6 +59,43 @@ back if the tool supports image-to-image, or the three views won't agree. Keep e
 humanoid at the same pixel height per the Height column so relative scale survives into the
 models. Descriptions are deliberately written as *designs*, never as named characters —
 same rule as the audio prompts — which keeps output original and on-style.
+
+## Open — monster batch two: reference canvases (opened 2026-09-02)
+
+Four new creature bosses and one body-section prop, designed in
+[`docs/BOSSES.md`](BOSSES.md) §2.7–2.10 so that **every territory has a monster and no
+monster serves two** — the Refinery, the Ringworld and the Prison Rig had none, and
+the Dune Sea's champion was a war massiff the Lava Flats also field. All five are in
+the game already as procedural stand-ins; these canvases are the first step of the
+standard pipeline (sheet → model → swap), and the model briefs that consume them are
+in [`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--batch-two-open-2026-09-02).
+
+**Location: `reference/characters/` — NOT under `public/`** (production inputs).
+**Files:** one `<id>_ref.png` per subject, 1536×1024, **orthographic side, front and
+top views on one canvas** at one consistent scale (the creature recipe above, not
+the biped triple). The zillo, the worm and the kwazel maw are longer than they are
+tall — keep the side view the large one.
+
+**Shared preamble — prepend verbatim to every prompt below:**
+
+> A single colossal creature for a stylized-realistic sci-fi video game:
+> orthographic side, front and top views of the identical creature arranged on one
+> canvas at one consistent scale, no perspective distortion. Flat even neutral
+> lighting, no cast shadows, plain mid-grey background, no people, no environment,
+> no text, no watermark. Weathered, battle-scarred, cleanly readable silhouette.
+> Subject:
+
+Weak zones called out in a prompt (glowing seams, eyes, flank stripes, the gullet)
+must read in the art — they become emissive weak-point meshes on the model. Same
+standing rules as every sheet: original fan designs only, described and never named.
+
+| Id | Board | Prompt |
+|---|---|---|
+| `sandworm` | Dune Sea (champion) | "the reared head and neck of a colossal burrowing desert worm rising straight up out of sand, five and a half meters of it standing above the sand line which is the bottom edge of the figure: a blunt eyeless domed head split three ways by long curved mandibles that spread open around a circular gullet ringed with rows of inward-curving teeth and glowing faintly amber deep inside, a thick neck of overlapping bone-pale armor plates over sand-ochre hide, the body cut cleanly at the sand line, no legs, no eyes" |
+| `sandworm_arch` | Dune Sea (champion) | "a single arched section of a colossal burrowing desert worm's body breaching up out of sand and diving back in, seven meters long and four and a half meters high at the apex, an even hump like a bridge: a thick segmented cylinder two meters across covered in overlapping bone-pale armor plates over sand-ochre hide with a low ridge of dorsal spines along the top, both ends cut cleanly and flat at the sand line, no head, no tail" |
+| `zillo` | Refinery | "an enormous armored reptilian crawler five meters at the shoulder and twelve meters long, a long flat skull with a lipless underslung jaw and small deep-set eyes, the whole body clad in large overlapping slate-green armor plates with pale flesh glowing faintly cyan in the seams between the plates, four splayed powerful limbs each ending in three heavy claws, a long tail ridged with spines to the tip" |
+| `nexu` | Ringworld | "a giant hunting cat the size of a small speeder, 2.2 meters at the shoulder and five meters long, lean and long-limbed: a wide head with a jaw that splits far back past the cheeks, four eyes, two forward and two on the temples, all glowing pale green, a ridge of red-tipped quills standing up along the spine, tawny hide with black rosettes, long claws, a forked tail" |
+| `kwazel_maw` | Prison Rig | "a huge amphibious swamp beast 4.2 meters tall and nine meters long hauling itself along on four splayed webbed limbs: a wide flat toad-like head with a mouth that opens the full width of it, bulbous side-set milky eyes, a long low body, a broad flat rudder tail, slick dark blue-black hide with rows of bioluminescent cyan stripes running down both flanks from behind the head to the tail" |
 
 ## Open — environment prop reference sheets (for image-to-3D)
 

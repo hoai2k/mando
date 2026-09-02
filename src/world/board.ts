@@ -132,7 +132,7 @@ export interface Board {
   kind: BoardId;
   /** banner headline when the board loads */
   name: string;
-  /** banner sub-line; defaults to the survive-10-waves objective */
+  /** banner sub-line; defaults to the survive-7-waves objective */
   objective?: string;
   /** what footfalls sound like here */
   footstep: Surface;

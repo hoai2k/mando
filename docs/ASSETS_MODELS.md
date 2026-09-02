@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every model this document asks for has been delivered and integrated** — the six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. Nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: the [second monster batch](#monster-bosses--batch-two-open-2026-09-02)** — four creatures and one body-section prop, requested 2026-09-02, each fighting as a procedural stand-in until its file lands. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -199,6 +199,38 @@ Two notes a re-export has to keep, both learned by putting these in the game:
 
 Delivery as ever: `public/models/<id>.glb`.
 
+## Monster bosses — batch two, open 2026-09-02
+
+Four more creature bosses and one prop, designed in [`docs/BOSSES.md`](BOSSES.md)
+§2.7–2.10, so that **every territory has a unique monster**: a burrowing worm as the
+Dune Sea's champion (replacing the promoted war massiff the Lava Flats also field),
+and monster finals for the three boards that had none — the Refinery, the Ringworld
+and the Prison Rig. **All five are in the game now as procedural stand-ins**, with
+their fights, their numbers and their gaits (`src/anim/quadruped.ts`, written against
+the node lists below) already wired: a delivered file drops in with no code change,
+exactly as the first six did. The reference canvases are open in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--monster-batch-two-reference-canvases-opened-2026-09-02)
+and go first.
+
+**Intake:** the four creatures are ◆ through `loadCreature` — own free-form rigs,
+fitted by height (`CREATURE_MODELS` in `src/characters/authored.ts`), grounded by the
+loader, driven by the code gaits unless the file ships clips. `sandworm_arch` is a
+plain `loadProp` — no rig, placed and scaled by the game. Weak-zone nodes are
+gameplay, as before: distinct named meshes where the canvas shows them. Origin at the
+resting ground point, +Z forward, real-world scale per the size column. Same style
+and budgets as the first batch (≤ 15k tris, one 1024² PBR set with emissive).
+
+| Id | Board | Size | Rig nodes (gameplay in **bold**) | Constraints |
+|---|---|---|---|---|
+| `sandworm` | Dune Sea (champion) | 5.5 m standing out of the sand; head ~2.6 m across | `head, jaw, mandibleL/R,` **`gullet`**`, neck1..4, body1..3` | **Modelled already reared**: the sculpt is the head and neck standing straight up, origin at the sand line, `body3` the clean cut at the bottom. The game sinks it whole for the underground half of its cycle and never pitches it, so the rest pose *is* the fight pose. Three mandibles that open (`mandibleL/R` and the jaw); **gullet** an emissive ring mesh inside the open mouth. |
+| `sandworm_arch` | Dune Sea (champion) | 7 m long, 4.5 m apex, ~2 m thick | unrigged prop | One even hump, both ends cut flat at y = 0 (the sand line); the game places three of them along the worm's path and raises/sinks each on its own beat, so the cuts are never seen. Longest axis along Z. |
+| `zillo` | Refinery | 5 m at the shoulder, 12 m long | `head, jaw, spine1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..3, plates,` **`seams`** | Must fit under the halls' 7.2 m ceilings — keep the back low and flat. `plates` one mesh (future deflect armor); **seams** a distinct emissive mesh in the gaps between plates; three clawed digits per foot. |
+| `nexu` | Ringworld | 2.2 m at the shoulder, 5 m long | `head, jaw,` **`eyeL/R, eyeL2/R2`**`, spine1..2, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2, quills` | Built for speed — long limbs, a flexing spine. **Four eyes** as emissive meshes; `quills` one mesh along the spine (future deflect); the jaw splits back past the cheeks. |
+| `kwazel_maw` | Prison Rig | 4.2 m tall, 9 m long | `head, jaw, body1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2,` **`stripesL/R`** | The mouth opens the full width of the head (the gulp is its attack — model the interior); **stripes** one emissive mesh per flank; hide reads wet. |
+
+Delivery as ever: `public/models/<id>.glb`. Sizes are what the game fits each file
+to; the worm's is what stands *above* the sand, since it is modelled reared.
+
 ## Environment & hazard models — priority by impact
 
 **Every model on this page is delivered and integrated** (2026-08-29). The
@@ -328,8 +360,8 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
 wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
-`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The monster boss
-batch is the only thing open on the model side.**
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The second monster
+batch (above) is the only thing open on the model side.**
 
 ### Three intake paths
 
@@ -392,8 +424,8 @@ clip against a real model.
 
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
-everything around it, so it goes first. The monster bosses are what is in that pipeline
-now; every other id this document names is on disk and in the game.
+everything around it, so it goes first. The second monster batch is what is in that
+pipeline now; every other id this document names is on disk and in the game.
 
 ## Game-mode props — requested and delivered 2026-08-29 (the `?modes` build)
 

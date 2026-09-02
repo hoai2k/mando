@@ -133,4 +133,8 @@ promoted elites); they stay deferred only until bosses get per-boss movesets.
 it erupts, a yelp as it goes down, both pitched heavier for a boss than for a massiff.
 A roar/hurt/death set per monster (`mudhorn_roar` and so on, the `mamacore_roar`
 pattern) is the upgrade whenever six sets of files feel worth it; nothing waits on
-them, and a delivered file is picked up by name.
+them, and a delivered file is picked up by name. **The second batch (2026-09-02 —
+`sandworm`, `zillo`, `nexu`, `kwazel_maw`, `docs/BOSSES.md` §2.7–2.10) speaks the same
+way**, and would take the same set each; the worm additionally leans on the existing
+`mythosaur_call` for its underground rumble, and a `sandworm_rumble` (a rolling
+sub-bass drag through sand, 3 s, loopable) would be its own voice for that.
