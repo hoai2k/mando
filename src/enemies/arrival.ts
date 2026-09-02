@@ -306,6 +306,12 @@ export class Carrier {
     this.group.visible = false;
   }
 
+  /** seconds until the squad is let go (0 once it has been) */
+  get eta(): number {
+    if (this.released) return 0;
+    return Math.max(0, this.delay) + Math.max(0, this.dropT - this.t);
+  }
+
   /** where the ship is at second `t` of a landing profile */
   private landerPos(t: number, out: THREE.Vector3): void {
     const site = this.site!;

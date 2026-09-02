@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
+import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
@@ -31,6 +31,10 @@ const MONSTER_QUAKE_LEN = 4;
 const BOSS_INTRO_TIMESCALE = 0.12;
 /** reach of the warlord's shock-slam, and the radius its ember ring is drawn at */
 const BOSS_SLAM_R = 8.5;
+/** a wave this old starts sweeping for the players rather than waiting to be found... */
+const HUNT_AFTER = 45;
+/** ...as does one down to this many bodies, scattered over the board */
+const HUNT_REMNANT = 3;
 
 /** hands-off-the-sticks input, fed to everyone while the boss card is up */
 const BLANK_INPUT: FrameInput = {
@@ -263,10 +267,11 @@ export class Game {
 
     // The intro banner buys a couple of seconds; spend them fetching the models
     // wave one is about to need, rather than parsing them on the spawn frame.
-    if (mode === 'wave') {
-      this.preloadWave(1);
-      // The three allies are certain to appear in a full match and are only three
-      // files, so warm them now rather than the instant one walks into a firefight.
+    if (mode === 'wave') this.preloadWave(1);
+    // The three allies are certain to appear in a full match and are only three
+    // files, so warm them now rather than the instant one walks into a firefight.
+    // A mission drops two of the same caches, before its arenas.
+    if (mode !== 'pvp') {
       for (const kind of Object.values(ALLY_WAVES)) {
         for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
       }
@@ -316,9 +321,7 @@ export class Game {
       const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
       const e = new Enemy(squad.kind, at, p.team);
       e.setOwner(p);
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      this.particles.dustPuff(at, 6);
+      this.addEnemy(e, { puff: 6 });
     }
   }
 
@@ -361,9 +364,7 @@ export class Game {
     // On a monster board the warlord is the herald: remember where it made its
     // stand, and the monster comes up there when it falls.
     if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();
-    this.waveSpawned++;
-    this.enemies.push(boss);
-    this.scene.add(boss.char.root);
+    this.addEnemy(boss, { counts: true });
     this.particles.explosion(at.clone());
     this.boss = boss;
     this.bossPhase = 0;
@@ -414,9 +415,7 @@ export class Game {
       const e = new Enemy(p.kind, p.pos);
       e.squad = p.squad;
       e.squadSize = p.squadSize;
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      return e;
+      return this.addEnemy(e);   // the squad was counted when it was staged
     };
     for (const members of squads.values()) {
       const lead = members[0];
@@ -477,7 +476,7 @@ export class Game {
   private flybyDrop<T extends { kind: EnemyKind; pos: THREE.Vector3 }>(
     members: T[], delay: number, field: (m: T) => Enemy,
     opts: { chute?: number; onRelease?: (bodies: Enemy[]) => void } = {},
-  ): void {
+  ): Carrier {
     // centroid, so one pass covers the whole squad's spread of targets
     const at = new THREE.Vector3();
     for (const m of members) at.add(m.pos);
@@ -507,6 +506,7 @@ export class Game {
     });
     this.carriers.push(carrier);
     this.scene.add(carrier.group);
+    return carrier;
   }
 
   /**
@@ -522,24 +522,24 @@ export class Game {
    *
    * `onRelease` receives the bodies the moment the ship lets them go, which is
    * the first moment they exist. Until then the room is still owed them.
+   * Returns the seconds until that moment, so the room can telegraph where
+   * the squad is about to come down.
    */
   dropReinforcements(
     kinds: EnemyKind[], spots: THREE.Vector3[], squad: number,
     onRelease: (bodies: Enemy[]) => void,
-  ): void {
+  ): number {
     const members = kinds.map((kind, i) => ({
       kind,
       pos: this.campaign ? this.campaign.placeNear(spots[i].clone(), kind) : spots[i].clone(),
     }));
     this.waveSpawned += members.length;
-    this.flybyDrop(members, 0.2 + Math.random() * 0.5, (m) => {
+    return this.flybyDrop(members, 0.2 + Math.random() * 0.5, (m) => {
       const e = new Enemy(m.kind, m.pos);
       e.squad = squad;
       e.squadSize = members.length;
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      return e;
-    }, { chute: 0, onRelease });
+      return this.addEnemy(e);   // counted above, when the drop was staged
+    }, { chute: 0, onRelease }).eta;
   }
 
   /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
@@ -588,9 +588,7 @@ export class Game {
     this.monsterAt = null;
     const beast = new Enemy(monster.kind, at);
     beast.promoteBoss(monster.name, 1, 1, 1);
-    this.waveSpawned++;
-    this.enemies.push(beast);
-    this.scene.add(beast.char.root);
+    this.addEnemy(beast, { counts: true });
     this.particles.explosion(at.clone());
     this.boss = beast;
     this.monsterKind = monster.kind;
@@ -659,7 +657,15 @@ export class Game {
       for (let i = 0; i < 3 + due; i++) {
         const a = Math.random() * Math.PI * 2;
         const e = this.addReinforcement(guard, b.position.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0.2, Math.sin(a) * 10)), 9900 + due);
-        if (lead) e.alert(lead.position, true);
+        // The retinue lands ten metres out, right after the pulse has thrown
+        // the player, and used to open fire the frame it stood up (audit B6).
+        // A soft alert first gives it the beat everyone else gets between
+        // noticing and acting (a quarter-second and change, turning to look);
+        // the hard alert then commits it without shortening that beat.
+        if (lead) {
+          e.alert(lead.position, false);
+          e.alert(lead.position, true);
+        }
       }
       // the turn itself is a beat: a damage-free repulsor pulse breaks any
       // melee scrum so the new phase starts at range, on both sides' terms
@@ -724,6 +730,34 @@ export class Game {
   }
 
   /**
+   * The one way a body joins the match. Every spawn path — the wave spawner,
+   * arrivals and drops, the campaign's posts, eggs and hatchlings, PvP squads,
+   * the bosses — comes through here, so the scene, the list and the per-frame
+   * hostile cache can never disagree about who is on the field. Five hand
+   * copies of push-and-add used to exist, and the hatch path had forgotten
+   * the cache: a spiderling was invisible to every aim cone until the next
+   * frame. `counts` adds the body to the wave's tally (the clear check);
+   * `puff` kicks up that much dust where it stands.
+   */
+  addEnemy(e: Enemy, opts: { counts?: boolean; puff?: number } = {}): Enemy {
+    if (opts.counts) this.waveSpawned++;
+    this.enemies.push(e);
+    this.scene.add(e.char.root);
+    this.hostileCache.clear();
+    if (opts.puff) this.particles.dustPuff(e.position, opts.puff);
+    return e;
+  }
+
+  /** the same door for the allies' list */
+  addAlly(a: Enemy, puff = 0): Enemy {
+    this.allies.push(a);
+    this.scene.add(a.char.root);
+    this.hostileCache.clear();
+    if (puff) this.particles.dustPuff(a.position, puff);
+    return a;
+  }
+
+  /**
    * Add a hostile mid-wave (brood spawns, reinforcement events). It counts
    * toward the wave like anything the spawner posted, so the clear check and
    * the radar tally stay honest.
@@ -736,11 +770,7 @@ export class Game {
     pos = this.campaign ? this.campaign.placeNear(pos, kind) : standingSpot(this.board, pos, kind);
     const e = new Enemy(kind, pos);
     e.squad = squad;
-    this.waveSpawned++;
-    this.enemies.push(e);
-    this.scene.add(e.char.root);
-    this.particles.dustPuff(pos, 8);
-    return e;
+    return this.addEnemy(e, { counts: true, puff: 8 });
   }
 
   /**
@@ -1094,11 +1124,14 @@ export class Game {
 
     // ---- hunt escalation (wave mode only: campaign posts hold their path) ----
     // Posted enemies wait to be found, which must not let a wave stall out: if
-    // one drags on, the remnant starts sweeping toward the players instead.
+    // one drags on, or is down to its last few bodies scattered over the
+    // board, the remnant starts sweeping toward the players instead. (45 s
+    // and ≤ 3 left, from 80 s — waves 1–3 were mostly walking, audit L8.)
     if (this.mode === 'wave' && this.state === 'fighting') {
       this.waveTimer += dt;
       this.huntCall -= dt;
-      if (this.waveTimer > 80 && this.huntCall <= 0) {
+      const remnant = this.waveSpawned > 0 && this.incoming === 0 && this.aliveEnemyCount <= HUNT_REMNANT;
+      if ((this.waveTimer > HUNT_AFTER || remnant) && this.huntCall <= 0) {
         this.huntCall = 22;
         const p = this.players.find((pl) => pl.alive) ?? this.players[0];
         for (const e of this.enemies) if (e.alive) e.alert(p.position, false);
@@ -1597,9 +1630,7 @@ export class Game {
   private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
     const egg = new Enemy('spiderEgg', at, p.team);
     egg.setOwner(p);
-    this.enemies.push(egg);
-    this.scene.add(egg.char.root);
-    this.particles.dustPuff(at, 5);
+    this.addEnemy(egg, { puff: 5 });
     audio.bark('spider_chitter', 0.5);
     return egg;
   }
@@ -1625,7 +1656,7 @@ export class Game {
     return `${p.kills} kills · ${this.aliveEnemyCount + this.incoming} hostiles remaining`;
   }
 
-  /** the far side of the board, where a boss battle posts its warlord */
+  /** the far side of the board: the last resort for a boss with nowhere in view to stand */
   private farPost(): THREE.Vector3 {
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     let far = this.board.groundSpawns[0] ?? near;
@@ -1633,6 +1664,19 @@ export class Game {
       if (s.distanceToSquared(near) > far.distanceToSquared(near)) far = s;
     }
     return far.clone();
+  }
+
+  /**
+   * Where a boss battle posts its warlord: 30–40 m out from player one,
+   * inside their camera's view arc, on ground the boss can stand on — so the
+   * reveal pans onto a figure, not a dot on the horizon (audit B10). Only the
+   * far side of the board when nothing in view will hold him.
+   */
+  private bossPost(tier: 'mid' | 'final'): THREE.Vector3 {
+    const p = this.players.find((pl) => pl.alive) ?? this.players[0];
+    if (!p) return this.farPost();
+    const kind = tier === 'mid' ? MID_BOSS[this.board.kind].kind : BOSS_KIND[this.board.kind];
+    return postInView(this.board, p.position, p.cam.yaw, kind) ?? this.farPost();
   }
 
   private nextWave(): void {
@@ -1645,25 +1689,20 @@ export class Game {
     // the next wave: the board's first boss posts at the far side with a guard
     if (this.wave === this.midBossWave && !this.midBossDown) {
       this.midBossActive = true;
-      this.spawnBoss(this.farPost(), 'mid');
+      this.spawnBoss(this.bossPost('mid'), 'mid');
       return;
     }
     this.wave++;
     // past the final wave is the warlord's battle, and the last bell
     if (this.wave > this.finalWave) {
-      this.spawnBoss(this.farPost(), 'final');
+      this.spawnBoss(this.bossPost('final'), 'final');
       return;
     }
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     if (this.wave <= 1) {
       // the first wave is the garrison already holding the territory: it is
       // simply there, posted, waiting to be found
-      spawnWave(this.board, this.wave, this.players.length, near, (e) => {
-        this.waveSpawned++;
-        this.enemies.push(e);
-        this.scene.add(e.char.root);
-        this.particles.dustPuff(e.position, 10);
-      });
+      spawnWave(this.board, this.wave, this.players.length, near, (e) => this.addEnemy(e, { counts: true, puff: 10 }));
     } else {
       // every later wave is reinforcements, and reinforcements arrive:
       // carriers streak over and drop squads, locals run in over the edge,

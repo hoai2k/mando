@@ -214,6 +214,12 @@ function stubAnimator(): NonNullable<CharacterInstance['animator']> {
     update: () => {},
     gaitRate: () => 1,
     stepInterval: () => 0.34,
+    // the aim layer asks what is playing and writes additive rotations; a
+    // creature has neither channel nor chest bone, so both are no-ops
+    playing: () => null,
+    oneShotProgress: () => 1,
+    setAdditive: () => {},
+    freeze: () => {},
   } as unknown as NonNullable<CharacterInstance['animator']>;
 }
 

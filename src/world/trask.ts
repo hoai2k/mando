@@ -380,7 +380,7 @@ export function buildTrask(): Board {
     groundSpawns: [
       new THREE.Vector3(-26, DECK_TOP + 0.3, -18), new THREE.Vector3(0, DECK_TOP + 0.3, -40),
       new THREE.Vector3(28, DECK_TOP + 0.3, -14), new THREE.Vector3(-6, DECK_TOP + 0.3, -52),
-      new THREE.Vector3(40, DECK_TOP + 0.3, -36), new THREE.Vector3(-44, DECK_TOP + 0.3, -32),
+      new THREE.Vector3(44.5, DECK_TOP + 0.3, -36), new THREE.Vector3(-44, DECK_TOP + 0.3, -32),
       new THREE.Vector3(24, DECK_TOP + 0.3, 20), new THREE.Vector3(-26, DECK_TOP + 0.3, 6),
     ],
     airSpawns: [

@@ -542,11 +542,18 @@ export function mudhornClips(root: THREE.Object3D): THREE.AnimationClip[] {
   };
   const move = heavyWalk(root, 'leg', 0.9, 20, 26, 'body', 0.06);
   const idle = beastIdle(root, 'head', 'body', 3.6, 2.2);
-  // the tail swats on both clips, at its own tempo
+  // The tail swats on both clips, at its own tempo. It used to go into the
+  // idle only, so the moment the animal walked the tail froze mid-swat — the
+  // move clip has no tail tracks and the mixer padded them with the bind
+  // pose. On the walk it swings a beat per stride instead.
   const b = builder(root);
   const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * 3.6);
   tail(b, times, 9);
   idle.tracks.push(...b.tracks);
+  const bm = builder(root);
+  const moveTimes = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * 0.9);
+  tail(bm, moveTimes, 6);
+  move.tracks.push(...bm.tracks);
   // the gore: head dropped to the horn, then tossed up and through
   const attack = strikeClip(root, {
     dur: 0.8,

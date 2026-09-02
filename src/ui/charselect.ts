@@ -110,6 +110,7 @@ interface Slot {
   panel: HTMLElement;
   name: HTMLElement;
   status: HTMLElement;
+  kit: HTMLElement;
   spinner: HTMLElement;
   arrows: HTMLElement[];
   /** last state the status line was written for, so it is only rewritten on a change */
@@ -413,6 +414,11 @@ export class CharacterSelect {
     name.className = 'charsel-name';
     const arrows = [mkArrow(-1), mkArrow(1)];
     base.append(arrows[0], name, arrows[1]);
+    // what the fighter brings: one line under the name, so a thirty-body
+    // PvP roster is a choice and not a guess
+    const kit = document.createElement('div');
+    kit.className = 'charsel-kit';
+    panel.appendChild(kit);
 
     const pedestal = new THREE.Mesh(
       new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
@@ -433,7 +439,7 @@ export class CharacterSelect {
       phase: 'empty', choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
-      panel, name, status, spinner, arrows, waiting: false, poster: null,
+      panel, name, status, kit, spinner, arrows, waiting: false, poster: null,
     };
   }
 
@@ -1137,7 +1143,14 @@ export class CharacterSelect {
         s.panel.classList.add('empty');
         s.panel.classList.remove('ready');
       } else {
-        s.name.textContent = playableDef(id).profile.name;
+        const pr = playableDef(id).profile;
+        s.name.textContent = pr.name;
+        const bits = [`<b>${pr.maxHp} HP</b>`];
+        bits.push(pr.rangedName ? pr.rangedName : `<b>${pr.meleeName}</b>`);
+        bits.push(pr.flight === 'jetpack' ? 'jetpack' : 'super jump');
+        if (pr.squad) bits.push(`squad of ${pr.squad.count}`);
+        if (pr.special === 'layEgg') bits.push('lays eggs');
+        s.kit.innerHTML = `${pr.desc ? pr.desc + '<br/>' : ''}${bits.join(' · ')}`;
         s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>'
           : s.waiting ? `<b>Player ${i + 1}</b><br/>Loading…`
             : `<b>Player ${i + 1}</b>`;
