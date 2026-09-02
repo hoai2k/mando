@@ -55,6 +55,8 @@ export interface MissionSpec {
   wallH?: number;
   /** ground grip inside the level (the Crevasse's ice), 1 = normal */
   traction?: number;
+  /** hemisphere fill over the whole level (accent sky, floor ground); default 1.5 */
+  fill?: number;
   rooms: RoomSpec[];
   /** connectors, one per pair of adjacent rooms */
   links: LinkSpec[];
@@ -294,6 +296,17 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
   group.name = 'mission';
   board.group.add(group);
 
+  // ---- lighting ----
+  // The level sits ninety metres over the territory, above whatever lit the
+  // ground (Nevarro's lava glow, the docks' lamps), under a sun the walls
+  // shade out of most of the floor. The dark palettes rendered as a void —
+  // walls, floor and the hostiles standing on them all black (audit L1). So
+  // the level carries its own light: a hemisphere fill in the palette's own
+  // colours for the whole chain, and a work lamp per room at its feature.
+  const hemi = new THREE.HemisphereLight(pal.accent, pal.floor, spec.fill ?? 1.5);
+  hemi.position.set(0, MISSION_Y + 40, 0);
+  group.add(hemi);
+
   const rects: Rect[] = [];
   const pickups: THREE.Vector3[] = [];
   const defenders: DefenderPost[][] = [];
@@ -411,6 +424,14 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
     const dir = { x: f.dx, z: f.dz };
     const entryGate = i > 0 ? new Gate(board, group, f.vec(0, 0, top), dir, wallH, pal.accent) : null;
     const exitGate = i < last ? new Gate(board, group, f.vec(l, 0, top), dir, wallH, pal.accent) : null;
+
+    // the room's lamp: warm work light high on the centre line, tinted by the
+    // set piece where there is one (the lava's glow, the shock strip's arc)
+    const lampColor = rs.feature === 'lava' ? 0xffa070 : rs.feature === 'shock' ? 0xc8f0ff
+      : rs.feature === 'pit' ? pal.accent : 0xffd9a0;
+    const lamp = new THREE.PointLight(lampColor, 40 + (w * l) / 8, Math.max(w, l) * 1.7, 1.4);
+    lamp.position.set(f.x(l / 2, 0), top + wallH - 0.3, f.z(l / 2, 0));
+    group.add(lamp);
 
     // ---- set pieces ----
     // gates and the travel lane stay clear of everything placed below
@@ -661,7 +682,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   station: {
-    palette: { wall: 0x2c3040, floor: 0x353a4a, trim: 0x8a6a2a, accent: 0x63b4ff },
+    palette: { wall: 0x3d4359, floor: 0x4a5168, trim: 0x8a6a2a, accent: 0x63b4ff },
     corrW: 5,
     rooms: [
       { kind: 'start', label: 'the docking bay', w: 12, l: 10 },
@@ -679,7 +700,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   nevarro: {
-    palette: { wall: 0x4a3a34, floor: 0x33241e, trim: 0x6a2a1a, accent: 0xff5a2a },
+    palette: { wall: 0x68514a, floor: 0x47322a, trim: 0x6a2a1a, accent: 0xff5a2a },
     rooms: [
       { kind: 'start', label: 'the ash flats', w: 12, l: 10 },
       { kind: 'camp', label: 'the lava trench', w: 18, l: 18, feature: 'lava' },
@@ -714,7 +735,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   trask: {
-    palette: { wall: 0x3e4a52, floor: 0x4a3f30, trim: 0x2a4a44, accent: 0x63d0a8 },
+    palette: { wall: 0x576873, floor: 0x685843, trim: 0x2a4a44, accent: 0x63d0a8 },
     rooms: [
       { kind: 'start', label: 'the quay steps', w: 12, l: 10 },
       { kind: 'assault', label: 'the fish market', w: 20, l: 16, waves: 2, feature: 'crates' },
@@ -731,7 +752,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   refinery: {
-    palette: { wall: 0x3a3f48, floor: 0x2c3036, trim: 0x6a4a12, accent: 0xffb347 },
+    palette: { wall: 0x515864, floor: 0x3d434b, trim: 0x6a4a12, accent: 0xffb347 },
     corrW: 5,
     rooms: [
       { kind: 'start', label: 'the intake hall', w: 12, l: 10 },
@@ -767,7 +788,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   },
   ringworld: {
     // long straight avenues under the terminator: fewer bends, longer sightlines
-    palette: { wall: 0x3a4458, floor: 0x2e3648, trim: 0x2a3a5a, accent: 0x9fd0ff },
+    palette: { wall: 0x515f7b, floor: 0x404b64, trim: 0x2a3a5a, accent: 0x9fd0ff },
     rooms: [
       { kind: 'start', label: 'the tram stop', w: 12, l: 10 },
       { kind: 'camp', label: 'the market arcade', w: 16, l: 24, feature: 'crates' },
