@@ -7,6 +7,8 @@ import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './p
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
+import { modelUrl } from '../characters/authored';
+import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
 import { setClipCaching } from '../anim/clips';
@@ -31,6 +33,15 @@ interface Figure {
   inst: CharacterInstance;
   /** the rig as built, before any clip touched it — see `applyPose` */
   rest: Array<{ bone: THREE.Object3D; quaternion: THREE.Quaternion; position: THREE.Vector3 }>;
+  /**
+   * The .glb this figure is *supposed* to be, for the slots that stand for the
+   * authored model. Until that file lands the figure is hidden behind a
+   * progress card rather than shown as its procedural stand-in — see
+   * `updateLoading`. Null on the procedural slot, which is never waiting.
+   */
+  waitingFor: string | null;
+  /** the card over this figure's place on the stage while it loads */
+  card: HTMLDivElement | null;
   /** the character factory hands back extras on the Mandalorians */
   extras: {
     setThrust?: (t: number) => void;
@@ -142,15 +153,26 @@ const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEd
 function disposeFigures(): void {
   for (const f of figures) turntable.remove(f.inst.root);
   for (const s of skeletons) scene.remove(s);
+  for (const f of figures) f.card?.remove();
   figures = [];
   skeletons = [];
 }
 
+/**
+ * A subject whose model nothing on our rig drives — a weapon, the swoop bike,
+ * the unrigged massiff. Its factory ignores the `authored` flag because there
+ * is no procedural version to compare against, so putting it on the turntable
+ * twice would stand the same sculpt beside itself under two different labels.
+ */
+const isProp = (s: Subject): boolean => s.build.length === 0;
+
 function spawn(): void {
   disposeFigures();
-  const wants: Array<[boolean, string]> = subject.hasModel && mode === 'both'
-    ? [[true, 'Authored model'], [false, 'Procedural']]
-    : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
+  const wants: Array<[boolean, string]> = isProp(subject)
+    ? [[true, 'Authored model']]
+    : subject.hasModel && mode === 'both'
+      ? [[true, 'Authored model'], [false, 'Procedural']]
+      : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
 
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
   figures = wants.map(([authored, label], i) => {
@@ -165,8 +187,14 @@ function spawn(): void {
     const rest = Object.values(inst.rig?.bones ?? {}).map((bone) => ({
       bone, quaternion: bone.quaternion.clone(), position: bone.position.clone(),
     }));
-    return { inst, extras: inst, rest, label: sides[i] ? `${sides[i]} — ${label}` : label };
+    return {
+      inst, extras: inst, rest,
+      waitingFor: authored ? modelUrl(subject.modelFile ?? subject.id) : null,
+      card: null,
+      label: sides[i] ? `${sides[i]} — ${label}` : label,
+    };
   });
+  showLoading();
 
   for (const f of figures) {
     const helper = new THREE.SkeletonHelper(f.inst.root);
@@ -212,6 +240,9 @@ function frameSubject(): void {
   const box = new THREE.Box3();
   for (const f of figures) {
     f.inst.root.updateWorldMatrix(true, true);
+    // `visible` is read per mesh, not inherited, so a figure hidden behind its
+    // loading card still measures here — which is what holds its place in the
+    // frame, so the camera does not swing when the model finally lands in it.
     f.inst.root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || !mesh.geometry || !mesh.visible) return;
@@ -418,7 +449,7 @@ function renderPanel(): void {
     <p class="note">
       ${!subject.hasModel
         ? 'No authored model for this character yet — procedural build only.'
-        : subject.build.length === 0
+        : isProp(subject)
           ? `<code>public/models/${subject.modelFile ?? subject.id}.glb</code> — a prop, on no rig
              we drive. Nothing animates it, so the animation picker does nothing here.`
           : `Authored skin from <code>public/models/${subject.modelFile ?? subject.id}.glb</code>, driven by the
@@ -675,6 +706,77 @@ function renderLegend(): void {
   legend.innerHTML = figures.map((f) => `<span><b>${f.label}</b></span>`).join('');
 }
 
+// ---------- loading ----------
+/**
+ * The authored slot shows the model or it shows nothing.
+ *
+ * A character is built on its procedural body and the .glb hides it when it
+ * lands, so for the second or so before that a compare view is two identical
+ * procedural figures — which reads as the answer ("they look the same") rather
+ * than as a file still in the air. So the authored figure starts hidden behind
+ * a progress card and appears when its own model does. The card reads the
+ * asset tracker every model load in the game reports to, so the bar is the
+ * real byte count, not a guess at how long a load takes.
+ */
+function showLoading(): void {
+  for (const f of figures) {
+    if (!f.waitingFor || ready(f)) continue;
+    f.inst.root.visible = false;
+    const card = document.createElement('div');
+    card.className = 'loading';
+    card.innerHTML = `<span class="what"></span><span class="bar"><i></i></span><span class="pct"></span>`;
+    stage.appendChild(card);
+    f.card = card;
+  }
+}
+
+/**
+ * Is this figure the thing it claims to be yet?
+ *
+ * `modelReady` is the character's own answer, and it is the one to ask: the
+ * tracker calls a file done the moment its bytes land, which is a beat before
+ * the retargeter has rebuilt the skeleton and hidden the body underneath — so
+ * revealing on the tracker would flash the procedural stand-in, which is the
+ * whole thing this card exists to prevent. It also covers "no file exists",
+ * so a character without a sculpt is never left waiting on one.
+ */
+const ready = (f: Figure): boolean => f.inst.modelReady?.() ?? true;
+
+const _at = new THREE.Vector3();
+
+/**
+ * Move each card over the gap its figure will fill, and step its bar. A model
+ * that fails outright is the one case where the stand-in is the answer: the
+ * card says so, the procedural body appears under it, and the legend renames
+ * the slot so nobody reads it as the sculpt.
+ */
+function updateLoading(): void {
+  for (const f of figures) {
+    if (!f.card || !f.waitingFor) continue;
+    const key = f.waitingFor;
+    const { ratio } = tracked.progress([key]);
+    if (ready(f)) {
+      const failed = tracked.failed(key) || !tracked.seen(key);
+      f.inst.root.visible = true;
+      f.card.remove();
+      f.card = null;
+      if (failed) {
+        f.label = `${f.label.replace(/Authored model$/, 'No model — procedural stand-in')}`;
+        renderLegend();
+      }
+      frameSubject();
+      continue;
+    }
+    // hang it where the figure's chest will be, so it reads as that figure's
+    _at.set(f.inst.root.position.x, f.inst.height * 0.6, 0).applyMatrix4(turntable.matrixWorld).project(camera);
+    f.card.style.left = `${((_at.x + 1) / 2) * stage.clientWidth}px`;
+    f.card.style.top = `${((1 - _at.y) / 2) * stage.clientHeight}px`;
+    f.card.querySelector('.what')!.textContent = `Loading ${key.split('/').pop()}`;
+    (f.card.querySelector('.bar i') as HTMLElement).style.width = `${(ratio * 100).toFixed(0)}%`;
+    f.card.querySelector('.pct')!.textContent = `${Math.round(ratio * 100)}%`;
+  }
+}
+
 // ---------- loop ----------
 function resize(): void {
   const w = stage.clientWidth;
@@ -710,11 +812,15 @@ function frame(now: number): void {
     f.inst.cosmetic?.(dt, time);
   }
   editor.update();
+  updateLoading();
   controls.update();
   renderer.render(scene, camera);
 }
 
-renderPanel();
+// `spawn` renders the panel itself, once there are figures to ask what they can
+// play. Rendering it before that asked an empty turntable, which can only offer
+// the rest pose — and `available` then quietly moved the pick to it, so the
+// workbench opened standing in no clip at all whatever it was asked for.
 spawn();
 resize();
 requestAnimationFrame(frame);

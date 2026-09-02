@@ -26,6 +26,25 @@ body {
 }
 .legend b { color: var(--text); font-weight: 600; }
 
+/* the card standing in for a figure whose model is still on the wire */
+.loading {
+  position: absolute; transform: translate(-50%, -50%);
+  display: grid; gap: 7px; justify-items: center;
+  width: 176px; padding: 12px 14px;
+  background: rgba(20, 22, 26, .82);
+  border: 1px solid var(--line); border-radius: 6px;
+  pointer-events: none;
+}
+.loading .what {
+  font-size: 11px; letter-spacing: .06em; color: var(--dim);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.loading .bar {
+  width: 100%; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden;
+}
+.loading .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+.loading .pct { font-size: 11px; letter-spacing: .08em; color: var(--text); font-variant-numeric: tabular-nums; }
+
 #panel {
   background: var(--panel);
   border-left: 1px solid var(--line);
