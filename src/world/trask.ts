@@ -495,7 +495,7 @@ export function buildTrask(): Board {
           const pd = Math.hypot(p.position.x - h.pos.x, p.position.z - h.pos.z);
           if (inWater && pd < 3.4) {
             // grabbed, mauled, and spat toward the surface — twice is fatal
-            p.damage(55, h.pos);
+            p.damage(55, h.pos, -1, { heavy: true });
             p.velocity.y = 14;
             p.velocity.x += (p.position.x - h.pos.x) * 2.2;
             p.velocity.z += (p.position.z - h.pos.z) * 2.2;

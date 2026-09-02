@@ -139,6 +139,8 @@ function dropClear(board: Board, target: THREE.Vector3): boolean {
  * place exactly as waves always used to.
  */
 export function squadArrival(board: Board, kind: EnemyKind, air: boolean, target: THREE.Vector3): SquadArrival {
+  // a sealed building has no edge to run in over and no sky to drop from
+  if (board.enclosed) return { mode: 'post', from: null };
   const extent = boardExtent(board);
   if (air) {
     const from = edgePoint(target, extent, 22);

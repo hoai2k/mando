@@ -47,7 +47,9 @@ export class Animator {
     if (!clip) return 1;
     const d = cycleDistance(clip, this.rig.proportions) * Math.max(0.5, scale);
     if (d <= 1e-4) return 1;
-    return Math.min(2.4, Math.max(0.35, (speed * clip.duration) / d));
+    // the cap is set by the sprint: 14.4 m/s over the sprint clip's ~3.25 m
+    // stride wants 2.66, and the old 2.4 had the feet skating a tenth short
+    return Math.min(3, Math.max(0.35, (speed * clip.duration) / d));
   }
 
   /** Seconds between footfalls at the rate `gaitRate` returned (sign-blind, so a reversed back-pedal still steps). */
@@ -90,7 +92,15 @@ export class Animator {
     if (cur && cur !== name) this.action(cur)?.fadeOut(fade);
     next.reset();
     next.setLoop(THREE.LoopOnce, 1);
-    next.clampWhenFinished = clamp;
+    // Always clamp: three disables a LoopOnce action outright the instant it
+    // reaches its end, and the channel is released 50 ms before that so the
+    // loop can fade back in. Unclamped, the last ~0.13 s of every swing, hit
+    // react and landing had the loop at partial weight and *nothing* filling
+    // the rest — the mixer pads that with the bind pose, so every one-shot
+    // ended on a flick toward arms-straight. Clamped, the final frame holds
+    // under the fade instead. `clamp` still decides whether the channel is
+    // held (the death poses) or handed back on the clip's clock.
+    next.clampWhenFinished = true;
     next.timeScale = timeScale;
     next.enabled = true;
     next.fadeIn(fade).play();

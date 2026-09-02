@@ -154,7 +154,10 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-banner.show { opacity: 1; }
 /* the intel card under the banner: enemy kinds debuting this wave */
 .hud-contacts {
-  position: absolute; top: 47%; left: 50%; transform: translateX(-50%);
+  /* hung under the banner by its height, not by its own percentage: in a
+     two-player strip (360 px tall) 34% and 47% are 47 px apart, and the
+     banner's subtitle was printed straight across the card */
+  position: absolute; top: calc(34% + 74px); left: 50%; transform: translateX(-50%);
   padding: 7px 16px 8px; text-align: center;
   border: 1px solid rgba(240, 208, 140, 0.45); border-radius: 3px;
   background: rgba(12, 14, 10, 0.62);
