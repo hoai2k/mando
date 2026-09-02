@@ -435,8 +435,10 @@ export class Campaign {
     this.idx++;
     this.phase = 'travel';
     this.bossCalled = false;
+    // clearing a room that fought back keeps the wave-clear payoff; a room
+    // walked through still marks the checkpoint, just more quietly
     if (fought) audio.waveClear();
-    else audio.uiConfirm();
+    audio.checkpointChime();
     if (this.idx < this.level.rooms.length) {
       this.game.announce('Checkpoint', `push on to ${this.level.rooms[this.idx].spec.label}`);
     }
@@ -505,7 +507,7 @@ export class Campaign {
           pk.taken = true;
           pk.mesh.visible = false;
           p.hp = Math.min(p.maxHp, p.hp + 45);
-          audio.uiConfirm();
+          audio.bactaPickup();
           game.announce('Bacta canister', '+45 health');
           break;
         }

@@ -257,6 +257,17 @@ const BEASTS = new Set<EnemyKind>([
   'massiff', 'mudhorn', 'ravinak', 'mamacore', 'rancor', 'kraytDragon', 'mythosaur',
 ]);
 
+/**
+ * Sample prefix for a monster with its own voice set (`<voice>_roar/_hurt/
+ * _death`). A beast absent from this table — the massiff — keeps the shared
+ * growl and yelp; so does any monster whose files have not landed yet, since
+ * `audio.monster` falls back on its own.
+ */
+const MONSTER_VOICE: Partial<Record<EnemyKind, string>> = {
+  mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore',
+  rancor: 'rancor', kraytDragon: 'krayt', mythosaur: 'mythosaur',
+};
+
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
   duelist: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
@@ -433,6 +444,8 @@ export class Enemy {
   private defenseCd = 0;
   /** red hurt-flash timer (bosses only — grunts keep the scale pop alone) */
   private bossHurtT = 0;
+  /** throttle on the monster hurt cry, so sustained fire doesn't machine-gun it */
+  private hurtVoiceCd = 0;
   /** pale parry-flash timer, so a turned hit reads differently from a landed one */
   private bossParryT = 0;
   /** this boss's own material copies, mapped to each one's resting emissive */
@@ -657,7 +670,13 @@ export class Enemy {
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
     if (!opts.silent) {
-      if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
+      if (BEASTS.has(kind)) {
+        const voice = MONSTER_VOICE[kind];
+        if (team === 1) {
+          if (voice) audio.monster(voice, 'roar', 0.95);
+          else audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4);
+        }
+      }
       else {
         const bark = SPAWN_BARKS[kind];
         if (bark && team === 1) audio.bark(bark, 0.4);
@@ -916,6 +935,14 @@ export class Enemy {
       audio.impact();
     }
     if (this.boss) this.bossHurtT = 0.3;
+    // A monster answers being hurt, but not per bolt: under sustained fire an
+    // untimed cry would machine-gun. One every 1.6 s, and only for a wound
+    // that is actually worth a noise.
+    const hurtVoice = MONSTER_VOICE[this.kind];
+    if (hurtVoice && this.hurtVoiceCd <= 0 && amount > this.maxHp * 0.01) {
+      this.hurtVoiceCd = 1.6;
+      audio.monster(hurtVoice, 'hurt', 0.75);
+    }
     this.alert(from, true); // being shot at is not something you investigate
     this.suppress(0.35);
     // a shooter caught in the open dives for the nearest crate
@@ -954,7 +981,11 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      if (BEASTS.has(this.kind)) audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
+      if (BEASTS.has(this.kind)) {
+        const voice = MONSTER_VOICE[this.kind];
+        if (voice) audio.monster(voice, 'death', 1);
+        else audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
+      }
       else {
         const bark = DEATH_BARKS[this.kind];
         if (bark) audio.bark(bark, 0.5);
@@ -1157,6 +1188,7 @@ export class Enemy {
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.defenseCd -= dt;
     this.bossHurtT = Math.max(0, this.bossHurtT - dt);
+    this.hurtVoiceCd -= dt;
     this.bossParryT = Math.max(0, this.bossParryT - dt);
 
     // shot out of the sky (or the water): the parachute goes, the corpse
@@ -1944,7 +1976,11 @@ export class Enemy {
     this.superJumps++;
     this.volleyLeft = 0;          // nothing fires through a leap
     this.char.attack?.();         // a creature coils into the jump
-    if (BEASTS.has(this.kind)) audio.beastGrowl(0.8);
+    if (BEASTS.has(this.kind)) {
+      const voice = MONSTER_VOICE[this.kind];
+      if (voice) audio.monster(voice, 'roar', 0.8);
+      else audio.beastGrowl(0.8);
+    }
     else {
       const bark = SPAWN_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.6);

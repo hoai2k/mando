@@ -427,3 +427,31 @@ the earlier portrait batches. Every card on the drop screen carries authored art
 
 All sample-first with synth fallbacks; every one verified decoding in-browser from the
 built bundle.
+
+---
+
+## Audio — 24 files, delivered 2026-09-02
+
+Everything the request doc still listed as open with a consumer, produced in one pass.
+Prompts live in `tools/generate-sfx.mjs`; all 24 verified serving and decoding
+in-browser from the built bundle.
+
+**Monster boss voices (17).** A roar, a hurt cry and a death per creature, written to
+that animal's build so the six read as different beasts rather than one growl pitched
+down: `mudhorn_*`, `ravinak_*`, `rancor_*`, `krayt_*`, `mythosaur_*`, plus
+`mamacore_hurt` and `mamacore_death`. The mamacore's roar is the delivered
+`mamacore_roar` from the pier attack — the boss *is* that hazard surfacing, so a second
+recording of the same animal would have been wrong. Routed through
+`audio.monster(voice, part)`, which falls back to the shared beast synth when a set is
+missing.
+
+**Game modes (4).** `door_cycle` (mission gates, which had no voice at all before),
+`checkpoint_chime`, `bacta_pickup`, `pvp_round_win` — each replacing a borrowed UI
+confirm or wave-clear chime at its own call site.
+
+**Hooks built to consume them (2).** `droid_servo`, played as one shared bed whose
+level the game weights by each droid's distance and speed rather than a loop per
+machine; and `amb_krayt_call`, on a 70–160 s distant-ambience timer on the Dune Sea.
+
+**Earlier in the pass (1).** `boss_horn` had already landed on 2026-08-29; the four
+game-mode files above were the rest of that table.
