@@ -12,6 +12,7 @@ import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
 import { setClipCaching } from '../anim/clips';
+import { SkinPanel } from './skinPanel';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -149,6 +150,9 @@ let editing = false;
  */
 const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
+/** the skinning review: fix toggles, weight paint, and the pose that exercises every chain */
+const skinHost = document.createElement('div');
+const skin = new SkinPanel(skinHost, () => { if (skin.holding) { spin = false; turntable.rotation.y = 0; } });
 
 function disposeFigures(): void {
   for (const f of figures) turntable.remove(f.inst.root);
@@ -218,10 +222,16 @@ function spawn(): void {
   editor.setTargets(figures
     .filter((f) => f.inst.rig)
     .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
+  skin.setSubject(
+    subject.hasModel && !isProp(subject) && mode !== 'procedural' ? (subject.modelFile ?? subject.id) : null,
+    figures.filter((f) => f.waitingFor).map((f) => ({
+      root: f.inst.root, bones: (f.inst.rig?.bones as Record<string, THREE.Object3D> | undefined) ?? null, rest: f.rest,
+    })),
+  );
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose };  // debug/testing handle
+  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose, camera, controls };  // debug/testing handle
 }
 
 /**
@@ -445,6 +455,7 @@ function renderPanel(): void {
       ${editing ? 'Leave edit mode' : 'Edit mode'}
     </button>
     <div id="edit"></div>
+    <div id="skin"></div>
 
     <p class="note">
       ${!subject.hasModel
@@ -492,6 +503,8 @@ function renderPanel(): void {
     if (editing) leaveEdit(); else enterEdit();
     renderPanel();
   };
+  // the skinning review keeps its own subtree, so a re-render here never loses it
+  panel.querySelector('#skin')!.replaceWith(skinHost);
   renderEditPanel();
 }
 
@@ -807,10 +820,11 @@ function frame(now: number): void {
     strikeAt = time + next + 0.4;
   }
   for (const f of figures) {
-    // edit mode owns the bones; the mixer would write over them every frame
-    if (!editing) f.inst.animator?.update(dt);
-    f.inst.cosmetic?.(dt, time);
+    // edit mode (and the skin-test pose) own the bones; the mixer would write over them every frame
+    if (!editing && !skin.holding) f.inst.animator?.update(dt);
   }
+  skin.frame();
+  for (const f of figures) f.inst.cosmetic?.(dt, time);
   editor.update();
   updateLoading();
   controls.update();
