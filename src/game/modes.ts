@@ -94,7 +94,11 @@ export interface MidBossDef {
 }
 
 export const MID_BOSS: Record<BoardId, MidBossDef> = {
-  desert:    { kind: 'massiff',      name: 'The Pit Beast',         hp: 3.0, dmg: 1.3,  bulk: 1.35 },
+  // The Dune Sea's champion is a monster in its own right — a burrowing worm
+  // whose Def is already champion-scale, so it takes the banner-only
+  // promotion the final monsters do. It used to be a promoted war massiff,
+  // which the Lava Flats also field: no creature bosses two territories now.
+  desert:    { kind: 'sandworm',     name: 'The Hunger Under the Sand', hp: 1, dmg: 1, bulk: 1 },
   station:   { kind: 'duelist',      name: 'The Dock Assassin',     hp: 3.0, dmg: 1.3,  bulk: 1.15 },
   nevarro:   { kind: 'massiff',      name: "The Magistrate's Hound", hp: 2.6, dmg: 1.2, bulk: 1.3 },
   crevasse:  { kind: 'krykna',       name: 'The Tunnel Queen',      hp: 14,  dmg: 2.0,  bulk: 1.9 },
@@ -114,10 +118,11 @@ export const MID_BOSS: Record<BoardId, MidBossDef> = {
  *
  * These are a *second, final stage* rather than a replacement: on a board with
  * a monster the elite going down is not victory — a short quake beat, and the
- * thing the territory has been sitting on top of comes up. Boards without one
- * end at the elite exactly as they always have, which is why this map is
- * partial: the Refinery, the Ringworld and the Prison Rig have no monster in
- * their bones, and end at the warlord as they always did.
+ * thing the territory has been sitting on top of comes up. Every territory
+ * has one now — the Refinery, the Ringworld and the Prison Rig joined with the
+ * second batch (docs/BOSSES.md §2.8–2.10) — and no creature serves two boards.
+ * The map stays `Partial` only so a board can ship ahead of its monster; a
+ * board without an entry would end at the warlord as they all once did.
  *
  * The `Def` behind each kind already carries its final boss stats, so nothing
  * here scales anything: `name` is the banner, `retinue` is who it calls at the
@@ -136,6 +141,9 @@ export const MONSTER_BOSS: Partial<Record<BoardId, MonsterBossDef>> = {
   nevarro:  { kind: 'rancor',   name: "The Warlord's Rancor",  retinue: 'pirate' },
   desert:   { kind: 'kraytDragon', name: 'The Old One of the Dune Sea', retinue: 'massiff' },
   forge:    { kind: 'mythosaur', name: 'The Sleeper Below',      retinue: 'alamite' },
+  refinery:  { kind: 'zillo',     name: 'The Specimen',            retinue: 'stormtrooper' },
+  ringworld: { kind: 'nexu',      name: 'The Night-Side Stalker',  retinue: 'pirate' },
+  narkina:   { kind: 'kwazelMaw', name: 'The Thing in the Moon Pool', retinue: 'stormtrooper' },
 };
 
 export const BOSS_RETINUE: Record<BoardId, EnemyKind> = {
