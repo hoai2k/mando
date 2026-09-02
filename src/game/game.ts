@@ -843,6 +843,7 @@ export class Game {
     audio.stopJetpacks();
     audio.stopSabers();
     audio.stopDroidServo();
+    audio.stopBurrowRumble();
     audio.stopEngines();
 
     for (const c of this.carriers) c.dispose();

@@ -1,7 +1,7 @@
 # Asset Requests — Audio
 
 **Open audio requests only.** Every sound the engine can ask for has a file —
-**139 of 139 as of 2026-09-02** (111 named samples plus four takes each for seven
+**152 of 152 as of 2026-09-02** (124 named samples plus four takes each for seven
 voices), verified by cross-checking `SampleName` in `src/core/audio.ts` against
 `public/assets/audio/`: no missing files, no duplicate names, no orphaned files.
 What remains below is board music (a music model rather than the sound-effect API)
@@ -141,10 +141,14 @@ yelp when a set is absent — so a monster is always safe to ship silent and gai
 voice the moment three files land under its name. The **hurt** cry is throttled to one
 every 1.6 s, since under sustained fire an untimed one machine-guns.
 
-**Still open — the second batch.** `sandworm`, `zillo`, `nexu` and `kwazelMaw`
-(`docs/BOSSES.md` §2.7–2.10) are designed but **not in code yet**, so their sets are
-deliberately not produced: a file with no consumer cannot be verified. Each wants the
-same roar/hurt/death (`<kind>_roar` etc., picked up by name through the same router
-with no code change), and the worm additionally wants `sandworm_rumble` — a rolling
-sub-bass drag through sand, 3 s, loopable — beside the `mythosaur_call` it borrows for
-its underground approach.
+**The second batch is delivered too (2026-09-02).** `sandworm`, `zillo`, `nexu` and
+`kwazelMaw` (`docs/BOSSES.md` §2.7–2.10) have the same roar/hurt/death each — 12 files,
+picked up by the same router with their kinds added to `MONSTER_VOICE`. The worm also
+has **`sandworm_rumble`**, and it is a loop with a real consumer now rather than a
+borrowed one-shot: `audio.setBurrowRumble(level)` is driven from the burrow state
+machine, swelling as the buried worm closes on its target and cutting the instant it
+breaks ground, on death, and with the match. It replaced the `mythosaur_call` the worm
+used to borrow at random intervals — a thing tunnelling toward you should be
+continuous, felt before it is heard.
+
+Nothing on the monster side is open.

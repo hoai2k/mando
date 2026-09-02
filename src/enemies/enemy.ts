@@ -316,6 +316,7 @@ const BEASTS = new Set<EnemyKind>([
 const MONSTER_VOICE: Partial<Record<EnemyKind, string>> = {
   mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore',
   rancor: 'rancor', kraytDragon: 'krayt', mythosaur: 'mythosaur',
+  sandworm: 'sandworm', zillo: 'zillo', nexu: 'nexu', kwazelMaw: 'kwazel',
 };
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
@@ -1068,6 +1069,9 @@ export class Enemy {
         if (voice) audio.monster(voice, 'death', 1);
         else audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
       }
+      // a burrower killed under the sand would otherwise leave its wake
+      // rumbling for the rest of the match
+      if (this.def.burrows) audio.setBurrowRumble(0);
       else {
         const bark = DEATH_BARKS[this.kind];
         if (bark) audio.bark(bark, 0.5);
@@ -2166,14 +2170,19 @@ export class Enemy {
           if (to.lengthSq() > 1e-4) to.normalize();
           this.velocity.x = damp(this.velocity.x, to.x * d.speed, 5, dt);
           this.velocity.z = damp(this.velocity.z, to.z * d.speed, 5, dt);
-          // a rumble that comes and goes — felt more than heard — is the wake's voice
-          if (Math.random() < dt * 0.35) audio.mythosaur(0.22);
+          // the wake's own voice: a continuous rumble that swells as it closes,
+          // driven from here because this is the only place that knows the worm
+          // is under the sand and how far off it still is
+          audio.setBurrowRumble(Math.max(0.25, Math.min(1, 34 / Math.max(dist, 6))));
         } else rooted();
         if (target && (dist < b.strikeAt || this.burrowT <= 0)) {
           this.burrow = 'rising';
           this.burrowT = b.rise;
           this.windup = 0;
-          audio.beastGrowl(0.9);
+          audio.setBurrowRumble(0);   // it is out of the ground; the wake is over
+          const rising = MONSTER_VOICE[this.kind];
+          if (rising) audio.monster(rising, 'roar', 0.95);
+          else audio.beastGrowl(0.9);
           game.particles.dustPuff(this.position, 24);
           game.director.noise(game, this.position, 40, true);
         }

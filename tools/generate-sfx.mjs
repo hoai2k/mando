@@ -39,6 +39,20 @@ const SFX = {
   saber_ignite: ['Twin energy blades igniting: sharp crackle snap into a fast rising hum that settles into a steady tone, single ignition', 0.8],
   saber_deflect: ['Energy blade parrying a blaster bolt: short bright metallic ping with an electric crackle and a fast sizzling tail, dry, no reverb', 0.5],
   boss_horn: ['Massive dark war horn call announcing a boss battle: deep brassy swell rising over two seconds into a huge percussive orchestral hit with a low drum boom, cinematic, dry tail', 3],
+  // --- second monster batch (docs/BOSSES.md 2.7-2.10) ---
+  sandworm_roar: ['Colossal burrowing desert worm erupting from sand: vast wet shrieking bellow through a ringed toothed gullet, sand blasting outward, no music', 3],
+  sandworm_hurt: ['Giant desert worm wounded: sharp wet screech dropping into a thick gurgling rasp, single call, no music', 1.5],
+  sandworm_death: ['Enormous desert worm dying: long collapsing shriek into a wet slack exhale and a huge body falling into sand, no music', 3.5],
+  sandworm_rumble: ['Enormous burrowing creature moving underground: rolling sub-bass drag through sand with a low grinding pressure, seamless continuous loop, no music', 3, true],
+  zillo_roar: ['Armored reptilian colossus roaring: deep metallic-edged bellow with a hissing snarl and armor plates grinding, single call, no music', 3],
+  zillo_hurt: ['Armored reptilian colossus wounded: hard clanging grunt as bolts skate off plate, dropping into a furious hiss, single call, no music', 1.5],
+  zillo_death: ['Armored reptilian colossus dying: falling roar into a long rattling hiss and a heavy armored collapse, no music', 3.5],
+  nexu_roar: ['Huge predatory hunting cat screaming a charge: piercing feline shriek-roar with a throaty rattle underneath, single call, no music', 2],
+  nexu_hurt: ['Huge predatory cat wounded: sharp spitting yowl into a low warning growl, single call, no music', 1.2],
+  nexu_death: ['Huge predatory cat dying: high falling yowl breaking into a wet rattling breath, no music', 2.5],
+  kwazel_roar: ['Huge amphibian roaring: wide wet croaking bellow with a deep resonant throat sac boom and water sheeting off, single call, no music', 2.5],
+  kwazel_hurt: ['Huge amphibian wounded: choked wet croak-grunt with a slick skin slap, single call, no music', 1.5],
+  kwazel_death: ['Huge amphibian dying: deflating croaking groan into a long wet exhale and a heavy slack collapse, no music', 3],
   // --- monster boss voices (docs/BOSSES.md §2.1-2.6): a roar as it arrives or
   // leaps, a hurt cry, and a death. Each written to that creature's build, so
   // the six read as different animals rather than one pitched-down growl.

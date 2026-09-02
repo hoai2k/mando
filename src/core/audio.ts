@@ -30,6 +30,10 @@ type SampleName =
   | 'mudhorn_roar' | 'mudhorn_hurt' | 'mudhorn_death' | 'ravinak_roar' | 'ravinak_hurt' | 'ravinak_death'
   | 'mamacore_hurt' | 'mamacore_death' | 'rancor_roar' | 'rancor_hurt' | 'rancor_death'
   | 'krayt_roar' | 'krayt_hurt' | 'krayt_death' | 'mythosaur_roar' | 'mythosaur_hurt' | 'mythosaur_death'
+  | 'sandworm_roar' | 'sandworm_hurt' | 'sandworm_death' | 'sandworm_rumble'
+  | 'zillo_roar' | 'zillo_hurt' | 'zillo_death'
+  | 'nexu_roar' | 'nexu_hurt' | 'nexu_death'
+  | 'kwazel_roar' | 'kwazel_hurt' | 'kwazel_death'
   | 'ship_pass' | 'ship_landing' | 'steam_hiss' | 'bantha_low'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample | VariantSample;
@@ -92,6 +96,8 @@ export class AudioEngine {
   private engineNodes: (SaberVoice | undefined)[] = [];
   /** one shared servo bed for every droid on the board — see setDroidServo */
   private servoNode: SaberVoice | undefined;
+  /** the buried worm's rumble bed — see setBurrowRumble */
+  private rumbleNode: SaberVoice | undefined;
   private ambientStop: (() => void) | null = null;
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
@@ -169,6 +175,10 @@ export class AudioEngine {
       'rancor_roar', 'rancor_hurt', 'rancor_death',
       'krayt_roar', 'krayt_hurt', 'krayt_death',
       'mythosaur_roar', 'mythosaur_hurt', 'mythosaur_death',
+      'sandworm_roar', 'sandworm_hurt', 'sandworm_death', 'sandworm_rumble',
+      'zillo_roar', 'zillo_hurt', 'zillo_death',
+      'nexu_roar', 'nexu_hurt', 'nexu_death',
+      'kwazel_roar', 'kwazel_hurt', 'kwazel_death',
       'ship_pass', 'ship_landing', 'steam_hiss', 'bantha_low',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
@@ -749,6 +759,72 @@ export class AudioEngine {
     }
     if (!this.servoNode) this.servoNode = this.makeServoVoice(sample);
     this.servoNode.set(level);
+  }
+
+  /**
+   * The buried worm's wake: a sub-bass drag that swells as it closes and cuts
+   * the moment it breaks ground. A loop rather than the random one-shots it
+   * used to borrow from the mythosaur call — a thing tunnelling toward you
+   * should be continuous, felt before it is heard.
+   */
+  setBurrowRumble(level: number): void {
+    if (!this.ctx) return;
+    const sample = this.samples.get('sandworm_rumble') ?? null;
+    if (this.rumbleNode && this.rumbleNode.sample !== sample) {
+      this.rumbleNode.stop();
+      this.rumbleNode = undefined;
+    }
+    if (!this.rumbleNode) this.rumbleNode = this.makeRumbleVoice(sample);
+    this.rumbleNode.set(level);
+  }
+
+  stopBurrowRumble(): void {
+    this.rumbleNode?.stop();
+    this.rumbleNode = undefined;
+  }
+
+  private makeRumbleVoice(sample: AudioBuffer | null): SaberVoice {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
+    filter.Q.value = 0.8;
+    filter.connect(gain).connect(this.sfx);
+    const parts: Array<{ stop: () => void }> = [];
+    if (sample) {
+      const src = ctx.createBufferSource();
+      src.buffer = sample;
+      src.loop = true;
+      src.connect(filter);
+      src.start();
+      parts.push({ stop: () => { try { src.stop(); } catch { /* already stopped */ } } });
+    } else {
+      // grinding sub: a low saw under a noise bed is what earth moving sounds like
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = 41;
+      o.connect(filter);
+      o.start();
+      parts.push({ stop: () => { try { o.stop(); } catch { /* already stopped */ } } });
+      const noise = ctx.createBufferSource();
+      const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      noise.buffer = buf;
+      noise.loop = true;
+      noise.connect(filter);
+      noise.start();
+      parts.push({ stop: () => { try { noise.stop(); } catch { /* already stopped */ } } });
+    }
+    return {
+      sample,
+      set: (level: number) => {
+        gain.gain.setTargetAtTime(Math.min(level, 1) * 0.3, ctx.currentTime, 0.25);
+      },
+      stop: () => { for (const p of parts) p.stop(); try { gain.disconnect(); } catch { /* gone */ } },
+    };
   }
 
   /** tear the bed down with the match, as the jetpack and saber loops do */

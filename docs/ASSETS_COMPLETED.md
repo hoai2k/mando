@@ -455,3 +455,26 @@ machine; and `amb_krayt_call`, on a 70–160 s distant-ambience timer on the Dun
 
 **Earlier in the pass (1).** `boss_horn` had already landed on 2026-08-29; the four
 game-mode files above were the rest of that table.
+
+---
+
+## Audio — the second monster batch, 13 files, delivered 2026-09-02
+
+The four bosses of `docs/BOSSES.md` §2.7–2.10 arrived in code and as models, so their
+voices were produced the same day. Prompts live in `tools/generate-sfx.mjs`; all 13
+verified serving and decoding in-browser from the built bundle.
+
+| Voice | Files | Written as |
+|---|---|---|
+| `sandworm` | roar, hurt, death, **rumble** | A wet shrieking bellow through a ringed toothed gullet; the rumble is the buried wake |
+| `zillo` | roar, hurt, death | A metallic-edged bellow with plates grinding — the hurt take is bolts *skating off* armor |
+| `nexu` | roar, hurt, death | A piercing feline shriek-roar over a throaty rattle; shortest of the four, as a cat is |
+| `kwazel` | roar, hurt, death | A wide wet croak with a resonant throat-sac boom and water sheeting off |
+
+`sandworm_rumble` is the one that needed a consumer built: `audio.setBurrowRumble(level)`
+is a loop driven from the burrow state machine, swelling as the buried worm closes and
+cutting when it breaks ground, on its death, and with the match. It replaces the
+`mythosaur_call` the worm borrowed at random intervals.
+
+With this batch every monster in the game speaks with its own voice, and the sample
+table stands at 152 names / 152 files with no gaps, duplicates or orphans.
