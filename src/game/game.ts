@@ -126,7 +126,7 @@ export class Game {
   private huntCall = 0;
   private huntAnnounced = false;
   // ---- modes (docs/MODES.md) ----
-  /** the standing boss battle — the mid-board champion or the warlord */
+  /** the standing boss battle — the mid-board lieutenant or the warlord */
   boss: Enemy | null = null;
   /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
   private midBossActive = false;
@@ -137,7 +137,7 @@ export class Game {
    */
   private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
   private finalWave = bossRush() ? 2 : FINAL_WAVE;
-  /** the champion has fallen; the second run of waves is open */
+  /** the lieutenant has fallen; the second run of waves is open */
   private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
@@ -282,7 +282,7 @@ export class Game {
         for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
       }
     }
-    // wave and campaign both run the champion and end at the territory's
+    // wave and campaign both run the lieutenant and end at the territory's
     // warlord: warm both models now
     if (mode !== 'pvp') {
       for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
@@ -369,7 +369,7 @@ export class Game {
 
   /**
    * Spawn a boss battle (docs/MODES.md §4a) at `pos` with a small honour
-   * guard. `tier` picks the fight: the mid-board champion (MID_BOSS, a
+   * guard. `tier` picks the fight: the mid-board lieutenant (MID_BOSS, a
    * lighter promotion and a thinner guard) or the territory's warlord.
    * Shared by the wave game's boss battles and the campaign's two arenas.
    */
@@ -405,11 +405,11 @@ export class Game {
     this.bossMoveCd = 8;
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
-    const sub = tier === 'mid' ? TEXT.banners.championOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
+    const sub = tier === 'mid' ? TEXT.banners.lieutenantOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
     if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
     else this.events.banner(boss.bossName, TEXT.banners.bringThemDown);
     audio.bossHorn();
-    // The warlord brings his own music. The champion does not: the board's
+    // The warlord brings his own music. The lieutenant does not: the board's
     // score carrying on through the mid-board fight is what leaves the change
     // at the last one meaning something.
     if (tier === 'final') this.startBossMusic();
@@ -983,12 +983,12 @@ export class Game {
           this.events.banner(TEXT.banners.territoryHeld.title, TEXT.banners.territoryHeld.sub);
           audio.waveClear();
         } else if (this.midBossActive) {
-          // the champion falls; the second run of waves opens
+          // the lieutenant falls; the second run of waves opens
           this.midBossActive = false;
           this.midBossDown = true;
           this.setState('break');
           this.stateTimer = 4.5;
-          this.events.banner(TEXT.banners.championFalls.title, TEXT.banners.championFalls.sub);
+          this.events.banner(TEXT.banners.lieutenantFalls.title, TEXT.banners.lieutenantFalls.sub);
           audio.waveClear();
         } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
           // a boss battle rings in on the next bell
@@ -1627,7 +1627,7 @@ export class Game {
     this.huntCall = 0;
     this.huntAnnounced = false;
     this.setState('fighting');
-    // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
+    // clearing wave MID_BOSS_WAVE rings in the lieutenant's battle instead of
     // the next wave: the board's first boss posts at the far side with a guard
     if (this.wave === this.midBossWave && !this.midBossDown) {
       this.midBossActive = true;

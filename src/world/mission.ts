@@ -23,7 +23,7 @@ import type { BoardId } from './board';
  * Everything here is geometry + data; `game/campaign.ts` owns the flow.
  */
 
-export type RoomKind = 'start' | 'camp' | 'assault' | 'champion' | 'warlord';
+export type RoomKind = 'start' | 'camp' | 'assault' | 'lieutenant' | 'warlord';
 export type RoomFeature = 'pit' | 'lava' | 'shock' | 'barrels' | 'pillars' | 'crates';
 
 export interface RoomSpec {
@@ -633,7 +633,7 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
  * The nine authored layouts (docs/LEVEL_DESIGN.md §5). Every territory keeps
  * its own enemy tables, sky and mood; what changes here is the shape of the
  * run: room sizes, bend patterns, set pieces, and where the sealed fights sit.
- * The champion's arena is always mid-chain, the warlord's ends it — sized up
+ * The lieutenant's arena is always mid-chain, the warlord's ends it — sized up
  * on monster boards for the thing that comes out of the floor afterwards.
  */
 const ROOMS = TEXT.missions.rooms;
@@ -646,7 +646,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'camp', label: ROOMS.desert[1], w: 20, l: 16, feature: 'crates' },
       { kind: 'assault', label: ROOMS.desert[2], w: 20, l: 18, waves: 2, feature: 'pit', alcove: true },
       { kind: 'camp', label: ROOMS.desert[3], w: 24, l: 14, feature: 'crates' },
-      { kind: 'champion', label: ROOMS.desert[4], w: 26, l: 22 },
+      { kind: 'lieutenant', label: ROOMS.desert[4], w: 26, l: 22 },
       { kind: 'assault', label: ROOMS.desert[5], w: 18, l: 16, waves: 3 },
       { kind: 'camp', label: ROOMS.desert[6], w: 20, l: 14, alcove: true },
       { kind: 'warlord', label: ROOMS.desert[7], w: 40, l: 34 },
@@ -664,7 +664,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'assault', label: ROOMS.station[1], w: 18, l: 16, waves: 2, feature: 'crates' },
       { kind: 'camp', label: ROOMS.station[2], w: 20, l: 14, alcove: true },
       { kind: 'assault', label: ROOMS.station[3], w: 20, l: 18, waves: 2, feature: 'barrels' },
-      { kind: 'champion', label: ROOMS.station[4], w: 24, l: 20 },
+      { kind: 'lieutenant', label: ROOMS.station[4], w: 24, l: 20 },
       { kind: 'camp', label: ROOMS.station[5], w: 18, l: 14, feature: 'crates', alcove: true },
       { kind: 'assault', label: ROOMS.station[6], w: 20, l: 16, waves: 3 },
       { kind: 'warlord', label: ROOMS.station[7], w: 34, l: 30 },
@@ -681,7 +681,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'camp', label: ROOMS.nevarro[1], w: 18, l: 18, feature: 'lava' },
       { kind: 'assault', label: ROOMS.nevarro[2], w: 22, l: 16, waves: 2, feature: 'crates', alcove: true },
       { kind: 'camp', label: ROOMS.nevarro[3], w: 24, l: 14 },
-      { kind: 'champion', label: ROOMS.nevarro[4], w: 24, l: 22 },
+      { kind: 'lieutenant', label: ROOMS.nevarro[4], w: 24, l: 22 },
       { kind: 'assault', label: ROOMS.nevarro[5], w: 20, l: 20, waves: 3, feature: 'lava' },
       { kind: 'camp', label: ROOMS.nevarro[6], w: 18, l: 14, feature: 'crates', alcove: true },
       { kind: 'warlord', label: ROOMS.nevarro[7], w: 38, l: 32 },
@@ -699,7 +699,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'camp', label: ROOMS.crevasse[1], w: 18, l: 16, feature: 'pillars' },
       { kind: 'assault', label: ROOMS.crevasse[2], w: 20, l: 18, waves: 2, alcove: true },
       { kind: 'camp', label: ROOMS.crevasse[3], w: 26, l: 16 },
-      { kind: 'champion', label: ROOMS.crevasse[4], w: 24, l: 20 },
+      { kind: 'lieutenant', label: ROOMS.crevasse[4], w: 24, l: 20 },
       { kind: 'assault', label: ROOMS.crevasse[5], w: 20, l: 18, waves: 3, feature: 'pillars' },
       { kind: 'camp', label: ROOMS.crevasse[6], w: 16, l: 14, feature: 'crates', alcove: true },
       { kind: 'warlord', label: ROOMS.crevasse[7], w: 36, l: 32 },
@@ -716,7 +716,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'assault', label: ROOMS.trask[1], w: 20, l: 16, waves: 2, feature: 'crates' },
       { kind: 'camp', label: ROOMS.trask[2], w: 18, l: 14, alcove: true },
       { kind: 'camp', label: ROOMS.trask[3], w: 24, l: 16, feature: 'crates' },
-      { kind: 'champion', label: ROOMS.trask[4], w: 24, l: 20 },
+      { kind: 'lieutenant', label: ROOMS.trask[4], w: 24, l: 20 },
       { kind: 'assault', label: ROOMS.trask[5], w: 18, l: 16, waves: 2, feature: 'barrels' },
       { kind: 'camp', label: ROOMS.trask[6], w: 20, l: 14, alcove: true },
       { kind: 'warlord', label: ROOMS.trask[7], w: 38, l: 32 },
@@ -734,7 +734,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'assault', label: ROOMS.refinery[1], w: 18, l: 16, waves: 2, feature: 'barrels' },
       { kind: 'camp', label: ROOMS.refinery[2], w: 16, l: 18, feature: 'crates', alcove: true },
       { kind: 'assault', label: ROOMS.refinery[3], w: 20, l: 16, waves: 2, feature: 'crates' },
-      { kind: 'champion', label: ROOMS.refinery[4], w: 22, l: 20 },
+      { kind: 'lieutenant', label: ROOMS.refinery[4], w: 22, l: 20 },
       { kind: 'assault', label: ROOMS.refinery[5], w: 18, l: 18, waves: 3, feature: 'barrels', alcove: true },
       { kind: 'camp', label: ROOMS.refinery[6], w: 18, l: 14 },
       { kind: 'warlord', label: ROOMS.refinery[7], w: 30, l: 26 },
@@ -751,7 +751,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'camp', label: ROOMS.forge[1], w: 22, l: 16, feature: 'pillars' },
       { kind: 'assault', label: ROOMS.forge[2], w: 20, l: 18, waves: 2, feature: 'crates', alcove: true },
       { kind: 'camp', label: ROOMS.forge[3], w: 24, l: 14 },
-      { kind: 'champion', label: ROOMS.forge[4], w: 24, l: 22 },
+      { kind: 'lieutenant', label: ROOMS.forge[4], w: 24, l: 22 },
       { kind: 'assault', label: ROOMS.forge[5], w: 20, l: 16, waves: 3, feature: 'pillars' },
       { kind: 'camp', label: ROOMS.forge[6], w: 18, l: 14, feature: 'crates', alcove: true },
       { kind: 'warlord', label: ROOMS.forge[7], w: 40, l: 34 },
@@ -769,7 +769,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'camp', label: ROOMS.ringworld[1], w: 16, l: 24, feature: 'crates' },
       { kind: 'assault', label: ROOMS.ringworld[2], w: 22, l: 18, waves: 2, alcove: true },
       { kind: 'camp', label: ROOMS.ringworld[3], w: 16, l: 24, feature: 'crates' },
-      { kind: 'champion', label: ROOMS.ringworld[4], w: 22, l: 22 },
+      { kind: 'lieutenant', label: ROOMS.ringworld[4], w: 22, l: 22 },
       { kind: 'assault', label: ROOMS.ringworld[5], w: 20, l: 18, waves: 3, feature: 'crates' },
       { kind: 'camp', label: ROOMS.ringworld[6], w: 14, l: 20, alcove: true },
       { kind: 'warlord', label: ROOMS.ringworld[7], w: 28, l: 26 },
@@ -787,7 +787,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'assault', label: ROOMS.narkina[1], w: 20, l: 16, waves: 2, feature: 'shock' },
       { kind: 'camp', label: ROOMS.narkina[2], w: 18, l: 16, feature: 'crates', alcove: true },
       { kind: 'assault', label: ROOMS.narkina[3], w: 20, l: 18, waves: 2, feature: 'crates' },
-      { kind: 'champion', label: ROOMS.narkina[4], w: 22, l: 20 },
+      { kind: 'lieutenant', label: ROOMS.narkina[4], w: 22, l: 20 },
       { kind: 'camp', label: ROOMS.narkina[5], w: 18, l: 14, alcove: true },
       { kind: 'assault', label: ROOMS.narkina[6], w: 20, l: 18, waves: 3, feature: 'shock' },
       { kind: 'warlord', label: ROOMS.narkina[7], w: 30, l: 26 },

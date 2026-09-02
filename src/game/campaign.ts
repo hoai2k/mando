@@ -11,7 +11,7 @@ import { audio } from '../core/audio';
  * purpose-built mission level — an authored chain of walled fight rooms and
  * corridor pinches (world/mission.ts) — driven room by room. Camp rooms hold
  * posted garrisons you can fight or slip past; assault rooms seal their gates
- * and run waves from the wall vents until the room is held; the champion's
+ * and run waves from the wall vents until the room is held; the lieutenant's
  * arena sits mid-chain and the warlord's ends it. A guide beacon always marks
  * the way forward, the last safe ground is the checkpoint, and every player
  * watches through their own camera — Missions splits the screen exactly like
@@ -197,7 +197,7 @@ export class Campaign {
     // boss arenas: the beacon walks you onto the battle. Everything else
     // points at the way out — never at a set piece (the pit room's centre is
     // the pit), and a sealed exit gate reads as "clear the room to open it".
-    if (room.spec.kind === 'champion' || room.spec.kind === 'warlord') return room.center;
+    if (room.spec.kind === 'lieutenant' || room.spec.kind === 'warlord') return room.center;
     return room.exit;
   }
 
@@ -209,7 +209,7 @@ export class Campaign {
     if (this.phase === 'travel') return TEXT.missions.makeFor(room.spec.label, d);
     switch (room.spec.kind) {
       case 'assault': return TEXT.missions.holdRoom(room.spec.label, Math.max(1, this.waveNum), this.waveCount);
-      case 'champion': return TEXT.missions.bringDownChampion;
+      case 'lieutenant': return TEXT.missions.bringDownLieutenant;
       case 'warlord': return TEXT.missions.bringDownWarlord;
       default: return TEXT.missions.pushThrough(room.spec.label, d);
     }
@@ -276,7 +276,7 @@ export class Campaign {
         room.entryGate?.close();
         room.exitGate?.close();
         this.bossCalled = true;
-        this.game.spawnBoss(room.center, room.spec.kind === 'champion' ? 'mid' : 'final');
+        this.game.spawnBoss(room.center, room.spec.kind === 'lieutenant' ? 'mid' : 'final');
         break;
     }
   }
@@ -455,9 +455,9 @@ export class Campaign {
         // `monsterStaging` covers the beat between the warlord falling and the
         // board's monster coming up: the arena is not done until that is
         if (this.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
-          if (room.spec.kind === 'champion') {
+          if (room.spec.kind === 'lieutenant') {
             this.clearRoom(room, true);
-            game.announce(TEXT.banners.championFallsMission.title, TEXT.banners.championFallsMission.sub);
+            game.announce(TEXT.banners.lieutenantFallsMission.title, TEXT.banners.lieutenantFallsMission.sub);
           } else {
             room.entryGate?.open();
             this.done = true;

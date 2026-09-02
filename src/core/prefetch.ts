@@ -63,7 +63,7 @@ const BOARD_TEXTURES: Record<BoardId, string[]> = {
 };
 
 /**
- * Every boss a board can field: its champion, its warlord, and — on the four
+ * Every boss a board can field: its lieutenant, its warlord, and — on the four
  * boards that have one — the monster that comes up when the warlord falls. The
  * monster is the largest download of the three and arrives last in the fight,
  * so warming it with the other two is what keeps it off the critical path.

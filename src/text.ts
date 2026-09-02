@@ -100,7 +100,7 @@ export const TEXT = {
     newContact: '◢ New contact',
     newContacts: '◢ New contacts',
     /** the kicker over a boss's name card */
-    champion: 'Champion',
+    lieutenant: 'Lieutenant',
     warlord: 'Warlord',
     inCover: 'IN COVER · hold aim to peek',
     firingFromCover: 'FIRING FROM COVER',
@@ -140,7 +140,7 @@ export const TEXT = {
       /** a board that does not name its own */
       wave: 'Survive 7 waves and two warlords',
     },
-    championOf: (board: string) => `Champion of ${board}`,
+    lieutenantOf: (board: string) => `Lieutenant of ${board}`,
     warlordOf: (board: string) => `Warlord of ${board}`,
     bringThemDown: 'Bring them down',
     neverEmpty: (board: string) => `The ${board} was never empty`,
@@ -149,7 +149,7 @@ export const TEXT = {
     groundOpening: { title: 'Something is coming up', sub: 'the ground will not hold' },
     territoryHeld: { title: 'Territory held', sub: 'This is the Way' },
     territoryLiberated: { title: 'Territory liberated', sub: 'This is the Way' },
-    championFalls: { title: 'The champion falls', sub: 'The warlord is watching' },
+    lieutenantFalls: { title: 'The lieutenant falls', sub: 'The warlord is watching' },
     waveCleared: (n: number) => `Wave ${n} cleared`,
     somethingBig: 'Something big is coming',
     backOnYourFeet: { title: 'Back on your feet', sub: 'the beacon waits' },
@@ -177,7 +177,7 @@ export const TEXT = {
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },
     offPath: { title: 'Off the path', sub: 'back to the last checkpoint' },
-    championFallsMission: { title: 'The champion falls', sub: 'the warlord waits at the end' },
+    lieutenantFallsMission: { title: 'The lieutenant falls', sub: 'the warlord waits at the end' },
   },
 
   // ---------- pause ----------
@@ -193,7 +193,7 @@ export const TEXT = {
   // ---------- the end of a match ----------
   end: {
     defeat: 'The Hunters Have Fallen',
-    /** PvP, where somebody is left standing */
+    /** PvP, where somebody is left standing — the one champion the game has, and a player */
     champion: (name: string) => `${name} Takes the Territory`,
     nobody: 'Nobody',
     liberated: 'Territory Liberated',
@@ -390,8 +390,15 @@ export const TEXT = {
       desert: 'The Old One of the Dune Sea',
       forge: 'The Sleeper Below',
     },
-    /** the champion it sends first, halfway through */
-    champion: {
+    /**
+     * The warlord's second, sent out halfway through: the first of a
+     * territory's boss battles and the easier of the two.
+     *
+     * Not a "champion" — that word belongs to the player who wins a duel, and
+     * having it mean an enemy as well made the same word both the prize and
+     * the obstacle.
+     */
+    lieutenant: {
       desert: 'The Pit Beast',
       station: 'The Dock Assassin',
       nevarro: "The Magistrate's Hound",
@@ -447,7 +454,7 @@ export const TEXT = {
     /** the HUD's standing instruction, by what the room ahead wants */
     makeFor: (where: string, metres: number) => `Make for ${where} · ${metres} m`,
     holdRoom: (where: string, wave: number, of: number) => `Hold ${where} · wave ${wave} of ${of}`,
-    bringDownChampion: 'Bring down the champion',
+    bringDownLieutenant: 'Bring down the lieutenant',
     bringDownWarlord: 'Bring down the warlord',
     pushThrough: (where: string, metres: number) => `Push through ${where} · ${metres} m`,
   },

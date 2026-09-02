@@ -153,7 +153,7 @@ export class Hud {
     card.innerHTML = `
       <div class="bi-bar top"></div>
       <div class="bi-plate">
-        <div class="bi-kicker">— ${sub.startsWith(TEXT.hud.champion) ? TEXT.hud.champion : TEXT.hud.warlord} —</div>
+        <div class="bi-kicker">— ${sub.startsWith(TEXT.hud.lieutenant) ? TEXT.hud.lieutenant : TEXT.hud.warlord} —</div>
         <div class="bi-name">${title}</div>
         <div class="bi-rule"></div>
         <div class="bi-sub">${sub}</div>
