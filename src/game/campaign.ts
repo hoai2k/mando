@@ -237,8 +237,8 @@ export class Campaign {
     return this.placeNear(at, 'pyke');
   }
 
-  private inside(room: MissionRoom, p: { position: THREE.Vector3 }): boolean {
-    const r = room.rect;
+  private inside(room: MissionRoom, p: { position: THREE.Vector3 }, past = false): boolean {
+    const r = past ? room.sealRect : room.rect;
     return p.position.x >= r.minX && p.position.x <= r.maxX
       && p.position.z >= r.minZ && p.position.z <= r.maxZ
       && Math.abs(p.position.y - this.level.floorY) < ROOM_Y_SLACK;
@@ -249,17 +249,22 @@ export class Campaign {
   }
 
   /**
-   * Everyone still standing is in the room.
+   * Everyone still standing is in the room — and past its doorway.
    *
    * The gate that seals a fight is the same gate the party walks in through,
    * so sealing on the *first* body through it locked everyone else out of
    * their own boss fight. A sealed room waits for the whole party; the dead
    * are not counted, since they come back at the checkpoint rather than
    * walking in, and a wipe would otherwise stall the level forever.
+   *
+   * "In" means clear of the door slab (`sealRect`): the blocker goes in the
+   * instant the seal is called, and a player counted inside while standing
+   * in the doorway was pushed out of it — sealed *out* of the room, with a
+   * jetpack hop over the wall as the only way back.
    */
   private allInside(room: MissionRoom): boolean {
     const alive = this.game.players.filter((p) => p.alive);
-    return alive.length > 0 && alive.every((p) => this.inside(room, p));
+    return alive.length > 0 && alive.every((p) => this.inside(room, p, true));
   }
 
   private nearExit(room: MissionRoom): boolean {

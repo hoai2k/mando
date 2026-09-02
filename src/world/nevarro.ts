@@ -233,10 +233,10 @@ export function buildNevarro(): Board {
     fog: new THREE.Fog(0x9a8878, 80, 400),
     playerStarts: [new THREE.Vector3(0, heightAt(0, -96) + 0.5, -96), new THREE.Vector3(3, heightAt(3, -96) + 0.5, -96)],
     groundSpawns: [
-      new THREE.Vector3(-60, 0, -44), new THREE.Vector3(52, 0, -66),
-      new THREE.Vector3(88, 0, 26), new THREE.Vector3(-42, 0, 80),
-      new THREE.Vector3(-98, 0, 18), new THREE.Vector3(4, 0, 96),
-      new THREE.Vector3(96, 0, -18), new THREE.Vector3(-80, 0, -80),
+      new THREE.Vector3(-60, 0, -56), new THREE.Vector3(52, 0, -54),
+      new THREE.Vector3(88, 0, 12), new THREE.Vector3(-42, 0, 66),
+      new THREE.Vector3(-96, 0, 2), new THREE.Vector3(4, 0, 96),
+      new THREE.Vector3(96, 0, -3), new THREE.Vector3(-80, 0, -80),
     ].map((v) => v.setY(heightAt(v.x, v.z) + 0.3)),
     airSpawns: [
       new THREE.Vector3(-30, 26, 0), new THREE.Vector3(50, 24, 40), new THREE.Vector3(0, 30, -60),

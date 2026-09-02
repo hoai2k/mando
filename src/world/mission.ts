@@ -210,6 +210,14 @@ export interface MissionRoom {
   center: THREE.Vector3;
   exit: THREE.Vector3;
   rect: Rect;
+  /**
+   * The rect a body has to be in to count as *through the door* — `rect`
+   * pulled 1.2 m back from both doorways. A gate seals the moment a room
+   * decides its party is in, and the door slab is part of `rect`, so the
+   * last player through could be counted inside while still standing in the
+   * doorway and be shut out of the room by the leaves closing on them.
+   */
+  sealRect: Rect;
   entryGate: Gate | null;
   exitGate: Gate | null;
   /** validated wave-spawn spots along the walls (assault rooms) */
@@ -543,6 +551,7 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       center: f.vec(l / 2, 0, top + 0.2),
       exit: f.vec(l - 1.8, 0, top + 0.2),
       rect: f.rect(0, l, -w / 2, w / 2),
+      sealRect: f.rect(1.2, l - 1.2, -w / 2, w / 2),
       entryGate, exitGate, vents, posts,
     });
 

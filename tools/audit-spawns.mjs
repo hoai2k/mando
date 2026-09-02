@@ -55,6 +55,32 @@ function audit() {
       return null;
     };
 
+    // The authored posts themselves, before any jitter or search ring: a post
+    // inside a prop is silently rescued by the spawner's ring search, so the
+    // wave audit below never sees it — but it costs several rings per body
+    // and puts the squad wherever the ring found room, not where the level
+    // designer put it (audit L3). The board's own ground has to be standable.
+    const authored = [];
+    for (let i = 0; i < board.groundSpawns.length; i++) {
+      const s = board.groundSpawns[i];
+      const hit = overlap(s.x, s.y, s.z, 0.6, 2.1);
+      let why = hit ? `inside a ${hit}` : null;
+      if (!why) {
+        const g = phys.groundHeight(s.x, s.z, s.y + 0.4);
+        if (!isFinite(g) || s.y - g > 3) why = 'has no ground under it';
+      }
+      if (!why && board.hazards) {
+        for (const h of board.hazards) {
+          const yMax = h.yMax ?? h.center.y + 3;
+          if (s.y > yMax) continue;
+          if (Math.hypot(s.x - h.center.x, s.z - h.center.z) <= h.radius) why = `in a ${h.kind} zone`;
+        }
+      }
+      if (!why && board.burnAt && board.burnAt(s.x, s.z, s.y) > 0) why = 'on burning ground';
+      if (!why && board.waterY !== undefined && s.y < board.waterY + 0.3) why = 'under water';
+      if (why) authored.push({ index: i, at: [+s.x.toFixed(1), +s.y.toFixed(1), +s.z.toFixed(1)], why });
+    }
+
     for (const [px, py, pz] of VIEWPOINTS) {
       for (let wave = 1; wave <= WAVES; wave++) {
         for (let trial = 0; trial < TRIALS; trial++) {
@@ -82,7 +108,10 @@ function audit() {
       seen.add(key);
       return true;
     });
-    out.push({ board: info.id, planned, count: findings.length, findings: unique.slice(0, 20) });
+    out.push({
+      board: info.id, planned, count: findings.length, findings: unique.slice(0, 20),
+      posts: board.groundSpawns.length, authored,
+    });
   }
   return out;
 }
@@ -97,11 +126,16 @@ await h.close();
 let total = 0;
 for (const r of results) {
   if (only && r.board !== only) continue;
-  total += r.count;
+  total += r.count + r.authored.length;
   console.log(`\n=== ${r.board} — ${r.planned} bodies planned — ` +
     (r.count ? `${r.count} INSIDE GEOMETRY` : 'all have room to stand'));
   for (const f of r.findings) {
     console.log(`   wave ${String(f.wave).padStart(2)}  ${f.kind.padEnd(13)} in a ${f.inside.padEnd(9)} at ${JSON.stringify(f.at)}`);
+  }
+  console.log(`   authored spawn points: ${r.posts}, ` +
+    (r.authored.length ? `${r.authored.length} NOT STANDABLE` : 'every one standable as authored'));
+  for (const a of r.authored) {
+    console.log(`   post ${String(a.index).padStart(2)} at ${JSON.stringify(a.at)} ${a.why}`);
   }
 }
 console.log(total
