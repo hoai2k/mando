@@ -305,6 +305,13 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.repeat.set(rx, ry);
       m.map = tex;
+      // The tileables are dark (the wall plate averages ~22% grey), and a
+      // palette tint multiplied over them left the walls at under a tenth of
+      // white — a void no fill light could lift, with enemies invisible in it.
+      // With the surface detail carried by the map, the tint's job is hue,
+      // not value: lift it most of the way to white and let the map set the
+      // brightness.
+      m.color.lerp(new THREE.Color(0xffffff), 0.7);
       // keep the palette tint over the tileable — it is what tells the nine
       // territories' interiors apart when they share one texture set
       m.needsUpdate = true;

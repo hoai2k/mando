@@ -454,6 +454,25 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
   for (const p of board.groundSpawns) extent = Math.max(extent, Math.hypot(p.x, p.z));
   extent += 12;
 
+  // The 35 m rule is only a filter on the authored posts, and on most boards
+  // the nearest of those is 75 m from the start — so the opening was still a
+  // walk. Wave one's first squad is placed for real: a validated ring point
+  // 34-40 m from the party, on the bearing of the nearest authored post so
+  // the fight sits between the party and the rest of the garrison.
+  if (wave <= 1 && groundY && posts.length && rank(posts[0]) > 45) {
+    const nearest = board.groundSpawns.reduce((a, b) => (rank(b) < rank(a) ? b : a), board.groundSpawns[0]);
+    const base = Math.atan2(nearest.x - near.x, nearest.z - near.z);
+    outer: for (const r of [36, 40, 32]) {
+      for (const off of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
+        const x = near.x + Math.sin(base + off) * r;
+        const z = near.z + Math.cos(base + off) * r;
+        const y = groundY(x, z) + 0.3;
+        if (Math.abs(y - near.y) > 12) continue;   // a cliff or a chasm away
+        if (valid(x, y, z, extent)) { posts[0] = new THREE.Vector3(x, y, z); break outer; }
+      }
+    }
+  }
+
   const post = (i: number): THREE.Vector3 => {
     const base = posts[i % posts.length];
     const lap = Math.floor(i / posts.length);
