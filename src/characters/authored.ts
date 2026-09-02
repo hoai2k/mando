@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import {
-  droneClips, kryknaClips, massiffClips,
+  banthaClips, droneClips, kryknaClips, massiffClips,
   kraytClips, mamacoreClips, mudhornClips, mythosaurClips, rancorClips, ravinakClips,
 } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
@@ -627,6 +627,9 @@ export function retarget(source: Rig, model: AuthoredModel): void {
  */
 const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationClip[]> = {
   massiff: massiffClips,
+  // the bantha shares the massiff's quadruped rig; the ridden one walks on
+  // these (PLAN.md §17), and the camp's grazers stand on the idle
+  bantha: banthaClips,
   krykna: kryknaClips,
   krykna_brood: kryknaClips,
   interceptor_drone: droneClips,
