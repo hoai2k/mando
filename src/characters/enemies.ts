@@ -1549,112 +1549,294 @@ export function buildKwazelMaw(): CharacterInstance {
   return buildMonsterBase('kwazel_maw', 4.2, 9, 0x3a6a5a);
 }
 
-/** the trailing arches' spacing back along the worm's path, metres */
-const WORM_ARCHES = [7, 14, 21];
-/** length of one arch along the path, and its apex above the sand */
-const WORM_ARCH_LEN = 7;
-const WORM_ARCH_H = 4.5;
-/** how far the head unit sinks when the worm is fully under */
+/** nose to tail, metres — the sculpt is fitted to this along its long axis */
+const WORM_LENGTH = 40;
+/** joints in the delivered spine chain (`spine1` at the tail … `spine24` at the head) */
+const WORM_SEGMENTS = 24;
+/** how far under the surface the head sits while the worm is hunting */
 const WORM_SINK = 7.5;
+/** how high the head rears above the surface once it has broken through */
+const WORM_REAR = 5.2;
+/** the travelling wave down the body: apex above the sand, and its bias under */
+const WORM_WAVE = 5.5;
+const WORM_WAVE_BIAS = 1.0;
+/** body-lengths per wave — how many joints one hump spans */
+const WORM_WAVE_PERIOD = 7;
+/** how fast the wave runs down the body, radians a second */
+const WORM_WAVE_SPEED = 1.1;
+/** joints behind the head that blend from the head's pose into the wave */
+const WORM_NECK = 3;
 
 /**
- * The Dune Sea's worm (docs/BOSSES.md §2.7). Two bodies in one character:
+ * The Dune Sea's worm (docs/BOSSES.md §2.7): one continuous forty-metre animal
+ * laid along the path its own head has travelled.
  *
- * - the **head unit** — the reared head and neck that stands out of the
- *   sand, a `buildMonsterBase` worm (the sculpt `sandworm`, modelled already
- *   reared with its origin at the sand line). `setBurrow` sinks the whole
- *   unit below the surface for the underground half of the burrow cycle,
- *   which on an opaque ground is the same as it not being there.
- * - the **arches** — three humps of body that follow the path the head has
- *   taken, each rising out of the sand and sinking back on its own beat, so
- *   the animal reads as forty metres of worm whether the head is up or not.
- *   The game only ever moves the root; this keeps a trail of where the root
- *   has been and places the arches back along it, in root-local space so the
- *   whole thing tears down with the enemy as one object.
+ * Everything else in the game is a body at a position. This is a body along a
+ * *history*: the game moves only the head, and the rest of the worm is solved
+ * each frame onto a trail of where that head has been, with a travelling wave
+ * deciding which stretches of it are above the sand. That is what makes the
+ * humps read as the same animal — they follow its turns, they are attached, and
+ * there is no cut face to hide. It replaces three separate arch props that used
+ * to chase the head at fixed distances.
+ *
+ * The solver drives two different things through one path. Before the sculpt
+ * lands it is a chain of plated segments placed straight onto the targets; once
+ * the sculpt is in it is the delivered `spine1..24` bone chain, walked from the
+ * tail forward with each bone aimed at the next joint's target. Both read the
+ * same trail, so the stand-in moves exactly like the real thing.
  */
 export function buildSandworm(): CharacterInstance {
-  const unit = buildMonsterBase('sandworm', 5.5, 6, 0xc9b184, { worm: true, buried: { sink: 0.5, pitch: 0 } });
   const root = new THREE.Group();
-  root.add(unit.root);
-
   const skin = mat(0xc9b184, { rough: 0.92 });
-  const arches = WORM_ARCHES.map((_, i) => {
-    const g = new THREE.Group();
-    // the stand-in: half a torus, its cut under the sand and its apex clear
-    const hump = new THREE.Mesh(
-      new THREE.TorusGeometry(WORM_ARCH_LEN / 2, 1.05, 8, 14, Math.PI), skin);
-    hump.rotation.y = Math.PI / 2;
-    hump.castShadow = true;
-    g.add(hump);
-    g.add(loadProp('sandworm_arch', WORM_ARCH_LEN, {
-      axis: 'longest', ground: true, onLoad: () => { hump.visible = false; },
-    }));
-    root.add(g);
-    return { g, phase: i * 2.1 };
-  });
+  const plate = mat(0xb9a074, { rough: 0.95 });
+  const dark = mat(0x2a241e, { rough: 0.8 });
 
-  // where the head has been: world points, oldest first, sampled every ~1.2 m
+  // ---- the stand-in: the same animal in blocked-out segments ----
+  const standIn = new THREE.Group();
+  root.add(standIn);
+  const segLen = WORM_LENGTH / (WORM_SEGMENTS + 1);
+  const standSegs: THREE.Group[] = [];
+  for (let i = 0; i <= WORM_SEGMENTS; i++) {
+    const g = new THREE.Group();
+    const head = i === WORM_SEGMENTS;
+    // the body tapers toward the tail, and the head is the widest thing on it
+    const t = i / WORM_SEGMENTS;
+    const r = head ? 1.5 : 0.55 + t * 0.75;
+    addSphere(g, i % 2 || head ? skin : plate, r, 0, 0, 0, 10, 8, 0.92, segLen / r * 0.62);
+    if (head) {
+      // three of the four mandibles read from any angle; the fourth is behind
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2;
+        const m = new THREE.Group();
+        m.position.set(Math.cos(a) * 1.0, Math.sin(a) * 1.0, 1.1);
+        m.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
+        addCyl(m, dark, 0.02, 0.34, 2.1, 0, 0, 0.9, Math.PI / 2, 0, 0, 6);
+        g.add(m);
+      }
+    }
+    standIn.add(g);
+    standSegs.push(g);
+  }
+
+  // ---- the sculpt ----
+  // Fitted by its longest axis rather than its height: the file is a straight
+  // forty-metre worm, so its height says nothing about its size. Not grounded
+  // either — the solver below decides where every part of it sits.
+  let settled = false;
+  let chain: THREE.Object3D[] | null = null;   // spine1 … spine24, head
+  let jaw: THREE.Object3D | null = null;
+  let restStep = 1;                            // metres between joints, once fitted
+  const sculpt = loadProp('sandworm', WORM_LENGTH, {
+    axis: 'longest',
+    onSettle: () => { settled = true; },
+    onLoad: (loaded) => {
+      const find = (n: string): THREE.Object3D | null => {
+        let hit: THREE.Object3D | null = null;
+        loaded.traverse((o) => { if (!hit && o.name === n) hit = o; });
+        return hit;
+      };
+      const links: THREE.Object3D[] = [];
+      for (let i = 1; i <= WORM_SEGMENTS; i++) {
+        const b = find(`spine${i}`);
+        if (!b) return;                        // an unexpected rig: keep the stand-in
+        links.push(b);
+      }
+      const headBone = find('head');
+      if (!headBone) return;
+      links.push(headBone);
+      // The rest spacing is what the solver has to sample the path at, or the
+      // mesh stretches between joints. Measured on the fitted model, so it is
+      // already in metres.
+      loaded.updateMatrixWorld(true);
+      const a = new THREE.Vector3(), b = new THREE.Vector3();
+      links[0].getWorldPosition(a);
+      links[1].getWorldPosition(b);
+      restStep = a.distanceTo(b) || 1;
+      chain = links;
+      jaw = find('jaw');
+      standIn.visible = false;
+    },
+  });
+  root.add(sculpt);
+
+  // ---- the path the body is laid along ----
+  // World points of where the root has been, newest last, sampled about every
+  // metre. Long enough to carry the whole animal plus slack for its turns.
   const trail: THREE.Vector3[] = [];
+  const TRAIL_STEP = 1.0;
+  const TRAIL_MAX = Math.ceil(WORM_LENGTH / TRAIL_STEP) + 24;
   let seeded = false;
-  const seed = (): void => {
+  const seedTrail = (): void => {
     seeded = true;
     const yaw = root.rotation.y;
-    for (let k = 14; k >= 1; k--) {
+    // straight out behind it, so a worm that has only just spawned still has a body
+    for (let k = TRAIL_MAX; k >= 1; k--) {
       trail.push(new THREE.Vector3(
-        root.position.x - Math.sin(yaw) * k * 2.5,
+        root.position.x - Math.sin(yaw) * k * TRAIL_STEP,
         root.position.y,
-        root.position.z - Math.cos(yaw) * k * 2.5));
-    }
-  };
-  const _pos = new THREE.Vector3();
-  const placeArches = (time: number): void => {
-    const head = root.position;
-    if (!seeded) seed();
-    const last = trail[trail.length - 1];
-    if (last.distanceToSquared(head) > 1.2 * 1.2) {
-      trail.push(head.clone());
-      if (trail.length > 60) trail.shift();
-    }
-    const yaw = root.rotation.y;
-    const sin = Math.sin(yaw), cos = Math.cos(yaw);
-    const scale = root.scale.x || 1;
-    for (let i = 0; i < arches.length; i++) {
-      const want = WORM_ARCHES[i];
-      // walk back along the trail until `want` metres of path are behind the head
-      let acc = 0;
-      let prev = head;
-      let dirX = -Math.sin(yaw), dirZ = -Math.cos(yaw);
-      _pos.copy(trail[0]);
-      for (let k = trail.length - 1; k >= 0; k--) {
-        const pt = trail[k];
-        const seg = prev.distanceTo(pt);
-        if (acc + seg >= want && seg > 1e-4) {
-          _pos.copy(prev).lerp(pt, (want - acc) / seg);
-          dirX = pt.x - prev.x; dirZ = pt.z - prev.z;
-          break;
-        }
-        acc += seg;
-        prev = pt;
-      }
-      // each arch is on its own beat: from fully under to fully out and back
-      const lift = -(WORM_ARCH_H + 0.6) * (0.5 - 0.5 * Math.sin(time * 0.9 + arches[i].phase));
-      // world → root-local (the root carries position, yaw and a uniform scale)
-      const dx = _pos.x - head.x, dz = _pos.z - head.z;
-      const { g } = arches[i];
-      g.position.set((dx * cos - dz * sin) / scale, (_pos.y - head.y + lift) / scale, (dx * sin + dz * cos) / scale);
-      g.rotation.y = Math.atan2(dirX, dirZ) - yaw;
+        root.position.z - Math.cos(yaw) * k * TRAIL_STEP));
     }
   };
 
+  /** how far under the surface the head is, 0 surfaced … 1 fully under */
+  let depth = 1;
+  const _p = new THREE.Vector3();
+  const _q = new THREE.Vector3();
+  const _dir = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+  const _side = new THREE.Vector3();
+  const _third = new THREE.Vector3();
+  const _basis = new THREE.Matrix4();
+  // `aim` runs inside the same frame as the world-to-local transform above it,
+  // so it keeps its own matrix rather than borrowing that one
+  const _aimBasis = new THREE.Matrix4();
+  const _rot = new THREE.Quaternion();
+  const _inv = new THREE.Quaternion();
+  const targets: THREE.Vector3[] = [];
+  for (let i = 0; i <= WORM_SEGMENTS; i++) targets.push(new THREE.Vector3());
+
+  /**
+   * Walk back along the trail and put a joint every `step` metres, then lift
+   * each one by the wave. `targets[0]` is the tail and the last is the head, so
+   * the array reads the same way the bone chain is parented.
+   */
+  const solve = (time: number, step: number): void => {
+    const head = root.position;
+    if (!seeded) seedTrail();
+    if (trail[trail.length - 1].distanceToSquared(head) > TRAIL_STEP * TRAIL_STEP) {
+      trail.push(head.clone());
+      if (trail.length > TRAIL_MAX) trail.shift();
+    }
+    const n = WORM_SEGMENTS;
+    let k = trail.length - 1;
+    let walked = 0;
+    _p.copy(head);
+    for (let seg = 0; seg <= n; seg++) {
+      const want = seg * step;                 // metres back from the head
+      while (walked < want && k > 0) {
+        const next = trail[k - 1];
+        const d = _p.distanceTo(next);
+        if (walked + d >= want) {
+          _p.lerp(next, (want - walked) / (d || 1));
+          walked = want;
+          break;
+        }
+        walked += d;
+        _p.copy(next);
+        k--;
+      }
+      // The wave: a hump every WORM_WAVE_PERIOD joints, running down the body.
+      // Biased under the surface so most of the animal is buried and only the
+      // crests break out — which is the whole read of the creature.
+      const phase = (seg / WORM_WAVE_PERIOD) * Math.PI * 2 - time * WORM_WAVE_SPEED;
+      let lift = Math.sin(phase) * WORM_WAVE - WORM_WAVE_BIAS;
+      // the joints just behind the head blend into whatever the head is doing,
+      // so the neck curves down into the sand instead of kinking at the skull
+      const fromHead = n - seg;
+      if (fromHead < WORM_NECK) {
+        const t = fromHead / WORM_NECK;
+        const headY = (1 - depth) * WORM_REAR - depth * WORM_SINK;
+        lift = headY * (1 - t) + lift * t;
+      }
+      // The trail carries the ground height where the head was standing at the
+      // time, so the body follows the dunes it crossed rather than hanging off
+      // whatever height the head happens to be at now.
+      // index 0 is the tail, so fill from the back
+      targets[n - seg].set(_p.x, _p.y + lift, _p.z);
+    }
+  };
+
+  /** point `bone` (whose own axis runs along local +Y) from `at` toward `to` */
+  const aim = (bone: THREE.Object3D, at: THREE.Vector3, to: THREE.Vector3): void => {
+    _dir.subVectors(to, at);
+    if (_dir.lengthSq() < 1e-8) return;
+    _dir.normalize();
+    // a full basis rather than a shortest-arc rotation, so the body cannot roll
+    // as it turns — a twisting worm reads as a broken one
+    _side.crossVectors(_up, _dir);
+    if (_side.lengthSq() < 1e-6) _side.set(1, 0, 0);
+    _side.normalize();
+    _third.crossVectors(_side, _dir).normalize();
+    _aimBasis.makeBasis(_side, _dir, _third);
+    _rot.setFromRotationMatrix(_aimBasis);
+    const parent = bone.parent;
+    if (parent) {
+      parent.updateWorldMatrix(true, false);
+      parent.getWorldQuaternion(_inv).invert();
+      bone.quaternion.copy(_inv).multiply(_rot);
+    } else {
+      bone.quaternion.copy(_rot);
+    }
+    bone.updateMatrixWorld(true);
+  };
+
+  let gaitSpeed = 0;
+  let attackT = -1;
+  const ATTACK_DUR = 0.95;
   return {
-    root, rig: null, animator: null, height: unit.height, baseScale: 1,
-    modelReady: unit.modelReady,
-    setGait: unit.setGait,
-    attack: unit.attack,
-    setBurrow: (depth) => { unit.root.position.y = -depth * WORM_SINK; },
+    root, rig: null, animator: null, height: 5.5, baseScale: 1,
+    modelReady: () => settled,
+    setGait: (speed) => { gaitSpeed = speed; },
+    setBurrow: (d) => { depth = d; },
+    attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
-      unit.cosmetic?.(dt, time);
-      placeArches(time);
+      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
+      const step = chain ? restStep : segLen;
+      solve(time, step);
+
+      // The whole solve is done in world space, because the trail is a world
+      // history; the body is then carried into the root's frame, which the enemy
+      // controller is meanwhile moving and turning.
+      root.updateMatrixWorld(true);
+      const toLocal = _basis.copy(root.matrixWorld).invert();
+
+      if (chain) {
+        // the sculpt: place the tail, then aim each bone at the next joint
+        const first = chain[0];
+        _p.copy(targets[0]).applyMatrix4(toLocal);
+        const holder = sculpt;
+        // `first` hangs under the rig node inside the holder, so the holder is
+        // what carries it to the tail's target
+        first.getWorldPosition(_q);
+        holder.position.add(_p.sub(_q.applyMatrix4(toLocal)));
+        holder.updateMatrixWorld(true);
+        for (let i = 0; i < chain.length - 1; i++) {
+          chain[i].getWorldPosition(_p);
+          aim(chain[i], _p, targets[i + 1]);
+        }
+        // The head is the end of the chain, so nothing behind it aims it and it
+        // would simply inherit the neck's bearing — a surfaced worm lying flat
+        // on the sand with its mouth pointing along the ground. Carry it on past
+        // the last joint, lifted while it is out, so the maw comes up to face
+        // whatever it is about to bite.
+        const headBone = chain[chain.length - 1];
+        headBone.getWorldPosition(_p);
+        _dir.subVectors(targets[targets.length - 1], targets[targets.length - 2]);
+        if (_dir.lengthSq() > 1e-8) {
+          _dir.normalize();
+          _q.copy(_p).addScaledVector(_dir, restStep);
+          _q.y += (1 - depth) * restStep * 1.1;
+          aim(headBone, _p, _q);
+        }
+        if (jaw) {
+          // the mandibles gape through the strike and snap shut on it
+          const w = attackT >= 0 ? Math.max(0, strikeCurve(attackT, ATTACK_DUR)) : 0;
+          jaw.rotation.x = w * 0.7;
+        }
+        return;
+      }
+
+      // the stand-in: the segments are placed straight onto the same targets
+      for (let i = 0; i < standSegs.length; i++) {
+        const g = standSegs[i];
+        g.position.copy(targets[i]).applyMatrix4(toLocal);
+        const to = targets[Math.min(i + 1, standSegs.length - 1)];
+        _dir.subVectors(to, targets[i]);
+        if (_dir.lengthSq() > 1e-8) {
+          g.lookAt(g.position.x + _dir.x, g.position.y + _dir.y, g.position.z + _dir.z);
+        }
+      }
+      void gaitSpeed;
     },
   };
 }

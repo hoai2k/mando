@@ -5,7 +5,7 @@ import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import {
   droneClips, kryknaClips, massiffClips,
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
-  rancorClips, ravinakClips, sandwormClips, zilloClips,
+  rancorClips, ravinakClips, zilloClips,
 } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
@@ -402,8 +402,6 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
   nikto: ['nikto_swoop'],
-  // the worm's trailing body arches are a prop of their own, placed by the game
-  sandworm: ['sandworm_arch'],
 };
 
 /** Every .glb a kind renders as: its own model plus any companion piece. */
@@ -664,7 +662,6 @@ const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationC
   rancor: rancorClips,
   krayt_dragon: kraytClips,
   mythosaur: mythosaurClips,
-  sandworm: sandwormClips,
   zillo: zilloClips,
   nexu: nexuClips,
   kwazel_maw: kwazelMawClips,
@@ -783,11 +780,9 @@ export const CREATURE_MODELS = {
   // so the front is what stands above the ground (docs/BOSSES.md §2.5, §2.6).
   krayt_dragon: 5.4,
   mythosaur: 8.0,
-  // The second batch (docs/BOSSES.md §2.7–2.10). The worm is modelled already
-  // reared — the sculpt is the head and the neck standing out of the sand,
-  // origin at the sand line — so its height is what stands up; the game sinks
-  // it whole for the underground half of its cycle.
-  sandworm: 5.5,
+  // The second batch (docs/BOSSES.md §2.7–2.10). The worm is not here: it is a
+  // straight forty-metre body fitted by *length* and laid along its own path by
+  // `buildSandworm`, so it comes through `loadProp` rather than this table.
   zillo: 5.0,
   nexu: 2.2,
   kwazel_maw: 4.2,
