@@ -1730,11 +1730,13 @@ export function buildSandworm(): CharacterInstance {
       // crests break out — which is the whole read of the creature.
       const phase = (seg / WORM_WAVE_PERIOD) * Math.PI * 2 - time * WORM_WAVE_SPEED;
       let lift = Math.sin(phase) * WORM_WAVE - WORM_WAVE_BIAS;
-      // the joints just behind the head blend into whatever the head is doing,
-      // so the neck curves down into the sand instead of kinking at the skull
-      const fromHead = n - seg;
-      if (fromHead < WORM_NECK) {
-        const t = fromHead / WORM_NECK;
+      // The joints just behind the head blend into whatever the head is doing,
+      // so the neck curves down into the sand instead of kinking at the skull.
+      // `seg` already counts joints back from the head — reading it from the
+      // other end lifted the tail out of the sand and left the head riding the
+      // wave, which is a worm that surfaces backwards.
+      if (seg < WORM_NECK) {
+        const t = seg / WORM_NECK;
         const headY = (1 - depth) * WORM_REAR - depth * WORM_SINK;
         lift = headY * (1 - t) + lift * t;
       }
