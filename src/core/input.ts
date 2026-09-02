@@ -45,6 +45,8 @@ export interface MenuEvent { action: MenuAction; source: number; }
 
 const DEADZONE = 0.18;
 const dz = (v: number) => (Math.abs(v) < DEADZONE ? 0 : (v - Math.sign(v) * DEADZONE) / (1 - DEADZONE));
+/** look-stick response: half linear, half squared, sign kept */
+const curve = (v: number) => v * (0.5 + 0.5 * Math.abs(v));
 
 // Xbox standard-mapping button indices
 const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, LS: 10, RS: 11, DUP: 12, DDOWN: 13, DLEFT: 14, DRIGHT: 15 } as const;
@@ -340,8 +342,10 @@ export class InputManager {
       const k = this.keys;
       inp.moveX += (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       inp.moveY += (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
-      inp.lookX -= this.mouseDX * this.mouseSensitivity;
-      inp.lookY -= this.mouseDY * this.mouseSensitivity;
+      const sens = config.input.lookSensitivity;
+      const inv = config.input.invertY ? -1 : 1;
+      inp.lookX -= this.mouseDX * this.mouseSensitivity * sens;
+      inp.lookY -= this.mouseDY * this.mouseSensitivity * sens * inv;
       inp.jumpHeld ||= k.has('Space');
       inp.jumpPressed ||= this.keysPressed.has('Space');
       inp.dashPressed ||= this.keysPressed.has('ShiftLeft') || this.keysPressed.has('ShiftRight');
@@ -369,8 +373,14 @@ export class InputManager {
         const st = this.padState(pad.index);
         inp.moveX += dz(pad.axes[0] ?? 0);
         inp.moveY += -dz(pad.axes[1] ?? 0);
-        inp.lookX += -dz(pad.axes[2] ?? 0) * this.stickSensitivity * dt;
-        inp.lookY += -dz(pad.axes[3] ?? 0) * this.stickSensitivity * dt * 0.75;
+        // A response curve on the look stick: linear made fine aim twitchy
+        // and a full deflection slow at once. Half linear, half squared —
+        // small deflections track, a full push turns fast — under the
+        // player's own sensitivity and invert settings.
+        const sens = config.input.lookSensitivity;
+        const inv = config.input.invertY ? -1 : 1;
+        inp.lookX += -curve(dz(pad.axes[2] ?? 0)) * this.stickSensitivity * sens * dt;
+        inp.lookY += -curve(dz(pad.axes[3] ?? 0)) * this.stickSensitivity * sens * inv * dt * 0.75;
         const b = (i: number) => !!pad.buttons[i]?.pressed;
         // edges were captured in poll(); re-derive pressed via stored prev-of-last-frame is
         // already updated, so track pressed separately here using a shadow set:

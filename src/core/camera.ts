@@ -62,7 +62,7 @@ const MAX_SHOULDER_SCALE = 3;
 // the right-stick dolly still scales both ends of the range together: pull the
 // camera out and the close mode is proportionally closer, not fixed.
 /** multiplier at a standstill — intimate, reads the character and their footing */
-const NEAR_RATIO = 0.74;
+const NEAR_RATIO = 0.86;   // was 0.74: at 1.4 m the helmet sat under every banner
 /** multiplier at full tilt — wide, reads where you are going and what is in the way */
 const FAR_RATIO = 1.34;
 /** below this ground speed the pace reads as "still"; at or above HOT it is fully out */

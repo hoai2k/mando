@@ -44,10 +44,14 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
  * checks the window nor opens one, so a lava field still kills.
  */
 const HIT_IFRAMES = 0.3;
+/** how long an X press during a swing waits for the swing to clear */
+const MELEE_BUFFER = 0.25;
 /** and a fresh body gets a moment to find its feet before it can be shot */
 const RESPAWN_IFRAMES = 1.6;
 /** shove per hit, m/s, before the damage scale */
 const HIT_KNOCKBACK = 5;
+/** scratch for the block's facing test */
+const _facing = new THREE.Vector3();
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -306,6 +310,8 @@ export class Player {
   private meleeTimer = 0;
   private meleeComboWindow = 0;
   private meleeHitPending = 0;
+  /** seconds a swing press is remembered while the current swing plays out */
+  private meleeBuffer = 0;
   private meleeDamage = 0;
   /** seconds of animation freeze left after a landed melee hit */
   private hitStop = 0;
@@ -662,6 +668,19 @@ export class Player {
       this.noteVehicleHit(from);
       return;
     }
+    // A raised shield is a shield: the pane already turns bolts, and now a
+    // swing, a flame or a slam arriving from the front lands at half force,
+    // with the pane's own flash and a sip of energy for it. From behind, or
+    // with the pane not yet up, nothing changes.
+    if (!opts.dot && amount < 500 && this.blockRaise > 0.6) {
+      const fx = Math.sin(this.facingYaw), fz = Math.cos(this.facingYaw);
+      _knock.subVectors(from, this.position).setY(0);
+      if (_knock.lengthSq() > 1e-6 && _knock.normalize().dot(_facing.set(fx, 0, fz)) > 0.2) {
+        amount *= 0.5;
+        this.energy = Math.max(0, this.energy - 0.06);
+        this.char.shieldHit();
+      }
+    }
     this.hp -= amount;
     if (bySlot >= 0 && bySlot !== this.slot) this.lastHitBy = bySlot;
     this.regenDelay = 5;
@@ -676,6 +695,11 @@ export class Player {
       // thing that says "that one landed". Cover holds you where you are.
       const heft = clamp(amount / 30, 0.35, 1.6);
       this.cam.shake(0.1 + heft * 0.12);
+      // the body says it too: a short flinch on the upper channel, unless a
+      // swing or the shield is already using the arms
+      if (this.meleeTimer <= 0 && this.blockRaise < 0.3 && this.hp - amount > 0) {
+        this.char.animator?.playOnce('upper', 'hitUpper', 0.05);
+      }
       if (!this.cover && this.snareTimer <= 0) {
         _knock.subVectors(this.position, from).setY(0);
         if (_knock.lengthSq() > 1e-6) {
@@ -1118,6 +1142,12 @@ export class Player {
     const dashNow = this.dashArmed && canDash && moving;
     if (dashNow) {
       this.dashArmed = false;
+      // a dodge cuts a swing short once its contact frame has passed: the
+      // lunge no longer owns the body, so the recovery is the player's to spend
+      if (this.meleeTimer > 0 && this.meleeHitPending <= 0) {
+        this.meleeTimer = 0;
+        this.char.animator?.release('upper');
+      }
       this.dashTimer = 0.24;
       this.dashCd = 0.75;
       this.energy = Math.max(0, this.energy - DASH_ENERGY);
@@ -2091,9 +2121,15 @@ export class Player {
     // melee (always available; swaps to gaffi visual during swing)
     this.meleeTimer -= dt;
     // a short RT pull from the saber fighter arrives here as a swing
-    const swing = input.meleePressed || this.pendingMelee;
+    // A press during a swing is kept for a moment rather than dropped, so a
+    // combo is played on intent and not on rhythm: the next swing starts the
+    // frame the current one clears.
+    this.meleeBuffer -= dt;
+    if ((input.meleePressed || this.pendingMelee) && this.meleeTimer > 0) this.meleeBuffer = MELEE_BUFFER;
+    const swing = input.meleePressed || this.pendingMelee || this.meleeBuffer > 0;
     this.pendingMelee = false;
     if (swing && this.meleeTimer <= 0) {
+      this.meleeBuffer = 0;
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
@@ -2384,6 +2420,7 @@ export class Player {
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
+    const solids = game.board.physics;
     for (const e of game.hostilesFor(this)) {
       if (!e.alive) continue;
       to.copy(e.position);
@@ -2396,8 +2433,17 @@ export class Player {
       // widen the cone slightly for close targets
       const need = d < 12 ? minDot - 0.02 : minDot;
       if (dot < need) continue;
-      const score = dot * 10 - d * 0.02;
-      if (score > bestScore) { bestScore = score; best = e; }
+      let score = dot * 10 - d * 0.02;
+      // a body dragging itself away is a target of last resort: never let it
+      // win the lock over a live shooter at the same angle
+      if ((e as { wounded?: boolean }).wounded) score -= 4;
+      if (score <= bestScore) continue;
+      // Line of sight, against the solid colliders only (the terrain never
+      // hides anyone the camera can see): the lock used to snap onto a body
+      // behind a crate and plant every bolt in the crate face.
+      const hit = solids.raycastSolids(from, to, d - 0.6);
+      if (hit) continue;
+      bestScore = score; best = e;
     }
     return best;
   }
