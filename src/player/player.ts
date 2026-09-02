@@ -1828,6 +1828,11 @@ export class Player {
   private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
     const anim = this.char.animator!;
     const v = this.vehicle!;
+    // A machine takes both hands — bars, tiller, controls — but an animal
+    // takes one: reins in the off hand, blaster in the other. So a mount is
+    // the one ride you can fight from, and every ride still stows the rocket
+    // rack and the blade (X is the animal's own charge).
+    const armed = !!v.def.living && this.alive && !this.meleeOnly;
     // gauges keep ticking and the pack stays cold — mirror of the cover branch
     this.blocking = false;
     this.blockRaise = damp(this.blockRaise, 0, 14, dt);
@@ -1849,7 +1854,7 @@ export class Player {
     this.swimming = false;
     this.wading = false;
     this.waterTime = 0; // the hull is between you and whatever hunts the water
-    this.aiming = false;
+    this.aiming = armed && input.aimHeld;
     this.lockedOn = false;
     this.cover = null;
 
@@ -1907,16 +1912,34 @@ export class Player {
     if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
     if (!this.vehicle) return; // the burn just finished the ride
 
-    this.facingYaw = dampAngle(this.facingYaw, v.yaw, 10, dt);
+    // ---- firing from the saddle ----
+    // The same combat path the feet use, with the melee swing masked out (X
+    // charges the animal instead) and the ordnance with it: the free hand
+    // holds a blaster, not a launcher.
+    if (armed) {
+      this.lockedOn = this.weapon === 'blaster' &&
+        !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
+      this.updateCombat(dt, {
+        ...input, meleePressed: false, rocketPressed: false, slamPressed: false,
+      }, game);
+    }
+    // The chest turns to the camera while you are working the gun and back to
+    // the animal's nose when you are not — a rider twists in the saddle, and
+    // the bolts have to leave where the crosshair is looking.
+    const gunUp = armed && (input.aimHeld || input.shootHeld
+      || (this.weapon === 'blaster' && this.fireCd > -0.6));
+    this.facingYaw = dampAngle(this.facingYaw, gunUp ? this.cam.yaw : v.yaw, gunUp ? 14 : 10, dt);
     const stand = v.def.stance === 'stand';
     anim.play('lower', stand ? 'idleLower' : 'rideLower');
-    anim.play('upper', stand ? 'idleUpper' : 'rideUpper');
+    if (this.meleeTimer <= 0) {
+      anim.play('upper', gunUp ? 'aimUpper' : stand ? 'idleUpper' : 'rideUpper');
+    }
 
     this.syncVisual(dt, game);
     anim.update(dt);
     const speed = Math.hypot(v.vel.x, v.vel.z);
     this.cam.update(realDt, this.position, game.board.physics, {
-      aiming: false, speed, dashing: false, flying: false, climb: 0,
+      aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,
     });
   }
 

@@ -116,7 +116,7 @@ export interface Breakable {
 
 /** Where a pilotable vehicle sits parked when the match starts. */
 export interface VehicleSpec {
-  kind: 'swoop' | 'speederBike' | 'landspeeder' | 'skiff';
+  kind: 'swoop' | 'speederBike' | 'landspeeder' | 'skiff' | 'bantha';
   x: number;
   z: number;
   /** resting facing, radians (0 = +Z) */

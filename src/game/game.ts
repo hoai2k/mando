@@ -1118,6 +1118,14 @@ export class Game {
         v.pendingExplosion = null;
         this.explode(px.at, px.slot);
       }
+      // a mount has no repulsor core to go up: it drops, and the sand it
+      // kicks up is the whole of it
+      if (v.pendingCollapse) {
+        const at = v.pendingCollapse;
+        v.pendingCollapse = null;
+        this.particles.dustPuff(at, 26);
+        audio.banthaLow(0.6);
+      }
       if (v.removeMe) this.scene.remove(v.group);
     }
     this.vehicles = this.vehicles.filter((v) => !v.removeMe);
