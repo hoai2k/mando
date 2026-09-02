@@ -246,6 +246,22 @@ check('pvp: ten survived seconds grow her back', s.grew && s.state === 'fighting
 // playable NPC's capsule to 0.6 × 2.1 so a beast still fits the cover and
 // doorways the boards were built around — so this measures the body.
 await startMode('pvp', 2, 'desert', ['npc:massiff', 'npc:stormtrooper']);
+// The framing is measured off the body that is DRAWN, and a fighter is born as
+// a procedural stand-in with its authored model arriving on a network round
+// trip. Sixty stepped frames are no wait at all for a download, so sampling
+// straight away measured the stand-in's reach — the camera settles correctly a
+// moment later, which is why this check failed on a loaded machine and passed
+// on an idle one. Wait for the skin, the same rule the model intake already
+// documents: poll for the SkinnedMesh rather than assuming it has landed.
+await page.waitForFunction(() => {
+  const g = window.__game;
+  if (!g || g.players.length < 2) return false;
+  return g.players.slice(0, 2).every((p) => {
+    let skinned = false;
+    p.char.root.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
+    return skinned;
+  });
+}, null, { timeout: 60000 });
 const framing = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(60);
