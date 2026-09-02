@@ -5,12 +5,13 @@ import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import {
   banthaClips, droneClips, kryknaClips, massiffClips,
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
-  rancorClips, ravinakClips, sandwormClips, zilloClips,
+  rancorClips, ravinakClips, zilloClips,
 } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
+import { applyJawRig, loadJawRig } from './jawrig';
 
 /**
  * Authored glTF characters.
@@ -217,6 +218,8 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
     // models without one cost nothing here beyond a shared index lookup
     const fixes = loadSkinFix(id);
+    // ...and the bones it was delivered without (see jawrig.ts)
+    const jaw = loadJawRig(id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
@@ -233,6 +236,11 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           const doc = await fixes;
           // on the file's own geometry, which every clone shares: one pass
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
+          // After the fixes, not before: a jaw is an addition to the weights
+          // the fixes have finished settling, and it folds itself into their
+          // baseline so toggling one in the workbench cannot undo it.
+          const jawDoc = await jaw;
+          if (jawDoc) applyJawRig(gltf.scene, jawDoc);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
@@ -394,8 +402,6 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
   nikto: ['nikto_swoop'],
-  // the worm's trailing body arches are a prop of their own, placed by the game
-  sandworm: ['sandworm_arch'],
 };
 
 /** Every .glb a kind renders as: its own model plus any companion piece. */
@@ -659,7 +665,6 @@ const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationC
   rancor: rancorClips,
   krayt_dragon: kraytClips,
   mythosaur: mythosaurClips,
-  sandworm: sandwormClips,
   zillo: zilloClips,
   nexu: nexuClips,
   kwazel_maw: kwazelMawClips,
@@ -778,11 +783,9 @@ export const CREATURE_MODELS = {
   // so the front is what stands above the ground (docs/BOSSES.md §2.5, §2.6).
   krayt_dragon: 5.4,
   mythosaur: 8.0,
-  // The second batch (docs/BOSSES.md §2.7–2.10). The worm is modelled already
-  // reared — the sculpt is the head and the neck standing out of the sand,
-  // origin at the sand line — so its height is what stands up; the game sinks
-  // it whole for the underground half of its cycle.
-  sandworm: 5.5,
+  // The second batch (docs/BOSSES.md §2.7–2.10). The worm is not here: it is a
+  // straight forty-metre body fitted by *length* and laid along its own path by
+  // `buildSandworm`, so it comes through `loadProp` rather than this table.
   zillo: 5.0,
   nexu: 2.2,
   kwazel_maw: 4.2,
