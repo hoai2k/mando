@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side:** the [second monster batch](#monster-bosses--batch-two) — three creatures whose canvases are approved and ready to model, plus a worm whose canvas is being regenerated — each fighting as a procedural stand-in until its file lands; and a small set of [re-exports for openable mouths](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) on the three oldest creature rigs. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: only the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -205,16 +205,15 @@ Four more creature bosses, designed in [`docs/BOSSES.md`](BOSSES.md) §2.7–2.1
 that **every territory has a unique monster**: a burrowing worm as the Dune Sea's
 champion (replacing the promoted war massiff the Lava Flats also field), and monster
 finals for the three boards that had none — the Refinery, the Ringworld and the
-Prison Rig. **All four are in the game now as procedural stand-ins**, with their
-fights, their numbers and their gaits (`src/anim/quadruped.ts`, written against the
-node lists below) already wired: a delivered file drops in with no code change,
-exactly as the first six did.
+Prison Rig. **All four are in the game**, with their fights, their numbers and their gaits
+(`src/anim/quadruped.ts`, written against the node lists below). The three quadrupeds
+dropped in with no code change at all, exactly as the first six did; the worm needed
+its path solver, which is described in `BOSSES.md` §2.7.
 
-**Canvases:** `zillo`, `nexu` and `kwazel_maw` were delivered and approved on
-2026-09-02 — model from `reference/characters/<id>_ref.png`. The worm's is being
-**regenerated** against a design change (below), so its model waits;
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#replacement-generation--sandworm-2026-09-02)
-carries the replacement prompt and why.
+**All four delivered and integrated, 2026-09-02.** Each shipped its rig verbatim and
+none shipped clips, so each is driven by the code gaits — except the worm, which drives
+itself (see its row). The worm's canvas took two passes: the first was modelled
+pre-curved into a hook, which a path-driven body cannot use.
 
 **Intake:** all four are ◆ through `loadCreature` — own free-form rigs, fitted by
 `CREATURE_MODELS` in `src/characters/authored.ts`, grounded by the loader, driven by
@@ -230,10 +229,10 @@ posed sculpt. That replaces the `sandworm_arch` prop this section used to ask fo
 
 | Id | Board | Size | Rig nodes (gameplay in **bold**) | Constraints |
 |---|---|---|---|---|
-| `sandworm` | Dune Sea (champion) | 40 m long, ~2 m thick; head ~2.6 m across | `head, jaw, mandibleL/R/T/B,` **`gullet`**`, spine1..24` (or more) | **Modelled dead straight and horizontal along +Z, head at the front, in a rest pose with no curve anywhere** — the game bends the spine chain onto the path the head has travelled, and a curve baked into the mesh cannot be undone. So: an unbroken chain of **at least 24 evenly spaced spine joints** running the full length (name them in order from the head back), each weighted so the body can bend smoothly through a 4.5 m arch without pinching. The head end and the first few joints also rear up procedurally, so keep the neck as flexible as the rest. Four mandibles that open, matching the canvas; **gullet** an emissive ring mesh inside the mouth. **Model the mouth as a real open cavity** — throat, inner rings of teeth, and the gullet as their own geometry on their own material, not a seam in a closed shell — because the fight puts the camera down it. Fitted by **length**, not height. |
-| `zillo` | Refinery | 5 m at the shoulder, 12 m long | `head, jaw, spine1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..3, plates,` **`seams`** | Must fit under the halls' 7.2 m ceilings — keep the back low and flat. `plates` one mesh (future deflect armor); **seams** a distinct emissive mesh in the gaps between plates; three clawed digits per foot. |
-| `nexu` | Ringworld | 2.2 m at the shoulder, 5 m long | `head, jaw,` **`eyeL/R, eyeL2/R2`**`, spine1..2, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2, quills` | Built for speed — long limbs, a flexing spine. **Four eyes** as emissive meshes; `quills` one mesh along the spine (future deflect); the jaw splits back past the cheeks. |
-| `kwazel_maw` | Prison Rig | 4.2 m tall, 9 m long | `head, jaw, body1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2,` **`stripesL/R`** | The mouth opens the full width of the head (the gulp is its attack — model the interior); **stripes** one emissive mesh per flank; hide reads wet. |
+| `sandworm` ✅ | Dune Sea (champion) | 40 m long, ~2 m thick; head ~2.6 m across | `head, jaw, mandibleL/R/T/B,` **`gullet`**`, spine1..24` | **Modelled dead straight and horizontal along +Z, head at the front, in a rest pose with no curve anywhere** — the game bends the spine chain onto the path the head has travelled, and a curve baked into the mesh cannot be undone. So: an unbroken chain of **at least 24 evenly spaced spine joints** running the full length (name them in order from the head back), each weighted so the body can bend smoothly through a 4.5 m arch without pinching. The head end and the first few joints also rear up procedurally, so keep the neck as flexible as the rest. Four mandibles that open, matching the canvas; **gullet** an emissive ring mesh inside the mouth. **Model the mouth as a real open cavity** — throat, inner rings of teeth, and the gullet as their own geometry on their own material, not a seam in a closed shell — because the fight puts the camera down it. Fitted by **length**, not height. |
+| `zillo` ✅ | Refinery | 5 m at the shoulder, 12 m long | `head, jaw, spine1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..3, plates,` **`seams`** | Must fit under the halls' 7.2 m ceilings — keep the back low and flat. `plates` one mesh (future deflect armor); **seams** a distinct emissive mesh in the gaps between plates; three clawed digits per foot. |
+| `nexu` ✅ | Ringworld | 2.2 m at the shoulder, 5 m long | `head, jaw,` **`eyeL/R, eyeL2/R2`**`, spine1..2, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2, quills` | Built for speed — long limbs, a flexing spine. **Four eyes** as emissive meshes; `quills` one mesh along the spine (future deflect); the jaw splits back past the cheeks. |
+| `kwazel_maw` ✅ | Prison Rig | 4.2 m tall, 9 m long | `head, jaw, body1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2,` **`stripesL/R`** | The mouth opens the full width of the head (the gulp is its attack — model the interior); **stripes** one emissive mesh per flank; hide reads wet. |
 
 Delivery as ever: `public/models/<id>.glb`. Sizes are what the game fits each file to.
 
@@ -270,18 +269,42 @@ Two things the audit does say, for the briefs that follow:
   splits those zones into their own meshes and material, or a shader-side approach.
 
 **Three older creature rigs have no jaw bone**, so their bites are closed-mouthed —
-they were rigged before that was asked for. Each wants a re-export that changes
-nothing else:
+they were rigged before that was asked for.
+
+**The massiff no longer needs a re-export for it: the bone is added in code.** A jaw is
+a rig addition, not a sculpt change, so rather than wait on a new file the game grows
+one at load — the same trick `skinfix` uses to re-weight a leaking skirt panel, on the
+loaded geometry, leaving the .glb exactly as delivered. `tools/jaw-rig.mjs` picks the
+lower-jaw vertices offline against a cutting plane through the head and writes them to
+`public/models/jawrig/massiff.json`; `src/characters/jawrig.ts` inserts the bone into
+the skeleton, rebinds the mesh and moves the weights over, before the model is cached
+and cloned. The lunge-bite clip already names `jaw`, so the mouth opens from there on.
+Measured on the delivered sculpt: 1169 vertices on the jaw, and a 40° opening carries
+the jaw tip 30 cm on a 2.05 m animal, which is what a jaw that size should do.
+
+One thing a re-export would still buy: the vertex selection is a plane through a head
+that was sculpted with its mouth shut, so the mouth opens by stretching the skin rather
+than parting modelled lips. It reads as a dark cavity — the same way the monster
+sculpts do — but a re-export with a real jaw would read better.
+
+**The two spiders are still a request.** They want spreading chelicerae rather than a
+hinged jaw, and their mouthparts are a few centimetres across on a body you fight at
+running speed, so the same trick is much harder to aim and buys much less. They stay
+here:
 
 | Id | What is missing | The ask |
 |---|---|---|
-| `massiff` | no jaw; delivered on a 44-bone Rigify chain (`DEF-spine.004`…`DEF-spine.011` is the neck and skull) | Add **one `jaw` bone** parented to the skull, weighted to the lower jaw only. **Do not rename, renumber or reparent any existing `DEF-*` bone** — the gait and lunge-bite clips are written against those exact names and will break. |
 | `krykna` | no mouthparts; clean custom rig (`head`, `body`, `legL1..L4`/`legR1..R4` with `_mid`/`_tip`) | Add **`fangL` and `fangR`** — the chelicerae — parented to `head`, weighted to the fangs that are already modelled, spreading outward when rotated. Same do-not-rename rule for the existing nodes. |
 | `krykna_brood` | same, plus it carries `sac1..3` | Same two fang bones. Leave `sac1..3` exactly as they are — the playable brood-queen's egg rack drives them. |
 
 Optional and much lower value: `bantha` is on the same Rigify chain as the massiff and
 also has no jaw. It is an ambient grazer that never bites, so a jaw only buys a chewing
-idle. Take it only if the massiff re-export makes it free.
+idle — and if it is ever wanted, `tools/jaw-rig.mjs` is the cheaper way to get it.
+
+**If a re-export does arrive, it wins and nothing has to be undone.** A file that ships
+its own `jaw` is detected before the generated one is applied, so the code-added bone
+simply stops being needed; delete the model's entry from `public/models/jawrig/index.json`
+and the rig is gone.
 
 Nothing else about these sculpts changes — no new reference art is wanted
 ([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#not-wanted--reference-sheets-for-the-mouth-re-exports-2026-09-02)),
