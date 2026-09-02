@@ -329,9 +329,21 @@ first bespoke moveset to ship:
   well out of reach it does not wait out its spell — after 2.5 s up with nothing
   within 1.8× reach it sinks early and hunts.
 - **Sinking** (0.8 s) — back under, and the cycle repeats.
-- **The arches** — three humps of body follow the head's path at 7, 14 and 21 m
-  back, each on its own beat between fully under and fully out (4.5 m apex). They
-  are cosmetic: no collision and no hit volume, since the head is the fight.
+- **The arches** — humps of body break the surface behind the head and sink again,
+  so forty metres of animal read whether the head is up or not. Cosmetic for now: no
+  collision and no hit volume, since the head is the fight.
+
+  **How they are built is changing (2026-09-02).** What ships today is three separate
+  `sandworm_arch` props placed along a trail of where the root has been, each on its
+  own rise-and-sink beat. The accepted replacement is **one continuous body**: a
+  single forty-metre sculpt whose spine chain the game lays along that same trail,
+  with a travelling wave deciding which stretches are above the sand. That makes the
+  humps the same animal as the head, keeps them attached through the worm's turns,
+  removes the cut faces the prop has to hide, and gives the exposed coils real nodes
+  to hang weak points on later. It costs a per-frame chain solve in `cosmetic`, and a
+  sculpt modelled dead straight rather than pre-reared — which is why the reference
+  canvas is being regenerated (`ASSETS_IMAGES.md`) and the `sandworm_arch` request is
+  withdrawn. Until the straight sculpt lands the arch props stand.
 - **Phases** — ⅔ and ⅓ through the shared boss rhythm: the Tusken retinue (the
   board's guard) and the enrage. The anti-camp shock-slam is suppressed while it is
   under — the eruption is its answer to a camper. It never super-jumps (it has no
@@ -339,12 +351,14 @@ first bespoke moveset to ship:
 
 **Integration notes.** `Def.burrows` carries the cycle's numbers; `Enemy.burrow`
 is the state, `Enemy.submerged`/`targetable` gate damage, knockback, knockdown and
-the target list. The visual is two bodies in one `CharacterInstance`
+the target list. The visual today is two bodies in one `CharacterInstance`
 (`buildSandworm`): a `buildMonsterBase` worm for the head unit, sunk whole by
-`setBurrow`, and three arch props placed by the game along a trail of where the root
-has been. Sculpt: `sandworm` (the reared head unit, modelled reared, origin at the
-sand line — the game sinks it, never pitches it) and `sandworm_arch` (one hump,
-unrigged). Nodes: `head, jaw, mandibleL/R, neck1..4, body1..3`.
+`setBurrow`, and three arch props placed along the root's trail. Under the single-body
+replacement above, both collapse into one sculpt and the trail feeds a spine solver
+instead. Sculpt: `sandworm`, modelled **straight** along +Z with a chain of 24 or more
+evenly spaced spine joints, fitted by length. Nodes: `head, jaw, mandibleL/R/T/B,
+gullet, spine1..24`. (The maw is four-way rather than three, matching the delivered
+art.)
 
 ### 2.8 Zillo — Refinery — `zillo`
 
@@ -463,6 +477,7 @@ is scoped before it starts:
 | Six monsters as `EnemyKind`s at the specced HP/damage, `relentless`, boss-scale `Def` | **done** |
 | The second batch as `EnemyKind`s (sandworm, zillo, nexu, kwazelMaw) with stand-ins, gaits against their briefed rigs, monster stage on the Refinery / Ringworld / Prison Rig, the worm as the Dune Sea's champion | **done** (2026-09-02; sculpts requested, `ASSETS_MODELS.md`) |
 | The worm's burrow cycle: under (untargetable, unhurtable, a wake), rise, eruption, rooted bites, sink; trailing body arches | **done** (`Enemy.updateBurrower`, `buildSandworm`) |
+| The worm as one continuous body: a spine chain solved onto the head's trail, replacing the three arch props | **not implemented** — designed and accepted 2026-09-02, waiting on the straight sculpt (§2.7) |
 | The nexu's pounce (`pounces` on the Def) | **done** |
 | Two-stage boss wave: warlord falls → 4 s quake → monster erupts, victory only when it falls | **done** (`Game.updateMonsterStage`, shared by the wave game and the campaign arena) |
 | Entrance card, boss bar, phase turns at ⅔/⅓, repulsor pulse, enrage, anti-camp shock-slam | **done** — reused wholesale from §4a |

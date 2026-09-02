@@ -135,3 +135,21 @@ option { color: var(--text); }
 }
 .ledger .edit button:hover { color: var(--accent); }
 .field label .clip { color: var(--accent); text-transform: none; letter-spacing: 0; }
+
+/* ---------- skinning review ---------- */
+.skin .fixes { display: grid; gap: 8px; margin-bottom: 10px; }
+.fix { border: 1px solid var(--line); border-radius: 4px; padding: 8px; background: #1a1d23; }
+.fix.high { border-left: 3px solid #7fbf7a; }
+.fix.review { border-left: 3px solid var(--accent); }
+.fixhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.fixhead .check { margin: 0; color: var(--text); align-items: flex-start; }
+.fixhead .check b { font-weight: 600; font-size: 12px; line-height: 1.3; }
+.badge { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; white-space: nowrap; background: #2a2f38; color: var(--dim); }
+.badge.applied, .badge.approved { background: #23402a; color: #9fe09a; }
+.badge.pending { background: #3d3220; color: var(--accent); }
+.badge.discarded { background: #40262a; color: #ff9c9c; }
+.fixmeta { color: var(--dim); font-size: 11px; margin: 4px 0 2px; }
+.fixmeta .conf { color: var(--text); }
+.fixhelp { color: var(--dim); font-size: 11px; margin: 0 0 6px; }
+.fix .row { margin-bottom: 0; }
+.fix .row button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #17191d; }

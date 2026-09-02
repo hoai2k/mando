@@ -1314,6 +1314,12 @@ function buildMonsterBase(
      * which is what makes the intersection read when the ground opens.
      */
     buried?: { sink: number; pitch: number };
+    /**
+     * A reared worm rather than an animal on legs: the stand-in is a column
+     * of segments curving up out of the ground to a mandibled head, pivoting
+     * at the sand line, and it has nothing to walk on.
+     */
+    worm?: boolean;
   } = {},
 ): CharacterInstance {
   const skin = mat(hide, { rough: 0.9 });
@@ -1324,7 +1330,34 @@ function buildMonsterBase(
   root.add(body);
 
   const legs: THREE.Group[] = [];
-  if (opts.biped) {
+  /** the worm's segments, for the stand-in's writhe */
+  const coils: THREE.Mesh[] = [];
+  if (opts.worm) {
+    // The column stands on the pivot: the base segment is under the surface
+    // (the cut is never seen), the rest rise and lean forward to the head.
+    body.position.y = 0;
+    const plate = mat(0x6b5a3e, { rough: 0.95 });
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const f = i / (n - 1);
+      const r = height * 0.21 * (1 - f * 0.25);
+      // a quarter-arc: up from the sand and forward
+      const y = -height * 0.25 + f * height * 0.92;
+      const z = -length * 0.28 + Math.sin(f * Math.PI * 0.5) * length * 0.36;
+      coils.push(addSphere(body, i % 2 ? plate : skin, r, 0, y, z, 12, 9, 0.8, 1.15));
+    }
+    // the head: a blunt dome, and three mandibles spread around the mouth
+    const hy = height * 0.8, hz = length * 0.1;
+    addSphere(body, skin, height * 0.24, 0, hy, hz, 12, 9, 0.9, 1.1);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
+      const m = new THREE.Group();
+      m.position.set(Math.cos(a) * height * 0.16, hy + Math.sin(a) * height * 0.16, hz + height * 0.18);
+      m.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
+      addCyl(m, dark, 0.02, height * 0.055, height * 0.34, 0, 0, height * 0.14, Math.PI / 2, 0, 0, 6);
+      body.add(m);
+    }
+  } else if (opts.biped) {
     addSphere(body, skin, height * 0.3, 0, 0, 0, 10, 8, 1, 1.25);              // hunched torso
     addSphere(body, skin, height * 0.17, 0, height * 0.3, length * 0.1, 9, 7); // skull
     for (const sx of [-1, 1]) {
@@ -1429,6 +1462,15 @@ function buildMonsterBase(
         return;
       }
       if (!posed) return;
+      if (opts.worm) {
+        // the stand-in's writhe: the column sways and each coil rolls a beat
+        // behind the one under it; the strike rears the whole column back and
+        // drives it down, pivoting at the sand line
+        body.rotation.y = Math.sin(time * 0.7) * 0.12;
+        coils.forEach((c, i) => { c.position.x = Math.sin(time * 1.6 - i * 0.6) * height * 0.02 * i; });
+        body.rotation.x = attackT >= 0 ? strikeCurve(attackT, ATTACK_DUR) * -0.22 : Math.sin(time * 1.1) * 0.03;
+        return;
+      }
       // the stand-in's own trudge, so a missing file is still a moving animal
       const rate = 2.4 + Math.min(gaitSpeed, 8) * 0.9;
       legs.forEach((l, i) => { l.rotation.x = Math.sin(time * rate + i * 1.7) * (0.1 + Math.min(gaitSpeed, 6) * 0.04); });
@@ -1483,4 +1525,136 @@ export function buildMythosaur(): CharacterInstance {
   // out of the water and `back` sits on the surface, which is the cut the model
   // brief asked for.
   return buildMonsterBase('mythosaur', 8.0, 12, 0x30443c, { buried: { sink: 1.6, pitch: -0.34 } });
+}
+
+// ---------- the second monster batch (docs/BOSSES.md §2.7–2.10) ----------
+//
+// None of these four has a sculpt yet: their briefs are open in
+// ASSETS_MODELS.md, and until a file lands the stand-in from `buildMonsterBase`
+// is the boss. The sizes and node names below are the brief's, so the day a
+// model arrives it drops in with no code change, exactly as the first six did.
+
+/** The Refinery's specimen: an armored crawler, five metres at the shoulder and twelve long. */
+export function buildZillo(): CharacterInstance {
+  return buildMonsterBase('zillo', 5.0, 12, 0x5a5f4a);
+}
+
+/** The Ringworld's night hunter: a quilled cat, landspeeder-sized and faster than one. */
+export function buildNexu(): CharacterInstance {
+  return buildMonsterBase('nexu', 2.2, 5.0, 0x8a7a5a);
+}
+
+/** The Prison Rig's amphibian, hauled up out of the moon pool onto the decks. */
+export function buildKwazelMaw(): CharacterInstance {
+  return buildMonsterBase('kwazel_maw', 4.2, 9, 0x3a6a5a);
+}
+
+/** the trailing arches' spacing back along the worm's path, metres */
+const WORM_ARCHES = [7, 14, 21];
+/** length of one arch along the path, and its apex above the sand */
+const WORM_ARCH_LEN = 7;
+const WORM_ARCH_H = 4.5;
+/** how far the head unit sinks when the worm is fully under */
+const WORM_SINK = 7.5;
+
+/**
+ * The Dune Sea's worm (docs/BOSSES.md §2.7). Two bodies in one character:
+ *
+ * - the **head unit** — the reared head and neck that stands out of the
+ *   sand, a `buildMonsterBase` worm (the sculpt `sandworm`, modelled already
+ *   reared with its origin at the sand line). `setBurrow` sinks the whole
+ *   unit below the surface for the underground half of the burrow cycle,
+ *   which on an opaque ground is the same as it not being there.
+ * - the **arches** — three humps of body that follow the path the head has
+ *   taken, each rising out of the sand and sinking back on its own beat, so
+ *   the animal reads as forty metres of worm whether the head is up or not.
+ *   The game only ever moves the root; this keeps a trail of where the root
+ *   has been and places the arches back along it, in root-local space so the
+ *   whole thing tears down with the enemy as one object.
+ */
+export function buildSandworm(): CharacterInstance {
+  const unit = buildMonsterBase('sandworm', 5.5, 6, 0xc9b184, { worm: true, buried: { sink: 0.5, pitch: 0 } });
+  const root = new THREE.Group();
+  root.add(unit.root);
+
+  const skin = mat(0xc9b184, { rough: 0.92 });
+  const arches = WORM_ARCHES.map((_, i) => {
+    const g = new THREE.Group();
+    // the stand-in: half a torus, its cut under the sand and its apex clear
+    const hump = new THREE.Mesh(
+      new THREE.TorusGeometry(WORM_ARCH_LEN / 2, 1.05, 8, 14, Math.PI), skin);
+    hump.rotation.y = Math.PI / 2;
+    hump.castShadow = true;
+    g.add(hump);
+    g.add(loadProp('sandworm_arch', WORM_ARCH_LEN, {
+      axis: 'longest', ground: true, onLoad: () => { hump.visible = false; },
+    }));
+    root.add(g);
+    return { g, phase: i * 2.1 };
+  });
+
+  // where the head has been: world points, oldest first, sampled every ~1.2 m
+  const trail: THREE.Vector3[] = [];
+  let seeded = false;
+  const seed = (): void => {
+    seeded = true;
+    const yaw = root.rotation.y;
+    for (let k = 14; k >= 1; k--) {
+      trail.push(new THREE.Vector3(
+        root.position.x - Math.sin(yaw) * k * 2.5,
+        root.position.y,
+        root.position.z - Math.cos(yaw) * k * 2.5));
+    }
+  };
+  const _pos = new THREE.Vector3();
+  const placeArches = (time: number): void => {
+    const head = root.position;
+    if (!seeded) seed();
+    const last = trail[trail.length - 1];
+    if (last.distanceToSquared(head) > 1.2 * 1.2) {
+      trail.push(head.clone());
+      if (trail.length > 60) trail.shift();
+    }
+    const yaw = root.rotation.y;
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const scale = root.scale.x || 1;
+    for (let i = 0; i < arches.length; i++) {
+      const want = WORM_ARCHES[i];
+      // walk back along the trail until `want` metres of path are behind the head
+      let acc = 0;
+      let prev = head;
+      let dirX = -Math.sin(yaw), dirZ = -Math.cos(yaw);
+      _pos.copy(trail[0]);
+      for (let k = trail.length - 1; k >= 0; k--) {
+        const pt = trail[k];
+        const seg = prev.distanceTo(pt);
+        if (acc + seg >= want && seg > 1e-4) {
+          _pos.copy(prev).lerp(pt, (want - acc) / seg);
+          dirX = pt.x - prev.x; dirZ = pt.z - prev.z;
+          break;
+        }
+        acc += seg;
+        prev = pt;
+      }
+      // each arch is on its own beat: from fully under to fully out and back
+      const lift = -(WORM_ARCH_H + 0.6) * (0.5 - 0.5 * Math.sin(time * 0.9 + arches[i].phase));
+      // world → root-local (the root carries position, yaw and a uniform scale)
+      const dx = _pos.x - head.x, dz = _pos.z - head.z;
+      const { g } = arches[i];
+      g.position.set((dx * cos - dz * sin) / scale, (_pos.y - head.y + lift) / scale, (dx * sin + dz * cos) / scale);
+      g.rotation.y = Math.atan2(dirX, dirZ) - yaw;
+    }
+  };
+
+  return {
+    root, rig: null, animator: null, height: unit.height, baseScale: 1,
+    modelReady: unit.modelReady,
+    setGait: unit.setGait,
+    attack: unit.attack,
+    setBurrow: (depth) => { unit.root.position.y = -depth * WORM_SINK; },
+    cosmetic: (dt, time) => {
+      unit.cosmetic?.(dt, time);
+      placeArches(time);
+    },
+  };
 }

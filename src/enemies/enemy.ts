@@ -5,6 +5,7 @@ import {
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
   buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
+  buildKwazelMaw, buildNexu, buildSandworm, buildZillo,
   buildQuarren, buildRancor, buildRavinak,
   buildSpiderEgg, buildSpiderling,
   buildRingEnforcer, buildWookieeEnforcer,
@@ -84,6 +85,7 @@ export type EnemyKind =
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
   | 'ig11' | 'marshal' | 'fennec'
   | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
+  | 'sandworm' | 'zillo' | 'nexu' | 'kwazelMaw'
   | 'spiderEgg' | 'spiderling';
 
 /**
@@ -100,6 +102,7 @@ export const ENEMY_NAME: Record<EnemyKind, string> = {
   ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
   mudhorn: 'Mudhorn', ravinak: 'Ravinak', mamacore: 'Mamacore', rancor: 'Rancor',
   kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
+  sandworm: 'Dune Worm', zillo: 'Zillo Beast', nexu: 'Nexu', kwazelMaw: 'Kwazel Maw',
   spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
 };
 
@@ -116,6 +119,31 @@ interface Def {
    * it moves (docs/BOSSES.md §2.5, §2.6).
    */
   plows?: number;
+  /**
+   * Closes the last stretch in a committed ballistic leap — the massiff's
+   * signature, shared by any beast built the same way (the nexu). The arc is
+   * unsteered once airborne, so a dash or a jetpack hop beats it.
+   */
+  pounces?: boolean;
+  /**
+   * Lives *under* the ground and fights in cycles (docs/BOSSES.md §2.7): it
+   * hunts submerged — untargetable, unhurtable, a running wake of thrown
+   * ground — erupts under its prey, fights rooted on the surface for a
+   * spell, and sinks again. Numbers are seconds unless named otherwise.
+   */
+  burrows?: {
+    /** longest it stays under before surfacing wherever it is */
+    under: number;
+    /** how long it fights on the surface before it sinks */
+    up: number;
+    rise: number;
+    sink: number;
+    /** it erupts once within this many metres of its prey */
+    strikeAt: number;
+    /** the eruption: damage, and the radius it lands in */
+    erupt: number;
+    eruptR: number;
+  };
   /**
    * Never waits its turn. The director's standoff rotation is what stops a
    * crowd of grunts mobbing the player, but a beast that politely holds a
@@ -233,6 +261,27 @@ const DEFS: Record<EnemyKind, Def> = {
   mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0,
     // the skull and horns, five metres up and three forward of the mass
     hitParts: [{ z: 4.2, y: 5.1, r: 2.1 }, { z: 5.6, y: 5.2, r: 1.6 }], build: buildMythosaur },
+  // ---- the second monster batch (docs/BOSSES.md §2.7–2.10) ----
+  // The Dune Sea's champion: a burrowing worm that is only ever *briefly* on
+  // the surface. `speed` is its pace under the sand; surfaced it is rooted
+  // and bites, and the eruption under a player is its opening hit. It is a
+  // champion, so it sits under the krayt in every number.
+  sandworm: { hp: 2000, speed: 9.5, radius: 2.2, height: 4.5, style: 'melee', damage: 36, attackRange: 6.5, attackCd: 2.0, notice: 120, relentless: true, plows: 2.4,
+    burrows: { under: 9, up: 7, rise: 0.9, sink: 0.8, strikeAt: 5, erupt: 30, eruptR: 6 },
+    // the reared head and the neck under it; the coils behind are under the sand
+    hitParts: [{ z: 1.8, y: 3.6, r: 1.9 }, { z: 0.4, y: 1.9, r: 1.7 }], build: buildSandworm },
+  // The Refinery's specimen: an armored crawler five metres at the shoulder,
+  // loose in the reactor hall. Slow, and nothing turns it.
+  zillo:    { hp: 4200, speed: 5.8, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.4, attackCd: 2.2, notice: 90, relentless: true,
+    hitParts: [{ z: 3.0, y: 3.4, r: 1.7 }, { z: -3.0, y: 2.2, r: 1.6 }, { z: -6.0, y: 1.4, r: 1.2 }], build: buildZillo },
+  // The Ringworld's night hunter: a quilled cat the size of a landspeeder,
+  // faster than anything else on four legs, and it pounces like the massiff.
+  nexu:     { hp: 2800, speed: 11.5, radius: 1.2, height: 2.2, style: 'melee', damage: 36, attackRange: 3.8, attackCd: 1.6, notice: 95, relentless: true, pounces: true,
+    hitParts: [{ z: 2.2, y: 1.3, r: 0.95 }, { z: -1.9, y: 1.3, r: 0.9 }], build: buildNexu },
+  // The Prison Rig's thing from the moon pool: an amphibian hauling itself
+  // onto the decks, glowing down both flanks. At home in the sea.
+  kwazelMaw: { hp: 3800, speed: 5.2, radius: 2.4, height: 4.2, style: 'melee', damage: 48, attackRange: 6.0, attackCd: 2.3, notice: 90, relentless: true, burnImmune: true,
+    hitParts: [{ z: 3.6, y: 2.2, r: 1.9 }, { z: -3.0, y: 1.6, r: 1.5 }], build: buildKwazelMaw },
 
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
@@ -255,6 +304,7 @@ const DEFS: Record<EnemyKind, Def> = {
  */
 const BEASTS = new Set<EnemyKind>([
   'massiff', 'mudhorn', 'ravinak', 'mamacore', 'rancor', 'kraytDragon', 'mythosaur',
+  'sandworm', 'zillo', 'nexu', 'kwazelMaw',
 ]);
 
 /**
@@ -473,6 +523,16 @@ export class Enemy {
   /** boss super jump: >0 while airborne mid-leap; the slam lands on touchdown */
   private leapT = 0;
   /**
+   * A burrowing kind's place in its cycle (Def.burrows): under the ground,
+   * coming up, fighting on the surface, or going back down. Public so the
+   * boss fight and the test harness can read where it is.
+   */
+  burrow: 'under' | 'rising' | 'up' | 'sinking' = 'under';
+  /** seconds left in the current burrow stage */
+  private burrowT = 0;
+  /** eruptions so far, for the test harness */
+  eruptions = 0;
+  /**
    * Spacing between super jumps; starts short so the fight opens with one.
    * Public because the warlord's shock-slam (game.ts updateBoss) pushes it
    * out while its telegraph runs — the ember ring promises where the hit
@@ -592,6 +652,18 @@ export class Enemy {
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
   get outOfFight(): boolean { return !this.alive || this.wounded || this.fleeing || this.downed; }
+
+  /**
+   * Under the ground, where nothing reaches it: a burrowing kind between
+   * surfacings. It is still alive, still on the radar as a wake, and still
+   * a boss on the bar — it simply is not a body to shoot at until it comes up.
+   */
+  get submerged(): boolean {
+    return !!this.def.burrows && (this.burrow === 'under' || this.burrow === 'sinking');
+  }
+
+  /** a body a bolt, a blade or a lock-on can find */
+  get targetable(): boolean { return this.alive && !this.submerged; }
   /**
    * Line-of-sight is a heightfield march, so it is rechecked a few times a
    * second (staggered per enemy) rather than every frame — with a board full
@@ -667,6 +739,13 @@ export class Enemy {
     this.facingYaw = Math.random() * Math.PI * 2;
     this.idleYaw = this.facingYaw;
     this.char.root.position.copy(pos);
+    // A burrower begins its life under the ground, and comes up soon: long
+    // enough for the entrance card to play over a wake, short enough that
+    // the fight is not a wait.
+    if (this.def.burrows) {
+      this.burrowT = Math.min(this.def.burrows.under, 4);
+      this.char.setBurrow?.(1);
+    }
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
     if (!opts.silent) {
@@ -914,6 +993,9 @@ export class Enemy {
 
   damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
+    // under the ground nothing lands — the whole lesson of the burrower is
+    // that it has to be hurt while it is up
+    if (this.submerged) { this.alert(from, true); return; }
     // A warlord turns some hits aside — a sharp sidestep off the line of the
     // shot, a pale flash, and almost none of the damage. The cooldown is the
     // fairness: at most one parry every 1.2 s, so sustained fire always gets
@@ -1055,6 +1137,7 @@ export class Enemy {
    * reads as nothing.
    */
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
+    if (this.submerged) return;   // the ground it is under does not shove
     const dir = this.position.clone().sub(from).setY(0);
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // point-blank: shove along +Z
     dir.normalize();
@@ -1072,6 +1155,7 @@ export class Enemy {
    */
   knockdown(secs = 1.8): void {
     if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
+    if (this.def.burrows) return;   // a worm has no feet to be knocked off
     if (this.def.egg) return;   // an egg has nothing to knock over
     if (this.wounded) return; // already on the ground
     if (this.boss) secs = Math.min(secs, 0.5); // a boss staggers, it doesn't lie down
@@ -1385,6 +1469,10 @@ export class Enemy {
       this.faceToward(dt, this.interest.x, this.interest.z, 6);
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
+    } else if (d.burrows) {
+      // a burrower runs its cycle with or without a target in sight: a
+      // surfaced worm with nothing to bite goes back under
+      this.updateBurrower(dt, game, target && this.visible ? target : null);
     } else if (target && this.visible) {
       if (!this.trySuperJump(game, target)) {
         switch (d.style) {
@@ -2052,6 +2140,146 @@ export class Enemy {
     this.char.attack?.();   // a creature punctuates the landing with its strike
   }
 
+  /**
+   * The burrower's cycle (docs/BOSSES.md §2.7). Under the ground it hunts —
+   * fast, unseen but for the wake, untouchable — and erupts once it is under
+   * its prey or has been down long enough. On the surface it is rooted: it
+   * turns, it bites, and after its spell (or once the prey is out of reach)
+   * it sinks and hunts again. `target` is null when nothing is in sight, in
+   * which case a surfaced worm goes under and an underground one waits.
+   */
+  private updateBurrower(dt: number, game: Game, target: Combatant | null): void {
+    const d = this.def;
+    const b = d.burrows!;
+    this.burrowT -= dt;
+    const dist = target ? Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z) : Infinity;
+    if (target) this.faceToward(dt, target.position.x, target.position.z, this.burrow === 'under' ? 4 : 7);
+    const rooted = (): void => {
+      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+    };
+    let depth = 1;
+    switch (this.burrow) {
+      case 'under': {
+        if (target) {
+          const to = _to.set(target.position.x - this.position.x, 0, target.position.z - this.position.z);
+          if (to.lengthSq() > 1e-4) to.normalize();
+          this.velocity.x = damp(this.velocity.x, to.x * d.speed, 5, dt);
+          this.velocity.z = damp(this.velocity.z, to.z * d.speed, 5, dt);
+          // a rumble that comes and goes — felt more than heard — is the wake's voice
+          if (Math.random() < dt * 0.35) audio.mythosaur(0.22);
+        } else rooted();
+        if (target && (dist < b.strikeAt || this.burrowT <= 0)) {
+          this.burrow = 'rising';
+          this.burrowT = b.rise;
+          this.windup = 0;
+          audio.beastGrowl(0.9);
+          game.particles.dustPuff(this.position, 24);
+          game.director.noise(game, this.position, 40, true);
+        }
+        break;
+      }
+      case 'rising': {
+        rooted();
+        // the ground boils before it breaks
+        if (Math.random() < dt * 30) game.particles.dustPuff(this.position, 3);
+        for (const p of game.players) {
+          const dd = p.position.distanceTo(this.position);
+          if (dd < 20) p.cam.shake(0.05 * (1 - dd / 20));
+        }
+        const prog = 1 - Math.max(0, this.burrowT) / b.rise;
+        depth = 1 - prog * prog;
+        if (this.burrowT <= 0) {
+          this.burrow = 'up';
+          this.burrowT = b.up;
+          this.erupt(game);
+        }
+        break;
+      }
+      case 'up': {
+        rooted();
+        depth = 0;
+        if (this.windup > 0) {
+          this.windup -= dt;
+          if (this.windup <= 0 && this.windupTarget) {
+            const hd = this.windupTarget.position.distanceTo(this.position);
+            if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
+              this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+            }
+            this.attackCd = d.attackCd;
+          }
+          break;
+        }
+        if (target && dist <= d.attackRange && this.attackCd <= 0) {
+          this.windupTarget = target;
+          this.windup = this.char.attack ? Math.max(0.4, this.char.attack() * 0.7) : 0.55;
+          break;
+        }
+        // its spell is up, or the prey has run: back under, and hunt
+        const gone = !target || (dist > d.attackRange * 1.8 && this.burrowT < b.up - 2.5);
+        if (this.burrowT <= 0 || gone) {
+          this.burrow = 'sinking';
+          this.burrowT = b.sink;
+          game.particles.dustPuff(this.position, 16);
+        }
+        break;
+      }
+      case 'sinking': {
+        rooted();
+        const prog = 1 - Math.max(0, this.burrowT) / b.sink;
+        depth = prog * prog;
+        if (Math.random() < dt * 20) game.particles.dustPuff(this.position, 2);
+        if (this.burrowT <= 0) {
+          this.burrow = 'under';
+          this.burrowT = b.under;
+        }
+        break;
+      }
+    }
+    this.char.setBurrow?.(depth);
+  }
+
+  /**
+   * The burrower breaking the surface: everyone standing over it is hit,
+   * thrown up and out, and every nearby camera feels the ground go. The
+   * eruption is the burrower's opening move and its answer to a camper: the
+   * wake tells you where it is coming up, so the hit is the cost of not
+   * moving.
+   */
+  private erupt(game: Game): void {
+    const d = this.def;
+    const b = d.burrows!;
+    this.eruptions++;
+    game.particles.explosion(this.position.clone());
+    game.particles.dustPuff(this.position, 40);
+    audio.land(true);
+    audio.beastGrowl(1);
+    game.director.noise(game, this.position, 50, true);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 24) p.cam.shake(0.45 * (1 - dd / 24));
+      if (!p.alive || dd > b.eruptR) continue;
+      p.damage(b.erupt * this.dmgScale, this.position, -1, { heavy: true });
+      const push = p.position.clone().sub(this.position).setY(0);
+      if (push.lengthSq() > 1e-4) push.normalize();
+      p.velocity.addScaledVector(push, 9);
+      p.velocity.y = Math.max(p.velocity.y, 9);
+    }
+    for (const a of game.allies) {
+      if (!a.alive || a.team === this.team) continue;
+      if (a.position.distanceTo(this.position) > b.eruptR) continue;
+      a.damage(b.erupt * this.dmgScale, this.position, -1);
+      a.knockback(this.position, 12, 0.5, 0.8);
+    }
+    for (const e of game.enemies) {
+      if (e === this || !e.alive || e.team === this.team) continue;
+      if (e.position.distanceTo(this.position) > b.eruptR) continue;
+      e.damage(b.erupt * this.dmgScale, this.position, this.lastHitBy);
+      e.knockback(this.position, 12, 0.5, 0.8);
+    }
+    this.attackCd = Math.max(this.attackCd, 0.9);
+  }
+
   private updateMelee(dt: number, game: Game, target: Combatant): void {
     const d = this.def;
     const to = target.position.clone().sub(this.position);
@@ -2132,7 +2360,7 @@ export class Enemy {
     // or a jetpack hop beats it — which means it has to be aimed at where the
     // target *will* be. Without the lead, pouncing at a running player lands
     // behind them and actually loses ground.
-    if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
+    if ((this.kind === 'massiff' || d.pounces) && this.attackCd <= 0 && this.grounded &&
         dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
       const flight = (2 * vy) / (24 * grav(game, this.position));       // ballistic hang time

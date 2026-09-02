@@ -332,12 +332,13 @@ when it goes down.
   the level; each seals its gates on entry, and the guide beacon leads
   straight to each. Victory on the warlord's death.
 
-A second tier now has a design: **six large monster bosses** — one per board with a
-monster in its bones (mudhorn, ravinak, mamacore, rancor, greater krayt, mythosaur)
-— fighting as a final stage *after* the promoted elite on those boards, each with a
-bespoke moveset, phases, weak points and arena hazards. The full design and spec is
-`docs/BOSSES.md`; their reference-sheet and model requests are open in the asset
-docs as of 2026-08-29. Not implemented — the sheets are the blocking input.
+A second tier is in the game: **the monster bosses** — one per territory, and no
+creature serving two (mudhorn, ravinak, mamacore, rancor, greater krayt, mythosaur,
+and since 2026-09-02 the zillo, the nexu and the kwazel maw on the three boards that
+had none) — fighting as a final stage *after* the promoted elite, plus the Dune Sea's
+champion, a burrowing worm with the set's first bespoke moveset (its burrow cycle).
+The full design, spec and implementation ledger is `docs/BOSSES.md`; the second
+batch fights as procedural stand-ins until its sheets and models land.
 
 ## 5. What was deliberately cut (and why)
 

@@ -677,6 +677,10 @@ export class Game {
 
     // ---- the shock-slam: the anti-camping move ----
     if (this.bossIntroT > 0) return;
+    // a burrower under the ground has its own answer to a camper — the
+    // eruption — and a slam telegraphed from under the sand would promise a
+    // hit from a body nobody can see
+    if (b.submerged) { this.bossTelegraph = 0; return; }
     if (this.bossTelegraph > 0) {
       // winding up: ember ring so the radius is readable, then the hit
       this.bossTelegraph -= dt;
@@ -1197,7 +1201,9 @@ export class Game {
     targets.length = 0;
     let slot = 0;
     for (const e of this.enemies) {
-      if (!e.alive) continue;
+      // a burrower under the ground is alive and on the bar, and not a body
+      // to shoot: bolts pass over the wake and the lock-on finds nothing
+      if (!e.targetable) continue;
       const t = this.pooledTarget(slot++);
       t.enemy = e;
       t.player = null;

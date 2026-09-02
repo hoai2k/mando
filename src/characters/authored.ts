@@ -4,11 +4,13 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
 import {
   droneClips, kryknaClips, massiffClips,
-  kraytClips, mamacoreClips, mudhornClips, mythosaurClips, rancorClips, ravinakClips,
+  kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
+  rancorClips, ravinakClips, sandwormClips, zilloClips,
 } from '../anim/quadruped';
 import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
+import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
 
 /**
  * Authored glTF characters.
@@ -212,11 +214,25 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     // report to the tracker, so a loading screen can wait on this file and
     // show how much of it has arrived without knowing anything about models
     const handle = tracked.start(trackKey);
+    // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
+    // models without one cost nothing here beyond a shared index lookup
+    const fixes = loadSkinFix(id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
-        (gltf) => {
+        async (gltf) => {
           handle.finish(true);
+          // remember which glTF mesh/primitive each skinned mesh came from, so
+          // a fix file can name its target the same way the audit tool does
+          gltf.scene.traverse((o) => {
+            const assoc = gltf.parser.associations.get(o) as { meshes?: number; primitives?: number } | undefined;
+            if ((o as THREE.SkinnedMesh).isSkinnedMesh && assoc?.meshes !== undefined) {
+              o.userData.gltf = { mesh: assoc.meshes, primitive: assoc.primitives ?? 0 };
+            }
+          });
+          const doc = await fixes;
+          // on the file's own geometry, which every clone shares: one pass
+          if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
@@ -365,6 +381,7 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   // the monster bosses, same path
   mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore', rancor: 'rancor',
   kraytDragon: 'krayt_dragon', mythosaur: 'mythosaur',
+  sandworm: 'sandworm', zillo: 'zillo', nexu: 'nexu', kwazelMaw: 'kwazel_maw',
 };
 
 /**
@@ -377,6 +394,8 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
   nikto: ['nikto_swoop'],
+  // the worm's trailing body arches are a prop of their own, placed by the game
+  sandworm: ['sandworm_arch'],
 };
 
 /** Every .glb a kind renders as: its own model plus any companion piece. */
@@ -637,6 +656,10 @@ const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationC
   rancor: rancorClips,
   krayt_dragon: kraytClips,
   mythosaur: mythosaurClips,
+  sandworm: sandwormClips,
+  zillo: zilloClips,
+  nexu: nexuClips,
+  kwazel_maw: kwazelMawClips,
 };
 
 export function loadProp(
@@ -752,6 +775,14 @@ export const CREATURE_MODELS = {
   // so the front is what stands above the ground (docs/BOSSES.md §2.5, §2.6).
   krayt_dragon: 5.4,
   mythosaur: 8.0,
+  // The second batch (docs/BOSSES.md §2.7–2.10). The worm is modelled already
+  // reared — the sculpt is the head and the neck standing out of the sand,
+  // origin at the sand line — so its height is what stands up; the game sinks
+  // it whole for the underground half of its cycle.
+  sandworm: 5.5,
+  zillo: 5.0,
+  nexu: 2.2,
+  kwazel_maw: 4.2,
 
   // the war massiff is an elite beast, not the knee-high hound the sculpt was
   // scaled for — see the size note in ASSETS_MODELS.md
