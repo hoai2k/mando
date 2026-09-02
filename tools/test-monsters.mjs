@@ -222,22 +222,40 @@ const worm = await h.page.evaluate(async () => {
   e.alert(p.position, true);
   const seen = new Set();
   let underIgnored = null, upLanded = null, sunkDepth = null, raisedDepth = null;
-  const unit = e.char.root.children[0];
+  // The body has no single node to watch any more — it is a spine chain solved
+  // onto the head's path — so the question "is it under the sand" is asked of
+  // the head itself, against the ground the animal is standing on.
+  const headOf = () => {
+    let h = null;
+    e.char.root.traverse((o) => { if (!h && o.name === 'head') h = o; });
+    return h;
+  };
+  let head = null;
+  for (let i = 0; i < 80 && !head; i++) { head = headOf(); if (!head) await new Promise((r) => setTimeout(r, 250)); }
+  const headY = () => {
+    if (!head) return null;
+    const v = new e.position.constructor();
+    head.getWorldPosition(v);
+    return v.y - e.position.y;
+  };
   for (let i = 0; i < 240 && e.alive; i++) {
     seen.add(e.burrow);
     p.hp = p.maxHp; p.alive = true;   // keep the prey standing through the eruptions
     if (e.burrow === 'under') {
-      sunkDepth = Math.min(sunkDepth ?? 0, unit.position.y);
+      const y = headY();
+      if (y !== null) sunkDepth = Math.min(sunkDepth ?? 0, y);
       if (underIgnored === null) { const before = e.hp; e.damage(100, p.position, 0); underIgnored = e.hp === before; }
     }
     if (e.burrow === 'up') {
-      raisedDepth = Math.max(raisedDepth ?? -99, unit.position.y);
+      const y = headY();
+      if (y !== null) raisedDepth = Math.max(raisedDepth ?? -99, y);
       if (upLanded === null) { const before = e.hp; e.damage(100, p.position, 0); upLanded = e.hp === before - 100; }
     }
     if (seen.size === 4 && underIgnored !== null && upLanded !== null && e.eruptions >= 1 && e.burrow === 'under' && seen.has('sinking')) break;
     await new Promise((r) => setTimeout(r, 100));
   }
-  const out = { stages: [...seen], eruptions: e.eruptions, underIgnored, upLanded, sunkDepth, raisedDepth, alive: e.alive };
+  const out = { stages: [...seen], eruptions: e.eruptions, underIgnored, upLanded, sunkDepth, raisedDepth,
+                foundHead: !!head, alive: e.alive };
   e.removeMe = true;
   return out;
 });
@@ -245,7 +263,11 @@ check('the worm runs its whole cycle', ['under', 'rising', 'up', 'sinking'].ever
 check('it erupts under its prey', worm.eruptions >= 1, worm);
 check('under the sand it cannot be hurt', worm.underIgnored === true, worm);
 check('on the surface it can', worm.upLanded === true, worm);
-check('and the body actually goes under and comes back up', worm.sunkDepth < -5 && worm.raisedDepth > -0.5, worm);
+// The whole read of the creature: hunting, the head is metres under the sand;
+// surfaced, it is clear of it. Measured on the head bone against the ground the
+// animal is standing on, so it holds however the body is built.
+check('and the head actually goes under the sand and comes back out of it',
+  worm.foundHead && worm.sunkDepth < -3 && worm.raisedDepth > 0, worm);
 
 // ---- 6. the massiff's jaw, added at load rather than sculpted in ----
 // The bone does not exist in the .glb: `jawrig.ts` inserts it, rebinds the skin
