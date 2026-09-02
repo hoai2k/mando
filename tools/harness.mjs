@@ -161,7 +161,7 @@ async function ensureServer(url) {
   throw new Error(`preview server did not come up at ${url} — is dist/ built? (npm run build)`);
 }
 
-export async function launch({ headless = true, width = 1280, height = 720, url = 'http://localhost:4173/' } = {}) {
+export async function launch({ headless = true, width = 1280, height = 720, url = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` } = {}) {
   const { chromium } = loadPlaywright();
   const server = await ensureServer(url);
   const browser = await chromium.launch({

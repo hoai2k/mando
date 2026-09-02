@@ -42,6 +42,9 @@ export interface Combatant {
   damage(amount: number, from: THREE.Vector3, bySlot?: number, opts?: { dot?: boolean; heavy?: boolean }): void;
 }
 
+/** the directional flinch clips — a re-trigger of one of these waits for the last to mostly resolve */
+const HIT_REACTS = new Set(['hitUpper', 'hitFromL', 'hitFromR']);
+
 /** where to aim on a body: mid-chest of whatever it actually is */
 export function aimHeight(target: Combatant): number {
   return (target.hitHeight ?? target.height) * 0.55;
@@ -944,7 +947,14 @@ export class Enemy {
       const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
       const side = Math.sin(bearing);
       const clip = side > 0.45 ? 'hitFromL' : side < -0.45 ? 'hitFromR' : 'hitUpper';
-      this.char.animator.playOnce('upper', clip, 0.05);
+      // Under sustained fire (a 0.24 s carbine cycle against a 0.28 s clip)
+      // every shot snapped the flinch back to its first frame and it never
+      // resolved. A react already most of the way through restarts; one
+      // that has barely begun is left to play out — the body still reads
+      // as being hit, because it visibly is.
+      const a = this.char.animator;
+      const flinching = HIT_REACTS.has(a.playing('upper') ?? '') && a.oneShotProgress('upper') < 0.6;
+      if (!flinching) a.playOnce('upper', clip, 0.05);
     }
   }
 

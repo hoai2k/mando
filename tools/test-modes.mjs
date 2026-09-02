@@ -21,7 +21,7 @@ const check = (name, ok, detail = '') => {
 };
 
 // the modes are on by default now, so the plain URL is the mode-select case
-const h = await launch({ url: 'http://localhost:4173/' });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
 const sleepFrames = async (n) => { for (let i = 0; i < n; i++) await page.evaluate(() => new Promise(requestAnimationFrame)); };
 

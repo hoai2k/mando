@@ -1403,6 +1403,13 @@ export class Player {
     // crouch: a one-shot holds the channel to its end, and the legs would stay
     // folded under a body that is already in the air.
     if (this.landTimer > 0 && !this.grounded) { anim.release('lower'); this.landTimer = 0; }
+    // The same for running out of one on the ground: a light landing at run
+    // speed held the crouch for the whole clip while the body kept going —
+    // ~1.9 m of frozen-legged slide after every hop. Once the feet are
+    // clearly travelling, hand the channel back to the gait. A heavy landing
+    // is not affected in practice: its recovery holds the speed under this
+    // until the clip has all but finished.
+    if (this.landTimer > 0 && this.grounded && speed2 > 3) { anim.release('lower'); this.landTimer = 0; }
     if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);

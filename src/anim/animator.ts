@@ -112,6 +112,27 @@ export class Animator {
     return dur;
   }
 
+  /** The clip currently on a channel, one-shot or loop; null when nothing has been played. */
+  playing(channel: 'lower' | 'upper'): string | null {
+    return this.current[channel];
+  }
+
+  /**
+   * How far through its clip the one-shot holding a channel is, 0..1 — or 1
+   * when no one-shot holds it (a loop, a released channel, a clamped pose
+   * that has run to its end). A re-trigger of the same flinch used to snap
+   * the chest back to frame 0 on every shot; callers use this to let a
+   * react resolve most of the way before it is allowed to restart.
+   */
+  oneShotProgress(channel: 'lower' | 'upper'): number {
+    if (this.time >= this.oneShotUntil[channel]) return 1;
+    const name = this.current[channel];
+    const clip = name ? this.clips[name] : null;
+    const action = clip && this.mixer.existingAction(clip);
+    if (!clip || !action || clip.duration <= 0) return 1;
+    return Math.min(1, action.time / clip.duration);
+  }
+
   /**
    * Force-release a channel from a one-shot (e.g. respawn, getting up from a
    * knockdown).

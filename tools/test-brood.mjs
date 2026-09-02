@@ -26,7 +26,7 @@ const check = (name, ok, detail = '') => {
   if (!ok) failures.push(name);
 };
 
-const h = await launch({ url: 'http://localhost:4173/' });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
 
 /** page-side stepper: n fixed ticks, with one player optionally holding a key */
