@@ -47,6 +47,12 @@ export interface CharacterInstance {
    */
   attack?: () => number;
   /**
+   * How far under the ground a burrowing creature is, 0 = fully surfaced to
+   * 1 = fully under. The enemy AI drives it through the burrow cycle; the
+   * body answers by sinking its sculpt below the surface it stands on.
+   */
+  setBurrow?: (depth: number) => void;
+  /**
    * Has this character's authored .glb question been answered?
    *
    * False while a model that is known to exist is still downloading, true once

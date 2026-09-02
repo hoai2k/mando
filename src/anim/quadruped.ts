@@ -738,3 +738,154 @@ export function mythosaurClips(root: THREE.Object3D): THREE.AnimationClip[] {
   clips.push(colossusStrike(root, ['neck1', 'neck2', 'neck3', 'neck4'], 1.05));
   return clips;
 }
+
+// ---------- the second monster batch (docs/BOSSES.md §2.7–2.10) ----------
+//
+// Four more rigs, none of them delivered yet: these are written against the
+// node names their model briefs ask for (ASSETS_MODELS.md), so the day a file
+// lands it moves. Until then the procedural stand-ins carry their own motion
+// and none of this is consulted.
+
+/**
+ * The Refinery's armored crawler: a heavy walk on four legs with a long
+ * spined tail dragging behind, and the head low and swinging. Rig:
+ * `head, jaw, spine1..3, legFL/FR/BL/BR (+_lower), tail1..3, plates`.
+ */
+export function zilloClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const move = heavyWalk(root, 'leg', 1.05, 18, 24, 'spine1', 0.07);
+  const idle = beastIdle(root, 'head', 'spine1', 4.4, 2.4);
+  for (const clip of [idle, move]) {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * clip.duration);
+    const amp = clip === move ? 9 : 4;
+    ['tail1', 'tail2', 'tail3'].forEach((bone, i) => {
+      b.rot(bone, times, cycle(STEPS, 0.3 + i * 0.12, (t) => Math.sin(t * Math.PI * 2) * amp * (1 + i * 0.4)).map((v) => [0, v, 0]));
+    });
+    clip.tracks.push(...b.tracks);
+  }
+  // the tail-and-jaw strike: the head drives down as the tail whips through
+  const attack = strikeClip(root, {
+    dur: 0.9,
+    bones: [
+      { name: 'spine2', coil: [-10, 0, 0], hit: [12, 0, 0] },
+      { name: 'head', coil: [-22, 0, 0], hit: [28, 0, 0] },
+      { name: 'jaw', coil: [36, 0, 0], hit: [4, 0, 0] },
+      { name: 'tail1', coil: [0, 30, 0], hit: [0, -40, 0] },
+      { name: 'tail2', coil: [0, 24, 0], hit: [0, -34, 0] },
+      { name: 'legFL', coil: [12, 0, 0], hit: [-8, 0, 0] },
+      { name: 'legFR', coil: [12, 0, 0], hit: [-8, 0, 0] },
+    ],
+    lift: { bone: 'spine1', coil: 0.1, hit: -0.1 },
+  });
+  return [idle, move, attack];
+}
+
+/**
+ * The Ringworld's hunting cat: the fastest four legs in the game, so the
+ * cycle is short and the swing long, the spine flexing with each bound and
+ * the tail balancing it. Rig: `head, jaw, spine1..2, legFL/FR/BL/BR
+ * (+_lower), tail1..2, quills`.
+ */
+export function nexuClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const move = heavyWalk(root, 'leg', 0.5, 34, 40, 'spine1', 0.05);
+  const idle = beastIdle(root, 'head', 'spine1', 3.2, 2.0);
+  {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * move.duration);
+    // the spine gathers and extends once per bound
+    b.rot('spine2', times, cycle(STEPS, 0.2, (t) => Math.sin(t * Math.PI * 2) * 8).map((v) => [v, 0, 0]));
+    b.rot('tail1', times, cycle(STEPS, 0.45, (t) => Math.sin(t * Math.PI * 2) * 12).map((v) => [v, 0, 0]));
+    b.rot('tail2', times, cycle(STEPS, 0.6, (t) => Math.sin(t * Math.PI * 2) * 16).map((v) => [v, 0, 0]));
+    move.tracks.push(...b.tracks);
+  }
+  {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * idle.duration);
+    b.rot('tail1', times, cycle(STEPS, 0, (t) => Math.sin(t * Math.PI * 2) * 10).map((v) => [0, v, 0]));
+    b.rot('tail2', times, cycle(STEPS, 0.25, (t) => Math.sin(t * Math.PI * 2) * 14).map((v) => [0, v, 0]));
+    idle.tracks.push(...b.tracks);
+  }
+  // the bite: forequarters rear, then the whole cat drives down into it
+  const attack = strikeClip(root, {
+    dur: 0.55,
+    bones: [
+      { name: 'spine1', coil: [-12, 0, 0], hit: [10, 0, 0] },
+      { name: 'head', coil: [-20, 0, 0], hit: [24, 0, 0] },
+      { name: 'jaw', coil: [34, 0, 0], hit: [2, 0, 0] },
+      { name: 'legFL', coil: [22, 0, 0], hit: [-14, 0, 0] },
+      { name: 'legFR', coil: [22, 0, 0], hit: [-14, 0, 0] },
+    ],
+    lift: { bone: 'spine1', coil: 0.1, hit: -0.06 },
+  });
+  return [idle, move, attack];
+}
+
+/**
+ * The Prison Rig's amphibian: a slow haul on four splayed legs, the long
+ * body and tail swinging behind it the way the ravinak's do — it is more at
+ * home in the water under the decks than on them. Rig: `head, jaw, body1..3,
+ * legFL/FR/BL/BR (+_lower), tail1..2, stripesL/R`.
+ */
+export function kwazelMawClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const move = heavyWalk(root, 'leg', 1.3, 18, 22, 'body1', 0.08);
+  {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * move.duration);
+    b.rot('body2', times, cycle(STEPS, 0.15, (t) => Math.sin(t * Math.PI * 2) * 6).map((v) => [0, v, 0]));
+    b.rot('body3', times, cycle(STEPS, 0.3, (t) => Math.sin(t * Math.PI * 2) * 8).map((v) => [0, v, 0]));
+    b.rot('tail1', times, cycle(STEPS, 0.45, (t) => Math.sin(t * Math.PI * 2) * 12).map((v) => [0, v, 0]));
+    b.rot('tail2', times, cycle(STEPS, 0.6, (t) => Math.sin(t * Math.PI * 2) * 16).map((v) => [0, v, 0]));
+    move.tracks.push(...b.tracks);
+  }
+  // the gulp: jaws thrown wide, then the head and forebody slam forward
+  const attack = strikeClip(root, {
+    dur: 0.9,
+    bones: [
+      { name: 'head', coil: [-18, 0, 0], hit: [24, 0, 0] },
+      { name: 'jaw', coil: [44, 0, 0], hit: [4, 0, 0] },
+      { name: 'body1', coil: [-8, 0, 0], hit: [10, 0, 0] },
+      { name: 'legFL', coil: [14, 0, 0], hit: [-10, 0, 0] },
+      { name: 'legFR', coil: [14, 0, 0], hit: [-10, 0, 0] },
+    ],
+    lift: { bone: 'body1', coil: 0.12, hit: -0.08 },
+  });
+  return [beastIdle(root, 'head', 'body1', 4.6, 2.8), move, attack];
+}
+
+/**
+ * The Dune Sea's worm. The sculpt is the reared head and neck standing out
+ * of the sand (the trailing arches are a prop the game places), so like the
+ * two colossi it has no gait: the neck sways down its length, harder while
+ * the animal is moving under the ground, and the strike is the head thrown
+ * back and driven down with the mandibles spread. Rig: `head, jaw,
+ * mandibleL/R, neck1..4, body1..3`.
+ */
+export function sandwormClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  const spine = ['body3', 'body2', 'body1', 'neck1', 'neck2', 'neck3', 'neck4'];
+  const clips = [
+    serpentine(root, 'idle', 4.8, 3, spine, 'head', null),
+    serpentine(root, 'move', 2.0, 7, spine, 'head', null),
+  ];
+  // the mandibles work on both clips, slowly, so the mouth is never still
+  for (const clip of clips) {
+    const b = builder(root);
+    const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * clip.duration);
+    b.rot('mandibleL', times, cycle(STEPS, 0.1, (t) => 6 + Math.sin(t * Math.PI * 2) * 6).map((v) => [0, 0, v]));
+    b.rot('mandibleR', times, cycle(STEPS, 0.1, (t) => 6 + Math.sin(t * Math.PI * 2) * 6).map((v) => [0, 0, -v]));
+    clip.tracks.push(...b.tracks);
+  }
+  clips.push(strikeClip(root, {
+    dur: 0.95,
+    bones: [
+      { name: 'neck1', coil: [-8, 0, 0], hit: [10, 0, 0] },
+      { name: 'neck2', coil: [-12, 0, 0], hit: [16, 0, 0] },
+      { name: 'neck3', coil: [-16, 0, 0], hit: [22, 0, 0] },
+      { name: 'neck4', coil: [-18, 0, 0], hit: [26, 0, 0] },
+      { name: 'head', coil: [-20, 0, 0], hit: [30, 0, 0] },
+      { name: 'jaw', coil: [40, 0, 0], hit: [6, 0, 0] },
+      { name: 'mandibleL', coil: [0, 0, 40], hit: [0, 0, -6] },
+      { name: 'mandibleR', coil: [0, 0, -40], hit: [0, 0, 6] },
+    ],
+  }));
+  return clips;
+}

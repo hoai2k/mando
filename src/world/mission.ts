@@ -741,7 +741,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'champion', label: 'the furnace floor', w: 22, l: 20 },
       { kind: 'assault', label: 'the rhydonium line', w: 18, l: 18, waves: 3, feature: 'barrels', alcove: true },
       { kind: 'camp', label: 'the control deck', w: 18, l: 14 },
-      { kind: 'warlord', label: 'the reactor shaft', w: 30, l: 26 },
+      { kind: 'warlord', label: 'the reactor shaft', w: 34, l: 30 },
     ],
     links: [
       { len: 12, turn: 1, len2: 12 }, { len: 14 }, { len: 12, turn: -1, len2: 12 },
@@ -776,7 +776,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'champion', label: 'the sentinel walk', w: 22, l: 22 },
       { kind: 'assault', label: 'the terminus', w: 20, l: 18, waves: 3, feature: 'crates' },
       { kind: 'camp', label: 'the service spine', w: 14, l: 20, alcove: true },
-      { kind: 'warlord', label: 'the high street', w: 28, l: 26 },
+      { kind: 'warlord', label: 'the high street', w: 34, l: 30 },
     ],
     links: [
       { len: 18 }, { len: 16 }, { len: 12, turn: 1, len2: 14 },
@@ -794,7 +794,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
       { kind: 'champion', label: 'the supervisor deck', w: 22, l: 20 },
       { kind: 'camp', label: 'the maintenance bay', w: 18, l: 14, alcove: true },
       { kind: 'assault', label: 'the discharge hall', w: 20, l: 18, waves: 3, feature: 'shock' },
-      { kind: 'warlord', label: 'the warden bridge', w: 30, l: 26 },
+      { kind: 'warlord', label: 'the warden bridge', w: 34, l: 30 },
     ],
     links: [
       { len: 14 }, { len: 12, turn: -1, len2: 12 }, { len: 14 },

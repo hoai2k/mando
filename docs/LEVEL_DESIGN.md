@@ -106,15 +106,15 @@ the HUD reads like a place, not a quest log.
 
 | Territory | Shape & set pieces | Warlord arena |
 |---|---|---|
-| Dune Sea | sandstone yards; a sarlacc-maw **kill pit** in the cistern court (fight around it, beacon never in it) | 40×34 — the Old One erupts |
+| Dune Sea | sandstone yards; a sarlacc-maw **kill pit** in the cistern court (fight around it, beacon never in it); the champion's pit is the worm's | 40×34 — the Old One erupts |
 | Spice Run | dark-metal decks, 5 m service corridors; **rhydonium barrels** in the spice vault | 34×30 — the mudhorn |
 | Lava Flats | basalt; **lava channels** with a centre bridge cross two rooms | 38×32 — the rancor pen |
 | Crevasse | ice palette and **0.55 traction** over the whole footprint; ice **pillars** in two rooms | 36×32 — the ravinak |
 | Storm Docks | plank-and-iron docks; barrels in the cold stores | 38×32 — the mamacore pool |
-| Refinery | tightest chain: 5 m corridors, a bend in every link, **barrels** twice | 30×26 — no monster |
+| Refinery | tightest chain: 5 m corridors, a bend in every link, **barrels** twice | 34×30 — the specimen |
 | Great Forge | glassed stone; ruin **pillars** in two rooms | 40×34 — the mythosaur |
-| Ringworld | long straight avenues (rooms elongated along travel, links up to 18 m) for the street feel | 28×26 — no monster |
-| Prison Rig | white panels, 5 m corridors; **shock floors** in two work halls | 30×26 — no monster |
+| Ringworld | long straight avenues (rooms elongated along travel, links up to 18 m) for the street feel | 34×30 — the nexu |
+| Prison Rig | white panels, 5 m corridors; **shock floors** in two work halls | 34×30 — the moon-pool thing |
 
 ## 5. Readability rules (the Gauntlet lessons, kept)
 
