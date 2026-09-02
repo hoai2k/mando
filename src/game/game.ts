@@ -712,6 +712,27 @@ export class Game {
     }
   }
 
+  /**
+   * The droid servo bed's level: every walking droid within earshot, weighted
+   * by how close it is and whether it is actually moving. A still droid is a
+   * quiet one, so a room of powered-down machines does not hum.
+   */
+  private updateDroidServo(): void {
+    let level = 0;
+    for (const e of this.enemies) {
+      if (!e.alive || (e.kind !== 'droid' && e.kind !== 'darktrooper')) continue;
+      let near = Infinity;
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        near = Math.min(near, p.position.distanceToSquared(e.position));
+      }
+      if (near > 30 * 30) continue;
+      const moving = Math.min(1, Math.hypot(e.velocity.x, e.velocity.z) / 3);
+      level += (1 - Math.sqrt(near) / 30) * (0.25 + moving * 0.75);
+    }
+    audio.setDroidServo(Math.min(1, level * 0.5));
+  }
+
   /** throw every player inside `radius` up and away from the warlord */
   private bossShockwave(b: Enemy, radius: number, dmg: number, push: number): void {
     for (const p of this.players) {
@@ -821,6 +842,7 @@ export class Game {
     audio.stopMusic();
     audio.stopJetpacks();
     audio.stopSabers();
+    audio.stopDroidServo();
     audio.stopEngines();
 
     for (const c of this.carriers) c.dispose();
@@ -1048,6 +1070,7 @@ export class Game {
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     if (this.state === 'fighting') this.updateMonsterStage(dt);
     this.updateBoss(dt);
+    this.updateDroidServo();
     this.updateBossMusic();
 
     // the supply cache pulses until someone cracks it, then sheds its panels
@@ -1549,6 +1572,7 @@ export class Game {
         ?? this.players.reduce((a, b) => (b.kills > a.kills ? b : a), this.players[0]);
       this.winnerSlot = winner.slot;
       this.setState('victory');
+      audio.pvpRoundWin();   // the duel gets its own sting over the victory music
       this.events.banner(`${winner.profile.name} takes the territory`, 'This is the Way');
     }
   }
