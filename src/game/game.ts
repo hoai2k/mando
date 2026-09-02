@@ -710,7 +710,7 @@ export class Game {
       const d = away.setY(0).length();
       if (d > radius) continue;
       away.normalize();
-      if (dmg > 0) p.damage(dmg, b.position);
+      if (dmg > 0) p.damage(dmg, b.position, -1, { heavy: true });
       p.velocity.y = Math.max(p.velocity.y, push * 0.8);
       p.velocity.x += away.x * push;
       p.velocity.z += away.z * push;
@@ -870,7 +870,7 @@ export class Game {
       // in pvp a rocket is a duel-ender against the rival, but never turns
       // its own thrower into the easier kill
       const base = this.mode === 'pvp' && bySlot >= 0 && p.slot !== bySlot ? 70 : 18;
-      if (d < 4.5) p.damage(base * (1 - d / 4.5), point, bySlot);
+      if (d < 4.5) p.damage(base * (1 - d / 4.5), point, bySlot, { heavy: true });
     }
     // parked rides are scenery with hit points — blasts reach them too
     for (const v of this.vehicles) {

@@ -34,7 +34,12 @@ export interface Combatant {
    */
   hitHeight?: number;
   team: number; // 0 = players/allies, 1 = hostiles
-  damage(amount: number, from: THREE.Vector3, bySlot?: number): void;
+  /**
+   * `opts.heavy` marks a committed, telegraphed hit — a slam, a pounce, a
+   * wind-up swing landing, a detonation — which a player's hit window never
+   * swallows. Enemies do not have the window and ignore the flag.
+   */
+  damage(amount: number, from: THREE.Vector3, bySlot?: number, opts?: { dot?: boolean; heavy?: boolean }): void;
 }
 
 /** where to aim on a body: mid-chest of whatever it actually is */
@@ -845,7 +850,7 @@ export class Enemy {
     if (bark) audio.bark(bark, 0.45);
   }
 
-  damage(amount: number, from: THREE.Vector3, bySlot: number): void {
+  damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
     // A warlord turns some hits aside — a sharp sidestep off the line of the
     // shot, a pale flash, and almost none of the damage. The cooldown is the
@@ -1897,7 +1902,7 @@ export class Enemy {
       const dd = p.position.distanceTo(this.position);
       if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
       if (!p.alive || dd > r) continue;
-      p.damage(d.damage * this.dmgScale * 0.6, this.position);
+      p.damage(d.damage * this.dmgScale * 0.6, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0).normalize();
       p.velocity.addScaledVector(push, 10);
       p.velocity.y += 4;
@@ -1926,7 +1931,7 @@ export class Enemy {
       if (this.windup <= 0 && this.windupTarget) {
         const hd = this.windupTarget.position.distanceTo(this.position);
         if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
-          this.windupTarget.damage(d.damage * this.dmgScale, this.position);
+          this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
         }
         this.attackCd = d.attackCd;
       }
@@ -1943,7 +1948,7 @@ export class Enemy {
         const pd = target.position.distanceTo(this.position);
         if (pd < d.attackRange + 0.4) {
           this.pounceHit = true;
-          target.damage(d.damage * 1.15 * this.dmgScale, this.position);
+          target.damage(d.damage * 1.15 * this.dmgScale, this.position, -1, { heavy: true });
           if ('velocity' in target) target.velocity.addScaledVector(this.velocity.clone().setY(0).normalize(), 5);
           this.attackCd = d.attackCd;
         }
@@ -2271,7 +2276,7 @@ export class Enemy {
           for (const p of game.players) {
             if (!p.alive) continue;
             const dd = p.position.distanceTo(this.position);
-            if (dd < 4.5) p.damage(d.damage * (1 - dd / 5.5), this.position);
+            if (dd < 4.5) p.damage(d.damage * (1 - dd / 5.5), this.position, -1, { heavy: true });
           }
           for (const e of game.enemies) {
             if (!e.alive || e === this) continue;
