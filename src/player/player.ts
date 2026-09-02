@@ -44,6 +44,8 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
  * checks the window nor opens one, so a lava field still kills.
  */
 const HIT_IFRAMES = 0.3;
+/** a hit at least this hard is never swallowed by the i-frames (grunt bolts run 5-17) */
+const HEAVY_HIT = 20;
 /** and a fresh body gets a moment to find its feet before it can be shot */
 const RESPAWN_IFRAMES = 1.6;
 /** shove per hit, m/s, before the damage scale */
@@ -557,6 +559,12 @@ export class Player {
     // a fresh body is briefly untouchable — long enough to see where it
     // landed and move, rather than dying again into the same firing line
     this.hitGuard = RESPAWN_IFRAMES;
+    // nothing carried over from the last body: a net taken before dying
+    // used to re-form the player still crawling at snare speed
+    this.snareTimer = 0;
+    this.hurtFlash = 0;
+    this.meleeTimer = 0;
+    this.dashTimer = 0;
     this.freshBody = true;
     this.slamming = false;
     this.eggsReady = 0;   // a fresh body starts with every sac dark
@@ -642,9 +650,12 @@ export class Player {
   damage(amount: number, from: THREE.Vector3, bySlot = -1, opts: { dot?: boolean } = {}): void {
     // a body still assembling isn't there to hit yet
     if (!this.alive || this.formT > 0) return;
-    // A kill zone is not an attack and is never shrugged off; everything else
-    // discrete waits its turn.
-    if (!opts.dot && amount < 500 && this.hitGuard > 0) return;
+    // A kill zone is not an attack and is never shrugged off, and neither is
+    // a heavy blow: the guard exists so a volley of grunt bolts lands as a
+    // rhythm rather than a wall, not so that a bolt 0.2 s before a warlord's
+    // slam, a massiff's pounce or a drone's detonation turns the big,
+    // telegraphed hit into nothing. Everything lighter still waits its turn.
+    if (!opts.dot && amount < HEAVY_HIT && this.hitGuard > 0) return;
     // Mounted, the hull is your HP: hits on the rider land on the vehicle —
     // until it gives out. Kill zones (999) still kill the rider outright.
     if (this.vehicle && amount < 500) {
@@ -1339,7 +1350,8 @@ export class Player {
         // the shockwave reaches the scenery too — ice plates crack under it
         game.damageBreakablesNear(this.position, 4.5, 70);
         for (const e of game.enemies) {
-          if (!e.alive) continue;
+          // never your own squad or brood — they share `enemies` with the hostiles
+          if (!e.alive || e.team === this.team) continue;
           const d = e.position.distanceTo(this.position);
           if (d < 5) {
             e.damage(20, this.position, this.slot);

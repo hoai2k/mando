@@ -29,6 +29,8 @@ const BOSS_INTRO_LEN = 3.4;
 const MONSTER_QUAKE_LEN = 4;
 /** simulation rate under the card — slow enough to read as a held breath */
 const BOSS_INTRO_TIMESCALE = 0.12;
+/** reach of the warlord's shock-slam, and the radius its ember ring is drawn at */
+const BOSS_SLAM_R = 8.5;
 
 /** hands-off-the-sticks input, fed to everyone while the boss card is up */
 const BLANK_INPUT: FrameInput = {
@@ -643,8 +645,11 @@ export class Game {
 
     // ---- phase turns ----
     const frac = b.hp / b.maxHp;
-    const due = frac < 1 / 3 ? 2 : frac < 2 / 3 ? 1 : 0;
-    if (due > this.bossPhase) {
+    const wanted = frac < 1 / 3 ? 2 : frac < 2 / 3 ? 1 : 0;
+    if (wanted > this.bossPhase) {
+      // one turn per frame: a rocket that carries the bar through both marks
+      // at once still plays the first retinue call, then the enrage next frame
+      const due = this.bossPhase + 1;
       this.bossPhase = due;
       // a monster calls its own hangers-on, not the board's garrison
       const guard = (this.monsterKind === b.kind
@@ -669,12 +674,18 @@ export class Game {
     if (this.bossTelegraph > 0) {
       // winding up: ember ring so the radius is readable, then the hit
       this.bossTelegraph -= dt;
-      if (Math.floor((this.bossTelegraph + dt) * 8) !== Math.floor(this.bossTelegraph * 8)) {
-        const a = Math.random() * Math.PI * 2;
-        this.particles.impactSparks(b.position.clone().add(new THREE.Vector3(Math.cos(a) * 3, 0.4, Math.sin(a) * 3)), 4);
+      // The ring is drawn where the hit lands: sparks used to sit at 3 m
+      // while the slam reached 8.5 m, so a player standing outside the ring
+      // at 6 m ate a hit the telegraph had promised would miss. Denser, and
+      // at the edge, so the get-out line is the line drawn on the ground.
+      if (Math.floor((this.bossTelegraph + dt) * 16) !== Math.floor(this.bossTelegraph * 16)) {
+        for (let i = 0; i < 3; i++) {
+          const a = Math.random() * Math.PI * 2;
+          this.particles.impactSparks(b.position.clone().add(new THREE.Vector3(Math.cos(a) * BOSS_SLAM_R, 0.4, Math.sin(a) * BOSS_SLAM_R)), 4);
+        }
       }
       if (this.bossTelegraph <= 0) {
-        this.bossShockwave(b, 8.5, 26, 12);
+        this.bossShockwave(b, BOSS_SLAM_R, 26, 12);
         this.particles.explosion(b.position.clone());
         this.bossMoveCd = 11 + Math.random() * 4;
       }
@@ -833,8 +844,12 @@ export class Game {
     this.director.noise(this, point, 70, true); // an explosion is not subtle
     this.damageBreakablesNear(point, 6, 90);    // scenery is not exempt (chains!)
     for (const p of this.players) p.cam.shake(Math.max(0, 0.35 - point.distanceTo(p.position) * 0.01));
+    // whose blast this is: a PvP squad follower or a broodmother's own eggs
+    // sit in `enemies` on the thrower's team, and a rocket must not kill
+    // them — nor credit the kill, since lastHitBy carries no team check
+    const byTeam = bySlot >= 0 ? this.players[bySlot]?.team ?? -1 : -1;
     for (const e of this.enemies) {
-      if (!e.alive) continue;
+      if (!e.alive || e.team === byTeam) continue;
       const d = e.position.distanceTo(point);
       if (d < 7) {
         e.damage(90 * (1 - d / 8), point, bySlot);
@@ -863,6 +878,19 @@ export class Game {
       const d = v.pos.distanceTo(point);
       if (d > 0.5 && d < 7) v.damage(80 * (1 - d / 8), point, bySlot);
     }
+  }
+
+  /**
+   * Take a body out of the match for good. `dispose()` at the end walks only
+   * what is still in the scene, so a body merely removed here — every corpse
+   * that faded mid-match, every hatched egg — kept its procedural limb
+   * geometry resident for the life of the tab: seven waves of bodies, per
+   * match, forever. Shared resources (the material cache, authored .glb
+   * geometry) are tagged and skipped by the teardown.
+   */
+  private retire(root: THREE.Object3D): void {
+    this.scene.remove(root);
+    disposeSubtree(root);
   }
 
   get aliveEnemyCount(): number { return this.enemies.filter((e) => e.alive).length; }
@@ -1092,7 +1120,7 @@ export class Game {
           this.events.hitMarker(e.lastHitBy);
         }
       }
-      if (e.removeMe) this.scene.remove(e.char.root);
+      if (e.removeMe) this.retire(e.char.root);
     }
     this.enemies = this.enemies.filter((e) => !e.removeMe);
 
@@ -1103,7 +1131,7 @@ export class Game {
         a.counted = true;
         this.particles.deathBurst(a.position.clone().add(new THREE.Vector3(0, a.height * 0.5, 0)));
       }
-      if (a.removeMe) this.scene.remove(a.char.root);
+      if (a.removeMe) this.retire(a.char.root);
     }
     this.allies = this.allies.filter((a) => !a.removeMe);
 
@@ -1399,6 +1427,12 @@ export class Game {
         if (!e) return;
         const wasAlive = e.alive;
         e.damage(dmg, from, bySlot);
+        // damage() alerts to `from`, which is where the bolt was — a metre
+        // off the victim — so a target shot from beyond its notice range
+        // "arrived" at once, found nothing, and went back to its post. Tell
+        // it where the shot actually came from.
+        const shooter = bySlot >= 0 ? this.players[bySlot] : undefined;
+        if (shooter && e.alive) e.alert(shooter.position, true);
         if (e.team !== 1) return;   // allies take the damage without the shove
         // every hit shoves: light per bolt, but it stacks over a burst
         e.knockback(from, 5.5, 0.2);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Board } from './board';
 import type { StaticBox } from '../core/physics';
-import { addBreakable } from './board';
+import { addBreakable, hazardAt } from './board';
 import { mat } from '../characters/builder';
 import { authoredProp } from './props';
 import { loadOptionalTexture } from '../core/assets';
@@ -589,13 +589,20 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       frame = new Frame(g.x(link.len, 0), g.z(link.len, 0), g.dx, g.dz);
     }
     // bacta midway down every other pinch — the attrition beat pays for itself
-    if (i % 2 === 1) pickups.push(g.vec(6, 1.4, MISSION_Y + 0.2));
+    // on the side the first crate is not on — at v = +1.4 the canister sat
+    // inside the crate at t = 0.42 on every straight link
+    if (i % 2 === 1) pickups.push(g.vec(6, -1.4, MISSION_Y + 0.2));
     defenders.push(linkPosts);
   }
 
   // ---- validation: keep only spots a body actually fits in ----
-  const fits = (p: THREE.Vector3): boolean =>
-    board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1);
+  // ...and not standing in the room's own lava or shock strip: a vent on the
+  // channel wall put a third of every drop into live floor
+  const fits = (p: THREE.Vector3): boolean => {
+    if (!board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1)) return false;
+    const hz = hazardAt(board, p);
+    return !hz.kill && hz.dps <= 0;
+  };
   for (const room of rooms) {
     room.vents = room.vents.filter(fits);
     if (!room.vents.length) room.vents.push(room.center.clone());

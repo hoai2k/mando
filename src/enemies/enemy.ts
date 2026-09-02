@@ -659,6 +659,8 @@ export class Enemy {
 
   /** a phase-two boss stops pacing itself */
   enraged = false;
+  /** has already broken and run once this life — morale does not break twice */
+  broke = false;
 
   /**
    * The last phase gets faster instead of only longer: the warlord closes
@@ -826,11 +828,17 @@ export class Enemy {
   /** the squad broke — run from `threat`, rally at distance */
   breakAndRun(threat: THREE.Vector3): void {
     if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;
+    // Morale breaks once. Without this the director rolled the lone survivor
+    // again every replan after it rallied, so the last body of a squad
+    // sprinted 55 m away, turned round, and sprinted off again until the
+    // wave's sweep timer finally dragged it back — a wave that could not end.
+    if (this.broke) return;
     if (this.boss) return;               // a warlord does not run from its own arena
     if (this.kind === 'droid') return;   // droids have no morale to break
     if (this.def.relentless) return;     // nor does a war beast: it comes anyway
     if (this.def.style === 'swoop' || this.def.style === 'hover') return;
     this.fleeing = true;
+    this.broke = true;
     this.fleeTimer = 5 + Math.random() * 3;
     this.interest.copy(threat);
     const bark = SPAWN_BARKS[this.kind];
@@ -861,7 +869,9 @@ export class Enemy {
     // a shooter caught in the open dives for the nearest crate
     if (!this.cover && this.def.style === 'ranged' && this.team === 1) this.coverRetry = 0;
     // finishing blows on someone already on the ground hit twice as hard
-    if (this.downed || this.wounded) amount *= 2;
+    // (a boss never lies down — knockdown() caps it at a half-second stagger
+    // — so the finishing-blow bonus is for the bodies actually on the floor)
+    if ((this.downed || this.wounded) && !this.boss) amount *= 2;
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     this.hitFlash = 0.15;
@@ -960,12 +970,15 @@ export class Enemy {
     if (this.def.egg) return;   // an egg has nothing to knock over
     if (this.wounded) return; // already on the ground
     if (this.boss) secs = Math.min(secs, 0.5); // a boss staggers, it doesn't lie down
+    // already flat: a second finisher keeps it there longer, and does not
+    // replay the fall — which snapped the body upright to topple it again
+    const wasDown = this.downTimer > 0;
     this.downTimer = Math.max(this.downTimer, secs);
     this.windup = 0;
     this.volleyLeft = 0;
     this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
     const anim = this.char.animator;
-    if (anim) {
+    if (anim && !wasDown) {
       anim.release('lower'); anim.release('upper');
       anim.playOnce('lower', 'deathLower', 0.06, true);
       anim.playOnce('upper', 'deathUpper', 0.06, true);
@@ -1142,7 +1155,7 @@ export class Enemy {
     this.venting = Math.max(0, this.venting - dt);
     this.heatHold = Math.max(0, this.heatHold - dt);
     if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
-    const d = DEFS[this.kind];
+    const d = this.def;
 
     // ---- an egg: no AI, just the clock to the hatch ----
     if (d.egg) {
@@ -1229,7 +1242,7 @@ export class Enemy {
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (this.boardHazards(game, dt)) return;
         if (anim) {
-          anim.play('lower', 'runLower', 0.2, 1.2);
+          anim.play('lower', 'runLower', 0.2, anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z), this.char.baseScale));
           anim.play('upper', 'runUpper', 0.2, 1.2);
         }
         this.syncVisual(dt, game);
@@ -1358,9 +1371,15 @@ export class Enemy {
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0 && this.leapT <= 0) {
-        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
+        // A hover trooper is in the air: it flies, it does not pump a run
+        // cycle on nothing. On the ground the run is paced by the stride the
+        // clip actually covers (as the player's is), so a 7 m/s duelist's
+        // feet keep up with the ground instead of skating a fifth short.
+        const lower = d.style === 'hover' ? 'flyLower' : speed2 > 0.7 ? 'runLower' : 'idleLower';
+        const rate = lower === 'runLower' ? anim.gaitRate('runLower', speed2, this.char.baseScale) : 1;
+        anim.play('lower', lower, 0.2, rate);
         if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, rate);
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -1444,7 +1463,7 @@ export class Enemy {
 
   /** line of sight plus a facing cone — sneaking up from behind works */
   private canSee(game: Game, foe: Combatant): boolean {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const dx = foe.position.x - this.position.x;
     const dz = foe.position.z - this.position.z;
     const dist = Math.hypot(dx, dz);
@@ -1471,7 +1490,7 @@ export class Enemy {
 
   /** posted and unbothered: mill around the post, look around, hold the ground */
   private updateIdle(dt: number, game: Game): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const air = d.style === 'swoop' || d.style === 'hover';
     this.idleTimer -= dt;
     if (this.idleTimer <= 0) {
@@ -1529,7 +1548,7 @@ export class Enemy {
 
   /** heading for the last thing it saw or heard */
   private updateSearch(dt: number, game: Game, speedScale: number): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     // pinned applies here too: advancing into fire is exactly what stops
     if (this.suppression > 0.55 && d.style !== 'swoop') {
       this.faceToward(dt, this.interest.x, this.interest.z, 5);
@@ -1580,7 +1599,7 @@ export class Enemy {
       if (d > 16 || d >= bestD) continue;
       // must be a spot it can actually fight from — cover out past blaster
       // range is just hiding, and hiding doesn't win territory
-      if (Math.hypot(hx - target.position.x, hz - target.position.z) > DEFS[this.kind].attackRange * 0.9) continue;
+      if (Math.hypot(hx - target.position.x, hz - target.position.z) > this.def.attackRange * 0.9) continue;
       const gy = phys.groundHeight(hx, hz, this.position.y + 0.5);
       if (!isFinite(gy) || Math.abs(gy - this.position.y) > 2.2) continue; // off the platform / different floor
       if (b.max.y - gy < 1.1) continue; // too low to hide a standing humanoid
@@ -1639,7 +1658,7 @@ export class Enemy {
    */
   private updateCover(dt: number, game: Game, target: Combatant): void {
     const spot = this.cover!;
-    const d = DEFS[this.kind];
+    const d = this.def;
     const goal = this.coverState === 'peek' ? spot.peek : spot.hide;
     const gx = goal.x - this.position.x, gz = goal.z - this.position.z;
     const gd = Math.hypot(gx, gz);
@@ -1702,7 +1721,7 @@ export class Enemy {
    * fighters wait their turn instead of all charging at once.
    */
   private holdBearing(dt: number, target: Combatant, radius: number, speedScale = 1): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const ax = target.position.x + Math.cos(this.slotAngle) * radius;
     const az = target.position.z + Math.sin(this.slotAngle) * radius;
     const dx = ax - this.position.x, dz = az - this.position.z;
@@ -1798,7 +1817,7 @@ export class Enemy {
    * jetpack hop as the shadow arrives beats the landing.
    */
   private trySuperJump(game: Game, target: Combatant): boolean {
-    const d = DEFS[this.kind];
+    const d = this.def;
     if (!this.boss || d.plows) return false;
     if (d.style !== 'melee' && d.style !== 'ranged') return false;
     if (this.superJumpCd > 0 || this.windup > 0 || this.pounce > 0 || !this.grounded) return false;
@@ -1869,7 +1888,7 @@ export class Enemy {
    * swing stays the killer.
    */
   private landSlam(game: Game): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const r = 4 + this.radius * 1.5;
     game.particles.dustPuff(this.position, 20);
     audio.land(true);
@@ -1894,7 +1913,7 @@ export class Enemy {
   }
 
   private updateMelee(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const to = target.position.clone().sub(this.position);
     to.y = 0;
     const dist = to.length();
@@ -1998,7 +2017,7 @@ export class Enemy {
   }
 
   private updateRanged(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const to = target.position.clone().sub(this.position);
     to.y = 0;
     const dist = to.length();
@@ -2072,7 +2091,7 @@ export class Enemy {
   }
 
   private updateVolley(dt: number, game: Game, target: Combatant, dist: number): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     if (d.kamikaze) return; // the drone's whole body is the attack
     if (this.volleyLeft > 0) {
       this.volleyTimer -= dt;
@@ -2139,7 +2158,7 @@ export class Enemy {
    * Damage lands only on a target still standing in the stream's cone.
    */
   private flameTick(game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
     else { from.copy(this.position); from.y += this.height * 0.7; }
@@ -2170,7 +2189,7 @@ export class Enemy {
   }
 
   private fireBoltAt(game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
     else { from.copy(this.position); from.y += this.height * 0.7; }
@@ -2193,7 +2212,7 @@ export class Enemy {
   }
 
   private updateSwoop(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     // figure-8 orbit with periodic dive-bys
     this.swoopPhase += dt * 0.55;
     const orbitR = 26;
@@ -2233,7 +2252,7 @@ export class Enemy {
   }
 
   private updateHover(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
 
     // ---- kamikaze (the interceptor drone) ----
     // It stalks like any hover flier, then commits: a straight, unsteered dive

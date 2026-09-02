@@ -6,7 +6,7 @@ import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type War
 import { tracked } from './core/warm';
 import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
-import { planWave } from './enemies/spawner';
+import { FINAL_WAVE, planWave } from './enemies/spawner';
 import { buildEnemyCharacter, enemyBody, enemyHitParts, enemyKinds, enemyStats, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
@@ -523,7 +523,11 @@ function setState(s: AppState): void {
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
+  // The HUD belongs to play alone. Left up under the pause menu, the wave
+  // banner, the new-contacts card and the radar all showed through it —
+  // "PAUSED" stacked on "WAVE 2" stacked on the contact names.
   if (s === 'playing') hud.show();
+  else hud.hide();
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
   // one place, every transition: re-plan from wherever the player now stands.
   // The overlays (pause, controls, settings, the end card) are not stops on the
@@ -813,7 +817,10 @@ function frame(now: number): void {
           }
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
-          const tail = game.mode === 'wave' ? ` · wave ${game.wave} · ${mins}:${secs}` : ` · ${mins}:${secs}`;
+          // the wave counter runs one past the last wave while the warlord's
+          // battle is fought, so a held territory used to read "wave 8"
+          const waveNote = game.wave > FINAL_WAVE ? 'warlord down' : `wave ${game.wave}`;
+          const tail = game.mode === 'wave' ? ` · ${waveNote} · ${mins}:${secs}` : ` · ${mins}:${secs}`;
           endStats.innerHTML = game.players
             .map((p, i) => `<b>P${i + 1}</b> ${p.kills} kills`)
             .join(' · ') + tail;

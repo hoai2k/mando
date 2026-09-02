@@ -170,6 +170,14 @@ export interface Board {
    */
   waterY?: number;
   /**
+   * The playable area is walled and roofed (the Refinery): nothing can run
+   * in over the edge or drop in from the sky, so reinforcements stand up at
+   * their posts. Without this, every squad after wave one entered from
+   * outside the building, stopped at the wall, made the wall its post after
+   * 30 s, and was alive and unkillable for the rest of the match.
+   */
+  enclosed?: boolean;
+  /**
    * Below this height there is no floor left to hit, so falling becomes a slow
    * drift a jetpack tap can undo rather than a plunge. Omit for solid ground.
    */
