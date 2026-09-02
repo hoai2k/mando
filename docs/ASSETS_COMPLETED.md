@@ -427,3 +427,54 @@ the earlier portrait batches. Every card on the drop screen carries authored art
 
 All sample-first with synth fallbacks; every one verified decoding in-browser from the
 built bundle.
+
+---
+
+## Audio — 24 files, delivered 2026-09-02
+
+Everything the request doc still listed as open with a consumer, produced in one pass.
+Prompts live in `tools/generate-sfx.mjs`; all 24 verified serving and decoding
+in-browser from the built bundle.
+
+**Monster boss voices (17).** A roar, a hurt cry and a death per creature, written to
+that animal's build so the six read as different beasts rather than one growl pitched
+down: `mudhorn_*`, `ravinak_*`, `rancor_*`, `krayt_*`, `mythosaur_*`, plus
+`mamacore_hurt` and `mamacore_death`. The mamacore's roar is the delivered
+`mamacore_roar` from the pier attack — the boss *is* that hazard surfacing, so a second
+recording of the same animal would have been wrong. Routed through
+`audio.monster(voice, part)`, which falls back to the shared beast synth when a set is
+missing.
+
+**Game modes (4).** `door_cycle` (mission gates, which had no voice at all before),
+`checkpoint_chime`, `bacta_pickup`, `pvp_round_win` — each replacing a borrowed UI
+confirm or wave-clear chime at its own call site.
+
+**Hooks built to consume them (2).** `droid_servo`, played as one shared bed whose
+level the game weights by each droid's distance and speed rather than a loop per
+machine; and `amb_krayt_call`, on a 70–160 s distant-ambience timer on the Dune Sea.
+
+**Earlier in the pass (1).** `boss_horn` had already landed on 2026-08-29; the four
+game-mode files above were the rest of that table.
+
+---
+
+## Audio — the second monster batch, 13 files, delivered 2026-09-02
+
+The four bosses of `docs/BOSSES.md` §2.7–2.10 arrived in code and as models, so their
+voices were produced the same day. Prompts live in `tools/generate-sfx.mjs`; all 13
+verified serving and decoding in-browser from the built bundle.
+
+| Voice | Files | Written as |
+|---|---|---|
+| `sandworm` | roar, hurt, death, **rumble** | A wet shrieking bellow through a ringed toothed gullet; the rumble is the buried wake |
+| `zillo` | roar, hurt, death | A metallic-edged bellow with plates grinding — the hurt take is bolts *skating off* armor |
+| `nexu` | roar, hurt, death | A piercing feline shriek-roar over a throaty rattle; shortest of the four, as a cat is |
+| `kwazel` | roar, hurt, death | A wide wet croak with a resonant throat-sac boom and water sheeting off |
+
+`sandworm_rumble` is the one that needed a consumer built: `audio.setBurrowRumble(level)`
+is a loop driven from the burrow state machine, swelling as the buried worm closes and
+cutting when it breaks ground, on its death, and with the match. It replaces the
+`mythosaur_call` the worm borrowed at random intervals.
+
+With this batch every monster in the game speaks with its own voice, and the sample
+table stands at 152 names / 152 files with no gaps, duplicates or orphans.

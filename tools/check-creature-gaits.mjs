@@ -20,11 +20,11 @@ const CREATURES = [
   { id: 'broodmother', feet: ['legL1_mid', 'legR3_mid'], body: 'body' },
 ];
 
-const h = await launch({ url: 'http://localhost:4173/workbench/' });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/workbench/` });
 let failures = 0;
 
 for (const c of CREATURES) {
-  await h.page.goto(`http://localhost:4173/workbench/?character=${c.id}`, { waitUntil: 'load' });
+  await h.page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/workbench/?character=${c.id}`, { waitUntil: 'load' });
   // the .glb lands a beat after the page does
   await h.page.waitForFunction(() => {
     const wb = window.__wb;

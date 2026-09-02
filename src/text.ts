@@ -74,6 +74,14 @@ export const TEXT = {
     botPicking: (owner: string) => `${owner} is picking`,
     /** a bot waiting on its owner to settle their own fighter first */
     botWaiting: (owner: string) => `${owner} picks after locking in`,
+    /** the stat line under a fighter's name on their plinth */
+    kit: {
+      hp: (n: number) => `<b>${n} HP</b>`,
+      jetpack: 'jetpack',
+      superJump: 'super jump',
+      squad: (n: number) => `squad of ${n}`,
+      laysEggs: 'lays eggs',
+    },
     needFighters: (n: number) =>
       `<b>PvP needs ${n} fighters</b> — press <b>A</b> on another controller to join the duel`,
   },
@@ -108,6 +116,11 @@ export const TEXT = {
     rideVehicle: (name: string) => `C / RB — ride the ${name}`,
     driving: (name: string, hp: number, maxHp: number) =>
       `${name} ${hp}/${maxHp} · A gas · B brake · RB off`,
+    /** a living mount is ridden, not driven: it charges, and your gun hand is free */
+    riding: (name: string, hp: number, maxHp: number, charge: string) =>
+      `${name} ${hp}/${maxHp} · A go · B stop · X ${charge} · RT fire · RB off`,
+    chargeReady: 'charge',
+    chargeWait: 'charge…',
     reforming: 'RE-FORMING',
     disintegrating: 'DISINTEGRATING',
     down: 'DOWN',
@@ -198,11 +211,15 @@ export const TEXT = {
     nobody: 'Nobody',
     liberated: 'Territory Liberated',
     held: 'Territory Held',
+    nextTerritory: 'Next Territory',
     retry: 'Retry Board',
     quit: 'Quit to Title',
     championTag: (slot: string, kills: number) => `Champion · ${slot} · ${kills} kills`,
     playerKills: (who: string, kills: number) => `<b>${who}</b> ${kills} kills`,
-    waveAndTime: (wave: number, time: string) => ` · wave ${wave} · ${time}`,
+    /** the wave counter runs one past the last while the warlord is fought */
+    warlordDown: 'warlord down',
+    waveNote: (wave: number) => `wave ${wave}`,
+    noteAndTime: (note: string, time: string) => ` · ${note} · ${time}`,
     time: (time: string) => ` · ${time}`,
   },
 
@@ -216,6 +233,8 @@ export const TEXT = {
     splitScreen: 'Split screen',
     stacked: 'Stacked',
     sideBySide: 'Side by side',
+    lookSensitivity: 'Look sensitivity',
+    invertY: 'Invert look (Y)',
     keyboardMouse: 'Keyboard & mouse',
     back: 'Back',
     hint: 'Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
@@ -256,6 +275,8 @@ export const TEXT = {
       ['Brake, then reverse', 'B · S'],
       ['Steer', 'Left stick · A · D'],
       ['Boost', 'LB · Shift'],
+      ['Charge — on a bantha', 'X · F'],
+      ['Fire from the saddle — on a bantha', 'RT · Left mouse'],
     ] as Array<[string, string]>,
     always: [
       ['Navigate menus', '↑ ↓ ← → · click'],
@@ -389,6 +410,9 @@ export const TEXT = {
       nevarro: "The Warlord's Rancor",
       desert: 'The Old One of the Dune Sea',
       forge: 'The Sleeper Below',
+      refinery: 'The Specimen',
+      ringworld: 'The Night-Side Stalker',
+      narkina: 'The Thing in the Moon Pool',
     },
     /**
      * The warlord's second, sent out halfway through: the first of a
@@ -399,7 +423,7 @@ export const TEXT = {
      * the obstacle.
      */
     lieutenant: {
-      desert: 'The Pit Beast',
+      desert: 'The Hunger Under the Sand',
       station: 'The Dock Assassin',
       nevarro: "The Magistrate's Hound",
       crevasse: 'The Tunnel Queen',
@@ -422,6 +446,7 @@ export const TEXT = {
     ig11: 'IG-11', marshal: 'The Marshal', fennec: 'Fennec Shand',
     mudhorn: 'Mudhorn', ravinak: 'Ravinak', mamacore: 'Mamacore', rancor: 'Rancor',
     kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
+    sandworm: 'Dune Worm', zillo: 'Zillo Beast', nexu: 'Nexu', kwazelMaw: 'Kwazel Maw',
     spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
   },
 

@@ -166,7 +166,7 @@ This is the flexibility the brief demands:
 | **Alamite** | Melee (Great Forge) | Pale hunched cave-dweller, tusked underbite, bony dorsal ridge, stone club. |
 | **Interceptor drone** | Kamikaze flier (Great Forge) | Black probe-style drone, red eye, dangling arms; stalks, whines, then commits to an unsteered dive — the whine is the dodge cue. |
 | **Ringworld enforcer** | Shielded shooter (Ringworld) | Oxblood plate + tower shield whose energy pane reflects bolts; flank it, rush it, or rocket it. |
-| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated **boss fights** shipped 2026-08-29: wave 11 and the campaign arena both open on a letterboxed introduction card over slow motion, run phase turns at ⅔/⅓ health (repulsor pulse, retinue call, an enrage at the last third), tint the boss bar by phase, and punish camping at the warlord's feet with a telegraphed shock-slam. |
+| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated **boss fights** shipped 2026-08-29: wave 8 (past the seventh and last wave) and the campaign arena both open on a letterboxed introduction card over slow motion, run phase turns at ⅔/⅓ health (repulsor pulse, retinue call, an enrage at the last third), tint the boss bar by phase, and punish camping at the warlord's feet with a telegraphed shock-slam. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
 
@@ -175,7 +175,7 @@ Faces/details are low-poly stylized (not realistic) — a deliberate "stylized a
 ### Board 1 — Tatooine: The Dune Sea
 - **Terrain:** procedural heightfield dunes (layered noise, wind-rippled normal detail), scattered rock mesas and arches (jet up them), a moisture-farm homestead, crashed sail-barge wreck as cover playground, **sarlacc pit** (environmental hazard — knockback into it = death), Tusken camp with tents, campfire, banthas (ambient).
 - **Atmosphere:** twin suns w/ warm double-shadow tint, ochre→lavender gradient sky (custom shader), heat-haze shimmer near ground, blowing dust particles, occasional distant krayt-dragon call. Fog color matched to the show's bleached daylight look.
-- **Flow:** open arena with 4 spawn zones (camp raiders, Pyke landing site, Nikto swoop circuit, homestead droids). Wave-based **"Hold the Territory"** mode: survive escalating waves, kill counter + score, victory at wave 10.
+- **Flow:** open arena with 4 spawn zones (camp raiders, Pyke landing site, Nikto swoop circuit, homestead droids). Wave-based **"Hold the Territory"** mode: survive escalating waves, kill counter + score, victory past wave 7 (seven waves, the champion after wave 4, the warlord after wave 7).
 
 ### Board 2 — "The Spice Run" Waystation
 - **Layout:** a chain of ~12 floating platforms/gantries around a central refinery spire, connected by nothing — **the jetpack is the road**. Cargo cranes, stacked spice containers, glowing antenna masts, landing pads with parked freighters, rotating ring section. Fall off = respawn on last platform (small HP cost) — arcade, not punishing.
@@ -205,7 +205,7 @@ partner keeps the daylight.
 - **Board 4 — Maldo Kreis, "The Crevasse."** Snowfield rims over a deep canyon floor with
   ice-ledge middle layers — three vertical fighting layers. Low-traction ice, a frozen
   lake of breakable plates over bleed-out water (a ground slam opens it), krykna spiders
-  as the melee mass, a broodmother as the wave-10 boss (spawns hatchlings as she is hurt).
+  as the melee mass, a broodmother as the wave-7 boss (spawns hatchlings as she is hurt).
 - **Board 5 — Trask, "The Storm Docks."** Dock fingers over a wadeable chest-deep
   harbour, two trawler movers heaving on a real swell, rain with delayed thunder after
   each lightning flash, and Quarren netcasters whose nets root the player. The water
@@ -241,7 +241,7 @@ partner keeps the daylight.
 
 A wave is **posted**, not thrown at you: `spawner.ts` breaks it into squads of
 2–4 and places each squad at a spawn point somewhere on the board (farthest-point
-sampling, so squads spread out rather than bunch up; never within 55 m of a
+sampling, so squads spread out rather than bunch up; never within 55 m of a — 35 m for the opening garrison, so the board does not open on an empty horizon — a
 player). Every enemy remembers a `post` and stays there.
 
 Each enemy is `idle`, `alerted` or `engaged`:
@@ -263,7 +263,7 @@ an explosion 70 m (and alerts straight to combat). Firefights therefore pull in
 the neighbours, and a jetpack-and-blaster approach wakes a lot more of the board
 than a careful one.
 
-If a wave drags past 80 s the remnant starts sweeping toward the players, so a
+If a wave drags past 45 s, or is down to its last three bodies, the remnant starts sweeping toward the players, so a
 hunt can't stall.
 
 ### The combat director
@@ -318,7 +318,7 @@ Enemies value their own lives, per RDR2's combat AI:
   near the player, and come back if they stray past ~34 m.
 
 Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–4
-hits). Wave sizes run about 9–10 hostiles on wave 1 to ~41 on wave 10 (×1.5 in
+hits). Wave sizes run about 9–10 hostiles on wave 1 to ~41 on wave 7 (×1.5 in
 two-player).
 
 ## 10. FX, UI, Audio
@@ -452,6 +452,33 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 | **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge (dome gap + approach) |
 | **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+| **Bantha** (`bantha`) | alive: slow, immovable, hands free | 260 | Dune Sea, saddled at the Tusken camp ×2 |
+
+**The one ride that is alive.** A bantha is a mount, not a machine, and the def carries
+a `living` flag that says so. It has no ignition and no engine loop — it lows when you
+climb on and grumbles under you as it walks — it does not hover but *walks*, on the
+quadruped gait clips in `anim/quadruped.ts` (the delivered `bantha.glb` rides the
+massiff's Rigify skeleton and ships no animation, so the amble is authored in code and
+rate-matched to the ground actually covered, blended against the idle by speed). It
+cannot drift: four feet in the sand bite, so the grip is high and the tail never steps
+out. When it dies it is not a wreck — no repulsor core, no AoE — it goes down in its own
+dust with a last low. Two of them stand saddled at the corral's edge; the three grazers
+behind them (§16) are still scenery. The woven saddle is what tells them apart on sight,
+and it is drawn by the ride rather than by the sculpt, so it sits on whatever back the
+model actually has.
+
+**Two things you can only do from a mount:**
+
+- **The charge (X).** The horns go down and the animal runs at 1.75× its own top speed
+  for a second and a half, on a five-second cooldown. Steering goes heavy for the length
+  of it — a charge is aimed before it is launched — and what it hits takes better than
+  twice a normal ram, with a longer knockdown, while chipping the bantha a third as much.
+  It is the one attack a rider commands rather than improvises.
+- **Firing from the saddle.** A machine takes both hands; an animal takes one. So a
+  mounted rider keeps the blaster: RT fires, LT aims, the chest twists to the camera
+  while the gun is up and settles back onto the animal's nose when it comes down. The
+  rocket rack and the blade stay stowed (X belongs to the charge), and the hull-soaks-
+  the-hits rule is unchanged — the bantha's 260 HP is between you and the fire.
 
 **Where they are parked is a reachability constraint, not just flavour** (audited
 2026-08-30). A ride the party never walks past may as well not exist: the Forge and
@@ -511,7 +538,10 @@ breakables.
 
 **Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
 jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
-existing explosion. Synth fallbacks under both, per the audio rules.
+existing explosion. Synth fallbacks under both, per the audio rules. A mount has none of
+that: `bantha_low` on mounting, on the charge and every ten seconds or so under the
+rider, and a footfall on the board's own surface every half stride — paced off ground
+covered, so the cadence slows with the animal instead of running on a clock.
 
 ## 18. Game modes (default since 2026-08-29)
 
@@ -521,7 +551,7 @@ Three modes as rule sets over the one simulation; full research/design record in
 a `?modes` URL flag and are now the default; the hatch survives inverted, so
 `?nomodes` puts the single Press Start back and the game is exactly the wave game.
 
-- **Wave Battle** — the game as shipped, plus a **boss wave**: clearing wave 10
+- **Wave Battle** — the game as shipped, plus a **boss wave**: clearing wave 7
   rings in the territory's warlord (its signature elite, promoted — ×4.5 HP,
   ×1.5 damage, ×1.3 bulk, a name, a HUD boss bar, retinue calls at ⅔ and ⅓
   health). Victory on its death.

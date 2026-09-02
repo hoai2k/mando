@@ -116,7 +116,7 @@ export interface Breakable {
 
 /** Where a pilotable vehicle sits parked when the match starts. */
 export interface VehicleSpec {
-  kind: 'swoop' | 'speederBike' | 'landspeeder' | 'skiff';
+  kind: 'swoop' | 'speederBike' | 'landspeeder' | 'skiff' | 'bantha';
   x: number;
   z: number;
   /** resting facing, radians (0 = +Z) */
@@ -132,7 +132,7 @@ export interface Board {
   kind: BoardId;
   /** banner headline when the board loads */
   name: string;
-  /** banner sub-line; defaults to the survive-10-waves objective */
+  /** banner sub-line; defaults to the survive-7-waves objective */
   objective?: string;
   /** what footfalls sound like here */
   footstep: Surface;
@@ -169,6 +169,14 @@ export interface Board {
    * its head goes under for long. Omit for dry boards.
    */
   waterY?: number;
+  /**
+   * The playable area is walled and roofed (the Refinery): nothing can run
+   * in over the edge or drop in from the sky, so reinforcements stand up at
+   * their posts. Without this, every squad after wave one entered from
+   * outside the building, stopped at the wall, made the wall its post after
+   * 30 s, and was alive and unkillable for the rest of the match.
+   */
+  enclosed?: boolean;
   /**
    * Below this height there is no floor left to hit, so falling becomes a slow
    * drift a jetpack tap can undo rather than a plunge. Omit for solid ground.

@@ -67,39 +67,48 @@ const strideCache = new WeakMap<THREE.AnimationClip, number>();
  * and aft, so both planes are measured and the larger sweep wins — a forward
  * gait keeps its old number exactly, and a lateral one stops measuring as
  * "no stride" and freezing at rate 1.
+ *
+ * Both legs are measured and the wider sweep wins. The left thigh alone was
+ * the measure, and the strafe's two legs do not swing alike — the leading
+ * leg reaches, the trailing one closes — so its mirror (`strafeLLower`,
+ * which carries the right leg's sweep under the left's name) came out 30%
+ * shorter, and one strafe direction ran slower than the other and skated.
  */
 export function cycleDistance(clip: THREE.AnimationClip, p: Proportions): number {
   const cached = strideCache.get(clip);
   if (cached !== undefined) return cached;
-  const track = (bone: string) => clip.tracks.find((t) => t.name === `${bone}.quaternion`);
-  const upper = track('upperLegL');
-  let out = 0;
-  if (upper) {
-    const upperI = upper.createInterpolant();
-    const lowerT = track('lowerLegL');
-    const lowerI = lowerT?.createInterpolant();
-    const angles = (buf: ArrayLike<number>): [number, number] => {
-      _q.set(buf[0], buf[1], buf[2], buf[3]);
-      _e.setFromQuaternion(_q, 'XYZ');
-      return [_e.x, _e.z];
-    };
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    const STEPS = 48;
-    for (let i = 0; i <= STEPS; i++) {
-      const t = (clip.duration * i) / STEPS;
-      const [thigh, thighZ] = angles(upperI.evaluate(t));
-      const [shin] = lowerI ? angles(lowerI.evaluate(t)) : [0, 0];
-      const x = -(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin));
-      const z = (p.upperLegLen + p.lowerLegLen) * Math.sin(thighZ);
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (z < minZ) minZ = z;
-      if (z > maxZ) maxZ = z;
-    }
-    out = Math.max(0, maxX - minX, maxZ - minZ) * 2;
-  }
+  const out = Math.max(legSweep(clip, p, 'L'), legSweep(clip, p, 'R'));
   strideCache.set(clip, out);
   return out;
+}
+
+/** ground distance one cycle carries one leg's foot through, doubled for the two stances (see `cycleDistance`) */
+function legSweep(clip: THREE.AnimationClip, p: Proportions, side: 'L' | 'R'): number {
+  const track = (bone: string) => clip.tracks.find((t) => t.name === `${bone}.quaternion`);
+  const upper = track(`upperLeg${side}`);
+  if (!upper) return 0;
+  const upperI = upper.createInterpolant();
+  const lowerT = track(`lowerLeg${side}`);
+  const lowerI = lowerT?.createInterpolant();
+  const angles = (buf: ArrayLike<number>): [number, number] => {
+    _q.set(buf[0], buf[1], buf[2], buf[3]);
+    _e.setFromQuaternion(_q, 'XYZ');
+    return [_e.x, _e.z];
+  };
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const STEPS = 48;
+  for (let i = 0; i <= STEPS; i++) {
+    const t = (clip.duration * i) / STEPS;
+    const [thigh, thighZ] = angles(upperI.evaluate(t));
+    const [shin] = lowerI ? angles(lowerI.evaluate(t)) : [0, 0];
+    const x = -(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin));
+    const z = (p.upperLegLen + p.lowerLegLen) * Math.sin(thighZ);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  return Math.max(0, maxX - minX, maxZ - minZ) * 2;
 }
 
 /**
@@ -475,6 +484,17 @@ function makeClips(p: Proportions): ClipSet {
   clips.saber3 = new THREE.AnimationClip('saber3', 0.5, [
     // finisher: both blades gathered across the chest, held a beat, then
     // thrown apart fast — the gather is the anticipation, the throw the snap
+    //
+    // KNOWN TIMING GAP: the player's contact frame is a flat 45% of every
+    // melee clip (player.ts `meleeHitPending`), which on this 0.5 s clip is
+    // 0.225 s — 5 ms after the *gather* key at 0.22, with the blades still
+    // crossed on the chest, and 65 ms before the throw at 0.29 actually
+    // opens them. The gaffi swings straddle 45% by construction (see the
+    // melee1 note); this one does not. The fix is per-clip `hitAt` metadata
+    // (a `userData.hitAt` seconds on the clip, read by the melee press
+    // instead of the constant) so a clip can put its contact where its
+    // strike key is — not yet done, since the press code is shared with the
+    // combo timing and wants a pass of its own.
     qt('chest', [0, 0.22, 0.29, 0.5], [[-6, 0, 0], [-16, 0, 0], [16, 0, 0], [2, 0, 0]]),
     qt('upperArmR', [0, 0.22, 0.29, 0.5], [[-70, 40, -10], [-84, 52, -14], [-64, -62, 22], [-30, 0, 8]]),
     qt('forearmR', [0, 0.22, 0.29, 0.5], [[-72, 0, 0], [-88, 0, 0], [-10, 0, 0], [-25, 0, 0]]),

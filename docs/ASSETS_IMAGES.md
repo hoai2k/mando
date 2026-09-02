@@ -5,8 +5,11 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Outstanding right now:** the environment prop reference sheets, and the optional
-drop-screen portraits for the playable NPCs. The troop carrier sheets went the way
+**Outstanding right now:** one **replacement generation** — the `sandworm` canvas, whose
+first version is superseded by a design change (below, and the first thing to make) —
+the environment prop reference sheets, and the optional drop-screen portraits for the
+playable NPCs. The rest of the second monster batch was delivered on 2026-09-02 and
+approved. The troop carrier sheets went the way
 of the monster sheets — both ships' models were delivered on 2026-08-30 without
 them, so they are no longer wanted. Nothing else — the cast, the boards, the
 skies, every surface texture, the campaign's planet strip and corridor interiors, the
@@ -58,6 +61,100 @@ back if the tool supports image-to-image, or the three views won't agree. Keep e
 humanoid at the same pixel height per the Height column so relative scale survives into the
 models. Descriptions are deliberately written as *designs*, never as named characters —
 same rule as the audio prompts — which keeps output original and on-style.
+
+## Monster batch two: reference canvases (opened and mostly delivered 2026-09-02)
+
+Four new creature bosses and one body-section prop, designed in
+[`docs/BOSSES.md`](BOSSES.md) §2.7–2.10 so that **every territory has a monster and no
+monster serves two** — the Refinery, the Ringworld and the Prison Rig had none, and
+the Dune Sea's champion was a war massiff the Lava Flats also field. All are in the
+game already as procedural stand-ins; these canvases are the first step of the
+standard pipeline (sheet → model → swap), and the model briefs that consume them are
+in [`ASSETS_MODELS.md`](ASSETS_MODELS.md#monster-bosses--batch-two).
+
+**Status after the 2026-09-02 delivery:**
+
+| Id | Canvas | Verdict |
+|---|---|---|
+| `zillo` | delivered | **Approved.** Plates and the cyan seams read as the weak zone, three claws a foot, back low enough for the Refinery's 7.2 m ceilings, one scale across all three views. |
+| `nexu` | delivered | **Approved.** All four eyes placed as specced, red-tipped quills, forked tail, long-limbed for the pounce. |
+| `kwazel_maw` | delivered | **Approved, with one note for the modeller:** the flank stripes came back as thin dashes. Widen them into continuous bands on the sculpt, or they will not read as a weak point at 30 m. |
+| `sandworm_arch` | delivered | **Retired, not the art's fault** — see the design change below. Kept in `reference/` as the record; no model is wanted. |
+| `sandworm` | delivered | **Superseded — regenerate** (below). |
+
+### The prompts as delivered
+
+The three approved canvases were made from these. Kept as the record a re-sculpt works
+from; the two worm rows are gone, superseded by the replacement below.
+
+**Location: `reference/characters/` — NOT under `public/`** (production inputs).
+**Files:** one `<id>_ref.png` per subject, 1536×1024, **orthographic side, front and
+top views on one canvas** at one consistent scale (the creature recipe above, not
+the biped triple). The zillo and the kwazel maw are longer than they are
+tall — keep the side view the large one.
+
+**Shared preamble — prepend verbatim to every prompt below:**
+
+> A single colossal creature for a stylized-realistic sci-fi video game:
+> orthographic side, front and top views of the identical creature arranged on one
+> canvas at one consistent scale, no perspective distortion. Flat even neutral
+> lighting, no cast shadows, plain mid-grey background, no people, no environment,
+> no text, no watermark. Weathered, battle-scarred, cleanly readable silhouette.
+> Subject:
+
+Weak zones called out in a prompt (glowing seams, eyes, flank stripes, the gullet)
+must read in the art — they become emissive weak-point meshes on the model. Same
+standing rules as every sheet: original fan designs only, described and never named.
+
+| Id | Board | Prompt |
+|---|---|---|
+| `zillo` | Refinery | "an enormous armored reptilian crawler five meters at the shoulder and twelve meters long, a long flat skull with a lipless underslung jaw and small deep-set eyes, the whole body clad in large overlapping slate-green armor plates with pale flesh glowing faintly cyan in the seams between the plates, four splayed powerful limbs each ending in three heavy claws, a long tail ridged with spines to the tip" |
+| `nexu` | Ringworld | "a giant hunting cat the size of a small speeder, 2.2 meters at the shoulder and five meters long, lean and long-limbed: a wide head with a jaw that splits far back past the cheeks, four eyes, two forward and two on the temples, all glowing pale green, a ridge of red-tipped quills standing up along the spine, tawny hide with black rosettes, long claws, a forked tail" |
+| `kwazel_maw` | Prison Rig | "a huge amphibious swamp beast 4.2 meters tall and nine meters long hauling itself along on four splayed webbed limbs: a wide flat toad-like head with a mouth that opens the full width of it, bulbous side-set milky eyes, a long low body, a broad flat rudder tail, slick dark blue-black hide with rows of bioluminescent cyan stripes running down both flanks from behind the head to the tail" |
+
+### Replacement generation — `sandworm` (2026-09-02)
+
+The first `sandworm` canvas is good art that the design outgrew, plus three faults of
+its own. **What changed in the design:** the worm's body was going to be three separate
+arch props following the head. It is now **one continuous animal** whose spine the game
+bends along the path the head has travelled, so the humps that break the surface are
+the same body, they follow its turns, and they can carry weak points later. That means
+the sculpt must be modelled **dead straight**, because a body that is bent in the mesh
+cannot be laid along a path. The delivered canvas is modelled pre-curved into a forward
+hook, which is unusable for it.
+
+Three faults independent of that, all worth fixing in the regeneration:
+
+- **The three views disagree on proportion.** The top view shows a long segmented tube,
+  the side view a short hooked stub, and the front view sits at a smaller scale than
+  either. Image-to-3D averages disagreeing views into a confused mesh — one scale, as
+  the preamble asks.
+- **The maw splits four ways**, where the rig and the animation code name three parts.
+  Four is the better look, so the **rig brief has been changed to match the art**
+  (`mandibleL/R/T/B`); keep the four-way maw and keep it symmetrical.
+- **There is almost no neck** — it reads as a head and a collar. The body must run the
+  full length now, so this resolves itself.
+
+`sandworm_arch` is **not** to be regenerated: the single body replaces it.
+
+| Id | Board | Prompt |
+|---|---|---|
+| `sandworm` (replacement) | Dune Sea (champion) | "the full body of a colossal burrowing desert worm lying perfectly straight and horizontal, forty meters long and two meters thick, in a rigid straight line from end to end with no curve or bend anywhere: a blunt eyeless domed head at one end split four ways by long curved mandibles, two lateral, one upper and one lower, spread open around a circular gullet ringed with rows of inward-curving teeth glowing faintly amber deep inside, behind the head a uniform segmented body of overlapping bone-pale armor plates over sand-ochre hide with a low ridge of dorsal spines along its length, tapering to a blunt tail" |
+
+Because the subject is forty metres long and two thick, the side and top views want the
+full width of the canvas as two long bands, with the front view (looking down the
+throat) small in a corner. That is the one place this subject departs from the shared
+creature layout.
+
+## Not wanted — reference sheets for the mouth re-exports (2026-09-02)
+
+The re-export request in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02)
+asks for a jaw on the massiff, the krykna and the broodmother. **No new art is needed
+for it**: nothing about the creatures' design changes, and the ask is purely a rig
+addition. The existing `massiff_front/side/back.png` and `krykna_ref.png` stay the
+reference. The mouth audit behind that request, and what it means for future prompts,
+is written up in the model doc.
 
 ## Open — environment prop reference sheets (for image-to-3D)
 

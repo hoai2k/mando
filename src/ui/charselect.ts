@@ -130,6 +130,7 @@ interface Slot {
   panel: HTMLElement;
   name: HTMLElement;
   status: HTMLElement;
+  kit: HTMLElement;
   spinner: HTMLElement;
   arrows: HTMLElement[];
   /** last state the status line was written for, so it is only rewritten on a change */
@@ -198,6 +199,8 @@ export class CharacterSelect {
   private minPlayers = 1;
   /** whether this mode lets a player put AI fighters in the line (PvP does) */
   private allowBots = false;
+  /** the Start button is on screen (everyone joined is locked in) */
+  private startShown = false;
   private titleEl!: HTMLElement;
   private hintEl!: HTMLElement;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
@@ -256,7 +259,12 @@ export class CharacterSelect {
     this.startBtn = document.createElement('button');
     this.startBtn.className = 'menu-btn charsel-start';
     this.startBtn.textContent = TEXT.charSelect.start;
-    this.startBtn.style.display = 'none';
+    // Hidden, not removed: the button sits in the same column as the panels,
+    // and taking it out of the flow grew the panel box by its height — so the
+    // clamp that keeps a name off the plinth had a different ceiling before
+    // and after locking in, and READY landed on the ring. Reserving the space
+    // keeps the geometry identical in both states.
+    this.startBtn.style.visibility = 'hidden';
     this.startBtn.addEventListener('click', () => { audio.uiConfirm(); this.start(); });
     this.root.appendChild(this.startBtn);
 
@@ -439,6 +447,11 @@ export class CharacterSelect {
     name.className = 'charsel-name';
     const arrows = [mkArrow(-1), mkArrow(1)];
     base.append(arrows[0], name, arrows[1]);
+    // what the fighter brings: one line under the name, so a thirty-body
+    // PvP roster is a choice and not a guess
+    const kit = document.createElement('div');
+    kit.className = 'charsel-kit';
+    panel.appendChild(kit);
 
     const pedestal = new THREE.Mesh(
       new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
@@ -459,7 +472,7 @@ export class CharacterSelect {
       phase: 'empty', bot: false, owner: -1, choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
-      panel, name, status, spinner, arrows, waiting: false, poster: null,
+      panel, name, status, kit, spinner, arrows, waiting: false, poster: null,
     };
   }
 
@@ -675,7 +688,7 @@ export class CharacterSelect {
     if (this.botLocked(slot)) return;
     if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
     else if (s.phase === 'browsing') this.commit(slot);
-    else if (s.phase === 'ready' && this.startBtn.style.display !== 'none') { audio.uiConfirm(); this.start(); }
+    else if (s.phase === 'ready' && this.startShown) { audio.uiConfirm(); this.start(); }
   }
 
   /**
@@ -1030,7 +1043,8 @@ export class CharacterSelect {
         s.group.rotation.y = s.baseYaw + arc + s.manual;
       }
     }
-    this.startBtn.style.display = anyJoined && allReady ? '' : 'none';
+    this.startShown = anyJoined && allReady;
+    this.startBtn.style.visibility = this.startShown ? '' : 'hidden';
   }
 
   /**
@@ -1291,7 +1305,14 @@ export class CharacterSelect {
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
       } else {
-        s.name.textContent = playableDef(id).profile.name;
+        const pr = playableDef(id).profile;
+        s.name.textContent = pr.name;
+        const bits = [TEXT.charSelect.kit.hp(pr.maxHp)];
+        bits.push(pr.rangedName ? pr.rangedName : `<b>${pr.meleeName}</b>`);
+        bits.push(pr.flight === 'jetpack' ? TEXT.charSelect.kit.jetpack : TEXT.charSelect.kit.superJump);
+        if (pr.squad) bits.push(TEXT.charSelect.kit.squad(pr.squad.count));
+        if (pr.special === 'layEgg') bits.push(TEXT.charSelect.kit.laysEggs);
+        s.kit.innerHTML = `${pr.desc ? pr.desc + '<br/>' : ''}${bits.join(' · ')}`;
         s.status.innerHTML = s.phase === 'ready' ? `<b>${TEXT.charSelect.ready}</b>`
           : s.waiting ? `<b>${TEXT.charSelect.player(i + 1)}</b><br/>${TEXT.charSelect.loading}`
             : `<b>${TEXT.charSelect.player(i + 1)}</b>`;

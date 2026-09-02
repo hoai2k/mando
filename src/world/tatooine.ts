@@ -249,6 +249,8 @@ export function buildTatooine(): Board {
   // collider can never shoulder anything into the fire.
   const banthas: Array<{ node: THREE.Group; phase: number }> = [];
   let banthaLowIn = 8;
+  /** the far-off krayt: rare enough to stay a surprise, on no schedule you can read */
+  let kraytCallIn = 40 + Math.random() * 50;
   const banthaMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
   const hornMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.8 });
   for (const [bnx, bnz, bnYaw] of [[-58, -70, 1.2], [-52, -62, 2.1], [-62, -78, 0.4]] as const) {
@@ -379,9 +381,9 @@ export function buildTatooine(): Board {
     playerStarts: [new THREE.Vector3(0, heightAt(0, 4) + 0.5, 4), new THREE.Vector3(3, heightAt(3, 4) + 0.5, 4)],
     groundSpawns: [
       new THREE.Vector3(-70, 0, -60), new THREE.Vector3(-60, 0, -48), // camp
-      new THREE.Vector3(48, 0, 58), new THREE.Vector3(58, 0, 70),     // barge
-      new THREE.Vector3(-18, 0, 64), new THREE.Vector3(30, 0, 44),    // homestead
-      new THREE.Vector3(90, 0, -10), new THREE.Vector3(-95, 0, -18),
+      new THREE.Vector3(34, 0, 52), new THREE.Vector3(58, 0, 70),     // barge
+      new THREE.Vector3(-30, 0, 70), new THREE.Vector3(30, 0, 44),    // homestead
+      new THREE.Vector3(90, 0, -10), new THREE.Vector3(-95, 0, -1),
       new THREE.Vector3(0, 0, -90), new THREE.Vector3(-40, 0, 90),
     ].map((v) => v.setY(heightAt(v.x, v.z) + 0.3)),
     airSpawns: [
@@ -389,15 +391,27 @@ export function buildTatooine(): Board {
     ],
     hazards: [{ center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5, kind: 'kill' }],
     // rides (PLAN.md §17): the Tuskens' swoops at the camp, the farmer's
-    // landspeeder by the homestead, a cargo skiff out past the barge
+    // landspeeder by the homestead, a cargo skiff out past the barge — and
+    // two of the herd broken to the saddle, standing at the corral's edge
+    // where the grazers behind them are scenery and these are not. What tells
+    // them apart on sight is the woven saddle; on the radar they are rides.
     vehicles: [
       { kind: 'swoop', x: -80, z: -50, yaw: 0.8 },
       { kind: 'swoop', x: -77, z: -45, yaw: 1.2 },
       { kind: 'landspeeder', x: -26, z: 52, yaw: 2.4 },
       { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
+      { kind: 'bantha', x: -66, z: -58, yaw: 1.6 },
+      { kind: 'bantha', x: -49, z: -71, yaw: 2.6 },
     ],
     update: (dt, time, game) => {
       // one of the herd lows every so often, louder the closer you graze
+      // something enormous, out past the rim, that the player never meets
+      kraytCallIn -= dt;
+      if (kraytCallIn <= 0) {
+        kraytCallIn = 70 + Math.random() * 90;
+        audio.kraytCall(0.3 + Math.random() * 0.12);
+      }
+
       banthaLowIn -= dt;
       if (banthaLowIn <= 0 && game) {
         banthaLowIn = 16 + Math.random() * 22;

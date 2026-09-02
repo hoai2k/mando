@@ -31,6 +31,44 @@ function loadPlaywright() {
   throw new Error('playwright not found: run `npm ci` (it is a devDependency), then `npx playwright install chromium`');
 }
 
+/**
+ * A frame of nobody-touching-anything input, matching src/core/input.ts's
+ * FrameInput field for field. Ten suites used to carry their own copy of this
+ * literal, so a field added to FrameInput silently read `undefined` in every
+ * one of them; import this instead and spread overrides over it.
+ */
+export function blankInput(over = {}) {
+  return {
+    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+    zoomDelta: 0, blockHeld: false, pausePressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false,
+    throttleHeld: false, brakeHeld: false,
+    ...over,
+  };
+}
+
+/**
+ * The suites' shared pass/fail line. Returns a `check` function bound to one
+ * running tally; call `tally.done(label)` at the end to print the verdict and
+ * exit non-zero on any failure — the same shape nine suites each redeclared.
+ */
+export function makeCheck() {
+  let failed = 0;
+  const check = (name, ok, detail = '') => {
+    if (!ok) failed++;
+    const d = detail === '' ? '' : `: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`;
+    console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${d}`);
+    return ok;
+  };
+  check.done = (label) => {
+    console.log(failed ? `\n${label}: ${failed} check(s) FAILED` : `\n${label}: all checks passed`);
+    if (failed) process.exitCode = 1;
+  };
+  return check;
+}
+
 /** Xbox standard-mapping button indices, matching src/core/input.ts */
 export const BTN = {
   A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
@@ -161,7 +199,7 @@ async function ensureServer(url) {
   throw new Error(`preview server did not come up at ${url} — is dist/ built? (npm run build)`);
 }
 
-export async function launch({ headless = true, width = 1280, height = 720, url = 'http://localhost:4173/' } = {}) {
+export async function launch({ headless = true, width = 1280, height = 720, url = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` } = {}) {
   const { chromium } = loadPlaywright();
   const server = await ensureServer(url);
   const browser = await chromium.launch({
@@ -290,18 +328,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
    * stepping the loop is both faster and deterministic.
    */
   async function step(seconds, input = {}) {
-    return page.evaluate(([secs, over]) => {
+    return page.evaluate(([secs, over, BLANK]) => {
       const g = window.__game;
       if (!g) throw new Error('no game running');
       const dt = 1 / 60;
-      const base = {
-        moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
-        dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
-        meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
-        zoomDelta: 0, blockHeld: false, pausePressed: false,
-        meleeSwapPressed: false, rangedSwapPressed: false,
-        throttleHeld: false, brakeHeld: false,
-      };
+      const base = BLANK;
       // one input per possible player: the game indexes by player slot, and a
       // three- or four-player match would read past a two-entry array
       const inputs = [{ ...base, ...over }, { ...base }, { ...base }, { ...base }];
@@ -310,7 +341,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
       }
       const p = g.players[0];
       return { wave: g.wave, hp: +p.hp.toFixed(1), alive: p.alive, hostiles: g.aliveEnemyCount };
-    }, [seconds, input]);
+    }, [seconds, input, blankInput()]);
   }
 
   return {

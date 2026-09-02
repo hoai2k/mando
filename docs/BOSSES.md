@@ -1,7 +1,8 @@
 # Monster Bosses — design & spec
 
-Six large creature bosses, designed 2026-08-29 as **additional boss battles on top of
-the shipped promoted-elite bosses** (docs/MODES.md §4a). Where §4a promotes an existing
+Ten large creature bosses — six designed 2026-08-29, four more on 2026-09-02 — built
+as **additional boss battles on top of the shipped promoted-elite bosses**
+(docs/MODES.md §4a). Where §4a promotes an existing
 humanoid elite, these are the next rung the expansion list asked for — per-boss
 movesets, arena hazards tied to phases, and unique models — built as *monsters*: large
 creatures inspired by the beasts of the source shows, each matched to the board whose
@@ -9,14 +10,30 @@ systems already carry most of its fight. Every design below is an original fan
 interpretation; asset prompts describe designs and never name trademarked characters,
 per the standing rule in `ASSETS_IMAGES.md`.
 
-**Status: all six models delivered and in the game; the fights are at v1.** The
-sculpts landed on 2026-08-29 and each is now a real boss battle — see §4 for exactly
-what of the design below is standing and what is not. In short: every monster spawns
-as the second, final stage of its board's boss fight, at the health and damage
-specced here, with the entrance card, the boss bar, the phase turns, the retinue
-calls and the enrage; the bespoke movesets in §2 (the charge, the ice-burst, the
-breach, the grab, the inhale) are **not** implemented, and each monster fights with
-its own melee inside the shared boss rhythm.
+**Status: the first six models are delivered and in the game; the four of the second
+batch (§2.7–2.10) are in the game as procedural stand-ins with their sheets and
+models requested; the fights are at v1.** The first sculpts landed on 2026-08-29
+and each is a real boss battle — see §4 for exactly what of the design below is
+standing and what is not. In short: every monster spawns as the second, final stage
+of its board's boss fight (the worm as the Dune Sea's champion instead), at the
+health and damage specced here, with the entrance card, the boss bar, the phase
+turns, the retinue calls and the enrage; the bespoke movesets in §2 (the charge, the
+ice-burst, the breach, the grab, the inhale) are **not** implemented, and each
+monster fights with its own melee inside the shared boss rhythm — except the worm,
+whose burrow cycle (§2.7) *is* implemented, since it is the whole creature.
+
+**One monster per territory, and no monster serves two (2026-09-02).** The roster
+was audited for duplicates: the six finals were already distinct, but the Refinery,
+the Ringworld and the Prison Rig had no monster at all, and the war massiff was the
+promoted champion of both the Dune Sea and the Lava Flats. The second batch fixes
+both — a monster final for each of the three, and the Dune Sea's champion is now its
+own creature, the worm, which leaves the massiff to Nevarro. Every creature that
+holds a boss slot anywhere is now unique to its board: sandworm and krayt (Dune Sea),
+mudhorn (Waystation), massiff and rancor (Lava Flats), krykna and ravinak (Crevasse),
+mamacore (Trask), zillo (Refinery), alamite and mythosaur (Forge), nexu (Ringworld),
+kwazel maw (Prison Rig). The humanoid warlords still share kinds across boards
+(three officers, two capos, two enforcers) — they are promoted elites, not monsters,
+and were outside the audit.
 
 ---
 
@@ -25,11 +42,14 @@ its own melee inside the shared boss rhythm.
 The promoted-elite bosses stay exactly as shipped — these are **added on the six boards
 that have a monster**, as a second, final stage:
 
-- **Wave Battle:** clearing wave 10 rings in the boss wave as today. On a monster
-  board, the promoted elite falling is not victory — a short quake-and-roar beat
-  (~4 s, screen shake + the board's monster tell) and the monster erupts with its own
-  entrance banner and boss bar. Victory when it falls. Boards without a monster
-  (Refinery, Ringworld, Prison Rig) end at the elite as today.
+- **Wave Battle:** clearing the final wave rings in the boss wave as today. The
+  promoted elite falling is not victory — a short quake-and-roar beat (~4 s, screen
+  shake + the board's monster tell) and the monster erupts with its own entrance
+  banner and boss bar. Victory when it falls. Every territory has a monster now
+  (the Refinery, the Ringworld and the Prison Rig joined on 2026-09-02).
+- **The champion's slot** can hold a monster too: the Dune Sea's mid-board battle is
+  the worm (§2.7), spawned through the same `MID_BOSS` promotion with scale 1 like
+  the finals, so its `Def` is champion-scale by construction.
 - **Campaign:** the final arena plays the same two-stage fight; the elite becomes the
   monster's herald. Checkpoint at the last waypoint covers both stages.
 - **PvP:** untouched. Monsters are not playable (same reasoning that excluded the
@@ -53,6 +73,10 @@ light field, `spawnOnHurt`).
 | Nevarro | `rancor` | THE WARLORD'S RANCOR | 3600 | 45 | 5 m tall | town furniture (gate, towers), breakables |
 | Dune Sea | `krayt_dragon` | THE OLD ONE OF THE DUNE SEA | 5200 | 45 | ~40 m (18 m surfaces) | heightfield dunes, sarlacc kill zone, burn pools |
 | Great Forge | `mythosaur` | THE SLEEPER BELOW | 5600 | 50 | ~12 m surfaces | Living Waters pool, light field, the existing eye/skull event |
+| Dune Sea (champion) | `sandworm` | THE HUNGER UNDER THE SAND | 2000 | 36 (eruption 30) | ~40 m, 5.5 m reared | heightfield dunes, the burrow cycle (implemented) |
+| Refinery | `zillo` | THE SPECIMEN | 4200 | 45 | 5 m shoulder, 12 m long | rhydonium barrels, alarm consoles, the reactor shaft |
+| Ringworld | `nexu` | THE NIGHT-SIDE STALKER | 2800 | 36 | 2.2 m shoulder, 5 m long | the terminator's light field, the tram, street cover |
+| Prison Rig | `kwazelMaw` | THE THING IN THE MOON POOL | 3800 | 48 | 4.2 m tall, 9 m long | the moon pool, the water system, the shock floors |
 
 Player HP is 100 throughout; hit numbers are per connected swing/bite before the ×1.5
 §4a damage scale is considered (it is not applied — these numbers are final). For
@@ -273,6 +297,157 @@ timer with an encounter). Deflect zones are hit volumes returning the spark FX w
 zero damage. `loadCreature`, nodes: `head, jaw, hornL/R, eyeL/R, vents1..2,
 neck1..4, clawL/R, back`.
 
+### 2.7 Dune Worm — Dune Sea, the champion — `sandworm`
+
+**The creature.** A burrowing worm of the deep dunes, forty metres of it, of which
+only the head and the first five and a half metres of neck ever stand out of the
+sand: a blunt eyeless dome of a head split three ways by mandibles that spread
+around a ringed, tooth-lined gullet, an armored neck of overlapping bone-pale plates
+over sand-ochre hide, and behind it a body that shows itself only as **arches** —
+humps of plated back that rise out of the dunes along the path the head has taken
+and sink again, so the animal reads as forty metres long whether the head is up or
+not. It is the desert's fast hunter where the krayt is its slow inevitability; a
+Tusken chant calls it the hunger under the sand, and the tribes follow the wakes.
+
+**The fight — implemented (2026-09-02).** Arena is wherever the wake goes; the whole
+fight is the **burrow cycle**, which is the creature's only design and the set's
+first bespoke moveset to ship:
+
+- **Under** — submerged, it hunts at 9.5 m/s: a running wake of thrown sand (the
+  `plows` dust), a sub-bass rumble that comes and goes, and a radar blip. It is
+  **untargetable and unhurtable** down there — bolts pass over the wake, the
+  lock-on finds nothing, explosions and slams do not reach it — which is the fight's
+  lesson: the worm has to be hurt while it is up. It comes up once it is within 5 m
+  of its prey, or after 9 s under wherever it is.
+- **Rising** (0.9 s) — the sand boils and the cameras nearby shake; the head unit
+  climbs out of the ground. Targetable from the first frame of the rise.
+- **The eruption** — as it breaks the surface, everyone within 6 m takes 30 and is
+  thrown up and out; every camera within 24 m feels it. The wake is the telegraph:
+  the hit is the cost of standing on it.
+- **Up** (7 s) — rooted where it surfaced, it turns to follow its prey and **bites**
+  anything within 6.5 m for 36 through the ordinary melee wind-up. If the prey gets
+  well out of reach it does not wait out its spell — after 2.5 s up with nothing
+  within 1.8× reach it sinks early and hunts.
+- **Sinking** (0.8 s) — back under, and the cycle repeats.
+- **The arches** — humps of body break the surface behind the head and sink again,
+  so forty metres of animal read whether the head is up or not. Cosmetic for now: no
+  collision and no hit volume, since the head is the fight.
+
+  **How they are built is changing (2026-09-02).** What ships today is three separate
+  `sandworm_arch` props placed along a trail of where the root has been, each on its
+  own rise-and-sink beat. The accepted replacement is **one continuous body**: a
+  single forty-metre sculpt whose spine chain the game lays along that same trail,
+  with a travelling wave deciding which stretches are above the sand. That makes the
+  humps the same animal as the head, keeps them attached through the worm's turns,
+  removes the cut faces the prop has to hide, and gives the exposed coils real nodes
+  to hang weak points on later. It costs a per-frame chain solve in `cosmetic`, and a
+  sculpt modelled dead straight rather than pre-reared — which is why the reference
+  canvas is being regenerated (`ASSETS_IMAGES.md`) and the `sandworm_arch` request is
+  withdrawn. Until the straight sculpt lands the arch props stand.
+- **Phases** — ⅔ and ⅓ through the shared boss rhythm: the Tusken retinue (the
+  board's guard) and the enrage. The anti-camp shock-slam is suppressed while it is
+  under — the eruption is its answer to a camper. It never super-jumps (it has no
+  legs) and cannot be knocked down.
+
+**Integration notes.** `Def.burrows` carries the cycle's numbers; `Enemy.burrow`
+is the state, `Enemy.submerged`/`targetable` gate damage, knockback, knockdown and
+the target list. The visual today is two bodies in one `CharacterInstance`
+(`buildSandworm`): a `buildMonsterBase` worm for the head unit, sunk whole by
+`setBurrow`, and three arch props placed along the root's trail. Under the single-body
+replacement above, both collapse into one sculpt and the trail feeds a spine solver
+instead. Sculpt: `sandworm`, modelled **straight** along +Z with a chain of 24 or more
+evenly spaced spine joints, fitted by length. Nodes: `head, jaw, mandibleL/R/T/B,
+gullet, spine1..24`. (The maw is four-way rather than three, matching the delivered
+art.)
+
+### 2.8 Zillo — Refinery — `zillo`
+
+**The creature.** The Empire's specimen — an armored reptilian crawler five metres
+at the shoulder and twelve long, held in the plant's containment until the garrison
+fell: a long flat skull with a lipless underslung jaw, small deep-set eyes, a body
+under overlapping slate-green **armor plates** that blaster bolts skate off, three
+clawed digits on each of four splayed limbs, a long spined tail. Under the plates,
+between them, the pale flesh glows faintly with what they have been feeding it.
+
+**The fight.** Arena is the reactor hall: the barrels are the cover and the trap,
+and the shaft is the only way over it.
+
+- **Plate deflection** — its signature (design; not implemented): the plates are
+  ×0 deflect zones with the mythosaur's spark FX; the **seams** between them
+  (`seams`, emissive) and the **jaw interior** are the ×2 weak zones, exposed when
+  it rears to strike.
+- **Tail sweep** — a wide slow 180° sweep behind it, 45 + knockback; the reach the
+  claws don't have.
+- **Barrel rush** — it charges through barrel stacks: rhydonium detonates on the
+  existing chain path and it *shrugs it off* (burn-immune by armor), so the
+  player's own trap turns on them.
+- **Shaft climb** — at ⅓ it climbs the reactor column and drops onto the ring the
+  most players hold (the leap-slam pattern), the one moment the seams are open from
+  above.
+- **Phases** — ⅔ and ⅓: stormtrooper retinue (the containment detail, team 1 and
+  shooting at everyone).
+
+**Integration notes.** Quadruped through `loadCreature`; sized to the halls (7.2 m
+ceilings). Nodes: `head, jaw, spine1..3, legFL/FR/BL/BR (+_lower), tail1..3,
+plates, seams`.
+
+### 2.9 Nexu — Ringworld — `nexu`
+
+**The creature.** A hunting cat the size of a landspeeder — 2.2 m at the shoulder,
+5 m long — loosed on the street by the gunslinger's menagerie: a wide split-jawed
+head, **four eyes** (two forward, two on the temples), a ridge of red-tipped
+**quills** down the spine that rise when it hunts, tawny-and-black hide, long
+clawed limbs, a forked tail. The fastest thing on four legs in the game: it
+outruns a sprint.
+
+**The fight.** Arena is the street strip under the terminator; the tram runs
+through the fight.
+
+- **Pounce** — implemented: the massiff's committed ballistic leap, aimed at where
+  the target is headed; a dash or a jetpack hop beats it. 36 + a shove.
+- **Night hunter** — (design) it prefers the dark side: sight range does not fall
+  with the light on its target the way every other hostile's does, so the safe
+  side of the board is not safe from *it*.
+- **Roof run** — (design) it takes the tram roof and the kiosk roofs as ground and
+  leaps between them, so the street's cover is a lattice it moves over.
+- **Weak zones** — (design) the **eyes** (`eyeL/R` pairs, emissive) ×2; the quills
+  along the back deflect ×0.
+- **Phases** — ⅔ and ⅓: pirate retinue (the menagerie's handlers). At ⅓ the quills
+  go up and it enrages: pounces come in pairs.
+
+**Integration notes.** `pounces: true` on the Def generalises the massiff's gate.
+Nodes: `head, jaw, eyeL/R, eyeL2/R2, spine1..2, legFL/FR/BL/BR (+_lower),
+tail1..2, quills`.
+
+### 2.10 Kwazel Maw — Prison Rig — `kwazelMaw`
+
+**The creature.** The thing the moon pool has been feeding — a huge amphibian, 4.2 m
+tall and 9 m long, hauled up out of the sea onto the white decks: a wide flat
+toad-like head with a mouth that opens the whole width of it, bulbous side-set eyes,
+a long low body on four splayed webbed limbs, a broad rudder tail, slick dark
+blue-black hide with **bioluminescent stripes** in cyan running down both flanks
+that pulse as it breathes — the one light in the sea under the rig.
+
+**The fight.** Arena is the rig's deck ring around the moon pool; the shock floors
+keep cycling, and the sea is its escape.
+
+- **Gulp** — implemented as its melee: the mouth opens the width of the head and
+  slams shut, 48 in a 6 m lane.
+- **Dive** — (design) below ⅔ it drops into the moon pool (the submerged pattern
+  the worm now ships) and resurfaces at a random deck edge; the stripes glow up
+  through the water where it will come up — the tell.
+- **Tongue lash** — (design) a 12 m tongue snap that pulls a caught player toward
+  the mouth (the grab-and-carry piece, shared with the rancor and the mamacore).
+- **Shock immunity** — at home in the water and unbothered by the deck charge: it
+  is `burnImmune`, and the shock floors' 10-a-beat is nothing to 3800 HP.
+- **Weak zones** — (design) the **stripes** (`stripesL/R`, emissive) ×2 while lit;
+  they dim for 3 s after each dive.
+- **Phases** — ⅔ and ⅓: stormtrooper retinue (the warden's men, who would rather
+  it ate the prisoners).
+
+**Integration notes.** Quadruped through `loadCreature`. Nodes: `head, jaw,
+body1..3, legFL/FR/BL/BR (+_lower), tail1..2, stripesL/R`.
+
 ---
 
 ## 3. Shared implementation ledger
@@ -285,7 +460,7 @@ is scoped before it starts:
 | Boss-stat spawn + banner | reuse | `Def` carries final stats; `promoteBoss(name, 1, 1, 1)` for banner/bar |
 | Two-stage boss wave | new (small) | elite death → quake beat → monster spawn; one branch in the §4a flow |
 | Retinue at ⅔/⅓ | reuse | `BOSS_RETINUE` gains per-monster overrides (massiff, krykna, quarren, pirate, alamite) |
-| Submerged/emerged state | new (shared) | one state machine serves ravinak, mamacore, krayt, mythosaur |
+| Submerged/emerged state | **shipped as the worm's burrow cycle** | `Def.burrows` + `Enemy.updateBurrower`; the ravinak, mamacore, krayt, mythosaur and kwazel maw can adopt it |
 | Line charge + skid stun | mostly reuse | massiff pounce gate re-aimed; stun timer on wall/breakable hit |
 | Lobbed projectile + burn pool | reuse | grenade-arc math + existing burn zones (krayt spit) |
 | Suction cone (inhale) | new (small) | radial force on player velocity, capped |
@@ -300,6 +475,10 @@ is scoped before it starts:
 | Piece | State |
 |---|---|
 | Six monsters as `EnemyKind`s at the specced HP/damage, `relentless`, boss-scale `Def` | **done** |
+| The second batch as `EnemyKind`s (sandworm, zillo, nexu, kwazelMaw) with stand-ins, gaits against their briefed rigs, monster stage on the Refinery / Ringworld / Prison Rig, the worm as the Dune Sea's champion | **done** (2026-09-02; sculpts requested, `ASSETS_MODELS.md`) |
+| The worm's burrow cycle: under (untargetable, unhurtable, a wake), rise, eruption, rooted bites, sink; trailing body arches | **done** (`Enemy.updateBurrower`, `buildSandworm`) |
+| The worm as one continuous body: a spine chain solved onto the head's trail, replacing the three arch props | **not implemented** — designed and accepted 2026-09-02, waiting on the straight sculpt (§2.7) |
+| The nexu's pounce (`pounces` on the Def) | **done** |
 | Two-stage boss wave: warlord falls → 4 s quake → monster erupts, victory only when it falls | **done** (`Game.updateMonsterStage`, shared by the wave game and the campaign arena) |
 | Entrance card, boss bar, phase turns at ⅔/⅓, repulsor pulse, enrage, anti-camp shock-slam | **done** — reused wholesale from §4a |
 | Per-monster retinue (pirate, krykna, quarren, pirate, massiff, alamite) | **done** (`MONSTER_BOSS[board].retinue`) |
@@ -308,7 +487,7 @@ is scoped before it starts:
 | Prefetch: the monster warms with the board's other two bosses | **done** |
 | The §2 movesets — charge/skid-stun, ice-burst, breach bite, debris hurl, grab, inhale, sarlacc bait, darkness beat | **not implemented** |
 | Weak/deflect zones (×2 / ×0.5 / ×0 on the named nodes) | **not implemented** — the sculpts ship the nodes, so this is the natural next round; until then a monster takes normal damage everywhere, which is why the specced HP still reads right |
-| Submerged/emerged states, arena holes, persistent rubble | **not implemented** |
+| Submerged/emerged states for the water monsters, arena holes, persistent rubble | **not implemented** (the worm's cycle is the pattern to lift) |
 
 The order matters: the weak zones are the set's shared vocabulary and want the
 multi-volume hit pipeline the ledger above calls "new (shared)"; the bespoke moves sit
@@ -320,5 +499,6 @@ each monster wants a roar/hurt/death set (sample ids `<id>_roar` etc., the
 Those requests are deferred with the fights, same as the humanoid boss voices.
 
 **Asset order of work** is the standard pipeline: reference sheet → model →
-gameplay. The sheets are the blocking input; both request docs carry the monster
-batch as of 2026-08-29.
+gameplay. The first batch's sheets were overtaken by its models; the second batch's
+sheets and models are both open in the request docs as of 2026-09-02, and nothing
+blocks on them — the four fight as stand-ins until the files land.

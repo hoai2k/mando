@@ -1,3 +1,5 @@
 node_modules
 dist
 .elevenlabs_key
+.claude/worktrees/
+.vite/

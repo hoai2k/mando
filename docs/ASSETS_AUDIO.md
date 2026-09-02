@@ -1,10 +1,11 @@
 # Asset Requests — Audio
 
 **Open audio requests only.** Every sound the engine can ask for has a file —
-111 of 111 as of 2026-08-29 (83 named samples plus four takes each for seven voices),
-verified by cross-checking `SampleName` in `src/core/audio.ts` against
-`public/assets/audio/`. What remains below needs a gameplay hook or a feature that does not exist yet —
-plus board music, which needs a music model rather than the sound-effect API.
+**152 of 152 as of 2026-09-02** (124 named samples plus four takes each for seven
+voices), verified by cross-checking `SampleName` in `src/core/audio.ts` against
+`public/assets/audio/`: no missing files, no duplicate names, no orphaned files.
+What remains below is board music (a music model rather than the sound-effect API)
+and voice sets for creatures that do not exist in code yet.
 
 **Historical note.** The original 38 sounds are delivered and integrated — they
 are recorded in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md), with their regeneration
@@ -94,14 +95,14 @@ its volume set by the nearest player's range. Prompts recorded in
 No gull file is needed — the requested `amb_rain` loop already carries the distant
 gulls the quay dressing wants.
 
-## Open — not yet consumed by the engine
+## Hooks built and voiced — delivered 2026-09-02
 
-These need a gameplay hook before the audio is worth producing.
+Both sounds that were waiting on a consumer now have one, so both were produced:
 
-| File | Prompt | Hook needed |
-|---|---|---|
-| `droid_servo` (loop) | "Robotic servo movement loop, whirring stepper motors and joint creaks, seamless 1s" | Positional per-enemy loop for droids/dark troopers |
-| `amb_krayt_call` | "Very distant colossal desert creature call, low mournful bellow rolling over dunes, 4s one-shot, heavily reverbed" | Random distant-ambience timer on the Dune Sea |
+| File | Hook built for it |
+|---|---|
+| `droid_servo` (loop) | A **single shared servo bed** rather than a loop per droid: `audio.setDroidServo(level)` takes a level the game has already weighted by each droid's distance and speed, so a dozen machines cost one voice and a powered-down room stays quiet. Torn down with the match beside the jetpack and saber loops. |
+| `amb_krayt_call` | A **distant-ambience timer on the Dune Sea**: something enormous calls from past the rim every 70–160 s. It never means an animal is coming — the desert is meant to sound inhabited by things the player never meets. |
 
 ## Open — future content
 
@@ -110,27 +111,44 @@ death. The consumer exists now (the boss fights shipped 2026-08-29 with the horn
 phase banners and the base kind's barks standing in), so these are producible whenever
 distinct warlord voices feel worth nine sets of files.
 
-## Game modes (`?modes`, 2026-08-29) — open, awaiting dedicated hooks
+## Game modes — delivered 2026-09-02
 
-The three modes shipped on existing voices: doors, checkpoints and pickups reuse UI
-confirms and the wave-clear chime, and every boss speaks with its base kind's barks.
-These become drop-in upgrades once their names are wired in `core/audio.ts`
-(`boss_horn` graduated on 2026-08-29 — it is wired and delivered, opening the boss
-introduction card and, quieter, each phase turn):
+The three modes shipped on borrowed voices (UI confirms, the wave-clear chime); all
+four now have their own, wired at the sites that used the stand-ins:
 
-| File | Prompt | Hook (today's stand-in) |
-|---|---|---|
-| `door_cycle` | "Heavy blast door cycling open: hydraulic unlock clunk, deep metal slide, pressurized thunk at the stop, 2s" | corridor door teleport (`uiConfirm`) |
-| `checkpoint_chime` | "Small triumphant two-note beacon chime with a metallic shimmer tail, 1.5s" | campaign checkpoint (`waveClear`) |
-| `bacta_pickup` | "Glass-and-liquid pickup slurp with a soft healing shimmer, 1s" | bacta canister (`uiConfirm`) |
-| `pvp_round_win` | "Short duel-won sting: two hard timpani hits under a rising metallic flourish, 2.5s" | PvP last-one-standing (`sting(true)`) |
+| File | Now wired to |
+|---|---|
+| `door_cycle` | mission gate `open()` — the doors had no voice of their own at all before |
+| `checkpoint_chime` | `clearRoom` (a room that fought back still keeps the wave-clear payoff underneath) |
+| `bacta_pickup` | the bacta canister pickup |
+| `pvp_round_win` | PvP last-one-standing, over the victory music |
 
-The per-boss voice sets deferred earlier now have their consumer (bosses exist as
-promoted elites); they stay deferred only until bosses get per-boss movesets.
+The per-boss voice sets for the **promoted humanoid warlords** stay deferred until
+bosses get per-boss movesets; they still speak with their base kind's barks under the
+`boss_horn`.
 
-**The six monster bosses now have one too.** Their fights shipped on 2026-08-29
-(`docs/BOSSES.md`), and each currently speaks with the synth beast voice — a growl as
-it erupts, a yelp as it goes down, both pitched heavier for a boss than for a massiff.
-A roar/hurt/death set per monster (`mudhorn_roar` and so on, the `mamacore_roar`
-pattern) is the upgrade whenever six sets of files feel worth it; nothing waits on
-them, and a delivered file is picked up by name.
+## Monster boss voices — six sets delivered 2026-09-02
+
+Each of the six shipped monster bosses (`docs/BOSSES.md` §2.1–2.6) now has its own
+**roar / hurt / death**, written to that creature's build so they read as different
+animals rather than one growl pitched down: `mudhorn`, `ravinak`, `rancor`, `krayt`,
+`mythosaur` (17 files) plus `mamacore_hurt` / `mamacore_death` — the mamacore's *roar*
+is the `mamacore_roar` that already ships for the pier attack, since the boss is that
+same hazard finally surfacing.
+
+Routing is `audio.monster(voice, part)`, which falls back to the shared beast growl and
+yelp when a set is absent — so a monster is always safe to ship silent and gains its
+voice the moment three files land under its name. The **hurt** cry is throttled to one
+every 1.6 s, since under sustained fire an untimed one machine-guns.
+
+**The second batch is delivered too (2026-09-02).** `sandworm`, `zillo`, `nexu` and
+`kwazelMaw` (`docs/BOSSES.md` §2.7–2.10) have the same roar/hurt/death each — 12 files,
+picked up by the same router with their kinds added to `MONSTER_VOICE`. The worm also
+has **`sandworm_rumble`**, and it is a loop with a real consumer now rather than a
+borrowed one-shot: `audio.setBurrowRumble(level)` is driven from the burrow state
+machine, swelling as the buried worm closes on its target and cutting the instant it
+breaks ground, on death, and with the match. It replaced the `mythosaur_call` the worm
+used to borrow at random intervals — a thing tunnelling toward you should be
+continuous, felt before it is heard.
+
+Nothing on the monster side is open.

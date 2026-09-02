@@ -10,6 +10,7 @@ import { propsUsed } from '../world/props';
 import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
+import { BANTHA_STRIDE } from '../anim/quadruped';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
@@ -54,6 +55,16 @@ export interface VehicleDef {
   /** authored .glb to swap in when present */
   modelId?: string;
   modelSize?: number;
+  /** which extent `modelSize` measures; the default takes the longest */
+  modelAxis?: 'x' | 'y' | 'z' | 'longest';
+  /** stand the sculpt on the keel instead of hanging it off its own origin */
+  modelGround?: boolean;
+  /**
+   * An animal rather than a machine. A mount has no engine and no ignition, it
+   * walks its gait clips instead of hovering, and when it dies it goes down in
+   * the sand — no repulsor core to detonate.
+   */
+  living?: boolean;
 }
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
@@ -78,6 +89,17 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     seat: { x: 0, y: -0.32, z: -0.5 }, stance: 'saddle',
     modelId: 'landspeeder', modelSize: 4.5,
   },
+  bantha: {
+    // The Tuskens' own transport, and the one ride on the board that is alive:
+    // slow, enormously heavy, and a wall of hide that soaks fire the way no
+    // repulsor hull does. It cannot drift — four feet in the sand bite — and
+    // it cannot flee, so taking one is a decision to walk into the fight.
+    name: 'Bantha', hp: 260, top: 10, throttle: 5, brake: 9, drag: 3.2,
+    turn: 1.5, grip: 9, boost: 4.5,
+    radius: 1.5, body: 2.5, hover: 0.02, length: 5.4,
+    seat: { x: 0, y: 2.05, z: -0.2 }, stance: 'saddle', living: true,
+    modelId: 'bantha', modelSize: 4.5, modelAxis: 'z', modelGround: true,
+  },
   skiff: {
     name: TEXT.vehicles.skiff, hp: 220, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
     turn: 1.0, grip: 6.5, boost: 6,
@@ -86,6 +108,12 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     modelId: 'skiff', modelSize: 9,
   },
 };
+
+/** a mount's charge: how long the horns are down, and the wait before another */
+const CHARGE_TIME = 1.5;
+const CHARGE_COOLDOWN = 5;
+/** what the charge is worth as a multiple of the animal's own top speed */
+const CHARGE_TOP = 1.75;
 
 /** how much of top speed reverse is worth */
 const REVERSE_FRACTION = 0.35;
@@ -126,6 +154,19 @@ export class Vehicle {
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
+  /** a living mount's gait, once its sculpt and clips are in (see `onModel`) */
+  private mixer: THREE.AnimationMixer | null = null;
+  private idleAction: THREE.AnimationAction | null = null;
+  private walkAction: THREE.AnimationAction | null = null;
+  /** ground the walk clip covers per second of clip (m/s), for rate-matching the feet */
+  private walkStride = BANTHA_STRIDE;
+  /** metres left to walk before the next footfall lands */
+  private strideLeft = 1.2;
+  /** how long until this one lows again while it is being ridden */
+  private lowIn = 6 + Math.random() * 8;
+  /** seconds left in a charge (X on a mount); ≤ 0 = not charging */
+  private chargeT = 0;
+  private chargeCd = 0;
 
   constructor(public spec: VehicleSpec, private board: Board) {
     this.def = VEHICLE_DEFS[spec.kind];
@@ -135,7 +176,7 @@ export class Vehicle {
     this.pos.set(spec.x, ground + this.def.hover, spec.z);
     this.seatY = this.def.seat.y;
     this.group.add(this.body);
-    buildVehicleMesh(spec.kind, this.body, (root) => this.seatToModel(root));
+    buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
     this.park();
@@ -176,7 +217,9 @@ export class Vehicle {
     this.unpark();
     this.rider = rider;
     rider.vehicle = this;
-    audio.speederIgnite();
+    // a machine turns over; an animal complains about the weight
+    if (this.def.living) audio.banthaLow(0.5);
+    else audio.speederIgnite();
   }
 
   /**
@@ -200,7 +243,7 @@ export class Vehicle {
       this.rider.cam.shake(Math.min(0.12, amount * 0.006));
       this.rider.noteVehicleHit(from);
     }
-    if (this.hp <= 0) this.destroy(true);
+    if (this.hp <= 0) this.destroy(!this.def.living);
   }
 
   /** The end of the ride: throw the rider clear and blow the wreck. */
@@ -223,10 +266,20 @@ export class Vehicle {
     this.group.visible = false;
     this.removeMe = true;
     if (explode) this.pendingExplosion = { at: at.setY(at.y + 0.5), slot };
+    // a mount does not detonate: it goes down in a cloud of its own dust,
+    // with the last of its lowing
+    else if (this.def.living) this.pendingCollapse = at.clone();
   }
 
   /** set by destroy(); the game detonates it on its next update pass */
   pendingExplosion: { at: THREE.Vector3; slot: number } | null = null;
+  /** set by destroy() for a living mount; the game kicks up the dust for it */
+  pendingCollapse: THREE.Vector3 | null = null;
+
+  /** true while the horns are down (drives the HUD's charge cue) */
+  get charging(): boolean { return this.chargeT > 0; }
+  /** true when the charge is off cooldown and can be asked for */
+  get chargeReady(): boolean { return this.chargeCd <= 0 && this.chargeT <= 0; }
 
   /** World position of the rider's root while mounted. */
   seatWorld(out: THREE.Vector3): THREE.Vector3 {
@@ -237,6 +290,42 @@ export class Vehicle {
       this.pos.y + this.seatY,
       this.pos.z - sin * s.x + cos * s.z,
     );
+  }
+
+  /** Everything that has to be measured off the sculpt, the moment it lands. */
+  private onModel(root: THREE.Object3D): void {
+    this.seatToModel(root);
+    if (this.def.living) this.gaitFromModel(root);
+  }
+
+  /**
+   * A mount's legs, from whatever the sculpt brought with it.
+   *
+   * `loadProp` hands the model its clips — the file's own if it ships any, the
+   * code-authored quadruped gait otherwise — so this only has to pick the two
+   * that matter and blend them by speed: standing and walking. A ride whose
+   * file carries no clips at all simply stands there and slides, which is what
+   * every vehicle did before this.
+   */
+  private gaitFromModel(root: THREE.Object3D): void {
+    const clips = (root.userData.clips ?? []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    const pick = (re: RegExp): THREE.AnimationClip | undefined => clips.find((c) => re.test(c.name));
+    const idle = pick(/idle|breath|stand/i);
+    const walk = pick(/walk|amble|trot/i);
+    this.mixer = new THREE.AnimationMixer(root);
+    if (idle) {
+      this.idleAction = this.mixer.clipAction(idle);
+      this.idleAction.play();
+    }
+    if (walk) {
+      this.walkAction = this.mixer.clipAction(walk);
+      this.walkAction.play();
+      this.walkAction.setEffectiveWeight(0);
+      // the authored cycle covers BANTHA_STRIDE metres; a file with its own
+      // clip is measured the same way, near enough to keep the feet honest
+      this.walkStride = BANTHA_STRIDE / Math.max(walk.duration, 0.2);
+    }
   }
 
   /**
@@ -269,6 +358,10 @@ export class Vehicle {
     // a straddled saddle carries the hips a hand's width above it; a standing
     // rider's feet go straight onto the deck
     this.seatY = this.def.stance === 'stand' ? surface : surface - 0.85;
+    // the saddle is ours, not the sculpt's: sit it on the back the model
+    // actually has, so a mount reads as ridden whichever build is showing
+    const saddle = this.body.getObjectByName('saddle');
+    if (saddle) saddle.position.y = surface - 0.04;
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
@@ -294,6 +387,22 @@ export class Vehicle {
     const def = this.def;
     this.boostCd -= dt;
 
+    // ---- the charge (X), a mount only ----
+    // The one attack a rider commands rather than improvises: the head goes
+    // down and the animal runs, faster than it will ever move under the pedal,
+    // and whatever is in front of it is hit by a couple of tonnes of bantha.
+    // It commits — steering goes heavy for the length of it — and it is on a
+    // cooldown, so it is a thing you time rather than a thing you hold.
+    this.chargeCd -= dt;
+    if (this.chargeT > 0) this.chargeT -= dt;
+    if (def.living && input.meleePressed && this.chargeCd <= 0 && this.chargeT <= 0) {
+      this.chargeT = CHARGE_TIME;
+      this.chargeCd = CHARGE_TIME + CHARGE_COOLDOWN;
+      audio.banthaLow(0.7);
+      rider.cam.shake(0.08);
+    }
+    const charging = this.chargeT > 0;
+
     // ---- steering ----
     // Screen-right is -X for a nose on +Z (see yawBasis), so a stick pushed
     // right turns the nose by *decreasing* yaw.
@@ -308,7 +417,8 @@ export class Vehicle {
     const bite = 0.45 + 0.55 * Math.min(1, speedNow / (def.top * 0.35));
     const fast = clamp((speedNow - def.top * 0.55) / (def.top * 0.45), 0, 1);
     this.steer = input.moveX;
-    this.yaw -= this.steer * def.turn * bite * (1 - 0.32 * fast) * dt;
+    // a charging animal is aimed before it is launched, not steered through
+    this.yaw -= this.steer * def.turn * bite * (1 - 0.32 * fast) * (charging ? 0.4 : 1) * dt;
 
     // the nose, and the axis it slides along
     const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
@@ -317,7 +427,10 @@ export class Vehicle {
     let lat = this.vel.x * rx + this.vel.z * rz;
 
     // ---- the pedals: A accelerates, B brakes and then reverses ----
-    if (input.throttleHeld && !input.brakeHeld) {
+    if (charging) {
+      // the charge owns the legs: neither pedal is worth anything until it ends
+      fwd = Math.min(def.top * CHARGE_TOP, fwd + def.throttle * 3 * dt);
+    } else if (input.throttleHeld && !input.brakeHeld) {
       fwd = Math.min(def.top, fwd + def.throttle * dt);
     } else if (input.brakeHeld && !input.throttleHeld) {
       fwd = fwd > REVERSE_THRESHOLD
@@ -333,7 +446,9 @@ export class Vehicle {
     if (input.dashPressed && this.boostCd <= 0) {
       this.boostCd = 1.4;
       fwd = Math.min(def.top * 1.6, fwd + def.boost);
-      audio.dash();
+      // a mount does not have a thruster to fire: it is goaded into a charge
+      if (def.living) audio.banthaLow(0.45);
+      else audio.dash();
       rider.cam.shake(0.05);
     }
 
@@ -384,23 +499,26 @@ export class Vehicle {
         const until = this.ramMemo.get(e) ?? 0;
         if (game.time < until) continue;
         this.ramMemo.set(e, game.time + 0.5);
-        const dmg = Math.min(48, speed * 2.1);
+        // horns first: a charge lands better than twice what a shoulder does
+        const dmg = Math.min(charging ? 120 : 48, speed * (charging ? 5 : 2.1));
         const wasAlive = e.alive;
         e.damage(dmg, this.pos, rider.slot);
-        e.knockback(this.pos, Math.min(20, speed * 0.9), 0.5, 0.3);
-        e.knockdown(1.2 + Math.random() * 0.6);
+        e.knockback(this.pos, Math.min(charging ? 30 : 20, speed * (charging ? 1.6 : 0.9)), 0.5, 0.3);
+        e.knockdown((charging ? 2 : 1.2) + Math.random() * 0.6);
         game.particles.impactSparks(e.position.clone().setY(e.position.y + 1), 10);
         audio.impact();
         rider.cam.shake(0.09);
         if (wasAlive) game.hitMarker(rider.slot);
-        // every body struck chips the ride — nothing is free
-        this.damage(3, e.position, -1);
+        // every body struck chips the ride — nothing is free, though an
+        // animal that meant to do it comes off better than one that did not
+        this.damage(charging ? 1 : 3, e.position, -1);
         if (!this.alive) break;
       }
     }
 
     // engine leans with the throttle; dust or spray kicks up in the wake
-    audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
+    if (def.living) this.mountVoice(dt, speed);
+    else audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
     this.dustTimer -= dt * speed;
     if (this.dustTimer <= 0 && speed > 3) {
       this.dustTimer = 2.2;
@@ -418,6 +536,40 @@ export class Vehicle {
     this.syncMesh(dt, speed);
   }
 
+  /**
+   * What a ridden animal sounds like: a footfall every stride on the board's
+   * own surface — paced off ground covered, so it slows with the beast rather
+   * than running on a clock — and a low every so often under the ride.
+   */
+  private mountVoice(dt: number, speed: number): void {
+    this.strideLeft -= speed * dt;
+    if (this.strideLeft <= 0) {
+      // four feet, so two footfalls to the stride the clip plays
+      this.strideLeft = BANTHA_STRIDE / 2;
+      audio.footstep(this.board.footstep);
+    }
+    this.lowIn -= dt;
+    if (this.lowIn <= 0) {
+      this.lowIn = 9 + Math.random() * 12;
+      audio.banthaLow(0.3);
+    }
+  }
+
+  /**
+   * Blend the mount's gait by how fast it is actually travelling, and play the
+   * walk at the rate that keeps its feet on the ground it is covering.
+   */
+  private updateGait(dt: number, speed: number): void {
+    if (!this.mixer) return;
+    const moving = Math.min(1, speed / 1.2);
+    this.idleAction?.setEffectiveWeight(1 - moving);
+    if (this.walkAction) {
+      this.walkAction.setEffectiveWeight(moving);
+      this.walkAction.timeScale = clamp(speed / Math.max(this.walkStride, 0.1), 0.25, 2.4);
+    }
+    this.mixer.update(dt);
+  }
+
   private syncMesh(dt: number, speed: number): void {
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
@@ -426,9 +578,13 @@ export class Vehicle {
     // has started sliding. Nose down a touch with descent.
     const latX = Math.cos(this.yaw), latZ = -Math.sin(this.yaw);
     const lateral = (this.vel.x * latX + this.vel.z * latZ) / Math.max(1, this.def.top);
-    const lean = -lateral * 0.4 - this.steer * 0.3 * Math.min(1, speed / (this.def.top * 0.5));
+    // A mount leans a fraction of what a repulsor does — its own gait clip
+    // carries the roll, and a bantha banked like a swoop reads as a toy.
+    const bank = this.def.living ? 0.25 : 1;
+    const lean = (-lateral * 0.4 - this.steer * 0.3 * Math.min(1, speed / (this.def.top * 0.5))) * bank;
     this.body.rotation.z = damp(this.body.rotation.z, lean, 8, dt);
-    this.body.rotation.x = damp(this.body.rotation.x, -this.vel.y * 0.02 + speed * 0.004, 8, dt);
+    this.body.rotation.x = damp(this.body.rotation.x, (-this.vel.y * 0.02 + speed * 0.004) * bank, 8, dt);
+    this.updateGait(dt, speed);
   }
 }
 
@@ -504,6 +660,43 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel
     shield.rotation.x = -0.35;
     group.add(shield);
     built.push(shield as unknown as THREE.Mesh);
+  } else if (kind === 'bantha') {
+    // The camp's mount: the same stand-in the Tusken herd is built from
+    // (world/tatooine.ts) so a saddled bantha and a grazing one read as the
+    // same animal, plus the woven saddle that says this one is broken to ride.
+    const hide = mat(0x5a4632, 1, 0);
+    const horn = mat(0xb8a888, 0.8, 0);
+    const barrel = track(new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 9), hide));
+    barrel.scale.set(1, 1.05, 1.9);
+    barrel.position.y = 1.9;
+    barrel.castShadow = true;
+    group.add(barrel);
+    const skull = track(new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 8), hide));
+    skull.position.set(0, 1.6, 2.7);
+    skull.castShadow = true;
+    group.add(skull);
+    for (const sx of [-1, 1]) {
+      const spiral = track(new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 10, Math.PI * 1.3), horn));
+      spiral.position.set(sx * 0.55, 2.1, 2.7);
+      spiral.rotation.set(Math.PI / 2, 0, sx * 0.6);
+      spiral.castShadow = true;
+      group.add(spiral);
+      for (const sz of [-1, 1]) track(addCyl(group, hide, 0.28, 0.34, 1.5, sx * 0.8, 0.75, sz * 1.1, 0));
+    }
+    // The saddle is the ride's own dressing, not the sculpt's, so it is *not*
+    // tracked: it stays on when the authored bantha lands, and `seatToModel`
+    // drops it onto the back that model actually has.
+    const saddle = new THREE.Group();
+    saddle.name = 'saddle';
+    saddle.position.y = 3.2;
+    const cloth = mat(0x8c3f2e, 0.95, 0);
+    addBox(saddle, cloth, 1.5, 0.1, 2.0, 0, 0, -0.1);
+    const leather = mat(0x4a3524, 0.9, 0.05);
+    addBox(saddle, leather, 0.9, 0.22, 0.9, 0, 0.14, -0.2);
+    addBox(saddle, leather, 0.5, 0.3, 0.14, 0, 0.3, 0.25);       // pommel
+    for (const sx of [-1, 1]) addBox(saddle, leather, 0.06, 0.5, 0.3, sx * 0.72, -0.2, -0.2); // stirrup straps
+    saddle.traverse((o) => { o.castShadow = true; });
+    group.add(saddle);
   } else {
     // skiff: flat working deck, low rails, tiller platform astern, lashed cargo
     const hullMat2 = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0xa08a60, roughness: 0.65, metalness: 0.35 });
@@ -519,9 +712,12 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel
   if (def.modelId) {
     propsUsed.add(def.modelId);   // a parked ride is part of the board's art
     const model = loadProp(def.modelId, def.modelSize ?? def.length, {
+      axis: def.modelAxis,
+      ground: def.modelGround,
       onLoad: (root) => { for (const m of built) m.visible = false; onModel?.(root); },
     });
-    model.position.y = def.body * 0.35;
+    // a grounded sculpt stands on the keel; the rest hang off their own origin
+    model.position.y = def.modelGround ? 0 : def.body * 0.35;
     group.add(model);
   }
 }

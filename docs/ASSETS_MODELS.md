@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Every model this document asks for has been delivered and integrated** — the six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. Nothing on the model side is open. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side:** the [second monster batch](#monster-bosses--batch-two) — three creatures whose canvases are approved and ready to model, plus a worm whose canvas is being regenerated — each fighting as a procedural stand-in until its file lands; and a small set of [re-exports for openable mouths](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) on the three oldest creature rigs. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -92,7 +92,7 @@ meshes on the right mount, one on the left, no procedural weapon left showing).
 | Character | Board | Reference sheets | Reference look |
 |---|---|---|---|
 | **Tusken Raider** | `tusken_front/side/back.png` | desert | Sand-colored wrapped robes, bandolier, cylinder-eyed mask with rebreather spikes, gaderffii stick. |
-| **War massiff** ◆ | desert | `massiff_front/side/back.png` | Armoured quadruped predator — **note the size change: 2.1 m tall at the dorsal spines, 5.6 m nose to tail**, roughly triple a trooper's bulk, not the knee-high hound the old sheets imply. Slab-sided plated hide, spine of plates and spikes, flank scutes, heavy tusked skull carried low and forward, thick segmented tail. Free-form rig; keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..5`. |
+| **War massiff** ◆ | desert | `massiff_front/side/back.png` | Armoured quadruped predator — **note the size change: 2.1 m tall at the dorsal spines, 5.6 m nose to tail**, roughly triple a trooper's bulk, not the knee-high hound the old sheets imply. Slab-sided plated hide, spine of plates and spikes, flank scutes, heavy tusked skull carried low and forward, thick segmented tail. Free-form rig; keep named nodes `head`, `jaw`, `legFL/FR/BL/BR`, `tail1..5`. **As delivered it came in on a 44-bone Rigify chain instead, with no jaw** — the clips were adapted to those names, so a re-export keeps them and only adds the jaw (see [the mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02)). |
 | **Nikto swoop rider** ◆ | desert | `nikto_front/side/back.png`, `nikto_swoop_front/side/back.png` | Horned leathery-faced alien in biker leathers riding a long-nosed swoop bike; nodes: `bike`, rider on canonical rig welded to seat. |
 | **Pyke soldier** | `pyke_front/side/back.png` | both | Tall tapered grey-green helmet with narrow eyes, breather tubes to chest rig, slate long coat, rifle. |
 | **Space pirate (ranged & brawler)** | `pirate_front/side/back.png` | station | Ragged spacer leathers, mismatched plates, one metal pauldron, horn-nubbed alien head; brawler variant carries a heavy club. |
@@ -118,7 +118,7 @@ blended by gait speed); clips shipped in a re-exported .glb would win over these
 | **Quarren netcaster** (`quarren`) ✅ | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
 | **Alamite** (`alamite`) ✅ | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
 | **Ringworld enforcer** (`ring_enforcer`) ✅ | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
-| **Krykna** (`krykna`) ◆ ✅ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. |
+| **Krykna** (`krykna`) ◆ ✅ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. A re-export is wanted to add `fangL/R` so the mouthparts open ([the mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02)). |
 | **Krykna broodmother** (`krykna_brood`) ◆ ✅ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
 | **Interceptor drone** (`interceptor_drone`) ◆ ✅ | Great Forge | own rig, `loadCreature` | Black probe-style drone: sphere head, one red photoreceptor, amber sensor ring, five dangling manipulator arms (`arm1..5`), top thruster node `thruster` (its dive trail emits there). |
 
@@ -198,6 +198,98 @@ Two notes a re-export has to keep, both learned by putting these in the game:
   which is what sells a body passing *through* the ground rather than over it.
 
 Delivery as ever: `public/models/<id>.glb`.
+
+## Monster bosses — batch two
+
+Four more creature bosses, designed in [`docs/BOSSES.md`](BOSSES.md) §2.7–2.10, so
+that **every territory has a unique monster**: a burrowing worm as the Dune Sea's
+champion (replacing the promoted war massiff the Lava Flats also field), and monster
+finals for the three boards that had none — the Refinery, the Ringworld and the
+Prison Rig. **All four are in the game now as procedural stand-ins**, with their
+fights, their numbers and their gaits (`src/anim/quadruped.ts`, written against the
+node lists below) already wired: a delivered file drops in with no code change,
+exactly as the first six did.
+
+**Canvases:** `zillo`, `nexu` and `kwazel_maw` were delivered and approved on
+2026-09-02 — model from `reference/characters/<id>_ref.png`. The worm's is being
+**regenerated** against a design change (below), so its model waits;
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#replacement-generation--sandworm-2026-09-02)
+carries the replacement prompt and why.
+
+**Intake:** all four are ◆ through `loadCreature` — own free-form rigs, fitted by
+`CREATURE_MODELS` in `src/characters/authored.ts`, grounded by the loader, driven by
+the code gaits unless the file ships clips. Weak-zone nodes are gameplay, as before:
+distinct named meshes where the canvas shows them. Origin at the resting ground
+point, +Z forward, real-world scale per the size column. Same style and budgets as
+the first batch (≤ 15k tris, one 1024² PBR set with emissive).
+
+**The worm is the exception to almost all of that**, and its row says so: it is a
+single continuous forty-metre body that the game bends along a path, rather than a
+posed sculpt. That replaces the `sandworm_arch` prop this section used to ask for —
+**that request is withdrawn**, and the arch canvas in `reference/` is a record only.
+
+| Id | Board | Size | Rig nodes (gameplay in **bold**) | Constraints |
+|---|---|---|---|---|
+| `sandworm` | Dune Sea (champion) | 40 m long, ~2 m thick; head ~2.6 m across | `head, jaw, mandibleL/R/T/B,` **`gullet`**`, spine1..24` (or more) | **Modelled dead straight and horizontal along +Z, head at the front, in a rest pose with no curve anywhere** — the game bends the spine chain onto the path the head has travelled, and a curve baked into the mesh cannot be undone. So: an unbroken chain of **at least 24 evenly spaced spine joints** running the full length (name them in order from the head back), each weighted so the body can bend smoothly through a 4.5 m arch without pinching. The head end and the first few joints also rear up procedurally, so keep the neck as flexible as the rest. Four mandibles that open, matching the canvas; **gullet** an emissive ring mesh inside the mouth. **Model the mouth as a real open cavity** — throat, inner rings of teeth, and the gullet as their own geometry on their own material, not a seam in a closed shell — because the fight puts the camera down it. Fitted by **length**, not height. |
+| `zillo` | Refinery | 5 m at the shoulder, 12 m long | `head, jaw, spine1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..3, plates,` **`seams`** | Must fit under the halls' 7.2 m ceilings — keep the back low and flat. `plates` one mesh (future deflect armor); **seams** a distinct emissive mesh in the gaps between plates; three clawed digits per foot. |
+| `nexu` | Ringworld | 2.2 m at the shoulder, 5 m long | `head, jaw,` **`eyeL/R, eyeL2/R2`**`, spine1..2, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2, quills` | Built for speed — long limbs, a flexing spine. **Four eyes** as emissive meshes; `quills` one mesh along the spine (future deflect); the jaw splits back past the cheeks. |
+| `kwazel_maw` | Prison Rig | 4.2 m tall, 9 m long | `head, jaw, body1..3, legFL/FR/BL/BR` (+ `_lower`)`, tail1..2,` **`stripesL/R`** | The mouth opens the full width of the head (the gulp is its attack — model the interior); **stripes** one emissive mesh per flank; hide reads wet. |
+
+Delivery as ever: `public/models/<id>.glb`. Sizes are what the game fits each file to.
+
+## Re-exports — openable mouths on the older creature rigs (2026-09-02)
+
+**Every monster boss's mouth already opens**, because all six of the first batch
+shipped a skinned `jaw` joint exactly as their briefs asked, and the code gapes it 26°
+to 44° on every attack and works it a few degrees at idle (`beastIdle` and
+`strikeClip` in `src/anim/quadruped.ts`, which look the bone up by name and silently
+skip it when it is absent). The batch-two briefs above name `jaw` for the same reason.
+
+**Audited 2026-09-02: the open mouths render correctly, and need no interior fill.**
+The worry was that a gaping jaw would show a hole straight through the head. It does
+not. All six monster sculpts are watertight single-shell meshes — welded to positions,
+each carries only 12 to 54 boundary edges, exactly matching its non-manifold count and
+scattered mid-body, which are pinch artifacts rather than a mouth rim; a modelled
+opening would show a clean loop of hundreds of vertices at the jaw. Forced wide open in
+game, the mamacore and the krayt both read as a dark cavity behind their teeth, with no
+background bleeding through. So **no dark filler geometry is wanted or would even be
+visible**, and single-sided materials are fine as delivered.
+
+Two things the audit does say, for the briefs that follow:
+
+- **A closed shell gives a shallow throat.** What you see past the teeth is the inside
+  of the head, not a modelled gullet, so it stops sooner than a real one would. Where a
+  design turns on looking *into* the mouth — the krayt's glowing gullet, the worm's
+  ringed maw — the brief must ask for the cavity explicitly: mouth modelled open, with
+  throat, tongue and inner teeth as real geometry.
+- **The weak-zone names arrived as bones, not meshes.** Every sculpt has exactly one
+  mesh and one material, so `nape`, `throat`, `belly`, `gills1..3`, `skullSoft`,
+  `gullet`, `eyeL/R` and `vents1..2` are joints only. That is exactly right for hanging
+  hit volumes off (which is what §3 plans) and no use at all for the emissive pulse that
+  was meant to light a weak point up. Getting the pulse needs either a re-export that
+  splits those zones into their own meshes and material, or a shader-side approach.
+
+**Three older creature rigs have no jaw bone**, so their bites are closed-mouthed —
+they were rigged before that was asked for. Each wants a re-export that changes
+nothing else:
+
+| Id | What is missing | The ask |
+|---|---|---|
+| `massiff` | no jaw; delivered on a 44-bone Rigify chain (`DEF-spine.004`…`DEF-spine.011` is the neck and skull) | Add **one `jaw` bone** parented to the skull, weighted to the lower jaw only. **Do not rename, renumber or reparent any existing `DEF-*` bone** — the gait and lunge-bite clips are written against those exact names and will break. |
+| `krykna` | no mouthparts; clean custom rig (`head`, `body`, `legL1..L4`/`legR1..R4` with `_mid`/`_tip`) | Add **`fangL` and `fangR`** — the chelicerae — parented to `head`, weighted to the fangs that are already modelled, spreading outward when rotated. Same do-not-rename rule for the existing nodes. |
+| `krykna_brood` | same, plus it carries `sac1..3` | Same two fang bones. Leave `sac1..3` exactly as they are — the playable brood-queen's egg rack drives them. |
+
+Optional and much lower value: `bantha` is on the same Rigify chain as the massiff and
+also has no jaw. It is an ambient grazer that never bites, so a jaw only buys a chewing
+idle. Take it only if the massiff re-export makes it free.
+
+Nothing else about these sculpts changes — no new reference art is wanted
+([`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#not-wanted--reference-sheets-for-the-mouth-re-exports-2026-09-02)),
+and the meshes and textures stay as delivered. These are closed shells like the monster
+sculpts, so a jaw bone opens them into the same dark toothed cavity, and no interior
+work is needed. This is a rig addition and a re-export. As ever, a file dropped at `public/models/<id>.glb`
+is picked up on the next load, and the clips start driving the new bone the moment it
+exists — there is no code change on our side.
 
 ## Environment & hazard models — priority by impact
 
@@ -328,8 +420,8 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
 wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
-`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The monster boss
-batch is the only thing open on the model side.**
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The second monster
+batch and the mouth re-exports (above) are what is open on the model side.**
 
 ### Three intake paths
 
@@ -392,8 +484,8 @@ clip against a real model.
 
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
-everything around it, so it goes first. The monster bosses are what is in that pipeline
-now; every other id this document names is on disk and in the game.
+everything around it, so it goes first. The second monster batch is what is in that
+pipeline now; every other id this document names is on disk and in the game.
 
 ## Game-mode props — requested and delivered 2026-08-29 (the `?modes` build)
 

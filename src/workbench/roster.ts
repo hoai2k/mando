@@ -55,7 +55,14 @@ const prop = (id: string, name: string, size: number, axis: 'y' | 'longest' = 'l
   id,
   name,
   hasModel: true,
-  build: () => ({ root: loadProp(id, size, { axis, ground: axis === 'y' }), rig: null, animator: null, height: size, baseScale: 1 }),
+  build: () => {
+    // A prop has no stand-in at all — the group is empty until the file lands —
+    // so the workbench holds a progress card over its place, and needs the same
+    // "is it here yet" answer every character gives it.
+    let settled = false;
+    const root = loadProp(id, size, { axis, ground: axis === 'y', onSettle: () => { settled = true; } });
+    return { root, rig: null, animator: null, height: size, baseScale: 1, modelReady: () => settled };
+  },
 });
 
 export const GROUPS: SubjectGroup[] = [

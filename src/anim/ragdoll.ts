@@ -5,7 +5,7 @@ import type { PhysicsWorld } from '../core/physics';
 /**
  * Verlet ragdoll: a real simulation, not a canned fall.
  *
- * Thirteen point masses sit at the joints, joined by distance constraints
+ * Fifteen point masses sit at the joints, joined by distance constraints
  * along the bones plus a few braces that stand in for the torso's stiffness.
  * Gravity, damping, ground contact and friction act on the points; a handful
  * of relaxation passes per step keeps the limbs the right length. The rig is
@@ -23,7 +23,14 @@ const SHL = 3, ELL = 4, HAL = 5;
 const SHR = 6, ELR = 7, HAR = 8;
 const KNL = 9, FTL = 10;
 const KNR = 11, FTR = 12;
-const COUNT = 13;
+/**
+ * The hip joints themselves, one each side of the pelvis. The thighs used to
+ * be aimed from the pelvis centre, 13 cm inboard of where they really hang,
+ * so every corpse landed ~16° knock-kneed with its feet crossed. These ride
+ * rigidly with the pelvis and the chest and give each thigh its own origin.
+ */
+const HJL = 13, HJR = 14;
+const COUNT = 15;
 
 /** which rig bone each point is seeded from */
 const SEED_BONE: string[] = [];
@@ -32,14 +39,18 @@ SEED_BONE[SHL] = 'upperArmL'; SEED_BONE[ELL] = 'forearmL'; SEED_BONE[HAL] = 'han
 SEED_BONE[SHR] = 'upperArmR'; SEED_BONE[ELR] = 'forearmR'; SEED_BONE[HAR] = 'handR';
 SEED_BONE[KNL] = 'lowerLegL'; SEED_BONE[FTL] = 'footL';
 SEED_BONE[KNR] = 'lowerLegR'; SEED_BONE[FTR] = 'footR';
+SEED_BONE[HJL] = 'upperLegL'; SEED_BONE[HJR] = 'upperLegR';
 
 /** [a, b, stiffness] — bone links are rigid, braces give the torso its shape */
 const LINKS: [number, number, number][] = [
   [HIPS, CHEST, 1], [CHEST, HEAD, 1],
   [CHEST, SHL, 1], [SHL, ELL, 1], [ELL, HAL, 1],
   [CHEST, SHR, 1], [SHR, ELR, 1], [ELR, HAR, 1],
-  [HIPS, KNL, 1], [KNL, FTL, 1],
-  [HIPS, KNR, 1], [KNR, FTR, 1],
+  // the pelvis: both hip joints rigid to its centre and to each other, and
+  // braced to the chest so the girdle keeps its shape under the torso
+  [HIPS, HJL, 1], [HIPS, HJR, 1], [HJL, HJR, 1], [CHEST, HJL, 0.8], [CHEST, HJR, 0.8],
+  [HJL, KNL, 1], [KNL, FTL, 1],
+  [HJR, KNR, 1], [KNR, FTR, 1],
   // braces: a chain of pure bone links folds flat like wet rope
   [SHL, SHR, 0.9], [HIPS, SHL, 0.7], [HIPS, SHR, 0.7], [HIPS, HEAD, 0.35],
   [HEAD, SHL, 0.4], [HEAD, SHR, 0.4], [KNL, KNR, 0.15], [FTL, FTR, 0.1],
@@ -57,9 +68,9 @@ const DRIVE: { bone: string; from: number; to: number; axis: THREE.Vector3 }[] =
   { bone: 'forearmL', from: ELL, to: HAL, axis: new THREE.Vector3(0, -1, 0) },
   { bone: 'upperArmR', from: SHR, to: ELR, axis: new THREE.Vector3(0, -1, 0) },
   { bone: 'forearmR', from: ELR, to: HAR, axis: new THREE.Vector3(0, -1, 0) },
-  { bone: 'upperLegL', from: HIPS, to: KNL, axis: new THREE.Vector3(0, -1, 0) },
+  { bone: 'upperLegL', from: HJL, to: KNL, axis: new THREE.Vector3(0, -1, 0) },
   { bone: 'lowerLegL', from: KNL, to: FTL, axis: new THREE.Vector3(0, -1, 0) },
-  { bone: 'upperLegR', from: HIPS, to: KNR, axis: new THREE.Vector3(0, -1, 0) },
+  { bone: 'upperLegR', from: HJR, to: KNR, axis: new THREE.Vector3(0, -1, 0) },
   { bone: 'lowerLegR', from: KNR, to: FTR, axis: new THREE.Vector3(0, -1, 0) },
 ];
 
@@ -132,7 +143,7 @@ export class Ragdoll {
       const share = i === HEAD || i === CHEST || i === SHL || i === SHR ? 1.35 : 0.55;
       _v.copy(velocity).addScaledVector(impulse, share);
       this.prev.push(p.clone().addScaledVector(_v, -STEP));
-      this.radius.push(i === HEAD ? 0.13 : i === CHEST || i === HIPS ? 0.15 : 0.08);
+      this.radius.push(i === HEAD ? 0.13 : i === CHEST || i === HIPS ? 0.15 : i === HJL || i === HJR ? 0.11 : 0.08);
     }
     for (const [a, b] of LINKS) this.rest.push(this.pos[a].distanceTo(this.pos[b]));
     // fall the way the blow was going, where it was going anywhere flat;

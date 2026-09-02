@@ -139,6 +139,8 @@ function dropClear(board: Board, target: THREE.Vector3): boolean {
  * place exactly as waves always used to.
  */
 export function squadArrival(board: Board, kind: EnemyKind, air: boolean, target: THREE.Vector3): SquadArrival {
+  // a sealed building has no edge to run in over and no sky to drop from
+  if (board.enclosed) return { mode: 'post', from: null };
   const extent = boardExtent(board);
   if (air) {
     const from = edgePoint(target, extent, 22);
@@ -302,6 +304,12 @@ export class Carrier {
     this.group.rotation.y = Math.atan2(dir.x, dir.z);
     this.group.position.copy(this.start);
     this.group.visible = false;
+  }
+
+  /** seconds until the squad is let go (0 once it has been) */
+  get eta(): number {
+    if (this.released) return 0;
+    return Math.max(0, this.delay) + Math.max(0, this.dropT - this.t);
   }
 
   /** where the ship is at second `t` of a landing profile */

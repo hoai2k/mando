@@ -7,7 +7,7 @@ import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type War
 import { tracked } from './core/warm';
 import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
-import { planWave } from './enemies/spawner';
+import { FINAL_WAVE, planWave } from './enemies/spawner';
 import { buildEnemyCharacter, enemyBody, enemyHitParts, enemyKinds, enemyStats, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
@@ -275,6 +275,18 @@ settings.addChoice(TEXT.settings.splitScreen, [
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
 });
+// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
+const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
+settings.addSlider(TEXT.settings.lookSensitivity,
+  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
+  (v) => {
+    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
+    saveInputConfig();
+  });
+settings.addToggle(TEXT.settings.invertY, () => config.input.invertY, (on) => {
+  config.input.invertY = on;
+  saveInputConfig();
+});
 settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
@@ -306,6 +318,10 @@ function updateCursor(dt: number): void {
   if (cursorWake > 0) cursorWake -= dt;
   const hide = state === 'playing' && cursorWake <= 0;
   document.body.classList.toggle('cursor-hidden', hide);
+  // the corner buttons go with the cursor: in a match they sat on the weapon
+  // readout (and on player four's whole corner), and a mouse wiggle is all it
+  // takes to bring them back
+  document.body.classList.toggle('in-play', state === 'playing');
 }
 
 function openOverlay(which: 'controls' | 'settings'): void {
@@ -344,6 +360,16 @@ end.root.appendChild(endTitle);
 const endStats = document.createElement('div');
 endStats.className = 'menu-hint';
 end.root.appendChild(endStats);
+// A liberated territory leads to the next one: the planet strip knows the
+// order, so the end screen can offer it rather than sending the party back to
+// the title to find it. Shown only after a campaign victory with a next stop.
+const [nextBtn] = end.addButtons(null, [
+  { label: TEXT.end.nextTerritory, action: () => {
+    const i = BOARDS.indexOf(chosenBoard);
+    chosenBoard = BOARDS[(i + 1) % BOARDS.length];
+    startGame();
+  } },
+]);
 end.addButtons(null, [
   { label: TEXT.end.retry, action: () => startGame() },
   { label: TEXT.end.quit, action: () => quitToTitle() },
@@ -531,7 +557,11 @@ function setState(s: AppState): void {
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
+  // The HUD belongs to play alone. Left up under the pause menu, the wave
+  // banner, the new-contacts card and the radar all showed through it —
+  // "PAUSED" stacked on "WAVE 2" stacked on the contact names.
   if (s === 'playing') hud.show();
+  else hud.hide();
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
   // one place, every transition: re-plan from wherever the player now stands.
   // The overlays (pause, controls, settings, the end card) are not stops on the
@@ -827,7 +857,13 @@ function frame(now: number): void {
           const mins = Math.floor(game.elapsed / 60);
           const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
           const clock = `${mins}:${secs}`;
-          const tail = game.mode === 'wave' ? TEXT.end.waveAndTime(game.wave, clock) : TEXT.end.time(clock);
+          // the wave counter runs one past the last wave while the warlord's
+          // battle is fought, so a held territory used to read "wave 8"
+          const waveNote = game.wave > FINAL_WAVE ? TEXT.end.warlordDown : TEXT.end.waveNote(game.wave);
+          const tail = game.mode === 'wave' ? TEXT.end.noteAndTime(waveNote, clock) : TEXT.end.time(clock);
+          const hasNext = game.mode === 'campaign' && game.state === 'victory'
+            && BOARDS.indexOf(chosenBoard) < BOARDS.length - 1;
+          nextBtn.style.display = hasNext ? '' : 'none';
           endStats.innerHTML = game.players
             .map((p, i) => TEXT.end.playerKills(p.isBot ? TEXT.vs.bot : TEXT.vs.player(i + 1), p.kills))
             .join(' · ') + tail;

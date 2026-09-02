@@ -21,7 +21,7 @@ const check = (name, ok, detail = '') => {
 };
 
 // the modes are on by default now, so the plain URL is the mode-select case
-const h = await launch({ url: 'http://localhost:4173/' });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
 const sleepFrames = async (n) => { for (let i = 0; i < n; i++) await page.evaluate(() => new Promise(requestAnimationFrame)); };
 
@@ -608,7 +608,7 @@ check('wave: a death dissolves the body, then re-forms it — no defeat',
 
 // ---- ?waves=boss: a single wave before each boss battle ----
 await page.evaluate(() => { window.__manual = false; });
-await page.goto('http://localhost:4173/?waves=boss');
+await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?waves=boss`);
 await sleepFrames(8);
 await startMode('wave', 1, 'desert', ['din']);
 const br = await page.evaluate(`(() => {
@@ -628,7 +628,7 @@ check('?waves=boss: one wave to the lieutenant, one more to the warlord and its 
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });
-await page.goto('http://localhost:4173/?nomodes');
+await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?nomodes`);
 await sleepFrames(8);
 const plain = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
 check('?nomodes falls back to the single Press Start',

@@ -381,7 +381,7 @@ export function buildTrask(): Board {
     groundSpawns: [
       new THREE.Vector3(-26, DECK_TOP + 0.3, -18), new THREE.Vector3(0, DECK_TOP + 0.3, -40),
       new THREE.Vector3(28, DECK_TOP + 0.3, -14), new THREE.Vector3(-6, DECK_TOP + 0.3, -52),
-      new THREE.Vector3(40, DECK_TOP + 0.3, -36), new THREE.Vector3(-44, DECK_TOP + 0.3, -32),
+      new THREE.Vector3(44.5, DECK_TOP + 0.3, -36), new THREE.Vector3(-44, DECK_TOP + 0.3, -32),
       new THREE.Vector3(24, DECK_TOP + 0.3, 20), new THREE.Vector3(-26, DECK_TOP + 0.3, 6),
     ],
     airSpawns: [
@@ -496,7 +496,7 @@ export function buildTrask(): Board {
           const pd = Math.hypot(p.position.x - h.pos.x, p.position.z - h.pos.z);
           if (inWater && pd < 3.4) {
             // grabbed, mauled, and spat toward the surface — twice is fatal
-            p.damage(55, h.pos);
+            p.damage(55, h.pos, -1, { heavy: true });
             p.velocity.y = 14;
             p.velocity.x += (p.position.x - h.pos.x) * 2.2;
             p.velocity.z += (p.position.z - h.pos.z) * 2.2;

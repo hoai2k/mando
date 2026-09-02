@@ -287,6 +287,12 @@ function placeBody(
 const SQUAD_SPREAD = 7;
 /** don't post a squad closer than this to a player — they should be found, not handed over */
 const MIN_PLAYER_DIST = 55;
+/**
+ * The garrison of wave one posts closer. At 55 m the board opened on nine
+ * chevrons at the radar's rim and nothing in sight, and the first fight was
+ * a walk (audit U8/L8); the reinforcement waves keep the full distance.
+ */
+const FIRST_WAVE_DIST = 35;
 
 let nextSquad = 1;
 
@@ -324,6 +330,55 @@ export function standingSpot(board: Board, pos: THREE.Vector3, kind: EnemyKind):
   return placeBody(board, pos.clone(), enemyBody(kind), false, board.groundSpawns);
 }
 
+/**
+ * Somewhere a body of `kind` can stand 30–40 m out from `from`, inside the
+ * ±60° arc of the camera yaw `yaw` — where a boss battle posts its warlord.
+ *
+ * `farPost` put both bosses at the authored spawn farthest from player one,
+ * often a hundred metres off, so the slow-motion reveal panned onto a dot on
+ * the horizon and the player walked for a minute to find it (audit B10). A
+ * ring of bearings across the arc is tried first, nearest the centre line
+ * first; failing that (islands, water, a wall) the board's own posts inside
+ * the arc; null when nothing in view will do, so the caller can fall back.
+ */
+export function postInView(board: Board, from: THREE.Vector3, yaw: number, kind: EnemyKind): THREE.Vector3 | null {
+  const body = enemyBody(kind);
+  const phys = board.physics;
+  let extent = 0;
+  for (const p of board.groundSpawns) extent = Math.max(extent, Math.hypot(p.x, p.z));
+  extent += 12;
+  const ok = (x: number, y: number, z: number): boolean =>
+    isFinite(y) && Math.hypot(x, z) <= extent
+    && !(board.waterY !== undefined && y < board.waterY + 0.3)
+    && standable(board, x, y, z, body);
+  for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+    for (const dist of [35, 31, 39]) {
+      const a = yaw + off;
+      const x = from.x + Math.sin(a) * dist;
+      const z = from.z + Math.cos(a) * dist;
+      // ground under the spot: the heightfield where there is one, else the
+      // highest deck at or below the player's own level (the station)
+      const y = phys.heightAt ? phys.heightAt(x, z) + 0.3 : phys.groundHeight(x, z, from.y + 4) + 0.3;
+      if (ok(x, y, z)) return new THREE.Vector3(x, y, z);
+    }
+  }
+  // the board's own posts, inside the arc and within reach
+  let best: THREE.Vector3 | null = null;
+  let bestScore = Infinity;
+  for (const p of board.groundSpawns) {
+    const d = Math.hypot(p.x - from.x, p.z - from.z);
+    if (d < 22 || d > 55) continue;
+    let da = Math.atan2(p.x - from.x, p.z - from.z) - yaw;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    if (Math.abs(da) > Math.PI / 3) continue;
+    const spot = freeSpot(board, p.clone(), body);
+    if (!spot) continue;
+    const score = Math.abs(d - 35) + Math.abs(da) * 10;
+    if (score < bestScore) { bestScore = score; best = spot; }
+  }
+  return best;
+}
+
 /** One planned body: where it goes and which squad it belongs to. */
 export interface Placement {
   kind: EnemyKind;
@@ -352,7 +407,8 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
   // over — and away from *each other*, or every squad ends up in the same
   // corner and the board plays as one big fight again.
   const rank = (v: THREE.Vector3) => v.distanceTo(near);
-  const ground = board.groundSpawns.filter((v) => rank(v) > MIN_PLAYER_DIST);
+  const minDist = wave <= 1 ? FIRST_WAVE_DIST : MIN_PLAYER_DIST;
+  const ground = board.groundSpawns.filter((v) => rank(v) > minDist);
   const pool = (ground.length >= 3 ? ground : board.groundSpawns).slice();
   // Authored ground, in the order the board lists it: the last resort for a
   // body that fits nowhere near where it was sent.
@@ -383,6 +439,12 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
     if (!isFinite(y)) return false;
     if (Math.hypot(x, z) > extent) return false;
     if (!board.physics.capsuleFree(x, y, z, POST_BODY.radius, POST_BODY.height)) return false;
+    // The sea is not a hazard zone, so it has to be asked about by name: the
+    // Prison Rig's heightAt is the sea bed, and a ring point over open water
+    // stood a squad 8-22 m under it — dropped in by carrier, drowned offscreen
+    // to a run of kill chimes nobody earned. Trask's version stood them
+    // chest-deep in the harbour.
+    if (board.waterY !== undefined && y < board.waterY + 0.3) return false;
     const hz = hazardAt(board, _probe.set(x, y, z));
     return !hz.kill && hz.dps <= 0;
   };
@@ -391,6 +453,25 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
   let extent = 0;
   for (const p of board.groundSpawns) extent = Math.max(extent, Math.hypot(p.x, p.z));
   extent += 12;
+
+  // The 35 m rule is only a filter on the authored posts, and on most boards
+  // the nearest of those is 75 m from the start — so the opening was still a
+  // walk. Wave one's first squad is placed for real: a validated ring point
+  // 34-40 m from the party, on the bearing of the nearest authored post so
+  // the fight sits between the party and the rest of the garrison.
+  if (wave <= 1 && groundY && posts.length && rank(posts[0]) > 45) {
+    const nearest = board.groundSpawns.reduce((a, b) => (rank(b) < rank(a) ? b : a), board.groundSpawns[0]);
+    const base = Math.atan2(nearest.x - near.x, nearest.z - near.z);
+    outer: for (const r of [36, 40, 32]) {
+      for (const off of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2.2, -2.2, Math.PI]) {
+        const x = near.x + Math.sin(base + off) * r;
+        const z = near.z + Math.cos(base + off) * r;
+        const y = groundY(x, z) + 0.3;
+        if (Math.abs(y - near.y) > 12) continue;   // a cliff or a chasm away
+        if (valid(x, y, z, extent)) { posts[0] = new THREE.Vector3(x, y, z); break outer; }
+      }
+    }
+  }
 
   const post = (i: number): THREE.Vector3 => {
     const base = posts[i % posts.length];

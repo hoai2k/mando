@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+import { travelClip } from '../anim/animator';
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
   buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
+  buildKwazelMaw, buildNexu, buildSandworm, buildZillo,
   buildQuarren, buildRancor, buildRavinak,
   buildSpiderEgg, buildSpiderling,
   buildRingEnforcer, buildWookieeEnforcer,
@@ -35,8 +37,42 @@ export interface Combatant {
    */
   hitHeight?: number;
   team: number; // 0 = players/allies, 1 = hostiles
-  damage(amount: number, from: THREE.Vector3, bySlot?: number): void;
+  /**
+   * `opts.heavy` marks a committed, telegraphed hit — a slam, a pounce, a
+   * wind-up swing landing, a detonation — which a player's hit window never
+   * swallows. Enemies do not have the window and ignore the flag.
+   */
+  damage(amount: number, from: THREE.Vector3, bySlot?: number, opts?: { dot?: boolean; heavy?: boolean }): void;
 }
+
+/** the directional flinch clips — a re-trigger of one of these waits for the last to mostly resolve */
+const HIT_REACTS = new Set(['hitUpper', 'hitFromL', 'hitFromR']);
+
+/**
+ * The second, committed moves (audit B11). Each is a telegraphed wind-up
+ * with a real get-out window and lands the kind's ordinary melee damage —
+ * they replace a swing on the same cooldown, never add to it.
+ *
+ * The officer's dash-slash: half a second of blade sparks and a bark, then
+ * a straight lunge along the line fixed at launch. No tracking after that,
+ * so a dash sideways beats it; the reach on contact is deliberately tighter
+ * than the swing's so a sidestep is enough.
+ */
+const DASH_WINDUP = 0.5;
+const DASH_SPEED = 20;
+const DASH_LENGTH = 7;
+const DASH_REACH = 2.4;
+const DASH_CD = 4.5;
+/** how far away the officer will open with the lunge */
+const DASH_TRIGGER = 9;
+/**
+ * The enforcer's overhead slam: 0.7 s of wind-up with an ember ring drawn
+ * at the radius the shock will reach (the same telegraph as the warlord's
+ * shock-slam in game.ts), then the ground answers inside it.
+ */
+const SLAM_WINDUP = 0.7;
+const SLAM_RADIUS = 3;
+const SLAM_CD = 5;
 
 /** where to aim on a body: mid-chest of whatever it actually is */
 export function aimHeight(target: Combatant): number {
@@ -50,6 +86,7 @@ export type EnemyKind =
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
   | 'ig11' | 'marshal' | 'fennec'
   | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
+  | 'sandworm' | 'zillo' | 'nexu' | 'kwazelMaw'
   | 'spiderEgg' | 'spiderling';
 
 /**
@@ -71,6 +108,31 @@ interface Def {
    * it moves (docs/BOSSES.md §2.5, §2.6).
    */
   plows?: number;
+  /**
+   * Closes the last stretch in a committed ballistic leap — the massiff's
+   * signature, shared by any beast built the same way (the nexu). The arc is
+   * unsteered once airborne, so a dash or a jetpack hop beats it.
+   */
+  pounces?: boolean;
+  /**
+   * Lives *under* the ground and fights in cycles (docs/BOSSES.md §2.7): it
+   * hunts submerged — untargetable, unhurtable, a running wake of thrown
+   * ground — erupts under its prey, fights rooted on the surface for a
+   * spell, and sinks again. Numbers are seconds unless named otherwise.
+   */
+  burrows?: {
+    /** longest it stays under before surfacing wherever it is */
+    under: number;
+    /** how long it fights on the surface before it sinks */
+    up: number;
+    rise: number;
+    sink: number;
+    /** it erupts once within this many metres of its prey */
+    strikeAt: number;
+    /** the eruption: damage, and the radius it lands in */
+    erupt: number;
+    eruptR: number;
+  };
   /**
    * Never waits its turn. The director's standoff rotation is what stops a
    * crowd of grunts mobbing the player, but a beast that politely holds a
@@ -188,6 +250,27 @@ const DEFS: Record<EnemyKind, Def> = {
   mythosaur:   { hp: 5600, speed: 4.6, radius: 3.0, height: 5.0, style: 'melee', damage: 50, attackRange: 6.6, attackCd: 2.5, notice: 110, relentless: true, plows: 3.0,
     // the skull and horns, five metres up and three forward of the mass
     hitParts: [{ z: 4.2, y: 5.1, r: 2.1 }, { z: 5.6, y: 5.2, r: 1.6 }], build: buildMythosaur },
+  // ---- the second monster batch (docs/BOSSES.md §2.7–2.10) ----
+  // The Dune Sea's champion: a burrowing worm that is only ever *briefly* on
+  // the surface. `speed` is its pace under the sand; surfaced it is rooted
+  // and bites, and the eruption under a player is its opening hit. It is a
+  // champion, so it sits under the krayt in every number.
+  sandworm: { hp: 2000, speed: 9.5, radius: 2.2, height: 4.5, style: 'melee', damage: 36, attackRange: 6.5, attackCd: 2.0, notice: 120, relentless: true, plows: 2.4,
+    burrows: { under: 9, up: 7, rise: 0.9, sink: 0.8, strikeAt: 5, erupt: 30, eruptR: 6 },
+    // the reared head and the neck under it; the coils behind are under the sand
+    hitParts: [{ z: 1.8, y: 3.6, r: 1.9 }, { z: 0.4, y: 1.9, r: 1.7 }], build: buildSandworm },
+  // The Refinery's specimen: an armored crawler five metres at the shoulder,
+  // loose in the reactor hall. Slow, and nothing turns it.
+  zillo:    { hp: 4200, speed: 5.8, radius: 2.0, height: 5.0, style: 'melee', damage: 45, attackRange: 5.4, attackCd: 2.2, notice: 90, relentless: true,
+    hitParts: [{ z: 3.0, y: 3.4, r: 1.7 }, { z: -3.0, y: 2.2, r: 1.6 }, { z: -6.0, y: 1.4, r: 1.2 }], build: buildZillo },
+  // The Ringworld's night hunter: a quilled cat the size of a landspeeder,
+  // faster than anything else on four legs, and it pounces like the massiff.
+  nexu:     { hp: 2800, speed: 11.5, radius: 1.2, height: 2.2, style: 'melee', damage: 36, attackRange: 3.8, attackCd: 1.6, notice: 95, relentless: true, pounces: true,
+    hitParts: [{ z: 2.2, y: 1.3, r: 0.95 }, { z: -1.9, y: 1.3, r: 0.9 }], build: buildNexu },
+  // The Prison Rig's thing from the moon pool: an amphibian hauling itself
+  // onto the decks, glowing down both flanks. At home in the sea.
+  kwazelMaw: { hp: 3800, speed: 5.2, radius: 2.4, height: 4.2, style: 'melee', damage: 48, attackRange: 6.0, attackCd: 2.3, notice: 90, relentless: true, burnImmune: true,
+    hitParts: [{ z: 3.6, y: 2.2, r: 1.9 }, { z: -3.0, y: 1.6, r: 1.5 }], build: buildKwazelMaw },
 
   ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
@@ -210,7 +293,20 @@ const DEFS: Record<EnemyKind, Def> = {
  */
 const BEASTS = new Set<EnemyKind>([
   'massiff', 'mudhorn', 'ravinak', 'mamacore', 'rancor', 'kraytDragon', 'mythosaur',
+  'sandworm', 'zillo', 'nexu', 'kwazelMaw',
 ]);
+
+/**
+ * Sample prefix for a monster with its own voice set (`<voice>_roar/_hurt/
+ * _death`). A beast absent from this table — the massiff — keeps the shared
+ * growl and yelp; so does any monster whose files have not landed yet, since
+ * `audio.monster` falls back on its own.
+ */
+const MONSTER_VOICE: Partial<Record<EnemyKind, string>> = {
+  mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore',
+  rancor: 'rancor', kraytDragon: 'krayt', mythosaur: 'mythosaur',
+  sandworm: 'sandworm', zillo: 'zillo', nexu: 'nexu', kwazelMaw: 'kwazel',
+};
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
@@ -296,6 +392,8 @@ const _to = new THREE.Vector3();
 const _jet = new THREE.Vector3();
 /** reused foe list, so nearestFoe doesn't build one per enemy per frame */
 const _foes: Combatant[] = [];
+/** scratch for the second moves' telegraph sparks */
+const _cue = new THREE.Vector3();
 /** scratch for the half-buried creatures' ground wake */
 const _plow = new THREE.Vector3();
 /** scratch for arrival steering */
@@ -386,6 +484,8 @@ export class Enemy {
   private defenseCd = 0;
   /** red hurt-flash timer (bosses only — grunts keep the scale pop alone) */
   private bossHurtT = 0;
+  /** throttle on the monster hurt cry, so sustained fire doesn't machine-gun it */
+  private hurtVoiceCd = 0;
   /** pale parry-flash timer, so a turned hit reads differently from a landed one */
   private bossParryT = 0;
   /** this boss's own material copies, mapped to each one's resting emissive */
@@ -413,6 +513,16 @@ export class Enemy {
   /** boss super jump: >0 while airborne mid-leap; the slam lands on touchdown */
   private leapT = 0;
   /**
+   * A burrowing kind's place in its cycle (Def.burrows): under the ground,
+   * coming up, fighting on the surface, or going back down. Public so the
+   * boss fight and the test harness can read where it is.
+   */
+  burrow: 'under' | 'rising' | 'up' | 'sinking' = 'under';
+  /** seconds left in the current burrow stage */
+  private burrowT = 0;
+  /** eruptions so far, for the test harness */
+  eruptions = 0;
+  /**
    * Spacing between super jumps; starts short so the fight opens with one.
    * Public because the warlord's shock-slam (game.ts updateBoss) pushes it
    * out while its telegraph runs — the ember ring promises where the hit
@@ -427,6 +537,17 @@ export class Enemy {
   eggThrown = false;
   private eggHit = false;
   private windupTarget: Combatant | null = null;
+  /** the committed second move winding up or in flight, if any (see DASH_* / SLAM_*) */
+  private special: 'dash' | 'slam' | null = null;
+  /** seconds of the officer's lunge left; `dashDir` is the line, fixed at launch */
+  private dashT = 0;
+  private dashDir = new THREE.Vector3();
+  private dashHit = false;
+  /** spacing between second moves, so they punctuate a fight rather than run it */
+  private specialCd = 0;
+  /** an ally's most recent target and how recently it shot at it — the kill bark reads these */
+  private killWatch: Combatant | null = null;
+  private shotRecently = 0;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
   private stagger = 0;
@@ -521,6 +642,18 @@ export class Enemy {
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
   get outOfFight(): boolean { return !this.alive || this.wounded || this.fleeing || this.downed; }
+
+  /**
+   * Under the ground, where nothing reaches it: a burrowing kind between
+   * surfacings. It is still alive, still on the radar as a wake, and still
+   * a boss on the bar — it simply is not a body to shoot at until it comes up.
+   */
+  get submerged(): boolean {
+    return !!this.def.burrows && (this.burrow === 'under' || this.burrow === 'sinking');
+  }
+
+  /** a body a bolt, a blade or a lock-on can find */
+  get targetable(): boolean { return this.alive && !this.submerged; }
   /**
    * Line-of-sight is a heightfield march, so it is rechecked a few times a
    * second (staggered per enemy) rather than every frame — with a board full
@@ -596,10 +729,23 @@ export class Enemy {
     this.facingYaw = Math.random() * Math.PI * 2;
     this.idleYaw = this.facingYaw;
     this.char.root.position.copy(pos);
+    // A burrower begins its life under the ground, and comes up soon: long
+    // enough for the entrance card to play over a wake, short enough that
+    // the fight is not a wait.
+    if (this.def.burrows) {
+      this.burrowT = Math.min(this.def.burrows.under, 4);
+      this.char.setBurrow?.(1);
+    }
     // allies fight alongside the player rather than guarding a post
     if (team === 0) this.awareness = 'engaged';
     if (!opts.silent) {
-      if (BEASTS.has(kind)) { if (team === 1) audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4); }
+      if (BEASTS.has(kind)) {
+        const voice = MONSTER_VOICE[kind];
+        if (team === 1) {
+          if (voice) audio.monster(voice, 'roar', 0.95);
+          else audio.beastGrowl(this.def.hp > 2000 ? 0.85 : 0.4);
+        }
+      }
       else {
         const bark = SPAWN_BARKS[kind];
         if (bark && team === 1) audio.bark(bark, 0.4);
@@ -649,6 +795,8 @@ export class Enemy {
 
   /** a phase-two boss stops pacing itself */
   enraged = false;
+  /** has already broken and run once this life — morale does not break twice */
+  broke = false;
 
   /**
    * The last phase gets faster instead of only longer: the warlord closes
@@ -816,19 +964,28 @@ export class Enemy {
   /** the squad broke — run from `threat`, rally at distance */
   breakAndRun(threat: THREE.Vector3): void {
     if (!this.alive || this.fleeing || this.wounded || this.team !== 1) return;
+    // Morale breaks once. Without this the director rolled the lone survivor
+    // again every replan after it rallied, so the last body of a squad
+    // sprinted 55 m away, turned round, and sprinted off again until the
+    // wave's sweep timer finally dragged it back — a wave that could not end.
+    if (this.broke) return;
     if (this.boss) return;               // a warlord does not run from its own arena
     if (this.kind === 'droid') return;   // droids have no morale to break
     if (this.def.relentless) return;     // nor does a war beast: it comes anyway
     if (this.def.style === 'swoop' || this.def.style === 'hover') return;
     this.fleeing = true;
+    this.broke = true;
     this.fleeTimer = 5 + Math.random() * 3;
     this.interest.copy(threat);
     const bark = SPAWN_BARKS[this.kind];
     if (bark) audio.bark(bark, 0.45);
   }
 
-  damage(amount: number, from: THREE.Vector3, bySlot: number): void {
+  damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
+    // under the ground nothing lands — the whole lesson of the burrower is
+    // that it has to be hurt while it is up
+    if (this.submerged) { this.alert(from, true); return; }
     // A warlord turns some hits aside — a sharp sidestep off the line of the
     // shot, a pale flash, and almost none of the damage. The cooldown is the
     // fairness: at most one parry every 1.2 s, so sustained fire always gets
@@ -843,19 +1000,35 @@ export class Enemy {
       const side = Math.random() < 0.5 ? 1 : -1;
       this.velocity.x += (-lz / ll) * 7 * side;
       this.velocity.z += (lx / ll) * 7 * side;
+      // the step has to be seen: without a stagger the steering damped the
+      // sidestep away within a tenth of a second and the parry read as a
+      // flash and nothing else
+      this.stagger = Math.max(this.stagger, 0.15);
       audio.impact();
     }
     if (this.boss) this.bossHurtT = 0.3;
+    // A monster answers being hurt, but not per bolt: under sustained fire an
+    // untimed cry would machine-gun. One every 1.6 s, and only for a wound
+    // that is actually worth a noise.
+    const hurtVoice = MONSTER_VOICE[this.kind];
+    if (hurtVoice && this.hurtVoiceCd <= 0 && amount > this.maxHp * 0.01) {
+      this.hurtVoiceCd = 1.6;
+      audio.monster(hurtVoice, 'hurt', 0.75);
+    }
     this.alert(from, true); // being shot at is not something you investigate
     this.suppress(0.35);
     // a shooter caught in the open dives for the nearest crate
     if (!this.cover && this.def.style === 'ranged' && this.team === 1) this.coverRetry = 0;
     // finishing blows on someone already on the ground hit twice as hard
-    if (this.downed || this.wounded) amount *= 2;
+    // (a boss never lies down — knockdown() caps it at a half-second stagger
+    // — so the finishing-blow bonus is for the bodies actually on the floor)
+    if ((this.downed || this.wounded) && !this.boss) amount *= 2;
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     this.hitFlash = 0.15;
-    if (this.hp > 0 && this.windup > 0) this.windup = 0; // hit out of the wind-up
+    // hit out of the wind-up — except the committed second moves, which are
+    // telegraphed precisely so that the answer is to move, not to shoot
+    if (this.hp > 0 && this.windup > 0 && !this.special) this.windup = 0;
 
     // Gut-shot: a hit that leaves a grounded humanoid nearly dead can drop it
     // into a wounded crawl instead of a clean fight-on — it is out of the
@@ -871,6 +1044,8 @@ export class Enemy {
       this.woundedPosed = false;
       this.windup = 0;
       this.volleyLeft = 0;
+      this.special = null;
+      this.dashT = 0;
       this.interest.copy(from);
       const bark = DEATH_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.45);
@@ -878,7 +1053,14 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
-      if (BEASTS.has(this.kind)) audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
+      if (BEASTS.has(this.kind)) {
+        const voice = MONSTER_VOICE[this.kind];
+        if (voice) audio.monster(voice, 'death', 1);
+        else audio.beastYelp(this.def.hp > 2000 ? 0.9 : 0.6);
+      }
+      // a burrower killed under the sand would otherwise leave its wake
+      // rumbling for the rest of the match
+      if (this.def.burrows) audio.setBurrowRumble(0);
       else {
         const bark = DEATH_BARKS[this.kind];
         if (bark) audio.bark(bark, 0.5);
@@ -919,8 +1101,26 @@ export class Enemy {
       const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
       const side = Math.sin(bearing);
       const clip = side > 0.45 ? 'hitFromL' : side < -0.45 ? 'hitFromR' : 'hitUpper';
-      this.char.animator.playOnce('upper', clip, 0.05);
+      // Under sustained fire (a 0.24 s carbine cycle against a 0.28 s clip)
+      // every shot snapped the flinch back to its first frame and it never
+      // resolved. A react already most of the way through restarts; one
+      // that has barely begun is left to play out — the body still reads
+      // as being hit, because it visibly is.
+      const a = this.char.animator;
+      const flinching = HIT_REACTS.has(a.playing('upper') ?? '') && a.oneShotProgress('upper') < 0.6;
+      if (!flinching) a.playOnce('upper', clip, 0.05);
     }
+  }
+
+  /**
+   * Hit-stop on the swing that just landed: this body's animation hangs on
+   * its contact frame for a few hundredths of a second, the way the player's
+   * does (`Player.animDt`). Without it an enemy's swing passed through the
+   * target at full speed and landed soft. Nothing else in the world feels
+   * it — only this mixer.
+   */
+  private contactStop(seconds = 0.07): void {
+    this.char.animator?.freeze(seconds);
   }
 
   /**
@@ -930,6 +1130,7 @@ export class Enemy {
    * reads as nothing.
    */
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
+    if (this.submerged) return;   // the ground it is under does not shove
     const dir = this.position.clone().sub(from).setY(0);
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // point-blank: shove along +Z
     dir.normalize();
@@ -947,15 +1148,21 @@ export class Enemy {
    */
   knockdown(secs = 1.8): void {
     if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
+    if (this.def.burrows) return;   // a worm has no feet to be knocked off
     if (this.def.egg) return;   // an egg has nothing to knock over
     if (this.wounded) return; // already on the ground
     if (this.boss) secs = Math.min(secs, 0.5); // a boss staggers, it doesn't lie down
+    // already flat: a second finisher keeps it there longer, and does not
+    // replay the fall — which snapped the body upright to topple it again
+    const wasDown = this.downTimer > 0;
     this.downTimer = Math.max(this.downTimer, secs);
     this.windup = 0;
     this.volleyLeft = 0;
     this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
+    this.special = null;   // and a lunge or slam winding up is lost with it
+    this.dashT = 0;
     const anim = this.char.animator;
-    if (anim) {
+    if (anim && !wasDown) {
       anim.release('lower'); anim.release('upper');
       anim.playOnce('lower', 'deathLower', 0.06, true);
       anim.playOnce('upper', 'deathUpper', 0.06, true);
@@ -1058,6 +1265,7 @@ export class Enemy {
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.defenseCd -= dt;
     this.bossHurtT = Math.max(0, this.bossHurtT - dt);
+    this.hurtVoiceCd -= dt;
     this.bossParryT = Math.max(0, this.bossParryT - dt);
 
     // shot out of the sky (or the water): the parachute goes, the corpse
@@ -1128,11 +1336,13 @@ export class Enemy {
 
     this.attackCd -= dt;
     this.superJumpCd -= dt;
+    this.specialCd -= dt;
+    this.shotRecently = Math.max(0, this.shotRecently - dt);
     this.suppression = Math.max(0, this.suppression - dt * 0.25);
     this.venting = Math.max(0, this.venting - dt);
     this.heatHold = Math.max(0, this.heatHold - dt);
     if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
-    const d = DEFS[this.kind];
+    const d = this.def;
 
     // ---- an egg: no AI, just the clock to the hatch ----
     if (d.egg) {
@@ -1190,6 +1400,17 @@ export class Enemy {
 
     const target = this.senses(dt, game);
 
+    // An ally that just dropped what it was shooting at says so. Fennec's
+    // shots decide fights and used to do it in silence; a bark on the kill
+    // is the credit, and the player's cue that a flank has been cleared.
+    if (this.team === 0 && this.killWatch && !this.killWatch.alive) {
+      if (this.shotRecently > 0) {
+        const bark = SPAWN_BARKS[this.kind];
+        if (bark) audio.bark(bark, 0.5);
+      }
+      this.killWatch = null;
+    }
+
     // ---- boss super jump: airborne and committed ----
     if (this.leapT > 0) {
       this.updateLeap(dt, game);
@@ -1219,7 +1440,7 @@ export class Enemy {
         game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
         if (this.boardHazards(game, dt)) return;
         if (anim) {
-          anim.play('lower', 'runLower', 0.2, 1.2);
+          anim.play('lower', 'runLower', 0.2, anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z), this.char.baseScale));
           anim.play('upper', 'runUpper', 0.2, 1.2);
         }
         this.syncVisual(dt, game);
@@ -1241,6 +1462,10 @@ export class Enemy {
       this.faceToward(dt, this.interest.x, this.interest.z, 6);
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
+    } else if (d.burrows) {
+      // a burrower runs its cycle with or without a target in sight: a
+      // surfaced worm with nothing to bite goes back under
+      this.updateBurrower(dt, game, target && this.visible ? target : null);
     } else if (target && this.visible) {
       if (!this.trySuperJump(game, target)) {
         switch (d.style) {
@@ -1348,9 +1573,29 @@ export class Enemy {
     if (anim) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0 && this.leapT <= 0) {
-        anim.play('lower', speed2 > 0.7 ? 'runLower' : 'idleLower', 0.2, clamp(speed2 / 6, 0.6, 1.4));
-        if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, clamp(speed2 / 6, 0.6, 1.4));
+        // A hover trooper is in the air: it flies, it does not pump a run
+        // cycle on nothing. On the ground the cycle is picked by where the
+        // feet are going relative to the chest — a shooter shuffling
+        // sideways on its bearing, or fanning out on approach, used to run
+        // the forward cycle through it and moonwalk — and paced by the
+        // stride the clip actually covers (as the player's is), so a 7 m/s
+        // duelist's feet keep up with the ground instead of skating.
+        let lower = 'idleLower';
+        let rate = 1;
+        if (d.style === 'hover') lower = 'flyLower';
+        else if (speed2 > 0.7) {
+          const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+          lower = travel.clip;
+          rate = travel.dir * anim.gaitRate(lower, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+        }
+        anim.play('lower', lower, 0.2, rate);
+        // A shooter holds the aim while it is firing or standing; on the move
+        // between shots it runs with the gun, instead of the frozen aim pose
+        // gliding along at any speed. A hover trooper is always in the air
+        // and always aiming.
+        const shooting = this.volleyLeft > 0 || this.attackCd > this.def.attackCd - 0.35;
+        if (d.style === 'hover' || (d.style === 'ranged' && (shooting || speed2 <= 0.7))) anim.play('upper', 'enemyAimUpper', 0.25);
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, Math.abs(rate));
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -1434,7 +1679,7 @@ export class Enemy {
 
   /** line of sight plus a facing cone — sneaking up from behind works */
   private canSee(game: Game, foe: Combatant): boolean {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const dx = foe.position.x - this.position.x;
     const dz = foe.position.z - this.position.z;
     const dist = Math.hypot(dx, dz);
@@ -1461,7 +1706,7 @@ export class Enemy {
 
   /** posted and unbothered: mill around the post, look around, hold the ground */
   private updateIdle(dt: number, game: Game): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const air = d.style === 'swoop' || d.style === 'hover';
     this.idleTimer -= dt;
     if (this.idleTimer <= 0) {
@@ -1519,7 +1764,7 @@ export class Enemy {
 
   /** heading for the last thing it saw or heard */
   private updateSearch(dt: number, game: Game, speedScale: number): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     // pinned applies here too: advancing into fire is exactly what stops
     if (this.suppression > 0.55 && d.style !== 'swoop') {
       this.faceToward(dt, this.interest.x, this.interest.z, 5);
@@ -1570,7 +1815,7 @@ export class Enemy {
       if (d > 16 || d >= bestD) continue;
       // must be a spot it can actually fight from — cover out past blaster
       // range is just hiding, and hiding doesn't win territory
-      if (Math.hypot(hx - target.position.x, hz - target.position.z) > DEFS[this.kind].attackRange * 0.9) continue;
+      if (Math.hypot(hx - target.position.x, hz - target.position.z) > this.def.attackRange * 0.9) continue;
       const gy = phys.groundHeight(hx, hz, this.position.y + 0.5);
       if (!isFinite(gy) || Math.abs(gy - this.position.y) > 2.2) continue; // off the platform / different floor
       if (b.max.y - gy < 1.1) continue; // too low to hide a standing humanoid
@@ -1629,7 +1874,7 @@ export class Enemy {
    */
   private updateCover(dt: number, game: Game, target: Combatant): void {
     const spot = this.cover!;
-    const d = DEFS[this.kind];
+    const d = this.def;
     const goal = this.coverState === 'peek' ? spot.peek : spot.hide;
     const gx = goal.x - this.position.x, gz = goal.z - this.position.z;
     const gd = Math.hypot(gx, gz);
@@ -1692,7 +1937,7 @@ export class Enemy {
    * fighters wait their turn instead of all charging at once.
    */
   private holdBearing(dt: number, target: Combatant, radius: number, speedScale = 1): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const ax = target.position.x + Math.cos(this.slotAngle) * radius;
     const az = target.position.z + Math.sin(this.slotAngle) * radius;
     const dx = ax - this.position.x, dz = az - this.position.z;
@@ -1770,9 +2015,7 @@ export class Enemy {
       this.removeMe = true;
       const spider = new Enemy(this.def.egg!.hatchTo, this.position, this.team);
       if (this.owner) spider.setOwner(this.owner, true);   // the brood hunts
-      game.enemies.push(spider);
-      game.scene.add(spider.char.root);
-      game.particles.dustPuff(this.position, 8);
+      game.addEnemy(spider, { puff: 8 });
       audio.bark('spider_chitter', 0.6);
       return;
     }
@@ -1788,7 +2031,7 @@ export class Enemy {
    * jetpack hop as the shadow arrives beats the landing.
    */
   private trySuperJump(game: Game, target: Combatant): boolean {
-    const d = DEFS[this.kind];
+    const d = this.def;
     if (!this.boss || d.plows) return false;
     if (d.style !== 'melee' && d.style !== 'ranged') return false;
     if (this.superJumpCd > 0 || this.windup > 0 || this.pounce > 0 || !this.grounded) return false;
@@ -1814,7 +2057,11 @@ export class Enemy {
     this.superJumps++;
     this.volleyLeft = 0;          // nothing fires through a leap
     this.char.attack?.();         // a creature coils into the jump
-    if (BEASTS.has(this.kind)) audio.beastGrowl(0.8);
+    if (BEASTS.has(this.kind)) {
+      const voice = MONSTER_VOICE[this.kind];
+      if (voice) audio.monster(voice, 'roar', 0.8);
+      else audio.beastGrowl(0.8);
+    }
     else {
       const bark = SPAWN_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.6);
@@ -1847,6 +2094,9 @@ export class Enemy {
     if (this.leapT <= 0 || (this.grounded && this.leapT < 0.5)) {
       this.leapT = 0;
       this.landSlam(game);
+      // the ground is taken in the knees, the same crouch the player lands
+      // in — the leap used to cut from the air pose straight into the run
+      anim?.playOnce('lower', 'landLower', 0.05);
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
@@ -1859,7 +2109,7 @@ export class Enemy {
    * swing stays the killer.
    */
   private landSlam(game: Game): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const r = 4 + this.radius * 1.5;
     game.particles.dustPuff(this.position, 20);
     audio.land(true);
@@ -1868,7 +2118,7 @@ export class Enemy {
       const dd = p.position.distanceTo(this.position);
       if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
       if (!p.alive || dd > r) continue;
-      p.damage(d.damage * this.dmgScale * 0.6, this.position);
+      p.damage(d.damage * this.dmgScale * 0.6, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0).normalize();
       p.velocity.addScaledVector(push, 10);
       p.velocity.y += 4;
@@ -1883,8 +2133,153 @@ export class Enemy {
     this.char.attack?.();   // a creature punctuates the landing with its strike
   }
 
+  /**
+   * The burrower's cycle (docs/BOSSES.md §2.7). Under the ground it hunts —
+   * fast, unseen but for the wake, untouchable — and erupts once it is under
+   * its prey or has been down long enough. On the surface it is rooted: it
+   * turns, it bites, and after its spell (or once the prey is out of reach)
+   * it sinks and hunts again. `target` is null when nothing is in sight, in
+   * which case a surfaced worm goes under and an underground one waits.
+   */
+  private updateBurrower(dt: number, game: Game, target: Combatant | null): void {
+    const d = this.def;
+    const b = d.burrows!;
+    this.burrowT -= dt;
+    const dist = target ? Math.hypot(target.position.x - this.position.x, target.position.z - this.position.z) : Infinity;
+    if (target) this.faceToward(dt, target.position.x, target.position.z, this.burrow === 'under' ? 4 : 7);
+    const rooted = (): void => {
+      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+    };
+    let depth = 1;
+    switch (this.burrow) {
+      case 'under': {
+        if (target) {
+          const to = _to.set(target.position.x - this.position.x, 0, target.position.z - this.position.z);
+          if (to.lengthSq() > 1e-4) to.normalize();
+          this.velocity.x = damp(this.velocity.x, to.x * d.speed, 5, dt);
+          this.velocity.z = damp(this.velocity.z, to.z * d.speed, 5, dt);
+          // the wake's own voice: a continuous rumble that swells as it closes,
+          // driven from here because this is the only place that knows the worm
+          // is under the sand and how far off it still is
+          audio.setBurrowRumble(Math.max(0.25, Math.min(1, 34 / Math.max(dist, 6))));
+        } else rooted();
+        if (target && (dist < b.strikeAt || this.burrowT <= 0)) {
+          this.burrow = 'rising';
+          this.burrowT = b.rise;
+          this.windup = 0;
+          audio.setBurrowRumble(0);   // it is out of the ground; the wake is over
+          const rising = MONSTER_VOICE[this.kind];
+          if (rising) audio.monster(rising, 'roar', 0.95);
+          else audio.beastGrowl(0.9);
+          game.particles.dustPuff(this.position, 24);
+          game.director.noise(game, this.position, 40, true);
+        }
+        break;
+      }
+      case 'rising': {
+        rooted();
+        // the ground boils before it breaks
+        if (Math.random() < dt * 30) game.particles.dustPuff(this.position, 3);
+        for (const p of game.players) {
+          const dd = p.position.distanceTo(this.position);
+          if (dd < 20) p.cam.shake(0.05 * (1 - dd / 20));
+        }
+        const prog = 1 - Math.max(0, this.burrowT) / b.rise;
+        depth = 1 - prog * prog;
+        if (this.burrowT <= 0) {
+          this.burrow = 'up';
+          this.burrowT = b.up;
+          this.erupt(game);
+        }
+        break;
+      }
+      case 'up': {
+        rooted();
+        depth = 0;
+        if (this.windup > 0) {
+          this.windup -= dt;
+          if (this.windup <= 0 && this.windupTarget) {
+            const hd = this.windupTarget.position.distanceTo(this.position);
+            if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
+              this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+            }
+            this.attackCd = d.attackCd;
+          }
+          break;
+        }
+        if (target && dist <= d.attackRange && this.attackCd <= 0) {
+          this.windupTarget = target;
+          this.windup = this.char.attack ? Math.max(0.4, this.char.attack() * 0.7) : 0.55;
+          break;
+        }
+        // its spell is up, or the prey has run: back under, and hunt
+        const gone = !target || (dist > d.attackRange * 1.8 && this.burrowT < b.up - 2.5);
+        if (this.burrowT <= 0 || gone) {
+          this.burrow = 'sinking';
+          this.burrowT = b.sink;
+          game.particles.dustPuff(this.position, 16);
+        }
+        break;
+      }
+      case 'sinking': {
+        rooted();
+        const prog = 1 - Math.max(0, this.burrowT) / b.sink;
+        depth = prog * prog;
+        if (Math.random() < dt * 20) game.particles.dustPuff(this.position, 2);
+        if (this.burrowT <= 0) {
+          this.burrow = 'under';
+          this.burrowT = b.under;
+        }
+        break;
+      }
+    }
+    this.char.setBurrow?.(depth);
+  }
+
+  /**
+   * The burrower breaking the surface: everyone standing over it is hit,
+   * thrown up and out, and every nearby camera feels the ground go. The
+   * eruption is the burrower's opening move and its answer to a camper: the
+   * wake tells you where it is coming up, so the hit is the cost of not
+   * moving.
+   */
+  private erupt(game: Game): void {
+    const d = this.def;
+    const b = d.burrows!;
+    this.eruptions++;
+    game.particles.explosion(this.position.clone());
+    game.particles.dustPuff(this.position, 40);
+    audio.land(true);
+    audio.beastGrowl(1);
+    game.director.noise(game, this.position, 50, true);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 24) p.cam.shake(0.45 * (1 - dd / 24));
+      if (!p.alive || dd > b.eruptR) continue;
+      p.damage(b.erupt * this.dmgScale, this.position, -1, { heavy: true });
+      const push = p.position.clone().sub(this.position).setY(0);
+      if (push.lengthSq() > 1e-4) push.normalize();
+      p.velocity.addScaledVector(push, 9);
+      p.velocity.y = Math.max(p.velocity.y, 9);
+    }
+    for (const a of game.allies) {
+      if (!a.alive || a.team === this.team) continue;
+      if (a.position.distanceTo(this.position) > b.eruptR) continue;
+      a.damage(b.erupt * this.dmgScale, this.position, -1);
+      a.knockback(this.position, 12, 0.5, 0.8);
+    }
+    for (const e of game.enemies) {
+      if (e === this || !e.alive || e.team === this.team) continue;
+      if (e.position.distanceTo(this.position) > b.eruptR) continue;
+      e.damage(b.erupt * this.dmgScale, this.position, this.lastHitBy);
+      e.knockback(this.position, 12, 0.5, 0.8);
+    }
+    this.attackCd = Math.max(this.attackCd, 0.9);
+  }
+
   private updateMelee(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const to = target.position.clone().sub(this.position);
     to.y = 0;
     const dist = to.length();
@@ -1894,15 +2289,22 @@ export class Enemy {
       this.windup -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 10, dt);
       this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      if (this.special) this.telegraphSpecial(dt, game);
+      if (this.windup <= 0 && this.special === 'dash') { this.launchDash(target); return; }
+      if (this.windup <= 0 && this.special === 'slam') { this.groundShock(game); return; }
       if (this.windup <= 0 && this.windupTarget) {
         const hd = this.windupTarget.position.distanceTo(this.position);
         if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
-          this.windupTarget.damage(d.damage * this.dmgScale, this.position);
+          this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+          this.contactStop();
         }
         this.attackCd = d.attackCd;
       }
       return;
     }
+
+    // ---- the officer's lunge: on its line, no steering ----
+    if (this.dashT > 0) { this.updateDash(dt, game); return; }
 
     // ---- pounce (the massiff's signature) ----
     // Mid-leap it steers not at all: the arc is committed the moment it jumps,
@@ -1914,7 +2316,7 @@ export class Enemy {
         const pd = target.position.distanceTo(this.position);
         if (pd < d.attackRange + 0.4) {
           this.pounceHit = true;
-          target.damage(d.damage * 1.15 * this.dmgScale, this.position);
+          target.damage(d.damage * 1.15 * this.dmgScale, this.position, -1, { heavy: true });
           if ('velocity' in target) target.velocity.addScaledVector(this.velocity.clone().setY(0).normalize(), 5);
           this.attackCd = d.attackCd;
         }
@@ -1936,12 +2338,27 @@ export class Enemy {
       return;
     }
 
+    // The second moves: the officer opens with a lunge from outside reach,
+    // the enforcer answers a target inside the ring with the slam (a roll
+    // keeps its plain swing in the mix). Both wait on the same attack clock
+    // as a swing and on their own spacing, so neither raises the damage rate.
+    if (this.specialCd <= 0 && this.attackCd <= 0 && this.grounded && this.stagger <= 0) {
+      if (this.kind === 'officer' && dist > d.attackRange && dist < DASH_TRIGGER && this.losThrottled(game, target)) {
+        this.startSpecial('dash', target);
+        return;
+      }
+      if (this.kind === 'enforcer' && dist < SLAM_RADIUS + 1.2 && Math.random() < 0.6) {
+        this.startSpecial('slam', target);
+        return;
+      }
+    }
+
     // Beasts close the last stretch in one leap rather than jogging into reach.
     // The arc is ballistic and committed — no steering once airborne, so a dash
     // or a jetpack hop beats it — which means it has to be aimed at where the
     // target *will* be. Without the lead, pouncing at a running player lands
     // behind them and actually loses ground.
-    if (this.kind === 'massiff' && this.attackCd <= 0 && this.grounded &&
+    if ((this.kind === 'massiff' || d.pounces) && this.attackCd <= 0 && this.grounded &&
         dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
       const flight = (2 * vy) / (24 * grav(game, this.position));       // ballistic hang time
@@ -1987,8 +2404,132 @@ export class Enemy {
     }
   }
 
+  /**
+   * Begin a second move: the wind-up is the telegraph. The swing clip is
+   * played slow enough that its strike key lands where the move does — the
+   * lunge's launch, the slam's shock — so the body reads the timing too.
+   */
+  private startSpecial(kind: 'dash' | 'slam', target: Combatant): void {
+    this.special = kind;
+    this.windupTarget = target;
+    this.windup = kind === 'dash' ? DASH_WINDUP : SLAM_WINDUP;
+    this.specialCd = kind === 'dash' ? DASH_CD : SLAM_CD;
+    const bark = SPAWN_BARKS[this.kind];
+    if (bark) audio.bark(bark, 0.55);
+    // the swing's strike key sits at 0.55 s of 0.7: scale so it meets the move
+    const scale = 0.55 / (kind === 'dash' ? DASH_WINDUP + 0.2 : SLAM_WINDUP);
+    this.char.animator?.playOnce('upper', 'enemySwing', 0.06, false, scale);
+  }
+
+  /** the wind-up's visible cue, every frame it runs */
+  private telegraphSpecial(dt: number, game: Game): void {
+    // a spark clock at 16 Hz, so the cue does not scale with the frame rate
+    if (Math.floor((this.windup + dt) * 16) === Math.floor(this.windup * 16)) return;
+    if (this.special === 'dash') {
+      // the blade throws sparks as it is drawn back
+      const at = _cue;
+      const blade = this.char.rig?.bones.weaponR;
+      if (blade) blade.getWorldPosition(at);
+      else at.copy(this.position).setY(this.position.y + this.height * 0.7);
+      game.particles.impactSparks(at, 3);
+    } else {
+      // the ember ring is drawn where the shock will reach — the get-out line
+      // is the line on the ground, exactly as the warlord's shock-slam draws it
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        _cue.set(this.position.x + Math.cos(a) * SLAM_RADIUS, this.position.y + 0.4, this.position.z + Math.sin(a) * SLAM_RADIUS);
+        game.particles.impactSparks(_cue, 3);
+      }
+    }
+  }
+
+  /** everyone this body could hurt within `r` of it, this frame */
+  private foesWithin(game: Game, r: number): Combatant[] {
+    const out = _foes;
+    out.length = 0;
+    const consider = (c: Combatant) => {
+      if (!c.alive || c.team === this.team) return;
+      if (c.position.distanceTo(this.position) <= r + c.radius) out.push(c);
+    };
+    for (const p of game.players) consider(p);
+    for (const a of game.allies) if (a !== this) consider(a);
+    for (const e of game.enemies) if (e !== this) consider(e);
+    return out;
+  }
+
+  /** the wind-up is done: fix the line on where the target stands now and go */
+  private launchDash(target: Combatant): void {
+    this.special = null;
+    this.windupTarget = null;
+    this.dashDir.copy(target.position).sub(this.position).setY(0);
+    if (this.dashDir.lengthSq() < 1e-4) this.dashDir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    this.dashDir.normalize();
+    this.dashT = DASH_LENGTH / DASH_SPEED;
+    this.dashHit = false;
+    this.facingYaw = Math.atan2(this.dashDir.x, this.dashDir.z);
+  }
+
+  /**
+   * Mid-lunge: the velocity is written outright every frame so nothing
+   * steers it (the edge guard downstream may still stop it dead at a lip,
+   * which is the right answer there). Contact along the line is the hit;
+   * the slash lands once and the lunge is over a beat later.
+   */
+  private updateDash(dt: number, game: Game): void {
+    this.dashT -= dt;
+    this.velocity.x = this.dashDir.x * DASH_SPEED;
+    this.velocity.z = this.dashDir.z * DASH_SPEED;
+    if (!this.dashHit) {
+      const d = this.def;
+      for (const c of this.foesWithin(game, DASH_REACH)) {
+        this.dashHit = true;
+        c.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+        c.velocity.addScaledVector(this.dashDir, 4);
+      }
+      if (this.dashHit) { this.contactStop(0.08); this.dashT = Math.min(this.dashT, 0.06); }
+    }
+    if (this.dashT <= 0) {
+      this.dashT = 0;
+      this.attackCd = this.def.attackCd;
+      this.velocity.x *= 0.3;
+      this.velocity.z *= 0.3;
+    }
+  }
+
+  /**
+   * The slam's landing: the ground answers inside the ring. The kind's own
+   * melee damage, plus a shove out of the ring — and the enforcer's own
+   * animation hangs on the contact when it connects.
+   */
+  private groundShock(game: Game): void {
+    this.special = null;
+    this.windupTarget = null;
+    this.attackCd = this.def.attackCd;
+    game.particles.dustPuff(this.position, 20);
+    game.particles.impactSparks(this.position, 14);
+    audio.land(true);
+    game.director.noise(game, this.position, 25);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 12) p.cam.shake(0.25 * (1 - dd / 12));
+    }
+    let hit = false;
+    for (const c of this.foesWithin(game, SLAM_RADIUS)) {
+      hit = true;
+      c.damage(this.def.damage * this.dmgScale, this.position, -1, { heavy: true });
+      if (c instanceof Enemy) c.knockback(this.position, 9, 0.35);
+      else {
+        const push = c.position.clone().sub(this.position).setY(0);
+        if (push.lengthSq() < 1e-4) push.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+        c.velocity.addScaledVector(push.normalize(), 7);
+        c.velocity.y += 3;
+      }
+    }
+    if (hit) this.contactStop(0.09);
+  }
+
   private updateRanged(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const to = target.position.clone().sub(this.position);
     to.y = 0;
     const dist = to.length();
@@ -2062,7 +2603,7 @@ export class Enemy {
   }
 
   private updateVolley(dt: number, game: Game, target: Combatant, dist: number): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     if (d.kamikaze) return; // the drone's whole body is the attack
     if (this.volleyLeft > 0) {
       this.volleyTimer -= dt;
@@ -2129,7 +2670,7 @@ export class Enemy {
    * Damage lands only on a target still standing in the stream's cone.
    */
   private flameTick(game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
     else { from.copy(this.position); from.y += this.height * 0.7; }
@@ -2160,7 +2701,7 @@ export class Enemy {
   }
 
   private fireBoltAt(game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
     else { from.copy(this.position); from.y += this.height * 0.7; }
@@ -2176,14 +2717,17 @@ export class Enemy {
     aim.z += (Math.random() - 0.5) * 1.6 * err;
     const dir = aim.sub(from).normalize();
     game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage * this.dmgScale, this.team, -1, d.boltTag);
-    // a firefight pulls in whoever is posted nearby — an ally's covering fire
-    // gives the position away just as readily as a hostile's
-    game.director.noise(game, this.position, this.team === 1 ? 30 : 40);
+    // A firefight pulls in whoever is posted nearby. An ally's covering fire
+    // used to carry 40 m — further than the player's own carbine reaches
+    // posted enemies — so a squad of allies woke the whole board; it now
+    // carries about as far as a hostile's.
+    game.director.noise(game, this.position, this.team === 1 ? 30 : 22);
+    if (this.team === 0) { this.killWatch = target; this.shotRecently = 0.9; }
     audio.enemyBlaster();
   }
 
   private updateSwoop(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
     // figure-8 orbit with periodic dive-bys
     this.swoopPhase += dt * 0.55;
     const orbitR = 26;
@@ -2223,7 +2767,7 @@ export class Enemy {
   }
 
   private updateHover(dt: number, game: Game, target: Combatant): void {
-    const d = DEFS[this.kind];
+    const d = this.def;
 
     // ---- kamikaze (the interceptor drone) ----
     // It stalks like any hover flier, then commits: a straight, unsteered dive
@@ -2242,7 +2786,7 @@ export class Enemy {
           for (const p of game.players) {
             if (!p.alive) continue;
             const dd = p.position.distanceTo(this.position);
-            if (dd < 4.5) p.damage(d.damage * (1 - dd / 5.5), this.position);
+            if (dd < 4.5) p.damage(d.damage * (1 - dd / 5.5), this.position, -1, { heavy: true });
           }
           for (const e of game.enemies) {
             if (!e.alive || e === this) continue;
@@ -2581,7 +3125,7 @@ export class Enemy {
     // in game and rendered smaller than its own hit spheres.
     const base = this.char.baseScale;
     this.char.root.scale.setScalar(this.kind === 'nikto' ? base : base * (1 + this.hitFlash * 0.6));
-    if (this.boss) this.applyBossTint();
+    if (this.boss) this.applyBossTint(game.time);
   }
 
   /**
@@ -2593,10 +3137,13 @@ export class Enemy {
    * in after promotion, since its fresh materials get adopted on the next
    * flash. Restore happens exactly once when both timers run out.
    */
-  private applyBossTint(): void {
+  private applyBossTint(time: number): void {
     const hurt = Math.min(1, this.bossHurtT / 0.3);
     const parry = Math.min(1, this.bossParryT / 0.25);
-    if (hurt <= 0 && parry <= 0) {
+    // Enraged, the body holds a red glow that breathes slowly — the last
+    // phase used to be announced by the banner and by nothing on the boss
+    const rage = this.enraged ? 0.26 + 0.1 * Math.sin(time * 4.5) : 0;
+    if (hurt <= 0 && parry <= 0 && rage <= 0) {
       if (this.tintOn) {
         for (const [m, rest] of this.tintedMats) m.emissive.copy(rest);
         this.tintOn = false;
@@ -2620,9 +3167,9 @@ export class Enemy {
         }
         const rest = this.tintedMats.get(m)!;
         m.emissive.setRGB(
-          Math.min(1, rest.r + hurt * 0.85 + parry * 0.45),
-          Math.min(1, rest.g + hurt * 0.06 + parry * 0.65),
-          Math.min(1, rest.b + hurt * 0.04 + parry * 0.85),
+          Math.min(1, rest.r + hurt * 0.85 + parry * 0.45 + rage),
+          Math.min(1, rest.g + hurt * 0.06 + parry * 0.65 + rage * 0.08),
+          Math.min(1, rest.b + hurt * 0.04 + parry * 0.85 + rage * 0.02),
         );
       }
     });

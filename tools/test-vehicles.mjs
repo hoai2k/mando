@@ -27,7 +27,7 @@ const spawned = await h.page.evaluate(() => {
     grounded: g.vehicles.every((v) => Number.isFinite(v.pos.y)),
   };
 });
-check('desert spawns 4 vehicles', spawned.n === 4, spawned.kinds);
+check('desert spawns 6 vehicles', spawned.n === 6, spawned.kinds);
 check('vehicles sit on real ground', spawned.grounded);
 
 // ---- walk up: prompt, then RB mounts ----
@@ -144,7 +144,7 @@ const post = await h.page.evaluate(() => {
   const g = window.__game;
   return { n: g.vehicles.length, alive: g.players[0].alive };
 });
-check('wreck removed after the blast', post.n === 3);
+check('wreck removed after the blast', post.n === 5);
 check('rider survives the ejection', post.alive);
 
 // ---- redirect: hits on a mounted rider land on the hull ----
@@ -179,6 +179,111 @@ const dismounted = await h.page.evaluate(() => {
 check('RB dismounts', dismounted.off);
 check('parked ride is solid again', dismounted.boxes === boxesBefore + 1,
   `${boxesBefore} -> ${dismounted.boxes}`);
+
+// ---- the bantha: a ride that is alive (PLAN.md §17) ----
+// Everything above is a repulsor. A mount is the exception on every axis that
+// matters: it walks a gait, X charges it, and your gun hand is free.
+const banthaAt = await h.page.evaluate(() => {
+  const g = window.__game;
+  const i = g.vehicles.findIndex((v) => v.spec.kind === 'bantha');
+  if (i < 0) return null;
+  const v = g.vehicles[i];
+  const p = g.players[0];
+  p.position.set(v.pos.x + 2, v.pos.y + 0.4, v.pos.z);
+  p.velocity.set(0, 0, 0);
+  return { i, hp: v.hp, y: v.pos.y };
+});
+check('the camp keeps a saddled bantha', !!banthaAt, JSON.stringify(banthaAt));
+await h.step(0.3);
+await h.step(1 / 60, { slamPressed: true });
+const onBantha = await h.page.evaluate((i) => {
+  const g = window.__game;
+  const p = g.players[0];
+  const v = g.vehicles[i];
+  // point it at open desert so the run does not walk into the camp
+  v.yaw = Math.atan2(-v.pos.x, -v.pos.z);
+  p.cam.yaw = v.yaw;
+  return { on: p.vehicle === v, x: v.pos.x, z: v.pos.z, seatY: p.position.y - v.pos.y };
+}, banthaAt.i);
+check('RB mounts the bantha', onBantha.on, `seat ${onBantha.seatY.toFixed(2)} m over the keel`);
+check('the rider sits above the beast, not inside it', onBantha.seatY > 1.2 && onBantha.seatY < 3.2,
+  `${onBantha.seatY.toFixed(2)} m`);
+await h.step(2, { throttleHeld: true });
+const walked = await h.page.evaluate(([i, x, z]) => {
+  const g = window.__game;
+  const v = g.vehicles[i];
+  const p = g.players[0];
+  return {
+    dist: Math.hypot(v.pos.x - x, v.pos.z - z),
+    speed: Math.hypot(v.vel.x, v.vel.z),
+    seatDrift: Math.hypot(p.position.x - v.pos.x, p.position.z - v.pos.z),
+  };
+}, [banthaAt.i, onBantha.x, onBantha.z]);
+// a bantha ambles: slower than every repulsor, but it does cover ground
+check('the bantha walks under the throttle', walked.dist > 6 && walked.speed < 14,
+  `${walked.dist.toFixed(1)} m at ${walked.speed.toFixed(1)} m/s`);
+check('the rider stays in the saddle', walked.seatDrift < 1.5, `${walked.seatDrift.toFixed(2)} m off`);
+
+// X: the charge runs it past its own top speed, and it costs a cooldown
+const charged = await h.page.evaluate(async ([i]) => {
+  const g = window.__game;
+  const v = g.vehicles[i];
+  const ready = v.chargeReady;
+  return { ready, top: v.def.top };
+}, [banthaAt.i]);
+await h.step(1 / 60, { meleePressed: true });
+await h.step(1.0, {});
+const charging = await h.page.evaluate(([i]) => {
+  const g = window.__game;
+  const v = g.vehicles[i];
+  return { charging: v.charging, speed: Math.hypot(v.vel.x, v.vel.z), ready: v.chargeReady };
+}, [banthaAt.i]);
+check('X charges the bantha', charged.ready && charging.charging && charging.speed > charged.top,
+  `${charging.speed.toFixed(1)} m/s against a top of ${charged.top}`);
+check('the charge goes on cooldown', !charging.ready);
+
+// a trampled hostile takes far more from the horns than from a shoulder
+const trample = await h.page.evaluate(([i]) => {
+  const g = window.__game;
+  const v = g.vehicles[i];
+  const e = g.enemies.find((en) => en.alive);
+  if (!e) return null;
+  const sin = Math.sin(v.yaw), cos = Math.cos(v.yaw);
+  e.position.set(v.pos.x + sin * 3.5, v.pos.y + 0.5, v.pos.z + cos * 3.5);
+  return { hp: e.hp, id: g.enemies.indexOf(e) };
+}, [banthaAt.i]);
+await h.step(0.6);
+const trampled = await h.page.evaluate(([id]) => {
+  const e = window.__game.enemies[id];
+  return { hp: e.hp, down: !e.alive || e.hp < e.maxHp };
+}, [trample.id]);
+check('the charge tramples what is in front of it', trampled.hp < trample.hp,
+  `${trample.hp.toFixed(0)} -> ${trampled.hp.toFixed(0)}`);
+
+// The gun hand is free on an animal: RT fires from the saddle. Read the
+// evidence a shot leaves rather than the trigger's own frame — the page's
+// live loop runs its own blank-input update between our stepped ones, so
+// `aiming` is already back down by the time an evaluate can look at it.
+const beforeShots = await h.page.evaluate(() => ({ heat: window.__game.players[0].heat }));
+await h.step(0.6, { shootHeld: true, aimHeld: true });
+const shots = await h.page.evaluate(([i]) => {
+  const g = window.__game;
+  const p = g.players[0];
+  return {
+    on: !!p.vehicle, heat: p.heat, weapon: p.weapon,
+    pose: p.char.animator?.playing?.('upper') ?? null,
+    kind: g.vehicles[i]?.spec.kind,
+  };
+}, [banthaAt.i]);
+check('the blaster fires from the saddle of a mount',
+  shots.on && shots.weapon === 'blaster' && shots.heat > beforeShots.heat,
+  `heat ${beforeShots.heat.toFixed(2)} -> ${shots.heat.toFixed(2)} on the ${shots.kind}`);
+check('the gun comes up in the saddle', shots.pose === 'aimUpper', `upper: ${shots.pose}`);
+
+// dismount and leave the herd as we found it
+await h.step(1 / 60, { slamPressed: true });
+const offBantha = await h.page.evaluate(() => !window.__game.players[0].vehicle);
+check('RB steps off the bantha', offBantha);
 
 // ---- Trask: the skiff rides the water ----
 // Restarting from a running match: the old game's 'playing' state satisfies
