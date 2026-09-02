@@ -4,6 +4,10 @@ import { buildMission, MISSION_LAYOUTS, type MissionLevel, type MissionRoom } fr
 import { FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
 import { audio } from '../core/audio';
+import { hazardAt } from '../world/board';
+
+/** scratch for the hazard probe in placeNear */
+const _probe = new THREE.Vector3();
 
 /**
  * The Missions run (docs/MODES.md §4, docs/LEVEL_DESIGN.md): the territory's
@@ -114,7 +118,12 @@ export class Campaign {
     const comp = waveComposition(this.game.board.kind,
       Math.min(FINAL_WAVE, Math.max(1, wave)), this.game.players.length);
     const kinds: EnemyKind[] = [];
-    for (const entry of comp) for (let i = 0; i < entry.count; i++) kinds.push(entry.kind);
+    // no fliers: a swoop's 26 m orbit does not fit a 20 m walled room, and an
+    // "arena" that ends with a hunt outside its own walls is not one
+    for (const entry of comp) {
+      if (entry.air) continue;
+      for (let i = 0; i < entry.count; i++) kinds.push(entry.kind);
+    }
     if (!kinds.length) return ['stormtrooper'];
     const take = Math.min(budget, kinds.length);
     const out: EnemyKind[] = [];
@@ -136,7 +145,13 @@ export class Campaign {
     const body = enemyBody(kind);
     const phys = this.game.board.physics;
     const y = this.level.floorY + 0.2;
-    if (this.level.contains(pos.x, pos.z) && phys.capsuleFree(pos.x, y, pos.z, body.radius, body.height)) {
+    // free of the walls, and not in the room's lava or shock strip
+    const ok = (x: number, z: number): boolean => {
+      if (!phys.capsuleFree(x, y, z, body.radius, body.height)) return false;
+      const hz = hazardAt(this.game.board, _probe.set(x, y, z));
+      return !hz.kill && hz.dps <= 0;
+    };
+    if (this.level.contains(pos.x, pos.z) && ok(pos.x, pos.z)) {
       pos.y = y;
       return pos;
     }
@@ -148,7 +163,7 @@ export class Campaign {
         const x = pos.x + Math.cos(a) * r;
         const z = pos.z + Math.sin(a) * r;
         if (!this.level.contains(x, z)) continue;
-        if (phys.capsuleFree(x, y, z, body.radius, body.height)) return new THREE.Vector3(x, y, z);
+        if (ok(x, z)) return new THREE.Vector3(x, y, z);
       }
     }
     return new THREE.Vector3(pos.x, y, pos.z);

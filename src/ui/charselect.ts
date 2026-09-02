@@ -176,6 +176,8 @@ export class CharacterSelect {
   private roster: PlayableId[] = [...STANDARD_ROSTER];
   /** PvP refuses to start alone */
   private minPlayers = 1;
+  /** the Start button is on screen (everyone joined is locked in) */
+  private startShown = false;
   private titleEl!: HTMLElement;
   private hintEl!: HTMLElement;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
@@ -234,7 +236,12 @@ export class CharacterSelect {
     this.startBtn = document.createElement('button');
     this.startBtn.className = 'menu-btn charsel-start';
     this.startBtn.textContent = 'Start Game';
-    this.startBtn.style.display = 'none';
+    // Hidden, not removed: the button sits in the same column as the panels,
+    // and taking it out of the flow grew the panel box by its height — so the
+    // clamp that keeps a name off the plinth had a different ceiling before
+    // and after locking in, and READY landed on the ring. Reserving the space
+    // keeps the geometry identical in both states.
+    this.startBtn.style.visibility = 'hidden';
     this.startBtn.addEventListener('click', () => { audio.uiConfirm(); this.start(); });
     this.root.appendChild(this.startBtn);
 
@@ -631,7 +638,7 @@ export class CharacterSelect {
     const s = this.slots[slot];
     if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
     else if (s.phase === 'browsing') this.commit(slot);
-    else if (s.phase === 'ready' && this.startBtn.style.display !== 'none') { audio.uiConfirm(); this.start(); }
+    else if (s.phase === 'ready' && this.startShown) { audio.uiConfirm(); this.start(); }
   }
 
   /**
@@ -885,7 +892,8 @@ export class CharacterSelect {
         s.group.rotation.y = s.baseYaw + arc + s.manual;
       }
     }
-    this.startBtn.style.display = anyJoined && allReady ? '' : 'none';
+    this.startShown = anyJoined && allReady;
+    this.startBtn.style.visibility = this.startShown ? '' : 'hidden';
   }
 
   /**

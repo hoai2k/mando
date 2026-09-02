@@ -72,6 +72,8 @@ interface SaberVoice {
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
+  /** brick-wall limiter between the master bus and the speakers */
+  private limiter!: DynamicsCompressorNode;
   private sfx!: GainNode;
   private music!: GainNode;
   private samples = new Map<string, AudioBuffer>();
@@ -92,7 +94,20 @@ export class AudioEngine {
     if (this.ctx) { this.ctx.resume(); return; }
     this.ctx = new AudioContext();
     this.master = this.ctx.createGain();
-    this.master.connect(this.ctx.destination);
+    // Everything leaves through a limiter. The buses run at the ceiling now,
+    // and a wave puts a score, an ambience bed and a dozen blasters through
+    // them at once — summed, that would clip the output and crackle. A fast
+    // brick wall (0 dB knee, 20:1 over −1 dB, 3 ms attack) catches only the
+    // peaks that would have distorted; a quiet moment passes through it
+    // untouched, so it makes the game louder rather than flatter.
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -1;
+    this.limiter.knee.value = 0;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.25;
+    this.master.connect(this.limiter);
+    this.limiter.connect(this.ctx.destination);
     this.sfx = this.ctx.createGain();
     this.sfx.connect(this.master);
     this.music = this.ctx.createGain();

@@ -70,16 +70,32 @@ export const config: Config = {
   camera: { dynamic: true },
   video: { split: 'stacked' },
   audio: {
-    master: 0.8,
-    // SFX sit well under the score: a busy wave puts a lot of blaster fire on
-    // the sfx bus at once, and it swamped the music at anything higher.
-    sfx: 0.25,
-    music: 0.75,
+    // The buses run at the ceiling: `master` and `music` at unity, with SFX
+    // holding the same one-third balance under the score they always had (a
+    // busy wave puts a lot of blaster fire on the sfx bus at once, and it
+    // swamped the music at anything higher). Everything is 1.67x its old
+    // level — the same lift on every sound, so nothing is remixed against
+    // anything else — and the master bus leaves through a limiter, so the
+    // peaks that summing at these gains would have clipped are caught rather
+    // than crackling. See AUDIO_GAIN in `src/core/audio.ts`.
+    master: 1,
+    sfx: 1 / 3,
+    music: 1,
   },
 };
 
 /** Volume keys the player can persist, stored under this localStorage key. */
 const STORE = 'mando.audio';
+/**
+ * Saved-volume format. v2 is the louder mix (2026-09-02): every bus went up by
+ * `GAIN_BUMP`, which a blob saved before it does not know about — so a player
+ * who had ever touched a slider would have been the only one who *didn't* hear
+ * the change. Their settings are scaled by the same factor on the way in, so
+ * the balance they chose survives at the new loudness.
+ */
+const STORE_VERSION = 2;
+/** how much louder v2 is than v1, on every bus alike */
+const GAIN_BUMP = 5 / 3;
 /** Input preferences, stored separately so a stale audio blob can't clobber them. */
 const INPUT_STORE = 'mando.input';
 /** Camera preferences, same reasoning: one key per group of settings. */
@@ -93,11 +109,27 @@ export function loadSavedConfig(): void {
     const raw = localStorage.getItem(STORE);
     // no early return: each group loads independently, so a player who has
     // never touched the volumes still gets their input and camera preferences
-    const saved = raw ? JSON.parse(raw) as Partial<AudioConfig> : null;
+    const saved = raw ? JSON.parse(raw) as Partial<AudioConfig> & { v?: number } : null;
     if (saved) {
-      for (const k of ['master', 'sfx', 'music'] as const) {
+      const keys = ['master', 'sfx', 'music'] as const;
+      const kept: Partial<AudioConfig> = {};
+      for (const k of keys) {
         const v = saved[k];
-        if (typeof v === 'number' && v >= 0 && v <= 1) config.audio[k] = v;
+        if (typeof v === 'number' && v >= 0 && v <= 1) kept[k] = v;
+      }
+      // A blob from before the louder mix is rescaled rather than ignored, and
+      // every bus by the same factor, so the balance the player chose survives
+      // exactly: the lift stops at whatever their loudest bus can still take,
+      // which keeps a deliberately quiet mix quieter than the default instead
+      // of clamping it up into one.
+      let scale = 1;
+      if ((saved.v ?? 1) < STORE_VERSION) {
+        const loudest = Math.max(0, ...keys.map((k) => kept[k] ?? 0));
+        scale = loudest > 0 ? Math.min(GAIN_BUMP, 1 / loudest) : GAIN_BUMP;
+      }
+      for (const k of keys) {
+        const v = kept[k];
+        if (v !== undefined) config.audio[k] = Math.min(1, v * scale);
       }
     }
   } catch {
@@ -156,7 +188,7 @@ export function saveInputConfig(): void {
 /** Persist the current volumes so they survive a reload. */
 export function saveAudioConfig(): void {
   try {
-    localStorage.setItem(STORE, JSON.stringify(config.audio));
+    localStorage.setItem(STORE, JSON.stringify({ v: STORE_VERSION, ...config.audio }));
   } catch {
     // private browsing / blocked storage — the session still honours the values
   }

@@ -383,6 +383,12 @@ export function planWave(board: Board, wave: number, players: number, near: THRE
     if (!isFinite(y)) return false;
     if (Math.hypot(x, z) > extent) return false;
     if (!board.physics.capsuleFree(x, y, z, POST_BODY.radius, POST_BODY.height)) return false;
+    // The sea is not a hazard zone, so it has to be asked about by name: the
+    // Prison Rig's heightAt is the sea bed, and a ring point over open water
+    // stood a squad 8-22 m under it — dropped in by carrier, drowned offscreen
+    // to a run of kill chimes nobody earned. Trask's version stood them
+    // chest-deep in the harbour.
+    if (board.waterY !== undefined && y < board.waterY + 0.3) return false;
     const hz = hazardAt(board, _probe.set(x, y, z));
     return !hz.kill && hz.dps <= 0;
   };

@@ -83,7 +83,7 @@ export class CombatDirector {
       }
     }
     for (const { alive, size } of squads.values()) {
-      if (size >= 3 && alive.length === 1 && alive[0].isEngaged && alive[0].target) {
+      if (size >= 3 && alive.length === 1 && alive[0].isEngaged && alive[0].target && !alive[0].broke) {
         // last one standing from a real squad: even odds it breaks
         if (Math.random() < 0.5) alive[0].breakAndRun(alive[0].target.position);
       }
