@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelClip } from '../anim/animator';
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
@@ -41,6 +42,35 @@ export interface Combatant {
    */
   damage(amount: number, from: THREE.Vector3, bySlot?: number, opts?: { dot?: boolean; heavy?: boolean }): void;
 }
+
+/** the directional flinch clips — a re-trigger of one of these waits for the last to mostly resolve */
+const HIT_REACTS = new Set(['hitUpper', 'hitFromL', 'hitFromR']);
+
+/**
+ * The second, committed moves (audit B11). Each is a telegraphed wind-up
+ * with a real get-out window and lands the kind's ordinary melee damage —
+ * they replace a swing on the same cooldown, never add to it.
+ *
+ * The officer's dash-slash: half a second of blade sparks and a bark, then
+ * a straight lunge along the line fixed at launch. No tracking after that,
+ * so a dash sideways beats it; the reach on contact is deliberately tighter
+ * than the swing's so a sidestep is enough.
+ */
+const DASH_WINDUP = 0.5;
+const DASH_SPEED = 20;
+const DASH_LENGTH = 7;
+const DASH_REACH = 2.4;
+const DASH_CD = 4.5;
+/** how far away the officer will open with the lunge */
+const DASH_TRIGGER = 9;
+/**
+ * The enforcer's overhead slam: 0.7 s of wind-up with an ember ring drawn
+ * at the radius the shock will reach (the same telegraph as the warlord's
+ * shock-slam in game.ts), then the ground answers inside it.
+ */
+const SLAM_WINDUP = 0.7;
+const SLAM_RADIUS = 3;
+const SLAM_CD = 5;
 
 /** where to aim on a body: mid-chest of whatever it actually is */
 export function aimHeight(target: Combatant): number {
@@ -311,6 +341,8 @@ const _to = new THREE.Vector3();
 const _jet = new THREE.Vector3();
 /** reused foe list, so nearestFoe doesn't build one per enemy per frame */
 const _foes: Combatant[] = [];
+/** scratch for the second moves' telegraph sparks */
+const _cue = new THREE.Vector3();
 /** scratch for the half-buried creatures' ground wake */
 const _plow = new THREE.Vector3();
 /** scratch for arrival steering */
@@ -442,6 +474,17 @@ export class Enemy {
   eggThrown = false;
   private eggHit = false;
   private windupTarget: Combatant | null = null;
+  /** the committed second move winding up or in flight, if any (see DASH_* / SLAM_*) */
+  private special: 'dash' | 'slam' | null = null;
+  /** seconds of the officer's lunge left; `dashDir` is the line, fixed at launch */
+  private dashT = 0;
+  private dashDir = new THREE.Vector3();
+  private dashHit = false;
+  /** spacing between second moves, so they punctuate a fight rather than run it */
+  private specialCd = 0;
+  /** an ally's most recent target and how recently it shot at it — the kill bark reads these */
+  private killWatch: Combatant | null = null;
+  private shotRecently = 0;
   private prevPassing = false;
   /** while > 0 the AI stops steering so a knockback impulse actually carries */
   private stagger = 0;
@@ -866,6 +909,10 @@ export class Enemy {
       const side = Math.random() < 0.5 ? 1 : -1;
       this.velocity.x += (-lz / ll) * 7 * side;
       this.velocity.z += (lx / ll) * 7 * side;
+      // the step has to be seen: without a stagger the steering damped the
+      // sidestep away within a tenth of a second and the parry read as a
+      // flash and nothing else
+      this.stagger = Math.max(this.stagger, 0.15);
       audio.impact();
     }
     if (this.boss) this.bossHurtT = 0.3;
@@ -880,7 +927,9 @@ export class Enemy {
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     this.hitFlash = 0.15;
-    if (this.hp > 0 && this.windup > 0) this.windup = 0; // hit out of the wind-up
+    // hit out of the wind-up — except the committed second moves, which are
+    // telegraphed precisely so that the answer is to move, not to shoot
+    if (this.hp > 0 && this.windup > 0 && !this.special) this.windup = 0;
 
     // Gut-shot: a hit that leaves a grounded humanoid nearly dead can drop it
     // into a wounded crawl instead of a clean fight-on — it is out of the
@@ -896,6 +945,8 @@ export class Enemy {
       this.woundedPosed = false;
       this.windup = 0;
       this.volleyLeft = 0;
+      this.special = null;
+      this.dashT = 0;
       this.interest.copy(from);
       const bark = DEATH_BARKS[this.kind];
       if (bark) audio.bark(bark, 0.45);
@@ -944,8 +995,26 @@ export class Enemy {
       const bearing = Math.atan2(from.x - this.position.x, from.z - this.position.z) - this.facingYaw;
       const side = Math.sin(bearing);
       const clip = side > 0.45 ? 'hitFromL' : side < -0.45 ? 'hitFromR' : 'hitUpper';
-      this.char.animator.playOnce('upper', clip, 0.05);
+      // Under sustained fire (a 0.24 s carbine cycle against a 0.28 s clip)
+      // every shot snapped the flinch back to its first frame and it never
+      // resolved. A react already most of the way through restarts; one
+      // that has barely begun is left to play out — the body still reads
+      // as being hit, because it visibly is.
+      const a = this.char.animator;
+      const flinching = HIT_REACTS.has(a.playing('upper') ?? '') && a.oneShotProgress('upper') < 0.6;
+      if (!flinching) a.playOnce('upper', clip, 0.05);
     }
+  }
+
+  /**
+   * Hit-stop on the swing that just landed: this body's animation hangs on
+   * its contact frame for a few hundredths of a second, the way the player's
+   * does (`Player.animDt`). Without it an enemy's swing passed through the
+   * target at full speed and landed soft. Nothing else in the world feels
+   * it — only this mixer.
+   */
+  private contactStop(seconds = 0.07): void {
+    this.char.animator?.freeze(seconds);
   }
 
   /**
@@ -982,6 +1051,8 @@ export class Enemy {
     this.windup = 0;
     this.volleyLeft = 0;
     this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
+    this.special = null;   // and a lunge or slam winding up is lost with it
+    this.dashT = 0;
     const anim = this.char.animator;
     if (anim && !wasDown) {
       anim.release('lower'); anim.release('upper');
@@ -1156,6 +1227,8 @@ export class Enemy {
 
     this.attackCd -= dt;
     this.superJumpCd -= dt;
+    this.specialCd -= dt;
+    this.shotRecently = Math.max(0, this.shotRecently - dt);
     this.suppression = Math.max(0, this.suppression - dt * 0.25);
     this.venting = Math.max(0, this.venting - dt);
     this.heatHold = Math.max(0, this.heatHold - dt);
@@ -1217,6 +1290,17 @@ export class Enemy {
     }
 
     const target = this.senses(dt, game);
+
+    // An ally that just dropped what it was shooting at says so. Fennec's
+    // shots decide fights and used to do it in silence; a bark on the kill
+    // is the credit, and the player's cue that a flank has been cleared.
+    if (this.team === 0 && this.killWatch && !this.killWatch.alive) {
+      if (this.shotRecently > 0) {
+        const bark = SPAWN_BARKS[this.kind];
+        if (bark) audio.bark(bark, 0.5);
+      }
+      this.killWatch = null;
+    }
 
     // ---- boss super jump: airborne and committed ----
     if (this.leapT > 0) {
@@ -1377,14 +1461,28 @@ export class Enemy {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0 && this.leapT <= 0) {
         // A hover trooper is in the air: it flies, it does not pump a run
-        // cycle on nothing. On the ground the run is paced by the stride the
-        // clip actually covers (as the player's is), so a 7 m/s duelist's
-        // feet keep up with the ground instead of skating a fifth short.
-        const lower = d.style === 'hover' ? 'flyLower' : speed2 > 0.7 ? 'runLower' : 'idleLower';
-        const rate = lower === 'runLower' ? anim.gaitRate('runLower', speed2, this.char.baseScale) : 1;
+        // cycle on nothing. On the ground the cycle is picked by where the
+        // feet are going relative to the chest — a shooter shuffling
+        // sideways on its bearing, or fanning out on approach, used to run
+        // the forward cycle through it and moonwalk — and paced by the
+        // stride the clip actually covers (as the player's is), so a 7 m/s
+        // duelist's feet keep up with the ground instead of skating.
+        let lower = 'idleLower';
+        let rate = 1;
+        if (d.style === 'hover') lower = 'flyLower';
+        else if (speed2 > 0.7) {
+          const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+          lower = travel.clip;
+          rate = travel.dir * anim.gaitRate(lower, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+        }
         anim.play('lower', lower, 0.2, rate);
-        if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, rate);
+        // A shooter holds the aim while it is firing or standing; on the move
+        // between shots it runs with the gun, instead of the frozen aim pose
+        // gliding along at any speed. A hover trooper is always in the air
+        // and always aiming.
+        const shooting = this.volleyLeft > 0 || this.attackCd > this.def.attackCd - 0.35;
+        if (d.style === 'hover' || (d.style === 'ranged' && (shooting || speed2 <= 0.7))) anim.play('upper', 'enemyAimUpper', 0.25);
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, Math.abs(rate));
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -1881,6 +1979,9 @@ export class Enemy {
     if (this.leapT <= 0 || (this.grounded && this.leapT < 0.5)) {
       this.leapT = 0;
       this.landSlam(game);
+      // the ground is taken in the knees, the same crouch the player lands
+      // in — the leap used to cut from the air pose straight into the run
+      anim?.playOnce('lower', 'landLower', 0.05);
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
@@ -1928,15 +2029,22 @@ export class Enemy {
       this.windup -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 10, dt);
       this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      if (this.special) this.telegraphSpecial(dt, game);
+      if (this.windup <= 0 && this.special === 'dash') { this.launchDash(target); return; }
+      if (this.windup <= 0 && this.special === 'slam') { this.groundShock(game); return; }
       if (this.windup <= 0 && this.windupTarget) {
         const hd = this.windupTarget.position.distanceTo(this.position);
         if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
           this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+          this.contactStop();
         }
         this.attackCd = d.attackCd;
       }
       return;
     }
+
+    // ---- the officer's lunge: on its line, no steering ----
+    if (this.dashT > 0) { this.updateDash(dt, game); return; }
 
     // ---- pounce (the massiff's signature) ----
     // Mid-leap it steers not at all: the arc is committed the moment it jumps,
@@ -1968,6 +2076,21 @@ export class Enemy {
     if (!this.committed && dist < 20) {
       this.holdBearing(dt, target, 9 + (this.id % 3) * 1.7, 0.8);
       return;
+    }
+
+    // The second moves: the officer opens with a lunge from outside reach,
+    // the enforcer answers a target inside the ring with the slam (a roll
+    // keeps its plain swing in the mix). Both wait on the same attack clock
+    // as a swing and on their own spacing, so neither raises the damage rate.
+    if (this.specialCd <= 0 && this.attackCd <= 0 && this.grounded && this.stagger <= 0) {
+      if (this.kind === 'officer' && dist > d.attackRange && dist < DASH_TRIGGER && this.losThrottled(game, target)) {
+        this.startSpecial('dash', target);
+        return;
+      }
+      if (this.kind === 'enforcer' && dist < SLAM_RADIUS + 1.2 && Math.random() < 0.6) {
+        this.startSpecial('slam', target);
+        return;
+      }
     }
 
     // Beasts close the last stretch in one leap rather than jogging into reach.
@@ -2019,6 +2142,130 @@ export class Enemy {
         else if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
       }
     }
+  }
+
+  /**
+   * Begin a second move: the wind-up is the telegraph. The swing clip is
+   * played slow enough that its strike key lands where the move does — the
+   * lunge's launch, the slam's shock — so the body reads the timing too.
+   */
+  private startSpecial(kind: 'dash' | 'slam', target: Combatant): void {
+    this.special = kind;
+    this.windupTarget = target;
+    this.windup = kind === 'dash' ? DASH_WINDUP : SLAM_WINDUP;
+    this.specialCd = kind === 'dash' ? DASH_CD : SLAM_CD;
+    const bark = SPAWN_BARKS[this.kind];
+    if (bark) audio.bark(bark, 0.55);
+    // the swing's strike key sits at 0.55 s of 0.7: scale so it meets the move
+    const scale = 0.55 / (kind === 'dash' ? DASH_WINDUP + 0.2 : SLAM_WINDUP);
+    this.char.animator?.playOnce('upper', 'enemySwing', 0.06, false, scale);
+  }
+
+  /** the wind-up's visible cue, every frame it runs */
+  private telegraphSpecial(dt: number, game: Game): void {
+    // a spark clock at 16 Hz, so the cue does not scale with the frame rate
+    if (Math.floor((this.windup + dt) * 16) === Math.floor(this.windup * 16)) return;
+    if (this.special === 'dash') {
+      // the blade throws sparks as it is drawn back
+      const at = _cue;
+      const blade = this.char.rig?.bones.weaponR;
+      if (blade) blade.getWorldPosition(at);
+      else at.copy(this.position).setY(this.position.y + this.height * 0.7);
+      game.particles.impactSparks(at, 3);
+    } else {
+      // the ember ring is drawn where the shock will reach — the get-out line
+      // is the line on the ground, exactly as the warlord's shock-slam draws it
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        _cue.set(this.position.x + Math.cos(a) * SLAM_RADIUS, this.position.y + 0.4, this.position.z + Math.sin(a) * SLAM_RADIUS);
+        game.particles.impactSparks(_cue, 3);
+      }
+    }
+  }
+
+  /** everyone this body could hurt within `r` of it, this frame */
+  private foesWithin(game: Game, r: number): Combatant[] {
+    const out = _foes;
+    out.length = 0;
+    const consider = (c: Combatant) => {
+      if (!c.alive || c.team === this.team) return;
+      if (c.position.distanceTo(this.position) <= r + c.radius) out.push(c);
+    };
+    for (const p of game.players) consider(p);
+    for (const a of game.allies) if (a !== this) consider(a);
+    for (const e of game.enemies) if (e !== this) consider(e);
+    return out;
+  }
+
+  /** the wind-up is done: fix the line on where the target stands now and go */
+  private launchDash(target: Combatant): void {
+    this.special = null;
+    this.windupTarget = null;
+    this.dashDir.copy(target.position).sub(this.position).setY(0);
+    if (this.dashDir.lengthSq() < 1e-4) this.dashDir.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    this.dashDir.normalize();
+    this.dashT = DASH_LENGTH / DASH_SPEED;
+    this.dashHit = false;
+    this.facingYaw = Math.atan2(this.dashDir.x, this.dashDir.z);
+  }
+
+  /**
+   * Mid-lunge: the velocity is written outright every frame so nothing
+   * steers it (the edge guard downstream may still stop it dead at a lip,
+   * which is the right answer there). Contact along the line is the hit;
+   * the slash lands once and the lunge is over a beat later.
+   */
+  private updateDash(dt: number, game: Game): void {
+    this.dashT -= dt;
+    this.velocity.x = this.dashDir.x * DASH_SPEED;
+    this.velocity.z = this.dashDir.z * DASH_SPEED;
+    if (!this.dashHit) {
+      const d = this.def;
+      for (const c of this.foesWithin(game, DASH_REACH)) {
+        this.dashHit = true;
+        c.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+        c.velocity.addScaledVector(this.dashDir, 4);
+      }
+      if (this.dashHit) { this.contactStop(0.08); this.dashT = Math.min(this.dashT, 0.06); }
+    }
+    if (this.dashT <= 0) {
+      this.dashT = 0;
+      this.attackCd = this.def.attackCd;
+      this.velocity.x *= 0.3;
+      this.velocity.z *= 0.3;
+    }
+  }
+
+  /**
+   * The slam's landing: the ground answers inside the ring. The kind's own
+   * melee damage, plus a shove out of the ring — and the enforcer's own
+   * animation hangs on the contact when it connects.
+   */
+  private groundShock(game: Game): void {
+    this.special = null;
+    this.windupTarget = null;
+    this.attackCd = this.def.attackCd;
+    game.particles.dustPuff(this.position, 20);
+    game.particles.impactSparks(this.position, 14);
+    audio.land(true);
+    game.director.noise(game, this.position, 25);
+    for (const p of game.players) {
+      const dd = p.position.distanceTo(this.position);
+      if (dd < 12) p.cam.shake(0.25 * (1 - dd / 12));
+    }
+    let hit = false;
+    for (const c of this.foesWithin(game, SLAM_RADIUS)) {
+      hit = true;
+      c.damage(this.def.damage * this.dmgScale, this.position, -1, { heavy: true });
+      if (c instanceof Enemy) c.knockback(this.position, 9, 0.35);
+      else {
+        const push = c.position.clone().sub(this.position).setY(0);
+        if (push.lengthSq() < 1e-4) push.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+        c.velocity.addScaledVector(push.normalize(), 7);
+        c.velocity.y += 3;
+      }
+    }
+    if (hit) this.contactStop(0.09);
   }
 
   private updateRanged(dt: number, game: Game, target: Combatant): void {
@@ -2210,9 +2457,12 @@ export class Enemy {
     aim.z += (Math.random() - 0.5) * 1.6 * err;
     const dir = aim.sub(from).normalize();
     game.projectiles.fire(from, dir, d.boltSpeed ?? 28, d.damage * this.dmgScale, this.team, -1, d.boltTag);
-    // a firefight pulls in whoever is posted nearby — an ally's covering fire
-    // gives the position away just as readily as a hostile's
-    game.director.noise(game, this.position, this.team === 1 ? 30 : 40);
+    // A firefight pulls in whoever is posted nearby. An ally's covering fire
+    // used to carry 40 m — further than the player's own carbine reaches
+    // posted enemies — so a squad of allies woke the whole board; it now
+    // carries about as far as a hostile's.
+    game.director.noise(game, this.position, this.team === 1 ? 30 : 22);
+    if (this.team === 0) { this.killWatch = target; this.shotRecently = 0.9; }
     audio.enemyBlaster();
   }
 
@@ -2615,7 +2865,7 @@ export class Enemy {
     // in game and rendered smaller than its own hit spheres.
     const base = this.char.baseScale;
     this.char.root.scale.setScalar(this.kind === 'nikto' ? base : base * (1 + this.hitFlash * 0.6));
-    if (this.boss) this.applyBossTint();
+    if (this.boss) this.applyBossTint(game.time);
   }
 
   /**
@@ -2627,10 +2877,13 @@ export class Enemy {
    * in after promotion, since its fresh materials get adopted on the next
    * flash. Restore happens exactly once when both timers run out.
    */
-  private applyBossTint(): void {
+  private applyBossTint(time: number): void {
     const hurt = Math.min(1, this.bossHurtT / 0.3);
     const parry = Math.min(1, this.bossParryT / 0.25);
-    if (hurt <= 0 && parry <= 0) {
+    // Enraged, the body holds a red glow that breathes slowly — the last
+    // phase used to be announced by the banner and by nothing on the boss
+    const rage = this.enraged ? 0.26 + 0.1 * Math.sin(time * 4.5) : 0;
+    if (hurt <= 0 && parry <= 0 && rage <= 0) {
       if (this.tintOn) {
         for (const [m, rest] of this.tintedMats) m.emissive.copy(rest);
         this.tintOn = false;
@@ -2654,9 +2907,9 @@ export class Enemy {
         }
         const rest = this.tintedMats.get(m)!;
         m.emissive.setRGB(
-          Math.min(1, rest.r + hurt * 0.85 + parry * 0.45),
-          Math.min(1, rest.g + hurt * 0.06 + parry * 0.65),
-          Math.min(1, rest.b + hurt * 0.04 + parry * 0.85),
+          Math.min(1, rest.r + hurt * 0.85 + parry * 0.45 + rage),
+          Math.min(1, rest.g + hurt * 0.06 + parry * 0.65 + rage * 0.08),
+          Math.min(1, rest.b + hurt * 0.04 + parry * 0.85 + rage * 0.02),
         );
       }
     });
