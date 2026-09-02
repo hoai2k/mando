@@ -196,7 +196,7 @@ export class Radar {
     // Bodies still aboard a transport are on the score line's count but not
     // on the dial, and the two numbers disagreeing read as a bug: say so.
     const inbound = game.incomingCount;
-    this.count.textContent = `${alive} HOSTILE${alive === 1 ? '' : 'S'}${inbound > 0 ? ` · ${inbound} INBOUND` : ''}`;
+    this.count.textContent = `${alive} HOSTILE${alive === 1 ? '' : 'S'}${inbound > 0 ? ` +${inbound} INBOUND` : ''}`;
     this.count.className = hunting ? 'radar-count engaged' : 'radar-count';
   }
 }

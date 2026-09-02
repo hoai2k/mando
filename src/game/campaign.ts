@@ -93,8 +93,7 @@ export class Campaign {
           this.placeNear(post.pos.clone(), pool[j % pool.length]), 1, { silent: true });
         e.squad = 9300 + i;
         e.squadSize = posts.length;
-        game.enemies.push(e);
-        game.scene.add(e.char.root);
+        game.addEnemy(e);
       });
     });
 
@@ -194,8 +193,7 @@ export class Campaign {
       const e = new Enemy(kind, this.placeNear(base, kind), 1, { silent: true });
       e.squad = squad;
       e.squadSize = kinds.length;
-      this.game.enemies.push(e);
-      this.game.scene.add(e.char.root);
+      this.game.addEnemy(e);
     });
   }
 

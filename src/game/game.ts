@@ -321,9 +321,7 @@ export class Game {
       const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
       const e = new Enemy(squad.kind, at, p.team);
       e.setOwner(p);
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      this.particles.dustPuff(at, 6);
+      this.addEnemy(e, { puff: 6 });
     }
   }
 
@@ -366,9 +364,7 @@ export class Game {
     // On a monster board the warlord is the herald: remember where it made its
     // stand, and the monster comes up there when it falls.
     if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();
-    this.waveSpawned++;
-    this.enemies.push(boss);
-    this.scene.add(boss.char.root);
+    this.addEnemy(boss, { counts: true });
     this.particles.explosion(at.clone());
     this.boss = boss;
     this.bossPhase = 0;
@@ -419,9 +415,7 @@ export class Game {
       const e = new Enemy(p.kind, p.pos);
       e.squad = p.squad;
       e.squadSize = p.squadSize;
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      return e;
+      return this.addEnemy(e);   // the squad was counted when it was staged
     };
     for (const members of squads.values()) {
       const lead = members[0];
@@ -544,9 +538,7 @@ export class Game {
       const e = new Enemy(m.kind, m.pos);
       e.squad = squad;
       e.squadSize = members.length;
-      this.enemies.push(e);
-      this.scene.add(e.char.root);
-      return e;
+      return this.addEnemy(e);   // counted above, when the drop was staged
     }, { chute: 0, onRelease }).eta;
   }
 
@@ -596,9 +588,7 @@ export class Game {
     this.monsterAt = null;
     const beast = new Enemy(monster.kind, at);
     beast.promoteBoss(monster.name, 1, 1, 1);
-    this.waveSpawned++;
-    this.enemies.push(beast);
-    this.scene.add(beast.char.root);
+    this.addEnemy(beast, { counts: true });
     this.particles.explosion(at.clone());
     this.boss = beast;
     this.monsterKind = monster.kind;
@@ -736,6 +726,34 @@ export class Game {
   }
 
   /**
+   * The one way a body joins the match. Every spawn path — the wave spawner,
+   * arrivals and drops, the campaign's posts, eggs and hatchlings, PvP squads,
+   * the bosses — comes through here, so the scene, the list and the per-frame
+   * hostile cache can never disagree about who is on the field. Five hand
+   * copies of push-and-add used to exist, and the hatch path had forgotten
+   * the cache: a spiderling was invisible to every aim cone until the next
+   * frame. `counts` adds the body to the wave's tally (the clear check);
+   * `puff` kicks up that much dust where it stands.
+   */
+  addEnemy(e: Enemy, opts: { counts?: boolean; puff?: number } = {}): Enemy {
+    if (opts.counts) this.waveSpawned++;
+    this.enemies.push(e);
+    this.scene.add(e.char.root);
+    this.hostileCache.clear();
+    if (opts.puff) this.particles.dustPuff(e.position, opts.puff);
+    return e;
+  }
+
+  /** the same door for the allies' list */
+  addAlly(a: Enemy, puff = 0): Enemy {
+    this.allies.push(a);
+    this.scene.add(a.char.root);
+    this.hostileCache.clear();
+    if (puff) this.particles.dustPuff(a.position, puff);
+    return a;
+  }
+
+  /**
    * Add a hostile mid-wave (brood spawns, reinforcement events). It counts
    * toward the wave like anything the spawner posted, so the clear check and
    * the radar tally stay honest.
@@ -748,11 +766,7 @@ export class Game {
     pos = this.campaign ? this.campaign.placeNear(pos, kind) : standingSpot(this.board, pos, kind);
     const e = new Enemy(kind, pos);
     e.squad = squad;
-    this.waveSpawned++;
-    this.enemies.push(e);
-    this.scene.add(e.char.root);
-    this.particles.dustPuff(pos, 8);
-    return e;
+    return this.addEnemy(e, { counts: true, puff: 8 });
   }
 
   /**
@@ -1610,9 +1624,7 @@ export class Game {
   private spawnEggFor(p: Player, at: THREE.Vector3): Enemy | null {
     const egg = new Enemy('spiderEgg', at, p.team);
     egg.setOwner(p);
-    this.enemies.push(egg);
-    this.scene.add(egg.char.root);
-    this.particles.dustPuff(at, 5);
+    this.addEnemy(egg, { puff: 5 });
     audio.bark('spider_chitter', 0.5);
     return egg;
   }
@@ -1684,12 +1696,7 @@ export class Game {
     if (this.wave <= 1) {
       // the first wave is the garrison already holding the territory: it is
       // simply there, posted, waiting to be found
-      spawnWave(this.board, this.wave, this.players.length, near, (e) => {
-        this.waveSpawned++;
-        this.enemies.push(e);
-        this.scene.add(e.char.root);
-        this.particles.dustPuff(e.position, 10);
-      });
+      spawnWave(this.board, this.wave, this.players.length, near, (e) => this.addEnemy(e, { counts: true, puff: 10 }));
     } else {
       // every later wave is reinforcements, and reinforcements arrive:
       // carriers streak over and drop squads, locals run in over the edge,

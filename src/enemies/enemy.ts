@@ -1902,9 +1902,7 @@ export class Enemy {
       this.removeMe = true;
       const spider = new Enemy(this.def.egg!.hatchTo, this.position, this.team);
       if (this.owner) spider.setOwner(this.owner, true);   // the brood hunts
-      game.enemies.push(spider);
-      game.scene.add(spider.char.root);
-      game.particles.dustPuff(this.position, 8);
+      game.addEnemy(spider, { puff: 8 });
       audio.bark('spider_chitter', 0.6);
       return;
     }

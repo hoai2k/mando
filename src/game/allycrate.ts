@@ -151,9 +151,7 @@ export class AllyCrate {
       const at = this.place(want, this.kind);
       const ally = new Enemy(this.kind, at, 0);
       this.allies.push(ally);
-      game.allies.push(ally);
-      game.scene.add(ally.char.root);
-      game.particles.dustPuff(at, 8);
+      game.addAlly(ally, 8);
     }
     game.announce('Reinforcements!', `${ENEMY_NAME[this.kind]} ×${CRATE_ALLY_COUNT} join the fight`);
   }
