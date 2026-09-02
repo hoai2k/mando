@@ -269,7 +269,7 @@ export function buildForge(): Board {
       new THREE.Vector3(-70, 0, -50), new THREE.Vector3(60, 0, -66),
       new THREE.Vector3(90, 0, 10), new THREE.Vector3(-52, 0, 74),
       new THREE.Vector3(-96, 0, 14), new THREE.Vector3(10, 0, 92),
-      new THREE.Vector3(0, 0, 10), new THREE.Vector3(-16, 0, -8),      // inside the dome
+      new THREE.Vector3(0, 0, 23), new THREE.Vector3(-16, 0, -8),      // inside the dome
     ].map((v) => v.setY(heightAt(v.x, v.z) + 0.3)),
     airSpawns: [
       new THREE.Vector3(-30, 24, 20), new THREE.Vector3(40, 26, -30), new THREE.Vector3(0, 30, 60),

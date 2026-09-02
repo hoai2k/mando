@@ -219,7 +219,7 @@ export function buildCrevasse(): Board {
     groundSpawns: [
       new THREE.Vector3(0, 0, 100), new THREE.Vector3(-8, 0, 20),      // floor
       new THREE.Vector3(6, 0, -50), new THREE.Vector3(-4, 0, 70),
-      new THREE.Vector3(-34, 0, -70), new THREE.Vector3(40, 0, 60),    // rims
+      new THREE.Vector3(-46, 0, -62), new THREE.Vector3(40, 0, 60),    // rims
       new THREE.Vector3(-45, 0, 30), new THREE.Vector3(38, 0, -40),
     ].map((v) => v.setY(heightAt(v.x, v.z) + 0.3)),
     airSpawns: [
