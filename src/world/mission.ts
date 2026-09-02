@@ -1,3 +1,4 @@
+import { audio } from '../core/audio';
 import * as THREE from 'three';
 import type { Board, Hazard } from './board';
 import type { StaticBox } from '../core/physics';
@@ -176,7 +177,10 @@ export class Gate {
   }
 
   close(): void { this.want = 0; this.block(true); }
-  open(): void { this.want = 1; }
+  open(): void {
+    if (this.want !== 1) audio.doorCycle();   // only the transition speaks
+    this.want = 1;
+  }
 
   update(dt: number): void {
     if (this.t === this.want) return;

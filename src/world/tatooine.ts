@@ -248,6 +248,8 @@ export function buildTatooine(): Board {
   // collider can never shoulder anything into the fire.
   const banthas: Array<{ node: THREE.Group; phase: number }> = [];
   let banthaLowIn = 8;
+  /** the far-off krayt: rare enough to stay a surprise, on no schedule you can read */
+  let kraytCallIn = 40 + Math.random() * 50;
   const banthaMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
   const hornMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.8 });
   for (const [bnx, bnz, bnYaw] of [[-58, -70, 1.2], [-52, -62, 2.1], [-62, -78, 0.4]] as const) {
@@ -397,6 +399,13 @@ export function buildTatooine(): Board {
     ],
     update: (dt, time, game) => {
       // one of the herd lows every so often, louder the closer you graze
+      // something enormous, out past the rim, that the player never meets
+      kraytCallIn -= dt;
+      if (kraytCallIn <= 0) {
+        kraytCallIn = 70 + Math.random() * 90;
+        audio.kraytCall(0.3 + Math.random() * 0.12);
+      }
+
       banthaLowIn -= dt;
       if (banthaLowIn <= 0 && game) {
         banthaLowIn = 16 + Math.random() * 22;

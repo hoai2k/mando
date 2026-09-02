@@ -25,6 +25,11 @@ type SampleName =
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
   | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
+  | 'door_cycle' | 'checkpoint_chime' | 'bacta_pickup' | 'pvp_round_win'
+  | 'amb_krayt_call' | 'droid_servo'
+  | 'mudhorn_roar' | 'mudhorn_hurt' | 'mudhorn_death' | 'ravinak_roar' | 'ravinak_hurt' | 'ravinak_death'
+  | 'mamacore_hurt' | 'mamacore_death' | 'rancor_roar' | 'rancor_hurt' | 'rancor_death'
+  | 'krayt_roar' | 'krayt_hurt' | 'krayt_death' | 'mythosaur_roar' | 'mythosaur_hurt' | 'mythosaur_death'
   | 'ship_pass' | 'ship_landing' | 'steam_hiss' | 'bantha_low'
   | 'music_title' | 'music_combat_desert' | 'music_combat_station' | 'music_victory' | 'music_defeat'
   | VoiceSample | VariantSample;
@@ -85,6 +90,8 @@ export class AudioEngine {
   private saberNodes: (SaberVoice | undefined)[] = [];
   /** per-player repulsor engine loop while riding, built the same way */
   private engineNodes: (SaberVoice | undefined)[] = [];
+  /** one shared servo bed for every droid on the board — see setDroidServo */
+  private servoNode: SaberVoice | undefined;
   private ambientStop: (() => void) | null = null;
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
@@ -154,6 +161,14 @@ export class AudioEngine {
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
       'saber_deflect', 'speeder_loop', 'speeder_ignite', 'boss_horn',
+      'door_cycle', 'checkpoint_chime', 'bacta_pickup', 'pvp_round_win',
+      'amb_krayt_call', 'droid_servo',
+      'mudhorn_roar', 'mudhorn_hurt', 'mudhorn_death',
+      'ravinak_roar', 'ravinak_hurt', 'ravinak_death',
+      'mamacore_hurt', 'mamacore_death',
+      'rancor_roar', 'rancor_hurt', 'rancor_death',
+      'krayt_roar', 'krayt_hurt', 'krayt_death',
+      'mythosaur_roar', 'mythosaur_hurt', 'mythosaur_death',
       'ship_pass', 'ship_landing', 'steam_hiss', 'bantha_low',
       'music_title', 'music_combat_desert', 'music_combat_station', 'music_victory', 'music_defeat',
       // every voice's hurt takes and death cry — small files, and which one a
@@ -261,6 +276,27 @@ export class AudioEngine {
    * silent charge reads as broken, and its two mp3s were retired when the
    * old small massiff was cut.
    */
+  /**
+   * A monster boss's own voice, where it has one.
+   *
+   * `voice` is the sample prefix (`mudhorn`, `krayt`, …) and `part` picks the
+   * roar / hurt / death take. Falls through to the shared beast synth when a
+   * set has not been produced, which is what lets a monster ship silent-safe
+   * and gain its voice the moment three files land under its name — the same
+   * arrive-and-it-works contract the rest of the audio runs on.
+   */
+  monster(voice: string, part: 'roar' | 'hurt' | 'death', gain = 0.9): void {
+    if (!this.ctx) return;
+    // The Trask mamacore is the board's own hazard surfacing, so its roar is
+    // the `mamacore_roar` that already ships for the pier attack rather than a
+    // second recording of the same animal.
+    const name = voice === 'mamacore' && part === 'roar' ? 'mamacore_roar' : `${voice}_${part}`;
+    if (this.playSample(name as SampleName, gain, 0.97 + Math.random() * 0.06)) return;
+    if (part === 'hurt') this.beastYelp(gain * 0.55);
+    else if (part === 'death') this.beastYelp(gain);
+    else this.beastGrowl(gain);
+  }
+
   beastGrowl(gain = 0.55): void {
     if (!this.ctx || this.playSample('massiff_growl', gain, 0.95 + Math.random() * 0.1)) return;
     // low rasping snarl: detuned growl over a filtered noise rumble
@@ -547,6 +583,48 @@ export class AudioEngine {
   uiMove(): void { if (this.ctx && !this.playSample('ui_move', 0.4)) this.zap(900, 850, 0.03, 'square', 0.06); }
   uiConfirm(): void { if (this.ctx && !this.playSample('ui_confirm', 0.5)) { this.zap(700, 1050, 0.08, 'square', 0.12); this.zap(1050, 1400, 0.09, 'square', 0.1, 0.07); } }
   uiBack(): void { if (this.ctx && !this.playSample('ui_back', 0.5)) this.zap(500, 300, 0.09, 'square', 0.1); }
+  /**
+   * The mission gates, checkpoints, pickups and duel win. Each shipped on a
+   * borrowed voice (a UI confirm, the wave-clear chime) and now has its own;
+   * the synth line under each is the fallback that borrowed voice used to be,
+   * so a missing file still says the right kind of thing.
+   */
+  /**
+   * Something enormous, a long way off, on the Dune Sea's horizon. Pure
+   * atmosphere: it never means an animal is coming, which is the point — the
+   * desert should sound inhabited by things the player never meets.
+   */
+  kraytCall(gain = 0.35): void {
+    if (!this.ctx || this.playSample('amb_krayt_call', gain)) return;
+    this.zap(64, 52, 2.4, 'sawtooth', 0.16 * gain * 2);
+    this.zap(96, 80, 2.0, 'triangle', 0.1 * gain * 2, 0.15);
+    this.burst(2.2, 0.08 * gain * 2, 260, 0.1, 1.6);
+  }
+
+  doorCycle(): void {
+    if (!this.ctx || this.playSample('door_cycle', 0.6)) return;
+    this.zap(120, 70, 0.12, 'square', 0.2);          // the unlock clunk
+    this.burst(0.9, 0.16, 700, 0.1, 1.4);            // the slide
+    this.zap(90, 60, 0.16, 'sawtooth', 0.22, 0.95);  // the thunk at the stop
+  }
+  checkpointChime(): void {
+    if (!this.ctx || this.playSample('checkpoint_chime', 0.6)) return;
+    this.zap(660, 664, 0.3, 'triangle', 0.18);
+    this.zap(990, 996, 0.42, 'triangle', 0.15, 0.13);
+    this.burst(0.5, 0.05, 6000, 0.13, 0.8);          // the shimmer tail
+  }
+  bactaPickup(): void {
+    if (!this.ctx || this.playSample('bacta_pickup', 0.6)) return;
+    this.zap(300, 720, 0.16, 'sine', 0.16);
+    this.burst(0.22, 0.09, 2600, 0, 1.2);
+    this.zap(880, 1320, 0.3, 'triangle', 0.09, 0.1); // the healing shimmer
+  }
+  pvpRoundWin(): void {
+    if (!this.ctx || this.playSample('pvp_round_win', 0.75)) return;
+    this.zap(70, 55, 0.35, 'sine', 0.34);            // two hard timpani hits
+    this.zap(70, 55, 0.35, 'sine', 0.3, 0.22);
+    [520, 660, 880].forEach((f, i) => this.zap(f, f * 1.004, 0.5, 'triangle', 0.13, 0.4 + i * 0.1));
+  }
   waveStart(): void {
     if (!this.ctx || this.playSample('wave_start', 0.7)) return;
     this.zap(190, 170, 0.55, 'sawtooth', 0.28);
@@ -651,6 +729,69 @@ export class AudioEngine {
     }
     if (!node) node = this.saberNodes[slot] = this.makeSaberVoice(sample);
     node.set(level);
+  }
+
+  /**
+   * The whirring of droid joints, as one bed rather than a voice per droid.
+   *
+   * A loop per enemy would be the literal reading of "positional", but a wave
+   * can post a dozen droids and each would cost its own source, filter and
+   * gain for a sound the ear localises poorly anyway. Instead the caller
+   * passes a level it has already weighted by distance and movement, and the
+   * single bed swells as the machines close in — the same result, one voice.
+   */
+  setDroidServo(level: number): void {
+    if (!this.ctx) return;
+    const sample = this.samples.get('droid_servo') ?? null;
+    if (this.servoNode && this.servoNode.sample !== sample) {
+      this.servoNode.stop();
+      this.servoNode = undefined;
+    }
+    if (!this.servoNode) this.servoNode = this.makeServoVoice(sample);
+    this.servoNode.set(level);
+  }
+
+  /** tear the bed down with the match, as the jetpack and saber loops do */
+  stopDroidServo(): void {
+    this.servoNode?.stop();
+    this.servoNode = undefined;
+  }
+
+  private makeServoVoice(sample: AudioBuffer | null): SaberVoice {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1800;
+    filter.Q.value = 0.9;
+    filter.connect(gain).connect(this.sfx);
+    const parts: Array<{ stop: () => void }> = [];
+    if (sample) {
+      const src = ctx.createBufferSource();
+      src.buffer = sample;
+      src.loop = true;
+      src.connect(filter);
+      src.start();
+      parts.push({ stop: () => { try { src.stop(); } catch { /* already stopped */ } } });
+    } else {
+      // stepper whine plus a slow creak, which is what a servo is
+      for (const [freq, type] of [[440, 'sawtooth'], [217, 'square']] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = freq;
+        o.connect(filter);
+        o.start();
+        parts.push({ stop: () => { try { o.stop(); } catch { /* already stopped */ } } });
+      }
+    }
+    return {
+      sample,
+      set: (level: number) => {
+        gain.gain.setTargetAtTime(Math.min(level, 1) * 0.09, ctx.currentTime, 0.2);
+      },
+      stop: () => { for (const p of parts) p.stop(); try { gain.disconnect(); } catch { /* gone */ } },
+    };
   }
 
   private makeSaberVoice(sample: AudioBuffer | null): SaberVoice {
