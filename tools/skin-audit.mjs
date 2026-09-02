@@ -311,7 +311,13 @@ export async function auditModel(id) {
             }
           }
         }
-        const review = cls.confidence === 'review' || ambiguous || !!donor || remaining < 0.02;
+        // A coat, tabard or cuirass panel hanging well below the armpit is
+        // torso by label but cannot legitimately follow the arm: the deltoid
+        // blend that makes torso<arm a review class lives at the shoulder.
+        const armPivot = (r === 'armL' || r === 'armR') && pivot[J.indexOf(PIVOT_BONE[r])];
+        const belowArmpit = armPivot && prim.positions[i * 3 + 1] < armPivot[1] - 0.1 * (maxY - minY);
+        const sure = cls.confidence === 'high' || (cls.kind === 'arm-drives-torso' && belowArmpit);
+        const review = !sure || ambiguous || !!donor || remaining < 0.02;
         const key = `${cls.kind}|${r}|${best}|${review ? 'review' : 'high'}`;
         const b = buckets.get(key) ?? { kind: cls.kind, foreign: r, label: best, review, verts: [], joints: new Set(), maxDrag: 0, sumDrag: 0, sumWeight: 0, donors: {} };
         b.verts.push(i);

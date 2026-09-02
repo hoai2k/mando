@@ -53,7 +53,10 @@ Everything under 1.5 cm is ignored as invisible.
 
 Confidence: a fix in a class that is always wrong (arm ↔ lower body, arm ↔
 head, arm ↔ other arm) on vertices whose region label is unambiguous ships
-**applied**. Everything else — chest plates driven by an arm, cowls driven by
+**applied**, and so does a torso-labelled vertex driven by an arm when it
+sits more than a tenth of the height below the armpit (a coat skirt or
+cuirass panel — the deltoid blend that makes torso ↔ arm a review class
+lives at the shoulder). Everything else — chest plates driven by an arm, cowls driven by
 the neck, ambiguous vertices, borrowed weights — ships **pending** for review.
 
 ### How it is applied
@@ -67,7 +70,13 @@ into a file.
 
 Result on Din: before, both skirt panels flare out to the sides with the arms
 raised; after, the skirt hangs. Verified in the workbench and in the
-before/after sheet (`docs/skinning/`).
+before/after sheet for every model (`docs/skinning/<id>.png`, test pose,
+as delivered on the left, with the applied fixes on the right). Pyke's and
+the Marshal's long coats, IG-11's hanging plates and the Tusken's strap are
+the other big visible changes. What the applied set leaves behind is in the
+review queue: the Marshal's right coat panel still lifts with the arm until
+`marshal/arm-drives-lower/left/review` (763 vertices the geodesic labelling
+could not call) is approved — with every pending fix on, the coat hangs.
 
 ### Reviewing the pending fixes
 
