@@ -10,9 +10,9 @@ systems already carry most of its fight. Every design below is an original fan
 interpretation; asset prompts describe designs and never name trademarked characters,
 per the standing rule in `ASSETS_IMAGES.md`.
 
-**Status: the first six models are delivered and in the game; the four of the second
-batch (§2.7–2.10) are in the game as procedural stand-ins with their sheets and
-models requested; the fights are at v1.** The first sculpts landed on 2026-08-29
+**Status: all ten models are delivered and in the game; the fights are at v1.** The
+first six sculpts landed 2026-08-29 and the second batch's four on 2026-09-02, every
+one shipping the node list its brief asked for. The first sculpts landed on 2026-08-29
 and each is a real boss battle — see §4 for exactly what of the design below is
 standing and what is not. In short: every monster spawns as the second, final stage
 of its board's boss fight (the worm as the Dune Sea's champion instead), at the
@@ -333,32 +333,39 @@ first bespoke moveset to ship:
   so forty metres of animal read whether the head is up or not. Cosmetic for now: no
   collision and no hit volume, since the head is the fight.
 
-  **How they are built is changing (2026-09-02).** What ships today is three separate
-  `sandworm_arch` props placed along a trail of where the root has been, each on its
-  own rise-and-sink beat. The accepted replacement is **one continuous body**: a
-  single forty-metre sculpt whose spine chain the game lays along that same trail,
-  with a travelling wave deciding which stretches are above the sand. That makes the
-  humps the same animal as the head, keeps them attached through the worm's turns,
-  removes the cut faces the prop has to hide, and gives the exposed coils real nodes
-  to hang weak points on later. It costs a per-frame chain solve in `cosmetic`, and a
-  sculpt modelled dead straight rather than pre-reared — which is why the reference
-  canvas is being regenerated (`ASSETS_IMAGES.md`) and the `sandworm_arch` request is
-  withdrawn. Until the straight sculpt lands the arch props stand.
+  **Built as one continuous body (2026-09-02).** They were briefly three separate
+  `sandworm_arch` props chasing the head at fixed distances; the delivered sculpt is a
+  straight forty-metre worm on a `spine1..24` chain, and the game now lays that chain
+  along the trail its own head has travelled, with a travelling wave deciding which
+  stretches are above the sand. So the humps are the same animal as the head: attached,
+  following its turns, with no cut faces to hide, and with real joints to hang weak
+  points off later. The `sandworm_arch` prop was withdrawn before it was ever modelled.
 - **Phases** — ⅔ and ⅓ through the shared boss rhythm: the Tusken retinue (the
   board's guard) and the enrage. The anti-camp shock-slam is suppressed while it is
   under — the eruption is its answer to a camper. It never super-jumps (it has no
   legs) and cannot be knocked down.
 
-**Integration notes.** `Def.burrows` carries the cycle's numbers; `Enemy.burrow`
-is the state, `Enemy.submerged`/`targetable` gate damage, knockback, knockdown and
-the target list. The visual today is two bodies in one `CharacterInstance`
-(`buildSandworm`): a `buildMonsterBase` worm for the head unit, sunk whole by
-`setBurrow`, and three arch props placed along the root's trail. Under the single-body
-replacement above, both collapse into one sculpt and the trail feeds a spine solver
-instead. Sculpt: `sandworm`, modelled **straight** along +Z with a chain of 24 or more
-evenly spaced spine joints, fitted by length. Nodes: `head, jaw, mandibleL/R/T/B,
-gullet, spine1..24`. (The maw is four-way rather than three, matching the delivered
-art.)
+**Integration notes.** `Def.burrows` carries the cycle's numbers; `Enemy.burrow` is
+the state, and `Enemy.submerged`/`targetable` gate damage, knockback, knockdown and the
+target list.
+
+The visual is one `CharacterInstance` (`buildSandworm`) around a **path solver**.
+Everything else in the game is a body at a position; this is a body along a *history*.
+The game moves only the head, and each frame the solver walks back along a trail of
+where that head has been, putting a joint every rest-length and lifting it by the
+wave; the delivered `spine1..24` chain is then walked from the tail forward with each
+bone aimed at the next joint's target, using a full basis rather than a shortest-arc
+rotation so the body cannot roll as it turns. The head is aimed past the end of the
+chain, lifted while it is surfaced, or it lies flat with its mouth along the ground.
+The same targets drive a blocked-out segment chain before the sculpt lands, so the
+stand-in moves exactly like the real thing.
+
+Two details worth keeping: the trail carries the ground height where the head stood at
+the time, so the body follows the dunes it crossed rather than hanging off wherever the
+head is now; and the sculpt is fitted by **length**, not height (`loadProp` with
+`axis: 'longest'`), so it is the one creature that does not come through
+`loadCreature`/`CREATURE_MODELS`. The rig drives itself, so it has no generated gait
+clips. Nodes as delivered: `head, jaw, mandibleL/R/T/B, gullet, spine1..24`.
 
 ### 2.8 Zillo — Refinery — `zillo`
 
@@ -477,7 +484,7 @@ is scoped before it starts:
 | Six monsters as `EnemyKind`s at the specced HP/damage, `relentless`, boss-scale `Def` | **done** |
 | The second batch as `EnemyKind`s (sandworm, zillo, nexu, kwazelMaw) with stand-ins, gaits against their briefed rigs, monster stage on the Refinery / Ringworld / Prison Rig, the worm as the Dune Sea's champion | **done** (2026-09-02; sculpts requested, `ASSETS_MODELS.md`) |
 | The worm's burrow cycle: under (untargetable, unhurtable, a wake), rise, eruption, rooted bites, sink; trailing body arches | **done** (`Enemy.updateBurrower`, `buildSandworm`) |
-| The worm as one continuous body: a spine chain solved onto the head's trail, replacing the three arch props | **not implemented** — designed and accepted 2026-09-02, waiting on the straight sculpt (§2.7) |
+| The worm as one continuous body: a spine chain solved onto the head's trail, replacing the three arch props | **done** (2026-09-02, on the delivered straight sculpt) |
 | The nexu's pounce (`pounces` on the Def) | **done** |
 | Two-stage boss wave: warlord falls → 4 s quake → monster erupts, victory only when it falls | **done** (`Game.updateMonsterStage`, shared by the wave game and the campaign arena) |
 | Entrance card, boss bar, phase turns at ⅔/⅓, repulsor pulse, enrage, anti-camp shock-slam | **done** — reused wholesale from §4a |

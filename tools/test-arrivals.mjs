@@ -146,9 +146,21 @@ await h.page.evaluate(() => {
   window.__quitToTitle?.();
   window.__startMode('campaign', 1, 'desert', ['din']);
 });
-// the campaign opens on an intro card and the controller only ticks while the
-// match is fighting — probing before that finds a level nobody is playing yet
-await h.page.waitForFunction(() => window.__game?.state === 'fighting', null, { timeout: 120000 });
+// The campaign opens on an intro card and the controller only ticks while the
+// match is fighting — probing before that finds a level nobody is playing yet.
+//
+// Waiting that card out in real time is what made this suite flaky: software
+// rendering runs about one frame a second, the intro is 2.2 simulated seconds
+// at a 0.05 s per-frame clamp, and so the wait needs ~60 s of wall clock on an
+// idle machine and more than the 120 s budget on a loaded one (CI run 179).
+// Step it out instead, which is what the rest of this file already does — the
+// live loop is paused first so the frames are ours and the count is exact.
+await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
+await h.page.evaluate(`(() => {
+  window.__manual = true;
+  (${STEP})(120);          // 4 simulated seconds: past the 2.2 s intro
+})()`);
+await h.page.evaluate(() => { window.__manual = false; });
 await sleep(500);
 const miss = await h.page.evaluate(`(async () => {
   const g = window.__game;

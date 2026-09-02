@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    # 04:17 UTC nightly. Off the hour on purpose: the top of the hour is when
+    # every scheduled workflow on GitHub queues at once, and a full suite that
+    # starts late is a suite that reports late.
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -25,11 +30,27 @@ permissions:
 # So the deploy now rides the build alone: `npm run build` is `tsc --noEmit &&
 # vite build`, which means a tree that does not typecheck or does not bundle
 # still cannot publish. That takes a couple of minutes and comfortably outruns
-# the next push. The suites run beside it and report on their own; a red suite
-# marks the run failed and is what tells us to fix or roll back, it just no
-# longer holds the site hostage while it does.
+# the next push.
+#
+# THE FULL SUITE RUNS NIGHTLY, NOT ON EVERY PUSH.
+#
+# Taking it off the deploy path was not enough on its own. The suite needs the
+# better part of an hour, pushes to `main` land every twenty to fifty minutes,
+# and `cancel-in-progress` killed it every time: runs 180-189 were cancelled
+# without exception. So for ten consecutive pushes nobody saw a test result at
+# all, which is how run 179's genuine failure sat unnoticed — and how a second
+# broken check hid behind it, since the suite died before ever reaching that
+# one. A signal nothing ever reads is not a signal.
+#
+# The split now is: every push builds, deploys, and runs a short smoke; the
+# whole suite and both audits run once a night against `main`, where nothing
+# supersedes them and they always finish. Whoever is changing something runs
+# the suites that cover it before pushing — that is the real per-change
+# coverage, and it is far better targeted than re-running everything.
 jobs:
   build:
+    # The nightly run is here to test, not to republish an unchanged tree.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -53,6 +74,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     # Deployments queue rather than cancel: two pushes in quick succession
     # should both reach Pages in order, and the later one wins by arriving
@@ -67,18 +89,19 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  test:
+  # One suite on every push: boot the built game in Chromium behind a synthetic
+  # pad and play a wave. Measured at 89 s, so it lands well inside the gap
+  # between pushes and usually reports rather than being superseded. It is here
+  # to catch the catastrophic case — a tree that bundles but does not run — and
+  # is deliberately NOT the whole suite; see the header.
+  smoke:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Headroom, not a fitted budget. A job killed on the timeout reports as
-    # `cancelled`, which reads exactly like a run superseded by the next push,
-    # so a too-tight budget is a failure mode that hides itself — it once cost
-    # a day of deploys that looked merely skipped. If a run ever approaches
-    # this, raise it rather than trimming coverage to fit.
-    timeout-minutes: 90
-    # A newer commit's suites supersede an older commit's: the answer for a
-    # tree nobody is on any more is not worth an hour of runner.
+    timeout-minutes: 20
+    # A newer commit supersedes an older one here, which is the right trade for
+    # a quick guard: the nightly job is what guarantees a result.
     concurrency:
-      group: tests-${{ github.ref }}
+      group: smoke-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +111,34 @@ jobs:
           cache: npm
       - run: npm ci
       # the suites serve and play `dist/`, so they need it built here too
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/harness.mjs
+
+  # Everything, once a night against `main` — and on demand, which is how you
+  # check a tree before a big merge without waiting for the small hours.
+  nightly:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    # Headroom, not a fitted budget. A job killed on the timeout reports as
+    # `cancelled`, which reads exactly like a run superseded by the next push,
+    # so a too-tight budget is a failure mode that hides itself — it once cost
+    # a day of deploys that looked merely skipped. If a run ever approaches
+    # this, raise it rather than trimming coverage to fit.
+    timeout-minutes: 120
+    # No cancellation and no ref in the group: a nightly run that never
+    # finishes is the whole problem this job exists to solve. Two of them
+    # overlapping is not a scenario worth optimising for.
+    concurrency:
+      group: nightly
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - run: npm run build
       # Boot the built game in Chromium behind a synthetic pad and play a wave.
       - run: npx playwright install --with-deps chromium
