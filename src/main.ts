@@ -262,6 +262,18 @@ settings.addChoice('Split screen', [
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
 });
+// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
+const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
+settings.addSlider('Look sensitivity',
+  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
+  (v) => {
+    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
+    saveInputConfig();
+  });
+settings.addToggle('Invert look (Y)', () => config.input.invertY, (on) => {
+  config.input.invertY = on;
+  saveInputConfig();
+});
 settings.addToggle('Keyboard & mouse', () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
@@ -298,6 +310,10 @@ function updateCursor(dt: number): void {
   if (cursorWake > 0) cursorWake -= dt;
   const hide = state === 'playing' && cursorWake <= 0;
   document.body.classList.toggle('cursor-hidden', hide);
+  // the corner buttons go with the cursor: in a match they sat on the weapon
+  // readout (and on player four's whole corner), and a mouse wiggle is all it
+  // takes to bring them back
+  document.body.classList.toggle('in-play', state === 'playing');
 }
 
 function openOverlay(which: 'controls' | 'settings'): void {
@@ -336,6 +352,16 @@ end.root.appendChild(endTitle);
 const endStats = document.createElement('div');
 endStats.className = 'menu-hint';
 end.root.appendChild(endStats);
+// A liberated territory leads to the next one: the planet strip knows the
+// order, so the end screen can offer it rather than sending the party back to
+// the title to find it. Shown only after a campaign victory with a next stop.
+const [nextBtn] = end.addButtons(null, [
+  { label: 'Next Territory', action: () => {
+    const i = BOARDS.indexOf(chosenBoard);
+    chosenBoard = BOARDS[(i + 1) % BOARDS.length];
+    startGame();
+  } },
+]);
 end.addButtons(null, [
   { label: 'Retry Board', action: () => startGame() },
   { label: 'Quit to Title', action: () => quitToTitle() },
@@ -821,6 +847,9 @@ function frame(now: number): void {
           // battle is fought, so a held territory used to read "wave 8"
           const waveNote = game.wave > FINAL_WAVE ? 'warlord down' : `wave ${game.wave}`;
           const tail = game.mode === 'wave' ? ` · ${waveNote} · ${mins}:${secs}` : ` · ${mins}:${secs}`;
+          const hasNext = game.mode === 'campaign' && game.state === 'victory'
+            && BOARDS.indexOf(chosenBoard) < BOARDS.length - 1;
+          nextBtn.style.display = hasNext ? '' : 'none';
           endStats.innerHTML = game.players
             .map((p, i) => `<b>P${i + 1}</b> ${p.kills} kills`)
             .join(' · ') + tail;

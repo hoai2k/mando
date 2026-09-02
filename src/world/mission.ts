@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Board } from './board';
+import type { Board, Hazard } from './board';
 import type { StaticBox } from '../core/physics';
 import { addBreakable, hazardAt } from './board';
 import { mat } from '../characters/builder';
@@ -55,6 +55,8 @@ export interface MissionSpec {
   wallH?: number;
   /** ground grip inside the level (the Crevasse's ice), 1 = normal */
   traction?: number;
+  /** hemisphere fill over the whole level (accent sky, floor ground); default 1.5 */
+  fill?: number;
   rooms: RoomSpec[];
   /** connectors, one per pair of adjacent rooms */
   links: LinkSpec[];
@@ -68,6 +70,16 @@ const CORR_H = 3.8;
 const WALL_H = 5.5;
 /** adjacent floor plates get staggered lifts so coplanar tops never shimmer */
 const EPS = 0.013;
+
+/**
+ * The shock rooms' strips cycle like the Prison Rig's own plates (a shorter
+ * beat, since a room is crossed in seconds): dark, a charging flicker, then
+ * live — rather than the constant tax they were (audit L13).
+ */
+const SHOCK_CYCLE = 9;
+const SHOCK_CHARGE_AT = 5.2;
+const SHOCK_LIVE_AT = 6.4;
+const SHOCK_DPS = 22;
 
 /** crate proportions, matched to corridor_crate.glb (see world/corridor.ts history) */
 const CRATE_H_MIN = 1.15;
@@ -208,10 +220,22 @@ export interface MissionRoom {
   center: THREE.Vector3;
   exit: THREE.Vector3;
   rect: Rect;
+  /**
+   * The rect a body has to be in to count as *through the door* — `rect`
+   * pulled 1.2 m back from both doorways. A gate seals the moment a room
+   * decides its party is in, and the door slab is part of `rect`, so the
+   * last player through could be counted inside while still standing in the
+   * doorway and be shut out of the room by the leaves closing on them.
+   */
+  sealRect: Rect;
   entryGate: Gate | null;
   exitGate: Gate | null;
-  /** validated wave-spawn spots along the walls (assault rooms) */
+  /** every validated wave-spawn spot (assault rooms): the far wall's and the sides' */
   vents: THREE.Vector3[];
+  /** vents along the far wall — where a sealed room's first wave lands */
+  farVents: THREE.Vector3[];
+  /** vents along the side walls — where the later waves flank from */
+  sideVents: THREE.Vector3[];
   /** validated standing posts in the far half (camp squads) */
   posts: THREE.Vector3[];
 }
@@ -281,6 +305,13 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.repeat.set(rx, ry);
       m.map = tex;
+      // The tileables are dark (the wall plate averages ~22% grey), and a
+      // palette tint multiplied over them left the walls at under a tenth of
+      // white — a void no fill light could lift, with enemies invisible in it.
+      // With the surface detail carried by the map, the tint's job is hue,
+      // not value: lift it most of the way to white and let the map set the
+      // brightness.
+      m.color.lerp(new THREE.Color(0xffffff), 0.7);
       // keep the palette tint over the tileable — it is what tells the nine
       // territories' interiors apart when they share one texture set
       m.needsUpdate = true;
@@ -294,7 +325,20 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
   group.name = 'mission';
   board.group.add(group);
 
+  // ---- lighting ----
+  // The level sits ninety metres over the territory, above whatever lit the
+  // ground (Nevarro's lava glow, the docks' lamps), under a sun the walls
+  // shade out of most of the floor. The dark palettes rendered as a void —
+  // walls, floor and the hostiles standing on them all black (audit L1). So
+  // the level carries its own light: a hemisphere fill in the palette's own
+  // colours for the whole chain, and a work lamp per room at its feature.
+  const hemi = new THREE.HemisphereLight(pal.accent, pal.floor, spec.fill ?? 1.5);
+  hemi.position.set(0, MISSION_Y + 40, 0);
+  group.add(hemi);
+
   const rects: Rect[] = [];
+  /** the shock rooms' strips, cycled by the level's update hook below */
+  const shockStrips: { hazards: Hazard[]; mat: THREE.MeshBasicMaterial; phase: number }[] = [];
   const pickups: THREE.Vector3[] = [];
   const defenders: DefenderPost[][] = [];
   /** circles (world x,z,r) that crates and props must stay out of */
@@ -412,6 +456,14 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
     const entryGate = i > 0 ? new Gate(board, group, f.vec(0, 0, top), dir, wallH, pal.accent) : null;
     const exitGate = i < last ? new Gate(board, group, f.vec(l, 0, top), dir, wallH, pal.accent) : null;
 
+    // the room's lamp: warm work light high on the centre line, tinted by the
+    // set piece where there is one (the lava's glow, the shock strip's arc)
+    const lampColor = rs.feature === 'lava' ? 0xffa070 : rs.feature === 'shock' ? 0xc8f0ff
+      : rs.feature === 'pit' ? pal.accent : 0xffd9a0;
+    const lamp = new THREE.PointLight(lampColor, 40 + (w * l) / 8, Math.max(w, l) * 1.7, 1.4);
+    lamp.position.set(f.x(l / 2, 0), top + wallH - 0.3, f.z(l / 2, 0));
+    group.add(lamp);
+
     // ---- set pieces ----
     // gates and the travel lane stay clear of everything placed below
     blocked.push({ x: f.x(0, 0), z: f.z(0, 0), r: 3 }, { x: f.x(l, 0), z: f.z(l, 0), r: 3 });
@@ -433,24 +485,32 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
     }
     if (rs.feature === 'lava' || rs.feature === 'shock') {
       // channels across the room with a narrow safe bridge on the centre line
-      const glow = new THREE.MeshBasicMaterial({
-        color: rs.feature === 'lava' ? 0xff5a2a : 0x9fe8ff,
-      });
-      const dps = rs.feature === 'lava' ? 26 : 15;
+      const dps = rs.feature === 'lava' ? 26 : SHOCK_DPS;
       const cuts = l >= 20 ? [l * 0.38, l * 0.66] : [l * 0.5];
-      for (const cu of cuts) {
+      cuts.forEach((cu, ci) => {
+        // a shock strip gets its own sheet, since its glow follows its cycle
+        const glow = new THREE.MeshBasicMaterial({
+          color: rs.feature === 'lava' ? 0xff5a2a : 0x9fe8ff,
+          transparent: rs.feature === 'shock', opacity: 1,
+        });
+        const strip: Hazard[] = [];
         for (const side of [-1, 1]) {
           const v0 = side * 1.7, v1 = side * (w / 2 - 1.2);
           slab(f, cu - 1.2, cu + 1.2, Math.min(v0, v1), Math.max(v0, v1), top + 0.02, top + 0.1, glow);
           const span = Math.abs(v1 - v0);
           for (let d = 1.2; d < span; d += 2.4) {
-            (board.hazards ??= []).push({
+            const h: Hazard = {
               center: f.vec(cu, v0 + side * d, top), radius: 1.5, kind: 'burn', dps, yMax: top + 2.2,
-            });
+            };
+            (board.hazards ??= []).push(h);
+            strip.push(h);
           }
         }
+        // the two strips of a room run half a cycle apart, so one is always
+        // the one to cross — the hop rhythm, not a constant tax
+        if (rs.feature === 'shock') shockStrips.push({ hazards: strip, mat: glow, phase: ci * SHOCK_CYCLE / 2 });
         blocked.push({ x: f.x(cu, 0), z: f.z(cu, 0), r: 3 });
-      }
+      });
     }
     if (rs.feature === 'barrels') {
       // rhydonium in the fight: cover that shoots back
@@ -471,19 +531,39 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
         }
       }
     }
-    if (rs.feature === 'pillars') {
-      // hard cover you can circle: pillars carry the melee dance
+    const isArena = rs.kind === 'champion' || rs.kind === 'warlord';
+    if (isArena) {
+      // The boss stands up in the middle and the monster erupts where the
+      // warlord fell, so the centre stays open; cover goes round it.
+      blocked.push({ x: f.x(l / 2, 0), z: f.z(l / 2, 0), r: 7 });
+    }
+    if (rs.feature === 'pillars' || isArena) {
+      // hard cover you can circle: pillars carry the melee dance — and give a
+      // ranged boss's arena something other than a stand-and-trade fight
+      // (audit L6: the arenas were empty boxes)
+      const lane = isArena ? 4 : 2.4;
       for (let b = 0; b < 3; b++) {
-        for (let tries = 0; tries < 8; tries++) {
+        for (let tries = 0; tries < 10; tries++) {
           const u = 4 + rand() * (l - 8);
           const v = (rand() - 0.5) * (w - 7);
-          if (Math.abs(v) < 2.4 || !clearOf(f.x(u, v), f.z(u, v), 2)) continue;
+          if (Math.abs(v) < lane || !clearOf(f.x(u, v), f.z(u, v), 2)) continue;
           const x = f.x(u, v), z = f.z(u, v);
           const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, wallH - 0.8, 10), wallMat);
           mesh.position.set(x, top + (wallH - 0.8) / 2, z);
           group.add(mesh);
           board.physics.addCylinder(x, top + (wallH - 0.8) / 2, z, 1.25, wallH - 0.8);
           blocked.push({ x, z, r: 2.6 });
+          break;
+        }
+      }
+    }
+    if (isArena) {
+      for (let c = 0; c < 2; c++) {
+        for (let tries = 0; tries < 10; tries++) {
+          const u = 4 + rand() * (l - 8);
+          const v = (rand() - 0.5) * (w - 6);
+          if (Math.abs(v) < 4 || !clearOf(f.x(u, v), f.z(u, v), 1.3)) continue;
+          crate(f.x(u, v), top, f.z(u, v));
           break;
         }
       }
@@ -503,13 +583,21 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       }
     }
 
-    // spawn vents (wall-adjacent) and camp posts (far half), validated later
-    const vents: THREE.Vector3[] = [];
+    // Spawn vents, validated later: along the far wall (the first wave of a
+    // sealed room comes at you from the front) and along the sides (later
+    // waves flank). None beside the entry gate — two of the old six sat there,
+    // and half a squad landed behind the party seven metres from the door.
+    const farVents: THREE.Vector3[] = [];
     for (const [u, v] of [
-      [2.5, w / 2 - 2.5], [2.5, -(w / 2 - 2.5)],
       [l - 2.5, w / 2 - 2.5], [l - 2.5, -(w / 2 - 2.5)],
-      [l / 2, w / 2 - 2], [l / 2, -(w / 2 - 2)],
-    ]) vents.push(f.vec(u, v, top + 0.2));
+      [l - 2.5, w * 0.17], [l - 2.5, -w * 0.17],
+    ]) farVents.push(f.vec(u, v, top + 0.2));
+    const sideVents: THREE.Vector3[] = [];
+    for (const [u, v] of [
+      [l * 0.5, w / 2 - 2], [l * 0.5, -(w / 2 - 2)],
+      [l * 0.32, w / 2 - 2.5], [l * 0.32, -(w / 2 - 2.5)],
+      [l * 0.7, w / 2 - 2.5], [l * 0.7, -(w / 2 - 2.5)],
+    ]) sideVents.push(f.vec(u, v, top + 0.2));
     const posts: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
@@ -522,7 +610,8 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
       center: f.vec(l / 2, 0, top + 0.2),
       exit: f.vec(l - 1.8, 0, top + 0.2),
       rect: f.rect(0, l, -w / 2, w / 2),
-      entryGate, exitGate, vents, posts,
+      sealRect: f.rect(1.2, l - 1.2, -w / 2, w / 2),
+      entryGate, exitGate, farVents, sideVents, vents: [], posts,
     });
 
     // ---- the link to the next room: a walkable pinch, maybe with a bend ----
@@ -604,7 +693,9 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
     return !hz.kill && hz.dps <= 0;
   };
   for (const room of rooms) {
-    room.vents = room.vents.filter(fits);
+    room.farVents = room.farVents.filter(fits);
+    room.sideVents = room.sideVents.filter(fits);
+    room.vents = [...room.farVents, ...room.sideVents];
     if (!room.vents.length) room.vents.push(room.center.clone());
     room.posts = room.posts.filter(fits);
     if (!room.posts.length) room.posts.push(room.center.clone());
@@ -624,6 +715,25 @@ export function buildMission(board: Board, spec: MissionSpec): MissionLevel {
     floorY: MISSION_Y,
     contains: (x, z) => rects.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ),
   };
+
+  // The shock strips' clock rides the board's own update. Validation above ran
+  // with every strip live, so no vent or post stands on one; from here the
+  // strips only bite in their live phase, and the sheet says which that is.
+  if (shockStrips.length) {
+    const prev = board.update;
+    board.update = (dt, time, game) => {
+      prev?.(dt, time, game);
+      for (const s of shockStrips) {
+        const t = (time + s.phase) % SHOCK_CYCLE;
+        const live = t >= SHOCK_LIVE_AT;
+        const charging = !live && t >= SHOCK_CHARGE_AT;
+        for (const h of s.hazards) h.dps = live ? SHOCK_DPS : 0;
+        s.mat.opacity = live ? 0.85 + Math.sin(time * 30) * 0.12
+          : charging ? 0.2 + ((t - SHOCK_CHARGE_AT) / (SHOCK_LIVE_AT - SHOCK_CHARGE_AT)) * 0.4 * (Math.sin(time * 14) * 0.5 + 0.5)
+            : 0.12;
+      }
+    };
+  }
 
   // the Crevasse's ice comes with the level: grip only fades over its footprint
   if (spec.traction !== undefined) {
@@ -661,7 +771,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   station: {
-    palette: { wall: 0x2c3040, floor: 0x353a4a, trim: 0x8a6a2a, accent: 0x63b4ff },
+    palette: { wall: 0x3d4359, floor: 0x4a5168, trim: 0x8a6a2a, accent: 0x63b4ff },
     corrW: 5,
     rooms: [
       { kind: 'start', label: 'the docking bay', w: 12, l: 10 },
@@ -679,7 +789,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   nevarro: {
-    palette: { wall: 0x4a3a34, floor: 0x33241e, trim: 0x6a2a1a, accent: 0xff5a2a },
+    palette: { wall: 0x68514a, floor: 0x47322a, trim: 0x6a2a1a, accent: 0xff5a2a },
     rooms: [
       { kind: 'start', label: 'the ash flats', w: 12, l: 10 },
       { kind: 'camp', label: 'the lava trench', w: 18, l: 18, feature: 'lava' },
@@ -714,7 +824,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   trask: {
-    palette: { wall: 0x3e4a52, floor: 0x4a3f30, trim: 0x2a4a44, accent: 0x63d0a8 },
+    palette: { wall: 0x576873, floor: 0x685843, trim: 0x2a4a44, accent: 0x63d0a8 },
     rooms: [
       { kind: 'start', label: 'the quay steps', w: 12, l: 10 },
       { kind: 'assault', label: 'the fish market', w: 20, l: 16, waves: 2, feature: 'crates' },
@@ -731,7 +841,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
     ],
   },
   refinery: {
-    palette: { wall: 0x3a3f48, floor: 0x2c3036, trim: 0x6a4a12, accent: 0xffb347 },
+    palette: { wall: 0x515864, floor: 0x3d434b, trim: 0x6a4a12, accent: 0xffb347 },
     corrW: 5,
     rooms: [
       { kind: 'start', label: 'the intake hall', w: 12, l: 10 },
@@ -767,7 +877,7 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
   },
   ringworld: {
     // long straight avenues under the terminator: fewer bends, longer sightlines
-    palette: { wall: 0x3a4458, floor: 0x2e3648, trim: 0x2a3a5a, accent: 0x9fd0ff },
+    palette: { wall: 0x515f7b, floor: 0x404b64, trim: 0x2a3a5a, accent: 0x9fd0ff },
     rooms: [
       { kind: 'start', label: 'the tram stop', w: 12, l: 10 },
       { kind: 'camp', label: 'the market arcade', w: 16, l: 24, feature: 'crates' },

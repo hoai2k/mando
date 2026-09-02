@@ -13,6 +13,43 @@ import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterIn
  * anim/quadruped.ts, so the stand-in sculpt and the authored model read as
  * the same move.
  */
+/**
+ * The self-animating creatures each own a mixer with the same three-way blend
+ * — idle under locomotion under a one-shot strike — and each used to weight
+ * the strike at a flat 0.85 while it ran, then drop it to nothing the frame it
+ * finished, so every bite and swipe snapped off its last frame back to the
+ * gait. Same class of defect the humanoid one-shots had (their animator
+ * clamps and fades); this is the creature copy of that fix, shared.
+ *
+ * `strikeAction` prepares the clip: one pass, held on its final frame rather
+ * than disabled at the end. `strikeBlend` is the weight the strike gets this
+ * frame — full through the body of the clip, ramping out over its final
+ * 0.1 s so the held pose hands back to the gait instead of cutting to it.
+ */
+function strikeAction(mixer: THREE.AnimationMixer, clip: THREE.AnimationClip): THREE.AnimationAction {
+  const a = mixer.clipAction(clip);
+  a.setLoop(THREE.LoopOnce, 1);
+  a.clampWhenFinished = true;
+  return a;
+}
+const STRIKE_WEIGHT = 0.85;
+const STRIKE_RAMP = 0.1;
+function strikeBlend(action: THREE.AnimationAction | null): number {
+  if (!action || !action.enabled) return 0;
+  const dur = action.getClip().duration;
+  if (dur <= 0) return 0;
+  const left = dur - action.time;
+  // never started, reset and waiting, or stopped short: not a strike in flight
+  if (!action.isRunning() && left > 1e-3) return 0;
+  return left <= 0 ? 0 : STRIKE_WEIGHT * Math.min(1, left / STRIKE_RAMP);
+}
+
+/** a looping idle begins somewhere in its cycle, so a pack does not breathe in step */
+function startIdle(action: THREE.AnimationAction): void {
+  action.play();
+  action.time = Math.random() * action.getClip().duration;
+}
+
 function strikeCurve(t: number, dur: number): number {
   const ph = clamp(t / dur, 0, 1);
   if (ph < 0.3) return ph / 0.3;
@@ -526,10 +563,9 @@ export function buildMassiff(authored = true): CharacterInstance {
         const atk = pick(/attack|bite|strike/i);
         mixer = new THREE.AnimationMixer(loaded);
         if (atk) {
-          attackAction = mixer.clipAction(atk);
-          attackAction.setLoop(THREE.LoopOnce, 1);
+          attackAction = strikeAction(mixer, atk);
         }
-        if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+        if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
         if (walk) {
           walkAction = mixer.clipAction(walk);
           walkAction.play();
@@ -570,7 +606,7 @@ export function buildMassiff(authored = true): CharacterInstance {
         // no gait skates. Below the gallop threshold the old two-way blend
         // played the gallop at 0.4x, which is slow motion, not stalking.
         // A strike in flight owns the pose: locomotion ducks under it.
-        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const striking = strikeBlend(attackAction);
         const moving = Math.min(gaitSpeed / 1.2, 1) * (1 - striking);
         const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
         if (moveAction) {
@@ -818,10 +854,9 @@ function buildKryknaBase(
         const atk = clips.find((c) => /attack|strike|bite/i.test(c.name));
         mixer = new THREE.AnimationMixer(loaded);
         if (atk) {
-          attackAction = mixer.clipAction(atk);
-          attackAction.setLoop(THREE.LoopOnce, 1);
+          attackAction = strikeAction(mixer, atk);
         }
-        if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+        if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
         if (move) {
           moveAction = mixer.clipAction(move);
           moveAction.play();
@@ -852,7 +887,7 @@ function buildKryknaBase(
     cosmetic: (dt, time) => {
       if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
       if (mixer) {
-        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const striking = strikeBlend(attackAction);
         const moving = Math.min(gaitSpeed / 4, 1) * (1 - striking);
         if (moveAction) {
           moveAction.setEffectiveWeight(moving);
@@ -1345,10 +1380,9 @@ function buildMonsterBase(
       const move = clips.find((c) => c.name === 'move');
       const atk = clips.find((c) => c.name === 'attack') ?? clips.find((c) => /attack|strike|bite/i.test(c.name));
       if (atk) {
-        attackAction = mixer.clipAction(atk);
-        attackAction.setLoop(THREE.LoopOnce, 1);
+        attackAction = strikeAction(mixer, atk);
       }
-      if (idle) { idleAction = mixer.clipAction(idle); idleAction.play(); }
+      if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
       if (move) {
         moveAction = mixer.clipAction(move);
         moveAction.play();
@@ -1384,7 +1418,7 @@ function buildMonsterBase(
     cosmetic: (dt, time) => {
       if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
       if (mixer) {
-        const striking = attackAction?.isRunning() ? 0.85 : 0;
+        const striking = strikeBlend(attackAction);
         const moving = Math.min(gaitSpeed / 3, 1) * (1 - striking);
         if (moveAction) {
           moveAction.setEffectiveWeight(moving);

@@ -378,9 +378,9 @@ export function buildTatooine(): Board {
     playerStarts: [new THREE.Vector3(0, heightAt(0, 4) + 0.5, 4), new THREE.Vector3(3, heightAt(3, 4) + 0.5, 4)],
     groundSpawns: [
       new THREE.Vector3(-70, 0, -60), new THREE.Vector3(-60, 0, -48), // camp
-      new THREE.Vector3(48, 0, 58), new THREE.Vector3(58, 0, 70),     // barge
-      new THREE.Vector3(-18, 0, 64), new THREE.Vector3(30, 0, 44),    // homestead
-      new THREE.Vector3(90, 0, -10), new THREE.Vector3(-95, 0, -18),
+      new THREE.Vector3(34, 0, 52), new THREE.Vector3(58, 0, 70),     // barge
+      new THREE.Vector3(-30, 0, 70), new THREE.Vector3(30, 0, 44),    // homestead
+      new THREE.Vector3(90, 0, -10), new THREE.Vector3(-95, 0, -1),
       new THREE.Vector3(0, 0, -90), new THREE.Vector3(-40, 0, 90),
     ].map((v) => v.setY(heightAt(v.x, v.z) + 0.3)),
     airSpawns: [
