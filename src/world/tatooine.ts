@@ -390,12 +390,17 @@ export function buildTatooine(): Board {
     ],
     hazards: [{ center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5, kind: 'kill' }],
     // rides (PLAN.md §17): the Tuskens' swoops at the camp, the farmer's
-    // landspeeder by the homestead, a cargo skiff out past the barge
+    // landspeeder by the homestead, a cargo skiff out past the barge — and
+    // two of the herd broken to the saddle, standing at the corral's edge
+    // where the grazers behind them are scenery and these are not. What tells
+    // them apart on sight is the woven saddle; on the radar they are rides.
     vehicles: [
       { kind: 'swoop', x: -80, z: -50, yaw: 0.8 },
       { kind: 'swoop', x: -77, z: -45, yaw: 1.2 },
       { kind: 'landspeeder', x: -26, z: 52, yaw: 2.4 },
       { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
+      { kind: 'bantha', x: -66, z: -58, yaw: 1.6 },
+      { kind: 'bantha', x: -49, z: -71, yaw: 2.6 },
     ],
     update: (dt, time, game) => {
       // one of the herd lows every so often, louder the closer you graze

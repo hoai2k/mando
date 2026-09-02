@@ -39,6 +39,8 @@ const DRIVING: Array<[string, string]> = [
   ['Brake, then reverse', 'B · S'],
   ['Steer', 'Left stick · A · D'],
   ['Boost', 'LB · Shift'],
+  ['Charge — on a bantha', 'X · F'],
+  ['Fire from the saddle — on a bantha', 'RT · Left mouse'],
 ];
 
 /** always available, controller or not */

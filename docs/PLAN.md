@@ -452,6 +452,33 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 | **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge (dome gap + approach) |
 | **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
 | **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
+| **Bantha** (`bantha`) | alive: slow, immovable, hands free | 260 | Dune Sea, saddled at the Tusken camp ×2 |
+
+**The one ride that is alive.** A bantha is a mount, not a machine, and the def carries
+a `living` flag that says so. It has no ignition and no engine loop — it lows when you
+climb on and grumbles under you as it walks — it does not hover but *walks*, on the
+quadruped gait clips in `anim/quadruped.ts` (the delivered `bantha.glb` rides the
+massiff's Rigify skeleton and ships no animation, so the amble is authored in code and
+rate-matched to the ground actually covered, blended against the idle by speed). It
+cannot drift: four feet in the sand bite, so the grip is high and the tail never steps
+out. When it dies it is not a wreck — no repulsor core, no AoE — it goes down in its own
+dust with a last low. Two of them stand saddled at the corral's edge; the three grazers
+behind them (§16) are still scenery. The woven saddle is what tells them apart on sight,
+and it is drawn by the ride rather than by the sculpt, so it sits on whatever back the
+model actually has.
+
+**Two things you can only do from a mount:**
+
+- **The charge (X).** The horns go down and the animal runs at 1.75× its own top speed
+  for a second and a half, on a five-second cooldown. Steering goes heavy for the length
+  of it — a charge is aimed before it is launched — and what it hits takes better than
+  twice a normal ram, with a longer knockdown, while chipping the bantha a third as much.
+  It is the one attack a rider commands rather than improvises.
+- **Firing from the saddle.** A machine takes both hands; an animal takes one. So a
+  mounted rider keeps the blaster: RT fires, LT aims, the chest twists to the camera
+  while the gun is up and settles back onto the animal's nose when it comes down. The
+  rocket rack and the blade stay stowed (X belongs to the charge), and the hull-soaks-
+  the-hits rule is unchanged — the bantha's 260 HP is between you and the fire.
 
 **Where they are parked is a reachability constraint, not just flavour** (audited
 2026-08-30). A ride the party never walks past may as well not exist: the Forge and
@@ -511,7 +538,10 @@ breakables.
 
 **Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
 jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
-existing explosion. Synth fallbacks under both, per the audio rules.
+existing explosion. Synth fallbacks under both, per the audio rules. A mount has none of
+that: `bantha_low` on mounting, on the charge and every ten seconds or so under the
+rider, and a footfall on the board's own surface every half stride — paced off ground
+covered, so the cadence slows with the animal instead of running on a clock.
 
 ## 18. Game modes (default since 2026-08-29)
 

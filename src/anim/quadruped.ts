@@ -375,6 +375,60 @@ export function massiffClips(root: THREE.Object3D): THREE.AnimationClip[] {
 }
 
 
+// ---------- bantha: the camp's mount, on the same quadruped rig ----------
+//
+// The delivered `bantha.glb` is rigged on the massiff's Rigify layout
+// (DEF-thigh / DEF-front_thigh, a fourteen-segment spine) and ships no
+// animation of its own, so its gait is authored here the same way. What is
+// different is the animal. A bantha is livestock the size of a house: it never
+// gallops, it ambles — one foot at a time, a long stance with three feet down
+// most of the cycle, a heavy roll onto whichever pair is carrying, and the
+// great horned head nodding once per stride. Slow because the mass is, and
+// long in the stride because the legs are: the cycle covers about 3 m, which
+// is what `Vehicle` rate-matches the clip against so the feet do not skate.
+
+/** seconds per stride, and the ground one stride covers (metres) */
+const BANTHA_WALK = 1.9;
+export const BANTHA_STRIDE = 3.0;
+
+function banthaWalk(root: THREE.Object3D): THREE.AnimationClip {
+  const b = builder(root);
+  const times = Array.from({ length: STEPS + 1 }, (_, i) => (i / STEPS) * BANTHA_WALK);
+  // the four-beat order of any walking quadruped: LH, LF, RH, RF
+  const AMBLE = [
+    { thigh: 'DEF-front_thigh.L', shin: 'DEF-front_shin.L', foot: 'DEF-front_foot.L', phase: 0.25 },
+    { thigh: 'DEF-front_thigh.R', shin: 'DEF-front_shin.R', foot: 'DEF-front_foot.R', phase: 0.75 },
+    { thigh: 'DEF-thigh.L', shin: 'DEF-shin.L', foot: 'DEF-foot.L', phase: 0 },
+    { thigh: 'DEF-thigh.R', shin: 'DEF-shin.R', foot: 'DEF-foot.R', phase: 0.5 },
+  ] as const;
+  const STANCE = 0.78;   // three feet on the sand for most of the cycle
+  for (const leg of AMBLE) {
+    b.swing(leg.thigh, times, cycle(STEPS, leg.phase, (t) => stride(t, STANCE, 16, 0).swing));
+    b.fold(leg.shin, times, cycle(STEPS, leg.phase, (t) => {
+      const s = stride(t, STANCE, 16, 24);
+      return s.fold + (t < STANCE ? 3 + 3 * Math.sin((t / STANCE) * Math.PI) : 6);
+    }));
+    b.fold(leg.foot, times, cycle(STEPS, leg.phase, (t) => 5 + stride(t, STANCE, 16, 14).fold));
+  }
+  // the mass rolls side to side over the planted pair — twice the massiff's
+  // sway, because a bantha walks like a barge rather than a hound
+  const roll = cycle(STEPS, 0, (t) => 5 * Math.sin(t * Math.PI * 2));
+  b.rot('DEF-spine.003', times, roll.map((v) => [0, 0, v]));
+  b.rot('DEF-spine.004', times, roll.map((v) => [0, 0, -v * 0.6]));
+  // the head and horns nod once per stride, lagging the shoulders
+  const nod = cycle(STEPS, 0.35, (t) => Math.sin(t * Math.PI * 2));
+  b.rot('DEF-spine.007', times, nod.map((v) => [v * 2, v * 1.5, 0]));
+  b.rot('DEF-spine.008', times, nod.map((v) => [v * 3.5, v * 2, 0]));
+  b.rot('DEF-spine.009', times, nod.map((v) => [v * 5, v * 2.5, 0]));
+  b.lift('DEF-spine', times, cycle(STEPS, 0.05, (t) => Math.abs(Math.sin(t * Math.PI * 2)) * 0.05 - 0.02));
+  return new THREE.AnimationClip('walk', BANTHA_WALK, b.tracks);
+}
+
+export function banthaClips(root: THREE.Object3D): THREE.AnimationClip[] {
+  return [idle(root), banthaWalk(root)];
+}
+
+
 // ---------- krykna: eight-legged skitter on the authored spider rig ----------
 //
 // The authored spiders carry leg roots legL1..legL4 / legR1..legR4, each with

@@ -237,8 +237,14 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
-      if (p.vehicle) h.coverHint.textContent = `${p.vehicle.def.name.toUpperCase()} ${Math.max(0, Math.ceil(p.vehicle.hp))}/${p.vehicle.maxHp} · A gas · B brake · RB off`;
-      else if (p.nearVehicle && p.alive) h.coverHint.textContent = `C / RB — ride the ${p.nearVehicle.def.name.toLowerCase()}`;
+      if (p.vehicle) {
+        const v = p.vehicle;
+        const hp = `${v.def.name.toUpperCase()} ${Math.max(0, Math.ceil(v.hp))}/${v.maxHp}`;
+        // a mount is ridden, not driven: it charges on X, and your gun hand is free
+        h.coverHint.textContent = v.def.living
+          ? `${hp} · A go · B stop · X ${v.chargeReady ? 'charge' : 'charge…'} · RT fire · RB off`
+          : `${hp} · A gas · B brake · RB off`;
+      } else if (p.nearVehicle && p.alive) h.coverHint.textContent = `C / RB — ride the ${p.nearVehicle.def.name.toLowerCase()}`;
       else if (p.cover) h.coverHint.textContent = p.peeking ? 'FIRING FROM COVER' : 'IN COVER · hold aim to peek';
       else if (p.nearCover && p.alive) h.coverHint.textContent = 'C / RB — take cover';
       else h.coverHint.textContent = '';
