@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelClip } from '../anim/animator';
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
@@ -959,6 +960,17 @@ export class Enemy {
   }
 
   /**
+   * Hit-stop on the swing that just landed: this body's animation hangs on
+   * its contact frame for a few hundredths of a second, the way the player's
+   * does (`Player.animDt`). Without it an enemy's swing passed through the
+   * target at full speed and landed soft. Nothing else in the world feels
+   * it — only this mixer.
+   */
+  private contactStop(seconds = 0.07): void {
+    this.char.animator?.freeze(seconds);
+  }
+
+  /**
    * Shove this enemy away from `from`. The stagger window matters as much as
    * the impulse: without it the per-frame steering damp in updateMelee/Ranged
    * pulls velocity straight back to the AI's intended movement and the hit
@@ -1387,14 +1399,28 @@ export class Enemy {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       if (this.windup <= 0 && this.leapT <= 0) {
         // A hover trooper is in the air: it flies, it does not pump a run
-        // cycle on nothing. On the ground the run is paced by the stride the
-        // clip actually covers (as the player's is), so a 7 m/s duelist's
-        // feet keep up with the ground instead of skating a fifth short.
-        const lower = d.style === 'hover' ? 'flyLower' : speed2 > 0.7 ? 'runLower' : 'idleLower';
-        const rate = lower === 'runLower' ? anim.gaitRate('runLower', speed2, this.char.baseScale) : 1;
+        // cycle on nothing. On the ground the cycle is picked by where the
+        // feet are going relative to the chest — a shooter shuffling
+        // sideways on its bearing, or fanning out on approach, used to run
+        // the forward cycle through it and moonwalk — and paced by the
+        // stride the clip actually covers (as the player's is), so a 7 m/s
+        // duelist's feet keep up with the ground instead of skating.
+        let lower = 'idleLower';
+        let rate = 1;
+        if (d.style === 'hover') lower = 'flyLower';
+        else if (speed2 > 0.7) {
+          const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+          lower = travel.clip;
+          rate = travel.dir * anim.gaitRate(lower, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+        }
         anim.play('lower', lower, 0.2, rate);
-        if (d.style === 'ranged' || d.style === 'hover') anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, rate);
+        // A shooter holds the aim while it is firing or standing; on the move
+        // between shots it runs with the gun, instead of the frozen aim pose
+        // gliding along at any speed. A hover trooper is always in the air
+        // and always aiming.
+        const shooting = this.volleyLeft > 0 || this.attackCd > this.def.attackCd - 0.35;
+        if (d.style === 'hover' || (d.style === 'ranged' && (shooting || speed2 <= 0.7))) anim.play('upper', 'enemyAimUpper', 0.25);
+        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, Math.abs(rate));
         else anim.play('upper', 'idleUpper', 0.25);
       }
     }
@@ -1891,6 +1917,9 @@ export class Enemy {
     if (this.leapT <= 0 || (this.grounded && this.leapT < 0.5)) {
       this.leapT = 0;
       this.landSlam(game);
+      // the ground is taken in the knees, the same crouch the player lands
+      // in — the leap used to cut from the air pose straight into the run
+      anim?.playOnce('lower', 'landLower', 0.05);
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
@@ -1942,6 +1971,7 @@ export class Enemy {
         const hd = this.windupTarget.position.distanceTo(this.position);
         if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
           this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+          this.contactStop();
         }
         this.attackCd = d.attackCd;
       }

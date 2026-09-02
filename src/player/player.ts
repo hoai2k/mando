@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelClip } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES,
   type MeleeKind, type PlayerCharacter, type RangedKind,
@@ -125,6 +126,14 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+/** how long the firing arm's recoil kick lasts, seconds */
+const ARM_KICK = 0.06;
+/** the kick's peak, radians — the shoulder rolls the muzzle up and rides it down */
+const ARM_KICK_ANGLE = 0.16;
+/** how much of the camera pitch the chest takes when aiming; the rest is the arms' fixed pose */
+const AIM_PITCH_SHARE = 0.6;
+/** the chest will not fold further than this either way, radians */
+const AIM_PITCH_MAX = 0.55;
 
 /**
  * The aim-glide: sighting a shot on the way down.
@@ -309,6 +318,10 @@ export class Player {
   private meleeDamage = 0;
   /** seconds of animation freeze left after a landed melee hit */
   private hitStop = 0;
+  /** seconds left of the arm's recoil kick after a shot (see ARM_KICK) */
+  private armKick = 0;
+  /** the chest's current aim pitch, radians, eased toward the camera's */
+  private aimPitch = 0;
   /** the post-combo saber flourish has played (or nothing to flourish) */
   private flourished = true;
   /** keeps the blade trail alive through the flourish, which isn't a swing */
@@ -1427,24 +1440,14 @@ export class Player {
       // sidestep is a moonwalk. Pick the cycle by the divergence instead:
       // forward run, lateral shuffle (one clip and its mirror), or the run
       // reversed for a back-pedal.
-      let rel = Math.atan2(this.velocity.x, this.velocity.z) - this.facingYaw;
-      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-      const arel = Math.abs(rel);
-      let lowerClip = 'runLower';
-      let rate: number;
-      if (arel > 2.3) {           // > ~132°: backing up — its own cycle, played backward
-        lowerClip = 'backpedalLower';
-        rate = -anim.gaitRate(lowerClip, speed2, this.char.baseScale) * 0.9;
-      } else if (arel > 0.8) {    // 46-132°: side-stepping
-        lowerClip = rel > 0 ? 'strafeLLower' : 'strafeLower';
-        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
-      } else {
-        // a sprint is its own longer-reaching cycle, not the run spun faster
-        if (this.sprinting) lowerClip = 'sprintLower';
-        // the gait runs at whatever rate plants the feet at our actual ground
-        // speed, so the stride pushes off instead of skating
-        rate = anim.gaitRate(lowerClip, speed2, this.char.baseScale);
-      }
+      const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+      let lowerClip: string = travel.clip;
+      // a sprint is its own longer-reaching cycle, not the run spun faster
+      if (lowerClip === 'runLower' && this.sprinting) lowerClip = 'sprintLower';
+      // the gait runs at whatever rate plants the feet at our actual ground
+      // speed, so the stride pushes off instead of skating; the back-pedal
+      // is its cycle played backward, a touch slower
+      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
@@ -2250,6 +2253,9 @@ export class Player {
       this.cam.shake(0.035);
       // recoil: the muzzle climbs, less when shouldered — you ride it back down
       this.cam.addLook((Math.random() - 0.5) * 0.003, input.aimHeld ? 0.005 : 0.01);
+      // ...and the arm takes it: a short kick on the firing shoulder, laid
+      // over the aim pose (syncVisual), so the body recoils and not just the view
+      this.armKick = ARM_KICK;
     }
 
     // Y: ordnance for whoever carries a gun, the heavy lunge for whoever
@@ -2427,9 +2433,44 @@ export class Player {
     return best;
   }
 
+  /**
+   * The aim layer: two additive offsets laid over the mixer's pose.
+   *
+   * The carbine's aim clip is a fixed pose, so shooting up or down the rifle
+   * stayed level while the bolts left along the camera. The chest now takes
+   * a share of the camera pitch as an extra rotation applied after the clips
+   * (the animator undoes and reapplies it around each update), and the arms
+   * and head ride along — the muzzle follows the reticle. Only while the aim
+   * pose is on the upper channel, which is exactly while aiming or firing
+   * (and peeking from cover); it eases out again as the arms come down.
+   *
+   * The second is the recoil kick: for a few hundredths of a second after a
+   * shot the firing shoulder rolls up and settles, so the body recoils and
+   * not only the view.
+   */
+  private syncAimLayer(dt: number): void {
+    const anim = this.char.animator;
+    if (!anim) return;
+    const aiming = this.alive && anim.playing('upper') === 'aimUpper';
+    // +pitch looks up; +X on the chest folds it forward and down, so the sign flips
+    const want = aiming ? clamp(-this.cam.pitch * AIM_PITCH_SHARE, -AIM_PITCH_MAX, AIM_PITCH_MAX) : 0;
+    this.aimPitch = damp(this.aimPitch, want, aiming ? 18 : 10, dt);
+    anim.setAdditive('chest', Math.abs(this.aimPitch) < 1e-4 ? 0 : this.aimPitch, 0, 0);
+    if (this.armKick > 0) {
+      this.armKick = Math.max(0, this.armKick - dt);
+      // a fast rise and a longer settle: peak in the first third, then ease out
+      const k = this.armKick / ARM_KICK;
+      const shape = k > 0.66 ? (1 - k) / 0.34 : k / 0.66;
+      anim.setAdditive('upperArmR', -ARM_KICK_ANGLE * shape, 0, 0);
+    } else {
+      anim.setAdditive('upperArmR', 0, 0, 0);
+    }
+  }
+
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     this.char.root.rotation.y = this.facingYaw;
+    this.syncAimLayer(dt);
     // blade trails ride the swings (and the flourish), on every update path
     this.trailTimer -= dt;
     this.char.setTrail(this.weapon === 'gaffi' && (this.meleeTimer > 0 || this.trailTimer > 0));
