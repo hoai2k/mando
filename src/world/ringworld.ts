@@ -339,7 +339,13 @@ export function buildRingworld(): Board {
     skyFile: 'sky_ring',
     proceduralSky,
     fog: new THREE.Fog(0x232a3a, 70, 320),
-    playerStarts: [new THREE.Vector3(0, 0.5, -104), new THREE.Vector3(3, 0.5, -104)],
+    // four declared starts, fanned along the street: the generic fan-out runs
+    // sideways in x, which on a street board put a four-player party against
+    // the facade with every camera pressed into it (audit U10)
+    playerStarts: [
+      new THREE.Vector3(0, 0.5, -104), new THREE.Vector3(3, 0.5, -104),
+      new THREE.Vector3(-3, 0.5, -107), new THREE.Vector3(6, 0.5, -107),
+    ],
     groundSpawns: [
       new THREE.Vector3(-10, 0.3, 61), new THREE.Vector3(4, 0.3, 109),
       new THREE.Vector3(12, 0.3, 35), new THREE.Vector3(-6, 0.3, 9),

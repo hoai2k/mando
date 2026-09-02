@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import type { Game } from './game';
 import { buildMission, MISSION_LAYOUTS, type MissionLevel, type MissionRoom } from '../world/mission';
-import { FINAL_WAVE, waveComposition } from '../enemies/spawner';
+import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
 import { audio } from '../core/audio';
 import { hazardAt } from '../world/board';
+import { AllyCrate } from './allycrate';
 
 /** scratch for the hazard probe in placeNear */
 const _probe = new THREE.Vector3();
@@ -27,6 +28,10 @@ const EXIT_R = 3.4;
 const ROOM_Y_SLACK = 8;
 /** falling this far below the level floor reads as "off the path" */
 const FALL_DROP = 9;
+/** the vent glyphs light this long before the carrier lets the squad go... */
+const VENT_CUE_LEAD = 1.0;
+/** ...and stay lit through the drop itself */
+const VENT_CUE_LIFE = 3.4;
 /** ranged kinds, for corridor defenders — the pinch is the cover-discipline beat */
 const RANGED = new Set<EnemyKind>([
   'pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper',
@@ -59,6 +64,10 @@ export class Campaign {
   private beaconMat: THREE.MeshBasicMaterial;
   private pickups: Pickup[] = [];
   private fallNote = 0;
+  /** a wave is inbound: light its vents when `at` runs out */
+  private ventCue: { at: number; spots: THREE.Vector3[] } | null = null;
+  private glyphs: { mesh: THREE.Group; mat: THREE.MeshBasicMaterial }[] = [];
+  private glyphLife = 0;
 
   constructor(private game: Game) {
     this.level = buildMission(game.board, MISSION_LAYOUTS[game.board.kind]);
@@ -113,8 +122,15 @@ export class Campaign {
     return 1 + Math.round(((FINAL_WAVE - 1) * Math.max(0, i - 1)) / Math.max(1, n - 2));
   }
 
-  /** a squad of ~budget bodies drawn across the board's wave-`wave` table */
+  /**
+   * A squad of ~budget bodies drawn across the board's wave-`wave` table.
+   *
+   * Past the table's last wave the mix is the last wave's with one more of
+   * its elite: the three-wave room at the end of the chain drew waves 6, 7,
+   * 7, so its third wave was the second again (audit L4).
+   */
   private squadFor(wave: number, budget: number): EnemyKind[] {
+    const over = Math.max(0, wave - FINAL_WAVE);
     const comp = waveComposition(this.game.board.kind,
       Math.min(FINAL_WAVE, Math.max(1, wave)), this.game.players.length);
     const kinds: EnemyKind[] = [];
@@ -131,6 +147,7 @@ export class Campaign {
     for (let i = 0; out.length < take && i < kinds.length; i += stride) out.push(kinds[i]);
     // the wave's newest kind always makes the room's mix
     out[out.length - 1] = kinds[kinds.length - 1];
+    for (let i = 0; i < over; i++) out.push(kinds[kinds.length - 1]);
     return out;
   }
 
@@ -276,9 +293,26 @@ export class Campaign {
     this.phase = 'fight';
     this.checkpoint.copy(room.entry);
     switch (room.spec.kind) {
-      case 'camp':
+      case 'camp': {
         this.game.announce(room.spec.label, 'clear it, or slip through');
+        // The covert's supply cache, in the camp before each boss arena: the
+        // same crate the wave game drops on its milestone waves (allycrate.ts),
+        // and the same kinds — the marshal ahead of the champion, Fennec ahead
+        // of the warlord. Missions never saw an ally before (audit L12).
+        const next = this.level.rooms[this.idx + 1];
+        const ally = next?.spec.kind === 'champion' ? ALLY_WAVES[MID_BOSS_WAVE - 1]
+          : next?.spec.kind === 'warlord' ? ALLY_WAVES[FINAL_WAVE] : undefined;
+        if (ally && !this.game.allyCrate) {
+          // off the travel lane, a third of the way in: seen from the door,
+          // and not where the garrison's crates cluster
+          const want = room.entry.clone().lerp(room.center, 0.6);
+          const side = new THREE.Vector3(room.exit.z - room.entry.z, 0, -(room.exit.x - room.entry.x)).normalize();
+          want.addScaledVector(side, room.spec.w * 0.28);
+          this.game.allyCrate = new AllyCrate(this.game, ally, want, want);
+          this.game.announce(room.spec.label, 'a covert supply cache is down — crack it open');
+        }
         break;
+      }
       case 'assault':
         room.entryGate?.close();
         room.exitGate?.close();
@@ -320,22 +354,79 @@ export class Campaign {
     const wave = this.rampWave(this.idx) + this.waveNum - 1;
     const budget = Math.min(12, 3 + wave + this.game.players.length);
     const kinds = this.squadFor(wave, budget);
+    // The first wave of a sealed room comes at the party from the far wall;
+    // the later ones flank in from the sides. The old six vents were the
+    // same for every wave and two sat beside the entry gate (audit L7).
+    const pool = (this.waveNum === 1 ? room.farVents : room.sideVents);
+    const vents = pool.length ? pool : room.vents;
     const spots = kinds.map((_, i) => {
-      const vent = room.vents[i % room.vents.length].clone();
+      const vent = vents[i % vents.length].clone();
       vent.x += (Math.random() - 0.5) * 3;
       vent.z += (Math.random() - 0.5) * 3;
       return vent;
     });
     this.dropping = true;
-    this.game.dropReinforcements(kinds, spots, 9500 + this.idx * 10 + this.waveNum, (bodies) => {
+    const eta = this.game.dropReinforcements(kinds, spots, 9500 + this.idx * 10 + this.waveNum, (bodies) => {
       this.dropping = false;
       this.roomForce = this.roomForce.concat(bodies);
       // whoever is on their feet when the ramp opens is what the squad came for
       const lead = this.game.players.find((p) => p.alive) ?? this.game.players[0];
       for (const e of bodies) e.alert(lead.position, true);
     });
+    // the vents light up a beat before the ship lets go, so the drop is read
+    // from the floor before it is seen in the sky
+    this.ventCue = { at: Math.max(0, eta - VENT_CUE_LEAD), spots: vents.slice() };
     audio.waveStart();
     this.game.announce(`Wave ${this.waveNum} of ${this.waveCount}`, `hold ${room.spec.label}`);
+  }
+
+  /**
+   * The vent glyphs: a ring and a column of light on each vent the incoming
+   * wave will use. Meshes only — additive, no scene lights, so lighting them
+   * costs no shader rebuild mid-fight. Pooled and reused wave to wave.
+   */
+  private showVentGlyphs(spots: THREE.Vector3[]): void {
+    const board = this.game.board;
+    const accent = MISSION_LAYOUTS[board.kind].palette.accent;
+    while (this.glyphs.length < spots.length) {
+      const g = new THREE.Group();
+      const m = new THREE.MeshBasicMaterial({
+        color: accent, transparent: true, opacity: 0.7,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.7, 24), m);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.06;
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.2, 7, 12, 1, true), m);
+      column.position.y = 3.5;
+      g.add(ring, column);
+      g.visible = false;
+      board.group.add(g);
+      this.glyphs.push({ mesh: g, mat: m });
+    }
+    this.glyphs.forEach((gl, i) => {
+      gl.mesh.visible = i < spots.length;
+      if (i < spots.length) gl.mesh.position.copy(spots[i]);
+    });
+    this.glyphLife = VENT_CUE_LIFE;
+  }
+
+  private updateVentGlyphs(dt: number): void {
+    if (this.ventCue) {
+      this.ventCue.at -= dt;
+      if (this.ventCue.at <= 0) {
+        this.showVentGlyphs(this.ventCue.spots);
+        this.ventCue = null;
+      }
+    }
+    if (this.glyphLife <= 0) return;
+    this.glyphLife -= dt;
+    const pulse = 0.45 + 0.35 * Math.sin(this.game.time * 9);
+    const fade = Math.min(1, this.glyphLife / 0.6);
+    for (const gl of this.glyphs) {
+      gl.mat.opacity = pulse * fade;
+      if (this.glyphLife <= 0) gl.mesh.visible = false;
+    }
   }
 
   private clearRoom(room: MissionRoom, fought: boolean): void {
@@ -404,6 +495,7 @@ export class Campaign {
     const obj = this.objectivePos;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
+    this.updateVentGlyphs(dt);
 
     // pickups: touch to heal
     for (const pk of this.pickups) {
@@ -474,6 +566,12 @@ export class Campaign {
         // `monsterStaging` covers the beat between the warlord falling and the
         // board's monster coming up: the arena is not done until that is
         if (this.bossCalled && game.boss && !game.boss.alive && !game.monsterStaging) {
+          // the cache's squad was for this arena: it melts back into the
+          // covert, and an uncracked crate leaves with its chance
+          if (game.allyCrate) {
+            game.allyCrate.retire(game);
+            game.allyCrate = null;
+          }
           if (room.spec.kind === 'champion') {
             this.clearRoom(room, true);
             game.announce('The champion falls', 'the warlord waits at the end');

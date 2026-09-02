@@ -45,13 +45,28 @@ export class AllyCrate {
   allies: Enemy[] = [];
   private openT = 0;
 
-  constructor(private game: Game, public kind: EnemyKind, near: THREE.Vector3) {
+  /**
+   * A clear patch of ground for a body of `kind` at or near `want`. In a
+   * mission the level's own placement is the only safe one: the board-wide
+   * `standingSpot` falls back to the territory's ground ninety metres below.
+   */
+  private place(want: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+    const c = this.game.campaign;
+    return c ? c.placeNear(want, kind) : standingSpot(this.game.board, want, kind);
+  }
+
+  /**
+   * `near` is where the party stands; the crate lands a stone's throw off on
+   * a random bearing. A mission passes `at` instead — the room's own floor,
+   * where a random bearing would as often as not be the far side of a wall.
+   */
+  constructor(private game: Game, public kind: EnemyKind, near: THREE.Vector3, at?: THREE.Vector3) {
     const board = game.board;
     // a clear patch of ground a stone's throw from where the party stands —
     // judged with a big body so the crate never wedges into a doorway
     const a = Math.random() * Math.PI * 2;
-    const want = near.clone().add(new THREE.Vector3(Math.cos(a) * 14, 0.2, Math.sin(a) * 14));
-    this.pos = standingSpot(board, want, 'enforcer');
+    const want = at?.clone() ?? near.clone().add(new THREE.Vector3(Math.cos(a) * 14, 0.2, Math.sin(a) * 14));
+    this.pos = this.place(want, 'enforcer');
     this.group.position.copy(this.pos);
     board.group.add(this.group);
 
@@ -133,7 +148,7 @@ export class AllyCrate {
     for (let i = 0; i < CRATE_ALLY_COUNT; i++) {
       const a = (i / CRATE_ALLY_COUNT) * Math.PI * 2;
       const want = this.pos.clone().add(new THREE.Vector3(Math.cos(a) * 2.2, 0.2, Math.sin(a) * 2.2));
-      const at = standingSpot(game.board, want, this.kind);
+      const at = this.place(want, this.kind);
       const ally = new Enemy(this.kind, at, 0);
       this.allies.push(ally);
       game.allies.push(ally);
