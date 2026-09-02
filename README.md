@@ -187,7 +187,13 @@ Existing files are skipped unless named explicitly. Never commit the key.
 Volume sliders are in the game, under the gear button. They persist per device.
 
 The defaults live in [`src/config.ts`](src/config.ts) — `master`, `sfx` and `music`, each a
-linear gain from 0 to 1 — and can also be changed from the browser console:
+linear gain from 0 to 1. The mix runs at the ceiling: `master` and `music` at unity with
+SFX a third of the way under the score, and everything leaves through a brick-wall limiter
+on the master bus, so the peaks that summing a score, an ambience bed and a dozen blasters
+at those gains would otherwise clip are caught instead of crackling. Anything quieter is a
+slider away; anything louder now has to come from the source files themselves.
+
+The values can also be changed from the browser console:
 
 ```js
 __config.audio.sfx = 0.2;   // quieter blasters
