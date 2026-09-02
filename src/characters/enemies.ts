@@ -1557,15 +1557,32 @@ const WORM_SEGMENTS = 24;
 const WORM_SINK = 7.5;
 /** how high the head rears above the surface once it has broken through */
 const WORM_REAR = 5.2;
-/** the travelling wave down the body: apex above the sand, and its bias under */
-const WORM_WAVE = 5.5;
+/**
+ * The travelling wave down the body: amplitude, and how far it is biased under
+ * the sand so only the crests break out.
+ *
+ * Amplitude and period are not free of each other. A joint can only climb as
+ * far as the segment in front of it is long, so a wave steeper than
+ * `restStep` per joint is one the body physically cannot follow: the chain
+ * goes taut, every joint falls short of its target, and the error piles up
+ * along the body until the head cannot reach the ground it is supposed to be
+ * diving under. `A * 2π / period` is that per-joint climb, and it is kept
+ * comfortably under the segment length — which for a forty-metre animal on 24
+ * joints means one long swell down the body rather than a row of little humps.
+ */
+const WORM_WAVE = 4.0;
 const WORM_WAVE_BIAS = 1.0;
-/** body-lengths per wave — how many joints one hump spans */
-const WORM_WAVE_PERIOD = 7;
+/** joints one full wave spans */
+const WORM_WAVE_PERIOD = 24;
 /** how fast the wave runs down the body, radians a second */
 const WORM_WAVE_SPEED = 1.1;
-/** joints behind the head that blend from the head's pose into the wave */
-const WORM_NECK = 3;
+/**
+ * Joints behind the head that blend from the head's own height into the wave.
+ * Long enough that the dive is a slope the body can actually make: the head
+ * drops `WORM_SINK` over this many segments, so too few and the neck is asked
+ * to fall further than it can reach.
+ */
+const WORM_NECK = 8;
 
 /**
  * The Dune Sea's worm (docs/BOSSES.md §2.7): one continuous forty-metre animal
@@ -1694,6 +1711,8 @@ export function buildSandworm(): CharacterInstance {
   const _inv = new THREE.Quaternion();
   const targets: THREE.Vector3[] = [];
   for (let i = 0; i <= WORM_SEGMENTS; i++) targets.push(new THREE.Vector3());
+  /** how high each joint rides this frame, head first */
+  const lifts = new Float64Array(WORM_SEGMENTS + 1);
 
   /**
    * Walk back along the trail and put a joint every `step` metres, then lift
@@ -1708,11 +1727,41 @@ export function buildSandworm(): CharacterInstance {
       if (trail.length > TRAIL_MAX) trail.shift();
     }
     const n = WORM_SEGMENTS;
+    // How high each joint rides, worked out before any of them is placed,
+    // because the spacing along the ground depends on it.
+    const headY = (1 - depth) * WORM_REAR - depth * WORM_SINK;
+    for (let seg = 0; seg <= n; seg++) {
+      // The wave runs down the body, biased under the surface so most of the
+      // animal is buried and only the crests break out — the whole read of the
+      // creature.
+      const phase = (seg / WORM_WAVE_PERIOD) * Math.PI * 2 - time * WORM_WAVE_SPEED;
+      let lift = Math.sin(phase) * WORM_WAVE - WORM_WAVE_BIAS;
+      // The joints just behind the head blend into whatever the head is doing,
+      // so the neck curves down into the sand instead of kinking at the skull.
+      // `seg` counts joints back from the head — reading it from the other end
+      // lifted the tail out of the sand and left the head riding the wave,
+      // which is a worm that surfaces backwards.
+      if (seg < WORM_NECK) {
+        const t = seg / WORM_NECK;
+        lift = headY * (1 - t) + lift * t;
+      }
+      lifts[seg] = lift;
+    }
     let k = trail.length - 1;
     let walked = 0;
+    let want = 0;
     _p.copy(head);
     for (let seg = 0; seg <= n; seg++) {
-      const want = seg * step;                 // metres back from the head
+      if (seg > 0) {
+        // A joint is a fixed length, and part of it is spent climbing. Walking
+        // a whole segment's worth along the *ground* each time asks the body to
+        // cover more than it has, and every joint after it falls a little
+        // further behind — which ends with the head short of where the burrow
+        // cycle put it. So the ground step is the segment with its climb taken
+        // out of it, and never so short that a steep stretch stalls on the spot.
+        const dy = lifts[seg] - lifts[seg - 1];
+        want += Math.sqrt(Math.max(step * step - dy * dy, step * step * 0.0625));
+      }
       while (walked < want && k > 0) {
         const next = trail[k - 1];
         const d = _p.distanceTo(next);
@@ -1725,26 +1774,11 @@ export function buildSandworm(): CharacterInstance {
         _p.copy(next);
         k--;
       }
-      // The wave: a hump every WORM_WAVE_PERIOD joints, running down the body.
-      // Biased under the surface so most of the animal is buried and only the
-      // crests break out — which is the whole read of the creature.
-      const phase = (seg / WORM_WAVE_PERIOD) * Math.PI * 2 - time * WORM_WAVE_SPEED;
-      let lift = Math.sin(phase) * WORM_WAVE - WORM_WAVE_BIAS;
-      // The joints just behind the head blend into whatever the head is doing,
-      // so the neck curves down into the sand instead of kinking at the skull.
-      // `seg` already counts joints back from the head — reading it from the
-      // other end lifted the tail out of the sand and left the head riding the
-      // wave, which is a worm that surfaces backwards.
-      if (seg < WORM_NECK) {
-        const t = seg / WORM_NECK;
-        const headY = (1 - depth) * WORM_REAR - depth * WORM_SINK;
-        lift = headY * (1 - t) + lift * t;
-      }
       // The trail carries the ground height where the head was standing at the
       // time, so the body follows the dunes it crossed rather than hanging off
       // whatever height the head happens to be at now.
       // index 0 is the tail, so fill from the back
-      targets[n - seg].set(_p.x, _p.y + lift, _p.z);
+      targets[n - seg].set(_p.x, _p.y + lifts[seg], _p.z);
     }
   };
 
