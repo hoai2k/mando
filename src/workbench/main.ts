@@ -221,7 +221,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose };  // debug/testing handle
+  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose, camera, controls };  // debug/testing handle
 }
 
 /**
