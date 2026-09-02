@@ -348,7 +348,7 @@ export async function auditModel(id) {
           donors: Object.keys(b.donors).length,
         },
         removeBones: [...b.joints].sort(),
-        mesh: { node: prim.nodeIndex, primitive: prim.primIndex, vertexCount: prim.count },
+        mesh: { node: prim.nodeIndex, mesh: prim.meshIndex, primitive: prim.primIndex, vertexCount: prim.count },
         vertices: b.verts,
         donors: b.donors,
       });

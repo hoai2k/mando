@@ -9,6 +9,7 @@ import {
 import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
+import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
 
 /**
  * Authored glTF characters.
@@ -212,11 +213,25 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     // report to the tracker, so a loading screen can wait on this file and
     // show how much of it has arrived without knowing anything about models
     const handle = tracked.start(trackKey);
+    // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
+    // models without one cost nothing here beyond a shared index lookup
+    const fixes = loadSkinFix(id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
-        (gltf) => {
+        async (gltf) => {
           handle.finish(true);
+          // remember which glTF mesh/primitive each skinned mesh came from, so
+          // a fix file can name its target the same way the audit tool does
+          gltf.scene.traverse((o) => {
+            const assoc = gltf.parser.associations.get(o) as { meshes?: number; primitives?: number } | undefined;
+            if ((o as THREE.SkinnedMesh).isSkinnedMesh && assoc?.meshes !== undefined) {
+              o.userData.gltf = { mesh: assoc.meshes, primitive: assoc.primitives ?? 0 };
+            }
+          });
+          const doc = await fixes;
+          // on the file's own geometry, which every clone shares: one pass
+          if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
