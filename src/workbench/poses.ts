@@ -47,6 +47,7 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'runaim', name: 'Aim — running', lower: 'runLower', upper: 'aimUpper' },
   { rig: 'humanoid', id: 'air', name: 'Jump / falling', lower: 'airLower', upper: 'airUpper' },
   { rig: 'humanoid', id: 'land', name: 'Landing — absorb', lower: 'landLower', upper: 'idleUpper' },
+  { rig: 'humanoid', id: 'swim', name: 'Swimming — front crawl', lower: 'swimLower', upper: 'swimUpper' },
   { rig: 'humanoid', id: 'fly', name: 'Jetpack flight', lower: 'flyLower', upper: 'flyUpper', thrust: 1 },
   { rig: 'humanoid', id: 'block', name: 'Block — shield up', lower: 'blockLower', upper: 'blockUpper', block: true },
   { rig: 'humanoid', id: 'melee1', name: 'Melee 1 — swing', lower: 'meleeLower1', upper: 'melee1', melee: true },
