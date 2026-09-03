@@ -55,9 +55,16 @@ await page.evaluate(() => { window.__manual = true; });
 // ---- the rack ----
 // Six sacs, and they start spent. One charges every three seconds, so after
 // twenty the whole clutch is up: the readout is the point, not the timing.
+//
+// She is held on her feet for the measurement. This is a PvP duel and the
+// rival's squad is walking at her the whole time; once the audit pass sharpened
+// the AI, a queen standing still for twenty-five seconds started dying at about
+// second twenty-four, and `spawnAt` empties the clutch — so the check was
+// reading a rack that had just been reset rather than one that had filled.
 const rack = await page.evaluate(`(() => {
   const g = window.__game;
   const p = g.players[0];
+  const hold = () => { p.hp = p.maxHp; };
   const read = () => {
     const shades = [];
     for (const c of p.char.root.children) {
@@ -69,7 +76,7 @@ const rack = await page.evaluate(`(() => {
     return shades;
   };
   const start = read();
-  (${STEP})(30 * 25);
+  for (let i = 0; i < 30 * 25; i++) { (${STEP})(1); hold(); }
   const full = read();
   return { name: p.profile.name, sacs: start.length, start, full, clutch: p.eggClutch };
 })()`);
