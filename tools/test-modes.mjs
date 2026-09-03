@@ -430,10 +430,17 @@ s = await page.evaluate(`(() => {
     shared: !!g.sharedCam, state: g.state,
     camsApart: g.players[0].cam !== g.players[1].cam,
     zones: c.stage.zones.map((z) => z.spec.shell + ':' + z.spec.kind).join(','),
-    elevated: g.players.every((p) => p.position.y > 60),
+    // On the stage's own floor — not at a fixed altitude. A mission stage
+    // used to always be a plate raised ninety metres over the territory, so
+    // "y > 60" meant "on the level"; a stage can stand on the board's real
+    // ground now, and on the Dune Sea's dunes that reads as y ≈ 0. What is
+    // worth checking either way is that the party is standing on the stage
+    // rather than under it or falling past it.
+    onStage: g.players.every((p) =>
+      Math.abs(p.position.y - c.stage.groundAt(p.position.x, p.position.z)) < 3),
     posted: g.enemies.filter((e) => e.alive).length,
     hint: g.hudTopLine(g.players[0]),
-    ceiling: g.ceilingY - c.stage.floorY,
+    ceiling: Math.round(g.ceilingY - c.stage.floorY),
   };
 })()`);
 check('campaign: every player their own camera, no shared rig',
@@ -441,7 +448,7 @@ check('campaign: every player their own camera, no shared rig',
 check('campaign: the run opens outdoors on a trailhead, not in a box',
   s.zones.startsWith('open:start') && !s.zones.startsWith('hall'), s.zones);
 check('campaign: the party stands on the mission level, garrison posted',
-  s.elevated && s.posted > 4, `elevated ${s.elevated} · posted ${s.posted}`);
+  s.onStage && s.posted > 4, `on the stage ${s.onStage} · posted ${s.posted}`);
 check('campaign: the guide reads a bearing and a distance', / \d+ m$/.test(s.hint), s.hint);
 check('campaign: the playable sky has a lid over it', s.ceiling > 20, `${s.ceiling} m`);
 
