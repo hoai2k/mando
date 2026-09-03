@@ -3,7 +3,11 @@ import { audio } from '../core/audio';
 import { authoredCached, loadProp } from '../characters/authored';
 import { hazardAt } from '../world/board';
 import type { Board, BoardId } from '../world/board';
-import type { EnemyKind } from './enemy';
+import type { Combatant, EnemyKind } from './enemy';
+import type { Animator } from '../anim/animator';
+import { GRAVITY } from '../core/body';
+import { clamp, damp } from '../core/math';
+import type { Game } from '../game/game';
 
 /**
  * How a wave gets onto the board (waves 2+; the first wave is the garrison
@@ -371,4 +375,269 @@ export class Carrier {
     for (const r of this.owned) r.dispose();
     this.owned.length = 0;
   }
+}
+
+// ---------- one body's own arrival (driven from Enemy.update) ----------
+
+/**
+ * How a single body is getting onto the board, while it still is. Normal AI is
+ * suspended until this is done; the body is alive and targetable the whole way
+ * down, so a parachutist can be shot out of the sky.
+ */
+export interface ArrivalState {
+  mode: 'drop' | 'run' | 'fly' | 'swim';
+  target: THREE.Vector3;
+  chute: boolean;
+  chuteMesh: THREE.Group | null;
+  t: number;
+  shotCd: number;
+  climbing: boolean;
+}
+
+/**
+ * What an arriving body has to offer this module: where it is, what it can be
+ * told to do, and the marks that say where it ended up. `Enemy` is the only
+ * implementer — the interface is here so the arrival can be read (and changed)
+ * without the rest of that class around it.
+ */
+export interface ArrivalBody {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  radius: number;
+  height: number;
+  facingYaw: number;
+  alive: boolean;
+  removeMe: boolean;
+  arrival: ArrivalState | null;
+  /** where this body stands once it is here, and the marks that follow it */
+  post: THREE.Vector3;
+  spawnPos: THREE.Vector3;
+  idleGoal: THREE.Vector3;
+  readonly char: { root: THREE.Object3D; animator: Animator | null };
+  readonly def: {
+    speed: number; notice: number; attackCd: number;
+    boltSpeed?: number; flame?: boolean;
+  };
+  faceToward(dt: number, x: number, z: number, rate?: number): void;
+  nearestFoe(game: Game): Combatant | null;
+  fireBoltAt(game: Game, target: Combatant): void;
+  syncVisual(dt: number, game: Game): void;
+}
+
+/** scratch for arrival steering */
+const _arrTo = new THREE.Vector3();
+
+/**
+ * Start this body on its way in instead of at its post. `target` is the
+ * placement the wave planner validated, so finishing the arrival *is*
+ * standing somewhere legal — the whole point of arriving from the sky or the
+ * edge is that there is no way to finish inside a wall.
+ */
+export function beginArrival(
+  b: ArrivalBody,
+  mode: 'drop' | 'run' | 'fly' | 'swim',
+  from: THREE.Vector3,
+  target: THREE.Vector3,
+  opts: { chute?: boolean; velocity?: THREE.Vector3 } = {},
+): void {
+  b.position.copy(from);
+  b.char.root.position.copy(from);
+  if (opts.velocity) b.velocity.copy(opts.velocity);
+  b.facingYaw = Math.atan2(target.x - from.x, target.z - from.z);
+  b.arrival = {
+    mode, target: target.clone(),
+    chute: !!opts.chute, chuteMesh: null,
+    t: 0, shotCd: 1 + Math.random(), climbing: false,
+  };
+}
+
+/** the parachute: a canopy and four lines, hung over the shoulders */
+function makeChute(height: number): THREE.Group {
+  const g = new THREE.Group();
+  const canopy = new THREE.Mesh(
+    new THREE.SphereGeometry(1.5, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0x8f8261, roughness: 0.95, side: THREE.DoubleSide }),
+  );
+  canopy.scale.y = 0.6;
+  g.add(canopy);
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0x24221e });
+  const lineGeo = new THREE.CylinderGeometry(0.012, 0.012, 2.1, 3);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const line = new THREE.Mesh(lineGeo, lineMat);
+    line.position.set(sx * 0.5, -1.05, sz * 0.5);
+    line.rotation.z = sx * 0.42;
+    line.rotation.x = -sz * 0.42;
+    g.add(line);
+  }
+  g.position.y = height + 1.85;
+  return g;
+}
+
+/** drop the chute and the state, leaving position and velocity as they are */
+export function clearArrival(b: ArrivalBody): void {
+  const a = b.arrival;
+  if (!a) return;
+  if (a.chuteMesh) {
+    b.char.root.remove(a.chuteMesh);
+    a.chuteMesh.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    });
+  }
+  b.arrival = null;
+}
+
+/** touched down / walked in: this ground is the post now */
+function finishArrival(b: ArrivalBody, game: Game, dust: boolean): void {
+  if (dust) game.particles.dustPuff(b.position, 8);
+  // a drop-in takes the ground in the knees, the same crouch the player uses;
+  // one that walked in off the edge of the board has nothing to absorb
+  if (dust) b.char.animator?.playOnce('lower', 'landLower', 0.05);
+  b.post.copy(b.position);
+  b.spawnPos.copy(b.position);
+  b.idleGoal.copy(b.position);
+  b.velocity.set(0, 0, 0);
+  clearArrival(b);
+}
+
+/**
+ * One frame of getting here. Runs instead of the AI; the body stays alive and
+ * targetable throughout.
+ *
+ * The drop trajectory is aimed, not simulated blind: vertical speed is real
+ * gravity to a terminal velocity (a hard one for a straight drop, a gentle one
+ * under canopy), and horizontal velocity is continuously steered to close the
+ * remaining distance in the time the fall has left — which is what makes a
+ * drop from a moving carrier both look ballistic and land on the spot the
+ * planner validated.
+ */
+export function updateArrival(b: ArrivalBody, dt: number, game: Game): void {
+  const a = b.arrival!;
+  const anim = b.char.animator;
+  a.t += dt;
+  // A scripted insertion falls on the board's flat gravity, not the local
+  // field: the drop is timed to land on a chosen post, and a squad coasting
+  // in the station's open-space drift would still be in the air two waves
+  // later.
+  const grav = game.board.gravity ?? 1;
+
+  if (a.mode === 'drop') {
+    const canopy = a.chute && a.t > 0.7;
+    if (canopy && !a.chuteMesh) {
+      a.chuteMesh = makeChute(b.height);
+      b.char.root.add(a.chuteMesh);
+    }
+    // gravity to terminal: a straight drop hits hard, a canopy floats
+    const terminal = canopy ? -5.6 : -30;
+    b.velocity.y = Math.max(b.velocity.y - GRAVITY * grav * dt, terminal);
+    if (canopy) b.velocity.y = damp(b.velocity.y, terminal, 5, dt);
+    // steer the fall onto the post: close the gap in the time left
+    const fallTime = Math.max(0.35, (b.position.y - a.target.y) / Math.max(4, -b.velocity.y));
+    const cap = canopy ? 4.5 : 13;
+    b.velocity.x = damp(b.velocity.x, clamp((a.target.x - b.position.x) / fallTime, -cap, cap), 5, dt);
+    b.velocity.z = damp(b.velocity.z, clamp((a.target.z - b.position.z) / fallTime, -cap, cap), 5, dt);
+    const res = game.board.physics.moveCapsule(b.position, b.radius, b.height, b.velocity, dt);
+    // a drop that somehow misses every surface (blown past a platform edge
+    // on a floating board) must not fall forever with the wave waiting on
+    // it: past the kill plane it is quietly written off
+    if (b.position.y < game.board.physics.killY) {
+      b.alive = false;
+      b.removeMe = true;
+      clearArrival(b);
+      return;
+    }
+    if (a.chuteMesh) {
+      a.chuteMesh.rotation.z = Math.sin(a.t * 1.9) * 0.12;
+      a.chuteMesh.rotation.x = Math.cos(a.t * 1.6) * 0.1;
+    }
+    // a parachutist is a combatant on the way down: ranged kinds take
+    // pot-shots at anyone close enough to see
+    if (canopy && b.def.boltSpeed && !b.def.flame) {
+      a.shotCd -= dt;
+      if (a.shotCd <= 0) {
+        const foe = b.nearestFoe(game);
+        if (foe && foe.position.distanceTo(b.position) < b.def.notice * 1.5) {
+          b.faceToward(dt, foe.position.x, foe.position.z, 20);
+          b.fireBoltAt(game, foe);
+          a.shotCd = b.def.attackCd * (1.2 + Math.random() * 0.6);
+        } else a.shotCd = 0.5;
+      }
+    }
+    if (anim) {
+      anim.play('lower', canopy ? 'idleLower' : 'flyLower', 0.3);
+      anim.play('upper', canopy ? 'idleUpper' : 'airUpper', 0.3);
+    }
+    if (res.grounded) finishArrival(b, game, true);
+  } else if (a.mode === 'run') {
+    const dx = a.target.x - b.position.x;
+    const dz = a.target.z - b.position.z;
+    const flat = Math.hypot(dx, dz);
+    if (flat < 3 || a.t > 30) { finishArrival(b, game, false); return; }
+    const sp = b.def.speed * 0.85;
+    b.velocity.x = damp(b.velocity.x, (dx / flat) * sp, 5, dt);
+    b.velocity.z = damp(b.velocity.z, (dz / flat) * sp, 5, dt);
+    b.velocity.y -= GRAVITY * grav * dt;   // was 24 here; the shared pull is 26
+    b.faceToward(dt, a.target.x, a.target.z, 6);
+    game.board.physics.moveCapsule(b.position, b.radius, b.height, b.velocity, dt);
+    if (anim) {
+      anim.play('lower', 'runLower', 0.2, 1.1);
+      anim.play('upper', 'runUpper', 0.2, 1.1);
+    }
+  } else if (a.mode === 'fly') {
+    const to = _arrTo.copy(a.target).sub(b.position);
+    const dist = to.length();
+    if (dist < 4.5 || a.t > 30) { finishArrival(b, game, false); return; }
+    to.normalize().multiplyScalar(b.def.speed);
+    b.velocity.x = damp(b.velocity.x, to.x, 3.5, dt);
+    b.velocity.y = damp(b.velocity.y, to.y, 3.5, dt);
+    b.velocity.z = damp(b.velocity.z, to.z, 3.5, dt);
+    b.faceToward(dt, a.target.x, a.target.z, 5);
+    b.position.addScaledVector(b.velocity, dt);
+    if (anim) {
+      anim.play('lower', 'flyLower', 0.3);
+      anim.play('upper', 'flyUpper', 0.3);
+    }
+  } else {
+    // swim: mostly under the surface, wake trailing, then haul out at the
+    // platform the post stands on
+    const wy = game.board.waterY ?? b.position.y;
+    if (!a.climbing) {
+      const dx = a.target.x - b.position.x;
+      const dz = a.target.z - b.position.z;
+      const flat = Math.hypot(dx, dz);
+      if (flat < 2.5 || a.t > 35) a.climbing = true;
+      else {
+        b.position.y = wy - 0.45;
+        b.velocity.set((dx / flat) * 4.5, 0, (dz / flat) * 4.5);
+        b.position.addScaledVector(b.velocity, dt);
+        b.faceToward(dt, a.target.x, a.target.z, 4);
+        if ((a.t * 2 | 0) !== ((a.t - dt) * 2 | 0)) {
+          game.particles.splash(_arrTo.set(b.position.x, wy, b.position.z), 3);
+        }
+      }
+    }
+    if (a.climbing) {
+      b.velocity.set(
+        (a.target.x - b.position.x) * 1.6,
+        3.2,
+        (a.target.z - b.position.z) * 1.6,
+      );
+      b.position.addScaledVector(b.velocity, dt);
+      if (b.position.y >= a.target.y) {
+        b.position.y = a.target.y;
+        game.particles.splash(_arrTo.set(b.position.x, wy, b.position.z), 8);
+        finishArrival(b, game, false);
+        return;
+      }
+    }
+    if (anim) {
+      anim.play('lower', 'idleLower', 0.3);
+      anim.play('upper', 'airUpper', 0.3);
+    }
+  }
+
+  b.syncVisual(dt, game);
+  anim?.update(dt);
 }

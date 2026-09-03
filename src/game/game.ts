@@ -4,12 +4,12 @@ import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { BotBrain } from './bot';
 import { TEXT } from '../text';
-import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
+import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
+import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
-import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
-import { playableDef, type PlayableId } from '../characters/roster';
+import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
+import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
@@ -19,9 +19,13 @@ import { disposeSubtree } from '../core/dispose';
 import { enemyModelIds, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, INFINITE_LIVES, MID_BOSS, MONSTER_BOSS, bossRush, type GameMode } from './modes';
-import { AllyCrate } from './allycrate';
-import { Campaign } from './campaign';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
+import type { AllyCrate } from './allycrate';
+import type { Campaign } from './campaign';
+import type { ModeRules } from './rules/rules';
+import { WaveRules } from './rules/wave';
+import { PvpRules } from './rules/pvp';
+import { CampaignRules } from './rules/campaign-rules';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
@@ -69,11 +73,75 @@ interface PooledTarget extends BoltTarget {
   corpse?: boolean;
 }
 
+/** one extra hit sphere, in body-local metres */
+interface HitPart { z: number; y: number; r: number }
+
+/**
+ * A body's hit volume, as the target builder needs it. `Enemy` and `Player`
+ * both fill one of these — no base class, no adapter — which is what lets one
+ * emitter stand a hostile and a playable up the same way.
+ */
+interface HitBody {
+  position: THREE.Vector3;
+  yaw: number;
+  team: number;
+  /** the sphere on the chest */
+  hitHeight: number;
+  hitRadius: number;
+  /** the extra spheres a long body carries */
+  parts: readonly HitPart[];
+  shield: DeflectSphere | null;
+  /** a raised pane covers the whole fighter; a hostile's covers its chest */
+  shieldCoversParts: boolean;
+  /** player slot, so a bolt this body deflects is credited to them */
+  slot: number | undefined;
+}
+
+/** filled and re-filled per body per frame: the builder must not make garbage */
+const NO_PARTS: readonly HitPart[] = [];
+const _body: HitBody = {
+  position: new THREE.Vector3(), yaw: 0, team: 0, hitHeight: 0, hitRadius: 0,
+  parts: NO_PARTS, shield: null, shieldCoversParts: false, slot: undefined,
+};
+
 /** the rocket mesh's own axis, for orienting it along its velocity */
 const UP = new THREE.Vector3(0, 1, 0);
 /** scratch for laying a drop squad out along its carrier's flight line */
 const _stick = new THREE.Vector3();
 const _stickVel = new THREE.Vector3();
+
+/**
+ * One class of victim inside a blast: how far it reaches them, how hard it
+ * hits at the centre, and where the falloff runs out. `zero` beyond `radius`
+ * is what leaves the rim still taking something.
+ */
+interface Ring {
+  radius: number;
+  damage: number;
+  zero?: number;
+  /** the whole reach takes the full number — the warlord's slam, not a rocket */
+  flat?: boolean;
+}
+
+/** A ring of force — see `Game.blast`. A class left out is not touched. */
+interface BlastSpec {
+  /** who threw it: their squad and brood are spared, and kills credit them */
+  bySlot?: number;
+  enemies?: Ring & { push?: number; stagger?: number; knockdown?: [number, number] };
+  /** `rival` replaces `damage` for a player who is not the thrower (PvP) */
+  players?: Ring & { push?: number; lift?: number; rival?: number };
+  /** `damage` is the shove, not damage — a corpse is past hurting */
+  corpses?: Ring;
+  vehicles?: Ring;
+  breakables?: Ring;
+  shake?: { amount: number; radius: number; flat?: boolean };
+  /** how far the bang carries to the AI director */
+  noise?: number;
+  sound?: 'explosion' | 'impact';
+}
+
+/** scratch for the direction a blast throws a player */
+const _away = new THREE.Vector3();
 
 interface Rocket {
   mesh: THREE.Mesh;
@@ -97,7 +165,8 @@ export class Game {
   time = 0;
   wave = 0;
   state: MatchState = 'intro';
-  private stateTimer = 2.2;
+  /** the intro clock, and the pause between waves — the rule sets read it */
+  stateTimer = 2.2;
   private rockets: Rocket[] = [];
   private tmpSize = new THREE.Vector2();
   /** the world seen from below the surface: dense teal murk */
@@ -125,26 +194,11 @@ export class Game {
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
-  /** seconds spent on the current wave, for the hunt escalation below */
-  private waveTimer = 0;
-  /** hostiles this wave put on the board — see the wave-clear check */
-  private waveSpawned = 0;
-  private huntCall = 0;
-  private huntAnnounced = false;
+  /** hostiles this wave put on the board — the wave rules' clear check reads it */
+  waveSpawned = 0;
   // ---- modes (docs/MODES.md) ----
   /** the standing boss battle — the mid-board lieutenant or the warlord */
   boss: Enemy | null = null;
-  /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
-  private midBossActive = false;
-  /**
-   * The waves each boss battle rings in after. Normally the design's schedule
-   * (spawner.ts MID_BOSS_WAVE / FINAL_WAVE); ?waves=boss compresses it to a
-   * single wave before each battle, for testing the bosses themselves.
-   */
-  private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
-  private finalWave = bossRush() ? 2 : FINAL_WAVE;
-  /** the lieutenant has fallen; the second run of waves is open */
-  private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
   private bossPhase = 0;
@@ -173,19 +227,26 @@ export class Game {
   private incoming = 0;
   /** alternates eligible transports between setting down and overflying */
   private landToggle = 0;
-  /** campaign controller; null outside campaign mode */
+  /** campaign controller; null outside campaign mode (set by CampaignRules) */
   campaign: Campaign | null = null;
-  /** PvP: the slot that took the territory, for the end screen */
-  winnerSlot = -1;
-  /** per-frame cache behind hostilesFor */
-  private hostileCache = new Map<number, Combatant[]>();
-
+  /** the mode's rule set: everything Wave Battle, PvP and Missions disagree on */
+  readonly rules: ModeRules;
   /**
    * How many of `players` are human, and so how many pieces the screen is cut
    * into. Bots sit after them in the same list — they are players in every way
    * that matters to the match, and in none that matters to the window.
    */
   readonly humans: number;
+  /**
+   * One hand on the controller per bot, made when that bot first needs one and
+   * kept for the life of the match so its burst timing and the way it circles
+   * are its own rather than reset every frame.
+   */
+  private brains = new Map<number, BotBrain>();
+  /** PvP: the slot that took the territory, for the end screen */
+  winnerSlot = -1;
+  /** per-frame cache behind hostilesFor */
+  private hostileCache = new Map<number, Combatant[]>();
 
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
     characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave', bots = 0) {
@@ -210,6 +271,12 @@ export class Game {
       });
     }
 
+    // The rule set comes first: it places the players (PvP starts them apart
+    // on the board's own posts) and, once they exist, opens the match.
+    this.rules = mode === 'pvp' ? new PvpRules(this)
+      : mode === 'campaign' ? new CampaignRules(this)
+        : new WaveRules(this);
+
     this.humans = playerCount;
     for (let i = 0; i < playerCount + bots; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
@@ -220,22 +287,15 @@ export class Game {
         // every fighter is their own side; 0/1 stay meaningful as co-op/hostile
         p.team = 2 + i;
         p.lives = 2; // three stands in total
-        p.spawnAt(this.pvpSpawn(i));
-      } else {
-        p.spawnAt(this.startFor(board, i));
       }
+      p.spawnAt(this.rules.startFor?.(i) ?? this.startFor(i));
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
-    // PvP squad leaders bring their fireteam (docs/MODES.md §3)
-    if (mode === 'pvp') for (const p of this.players) this.spawnSquadFor(p);
-
-    if (mode === 'campaign') {
-      // raises the mission level over the territory and moves the party to its
-      // trailhead; every player keeps their own camera, split-screen as ever
-      this.campaign = new Campaign(this);
-    }
+    // squads, the mission level, the first wave's models: whatever the mode
+    // wants doing once there are players standing on the board
+    this.rules.begin();
 
     // Parked rides belong to the territory's own ground, so they only make
     // sense in the modes fought on it. A mission level is raised to
@@ -278,9 +338,6 @@ export class Game {
       }
     };
 
-    // The intro banner buys a couple of seconds; spend them fetching the models
-    // wave one is about to need, rather than parsing them on the spawn frame.
-    if (mode === 'wave') this.preloadWave(1);
     // The three allies are certain to appear in a full match and are only three
     // files, so warm them now rather than the instant one walks into a firefight.
     // A mission drops two of the same caches, before its arenas.
@@ -299,43 +356,7 @@ export class Game {
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music, board.kind);
-    const objective = mode === 'pvp' ? TEXT.banners.objective.pvp
-      : mode === 'campaign' ? TEXT.banners.objective.campaign
-        : board.objective ?? TEXT.banners.objective.wave;
-    this.events.banner(board.name, objective);
-  }
-
-  /** PvP spawns: the board's own posts, farthest-first so fighters start apart. */
-  private pvpSpawn(slot: number, awayFrom?: THREE.Vector3): THREE.Vector3 {
-    const spawns = this.board.groundSpawns;
-    if (!spawns.length) return this.startFor(this.board, slot);
-    const others = this.players.filter((p) => p.alive).map((p) => p.position);
-    if (awayFrom) others.push(awayFrom);
-    let best = spawns[slot % spawns.length];
-    let bestD = -1;
-    for (const s of spawns) {
-      let d = Infinity;
-      for (const o of others) d = Math.min(d, s.distanceToSquared(o));
-      if (others.length === 0) d = Math.random();
-      if (d > bestD) { bestD = d; best = s; }
-    }
-    return standingSpot(this.board, best.clone().add(new THREE.Vector3(0, 0.2, 0)), 'pyke');
-  }
-
-  /** spawn (or re-spawn) a PvP squad leader's AI fireteam beside them */
-  private spawnSquadFor(p: Player): void {
-    const squad = playableDef(p.characterId).profile.squad;
-    if (!squad) return;
-    // any followers it still has stay; only the missing places are refilled
-    // hunters (a broodmother's brood) share the owner but are not the squad
-    const have = this.enemies.filter((e) => e.owner === p && e.alive && !e.hunts).length;
-    for (let i = have; i < squad.count; i++) {
-      const a = (i / squad.count) * Math.PI * 2;
-      const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
-      const e = new Enemy(squad.kind, at, p.team);
-      e.setOwner(p);
-      this.addEnemy(e, { puff: 6 });
-    }
+    this.events.banner(board.name, this.rules.objective);
   }
 
   /**
@@ -354,22 +375,14 @@ export class Game {
     return list;
   }
 
-  /**
-   * One hand on the controller per bot, made when that bot first needs one and
-   * kept for the life of the match so its burst timing and the way it circles
-   * are its own rather than reset every frame.
-   */
-  private brains = new Map<number, BotBrain>();
-
-  private botInput(p: Player, dt: number): FrameInput {
-    let brain = this.brains.get(p.slot);
-    if (!brain) { brain = new BotBrain(); this.brains.set(p.slot, brain); }
-    return brain.think(p, this, dt);
-  }
-
   /** the campaign controller's mouthpiece (events is private) */
   announce(text: string, sub?: string): void {
     this.events.banner(text, sub);
+  }
+
+  /** the card naming enemy kinds making their first appearance this wave */
+  announceContacts(names: string[]): void {
+    this.events.newContacts?.(names);
   }
 
   /**
@@ -429,7 +442,7 @@ export class Game {
    * bodies exist only in `incoming`, which the wave-clear check and the
    * hostiles counter both treat as hostiles the wave still owes.
    */
-  private stageArrivals(plan: Placement[]): void {
+  stageArrivals(plan: Placement[]): void {
     const squads = new Map<number, Placement[]>();
     for (const p of plan) {
       const list = squads.get(p.squad);
@@ -761,19 +774,102 @@ export class Game {
 
   /** throw every player inside `radius` up and away from the warlord */
   private bossShockwave(b: Enemy, radius: number, dmg: number, push: number): void {
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      const away = p.position.clone().sub(b.position);
-      const d = away.setY(0).length();
-      if (d > radius) continue;
-      away.normalize();
-      if (dmg > 0) p.damage(dmg, b.position, -1, { heavy: true });
-      p.velocity.y = Math.max(p.velocity.y, push * 0.8);
-      p.velocity.x += away.x * push;
-      p.velocity.z += away.z * push;
-      p.cam.shake(dmg > 0 ? 0.3 : 0.15);
+    this.blast(b.position, {
+      // flat, not falling off: standing at the rim of a warlord's slam has
+      // always cost the full 26, and the ember ring promises exactly that reach
+      players: { radius, damage: dmg, flat: true, push, lift: push * 0.8 },
+      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true },
+      sound: 'explosion',
+    });
+  }
+
+  /**
+   * One ring of force, wherever one is needed: the rocket, the warlord's
+   * shock-slam and its phase pulse, a ground slam, an elite's stomp.
+   *
+   * Each class of victim carries its own reach and its own numbers, because
+   * they genuinely differ — a rocket reaches an enemy at 7 m and a player at
+   * 4.5, and scatters corpses further than it hurts anyone. What they share
+   * is everything that used to be copied around them: the distance test, the
+   * linear falloff, the alive check, the friendly-fire guard, and the fact
+   * that a blast is loud. `zero` is where the falloff reaches nothing; left
+   * out it is the reach itself, and set beyond it the rim still takes some.
+   */
+  private blast(point: THREE.Vector3, spec: BlastSpec): void {
+    const byTeam = spec.bySlot !== undefined && spec.bySlot >= 0
+      ? this.players[spec.bySlot]?.team ?? -1 : -1;
+    const bySlot = spec.bySlot ?? -1;
+    const share = (ring: Ring, d: number): number =>
+      ring.flat ? 1 : Math.max(0, 1 - d / (ring.zero ?? ring.radius));
+
+    // Scenery first: an explosive barrel detonates from in here, and resolving
+    // the chain outward before anything else is hurt is the order this has
+    // always run in.
+    if (spec.breakables) this.damageBreakablesNear(point, spec.breakables.radius, spec.breakables.damage);
+    if (spec.enemies) {
+      const ring = spec.enemies;
+      for (const e of this.enemies) {
+        if (!e.alive || e.team === byTeam) continue;
+        const d = e.position.distanceTo(point);
+        if (d >= ring.radius) continue;
+        if (ring.damage) e.damage(ring.damage * share(ring, d), point, bySlot);
+        if (ring.push) e.knockback(point, ring.push, ring.stagger);
+        if (ring.knockdown) e.knockdown(ring.knockdown[0] + Math.random() * ring.knockdown[1]);
+      }
     }
-    audio.explosion();
+    if (spec.corpses) {
+      // a blast scatters what is already lying there, which is half of what
+      // an explosion looks like
+      const ring = spec.corpses;
+      for (const e of this.enemies) {
+        if (!e.corpse) continue;
+        const d = e.position.distanceTo(point);
+        if (d < ring.radius) e.shoveCorpse(point, ring.damage * share(ring, d));
+      }
+    }
+    if (spec.players) {
+      const ring = spec.players;
+      // No friendly-fire guard here, deliberately: your own rocket at your own
+      // feet has always cost you, and a co-op partner standing in it takes the
+      // same graze. The guard above is about a squad and a brood, which live
+      // in `enemies` on their owner's team.
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = p.position.distanceTo(point);
+        if (d >= ring.radius) continue;
+        // PvP lets a rocket end a duel, but never turns its own thrower into
+        // the easier kill: the rival's share is the caller's `rival` number.
+        const dmg = ring.rival !== undefined && bySlot >= 0 && p.slot !== bySlot
+          ? ring.rival : ring.damage;
+        if (dmg) p.damage(dmg * share(ring, d), point, bySlot, { heavy: true });
+        if (ring.push) {
+          _away.subVectors(p.position, point).setY(0);
+          if (_away.lengthSq() > 1e-6) _away.normalize();
+          p.velocity.x += _away.x * ring.push;
+          p.velocity.z += _away.z * ring.push;
+          if (ring.lift) p.velocity.y = Math.max(p.velocity.y, ring.lift);
+        }
+      }
+    }
+    if (spec.vehicles) {
+      const ring = spec.vehicles;
+      for (const v of this.vehicles) {
+        if (!v.alive) continue;
+        const d = v.pos.distanceTo(point);
+        // dead centre is the rider's own ride going up under them
+        if (d > 0.5 && d < ring.radius) v.damage(ring.damage * share(ring, d), point, bySlot);
+      }
+    }
+    if (spec.shake) {
+      const { amount, radius, flat } = spec.shake;
+      for (const p of this.players) {
+        const d = p.position.distanceTo(point);
+        p.cam.shake(flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius)));
+      }
+    }
+    if (spec.noise) this.director.noise(this, point, spec.noise, true);
+    if (spec.sound === 'explosion') audio.explosion();
+    else if (spec.sound === 'impact') audio.impact();
   }
 
   /**
@@ -906,7 +1002,8 @@ export class Game {
    * remember a number, and the height is taken from the spot they extend so
    * nobody starts inside the ground or under a deck.
    */
-  private startFor(board: Board, i: number): THREE.Vector3 {
+  startFor(i: number): THREE.Vector3 {
+    const board = this.board;
     const declared = board.playerStarts[i];
     if (declared) return declared;
     const base = board.playerStarts[board.playerStarts.length - 1] ?? board.playerStarts[0];
@@ -916,51 +1013,42 @@ export class Game {
     return base.clone().setX(base.x + step * (i - board.playerStarts.length + 1));
   }
 
+  /** one hand on the controller per bot, kept for the life of the match */
+  private botInput(p: Player, dt: number): FrameInput {
+    let brain = this.brains.get(p.slot);
+    if (!brain) { brain = new BotBrain(); this.brains.set(p.slot, brain); }
+    return brain.think(p, this, dt);
+  }
+
   hitMarker(slot: number): void {
     this.events.hitMarker(slot);
     audio.hitMarker();
   }
 
+  /**
+   * The HUD's marker without the sound: a scoring beat (a PvP down) rather
+   * than a bolt landing, which already made its own noise where it hit.
+   */
+  scoreMarker(slot: number): void {
+    this.events.hitMarker(slot);
+  }
+
   private explode(point: THREE.Vector3, bySlot: number): void {
     this.particles.explosion(point);
-    audio.explosion();
-    this.director.noise(this, point, 70, true); // an explosion is not subtle
-    this.damageBreakablesNear(point, 6, 90);    // scenery is not exempt (chains!)
-    for (const p of this.players) p.cam.shake(Math.max(0, 0.35 - point.distanceTo(p.position) * 0.01));
-    // whose blast this is: a PvP squad follower or a broodmother's own eggs
-    // sit in `enemies` on the thrower's team, and a rocket must not kill
-    // them — nor credit the kill, since lastHitBy carries no team check
-    const byTeam = bySlot >= 0 ? this.players[bySlot]?.team ?? -1 : -1;
-    for (const e of this.enemies) {
-      if (!e.alive || e.team === byTeam) continue;
-      const d = e.position.distanceTo(point);
-      if (d < 7) {
-        e.damage(90 * (1 - d / 8), point, bySlot);
-        e.knockback(point, 18, 0.6);
-        e.knockdown(1.4 + Math.random() * 0.8); // blast wave puts them flat
-      }
-    }
-    // a blast scatters what is already lying there, which is half of what an
-    // explosion looks like
-    for (const e of this.enemies) {
-      if (!e.corpse) continue;
-      const d = e.position.distanceTo(point);
-      if (d < 9) e.shoveCorpse(point, 26 * (1 - d / 10));
-    }
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      const d = p.position.distanceTo(point);
-      // in pvp a rocket is a duel-ender against the rival, but never turns
-      // its own thrower into the easier kill
-      const base = this.mode === 'pvp' && bySlot >= 0 && p.slot !== bySlot ? 70 : 18;
-      if (d < 4.5) p.damage(base * (1 - d / 4.5), point, bySlot, { heavy: true });
-    }
-    // parked rides are scenery with hit points — blasts reach them too
-    for (const v of this.vehicles) {
-      if (!v.alive) continue;
-      const d = v.pos.distanceTo(point);
-      if (d > 0.5 && d < 7) v.damage(80 * (1 - d / 8), point, bySlot);
-    }
+    this.blast(point, {
+      bySlot,
+      // the blast wave puts a body flat as well as hurting it
+      enemies: { radius: 7, damage: 90, zero: 8, push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
+      corpses: { radius: 9, damage: 26, zero: 10 },
+      // in PvP a rocket is a duel-ender against a rival; against yourself it
+      // is the same graze it has always been
+      players: { radius: 4.5, damage: 18, rival: this.mode === 'pvp' ? 70 : undefined },
+      vehicles: { radius: 7, damage: 80, zero: 8 },
+      breakables: { radius: 6, damage: 90 },   // scenery is not exempt (chains!)
+      shake: { amount: 0.35, radius: 35 },
+      noise: 70,                                // an explosion is not subtle
+      sound: 'explosion',
+    });
   }
 
   /**
@@ -1042,57 +1130,11 @@ export class Game {
       }
     }
 
-    // ---- match flow (per mode) ----
+    // ---- the mode's own rules (docs/MODES.md §1) ----
+    // The wave clock, PvP's scoring, the campaign's objectives: one call, and
+    // the simulation below it is the same in all three.
     this.stateTimer -= dt;
-    if (this.mode === 'wave') {
-      if (this.state === 'intro' && this.stateTimer <= 0) this.nextWave();
-      if (this.state === 'break' && this.stateTimer <= 0) this.nextWave();
-      // A wave is cleared once everything it spawned is down. Testing
-      // `enemies.length > 0` instead — as a stand-in for "the wave has started" —
-      // stalled the station permanently: enemies knocked into the abyss are
-      // removed the same frame they die, rather than lingering as a corpse, so
-      // the array could empty completely and the check could never fire again.
-      if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0
-          && this.incoming === 0 && !this.monsterStaging) {
-        // the fallen fade away now that the wave is decided
-        for (const e of this.enemies) if (!e.alive) e.fadeOut();
-        // cache backup was for this wave only: the squad melts back into the
-        // covert, and an uncracked crate leaves with its chance
-        if (this.allyCrate) {
-          this.allyCrate.retire(this);
-          this.allyCrate = null;
-        }
-        if (this.wave > this.finalWave) {
-          // the warlord is down: the territory is truly held
-          this.setState('victory');
-          this.events.banner(TEXT.banners.territoryHeld.title, TEXT.banners.territoryHeld.sub);
-          audio.waveClear();
-        } else if (this.midBossActive) {
-          // the lieutenant falls; the second run of waves opens
-          this.midBossActive = false;
-          this.midBossDown = true;
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner(TEXT.banners.lieutenantFalls.title, TEXT.banners.lieutenantFalls.sub);
-          audio.waveClear();
-        } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
-          // a boss battle rings in on the next bell
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner(TEXT.banners.waveCleared(this.wave), TEXT.banners.somethingBig);
-          audio.waveClear();
-        } else {
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner(TEXT.banners.waveCleared(this.wave));
-          audio.waveClear();
-        }
-      }
-    } else if (this.state === 'intro' && this.stateTimer <= 0) {
-      // pvp and campaign have no wave clock: the intro simply opens the match
-      this.setState('fighting');
-      this.wave = 1;
-    }
+    this.rules.update(dt);
 
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     if (this.state === 'fighting') this.updateMonsterStage(dt);
@@ -1103,60 +1145,18 @@ export class Game {
     // the supply cache pulses until someone cracks it, then sheds its panels
     this.allyCrate?.update(dt);
 
-    // ---- campaign objectives ----
-    // the doors move whatever the match is doing; what they are *for* is only
-    // decided while it is being fought
+    // the doors move whatever the match is doing; what they are *for* is
+    // decided by the campaign's own rules above
     this.campaign?.animateGates(dt);
-    if (this.campaign && this.state === 'fighting') {
-      this.campaign.update(dt);
-      if (this.campaign.done && this.state === 'fighting') {
-        this.setState('victory');
-        this.events.banner(TEXT.banners.territoryLiberated.title, TEXT.banners.territoryLiberated.sub);
-        audio.waveClear();
-      }
-    }
-
-    // ---- pvp: lives, credit, the last one standing ----
-    if (this.mode === 'pvp' && this.state === 'fighting') this.updatePvp();
 
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
-      if (this.mode === 'pvp') {
-        // PvP keeps its finite stands: elimination is the mode's win condition
-        if (p.lives > 0) {
-          p.lives--;
-          p.deathCounted = false;
-          // a player who fell mid-morph (died as the hatchling) comes back
-          // as the fighter they picked, not the body they borrowed
-          if (p.characterId !== p.baseCharacterId) p.morph(p.baseCharacterId, this);
-          p.spawnAt(this.pvpSpawn(p.slot, p.position));
-          this.spawnSquadFor(p);   // the fireteam re-forms on its leader
-          this.particles.dustPuff(p.position, 10);
-        }
-        // out of lives: eliminated — updatePvp calls the match
-      } else if (this.mode === 'campaign') {
-        // arcade checkpointing: the walk back is the cost (LEVEL_DESIGN.md §2)
-        p.spawnAt(this.campaign?.respawnSpot(p.slot) ?? this.board.playerStarts[0].clone());
-        p.hp = p.maxHp * 0.8;
-        this.events.banner(TEXT.banners.backOnYourFeet.title, TEXT.banners.backOnYourFeet.sub);
-      } else {
-        const partnerAlive = this.players.some((o) => o !== p && o.alive);
-        if (INFINITE_LIVES || (this.players.length > 1 && partnerAlive)) {
-          p.spawnAt(this.board.playerStarts[p.slot] ?? this.board.playerStarts[0]);
-          if (this.players.length > 1) p.hp = p.maxHp * 0.6;
-        } else {
-          this.setState('defeat');
-          this.events.banner(TEXT.banners.hunterFallen);
-        }
-      }
+      this.rules.respawn(p);
     }
-    if (!INFINITE_LIVES && this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
-      this.setState('defeat');
-      this.events.banner(TEXT.banners.huntersFallen);
-    }
+    this.rules.partyWiped?.();
 
     // ---- vehicles ----
     // Ridden ones were driven inside their rider's update; this settles the
@@ -1179,26 +1179,6 @@ export class Game {
       if (v.removeMe) this.scene.remove(v.group);
     }
     this.vehicles = this.vehicles.filter((v) => !v.removeMe);
-
-    // ---- hunt escalation (wave mode only: campaign posts hold their path) ----
-    // Posted enemies wait to be found, which must not let a wave stall out: if
-    // one drags on, or is down to its last few bodies scattered over the
-    // board, the remnant starts sweeping toward the players instead. (45 s
-    // and ≤ 3 left, from 80 s — waves 1–3 were mostly walking, audit L8.)
-    if (this.mode === 'wave' && this.state === 'fighting') {
-      this.waveTimer += dt;
-      this.huntCall -= dt;
-      const remnant = this.waveSpawned > 0 && this.incoming === 0 && this.aliveEnemyCount <= HUNT_REMNANT;
-      if ((this.waveTimer > HUNT_AFTER || remnant) && this.huntCall <= 0) {
-        this.huntCall = 22;
-        const p = this.players.find((pl) => pl.alive) ?? this.players[0];
-        for (const e of this.enemies) if (e.alive) e.alert(p.position, false);
-        if (!this.huntAnnounced) {
-          this.huntAnnounced = true;
-          this.events.banner(TEXT.banners.sweepingForYou);
-        }
-      }
-    }
 
     // ---- enemies ----
     this.director.update(dt, this);
@@ -1239,92 +1219,38 @@ export class Game {
       // a burrower under the ground is alive and on the bar, and not a body
       // to shoot: bolts pass over the wake and the lock-on finds nothing
       if (!e.targetable) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = e;
-      t.player = null;
-      t.position.set(e.position.x, e.position.y + e.height * 0.5, e.position.z);
-      t.radius = e.radius + 0.35;
-      t.team = e.team;
-      t.alive = true;
-      t.shield = e.shieldCollider;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
-      // long bodies (the war massiff) need more than the one centre sphere.
-      // Read off the instance, not the shared Def: a promoted boss carries its
-      // own grown copy.
-      if (e.hitParts.length) {
-        const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
-        for (const part of e.hitParts) {
-          const h = this.pooledTarget(slot++);
-          h.enemy = e;
-          h.player = null;
-          h.position.set(
-            e.position.x + sin * part.z,
-            e.position.y + part.y,
-            e.position.z + cos * part.z,
-          );
-          h.radius = part.r;
-          h.team = e.team;
-          h.alive = true;
-          h.shield = null;
-          h.slot = undefined;
-          h.breakable = null;
-          h.vehicle = null;
-          h.corpse = false;
-          targets.push(h);
-        }
-      }
+      // the extra spheres come off the instance, not the shared Def: a
+      // promoted boss carries its own grown copy
+      _body.position = e.position;
+      _body.yaw = e.yaw;
+      _body.team = e.team;
+      _body.hitHeight = e.height;
+      _body.hitRadius = e.radius;
+      _body.parts = e.hitParts;
+      _body.shield = e.shieldCollider;
+      _body.shieldCoversParts = false;
+      _body.slot = undefined;
+      slot = this.addBody(slot, _body, e, null);
     }
     for (const p of this.players) {
       if (!p.alive) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = null;
-      t.player = p;
+      // a blade sends the bolt back at somebody, so the player needs to be
+      // told who is in front of them before the collider is read
+      p.deflectEnemy = p.sabersDrawn ? this.nearestHostileInFront(p) : null;
       // Shot as the creature they are, not as the collider they walk in: the
       // profile's hit volume is the NPC's own, so a playable massiff takes a
       // bolt anywhere the same animal would as a hostile. A Mandalorian's two
       // numbers agree, so this is where it has always been for him.
-      t.position.set(p.position.x, p.position.y + p.profile.hitHeight * 0.5, p.position.z);
-      t.radius = p.profile.hitRadius + 0.35;
-      t.team = p.team;
-      t.alive = true;
-      // a blade sends the bolt back at somebody, so the player needs to be
-      // told who is in front of them before the collider is read
-      p.deflectEnemy = p.sabersDrawn ? this.nearestHostileInFront(p) : null;
-      t.shield = p.shieldCollider;
-      t.slot = p.slot;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
-      // and the same extra spheres a long-bodied kind gets as a hostile
-      if (p.profile.hitParts.length) {
-        const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
-        for (const part of p.profile.hitParts) {
-          const h = this.pooledTarget(slot++);
-          h.enemy = null;
-          h.player = p;
-          h.position.set(
-            p.position.x + sin * part.z,
-            p.position.y + part.y,
-            p.position.z + cos * part.z,
-          );
-          h.radius = part.r;
-          h.team = p.team;
-          h.alive = true;
-          // the raised pane is a real thing in front of the whole fighter, so
-          // it answers for every sphere, not just the one on the chest
-          h.shield = p.shieldCollider;
-          h.slot = p.slot;
-          h.breakable = null;
-          h.vehicle = null;
-          h.corpse = false;
-          targets.push(h);
-        }
-      }
+      _body.position = p.position;
+      _body.yaw = p.yaw;
+      _body.team = p.team;
+      _body.hitHeight = p.profile.hitHeight;
+      _body.hitRadius = p.profile.hitRadius;
+      _body.parts = p.profile.hitParts;
+      _body.shield = p.shieldCollider;
+      _body.shieldCoversParts = true;
+      _body.slot = p.slot;
+      slot = this.addBody(slot, _body, null, p);
     }
     // ---- corpses ----
     // A body that has stopped moving is still a body. Team 2 is the scenery
@@ -1336,18 +1262,12 @@ export class Game {
     for (const e of this.enemies) {
       const body = e.corpse;
       if (!body) continue;
-      const t = this.pooledTarget(slot++);
+      const t = this.claim(slot++);
       t.enemy = e;
-      t.player = null;
       t.corpse = true;
       t.position.copy(body.at);
       t.radius = body.radius;
       t.team = 2;
-      t.alive = true;
-      t.shield = null;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
       targets.push(t);
     }
 
@@ -1368,17 +1288,11 @@ export class Game {
         const alongX = size.x >= size.z;
         for (let i = -steps; i <= steps; i++) {
           const t = steps === 0 ? 0 : (i / steps) * span;
-          const p = this.pooledBreakTarget(slot++);
+          const p = this.claim(slot++);
           p.position.set(b.center.x + (alongX ? t : 0), b.center.y, b.center.z + (alongX ? 0 : t));
           p.radius = b.radius;
           p.team = 2;
-          p.alive = true;
-          p.shield = null;
-          p.slot = undefined;
-          p.enemy = null;
-          p.player = null;
           p.breakable = b;
-          p.vehicle = null;
           targets.push(p);
         }
       }
@@ -1392,35 +1306,26 @@ export class Game {
       const steps = Math.max(0, Math.ceil(v.def.length / 2 / r) - 1);
       for (let i = -steps; i <= steps; i++) {
         const along = steps === 0 ? 0 : (i / steps) * (v.def.length / 2 - r * 0.5);
-        const t = this.pooledTarget(slot++);
-        t.enemy = null;
-        t.player = null;
-        t.breakable = null;
+        const t = this.claim(slot++);
         t.vehicle = v;
         t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
         t.radius = r;
         t.team = 2;
-        t.alive = true;
-        t.shield = null;
-        t.slot = undefined;
         targets.push(t);
       }
     }
     for (const a of this.allies) {
       if (!a.alive) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = a;
-      t.player = null;
-      t.position.set(a.position.x, a.position.y + a.height * 0.5, a.position.z);
-      t.radius = a.radius + 0.35;
-      t.team = 0;
-      t.alive = true;
-      t.shield = null;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
+      _body.position = a.position;
+      _body.yaw = a.yaw;
+      _body.team = 0;
+      _body.hitHeight = a.height;
+      _body.hitRadius = a.radius;
+      _body.parts = NO_PARTS;   // an ally is a body, not a boss: one sphere is enough
+      _body.shield = null;
+      _body.shieldCoversParts = false;
+      _body.slot = undefined;
+      slot = this.addBody(slot, _body, a, null);
     }
     this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
 
@@ -1496,6 +1401,65 @@ export class Game {
   }
 
   /**
+   * A blank pooled entry: every owner field cleared, so nothing an earlier
+   * frame put on it can leak into what this one stands for.
+   */
+  private claim(i: number): PooledTarget {
+    const t = this.pooledTarget(i);
+    t.enemy = null;
+    t.player = null;
+    t.breakable = null;
+    t.vehicle = null;
+    t.corpse = false;
+    t.shield = null;
+    t.slot = undefined;
+    t.alive = true;
+    return t;
+  }
+
+  /**
+   * Stand one body up as bolt targets: the sphere on its chest, plus the extra
+   * spheres a long body carries (a war massiff is five metres of animal behind
+   * one 0.85 m sphere, and shots at its head used to pass through).
+   *
+   * A hostile and a playable are the same problem, and were two nearly
+   * identical twenty-line blocks — the second of which had already drifted
+   * (the player's pane answers for every sphere, the enemy's only for its
+   * chest, which is deliberate and now says so once).
+   */
+  private addBody(slot: number, b: HitBody, enemy: Enemy | null, player: Player | null): number {
+    const t = this.claim(slot++);
+    t.enemy = enemy;
+    t.player = player;
+    t.position.set(b.position.x, b.position.y + b.hitHeight * 0.5, b.position.z);
+    t.radius = b.hitRadius + 0.35;
+    t.team = b.team;
+    t.shield = b.shield;
+    t.slot = b.slot;
+    this.targets.push(t);
+    if (!b.parts.length) return slot;
+    const sin = Math.sin(b.yaw), cos = Math.cos(b.yaw);
+    for (const part of b.parts) {
+      const h = this.claim(slot++);
+      h.enemy = enemy;
+      h.player = player;
+      h.position.set(
+        b.position.x + sin * part.z,
+        b.position.y + part.y,
+        b.position.z + cos * part.z,
+      );
+      h.radius = part.r;
+      h.team = b.team;
+      // the raised pane is a real thing in front of the whole fighter, so it
+      // answers for every sphere; a hostile's shield only covers its chest
+      h.shield = b.shieldCoversParts ? b.shield : null;
+      h.slot = b.slot;
+      this.targets.push(h);
+    }
+    return slot;
+  }
+
+  /**
    * A reusable bolt-target entry. Its `onHit` is allocated once and dispatches
    * through the entry, so credit still goes to whoever pulled the trigger —
    * deriving it from the impact position handed player A's kills to player B
@@ -1540,115 +1504,12 @@ export class Game {
     return entry;
   }
 
-  /** A pooled entry standing in for part of a breakable prop. */
-  private pooledBreakTarget(i: number): PooledTarget {
-    return this.pooledTarget(i);
-  }
-
-  /**
-   * Warm the .glb cache for everything a wave can put on the board.
-   *
-   * `now`, because the wave is the next thing to happen — but through the warm
-   * queue all the same, so a six-kind wave cannot open six downloads at once
-   * across a connection the match is already using for its scenery.
-   */
-  private preloadWave(wave: number): void {
-    if (wave > this.finalWave) return;
-    for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
-      for (const id of enemyModelIds(entry.kind)) warmAuthored(id, 'now');
-    }
-    // Allies are not part of a wave's composition, so they were downloading
-    // cold at the moment they walked in — mid-fight, against a spawn storm.
-    const ally = ALLY_WAVES[wave];
-    if (ally) {
-      for (const id of enemyModelIds(ally)) warmAuthored(id, 'now');
-    }
-  }
-
-  private setState(s: MatchState): void {
+  setState(s: MatchState, timer?: number): void {
     this.state = s;
+    if (timer !== undefined) this.stateTimer = timer;
     if (s === 'victory') audio.sting(true);
     if (s === 'defeat') audio.sting(false);
     this.events.stateChanged(s);
-  }
-
-  /** PvP scoring and the last-one-standing call (docs/MODES.md §3). */
-  private updatePvp(): void {
-    for (const p of this.players) {
-      if (p.alive || p.deathCounted) continue;
-      p.deathCounted = true;
-      // a squad leader with a living follower isn't done: the player carries
-      // on in the survivor's body, and only a wiped squad spends a stand
-      const heir = this.squadHeir(p);
-      const killer = p.lastHitBy >= 0 && p.lastHitBy !== p.slot ? this.players[p.lastHitBy] : null;
-      if (killer) {
-        killer.kills++;
-        this.events.hitMarker(killer.slot);
-        this.events.banner(TEXT.banners.downs(killer.profile.name, p.profile.name),
-          heir ? TEXT.banners.squadFightsOn
-            : p.lives > 0 ? TEXT.banners.standsLeft(p.lives) : TEXT.banners.isOut(p.profile.name));
-      } else if (!heir && p.lives <= 0) {
-        this.events.banner(TEXT.banners.isOut(p.profile.name));
-      }
-      audio.killConfirm();
-      if (heir) this.takeOverFollower(p, heir);
-    }
-    const standing = this.players.filter((p) => p.alive || p.lives > 0 || p.respawnTimer > 0);
-    if (this.players.length > 1 && standing.length <= 1) {
-      const winner = standing[0]
-        ?? this.players.reduce((a, b) => (b.kills > a.kills ? b : a), this.players[0]);
-      this.winnerSlot = winner.slot;
-      this.setState('victory');
-      audio.pvpRoundWin();   // the duel gets its own sting over the victory music
-      this.events.banner(TEXT.banners.takesTheTerritory(winner.profile.name), TEXT.banners.thisIsTheWay);
-    }
-  }
-
-  /** the nearest living squad follower a fallen PvP leader can carry on as */
-  private squadHeir(p: Player): Enemy | null {
-    let best: Enemy | null = null;
-    let bestD = Infinity;
-    for (const e of this.enemies) {
-      if (e.owner !== p || !e.alive) continue;
-      if (e.def.egg) continue;   // an unhatched egg is not a body to carry on in
-      const d = e.position.distanceToSquared(p.position);
-      if (d < bestD) { bestD = d; best = e; }
-    }
-    return best;
-  }
-
-  /**
-   * The fallen leader lives on in a surviving squadmate: the AI shell retires
-   * without a death (no credit, no burst of its own) and the player stands up
-   * in its place with whatever health the survivor had left. The camera flies
-   * over rather than cutting — glideFrom eases the position across while
-   * snapToward swings the look onto the new body.
-   *
-   * When the survivor is a different kind — the broodmother's hatchling —
-   * the player morphs into *its* body, and the growth clock arms: survive
-   * ten seconds as the hatchling and grow back into what fell.
-   */
-  private takeOverFollower(p: Player, heir: Enemy): void {
-    const healthFrac = Math.max(0.3, Math.min(1, heir.hp / heir.maxHp));
-    heir.alive = false;
-    heir.counted = true;   // not a kill: no score, no death FX
-    heir.removeMe = true;
-    // the leader's body goes down in a burst where it fell
-    this.particles.deathBurst(p.position.clone().add(new THREE.Vector3(0, p.height * 0.5, 0)));
-    const wasId = p.characterId;
-    if (`npc:${heir.kind}` !== wasId) {
-      p.morph(`npc:${heir.kind}`, this);
-      p.beginGrowth(wasId, 10);
-    }
-    p.cam.glideFrom(0.8);
-    p.cancelRebirth();   // possessing a standing body: no re-form to play
-    p.spawnAt(heir.position);
-    p.hp = p.maxHp * healthFrac;
-    p.deathCounted = false;   // the next death counts fresh
-    const look = heir.position.clone();
-    look.y += p.height;
-    p.cam.snapToward(look, 0.45);
-    this.particles.dustPuff(p.position, 6);
   }
 
   /**
@@ -1694,29 +1555,28 @@ export class Game {
     return egg;
   }
 
-  /** HUD top line, per mode (the HUD stays mode-agnostic) */
-  hudTopLine(p: Player): string {
-    if (this.state === 'victory') return TEXT.hud.victory;
-    if (this.mode === 'pvp') {
-      const stands = (p.alive ? 1 : 0) + p.lives;
-      return stands > 0 ? TEXT.hud.standsLeft(stands) : TEXT.hud.eliminated;
-    }
-    if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? TEXT.hud.followBeacon;
-    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? TEXT.hud.theWarlord;
-    return TEXT.hud.wave(Math.max(this.wave, 1));
+  /**
+   * Ring the next wave. Only the wave game has one; the other modes ignore
+   * it. Kept on `Game` because the suites drive the flow through it.
+   */
+  nextWave(): void {
+    if (this.rules instanceof WaveRules) this.rules.nextWave();
   }
 
-  /** HUD score line, per mode */
+  /** HUD top line: the mode's, or the shared default (the HUD stays mode-agnostic) */
+  hudTopLine(p: Player): string {
+    if (this.state === 'victory') return TEXT.hud.victory;
+    return this.rules.topLine(p) ?? TEXT.hud.wave(Math.max(this.wave, 1));
+  }
+
+  /** HUD score line: the mode's, or the shared kills-and-hostiles count */
   hudScoreLine(p: Player): string {
-    if (this.mode === 'pvp') {
-      const rivals = this.players.filter((o) => o !== p && (o.alive || o.lives > 0 || o.respawnTimer > 0)).length;
-      return TEXT.hud.killsAndRivals(p.kills, rivals);
-    }
-    return TEXT.hud.killsAndHostiles(p.kills, this.aliveEnemyCount + this.incoming);
+    return this.rules.scoreLine(p)
+      ?? TEXT.hud.killsAndHostiles(p.kills, this.aliveEnemyCount + this.incoming);
   }
 
   /** the far side of the board: the last resort for a boss with nowhere in view to stand */
-  private farPost(): THREE.Vector3 {
+  farPost(): THREE.Vector3 {
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     let far = this.board.groundSpawns[0] ?? near;
     for (const s of this.board.groundSpawns) {
@@ -1731,72 +1591,6 @@ export class Game {
    * reveal pans onto a figure, not a dot on the horizon (audit B10). Only the
    * far side of the board when nothing in view will hold him.
    */
-  private bossPost(tier: 'mid' | 'final'): THREE.Vector3 {
-    const p = this.players.find((pl) => pl.alive) ?? this.players[0];
-    if (!p) return this.farPost();
-    const kind = tier === 'mid' ? MID_BOSS[this.board.kind].kind : BOSS_KIND[this.board.kind];
-    return postInView(this.board, p.position, p.cam.yaw, kind) ?? this.farPost();
-  }
-
-  private nextWave(): void {
-    this.waveTimer = 0;
-    this.waveSpawned = 0;
-    this.huntCall = 0;
-    this.huntAnnounced = false;
-    this.setState('fighting');
-    // clearing wave MID_BOSS_WAVE rings in the lieutenant's battle instead of
-    // the next wave: the board's first boss posts at the far side with a guard
-    if (this.wave === this.midBossWave && !this.midBossDown) {
-      this.midBossActive = true;
-      this.spawnBoss(this.bossPost('mid'), 'mid');
-      return;
-    }
-    this.wave++;
-    // past the final wave is the warlord's battle, and the last bell
-    if (this.wave > this.finalWave) {
-      this.spawnBoss(this.bossPost('final'), 'final');
-      return;
-    }
-    const near = this.players[0]?.position ?? this.board.playerStarts[0];
-    if (this.wave <= 1) {
-      // the first wave is the garrison already holding the territory: it is
-      // simply there, posted, waiting to be found
-      spawnWave(this.board, this.wave, this.players.length, near, (e) => this.addEnemy(e, { counts: true, puff: 10 }));
-    } else {
-      // every later wave is reinforcements, and reinforcements arrive:
-      // carriers streak over and drop squads, locals run in over the edge,
-      // quarren surface from the sea, fliers cross in at altitude
-      this.stageArrivals(planWave(this.board, this.wave, this.players.length, near));
-    }
-    // the break before the next wave is the lead time for its new arrivals
-    this.preloadWave(this.wave + 1);
-    const scattered = this.aliveEnemyCount + this.incoming;
-    this.events.banner(
-      TEXT.banners.wave(this.wave),
-      this.wave === this.finalWave ? TEXT.banners.finalWave(scattered) : TEXT.banners.huntThemDown(scattered),
-    );
-    // the little card naming kinds that debut this wave — the wave tables
-    // are deterministic in which kinds appear, so a diff against every
-    // earlier wave is exactly "first appearance"
-    const seen = new Set<EnemyKind>();
-    for (let w = 1; w < this.wave; w++) {
-      for (const entry of waveComposition(this.board.kind, w, this.players.length)) seen.add(entry.kind);
-    }
-    const fresh = [...new Set(
-      waveComposition(this.board.kind, this.wave, this.players.length).map((entry) => entry.kind)
-    )].filter((k) => !seen.has(k));
-    if (fresh.length) this.events.newContacts?.(fresh.map((k) => ENEMY_NAME[k]));
-    audio.waveStart();
-
-    // the covert's supply cache on milestone waves: a glowing crate near the
-    // party, holding a squad of allies for whoever cracks it open (allycrate.ts)
-    const cacheKind = ALLY_WAVES[this.wave] ?? null;
-    if (cacheKind) {
-      this.allyCrate = new AllyCrate(this, cacheKind, this.players[0]?.position ?? this.board.playerStarts[0]);
-      this.events.banner(TEXT.banners.wave(this.wave), TEXT.banners.supplyCache);
-    }
-  }
-
   /**
    * Give the scene something for metal to reflect.
    *
