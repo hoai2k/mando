@@ -37,7 +37,18 @@ import { disposeSubtree } from '../core/dispose';
 export type Shell = 'open' | 'canyon' | 'hall' | 'deck' | 'road';
 export type Encounter = 'start' | 'trek' | 'camp' | 'assault' | 'chase' | 'lieutenant' | 'warlord';
 export type RidgeStyle = 'rock' | 'ice' | 'basalt' | 'ruin' | 'hull' | 'tank' | 'warehouse' | 'panel';
-export type StageKind = 'built' | 'interior';
+/**
+ * What a stage is made of.
+ *
+ * `built` and `interior` raise plates high over the territory — clean,
+ * intentional geometry on any board. The other three stand on ground that
+ * already exists, which is what lets a run open on the Dune Sea's own dunes
+ * rather than on a copy of them: `territory` lays zones over the wave board's
+ * terrain and rims them with cliffs, `plant` lays them over a board that is
+ * already a building (the Refinery) and adds nothing but the fights, and
+ * `sea` lays them on a seabed under water.
+ */
+export type StageKind = 'built' | 'interior' | 'territory' | 'plant' | 'sea';
 export type ZoneFeature = 'pit' | 'lava' | 'shock' | 'barrels' | 'pillars' | 'crates';
 
 /** an authored sculpt placed in zone-local coordinates */
@@ -133,6 +144,18 @@ export interface StageSpec {
   };
   /** overrides the spec's ceiling for this stage */
   ceiling?: number;
+  /**
+   * Where a ground stage is laid on the board and which way it runs: the
+   * first zone's near edge, and the heading the chain walks. Plates pick
+   * their own empty patch of sky; ground has to be told which ground.
+   */
+  anchor?: { x: number; z: number; dx: number; dz: number };
+  /**
+   * Ring a ground stage with cliffs. On by default for `territory` — the rim
+   * is what stops a run wandering off across a whole wave board — and off for
+   * `plant` and `sea`, where the building and the water already hold it in.
+   */
+  rim?: boolean;
   zones: ZoneSpec[];
   links: LinkSpec[];
 }
@@ -201,8 +224,19 @@ export interface MissionStage {
   exitPortal: Portal | null;
   /** the transport door back to the last stage, where there is one */
   backPortal: Portal | null;
+  /** the stage's representative floor height — the ceiling is measured off it */
   floorY: number;
   ceilingY: number;
+  /**
+   * The walkable surface under a column.
+   *
+   * A plate stage answers `floorY` everywhere; a ground stage answers the
+   * board's own terrain, which is the whole point of it. Everything that used
+   * to compare against a single floor — where a body stands, who counts as
+   * inside a zone, who has fallen off the level — asks this instead, because
+   * on real ground "the floor" is not one number.
+   */
+  groundAt(x: number, z: number): number;
   /** a local water plane, where the stage has one */
   waterY?: number;
   /** is this x,z over the stage's walkable footprint? */
@@ -475,6 +509,13 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const baseWallH = spec.wallH ?? WALL_H;
   const ceiling = stage.ceiling ?? spec.ceiling;
   const interior = stage.kind === 'interior';
+  /** this stage stands on ground the board already has, not on plates */
+  const onGround = stage.kind === 'territory' || stage.kind === 'plant' || stage.kind === 'sea';
+  /** a `plant` adds fights to a building that is already built; it lays no geometry */
+  const bare = stage.kind === 'plant' || stage.kind === 'sea';
+  const wantRim = stage.rim ?? (stage.kind === 'territory');
+  const terrainAt = (x: number, z: number): number =>
+    board.physics.heightAt ? board.physics.heightAt(x, z) : 0;
   const rand = rng(index * 104729 + stage.zones.length * 7919 + pal.wall);
 
   // ---- materials (own copies: mat() caches by colour and shares game-wide) ----
@@ -570,8 +611,27 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     return h;
   };
 
-  const floorY = MISSION_Y;
-  const ceilingY = floorY + ceiling;
+  // A plate stage floats at a fixed altitude; a ground stage takes the height
+  // of the ground it was anchored to. The ceiling is measured off the *highest*
+  // ground the chain crosses, so a lid never comes down on someone standing on
+  // a rise — the ceiling is meant to be unfelt, and a dune is no exception.
+  const anchor = stage.anchor ?? { x: 0, z: 0, dx: 1, dz: 0 };
+  const floorY = onGround ? terrainAt(anchor.x, anchor.z) : MISSION_Y;
+  const groundAt = (x: number, z: number): number => (onGround ? terrainAt(x, z) : floorY);
+  let highest = floorY;
+  if (onGround) {
+    // sample forward along the chain's heading, far enough to cover it
+    let reach = 0;
+    for (const zs of stage.zones) reach += zs.l + 30;
+    for (let t = 0; t <= reach; t += 8) {
+      for (let side = -40; side <= 40; side += 20) {
+        const x = anchor.x + anchor.dx * t - anchor.dz * side;
+        const z = anchor.z + anchor.dz * t + anchor.dx * side;
+        highest = Math.max(highest, terrainAt(x, z));
+      }
+    }
+  }
+  const ceilingY = (onGround ? highest : floorY) + ceiling;
 
   // ---- lighting ----
   // Outdoors the territory's own sun does most of the work and the fill only
@@ -635,6 +695,19 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       at = Math.max(at, b);
     }
     if (u1 > at) solid(f, at, u1, vc - WALL_T / 2, vc + WALL_T / 2, top, top + h, wallMat);
+  };
+
+  /**
+   * A point standing on the surface, in a zone's own frame.
+   *
+   * On plates that is the plate; on ground it is the ground under that exact
+   * column, which is why vents, posts, props and cover all go through here
+   * rather than sharing one `top`. A squad posted at a zone's nominal floor
+   * height would be buried in the near dune and hovering over the far one.
+   */
+  const surf = (f: Frame, u: number, v: number, lift = 0.2): THREE.Vector3 => {
+    const x = f.x(u, v), z = f.z(u, v);
+    return new THREE.Vector3(x, groundAt(x, z) + lift, z);
   };
 
   const clearOf = (x: number, z: number, r: number): boolean =>
@@ -726,8 +799,18 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // line says that for the whole run at once. The rocks are what you see;
       // this is what you walk into.
       const T = 3.2;
-      addBox((x0 + x1) / 2, y0 + h / 2, (z0 + z1) / 2,
-        Math.abs(nx) * len + Math.abs(nz) * T, h, Math.abs(nz) * len + Math.abs(nx) * T);
+      // The slab starts under the lowest ground the run crosses and reaches
+      // past the ceiling, so a dip along a rim is never a gap you can walk
+      // through and a rise is never a step you can climb over.
+      let base = y0;
+      if (onGround) {
+        base = Infinity;
+        for (let t = 0; t <= len; t += 4) base = Math.min(base, groundAt(x0 + nx * t, z0 + nz * t));
+        base -= 3;
+      }
+      const wallH2 = ceilingY - base + RIM_OVER_CEILING;
+      addBox((x0 + x1) / 2, base + wallH2 / 2, (z0 + z1) / 2,
+        Math.abs(nx) * len + Math.abs(nz) * T, wallH2, Math.abs(nz) * len + Math.abs(nx) * T);
       const r = 4 + rand() * 2;
       const step = r * 1.15;
       const n = Math.max(1, Math.round(len / step));
@@ -736,11 +819,17 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         const jitter = (rand() - 0.5) * 1.4;
         const px = x0 + nx * t - nz * jitter;
         const pz = z0 + nz * t + nx * jitter;
-        rimPiece(px, pz, r, h * (0.92 + rand() * 0.2), y0, false);
+        // On ground each piece is seated in the ground under it, a couple of
+        // metres deep so a rise between two pieces never shows daylight below
+        // the rock; on a plate they all stand on the plate.
+        const base = onGround ? groundAt(px, pz) - 2.5 : y0;
+        rimPiece(px, pz, r, ceilingY - base + RIM_OVER_CEILING, base, false);
         // the row behind, set back across the line's normal
         if (k % 2 === 0) {
-          rimPiece(px - nz * (14 + rand() * 10), pz + nx * (14 + rand() * 10),
-            r * (1.2 + rand() * 0.6), ceiling * BACKDROP_H * (0.8 + rand() * 0.5), y0 - 6, true);
+          const bx = px - nz * (14 + rand() * 10), bz = pz + nx * (14 + rand() * 10);
+          rimPiece(bx, bz, r * (1.2 + rand() * 0.6),
+            ceiling * BACKDROP_H * (0.8 + rand() * 0.5),
+            (onGround ? groundAt(bx, bz) : y0) - 6, true);
         }
       }
     }
@@ -758,10 +847,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   };
 
   /** the props a zone asked for, placed in its own frame */
-  const placeProps = (f: Frame, zs: ZoneSpec, top: number): void => {
+  const placeProps = (f: Frame, zs: ZoneSpec, top0: number): void => {
+    let top = top0;
     for (const p of zs.props ?? []) {
       const x = f.x(p.u, p.v), z = f.z(p.u, p.v);
       const size = p.size ?? 4;
+      top = groundAt(x, z);
       if (p.solid) {
         // cover you can hide behind: a collider under the sculpt, and a
         // stand-in cylinder so the shape is there before the file lands
@@ -792,15 +883,24 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (edge < RIDE_EDGE_CLEAR) {
         console.warn(`[mission] ${zs.label}: a ride is parked ${edge.toFixed(1)} m from an edge`);
       }
-      rides.push({ kind: r.kind, x: f.x(r.u, r.v), z: f.z(r.u, r.v), yaw: r.yaw, y: top });
-      blocked.push({ x: f.x(r.u, r.v), z: f.z(r.u, r.v), r: 3 });
+      const rx = f.x(r.u, r.v), rz = f.z(r.u, r.v);
+      rides.push({ kind: r.kind, x: rx, z: rz, yaw: r.yaw, y: groundAt(rx, rz) });
+      blocked.push({ x: rx, z: rz, r: 3 });
     }
   };
 
   /** the set pieces a zone carries: a pit, hazard channels, barrels, pillars */
   const setPieces = (f: Frame, zs: ZoneSpec, top: number, wallH: number): void => {
     const { w, l } = zs;
-    if (zs.feature === 'pit') {
+    // A building or a seabed that already exists comes with its own cover,
+    // its own hazards and its own dressing. Adding crates to the Refinery's
+    // barrel hall would be furnishing a furnished room.
+    if (bare) return;
+    // A territory has its own lava, its own shock plates and its own pit —
+    // the sarlacc is *there*, forty metres off the trailhead. Laying a second
+    // set over the top of them would be the level arguing with the board.
+    const dressed = !onGround;
+    if (dressed && zs.feature === 'pit') {
       const r = Math.min(w, l) * 0.18 + 1.4;
       const maw = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.72, 1.1, 20),
         mat(0x120c08, { rough: 1 }));
@@ -813,7 +913,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       addHazard({ center: f.vec(l / 2, 0, top), radius: r - 0.3, kind: 'kill', yMax: top + 2.2 });
       blocked.push({ x: f.x(l / 2, 0), z: f.z(l / 2, 0), r: r + 2 });
     }
-    if (zs.feature === 'lava' || zs.feature === 'shock') {
+    if (dressed && (zs.feature === 'lava' || zs.feature === 'shock')) {
       const dps = zs.feature === 'lava' ? 26 : SHOCK_DPS;
       const cuts = l >= 20 ? [l * 0.38, l * 0.66] : [l * 0.5];
       cuts.forEach((cu, ci) => {
@@ -891,8 +991,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           const v = (rand() - 0.5) * (w - 5);
           if (Math.abs(v) < 2.1 || !clearOf(f.x(u, v), f.z(u, v), 1.6)) continue;
           const x = f.x(u, v), z = f.z(u, v);
-          if (interior || zs.shell === 'hall' || zs.shell === 'deck' || rand() < 0.35) crate(x, top, z);
-          else coverRock(x, top, z);
+          const y = groundAt(x, z);
+          if (interior || zs.shell === 'hall' || zs.shell === 'deck' || rand() < 0.35) crate(x, y, z);
+          else coverRock(x, y, z);
           break;
         }
       }
@@ -905,7 +1006,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const zoneFrames: Frame[] = [];
   const zoneTops: number[] = [];
   const stageSeed = index * 137;
-  let frame = new Frame(-70 + stageSeed, -30, 1, 0);
+  let frame = onGround
+    ? new Frame(anchor.x, anchor.z, anchor.dx, anchor.dz)
+    : new Frame(-70 + stageSeed, -30, 1, 0);
   const last = stage.zones.length - 1;
   /** a stage boundary is a transport door, not a wall: leave a way through */
   const hasNext = index + 1 < spec.stages.length;
@@ -915,7 +1018,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const zs = stage.zones[i];
     const f = frame;
     const { w, l } = zs;
-    const top = floorY + (spaceN++ % 3) * EPS;
+    const top = onGround
+      ? groundAt(f.x(l / 2, 0), f.z(l / 2, 0))
+      : floorY + (spaceN++ % 3) * EPS;
     const isHall = zs.shell === 'hall';
     const wallH = zs.kind === 'warlord' ? baseWallH + 2.5 : baseWallH;
     const roofH = zs.roofH ?? ROOF_H;
@@ -924,7 +1029,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const marks: THREE.Vector3[] = [];
 
     // ---- the floor ----
-    solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, floorMat);
+    // A ground stage stands on the board's own: no plate, no seam, and the
+    // dunes or basalt the territory is *made of* under the fight.
+    if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, floorMat);
     rects.push(f.rect(-0.5, l + 0.5, -w / 2 - 0.5, w / 2 + 0.5));
 
     const dir = { x: f.dx, z: f.dz };
@@ -998,6 +1105,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         exitBarrier = new Fence(board, group, f.vec(l + 1, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
       }
       landmark = f.vec(l + 6, 0, top + 3);
+    } else if (bare) {
+      // ---- a building or a sea that is already there ----
+      // Nothing is built: the walls, the water and the way through are the
+      // board's own. All a zone adds is where the fight happens and what
+      // holds it — a pane across the way on, and nothing across the way in.
+      if (internalExit && zs.kind !== 'camp' && zs.kind !== 'trek' && zs.kind !== 'start') {
+        exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir,
+          Math.min(zs.w, 14), Math.min(ceiling, 12), pal.accent);
+      }
+      landmark = surf(f, l + 4, 0, 3);
     } else {
       // ---- outdoors: the border is terrain ----
       const half = w / 2 + 1.5;
@@ -1005,18 +1122,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const gapHalf = (GATE_W + 3) / 2;
       const pillars: [number, number][] = [];
       // sides run the full length
-      ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top);
-      ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top);
-      // the back wall, with the way in
-      if (entryOpen) {
-        ridge([[f.x(back, half), f.z(back, half)], [f.x(back, gapHalf), f.z(back, gapHalf)]], top);
-        ridge([[f.x(back, -gapHalf), f.z(back, -gapHalf)], [f.x(back, -half), f.z(back, -half)]], top);
-      } else {
-        ridge([[f.x(back, half), f.z(back, half)], [f.x(back, -half), f.z(back, -half)]], top);
+      if (wantRim || !onGround) {
+        ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top);
+        ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top);
       }
-      // The front: a way on framed by pillars, a runner notch where the zone
-      // has one — or, at a dead end, no gap at all and a door set into the
-      // rock, which is what turns a ravine into somewhere you have to open.
+      // The way in, the way on, and what frames them. A rim is optional on
+      // ground the board already encloses; the doorway, its pillars and the
+      // dead end's door are not, because those are the run's own furniture
+      // rather than the territory's.
+      const rimmed = wantRim || !onGround;
       // A dead end's way on is a door in the rock rather than an open mouth —
       // except where the stage itself ends here, because then the transport
       // door *is* that door and a second one 20 cm in front of it is just a
@@ -1025,21 +1139,32 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const frontGaps: [number, number][] = exitOpen ? [[-gapHalf, gapHalf]] : [];
       if (zs.pass) {
         frontGaps.push([w / 3 - 2, w / 3 + 2]);
-        runnerPost = f.vec(l + 9, w / 3, top + 0.2);
+        runnerPost = surf(f, l + 9, w / 3);
       }
       frontGaps.sort((a, b) => a[0] - b[0]);
-      let at = -half;
-      for (const [a, b] of frontGaps) {
-        if (a > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, a), f.z(front, a)]], top);
-        at = b;
+      if (rimmed) {
+        // the back wall, with the way in
+        if (entryOpen) {
+          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, gapHalf), f.z(back, gapHalf)]], top);
+          ridge([[f.x(back, -gapHalf), f.z(back, -gapHalf)], [f.x(back, -half), f.z(back, -half)]], top);
+        } else {
+          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, -half), f.z(back, -half)]], top);
+        }
+        // the front, minus the way on and any runner notch
+        let at = -half;
+        for (const [a, b] of frontGaps) {
+          if (a > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, a), f.z(front, a)]], top);
+          at = b;
+        }
+        if (half > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, half), f.z(front, half)]], top);
+        if (exitOpen) {
+          pillars.push([f.x(front, gapHalf + 3), f.z(front, gapHalf + 3)],
+            [f.x(front, -gapHalf - 3), f.z(front, -gapHalf - 3)]);
+        }
+        if (pillars.length) ridge([], top, { pillarAt: pillars });
       }
-      if (half > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, half), f.z(front, half)]], top);
-      if (exitOpen) {
-        pillars.push([f.x(front, gapHalf + 3), f.z(front, gapHalf + 3)],
-          [f.x(front, -gapHalf - 3), f.z(front, -gapHalf - 3)]);
-        landmark = f.vec(front, 0, top + ceiling * 0.5);
-      }
-      if (pillars.length) ridge([], top, { pillarAt: pillars });
+      if (exitOpen) landmark = surf(f, front, 0, ceiling * 0.5);
+
       if (doorFace) {
         // A hewn face filling the rim's gap, with the door in the middle of it
         // and a lamp over the door — in a dark ravine the way on should be the
@@ -1051,28 +1176,28 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         wallU(f, l + 1.2, -gapHalf - 1, gapHalf + 1, [{ c: 0, w: GATE_W }], top, faceH);
         solid(f, l + 1.2 - WALL_T / 2, l + 1.2 + WALL_T / 2, -gapHalf - 1, gapHalf + 1,
           top + faceH, top + rimH, rockMat);
-        exitBarrier = new Gate(board, group, f.vec(l + 1.2, 0, top), dir, faceH, pal.accent);
+        exitBarrier = new Gate(board, group, surf(f, l + 1.2, 0, 0), dir, faceH, pal.accent);
         const lamp = new THREE.PointLight(0xffd9a0, 30, 26, 1.5);
         lamp.position.set(f.x(l + 1.2, 0), top + faceH - 0.5, f.z(l + 1.2, 0));
         group.add(lamp);
-        landmark = f.vec(l + 1.2, 0, top + 3);
+        landmark = surf(f, l + 1.2, 0, 3);
       }
 
       // an outdoor fight is held in by its exit, never by a cage behind it
       if (internalExit && !doorFace
         && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord' || zs.kind === 'chase')) {
-        exitBarrier = new Fence(board, group, f.vec(l + 0.6, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
+        exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
       if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && internalEntry) {
         // the arena's own gate behind the party, so the fight has a back wall
-        entryBarrier = new Fence(board, group, f.vec(-0.6, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
+        entryBarrier = new Fence(board, group, surf(f, -0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
       if (zs.alcove) {
         pickups.push(f.vec(l * 0.5, w / 2 - 2.2, top + 0.2));
       }
       // road: the drop marks and the barricade at the far mouth
       if (zs.shell === 'road') {
-        for (const m of zs.marks ?? [0.4, 0.75]) marks.push(f.vec(l * m, 0, top + 0.2));
+        for (const m of zs.marks ?? [0.4, 0.75]) marks.push(surf(f, l * m, 0));
         if (zs.barricade === 'crates') {
           for (let k = -2; k <= 2; k++) {
             const x = f.x(l - 2, k * 2.6), z = f.z(l - 2, k * 2.6);
@@ -1082,7 +1207,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
             breakables.push({ mesh });
           }
         } else if (internalExit) {
-          exitBarrier = new Fence(board, group, f.vec(l + 0.6, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
+          exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
         }
       }
     }
@@ -1096,18 +1221,18 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     for (const [u, v] of [
       [l - 3.5, w / 2 - 3.5], [l - 3.5, -(w / 2 - 3.5)],
       [l - 3.5, w * 0.17], [l - 3.5, -w * 0.17],
-    ]) farVents.push(f.vec(u, v, top + 0.2));
+    ]) farVents.push(surf(f, u, v));
     const sideVents: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l * 0.5, w / 2 - 3], [l * 0.5, -(w / 2 - 3)],
       [l * 0.32, w / 2 - 3.5], [l * 0.32, -(w / 2 - 3.5)],
       [l * 0.7, w / 2 - 3.5], [l * 0.7, -(w / 2 - 3.5)],
-    ]) sideVents.push(f.vec(u, v, top + 0.2));
+    ]) sideVents.push(surf(f, u, v));
     const posts: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
       [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
-    ]) posts.push(f.vec(u, v, top + 0.2));
+    ]) posts.push(surf(f, u, v));
 
     zoneFrames.push(f);
     zoneTops.push(top);
@@ -1116,9 +1241,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       spec: zs,
       pathFrom,
       beat: beat0 + i,
-      entry: f.vec(2.4, 0, top + 0.2),
-      center: f.vec(l / 2, 0, top + 0.2),
-      exit: f.vec(l - 2.4, 0, top + 0.2),
+      entry: surf(f, 2.4, 0),
+      center: surf(f, l / 2, 0),
+      exit: surf(f, l - 2.4, 0),
       rect: f.rect(0, l, -w / 2, w / 2),
       sealRect: f.rect(1.2, l - 1.2, -w / 2, w / 2),
       triggerRect: f.rect(Math.min(TRIGGER_IN, l * 0.4), l, -w / 2, w / 2),
@@ -1126,7 +1251,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       farVents, sideVents, vents: [], posts, runnerPost, marks,
       landmark,
     });
-    path.push(f.vec(2.4, 0, top + 0.2), f.vec(l - 2.4, 0, top + 0.2));
+    path.push(surf(f, 2.4, 0), surf(f, l - 2.4, 0));
 
     // ---- the link on to the next zone ----
     if (i === last) break;
@@ -1138,8 +1263,10 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const laneW = roofed ? corrW : Math.max(corrW, 9);
 
     const leg = (lf: Frame, len: number, withCrates: boolean): void => {
-      const ltop = floorY + (spaceN++ % 3) * EPS;
-      solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, floorMat);
+      const ltop = onGround
+        ? groundAt(lf.x(len / 2, 0), lf.z(len / 2, 0))
+        : floorY + (spaceN++ % 3) * EPS;
+      if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, floorMat);
       if (roofed) {
         solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop + CORR_H, ltop + CORR_H + 1, wallMat);
         // the lane walls sit 5 cm proud and run only their own span: the room
@@ -1163,12 +1290,13 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         ridge([[lf.x(0, hw), lf.z(0, hw)], [lf.x(len, hw), lf.z(len, hw)]], ltop);
         ridge([[lf.x(0, -hw), lf.z(0, -hw)], [lf.x(len, -hw), lf.z(len, -hw)]], ltop);
       }
-      slab(lf, 0.5, len - 0.5, -laneW / 2 + 0.02, -laneW / 2 + 0.2, ltop + 0.04, ltop + 0.16, trimMat);
+      if (!onGround) slab(lf, 0.5, len - 0.5, -laneW / 2 + 0.02, -laneW / 2 + 0.2, ltop + 0.04, ltop + 0.16, trimMat);
       rects.push(lf.rect(-0.5, len + 0.5, -laneW / 2 - 0.5, laneW / 2 + 0.5));
       // the breadcrumb: posts down any lane long enough to be a walk
       if (len >= TRAIL_MIN_LEN) {
         for (let d = TRAIL_EVERY; d < len; d += TRAIL_EVERY) {
           const px = lf.x(d, laneW / 2 - 0.9), pz = lf.z(d, laneW / 2 - 0.9);
+          const ltop = groundAt(px, pz);
           const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.8, 6),
             mat(0x3a3a3a, { rough: 0.8, metal: 0.3 }));
           post.position.set(px, ltop + 0.9, pz);
@@ -1194,14 +1322,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           });
         }
       }
-      path.push(lf.vec(len / 2, 0, ltop + 0.2));
+      path.push(surf(lf, len / 2, 0));
     };
 
     leg(g, link.len, true);
     if (link.turn && link.len2) {
       const jf = new Frame(g.x(link.len, 0), g.z(link.len, 0), g.dx, g.dz);
-      const jtop = floorY + (spaceN++ % 3) * EPS;
-      solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, floorMat);
+      const jtop = onGround
+        ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
+        : floorY + (spaceN++ % 3) * EPS;
+      if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, floorMat);
       if (roofed) {
         solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
         wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);
@@ -1217,7 +1347,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // reads as "leg one's middle, then leg two's middle", and the straight
       // line between those two cuts across the inside of the bend — into the
       // cliff that makes the bend a bend.
-      path.push(jf.vec(laneW / 2, 0, jtop + 0.2));
+      path.push(surf(jf, laneW / 2, 0));
       const ndx = link.turn > 0 ? jf.px : -jf.px;
       const ndz = link.turn > 0 ? jf.pz : -jf.pz;
       const g2 = new Frame(
@@ -1230,7 +1360,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       frame = new Frame(g.x(link.len + 1.5, 0), g.z(link.len + 1.5, 0), g.dx, g.dz);
     }
     // bacta midway down every other link — the attrition beat pays for itself
-    if (i % 2 === 1) pickups.push(g.vec(6, -1.4, floorY + 0.2));
+    if (i % 2 === 1) pickups.push(surf(g, 6, -1.4));
     defenders.push(linkPosts);
   }
 
@@ -1241,7 +1371,10 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const pocket = (f: Frame, u0: number, top: number, back: boolean, doorH: number): void => {
     const s0 = back ? u0 - PORTAL_POCKET - 1 : u0;
     const s1 = back ? u0 : u0 + PORTAL_POCKET + 1;
-    solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top - 1, top, floorMat);
+    // The pocket is a threshold, so on rolling ground it is levelled into a
+    // short platform at the doorway's own height rather than following the
+    // dune through it — a door you step *up* into reads as a door.
+    solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top - 3, top, floorMat);
     wallV(f, GATE_W / 2 + 2.6 + WALL_T / 2, s0, s1, [], top, doorH);
     wallV(f, -GATE_W / 2 - 2.6 - WALL_T / 2, s0, s1, [], top, doorH);
     wallU(f, back ? s0 - WALL_T / 2 : s1 + WALL_T / 2,
@@ -1254,7 +1387,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   let backPortal: Portal | null = null;
   if (hasNext) {
     const f = zoneFrames[last];
-    const top = zoneTops[last];
+    const top = onGround
+      ? groundAt(f.x(stage.zones[last].l + 3, 0), f.z(stage.zones[last].l + 3, 0))
+      : zoneTops[last];
     const doorH = Math.max(6, (stage.zones[last].roofH ?? ROOF_H));
     pocket(f, stage.zones[last].l + 1, top, false, doorH);
     exitPortal = new Portal(board, group, f.vec(stage.zones[last].l + 1, 0, top),
@@ -1263,7 +1398,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   }
   if (hasPrev) {
     const f = zoneFrames[0];
-    const top = zoneTops[0];
+    const top = onGround ? groundAt(f.x(-3, 0), f.z(-3, 0)) : zoneTops[0];
     const doorH = Math.max(6, (stage.zones[0].roofH ?? ROOF_H));
     pocket(f, -1, top, true, doorH);
     backPortal = new Portal(board, group, f.vec(-1, 0, top),
@@ -1328,12 +1463,10 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   for (let i = 0; i < defenders.length; i++) defenders[i] = defenders[i].filter((d) => fits(d.pos));
 
   const startZone = zones[0];
-  const starts = [
-    startZone.entry.clone().add(new THREE.Vector3(0.9, 0, 0.9)),
-    startZone.entry.clone().add(new THREE.Vector3(-0.9, 0, -0.9)),
-    startZone.entry.clone().add(new THREE.Vector3(0.9, 0, -0.9)),
-    startZone.entry.clone().add(new THREE.Vector3(-0.9, 0, 0.9)),
-  ];
+  const starts = [[0.9, 0.9], [-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9]].map(([dx, dz]) => {
+    const x = startZone.entry.x + dx, z = startZone.entry.z + dz;
+    return new THREE.Vector3(x, groundAt(x, z) + 0.2, z);
+  });
 
   // ---- the stage's own water, where it has one ----
   let waterY: number | undefined;
@@ -1405,7 +1538,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     index,
     zones, defenders, pickups, starts, rides, path,
     exitPortal, backPortal,
-    floorY, ceilingY, waterY,
+    floorY, ceilingY, waterY, groundAt,
     contains, dispose,
     tick: (time: number) => {
       for (const s of shockStrips) {

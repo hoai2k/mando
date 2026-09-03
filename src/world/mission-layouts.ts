@@ -48,36 +48,36 @@ function z(board: BoardId, beat: number, spec: Omit<ZoneSpec, 'label'>): ZoneSpe
 
 const desert: StageSpec[] = [
   {
-    kind: 'built',
+    // The run opens on the Dune Sea itself — its dunes, its mesas, its sky —
+    // rather than on a clean copy of them raised over the top. The chain is
+    // laid along a clear lane between the board's own landmarks and rimmed
+    // with sandstone, and it is shorter than a plate stage would be because
+    // the real bowl is only so wide: past d ≈ 150 the ground climbs out.
+    kind: 'territory',
     label: TEXT.missions.stages.desert[0],
+    anchor: { x: -85, z: -5, dx: 1, dz: 0 },
     zones: [
       z('desert', 0, {
-        shell: 'open', kind: 'start', w: 70, l: 60, air: true,
-        props: [
-          { id: 'homestead_dome', u: 14, v: 24, size: 10 },
-          { id: 'vaporator', u: 26, v: 28, size: 7 },
-          { id: 'vaporator', u: 34, v: -26, size: 7 },
-          { id: 'sandcrawler', u: 40, v: 46, size: 35, yaw: 0.4 },
-        ],
+        shell: 'open', kind: 'start', w: 44, l: 56, air: true,
         rides: [
-          { kind: 'swoop', u: 18, v: 8, yaw: 0 },
-          { kind: 'swoop', u: 18, v: 12, yaw: 0 },
-          { kind: 'bantha', u: 14, v: -10, yaw: 1.6 },
+          { kind: 'swoop', u: 16, v: 6, yaw: 0 },
+          { kind: 'swoop', u: 16, v: 10, yaw: 0 },
+          { kind: 'bantha', u: 12, v: -8, yaw: 1.6 },
         ],
       }),
       z('desert', 1, {
-        shell: 'road', kind: 'chase', w: 28, l: 160,
-        marks: [0.38, 0.72], barricade: 'crates', air: true,
+        shell: 'road', kind: 'chase', w: 26, l: 90,
+        marks: [0.36, 0.72], barricade: 'crates', air: true,
         rides: [
           { kind: 'landspeeder', u: 8, v: -6, yaw: 0 },
           { kind: 'swoop', u: 8, v: 3, yaw: 0 },
           { kind: 'swoop', u: 12, v: 6, yaw: 0 },
           { kind: 'skiff', u: 14, v: -8, yaw: 0 },
-          { kind: 'swoop', u: 54, v: 8, yaw: 0 },
+          { kind: 'swoop', u: 40, v: 7, yaw: 0 },
         ],
       }),
     ],
-    links: [{ len: 22, turn: 1, len2: 16, kind: 'trek' }],
+    links: [{ len: 24, kind: 'trek' }],
   },
   {
     kind: 'built',

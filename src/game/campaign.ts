@@ -419,14 +419,19 @@ export class Campaign implements MissionController {
   placeNear(pos: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
     const body = enemyBody(kind);
     const phys = this.game.board.physics;
-    const y = this.stage.floorY + 0.2;
+    // The height comes from the column, not from the stage: on a plate that
+    // is one number everywhere, but a stage standing on the territory's own
+    // dunes has a different floor every few metres, and a body placed at the
+    // stage's nominal height would be buried in one and hovering over the next.
+    const yAt = (x: number, z: number): number => this.stage.groundAt(x, z) + 0.2;
     const ok = (x: number, z: number): boolean => {
+      const y = yAt(x, z);
       if (!phys.capsuleFree(x, y, z, body.radius, body.height)) return false;
       const hz = hazardAt(this.game.board, _probe.set(x, y, z));
       return !hz.kill && hz.dps <= 0;
     };
     if (this.stage.contains(pos.x, pos.z) && ok(pos.x, pos.z)) {
-      pos.y = y;
+      pos.y = yAt(pos.x, pos.z);
       return pos;
     }
     for (let ring = 1; ring <= 6; ring++) {
@@ -437,10 +442,10 @@ export class Campaign implements MissionController {
         const x = pos.x + Math.cos(a) * r;
         const z = pos.z + Math.sin(a) * r;
         if (!this.stage.contains(x, z)) continue;
-        if (ok(x, z)) return new THREE.Vector3(x, y, z);
+        if (ok(x, z)) return new THREE.Vector3(x, yAt(x, z), z);
       }
     }
-    return new THREE.Vector3(pos.x, y, pos.z);
+    return new THREE.Vector3(pos.x, yAt(pos.x, pos.z), pos.z);
   }
 
   private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): void {
@@ -536,7 +541,7 @@ export class Campaign implements MissionController {
     const r = zone[which];
     return p.position.x >= r.minX && p.position.x <= r.maxX
       && p.position.z >= r.minZ && p.position.z <= r.maxZ
-      && Math.abs(p.position.y - this.stage.floorY) < ZONE_Y_SLACK;
+      && Math.abs(p.position.y - this.stage.groundAt(p.position.x, p.position.z)) < ZONE_Y_SLACK;
   }
 
   private anyInside(zone: MissionZone, which: 'rect' | 'triggerRect' = 'rect'): boolean {
@@ -948,7 +953,8 @@ export class Campaign implements MissionController {
     const drowned = this.stage.waterY;
     for (const p of game.players) {
       if (!p.alive) continue;
-      const fell = p.position.y < this.stage.floorY - FALL_DROP;
+      const ground = this.stage.groundAt(p.position.x, p.position.z);
+      const fell = p.position.y < ground - FALL_DROP;
       const wet = drowned !== undefined && p.position.y < this.stage.floorY - WATER_DROP;
       if (!fell && !wet) continue;
       const at = this.respawnSpot(p.slot);
@@ -969,7 +975,7 @@ export class Campaign implements MissionController {
     // clears and a run that cannot be finished. Put it back instead.
     const here = this.zone;
     for (const e of game.enemies) {
-      if (!e.alive || e.position.y > this.stage.floorY - FALL_DROP) continue;
+      if (!e.alive || e.position.y > this.stage.groundAt(e.position.x, e.position.z) - FALL_DROP) continue;
       e.position.copy(this.placeNear(here.center.clone(), e.kind));
       e.velocity.set(0, 0, 0);
     }
