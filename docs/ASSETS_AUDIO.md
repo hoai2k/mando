@@ -26,7 +26,23 @@ README and the track map in `src/core/music.ts`. The `music_combat_desert` /
 loudness-matched (SFX peaks ≈ −6 dBFS), seamless where looping. Original or licensed audio
 only — no ripped film audio; prompts describe character without naming trademarked sources.
 
+### Coverage, as of 2026-09-03
+
+Every sound the engine can ask for has a file: 152 sample names in `SampleName`
+(`src/core/audio.ts`), 152 files in `public/assets/audio/`, no missing hooks and no
+orphan audio. All 11 music tracks are referenced by `src/core/music.ts`, and every
+track it names exists. Re-check with the union-vs-directory diff rather than by eye —
+template members like `hurt_${voice}_1..3` have to be expanded or the count lies.
+
 ### Board music (nice-to-have)
+
+**Blocked on an API permission, not on tooling.** `tools/generate-sfx.mjs` uses
+ElevenLabs' *sound-generation* endpoint, which caps at about 22 seconds — no use for a
+three-minute score. Their *music* endpoint (`/v1/music`) would do it, and the project
+key reaches it but is refused with `missing the permission music_generation`. A key
+re-issued with that permission enabled would let the tracks below be generated the same
+way every other sound was.
+
 
 Eleven tracks are delivered (see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md)), including
 the warlord's theme that every board's final boss battle plays. Four boards
