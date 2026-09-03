@@ -77,7 +77,7 @@ await shot('rear-ready', READY);
 await shot('rear-spent', SPENT);
 await shot('rear-mid', MID);
 
-await look([4.6, 3.4, -3.4], [0, 2.4, -1.4]);          // three-quarter, the clutch in profile
+await look([6.4, 4.0, -6.2], [0, 2.4, -1.6]);          // three-quarter, the clutch in profile
 await shot('quarter-ready', READY);
 await shot('quarter-spent', SPENT);
 
