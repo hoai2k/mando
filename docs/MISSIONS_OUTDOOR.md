@@ -32,11 +32,16 @@ The rules the rest of this document serves:
    and those borders only need to rise above the flight ceiling, not to the
    sky. Where the theme has no terrain (space), the *void* is the border and
    platform placement is the guide.
-4. **A flight ceiling, per board.** Nobody flies above `ceiling` metres over
-   the level floor (default 20 m, one number per territory, overridable from
-   the URL for tuning). Things may *descend* through it — a carrier's drop,
-   a flier crossing the rim — but nothing climbs back out. Fliers come down
-   into the play volume and fight at that level.
+4. **A flight ceiling, per board — high enough not to feel.** The ceiling
+   exists for two reasons only: nobody skips a beat by flying over its
+   border, and there is a clean cut between the **playable sky** and the
+   **ambient sky** — carriers cross and drop from above it, flying enemies
+   have to come down into the playable volume before they may attack. It is
+   *not* a lid on the jetpack: the default sits above what one full burn
+   reaches (30 m over the floor; 45 m on the Spice Run's low gravity), so a
+   player flying freely rarely meets it and only ever does so on purpose. One
+   number per territory, overridable from the URL for tuning. Things may
+   *descend* through it; nothing climbs back out.
 5. **Long treks are fine when the goal is obvious.** A 60–90 m walk between
    fights is allowed — and welcome, it is where the theme breathes — provided
    the destination is a visible landmark and the guide points at it. Distance
@@ -49,6 +54,17 @@ The rules the rest of this document serves:
    walled-room construction stays, roofed now and reached through a door in a
    cliff, hull or wall. Every interior has a way in and a way out, and the way
    out opens onto something bigger.
+8. **Use everything, and ask for what is missing.** Every prop, texture, ride
+   and creature in the game is available to Missions — the inventory belongs
+   to the game, not to the wave mode. Where the best version of a place wants
+   a surface or a sculpt that does not exist, it is requested
+   (`docs/ASSETS_IMAGES.md`, `docs/ASSETS_MODELS.md`, §9 here) and the design
+   is written to the requested asset, with the procedural stand-in as the
+   fallback — the rule every other system in the game already follows.
+9. **Rides are part of the fight where there is room.** The biggest outdoor
+   spaces park rides (swoops, speeder bikes, the landspeeder, the skiff, a
+   bantha) and one beat per vehicle board is a **road**: a long outdoor lane
+   meant to be ridden under fire, with enemy swoops harrying the column.
 
 ## 1. The grammar: shells × encounters
 
@@ -65,6 +81,7 @@ geometry) carrying an **encounter** (the rules).
 | `hall` | the v2 walled room, now **roofed** | 16–26 × 14–22 | slab at `roofH` (8–10 m) | real walls, blast doors in both mouths | **wall hatches**: a door leaf in a side wall with a closet behind it; the squad is posted in the closet and the hatch opens (arrival `post`, then walk) |
 | `corridor` | the v2 corridor leg, unchanged | 5–6 wide, 12–18 per leg, ≤ 1 bend | 3.8 m | walls | posted defenders behind flush crates (unchanged) |
 | `deck` | a floating platform or platform cluster (the Spice Run only) | plates 18–60 across, gaps 12–18 | sky | the void: stepping off is "off the path" and returns you to the checkpoint | dropship pass; fliers; jetpack pirates |
+| `road` | a long outdoor lane meant to be **ridden**: a dune road, a crust causeway, a glass highway | 24–30 × 120–180, bends through 30 m-wide junctions so a ride can take them at speed | sky | rim both sides (a ride into the rim is a crash, not an exit); mouths framed by pillars | enemy swoops orbiting the column; carrier drops at two marks along the road; a squad behind a barricade at the far mouth |
 
 A **door** is only ever placed where a `hall`/`corridor` meets anything (a
 door *in* a cliff face, a hull, a ruin wall, a rig bulkhead). Outdoor-to-
@@ -82,6 +99,13 @@ Unchanged from v2 plus one: `start`, `trek`, `camp`, `assault`, `lieutenant`,
   beat of its own (the rule-5 breather) without a fight bolted onto it. A
   `trek` may carry 1–2 posted **lookouts** who alert the next zone's camp when
   they spot you — a reason to move quietly, at no cost.
+- **`chase`** is new, and only ever sits on a `road`: rides are parked at the
+  road's start (and a spare pair a third of the way along, for whoever fell
+  off), the column is harried the whole length — swoops on the flanks, a drop
+  at each of two marks — and the far mouth is a **barricade**: a fence with a
+  squad behind it that dismounts you, or a crate line a skiff can ram
+  through. Clears when every living player is past the far mouth; the
+  checkpoint is the far end, with the surviving rides parked beside it.
 - **`camp`**, **`assault`**, the two boss arenas: as in v2. `waves` on an
   assault, 2–3.
 
@@ -95,6 +119,7 @@ is what makes a fight feel like a locked room. Outdoors it becomes:
 | outdoor `assault` (`open`/`canyon`/`deck`) | the **exit** barrier (door or fence) is already shut, it stays shut; the entry stays open | first living body crosses the zone's **trigger line** (entry + 6 m along travel) | exit opens; checkpoint at the exit |
 | interior `assault` (`hall`) | both doors seal | the whole living party is past the entry door (v2 `allInside`) | both open |
 | boss arena, any shell | both barriers seal (fence behind the party for an open arena) | whole living party inside | exit opens; the run ends if it was the warlord |
+| `chase` (`road`) | the far mouth's barricade is shut; the entry stays open | first body past the trigger line | the barricade opens (fence) or is rammed (crates); checkpoint at the far end |
 | `camp`, `trek` | nothing seals | first body inside | reaching the far end |
 
 Retreating out of an outdoor assault is allowed — you retreat into ground you
@@ -127,9 +152,9 @@ border on every board:
   neighbours) so the way through is a shape you recognise from across the
   zone.
 
-Sizing rule: border height = `ceiling + 6` minimum. A 20 m ceiling wants a
-26 m cliff; the backdrop row at 40–50 m sells the scale. Nothing has to be
-infinite because nothing can get above 20 m.
+Sizing rule: border height = `ceiling + 6` minimum. A 30 m ceiling wants a
+36 m cliff; the backdrop row at 60–70 m sells the scale. Nothing has to be
+infinite because nothing can get above the ceiling.
 
 ### 1.5 Floors
 
@@ -150,12 +175,93 @@ hemisphere fill kept at a lower intensity (0.8) so cliff faces in shadow are
 not black. Canyon dead-ends get a lamp over the door so the door reads as the
 goal in the dark.
 
+### 1.7 Props — the whole inventory is fair game
+
+The v2 level dressed every room from one crate sculpt. v3 dresses each zone
+from the game's full prop shelf — the sculpts the wave boards were built
+around are what make a place *that* place, and Missions is allowed all of
+them. `ZoneSpec.props` places them in zone-local coordinates through the same
+`authoredProp` / `loadProp` path the boards use, with `fitColliders` where a
+prop is solid, so a delivered sculpt hides its stand-in and the physics is
+fitted to the art exactly as on the wave boards. The prefetcher's per-board
+prop list (`BOARD_PROPS`) gains a Missions counterpart derived from the
+layout at load — `tools/test-loadperf.mjs` already holds that list against
+`propsUsed`, so a prop a zone asks for is warmed before the drop.
+
+What each territory draws on (the ids are the delivered `.glb` files):
+
+| Territory | Landmarks (one per zone, the thing you walk toward) | Cover & dressing |
+|---|---|---|
+| Dune Sea | `sandcrawler` on the trailhead's skyline, `homestead_dome` + `vaporator` ×3 at the trailhead, `sail_barge` in the caravan graves, `tusken_tent` ×3 in the ravine camp, a grounded `troop_carrier` wreck in the hollow | `cargo_crate`, `corridor_crate`, boulders (§9) |
+| Spice Run | the station **hull** (a `hull` ridge, §9 texture), a landed `freighter` on the docking bay, `cargo_crane` ×2 over the outer yard, `reactor_core` as the reactor ring's spire, a parked `raider_dropship` on the prize's hold | `cargo_crate` ×many, `fuel_barrel` (steel skin) |
+| Lava Flats | `adobe_tower` ×2 + `adobe_gate` as the **garrison door face** (the dead-end canyon ends at the town gate, doors shut), `survey_crawler` wrecked on the ash flats | `cargo_crate`, basalt boulders, `fuel_barrel` (rhydonium) in the pen |
+| Crevasse | `survey_crawler` on the rim shelf, ice spires (the board's own procedural spires, lifted into the level), `krykna_brood` egg sacs (breakable, `addBreakable`) in the hatchery | ice boulders, `corridor_crate` |
+| Storm Docks | `trawler` as the trawler deck (static in Phase 3, a `Mover` in Phase 6), `dock_shed` on the quay, `freighter` as the freighter-hold's exterior, `fish_rack` ×4 on the pier | `cargo_crate`, `fish_rack` (thin cover), `fuel_barrel` |
+| Refinery | `reactor_core` rising through the reactor crown (40 m: it clears the ceiling, which is right), `pipe_rack` tiled along the pipe run, `alarm_console` ×2 per hall (**the alarm mechanic comes with them**: a console left standing calls the next hatch early) | `fuel_barrel` (rhydonium), `cargo_crate` |
+| Great Forge | `mythosaur_skull` at the rim of the sleeper's basin, `forge_brazier` on a dais in the glassed court, dome ribs (procedural) on the skyline | ruin rubble, `corridor_crate` |
+| Ringworld | `tram` parked at the tram stop (and running the arcade as a `Mover` in Phase 6), `street_kiosk` ×6 down the arcade, the ring's far side as the terrace's backdrop | `street_kiosk`, `cargo_crate` |
+| Prison Rig | a landed `troop_carrier` on the landing deck, `sunken_transport` beached against the assembly deck's edge (its hull is walkable cover), `alarm_console` in the work floor | `cargo_crate` (white skin), `fuel_barrel` |
+
+Breakables come with the props that have them (`fuel_barrel` rhydonium,
+`alarm_console`, the egg sacs) — `addBreakable` is board-agnostic.
+
+### 1.8 Rides — vehicles in the fight
+
+The vehicle system (`game/vehicles.ts`) is skipped in Missions today
+(`spawnVehicles` runs for every mode but `campaign`). v3 turns it on, from
+the **level** rather than the board: `ZoneSpec.vehicles` parks rides in
+zone-local coordinates and `Game` spawns `level.vehicles` for a campaign
+match. Nothing in the vehicle code changes except one line: a ride's hover
+height takes `campaign.level.waterY` over `board.waterY` on the two water
+boards, so a skiff over the local harbour does not drop to the territory's
+sea 90 m below.
+
+Rules for where rides go:
+
+- **Room to turn.** A ride only appears in a zone whose short side is ≥ 56 m
+  (a swoop at 24 m/s turns in ~10 m; a skiff needs more) or on a `road`. The
+  rim stops it (physics cylinders), a door or fence blocks it, and a canyon
+  mouth ≥ 12 m lets it through — so a ride crosses from an open zone into a
+  canyon but never into a hall; the door beat is where you dismount.
+- **Off the plate.** A ride carried off a `deck` or over a pier edge falls
+  to `killY` and explodes as it does today; the rider is returned by the
+  off-path rule. The level's build audit checks that no parked ride sits
+  within 6 m of an open edge.
+- **Enemy rides.** The nikto swoop is an `air` kind, so every zone with rides
+  also draws it (`air: true`) — vehicle-on-vehicle is the point. A ridden
+  bantha is a moving wall for a camp assault; a skiff is a mobile platform
+  whose deck a second player stands and shoots from.
+- **The road beat** (`road` shell, `chase` encounter) is the set piece. Three
+  territories get one: the Dune Sea's dune road, the Lava Flats' crust
+  causeway, the Great Forge's glass highway. The Ringworld's arcade gets its
+  tram as a `Mover` later (Phase 6) — an armored ride you cannot steer is a
+  different, good beat. The Storm Docks' harbour crossing by skiff (a `road`
+  whose floor is the water plane) is designed but deferred with it.
+- **Rides in arenas.** The two biggest warlord arenas (the Old One's hollow,
+  the sleeper's basin) park a swoop and a skiff at the rim: ramming the
+  warlord is allowed, and the monster's ground slam wrecks a ride outright.
+
 ## 2. The flight ceiling
 
-**Spec.** `MissionSpec.ceiling: number` — metres above `floorY`; default 20.
-Per territory (table in §3). Overridable for tuning with `?ceiling=25` (any
-number 8–60); the value in play is printed once to the console at level
-build and shown in the HUD's debug line while the override is active.
+**What it is for.** Two things, and nothing else: (1) a border cannot be
+flown over, so a beat cannot be skipped; (2) the sky is split into a
+**playable** band the fight lives in and an **ambient** band above it that
+belongs to the backdrop — carriers pass through the ambient band and drop
+from it, flying enemies arrive through it but must descend into the playable
+band before they engage. It is deliberately *not* a constraint on free
+flight: the default is set above the height one full jetpack burn reaches
+(a 3.4 s burn at up to 11.5 m/s climbs ~25 m on Tatooine gravity), so the
+player who is flying around a zone never touches it, and the one who is
+trying to climb the rim meets it a few metres short of the top.
+
+**Spec.** `MissionSpec.ceiling: number` — metres above `floorY`; default 30,
+45 on the Spice Run (0.45 g makes a burn go much further). Per territory
+(table in §3.10). Overridable for tuning with `?ceiling=40` (any number
+10–80); the value in play is printed once to the console at level build and
+shown in the HUD's debug line while the override is active. The rule when
+tuning: **raise it until nobody notices it in free flight, then check the rim
+still cannot be crossed.** The build audit asserts every rim piece clears it
+by `RIM_OVER_CEILING`.
 
 **Absolute value.** `Campaign` sets `game.ceilingY = level.floorY + ceiling`
 (`Game.ceilingY: number | null`, null outside Missions and on wave boards, so
@@ -169,8 +275,9 @@ nothing else in the game changes).
 | Enemy, walkers and boss leaps | `Enemy.update` after integration, all styles | same position/velocity clamp; a **super jump's apex flattens** against it — the leap still lands where it aimed, along a lower arc |
 | Enemy, `hover` | `updateHover` | `hoverTarget.y = min(hoverTarget.y, ceilingY − 2)` in addition to the clamp |
 | Enemy, `swoop` | `updateSwoop` | `gy = min(gy, ceilingY − 2)`; the 26 m orbit is only used where a zone allows `air` (§1.1), so it never orbits into a cliff |
-| Enemy, arriving (`arrival.ts` drives it) | untouched | a carrier releases from `DROP_HEIGHT` = 38 m, which is above every ceiling in the table; the bodies **fall through** the ceiling because the clamp only acts on a body *below* it moving up. Assert at build: `ceiling ≤ DROP_HEIGHT − 8` |
-| Fliers arriving (`fly` mode over the rim) | untouched | they cross the rim above the ceiling and descend to their post; from the moment `arriving` ends the clamp holds them |
+| Enemy, arriving (`arrival.ts` drives it) | `DROP_HEIGHT` becomes a per-match value | a carrier flies and releases in the **ambient band**: the campaign sets `game.dropHeight = ceiling + 10` (38 m stays the wave game's value), so the pass is always above the ceiling and the bodies **fall through** it — the clamp only acts on a body *below* it moving up |
+| Fliers arriving (`fly` mode over the rim) | `arrival.ts` | they cross the rim in the ambient band and descend to their post; from the moment `arriving` ends the clamp holds them |
+| Fliers attacking | `updateHover`, `updateSwoop`, `updateVolley` | **no fire from the ambient band**: a flier above `ceilingY` holds its volley and its dive and steers down; it may only attack once inside the playable band. This is the second half of the cut — a swoop that strafes from beyond reach is exactly what the ambient sky is not for |
 | Projectiles, rockets, eggs, the ally crate's drop | none | not bound — a rocket lobbed over the ceiling is fine |
 | Cameras | none | the chase rig can sit above the ceiling; the sky is still there |
 
@@ -181,8 +288,8 @@ to climb, and gravity brings it in. That is what lets a drop and a flier's
 entrance keep reading as coming *down into* the fight.
 
 **Fliers return to Missions.** v2's `squadFor` skipped every `air` kind
-because a swoop's orbit did not fit a 20 m room. With a ceiling and 50 m+
-open zones, `air` kinds are drawn again — but only for zones with `air: true`
+because a swoop's orbit did not fit a 20 m room. With a ceiling that keeps
+them in reach and 50 m+ open zones, `air` kinds are drawn again — but only for zones with `air: true`
 (the `open` and `deck` shells that are ≥ 50 m across). Canyons, halls and
 corridors keep skipping them.
 
@@ -200,23 +307,27 @@ Notation for each beat: **shell · encounter · label** — size — set pieces 
 distance where it matters. `⇒` marks a door. Ceilings are the starting
 values; every one is a tunable.
 
-All nine run 8 beats (so `TEXT.missions.rooms` keeps 8 labels per board — the
-labels are re-authored below and must be updated in `text.ts`; the load-time
-name check stays). Boss shells are chosen per territory so that roughly half
+Territories run 8 beats, 9 where a road is added (the Dune Sea, the Lava
+Flats, the Great Forge). `TEXT.missions.rooms` carries one label per beat, in
+order — the labels are re-authored below and must be updated in `text.ts`; the
+load-time name check stays and now checks the count too. Each layout ends with
+its **props** and **rides** lines; ids are §1.7's. Boss shells are chosen per territory so that roughly half
 the lieutenants fight indoors and every warlord fights **outdoors** — the
 monsters need the room and the reveal is better under the sky.
 
-### 3.1 The Dune Sea (`desert`) — ceiling 20
+### 3.1 The Dune Sea (`desert`) — ceiling 30
 
 The reference layout, the one in the brief.
 
-1. `open` · **start** · *the trailhead flats* — 70×60 — a crashed skiff and
-   three cover rocks; *rock rim (sandstone mesas) on both sides and behind; the
-   ravine mouth ahead, framed by two 30 m mesa pillars, in the sun* — no fight.
-   Trek 40 m to the mouth along a line of stone cairns.
-2. `canyon` · **camp** · *the ravine* — 14×70, one bend — boulders as cover,
-   bacta in a side crack; *cliffs both sides* — Tusken garrison behind the
-   bend (they cannot be seen from the mouth; they can hear you).
+1. `open` · **start** · *the trailhead flats* — 70×60 — the homestead dome and
+   three vaporators at the near rim, a crashed skiff, three cover rocks; *rock
+   rim (sandstone mesas) on both sides and behind, the sandcrawler on the
+   skyline beyond it; the ravine mouth ahead, framed by two 30 m mesa pillars,
+   in the sun* — no fight. Two swoops and a bantha parked by the dome: the
+   40 m trek to the mouth can be ridden.
+2. `canyon` · **camp** · *the ravine* — 14×70, one bend — Tusken tents past
+   the bend, boulders as cover, bacta in a side crack; *cliffs both sides* —
+   Tusken garrison (they cannot be seen from the mouth; they can hear you).
 3. `canyon` · **assault ×2** · *the cistern approach* — 12×50, dead end — a
    lamp-lit blast door set in a hewn rock face (⇒ the outpost); *cliffs* —
    carrier drops only (dead end: no runners). The door unlocks on the last
@@ -227,25 +338,38 @@ The reference layout, the one in the brief.
 5. `corridor` ⇒ `open` · **lieutenant** · *the fighting pit* — 56×50 — a bowl
    ringed by rocks, four cover rocks; *rim; the door behind you, a fence ahead*
    — the **sandworm**, which now has sand to burrow through.
-6. `canyon` · **assault ×3** · *the dune gate* — 16×60, widening toward the
-   end, one bend — crates from a plundered caravan, a **pass** at the far end;
-   *cliffs* — drops + massiffs/Tuskens running in through the pass.
-7. `open` · **camp** · *the caravan graves* — 40×36 — wrecked skiffs as
-   cover, the **Fennec cache**; *low rim* — posted garrison.
-8. `open` · **warlord** · *the Old One's hollow* — 80×70 — the tallest mesas
-   of the level all round, a sunken centre; *fence behind, nothing ahead* — the
-   Pit Warlord, then the **krayt** erupts.
+6. `road` · **chase** · *the dune road* — 28×160, two bends — a landspeeder,
+   two swoops and the skiff parked at the near mouth, a spare swoop pair at
+   the 50 m mark; *rim both sides, cairns every 20 m* — nikto swoops on the
+   flanks the whole way, drops at 60 m and 110 m, a crate barricade at the
+   far mouth (ram it or dismount and clear it).
+7. `open` · **camp** · *the caravan graves* — 44×40 — the half-buried sail
+   barge as the cover playground, wrecked skiffs, the **Fennec cache**; *low
+   rim* — posted garrison. Rides that survived the road come in with you.
+8. `canyon` · **assault ×3** · *the dune gate* — 16×60, widening toward the
+   end, one bend — caravan crates, a **pass** at the far end; *cliffs* —
+   drops + massiffs/Tuskens running in through the pass.
+9. `open` · **warlord** · *the Old One's hollow* — 80×70 — the tallest mesas
+   of the level all round, a grounded troop carrier wreck at one side, a
+   sunken centre; a swoop and a skiff parked at the rim; *fence behind,
+   nothing ahead* — the Pit Warlord, then the **krayt** erupts.
 
-Air: beats 1, 5, 8 (`air: true`) — the swoop gang finally shows up in a
-Mission.
+Air: beats 1, 5, 6, 7, 9 (`air: true`) — the swoop gang finally shows up in
+a Mission.
+Props: `homestead_dome`, `vaporator` ×3, `sandcrawler` (backdrop, beyond the
+rim), `tusken_tent` ×3, `sail_barge`, `troop_carrier` (wreck), `cargo_crate`,
+`corridor_crate`, boulders.
+Rides: beat 1 swoop ×2 + bantha; beat 6 landspeeder, swoop ×2, skiff, spare
+swoop ×2; beat 9 swoop + skiff.
 
-### 3.2 The Spice Run (`station`) — ceiling 30
+### 3.2 The Spice Run (`station`) — ceiling 45
 
 No mountains: the void is the border and the platforms are the guide. Rule:
 the next platform is always **lit along its near edge**, within 12–18 m, and
 never more than 6 m higher than the one you stand on. Gravity is the board's
-own (0.45 over a deck, a drift between), which is why the ceiling is higher —
-a jetpack goes a long way at 0.45 g.
+own (0.45 over a deck, a drift between), which is why the ceiling is the
+highest in the table — a jetpack goes a long way at 0.45 g, and the point is
+that nobody feels it.
 
 1. `deck` · **start** · *the docking bay* — 40×30 pad — parked crates, a
    fuel bowser; *the void; the **station hull** fills the sky ahead, 120 m
@@ -269,20 +393,28 @@ a jetpack goes a long way at 0.45 g.
    refinery spire (visual, 16 m column, physics cylinder); *void* — dropships
    + jetpack pirates. `air: true`.
 8. `deck` · **warlord** · *the hold of the prize* — 60×50 plate — container
-   cover; *void; a fence behind* — the capo, then the **mudhorn** through the
-   deck plates.
+   cover, a parked raider dropship at the far edge; *void; a fence behind* —
+   the capo, then the **mudhorn** through the deck plates.
 
-### 3.3 The Lava Flats (`nevarro`) — ceiling 20
+Props: `freighter` (landed, beat 1), `cargo_crane` ×2 (beat 3), the hull
+(`hull` ridge under the large-scale hull texture, §9), `reactor_core` (beat
+7's spire), `raider_dropship` (parked, beat 8), `cargo_crate` throughout,
+`fuel_barrel` (steel).
+Rides: none — the jetpack is the road, and the board's gravity makes it one.
+
+### 3.3 The Lava Flats (`nevarro`) — ceiling 30
 
 1. `open` · **start** · *the ash flats* — 64×56 — one **lava channel** across
-   the flat with a crust bridge (the v2 `lava` feature), three basalt rocks;
-   *basalt ridge rim; the trench mouth ahead glows orange from inside* — no
-   fight. Trek 35 m.
+   the flat with a crust bridge (the v2 `lava` feature), the wrecked survey
+   crawler, three basalt rocks; *basalt ridge rim; the trench mouth ahead
+   glows orange from inside* — no fight. Two speeder bikes by the crawler.
+   Trek 35 m.
 2. `canyon` · **camp** · *the lava trench* — 14×70, one bend — a lava channel
    along one wall, the walk on the other; *basalt cliffs* — pirates behind
    basalt.
-3. `canyon` · **assault ×2** · *the glass cut* — 12×46, dead end — the
-   garrison's blast door (⇒); *cliffs* — drops.
+3. `canyon` · **assault ×2** · *the town gate* — 12×46, dead end — the
+   garrison's gate: two adobe watchtowers flanking the adobe gate arch, its
+   leaves shut (⇒ the `Gate` set in the arch); *cliffs* — drops.
 4. `corridor` + `hall` · **assault ×2** · *the garrison yard* — 22×16 —
    crates, alcove; *roofed 8 m* — hatches.
 5. `hall` · **lieutenant** · *the magistrate court* — 24×22 — pillars — the
@@ -290,13 +422,22 @@ a jetpack goes a long way at 0.45 g.
 6. `corridor` ⇒ `open` · **assault ×3** · *the crossing* — 50×44 — two lava
    channels with bridges; *rim with a pass* — drops + massiffs through the
    pass. `air: true`.
-7. `canyon` · **camp** · *the cantina row* — 16×50 — crates, the **Fennec
+7. `road` · **chase** · *the crust causeway* — 26×140, one bend — a causeway
+   of cooled crust with **live lava either side** (burn strips 4 m wide along
+   both edges: drift and you cook), speeder bikes ×3 parked at the mouth;
+   *basalt rim beyond the lava* — swoops overhead, drops at 50 m and 100 m,
+   a fence barricade at the far mouth with a pirate squad behind it.
+8. `canyon` · **camp** · *the cantina row* — 16×50 — crates, the **Fennec
    cache**; *ruin walls* (a `ruin` ridge: the town's edge).
-8. `open` · **warlord** · *the rancor pen* — 76×66 — a lava moat ring at the
-   rim's foot (burn, 3 m wide, bridged at the entry); *basalt rim, fence
-   behind* — the officer, then the **rancor**.
+9. `open` · **warlord** · *the rancor pen* — 76×66 — a lava moat ring at the
+   rim's foot (burn, 3 m wide, bridged at the entry), rhydonium barrels
+   seeded; *basalt rim, fence behind* — the officer, then the **rancor**.
 
-### 3.4 The Crevasse (`crevasse`) — ceiling 22 · traction 0.55 over the level
+Props: `survey_crawler` (wreck), `adobe_tower` ×2 + `adobe_gate` (the door
+face), `cargo_crate`, `fuel_barrel` (rhydonium), basalt boulders.
+Rides: beat 1 speeder bike ×2; beat 7 speeder bike ×3.
+
+### 3.4 The Crevasse (`crevasse`) — ceiling 32 · traction 0.55 over the level
 
 The theme *is* a canyon, so this board leans hardest on the ravine beat and
 keeps the ice grip everywhere.
@@ -323,7 +464,13 @@ keeps the ice grip everywhere.
    frozen pool at the centre (the eruption point); *fence behind* — the
    broodmother, then the **ravinak**.
 
-### 3.5 The Storm Docks (`trask`) — ceiling 18
+Props: `survey_crawler` (beat 1), the board's ice spires lifted into the
+level as cover, `krykna_brood` egg sacs as breakables in the hatchery,
+`corridor_crate`, ice boulders.
+Rides: none — nothing with a repulsor belongs on this ice, and the board's
+personality is on foot.
+
+### 3.5 The Storm Docks (`trask`) — ceiling 28
 
 Borders are warehouse rows (`hull`-style ridge, plank-and-iron, 24 m) and
 the **sea**: an open edge of a pier or quay drops into a local water plane at
@@ -353,7 +500,15 @@ The mission never uses the territory's real sea 90 m below.
    16 m pool (kill hazard; the beacon never in it); *warehouses, fence behind*
    — the capo, then the **mamacore** from the pool.
 
-### 3.6 The Refinery (`refinery`) — ceiling 20 outdoors, halls roofed at 7 m
+Props: `dock_shed` (beat 1), `fish_rack` ×4 (beats 2, 7), `freighter` (the
+hold's exterior at beat 3's dead end), `trawler` (beat 6's deck; a `Mover` in
+Phase 6), `cargo_crate`, `fuel_barrel`.
+Rides: the skiff, parked on the quay at beat 1 — the pier is 8 m wide and
+the skiff 1.7 m in radius, so it can be taken down the fish market as a
+moving wall — and the **harbour crossing** (a `road` on the water plane
+between beats 6 and 7) is designed but deferred to Phase 6 with the mover.
+
+### 3.6 The Refinery (`refinery`) — ceiling 30 outdoors, halls roofed at 7 m
 
 The only wave board that is an interior — so the Mission starts *outside*
 it and keeps the most interior beats of the nine (three), the tightest
@@ -380,31 +535,52 @@ corridors (5 m, a bend in every link) and the barrels.
    the fight; *tank ridge, fence behind* — the officer, then the **zillo**
    from under the yard.
 
-### 3.7 The Great Forge (`forge`) — ceiling 22
+Props: `pipe_rack` tiled down the pipe run, `reactor_core` (beat 7's
+centrepiece, 40 m — it clears the ceiling), `alarm_console` ×2 in each hall
+(the alarm mechanic: a standing console calls the next hatch 5 s early),
+`fuel_barrel` (rhydonium) everywhere, `cargo_crate`.
+Rides: none inside the plant; a landspeeder in the tanker yard (beat 1) for
+the trek and, if it survives the run, the loading field.
+
+### 3.7 The Great Forge (`forge`) — ceiling 34
+
+The board whose personality is emptiness — so it opens with the longest
+ride in the game.
 
 1. `open` · **start** · *the glassed plain* — 70×60 — fused-glass floor,
-   shard rocks; *`ruin` rim (collapsed facades, fused dunes); the broken dome's
-   ribs on the skyline ahead, the concourse cut between two standing
-   pylons* — no fight. Trek 45 m (the longest trailhead trek: this is the
-   board whose personality is emptiness).
-2. `canyon` · **camp** · *the ruined concourse* — 16×70, one bend — rubble
+   shard rocks, three speeder bikes and a landspeeder by the trailhead's
+   cairn; *`ruin` rim (collapsed facades, fused dunes); the broken dome's ribs
+   on the skyline ahead, the highway running toward them between two standing
+   pylons* — no fight.
+2. `road` · **chase** · *the glass highway* — 30×180, two bends — a
+   fused-glass road across the plain with ruin pylons every 20 m; *ruin rim*
+   — swoops on the flanks, drops at 60 m and 120 m, a fence barricade at the
+   far mouth held by alamites.
+3. `canyon` · **camp** · *the ruined concourse* — 16×70, one bend — rubble
    cover; *ruin walls* — alamites among the rubble.
-3. `canyon` · **assault ×2** · *the shattered gate* — 12×46, dead end at the
+4. `canyon` · **assault ×2** · *the shattered gate* — 12×46, dead end at the
    dome's vault door (⇒ a hewn Mandalorian portal); *ruin walls* — drops.
-4. `corridor` + `hall` · **assault ×2** · *the dome undercroft* — 20×18 —
+5. `corridor` + `hall` · **assault ×2** · *the dome undercroft* — 20×18 —
    **pillars**, alcove; *roofed 9 m* — hatches.
-5. `hall` · **lieutenant** · *the armoury vault* — 22×20 — the promoted
+6. `hall` · **lieutenant** · *the armoury vault* — 22×20 — the promoted
    **alamite**, indoors.
-6. `corridor` ⇒ `open` · **assault ×3** · *the glassed court* — 54×48 —
-   inside the dome ring under the open sky, ruin pillars; *the dome's ring
-   wall with a pass* — drops + alamites through the pass. `air: true`.
-7. `canyon` · **camp** · *the forge steps* — 14×50 — the **Fennec cache**;
+7. `corridor` ⇒ `open` · **assault ×3** · *the glassed court* — 54×48 —
+   inside the dome ring under the open sky, the forge brazier lit on its dais
+   at the centre (a physics cylinder; fight around it), ruin pillars; *the
+   dome's ring wall with a pass* — drops + alamites through the pass.
+   `air: true`.
+8. `canyon` · **camp** · *the forge steps* — 14×50 — the **Fennec cache**;
    *ruin walls*.
-8. `open` · **warlord** · *the sleeper's basin* — 80×70 — a sinkhole: the
-   Living Waters pool at the centre; *rock rim all round, fence behind* — the
-   enforcer, then the **mythosaur** from the pool.
+9. `open` · **warlord** · *the sleeper's basin* — 80×70 — a sinkhole: the
+   Living Waters pool at the centre, the half-buried mythosaur skull at the
+   rim; a swoop and the skiff parked at the entry; *rock rim all round, fence
+   behind* — the enforcer, then the **mythosaur** from the pool.
 
-### 3.8 The Ringworld (`ringworld`) — ceiling 18
+Props: `forge_brazier` (beat 7), `mythosaur_skull` (beat 9), dome ribs
+(procedural), ruin rubble, `corridor_crate`.
+Rides: beat 1 speeder bike ×3 + landspeeder; beat 9 swoop + skiff.
+
+### 3.8 The Ringworld (`ringworld`) — ceiling 28
 
 Urban outdoors: the cliffs are tower facades (`panel` ridge with lit windows
 and signage), canyons are streets, opens are plazas. The terminator's dark
@@ -431,7 +607,14 @@ side is a later flourish (`lightAt` over the level, §4 Phase 6).
    terrace over the ring's curve (visual backdrop: the far side of the ring);
    *towers, fence behind* — the duelist, then the **nexu**.
 
-### 3.9 The Prison Rig (`narkina`) — ceiling 18
+Props: `tram` (parked at the tram stop; running the arcade on a loop as a
+`Mover` in Phase 6 — the armored ride through beat 2), `street_kiosk` ×6
+(beat 2) and ×3 (beat 6), the `city_facade` + glow textures on the `panel`
+ridge, `cargo_crate`.
+Rides: a swoop pair at the tram stop for the plaza fight (beat 6 is 50 m
+across — just wide enough); the tram is the road beat here.
+
+### 3.9 The Prison Rig (`narkina`) — ceiling 28
 
 Outdoors on a rig: white superstructure walls (`panel` ridge), railings, and
 the sea beyond the deck edges (the local water plane, as on Trask — the
@@ -459,11 +642,24 @@ banner: *the sea took you*). Shock plates run outdoors too.
    pool (water/kill at the centre); *hull walls, fence behind* — the officer,
    then the **kwazel maw** from the pool.
 
+Props: `troop_carrier` (landed, beat 1), `sunken_transport` beached against
+beat 6's edge (its hull is standable cover), `alarm_console` (beat 4),
+`cargo_crate` (white skin), `fuel_barrel`.
+Rides: none — the decks are too tight and the sea too close; the rig's
+personality is the shock plates.
+
 ### 3.10 Ceiling table
 
 | desert | station | nevarro | crevasse | trask | refinery | forge | ringworld | narkina |
 |---|---|---|---|---|---|---|---|---|
-| 20 | 30 | 20 | 22 | 18 | 20 (halls 7) | 22 | 18 | 18 |
+| 30 | 45 | 30 | 32 | 28 | 30 (halls 7) | 34 | 28 | 28 |
+
+Every value is above a full jetpack burn on that board's gravity (the Spice
+Run's 45 assumes its 0.45 g pads; the drift between platforms is lighter
+still, which is why it is the one to watch). The Ringworld and the two rig /
+dock boards run lower because their borders are buildings and hull, which
+read wrong past ~35 m; the Forge runs highest because its ruin rims are the
+tallest thing on any board.
 
 ## 4. Guidance
 
@@ -526,8 +722,8 @@ phase machine and needs no new state:
 ### 5.1 Data model (`src/world/mission.ts`)
 
 ```ts
-export type Shell = 'open' | 'canyon' | 'hall' | 'corridor' | 'deck';
-export type Encounter = 'start' | 'trek' | 'camp' | 'assault' | 'lieutenant' | 'warlord';
+export type Shell = 'open' | 'canyon' | 'hall' | 'corridor' | 'deck' | 'road';
+export type Encounter = 'start' | 'trek' | 'camp' | 'assault' | 'chase' | 'lieutenant' | 'warlord';
 export type RidgeStyle = 'rock' | 'ice' | 'basalt' | 'ruin' | 'hull' | 'tank' | 'panel';
 
 export interface ZoneSpec {
@@ -546,7 +742,14 @@ export interface ZoneSpec {
   plates?: { w: number; l: number; gap: number; rise: number }[];   // deck: platform chain
   roofH?: number;                // hall: default 8
   entry?: 'door' | 'fence' | 'mouth';   // default by shell pair; see §1.3
-  exit?:  'door' | 'fence' | 'mouth';
+  exit?:  'door' | 'fence' | 'mouth' | 'barricade';   // barricade: road only
+  /** authored sculpts, zone-local (u along travel, v across); §1.7 */
+  props?: { id: string; u: number; v: number; yaw?: number; size?: number; collide?: boolean }[];
+  /** rides parked in the zone, zone-local; §1.8 */
+  vehicles?: { kind: VehicleSpec['kind']; u: number; v: number; yaw?: number }[];
+  /** road: where the drops come along it (fractions of l) and what holds the far mouth */
+  marks?: number[];
+  barricade?: 'fence' | 'crates';
 }
 
 export interface MissionSpec {
@@ -569,6 +772,10 @@ one release so `tools/test-modes.mjs` keeps passing until it is updated.
 
 ```ts
 ceilingY: number;
+/** the local water plane on water boards (Vehicle and the off-path rule read it) */
+waterY?: number;
+/** every parked ride, in world space — Game spawns these in place of the board's */
+vehicles: VehicleSpec[];
 /** the golden path: entry, bend points and exit of every zone, in order — trail posts and the autopilot */
 path: THREE.Vector3[];
 /** per zone: the trigger line's u along travel (outdoor assaults) */
@@ -600,6 +807,21 @@ same `group`/`physics`/`rects`/`blocked` the v2 helpers use:
   work lamp drops to `roofH − 0.4`, and two **hatches** (a `Gate` in each
   side wall at l/2 with a 3×4 closet behind it; `hatches: {gate, post}[]`)
   replace the far/side vents for wave arrival.
+- `roadZone(f, zs)` — a `canyon` with the lane width of an `open`: legs on
+  the same turtle, bends through a junction square the road's own width (a
+  30 m square is a corner a swoop takes at speed), rim both sides, cairns or
+  pylons every 20 m (the trail posts, bigger), the drop marks (`marks`) as
+  vents 6 m in from the rim on both sides, and the far mouth closed by a
+  `Fence` or a **crate line** (six `cargo_crate` breakables across the mouth
+  at 40 hp each; a ram or a rocket opens a gap). Ride parking at u = 6 and at
+  `l / 3`.
+- Props: `zs.props` placed through `authoredProp` after the zone's own
+  geometry, with `fitColliders` when `collide` is set; each lands on the
+  `blocked` list so cover and vents stay out of it. A landmark prop (a
+  crawler, a barge, a skull) is placed *before* vents are validated.
+- Rides: `zs.vehicles` transformed to world space and appended to
+  `level.vehicles`; the audit rejects one within 6 m of an open edge or
+  inside a zone whose short side is under 56 m unless the zone is a `road`.
 - `deckZone(f, zs)` — one plate or a chain of plates (`plates[]`) with gaps
   and rises; an emissive strip along each plate's near edge; no rim. The
   level's `contains` covers plates only, so the off-path rule catches a miss.
@@ -638,6 +860,16 @@ same `group`/`physics`/`rects`/`blocked` the v2 helpers use:
   `from`); `hall` posts the squad in the hatch closets (`placeNear` at each
   `hatch.post`, `silent`) and opens the hatches, which is the whole arrival.
   Fliers (`air` entries) are kept by `squadFor` when `zone.spec.air`.
+- `chase` encounters: `enterZone` calls the road's swoop pack (air kinds via
+  `fly` over the rim, `squadFor` with `air` forced) and arms the marks; each
+  mark fires its drop when the lead living player passes it; the barricade's
+  squad is posted at build. Clears when every living player is past the far
+  mouth (`u > l`), which also parks any ridden vehicle's position as the
+  checkpoint's furniture. A player who loses their ride walks — the spare
+  pair at `l / 3` is for them, and the road is still winnable on foot (the
+  test covers it).
+- Vehicles: `Game` spawns `level.vehicles` in campaign instead of skipping
+  `spawnVehicles`; `Vehicle` reads `campaign.level.waterY` where present.
 - `trek` encounters: `enterZone` posts nothing (lookouts were posted at
   build like camp garrisons, with `notice` doubled); clears on `nearExit`.
 - Guidance: `objectivePos` per the §4 table; `clearRoom` → `clearZone` lays
@@ -685,15 +917,26 @@ and add, run over **all nine** boards rather than the Dune Sea alone:
   point (entry → bends → exit) instead of room centres, to liberation on
   every board, zero falls, zero wedges, zero off-path teleports.
 - **Ceiling.** Stand a player in the first `open` zone, hold jump for 8 s:
-  `max(y) ≤ ceilingY − height + 0.05`. Spawn a `jetpirate` there, run 10 s:
-  `max(y) ≤ ceilingY`. Drop a wave: at least one body's `y` exceeded
-  `ceilingY` during the drop (it came *through*), and none does after landing.
+  `max(y) ≤ ceilingY − height + 0.05`, *and* a single full burn from the
+  floor peaks at least 4 m under it (the "not felt in free flight" rule).
+  Spawn a `jetpirate` there, run 10 s: `max(y) ≤ ceilingY`. Drop a wave: the
+  carrier's release point is above `ceilingY`, at least one body's `y`
+  exceeded `ceilingY` during the drop (it came *through*), and none does
+  after landing. Fly a `jetpirate` in over the rim: it fires no bolt while
+  above `ceilingY`.
 - **Outdoor seal.** In the first outdoor assault: the entry stays passable
   during the fight, the exit does not; the exit opens on the last body.
 - **Hatches.** In the first hall: the wave stands in the closets and the
   hatches open; nobody spawns inside a wall.
 - **Fliers.** On a board with `air` zones, at least one air kind appears in
   the run and never leaves the level's footprint.
+- **Rides.** Every parked ride stands on the level (`contains`), 6 m from
+  any edge, and can be mounted; a ridden swoop driven at the rim for 5 s
+  stays inside the zone; a road is cleared on foot by the autopilot (no
+  ride), and on a ride by a scripted throttle-hold with the barricade rammed.
+- **Props.** Every prop id a layout names is a delivered file or has a
+  stand-in; `propsUsed` after a build equals the prefetcher's list for that
+  board in campaign mode (`test-loadperf`).
 
 ## 6. Implementation plan
 
@@ -703,13 +946,13 @@ levels the moment it lands and de-risks everything after it.
 
 | Phase | Scope | Files | Done when |
 |---|---|---|---|
-| **0 · Ceiling** | `Game.ceilingY`, the three clamps, hover/swoop goal clamps, `?ceiling=`, the shimmer + one-time banner, the ceiling test | `game.ts`, `player.ts`, `enemy.ts`, `modes.ts`, `campaign.ts`, `hud.ts`, `text.ts`, `tools/test-modes.mjs` | jump-hold and jetpirate tests pass on the v2 Dune Sea level with ceiling 20; wave game unaffected (`ceilingY` null) |
-| **1 · Shells on the Dune Sea** | `ZoneSpec`/`Shell`, `ridge`, `openZone`, `canyonZone`, door face, `Fence`/`Barrier`, roofed halls + hatches, `deck` stub; §1.3 sealing in the campaign; the Dune Sea layout from §3.1; labels | `mission.ts`, `campaign.ts`, `text.ts`, `arrival.ts` (runner `from`), `game.ts` (`dropReinforcements` accepts a runner split) | the §3.1 level walks to liberation under the autopilot; build audit green; the v2 tests still pass on the other eight (still v2 layouts, now expressed as `hall` zones — a mechanical translation of `ROOMS` to `zones` with `shell: 'hall'`) |
+| **0 · Ceiling** | `Game.ceilingY` and `Game.dropHeight`, the three clamps, hover/swoop goal clamps, the no-fire-above-ceiling hold, `?ceiling=`, the shimmer + one-time banner, the ceiling test | `game.ts`, `player.ts`, `enemy.ts`, `modes.ts`, `campaign.ts`, `hud.ts`, `text.ts`, `tools/test-modes.mjs` | jump-hold and jetpirate tests pass on the v2 Dune Sea level with ceiling 30; wave game unaffected (`ceilingY` null, `dropHeight` 38) |
+| **1 · Shells on the Dune Sea** | `ZoneSpec`/`Shell`, `ridge`, `openZone`, `canyonZone`, door face, `Fence`/`Barrier`, roofed halls + hatches, `deck` stub; zone props through `authoredProp`; rides from the level (`spawnVehicles` in campaign, `level.vehicles`); §1.3 sealing in the campaign; the Dune Sea layout from §3.1 *without* its road (beat 6 lands in Phase 4); labels | `mission.ts`, `campaign.ts`, `text.ts`, `arrival.ts` (runner `from`), `game.ts` (`dropReinforcements` accepts a runner split; vehicles in campaign), `vehicles.ts` (`waterY`), `prefetch.ts` | the §3.1 level walks to liberation under the autopilot; build audit green; the v2 tests still pass on the other eight (still v2 layouts, now expressed as `hall` zones — a mechanical translation of `ROOMS` to `zones` with `shell: 'hall'`) |
 | **2 · Guidance** | HUD marker, ground arrow, trail posts, barrier lighting, pillar position rule, landmark audit | `hud.ts`, `style.css`, `campaign.ts`, `mission.ts`, `tools/test-missions.mjs` | landmark audit green on the Dune Sea; a player with the HUD alone (no radar) reaches the warlord in a hands-on playtest |
 | **3 · Eight more territories** | §3.2–§3.9 layouts, per-style ridges (`ice`, `basalt`, `ruin`, `hull`, `tank`, `panel`), `deck` shell for real, water plane + off-path rule, the lake traction ring, local `lightAt` skipped | `mission.ts`, `text.ts`, `campaign.ts` | all nine pass the build, landmark and walkthrough audits |
-| **4 · Fliers & runners** | `air` zones draw air kinds; `run` arrivals through passes; `swim` on the two water boards | `campaign.ts`, `arrival.ts`, `spawner.ts` | the flier test passes on desert/station/ringworld; runners enter through the pass, not through a cliff |
+| **4 · Fliers, runners & roads** | `air` zones draw air kinds; `run` arrivals through passes; `swim` on the two water boards; the `road` shell and `chase` encounter, the three roads (§3.1 beat 6, §3.3 beat 7, §3.7 beat 2), barricades | `campaign.ts`, `arrival.ts`, `spawner.ts`, `mission.ts` | the flier test passes on desert/station/ringworld; runners enter through the pass, not through a cliff; all three roads clear on foot and on a ride |
 | **5 · Polish** | performance pass (merged ridge geometry, cylinder cull radius in `physics.ts` if the move loop shows up), backdrop tint by fog, the ceiling values tuned in play, `docs/LEVEL_DESIGN.md` rewritten to point here as the current design | `mission.ts`, `physics.ts`, docs | 60 fps at 4 players on the largest level (the Old One's hollow with a wave in the air); the ceiling table in §3.10 updated from play |
-| **6 · Later** | terrain relief (`heightAt` wrapper inside the footprint), the Ringworld's terminator over the level, Trask's heaving deck as a `Mover`, room streaming at the barriers | — | not scheduled |
+| **6 · Later** | terrain relief (`heightAt` wrapper inside the footprint), the Ringworld's terminator over the level and its tram as a `Mover` down the arcade, Trask's heaving trawler deck as a `Mover` and the skiff harbour crossing, room streaming at the barriers | — | not scheduled |
 
 Order of the nine after the Dune Sea (Phase 3): Crevasse (the canyon board
 proves `ice` and the bends), Spice Run (proves `deck` and the hull door),
@@ -721,7 +964,8 @@ Prison Rig (water + `panel`).
 
 | Name | Default | What it moves |
 |---|---|---|
-| `ceiling` (per spec) | 20 | the flight cap; §3.10 |
+| `ceiling` (per spec) | 30 | the playable-sky cut; §3.10 — tune *up* until unfelt |
+| `DROP_OVER_CEILING` | 10 | how far into the ambient band a carrier releases |
 | `RIM_OVER_CEILING` | 6 | how far the first ridge row clears the ceiling |
 | `BACKDROP_H` | 2.2 × ceiling | the mountains-beyond row |
 | `TRIGGER_IN` | 6 | how far past an outdoor zone's entry the fight starts |
@@ -730,6 +974,10 @@ Prison Rig (water + `panel`).
 | `WATER_DROP` | 2.5 | how far below the floor the water takes you back |
 | `MAX_TREK` | 90 | an authoring cap on a link's length; the audit warns past it |
 | `DECK_GAP_MAX` | 18 | the audit's cap on a platform gap at the board's gravity |
+| `RIDE_MIN_SIDE` | 56 | the shortest side a non-road zone needs before it may park a ride |
+| `RIDE_EDGE_CLEAR` | 6 | how far from an open edge a ride is parked |
+| `BARRICADE_HP` | 40 | per crate in a crate-line barricade |
+| `ROAD_MARK_LEAD` | 0 | seconds before the lead player reaches a mark that its drop is called |
 
 ## 8. Open questions (decide in play, not now)
 
@@ -738,13 +986,41 @@ Prison Rig (water + `panel`).
   (kiting a wave up a canyon forever), the fallback is a fence at the entry
   that closes on the trigger line — the geometry supports both; it is one
   flag on the zone.
-- **Ceiling values.** 20 is a guess that fits a 3.4 s jetpack burn with room
-  to spare; the Spice Run's 30 may still be low at 0.45 g. Tune with
-  `?ceiling=`.
+- **Ceiling values.** 30 clears one full burn by a few metres on 1 g; the
+  Spice Run's 45 may still be low at 0.45 g, and a player chaining glide and
+  burn on any board can climb higher than one burn. The tuning direction is
+  always *up*: the ceiling is the level-skip guard and the sky cut, not a
+  challenge. Tune with `?ceiling=`.
 - **Where the lieutenant fights.** Half indoors, half out (§3) was chosen for
   variety. If the indoor arenas feel like v2, move them out; the shell is one
   word in the spec.
+- **Roads on foot.** A road is 120–180 m; a player who never mounts walks it
+  under swoop fire. That is meant to be survivable but worse; if it turns out
+  to be a wall, the spare rides move closer and the drops thin.
 - **How much of the v2 room feel to keep in halls.** The roofs and hatches
   make halls read as interiors; if the hallway beat wants to stay as short as
   the brief implies ("a hallway battle sequence"), drop each board to one
   hall and one corridor and give the beat to a second canyon.
+
+## 9. Assets this design asks for
+
+Requested 2026-09-03 in the two asset docs; everything below ships procedural
+first and upgrades when the file lands, per the project rule. None of it
+blocks a phase.
+
+**Textures (`docs/ASSETS_IMAGES.md`, "Missions v3 — outdoor surfaces").** The
+rims are the new surface in the game and the existing tileables are
+top-down ground textures; a 26 m cliff face wants a *face*. One cliff
+texture per ridge style (`cliff_sandstone`, `cliff_basalt`, `cliff_ice`,
+`cliff_ruin`, `tank_wall`, `warehouse_wall`, `hull_plate_large` + glow), a
+ground per outdoor theme that lacks one (`ash_ground`, `glass_plain`,
+`street_paving`, `dock_planks`, `scree_ground`), the local sea
+(`sea_surface` + normal), four **ridge silhouettes** (alpha horizon strips
+for above the backdrop row, the skyline-silhouette technique), and one small
+alpha (`energy_cells`) for the fence pane and the ceiling shimmer.
+
+**Models (`docs/ASSETS_MODELS.md`, "Missions v3 — outdoor set").** Small and
+optional: a boulder set (3), a cliff pillar pair (rock and ice — the gap
+framers, the one rim piece players look straight at), the energy pylon and
+the trail post. Wall hatches reuse `blast_door` at 0.6 scale; barricades
+reuse `cargo_crate`; the door faces reuse `blast_door` in a `ridge` slab.
