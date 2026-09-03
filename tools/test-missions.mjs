@@ -396,15 +396,18 @@ for (const board of boards) {
 await startMode('campaign', 1, 'desert', ['din'], '?backup=missions');
 const legacy = await page.evaluate(() => {
   const c = window.__game.campaign;
+  // What is running is told by what it *has*, not by its class name: the
+  // bundle is minified, so `constructor.name` is two letters in a build. The
+  // room chain has `level.rooms`; the outdoor stages have `stage.zones`.
   return {
-    kind: c.constructor.name,
     rooms: c.level?.rooms?.map((r) => r.spec.kind).join(','),
+    hasStages: !!c.stage,
     ceiling: window.__game.ceilingY,
   };
 });
 check('?backup=missions puts the old room chain back',
-  legacy.kind === 'LegacyCampaign' && legacy.rooms?.startsWith('start') && legacy.rooms?.endsWith('warlord'),
-  `${legacy.kind}: ${legacy.rooms}`);
+  !legacy.hasStages && legacy.rooms?.startsWith('start') && legacy.rooms?.endsWith('warlord'),
+  `stages=${legacy.hasStages}: ${legacy.rooms}`);
 check('and the room chain runs without a ceiling over it', legacy.ceiling === null, String(legacy.ceiling));
 
 await h.close();

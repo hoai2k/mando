@@ -1151,10 +1151,17 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         light.position.set(lf.x(len / 2, 0), ltop + CORR_H - 0.5, lf.z(len / 2, 0));
         group.add(light);
       } else {
-        // an outdoor lane: cliffs, not walls, and the sky stays overhead
+        // An outdoor lane: cliffs, not walls, and the sky stays overhead.
+        //
+        // The runs stop at the leg's own ends. They used to overshoot by a
+        // metre at each end, which walled off every bend: a leg's side wall
+        // reached back across the junction its neighbour turns out of, and
+        // the two overhangs met in an interior corner a body could walk into
+        // and never out of. The roofed corridors have always stopped short
+        // for exactly this reason; the cliffs have to as well.
         const hw = laneW / 2 + 1.5;
-        ridge([[lf.x(-1, hw), lf.z(-1, hw)], [lf.x(len + 1, hw), lf.z(len + 1, hw)]], ltop);
-        ridge([[lf.x(-1, -hw), lf.z(-1, -hw)], [lf.x(len + 1, -hw), lf.z(len + 1, -hw)]], ltop);
+        ridge([[lf.x(0, hw), lf.z(0, hw)], [lf.x(len, hw), lf.z(len, hw)]], ltop);
+        ridge([[lf.x(0, -hw), lf.z(0, -hw)], [lf.x(len, -hw), lf.z(len, -hw)]], ltop);
       }
       slab(lf, 0.5, len - 0.5, -laneW / 2 + 0.02, -laneW / 2 + 0.2, ltop + 0.04, ltop + 0.16, trimMat);
       rects.push(lf.rect(-0.5, len + 0.5, -laneW / 2 - 0.5, laneW / 2 + 0.5));
@@ -1206,6 +1213,11 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           [jf.x(laneW + 1.5, -outer), jf.z(laneW + 1.5, -outer)]], jtop);
       }
       rects.push(jf.rect(0, laneW, -laneW / 2, laneW / 2));
+      // The corner itself is a point on the golden path. Without it the route
+      // reads as "leg one's middle, then leg two's middle", and the straight
+      // line between those two cuts across the inside of the bend — into the
+      // cliff that makes the bend a bend.
+      path.push(jf.vec(laneW / 2, 0, jtop + 0.2));
       const ndx = link.turn > 0 ? jf.px : -jf.px;
       const ndz = link.turn > 0 ? jf.pz : -jf.pz;
       const g2 = new Frame(
