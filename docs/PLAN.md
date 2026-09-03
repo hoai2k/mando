@@ -113,13 +113,16 @@ docs/PLAN.md
   cover — switches itself off for her rather than needing a special case at each site:
   her stowed state is empty hands (`weapon: 'none'`) instead of a shouldered carbine,
   and everything already gated on holding the blaster is false by construction. What she
-  gets in exchange is **deflection**: bolts arriving from her front are batted back at
-  whoever is in front of her, at full damage and credited to her. It reuses the block
-  shield's collider rather than inventing a second mechanism, with three differences that
-  make it read as a parry and not a wall — a tighter frontal arc (about 70°, so fire from
-  the flank still lands), a short cooldown so one blade sweep cannot answer a whole burst,
-  and a cost on the same gauge sprinting spends, so holding blades into sustained fire
-  runs the gauge down and leaves nothing to dash out with.
+  gets in exchange is **deflection**: bolts arriving from her front or either flank are
+  batted back at whoever is in front of her, at full damage and credited to her. It
+  reuses the block shield's collider rather than inventing a second mechanism.
+  **It is continuous** (2026-09-03): no cooldown and no gauge, for as long as the blades
+  are up. What limits the guard is where she is pointing — the arc reaches about ±101°,
+  so front and both flanks are covered and a shot from behind is the only way through.
+  Two earlier versions charged the sprint gauge per bolt and spaced the parries out; both
+  leaked bolts through a guard the player could see working, which reads as the parry
+  being broken rather than as a cost being paid. Measured: bearings 0/45/70/90° all
+  turned, 135/180° both land, and forty sustained bolts turned with the gauge untouched.
 - **The blades stow themselves.** Four seconds without a swing or a deflect and they go
   away, so she walks the board with empty hands rather than jogging around lit like a road
   flare; pressing melee lights them again on the spot and swings in the same press, so
@@ -448,11 +451,11 @@ the swoop reuses the delivered `nikto_swoop.glb`, the enemy bike parked and stea
 
 | Kind | Feel | HP | Where |
 |---|---|---|---|
-| **Swoop** (`nikto_swoop`) | fast, twitchy | 100 | Dune Sea (Tusken camp ×2), Ringworld street ×2 |
-| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 90 | Nevarro gate ×2, Great Forge (dome gap + approach) |
-| **Landspeeder** (`landspeeder`) | stable, forgiving | 150 | Dune Sea homestead |
-| **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 220 | Trask harbour (rides the water), Dune Sea barge |
-| **Bantha** (`bantha`) | alive: slow, immovable, hands free | 260 | Dune Sea, saddled at the Tusken camp ×2 |
+| **Swoop** (`nikto_swoop`) | fast, twitchy | 180 | Dune Sea (Tusken camp ×2), Ringworld street ×2 |
+| **Scout speeder bike** (`speeder_bike`) | fastest, fragile | 150 | Nevarro gate ×2, Great Forge (dome gap + approach) |
+| **Landspeeder** (`landspeeder`) | stable, forgiving | 320 | Dune Sea homestead |
+| **Cargo skiff** (`skiff`) | slow, heavy, a battering ram | 600 | Trask harbour (rides the water), Dune Sea barge |
+| **Bantha** (`bantha`) | alive: slow, immovable, hands free | 500 | Dune Sea, saddled at the Tusken camp ×2 |
 
 **The one ride that is alive.** A bantha is a mount, not a machine, and the def carries
 a `living` flag that says so. It has no ignition and no engine loop — it lows when you
@@ -531,10 +534,54 @@ already has a blip.
 
 **Being shot down:** a parked vehicle is solid (a physics box, removed while ridden)
 and a bolt target on the props' team, so a firefight can cost you your ride before
-you reach it. While ridden, hits on the rider redirect to the vehicle — the hull is
-your HP until it isn't — except kill zones, which still kill the rider. At 0 HP the
-rider is thrown clear and the wreck explodes for real: AoE, knockdowns, chained
-breakables.
+you reach it. At 0 HP the rider is thrown clear and the wreck explodes for real: AoE,
+knockdowns, chained breakables — **sized to the hull that made it** (`Vehicle.blastScale`
+feeds `explode`, which scales the fireball, the wave's reach and what it is worth), so
+a swoop going up beside you is survivable and a skiff going up beside you is not.
+
+**What actually hurts a ride** (second pass, 2026-09-03). Every hull is on roughly
+double its old HP, and two numbers on the def decide how it dies:
+
+| | `shotResist` | `crashScale` | `mass` |
+|---|---|---|---|
+| Swoop | 1 | 1.6 | 1 |
+| Speeder bike | 1.15 | 1.6 | 0.9 |
+| Landspeeder | 0.5 | 4 | 2.4 |
+| Bantha | 0.45 | 2.5 | 4.5 |
+| Cargo skiff | 0.28 | 6 | 6 |
+
+A **shot** — bolt, blade, blast, burn — is multiplied by `shotResist`, so the small
+frames die to gunfire (a swoop is nine bolts, a skiff a hundred) and the heavy ones
+barely notice it, without ever being immune to it. A **crash** is charged in full:
+`crashScale` turns the speed an impact took away into hit points, which is where a
+big ride's damage comes from almost entirely. Putting a skiff into a bulkhead costs
+it a tenth of itself; shooting it does not.
+
+**Ride into ride.** Two hulls meeting is billed off the closing speed along the line
+between them, above ~7 m/s, and **mass decides who wears it**: a swoop into the flank
+of a skiff is a folded swoop and a scratched skiff, and both are shoved apart rather
+than left grinding. A parked ride that gets hit stops being parked and rolls. The
+one impact is billed once — the wall path stands down for a fifth of a second after a
+ride-on-ride crash rather than charging for it twice.
+
+**The rider is the one in the open.** Hits aimed at a mounted rider used to redirect
+into the hull, which made a ride a suit of armour worth more than the fight. They land
+on the rider now; only a quarter of each bleeds into the ride under them, so a firefight
+from the saddle still wears the ride down. The hull has its own hit spheres and takes
+what is aimed at *it*.
+
+**Nothing stays wrecked.** A destroyed ride sits dead for **20 seconds** and then
+reforms at the coordinates the board declared — not where it died, so a ride dragged
+across the map and wrecked in a corner never drifts the layout away from its design.
+A dead ride is off the radar and off the target list while it waits. A **bantha** has
+no fireball in it: it dies where it stands and comes apart into the air over about a
+second (`particles.disintegrate`, the body sinking as it goes), then gathers itself
+back together on the same clock.
+
+**A ride with nobody on it keeps going.** Whether the rider steps off at speed or is
+shot out of the saddle, the ride does not stop dead under them: it coasts driverless
+on its own drag, hover and collisions — still able to crash, still able to be caught
+— and only parks solid once it has come to rest.
 
 **Audio:** engine loop per ridden vehicle (`speeder_loop`, throttle-leaned like the
 jetpack voice), an ignition rev on mount (`speeder_ignite`); the destruction is the
