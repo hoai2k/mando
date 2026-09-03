@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { travelClip } from '../anim/animator';
+import { travelClip, type Animator } from '../anim/animator';
+import { beginArrival, clearArrival, updateArrival, type ArrivalState } from './arrival';
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
   buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
@@ -17,7 +18,7 @@ import { bodyLuma, contrastNeed, haloPeak, haloStrength, makeHalo, skylineTone, 
 import { Ragdoll, RigidRagdoll } from '../anim/ragdoll';
 import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
-import { gravityScale, hazardAt } from '../world/board';
+import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
@@ -181,13 +182,6 @@ interface Def {
   egg?: { hatchIn: number; hatchTo: EnemyKind };
   build: () => CharacterInstance;
 }
-
-/**
- * The gravity scale where this body is — a station in orbit runs light for
- * everyone on it, and a board with a local field (deep space, where the pull
- * lives over the decks and nowhere else) runs lighter still out in the open.
- */
-const grav = (game: Game, at: THREE.Vector3): number => gravityScale(game.board, at.x, at.y, at.z);
 
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
@@ -407,9 +401,6 @@ const _foes: Combatant[] = [];
 const _cue = new THREE.Vector3();
 /** scratch for the half-buried creatures' ground wake */
 const _plow = new THREE.Vector3();
-/** scratch for arrival steering */
-const _arrTo = new THREE.Vector3();
-
 /**
  * The capsule an enemy of this kind occupies. The spawner needs it before the
  * enemy exists, to check that where it is about to put one is somewhere a body
@@ -506,9 +497,8 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
-  /** burn-zone damage accrues and lands in ticks, not per frame */
-  private burnAcc = 0;
-  private burnTick = 0;
+  /** burn-zone damage accrues and lands in ticks, not per frame (src/core/body.ts) */
+  private burn = newBurnState();
   /** where a flame volley was aimed when it started — the stream holds its line */
   private flameAim = new THREE.Vector3();
   /** kamikaze dive: seconds left of committed dive, 0 = stalking */
@@ -565,8 +555,9 @@ export class Enemy {
   private volleyLeft = 0;
   private volleyTimer = 0;
   private strafePhase = Math.random() * Math.PI * 2;
-  private facingYaw = 0;
-  private spawnPos = new THREE.Vector3();
+  /** public because src/enemies/arrival.ts steers an arriving body by it */
+  facingYaw = 0;
+  spawnPos = new THREE.Vector3();
   // ---- ragdoll & corpse ----
   /**
    * Deaths hand the rig to an articulated solver: point masses at the joints
@@ -608,7 +599,7 @@ export class Enemy {
   /** short delay between noticing something and acting on it */
   private reaction = 0;
   private idleTimer = Math.random() * 3;
-  private idleGoal = new THREE.Vector3();
+  idleGoal = new THREE.Vector3();
   private idleYaw = 0;
   /**
    * Director-assigned. `committed` enemies close to attacking range; the rest
@@ -688,15 +679,7 @@ export class Enemy {
    * suspended until the arrival completes; the body is alive and targetable
    * the whole way down, so a parachutist can be shot out of the sky.
    */
-  private arrival: {
-    mode: 'drop' | 'run' | 'fly' | 'swim';
-    target: THREE.Vector3;
-    chute: boolean;
-    chuteMesh: THREE.Group | null;
-    t: number;
-    shotCd: number;
-    climbing: boolean;
-  } | null = null;
+  arrival: ArrivalState | null = null;
   /** blaster heat, 0..1 — see the constants above */
   heat = 0;
   /** seconds left venting; nothing fires while this is running */
@@ -911,26 +894,13 @@ export class Enemy {
       this.removeMe = true;
       return true;
     }
-    const hzd = hazardAt(game.board, this.position);
-    if (hzd.kill) {
-      this.damage(9999, this.position, -1);
-      return !this.alive;
-    }
-    if (!this.def.burnImmune) {
-      let dps = hzd.dps;
-      // fully under the surface, anything that breathes (or shorts) drowns —
-      // aquatic kinds (`burnImmune`) are at home down there
-      const wY = game.board.waterY;
-      if (wY !== undefined && this.position.y + this.height * 0.85 < wY) dps += 15;
-      if (dps > 0) {
-        this.burnAcc += dps * dt;
-        this.burnTick -= dt;
-        if (this.burnTick <= 0) {
-          this.burnTick = 0.5;
-          if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1); this.burnAcc = 0; }
-        }
-      }
-    }
+    // The tick is the player's 0.4 s beat now, not the 0.5 s this side had
+    // drifted to (src/core/body.ts). Drowning stays a hostile-only term:
+    // fully under the surface, anything that breathes (or shorts) drowns —
+    // aquatic kinds (`burnImmune`) are at home down there.
+    tickHazards(this.burn, game.board, this.position, dt, (amount, kill) => {
+      this.damage(kill ? 9999 : amount, this.position, -1);
+    }, { drownAt: this.height * 0.85, immune: this.def.burnImmune });
     return !this.alive;
   }
 
@@ -1142,13 +1112,9 @@ export class Enemy {
    */
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
     if (this.submerged) return;   // the ground it is under does not shove
-    const dir = this.position.clone().sub(from).setY(0);
-    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // point-blank: shove along +Z
-    dir.normalize();
-    this.velocity.addScaledVector(dir, force);
     // `lift` is what separates a shove from a launch: keep it low to slide the
     // target clear along the ground, raise it when a pop is wanted (explosions)
-    this.velocity.y += force * lift;
+    applyKnockback(this.velocity, this.position, from, force, force * lift, true);
     this.stagger = Math.max(this.stagger, stagger);
   }
 
@@ -1197,7 +1163,7 @@ export class Enemy {
     return best ?? game.players[0] ?? null;
   }
 
-  private nearestFoe(game: Game): Combatant | null {
+  nearestFoe(game: Game): Combatant | null {
     let best: Combatant | null = null;
     let bestD = Infinity;
     // filled rather than allocated: this runs once per enemy per frame.
@@ -1281,78 +1247,16 @@ export class Enemy {
 
     // shot out of the sky (or the water): the parachute goes, the corpse
     // keeps the velocity it died with and the ordinary death physics land it
-    if (this.arrival && !this.alive) this.clearArrival();
+    if (this.arrival && !this.alive) clearArrival(this);
 
-    if (!this.alive) {
-      // ---- corpse ----
-      // Bodies stay where they fell for the rest of the wave (the mixer is
-      // simply never updated again, freezing the last live pose under the
-      // ragdoll), then fade out when the wave clears.
-      if (this.fadeT >= 0) {
-        this.fadeT += dt;
-        this.setOpacity(Math.max(0, 1 - this.fadeT / 1.2));
-        if (this.fadeT > 1.3) this.removeMe = true;
-      }
-      if (this.settled) return; // at rest: nothing left to simulate
-
-      // Seeded a frame late on purpose: velocity now carries the damage fling
-      // plus any knockback stacked after it, and that is what steers the fall.
-      // The upper body takes a larger share, so a hit turns the body over
-      // rather than sliding it away flat.
-      if (this.ragdollArmed) {
-        this.ragdollArmed = false;
-        _base.copy(this.velocity).multiplyScalar(0.85);
-        _spin.copy(this.velocity).multiplyScalar(0.3);
-        // A free-form rig (the spiders, the massiff, the drone) has no named
-        // skeleton for the articulated solver, so it dies as one rigid body
-        // instead — same Verlet world, same contacts, shape-matched every
-        // step. Both simulate; neither plays a canned fall.
-        this.ragdoll = this.char.rig
-          ? new Ragdoll(this.char.rig, _base, _spin)
-          : new RigidRagdoll(this.char.root, this.radius, this.height, _base, _spin);
-      }
-
-      if (this.ragdoll) {
-        this.ragdoll.step(dt, game.board.physics);
-        // anything still tracking the corpse follows the body itself, not a
-        // capsule left standing where it died
-        this.position.copy(this.ragdoll.hips);
-        if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
-        if (!this.ragdoll.active && this.fadeT < 0) this.settled = true;
-        // A rigged corpse keeps its cosmetic tick (a cape still swings on the
-        // way down). A creature's tick *is* its gait — leave it unrun and the
-        // legs freeze where they were, instead of a dead spider skittering as
-        // it tumbles.
-        if (this.char.rig) this.char.cosmetic?.(dt, game.time);
-        return;
-      }
-
-      // No solver: a body that was already flat when it died (a wounded crawl,
-      // a knockdown) keeps the pose it was holding and simply slides to a stop.
-      this.velocity.x = damp(this.velocity.x, 0, 3, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 3, dt);
-      this.velocity.y -= 22 * grav(game, this.position) * dt;
-      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.35, this.velocity, dt);
-      if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
-      if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
-
-      this.syncVisual(dt, game);
-      return;
-    }
+    if (!this.alive) { this.updateCorpse(dt, game); return; }
 
     if (this.arrival) {
-      this.updateArrival(dt, game);
+      updateArrival(this, dt, game);
       return;
     }
 
-    this.attackCd -= dt;
-    this.superJumpCd -= dt;
-    this.specialCd -= dt;
-    this.shotRecently = Math.max(0, this.shotRecently - dt);
-    this.suppression = Math.max(0, this.suppression - dt * 0.25);
-    this.venting = Math.max(0, this.venting - dt);
-    this.heatHold = Math.max(0, this.heatHold - dt);
-    if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
+    this.tickTimers(dt);
     const d = this.def;
 
     // ---- an egg: no AI, just the clock to the hatch ----
@@ -1362,55 +1266,153 @@ export class Enemy {
     }
 
     // ---- flat on the ground after a heavy hit ----
-    if (this.downTimer > 0) {
-      this.downTimer -= dt;
-      this.velocity.x = damp(this.velocity.x, 0, 4, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 4, dt);
-      this.velocity.y -= 24 * grav(game, this.position) * dt;
-      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
-      if (this.boardHazards(game, dt)) return;
-      if (this.downTimer <= 0) {
-        // back on its feet, shaken
-        const a = this.char.animator;
-        if (a) { a.release('lower'); a.release('upper'); }
-        this.stagger = Math.max(this.stagger, 0.25);
-        this.attackCd = Math.max(this.attackCd, 0.8);
-      }
-      this.syncVisual(dt, game);
-      anim?.update(dt);
-      return;
-    }
+    if (this.downTimer > 0) { this.updateDowned(dt, game, anim); return; }
 
     // ---- wounded: crawling away, bleeding out ----
-    if (this.wounded) {
-      if (!this.woundedPosed) {
-        this.woundedPosed = true;
-        const a = this.char.animator;
-        if (a) {
-          a.release('lower'); a.release('upper');
-          a.playOnce('lower', 'deathLower', 0.08, true);
-          a.playOnce('upper', 'deathUpper', 0.08, true);
-        }
-      }
-      this.bleedOut -= dt;
-      // drag away from whatever did this, slowly
-      const away = this.position.clone().sub(this.interest).setY(0);
-      if (away.lengthSq() > 1e-4) away.normalize();
-      this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
-      this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
-      this.velocity.y -= 24 * grav(game, this.position) * dt;
-      game.board.physics.moveCapsule(this.position, this.radius, this.height * 0.5, this.velocity, dt);
-      if (this.boardHazards(game, dt)) return;
-      if (this.bleedOut <= 0) {
-        this.alive = false; // already prone: the held pose is the corpse
-      }
-      this.syncVisual(dt, game);
-      anim?.update(dt);
+    if (this.wounded) { this.updateWounded(dt, game, anim); return; }
+
+    const target = this.senses(dt, game);
+    this.updateKillWatch();
+
+    // ---- boss super jump: airborne and committed ----
+    if (this.leapT > 0) {
+      this.updateLeap(dt, game);
       return;
     }
 
-    const target = this.senses(dt, game);
+    // ---- broke and ran ----
+    if (this.updateFleeing(dt, game, anim)) return;
 
+    this.steer(dt, game, target);
+    this.separate(dt, game);
+    this.integrate(dt, game);
+    if (this.boardHazards(game, dt)) return;
+    this.updateBroodSpawn(game);
+    if (d.plows) this.updatePlowWake(dt, game);
+    if (anim) this.updateLocomotionAnim(anim);
+
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+  }
+
+  /** a body that is down: the ragdoll (or a slide to rest), the fade, the kill plane */
+  private updateCorpse(dt: number, game: Game): void {
+    // ---- corpse ----
+    // Bodies stay where they fell for the rest of the wave (the mixer is
+    // simply never updated again, freezing the last live pose under the
+    // ragdoll), then fade out when the wave clears.
+    if (this.fadeT >= 0) {
+      this.fadeT += dt;
+      this.setOpacity(Math.max(0, 1 - this.fadeT / 1.2));
+      if (this.fadeT > 1.3) this.removeMe = true;
+    }
+    if (this.settled) return; // at rest: nothing left to simulate
+
+    // Seeded a frame late on purpose: velocity now carries the damage fling
+    // plus any knockback stacked after it, and that is what steers the fall.
+    // The upper body takes a larger share, so a hit turns the body over
+    // rather than sliding it away flat.
+    if (this.ragdollArmed) {
+      this.ragdollArmed = false;
+      _base.copy(this.velocity).multiplyScalar(0.85);
+      _spin.copy(this.velocity).multiplyScalar(0.3);
+      // A free-form rig (the spiders, the massiff, the drone) has no named
+      // skeleton for the articulated solver, so it dies as one rigid body
+      // instead — same Verlet world, same contacts, shape-matched every
+      // step. Both simulate; neither plays a canned fall.
+      this.ragdoll = this.char.rig
+        ? new Ragdoll(this.char.rig, _base, _spin)
+        : new RigidRagdoll(this.char.root, this.radius, this.height, _base, _spin);
+    }
+
+    if (this.ragdoll) {
+      this.ragdoll.step(dt, game.board.physics);
+      // anything still tracking the corpse follows the body itself, not a
+      // capsule left standing where it died
+      this.position.copy(this.ragdoll.hips);
+      if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
+      if (!this.ragdoll.active && this.fadeT < 0) this.settled = true;
+      // A rigged corpse keeps its cosmetic tick (a cape still swings on the
+      // way down). A creature's tick *is* its gait — leave it unrun and the
+      // legs freeze where they were, instead of a dead spider skittering as
+      // it tumbles.
+      if (this.char.rig) this.char.cosmetic?.(dt, game.time);
+      return;
+    }
+
+    // No solver: a body that was already flat when it died (a wounded crawl,
+    // a knockdown) keeps the pose it was holding and simply slides to a stop.
+    this.velocity.x = damp(this.velocity.x, 0, 3, dt);
+    this.velocity.z = damp(this.velocity.z, 0, 3, dt);
+    // the shared body pull (26): this path had drifted to its own 22
+    const res = stepBody(game.board, this.position, this.radius, this.height * 0.35, this.velocity, dt);
+    if (this.position.y < game.board.physics.killY) { this.removeMe = true; return; }
+    if (res.grounded && this.velocity.lengthSq() < 0.1 && this.fadeT < 0) this.settled = true;
+
+    this.syncVisual(dt, game);
+    return;
+  }
+
+  /** the AI clocks a live body runs down every frame */
+  private tickTimers(dt: number): void {
+    this.attackCd -= dt;
+    this.superJumpCd -= dt;
+    this.specialCd -= dt;
+    this.shotRecently = Math.max(0, this.shotRecently - dt);
+    this.suppression = Math.max(0, this.suppression - dt * 0.25);
+    this.venting = Math.max(0, this.venting - dt);
+    this.heatHold = Math.max(0, this.heatHold - dt);
+    if (this.heatHold <= 0) this.heat = Math.max(0, this.heat - ENEMY_HEAT_COOL * dt);
+  }
+
+  /** flat on the ground after a heavy hit */
+  private updateDowned(dt: number, game: Game, anim: Animator | null): void {
+    this.downTimer -= dt;
+    this.velocity.x = damp(this.velocity.x, 0, 4, dt);
+    this.velocity.z = damp(this.velocity.z, 0, 4, dt);
+    stepBody(game.board, this.position, this.radius, this.height * 0.5, this.velocity, dt);
+    if (this.boardHazards(game, dt)) return;
+    if (this.downTimer <= 0) {
+      // back on its feet, shaken
+      const a = this.char.animator;
+      if (a) { a.release('lower'); a.release('upper'); }
+      this.stagger = Math.max(this.stagger, 0.25);
+      this.attackCd = Math.max(this.attackCd, 0.8);
+    }
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+    return;
+  }
+
+  /** wounded: crawling away, bleeding out */
+  private updateWounded(dt: number, game: Game, anim: Animator | null): void {
+    if (!this.woundedPosed) {
+      this.woundedPosed = true;
+      const a = this.char.animator;
+      if (a) {
+        a.release('lower'); a.release('upper');
+        a.playOnce('lower', 'deathLower', 0.08, true);
+        a.playOnce('upper', 'deathUpper', 0.08, true);
+      }
+    }
+    this.bleedOut -= dt;
+    // drag away from whatever did this, slowly
+    const away = this.position.clone().sub(this.interest).setY(0);
+    if (away.lengthSq() > 1e-4) away.normalize();
+    this.velocity.x = damp(this.velocity.x, away.x * 0.7, 3, dt);
+    this.velocity.z = damp(this.velocity.z, away.z * 0.7, 3, dt);
+    stepBody(game.board, this.position, this.radius, this.height * 0.5, this.velocity, dt);
+    if (this.boardHazards(game, dt)) return;
+    if (this.bleedOut <= 0) {
+      this.alive = false; // already prone: the held pose is the corpse
+    }
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+    return;
+  }
+
+  /** an ally that just dropped what it was shooting at says so */
+  private updateKillWatch(): void {
     // An ally that just dropped what it was shooting at says so. Fennec's
     // shots decide fights and used to do it in silence; a bark on the kill
     // is the credit, and the player's cue that a flank has been cleared.
@@ -1421,45 +1423,45 @@ export class Enemy {
       }
       this.killWatch = null;
     }
+  }
 
-    // ---- boss super jump: airborne and committed ----
-    if (this.leapT > 0) {
-      this.updateLeap(dt, game);
-      return;
-    }
-
-    // ---- broke and ran ----
-    if (this.fleeing) {
-      this.fleeTimer -= dt;
-      const threat = this.interest;
-      const away = this.position.clone().sub(threat).setY(0);
-      const far = away.length();
-      if (this.fleeTimer <= 0 || far > 55) {
-        // rallied: turns and holds its ground out here
-        this.fleeing = false;
-        this.post.copy(this.position);
-        this.attackCd = Math.max(this.attackCd, 0.6);
-      } else if (far > 1e-2) {
-        away.normalize();
-        this.velocity.x = damp(this.velocity.x, away.x * d.speed * 1.05, 6, dt);
-        this.velocity.z = damp(this.velocity.z, away.z * d.speed * 1.05, 6, dt);
-        this.facingYaw = dampAngle(this.facingYaw, Math.atan2(away.x, away.z), 8, dt);
-        // a morale break is still voluntary movement: it does not get to sprint
-        // off a platform lip that the same enemy would have stopped at walking
-        this.edgeGuard(game);
-        this.velocity.y -= 24 * grav(game, this.position) * dt;
-        game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
-        if (this.boardHazards(game, dt)) return;
-        if (anim) {
-          anim.play('lower', 'runLower', 0.2, anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z), this.char.baseScale));
-          anim.play('upper', 'runUpper', 0.2, 1.2);
-        }
-        this.syncVisual(dt, game);
-        anim?.update(dt);
-        return;
+  /** broke and ran. True = the flight took the frame; false = it rallied and fights on */
+  private updateFleeing(dt: number, game: Game, anim: Animator | null): boolean {
+    if (!this.fleeing) return false;
+    const d = this.def;
+    this.fleeTimer -= dt;
+    const threat = this.interest;
+    const away = this.position.clone().sub(threat).setY(0);
+    const far = away.length();
+    if (this.fleeTimer <= 0 || far > 55) {
+      // rallied: turns and holds its ground out here
+      this.fleeing = false;
+      this.post.copy(this.position);
+      this.attackCd = Math.max(this.attackCd, 0.6);
+    } else if (far > 1e-2) {
+      away.normalize();
+      this.velocity.x = damp(this.velocity.x, away.x * d.speed * 1.05, 6, dt);
+      this.velocity.z = damp(this.velocity.z, away.z * d.speed * 1.05, 6, dt);
+      this.facingYaw = dampAngle(this.facingYaw, Math.atan2(away.x, away.z), 8, dt);
+      // a morale break is still voluntary movement: it does not get to sprint
+      // off a platform lip that the same enemy would have stopped at walking
+      this.edgeGuard(game);
+      stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt);
+      if (this.boardHazards(game, dt)) return true;
+      if (anim) {
+        anim.play('lower', 'runLower', 0.2, anim.gaitRate('runLower', Math.hypot(this.velocity.x, this.velocity.z), this.char.baseScale));
+        anim.play('upper', 'runUpper', 0.2, 1.2);
       }
+      this.syncVisual(dt, game);
+      anim?.update(dt);
+      return true;
     }
+    return false;
+  }
 
+  /** the AI proper: what this body does with the frame, by state and by style */
+  private steer(dt: number, game: Game, target: Combatant | null): void {
+    const d = this.def;
     if (this.stagger > 0) {
       // reeling from a hit: coast on the impulse, just bleed it off slowly
       this.stagger -= dt;
@@ -1496,8 +1498,10 @@ export class Enemy {
     } else {
       this.updateIdle(dt, game);
     }
+  }
 
-    // separation from other enemies
+  /** crowd spacing: bodies push each other apart rather than stacking */
+  private separate(dt: number, game: Game): void {
     for (const other of game.enemies) {
       if (other === this || !other.alive) continue;
       const dx = this.position.x - other.position.x;
@@ -1517,11 +1521,14 @@ export class Enemy {
         this.velocity.z += (dz / dist) * push;
       }
     }
+  }
 
+  /** the capsule move (walkers) or the straight drift (fliers) */
+  private integrate(dt: number, game: Game): void {
+    const d = this.def;
     if (d.style === 'melee' || d.style === 'ranged') {
       this.edgeGuard(game);
-      this.velocity.y -= 24 * grav(game, this.position) * dt;
-      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+      const res = stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt);
       this.grounded = res.grounded;
       // A half-buried colossus is *of* the ground: it swims through the
       // surface rather than standing on it, never jumps and never falls. Left
@@ -1535,10 +1542,10 @@ export class Enemy {
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
+  }
 
-    if (this.boardHazards(game, dt)) return;
-
-    // brood spawns: enough damage taken and the egg sacs let go
+  /** brood spawns: enough damage taken and the egg sacs let go */
+  private updateBroodSpawn(game: Game): void {
     const brood = this.def.spawnOnHurt;
     if (brood && this.spawnedCount < brood.max &&
         this.hp < this.spawnMark - this.def.hp * brood.per) {
@@ -1552,13 +1559,11 @@ export class Enemy {
       }
       audio.bark('spider_chitter', 0.6);
     }
+  }
 
-    // ---- the ground answers for a half-buried body ----
-    // These two are not walking over the terrain, they are ploughing through
-    // it, so the surface has to break where they pass. The wake is thrown from
-    // behind the head, across the width of the body, at a rate set by how fast
-    // it is travelling: standing still it settles to nothing, which is the tell
-    // that the thing has stopped moving under you.
+  /** the ground answers for a half-buried body: the wake it ploughs through the surface */
+  private updatePlowWake(dt: number, game: Game): void {
+    const d = this.def;
     if (d.plows) {
       const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
       this.plowT -= dt * (0.4 + speed2 * 0.55);
@@ -1579,41 +1584,40 @@ export class Enemy {
         else game.particles.dustPuff(_plow, 5);
       }
     }
-
-    // locomotion animation
-    if (anim) {
-      const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
-      if (this.windup <= 0 && this.leapT <= 0) {
-        // A hover trooper is in the air: it flies, it does not pump a run
-        // cycle on nothing. On the ground the cycle is picked by where the
-        // feet are going relative to the chest — a shooter shuffling
-        // sideways on its bearing, or fanning out on approach, used to run
-        // the forward cycle through it and moonwalk — and paced by the
-        // stride the clip actually covers (as the player's is), so a 7 m/s
-        // duelist's feet keep up with the ground instead of skating.
-        let lower = 'idleLower';
-        let rate = 1;
-        if (d.style === 'hover') lower = 'flyLower';
-        else if (speed2 > 0.7) {
-          const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
-          lower = travel.clip;
-          rate = travel.dir * anim.gaitRate(lower, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
-        }
-        anim.play('lower', lower, 0.2, rate);
-        // A shooter holds the aim while it is firing or standing; on the move
-        // between shots it runs with the gun, instead of the frozen aim pose
-        // gliding along at any speed. A hover trooper is always in the air
-        // and always aiming.
-        const shooting = this.volleyLeft > 0 || this.attackCd > this.def.attackCd - 0.35;
-        if (d.style === 'hover' || (d.style === 'ranged' && (shooting || speed2 <= 0.7))) anim.play('upper', 'enemyAimUpper', 0.25);
-        else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, Math.abs(rate));
-        else anim.play('upper', 'idleUpper', 0.25);
-      }
-    }
-
-    this.syncVisual(dt, game);
-    anim?.update(dt);
   }
+
+  /** which gait the body plays for the speed and heading it actually has */
+  private updateLocomotionAnim(anim: Animator): void {
+    const d = this.def;
+    const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
+    if (this.windup <= 0 && this.leapT <= 0) {
+      // A hover trooper is in the air: it flies, it does not pump a run
+      // cycle on nothing. On the ground the cycle is picked by where the
+      // feet are going relative to the chest — a shooter shuffling
+      // sideways on its bearing, or fanning out on approach, used to run
+      // the forward cycle through it and moonwalk — and paced by the
+      // stride the clip actually covers (as the player's is), so a 7 m/s
+      // duelist's feet keep up with the ground instead of skating.
+      let lower = 'idleLower';
+      let rate = 1;
+      if (d.style === 'hover') lower = 'flyLower';
+      else if (speed2 > 0.7) {
+        const travel = travelClip(this.velocity.x, this.velocity.z, this.facingYaw);
+        lower = travel.clip;
+        rate = travel.dir * anim.gaitRate(lower, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+      }
+      anim.play('lower', lower, 0.2, rate);
+      // A shooter holds the aim while it is firing or standing; on the move
+      // between shots it runs with the gun, instead of the frozen aim pose
+      // gliding along at any speed. A hover trooper is always in the air
+      // and always aiming.
+      const shooting = this.volleyLeft > 0 || this.attackCd > this.def.attackCd - 0.35;
+      if (d.style === 'hover' || (d.style === 'ranged' && (shooting || speed2 <= 0.7))) anim.play('upper', 'enemyAimUpper', 0.25);
+      else if (speed2 > 0.7) anim.play('upper', 'runUpper', 0.2, Math.abs(rate));
+      else anim.play('upper', 'idleUpper', 0.25);
+    }
+  }
+
 
   /**
    * Refresh awareness and return the foe to fight, if any. Enemies only enter
@@ -1970,7 +1974,7 @@ export class Enemy {
     this.velocity.z = damp(this.velocity.z, dz * inv * sp, 6, dt);
   }
 
-  private faceToward(dt: number, x: number, z: number, rate = 10): void {
+  faceToward(dt: number, x: number, z: number, rate = 10): void {
     const yaw = Math.atan2(x - this.position.x, z - this.position.z);
     this.facingYaw = dampAngle(this.facingYaw, yaw, rate, dt);
   }
@@ -1989,8 +1993,7 @@ export class Enemy {
     const settle = this.grounded ? 6 : this.eggThrown && !this.eggHit ? 0.3 : 2;
     this.velocity.x = damp(this.velocity.x, 0, settle, dt);
     this.velocity.z = damp(this.velocity.z, 0, settle, dt);
-    this.velocity.y -= 24 * grav(game, this.position) * dt;
-    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    const res = stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     if (this.boardHazards(game, dt)) return;
 
@@ -2053,7 +2056,7 @@ export class Enemy {
     if (!this.losThrottled(game, target)) return false;
     // aim at where they'll be when the arc comes down
     const vy = 9 + Math.min(dist * 0.12, 3.5);
-    const flight = (2 * vy) / (24 * grav(game, this.position));
+    const flight = (2 * vy) / bodyGravity(game.board, this.position);
     const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.8);
     const ax = aim.x - this.position.x, az = aim.z - this.position.z;
     const gap = Math.hypot(ax, az);
@@ -2093,8 +2096,7 @@ export class Enemy {
   /** Mid-leap: ballistic, unsteered, air pose held until the ground arrives. */
   private updateLeap(dt: number, game: Game): void {
     this.leapT -= dt;
-    this.velocity.y -= 24 * grav(game, this.position) * dt;
-    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    const res = stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     if (this.boardHazards(game, dt)) return;
     const anim = this.char.animator;
@@ -2372,7 +2374,7 @@ export class Enemy {
     if ((this.kind === 'massiff' || d.pounces) && this.attackCd <= 0 && this.grounded &&
         dist > d.attackRange && dist < 16 && this.losThrottled(game, target)) {
       const vy = 6.2 + dist * 0.12;
-      const flight = (2 * vy) / (24 * grav(game, this.position));       // ballistic hang time
+      const flight = (2 * vy) / bodyGravity(game.board, this.position);       // ballistic hang time
       const aim = target.position.clone().addScaledVector(target.velocity, flight * 0.85);
       const ax = aim.x - this.position.x, az = aim.z - this.position.z;
       const gap = Math.hypot(ax, az);
@@ -2711,7 +2713,7 @@ export class Enemy {
     return !game.board.physics.raycast(from, dir, dist);
   }
 
-  private fireBoltAt(game: Game, target: Combatant): void {
+  fireBoltAt(game: Game, target: Combatant): void {
     const d = this.def;
     const from = new THREE.Vector3();
     if (this.char.muzzle) this.char.muzzle.getWorldPosition(from);
@@ -2865,10 +2867,9 @@ export class Enemy {
   // ---------- arriving on the board (src/enemies/arrival.ts) ----------
 
   /**
-   * Start this enemy on its way in instead of at its post. `target` is the
-   * placement the wave planner validated, so finishing the arrival *is*
-   * standing somewhere legal — the whole point of arriving from the sky or
-   * the edge is that there is no way to finish inside a wall.
+   * Start this enemy on its way in instead of at its post. The trajectory, the
+   * parachute and the touchdown live in `arrival.ts`, which drives this body
+   * through the `ArrivalBody` interface.
    */
   beginArrival(
     mode: 'drop' | 'run' | 'fly' | 'swim',
@@ -2876,210 +2877,11 @@ export class Enemy {
     target: THREE.Vector3,
     opts: { chute?: boolean; velocity?: THREE.Vector3 } = {},
   ): void {
-    this.position.copy(from);
-    this.char.root.position.copy(from);
-    if (opts.velocity) this.velocity.copy(opts.velocity);
-    this.facingYaw = Math.atan2(target.x - from.x, target.z - from.z);
-    this.arrival = {
-      mode, target: target.clone(),
-      chute: !!opts.chute, chuteMesh: null,
-      t: 0, shotCd: 1 + Math.random(), climbing: false,
-    };
+    beginArrival(this, mode, from, target, opts);
   }
 
   /** true while this enemy is still on its way in */
   get arriving(): boolean { return this.arrival !== null; }
-
-  /** the parachute: a canopy and four lines, hung over the shoulders */
-  private makeChute(): THREE.Group {
-    const g = new THREE.Group();
-    const canopy = new THREE.Mesh(
-      new THREE.SphereGeometry(1.5, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x8f8261, roughness: 0.95, side: THREE.DoubleSide }),
-    );
-    canopy.scale.y = 0.6;
-    g.add(canopy);
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0x24221e });
-    const lineGeo = new THREE.CylinderGeometry(0.012, 0.012, 2.1, 3);
-    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-      const line = new THREE.Mesh(lineGeo, lineMat);
-      line.position.set(sx * 0.5, -1.05, sz * 0.5);
-      line.rotation.z = sx * 0.42;
-      line.rotation.x = -sz * 0.42;
-      g.add(line);
-    }
-    g.position.y = this.height + 1.85;
-    return g;
-  }
-
-  /** drop the chute and the state, leaving position and velocity as they are */
-  private clearArrival(): void {
-    const a = this.arrival;
-    if (!a) return;
-    if (a.chuteMesh) {
-      this.char.root.remove(a.chuteMesh);
-      a.chuteMesh.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        m.geometry.dispose();
-        (m.material as THREE.Material).dispose();
-      });
-    }
-    this.arrival = null;
-  }
-
-  /** touched down / walked in: this ground is the post now */
-  private finishArrival(game: Game, dust: boolean): void {
-    if (dust) game.particles.dustPuff(this.position, 8);
-    // a drop-in takes the ground in the knees, the same crouch the player uses;
-    // one that walked in off the edge of the board has nothing to absorb
-    if (dust) this.char.animator?.playOnce('lower', 'landLower', 0.05);
-    this.post.copy(this.position);
-    this.spawnPos.copy(this.position);
-    this.idleGoal.copy(this.position);
-    this.velocity.set(0, 0, 0);
-    this.clearArrival();
-  }
-
-  /**
-   * One frame of getting here. Runs instead of the AI; the body stays alive
-   * and targetable throughout.
-   *
-   * The drop trajectory is aimed, not simulated blind: vertical speed is real
-   * gravity to a terminal velocity (a hard one for a straight drop, a gentle
-   * one under canopy), and horizontal velocity is continuously steered to
-   * close the remaining distance in the time the fall has left — which is
-   * what makes a drop from a moving carrier both look ballistic and land on
-   * the spot the planner validated.
-   */
-  private updateArrival(dt: number, game: Game): void {
-    const a = this.arrival!;
-    const anim = this.char.animator;
-    a.t += dt;
-    // A scripted insertion falls on the board's flat gravity, not the local
-    // field: the drop is timed to land on a chosen post, and a squad coasting
-    // in the station's open-space drift would still be in the air two waves
-    // later.
-    const grav = game.board.gravity ?? 1;
-
-    if (a.mode === 'drop') {
-      const canopy = a.chute && a.t > 0.7;
-      if (canopy && !a.chuteMesh) {
-        a.chuteMesh = this.makeChute();
-        this.char.root.add(a.chuteMesh);
-      }
-      // gravity to terminal: a straight drop hits hard, a canopy floats
-      const terminal = canopy ? -5.6 : -30;
-      this.velocity.y = Math.max(this.velocity.y - 26 * grav * dt, terminal);
-      if (canopy) this.velocity.y = damp(this.velocity.y, terminal, 5, dt);
-      // steer the fall onto the post: close the gap in the time left
-      const fallTime = Math.max(0.35, (this.position.y - a.target.y) / Math.max(4, -this.velocity.y));
-      const cap = canopy ? 4.5 : 13;
-      this.velocity.x = damp(this.velocity.x, clamp((a.target.x - this.position.x) / fallTime, -cap, cap), 5, dt);
-      this.velocity.z = damp(this.velocity.z, clamp((a.target.z - this.position.z) / fallTime, -cap, cap), 5, dt);
-      const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
-      // a drop that somehow misses every surface (blown past a platform edge
-      // on a floating board) must not fall forever with the wave waiting on
-      // it: past the kill plane it is quietly written off
-      if (this.position.y < game.board.physics.killY) {
-        this.alive = false;
-        this.removeMe = true;
-        this.clearArrival();
-        return;
-      }
-      if (a.chuteMesh) {
-        a.chuteMesh.rotation.z = Math.sin(a.t * 1.9) * 0.12;
-        a.chuteMesh.rotation.x = Math.cos(a.t * 1.6) * 0.1;
-      }
-      // a parachutist is a combatant on the way down: ranged kinds take
-      // pot-shots at anyone close enough to see
-      if (canopy && this.def.boltSpeed && !this.def.flame) {
-        a.shotCd -= dt;
-        if (a.shotCd <= 0) {
-          const foe = this.nearestFoe(game);
-          if (foe && foe.position.distanceTo(this.position) < this.def.notice * 1.5) {
-            this.faceToward(dt, foe.position.x, foe.position.z, 20);
-            this.fireBoltAt(game, foe);
-            a.shotCd = this.def.attackCd * (1.2 + Math.random() * 0.6);
-          } else a.shotCd = 0.5;
-        }
-      }
-      if (anim) {
-        anim.play('lower', canopy ? 'idleLower' : 'flyLower', 0.3);
-        anim.play('upper', canopy ? 'idleUpper' : 'airUpper', 0.3);
-      }
-      if (res.grounded) this.finishArrival(game, true);
-    } else if (a.mode === 'run') {
-      const dx = a.target.x - this.position.x;
-      const dz = a.target.z - this.position.z;
-      const flat = Math.hypot(dx, dz);
-      if (flat < 3 || a.t > 30) { this.finishArrival(game, false); return; }
-      const sp = this.def.speed * 0.85;
-      this.velocity.x = damp(this.velocity.x, (dx / flat) * sp, 5, dt);
-      this.velocity.z = damp(this.velocity.z, (dz / flat) * sp, 5, dt);
-      this.velocity.y -= 24 * grav * dt;
-      this.faceToward(dt, a.target.x, a.target.z, 6);
-      game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
-      if (anim) {
-        anim.play('lower', 'runLower', 0.2, 1.1);
-        anim.play('upper', 'runUpper', 0.2, 1.1);
-      }
-    } else if (a.mode === 'fly') {
-      const to = _arrTo.copy(a.target).sub(this.position);
-      const dist = to.length();
-      if (dist < 4.5 || a.t > 30) { this.finishArrival(game, false); return; }
-      to.normalize().multiplyScalar(this.def.speed);
-      this.velocity.x = damp(this.velocity.x, to.x, 3.5, dt);
-      this.velocity.y = damp(this.velocity.y, to.y, 3.5, dt);
-      this.velocity.z = damp(this.velocity.z, to.z, 3.5, dt);
-      this.faceToward(dt, a.target.x, a.target.z, 5);
-      this.position.addScaledVector(this.velocity, dt);
-      if (anim) {
-        anim.play('lower', 'flyLower', 0.3);
-        anim.play('upper', 'flyUpper', 0.3);
-      }
-    } else {
-      // swim: mostly under the surface, wake trailing, then haul out at the
-      // platform the post stands on
-      const wy = game.board.waterY ?? this.position.y;
-      if (!a.climbing) {
-        const dx = a.target.x - this.position.x;
-        const dz = a.target.z - this.position.z;
-        const flat = Math.hypot(dx, dz);
-        if (flat < 2.5 || a.t > 35) a.climbing = true;
-        else {
-          this.position.y = wy - 0.45;
-          this.velocity.set((dx / flat) * 4.5, 0, (dz / flat) * 4.5);
-          this.position.addScaledVector(this.velocity, dt);
-          this.faceToward(dt, a.target.x, a.target.z, 4);
-          if ((a.t * 2 | 0) !== ((a.t - dt) * 2 | 0)) {
-            game.particles.splash(_arrTo.set(this.position.x, wy, this.position.z), 3);
-          }
-        }
-      }
-      if (a.climbing) {
-        this.velocity.set(
-          (a.target.x - this.position.x) * 1.6,
-          3.2,
-          (a.target.z - this.position.z) * 1.6,
-        );
-        this.position.addScaledVector(this.velocity, dt);
-        if (this.position.y >= a.target.y) {
-          this.position.y = a.target.y;
-          game.particles.splash(_arrTo.set(this.position.x, wy, this.position.z), 8);
-          this.finishArrival(game, false);
-          return;
-        }
-      }
-      if (anim) {
-        anim.play('lower', 'idleLower', 0.3);
-        anim.play('upper', 'airUpper', 0.3);
-      }
-    }
-
-    this.syncVisual(dt, game);
-    anim?.update(dt);
-  }
 
   /**
    * Keep this body readable against the sky (src/fx/skyline.ts).
@@ -3117,7 +2919,7 @@ export class Enemy {
     halo.visible = mat.opacity > 0.01;
   }
 
-  private syncVisual(dt: number, game: Game): void {
+  syncVisual(dt: number, game: Game): void {
     // a ragdolled corpse is placed entirely by the solver — it writes the root
     // and every bone itself, so syncVisual must keep its hands off
     if (this.ragdoll) return;
