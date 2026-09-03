@@ -171,33 +171,31 @@ const station: StageSpec[] = [
 
 const nevarro: StageSpec[] = [
   {
-    kind: 'built',
+    // Nevarro's own basalt, on the band south of both lava rivers — close
+    // enough that the flats glow, far enough that the run is never cut in
+    // half by one. The board's rivers are the lava here; the zone lays none
+    // of its own.
+    kind: 'territory',
     label: TEXT.missions.stages.nevarro[0],
+    anchor: { x: -72, z: -80, dx: 1, dz: 0 },
     zones: [
       z('nevarro', 0, {
-        shell: 'open', kind: 'start', w: 64, l: 56, feature: 'lava',
-        props: [{ id: 'survey_crawler', u: 12, v: -20, size: 10, yaw: 0.9, solid: { r: 2.4, h: 3.4 } }],
+        shell: 'open', kind: 'start', w: 40, l: 48,
         rides: [{ kind: 'speederBike', u: 10, v: 6, yaw: 0 }, { kind: 'speederBike', u: 10, v: 10, yaw: 0 }],
       }),
       z('nevarro', 1, {
-        shell: 'road', kind: 'chase', w: 26, l: 140,
-        marks: [0.36, 0.7], barricade: 'fence', air: true,
+        shell: 'road', kind: 'chase', w: 26, l: 72,
+        marks: [0.34, 0.7], barricade: 'fence', air: true,
         rides: [
           { kind: 'speederBike', u: 8, v: -5, yaw: 0 },
           { kind: 'speederBike', u: 8, v: 0, yaw: 0 },
           { kind: 'speederBike', u: 8, v: 5, yaw: 0 },
-          { kind: 'speederBike', u: 48, v: 6, yaw: 0 },
+          { kind: 'speederBike', u: 40, v: 6, yaw: 0 },
         ],
       }),
-      z('nevarro', 2, {
-        shell: 'open', kind: 'assault', w: 44, l: 36, waves: 2, feature: 'crates',
-        props: [
-          { id: 'adobe_tower', u: 30, v: 12, size: 11, solid: { r: 3.6, h: 11 } },
-          { id: 'adobe_tower', u: 30, v: -12, size: 11, solid: { r: 3.6, h: 11 } },
-        ],
-      }),
+      z('nevarro', 2, { shell: 'open', kind: 'assault', w: 36, l: 30, waves: 2, feature: 'crates' }),
     ],
-    links: [{ len: 20, kind: 'trek' }, { len: 16, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'interior',
@@ -321,18 +319,22 @@ const refinery: StageSpec[] = [
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
-    kind: 'interior',
+    // The Refinery board *is* the plant: a ring of walled work halls under a
+    // low ceiling around a forty-metre reactor shaft, already built, already
+    // lit, already audited, with its own barrels and alarm consoles and
+    // catwalks. Laying a lesser copy of it over the top would be the one
+    // place in this design where a stage argued with its own territory. So
+    // this stage builds nothing — it walks the south side of the ring and
+    // says where the fights are.
+    kind: 'plant',
     label: TEXT.missions.stages.refinery[1],
-    world: { fogColor: 0x101216, fogNear: 10, fogFar: 70, background: 0x080a0d, roofed: true, fill: 1.4 },
+    anchor: { x: -48, z: -38, dx: 1, dz: 0 },
     zones: [
-      z('refinery', 3, { shell: 'hall', kind: 'assault', w: 18, l: 16, waves: 2, feature: 'barrels', alcove: true }),
-      z('refinery', 4, {
-        shell: 'hall', kind: 'lieutenant', w: 22, l: 20, roofH: 14, feature: 'pillars',
-        props: [{ id: 'alarm_console', u: 4, v: 8, size: 2.6, solid: { r: 1, h: 2.6 } }],
-      }),
-      z('refinery', 5, { shell: 'hall', kind: 'assault', w: 20, l: 16, waves: 2, feature: 'crates' }),
+      z('refinery', 3, { shell: 'open', kind: 'assault', w: 24, l: 24, waves: 2 }),
+      z('refinery', 4, { shell: 'open', kind: 'lieutenant', w: 26, l: 24 }),
+      z('refinery', 5, { shell: 'open', kind: 'assault', w: 24, l: 24, waves: 2 }),
     ],
-    links: [{ len: 12, turn: 1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'corridor' }],
+    links: [{ len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'built',
@@ -352,11 +354,16 @@ const refinery: StageSpec[] = [
 
 const forge: StageSpec[] = [
   {
-    kind: 'built',
+    // Mandalore's actual glassed plain, on the band south of the civic dome
+    // and well clear of the Living Waters. Emptiness is this board's whole
+    // personality, and fused ground under a ride is the argument for standing
+    // the run on it rather than on a plate that only looks like it.
+    kind: 'territory',
     label: TEXT.missions.stages.forge[0],
+    anchor: { x: -74, z: -62, dx: 1, dz: 0 },
     zones: [
       z('forge', 0, {
-        shell: 'open', kind: 'start', w: 70, l: 60,
+        shell: 'open', kind: 'start', w: 44, l: 50,
         rides: [
           { kind: 'speederBike', u: 12, v: 4, yaw: 0 },
           { kind: 'speederBike', u: 12, v: 8, yaw: 0 },
@@ -364,13 +371,13 @@ const forge: StageSpec[] = [
         ],
       }),
       z('forge', 1, {
-        shell: 'road', kind: 'chase', w: 30, l: 180,
-        marks: [0.35, 0.68], barricade: 'fence', air: true,
-        rides: [{ kind: 'speederBike', u: 60, v: 6, yaw: 0 }, { kind: 'swoop', u: 62, v: -6, yaw: 0 }],
+        shell: 'road', kind: 'chase', w: 28, l: 78,
+        marks: [0.34, 0.7], barricade: 'fence', air: true,
+        rides: [{ kind: 'speederBike', u: 44, v: 6, yaw: 0 }, { kind: 'swoop', u: 46, v: -6, yaw: 0 }],
       }),
-      z('forge', 2, { shell: 'open', kind: 'assault', w: 44, l: 40, waves: 2, feature: 'pillars' }),
+      z('forge', 2, { shell: 'open', kind: 'assault', w: 38, l: 32, waves: 2, feature: 'pillars' }),
     ],
-    links: [{ len: 20, kind: 'trek' }, { len: 16, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'interior',
@@ -455,34 +462,50 @@ const narkina: StageSpec[] = [
         props: [{ id: 'troop_carrier', u: 14, v: 18, size: 14, yaw: 1.2, solid: { r: 3, h: 3 } }],
       }),
       z('narkina', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 60, feature: 'shock', alcove: true }),
-      z('narkina', 2, { shell: 'canyon', kind: 'assault', w: 10, l: 40, waves: 2, deadEnd: true }),
     ],
-    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }],
+  },
+  {
+    // The board's best half is under the water — a kelp forest, a reef, a
+    // wreck you swim through, a moon pool that surfaces inside the facility —
+    // and a level raised into the sky could never reach it. So the run goes
+    // down: the gantry ends at a dive hatch, and the next map is the sea
+    // itself. No rim (the reef holds it), no hazards laid (the sea is the
+    // hazard), and air is the clock.
+    kind: 'sea',
+    label: TEXT.missions.stages.narkina[1],
+    anchor: { x: -60, z: 34, dx: 1, dz: -1 },
+    ceiling: 14,
+    zones: [
+      z('narkina', 2, { shell: 'open', kind: 'trek', w: 44, l: 54 }),
+      z('narkina', 3, { shell: 'canyon', kind: 'trek', w: 20, l: 34 }),
+    ],
+    links: [{ len: 20, kind: 'trek' }],
   },
   {
     kind: 'interior',
-    label: TEXT.missions.stages.narkina[1],
+    label: TEXT.missions.stages.narkina[2],
     world: { fogColor: 0xdde8ee, fogNear: 14, fogFar: 90, background: 0xc8d4dc, roofed: true, fill: 1.7 },
     zones: [
-      z('narkina', 3, {
+      z('narkina', 4, {
         shell: 'hall', kind: 'assault', w: 20, l: 16, waves: 2, feature: 'shock', alcove: true, roofH: 7,
         props: [{ id: 'alarm_console', u: 3, v: 7, size: 2.6, solid: { r: 1, h: 2.6 } }],
       }),
-      z('narkina', 4, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, roofH: 7, feature: 'pillars' }),
+      z('narkina', 5, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, roofH: 7, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
   },
   {
     kind: 'built',
-    label: TEXT.missions.stages.narkina[2],
+    label: TEXT.missions.stages.narkina[3],
     world: { waterDrop: 4 },
     zones: [
-      z('narkina', 5, {
+      z('narkina', 6, {
         shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'shock', air: true,
         props: [{ id: 'sunken_transport', u: 30, v: 18, size: 15, yaw: 0.4, solid: { r: 4, h: 4 } }],
       }),
-      z('narkina', 6, { shell: 'canyon', kind: 'camp', w: 12, l: 50, alcove: true }),
-      z('narkina', 7, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit' }),
+      z('narkina', 7, { shell: 'canyon', kind: 'camp', w: 12, l: 50, alcove: true }),
+      z('narkina', 8, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit' }),
     ],
     links: [{ len: 16, kind: 'trek' }, { len: 18, kind: 'trek' }],
   },

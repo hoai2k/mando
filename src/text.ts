@@ -480,7 +480,7 @@ export const TEXT = {
     refinery: ['the tanker yard', 'the pipe run', 'the intake ramp', 'the barrel stores', 'the reactor floor', 'the pump hall', 'the reactor crown', 'the loading field'],
     forge: ['the glassed plain', 'the glass highway', 'the shattered gate', 'the dome undercroft', 'the armoury vault', 'the glassed court', 'the forge steps', "the sleeper's basin"],
     ringworld: ['the tram stop', 'the market arcade', 'the night-side row', 'the terminus', 'the sentinel walk', 'the plaza', 'the service spine', 'the high street terrace'],
-    narkina: ['the landing deck', 'the gantry run', 'the intake lift', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the discharge gantry', 'the moon pool deck'],
+    narkina: ['the landing deck', 'the gantry run', 'the kelp forest', 'the moon pool shaft', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the discharge gantry', 'the moon pool deck'],
     },
     /**
      * What each **stage** of a run is called: the line on the transition card
@@ -496,7 +496,7 @@ export const TEXT = {
       refinery: ['the yard', 'the plant', 'the loading field'],
       forge: ['the plain', 'the undercroft', 'the dome'],
       ringworld: ['the high street'],
-      narkina: ['the landing deck', 'the cell block', 'the top decks'],
+      narkina: ['the landing deck', 'the sea', 'the cell block', 'the top decks'],
     },
     /**
      * The one-time line when a player first meets the ceiling. It is not a

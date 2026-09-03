@@ -65,6 +65,35 @@ for (const board of boards) {
         if (!z.posts.length) issues.push(`${z.spec.label}: no posts`);
       }
       for (const ride of s.rides) if (!s.contains(ride.x, ride.z)) issues.push(`ride ${ride.kind} off the stage`);
+
+      // ---- the landmark rule (docs/MISSIONS_OUTDOOR.md §4.1) ----
+      // Every zone's way on has to be *visible* from where the party walks
+      // in. That is the whole of the outdoor guidance: a beacon reads through
+      // fog and a marker reads off screen, but neither is any use if the
+      // level itself hides the exit behind the rock it is built from. A clear
+      // line at eye height from the entry to the exit, or to the landmark
+      // over it, is what makes "go that way" answerable by looking.
+      const eye = 1.6;
+      for (let i = 0; i < s.zones.length; i++) {
+        const zone = s.zones[i];
+        const next = i + 1 < s.zones.length ? s.zones[i + 1].entry : (s.exitPortal?.pos ?? null);
+        const targets = [zone.exit, zone.landmark];
+        if (next) targets.push(next);
+        // vectors cloned off one the level already owns, since the bundle
+        // does not hand the audit a THREE namespace of its own
+        const from = zone.entry.clone().setY(zone.entry.y + eye);
+        const dir = zone.entry.clone();
+        const seen = targets.some((t) => {
+          dir.set(t.x - from.x, (t.y + eye) - from.y, t.z - from.z);
+          const len = dir.length();
+          if (len < 1) return true;
+          dir.divideScalar(len);
+          // stop short of the target so the thing being looked *at* is not
+          // what blocks the look
+          return !g.board.physics.raycast(from, dir, len - 1.5);
+        });
+        if (!seen) issues.push(`${zone.spec.label}: nothing of the way on is visible from the entry`);
+      }
       // Only what this stage built: a mission level is raised high over the
       // territory, and a board like the Refinery has forty-metre walls of its
       // own down at ground level that are nothing to do with the rim.
