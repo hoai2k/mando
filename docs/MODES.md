@@ -153,28 +153,48 @@ a committed leap onto the nearest target that lands as the knockdown finisher,
 on a 5 s clock.
 
 **The brood-queen loop.** The playable broodmother fights with eggs. The
-sacs on her back are her **clutch and her ammunition readout**: capacity is
-exactly the sacs the model shows (`BROOD_EGG_RACK`, **6** — the authored
-sculpt carries six eggs on her abdomen and the rack sits on them, measured
-off `krykna_brood.glb` rather than guessed), and one charges every **3
-seconds**. A sac reads its state twice over: **it inflates as well as
-lightens**. Spent, it is a slack shell — 0.38 of full size and flattened
-against her back; as its egg grows it swells and pales in step, standing
-full and cream when it is ready to lay, and collapsing again the moment the
-egg leaves. Filling eases at 3.5/s so it tracks the three-second charge
-rather than racing it; emptying at 7/s, because the egg physically left. The
-sculpt's own three egg-sac **bones are wound in** (`SAC_HIDE`) once the game
-drives the rack — the abdomen is only lightly skinned to them, so this takes
-the sculpted clutch off her back and leaves the body untouched, which is what
-lets a sac deflate at all instead of shrinking to reveal a bright sculpted egg
-in the socket the game is calling empty. The last beat of a charge still
-flashes blue a couple of times before the sac settles to ready. **Y lays** a charged
-egg behind her; **RT lobs** one on an arc at whatever is under the aim, and
-the flying egg is a soft cannonball: the first body it meets is knocked
-back, unhurt. Either way the egg physically leaves **from the sac that goes
-dark** — spawned at that sac's world position and tossed or thrown from
-there — so it reads as the same egg being delivered. Either way the egg takes **5 s to hatch** and is destroyable
-the whole time — it is a real combatant on her team, so rivals can shoot it
+eggs on her back are her **clutch and her ammunition readout**, and they are
+the sculpt's own: `krykna_brood.glb` carries **six** eggs on its abdomen
+(`BROOD_EGG_RACK`) as real geometry — six near-complete spheres welded into
+the body mesh by a collar of about thirty triangles each — and the game drives
+*those*, rather than laying beads of its own over them. One charges every **3
+seconds**.
+
+An egg reads its state twice over: **it inflates as well as lightens**.
+
+- **Ready** is the sculpt exactly as delivered: full, pale, untouched. That is
+  the whole point of driving its own geometry — the state a player is waiting
+  for costs no departure from the model at all, and an AI broodmother, a
+  character-select turntable, or anything else that never drives the rack is
+  simply the model.
+- **Spent** is that same egg **collapsed and darkened**: squashed to 0.28 of
+  its height and 0.62 of its width, measured from the collar where it meets
+  the abdomen — which stays put, so the mesh does not tear at the seam — and
+  multiplied down to a near-black shell.
+- Between the two, an egg growing back into its skin, size and colour together,
+  so a half-grown egg is visibly half-grown.
+
+The work is baked once at load (`characters/eggrack.ts`): each egg vertex gets
+a second position and normal — where it sits when the sac is empty — and the
+vertex shader mixes between the two, with a per-egg tint multiplied into the
+fragment. So the clutch costs a uniform per frame, stays one draw call, and
+skinning still owns the pose; the shadow pass carries the same mix, or a
+collapsed sac would go on casting a full egg's shadow onto her own back.
+Filling eases at 3.5/s so it tracks the three-second charge rather than racing
+it; emptying at 7/s, because the egg physically left. The last beat of a charge
+flashes blue a couple of times before the egg settles to ready. Nothing winds
+the sculpt's own egg-sac **bones** any more: the abdomen is skinned to them
+too, so collapsing them to hide the clutch left her whole back looking
+deflated.
+
+**Y lays** a charged egg behind her; **RT lobs** one on an arc at whatever is
+under the aim, and the flying egg is a soft cannonball: the first body it meets
+is knocked back, unhurt. Either way the egg physically leaves **from the egg that goes
+dark**: `eggSpot` reports where that sculpted egg's centre is *this frame*,
+skinned through the bones carrying it, the procedural egg (`buildSpiderEgg`)
+is born exactly there and launched, and the egg it left collapses behind it.
+So the thing that flies off her back is the thing that was on it. Either way
+the egg takes **5 s to hatch** and is destroyable the whole time — it is a real combatant on her team, so rivals can shoot it
 out from under her; what crawls out is a half-size krykna **hatchling** that
 **hunts**: it takes her team and her kill credit through `owner`, but sets
 `hunts` so it skips the squad-escort leash entirely and crosses the board to
@@ -185,13 +205,27 @@ caps the swarm but her laying rate**: one egg every three seconds, six on her
 back. The old ceiling of eight living brood made every egg past it silently
 do nothing.
 
-The rack is a **readout**, and two things follow from that. It is hidden until
-something drives it, because the same body fights as a wave boss where nobody
-counts her eggs — an undriven rack would cover the sculpt's own pale clutch
-with six black balls. And the player's hit flash skips it (`userData.readout`):
-the flash clones every material it finds and drives it red, which would both
-steal the rack out from under the builder's closure and paint the clutch a
-colour that means something else. When she falls with a hatchling still alive, the takeover puts the
+The rack is a **readout**, and two things follow from that. An undriven one is
+the sculpt untouched, because the same body fights as a wave boss where nobody
+counts her eggs — she wears her full clutch and no one shades it. And the
+player's hit flash takes private copies of the body's materials, which do not
+carry the rack's shader hook, so the rack re-fits itself to whatever material
+the mesh is wearing now rather than shading one nothing draws.
+
+A broodmother whose .glb has not landed — or never will — falls back to six
+procedural beads on the stand-in spider's abdomen, arranged in the same
+1–2–2–1 pyramid and saying the same thing by collapsing to a slack shell. They
+hang off the procedural body group, so the moment the sculpt lands and that
+group goes invisible they go with it; there is never a frame wearing both. The
+hit flash skips them (`userData.readout`): it would paint the clutch a colour
+that means something else.
+
+The six eggs are found by six constants — a centre and radius each, as
+fractions of the mesh's bounding box — measured off the file rather than
+guessed. `npm run audit:eggrack` re-derives them from the shipped .glb by
+vertex-normal sphere voting and a least-squares fit, and fails if they have
+drifted, because nothing at runtime can tell a rack that has slid onto the
+abdomen from one that is on the eggs. When she falls with a hatchling still alive, the takeover puts the
 player *in the hatchling's body* (a mid-match morph — position, camera,
 kills and lives carry over), and surviving **ten seconds** in it grows them
 back into the broodmother, health fraction preserved. Dying as the hatchling
