@@ -249,19 +249,32 @@ await startMode('pvp', 2, 'desert', ['npc:massiff', 'npc:stormtrooper']);
 // The framing is measured off the body that is DRAWN, and a fighter is born as
 // a procedural stand-in with its authored model arriving on a network round
 // trip. Sixty stepped frames are no wait at all for a download, so sampling
-// straight away measured the stand-in's reach — the camera settles correctly a
-// moment later, which is why this check failed on a loaded machine and passed
-// on an idle one. Wait for the skin, the same rule the model intake already
-// documents: poll for the SkinnedMesh rather than assuming it has landed.
+// straight away measured the stand-in's reach.
+//
+// Waiting for the skin is necessary and NOT sufficient, which cost a CI run to
+// learn: the rig re-measures the moment the model lands, but the lens then
+// *eases* out to the new distance, and if the model arrives late the 60 frames
+// below are spent mid-glide. So wait for the number itself to stop moving —
+// the only honest end condition for a damped value — rather than for any fixed
+// count of frames.
 await page.waitForFunction(() => {
   const g = window.__game;
   if (!g || g.players.length < 2) return false;
-  return g.players.slice(0, 2).every((p) => {
-    let skinned = false;
-    p.char.root.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
-    return skinned;
+  const skinned = g.players.slice(0, 2).every((p) => {
+    let has = false;
+    p.char.root.traverse((o) => { if (o.isSkinnedMesh) has = true; });
+    return has;
   });
-}, null, { timeout: 60000 });
+  if (!skinned) return false;
+  // settled = this frame's chase distances match the previous poll's
+  const now = g.players.slice(0, 2).map((p) => Math.hypot(
+    p.cam.camera.position.x - p.position.x,
+    p.cam.camera.position.y - p.position.y,
+    p.cam.camera.position.z - p.position.z));
+  const prev = window.__framingPrev;
+  window.__framingPrev = now;
+  return !!prev && now.every((d, i) => Math.abs(d - prev[i]) < 0.01);
+}, null, { timeout: 60000, polling: 250 });
 const framing = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(60);
