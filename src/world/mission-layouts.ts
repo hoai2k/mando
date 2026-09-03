@@ -156,7 +156,7 @@ const station: StageSpec[] = [
       z('station', 5, { shell: 'deck', kind: 'camp', w: 24, l: 38, alcove: true }),
       z('station', 6, {
         shell: 'deck', kind: 'assault', w: 40, l: 32, waves: 3, air: true,
-        props: [{ id: 'reactor_core', u: 16, v: 0, size: 16, solid: { r: 5.5, h: 16 } }],
+        props: [{ id: 'reactor_core', u: 16, v: 11, size: 16, solid: { r: 5.5, h: 16 } }],
       }),
       z('station', 7, {
         shell: 'deck', kind: 'warlord', w: 60, l: 50,
@@ -342,7 +342,7 @@ const refinery: StageSpec[] = [
     zones: [
       z('refinery', 6, {
         shell: 'open', kind: 'camp', w: 50, l: 44, alcove: true,
-        props: [{ id: 'reactor_core', u: 22, v: 0, size: 40, solid: { r: 5.5, h: 40 } }],
+        props: [{ id: 'reactor_core', u: 22, v: 15, size: 40, solid: { r: 5.5, h: 40 } }],
       }),
       z('refinery', 7, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'barrels' }),
     ],

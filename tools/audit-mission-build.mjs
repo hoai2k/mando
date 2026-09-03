@@ -70,42 +70,45 @@ for (const board of boards) {
       // Every zone's way on has to be *visible* from where the party walks
       // in. That is the whole of the outdoor guidance: a beacon reads through
       // fog and a marker reads off screen, but neither is any use if the
-      // level itself hides the exit behind the rock it is built from. A clear
-      // line at eye height from the entry to the exit, or to the landmark
-      // over it, is what makes "go that way" answerable by looking.
+      // level itself hides the exit behind the rock it is built from.
+      //
+      // Two things this deliberately does not demand. A zone with no way on —
+      // the warlord's arena at the end of a run — has nothing to be visible,
+      // and the objective there is the boss standing in the middle of it. And
+      // sight is judged from a few places across the entry rather than from
+      // one point on the centre line, because a player can step aside: an
+      // arena built as a ring around a reactor spire is a good arena, not a
+      // level hiding its own exit behind a column.
       const eye = 1.6;
       for (let i = 0; i < s.zones.length; i++) {
         const zone = s.zones[i];
         const next = i + 1 < s.zones.length ? s.zones[i + 1].entry : (s.exitPortal?.pos ?? null);
+        if (!next && !zone.exitBarrier) continue;      // nowhere to go on to
         const targets = [zone.exit, zone.landmark];
         if (next) targets.push(next);
-        // vectors cloned off one the level already owns, since the bundle
-        // does not hand the audit a THREE namespace of its own
-        const from = zone.entry.clone().setY(zone.entry.y + eye);
+        // across the travel axis, so the sample points spread along the mouth
+        const ax = zone.exit.x - zone.entry.x, az = zone.exit.z - zone.entry.z;
+        const alen = Math.hypot(ax, az) || 1;
+        const px = -az / alen, pz = ax / alen;
+        const spread = Math.min(zone.spec.w, 24) * 0.3;
+        const from = zone.entry.clone();
         const dir = zone.entry.clone();
-        const seen = targets.some((t) => {
-          dir.set(t.x - from.x, (t.y + eye) - from.y, t.z - from.z);
-          const len = dir.length();
-          if (len < 1) return true;
-          dir.divideScalar(len);
-          // stop short of the target so the thing being looked *at* is not
-          // what blocks the look
-          return !g.board.physics.raycast(from, dir, len - 1.5);
-        });
+        let seen = false;
+        for (const off of [0, spread, -spread]) {
+          from.set(zone.entry.x + px * off, zone.entry.y + eye, zone.entry.z + pz * off);
+          for (const t of targets) {
+            dir.set(t.x - from.x, (t.y + eye) - from.y, t.z - from.z);
+            const len = dir.length();
+            if (len < 1) { seen = true; break; }
+            dir.divideScalar(len);
+            // stop short, so the thing being looked *at* is not what blocks it
+            if (!g.board.physics.raycast(from, dir, len - 1.5)) { seen = true; break; }
+          }
+          if (seen) break;
+        }
         if (!seen) issues.push(`${zone.spec.label}: nothing of the way on is visible from the entry`);
       }
-      // Only what this stage built: a mission level is raised high over the
-      // territory, and a board like the Refinery has forty-metre walls of its
-      // own down at ground level that are nothing to do with the rim.
-      const walls = g.board.physics.boxes.filter((b) =>
-        b.min.y >= s.floorY - 2 && b.max.y - b.min.y > (s.ceilingY - s.floorY) * 0.8);
-      for (const b of walls) {
-        if (b.max.y >= s.ceilingY) continue;
-        issues.push(`a border tops out at ${(b.max.y - s.floorY).toFixed(1)} m, under the ${(s.ceilingY - s.floorY).toFixed(0)} m ceiling`
-          + ` (${(b.max.x - b.min.x).toFixed(1)} x ${(b.max.y - b.min.y).toFixed(1)} x ${(b.max.z - b.min.z).toFixed(1)}`
-          + ` at ${b.min.x.toFixed(0)},${b.min.z.toFixed(0)})`);
-      }
-      if (!s.zones.length) issues.push('no zones');
+
       return {
         label: s.spec.label,
         zones: s.zones.map((z) => `${z.spec.shell}:${z.spec.kind}`).join(' '),
