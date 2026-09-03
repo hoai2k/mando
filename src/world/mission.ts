@@ -615,7 +615,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   // of the ground it was anchored to. The ceiling is measured off the *highest*
   // ground the chain crosses, so a lid never comes down on someone standing on
   // a rise — the ceiling is meant to be unfelt, and a dune is no exception.
-  const anchor = stage.anchor ?? { x: 0, z: 0, dx: 1, dz: 0 };
+  const raw = stage.anchor ?? { x: 0, z: 0, dx: 1, dz: 0 };
+  // The turtle steps by `dx`/`dz` directly, so a heading that is not unit
+  // length silently scales every zone and every link along with it — a
+  // diagonal written as (1, -1) walks the whole chain √2 too far.
+  const aLen = Math.hypot(raw.dx, raw.dz) || 1;
+  const anchor = { x: raw.x, z: raw.z, dx: raw.dx / aLen, dz: raw.dz / aLen };
   const floorY = onGround ? terrainAt(anchor.x, anchor.z) : MISSION_Y;
   const groundAt = (x: number, z: number): number => (onGround ? terrainAt(x, z) : floorY);
   let highest = floorY;

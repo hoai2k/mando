@@ -328,13 +328,16 @@ const refinery: StageSpec[] = [
     // says where the fights are.
     kind: 'plant',
     label: TEXT.missions.stages.refinery[1],
-    anchor: { x: -48, z: -38, dx: 1, dz: 0 },
+    // The lane runs along z = -46, south of the partition walls: those span
+    // z -42..-18, so passing below them is passing through the doorways the
+    // board left at their ends rather than through the walls themselves.
+    anchor: { x: -40, z: -46, dx: 1, dz: 0 },
     zones: [
-      z('refinery', 3, { shell: 'open', kind: 'assault', w: 24, l: 24, waves: 2 }),
-      z('refinery', 4, { shell: 'open', kind: 'lieutenant', w: 26, l: 24 }),
-      z('refinery', 5, { shell: 'open', kind: 'assault', w: 24, l: 24, waves: 2 }),
+      z('refinery', 3, { shell: 'open', kind: 'assault', w: 18, l: 18, waves: 2 }),
+      z('refinery', 4, { shell: 'open', kind: 'lieutenant', w: 18, l: 18 }),
+      z('refinery', 5, { shell: 'open', kind: 'assault', w: 18, l: 18, waves: 2 }),
     ],
-    links: [{ len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
+    links: [{ len: 12, kind: 'trek' }, { len: 12, kind: 'trek' }],
   },
   {
     kind: 'built',
@@ -474,13 +477,13 @@ const narkina: StageSpec[] = [
     // hazard), and air is the clock.
     kind: 'sea',
     label: TEXT.missions.stages.narkina[1],
-    anchor: { x: -60, z: 34, dx: 1, dz: -1 },
+    anchor: { x: -70, z: 26, dx: 1, dz: 0 },
     ceiling: 14,
     zones: [
-      z('narkina', 2, { shell: 'open', kind: 'trek', w: 44, l: 54 }),
-      z('narkina', 3, { shell: 'canyon', kind: 'trek', w: 20, l: 34 }),
+      z('narkina', 2, { shell: 'open', kind: 'trek', w: 40, l: 40 }),
+      z('narkina', 3, { shell: 'canyon', kind: 'trek', w: 20, l: 26 }),
     ],
-    links: [{ len: 20, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }],
   },
   {
     kind: 'interior',
