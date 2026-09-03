@@ -1531,6 +1531,33 @@ export class Enemy {
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
+    this.clampToCeiling(game);
+  }
+
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
+   *
+   * A body below the ceiling cannot climb through it — which is what keeps a
+   * flier in the fight instead of stalking it from out of reach, and what
+   * flattens a boss's super-jump arc into one that still lands where it aimed.
+   * A body *above* it is left alone: a squad falling out of a carrier's pass
+   * and a flier crossing the rim both enter through the ambient band, and
+   * clamping them there would strand the wave in the sky.
+   */
+  private clampToCeiling(game: Game): void {
+    const lid = game.ceilingY;
+    if (lid === null) return;
+    const head = this.position.y + this.height;
+    if (head <= lid) return;
+    // only on the way up: an arrival descending through the band keeps coming
+    if (this.velocity.y <= 0) return;
+    this.position.y = lid - this.height;
+    this.velocity.y = 0;
+  }
+
+  /** below the ceiling, and so allowed to fight rather than only to descend */
+  private inPlayableSky(game: Game): boolean {
+    return game.ceilingY === null || this.position.y + this.height <= game.ceilingY + 0.5;
   }
 
   /** brood spawns: enough damage taken and the egg sacs let go */
@@ -2740,7 +2767,8 @@ export class Enemy {
     const passing = Math.cos(this.swoopPhase) < -0.25; // attack window on the inward leg
     if (passing && !this.prevPassing) audio.bark('swoop_pass', 0.5);
     this.prevPassing = passing;
-    const gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    let gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    if (game.ceilingY !== null) gy = Math.min(gy, game.ceilingY - this.height - 2);
     const goal = new THREE.Vector3(gx, gy, gz);
     const to = goal.sub(this.position);
     const dist = to.length();
@@ -2749,7 +2777,7 @@ export class Enemy {
     this.velocity.y = damp(this.velocity.y, to.y * d.speed * 0.8, 3.5, dt);
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3.5, dt);
     this.facingYaw = Math.atan2(this.velocity.x, this.velocity.z);
-    if (passing && this.attackCd <= 0) {
+    if (passing && this.attackCd <= 0 && this.inPlayableSky(game)) {
       const pd = this.position.distanceTo(target.position);
       if (pd < 30) {
         this.fireBoltAt(game, target);
@@ -2832,6 +2860,11 @@ export class Enemy {
         target.position.y + 4 + Math.random() * 6,
         target.position.z + Math.sin(a) * r
       );
+      // a mission level's playable sky has a lid; a flier orbits under it
+      // rather than above the fight it came for
+      if (game.ceilingY !== null) {
+        this.hoverTarget.y = Math.min(this.hoverTarget.y, game.ceilingY - this.height - 2);
+      }
     }
     const to = this.hoverTarget.clone().sub(this.position);
     to.normalize();
@@ -2840,7 +2873,10 @@ export class Enemy {
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3, dt);
     this.faceToward(dt, target.position.x, target.position.z, 6);
     const dist = this.position.distanceTo(target.position);
-    this.updateVolley(dt, game, target, dist);
+    // The cut between the playable sky and the ambient one is a rule about
+    // fighting, not only about flying: a flier that came in over the rim
+    // steers down into the fight before it is allowed to open up.
+    if (this.inPlayableSky(game)) this.updateVolley(dt, game, target, dist);
     // hover jets — a short burn under each nozzle, riding along with us
     const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
     for (const side of [-1, 1]) {

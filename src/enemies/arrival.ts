@@ -218,8 +218,13 @@ export class Carrier {
   constructor(
     drop: THREE.Vector3, delay: number, shipId: string,
     private onRelease: (at: THREE.Vector3, along: THREE.Vector3) => void,
-    opts: { landAt?: THREE.Vector3 } = {},
+    opts: { landAt?: THREE.Vector3; dropHeight?: number } = {},
   ) {
+    // How high the pass flies. A mission level caps everyone below its
+    // ceiling (docs/MISSIONS_OUTDOOR.md §2), and the carrier belongs to the
+    // ambient sky *above* that cut — it has to release from higher than the
+    // ceiling or its squad would be clamped on the way down and never arrive.
+    const DROP_H = opts.dropHeight ?? DROP_HEIGHT;
     const a = Math.random() * Math.PI * 2;
     const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
     this.dir.copy(dir);
@@ -233,13 +238,13 @@ export class Carrier {
     if (opts.landAt) {
       this.site = opts.landAt.clone();
       this.start.copy(this.site).addScaledVector(dir, -200);
-      this.start.y = this.site.y + DROP_HEIGHT;
+      this.start.y = this.site.y + DROP_H;
       // release a beat after the skids touch, while the ship holds the pad
       this.dropT = LAND_A + LAND_D + 0.5;
       this.life = LAND_A + LAND_D + LAND_H + LAND_C + LAND_E;
     } else {
       this.start.copy(drop).addScaledVector(dir, -LEAD);
-      this.start.y = drop.y + DROP_HEIGHT;
+      this.start.y = drop.y + DROP_H;
       this.dropT = LEAD / SPEED;
       this.life = (LEAD + TAIL) / SPEED;
     }

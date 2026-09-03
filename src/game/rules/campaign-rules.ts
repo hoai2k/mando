@@ -2,6 +2,9 @@ import type { Game } from '../game';
 import type { Player } from '../../player/player';
 import { openMatch, type ModeRules } from './rules';
 import { Campaign } from '../campaign';
+import { LegacyCampaign } from '../campaign-legacy';
+import { missionsBackup } from '../modes';
+import type { MissionController } from '../mission-api';
 import { audio } from '../../core/audio';
 import { TEXT } from '../../text';
 
@@ -13,12 +16,12 @@ import { TEXT } from '../../text';
  */
 export class CampaignRules implements ModeRules {
   readonly objective = TEXT.banners.objective.campaign;
-  private built: Campaign | null = null;
+  private built: MissionController | null = null;
 
   constructor(private g: Game) {}
 
   /** the mission level, once `begin` has raised it */
-  get campaign(): Campaign {
+  get campaign(): MissionController {
     if (!this.built) throw new Error('the mission level is raised in begin()');
     return this.built;
   }
@@ -27,7 +30,12 @@ export class CampaignRules implements ModeRules {
     // Raises the mission level over the territory and moves the party to its
     // trailhead, so it waits for players to exist; every player keeps their
     // own camera, split-screen as ever.
-    this.built = new Campaign(this.g);
+    //
+    // Which level: the outdoor stage chain (docs/MISSIONS_OUTDOOR.md), or the
+    // walled room chain it replaced when `?backup=missions` asks for it. The
+    // two are interchangeable behind `MissionController`, which is the whole
+    // point of the flag — a way back that costs one URL rather than a revert.
+    this.built = missionsBackup() ? new LegacyCampaign(this.g) : new Campaign(this.g);
     this.g.campaign = this.built;
   }
 

@@ -53,6 +53,39 @@ export function bossRush(): boolean {
 }
 
 /**
+ * `?ceiling=<m>` — the mission flight ceiling, for tuning it in play
+ * (docs/MISSIONS_OUTDOOR.md §2). The ceiling exists to stop a border being
+ * flown over and to cut the playable sky from the ambient sky above it; it is
+ * not meant to be felt in free flight, so the tuning direction is always up.
+ * Returns null when the URL says nothing and the layout's own value stands.
+ */
+export function ceilingOverride(): number | null {
+  try {
+    const v = new URLSearchParams(window.location.search).get('ceiling');
+    if (v === null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 10 && n <= 80 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `?backup=missions` — run the previous Missions level design (the walled
+ * room chain, `world/mission-legacy.ts` + `game/campaign-legacy.ts`) instead
+ * of the outdoor stages. Kept as a one-flag path back while the new design
+ * settles; both are built and tested, and nothing else in the game branches
+ * on it.
+ */
+export function missionsBackup(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('backup') === 'missions';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Each territory's boss: its signature final-wave elite, promoted
  * (Enemy.promoteBoss) rather than a new character. Caps the wave game after
  * the final wave and holds the campaign's final arena — docs/MODES.md §4a.

@@ -188,6 +188,15 @@ export class Player {
   velocity = new THREE.Vector3();
   radius = 0.45;
   height = 1.75;
+  /**
+   * Standing in a transport door's pocket, waiting on the rest of the party
+   * (docs/MISSIONS_OUTDOOR.md §1.9). Going back through a door needs everyone
+   * aboard, so a player who steps in stops taking input and stops taking
+   * damage until the others join them — or until they cancel back out.
+   */
+  exited = false;
+  /** they pressed cancel this frame; the campaign walks them back out */
+  cancelExit = false;
   hp = 100;
   maxHp = 100;
   /** PvP: respawns left; other modes never read it */
@@ -685,8 +694,9 @@ export class Player {
    *   burning and standing in lava is still fatal.
    */
   damage(amount: number, from: THREE.Vector3, bySlot = -1, opts: { dot?: boolean; heavy?: boolean } = {}): void {
-    // a body still assembling isn't there to hit yet
-    if (!this.alive || this.formT > 0) return;
+    // a body still assembling isn't there to hit yet, and neither is one
+    // standing in a transport door waiting on the rest of the party
+    if (!this.alive || this.formT > 0 || this.exited) return;
     // A kill zone is not an attack and is never shrugged off, and neither is
     // a heavy blow (`opts.heavy`): the guard exists so a volley of bolts lands
     // as a rhythm rather than a wall, not so that a bolt 0.2 s before a
@@ -948,6 +958,22 @@ export class Player {
     // fades back in where it will stand — watchable, untouchable, and deaf to
     // input until it is whole
     if (this.formT > 0) { this.updateForming(dt, game, realDt, anim); return; }
+
+    // Waiting in a transport pocket: the body stands there, the camera still
+    // looks around, and the only button that does anything is the one that
+    // takes it back. Everything else would be a step out of the door the
+    // party is waiting at.
+    if (this.exited) {
+      // B is the cancel: it is the game's own "back", and while you are in
+      // the pocket the shield it normally raises has nothing to guard against
+      if (input.blockHeld) this.cancelExit = true;
+      input = { ...input, moveX: 0, moveY: 0, jumpHeld: false, jumpPressed: false,
+        dashPressed: false, sprintHeld: false, shootHeld: false, meleePressed: false,
+        rocketPressed: false, slamPressed: false, throttleHeld: false, brakeHeld: false,
+        blockHeld: false };
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+    }
 
     this.updateGrowth(dt, game);
     this.updateEggRack(dt);
@@ -1499,6 +1525,30 @@ export class Player {
     }
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
+    this.clampToCeiling(game);
+  }
+
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
+   *
+   * A mission level caps everyone below its ceiling so a border cannot be
+   * flown over and a beat cannot be skipped, and so the sky above it belongs
+   * to the backdrop — the band carriers cross and fliers come down out of. It
+   * sits well above what one burn reaches, so free flight never meets it; what
+   * meets it is a climb up a cliff, and there the pack sputters against it
+   * rather than pretending nothing happened.
+   */
+  private clampToCeiling(game: Game): void {
+    const lid = game.ceilingY;
+    if (lid === null) return;
+    const head = this.position.y + this.height;
+    if (head <= lid) return;
+    this.position.y = lid - this.height;
+    if (this.velocity.y > 0) this.velocity.y = 0;
+    if (this.thrusting > 0) {
+      this.thrusting = 0;
+      audio.setJetpackThrust(this.slot, 0.25);
+    }
   }
 
   /** out of bounds: a void board puts you back on your start, everything else kills */

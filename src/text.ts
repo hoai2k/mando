@@ -190,6 +190,12 @@ export const TEXT = {
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },
     offPath: { title: 'Off the path', sub: 'back to the last checkpoint' },
+    tookYou: { title: 'The water took you', sub: 'back to the last checkpoint' },
+    ceilingHit: (line: string) => line,
+    ceilingSub: 'nothing flies over the rim',
+    transport: (where: string) => `Making for ${where}`,
+    transportSub: 'the party goes together',
+    steppedOut: { title: 'Standing in the transport', sub: 'everyone aboard before it goes back' },
     lieutenantFallsMission: { title: 'The lieutenant falls', sub: 'the warlord waits at the end' },
   },
 
@@ -466,15 +472,47 @@ export const TEXT = {
      * announced as "undefined", which is the one failure worth catching loudly.
      */
     rooms: {
-    desert: ['the trailhead', 'the outpost yard', 'the cistern court', 'the caravan graves', 'the fighting pit', 'the spice cellars', 'the dune gate', "the Old One's hollow"],
-    station: ['the docking bay', 'the cargo deck', 'the smuggler den', 'the spice vault', 'the loading gantry', 'the crew quarters', 'the reactor ring', 'the hold of the prize'],
-    nevarro: ['the ash flats', 'the lava trench', 'the garrison yard', 'the glass fields', 'the magistrate court', 'the crossing', 'the cantina row', 'the rancor pen'],
-    crevasse: ['the rim shelf', 'the frozen gallery', 'the nest mouth', 'the cracked lake', 'the queen tunnel', 'the hatchery', 'the ice chimney', 'the breaker deep'],
-    trask: ['the quay steps', 'the fish market', 'the net lofts', 'the trawler deck', 'the freighter hold', 'the cold stores', 'the pier heads', 'the mamacore pool'],
-    refinery: ['the intake hall', 'the barrel stores', 'the pipe gallery', 'the pump hall', 'the furnace floor', 'the rhydonium line', 'the control deck', 'the reactor shaft'],
-    forge: ['the shattered gate', 'the ruined concourse', 'the dome undercroft', 'the glassed court', 'the rockfall den', 'the armoury vault', 'the forge steps', 'the sleeper cavern'],
-    ringworld: ['the tram stop', 'the market arcade', 'the plaza', 'the night-side row', 'the sentinel walk', 'the terminus', 'the service spine', 'the high street'],
-    narkina: ['the intake lift', 'the work floor', 'the cell block', 'the assembly line', 'the supervisor deck', 'the maintenance bay', 'the discharge hall', 'the warden bridge'],
+    desert: ['the trailhead flats', 'the dune road', 'the ravine', 'the cistern approach', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
+    station: ['the docking bay', 'the cargo gantries', 'the outer yard', 'the spice vault', 'the loading gantry', 'the crew catwalks', 'the reactor ring', 'the hold of the prize'],
+    nevarro: ['the ash flats', 'the crust causeway', 'the town gate', 'the garrison yard', 'the magistrate court', 'the crossing', 'the cantina row', 'the rancor pen'],
+    crevasse: ['the rim shelf', 'the frozen gallery', 'the nest mouth', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
+    trask: ['the quay steps', 'the fish market', 'the net lofts', 'the freighter hold', 'the cold stores', 'the trawler deck', 'the pier heads', 'the mamacore pool'],
+    refinery: ['the tanker yard', 'the pipe run', 'the intake ramp', 'the barrel stores', 'the reactor floor', 'the pump hall', 'the reactor crown', 'the loading field'],
+    forge: ['the glassed plain', 'the glass highway', 'the shattered gate', 'the dome undercroft', 'the armoury vault', 'the glassed court', 'the forge steps', "the sleeper's basin"],
+    ringworld: ['the tram stop', 'the market arcade', 'the night-side row', 'the terminus', 'the sentinel walk', 'the plaza', 'the service spine', 'the high street terrace'],
+    narkina: ['the landing deck', 'the gantry run', 'the intake lift', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the discharge gantry', 'the moon pool deck'],
+    },
+    /**
+     * What each **stage** of a run is called: the line on the transition card
+     * when the party crosses a transport door into a map with its own world
+     * rules (docs/MISSIONS_OUTDOOR.md §1.9). One entry per stage, in order.
+     */
+    stages: {
+      desert: ['the open desert', 'the ravine', 'the far side'],
+      station: ['the approach', 'inside the station', 'the prize'],
+      nevarro: ['the flats', 'the garrison', 'the glass fields'],
+      crevasse: ['the surface', 'the deep'],
+      trask: ['the harbour'],
+      refinery: ['the yard', 'the plant', 'the loading field'],
+      forge: ['the plain', 'the undercroft', 'the dome'],
+      ringworld: ['the high street'],
+      narkina: ['the landing deck', 'the cell block', 'the top decks'],
+    },
+    /**
+     * The one-time line when a player first meets the ceiling. It is not a
+     * wall so much as where the playable sky stops and the ambient sky — the
+     * one carriers cross and fliers come down out of — begins.
+     */
+    ceiling: {
+      desert: 'The sky thins out here',
+      station: "The hull's field ends here",
+      nevarro: 'The ash cloud sits low',
+      crevasse: 'The storm sits low here',
+      trask: 'The squall closes overhead',
+      refinery: 'The stack smoke closes overhead',
+      forge: 'The magnetic storm closes overhead',
+      ringworld: "The ring's ceiling ends here",
+      narkina: 'The rig grid ends here',
     },
     /** the HUD's standing instruction, by what the room ahead wants */
     makeFor: (where: string, metres: number) => `Make for ${where} · ${metres} m`,
@@ -482,6 +520,13 @@ export const TEXT = {
     bringDownLieutenant: 'Bring down the lieutenant',
     bringDownWarlord: 'Bring down the warlord',
     pushThrough: (where: string, metres: number) => `Push through ${where} · ${metres} m`,
+    ride: (where: string, metres: number) => `Ride for ${where} · ${metres} m`,
+    clearTheWay: 'Break through the barricade',
+    /** the transport door, and the wait to go back through one */
+    boarding: (where: string) => `Transport · ${where}`,
+    exited: 'You have exited · B to cancel',
+    waitingOn: (name: string, n: number) => `${name} has stepped out — waiting on ${n} more`,
+    arrivedAt: (where: string) => `Arrived · ${where}`,
   },
 } as const;
 

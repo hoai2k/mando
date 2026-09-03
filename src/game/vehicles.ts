@@ -172,7 +172,11 @@ export class Vehicle {
     this.def = VEHICLE_DEFS[spec.kind];
     this.hp = this.maxHp = this.def.hp;
     this.yaw = spec.yaw ?? 0;
-    const ground = this.groundAt(spec.x, spec.z);
+    // `y` is the deck it was parked on (a mission level's plate); without it
+    // the search starts from the terrain, which on a mission board is ninety
+    // metres under the floor the ride is standing on.
+    if (spec.y !== undefined) this.pos.y = spec.y + this.def.hover;
+    const ground = spec.y ?? this.groundAt(spec.x, spec.z);
     this.pos.set(spec.x, ground + this.def.hover, spec.z);
     this.seatY = this.def.seat.y;
     this.group.add(this.body);
@@ -269,6 +273,21 @@ export class Vehicle {
     // a mount does not detonate: it goes down in a cloud of its own dust,
     // with the last of its lowing
     else if (this.def.living) this.pendingCollapse = at.clone();
+  }
+
+  /**
+   * Take this ride out of the world without a wreck.
+   *
+   * Missions swaps whole maps at a transport door, and the rides parked on
+   * the old one go with it — quietly, since nothing blew them up. Its parked
+   * collider is the part that matters: left in the physics world it is an
+   * invisible box standing in the middle of the next stage.
+   */
+  retire(): void {
+    if (this.rider) this.dropRider();
+    this.unpark();
+    this.group.visible = false;
+    this.removeMe = true;
   }
 
   /** set by destroy(); the game detonates it on its next update pass */
