@@ -1033,19 +1033,27 @@ export class Game {
     this.events.hitMarker(slot);
   }
 
-  private explode(point: THREE.Vector3, bySlot: number): void {
-    this.particles.explosion(point);
+  /**
+   * `scale` sizes the whole event — the fireball, how far the wave reaches and
+   * what it is worth when it gets there. A rocket is 1; a destroyed ride
+   * passes its own hull's measure (see `Vehicle.blastScale`), so a swoop going
+   * up beside you is survivable and a skiff going up beside you is not.
+   */
+  private explode(point: THREE.Vector3, bySlot: number, scale = 1): void {
+    this.particles.explosion(point, scale);
+    const r = (base: number) => base * (0.75 + scale * 0.25);
+    const d = (base: number) => base * (0.6 + scale * 0.4);
     this.blast(point, {
       bySlot,
       // the blast wave puts a body flat as well as hurting it
-      enemies: { radius: 7, damage: 90, zero: 8, push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
-      corpses: { radius: 9, damage: 26, zero: 10 },
+      enemies: { radius: r(7), damage: d(90), zero: r(8), push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
+      corpses: { radius: r(9), damage: d(26), zero: r(10) },
       // in PvP a rocket is a duel-ender against a rival; against yourself it
       // is the same graze it has always been
-      players: { radius: 4.5, damage: 18, rival: this.mode === 'pvp' ? 70 : undefined },
-      vehicles: { radius: 7, damage: 80, zero: 8 },
-      breakables: { radius: 6, damage: 90 },   // scenery is not exempt (chains!)
-      shake: { amount: 0.35, radius: 35 },
+      players: { radius: r(4.5), damage: d(18), rival: this.mode === 'pvp' ? d(70) : undefined },
+      vehicles: { radius: r(7), damage: d(80), zero: r(8) },
+      breakables: { radius: r(6), damage: d(90) },   // scenery is not exempt (chains!)
+      shake: { amount: 0.35 * (0.7 + scale * 0.4), radius: 35 * (0.8 + scale * 0.2) },
       noise: 70,                                // an explosion is not subtle
       sound: 'explosion',
     });
@@ -1166,7 +1174,7 @@ export class Game {
       if (v.pendingExplosion) {
         const px = v.pendingExplosion;
         v.pendingExplosion = null;
-        this.explode(px.at, px.slot);
+        this.explode(px.at, px.slot, px.scale);
       }
       // a mount has no repulsor core to go up: it drops, and the sand it
       // kicks up is the whole of it
@@ -1174,11 +1182,21 @@ export class Game {
         const at = v.pendingCollapse;
         v.pendingCollapse = null;
         this.particles.dustPuff(at, 26);
+        this.particles.disintegrate(at.clone().setY(at.y + 1.2), 14);
         audio.banthaLow(0.6);
       }
-      if (v.removeMe) this.scene.remove(v.group);
+      // twenty seconds on, it is back where it was parked: the sand gathers
+      // itself up into an animal again, or a hull settles onto its repulsors
+      if (v.pendingReform) {
+        const at = v.pendingReform;
+        v.pendingReform = null;
+        this.particles.dustPuff(at, 16);
+        if (v.def.living) {
+          this.particles.disintegrate(at.clone().setY(at.y + 1.4), 16);
+          audio.banthaLow(0.4);
+        }
+      }
     }
-    this.vehicles = this.vehicles.filter((v) => !v.removeMe);
 
     // ---- enemies ----
     this.director.update(dt, this);
