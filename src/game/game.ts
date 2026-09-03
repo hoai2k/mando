@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
-import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
-import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
+import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
+import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
-import { playableDef, type PlayableId } from '../characters/roster';
+import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
 import { yawBasis } from '../core/math';
@@ -17,9 +17,13 @@ import { disposeSubtree } from '../core/dispose';
 import { enemyModelIds, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
-import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, INFINITE_LIVES, MID_BOSS, MONSTER_BOSS, bossRush, type GameMode } from './modes';
-import { AllyCrate } from './allycrate';
-import { Campaign } from './campaign';
+import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
+import type { AllyCrate } from './allycrate';
+import type { Campaign } from './campaign';
+import type { ModeRules } from './rules/rules';
+import { WaveRules } from './rules/wave';
+import { PvpRules } from './rules/pvp';
+import { CampaignRules } from './rules/campaign-rules';
 
 export type MatchState = 'intro' | 'fighting' | 'break' | 'victory' | 'defeat';
 
@@ -128,7 +132,8 @@ export class Game {
   time = 0;
   wave = 0;
   state: MatchState = 'intro';
-  private stateTimer = 2.2;
+  /** the intro clock, and the pause between waves — the rule sets read it */
+  stateTimer = 2.2;
   private rockets: Rocket[] = [];
   private tmpSize = new THREE.Vector2();
   /** the world seen from below the surface: dense teal murk */
@@ -156,26 +161,11 @@ export class Game {
   private rocketMat = new THREE.MeshBasicMaterial({ color: 0xffd090 });
   totalKills = 0;
   elapsed = 0;
-  /** seconds spent on the current wave, for the hunt escalation below */
-  private waveTimer = 0;
-  /** hostiles this wave put on the board — see the wave-clear check */
-  private waveSpawned = 0;
-  private huntCall = 0;
-  private huntAnnounced = false;
+  /** hostiles this wave put on the board — the wave rules' clear check reads it */
+  waveSpawned = 0;
   // ---- modes (docs/MODES.md) ----
   /** the standing boss battle — the mid-board champion or the warlord */
   boss: Enemy | null = null;
-  /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
-  private midBossActive = false;
-  /**
-   * The waves each boss battle rings in after. Normally the design's schedule
-   * (spawner.ts MID_BOSS_WAVE / FINAL_WAVE); ?waves=boss compresses it to a
-   * single wave before each battle, for testing the bosses themselves.
-   */
-  private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
-  private finalWave = bossRush() ? 2 : FINAL_WAVE;
-  /** the champion has fallen; the second run of waves is open */
-  private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
   private bossPhase = 0;
@@ -204,8 +194,10 @@ export class Game {
   private incoming = 0;
   /** alternates eligible transports between setting down and overflying */
   private landToggle = 0;
-  /** campaign controller; null outside campaign mode */
+  /** campaign controller; null outside campaign mode (set by CampaignRules) */
   campaign: Campaign | null = null;
+  /** the mode's rule set: everything Wave Battle, PvP and Missions disagree on */
+  readonly rules: ModeRules;
   /** PvP: the slot that took the territory, for the end screen */
   winnerSlot = -1;
   /** per-frame cache behind hostilesFor */
@@ -234,28 +226,27 @@ export class Game {
       });
     }
 
+    // The rule set comes first: it places the players (PvP starts them apart
+    // on the board's own posts) and, once they exist, opens the match.
+    this.rules = mode === 'pvp' ? new PvpRules(this)
+      : mode === 'campaign' ? new CampaignRules(this)
+        : new WaveRules(this);
+
     for (let i = 0; i < playerCount; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
       if (mode === 'pvp') {
         // every fighter is their own side; 0/1 stay meaningful as co-op/hostile
         p.team = 2 + i;
         p.lives = 2; // three stands in total
-        p.spawnAt(this.pvpSpawn(i));
-      } else {
-        p.spawnAt(this.startFor(board, i));
       }
+      p.spawnAt(this.rules.startFor?.(i) ?? this.startFor(i));
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
     }
-    // PvP squad leaders bring their fireteam (docs/MODES.md §3)
-    if (mode === 'pvp') for (const p of this.players) this.spawnSquadFor(p);
-
-    if (mode === 'campaign') {
-      // raises the mission level over the territory and moves the party to its
-      // trailhead; every player keeps their own camera, split-screen as ever
-      this.campaign = new Campaign(this);
-    }
+    // squads, the mission level, the first wave's models: whatever the mode
+    // wants doing once there are players standing on the board
+    this.rules.begin();
 
     // Parked rides belong to the territory's own ground, so they only make
     // sense in the modes fought on it. A mission level is raised to
@@ -298,9 +289,6 @@ export class Game {
       }
     };
 
-    // The intro banner buys a couple of seconds; spend them fetching the models
-    // wave one is about to need, rather than parsing them on the spawn frame.
-    if (mode === 'wave') this.preloadWave(1);
     // The three allies are certain to appear in a full match and are only three
     // files, so warm them now rather than the instant one walks into a firefight.
     // A mission drops two of the same caches, before its arenas.
@@ -319,43 +307,7 @@ export class Game {
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music, board.kind);
-    const objective = mode === 'pvp' ? 'Last fighter standing takes it'
-      : mode === 'campaign' ? 'Follow the beacon · liberate the territory'
-        : board.objective ?? 'Survive 7 waves and two warlords';
-    this.events.banner(board.name, objective);
-  }
-
-  /** PvP spawns: the board's own posts, farthest-first so fighters start apart. */
-  private pvpSpawn(slot: number, awayFrom?: THREE.Vector3): THREE.Vector3 {
-    const spawns = this.board.groundSpawns;
-    if (!spawns.length) return this.startFor(this.board, slot);
-    const others = this.players.filter((p) => p.alive).map((p) => p.position);
-    if (awayFrom) others.push(awayFrom);
-    let best = spawns[slot % spawns.length];
-    let bestD = -1;
-    for (const s of spawns) {
-      let d = Infinity;
-      for (const o of others) d = Math.min(d, s.distanceToSquared(o));
-      if (others.length === 0) d = Math.random();
-      if (d > bestD) { bestD = d; best = s; }
-    }
-    return standingSpot(this.board, best.clone().add(new THREE.Vector3(0, 0.2, 0)), 'pyke');
-  }
-
-  /** spawn (or re-spawn) a PvP squad leader's AI fireteam beside them */
-  private spawnSquadFor(p: Player): void {
-    const squad = playableDef(p.characterId).profile.squad;
-    if (!squad) return;
-    // any followers it still has stay; only the missing places are refilled
-    // hunters (a broodmother's brood) share the owner but are not the squad
-    const have = this.enemies.filter((e) => e.owner === p && e.alive && !e.hunts).length;
-    for (let i = have; i < squad.count; i++) {
-      const a = (i / squad.count) * Math.PI * 2;
-      const at = standingSpot(this.board, p.position.clone().add(new THREE.Vector3(Math.cos(a) * 2.5, 0.2, Math.sin(a) * 2.5)), squad.kind);
-      const e = new Enemy(squad.kind, at, p.team);
-      e.setOwner(p);
-      this.addEnemy(e, { puff: 6 });
-    }
+    this.events.banner(board.name, this.rules.objective);
   }
 
   /**
@@ -377,6 +329,11 @@ export class Game {
   /** the campaign controller's mouthpiece (events is private) */
   announce(text: string, sub?: string): void {
     this.events.banner(text, sub);
+  }
+
+  /** the card naming enemy kinds making their first appearance this wave */
+  announceContacts(names: string[]): void {
+    this.events.newContacts?.(names);
   }
 
   /**
@@ -436,7 +393,7 @@ export class Game {
    * bodies exist only in `incoming`, which the wave-clear check and the
    * hostiles counter both treat as hostiles the wave still owes.
    */
-  private stageArrivals(plan: Placement[]): void {
+  stageArrivals(plan: Placement[]): void {
     const squads = new Map<number, Placement[]>();
     for (const p of plan) {
       const list = squads.get(p.squad);
@@ -996,7 +953,8 @@ export class Game {
    * remember a number, and the height is taken from the spot they extend so
    * nobody starts inside the ground or under a deck.
    */
-  private startFor(board: Board, i: number): THREE.Vector3 {
+  startFor(i: number): THREE.Vector3 {
+    const board = this.board;
     const declared = board.playerStarts[i];
     if (declared) return declared;
     const base = board.playerStarts[board.playerStarts.length - 1] ?? board.playerStarts[0];
@@ -1108,57 +1066,11 @@ export class Game {
       }
     }
 
-    // ---- match flow (per mode) ----
+    // ---- the mode's own rules (docs/MODES.md §1) ----
+    // The wave clock, PvP's scoring, the campaign's objectives: one call, and
+    // the simulation below it is the same in all three.
     this.stateTimer -= dt;
-    if (this.mode === 'wave') {
-      if (this.state === 'intro' && this.stateTimer <= 0) this.nextWave();
-      if (this.state === 'break' && this.stateTimer <= 0) this.nextWave();
-      // A wave is cleared once everything it spawned is down. Testing
-      // `enemies.length > 0` instead — as a stand-in for "the wave has started" —
-      // stalled the station permanently: enemies knocked into the abyss are
-      // removed the same frame they die, rather than lingering as a corpse, so
-      // the array could empty completely and the check could never fire again.
-      if (this.state === 'fighting' && this.waveSpawned > 0 && this.aliveEnemyCount === 0
-          && this.incoming === 0 && !this.monsterStaging) {
-        // the fallen fade away now that the wave is decided
-        for (const e of this.enemies) if (!e.alive) e.fadeOut();
-        // cache backup was for this wave only: the squad melts back into the
-        // covert, and an uncracked crate leaves with its chance
-        if (this.allyCrate) {
-          this.allyCrate.retire(this);
-          this.allyCrate = null;
-        }
-        if (this.wave > this.finalWave) {
-          // the warlord is down: the territory is truly held
-          this.setState('victory');
-          this.events.banner('Territory held', 'This is the Way');
-          audio.waveClear();
-        } else if (this.midBossActive) {
-          // the champion falls; the second run of waves opens
-          this.midBossActive = false;
-          this.midBossDown = true;
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner('The champion falls', 'The warlord is watching');
-          audio.waveClear();
-        } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
-          // a boss battle rings in on the next bell
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner(`Wave ${this.wave} cleared`, 'Something big is coming');
-          audio.waveClear();
-        } else {
-          this.setState('break');
-          this.stateTimer = 4.5;
-          this.events.banner(`Wave ${this.wave} cleared`);
-          audio.waveClear();
-        }
-      }
-    } else if (this.state === 'intro' && this.stateTimer <= 0) {
-      // pvp and campaign have no wave clock: the intro simply opens the match
-      this.setState('fighting');
-      this.wave = 1;
-    }
+    this.rules.update(dt);
 
     // boss phases run wherever a boss stands (either boss battle, campaign arenas)
     if (this.state === 'fighting') this.updateMonsterStage(dt);
@@ -1169,60 +1081,18 @@ export class Game {
     // the supply cache pulses until someone cracks it, then sheds its panels
     this.allyCrate?.update(dt);
 
-    // ---- campaign objectives ----
-    // the doors move whatever the match is doing; what they are *for* is only
-    // decided while it is being fought
+    // the doors move whatever the match is doing; what they are *for* is
+    // decided by the campaign's own rules above
     this.campaign?.animateGates(dt);
-    if (this.campaign && this.state === 'fighting') {
-      this.campaign.update(dt);
-      if (this.campaign.done && this.state === 'fighting') {
-        this.setState('victory');
-        this.events.banner('Territory liberated', 'This is the Way');
-        audio.waveClear();
-      }
-    }
-
-    // ---- pvp: lives, credit, the last one standing ----
-    if (this.mode === 'pvp' && this.state === 'fighting') this.updatePvp();
 
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
-      if (this.mode === 'pvp') {
-        // PvP keeps its finite stands: elimination is the mode's win condition
-        if (p.lives > 0) {
-          p.lives--;
-          p.deathCounted = false;
-          // a player who fell mid-morph (died as the hatchling) comes back
-          // as the fighter they picked, not the body they borrowed
-          if (p.characterId !== p.baseCharacterId) p.morph(p.baseCharacterId, this);
-          p.spawnAt(this.pvpSpawn(p.slot, p.position));
-          this.spawnSquadFor(p);   // the fireteam re-forms on its leader
-          this.particles.dustPuff(p.position, 10);
-        }
-        // out of lives: eliminated — updatePvp calls the match
-      } else if (this.mode === 'campaign') {
-        // arcade checkpointing: the walk back is the cost (LEVEL_DESIGN.md §2)
-        p.spawnAt(this.campaign?.respawnSpot(p.slot) ?? this.board.playerStarts[0].clone());
-        p.hp = p.maxHp * 0.8;
-        this.events.banner('Back on your feet', 'the beacon waits');
-      } else {
-        const partnerAlive = this.players.some((o) => o !== p && o.alive);
-        if (INFINITE_LIVES || (this.players.length > 1 && partnerAlive)) {
-          p.spawnAt(this.board.playerStarts[p.slot] ?? this.board.playerStarts[0]);
-          if (this.players.length > 1) p.hp = p.maxHp * 0.6;
-        } else {
-          this.setState('defeat');
-          this.events.banner('The hunter has fallen');
-        }
-      }
+      this.rules.respawn(p);
     }
-    if (!INFINITE_LIVES && this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
-      this.setState('defeat');
-      this.events.banner('The hunters have fallen');
-    }
+    this.rules.partyWiped?.();
 
     // ---- vehicles ----
     // Ridden ones were driven inside their rider's update; this settles the
@@ -1245,26 +1115,6 @@ export class Game {
       if (v.removeMe) this.scene.remove(v.group);
     }
     this.vehicles = this.vehicles.filter((v) => !v.removeMe);
-
-    // ---- hunt escalation (wave mode only: campaign posts hold their path) ----
-    // Posted enemies wait to be found, which must not let a wave stall out: if
-    // one drags on, or is down to its last few bodies scattered over the
-    // board, the remnant starts sweeping toward the players instead. (45 s
-    // and ≤ 3 left, from 80 s — waves 1–3 were mostly walking, audit L8.)
-    if (this.mode === 'wave' && this.state === 'fighting') {
-      this.waveTimer += dt;
-      this.huntCall -= dt;
-      const remnant = this.waveSpawned > 0 && this.incoming === 0 && this.aliveEnemyCount <= HUNT_REMNANT;
-      if ((this.waveTimer > HUNT_AFTER || remnant) && this.huntCall <= 0) {
-        this.huntCall = 22;
-        const p = this.players.find((pl) => pl.alive) ?? this.players[0];
-        for (const e of this.enemies) if (e.alive) e.alert(p.position, false);
-        if (!this.huntAnnounced) {
-          this.huntAnnounced = true;
-          this.events.banner('They are sweeping for you');
-        }
-      }
-    }
 
     // ---- enemies ----
     this.director.update(dt, this);
@@ -1611,110 +1461,12 @@ export class Game {
     return this.pooledTarget(i);
   }
 
-  /**
-   * Warm the .glb cache for everything a wave can put on the board.
-   *
-   * `now`, because the wave is the next thing to happen — but through the warm
-   * queue all the same, so a six-kind wave cannot open six downloads at once
-   * across a connection the match is already using for its scenery.
-   */
-  private preloadWave(wave: number): void {
-    if (wave > this.finalWave) return;
-    for (const entry of waveComposition(this.board.kind, wave, this.players.length)) {
-      for (const id of enemyModelIds(entry.kind)) warmAuthored(id, 'now');
-    }
-    // Allies are not part of a wave's composition, so they were downloading
-    // cold at the moment they walked in — mid-fight, against a spawn storm.
-    const ally = ALLY_WAVES[wave];
-    if (ally) {
-      for (const id of enemyModelIds(ally)) warmAuthored(id, 'now');
-    }
-  }
-
-  private setState(s: MatchState): void {
+  setState(s: MatchState, timer?: number): void {
     this.state = s;
+    if (timer !== undefined) this.stateTimer = timer;
     if (s === 'victory') audio.sting(true);
     if (s === 'defeat') audio.sting(false);
     this.events.stateChanged(s);
-  }
-
-  /** PvP scoring and the last-one-standing call (docs/MODES.md §3). */
-  private updatePvp(): void {
-    for (const p of this.players) {
-      if (p.alive || p.deathCounted) continue;
-      p.deathCounted = true;
-      // a squad leader with a living follower isn't done: the player carries
-      // on in the survivor's body, and only a wiped squad spends a stand
-      const heir = this.squadHeir(p);
-      const killer = p.lastHitBy >= 0 && p.lastHitBy !== p.slot ? this.players[p.lastHitBy] : null;
-      if (killer) {
-        killer.kills++;
-        this.events.hitMarker(killer.slot);
-        this.events.banner(`${killer.profile.name} downs ${p.profile.name}`,
-          heir ? 'the squad fights on'
-            : p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);
-      } else if (!heir && p.lives <= 0) {
-        this.events.banner(`${p.profile.name} is out`);
-      }
-      audio.killConfirm();
-      if (heir) this.takeOverFollower(p, heir);
-    }
-    const standing = this.players.filter((p) => p.alive || p.lives > 0 || p.respawnTimer > 0);
-    if (this.players.length > 1 && standing.length <= 1) {
-      const winner = standing[0]
-        ?? this.players.reduce((a, b) => (b.kills > a.kills ? b : a), this.players[0]);
-      this.winnerSlot = winner.slot;
-      this.setState('victory');
-      audio.pvpRoundWin();   // the duel gets its own sting over the victory music
-      this.events.banner(`${winner.profile.name} takes the territory`, 'This is the Way');
-    }
-  }
-
-  /** the nearest living squad follower a fallen PvP leader can carry on as */
-  private squadHeir(p: Player): Enemy | null {
-    let best: Enemy | null = null;
-    let bestD = Infinity;
-    for (const e of this.enemies) {
-      if (e.owner !== p || !e.alive) continue;
-      if (e.def.egg) continue;   // an unhatched egg is not a body to carry on in
-      const d = e.position.distanceToSquared(p.position);
-      if (d < bestD) { bestD = d; best = e; }
-    }
-    return best;
-  }
-
-  /**
-   * The fallen leader lives on in a surviving squadmate: the AI shell retires
-   * without a death (no credit, no burst of its own) and the player stands up
-   * in its place with whatever health the survivor had left. The camera flies
-   * over rather than cutting — glideFrom eases the position across while
-   * snapToward swings the look onto the new body.
-   *
-   * When the survivor is a different kind — the broodmother's hatchling —
-   * the player morphs into *its* body, and the growth clock arms: survive
-   * ten seconds as the hatchling and grow back into what fell.
-   */
-  private takeOverFollower(p: Player, heir: Enemy): void {
-    const healthFrac = Math.max(0.3, Math.min(1, heir.hp / heir.maxHp));
-    heir.alive = false;
-    heir.counted = true;   // not a kill: no score, no death FX
-    heir.removeMe = true;
-    // the leader's body goes down in a burst where it fell
-    this.particles.deathBurst(p.position.clone().add(new THREE.Vector3(0, p.height * 0.5, 0)));
-    const wasId = p.characterId;
-    if (`npc:${heir.kind}` !== wasId) {
-      p.morph(`npc:${heir.kind}`, this);
-      p.beginGrowth(wasId, 10);
-    }
-    p.cam.glideFrom(0.8);
-    p.cancelRebirth();   // possessing a standing body: no re-form to play
-    p.spawnAt(heir.position);
-    p.hp = p.maxHp * healthFrac;
-    p.deathCounted = false;   // the next death counts fresh
-    const look = heir.position.clone();
-    look.y += p.height;
-    p.cam.snapToward(look, 0.45);
-    this.particles.dustPuff(p.position, 6);
   }
 
   /**
@@ -1760,29 +1512,20 @@ export class Game {
     return egg;
   }
 
-  /** HUD top line, per mode (the HUD stays mode-agnostic) */
+  /** HUD top line: the mode's, or the shared default (the HUD stays mode-agnostic) */
   hudTopLine(p: Player): string {
     if (this.state === 'victory') return 'VICTORY';
-    if (this.mode === 'pvp') {
-      const stands = (p.alive ? 1 : 0) + p.lives;
-      return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
-    }
-    if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
-    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? 'The warlord';
-    return `Wave ${Math.max(this.wave, 1)}`;
+    return this.rules.topLine(p) ?? `Wave ${Math.max(this.wave, 1)}`;
   }
 
-  /** HUD score line, per mode */
+  /** HUD score line: the mode's, or the shared kills-and-hostiles count */
   hudScoreLine(p: Player): string {
-    if (this.mode === 'pvp') {
-      const rivals = this.players.filter((o) => o !== p && (o.alive || o.lives > 0 || o.respawnTimer > 0)).length;
-      return `${p.kills} kills · ${rivals} rival${rivals === 1 ? '' : 's'} left`;
-    }
-    return `${p.kills} kills · ${this.aliveEnemyCount + this.incoming} hostiles remaining`;
+    return this.rules.scoreLine(p)
+      ?? `${p.kills} kills · ${this.aliveEnemyCount + this.incoming} hostiles remaining`;
   }
 
   /** the far side of the board: the last resort for a boss with nowhere in view to stand */
-  private farPost(): THREE.Vector3 {
+  farPost(): THREE.Vector3 {
     const near = this.players[0]?.position ?? this.board.playerStarts[0];
     let far = this.board.groundSpawns[0] ?? near;
     for (const s of this.board.groundSpawns) {
@@ -1797,72 +1540,6 @@ export class Game {
    * reveal pans onto a figure, not a dot on the horizon (audit B10). Only the
    * far side of the board when nothing in view will hold him.
    */
-  private bossPost(tier: 'mid' | 'final'): THREE.Vector3 {
-    const p = this.players.find((pl) => pl.alive) ?? this.players[0];
-    if (!p) return this.farPost();
-    const kind = tier === 'mid' ? MID_BOSS[this.board.kind].kind : BOSS_KIND[this.board.kind];
-    return postInView(this.board, p.position, p.cam.yaw, kind) ?? this.farPost();
-  }
-
-  private nextWave(): void {
-    this.waveTimer = 0;
-    this.waveSpawned = 0;
-    this.huntCall = 0;
-    this.huntAnnounced = false;
-    this.setState('fighting');
-    // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
-    // the next wave: the board's first boss posts at the far side with a guard
-    if (this.wave === this.midBossWave && !this.midBossDown) {
-      this.midBossActive = true;
-      this.spawnBoss(this.bossPost('mid'), 'mid');
-      return;
-    }
-    this.wave++;
-    // past the final wave is the warlord's battle, and the last bell
-    if (this.wave > this.finalWave) {
-      this.spawnBoss(this.bossPost('final'), 'final');
-      return;
-    }
-    const near = this.players[0]?.position ?? this.board.playerStarts[0];
-    if (this.wave <= 1) {
-      // the first wave is the garrison already holding the territory: it is
-      // simply there, posted, waiting to be found
-      spawnWave(this.board, this.wave, this.players.length, near, (e) => this.addEnemy(e, { counts: true, puff: 10 }));
-    } else {
-      // every later wave is reinforcements, and reinforcements arrive:
-      // carriers streak over and drop squads, locals run in over the edge,
-      // quarren surface from the sea, fliers cross in at altitude
-      this.stageArrivals(planWave(this.board, this.wave, this.players.length, near));
-    }
-    // the break before the next wave is the lead time for its new arrivals
-    this.preloadWave(this.wave + 1);
-    const scattered = this.aliveEnemyCount + this.incoming;
-    this.events.banner(
-      `Wave ${this.wave}`,
-      this.wave === this.finalWave ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
-    );
-    // the little card naming kinds that debut this wave — the wave tables
-    // are deterministic in which kinds appear, so a diff against every
-    // earlier wave is exactly "first appearance"
-    const seen = new Set<EnemyKind>();
-    for (let w = 1; w < this.wave; w++) {
-      for (const entry of waveComposition(this.board.kind, w, this.players.length)) seen.add(entry.kind);
-    }
-    const fresh = [...new Set(
-      waveComposition(this.board.kind, this.wave, this.players.length).map((entry) => entry.kind)
-    )].filter((k) => !seen.has(k));
-    if (fresh.length) this.events.newContacts?.(fresh.map((k) => ENEMY_NAME[k]));
-    audio.waveStart();
-
-    // the covert's supply cache on milestone waves: a glowing crate near the
-    // party, holding a squad of allies for whoever cracks it open (allycrate.ts)
-    const cacheKind = ALLY_WAVES[this.wave] ?? null;
-    if (cacheKind) {
-      this.allyCrate = new AllyCrate(this, cacheKind, this.players[0]?.position ?? this.board.playerStarts[0]);
-      this.events.banner(`Wave ${this.wave}`, 'A covert supply cache is down — crack it open');
-    }
-  }
-
   /**
    * Give the scene something for metal to reflect.
    *
