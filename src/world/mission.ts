@@ -7,6 +7,7 @@ import { mat } from '../characters/builder';
 import { authoredProp } from './props';
 import { loadOptionalTexture } from '../core/assets';
 import { Gate, GATE_W, type Barrier } from './gate';
+import { disposeSubtree } from '../core/dispose';
 
 /**
  * Mission levels, outdoor edition (docs/MISSIONS_OUTDOOR.md).
@@ -1016,8 +1017,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // The front: a way on framed by pillars, a runner notch where the zone
       // has one — or, at a dead end, no gap at all and a door set into the
       // rock, which is what turns a ravine into somewhere you have to open.
-      const doorFace = !!zs.deadEnd && exitOpen;
-      const frontGaps: [number, number][] = exitOpen && !doorFace ? [[-gapHalf, gapHalf]] : [];
+      // A dead end's way on is a door in the rock rather than an open mouth —
+      // except where the stage itself ends here, because then the transport
+      // door *is* that door and a second one 20 cm in front of it is just a
+      // second door. Either way the rim leaves the gap: the face fills it.
+      const doorFace = !!zs.deadEnd && internalExit;
+      const frontGaps: [number, number][] = exitOpen ? [[-gapHalf, gapHalf]] : [];
       if (zs.pass) {
         frontGaps.push([w / 3 - 2, w / 3 + 2]);
         runnerPost = f.vec(l + 9, w / 3, top + 0.2);
@@ -1036,11 +1041,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       }
       if (pillars.length) ridge([], top, { pillarAt: pillars });
       if (doorFace) {
-        // a hewn face across the lane's end, with the door in the middle of it
+        // A hewn face filling the rim's gap, with the door in the middle of it
         // and a lamp over the door — in a dark ravine the way on should be the
-        // brightest thing in front of you
+        // brightest thing in front of you. The face is built in two bands so
+        // the doorway is a doorway rather than a full-height slot up the
+        // cliff: a low band with the opening in it, and solid rock above.
         const faceH = 7;
-        wallU(f, l + 1.2, -w / 2 - WALL_T, w / 2 + WALL_T, [{ c: 0, w: GATE_W }], top, faceH);
+        const rimH = ceiling + RIM_OVER_CEILING;
+        wallU(f, l + 1.2, -gapHalf - 1, gapHalf + 1, [{ c: 0, w: GATE_W }], top, faceH);
+        solid(f, l + 1.2 - WALL_T / 2, l + 1.2 + WALL_T / 2, -gapHalf - 1, gapHalf + 1,
+          top + faceH, top + rimH, rockMat);
         exitBarrier = new Gate(board, group, f.vec(l + 1.2, 0, top), dir, faceH, pal.accent);
         const lamp = new THREE.PointLight(0xffd9a0, 30, 26, 1.5);
         lamp.position.set(f.x(l + 1.2, 0), top + faceH - 0.5, f.z(l + 1.2, 0));
@@ -1349,10 +1359,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   // ---- teardown: a stage swap has to give all of this back ----
   const dispose = (): void => {
     board.group.remove(group);
-    group.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (mesh.geometry) mesh.geometry.dispose();
-    });
+    // `disposeSubtree`, not a hand-rolled traverse: a stage is full of authored
+    // sculpts, and a loaded .glb is cached once and *cloned* per instance, so
+    // a clone shares its original's geometries and textures. Disposing those by
+    // hand would free art every future instance of that prop still needs —
+    // which is exactly the kind of thing that shows up three stage swaps later
+    // as a renderer that has run out of memory. The shared ones are tagged;
+    // this is what respects the tag.
+    disposeSubtree(group);
     for (const r of owned) r.dispose();
     const phys = board.physics;
     // A barrier's blocker comes and goes with its animation, so it may be
