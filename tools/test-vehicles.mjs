@@ -539,19 +539,27 @@ for (const id of waveBoards) {
     `nearest ${r.nearest.toFixed(1)} m`);
 }
 
-// ---- Missions runs on a level 90 m up: no ground rides down below ----
+// ---- Missions runs on a level 90 m up: every ride is up there with it ----
+// The territory's own parked rides sit ninety metres below a mission floor,
+// where nobody can reach them; a stage parks its own on the plates it built.
+// This check used to read "a mission spawns none at all", which was true only
+// while stages had no rides of their own — the guarantee it stands for is that
+// no ride is left down on the territory.
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {
   const g = window.__game;
+  const floorY = g.campaign?.stage.floorY ?? null;
+  const ys = g.vehicles.map((v) => +v.pos.y.toFixed(1));
   return {
     n: g.vehicles.length,
-    declared: (g.board.vehicles ?? []).length,
-    floorY: g.campaign?.level.floorY ?? null,
+    floorY,
+    ys,
+    below: floorY === null ? g.vehicles.length : ys.filter((y) => y < floorY - 10).length,
   };
 });
-check('missions spawns no unreachable ground rides', mission.n === 0,
-  `${mission.n} spawned, ${mission.declared} declared on the territory, floor at y=${mission.floorY}`);
+check('missions leaves no ride down on the territory', mission.below === 0,
+  `${mission.n} spawned, ${mission.below} below the floor at y=${mission.floorY} (${mission.ys.join(', ')})`);
 
 const bad = h.errors.length;
 console.log('page errors:', bad ? h.errors.slice(0, 3) : 'none');
