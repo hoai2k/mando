@@ -85,6 +85,12 @@ const SUPERJUMP_RISE = 9;
 const SUPERJUMP_GLIDE = 0.35;
 /** super jump: terminal fall speed while feathering, m/s */
 const SUPERJUMP_FALL = 5.2;
+/**
+ * Grace window after walking off a ledge in which a jump still counts — and,
+ * since it is the freshest record the mover keeps of the ground, how long a
+ * body still feels what the ground is doing (see `groundShake`).
+ */
+const COYOTE_TIME = 0.12;
 /** a jetpack A-tap released within this many seconds reads as a toggle, not a thrust hold */
 const JET_TAP = 0.22;
 /**
@@ -820,6 +826,28 @@ export class Player {
     if (this.hp <= 0) this.die();
   }
 
+  /**
+   * A jolt that arrives through the ground — a warlord's slam, the quake
+   * before a monster comes up, something heavy landing nearby.
+   *
+   * The ground can only shake what is standing on it. These used to go
+   * straight to `cam.shake`, which rattled a Mandalorian forty metres up on
+   * the jetpack exactly as hard as one standing in the dust: with nothing
+   * under your feet the rumble stops reading as the world moving and starts
+   * reading as the camera being broken. Off the ground it fades out with the
+   * last of the contact (`COYOTE_TIME` — a hop still carries the thump,
+   * flight does not), and swimming there is no contact at all.
+   *
+   * Blasts that travel through the air — a rocket, a grenade — are not these:
+   * they still shake you wherever you are.
+   */
+  groundShake(amount: number): void {
+    if (this.swimming) return;
+    if (this.grounded) { this.cam.shake(amount); return; }
+    const contact = clamp(this.coyote / COYOTE_TIME, 0, 1);
+    if (contact > 0) this.cam.shake(amount * contact);
+  }
+
   /** the hull took a hit under us: feedback without the health cost */
   noteVehicleHit(from: THREE.Vector3): void {
     this.hurtFlash = Math.max(this.hurtFlash, 0.45);
@@ -1396,7 +1424,7 @@ export class Player {
 
   /** the leap itself (and the hold that arms a super jump). True = it left the ground this frame */
   private updateJump(dt: number, input: FrameInput, game: Game): boolean {
-    this.coyote = this.grounded ? 0.12 : this.coyote - dt;
+    this.coyote = this.grounded ? COYOTE_TIME : this.coyote - dt;
     if (this.grounded) {
       this.riseHold = false;
       // the ground resets the descent toggle: you always take off falling normally
@@ -2158,7 +2186,7 @@ export class Player {
     this.velocity.copy(v.vel);
     this.grounded = true;
     this.wasGrounded = true;
-    this.coyote = 0.12;
+    this.coyote = COYOTE_TIME;
 
     // kill zones still end the rider (the hull is not armour against a sarlacc);
     // burn zones cook the hull instead
@@ -2508,6 +2536,10 @@ export class Player {
           hitAny = true;
           if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
         }
+        // and the scenery: a crate, a barrel, a supply cache or a parked ride
+        // is as breakable with a blade as it is with a bolt
+        if (game.meleeProps(this.position, this.facingYaw, this.meleeRange + 1.2,
+          this.meleeDamage, this.slot)) hitAny = true;
         if (hitAny) {
           audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
           this.cam.shake(0.1);

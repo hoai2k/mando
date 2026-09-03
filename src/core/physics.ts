@@ -12,6 +12,13 @@ export interface RayHit { dist: number; point: THREE.Vector3; normal: THREE.Vect
 export interface StaticBox { min: THREE.Vector3; max: THREE.Vector3; }
 /** Upright cylinder — rocks, mesas, pillars: round things a box lies about. */
 export interface StaticCylinder { x: number; z: number; r: number; minY: number; maxY: number; }
+/**
+ * Any collection of solids that can be resolved against — the whole world, or
+ * the handful of colliders near one body. The point solvers (the ragdolls)
+ * resolve fifteen points seven times a substep and cannot afford to walk a
+ * board's worth of boxes each time, so they hold one of these instead.
+ */
+export interface SolidSet { boxes: StaticBox[]; cylinders: StaticCylinder[] }
 
 const STEP_HEIGHT = 0.55;
 
@@ -94,28 +101,32 @@ export class PhysicsWorld {
    *
    * @returns true if the point was moved.
    */
-  pushOutPoint(p: THREE.Vector3, radius = 0): boolean {
+  pushOutPoint(p: THREE.Vector3, radius = 0, solids: SolidSet = this): boolean {
     let moved = false;
-    for (const b of this.boxes) {
-      if (p.x <= b.min.x - radius || p.x >= b.max.x + radius) continue;
-      if (p.y <= b.min.y - radius || p.y >= b.max.y + radius) continue;
-      if (p.z <= b.min.z - radius || p.z >= b.max.z + radius) continue;
+    for (const b of solids.boxes) {
+      const minX = b.min.x - radius, maxX = b.max.x + radius;
+      const minY = b.min.y - radius, maxY = b.max.y + radius;
+      const minZ = b.min.z - radius, maxZ = b.max.z + radius;
+      if (p.x <= minX || p.x >= maxX) continue;
+      if (p.y <= minY || p.y >= maxY) continue;
+      if (p.z <= minZ || p.z >= maxZ) continue;
       // six faces, shallowest wins — the same rule the capsule mover uses,
-      // with the vertical pair included since a point has no "up"
-      const out: [number, () => void][] = [
-        [p.x - (b.min.x - radius), () => { p.x = b.min.x - radius; }],
-        [(b.max.x + radius) - p.x, () => { p.x = b.max.x + radius; }],
-        [p.y - (b.min.y - radius), () => { p.y = b.min.y - radius; }],
-        [(b.max.y + radius) - p.y, () => { p.y = b.max.y + radius; }],
-        [p.z - (b.min.z - radius), () => { p.z = b.min.z - radius; }],
-        [(b.max.z + radius) - p.z, () => { p.z = b.max.z + radius; }],
-      ];
-      let best = out[0];
-      for (const o of out) if (o[0] < best[0]) best = o;
-      best[1]();
+      // with the vertical pair included since a point has no "up". Written
+      // out rather than built as a list of closures: a ragdoll runs this a
+      // few hundred times a frame and the array cost more than the maths.
+      const xl = p.x - minX, xh = maxX - p.x;
+      const yl = p.y - minY, yh = maxY - p.y;
+      const zl = p.z - minZ, zh = maxZ - p.z;
+      const m = Math.min(xl, xh, yl, yh, zl, zh);
+      if (m === xl) p.x = minX;
+      else if (m === xh) p.x = maxX;
+      else if (m === yl) p.y = minY;
+      else if (m === yh) p.y = maxY;
+      else if (m === zl) p.z = minZ;
+      else p.z = maxZ;
       moved = true;
     }
-    for (const c of this.cylinders) {
+    for (const c of solids.cylinders) {
       if (p.y <= c.minY - radius || p.y >= c.maxY + radius) continue;
       const dx = p.x - c.x, dz = p.z - c.z;
       const reach = c.r + radius;
@@ -132,6 +143,30 @@ export class PhysicsWorld {
       moved = true;
     }
     return moved;
+  }
+
+  /**
+   * The solids whose reach overlaps a sphere, gathered into `out` — the
+   * broadphase the point solvers stand on. `out`'s arrays are reused, so a
+   * corpse refreshes its shortlist once a frame and allocates nothing.
+   */
+  solidsNear(x: number, y: number, z: number, reach: number, out: SolidSet): SolidSet {
+    out.boxes.length = 0;
+    out.cylinders.length = 0;
+    for (const b of this.boxes) {
+      if (x < b.min.x - reach || x > b.max.x + reach) continue;
+      if (y < b.min.y - reach || y > b.max.y + reach) continue;
+      if (z < b.min.z - reach || z > b.max.z + reach) continue;
+      out.boxes.push(b);
+    }
+    for (const c of this.cylinders) {
+      if (y < c.minY - reach || y > c.maxY + reach) continue;
+      const dx = x - c.x, dz = z - c.z;
+      const r = c.r + reach;
+      if (dx * dx + dz * dz > r * r) continue;
+      out.cylinders.push(c);
+    }
+    return out;
   }
 
   /**

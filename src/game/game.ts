@@ -134,7 +134,7 @@ interface BlastSpec {
   corpses?: Ring;
   vehicles?: Ring;
   breakables?: Ring;
-  shake?: { amount: number; radius: number; flat?: boolean };
+  shake?: { amount: number; radius: number; flat?: boolean; ground?: boolean };
   /** how far the bang carries to the AI director */
   noise?: number;
   sound?: 'explosion' | 'impact';
@@ -648,14 +648,16 @@ export class Game {
       this.monsterQuake = MONSTER_QUAKE_LEN;
       this.events.banner(TEXT.banners.groundOpening.title, TEXT.banners.groundOpening.sub);
       audio.mythosaur(0.6);
-      for (const p of this.players) p.cam.shake(0.5);
+      for (const p of this.players) p.groundShake(0.5);
       return;
     }
     if (this.monsterQuake <= 0) return;
 
     this.monsterQuake -= dt;
-    // a rolling shake rather than one jolt, so the beat builds
-    for (const p of this.players) p.cam.shake(0.12);
+    // A rolling shake rather than one jolt, so the beat builds — and it is the
+    // *ground* opening, so it reaches whoever is standing on it. A player up
+    // on the jetpack watches it happen instead of being rattled by it.
+    for (const p of this.players) p.groundShake(0.12);
     if (this.monsterQuake > 0) return;
 
     const wanted = (this.monsterAt ?? this.players[0].position).clone();
@@ -816,7 +818,7 @@ export class Game {
       // flat, not falling off: standing at the rim of a warlord's slam has
       // always cost the full 26, and the ember ring promises exactly that reach
       players: { radius, damage: dmg, flat: true, push, lift: push * 0.8 },
-      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true },
+      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true, ground: true },
       sound: 'explosion',
     });
   }
@@ -899,10 +901,14 @@ export class Game {
       }
     }
     if (spec.shake) {
-      const { amount, radius, flat } = spec.shake;
+      const { amount, radius, flat, ground } = spec.shake;
       for (const p of this.players) {
         const d = p.position.distanceTo(point);
-        p.cam.shake(flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius)));
+        const amt = flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius));
+        // a ring that travels through the floor (a slam, a stomp) only shakes
+        // what is standing on it; a blast wave in the air reaches everyone
+        if (ground) p.groundShake(amt);
+        else p.cam.shake(amt);
       }
     }
     if (spec.noise) this.director.noise(this, point, spec.noise, true);
@@ -927,6 +933,29 @@ export class Game {
     this.hostileCache.clear();
     if (opts.puff) this.particles.dustPuff(e.position, opts.puff);
     return e;
+  }
+
+  /**
+   * Every body on the field with an AI behind it, hostiles and allies alike.
+   * Two lists exist because spawning and cleanup differ, not because the AI
+   * does — anything planning for the fight as a whole (the director) wants
+   * both.
+   */
+  *fighters(): Generator<Enemy> {
+    for (const e of this.enemies) yield e;
+    for (const a of this.allies) yield a;
+  }
+
+  /**
+   * A clear patch of ground for a body of `kind` at or near `want`.
+   *
+   * In a mission the level's own placement is the only safe one: the
+   * board-wide `standingSpot` falls back to the territory's ground ninety
+   * metres below the mission floor. Three callers had grown their own copy of
+   * this two-line pick; they all come through here now.
+   */
+  groundSpot(want: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+    return this.campaign ? this.campaign.placeNear(want, kind) : standingSpot(this.board, want, kind);
   }
 
   /** the same door for the allies' list */
@@ -968,7 +997,60 @@ export class Game {
     }
   }
 
-  private hurtBreakable(b: Breakable, dmg: number): void {
+  /**
+   * A swing lands on the world, not only on bodies.
+   *
+   * Everything a bolt can break — the supply cache, the barrels, the ice
+   * plates, a parked ride — a blade, a gaffi stick or a bare fist can break
+   * too. Anything a player can do with the trigger has to be something the
+   * melee build can do as well, and the cache was the case that made it plain:
+   * the only way to spring it was to shoot it, so a fighter who had put the
+   * gun away could not open their own reinforcements.
+   *
+   * Same arc as the body hit — reach in front of the swinger — but measured to
+   * the nearest point of the prop rather than to its middle, so a long plate
+   * is struck where the blade actually met it.
+   *
+   * @returns true if the swing found something, so the swing can play contact
+   */
+  meleeProps(from: THREE.Vector3, facingYaw: number, range: number, dmg: number, bySlot: number): boolean {
+    const fx = Math.sin(facingYaw), fz = Math.cos(facingYaw);
+    // chest height: a swing is not a scan of the ground under your boots
+    const y = from.y + 1;
+    let hit = false;
+    const inFront = (x: number, z: number, reach: number): boolean => {
+      const dx = x - from.x, dz = z - from.z;
+      const flat = Math.hypot(dx, dz);
+      if (flat > reach) return false;
+      return flat < 0.2 || (dx * fx + dz * fz) / flat > 0.25;
+    };
+    for (const b of this.board.breakables ?? []) {
+      if (b.broken) continue;
+      const box = b.box;
+      const nx = Math.min(Math.max(from.x, box.min.x), box.max.x);
+      const nz = Math.min(Math.max(from.z, box.min.z), box.max.z);
+      const ny = Math.min(Math.max(y, box.min.y), box.max.y);
+      if (Math.abs(ny - y) > range) continue;                 // over your head / at your feet
+      if (!inFront(nx, nz, range)) continue;
+      this.hurtBreakable(b, dmg);
+      hit = true;
+    }
+    for (const v of this.vehicles) {
+      if (!v.alive) continue;
+      if (Math.abs(v.pos.y + 1 - y) > range + 1) continue;
+      if (!inFront(v.pos.x, v.pos.z, range + v.def.radius)) continue;
+      v.damage(dmg, from, bySlot);
+      hit = true;
+    }
+    return hit;
+  }
+
+  /**
+   * Hurt one prop, and break it when it runs out. Public because the things
+   * that can hit a prop are not all bolts: a swing, a thrown blade and a blast
+   * all come through here.
+   */
+  hurtBreakable(b: Breakable, dmg: number): void {
     if (b.broken || dmg <= 0) return;
     b.hp -= dmg;
     if (b.hp > 0) return;

@@ -363,6 +363,20 @@ const ESCORT_ENGAGE = 45;
 const ESCORT_NEAR = 5;
 /** how far a milling ally's loiter goal may fall behind the player before it picks a new one */
 const ESCORT_DRIFT = 8;
+/** past this far behind, an ally stops jogging and runs flat out to catch up */
+const ESCORT_SPRINT = 12;
+/**
+ * A squad that cannot follow is no squad at all.
+ *
+ * Allies walk; players fly, dash and take lifts, and a board has ledges an
+ * ally's own pathing will never solve. Rather than leave the squad stranded on
+ * the far side of the map for the rest of the wave, one that falls this far
+ * behind for `RECALL_TIME` catches up off-screen: it is set down on clear
+ * ground near whoever it escorts, in a puff of dust.
+ */
+const RECALL_DIST = 55;
+/** how long it has to be that far behind before the catch-up fires */
+const RECALL_TIME = 4;
 
 /**
  * Blaster heat, the same mechanic the players carry. Volleys are small and
@@ -607,6 +621,8 @@ export class Enemy {
   private visible = false;
   /** how many were posted with this squad, for the morale check */
   squadSize = 1;
+  /** how long an ally has been too far behind its player to catch up on foot */
+  private recallT = 0;
   // ---- hit reactions & self-preservation (the RDR2 feel) ----
   /** flat on the ground after a heavy hit; gets back up when it runs out */
   private downTimer = 0;
@@ -1176,6 +1192,30 @@ export class Enemy {
   }
 
   /**
+   * The hostile nearest `anchor` and within `reach` of it — the escort's
+   * target pick, measured from the person being escorted rather than from the
+   * ally itself.
+   */
+  private foeNear(game: Game, anchor: THREE.Vector3, reach: number): Combatant | null {
+    let best: Combatant | null = null;
+    let bestD = reach * reach;
+    const foes = _foes;
+    foes.length = 0;
+    for (const pl of game.players) foes.push(pl);
+    for (const a of game.allies) foes.push(a);
+    for (const e of game.enemies) if (e !== this) foes.push(e);
+    for (const f of foes) {
+      if (!f.alive || f.team === this.team) continue;
+      if (f instanceof Enemy && !f.targetable) continue;   // nothing to shoot at under the sand
+      const d = f.position.distanceToSquared(anchor);
+      if (d >= bestD) continue;
+      bestD = d;
+      best = f;
+    }
+    return best;
+  }
+
+  /**
    * Is this body still standing, as the rig has it?
    *
    * Asked of the bones rather than of a state flag, because the flags describe
@@ -1492,15 +1532,24 @@ export class Enemy {
     }
   }
 
-  /** crowd spacing: bodies push each other apart rather than stacking */
+  /**
+   * Crowd spacing: bodies push each other apart rather than stacking.
+   *
+   * Allies are in this too. They were not, and a cache squad of five walking
+   * out of the same crate shared one patch of ground the whole wave — five
+   * bodies in the same metre reads as one body with a rendering fault.
+   */
   private separate(dt: number, game: Game): void {
-    for (const other of game.enemies) {
-      if (other === this || !other.alive) continue;
-      const dx = this.position.x - other.position.x;
-      const dz = this.position.z - other.position.z;
-      const dist2 = dx * dx + dz * dz;
-      const min = this.radius + other.radius + 0.3;
-      if (dist2 < min * min && dist2 > 1e-6) {
+    // The two lists by hand rather than through `fighters()`: this runs for
+    // every body every frame, and the generator's iterator is an allocation.
+    for (let side = 0; side < 2; side++) {
+      for (const other of side === 0 ? game.enemies : game.allies) {
+        if (other === this || !other.alive) continue;
+        const dx = this.position.x - other.position.x;
+        const dz = this.position.z - other.position.z;
+        const dist2 = dx * dx + dz * dz;
+        const min = this.radius + other.radius + 0.3;
+        if (dist2 >= min * min || dist2 <= 1e-6) continue;
         const dist = Math.sqrt(dist2);
         // An acceleration, so it has to be scaled by dt like every other
         // steering write in here — as a raw per-frame velocity add it was
@@ -1675,9 +1724,17 @@ export class Enemy {
       // Leash the engagement to the player, not to the foe: chasing whatever
       // is nearest to *itself* walks an ally across the board one target at a
       // time. Anything worth shooting is near the person being escorted.
+      //
+      // And *pick* by the player too. `nearestFoe` answers "nearest to me",
+      // which on a board with hostiles posted all over is routinely one
+      // across the map: the ally then measured that one against the leash,
+      // found it far from the player, and stood down — beside a player being
+      // shot at. Choosing the hostile nearest the person being escorted is
+      // what makes the squad join the fight the player is actually in.
       const anchor = p ? p.position : this.position;
       const strayed = p ? this.position.distanceTo(p.position) > ESCORT_LEASH : false;
-      const close = foe && !strayed && foe.position.distanceTo(anchor) < ESCORT_ENGAGE ? foe : null;
+      const close = strayed ? null : this.foeNear(game, anchor, ESCORT_ENGAGE);
+      this.target = close ?? foe;
       this.visible = !!close;
       if (!close && p) this.interest.copy(p.position);
       return close;
@@ -1781,10 +1838,18 @@ export class Enemy {
    * hostile came within range of the player.
    */
   private updateEscort(dt: number, game: Game): void {
-    const p = this.nearestPlayer(game);
+    const p = this.owner && this.owner.alive ? this.owner : this.nearestPlayer(game);
     if (!p) { this.updateSearch(dt, game, 0.8); return; }
-    if (this.position.distanceTo(p.position) > ESCORT_NEAR) {
-      this.updateSearch(dt, game, 0.8);
+    const gap = this.position.distanceTo(p.position);
+    if (this.updateRecall(dt, game, p, gap)) return;
+    if (gap > ESCORT_NEAR) {
+      // Head for the player at a pace that actually closes the gap. At a flat
+      // 0.8 an ally is slower than a walking Mandalorian and hopelessly slower
+      // than a sprinting one: the squad fell behind by metres a second and the
+      // player only ever saw it again as five bodies milling where they used
+      // to be. Well behind, it runs.
+      this.interest.copy(p.position);
+      this.updateSearch(dt, game, gap > ESCORT_SPRINT ? 1.35 : 0.9);
       return;
     }
     // loiter around the player rather than a post they never took. The goal is
@@ -1794,6 +1859,42 @@ export class Enemy {
     this.post.copy(p.position);
     if (this.idleGoal.distanceTo(this.post) > ESCORT_DRIFT) this.idleTimer = 0;
     this.updateIdle(dt, game);
+  }
+
+  /**
+   * The catch-up (see RECALL_DIST): an ally that has been left far behind for
+   * a few seconds is set down on clear ground beside the player it escorts.
+   *
+   * A walking body cannot follow a jetpack up a mesa or a lift down a shaft,
+   * and a squad stranded on the far side of the board is a squad the player
+   * paid for and never sees again. Returns true when it fires, since the frame
+   * belongs to the move.
+   */
+  private updateRecall(dt: number, game: Game, p: { position: THREE.Vector3 }, gap: number): boolean {
+    if (gap < RECALL_DIST) { this.recallT = 0; return false; }
+    this.recallT += dt;
+    if (this.recallT < RECALL_TIME) return false;
+    this.recallT = 0;
+    const a = Math.random() * Math.PI * 2;
+    // a fresh vector, not one of the frame scratches: the mission placer may
+    // hand back the very object it was given
+    const want = p.position.clone().add(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4));
+    // Down to the floor under them first. The player may be forty metres up on
+    // the jetpack, and a spot that high is not somewhere a walker stands: the
+    // placer would reject it and fall back to a board spawn on the far side of
+    // the map, which is the opposite of catching up.
+    const gy = game.board.physics.groundHeight(want.x, want.z, want.y);
+    if (isFinite(gy)) want.y = gy + 0.2;
+    const at = game.groundSpot(want, this.kind);
+    game.particles.dustPuff(this.position, 8);    // where it was
+    this.position.copy(at);
+    this.velocity.set(0, 0, 0);
+    this.post.copy(at);
+    this.idleGoal.copy(at);
+    this.idleTimer = 0;
+    this.cover = null;
+    game.particles.dustPuff(this.position, 10);   // and where it arrives
+    return true;
   }
 
   /** heading for the last thing it saw or heard */
@@ -2148,7 +2249,7 @@ export class Enemy {
     game.director.noise(game, this.position, 40);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
+      if (dd < 18) p.groundShake(0.3 * (1 - dd / 18));
       if (!p.alive || dd > r) continue;
       p.damage(d.damage * this.dmgScale * 0.6, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0).normalize();
@@ -2215,7 +2316,7 @@ export class Enemy {
         if (Math.random() < dt * 30) game.particles.dustPuff(this.position, 3);
         for (const p of game.players) {
           const dd = p.position.distanceTo(this.position);
-          if (dd < 20) p.cam.shake(0.05 * (1 - dd / 20));
+          if (dd < 20) p.groundShake(0.05 * (1 - dd / 20));
         }
         const prog = 1 - Math.max(0, this.burrowT) / b.rise;
         depth = 1 - prog * prog;
@@ -2287,7 +2388,7 @@ export class Enemy {
     game.director.noise(game, this.position, 50, true);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 24) p.cam.shake(0.45 * (1 - dd / 24));
+      if (dd < 24) p.groundShake(0.45 * (1 - dd / 24));
       if (!p.alive || dd > b.eruptR) continue;
       p.damage(b.erupt * this.dmgScale, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0);
@@ -2543,7 +2644,7 @@ export class Enemy {
     game.director.noise(game, this.position, 25);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 12) p.cam.shake(0.25 * (1 - dd / 12));
+      if (dd < 12) p.groundShake(0.25 * (1 - dd / 12));
     }
     let hit = false;
     for (const c of this.foesWithin(game, SLAM_RADIUS)) {

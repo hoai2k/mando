@@ -3,13 +3,13 @@ import * as THREE from 'three';
 import type { Game } from './game';
 import { addBreakable, type Breakable } from '../world/board';
 import { Enemy, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { standingSpot } from '../enemies/spawner';
 import { audio } from '../core/audio';
 
 /**
  * The covert's supply cache (the ally crate): a glowing crate dropped on the
- * old ally-milestone waves. It sits on the field as a breakable — one solid
- * hit (bolt, rocket, slam) springs it — and on opening its side panels blow
+ * old ally-milestone waves. It sits on the field as a breakable — a couple of
+ * bolts, a couple of swings, a rocket or a ground slam spring it — and on
+ * opening its side panels blow
  * outward and fall away, revealing a squad of allies who walk out and fight
  * beside the players for the rest of the wave. This replaces the single ally
  * who used to walk in from the covert on those waves: the backup is bigger,
@@ -18,6 +18,13 @@ import { audio } from '../core/audio';
 
 /** how many allies a cache holds */
 export const CRATE_ALLY_COUNT = 5;
+
+/**
+ * What it takes to spring the cache. A Mandalorian's bolt is 34 and a swing is
+ * 32, so this is two of either — near enough that no build is the one that
+ * cannot open it, far enough that a stray bolt from a firefight does not.
+ */
+export const CRATE_HP = 60;
 
 /** crate footprint (m) — wide enough to read as holding a squad */
 const W = 2.6;
@@ -47,16 +54,6 @@ export class AllyCrate {
   private openT = 0;
 
   /**
-   * A clear patch of ground for a body of `kind` at or near `want`. In a
-   * mission the level's own placement is the only safe one: the board-wide
-   * `standingSpot` falls back to the territory's ground ninety metres below.
-   */
-  private place(want: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
-    const c = this.game.campaign;
-    return c ? c.placeNear(want, kind) : standingSpot(this.game.board, want, kind);
-  }
-
-  /**
    * `near` is where the party stands; the crate lands a stone's throw off on
    * a random bearing. A mission passes `at` instead — the room's own floor,
    * where a random bearing would as often as not be the far side of a wall.
@@ -67,7 +64,7 @@ export class AllyCrate {
     // judged with a big body so the crate never wedges into a doorway
     const a = Math.random() * Math.PI * 2;
     const want = at?.clone() ?? near.clone().add(new THREE.Vector3(Math.cos(a) * 14, 0.2, Math.sin(a) * 14));
-    this.pos = this.place(want, 'enforcer');
+    this.pos = game.groundSpot(want, 'enforcer');
     this.group.position.copy(this.pos);
     board.group.add(this.group);
 
@@ -122,9 +119,12 @@ export class AllyCrate {
     beacon.frustumCulled = false;
     this.group.add(beacon);
 
-    // the crate blocks movement and eats bolts like any prop until it opens
+    // The crate blocks movement and takes hits like any prop until it opens.
+    // Its hit points are set so that any way a player has of dealing damage
+    // opens it in about two goes — two bolts, two swings — rather than the one
+    // point it used to carry, which only a bolt was ever going to spend.
     const box = board.physics.addBox(this.pos.x, this.pos.y + (H + PANEL_T) / 2, this.pos.z, W, H + PANEL_T, W);
-    this.breakable = addBreakable(board, this.glow, box, 1, {
+    this.breakable = addBreakable(board, this.glow, box, CRATE_HP, {
       radius: W * 0.8,
       onBreak: (g) => this.open(g),
     });
@@ -149,7 +149,7 @@ export class AllyCrate {
     for (let i = 0; i < CRATE_ALLY_COUNT; i++) {
       const a = (i / CRATE_ALLY_COUNT) * Math.PI * 2;
       const want = this.pos.clone().add(new THREE.Vector3(Math.cos(a) * 2.2, 0.2, Math.sin(a) * 2.2));
-      const at = this.place(want, this.kind);
+      const at = game.groundSpot(want, this.kind);
       const ally = new Enemy(this.kind, at, 0);
       this.allies.push(ally);
       game.addAlly(ally, 8);
