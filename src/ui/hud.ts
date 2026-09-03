@@ -3,6 +3,11 @@ import type { Game } from '../game/game';
 import { Radar } from './radar';
 import { splitLayout } from '../core/layout';
 import { yawBasis } from '../core/math';
+import * as THREE from 'three';
+import type { Player } from '../player/player';
+
+/** scratch for the objective marker's projection */
+const _v = new THREE.Vector3();
 
 /** Per-player DOM HUD, laid out per split-screen viewport. */
 
@@ -28,6 +33,10 @@ interface PlayerHud {
   contactNames: HTMLElement;
   boss: HTMLElement;
   bossName: HTMLElement;
+  objective: HTMLElement;
+  objMark: SVGElement;
+  objLabel: HTMLElement;
+  exited: HTMLElement;
   bossFill: HTMLElement;
   vignette: HTMLElement;
   crosshair: SVGElement;
@@ -101,6 +110,8 @@ export class Hud {
         <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
         <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
         <div class="hud-contacts"><div class="nc-kicker">${TEXT.hud.newContact}</div><div class="nc-names"></div></div>
+        <div class="hud-objective"><svg class="obj-mark" viewBox="0 0 24 24"><path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="#ffcf6a" stroke-width="2.4" stroke-linejoin="round"/><path class="obj-arrow" d="M12 4 L20 16 L12 12 L4 16 Z" fill="#ffcf6a" opacity="0"/></svg><div class="obj-label"></div></div>
+        <div class="hud-exited"></div>
       `;
       this.layer.appendChild(root);
       const radar = new Radar();
@@ -127,6 +138,10 @@ export class Hud {
         contacts: root.querySelector('.hud-contacts') as HTMLElement,
         contactNames: root.querySelector('.nc-names') as HTMLElement,
         boss: root.querySelector('.hud-boss') as HTMLElement,
+        objective: root.querySelector('.hud-objective') as HTMLElement,
+        objMark: root.querySelector('.obj-mark') as SVGElement,
+        objLabel: root.querySelector('.obj-label') as HTMLElement,
+        exited: root.querySelector('.hud-exited') as HTMLElement,
         bossName: root.querySelector('.bossname') as HTMLElement,
         bossFill: root.querySelector('.bossfill') as HTMLElement,
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
@@ -204,6 +219,61 @@ export class Hud {
 
   hide(): void { this.layer.style.display = 'none'; }
   show(): void { this.layer.style.display = ''; }
+
+  /**
+   * The objective marker (docs/MISSIONS_OUTDOOR.md §4).
+   *
+   * The beacon pillar and the radar pip give a bearing; outdoors, with 80 m
+   * zones and bends between you and the way on, neither of them tells you
+   * *where on your screen* to look. This does: a diamond over the objective
+   * with its name and distance under it, and — when the objective is behind
+   * you or off the side — a chevron pinned to the edge of your own viewport
+   * pointing at it. Per player, through that player's own camera.
+   */
+  private updateObjective(h: PlayerHud, p: Player, game: Game): void {
+    const campaign = game.campaign;
+    if (!campaign || !p.alive) {
+      h.objective.style.opacity = '0';
+      h.exited.textContent = '';
+      return;
+    }
+    // the exited state: your own screen says how to come back, everyone
+    // else's says who they are waiting on
+    h.exited.textContent = game.exitNotice(p);
+    h.exited.classList.toggle('show', !!h.exited.textContent);
+
+    const obj = campaign.objectivePos;
+    _v.copy(obj).project(p.cam.camera);
+    const behind = _v.z > 1;
+    // NDC to viewport percentage; a point behind the camera projects inverted,
+    // so it is flipped back before being pinned to an edge
+    let x = (behind ? -_v.x : _v.x) * 0.5 + 0.5;
+    let y = 0.5 - (behind ? -_v.y : _v.y) * 0.5;
+    const off = behind || x < 0.04 || x > 0.96 || y < 0.06 || y > 0.94;
+    if (off) {
+      // push the point out to the viewport's edge along its own direction
+      const dx = x - 0.5, dy = y - 0.5;
+      const scale = Math.max(Math.abs(dx) / 0.44, Math.abs(dy) / 0.4) || 1;
+      x = 0.5 + dx / scale;
+      y = 0.5 + dy / scale;
+    }
+    h.objective.style.left = `${(x * 100).toFixed(2)}%`;
+    h.objective.style.top = `${(y * 100).toFixed(2)}%`;
+    h.objective.style.opacity = '1';
+    const arrow = h.objMark.querySelector('.obj-arrow') as SVGElement;
+    const diamond = h.objMark.querySelector('path') as SVGElement;
+    arrow.setAttribute('opacity', off ? '1' : '0');
+    diamond.setAttribute('opacity', off ? '0' : '1');
+    if (off) {
+      const a = Math.atan2(x - 0.5, 0.5 - y);
+      h.objMark.style.transform = `rotate(${(a * 180) / Math.PI}deg)`;
+    } else {
+      h.objMark.style.transform = '';
+    }
+    const d = Math.round(Math.hypot(obj.x - p.position.x, obj.z - p.position.z));
+    const name = campaign.objectiveLabel ?? '';
+    h.objLabel.textContent = name ? `${name} · ${d} m` : `${d} m`;
+  }
 
   update(dt: number, game: Game): void {
     for (let i = 0; i < this.huds.length; i++) {
@@ -285,6 +355,7 @@ export class Hud {
       } else {
         h.boss.classList.remove('show');
       }
+      this.updateObjective(h, p, game);
       h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 

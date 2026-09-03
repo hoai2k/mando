@@ -242,7 +242,11 @@ export class Vehicle {
     this.def = VEHICLE_DEFS[spec.kind];
     this.hp = this.maxHp = this.def.hp;
     this.yaw = spec.yaw ?? 0;
-    const ground = this.groundAt(spec.x, spec.z);
+    // `y` is the deck it was parked on (a mission level's plate); without it
+    // the search starts from the terrain, which on a mission board is ninety
+    // metres under the floor the ride is standing on.
+    if (spec.y !== undefined) this.pos.y = spec.y + this.def.hover;
+    const ground = spec.y ?? this.groundAt(spec.x, spec.z);
     this.pos.set(spec.x, ground + this.def.hover, spec.z);
     this.seatY = this.def.seat.y;
     this.group.add(this.body);
@@ -379,6 +383,27 @@ export class Vehicle {
    */
   private get blastScale(): number {
     return clamp(this.def.length / 4 + this.def.mass * 0.08, 0.55, 2.1);
+  }
+
+  /**
+   * Take this ride out of the world without a wreck.
+   *
+   * Missions swaps whole maps at a transport door, and the rides parked on
+   * the old one go with it — quietly, since nothing blew them up. Its parked
+   * collider is the part that matters: left in the physics world it is an
+   * invisible box standing in the middle of the next stage.
+   */
+  retire(): void {
+    if (this.rider) this.dropRider();
+    this.unpark();
+    this.group.visible = false;
+    // Dead and staying dead: a wreck comes back on `respawnIn`, and a ride
+    // left behind on a map the party has walked out of should not. The
+    // campaign drops it from `Game.vehicles` in the same breath, so nothing
+    // ticks it again either way — this is belt and braces on a ride that
+    // would otherwise reassemble itself inside the next stage.
+    this.alive = false;
+    this.respawnIn = Infinity;
   }
 
   /** set by destroy(); the game detonates it on its next update pass */

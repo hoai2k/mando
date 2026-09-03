@@ -674,3 +674,35 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   0%, 100% { box-shadow: 0 0 30px rgba(230, 195, 120, 0.3), 0 14px 30px rgba(0, 0, 0, 0.65); }
   50% { box-shadow: 0 0 58px rgba(230, 195, 120, 0.6), 0 14px 30px rgba(0, 0, 0, 0.65); }
 }
+
+/* ---- the objective marker (docs/MISSIONS_OUTDOOR.md §4) ----
+   A diamond over the one objective with its name and distance under it, and a
+   chevron pinned to this viewport's own edge when the objective is off screen.
+   It is positioned per frame from the player's own camera, so everything here
+   is about how it reads, never about where it sits. */
+.hud-objective {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  text-align: center; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s; will-change: left, top;
+}
+.hud-objective .obj-mark {
+  width: 22px; height: 22px; display: block; margin: 0 auto;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8));
+}
+.hud-objective .obj-label {
+  margin-top: 3px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #ffcf6a; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); white-space: nowrap;
+}
+.hud-viewport.compact .hud-objective .obj-label { font-size: 10px; }
+
+/* the transport door's wait: your own screen says how to change your mind,
+   everyone else's says who they are waiting on */
+.hud-exited {
+  position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%);
+  padding: 6px 15px; text-align: center; white-space: nowrap;
+  border: 1px solid rgba(160, 210, 255, 0.5); border-radius: 3px;
+  background: rgba(10, 16, 22, 0.7);
+  font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: #bfe6ff;
+  opacity: 0; transition: opacity 0.25s; pointer-events: none;
+}
+.hud-exited.show { opacity: 1; }

@@ -80,10 +80,9 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
  * their DEFS entry uses for hit spheres and camera framing.
  */
 const AUTHORED_ENEMY: Record<string, number> = {
-  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2, duelist: 1.9,
+  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2,
   pirate: 1.9, pirate_melee: 1.9, marshal: 1.85, fennec: 1.8, imperial_officer: 1.88,
   tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
-  ig11: 2.2,
   // the swoop rider is measured standing, then posted on the saddle by the pose
   nikto: 1.76,
   // the new-board roster (see ASSETS_MODELS.md for the model briefs)
@@ -261,22 +260,40 @@ export function buildDarkTrooper(authored = true): CharacterInstance {
 }
 
 // ---------- Allies ----------
-/** IG-series assassin droid: tall thin cylinder head, spindly limbs. */
-export function buildIG(authored = true): CharacterInstance {
-  const steel = mat(0x8a8578, { rough: 0.5, metal: 0.6 });
-  const p: Proportions = { ...HUMAN, hipHeight: 1.15, headSize: 0.34, shoulderWidth: 0.2, upperLegLen: 0.56, lowerLegLen: 0.56 };
-  const { inst, rig } = buildBiped({ skin: steel, torso: steel, proportions: p });
+/**
+ * Escort droid — the covert's ranged ally, out of the supply cache.
+ *
+ * It replaced IG-11 in the ally caches on 2026-09-03: IG-11 is a playable
+ * bounty hunter now, and a character you can pick off the select screen has
+ * no business also walking out of a supply crate as an NPC. The niche it left
+ * behind is what this fills — a tall, durable droid that lays down a long
+ * volley — so the ally beat plays the same, from a body that is nobody's
+ * player character.
+ *
+ * Deliberately not IG's silhouette: a broad wedge skull and heavy shoulders
+ * rather than a cylinder head on spindly limbs.
+ */
+export function buildEscortDroid(): CharacterInstance {
+  const shell = mat(0x3a3d44, { rough: 0.45, metal: 0.7 });
+  const p: Proportions = { ...HUMAN, hipHeight: 1.16, headSize: 0.34, shoulderWidth: 0.3, upperLegLen: 0.55, lowerLegLen: 0.55 };
+  const { inst, rig } = buildBiped({ skin: shell, torso: shell, proportions: p });
   const b = rig.bones;
-  const dark = mat(0x2c2c28, { rough: 0.6 });
-  addCyl(b.head, steel, 0.055, 0.075, 0.3, 0, 0.1, 0, 0, 0, 0, 8);
-  // sensor ring
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    addSphere(b.head, mat(0xd8342a, { emissive: 0x881510, rough: 0.4 }), 0.016, Math.cos(a) * 0.07, 0.16, Math.sin(a) * 0.07, 5, 4);
-  }
-  addCyl(b.chest, dark, 0.09, 0.11, 0.3, 0, 0.06, 0, 0, 0, 0, 8);
+  const dark = mat(0x1c1e22, { rough: 0.6, metal: 0.5 });
+  // wedge skull: long muzzle box under a flat brow, no cylinder anywhere
+  addBox(b.head, shell, 0.19, 0.17, 0.2, 0, 0.09, 0.01);
+  addBox(b.head, dark, 0.15, 0.06, 0.1, 0, 0.03, 0.12);
+  const optic = mat(0x4aa8d8, { emissive: 0x14384e, rough: 0.35 });
+  addSphere(b.head, optic, 0.024, -0.055, 0.11, 0.09, 6, 5);
+  addSphere(b.head, optic, 0.024, 0.055, 0.11, 0.09, 6, 5);
+  // heavy shoulder blocks and a slab chest: a bodyguard's frame
+  addBox(b.shoulderL, dark, 0.16, 0.13, 0.17, -0.04, 0.04, 0);
+  addBox(b.shoulderR, dark, 0.16, 0.13, 0.17, 0.04, 0.04, 0);
+  addBox(b.chest, shell, 0.34, 0.38, 0.22, 0, 0.07, 0);
   inst.muzzle = rifle(b.weaponR);
-  authoredEnemy(inst, rig, 'ig11', authored);
+  // No sculpt yet — `escort_droid` is an open model request (ASSETS_MODELS.md),
+  // so this takes no `authored` flag: there is nothing to compare against. The
+  // day the file lands, wiring it is an `authoredEnemy` call plus a height in
+  // AUTHORED_ENEMY, exactly as every other kind was wired.
   return inst;
 }
 
@@ -303,28 +320,41 @@ export function buildGunfighter(kind: 'marshal' | 'fennec', authored = true): Ch
 }
 
 /**
- * Cad Bane-class duelist: blue-skinned gunslinger under a wide brim, twin
- * pistols, breathing tubes from nose to temple. Listed in ASSETS_MODELS.md as
- * a planned boss; with a model in hand it enters as a late-wave elite instead
- * of a scripted fight — a fast, high-damage shooter you have to answer.
+ * Guild gunslinger — the late-wave lone shooter.
+ *
+ * Successor to the Cad Bane-class duelist, retired from the hostile roster on
+ * 2026-09-03 when Cad Bane became playable: the same sculpt cannot be a
+ * fighter you pick and an elite you shoot. The *role* survives him unchanged —
+ * fast, accurate, hits hard, and folds if you can close on him — so the wave
+ * tables kept their slot and only the body in it changed.
+ *
+ * A freelancer out of the hunters' guild rather than a named face: sealed
+ * breath mask under a low hood, armoured long coat, bandolier across the
+ * chest, and a pistol in each hand.
  */
-export function buildDuelist(authored = true): CharacterInstance {
-  const coat = mat(0x2b2f38, { rough: 0.9 });
-  const suitM = mat(0x1e2129, { rough: 0.9 });
+export function buildGunslinger(): CharacterInstance {
+  const coat = mat(0x3a3229, { rough: 0.9 });
+  const suitM = mat(0x241f1a, { rough: 0.9 });
   const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
   const b = rig.bones;
-  const skinM = mat(0x5a86a8, { rough: 0.8 });     // blue-grey hide
-  addSphere(b.head, skinM, 0.12, 0, 0.04, 0, 10, 8);
-  // wide-brim hat
-  addCyl(b.head, coat, 0.22, 0.22, 0.02, 0, 0.13, 0, 0, 0, 0, 14);
-  addCyl(b.head, coat, 0.1, 0.11, 0.11, 0, 0.19, 0, 0, 0, 0, 10);
-  // breathing tubes, nose to temple
-  const tube = mat(0x8a8f98, { rough: 0.5, metal: 0.5 });
-  addCyl(b.head, tube, 0.014, 0.014, 0.14, -0.06, 0.02, 0.08, 0.5, 0, -0.25);
-  addCyl(b.head, tube, 0.014, 0.014, 0.14, 0.06, 0.02, 0.08, 0.5, 0, 0.25);
+  const plate = mat(0x6a6258, { rough: 0.55, metal: 0.4 });
+  // sealed mask: a plated skull with a dark filter slot, no face showing
+  addSphere(b.head, plate, 0.12, 0, 0.04, 0, 10, 8);
+  addBox(b.head, mat(0x14161a, { rough: 0.4 }), 0.16, 0.05, 0.04, 0, 0.05, 0.1);
+  addCyl(b.head, mat(0x8a8f98, { rough: 0.5, metal: 0.5 }), 0.03, 0.035, 0.05, 0, -0.03, 0.1, Math.PI / 2, 0, 0, 8);
+  // low hood over the plate, and a collar standing off the shoulders
+  addSphere(b.head, coat, 0.135, 0, 0.06, -0.02, 10, 8, 0.75, 1);
+  addCyl(b.chest, coat, 0.17, 0.13, 0.09, 0, 0.26, 0, 0, 0, 0, 10);
   addBox(b.chest, coat, 0.36, 0.4, 0.24, 0, 0.08, 0);
+  // bandolier: shells across the chest, the one read at a glance
+  for (let i = 0; i < 6; i++) {
+    addBox(b.chest, plate, 0.03, 0.055, 0.03, -0.13 + i * 0.05, 0.19 - i * 0.05, 0.12, 0, 0, 0.6);
+  }
   inst.muzzle = rifle(b.weaponR);
-  authoredEnemy(inst, rig, 'duelist', authored);
+  // No sculpt yet — `gunslinger` is an open model request (ASSETS_MODELS.md),
+  // so no `authored` flag here either. `duelist.glb` is deliberately *not*
+  // borrowed in the meantime: that file is Cad Bane, and reusing it would put
+  // a player character straight back on the hostile side.
   return inst;
 }
 

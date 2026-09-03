@@ -6,7 +6,7 @@ import { BotBrain } from './bot';
 import { TEXT } from '../text';
 import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
-import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
+import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
@@ -21,7 +21,7 @@ import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import type { AllyCrate } from './allycrate';
-import type { Campaign } from './campaign';
+import type { MissionController } from './mission-api';
 import type { ModeRules } from './rules/rules';
 import { WaveRules } from './rules/wave';
 import { PvpRules } from './rules/pvp';
@@ -228,7 +228,28 @@ export class Game {
   /** alternates eligible transports between setting down and overflying */
   private landToggle = 0;
   /** campaign controller; null outside campaign mode (set by CampaignRules) */
-  campaign: Campaign | null = null;
+  campaign: MissionController | null = null;
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2), absolute Y — null
+   * everywhere but a mission level.
+   *
+   * Two jobs and no others: a border cannot be flown over, so a beat cannot be
+   * skipped; and the sky is cut into a **playable** band the fight lives in
+   * and an **ambient** band above it that belongs to the backdrop. It is set
+   * well above what one jetpack burn reaches, so free flight never meets it.
+   *
+   * The clamp is one-directional by design: a body below it cannot climb
+   * through, but a body above it — a carrier's squad on the way down, a flier
+   * crossing the rim — is left alone and falls in. That is what keeps a drop
+   * reading as reinforcements committed from above.
+   */
+  ceilingY: number | null = null;
+  /**
+   * How high a carrier pass flies over its drop. The wave game's 38 m; a
+   * mission level raises it clear of the ceiling so the squad falls *through*
+   * the cut rather than being clamped on the way in.
+   */
+  dropHeight = DROP_HEIGHT;
   /** the mode's rule set: everything Wave Battle, PvP and Missions disagree on */
   readonly rules: ModeRules;
   /**
@@ -373,6 +394,23 @@ export class Game {
     for (const a of this.allies) if (a.alive && a.team !== who.team) list.push(a);
     this.hostileCache.set(who.team, list);
     return list;
+  }
+
+  /**
+   * What a player's HUD says about the transport door, if anything.
+   *
+   * Going back through one needs the whole party aboard, so a player who has
+   * stepped into the pocket sees how to change their mind and everyone else
+   * sees who they are waiting on — without that, the run just stops for
+   * reasons nobody on the other screens can see.
+   */
+  exitNotice(p: Player): string {
+    const c = this.campaign;
+    if (!c || c.exited.size === 0) return '';
+    if (c.exited.has(p.slot)) return TEXT.missions.exited;
+    const waiting = this.players.filter((q) => q.alive && !c.exited.has(q.slot)).length;
+    const who = this.players.find((q) => c.exited.has(q.slot));
+    return TEXT.missions.waitingOn(who?.profile.name ?? '', waiting);
   }
 
   /** the campaign controller's mouthpiece (events is private) */
@@ -542,7 +580,7 @@ export class Game {
         return e;
       });
       opts.onRelease?.(bodies);
-    });
+    }, { dropHeight: this.dropHeight });
     this.carriers.push(carrier);
     this.scene.add(carrier.group);
     return carrier;
