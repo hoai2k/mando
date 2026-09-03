@@ -625,9 +625,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const groundAt = (x: number, z: number): number => (onGround ? terrainAt(x, z) : floorY);
   let highest = floorY;
   if (onGround) {
-    // sample forward along the chain's heading, far enough to cover it
-    let reach = 0;
-    for (const zs of stage.zones) reach += zs.l + 30;
+    // Sample the ground the chain actually crosses — its zones and the links
+    // between them, plus a little margin. Overshooting is not harmless: on a
+    // bowl-shaped board the terrain climbs steeply once you are past the
+    // playable area, so sampling fifty metres beyond the last zone measured
+    // the rim the party never reaches and lifted the ceiling twenty metres
+    // over where it was authored.
+    let reach = 12;
+    for (const zs of stage.zones) reach += zs.l;
+    for (const link of stage.links) reach += link.len + (link.len2 ?? 0);
     for (let t = 0; t <= reach; t += 8) {
       for (let side = -40; side <= 40; side += 20) {
         const x = anchor.x + anchor.dx * t - anchor.dz * side;

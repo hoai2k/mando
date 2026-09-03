@@ -1309,19 +1309,44 @@ diff the two to find out. Implemented on branch
   and the guidance all key off that rect. `LinkSpec.turn` already bent the
   lanes *between* zones, so that is where the ravines bend.
 
-**Deferred, and honestly so.**
+**The deferred list, since closed (2026-09-03).**
 
-- **The `territory`, `plant` and `sea` stage kinds** (§3's stage table).
-  Stages today are `built` plates and `interior` halls. So the Dune Sea's
-  opening is a built plate rather than the wave board's own dunes, the
-  Refinery's middle stage is a built interior rather than the plant itself,
-  and the Prison Rig has three stages rather than four — its sea is not yet a
-  stage. The stage machinery is what those need; each is a new `buildStage`
-  branch, not a new system.
-- **The landmark raycast audit** (§4.1). The pillars are built and the marker
-  works; nothing yet fails a level for hiding its own way on.
-- **Terrain relief inside a zone** — floors are flat plates, as §1.5 planned
-  for the first cut.
+- **The `territory`, `plant` and `sea` stage kinds** are in. A stage's floor
+  was one number, so a stage could only be a plate; it is a function now
+  (`MissionStage.groundAt`), and everything that compared against one floor
+  asks per column instead — where a body may stand, who counts as inside a
+  zone, who has fallen off. So: the **Dune Sea, Lava Flats and Great Forge**
+  open on their own terrain, each anchored along a lane picked clear of that
+  board's landmarks; the **Refinery's** middle stage is the Refinery board
+  used whole, walking the south halls through the doorways its partitions
+  leave and building nothing; and the **Prison Rig** has its fourth stage —
+  the gantry ends at a dive hatch and the next map is the board's own sea,
+  the kelp forest and the moon pool shaft, swum. Rim pieces seat into the
+  ground under them and their collision slabs start below the lowest ground a
+  run crosses, so a dip is never a gap and a rise is never a step. A ground
+  stage lays no hazards of its own: the sarlacc is already there.
+- **The landmark raycast audit** is in `tools/audit-mission-build.mjs`, run
+  over every zone of every stage of every board. Two things it deliberately
+  does not demand: a warlord's arena has no way on to be visible, and sight
+  is judged from a few points across the entry rather than one on the centre
+  line, because a player can step aside and a ring around a reactor spire is
+  a good arena. It earned itself on the first run — two spires standing dead
+  on a travel lane, a plant lane through the Refinery's partition walls, and
+  a sea stage whose anchor heading was written `(1, -1)` and so laid the
+  whole stage out √2 too long.
+- **Terrain relief inside a zone** is answered by the above rather than
+  separately, and that is the honest way to put it. Built plates are still
+  flat; the boards whose personality wanted relief now fight on their real
+  dunes, basalt and fused glass instead. A heightfield under a plate is
+  still possible and still unbuilt.
+
+**A ground stage's costs, for whoever authors the next one.** The chain is
+bounded by ground that already exists, so it is shorter than a plate stage:
+the Dune Sea's road is 90 m rather than 160, because past d ≈ 150 that board
+climbs out of its own bowl. Anchors are hand-picked against the board's
+landmarks and its lane has to miss them. And the ceiling is measured over the
+ground the chain *reaches* — sampling past the last zone measures the rim
+nobody walks and lifts the lid twenty metres over what was authored.
 
 ## 10. Assets this design asks for
 

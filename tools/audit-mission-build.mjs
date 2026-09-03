@@ -118,7 +118,7 @@ for (const board of boards) {
         issues,
       };
     };
-    const out = { ceiling: c.stage.ceilingY - c.stage.floorY, stages: [look()] };
+    const out = { ceiling: Math.round(c.stage.ceilingY - c.stage.floorY), stages: [look()] };
     // walk the transport doors: clear the stage on paper, stand a player in
     // the pocket, and let the transit run
     for (let guard = 0; guard < 6 && c.stage.exitPortal; guard++) {
