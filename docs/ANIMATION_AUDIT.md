@@ -73,7 +73,8 @@ firing is untouched.
 |---|---|---|
 | `idleLower/Upper` | breathe, sway | ✅ good (splay fixed) |
 | `runLower/Upper` | 0.6 s cycle, measured stride, rate-matched | ✅ solid mechanics — see §4.1 for the strafe gap |
-| `airLower/Upper`, `flyLower/Upper` | jump / jetpack | ✅ reads well |
+| `airLower/Upper` | jump / free fall | ✅ reads well |
+| `flyLower/Upper`, `flyRise*`, `flyFall*`, `flyBrace*` | jetpack, one pose per direction of flight | ✅ picked by `flightPose`; see §2.1 |
 | `rideLower/Upper` | vehicle saddle | ✅ fine |
 | `aimUpper`, `enemyAimUpper` | carbine / one-hand aim | ✅ hand-tuned, leave alone |
 | `melee1/2/3` | staff combo | ⚠️ good shapes, upper-body-only, metronomic velocity (§3.1) |
@@ -85,6 +86,64 @@ firing is untouched.
 | massiff `gallop`/`idle` | quadruped | ⚠️ good gait, level spine (§5.1) |
 | krykna `move`/`idle` | octopod skitter | ⚠️ mechanically strict pairs (§5.2) |
 | drone `idle` | hover bob | ✅ fine |
+
+### 2.1 Jetpack flight is four poses, not one
+
+Reported from play: *"when descending, or when going straight up, their legs
+should be more straight downward"*. The cruise pose (`flyLower`) is built for
+one thing — driving forward and up, chest leading, legs streaming out behind —
+and it was held for every direction of flight. Straight up it read as a man
+lying on his stomach being winched; coming down it had him arrive at the
+ground reaching backward with his heels, and then cut to a crouch.
+
+| Pose | When | Legs |
+|---|---|---|
+| `flyRise*` | hovering, or climbing above 65° | hang plumb, token trail, toes pointed |
+| `flyLower/Upper` | the forward cruise | trail back ~16°, knees folded |
+| `flyFall*` | descending below −26° | plumb and a shade forward, body upright |
+| `flyBrace*` | ground within ~1.8 m, or ~0.4 s of sink away | knees up, shins down, feet reaching, toes level |
+| `flyDrift*`, `flyDriftL*` | travel diverges 52°+ laterally from facing | swing out across the body, trailing the drift |
+
+The first four share the cruise's 1.6 s breath, and their thighs form a
+continuum from +18° (trailing) to −30° (reaching), so any two cross-fade
+through shapes a leg can actually make. `flightPose` (src/anim/animator.ts)
+picks between them off the climb angle and the ground below, with a second
+threshold on every boundary so a body sitting on one does not strobe.
+
+The drift is the odd one out: it reads *heading* rather than climb, and only
+displaces the cruise — a steep climb or descent keeps its plumb legs however
+sideways it is going, because at that angle the legs hang off the pack and
+there is no drift left to trail. It is the airborne twin of `strafeLower`
+standing in for the run, down to the sides (`flyDriftLower` is travel toward
+−X, the character's own right, and `flyDriftLLower` is its mirror) and to
+being reachable only while facing and travel can diverge — which in flight
+means with the sights up. It is deliberately **not** a bank: the pelvis and
+spine stay level to the world and every bit of the lateral information lives
+in the thighs, with the arms counterweighting above. A jet banks; a man on a
+pack hangs upright off it and swings his legs out behind the way he is going.
+Turning hard in flight brushes it in passing — facing lags travel through the
+turn — which swings the legs out through the corner for free.
+
+The brace is deliberately most of the way to `landLower`'s first frame, which
+is what makes touchdown a blend rather than a cut: the reach continues into
+the give. A braced arrival always gets the crouch, however gently it lands —
+a jetpack descent is slow by design and never cleared the impact threshold, so
+the body used to go from reaching for the ground to standing on it in a frame.
+
+Covered by `tools/check-flight-poses.mjs`.
+
+### 2.2 The lean was a roll on three quarters of the compass
+
+The body's flight lean was written to `char.root.rotation.x` on a default XYZ
+Euler. Three applies an XYZ Euler with X outermost, which makes `rotation.x` a
+pitch about the **world** X axis — so it was a forward lean facing north, and
+a sideways roll facing east. The somersault rode the same field, so a roll
+taken sideways came out a cartwheel, while the pivot correction beside it had
+always used the character's own right-hand axis. The root is now `YXZ`: yaw
+first, so the pitch lands on the body's own right axis whichever way it is
+pointed.
+
+---
 
 ---
 

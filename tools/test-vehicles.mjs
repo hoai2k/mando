@@ -130,25 +130,48 @@ const ramAfter = await h.page.evaluate(() => {
 check('ram damages the hostile', ramAfter.eHp < ramBefore.eHp, `${ramBefore.eHp} -> ${ramAfter.eHp.toFixed(0)}`);
 check('ram chips the ride', ramAfter.vHp < ramBefore.vHp, `${ramBefore.vHp} -> ${ramAfter.vHp}`);
 
-// ---- shot down: rider thrown, wreck explodes and is removed ----
+// ---- shot down: rider thrown, wreck explodes, and the ride comes back ----
+// A wreck is not gone any more: it sits dead for RESPAWN_DELAY and then
+// reforms where the board parked it, so a match cannot run out of rides.
+const home = await h.page.evaluate(() => {
+  const v = window.__game.vehicles[0];
+  return { x: v.pos.x, z: v.pos.z, specX: v.spec.x, specZ: v.spec.z, hp: v.maxHp };
+});
 const boom = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
   const p = g.players[0];
-  v.damage(500, v.pos, -1);
-  return { vAlive: v.alive, thrown: !p.vehicle, vy: p.velocity.y };
+  v.damage(2000, v.pos, -1);
+  return { vAlive: v.alive, thrown: !p.vehicle, vy: p.velocity.y, respawnIn: v.respawnIn };
 });
 check('destruction throws the rider clear', !boom.vAlive && boom.thrown && boom.vy > 4, `vy=${boom.vy.toFixed(1)}`);
+check('the wreck is on a respawn clock', boom.respawnIn > 15 && boom.respawnIn <= 20,
+  `${boom.respawnIn.toFixed(0)} s`);
 await h.step(0.5);
 const post = await h.page.evaluate(() => {
   const g = window.__game;
-  return { n: g.vehicles.length, alive: g.players[0].alive };
+  const v = g.vehicles[0];
+  return { n: g.vehicles.length, alive: g.players[0].alive, vAlive: v.alive, targeted: false };
 });
-check('wreck removed after the blast', post.n === 5);
+check('the wreck stays in the roster, dead', post.n === 6 && !post.vAlive, `${post.n} rides`);
 check('rider survives the ejection', post.alive);
+// a dead ride is not a target and not on the radar (both read `alive`)
+await h.step(19.5);
+const back = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  return {
+    alive: v.alive, hp: v.hp, x: v.pos.x, z: v.pos.z, visible: v.group.visible,
+    boxes: g.board.physics.boxes.length,
+  };
+});
+check('the ride respawns after 20 s', back.alive && back.visible, `alive=${back.alive}`);
+check('it comes back whole', back.hp === home.hp, `${back.hp}/${home.hp}`);
+check('it comes back where the board parked it',
+  Math.hypot(back.x - home.specX, back.z - home.specZ) < 0.5,
+  `(${back.x.toFixed(1)}, ${back.z.toFixed(1)}) vs (${home.specX}, ${home.specZ})`);
 
-// ---- redirect: hits on a mounted rider land on the hull ----
-await h.step(1.5); // let the throw land
+// ---- the rider is the one in the open, not the hull ----
 await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
@@ -164,10 +187,12 @@ const redirect = await h.page.evaluate(() => {
   const v = p.vehicle;
   const pHp = p.hp, vHp = v.hp;
   p.damage(20, v.pos);
-  return { on: !!p.vehicle || v.hp < vHp, pLost: pHp - p.hp, vLost: vHp - v.hp };
+  return { on: !!p.vehicle, pLost: pHp - p.hp, vLost: vHp - v.hp };
 });
-check('rider damage lands on the hull', redirect.pLost === 0 && redirect.vLost === 20,
-  `player -${redirect.pLost}, hull -${redirect.vLost}`);
+check('a hit on the rider hurts the rider', redirect.pLost > 15,
+  `player -${redirect.pLost.toFixed(0)}, hull -${redirect.vLost.toFixed(1)}`);
+check('and only chips the ride under them', redirect.vLost > 0 && redirect.vLost < redirect.pLost * 0.5,
+  `hull -${redirect.vLost.toFixed(1)}`);
 
 // ---- RB again dismounts, and the ride parks solid again ----
 const boxesBefore = await h.page.evaluate(() => window.__game.board.physics.boxes.length);
@@ -284,6 +309,131 @@ check('the gun comes up in the saddle', shots.pose === 'aimUpper', `upper: ${sho
 await h.step(1 / 60, { slamPressed: true });
 const offBantha = await h.page.evaluate(() => !window.__game.players[0].vehicle);
 check('RB steps off the bantha', offBantha);
+
+// ---- the rider dies at speed: the ride rolls on without them ----
+const runaway = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles.find((r) => r.spec.kind === 'swoop' && r.alive);
+  const p = g.players[0];
+  // sit them on it, pointed at open desert, and give it real speed
+  if (p.vehicle) p.vehicle.dropRider();
+  v.mount(p);
+  v.yaw = Math.atan2(-v.pos.x, -v.pos.z);
+  const nose = { x: Math.sin(v.yaw), z: Math.cos(v.yaw) };
+  v.vel.set(nose.x * 16, 0, nose.z * 16);
+  p.cam.yaw = v.yaw;
+  const i = g.vehicles.indexOf(v);
+  p.damage(999, p.position);           // shot off the saddle
+  return { i, on: !!p.vehicle, speed: Math.hypot(v.vel.x, v.vel.z), x: v.pos.x, z: v.pos.z };
+});
+check('a killed rider leaves the saddle', !runaway.on);
+await h.step(0.5);
+const rolling = await h.page.evaluate(([i, x, z]) => {
+  const v = window.__game.vehicles[i];
+  return {
+    speed: Math.hypot(v.vel.x, v.vel.z),
+    travelled: Math.hypot(v.pos.x - x, v.pos.z - z),
+    rider: !!v.rider,
+  };
+}, [runaway.i, runaway.x, runaway.z]);
+check('the ride keeps going with nobody on it', !rolling.rider && rolling.travelled > 3,
+  `${rolling.travelled.toFixed(1)} m at ${rolling.speed.toFixed(1)} m/s`);
+await h.step(6);
+const settled = await h.page.evaluate(([i]) => {
+  const g = window.__game;
+  const v = g.vehicles[i];
+  return { speed: Math.hypot(v.vel.x, v.vel.z), solid: g.board.physics.boxes.some((b) => b === v.parkedBox) };
+}, [runaway.i]);
+check('it rolls to a stop and parks solid again', settled.speed < 1 && settled.solid,
+  `${settled.speed.toFixed(2)} m/s`);
+
+// ---- the damage model: plate shrugs off bolts and hates walls ----
+// A big ride is broken by crashing it, a small one by shooting it — and both
+// still take a little of the other.
+const model = await h.page.evaluate(() => {
+  const g = window.__game;
+  const skiff = g.vehicles.find((v) => v.spec.kind === 'skiff');
+  const bike = g.vehicles.find((v) => v.spec.kind === 'swoop');
+  const read = (v, kind) => {
+    const before = v.hp;
+    v.damage(100, v.pos, -1, kind);
+    const lost = before - v.hp;
+    v.hp = v.maxHp;
+    return lost;
+  };
+  return {
+    skiffShot: read(skiff, 'shot'), skiffCrash: read(skiff, 'crash'),
+    bikeShot: read(bike, 'shot'), bikeCrash: read(bike, 'crash'),
+    skiffHp: skiff.maxHp, bikeHp: bike.maxHp,
+  };
+});
+check('a bolt barely marks the heavy hull', model.skiffShot < model.skiffCrash * 0.4,
+  `skiff: ${model.skiffShot.toFixed(0)} from a shot vs ${model.skiffCrash.toFixed(0)} from a crash`);
+check('but it is never immune to being shot', model.skiffShot > 0, `${model.skiffShot.toFixed(0)}`);
+check('the small ride feels a bolt in full', model.bikeShot >= 100,
+  `swoop: ${model.bikeShot.toFixed(0)}`);
+check('and dies to far fewer of them', model.bikeHp / model.bikeShot < model.skiffHp / model.skiffShot,
+  `${(model.bikeHp / model.bikeShot).toFixed(0)} bolts vs ${(model.skiffHp / model.skiffShot).toFixed(0)}`);
+
+// ---- two rides meeting: the light one wears it ----
+const smash = await h.page.evaluate(() => {
+  const g = window.__game;
+  const skiff = g.vehicles.find((v) => v.spec.kind === 'skiff' && v.alive);
+  const bike = g.vehicles.find((v) => v.spec.kind === 'swoop' && v.alive);
+  // put the swoop just off the skiff's flank, running at it
+  bike.pos.set(skiff.pos.x + 6, skiff.pos.y, skiff.pos.z);
+  bike.yaw = -Math.PI / 2;
+  bike.vel.set(-20, 0, 0);
+  bike.coasting = true;
+  skiff.hp = skiff.maxHp;
+  bike.hp = bike.maxHp;
+  return { bikeHp: bike.hp, skiffHp: skiff.hp, i: g.vehicles.indexOf(bike), j: g.vehicles.indexOf(skiff) };
+});
+await h.step(0.6);
+const smashed = await h.page.evaluate(([i, j]) => {
+  const g = window.__game;
+  return {
+    bikeHp: g.vehicles[i].hp, skiffHp: g.vehicles[j].hp,
+    bikeMax: g.vehicles[i].maxHp, skiffMax: g.vehicles[j].maxHp,
+  };
+}, [smash.i, smash.j]);
+const bikeLost = smash.bikeHp - smashed.bikeHp, skiffLost = smash.skiffHp - smashed.skiffHp;
+check('ride-on-ride crash bills both sides', bikeLost > 0 && skiffLost > 0,
+  `swoop -${bikeLost.toFixed(0)}, skiff -${skiffLost.toFixed(0)}`);
+// worse in the only sense that matters when the hulls are 180 and 600: the
+// share of itself each one lost
+const bikeShare = bikeLost / smashed.bikeMax, skiffShare = skiffLost / smashed.skiffMax;
+check('and the light one comes off far worse', bikeShare > skiffShare * 3,
+  `swoop -${(bikeShare * 100).toFixed(0)}% vs skiff -${(skiffShare * 100).toFixed(0)}%`);
+
+// ---- a bantha dies as an animal, then reforms ----
+const beast = await h.page.evaluate(() => {
+  const g = window.__game;
+  const i = g.vehicles.findIndex((v) => v.spec.kind === 'bantha');
+  const v = g.vehicles[i];
+  v.hp = v.maxHp;
+  v.damage(2000, v.pos, -1);
+  return {
+    i, alive: v.alive, boom: !!v.pendingExplosion, collapse: !!v.pendingCollapse,
+    visible: v.group.visible, respawnIn: v.respawnIn, x: v.spec.x, z: v.spec.z,
+  };
+});
+check('a mount dies without a fireball', !beast.alive && !beast.boom && beast.collapse);
+check('and comes apart where it stood rather than vanishing', beast.visible);
+await h.step(2);
+const gone = await h.page.evaluate(([i]) => {
+  const v = window.__game.vehicles[i];
+  return { visible: v.group.visible, alive: v.alive };
+}, [beast.i]);
+check('the body disintegrates', !gone.visible && !gone.alive);
+await h.step(18.5);
+const reformed = await h.page.evaluate(([i]) => {
+  const v = window.__game.vehicles[i];
+  return { alive: v.alive, hp: v.hp, visible: v.group.visible, x: v.pos.x, z: v.pos.z };
+}, [beast.i]);
+check('the herd reforms on the same clock as the machines',
+  reformed.alive && reformed.visible && Math.hypot(reformed.x - beast.x, reformed.z - beast.z) < 0.5,
+  `back at (${reformed.x.toFixed(1)}, ${reformed.z.toFixed(1)})`);
 
 // ---- Trask: the skiff rides the water ----
 // Restarting from a running match: the old game's 'playing' state satisfies
