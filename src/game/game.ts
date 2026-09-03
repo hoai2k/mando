@@ -73,6 +73,39 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _stick = new THREE.Vector3();
 const _stickVel = new THREE.Vector3();
 
+/**
+ * One class of victim inside a blast: how far it reaches them, how hard it
+ * hits at the centre, and where the falloff runs out. `zero` beyond `radius`
+ * is what leaves the rim still taking something.
+ */
+interface Ring {
+  radius: number;
+  damage: number;
+  zero?: number;
+  /** the whole reach takes the full number — the warlord's slam, not a rocket */
+  flat?: boolean;
+}
+
+/** A ring of force — see `Game.blast`. A class left out is not touched. */
+interface BlastSpec {
+  /** who threw it: their squad and brood are spared, and kills credit them */
+  bySlot?: number;
+  enemies?: Ring & { push?: number; stagger?: number; knockdown?: [number, number] };
+  /** `rival` replaces `damage` for a player who is not the thrower (PvP) */
+  players?: Ring & { push?: number; lift?: number; rival?: number };
+  /** `damage` is the shove, not damage — a corpse is past hurting */
+  corpses?: Ring;
+  vehicles?: Ring;
+  breakables?: Ring;
+  shake?: { amount: number; radius: number; flat?: boolean };
+  /** how far the bang carries to the AI director */
+  noise?: number;
+  sound?: 'explosion' | 'impact';
+}
+
+/** scratch for the direction a blast throws a player */
+const _away = new THREE.Vector3();
+
 interface Rocket {
   mesh: THREE.Mesh;
   vel: THREE.Vector3;
@@ -735,19 +768,102 @@ export class Game {
 
   /** throw every player inside `radius` up and away from the warlord */
   private bossShockwave(b: Enemy, radius: number, dmg: number, push: number): void {
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      const away = p.position.clone().sub(b.position);
-      const d = away.setY(0).length();
-      if (d > radius) continue;
-      away.normalize();
-      if (dmg > 0) p.damage(dmg, b.position, -1, { heavy: true });
-      p.velocity.y = Math.max(p.velocity.y, push * 0.8);
-      p.velocity.x += away.x * push;
-      p.velocity.z += away.z * push;
-      p.cam.shake(dmg > 0 ? 0.3 : 0.15);
+    this.blast(b.position, {
+      // flat, not falling off: standing at the rim of a warlord's slam has
+      // always cost the full 26, and the ember ring promises exactly that reach
+      players: { radius, damage: dmg, flat: true, push, lift: push * 0.8 },
+      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true },
+      sound: 'explosion',
+    });
+  }
+
+  /**
+   * One ring of force, wherever one is needed: the rocket, the warlord's
+   * shock-slam and its phase pulse, a ground slam, an elite's stomp.
+   *
+   * Each class of victim carries its own reach and its own numbers, because
+   * they genuinely differ — a rocket reaches an enemy at 7 m and a player at
+   * 4.5, and scatters corpses further than it hurts anyone. What they share
+   * is everything that used to be copied around them: the distance test, the
+   * linear falloff, the alive check, the friendly-fire guard, and the fact
+   * that a blast is loud. `zero` is where the falloff reaches nothing; left
+   * out it is the reach itself, and set beyond it the rim still takes some.
+   */
+  private blast(point: THREE.Vector3, spec: BlastSpec): void {
+    const byTeam = spec.bySlot !== undefined && spec.bySlot >= 0
+      ? this.players[spec.bySlot]?.team ?? -1 : -1;
+    const bySlot = spec.bySlot ?? -1;
+    const share = (ring: Ring, d: number): number =>
+      ring.flat ? 1 : Math.max(0, 1 - d / (ring.zero ?? ring.radius));
+
+    // Scenery first: an explosive barrel detonates from in here, and resolving
+    // the chain outward before anything else is hurt is the order this has
+    // always run in.
+    if (spec.breakables) this.damageBreakablesNear(point, spec.breakables.radius, spec.breakables.damage);
+    if (spec.enemies) {
+      const ring = spec.enemies;
+      for (const e of this.enemies) {
+        if (!e.alive || e.team === byTeam) continue;
+        const d = e.position.distanceTo(point);
+        if (d >= ring.radius) continue;
+        if (ring.damage) e.damage(ring.damage * share(ring, d), point, bySlot);
+        if (ring.push) e.knockback(point, ring.push, ring.stagger);
+        if (ring.knockdown) e.knockdown(ring.knockdown[0] + Math.random() * ring.knockdown[1]);
+      }
     }
-    audio.explosion();
+    if (spec.corpses) {
+      // a blast scatters what is already lying there, which is half of what
+      // an explosion looks like
+      const ring = spec.corpses;
+      for (const e of this.enemies) {
+        if (!e.corpse) continue;
+        const d = e.position.distanceTo(point);
+        if (d < ring.radius) e.shoveCorpse(point, ring.damage * share(ring, d));
+      }
+    }
+    if (spec.players) {
+      const ring = spec.players;
+      // No friendly-fire guard here, deliberately: your own rocket at your own
+      // feet has always cost you, and a co-op partner standing in it takes the
+      // same graze. The guard above is about a squad and a brood, which live
+      // in `enemies` on their owner's team.
+      for (const p of this.players) {
+        if (!p.alive) continue;
+        const d = p.position.distanceTo(point);
+        if (d >= ring.radius) continue;
+        // PvP lets a rocket end a duel, but never turns its own thrower into
+        // the easier kill: the rival's share is the caller's `rival` number.
+        const dmg = ring.rival !== undefined && bySlot >= 0 && p.slot !== bySlot
+          ? ring.rival : ring.damage;
+        if (dmg) p.damage(dmg * share(ring, d), point, bySlot, { heavy: true });
+        if (ring.push) {
+          _away.subVectors(p.position, point).setY(0);
+          if (_away.lengthSq() > 1e-6) _away.normalize();
+          p.velocity.x += _away.x * ring.push;
+          p.velocity.z += _away.z * ring.push;
+          if (ring.lift) p.velocity.y = Math.max(p.velocity.y, ring.lift);
+        }
+      }
+    }
+    if (spec.vehicles) {
+      const ring = spec.vehicles;
+      for (const v of this.vehicles) {
+        if (!v.alive) continue;
+        const d = v.pos.distanceTo(point);
+        // dead centre is the rider's own ride going up under them
+        if (d > 0.5 && d < ring.radius) v.damage(ring.damage * share(ring, d), point, bySlot);
+      }
+    }
+    if (spec.shake) {
+      const { amount, radius, flat } = spec.shake;
+      for (const p of this.players) {
+        const d = p.position.distanceTo(point);
+        p.cam.shake(flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius)));
+      }
+    }
+    if (spec.noise) this.director.noise(this, point, spec.noise, true);
+    if (spec.sound === 'explosion') audio.explosion();
+    else if (spec.sound === 'impact') audio.impact();
   }
 
   /**
@@ -897,44 +1013,20 @@ export class Game {
 
   private explode(point: THREE.Vector3, bySlot: number): void {
     this.particles.explosion(point);
-    audio.explosion();
-    this.director.noise(this, point, 70, true); // an explosion is not subtle
-    this.damageBreakablesNear(point, 6, 90);    // scenery is not exempt (chains!)
-    for (const p of this.players) p.cam.shake(Math.max(0, 0.35 - point.distanceTo(p.position) * 0.01));
-    // whose blast this is: a PvP squad follower or a broodmother's own eggs
-    // sit in `enemies` on the thrower's team, and a rocket must not kill
-    // them — nor credit the kill, since lastHitBy carries no team check
-    const byTeam = bySlot >= 0 ? this.players[bySlot]?.team ?? -1 : -1;
-    for (const e of this.enemies) {
-      if (!e.alive || e.team === byTeam) continue;
-      const d = e.position.distanceTo(point);
-      if (d < 7) {
-        e.damage(90 * (1 - d / 8), point, bySlot);
-        e.knockback(point, 18, 0.6);
-        e.knockdown(1.4 + Math.random() * 0.8); // blast wave puts them flat
-      }
-    }
-    // a blast scatters what is already lying there, which is half of what an
-    // explosion looks like
-    for (const e of this.enemies) {
-      if (!e.corpse) continue;
-      const d = e.position.distanceTo(point);
-      if (d < 9) e.shoveCorpse(point, 26 * (1 - d / 10));
-    }
-    for (const p of this.players) {
-      if (!p.alive) continue;
-      const d = p.position.distanceTo(point);
-      // in pvp a rocket is a duel-ender against the rival, but never turns
-      // its own thrower into the easier kill
-      const base = this.mode === 'pvp' && bySlot >= 0 && p.slot !== bySlot ? 70 : 18;
-      if (d < 4.5) p.damage(base * (1 - d / 4.5), point, bySlot, { heavy: true });
-    }
-    // parked rides are scenery with hit points — blasts reach them too
-    for (const v of this.vehicles) {
-      if (!v.alive) continue;
-      const d = v.pos.distanceTo(point);
-      if (d > 0.5 && d < 7) v.damage(80 * (1 - d / 8), point, bySlot);
-    }
+    this.blast(point, {
+      bySlot,
+      // the blast wave puts a body flat as well as hurting it
+      enemies: { radius: 7, damage: 90, zero: 8, push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
+      corpses: { radius: 9, damage: 26, zero: 10 },
+      // in PvP a rocket is a duel-ender against a rival; against yourself it
+      // is the same graze it has always been
+      players: { radius: 4.5, damage: 18, rival: this.mode === 'pvp' ? 70 : undefined },
+      vehicles: { radius: 7, damage: 80, zero: 8 },
+      breakables: { radius: 6, damage: 90 },   // scenery is not exempt (chains!)
+      shake: { amount: 0.35, radius: 35 },
+      noise: 70,                                // an explosion is not subtle
+      sound: 'explosion',
+    });
   }
 
   /**

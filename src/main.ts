@@ -642,8 +642,13 @@ function updateLoading(dt: number): void {
   const chars = chosenChars.slice(0, playerCount);
   const keys = [...matchAssets(chosenBoard.id, chars, mode), ...(built ? boardLoads() : [])];
   const p = tracked.progress(keys);
-  // the build itself is a real part of the wait, and worth a moving bar
-  const ratio = built ? 0.15 + p.ratio * 0.85 : Math.min(0.15, loadTimer * 0.3);
+  // The build itself is a real part of the wait, and worth a moving bar. The
+  // last stretch is held just short of full while anything is still coming:
+  // a bar reading 100% over "2 files to go" reads as a stuck loader, and the
+  // rounding got there whenever the outstanding files were the small ones.
+  const ratio = built
+    ? Math.min(p.pending > 0 ? 0.99 : 1, 0.15 + p.ratio * 0.85)
+    : Math.min(0.15, loadTimer * 0.3);
   const note = !built ? 'Raising the territory'
     : p.pending > 0 ? `${p.pending} file${p.pending === 1 ? '' : 's'} to go`
       : 'Ready';
