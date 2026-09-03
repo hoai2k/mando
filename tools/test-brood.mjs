@@ -55,9 +55,16 @@ await page.evaluate(() => { window.__manual = true; });
 // ---- the rack ----
 // Six sacs, and they start spent. One charges every three seconds, so after
 // twenty the whole clutch is up: the readout is the point, not the timing.
+//
+// She is held on her feet for the measurement. This is a PvP duel and the
+// rival's squad is walking at her the whole time; once the audit pass sharpened
+// the AI, a queen standing still for twenty-five seconds started dying at about
+// second twenty-four, and `spawnAt` empties the clutch — so the check was
+// reading a rack that had just been reset rather than one that had filled.
 const rack = await page.evaluate(`(() => {
   const g = window.__game;
   const p = g.players[0];
+  const hold = () => { p.hp = p.maxHp; };
   const read = () => {
     const shades = [];
     for (const c of p.char.root.children) {
@@ -69,7 +76,7 @@ const rack = await page.evaluate(`(() => {
     return shades;
   };
   const start = read();
-  (${STEP})(30 * 25);
+  for (let i = 0; i < 30 * 25; i++) { (${STEP})(1); hold(); }
   const full = read();
   return { name: p.profile.name, sacs: start.length, start, full, clutch: p.eggClutch };
 })()`);
@@ -87,8 +94,15 @@ const hunt = await page.evaluate(`(() => {
   const g = window.__game;
   const mum = g.players[0];
   const rival = g.players[1];
-  // stand them well apart, and hold the rival still so the gap is the test
+  // Stand them well apart, and take the rival's SQUAD off the board: a hunter
+  // crosses to whatever is *nearest*, so with tuskens walking up to the queen
+  // the spider correctly bites one of those and never leaves home — hunting
+  // working, read as hunting failing. One distant rival is the only way this
+  // check means what it says.
   rival.position.set(mum.position.x + 46, rival.position.y, mum.position.z);
+  for (const e of g.enemies) {
+    if (e.owner === rival) { e.alive = false; e.removeMe = true; }
+  }
   (${STEP})(6, 'rocketPressed');
   (${STEP})(30 * 6);          // the egg incubates for five seconds
   const brood = g.enemies.filter((e) => e.owner === mum && e.alive && !e.def.egg);

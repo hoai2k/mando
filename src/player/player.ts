@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { travelClip } from '../anim/animator';
+import { travelClip, type Animator } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES,
   type MeleeKind, type PlayerCharacter, type RangedKind,
@@ -11,6 +11,7 @@ import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import { gravityScale, hazardAt, type Board } from '../world/board';
+import { GRAVITY, applyGravity, applyKnockback, newBurnState, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
 import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
@@ -64,7 +65,6 @@ const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
 
-const GRAVITY = 26;
 const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
 const JUMP_VEL = 10;
@@ -315,9 +315,8 @@ export class Player {
   team = 0;
   /** netted: legs bound for a moment — walk it off slowly, or cut free with melee */
   snareTimer = 0;
-  /** burn-zone damage accrues and lands in ticks so the hurt feedback isn't a buzz */
-  private burnAcc = 0;
-  private burnTick = 0;
+  /** burn-zone damage accrues and lands in ticks so the hurt feedback isn't a buzz (src/core/body.ts) */
+  private burn = newBurnState();
   // ---- water ----
   /** chest-deep with the bottom in standing reach: slow, exposed, but walking */
   wading = false;
@@ -763,12 +762,8 @@ export class Player {
         this.char.animator?.playOnce('upper', 'hitUpper', 0.05);
       }
       if (!this.cover && this.snareTimer <= 0) {
-        _knock.subVectors(this.position, from).setY(0);
-        if (_knock.lengthSq() > 1e-6) {
-          _knock.normalize();
-          this.velocity.addScaledVector(_knock, HIT_KNOCKBACK * heft);
-          if (this.grounded && amount >= 20) this.velocity.y += 1.1;
-        }
+        applyKnockback(this.velocity, this.position, from, HIT_KNOCKBACK * heft,
+          this.grounded && amount >= 20 ? 1.1 : 0);
       }
     } else this.cam.shake(0.06);
     if (this.hp <= 0) this.die();
@@ -981,25 +976,83 @@ export class Player {
     // Thrown blades fly on every path — cover, saddle, water, even death
     // (they come home to the body) — so they tick before any early return.
     this.updateSaberThrow(dt, input, game);
-    if (!this.alive) {
+    if (!this.alive) { this.updateDeadBody(dt, game, anim); return; }
+
+    // re-forming after a respawn: motes converge head-to-feet and the figure
+    // fades back in where it will stand — watchable, untouchable, and deaf to
+    // input until it is whole
+    if (this.formT > 0) { this.updateForming(dt, game, realDt, anim); return; }
+
+    this.updateGrowth(dt, game);
+    this.updateEggRack(dt);
+    this.tickTimers(dt);
+    this.updateAim(input, game);
+    if (this.updateVehicle(dt, input, game, realDt)) return;
+    if (this.updateCover(dt, input, game, realDt)) return;
+    if (this.updateWater(dt, input, game, realDt)) return;
+
+    // ---- movement basis from camera yaw ----
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
+    const wishX = fwdX * input.moveY + rightX * input.moveX;
+    const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
+    const wishLen = Math.hypot(wishX, wishZ);
+    const nx = wishLen > 0 ? wishX / wishLen : 0;
+    const nz = wishLen > 0 ? wishZ / wishLen : 0;
+    const moving = wishLen > 0.2;
+    this.updateBlock(dt, input);
+    this.updateDodge(dt, input, game, wishLen, nx, nz, fwdX, fwdZ, moving);
+    this.updateGroundMove(dt, input, game, wishLen, nx, nz, moving);
+
+    const jumped = this.updateJump(dt, input, game);
+    this.updateJetpack(dt, input, game, jumped);
+    this.updateSuperRise(dt, input);
+    this.updateAirFlip(dt, input, jumped);
+
+    // ---- slam ----
+    if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
+      this.slamming = true;
+      this.velocity.y = -30;
+    }
+    this.applyFall(dt, input, game);
+    this.integrateAndLand(dt, game, anim);
+    this.updateBounds(game);
+    this.applyHazards(dt, game);
+    this.updateCombatInput(dt, input, game);
+
+    const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
+    this.updateFacing(dt, input, speed2);
+    this.updateLocomotionAnim(dt, input, game, anim, speed2);
+
+    this.syncVisual(dt, game);
+    anim.update(this.animDt(dt));
+
+    // camera last (after position settles) — on the wall clock, so the
+    // camera stays crisp while the world is in slow motion
+    this.cam.update(realDt, this.position, game.board.physics, {
+      aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+      // thrust reads as flight even while hovering still; a plain fall gets
+      // its width from the climb term instead, so a kerb-step isn't "flying"
+      flying: this.thrusting > 0, climb: this.grounded ? 0 : this.velocity.y,
+    });
+  }
+
+  /** the fall plays out, then the pose freezes and the body burns away */
+  private updateDeadBody(dt: number, game: Game, anim: Animator): void {
       this.respawnTimer -= dt;
       this.deadT += dt;
       this.velocity.x = damp(this.velocity.x, 0, 6, dt);
       this.velocity.z = damp(this.velocity.z, 0, 6, dt);
-      this.velocity.y -= GRAVITY * this.gravity(game.board) * dt;
+      applyGravity(this.velocity, game.board, this.position, dt);
       game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
       this.syncVisual(dt, game);
       // the fall plays out, then the pose freezes and the body burns away
       const dis = (this.deadT - DEATH_ANIM_TIME) / DISSOLVE_TIME;
       if (dis <= 0) anim.update(dt);
       else this.setDissolve(Math.min(dis, 1), game);
-      return;
-    }
+  }
 
-    // re-forming after a respawn: motes converge head-to-feet and the figure
-    // fades back in where it will stand — watchable, untouchable, and deaf to
-    // input until it is whole
-    if (this.formT > 0) {
+  /** motes converge head-to-feet and the figure fades back in where it will stand */
+  private updateForming(dt: number, game: Game, realDt: number, anim: Animator): void {
       this.formT -= dt;
       const k = clamp(this.formT / DISSOLVE_TIME, 0, 1);   // 1 = still gone
       this.setOpacity(1 - k);
@@ -1016,11 +1069,10 @@ export class Player {
       this.cam.update(realDt, this.position, game.board.physics, {
         aiming: false, speed: 0, dashing: false,
       });
-      return;
-    }
+  }
 
-    // the brood-queen loop: survive the growth clock in this body and grow
-    // back into what it was laid by (docs/MODES.md §3)
+  /** the brood-queen loop: survive the growth clock and grow back (docs/MODES.md §3) */
+  private updateGrowth(dt: number, game: Game): void {
     if (this.growInto && this.growT > 0) {
       this.growT -= dt;
       if (this.growT <= 0) {
@@ -1033,8 +1085,10 @@ export class Player {
         game.announce(`${this.profile.name} grows`, 'the brood has its queen again');
       }
     }
+  }
 
-    // the broodmother's clutch charges one egg at a time, three seconds each
+  /** the broodmother's clutch charges one egg at a time, three seconds each */
+  private updateEggRack(dt: number): void {
     if (this.profile.special === 'layEgg') {
       if (this.eggsReady < BROOD_EGG_RACK) {
         this.eggCharge += dt / 3;
@@ -1049,7 +1103,10 @@ export class Player {
       }
       this.char.setEggs?.(this.eggStates);
     }
+  }
 
+  /** the per-frame clocks: cooldowns, the hurt flash, regen, the camera re-measure */
+  private tickTimers(dt: number): void {
     // the authored model lands seconds into a match and is a different size
     // from the stand-in it replaces; the camera wants to hear about it
     this.frameCheck -= dt;
@@ -1070,7 +1127,10 @@ export class Player {
     this.meleeComboWindow -= dt;
     this.regenDelay -= dt;
     if (this.regenDelay <= 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 14 * dt);
+  }
 
+  /** camera dolly, look, and the lock-on that aim snaps on */
+  private updateAim(input: FrameInput, game: Game): void {
     // ---- camera dolly ----
     // Hold the right stick in and push it up or down (or roll the wheel) to
     // set the chase distance; it sticks until it is changed again.
@@ -1095,8 +1155,10 @@ export class Player {
     // aiming down sights needs sights: a blades-only fighter holding the aim
     // button just pulls the camera in, and draws no crosshair
     this.aiming = input.aimHeld && !this.meleeOnly;
+  }
 
-    // ---- vehicles: RB near a parked ride mounts, and the ride wins the press ----
+  /** RB near a parked ride mounts, and the ride wins the press. True = the ride took the frame */
+  private updateVehicle(dt: number, input: FrameInput, game: Game, realDt: number): boolean {
     this.nearVehicle = this.vehicle ? null : this.findVehicle(game);
     if (!this.vehicle && this.nearVehicle && input.slamPressed) {
       this.nearVehicle.mount(this);
@@ -1105,15 +1167,17 @@ export class Player {
       this.nearVehicle = null;
       // the press that mounted must not also read as the dismount press
       this.updateRiding(dt, { ...input, slamPressed: false }, game, realDt);
-      return;
+      return true;
     }
     if (this.vehicle) {
       this.updateRiding(dt, input, game, realDt);
-      return;
+      return true;
     }
+    return false;
+  }
 
-    // ---- cover: on the ground the slam button snaps to a nearby box ----
-    // (the air keeps its ground slam — the button splits by grounded state)
+  /** on the ground the slam button snaps to a nearby box. True = cover took the frame */
+  private updateCover(dt: number, input: FrameInput, game: Game, realDt: number): boolean {
     const face = this.grounded ? this.findCoverFace(game) : null;
     this.nearCover = !!face && !this.cover;
     if (!this.cover && face && input.slamPressed) {
@@ -1123,14 +1187,17 @@ export class Player {
       audio.land(false); // the thump of shoulder meeting crate
       // the press that got us in must not also read as the press that exits
       this.updateInCover(dt, { ...input, slamPressed: false }, game, realDt);
-      return;
+      return true;
     }
     if (this.cover) {
       this.updateInCover(dt, input, game, realDt);
-      return;
+      return true;
     }
+    return false;
+  }
 
-    // ---- water: wade where you can stand, swim where you can't ----
+  /** wade where you can stand, swim where you cannot. True = swimming took the frame */
+  private updateWater(dt: number, input: FrameInput, game: Game, realDt: number): boolean {
     const waterY = game.board.waterY;
     const inWater = waterY !== undefined && this.position.y + 0.9 < waterY;
     this.wading = false;
@@ -1158,21 +1225,16 @@ export class Player {
     if (swimNow) {
       this.swimming = true;
       this.updateSwimming(dt, input, game, realDt);
-      return;
+      return true;
     }
     this.swimming = false;
+    return false;
+  }
 
-    // ---- movement basis from camera yaw ----
-    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
-    const wishX = fwdX * input.moveY + rightX * input.moveX;
-    const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
-    const wishLen = Math.hypot(wishX, wishZ);
-    const nx = wishLen > 0 ? wishX / wishLen : 0;
-    const nz = wishLen > 0 ? wishZ / wishLen : 0;
-    // ---- block (hold B / R) ----
+  /** block (hold B / R): the same gauge as sprinting, so a fight is a budget */
+  private updateBlock(dt: number, input: FrameInput): void {
     // The shield is the same gauge as sprinting, so a fight is a budget: run
     // it down blocking and you have nothing left to run with.
-    const moving = wishLen > 0.2;
     this.blocking = input.blockHeld && this.energy > 0 && this.meleeTimer <= 0 && this.dashTimer <= 0;
     if (this.blocking) {
       this.energy = Math.max(0, this.energy - dt / BLOCK_SECONDS);
@@ -1182,8 +1244,11 @@ export class Player {
     }
     this.blockRaise = damp(this.blockRaise, this.blocking ? 1 : 0, 14, dt);
     this.char.setBlock(this.blockRaise);
+  }
 
-    // ---- LB: a dodge in whatever direction it is given, then a sprint ----
+  /** LB: a dodge in whatever direction it is given, then a sprint */
+  private updateDodge(dt: number, input: FrameInput, game: Game,
+    wishLen: number, nx: number, nz: number, fwdX: number, fwdZ: number, moving: boolean): void {
     // One press arms one dodge. If the stick is already pushed it fires on the
     // spot; if the stick is centred the dodge waits for a direction and goes
     // the instant one arrives. Either way, holding LB on past the dodge rolls
@@ -1222,8 +1287,11 @@ export class Player {
       // holding on through the dash rolls into a sprint when it ends
       this.sprintLatched = true;
     }
+  }
 
-    // ---- sprint ----
+  /** sprint, the top speed everything trims, and the steering that reaches it */
+  private updateGroundMove(dt: number, input: FrameInput, game: Game,
+    wishLen: number, nx: number, nz: number, moving: boolean): void {
     const wantsSprint = this.sprintLatched && input.sprintHeld && moving
       && this.grounded && this.energy > 0 && !this.blocking;
     this.sprinting = wantsSprint && this.snareTimer <= 0 && !this.wading;
@@ -1264,10 +1332,10 @@ export class Player {
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
+  }
 
-    // ---- jump / flight ----
-    const superjump = this.profile.flight === 'superjump';
-    const jetpack = this.profile.flight === 'jetpack';
+  /** the leap itself (and the hold that arms a super jump). True = it left the ground this frame */
+  private updateJump(dt: number, input: FrameInput, game: Game): boolean {
     this.coyote = this.grounded ? 0.12 : this.coyote - dt;
     if (this.grounded) {
       this.riseHold = false;
@@ -1275,6 +1343,7 @@ export class Player {
       this.slowDescent = false;
       this.airTap = -1;
     }
+    const superjump = this.profile.flight === 'superjump';
     let jumped = false;
     if (input.jumpPressed && this.coyote > 0 && !this.blocking && this.snareTimer <= 0) {
       this.velocity.y = JUMP_VEL;
@@ -1286,6 +1355,12 @@ export class Player {
       // the ground is the one that keeps climbing
       this.riseHold = superjump;
     }
+    return jumped;
+  }
+
+  /** the pack: thrust, glide, the eased descent and the fuel all three spend */
+  private updateJetpack(dt: number, input: FrameInput, game: Game, jumped: boolean): void {
+    const jetpack = this.profile.flight === 'jetpack';
     // A quick airborne A tap — no jump left to spend, and released before it
     // reads as a thrust hold — toggles the eased descent. The classification
     // happens on release, so a real hold (which starts thrusting immediately)
@@ -1355,8 +1430,11 @@ export class Player {
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
+  }
 
-    // ---- super jump: the non-Mandalorian answer to the jetpack ----
+  /** super jump: the non-Mandalorian answer to the jetpack */
+  private updateSuperRise(dt: number, input: FrameInput): void {
+    const superjump = this.profile.flight === 'superjump';
     // Hold A from the leap and she just keeps rising — as high as the hold
     // lasts, no fuel, no flames. The moment the button lifts (or the shield
     // comes up) the climb is spent for good: nothing relights mid-air, and
@@ -1369,15 +1447,11 @@ export class Player {
         this.velocity.y = damp(this.velocity.y, SUPERJUMP_RISE, 6, dt);
       }
     }
-    this.updateAirFlip(dt, input, jumped);
+  }
 
-    // ---- slam ----
-    if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
-      this.slamming = true;
-      this.velocity.y = -30;
-    }
-
-    // ---- gravity + integrate ----
+  /** gravity, in all the shapes the flight modes give it — and the void, which has none */
+  private applyFall(dt: number, input: FrameInput, game: Game): void {
+    const superjump = this.profile.flight === 'superjump';
     // Below a board's voidY there is no floor left to land on, so gravity
     // eases right off: you drift, and a tap of jetpack lifts you back out.
     const board = game.board;
@@ -1421,6 +1495,10 @@ export class Player {
     }
     // never strand a drifting player with an empty tank
     if (inVoid) this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.9));
+  }
+
+  /** the capsule move, and what meeting the ground does: the crouch, and a slam */
+  private integrateAndLand(dt: number, game: Game, anim: Animator): void {
     // how hard the ground is about to be met: the collision resolve takes the
     // downward velocity away, so the impact has to be read before the move
     const impact = this.grounded ? 0 : -this.velocity.y;
@@ -1456,8 +1534,10 @@ export class Player {
     }
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
+  }
 
-    // out of bounds / hazard
+  /** out of bounds: a void board puts you back on your start, everything else kills */
+  private updateBounds(game: Game): void {
     if (this.position.y < game.board.physics.killY) {
       if (game.board.voidY !== undefined) {
         // backstop only — the drift above makes this almost unreachable, and
@@ -1470,9 +1550,10 @@ export class Player {
         this.damage(999, this.position);
       }
     }
-    this.applyHazards(dt, game);
+  }
 
-    // ---- combat ----
+  /** the lock-on flag and the combat pass, with the shield masking what it holds */
+  private updateCombatInput(dt: number, input: FrameInput, game: Game): void {
     this.lockedOn = this.weapon === 'blaster' &&
       !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
     // Both hands are on the shield: no firing, no swinging, no weapon swap
@@ -1483,15 +1564,19 @@ export class Player {
         meleeSwapPressed: false, rangedSwapPressed: false,
       }
       : input, game);
+  }
 
-    // ---- facing ----
+  /** where the chest points: the camera in a fight, the direction of travel otherwise */
+  private updateFacing(dt: number, input: FrameInput, speed2: number): void {
     const combatFacing = this.blocking || input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
-    const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
     let targetYaw = this.facingYaw;
     if (combatFacing) targetYaw = this.cam.yaw;
     else if (speed2 > 0.8) targetYaw = Math.atan2(this.velocity.x, this.velocity.z);
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
+  }
 
+  /** which clips the body plays for what it is doing */
+  private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
     // ---- animation state ----
     // Jumping, dashing or thrusting straight back out of a landing cancels the
     // crouch: a one-shot holds the channel to its end, and the legs would stay
@@ -1552,19 +1637,8 @@ export class Player {
       const idleUpper = this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper';
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : idleUpper);
     }
-
-    this.syncVisual(dt, game);
-    anim.update(this.animDt(dt));
-
-    // camera last (after position settles) — on the wall clock, so the
-    // camera stays crisp while the world is in slow motion
-    this.cam.update(realDt, this.position, game.board.physics, {
-      aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
-      // thrust reads as flight even while hovering still; a plain fall gets
-      // its width from the climb term instead, so a kerb-step isn't "flying"
-      flying: this.thrusting > 0, climb: this.grounded ? 0 : this.velocity.y,
-    });
   }
+
 
   /**
    * Free 3D swimming — the helmet is sealed, so depth costs nothing but
@@ -1680,16 +1754,11 @@ export class Player {
    */
   private applyHazards(dt: number, game: Game): void {
     if (!this.alive) return;
-    const hzd = hazardAt(game.board, this.position);
-    if (hzd.kill) { this.damage(999, this.position); return; }
-    if (hzd.dps > 0) {
-      this.burnAcc += hzd.dps * dt;
-      this.burnTick -= dt;
-      if (this.burnTick <= 0) {
-        this.burnTick = 0.4;
-        if (this.burnAcc > 0.5) { this.damage(this.burnAcc, this.position, -1, { dot: true }); this.burnAcc = 0; }
-      }
-    }
+    tickHazards(this.burn, game.board, this.position, dt, (amount, kill) => {
+      // no drowning term: the helmet is sealed, and swimming is a mode here
+      if (kill) this.damage(999, this.position);
+      else this.damage(amount, this.position, -1, { dot: true });
+    });
   }
 
   /**
@@ -1838,7 +1907,7 @@ export class Player {
     }
     this.velocity.x = clamp(dx * 12, -6.5, 6.5);
     this.velocity.z = clamp(dz * 12, -6.5, 6.5);
-    this.velocity.y -= GRAVITY * this.gravity(game.board) * dt;
+    applyGravity(this.velocity, game.board, this.position, dt);
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
