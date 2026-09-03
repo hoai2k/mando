@@ -37,7 +37,7 @@ export class PvpRules implements ModeRules {
       const killer = p.lastHitBy >= 0 && p.lastHitBy !== p.slot ? g.players[p.lastHitBy] : null;
       if (killer) {
         killer.kills++;
-        g.hitMarker(killer.slot);
+        g.scoreMarker(killer.slot);
         g.announce(`${killer.profile.name} downs ${p.profile.name}`,
           heir ? 'the squad fights on'
             : p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);

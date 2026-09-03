@@ -969,6 +969,14 @@ export class Game {
     audio.hitMarker();
   }
 
+  /**
+   * The HUD's marker without the sound: a scoring beat (a PvP down) rather
+   * than a bolt landing, which already made its own noise where it hit.
+   */
+  scoreMarker(slot: number): void {
+    this.events.hitMarker(slot);
+  }
+
   private explode(point: THREE.Vector3, bySlot: number): void {
     this.particles.explosion(point);
     this.blast(point, {
