@@ -50,9 +50,21 @@ export interface BurnState {
 
 export const newBurnState = (): BurnState => ({ acc: 0, tick: 0 });
 
-/** the gravity acting on a body where it stands (or flies) */
+/**
+ * The gravity acting on a body where it stands (or flies).
+ *
+ * Floored a little above zero for *bodies*, which is not the same rule the
+ * player gets. A space board's open volume pulls at nothing, and that is the
+ * point of it — but a hostile shoved off a gantry into true zero-g hangs
+ * there forever, alive, out of reach, and a wave that never clears is a run
+ * that cannot be finished. The floor is small enough to be invisible over the
+ * seconds a fight lasts and large enough that anything knocked into the dark
+ * eventually reaches the kill plane and is cleaned up.
+ */
+const BODY_MIN_G = 0.05;
+
 export function bodyGravity(board: Board, at: THREE.Vector3): number {
-  return GRAVITY * gravityScale(board, at.x, at.y, at.z);
+  return GRAVITY * Math.max(BODY_MIN_G, gravityScale(board, at.x, at.y, at.z));
 }
 
 /** one step of falling: the board's pull, applied to a velocity */
