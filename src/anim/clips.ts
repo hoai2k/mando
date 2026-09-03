@@ -335,7 +335,10 @@ function makeClips(p: Proportions): ClipSet {
     qt('footR', [0, 0.1, 0.24, 0.38], [[-3, 0, 0], [-16, 0, 0], [-7, 0, 0], [0, 0, 0]]),
   ]);
 
-  // ---------- LOWER/UPPER: jetpack flight (legs trail, superman-lite) ----------
+  // ---------- LOWER/UPPER: jetpack flight — cruise (legs trail, superman-lite) ----------
+  // The forward-and-up pose, and the middle of the four-pose family authored
+  // just below: see the block comment there for the other three and for how
+  // the controller chooses between them.
   clips.flyLower = new THREE.AnimationClip('flyLower', 1.6, [
     pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.02, 0], [0, hipY, 0]]),
     qt('hips', [0, 0.8, 1.6], [[18, 0, 0], [22, 0, 0], [18, 0, 0]]),
@@ -357,6 +360,112 @@ function makeClips(p: Proportions): ClipSet {
     qt('upperArmR', [0, 0.8, 1.6], [[10, 0, -28], [12, 0, -32], [10, 0, -28]]),
     qt('forearmR', [0, 1.6], [[-30, 0, 0], [-30, 0, 0]]),
     qt('head', [0, 1.6], [[-14, 0, 0], [-14, 0, 0]]),
+  ]);
+
+  // ---------- LOWER/UPPER: jetpack flight, by where the flight is going ----------
+  //
+  // A jetpack pose is mostly a leg pose, and which leg pose is right depends
+  // entirely on the direction of travel. `flyLower` above is the cruise: nose
+  // down, legs streaming back behind a body driving forward and up. Held
+  // through a vertical climb it read as a man lying on his stomach going
+  // straight up, and held through a descent it had him arriving at the ground
+  // reaching backward with his heels. So the cruise is one of four, and the
+  // controller picks between them off the climb angle and the ground below
+  // (`flightPose` in animator.ts). All four share the cruise's 1.6 s breath so
+  // a cross-fade between them never fights two different clocks.
+  //
+  //   flyRise   plumb: hovering, or driving straight up — legs hang under
+  //   fly       cruise: forward and up — legs trail (the clip above)
+  //   flyFall   descending under the pack — legs plumb and a shade forward
+  //   flyBrace  the ground is close — knees up, shins down, feet reaching
+  //
+  // The order above is also a continuum of the thighs, from trailing back
+  // (+18°) to swinging forward (-30°), so any two of them cross-fade through
+  // shapes a leg can actually make.
+
+  // Plumb: the hover and the vertical climb. The pack is straight overhead and
+  // the body hangs off it — spine upright, legs down with a token trail and a
+  // little knee, toes pointed. Not perfectly straight: a plumb line reads as a
+  // mannequin on a wire, and the asymmetry between the legs is what sells it
+  // as a man holding a hover rather than a prop being winched.
+  clips.flyRiseLower = new THREE.AnimationClip('flyRiseLower', 1.6, [
+    pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.025, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.8, 1.6], [[3, 0, 0], [5, 0, 0], [3, 0, 0]]),
+    qt('spine', [0, 1.6], [[2, 0, 0], [2, 0, 0]]),
+    qt('upperLegL', [0, 0.8, 1.6], [[3, 0, 4], [6, 0, 4], [3, 0, 4]]),
+    qt('lowerLegL', [0, 0.8, 1.6], [[10, 0, 0], [14, 0, 0], [10, 0, 0]]),
+    qt('upperLegR', [0, 0.8, 1.6], [[7, 0, -3], [4, 0, -3], [7, 0, -3]]),
+    qt('lowerLegR', [0, 0.8, 1.6], [[16, 0, 0], [12, 0, 0], [16, 0, 0]]),
+    qt('footL', [0, 1.6], [[26, 0, 0], [26, 0, 0]]),
+    qt('footR', [0, 1.6], [[24, 0, 0], [24, 0, 0]]),
+  ]);
+  clips.flyRiseUpper = new THREE.AnimationClip('flyRiseUpper', 1.6, [
+    // upright, and looking where the climb is going rather than out ahead
+    qt('chest', [0, 0.8, 1.6], [[-2, 0, 0], [-3, 0, 0], [-2, 0, 0]]),
+    qt('neck', [0, 1.6], [[-3, 0, 0], [-3, 0, 0]]),
+    qt('upperArmL', [0, 0.8, 1.6], [[-4, 0, 22], [-2, 0, 26], [-4, 0, 22]]),
+    qt('forearmL', [0, 1.6], [[-22, 0, 0], [-22, 0, 0]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[-4, 0, -22], [-2, 0, -26], [-4, 0, -22]]),
+    qt('forearmR', [0, 1.6], [[-22, 0, 0], [-22, 0, 0]]),
+    qt('head', [0, 1.6], [[-8, 0, 0], [-8, 0, 0]]),
+  ]);
+
+  // Coming down on the pack: the thrust is under him holding the fall off, so
+  // the body stands up in the air. Legs plumb and a shade forward of the hips
+  // — the weight hangs below rather than streaming behind — knees soft, toes
+  // beginning to drop out of the point toward level. The arms come out and
+  // down a little wider than the cruise: a man riding a descent balances.
+  clips.flyFallLower = new THREE.AnimationClip('flyFallLower', 1.6, [
+    pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.015, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.8, 1.6], [[-2, 0, 0], [0, 0, 0], [-2, 0, 0]]),
+    qt('spine', [0, 1.6], [[-1, 0, 0], [-1, 0, 0]]),
+    qt('upperLegL', [0, 0.8, 1.6], [[-8, 0, 5], [-5, 0, 5], [-8, 0, 5]]),
+    qt('lowerLegL', [0, 0.8, 1.6], [[14, 0, 0], [10, 0, 0], [14, 0, 0]]),
+    qt('upperLegR', [0, 0.8, 1.6], [[-4, 0, -5], [-7, 0, -5], [-4, 0, -5]]),
+    qt('lowerLegR', [0, 0.8, 1.6], [[9, 0, 0], [13, 0, 0], [9, 0, 0]]),
+    qt('footL', [0, 1.6], [[12, 0, 0], [12, 0, 0]]),
+    qt('footR', [0, 1.6], [[14, 0, 0], [14, 0, 0]]),
+  ]);
+  clips.flyFallUpper = new THREE.AnimationClip('flyFallUpper', 1.6, [
+    qt('chest', [0, 0.8, 1.6], [[-3, 0, 0], [-5, 0, 0], [-3, 0, 0]]),
+    qt('neck', [0, 1.6], [[-1, 0, 0], [-1, 0, 0]]),
+    // arms out wider and lower: riding the drop, not driving through it
+    qt('upperArmL', [0, 0.8, 1.6], [[-8, 0, 38], [-5, 0, 42], [-8, 0, 38]]),
+    qt('forearmL', [0, 1.6], [[-26, 0, 0], [-26, 0, 0]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[-8, 0, -38], [-5, 0, -42], [-8, 0, -38]]),
+    qt('forearmR', [0, 1.6], [[-26, 0, 0], [-26, 0, 0]]),
+    qt('head', [0, 1.6], [[2, 0, 0], [2, 0, 0]]),   // chin down: eyes on the deck
+  ]);
+
+  // The ground is close: gather for it. Knees come up and forward, shins drop
+  // under so the boots lead the body down, toes lift toward level to meet a
+  // floor flat, and the chest rises over the feet. This is deliberately most
+  // of the way to `landLower`'s first frame (hips +6, thigh -18, shin +26,
+  // foot -4) — the brace is the reach and the crouch is the absorb, and the
+  // hand-over between them at touchdown is a short fade between two poses that
+  // already agree, instead of a cut from a body still flying.
+  clips.flyBraceLower = new THREE.AnimationClip('flyBraceLower', 1.6, [
+    pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.012, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.8, 1.6], [[4, 0, 0], [6, 0, 0], [4, 0, 0]]),
+    qt('spine', [0, 1.6], [[3, 0, 0], [3, 0, 0]]),
+    qt('upperLegL', [0, 0.8, 1.6], [[-30, 0, 7], [-26, 0, 7], [-30, 0, 7]]),
+    qt('lowerLegL', [0, 0.8, 1.6], [[38, 0, 0], [33, 0, 0], [38, 0, 0]]),
+    // the trailing leg reaches a beat behind the lead, so the feet arrive
+    // one after the other rather than as a pair of landing gear
+    qt('upperLegR', [0, 0.8, 1.6], [[-24, 0, -7], [-28, 0, -7], [-24, 0, -7]]),
+    qt('lowerLegR', [0, 0.8, 1.6], [[31, 0, 0], [36, 0, 0], [31, 0, 0]]),
+    qt('footL', [0, 1.6], [[-8, 0, 0], [-8, 0, 0]]),
+    qt('footR', [0, 1.6], [[-6, 0, 0], [-6, 0, 0]]),
+  ]);
+  clips.flyBraceUpper = new THREE.AnimationClip('flyBraceUpper', 1.6, [
+    qt('chest', [0, 0.8, 1.6], [[-6, 0, 0], [-7, 0, 0], [-6, 0, 0]]),
+    qt('neck', [0, 1.6], [[1, 0, 0], [1, 0, 0]]),
+    // arms out and forward, counterweighting the legs that swung under
+    qt('upperArmL', [0, 0.8, 1.6], [[-18, 0, 44], [-15, 0, 47], [-18, 0, 44]]),
+    qt('forearmL', [0, 1.6], [[-34, 0, 0], [-34, 0, 0]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[-18, 0, -44], [-15, 0, -47], [-18, 0, -44]]),
+    qt('forearmR', [0, 1.6], [[-34, 0, 0], [-34, 0, 0]]),
+    qt('head', [0, 1.6], [[8, 0, 0], [8, 0, 0]]),   // eyes on the landing spot
   ]);
 
   // ---------- LOWER/UPPER: riding a vehicle (saddle straddle, hands to bars) ----------
