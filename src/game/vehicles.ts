@@ -15,9 +15,15 @@ import { BANTHA_STRIDE } from '../anim/quadruped';
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
  * boards. RB near one mounts, the stick drives it camera-relative with real
- * momentum, ramming is the weapon, and the hull soaks the fire aimed at the
- * rider until it gives out — then the rider is thrown and the wreck explodes.
- * Not transport: a toy that ends in a crash.
+ * momentum, ramming is the weapon, and sooner or later it is shot out from
+ * under you or you put it into a wall — then the rider is thrown, the wreck
+ * goes up at the size of the hull that made it, and twenty seconds later the
+ * ride is back where the board parked it. Not transport: a toy that ends in a
+ * crash.
+ *
+ * What breaks a ride depends on what it is. Gunfire is what kills the light
+ * frames; crashing is what kills the heavy ones, and the heavier the hull the
+ * more lopsided that trade — see `shotResist` and `crashScale` on the def.
  */
 
 export interface VehicleDef {
@@ -65,26 +71,51 @@ export interface VehicleDef {
    * the sand — no repulsor core to detonate.
    */
   living?: boolean;
+  /**
+   * How much of a bolt, a blade or a blast the hull actually feels.
+   *
+   * The heavier the ride, the less small-arms fire means to it: a cargo skiff
+   * is a slab of freight plate and a bolt is a scorch mark on it, where the
+   * same bolt through a swoop's spine is most of a swoop. Under 1 the ride is
+   * armoured against shooting — never immune, which is the point of "still
+   * takes some" — and the way to break it is to crash it.
+   */
+  shotResist: number;
+  /**
+   * What a crash costs: a multiplier on the speed the impact took away.
+   *
+   * This is the other half of the same trade. Mass that shrugs off bolts has
+   * nowhere to put its momentum when it meets a wall, so for the big rides
+   * this is where nearly all their damage comes from.
+   */
+  crashScale: number;
+  /** tonnage — who comes off worse when two rides meet, and who barely notices */
+  mass: number;
 }
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
   swoop: {
-    name: 'Swoop', hp: 100, top: 24, throttle: 15, brake: 24, drag: 4.5,
+    name: 'Swoop', hp: 180, top: 24, throttle: 15, brake: 24, drag: 4.5,
     turn: 2.3, grip: 4.5, boost: 9,
+    shotResist: 1, crashScale: 1.6, mass: 1,
     radius: 0.85, body: 1.1, hover: 0.55, length: 2.8,
     seat: { x: 0, y: -0.38, z: -0.15 }, stance: 'saddle',
     modelId: 'nikto_swoop', modelSize: 2.6,
   },
   speederBike: {
-    name: TEXT.vehicles.speeder, hp: 90, top: 27, throttle: 18, brake: 22, drag: 4,
+    name: TEXT.vehicles.speeder, hp: 150, top: 27, throttle: 18, brake: 22, drag: 4,
     turn: 2.6, grip: 3.8, boost: 10,
+    // the lightest frame in the game: quickest to shoot down, and the one
+    // ride that is genuinely fragile in a straight line
+    shotResist: 1.15, crashScale: 1.6, mass: 0.9,
     radius: 0.8, body: 1.15, hover: 0.6, length: 3.0,
     seat: { x: 0, y: -0.34, z: -0.3 }, stance: 'saddle',
     modelId: 'speeder_bike', modelSize: 3.0,
   },
   landspeeder: {
-    name: 'Landspeeder', hp: 150, top: 22, throttle: 11, brake: 18, drag: 3.5,
+    name: 'Landspeeder', hp: 320, top: 22, throttle: 11, brake: 18, drag: 3.5,
     turn: 1.7, grip: 5.5, boost: 8,
+    shotResist: 0.5, crashScale: 4, mass: 2.4,
     radius: 1.15, body: 1.1, hover: 0.45, length: 4.4,
     seat: { x: 0, y: -0.32, z: -0.5 }, stance: 'saddle',
     modelId: 'landspeeder', modelSize: 4.5,
@@ -94,15 +125,20 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     // slow, enormously heavy, and a wall of hide that soaks fire the way no
     // repulsor hull does. It cannot drift — four feet in the sand bite — and
     // it cannot flee, so taking one is a decision to walk into the fight.
-    name: 'Bantha', hp: 260, top: 10, throttle: 5, brake: 9, drag: 3.2,
+    name: 'Bantha', hp: 500, top: 10, throttle: 5, brake: 9, drag: 3.2,
     turn: 1.5, grip: 9, boost: 4.5,
+    // hide and wool over four tonnes of animal: bolts sink into it, and the
+    // way to stop one is to put it into something
+    shotResist: 0.45, crashScale: 2.5, mass: 4.5,
     radius: 1.5, body: 2.5, hover: 0.02, length: 5.4,
     seat: { x: 0, y: 2.05, z: -0.2 }, stance: 'saddle', living: true,
     modelId: 'bantha', modelSize: 4.5, modelAxis: 'z', modelGround: true,
   },
   skiff: {
-    name: TEXT.vehicles.skiff, hp: 220, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
+    name: TEXT.vehicles.skiff, hp: 600, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
     turn: 1.0, grip: 6.5, boost: 6,
+    // freight plate: a hundred bolts to bring down, a dozen good crashes
+    shotResist: 0.28, crashScale: 6, mass: 6,
     radius: 1.7, body: 1.3, hover: 0.9, length: 9,
     seat: { x: 0, y: 1.05, z: -3.1 }, stance: 'stand',
     modelId: 'skiff', modelSize: 9,
@@ -114,6 +150,26 @@ const CHARGE_TIME = 1.5;
 const CHARGE_COOLDOWN = 5;
 /** what the charge is worth as a multiple of the animal's own top speed */
 const CHARGE_TOP = 1.75;
+
+/** What hurt the ride: a shot is armoured against, a crash is not. */
+export type DamageKind = 'shot' | 'crash';
+
+/**
+ * How long a wreck stays a wreck. Rides are the board's toys, not a resource
+ * you can spend: whatever you crash, shoot down or ride into the sarlacc is
+ * back where it was parked twenty seconds later, so a match never quietly
+ * runs out of them.
+ */
+const RESPAWN_DELAY = 20;
+/** the dissolve on the way out, and the reassembly on the way back */
+const DISSOLVE_TIME = 1.1;
+const REFORM_TIME = 1.2;
+/** speed lost in one impact before it counts as a crash rather than a scrape */
+const CRASH_MIN = 4;
+/** closing speed at which two rides meeting counts as a collision */
+const VEHICLE_CRASH_MIN = 7;
+/** a riderless ride under this speed has finished rolling and parks */
+const COAST_STOP = 0.8;
 
 /** how much of top speed reverse is worth */
 const REVERSE_FRACTION = 0.35;
@@ -134,7 +190,6 @@ export class Vehicle {
   hp: number;
   maxHp: number;
   alive = true;
-  removeMe = false;
   rider: Player | null = null;
   group = new THREE.Group();
   /** who shot it last, for kill credit on the explosion */
@@ -167,6 +222,21 @@ export class Vehicle {
   /** seconds left in a charge (X on a mount); ≤ 0 = not charging */
   private chargeT = 0;
   private chargeCd = 0;
+  /** seconds until the wreck is a ride again; > 0 only while dead */
+  respawnIn = 0;
+  /** dissolve on death, then reassembly on return — both count down to 0 */
+  private dissolveT = 0;
+  private reformT = 0;
+  /**
+   * Rolling on with nobody aboard. A ride whose rider is killed at speed does
+   * not stop dead under them: it carries its momentum until the drag, the
+   * ground or a wall takes it, and only then parks.
+   */
+  private coasting = false;
+  /** suppresses one frame of wall damage when a ride-on-ride crash already paid for it */
+  private crashGrace = 0;
+  /** per-vehicle crash cooldown, so one collision bills once */
+  private hitMemo = new Map<Vehicle, number>();
 
   constructor(public spec: VehicleSpec, private board: Board) {
     this.def = VEHICLE_DEFS[spec.kind];
@@ -227,8 +297,13 @@ export class Vehicle {
   }
 
   /**
-   * Let the rider off (RB, a jump, death, destruction). The vehicle parks
-   * where it stands and can be remounted — unless it is already dead.
+   * Let the rider off — stepped off, bailed out, shot off the saddle, killed.
+   *
+   * A ride with speed still in it does not stop dead the moment the saddle
+   * empties: it rolls on driverless (`coasting`), and only parks once the
+   * drag, the ground or a wall has taken the last of the momentum. A rider
+   * killed at forty kilometres an hour leaves a speeder still going, which is
+   * both what should happen and a genuinely useful thing to walk back to.
    */
   dropRider(): void {
     const rider = this.rider;
@@ -236,11 +311,24 @@ export class Vehicle {
     this.rider = null;
     rider.vehicle = null;
     audio.setEngine(rider.slot, 0);
-    if (this.alive) this.park();
+    if (!this.alive) return;
+    if (Math.hypot(this.vel.x, this.vel.z) > COAST_STOP) this.coasting = true;
+    else this.park();
   }
 
-  damage(amount: number, from: THREE.Vector3, bySlot = -1): void {
+  /**
+   * Hurt the ride.
+   *
+   * `kind` is the whole balance of §17's second pass: a **shot** — a bolt, a
+   * blade, a blast, a burn — is scaled by the hull's `shotResist`, so what
+   * kills a speeder bike barely marks a skiff; a **crash** is charged in full,
+   * because no amount of plate helps a thing that has stopped against a wall
+   * at speed. Big rides are broken by crashing them, small ones by shooting
+   * them, and both still take a little of the other.
+   */
+  damage(amount: number, from: THREE.Vector3, bySlot = -1, kind: DamageKind = 'shot'): void {
     if (!this.alive || amount <= 0) return;
+    if (kind === 'shot') amount *= this.def.shotResist;
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     if (this.rider) {
@@ -250,7 +338,16 @@ export class Vehicle {
     if (this.hp <= 0) this.destroy(!this.def.living);
   }
 
-  /** The end of the ride: throw the rider clear and blow the wreck. */
+  /**
+   * The end of the ride — for twenty seconds.
+   *
+   * A machine throws its rider clear and goes up, in a blast sized to the
+   * thing that made it: a swoop is a pop, a laden skiff is an event. An animal
+   * does neither. It dies where it stands and comes apart into the air over a
+   * second or so, which is the only death in the game with no fireball in it.
+   * Either way the ride is not gone: `respawnIn` runs down and it reforms
+   * where it was first parked (see `respawn`).
+   */
   private destroy(explode: boolean): void {
     if (!this.alive) return;
     this.alive = false;
@@ -267,12 +364,25 @@ export class Vehicle {
       r.position.y += 0.6;
     }
     this.unpark();
-    this.group.visible = false;
-    this.removeMe = true;
-    if (explode) this.pendingExplosion = { at: at.setY(at.y + 0.5), slot };
-    // a mount does not detonate: it goes down in a cloud of its own dust,
-    // with the last of its lowing
-    else if (this.def.living) this.pendingCollapse = at.clone();
+    this.coasting = false;
+    this.vel.set(0, 0, 0);
+    this.respawnIn = RESPAWN_DELAY;
+    if (explode) {
+      this.group.visible = false;
+      this.pendingExplosion = { at: at.setY(at.y + 0.5), slot, scale: this.blastScale };
+    } else {
+      // the body stays up while it comes apart, sinking as it goes
+      this.dissolveT = DISSOLVE_TIME;
+      this.pendingCollapse = at.clone();
+    }
+  }
+
+  /**
+   * How big the fireball is: a swoop's own length against the skiff's, so the
+   * blast that ends a ride is the size of the ride that made it.
+   */
+  private get blastScale(): number {
+    return clamp(this.def.length / 4 + this.def.mass * 0.08, 0.55, 2.1);
   }
 
   /**
@@ -287,13 +397,49 @@ export class Vehicle {
     if (this.rider) this.dropRider();
     this.unpark();
     this.group.visible = false;
-    this.removeMe = true;
+    // Dead and staying dead: a wreck comes back on `respawnIn`, and a ride
+    // left behind on a map the party has walked out of should not. The
+    // campaign drops it from `Game.vehicles` in the same breath, so nothing
+    // ticks it again either way — this is belt and braces on a ride that
+    // would otherwise reassemble itself inside the next stage.
+    this.alive = false;
+    this.respawnIn = Infinity;
   }
 
   /** set by destroy(); the game detonates it on its next update pass */
-  pendingExplosion: { at: THREE.Vector3; slot: number } | null = null;
+  pendingExplosion: { at: THREE.Vector3; slot: number; scale: number } | null = null;
   /** set by destroy() for a living mount; the game kicks up the dust for it */
   pendingCollapse: THREE.Vector3 | null = null;
+  /** set by respawn(); the game plays the reassembly where it lands */
+  pendingReform: THREE.Vector3 | null = null;
+
+  /**
+   * Back on its feet, or back on its repulsors, where it was first parked.
+   *
+   * Not where it died: a ride dragged across the board and wrecked in a
+   * corner would respawn in that corner and drift the board's layout away
+   * from what it was designed as, so the spec's own coordinates are the only
+   * ones a respawn ever uses.
+   */
+  private respawn(): void {
+    const ground = this.groundAt(this.spec.x, this.spec.z);
+    this.pos.set(this.spec.x, ground + this.def.hover, this.spec.z);
+    this.vel.set(0, 0, 0);
+    this.yaw = this.spec.yaw ?? 0;
+    this.hp = this.maxHp;
+    this.alive = true;
+    this.lastHitBy = -1;
+    this.coasting = false;
+    this.dissolveT = 0;
+    this.reformT = REFORM_TIME;
+    this.hitMemo.clear();
+    this.group.visible = true;
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.yaw;
+    this.body.position.y = 0;
+    this.park();
+    this.pendingReform = this.pos.clone();
+  }
 
   /** true while the horns are down (drives the HUD's charge cue) */
   get charging(): boolean { return this.chargeT > 0; }
@@ -385,11 +531,82 @@ export class Vehicle {
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
   update(dt: number, game: Game): void {
-    if (!this.alive || this.rider) return;
+    if (this.reformT > 0) this.reformT = Math.max(0, this.reformT - dt);
+    if (!this.alive) {
+      this.updateWreck(dt, game);
+      return;
+    }
+    if (this.rider) return;                 // driven from the rider's update
+    if (this.coasting) {
+      this.coast(dt, game);
+      return;
+    }
     // settle toward hover height and idle-bob gently inside the parked box
     const target = this.groundAt(this.pos.x, this.pos.z) + this.def.hover;
     this.pos.y = damp(this.pos.y, target, 4, dt) + Math.sin(game.time * 1.7 + this.bobPhase) * 0.004;
     this.syncMesh(dt, 0);
+  }
+
+  /**
+   * A wreck: an animal coming apart, then the wait, then the ride again.
+   *
+   * The dissolve is the animal's alone — a machine has already gone up in the
+   * blast — and it is the body sinking into the ground it died on while the
+   * ash comes off it, so what is left after a second is sand.
+   */
+  private updateWreck(dt: number, game: Game): void {
+    if (this.dissolveT > 0) {
+      this.dissolveT -= dt;
+      const gone = 1 - Math.max(0, this.dissolveT) / DISSOLVE_TIME;
+      this.body.position.y = -gone * (this.def.body + this.def.hover + 0.4);
+      if (Math.random() < dt * 18) {
+        game.particles.disintegrate(
+          this.pos.clone().setY(this.pos.y + this.def.body * (0.3 + Math.random() * 0.8)), 2,
+        );
+      }
+      if (this.dissolveT <= 0) this.group.visible = false;
+    }
+    this.respawnIn -= dt;
+    if (this.respawnIn <= 0) this.respawn();
+  }
+
+  /**
+   * One frame of a riderless ride still rolling: the same drag, hover and
+   * collisions the driven one gets, with nobody asking it for anything.
+   */
+  private coast(dt: number, game: Game): void {
+    const def = this.def;
+    const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
+    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    let fwd = this.vel.x * nx + this.vel.z * nz;
+    let lat = this.vel.x * rx + this.vel.z * rz;
+    // nothing on the pedals, so it is all drag — a shade heavier than under a
+    // rider, since a driverless ride is not being held straight
+    const bleed = def.drag * 1.3 * dt;
+    fwd = fwd > 0 ? Math.max(0, fwd - bleed) : Math.min(0, fwd + bleed);
+    lat = damp(lat, 0, def.grip, dt);
+    this.vel.x = nx * fwd + rx * lat;
+    this.vel.z = nz * fwd + rz * lat;
+    const target = this.groundAt(this.pos.x, this.pos.z) + def.hover;
+    this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
+
+    this.crashGrace -= dt;
+    const hitRide = this.collideVehicles(game);
+    const before = Math.hypot(this.vel.x, this.vel.z);
+    game.board.physics.moveCapsule(this.pos, def.radius, def.body, this.vel, dt);
+    const after = Math.hypot(this.vel.x, this.vel.z);
+    this.crashIntoWall(before - after, game, null);
+    if (hitRide) this.crashGrace = 0.25;
+
+    if (this.pos.y < game.board.physics.killY) { this.destroy(!def.living); return; }
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (speed < COAST_STOP) {
+      // it has finished rolling: solid again, where it came to rest
+      this.vel.set(0, 0, 0);
+      this.coasting = false;
+      this.park();
+    }
+    this.syncMesh(dt, speed);
   }
 
   /**
@@ -481,16 +698,13 @@ export class Vehicle {
     this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
 
     // integrate against the world; a wall eats velocity, and a hard stop hurts
+    this.crashGrace -= dt;
+    const hitRide = this.collideVehicles(game);
     const before = Math.hypot(this.vel.x, this.vel.z);
     game.board.physics.moveCapsule(this.pos, def.radius, def.body, this.vel, dt);
     const after = Math.hypot(this.vel.x, this.vel.z);
-    const lost = before - after;
-    if (lost > 7) {
-      this.damage(lost * 2.2, this.pos, -1);
-      game.particles.impactSparks(this.pos.clone().setY(this.pos.y + 0.6), 12);
-      audio.land(true);
-      rider.cam.shake(Math.min(0.3, lost * 0.012));
-    }
+    this.crashIntoWall(before - after, game, rider);
+    if (hitRide) this.crashGrace = 0.25;
 
     const speed = Math.hypot(this.vel.x, this.vel.z);
 
@@ -587,6 +801,101 @@ export class Vehicle {
       this.walkAction.timeScale = clamp(speed / Math.max(this.walkStride, 0.1), 0.25, 2.4);
     }
     this.mixer.update(dt);
+  }
+
+  /**
+   * Putting it into a wall.
+   *
+   * For the big rides this is the whole of their damage model: `crashScale`
+   * turns the speed the impact took away into hit points, and the heavier the
+   * ride the more brutally that trades — a skiff that shrugs off a firefight
+   * loses a tenth of itself every time it fetches up against a bulkhead. The
+   * grace window is there so a collision with another ride, which has already
+   * been billed properly on both sides, is not charged twice as a wall.
+   */
+  private crashIntoWall(lost: number, game: Game, rider: Player | null): void {
+    if (lost <= CRASH_MIN || this.crashGrace > 0) return;
+    this.damage(lost * this.def.crashScale, this.pos, -1, 'crash');
+    game.particles.impactSparks(this.pos.clone().setY(this.pos.y + 0.6), 12);
+    audio.land(true);
+    rider?.cam.shake(Math.min(0.3, lost * 0.012));
+  }
+
+  /**
+   * Two rides meeting.
+   *
+   * The closing speed along the line between them is the impact, and mass
+   * decides who wears it: a swoop into the flank of a cargo skiff is a swoop
+   * folded around a skiff that barely notices, and the same crash from the
+   * skiff's point of view is a bump. Both sides are billed from the one event
+   * — as crash damage, which is what the armoured hulls are vulnerable to —
+   * and both are shoved apart so they do not sit inside one another grinding.
+   *
+   * Returns true when a collision was billed this frame, so the caller can
+   * keep the wall path from charging for the same impact.
+   */
+  private collideVehicles(game: Game): boolean {
+    if (!this.alive) return false;
+    let hit = false;
+    for (const other of game.vehicles) {
+      if (other === this || !other.alive) continue;
+      const dx = other.pos.x - this.pos.x, dz = other.pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1e-4) continue;
+      const ux = dx / d, uz = dz / d;
+      // How much hull each of them has facing the other: the support width of
+      // the oriented box, which is the same shape `park` registers with the
+      // physics world. Measured any coarser and a ride bounces off a parked
+      // hull's collision box before this ever sees the two of them touch.
+      if (d > this.extentToward(ux, uz) + other.extentToward(ux, uz) + 0.6) continue;
+      if (Math.abs(other.pos.y - this.pos.y) > this.def.body + other.def.body) continue;
+      // closing speed along the line between the two hulls
+      const closing = (this.vel.x - other.vel.x) * ux + (this.vel.z - other.vel.z) * uz;
+      if (closing < VEHICLE_CRASH_MIN) continue;
+      const until = this.hitMemo.get(other) ?? 0;
+      if (game.time < until) continue;
+      this.hitMemo.set(other, game.time + 0.5);
+      other.hitMemo.set(this, game.time + 0.5);
+
+      // Mass shares the impact, and each hull pays at its own crash rate. What
+      // that works out to is the thing you would expect: the swoop is folded
+      // around the skiff and the skiff needs the paint touching up.
+      const total = this.def.mass + other.def.mass;
+      this.damage(closing * this.def.crashScale * (other.def.mass / total) * 1.6, other.pos, -1, 'crash');
+      other.damage(closing * other.def.crashScale * (this.def.mass / total) * 1.6, this.pos, -1, 'crash');
+
+      // and they bounce apart, again by mass
+      const push = closing * 1.1;
+      this.vel.x -= ux * push * (other.def.mass / total);
+      this.vel.z -= uz * push * (other.def.mass / total);
+      other.vel.x += ux * push * (this.def.mass / total);
+      other.vel.z += uz * push * (this.def.mass / total);
+      if (other.parkedBox) {
+        // a parked ride that has just been hit is rolling now, not parked
+        other.unpark();
+        other.coasting = true;
+      }
+      game.particles.impactSparks(
+        new THREE.Vector3(this.pos.x + ux * d * 0.5, this.pos.y + 0.6, this.pos.z + uz * d * 0.5), 16,
+      );
+      audio.impact();
+      this.rider?.cam.shake(Math.min(0.35, closing * 0.014));
+      other.rider?.cam.shake(Math.min(0.35, closing * 0.014));
+      hit = true;
+      if (!this.alive) break;
+    }
+    return hit;
+  }
+
+  /**
+   * Half the hull's width in a given direction — the support width of the
+   * oriented box `park` uses, so a nose-on meeting measures the length and a
+   * flank measures the beam.
+   */
+  private extentToward(ux: number, uz: number): number {
+    const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
+    return Math.abs(ux * nx + uz * nz) * this.def.length / 2
+      + Math.abs(ux * nz - uz * nx) * this.def.radius;
   }
 
   private syncMesh(dt: number, speed: number): void {

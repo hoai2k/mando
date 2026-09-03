@@ -51,7 +51,7 @@ const PORTAL_CANCEL_STEP = 3;
 /** ranged kinds, for corridor defenders — the pinch is the cover-discipline beat */
 const RANGED = new Set<EnemyKind>([
   'pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper',
-  'quarren', 'ringEnforcer', 'droid', 'duelist',
+  'quarren', 'ringEnforcer', 'droid', 'gunslinger',
 ]);
 
 interface Pickup {

@@ -474,7 +474,7 @@ halls at 8 m, hull-plate walls, sodium work light, no sky).
 4. `corridor` + `hall` · **assault ×2** · *the spice vault* — 5×14 corridor
    with a bend, hall 20×18 — **rhydonium barrels**, alcove; hatches.
 5. `hall` · **lieutenant** · *the loading gantry* — 24×20 — pillars — the
-   **duelist**: a saber fight in a hold. Its far door: **⇒⇒ the far side**.
+   **gunslinger**: a gunfight in a hold. Its far door: **⇒⇒ the far side**.
 
 **Stage C — the prize** (*built*, back under the stars and the gravity
 field).
@@ -734,7 +734,7 @@ under one sky, so one map; the terminator's dark side is a later flourish.
    *facades*.
 8. `open` · **warlord** · *the high street terrace* — 64×56 — a raised
    terrace over the ring's curve (visual backdrop: the far side of the ring);
-   *towers, fence behind* — the duelist, then the **nexu**.
+   *towers, fence behind* — the gunslinger, then the **nexu**.
 
 Props: `tram` (parked at the tram stop; running the arcade on a loop as a
 `Mover` later — the armored ride through beat 2), `street_kiosk` ×6 (beat 2)

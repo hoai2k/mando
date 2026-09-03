@@ -1,10 +1,10 @@
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import {
-  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
-  buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer, buildInterceptorDrone,
+  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid,
+  buildFlametrooper, buildGunfighter, buildGunslinger, buildImperialOfficer, buildInterceptorDrone,
   buildKrykna, buildMassiff, buildNikto, buildPirate, buildPyke, buildPykeCapo,
-  buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
+  buildEscortDroid, buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
 } from '../characters/enemies';
 import { loadProp } from '../characters/authored';
 
@@ -73,7 +73,7 @@ export const GROUPS: SubjectGroup[] = [
   {
     label: 'Allies',
     subjects: [
-      plain('ig11', 'IG-11 — ally build', (a) => buildIG(a), true),
+      plain('escortDroid', 'Escort Droid — ally build', () => buildEscortDroid()),
       plain('marshal', 'Cobb Vanth', (a) => buildGunfighter('marshal', a), true),
       plain('fennec', 'Fennec Shand', (a) => buildGunfighter('fennec', a), true),
     ],
@@ -91,7 +91,7 @@ export const GROUPS: SubjectGroup[] = [
       plain('stormtrooper', 'Stormtrooper', (a) => buildStormtrooper(false, a), true),
       plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a), true),
       plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a), true),
-      plain('duelist', 'Duelist', (a) => buildDuelist(a), true),
+      plain('gunslinger', 'Guild Gunslinger', () => buildGunslinger()),
       plain('capo', 'Pyke Capo', (a) => buildPykeCapo(a), true, 'pyke_capo'),
       plain('enforcer', 'Wookiee Enforcer', (a) => buildWookieeEnforcer(a), true, 'wookiee_enforcer'),
       plain('officer', 'Imperial Officer', (a) => buildImperialOfficer(a), true, 'imperial_officer'),
