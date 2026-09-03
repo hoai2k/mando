@@ -6,7 +6,7 @@ import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
-import { ProjectileSystem, type BoltTarget } from '../fx/projectiles';
+import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
@@ -70,6 +70,37 @@ interface PooledTarget extends BoltTarget {
   /** this entry stands for `enemy`'s corpse, not the living body */
   corpse?: boolean;
 }
+
+/** one extra hit sphere, in body-local metres */
+interface HitPart { z: number; y: number; r: number }
+
+/**
+ * A body's hit volume, as the target builder needs it. `Enemy` and `Player`
+ * both fill one of these — no base class, no adapter — which is what lets one
+ * emitter stand a hostile and a playable up the same way.
+ */
+interface HitBody {
+  position: THREE.Vector3;
+  yaw: number;
+  team: number;
+  /** the sphere on the chest */
+  hitHeight: number;
+  hitRadius: number;
+  /** the extra spheres a long body carries */
+  parts: readonly HitPart[];
+  shield: DeflectSphere | null;
+  /** a raised pane covers the whole fighter; a hostile's covers its chest */
+  shieldCoversParts: boolean;
+  /** player slot, so a bolt this body deflects is credited to them */
+  slot: number | undefined;
+}
+
+/** filled and re-filled per body per frame: the builder must not make garbage */
+const NO_PARTS: readonly HitPart[] = [];
+const _body: HitBody = {
+  position: new THREE.Vector3(), yaw: 0, team: 0, hitHeight: 0, hitRadius: 0,
+  parts: NO_PARTS, shield: null, shieldCoversParts: false, slot: undefined,
+};
 
 /** the rocket mesh's own axis, for orienting it along its velocity */
 const UP = new THREE.Vector3(0, 1, 0);
@@ -1163,92 +1194,38 @@ export class Game {
       // a burrower under the ground is alive and on the bar, and not a body
       // to shoot: bolts pass over the wake and the lock-on finds nothing
       if (!e.targetable) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = e;
-      t.player = null;
-      t.position.set(e.position.x, e.position.y + e.height * 0.5, e.position.z);
-      t.radius = e.radius + 0.35;
-      t.team = e.team;
-      t.alive = true;
-      t.shield = e.shieldCollider;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
-      // long bodies (the war massiff) need more than the one centre sphere.
-      // Read off the instance, not the shared Def: a promoted boss carries its
-      // own grown copy.
-      if (e.hitParts.length) {
-        const sin = Math.sin(e.yaw), cos = Math.cos(e.yaw);
-        for (const part of e.hitParts) {
-          const h = this.pooledTarget(slot++);
-          h.enemy = e;
-          h.player = null;
-          h.position.set(
-            e.position.x + sin * part.z,
-            e.position.y + part.y,
-            e.position.z + cos * part.z,
-          );
-          h.radius = part.r;
-          h.team = e.team;
-          h.alive = true;
-          h.shield = null;
-          h.slot = undefined;
-          h.breakable = null;
-          h.vehicle = null;
-          h.corpse = false;
-          targets.push(h);
-        }
-      }
+      // the extra spheres come off the instance, not the shared Def: a
+      // promoted boss carries its own grown copy
+      _body.position = e.position;
+      _body.yaw = e.yaw;
+      _body.team = e.team;
+      _body.hitHeight = e.height;
+      _body.hitRadius = e.radius;
+      _body.parts = e.hitParts;
+      _body.shield = e.shieldCollider;
+      _body.shieldCoversParts = false;
+      _body.slot = undefined;
+      slot = this.addBody(slot, _body, e, null);
     }
     for (const p of this.players) {
       if (!p.alive) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = null;
-      t.player = p;
+      // a blade sends the bolt back at somebody, so the player needs to be
+      // told who is in front of them before the collider is read
+      p.deflectEnemy = p.sabersDrawn ? this.nearestHostileInFront(p) : null;
       // Shot as the creature they are, not as the collider they walk in: the
       // profile's hit volume is the NPC's own, so a playable massiff takes a
       // bolt anywhere the same animal would as a hostile. A Mandalorian's two
       // numbers agree, so this is where it has always been for him.
-      t.position.set(p.position.x, p.position.y + p.profile.hitHeight * 0.5, p.position.z);
-      t.radius = p.profile.hitRadius + 0.35;
-      t.team = p.team;
-      t.alive = true;
-      // a blade sends the bolt back at somebody, so the player needs to be
-      // told who is in front of them before the collider is read
-      p.deflectEnemy = p.sabersDrawn ? this.nearestHostileInFront(p) : null;
-      t.shield = p.shieldCollider;
-      t.slot = p.slot;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
-      // and the same extra spheres a long-bodied kind gets as a hostile
-      if (p.profile.hitParts.length) {
-        const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
-        for (const part of p.profile.hitParts) {
-          const h = this.pooledTarget(slot++);
-          h.enemy = null;
-          h.player = p;
-          h.position.set(
-            p.position.x + sin * part.z,
-            p.position.y + part.y,
-            p.position.z + cos * part.z,
-          );
-          h.radius = part.r;
-          h.team = p.team;
-          h.alive = true;
-          // the raised pane is a real thing in front of the whole fighter, so
-          // it answers for every sphere, not just the one on the chest
-          h.shield = p.shieldCollider;
-          h.slot = p.slot;
-          h.breakable = null;
-          h.vehicle = null;
-          h.corpse = false;
-          targets.push(h);
-        }
-      }
+      _body.position = p.position;
+      _body.yaw = p.yaw;
+      _body.team = p.team;
+      _body.hitHeight = p.profile.hitHeight;
+      _body.hitRadius = p.profile.hitRadius;
+      _body.parts = p.profile.hitParts;
+      _body.shield = p.shieldCollider;
+      _body.shieldCoversParts = true;
+      _body.slot = p.slot;
+      slot = this.addBody(slot, _body, null, p);
     }
     // ---- corpses ----
     // A body that has stopped moving is still a body. Team 2 is the scenery
@@ -1260,18 +1237,12 @@ export class Game {
     for (const e of this.enemies) {
       const body = e.corpse;
       if (!body) continue;
-      const t = this.pooledTarget(slot++);
+      const t = this.claim(slot++);
       t.enemy = e;
-      t.player = null;
       t.corpse = true;
       t.position.copy(body.at);
       t.radius = body.radius;
       t.team = 2;
-      t.alive = true;
-      t.shield = null;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
       targets.push(t);
     }
 
@@ -1292,17 +1263,11 @@ export class Game {
         const alongX = size.x >= size.z;
         for (let i = -steps; i <= steps; i++) {
           const t = steps === 0 ? 0 : (i / steps) * span;
-          const p = this.pooledBreakTarget(slot++);
+          const p = this.claim(slot++);
           p.position.set(b.center.x + (alongX ? t : 0), b.center.y, b.center.z + (alongX ? 0 : t));
           p.radius = b.radius;
           p.team = 2;
-          p.alive = true;
-          p.shield = null;
-          p.slot = undefined;
-          p.enemy = null;
-          p.player = null;
           p.breakable = b;
-          p.vehicle = null;
           targets.push(p);
         }
       }
@@ -1316,35 +1281,26 @@ export class Game {
       const steps = Math.max(0, Math.ceil(v.def.length / 2 / r) - 1);
       for (let i = -steps; i <= steps; i++) {
         const along = steps === 0 ? 0 : (i / steps) * (v.def.length / 2 - r * 0.5);
-        const t = this.pooledTarget(slot++);
-        t.enemy = null;
-        t.player = null;
-        t.breakable = null;
+        const t = this.claim(slot++);
         t.vehicle = v;
         t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
         t.radius = r;
         t.team = 2;
-        t.alive = true;
-        t.shield = null;
-        t.slot = undefined;
         targets.push(t);
       }
     }
     for (const a of this.allies) {
       if (!a.alive) continue;
-      const t = this.pooledTarget(slot++);
-      t.enemy = a;
-      t.player = null;
-      t.position.set(a.position.x, a.position.y + a.height * 0.5, a.position.z);
-      t.radius = a.radius + 0.35;
-      t.team = 0;
-      t.alive = true;
-      t.shield = null;
-      t.slot = undefined;
-      t.breakable = null;
-      t.vehicle = null;
-      t.corpse = false;
-      targets.push(t);
+      _body.position = a.position;
+      _body.yaw = a.yaw;
+      _body.team = 0;
+      _body.hitHeight = a.height;
+      _body.hitRadius = a.radius;
+      _body.parts = NO_PARTS;   // an ally is a body, not a boss: one sphere is enough
+      _body.shield = null;
+      _body.shieldCoversParts = false;
+      _body.slot = undefined;
+      slot = this.addBody(slot, _body, a, null);
     }
     this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
 
@@ -1420,6 +1376,65 @@ export class Game {
   }
 
   /**
+   * A blank pooled entry: every owner field cleared, so nothing an earlier
+   * frame put on it can leak into what this one stands for.
+   */
+  private claim(i: number): PooledTarget {
+    const t = this.pooledTarget(i);
+    t.enemy = null;
+    t.player = null;
+    t.breakable = null;
+    t.vehicle = null;
+    t.corpse = false;
+    t.shield = null;
+    t.slot = undefined;
+    t.alive = true;
+    return t;
+  }
+
+  /**
+   * Stand one body up as bolt targets: the sphere on its chest, plus the extra
+   * spheres a long body carries (a war massiff is five metres of animal behind
+   * one 0.85 m sphere, and shots at its head used to pass through).
+   *
+   * A hostile and a playable are the same problem, and were two nearly
+   * identical twenty-line blocks — the second of which had already drifted
+   * (the player's pane answers for every sphere, the enemy's only for its
+   * chest, which is deliberate and now says so once).
+   */
+  private addBody(slot: number, b: HitBody, enemy: Enemy | null, player: Player | null): number {
+    const t = this.claim(slot++);
+    t.enemy = enemy;
+    t.player = player;
+    t.position.set(b.position.x, b.position.y + b.hitHeight * 0.5, b.position.z);
+    t.radius = b.hitRadius + 0.35;
+    t.team = b.team;
+    t.shield = b.shield;
+    t.slot = b.slot;
+    this.targets.push(t);
+    if (!b.parts.length) return slot;
+    const sin = Math.sin(b.yaw), cos = Math.cos(b.yaw);
+    for (const part of b.parts) {
+      const h = this.claim(slot++);
+      h.enemy = enemy;
+      h.player = player;
+      h.position.set(
+        b.position.x + sin * part.z,
+        b.position.y + part.y,
+        b.position.z + cos * part.z,
+      );
+      h.radius = part.r;
+      h.team = b.team;
+      // the raised pane is a real thing in front of the whole fighter, so it
+      // answers for every sphere; a hostile's shield only covers its chest
+      h.shield = b.shieldCoversParts ? b.shield : null;
+      h.slot = b.slot;
+      this.targets.push(h);
+    }
+    return slot;
+  }
+
+  /**
    * A reusable bolt-target entry. Its `onHit` is allocated once and dispatches
    * through the entry, so credit still goes to whoever pulled the trigger —
    * deriving it from the impact position handed player A's kills to player B
@@ -1462,11 +1477,6 @@ export class Game {
     };
     this.targetPool[i] = entry;
     return entry;
-  }
-
-  /** A pooled entry standing in for part of a breakable prop. */
-  private pooledBreakTarget(i: number): PooledTarget {
-    return this.pooledTarget(i);
   }
 
   setState(s: MatchState, timer?: number): void {
