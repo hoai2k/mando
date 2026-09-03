@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeBladeTrail, makeSaber, mat } from '../characters/builder';
 import { audio } from '../core/audio';
-import type { Combatant, Enemy } from '../enemies/enemy';
+import type { Enemy } from '../enemies/enemy';
 import type { Game } from '../game/game';
 import type { Player } from './player';
 
@@ -41,7 +41,7 @@ export class ThrownSaber {
   private traveled = 0;
   private spin = 0;
   /** per-target cut spacing */
-  private hitCd = new Map<Combatant, number>();
+  private hitCd = new Map<object, number>();
   private toHand = new THREE.Vector3();
 
   /**
@@ -156,6 +156,24 @@ export class ThrownSaber {
       game.hitMarker(owner.slot);
       // a saber kill is a melee kill: same fuel refund as a landed swing
       if (wasAlive && !e.alive) owner.fuel = Math.min(1, owner.fuel + 0.4);
+    }
+
+    // And the scenery. For Ventress the thrown blade *is* the ranged weapon —
+    // she has no gun — so anything a bolt can break has to go down to it too:
+    // crates, barrels, the covert's supply cache. Same per-target beat as a
+    // body takes, measured to the nearest point of the prop.
+    for (const b of game.board.breakables ?? []) {
+      if (b.broken || this.hitCd.has(b)) continue;
+      const box = b.box;
+      const nx = Math.min(Math.max(this.spinner.position.x, box.min.x), box.max.x);
+      const ny = Math.min(Math.max(this.spinner.position.y, box.min.y), box.max.y);
+      const nz = Math.min(Math.max(this.spinner.position.z, box.min.z), box.max.z);
+      const dx = nx - this.spinner.position.x, dy = ny - this.spinner.position.y, dz = nz - this.spinner.position.z;
+      if (dx * dx + dy * dy + dz * dz > BLADE_RADIUS * BLADE_RADIUS) continue;
+      this.hitCd.set(b, HIT_CD);
+      game.hurtBreakable(b, owner.profile.meleeDamage);
+      audio.meleeHit('sabers');
+      game.hitMarker(owner.slot);
     }
     return false;
   }

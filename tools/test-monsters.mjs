@@ -129,6 +129,69 @@ const stage = await h.page.evaluate(async () => {
 });
 check('the warlord falls and the ground shakes', stage.quakeSeen, stage);
 check('victory is not called into the quake', !stage.victoryDuringQuake, stage);
+// ---- 2b. the quake is in the ground, so it reaches what is standing on it ----
+//
+// The beat between the warlord falling and the monster coming up is the ground
+// itself opening. It used to go straight to every player's camera, which
+// rattled a Mandalorian hovering forty metres up on the jetpack exactly as
+// hard as one standing in the dust — and with nothing under your feet a
+// rumble stops reading as the world moving and starts reading as the view
+// being broken.
+const rumble = await h.page.evaluate(`(() => {
+  window.__manual = true;
+  const blank = () => ({
+    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+    zoomDelta: 0, blockHeld: false, pausePressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false,
+    throttleHeld: false, brakeHeld: false,
+  });
+  const inputs = [blank(), blank(), blank(), blank()];
+  const DT = 1 / 30;
+  const g = window.__game;
+  const p = g.players[0];
+  const home = p.position.clone();
+  // out from under the monster's introduction first: it runs the simulation at
+  // a fraction of real time, which would stretch every clock this measures
+  for (let i = 0; i < 400 && g.bossIntroT > 0; i++) g.update(DT, inputs);
+  // nothing else is allowed to shake the camera while this is measured
+  const park = () => { for (const e of g.enemies) e.position.set(home.x + 500, home.y, home.z); };
+  const beat = (fly) => {
+    p.position.copy(home);
+    if (fly) p.position.y += 25;
+    p.velocity.set(0, 0, 0);
+    g.monsterQuake = 6;
+    // Settle into the state first, and give it time: the jolt fades out with
+    // the last of the ground contact, so a player who was standing a moment
+    // ago still feels it — which is the point, and not what is being measured.
+    for (let i = 0; i < 40; i++) {
+      park();
+      if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
+      g.update(DT, inputs);
+    }
+    p.cam.shakeAmt = 0;
+    let peak = 0;
+    for (let i = 0; i < 10; i++) {
+      park();
+      if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
+      g.update(DT, inputs);
+      peak = Math.max(peak, p.cam.shakeAmt);
+    }
+    g.monsterQuake = 0;
+    return { peak: +peak.toFixed(3), grounded: p.grounded, y: +p.position.y.toFixed(1) };
+  };
+  const onFoot = beat(false);
+  const flying = beat(true);
+  p.position.copy(home);
+  window.__manual = false;
+  return { onFoot, flying };
+})()`);
+check('the quake shakes a player standing in it',
+  rumble.onFoot.grounded === true && rumble.onFoot.peak > 0.05, rumble);
+check('...and leaves one in the air alone',
+  rumble.flying.grounded === false && rumble.flying.peak < 0.01, rumble);
+
 // and the match must actually be able to end: a stage that never clears its
 // own flag would leave a board nobody can finish
 const ending = await h.page.evaluate(async () => {
