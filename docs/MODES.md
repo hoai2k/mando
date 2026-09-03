@@ -67,7 +67,7 @@ making an enemy individually harder, and each wave that debuts a kind
 announces it on a new-contact card. On the old ally-milestone waves nobody
 walks in on their own any more: a glowing **covert supply cache** drops near
 the party instead (`game/allycrate.ts`) — one solid hit springs it, the side
-panels blow outward, and a squad of five allies (Marshal / IG-11 / Fennec by
+panels blow outward, and a squad of five allies (Marshal / Escort Droid / Fennec by
 wave) walks out to fight for the rest of that wave only. Victory comes when the warlord falls.
 
 ## 3. PvP — territory duel
@@ -123,7 +123,7 @@ player versions are normalised into three lanes:
 - **Skirmisher** (trooper/pyke/pirate/tusken/quarren/alamite/krykna): ~100 HP,
   standard run speed, weaker bolt than the Mandalorian carbine — but they come
   with a **squad**.
-- **Elite** (deathtrooper, duelist, officer, capo, ring enforcer, flame
+- **Elite** (deathtrooper, officer, capo, ring enforcer, flame
   trooper, darktrooper, jetpirate, nikto, droid): 120–160 HP, a signature
   hook (shield pane, darksaber melee, flame-rate fire, flight), no squad.
 - **Heavy** (massiff, broodmother, enforcer): 220–300 HP, melee-only, faster
@@ -274,7 +274,7 @@ One boss system serves both modes, built on the enemy that already exists
 rather than on new content: each territory names a **boss kind** (its
 signature final-wave elite — the Wookiee enforcer on the Dune Sea, the Pyke
 capo on the Spice Run, the broodmother in the Crevasse, the darksaber officer
-in the Refinery, the duelist pair's senior on the Ringworld, and so on) and
+in the Refinery, the gunslinger pair's senior on the Ringworld, and so on) and
 the boss is that enemy **promoted**: ×5 HP, ×1.5 damage, and a
 **boss health bar** on every player's HUD that deepens gold → orange → red
 with the phase. **A warlord reads as a warlord (2026-08-30):** human-sized

@@ -5,7 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open: the Missions v3 outdoor surface set (2026-09-03)** — see
+**Open: the two replacement-NPC character sheets (2026-09-03)** — see
+[below](#replacement-npc-character-sheets--requested-2026-09-03) — **and the Missions v3
+outdoor surface set (2026-09-03)**, see
 [below](#missions-v3--outdoor-surfaces-requested-2026-09-03). Everything before it was
 delivered by 2026-09-02, some of it weeks earlier, and has moved to the history doc:
 the 27 environment prop reference sheets (all with their models in the game), the six
@@ -14,7 +16,8 @@ five canvases including the replacement `sandworm`. The cast, the boards, the sk
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
-What remains below is not a request: the recipe for making more character sheets, and
+Besides the two sets above, what remains below is not a request: the recipe for making
+more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
 future request would otherwise have to rediscover.
 
@@ -82,11 +85,38 @@ which the design prefers for a while — it is what lets a layout change in an
 afternoon), and any new sky (the nine panoramas already cover every level, since a
 mission level sits under its territory's sky).
 
+## Replacement NPC character sheets — requested 2026-09-03
+
+Two new NPCs need their three views: they replace Cad Bane and IG-11 on the hostile and
+ally sides, both of whom are player characters now and no longer NPCs at all (the reasons
+and the model briefs are in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#replacement-npcs--requested-2026-09-03)). Follow the
+recipe below — same canvas, same preamble, `_front` first as the style anchor.
+
+**The one rule that matters here:** neither may resemble the character it replaces. Cad
+Bane's sheets (`duelist_*`) and IG-11's (`ig11_*`) are on file and stay on file, as *their*
+sheets; these two are new designs that must not be mistaken for them at gameplay distance,
+which is the whole point of the change. Descriptions are written as designs, never as named
+characters — the standing rule for this doc, and load-bearing here.
+
+| Files | Height anchor | Subject (append to the shared preamble) |
+|---|---|---|
+| `gunslinger_front/side/back.png` | 1.90 m | a lean humanoid mercenary gunfighter, face completely hidden behind a sealed plated breath mask with a dark horizontal filter slot where the eyes would be and a short round filter cannister at the chin, a soft dark hood pulled low over the mask, a scuffed brown-grey armoured long coat with a stiff standing collar over dark fatigues, worn plate on the shoulders forearms and shins, a bandolier of stubby shells running corner to corner across the chest, empty hands, no hat and no brim of any kind |
+| `escort_droid_front/side/back.png` | 2.20 m | a heavy humanoid bodyguard droid, broad wedge-shaped skull with a long muzzle box under a flat brow and a recessed dark filter slot across the front, two wide-set glowing pale-blue optic lenses, large square shoulder blocks, a thick slab chest plate, heavy segmented limbs with visible hydraulic pistons at the joints, gunmetal shell with dark joints and one scuffed painted stripe, empty hands, no cylindrical head and no exposed spindly frame |
+
+**Two drop-screen portraits with them, optional.** The contact card and the drop screen
+fall back to a drawn mark where `portrait_<kind>.jpg` is missing, so nothing is blocked —
+but `portrait_gunslinger.jpg` and `portrait_escortDroid.jpg` (512×614, head-and-shoulders,
+same recipe as the delivered portrait set in the history doc, subject as above) would
+finish the pair off. `portrait_duelist.jpg` and `portrait_ig11.jpg` stay exactly where they
+are: they are Cad Bane's and IG-11's, on the select and drop screens, and must not be
+re-pointed at the replacements.
+
 ## Making more character reference sheets
 
-Every character in `ASSETS_MODELS.md` already has its three views, so this section is
-here for the next character rather than for anything outstanding. Delivered sheets and
-their prompts are in the history doc.
+Beyond the two sets above, every character in `ASSETS_MODELS.md` already has its three
+views, so this section is here for the next character too. Delivered sheets and their
+prompts are in the history doc.
 
 These are the canonical visual reference for every authored 3D character in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md) — they drive image-to-3D generators (Meshy, Tripo,

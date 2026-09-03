@@ -63,7 +63,7 @@ export function bossRush(): boolean {
 export const BOSS_KIND: Record<BoardId, EnemyKind> = {
   desert: 'enforcer', station: 'capo', nevarro: 'officer',
   crevasse: 'broodmother', trask: 'capo', refinery: 'officer',
-  forge: 'enforcer', ringworld: 'duelist', narkina: 'officer',
+  forge: 'enforcer', ringworld: 'gunslinger', narkina: 'officer',
 };
 
 /** Banner/boss-bar name per territory. */
@@ -90,7 +90,7 @@ export const MID_BOSS: Record<BoardId, MidBossDef> = {
   // final monsters do. It used to be a promoted war massiff, which the Lava
   // Flats also field: no creature bosses two territories now.
   desert:    { kind: 'sandworm',     name: TEXT.bosses.lieutenant.desert, hp: 1, dmg: 1, bulk: 1 },
-  station:   { kind: 'duelist',      name: TEXT.bosses.lieutenant.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
+  station:   { kind: 'gunslinger',   name: TEXT.bosses.lieutenant.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
   nevarro:   { kind: 'massiff',      name: TEXT.bosses.lieutenant.nevarro, hp: 2.6, dmg: 1.2, bulk: 1.3 },
   crevasse:  { kind: 'krykna',       name: TEXT.bosses.lieutenant.crevasse, hp: 14,  dmg: 2.0,  bulk: 1.9 },
   trask:     { kind: 'officer',      name: TEXT.bosses.lieutenant.trask, hp: 2.6, dmg: 1.25, bulk: 1.15 },

@@ -36,7 +36,7 @@ const VENT_CUE_LIFE = 3.4;
 /** ranged kinds, for corridor defenders — the pinch is the cover-discipline beat */
 const RANGED = new Set<EnemyKind>([
   'pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper',
-  'quarren', 'ringEnforcer', 'droid', 'duelist',
+  'quarren', 'ringEnforcer', 'droid', 'gunslinger',
 ]);
 
 interface Pickup {

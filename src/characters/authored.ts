@@ -379,8 +379,8 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   tusken: 'tusken', pyke: 'pyke', pirate: 'pirate', pirateMelee: 'pirate_melee',
   jetpirate: 'pirate', droid: 'droid', nikto: 'nikto', massiff: 'massiff',
   stormtrooper: 'stormtrooper', deathtrooper: 'deathtrooper', darktrooper: 'darktrooper',
-  duelist: 'duelist', officer: 'imperial_officer', capo: 'pyke_capo',
-  enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec', ig11: 'ig11',
+  officer: 'imperial_officer', capo: 'pyke_capo',
+  enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',
   flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
   ringEnforcer: 'ring_enforcer',
   // the three creatures come through loadCreature, but the file is the same
