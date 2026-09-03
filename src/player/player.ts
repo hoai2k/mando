@@ -101,12 +101,6 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
-/** gauge spent turning one bolt aside on a blade */
-/**
- * Gauge spent turning one bolt on the blades, when the blades are *idle*. A
- * live swing costs nothing — see `consumeDeflect`.
- */
-const DEFLECT_ENERGY = 0.035;
 /** the forward block pane's radius, and the closed bubble's (IG-11) */
 const SHIELD_PANE_R = 0.78;
 const SHIELD_BUBBLE_R = 1.25;
@@ -259,12 +253,6 @@ export class Player {
    * she needs to, rather than jogging around lit like a road flare.
    */
   private saberIdle = 0;
-  /**
-   * Spacing between deflects. Short — the gauge, not the clock, is what limits
-   * a parry, and a squad's shots arriving together should mostly be turned —
-   * but non-zero, so a single burst cannot be met with one blade sweep.
-   */
-  private deflectCd = 0;
   /** scratch for the saber deflect collider */
   private saberSphere = {
     center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
@@ -930,24 +918,18 @@ export class Player {
   deflectEnemy: { position: THREE.Vector3 } | null = null;
 
   /**
-   * Charged per bolt turned, so holding blades into sustained fire costs the
-   * same gauge as sprinting. Returning false lets the bolt through.
+   * The blades turn everything they are facing, for as long as she holds them
+   * up. No cooldown and no gauge: what limits the guard is where she is
+   * pointing, not how long she has been at it — a shot from behind lands, and
+   * that is the only way through.
+   *
+   * This replaced a per-bolt energy charge plus a 0.05 s spacing. Both were
+   * balance guesses of mine, and both leaked bolts through a guard that was
+   * plainly working, which reads as the parry being broken rather than as a
+   * cost being paid. The arc does the limiting instead (`saberSphere.minDot`).
    */
   private consumeDeflect(): boolean {
-    if (this.deflectCd > 0) return false;
-    // A blade that is *moving* turns whatever it meets, and costs nothing to
-    // do it: while a swing is live the parry is the swing. Standing with the
-    // guard up still works, and that is what the gauge pays for. Without this
-    // split, sustained fire emptied the gauge in a couple of seconds and then
-    // everything landed while she was visibly swinging through it.
-    const swinging = this.meleeTimer > 0;
-    if (!swinging) {
-      if (this.energy <= 0) return false;
-      this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
-      this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
-    }
-    this.deflectCd = 0.05;
-    this.saberIdle = 0;
+    this.saberIdle = 0;   // turning a bolt counts as using the blades
     return true;
   }
 
@@ -2250,7 +2232,6 @@ export class Player {
   }
 
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
-    this.deflectCd -= dt;
     // Which slot is in hand is never something the player has to arrange: the
     // button that uses a weapon is the button that draws it. All the D-pad
     // does is pick *which* blade or which gun that is, for a fighter carrying
