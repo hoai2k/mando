@@ -248,6 +248,13 @@ const walk = await page.evaluate(async () => {
         if (zz.hatches.some((ht) => ht.gate.open_)) out.hatched = true;
       }
     }
+    // Clear whatever the zone sent, the way `test-modes` does. This walk is
+    // about the *level* — that the way on opens, that a wave arrives and from
+    // where, that a stage hands over to the next one, that the run can be
+    // finished. Whether a party steering in a straight line and holding the
+    // trigger can also out-fight the board's own garrison is a different
+    // question, and answering it here would only ever tell us the AI won.
+    for (const e of g.enemies) if (e.alive) e.damage(9999999, e.position, 0);
     // Advance once the party is standing on this point — or, if a point can
     // not be reached at all, after long enough that the walker is clearly
     // wedged rather than slow. A walker that cannot get past a point is worth
