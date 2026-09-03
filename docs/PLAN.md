@@ -144,6 +144,26 @@ This is the flexibility the brief demands:
 
 ## 7. Characters (procedural, show-accurate styling)
 
+**A player character is never an NPC (2026-09-03).** Anyone on the character
+select screen is a fighter you *pick*, and the game does not also field them as
+a hostile or as an ally NPC in Waves or Missions. Two characters were in both
+places and were pulled from the NPC side: **Cad Bane** (`duelist`), who had
+been every board's late-wave gunslinger elite, the Prison Rig's lieutenant and
+the Ringworld's warlord, and **IG-11** (`ig11`), who had been the wave-5 ally
+in the covert supply cache. The `duelist` and `ig11` *enemy kinds* are gone
+from `EnemyKind` entirely rather than merely unspawned, so there is no table
+left to accidentally re-add them to. PvP is untouched: it opens the roster to
+the NPC cast, which is the opposite direction and needs no exception here.
+
+Their two roles did not go with them, since the wave tables were built around
+them. Each was replaced by a new, unnamed NPC of the same shape (below), on the
+retired kind's exact stats so no board's balance moved:
+
+| Retired player character | The role it held | Replacement NPC |
+|---|---|---|
+| Cad Bane (`duelist`) | lone late-wave ranged elite on all nine boards; Prison Rig lieutenant; Ringworld warlord | **`gunslinger`** — Guild Gunslinger |
+| IG-11 (`ig11`) | the wave-5 droid ally | **`escortDroid`** — Escort Droid |
+
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
 | **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
@@ -152,8 +172,8 @@ This is the flexibility the brief demands:
 | **Asajj Ventress** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). **Melee only** — she carries no ranged weapon, and turns blaster bolts back at their shooter instead. |
 | **Embo** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
 | **Bossk** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |
-| **Cad Bane** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. He is also the Ringworld's final-wave elite, the same sculpt on both sides. |
-| **IG-11** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. |
+| **Cad Bane** (player, `duelist`) | Hunter | Blue-skinned gunslinger, wide-brim hat, twin heavy pistols — one on each weapon mount. **Player-only:** he was also the Ringworld's final-wave elite until 2026-09-03; a character you can pick is not also a body you shoot, so the hostile side got its own `gunslinger` instead. |
+| **IG-11** (player, `ig11`) | Hunter | Assassin droid; wears no jetpack, so flight runs on leg thrusters mounted under the feet. Long rifle. **Player-only:** he was also the wave-5 ally until 2026-09-03, and the covert's `escortDroid` holds that cache now. |
 | **War massiff** | Tatooine elite (wave 5+) | Armoured quadruped predator: slab-sided hide under a spine of dorsal plates and spikes, flank scutes, heavy tusked skull slung low and forward, thick segmented tail. 2.1 m tall, 5.6 m long. Runs down anyone who tries to jog away and pounces the last 16 m. |
 | **Tusken Raider** | Tatooine melee | Sand-wrapped robes, bandolier, cylindrical eye-stalk helmet in the low-profile style, swings gaderffii. *Neutral-turned-hostile "outcast raiders".* |
 | **Pyke soldier** | Ranged, both boards | Tall tapered grey-green helmet w/ narrow eyes, tubes to chest rig, slate/teal coats, blaster rifles. Main "easy grunt". |
@@ -166,7 +186,9 @@ This is the flexibility the brief demands:
 | **Alamite** | Melee (Great Forge) | Pale hunched cave-dweller, tusked underbite, bony dorsal ridge, stone club. |
 | **Interceptor drone** | Kamikaze flier (Great Forge) | Black probe-style drone, red eye, dangling arms; stalks, whines, then commits to an unsteered dive — the whine is the dodge cue. |
 | **Ringworld enforcer** | Shielded shooter (Ringworld) | Oxblood plate + tower shield whose energy pane reflects bolts; flank it, rush it, or rocket it. |
-| **Elites and bosses** (shipped) | Late waves | The **duelist** gunslinger and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated **boss fights** shipped 2026-08-29: wave 8 (past the seventh and last wave) and the campaign arena both open on a letterboxed introduction card over slow motion, run phase turns at ⅔/⅓ health (repulsor pulse, retinue call, an enrage at the last third), tint the boss bar by phase, and punish camping at the warlord's feet with a telegraphed shock-slam. |
+| **Guild gunslinger** (`gunslinger`) | Lone ranged elite, all boards (late waves) | Freelancer out of the hunters' guild: sealed breath mask under a low hood, armoured long coat with a standing collar, shell bandolier across the chest, a heavy pistol in each hand. Fast (7.2 m/s), accurate, hits for 16 — and folds if you can close on him. Replaced Cad Bane on the hostile side; deliberately a *type*, not a face, so nothing about him can end up on the select screen. |
+| **Escort droid** (`escortDroid`) | Ranged ally (wave-5 supply cache) | Bodyguard droid, not an assassin one: broad wedge skull with a dark filter slot and paired blue optics, heavy shoulder blocks, slab chest, 2.2 m. Lays down a four-round volley at 32 m. Replaced IG-11 in the ally caches; distinct in silhouette from both IG's cylinder head and the 8D8-style battle droid above. |
+| **Elites and bosses** (shipped) | Late waves | The **guild gunslinger** and the darksaber-carrying **Imperial officer** arrive as late-wave elites; the **Pyke capo** (personal shield) and the **Krrsantan-class Wookiee enforcer** spawn one each on the final wave only, so they read as bosses rather than another body in the crowd. Dedicated **boss fights** shipped 2026-08-29: wave 8 (past the seventh and last wave) and the campaign arena both open on a letterboxed introduction card over slow motion, run phase turns at ⅔/⅓ health (repulsor pulse, retinue call, an enrage at the last third), tint the boss bar by phase, and punish camping at the warlord's feet with a telegraphed shock-slam. |
 
 Faces/details are low-poly stylized (not realistic) — a deliberate "stylized action figure" art direction that procedural geometry can actually deliver at high quality, reads instantly, and won't clash when authored models arrive.
 
@@ -225,7 +247,7 @@ partner keeps the daylight.
 - **Board 8 — Glavis, "The Ringworld."** A city street strip at 0.85 g under a terminator
   sweeping a 210-second cycle — enemy sight ranges halve on the night side, so both sides
   migrate with the light. Walkable rooftops, neon, a rideable armored tram the length of
-  the board, shielded ringworld enforcers, and the duelist pair as the final wave.
+  the board, shielded ringworld enforcers, and the gunslinger pair as the final wave.
 - **Board 9 — "The Prison Rig."** A sterile white Imperial labour facility on pylons over
   an ocean world (Narkina-flavoured). Above the surface: platform fighting with
   **electrified deck sections** that charge (blink + rising whine) and go live on a cycle,
@@ -314,7 +336,7 @@ Enemies value their own lives, per RDR2's combat AI:
   runs, vulnerable window after each pass; loiters near its post until alerted.
 - **Turret** (droid): stationary, slow tracking beam, high damage — priority-target puzzle.
 - **Beast** (war massiff): `relentless` — exempt from the director's standoff rotation and from morale breaks, because a predator that waits its turn or runs away isn't one. Chases at 10.5 m/s (a jog is 9.2, a sprint 14.4, so it catches anyone who doesn't spend the energy gauge) and closes the last 4–16 m with a ballistic **pounce**, led to intercept the target's velocity. The leap has no steering once airborne, so a dash or jetpack hop to the side beats it; a miss costs it 0.7 s. 300 HP with hit spheres on the skull and haunches as well as the torso, since one capsule sphere can't cover a five-metre body.
-- **Allies** (Marshal, IG-11, Fennec) escort rather than hunt: they engage what is
+- **Allies** (Marshal, Escort Droid, Fennec) escort rather than hunt: they engage what is
   near the player, and come back if they stray past ~34 m.
 
 Difficulty ramps by wave count and mix, not by bullet-sponging (grunts stay 2–4

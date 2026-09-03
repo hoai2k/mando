@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: the two [replacement NPCs](#replacement-npcs--requested-2026-09-03) the player-character cleanup left without a sculpt, the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -48,11 +48,20 @@ signature weapons below are separate props or FX).
 
 **Every hunter model is delivered and integrated** — the three hunters on 2026-08-28, and
 the **blue-skinned gunslinger** on 2026-08-29, who is playable as Cad Bane from the
-delivered `duelist.glb` and its sheets as-is. He is also the `duelist` enemy kind on the
-Ringworld's final wave: the same sculpt on both sides, which is deliberate. An optional
-re-export at playable budget can come later if the 8k boss version reads poorly up close.
-The fifth of the family, **IG-11**, rides the delivered ally droid model (`ig11.glb`) on
-the canonical rig, so it needed no new sculpt.
+delivered `duelist.glb` and its sheets as-is. An optional re-export at playable budget can
+come later if the 8k boss version reads poorly up close. The fifth of the family,
+**IG-11**, rides the delivered ally droid model (`ig11.glb`) on the canonical rig, so it
+needed no new sculpt.
+
+**Both files are now player-only (2026-09-03).** `duelist.glb` was also the `duelist`
+enemy kind on every board's late waves and `ig11.glb` the wave-5 ally — the same sculpt on
+both sides, which had been deliberate and is no longer: a character you can pick off the
+select screen is not also a body you shoot or escort. Those two enemy kinds are deleted,
+and the roles they held are carried by two new NPCs, `gunslinger` and `escortDroid`, whose
+sculpts are [requested below](#replacement-npcs--requested-2026-09-03). **Neither
+replacement may reuse `duelist.glb` or `ig11.glb`** — borrowing either file puts the
+player character straight back on the NPC side, which is the whole thing this change
+removed.
 
 | Character | Id / reference sheets | Height | Reference look |
 |---|---|---|---|
@@ -81,9 +90,11 @@ meshes on the right mount, one on the left, no procedural weapon left showing).
 
 ## Allies — priority 2
 
+(IG-11 held the third ally slot until 2026-09-03; he is playable-only now, and the
+`escortDroid` [requested below](#replacement-npcs--requested-2026-09-03) took his place.)
+
 | Character | Type | Reference sheets | Reference look |
 |---|---|---|---|
-| **IG-11** (`ig11`) | `ig11_front/side/back.png` | ranged ally — also playable, above | Tall spindly assassin droid, cylindrical head with red sensor ring, exposed piston limbs (~2.2 m). |
 | **The Marshal** | `marshal_front/side/back.png` | ranged ally | Human gunfighter, red-brown duster coat, wide-brim hat, weathered desert lawman. |
 | **Fennec Shand** | `fennec_front/side/back.png` | sniper ally | Sleek dark body armor, helmet cap with orange visor band, long rifle. |
 
@@ -131,9 +142,10 @@ above unlock the procedural animation.
 ## Bosses — delivered, in game as elites
 
 All four models are delivered, integrated and fighting. Rather than wait for dedicated
-boss encounters, each entered as a late-wave elite: the duelist (also playable, above) and
-the darksaber-carrying Imperial officer from waves 7–10, and the Pyke capo and Wookiee
-enforcer one each on the final wave only. Purpose-built boss *fights* — phases, arenas, a
+boss encounters, each entered as a late-wave elite: the duelist and the darksaber-carrying
+Imperial officer from waves 7–10, and the Pyke capo and Wookiee enforcer one each on the
+final wave only. (The duelist has since left the hostile roster — he is Cad Bane, and
+Cad Bane is playable; the `gunslinger` below holds his slots.) Purpose-built boss *fights* — phases, arenas, a
 boss bar — remain future work, and their voice sets are deferred with them
 (see [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md)).
 
@@ -142,7 +154,32 @@ boss bar — remain future work, and their voice sets are deferred with them
 | **Krrsantan-class Wookiee enforcer** | `wookiee_enforcer_front/side/back.png` | Towering black-furred Wookiee gladiator (~2.6 m), chest bandolier, fighting gauntlets. |
 | **Pyke capo** | `pyke_capo_front/side/back.png` | Ornate Pyke in embroidered robes with personal shield generator effect. |
 | **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
-| **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. |
+| **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. **Playable-only since 2026-09-03** — the file stays, as Cad Bane's; it is no longer an enemy. |
+
+## Replacement NPCs — requested 2026-09-03
+
+**Why:** Cad Bane and IG-11 are player characters, and as of 2026-09-03 they are *only*
+that — the `duelist` and `ig11` enemy kinds are deleted, so neither appears as a hostile
+or as an ally in Waves or Missions (see `docs/PLAN.md` §7). Both held real roles that the
+wave tables were built around, and each is now filled by a new NPC carrying the retired
+kind's exact stats, so no board's balance moved. **Both ship today as procedural bodies**
+(`buildGunslinger` / `buildEscortDroid` in `src/characters/enemies.ts`) and play correctly
+without a file; these two sculpts are what turns them from a stand-in into a character.
+
+**Hard constraint on both: do not reuse or re-dress `duelist.glb` or `ig11.glb`.** Those
+files are Cad Bane and IG-11. Putting either back on the NPC side, in any recognisable
+form, undoes the change. Each brief below is written for a *type* rather than a face, on
+purpose — nothing about these two should ever read as a character you could pick.
+
+Standard swap contract, grunt/elite budget (≤ 8k tris, one 512² PBR set), canonical rig,
+origin at the feet, +Z forward, relaxed A-pose. Reference sheets are requested alongside
+in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md); as everywhere in this document, the sheet wins
+over the prose where they disagree.
+
+| Character | Id / reference sheets | Height | Reference look |
+|---|---|---|---|
+| **Guild gunslinger** | `gunslinger` — `gunslinger_front/side/back.png` | 1.90 m | A freelancer out of the hunters' guild, anonymous behind his kit. Sealed breath mask — a plated skull with a dark horizontal filter slot where the eyes would be and a short round filter at the chin, **no face visible at any angle**. Low soft hood pulled over the plate, and a stiff standing collar on an armoured long coat in worn brown-grey leather over dark fatigues; scuffed plate at the shins, forearms and shoulders. A shell bandolier runs corner to corner across the chest — the one thing that has to read at 30 m. Two heavy pistols, one in each hand, on `weaponR` and `weaponL` (the delivered `pistol.glb` is what he holds, so leave the hands empty). No hat, no brim, no breathing tubes to the temples, no blue skin: he must not be mistaken for Cad Bane at any distance. |
+| **Escort droid** | `escort_droid` — `escort_droid_front/side/back.png` | 2.20 m | A bodyguard droid, not an assassin one — heavy where IG-11 is spindly. Broad wedge skull: a long muzzle box under a flat brow, a recessed dark filter slot across the front, and **two blue optics** set wide (blue, so it reads as friendly across a firefight — the hostile droids on the board all run red). Big square shoulder blocks, a slab chest plate, thick segmented limbs with visible hydraulic runs, gunmetal shell with dark joints and a scuffed painted stripe. Carries a rifle on `weaponR` (shared prop). **Not** a cylinder head, **not** a red sensor ring, **not** exposed piston limbs: the silhouette has to be legible as "not IG-11" from the far end of a board, and equally as "not the 8D8-style battle droid" the player is shooting at. |
 
 ## Monster bosses — requested and delivered 2026-08-29
 

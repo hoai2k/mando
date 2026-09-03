@@ -28,7 +28,7 @@ export const MID_BOSS_WAVE = 4;
  * want. The beats bracket the boss battles: one before the lieutenant, one
  * right after it, one for the final wave before the warlord.
  */
-export const ALLY_WAVES: Record<number, EnemyKind> = { 3: 'marshal', 5: 'ig11', 7: 'fennec' };
+export const ALLY_WAVES: Record<number, EnemyKind> = { 3: 'marshal', 5: 'escortDroid', 7: 'fennec' };
 
 interface WaveEntry { kind: EnemyKind; count: number; air?: boolean; }
 
@@ -56,7 +56,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(6, 'deathtrooper', ramp(5, 1, 3));
       at(6, 'darktrooper', 2, true);
       // the gunslinger turns up late, and alone
-      at(5, 'duelist', 1);
+      at(5, 'gunslinger', 1);
       at(6, 'officer', 1);
       at(FINAL_WAVE, 'enforcer', 1);
       break;
@@ -70,7 +70,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(4, 'stormtrooper', n(1, 0.7));
       at(5, 'darktrooper', ramp(5, 1, 3), true);
       at(6, 'deathtrooper', 2);
-      at(6, 'duelist', 1);
+      at(6, 'gunslinger', 1);
       at(7, 'officer', 1);
       at(FINAL_WAVE, 'capo', 1);
       break;
@@ -85,7 +85,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(4, 'droid', ramp(3, 1, 3));
       at(4, 'massiff', ramp(4, 2, 2));
       at(5, 'deathtrooper', ramp(5, 1, 3));
-      at(6, 'duelist', 1);
+      at(6, 'gunslinger', 1);
       at(6, 'darktrooper', 2, true);
       at(FINAL_WAVE, 'officer', 1);
       break;
@@ -99,7 +99,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(4, 'droid', ramp(4, 2, 2));
       at(4, 'deathtrooper', ramp(4, 2, 2));
       at(5, 'darktrooper', ramp(5, 2, 2), true);
-      at(6, 'duelist', 1);
+      at(6, 'gunslinger', 1);
       at(FINAL_WAVE, 'broodmother', 1);
       break;
 
@@ -112,7 +112,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(4, 'droid', ramp(4, 2, 2));
       at(4, 'stormtrooper', n(1, 0.7)); // the freighter was never carrying fish
       at(5, 'deathtrooper', ramp(5, 2, 2));
-      at(6, 'duelist', 1);
+      at(6, 'gunslinger', 1);
       at(6, 'darktrooper', 2, true);
       at(FINAL_WAVE, 'capo', 1);
       break;
@@ -123,7 +123,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(2, 'flametrooper', ramp(2, 1, 4)); // corridors are their country
       at(3, 'deathtrooper', ramp(3, 1, 3));
       at(4, 'darktrooper', ramp(4, 1, 3), true);
-      at(5, 'duelist', 1);
+      at(5, 'gunslinger', 1);
       at(6, 'officer', 1);
       at(FINAL_WAVE, 'officer', 1);
       break;
@@ -135,7 +135,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(4, 'deathtrooper', ramp(4, 1, 3));
       at(4, 'droid', ramp(4, 2, 2));
       at(5, 'darktrooper', ramp(5, 1, 3), true);
-      at(6, 'duelist', 1);
+      at(6, 'gunslinger', 1);
       at(FINAL_WAVE, 'officer', 1);
       at(FINAL_WAVE, 'enforcer', 1);
       break;
@@ -147,7 +147,7 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(2, 'deathtrooper', ramp(2, 1, 3));
       at(3, 'darktrooper', ramp(3, 1, 3), true);
       at(4, 'flametrooper', ramp(4, 2, 2));
-      at(5, 'duelist', 1);
+      at(5, 'gunslinger', 1);
       at(6, 'officer', 1);
       at(FINAL_WAVE, 'officer', 1);
       break;
@@ -159,10 +159,10 @@ export function waveComposition(board: BoardId, wave: number, players: number): 
       at(2, 'pyke', n(1, 0.7));
       at(3, 'jetpirate', Math.min(1 + ((wave / 2) | 0), 3), true);
       at(4, 'droid', ramp(4, 1, 3));
-      at(4, 'duelist', 1); // assassin country
+      at(4, 'gunslinger', 1); // assassin country
       at(5, 'deathtrooper', ramp(5, 2, 2));
       at(6, 'darktrooper', 2, true);
-      at(FINAL_WAVE, 'duelist', 2);
+      at(FINAL_WAVE, 'gunslinger', 2);
       at(FINAL_WAVE, 'ringEnforcer', 2);
       break;
   }

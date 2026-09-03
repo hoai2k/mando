@@ -23,7 +23,7 @@ export function helmetSvg(primary: string, accent: string, visor: string): strin
 }
 
 const BEASTS = new Set<EnemyKind>(['krykna', 'broodmother', 'massiff', 'alamite']);
-const DROIDS = new Set<EnemyKind>(['droid', 'darktrooper', 'drone', 'ig11']);
+const DROIDS = new Set<EnemyKind>(['droid', 'darktrooper', 'drone', 'escortDroid']);
 
 export function beastSvg(): string {
   return `<svg viewBox="0 0 100 120" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
