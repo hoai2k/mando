@@ -38,6 +38,15 @@ export interface CharacterInstance {
    */
   eggSpot?: (index: number, out: THREE.Vector3) => boolean;
   /**
+   * What egg-rack sac `index` is showing this frame: `fill` 0 (collapsed) to 1
+   * (the sculpt's own egg, untouched) and `shade` on the same scale, 0 dark
+   * through 1 for the full pale shell. The readout answering for itself, so a
+   * check can hold the clutch to what the player actually sees rather than
+   * digging through whichever rack — sculpt or stand-in — happens to be live
+   * (`tools/test-brood.mjs`).
+   */
+  eggShown?: (index: number) => { fill: number; shade: number } | null;
+  /**
    * Play this character's attack — a lunge-bite, a leg strike, a claw swipe —
    * and return its duration in seconds. Only the self-animating creatures
    * carry this: characters on the canonical humanoid rig attack through their

@@ -11,7 +11,8 @@
     "audit:boards": "node tools/audit-collision.mjs",
     "audit:spawns": "node tools/audit-spawns.mjs",
     "audit:hitboxes": "node tools/audit-hitboxes.mjs",
-    "audit:props": "node tools/audit-props.mjs"
+    "audit:props": "node tools/audit-props.mjs",
+    "audit:eggrack": "node tools/audit-eggrack.mjs"
   },
   "dependencies": {
     "three": "^0.168.0"
