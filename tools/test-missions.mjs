@@ -42,7 +42,9 @@ const step = (n, over = null) => page.evaluate(STEP, [n, over]);
 
 const startMode = async (mode, players, board, chars, query = '') => {
   if (query) {
-    await page.goto(`http://localhost:${PORT}/${query}`);
+    // `?board=reload` is not a game flag — it is how this suite asks for a
+    // fresh page without changing anything the game reads.
+    await page.goto(`http://localhost:${PORT}/${query === '?board=reload' ? '' : query}`);
     await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
   }
   await page.evaluate(([m, n, b, c]) => {
@@ -353,7 +355,12 @@ check('to the stage as they left it, cleared', portal.rememberedCleared, JSON.st
 
 const boards = ['desert', 'station', 'nevarro', 'crevasse', 'trask', 'refinery', 'forge', 'ringworld', 'narkina'];
 for (const board of boards) {
-  await startMode('campaign', 1, board, ['din']);
+  // A fresh page per board. Nine territories raised back to back in one page
+  // is nine boards' worth of geometry and art through one renderer, and this
+  // box runs out of memory somewhere around the seventh — a crash that says
+  // nothing about any of the levels. Reloading costs a few seconds and makes
+  // the result mean what it says.
+  await startMode('campaign', 1, board, ['din'], '?board=reload');
   const audit = await page.evaluate(() => {
     const g = window.__game;
     const c = g.campaign;
