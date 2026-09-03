@@ -94,8 +94,15 @@ const hunt = await page.evaluate(`(() => {
   const g = window.__game;
   const mum = g.players[0];
   const rival = g.players[1];
-  // stand them well apart, and hold the rival still so the gap is the test
+  // Stand them well apart, and take the rival's SQUAD off the board: a hunter
+  // crosses to whatever is *nearest*, so with tuskens walking up to the queen
+  // the spider correctly bites one of those and never leaves home — hunting
+  // working, read as hunting failing. One distant rival is the only way this
+  // check means what it says.
   rival.position.set(mum.position.x + 46, rival.position.y, mum.position.z);
+  for (const e of g.enemies) {
+    if (e.owner === rival) { e.alive = false; e.removeMe = true; }
+  }
   (${STEP})(6, 'rocketPressed');
   (${STEP})(30 * 6);          // the egg incubates for five seconds
   const brood = g.enemies.filter((e) => e.owner === mum && e.alive && !e.def.egg);
