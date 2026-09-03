@@ -19,13 +19,22 @@ interface Plat { x: number; y: number; z: number; w: number; d: number; }
 /**
  * The station's gravity field: this board is a vacuum, not a planet, and the
  * only reason it has a down at all is that there are decks to land on.
- * `DRIFT_GRAVITY` is what acts on you anywhere with nothing beneath
- * you: barely enough to give the scene an up. `PAD_GRAVITY` is what acts
- * directly over a deck, unchanged from the flat 0.45 the board used to run, so
- * fighting on a platform feels exactly as it did. Between `GRAV_FULL` and
- * `GRAV_REACH` metres above a surface the two blend.
+ *
+ * `DRIFT_GRAVITY` is what acts on you with nothing beneath you, and it is
+ * **zero**, because that is what deep space is. It used to be 0.05 — a
+ * twentieth of a g, which sounds like nothing and is 1.3 m/s²: five seconds
+ * of drifting between platforms and you are falling at 6.5 m/s, in a place
+ * the player was told has no down. Out here you keep whatever velocity you
+ * had and you go where you point.
+ *
+ * `PAD_GRAVITY` is what acts directly over a deck, unchanged from the flat
+ * 0.45 the board used to run, so fighting on a platform feels exactly as it
+ * did. Between `GRAV_FULL` and `GRAV_REACH` metres above a surface the two
+ * blend. The pull only ever comes from something *below* you
+ * (`supportBelow`), so passing under a gantry is weightless — a deck you are
+ * beneath is not a deck you could land on.
  */
-const DRIFT_GRAVITY = 0.05;
+const DRIFT_GRAVITY = 0;
 const PAD_GRAVITY = 0.45;
 const GRAV_FULL = 5;
 const GRAV_REACH = 18;
