@@ -230,9 +230,12 @@ const walk = await page.evaluate(async () => {
         if (!p || !p.alive) return i;
         const dx = goal.x - p.position.x, dz = goal.z - p.position.z;
         const d = Math.hypot(dx, dz) || 1;
-        // the camera is behind the body, so its yaw is the heading
+        // The camera is behind the body, so its yaw is the heading and the
+        // stick's forward axis walks along it. Forward is +1 (`FrameInput`
+        // says so: "-1..1 (forward+)"); -1 walks the party backwards away
+        // from everything they are being steered at.
         p.cam.yaw = Math.atan2(dx, dz);
-        i.moveY = -1;
+        i.moveY = 1;
         i.shootHeld = true;
         i.sprintHeld = d > 14;
         return i;
@@ -298,6 +301,7 @@ const portal = await page.evaluate(async () => {
   for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
   const portal = c.stage.exitPortal;
   out.portalOpens = portal.open_;
+  const oldBodies = new Set(g.enemies);
   // one player steps into the pocket: the whole party goes
   const before = c.stageIdx;
   const p = g.players[0];
@@ -307,7 +311,9 @@ const portal = await page.evaluate(async () => {
   }
   out.forwardTook = c.stageIdx === before + 1;
   out.bothMoved = g.players.every((q) => Math.abs(q.position.y - c.stage.floorY) < 6);
-  out.enemiesCarried = g.enemies.filter((e) => e.alive).length;
+  // Only bodies from the *old* map count: the new stage stands its own
+  // garrison up as it is raised, and those are supposed to be there.
+  out.enemiesCarried = g.enemies.filter((e) => e.alive && oldBodies.has(e)).length;
   out.hasBack = !!c.stage.backPortal;
 
   // the way back: one in the pocket is a wait, not a transit
