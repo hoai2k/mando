@@ -48,6 +48,13 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
 const HIT_IFRAMES = 0.3;
 /** how long an X press during a swing waits for the swing to clear */
 const MELEE_BUFFER = 0.25;
+/**
+ * How much of a hit aimed at a mounted rider carries into the ride under them.
+ * The rider takes the hit in full — they are the one in the open — and this is
+ * the splash off it: enough that a firefight fought from the saddle wears the
+ * ride down, nowhere near enough to make the hull a health bar again.
+ */
+const RIDER_HIT_BLEED = 0.25;
 /** and a fresh body gets a moment to find its feet before it can be shot */
 const RESPAWN_IFRAMES = 1.6;
 /** shove per hit, m/s, before the damage scale */
@@ -751,12 +758,17 @@ export class Player {
     // detonation turns the big, telegraphed hit into nothing. The callers
     // that commit to a hit say so; everything else still waits its turn.
     if (!opts.dot && !opts.heavy && amount < 500 && this.hitGuard > 0) return;
-    // Mounted, the hull is your HP: hits on the rider land on the vehicle —
-    // until it gives out. Kill zones (999) still kill the rider outright.
+    // Mounted, you are still the one in the open (PLAN.md §17, second pass).
+    // The hull used to soak every hit aimed at the rider, which made a ride a
+    // suit of armour worth more than the fight: a skiff's plate is not between
+    // a bolt and a man standing on its deck. What is aimed at the rider hits
+    // the rider; the hull has its own hit spheres and takes what is aimed at
+    // it. A share of it does carry into the ride — a swing or a blast around
+    // the saddle chews the thing you are sitting on — so a mounted fight
+    // still costs the ride something.
     if (this.vehicle && amount < 500) {
-      this.vehicle.damage(amount, from, -1);
+      this.vehicle.damage(amount * RIDER_HIT_BLEED, from, -1);
       this.noteVehicleHit(from);
-      return;
     }
     // A raised shield is a shield: the pane already turns bolts, and now a
     // swing, a flame or a slam arriving from the front lands at half force,
@@ -2012,9 +2024,11 @@ export class Player {
   }
 
   /**
-   * In the saddle: input drives the vehicle, the rider sits its seat, and the
-   * hull soaks the fire. RB steps off beside the ride; A hops off upward —
-   * straight into a jetpack chain, which is the fun exit.
+   * In the saddle: input drives the vehicle and the rider sits its seat —
+   * exposed, since a mounted rider takes what is aimed at them (only a
+   * quarter of it bleeds into the ride). RB steps off beside a parked ride and
+   * bails out of a moving one; either way a ride left with speed in it rolls
+   * on driverless until it stops.
    */
   private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
     const anim = this.char.animator!;

@@ -476,10 +476,17 @@ export class ParticleFX {
 
   dustPuff(p: THREE.Vector3, n = 8): void { this.dust.spawn(p, new THREE.Vector3(0, 1.2, 0), 2.4, 0.9, n); }
   runDust(p: THREE.Vector3): void { this.dust.spawn(p, new THREE.Vector3(0, 0.5, 0), 1, 0.5, 1); }
-  explosion(p: THREE.Vector3): void {
-    this.boom.spawn(p, new THREE.Vector3(0, 3, 0), 12, 0.6, 60);
-    this.smoke.spawn(p, new THREE.Vector3(0, 2, 0), 4, 1.4, 25);
-    this.sparks.spawn(p, new THREE.Vector3(0, 5, 0), 14, 0.5, 40);
+  /**
+   * A blast, at the size of the thing that made it. `scale` is a linear
+   * multiplier on how far the fireball throws and how long it hangs, and goes
+   * in over the particle count as well — a rocket is 1, a swoop going up is
+   * about half that, a laden cargo skiff a good two.
+   */
+  explosion(p: THREE.Vector3, scale = 1): void {
+    const n = (base: number) => Math.round(base * Math.min(2.2, 0.55 + scale * 0.65));
+    this.boom.spawn(p, new THREE.Vector3(0, 3 * scale, 0), 12 * scale, 0.6 * (0.7 + scale * 0.4), n(60));
+    this.smoke.spawn(p, new THREE.Vector3(0, 2 * scale, 0), 4 * scale, 1.4 * (0.7 + scale * 0.4), n(25));
+    this.sparks.spawn(p, new THREE.Vector3(0, 5 * scale, 0), 14 * scale, 0.5 * (0.7 + scale * 0.4), n(40));
   }
   deathBurst(p: THREE.Vector3, n = 25): void {
     this.sparks.spawn(p, new THREE.Vector3(0, 3, 0), 7, 0.4, n);
