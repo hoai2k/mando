@@ -102,12 +102,27 @@ ground reaching backward with his heels, and then cut to a crouch.
 | `flyLower/Upper` | the forward cruise | trail back ~16°, knees folded |
 | `flyFall*` | descending below −26° | plumb and a shade forward, body upright |
 | `flyBrace*` | ground within ~1.8 m, or ~0.4 s of sink away | knees up, shins down, feet reaching, toes level |
+| `flyDrift*`, `flyDriftL*` | travel diverges 52°+ laterally from facing | swing out across the body, trailing the drift |
 
-All four share the cruise's 1.6 s breath, and their thighs form a continuum
-from +18° (trailing) to −30° (reaching), so any two cross-fade through shapes
-a leg can actually make. `flightPose` (src/anim/animator.ts) picks between
-them off the climb angle and the ground below, with a second threshold on
-every boundary so a body sitting on one does not strobe.
+The first four share the cruise's 1.6 s breath, and their thighs form a
+continuum from +18° (trailing) to −30° (reaching), so any two cross-fade
+through shapes a leg can actually make. `flightPose` (src/anim/animator.ts)
+picks between them off the climb angle and the ground below, with a second
+threshold on every boundary so a body sitting on one does not strobe.
+
+The drift is the odd one out: it reads *heading* rather than climb, and only
+displaces the cruise — a steep climb or descent keeps its plumb legs however
+sideways it is going, because at that angle the legs hang off the pack and
+there is no drift left to trail. It is the airborne twin of `strafeLower`
+standing in for the run, down to the sides (`flyDriftLower` is travel toward
+−X, the character's own right, and `flyDriftLLower` is its mirror) and to
+being reachable only while facing and travel can diverge — which in flight
+means with the sights up. It is deliberately **not** a bank: the pelvis and
+spine stay level to the world and every bit of the lateral information lives
+in the thighs, with the arms counterweighting above. A jet banks; a man on a
+pack hangs upright off it and swings his legs out behind the way he is going.
+Turning hard in flight brushes it in passing — facing lags travel through the
+turn — which swings the legs out through the corner for free.
 
 The brace is deliberately most of the way to `landLower`'s first frame, which
 is what makes touchdown a blend rather than a cut: the reach continues into

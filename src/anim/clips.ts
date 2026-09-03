@@ -379,6 +379,13 @@ function makeClips(p: Proportions): ClipSet {
   //   flyFall   descending under the pack — legs plumb and a shade forward
   //   flyBrace  the ground is close — knees up, shins down, feet reaching
   //
+  // ...and one more that cuts across the four rather than joining them:
+  //
+  //   flyDrift  flying sideways — the legs swing out trailing the drift,
+  //             with its mirror flyDriftL for the other way. It stands in
+  //             for the cruise when travel and facing diverge laterally,
+  //             the way strafeLower stands in for the run on the ground.
+  //
   // The order above is also a continuum of the thighs, from trailing back
   // (+18°) to swinging forward (-30°), so any two of them cross-fade through
   // shapes a leg can actually make.
@@ -467,6 +474,44 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', [0, 1.6], [[-34, 0, 0], [-34, 0, 0]]),
     qt('head', [0, 1.6], [[8, 0, 0], [8, 0, 0]]),   // eyes on the landing spot
   ]);
+
+  // Flying sideways: the legs trail the drift. Travel toward -X — the
+  // character's own right, matching `strafeLower`'s convention — so both
+  // thighs swing toward +X, the lead leg reaching out wide and the far one
+  // following across under the body. `flyDriftLLower` is this mirrored, for
+  // travel to the left.
+  //
+  // Deliberately *not* a roll. Banking the whole body is what a jet does; a
+  // man on a pack hangs upright off it and swings his legs out behind the
+  // way he is going, which is the same read as a trailing leg on a ground
+  // strafe. So the pelvis and spine stay level to the world and every bit of
+  // the lateral information lives in the thighs, with the arms counter-
+  // weighting above: the trailing arm rides high, the leading one comes down.
+  clips.flyDriftLower = new THREE.AnimationClip('flyDriftLower', 1.6, [
+    pt('hips', [0, 0.8, 1.6], [[0, hipY, 0], [0, hipY + 0.018, 0], [0, hipY, 0]]),
+    qt('hips', [0, 0.8, 1.6], [[8, 0, 0], [10, 0, 0], [8, 0, 0]]),
+    qt('spine', [0, 1.6], [[4, 0, 0], [4, 0, 0]]),
+    // the trailing (left) leg reaches out wide; the far one follows across
+    qt('upperLegL', [0, 0.8, 1.6], [[8, 0, 25], [11, 0, 28], [8, 0, 25]]),
+    qt('lowerLegL', [0, 0.8, 1.6], [[18, 0, 0], [22, 0, 0], [18, 0, 0]]),
+    qt('upperLegR', [0, 0.8, 1.6], [[13, 0, 15], [10, 0, 18], [13, 0, 15]]),
+    qt('lowerLegR', [0, 0.8, 1.6], [[27, 0, 0], [23, 0, 0], [27, 0, 0]]),
+    qt('footL', [0, 1.6], [[24, 0, 0], [24, 0, 0]]),
+    qt('footR', [0, 1.6], [[21, 0, 0], [21, 0, 0]]),
+  ]);
+  clips.flyDriftLLower = mirrorClip(clips.flyDriftLower, 'flyDriftLLower');
+  clips.flyDriftUpper = new THREE.AnimationClip('flyDriftUpper', 1.6, [
+    // a turn into the travel, not a tip toward it: chest yaw, chest roll zero
+    qt('chest', [0, 0.8, 1.6], [[-5, -9, 0], [-6, -10, 0], [-5, -9, 0]]),
+    qt('neck', [0, 1.6], [[-2, 4, 0], [-2, 4, 0]]),
+    // trailing arm high, leading arm down: the counterweight to the legs
+    qt('upperArmL', [0, 0.8, 1.6], [[4, 0, 44], [6, 0, 48], [4, 0, 44]]),
+    qt('forearmL', [0, 1.6], [[-24, 0, 0], [-24, 0, 0]]),
+    qt('upperArmR', [0, 0.8, 1.6], [[14, 0, -17], [16, 0, -20], [14, 0, -17]]),
+    qt('forearmR', [0, 1.6], [[-34, 0, 0], [-34, 0, 0]]),
+    qt('head', [0, 1.6], [[-7, -7, 0], [-7, -7, 0]]),
+  ]);
+  clips.flyDriftLUpper = mirrorClip(clips.flyDriftUpper, 'flyDriftLUpper');
 
   // ---------- LOWER/UPPER: riding a vehicle (saddle straddle, hands to bars) ----------
   // Thighs forward and spread over the saddle, shins folded down, a forward

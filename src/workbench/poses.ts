@@ -49,6 +49,8 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'land', name: 'Landing — absorb', lower: 'landLower', upper: 'idleUpper' },
   { rig: 'humanoid', id: 'fly', name: 'Jetpack — cruise (forward + up)', lower: 'flyLower', upper: 'flyUpper', thrust: 1 },
   { rig: 'humanoid', id: 'flyRise', name: 'Jetpack — hover / straight up', lower: 'flyRiseLower', upper: 'flyRiseUpper', thrust: 1 },
+  { rig: 'humanoid', id: 'flyDrift', name: 'Jetpack — drifting right', lower: 'flyDriftLower', upper: 'flyDriftUpper', thrust: 1 },
+  { rig: 'humanoid', id: 'flyDriftL', name: 'Jetpack — drifting left', lower: 'flyDriftLLower', upper: 'flyDriftLUpper', thrust: 1 },
   { rig: 'humanoid', id: 'flyFall', name: 'Jetpack — descending', lower: 'flyFallLower', upper: 'flyFallUpper', thrust: 0.4 },
   { rig: 'humanoid', id: 'flyBrace', name: 'Jetpack — bracing for the ground', lower: 'flyBraceLower', upper: 'flyBraceUpper', thrust: 0.5 },
   { rig: 'humanoid', id: 'block', name: 'Block — shield up', lower: 'blockLower', upper: 'blockUpper', block: true },

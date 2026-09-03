@@ -76,6 +76,33 @@ async function fly({ seconds = 1, input = {}, press = {}, state = {} }) {
     }
     const root = p.char.root;
     root.updateMatrixWorld(true);
+    // Read the pose off the bones the mixer just wrote, not off the clip.
+    // `axis` turns a bone's local rotation into where one of its axes ends up
+    // pointing in its parent's frame, which is a claim about the pose that
+    // does not care how the rotation was authored.
+    const axis = (name, v) => {
+      const b = p.char.animator.rig.bones[name];
+      if (!b) return null;
+      const { x: qx, y: qy, z: qz, w } = b.quaternion;
+      // q * v * q^-1, written out
+      const ix = w * v[0] + qy * v[2] - qz * v[1];
+      const iy = w * v[1] + qz * v[0] - qx * v[2];
+      const iz = w * v[2] + qx * v[1] - qy * v[0];
+      const iw = -qx * v[0] - qy * v[1] - qz * v[2];
+      return [
+        ix * w + iw * -qx + iy * -qz - iz * -qy,
+        iy * w + iw * -qy + iz * -qx - ix * -qz,
+        iz * w + iw * -qz + ix * -qy - iy * -qx,
+      ];
+    };
+    // a leg bone points down -Y, so how far its tip has swung toward +X (the
+    // character's own left) is the whole lateral story of the pose
+    const legAcross = (name) => {
+      const d = axis(name, [0, -1, 0]);
+      return d && +d[0].toFixed(3);
+    };
+    // ...and how far the pelvis's up axis has tipped sideways is the roll
+    const hipsUp = axis('hips', [0, 1, 0]);
     // column 0 of the world matrix is the body's own +X (right) axis; its Y
     // component is how far out of level the body has been rolled
     const e = root.matrixWorld.elements;
@@ -90,7 +117,11 @@ async function fly({ seconds = 1, input = {}, press = {}, state = {} }) {
       leanX: +root.rotation.x.toFixed(4),
       order: root.rotation.order,
       rightTilt: +(e[1] / len).toFixed(4),
+      roll: +root.rotation.z.toFixed(4),
       facingYaw: +p.facingYaw.toFixed(3),
+      hipsRoll: hipsUp && +hipsUp[0].toFixed(3),
+      thighL: legAcross('upperLegL'),
+      thighR: legAcross('upperLegR'),
     };
   }, [seconds, input, press, state, blankInput()]);
 }
@@ -143,7 +174,52 @@ const down = await fly({
 check('descending straightens the legs downward (flyFallLower)', down.lower === 'flyFallLower', down);
 check('...on its own upper channel too', down.upper === 'aimUpper' || down.upper === 'flyFallUpper', { upper: down.upper });
 
-// ---------- 3. the ground, and arriving on it ----------
+// ---------- 3. flying sideways ----------
+//
+// Travel only diverges from facing while the sights are up — otherwise the
+// body turns to face where it is going — so these hold aim on one bearing and
+// push the stick across it. The legs must swing out trailing the drift, in
+// mirrored directions for the two ways across, and the body must not bank:
+// this is a leg swing, not a roll.
+console.log('\n-- flying sideways --');
+const DRIFT = { seconds: 1.6, state: { drop: 30, yaw: 0 } };
+const driftR = await fly({ ...DRIFT, input: { jumpHeld: true, aimHeld: true, moveX: 1 } });
+const driftL = await fly({ ...DRIFT, input: { jumpHeld: true, aimHeld: true, moveX: -1 } });
+check('drifting one way trails the legs the other', driftR.lower === 'flyDriftLower', driftR);
+check('...and the other way is its mirror', driftL.lower === 'flyDriftLLower', driftL);
+check('the two are mirrored, not the same pose twice',
+  driftR.thighL !== null && Math.sign(driftR.thighL) === -Math.sign(driftL.thighL),
+  { right: [driftR.thighL, driftR.thighR], left: [driftL.thighL, driftL.thighR] });
+check('both thighs swing the same way across the body',
+  Math.sign(driftR.thighL) === Math.sign(driftR.thighR) && Math.abs(driftR.thighL) > 0.15,
+  { thighL: driftR.thighL, thighR: driftR.thighR });
+check('drifting right swings the legs to the left', driftR.thighL > 0.15, { thighL: driftR.thighL });
+for (const [name, r] of [['right', driftR], ['left', driftL]]) {
+  // a bank would tip the body's own right axis out of level, and a pelvis
+  // roll under an upright root would tip the hips' up axis sideways
+  check(`drifting ${name} is a leg swing, not a bank`,
+    r.roll === 0 && Math.abs(r.rightTilt) < 0.02 && Math.abs(r.hipsRoll) < 0.05,
+    { roll: r.roll, rightTilt: r.rightTilt, hipsRoll: r.hipsRoll });
+}
+// Along the bearing, either way down it, the cruise still serves. `leanX`
+// says which: positive is travel along the facing, negative is travel back
+// down it, so these assert the case they mean rather than trusting the stick.
+const ahead = await fly({
+  seconds: 1.6,
+  input: { jumpHeld: true, aimHeld: true, moveY: 1 },
+  state: { drop: 30, yaw: 0 },
+});
+check('flying where you are looking is still the cruise',
+  ahead.lower === 'flyLower' && ahead.leanX > 0, ahead);
+const back = await fly({
+  seconds: 1.6,
+  input: { jumpHeld: true, aimHeld: true, moveY: -1 },
+  state: { drop: 30, yaw: 0 },
+});
+check('...and so is backing off along it, which is not a drift',
+  back.lower === 'flyLower' && back.leanX < 0, back);
+
+// ---------- 4. the ground, and arriving on it ----------
 console.log('\n-- meeting the ground --');
 const land = await fly({
   seconds: 9,
@@ -165,7 +241,7 @@ const off = await fly({
 check('a take-off never braces for the deck it is leaving', !off.poses.includes('flyBraceLower'), { poses: off.poses });
 check('...it climbs out on the plumb pose', off.poses.includes('flyRiseLower'), { poses: off.poses });
 
-// ---------- 4. the poses settle ----------
+// ---------- 5. the poses settle ----------
 //
 // Hold one steady flight and count the pose changes. Hysteresis is what stops
 // a body sitting on a threshold from strobing between two clips.

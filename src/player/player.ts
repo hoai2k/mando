@@ -177,6 +177,10 @@ const GROUND_PROBE = 12;
  */
 const FLY_LEAN: Record<FlightPose, [number, number]> = {
   fly: [1, 0],
+  // a lateral drift is carried by the legs and the arms; the body stays
+  // upright over them, and what forward component the travel has still leans
+  flyDrift: [0.8, 0],
+  flyDriftL: [0.8, 0],
   flyRise: [0.35, -1.5],
   flyFall: [0.3, -3],
   flyBrace: [0.25, -5],
@@ -1674,7 +1678,7 @@ export class Player {
       // slower blend is what makes going up, over and down one continuous
       // movement instead of three states.
       this.flying = true;
-      this.flyPose = flightPose(this.velocity.y, speed2, this.dropBelow(game), this.flyPose);
+      this.flyPose = flightPose(this.velocity, this.facingYaw, this.dropBelow(game), this.flyPose);
       const fly = flightClips(this.flyPose);
       anim.play('lower', fly.lower, FLY_FADE);
       if (this.meleeTimer <= 0) {

@@ -25,8 +25,8 @@ export function travelClip(vx: number, vz: number, facingYaw: number): { clip: T
   return { clip: 'runLower', dir: 1 };
 }
 
-/** the jetpack poses `flightPose` can pick from, in thigh order (trailing → reaching) */
-export type FlightPose = 'flyRise' | 'fly' | 'flyFall' | 'flyBrace';
+/** the jetpack poses `flightPose` can pick from — the four sagittal ones in thigh order (trailing → reaching), plus the lateral drift and its mirror */
+export type FlightPose = 'flyRise' | 'fly' | 'flyDrift' | 'flyDriftL' | 'flyFall' | 'flyBrace';
 
 /**
  * Which jetpack pose fits the way a body is flying.
@@ -41,7 +41,16 @@ export type FlightPose = 'flyRise' | 'fly' | 'flyFall' | 'flyBrace';
  *   `flyBrace`  the ground is near, or is about to be: gather for it
  *   `flyRise`   hovering, or driving near-vertically up: legs hang plumb
  *   `flyFall`   descending: legs plumb, a shade forward, body upright
+ *   `flyDrift`  flying sideways: the legs swing out trailing the drift
  *   `fly`       everything else — the forward cruise
+ *
+ * The drift is the one that reads off *heading* rather than climb: it stands
+ * in for the cruise whenever travel and facing diverge laterally, which is
+ * the airborne version of the ground strafe standing in for the run. It only
+ * displaces the cruise — a steep climb or descent keeps its plumb legs,
+ * however sideways it is going, because at that angle the legs are hanging
+ * off the pack and there is no drift left to trail. And it is a leg swing,
+ * not a bank: nothing here rolls the body.
  *
  * `groundDist` is metres from the feet to whatever is under them (Infinity
  * where nothing is), and the brace triggers on the ground being either close
@@ -56,8 +65,11 @@ export type FlightPose = 'flyRise' | 'fly' | 'flyFall' | 'flyBrace';
  * the answer and hands it back next frame.
  */
 export function flightPose(
-  vy: number, groundSpeed: number, groundDist: number, current: FlightPose | null,
+  vel: { x: number; y: number; z: number }, facingYaw: number,
+  groundDist: number, current: FlightPose | null,
 ): FlightPose {
+  const vy = vel.y;
+  const groundSpeed = Math.hypot(vel.x, vel.z);
   // --- the ground first: it outranks whatever the flight is doing, unless
   // the flight is leaving it. Without that last clause every take-off began
   // by bracing for a landing on the ground it was pushing off. ---
@@ -81,6 +93,19 @@ export function flightPose(
   const climb = (Math.atan2(vy, Math.max(1e-3, speed)) * 180) / Math.PI;
   if (climb >= (held ? RISE_OUT : RISE_IN)) return 'flyRise';
   if (climb <= (current === 'flyFall' ? FALL_OUT : FALL_IN)) return 'flyFall';
+  // --- and inside the cruise band, which way across the body is it going? ---
+  //
+  // Same divergence `travelClip` reads on the ground, and the same sides:
+  // a positive angle is travel toward the character's own left, which is the
+  // mirrored clip. Past the lateral band it is flight backward, which the
+  // cruise still serves.
+  let rel = Math.atan2(vel.x, vel.z) - facingYaw;
+  rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+  const arel = Math.abs(rel);
+  const drifting = current === 'flyDrift' || current === 'flyDriftL';
+  if (arel > (drifting ? DRIFT_OUT : DRIFT_IN) && arel < DRIFT_BACK) {
+    return rel > 0 ? 'flyDriftL' : 'flyDrift';
+  }
   return 'fly';
 }
 
@@ -120,6 +145,20 @@ const RISE_OUT = 52;
 /** ...and the one that reads as going down */
 const FALL_IN = -26;
 const FALL_OUT = -14;
+/**
+ * How far travel has to diverge from facing before the legs trail sideways
+ * instead of behind, radians — 52° to take it, 40° to give it back.
+ *
+ * Only reachable while facing and travel can diverge at all, which in flight
+ * means aiming or firing: the rest of the time the body turns to face where
+ * it is going and this never fires. That is the case worth having, though —
+ * strafing across a rooftop with the sights up is most of the flying anyone
+ * does in a fight.
+ */
+const DRIFT_IN = 0.9;
+const DRIFT_OUT = 0.7;
+/** past here it is flight backward rather than across, and the cruise serves it */
+const DRIFT_BACK = 2.3;
 
 /** the two channel clips a flight pose plays */
 export function flightClips(pose: FlightPose): { lower: string; upper: string } {
