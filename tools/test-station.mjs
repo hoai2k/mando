@@ -44,12 +44,16 @@ const out = await h.page.evaluate(() => {
     // far out between the islands, with nothing under it for 200 m
     const open = b.gravityAt(0, 120, 0);
     const wayOut = b.gravityAt(300, 30, 300);
+    // hanging underneath the main pad: a deck over your head is not a deck
+    // you could land on, so it should pull at nothing
+    const underDeck = b.gravityAt(0, -4, 0);
     res.boards[info.id] = {
       flat: b.gravity ?? 1,
       overDeck: +overDeck.toFixed(3),
       justAbove: +justAbove.toFixed(3),
       open: +open.toFixed(3),
       wayOut: +wayOut.toFixed(3),
+      underDeck: +underDeck.toFixed(3),
     };
   }
   return res;
@@ -62,10 +66,14 @@ if (station) {
     Math.abs(station.overDeck - station.flat) < 0.02, station);
   check('the pull is still there a jump above the deck',
     station.justAbove > station.flat * 0.4, { justAbove: station.justAbove });
-  check('open space barely pulls at all',
-    station.open < 0.1 && station.wayOut < 0.1, { open: station.open, wayOut: station.wayOut });
-  check('but there is still an up out there',
-    station.open > 0, { open: station.open });
+  // Open space pulls at *nothing*, which is stronger than the old rule and
+  // deliberately so: the drift used to be 0.05 g, which reads as nothing and
+  // is 1.3 m/s² — enough that five seconds between platforms had you falling
+  // at 6.5 m/s on a board whose whole idea is that it has no down.
+  check('open space pulls at nothing at all',
+    station.open === 0 && station.wayOut === 0, { open: station.open, wayOut: station.wayOut });
+  check('and neither does a deck over your head',
+    station.underDeck === 0, { underDeck: station.underDeck });
 }
 
 const others = Object.entries(out.boards).filter(([id, v]) => id !== 'station' && v);

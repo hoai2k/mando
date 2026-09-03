@@ -74,6 +74,8 @@ const _catch = new THREE.Vector3();
 
 const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
+/** below this much of a g there is nothing to lean on: you drift (waystation.ts) */
+const ZERO_G = 0.02;
 const JUMP_VEL = 10;
 const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
@@ -1410,6 +1412,12 @@ export class Player {
       this.velocity.x = this.dashDir.x * DASH_SPEED;
       this.velocity.z = this.dashDir.z * DASH_SPEED;
       if (this.velocity.y < 0) this.velocity.y = 0;
+    } else if (this.coasting(game, moving)) {
+      // Free-floating in vacuum with nothing asked of the stick: keep the
+      // velocity you have. Damping toward a standstill is a *force*, and out
+      // here there is nothing to push against — a body drifting between
+      // platforms that slows to a halt on its own is the one thing space
+      // cannot do. Point and burn to change it; otherwise you coast.
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
@@ -1420,6 +1428,20 @@ export class Player {
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
+  }
+
+  /**
+   * Adrift: off the ground, out of reach of anything to fall toward, and not
+   * being steered. Momentum is the whole of the movement here.
+   *
+   * The test is the local pull rather than a board flag, so it is true in the
+   * open volume of a space station and false the moment a deck comes under
+   * you — which is the same line the gravity field itself draws.
+   */
+  private coasting(game: Game, moving: boolean): boolean {
+    if (this.grounded || moving || this.dashTimer > 0) return false;
+    if (this.wading || this.swimming || this.cover) return false;
+    return this.gravity(game.board) < ZERO_G;
   }
 
   /** the leap itself (and the hold that arms a super jump). True = it left the ground this frame */
