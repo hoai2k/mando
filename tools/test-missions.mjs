@@ -201,17 +201,20 @@ const walk = await page.evaluate(async () => {
     pausePressed:false });
 
   // Walk the level's own golden path rather than steering at the objective.
-  // The crow's line into a bend is a cliff, and that is the point of the path:
-  // it is the route the level was authored around, and every zone says where
-  // in it that zone begins (`pathFrom`), so the walker can never fall behind
-  // the run it is driving.
+  // The crow's line into a bend is a cliff, and the path is the route the
+  // level was authored around — zone entries and exits with the legs of every
+  // link between them, in order. The cursor only ever advances by *arriving*:
+  // snapping it forward to the next zone's entry would skip the bend the
+  // party still has to walk through, and walk them into the rock.
   let cursor = 0;
+  let stuck = 0;
+  let lastStage = c.stageIdx;
   for (let turn = 0; turn < 1200 && !c.done; turn++) {
     out.turns = turn;
     out.stagesSeen.add(c.stageIdx);
     const stage = c.stage;
+    if (c.stageIdx !== lastStage) { lastStage = c.stageIdx; cursor = 0; stuck = 0; }
     const zone = stage.zones[Math.min(c.idx, stage.zones.length - 1)];
-    if (c.idx < stage.zones.length) cursor = Math.max(cursor, zone.pathFrom);
     const atPortal = c.idx >= stage.zones.length && stage.exitPortal;
     const fighting = c.phase === 'fight'
       && (zone.spec.kind === 'assault' || zone.spec.kind === 'lieutenant' || zone.spec.kind === 'warlord');
@@ -240,11 +243,21 @@ const walk = await page.evaluate(async () => {
         if (zz.hatches.some((ht) => ht.gate.open_)) out.hatched = true;
       }
     }
-    // advance along the path once the party is standing on this point
+    // Advance once the party is standing on this point — or, if a point can
+    // not be reached at all, after long enough that the walker is clearly
+    // wedged rather than slow. A walker that cannot get past a point is worth
+    // knowing about, but it should not cost the rest of the run.
     const lead = g.players.find((p) => p.alive);
     if (lead && !atPortal && !fighting) {
       const at = stage.path[Math.min(cursor, stage.path.length - 1)];
-      if (Math.hypot(at.x - lead.position.x, at.z - lead.position.z) < 7) cursor++;
+      if (Math.hypot(at.x - lead.position.x, at.z - lead.position.z) < 7) {
+        cursor++;
+        stuck = 0;
+      } else if (++stuck > 20) {
+        out.wedged = (out.wedged ?? 0) + 1;
+        cursor++;
+        stuck = 0;
+      }
     }
     for (const p of g.players) {
       if (p.alive && p.position.y < c.stage.floorY - 9) out.offPath++;
@@ -275,18 +288,23 @@ const portal = await page.evaluate(async () => {
     pausePressed:false });
   const idle = [blank(), blank(), blank(), blank()];
   const out = {};
-  // walk the run to the end of stage 0 without playing it
+  // Walk the run to the end of stage 0 without playing it, then give the
+  // level time to answer: the match's own intro has to finish, and a blast
+  // door's leaves take three quarters of a second to travel, so a door asked
+  // to open one frame ago is still shut and rightly so.
   c.idx = c.stage.zones.length;
   c.phase = 'travel';
   for (const e of g.enemies) e.removeMe = true;
-  g.update(1 / 30, idle);
+  for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
   const portal = c.stage.exitPortal;
-  out.portalOpens = portal.open_ || !portal.closed;
+  out.portalOpens = portal.open_;
   // one player steps into the pocket: the whole party goes
   const before = c.stageIdx;
   const p = g.players[0];
-  p.position.copy(portal.threshold);
-  for (let i = 0; i < 90; i++) g.update(1 / 30, idle);
+  for (let i = 0; i < 240 && c.stageIdx === before; i++) {
+    if (i % 30 === 0) p.position.copy(portal.threshold);
+    g.update(1 / 30, idle);
+  }
   out.forwardTook = c.stageIdx === before + 1;
   out.bothMoved = g.players.every((q) => Math.abs(q.position.y - c.stage.floorY) < 6);
   out.enemiesCarried = g.enemies.filter((e) => e.alive).length;
@@ -296,8 +314,10 @@ const portal = await page.evaluate(async () => {
   const back = c.stage.backPortal;
   if (!back) return { ...out, noBackPortal: true };
   const stageNow = c.stageIdx;
-  g.players[0].position.copy(back.threshold);
-  for (let i = 0; i < 60; i++) g.update(1 / 30, idle);
+  for (let i = 0; i < 60; i++) {
+    if (i % 20 === 0) g.players[0].position.copy(back.threshold);
+    g.update(1 / 30, idle);
+  }
   out.oneWaits = c.stageIdx === stageNow && c.exited.size === 1;
   out.noticeShown = !!g.exitNotice(g.players[1]);
   // cancelling walks them back out
@@ -305,8 +325,10 @@ const portal = await page.evaluate(async () => {
   for (let i = 0; i < 20; i++) g.update(1 / 30, cancel);
   out.cancelled = c.exited.size === 0;
   // everyone aboard, and it goes
-  for (const q of g.players) q.position.copy(back.threshold);
-  for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+  for (let i = 0; i < 240 && c.stageIdx === stageNow; i++) {
+    if (i % 30 === 0) for (const q of g.players) q.position.copy(back.threshold);
+    g.update(1 / 30, idle);
+  }
   out.backTook = c.stageIdx === stageNow - 1;
   out.rememberedCleared = c.idx > 0;
   return out;
