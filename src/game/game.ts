@@ -6,7 +6,7 @@ import { BotBrain } from './bot';
 import { TEXT } from '../text';
 import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
-import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
+import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
@@ -21,7 +21,7 @@ import type { FrameInput } from '../core/input';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import type { AllyCrate } from './allycrate';
-import type { Campaign } from './campaign';
+import type { MissionController } from './mission-api';
 import type { ModeRules } from './rules/rules';
 import { WaveRules } from './rules/wave';
 import { PvpRules } from './rules/pvp';
@@ -228,7 +228,28 @@ export class Game {
   /** alternates eligible transports between setting down and overflying */
   private landToggle = 0;
   /** campaign controller; null outside campaign mode (set by CampaignRules) */
-  campaign: Campaign | null = null;
+  campaign: MissionController | null = null;
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2), absolute Y — null
+   * everywhere but a mission level.
+   *
+   * Two jobs and no others: a border cannot be flown over, so a beat cannot be
+   * skipped; and the sky is cut into a **playable** band the fight lives in
+   * and an **ambient** band above it that belongs to the backdrop. It is set
+   * well above what one jetpack burn reaches, so free flight never meets it.
+   *
+   * The clamp is one-directional by design: a body below it cannot climb
+   * through, but a body above it — a carrier's squad on the way down, a flier
+   * crossing the rim — is left alone and falls in. That is what keeps a drop
+   * reading as reinforcements committed from above.
+   */
+  ceilingY: number | null = null;
+  /**
+   * How high a carrier pass flies over its drop. The wave game's 38 m; a
+   * mission level raises it clear of the ceiling so the squad falls *through*
+   * the cut rather than being clamped on the way in.
+   */
+  dropHeight = DROP_HEIGHT;
   /** the mode's rule set: everything Wave Battle, PvP and Missions disagree on */
   readonly rules: ModeRules;
   /**
@@ -373,6 +394,23 @@ export class Game {
     for (const a of this.allies) if (a.alive && a.team !== who.team) list.push(a);
     this.hostileCache.set(who.team, list);
     return list;
+  }
+
+  /**
+   * What a player's HUD says about the transport door, if anything.
+   *
+   * Going back through one needs the whole party aboard, so a player who has
+   * stepped into the pocket sees how to change their mind and everyone else
+   * sees who they are waiting on — without that, the run just stops for
+   * reasons nobody on the other screens can see.
+   */
+  exitNotice(p: Player): string {
+    const c = this.campaign;
+    if (!c || c.exited.size === 0) return '';
+    if (c.exited.has(p.slot)) return TEXT.missions.exited;
+    const waiting = this.players.filter((q) => q.alive && !c.exited.has(q.slot)).length;
+    const who = this.players.find((q) => c.exited.has(q.slot));
+    return TEXT.missions.waitingOn(who?.profile.name ?? '', waiting);
   }
 
   /** the campaign controller's mouthpiece (events is private) */
@@ -542,7 +580,7 @@ export class Game {
         return e;
       });
       opts.onRelease?.(bodies);
-    });
+    }, { dropHeight: this.dropHeight });
     this.carriers.push(carrier);
     this.scene.add(carrier.group);
     return carrier;
@@ -1115,19 +1153,27 @@ export class Game {
     this.events.hitMarker(slot);
   }
 
-  private explode(point: THREE.Vector3, bySlot: number): void {
-    this.particles.explosion(point);
+  /**
+   * `scale` sizes the whole event — the fireball, how far the wave reaches and
+   * what it is worth when it gets there. A rocket is 1; a destroyed ride
+   * passes its own hull's measure (see `Vehicle.blastScale`), so a swoop going
+   * up beside you is survivable and a skiff going up beside you is not.
+   */
+  private explode(point: THREE.Vector3, bySlot: number, scale = 1): void {
+    this.particles.explosion(point, scale);
+    const r = (base: number) => base * (0.75 + scale * 0.25);
+    const d = (base: number) => base * (0.6 + scale * 0.4);
     this.blast(point, {
       bySlot,
       // the blast wave puts a body flat as well as hurting it
-      enemies: { radius: 7, damage: 90, zero: 8, push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
-      corpses: { radius: 9, damage: 26, zero: 10 },
+      enemies: { radius: r(7), damage: d(90), zero: r(8), push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
+      corpses: { radius: r(9), damage: d(26), zero: r(10) },
       // in PvP a rocket is a duel-ender against a rival; against yourself it
       // is the same graze it has always been
-      players: { radius: 4.5, damage: 18, rival: this.mode === 'pvp' ? 70 : undefined },
-      vehicles: { radius: 7, damage: 80, zero: 8 },
-      breakables: { radius: 6, damage: 90 },   // scenery is not exempt (chains!)
-      shake: { amount: 0.35, radius: 35 },
+      players: { radius: r(4.5), damage: d(18), rival: this.mode === 'pvp' ? d(70) : undefined },
+      vehicles: { radius: r(7), damage: d(80), zero: r(8) },
+      breakables: { radius: r(6), damage: d(90) },   // scenery is not exempt (chains!)
+      shake: { amount: 0.35 * (0.7 + scale * 0.4), radius: 35 * (0.8 + scale * 0.2) },
       noise: 70,                                // an explosion is not subtle
       sound: 'explosion',
     });
@@ -1248,7 +1294,7 @@ export class Game {
       if (v.pendingExplosion) {
         const px = v.pendingExplosion;
         v.pendingExplosion = null;
-        this.explode(px.at, px.slot);
+        this.explode(px.at, px.slot, px.scale);
       }
       // a mount has no repulsor core to go up: it drops, and the sand it
       // kicks up is the whole of it
@@ -1256,11 +1302,21 @@ export class Game {
         const at = v.pendingCollapse;
         v.pendingCollapse = null;
         this.particles.dustPuff(at, 26);
+        this.particles.disintegrate(at.clone().setY(at.y + 1.2), 14);
         audio.banthaLow(0.6);
       }
-      if (v.removeMe) this.scene.remove(v.group);
+      // twenty seconds on, it is back where it was parked: the sand gathers
+      // itself up into an animal again, or a hull settles onto its repulsors
+      if (v.pendingReform) {
+        const at = v.pendingReform;
+        v.pendingReform = null;
+        this.particles.dustPuff(at, 16);
+        if (v.def.living) {
+          this.particles.disintegrate(at.clone().setY(at.y + 1.4), 16);
+          audio.banthaLow(0.4);
+        }
+      }
     }
-    this.vehicles = this.vehicles.filter((v) => !v.removeMe);
 
     // ---- enemies ----
     this.director.update(dt, this);

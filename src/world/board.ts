@@ -121,6 +121,13 @@ export interface VehicleSpec {
   z: number;
   /** resting facing, radians (0 = +Z) */
   yaw?: number;
+  /**
+   * The deck this one is parked on, absolute Y. A board's own rides sit on
+   * its terrain and leave this out; a mission level's are parked on plates
+   * raised high over the territory, where `heightAt` would answer with the
+   * ground far below and drop the ride through the level.
+   */
+  y?: number;
 }
 
 export interface Board {

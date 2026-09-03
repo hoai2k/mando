@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { travelClip, type Animator } from '../anim/animator';
 import { beginArrival, clearArrival, updateArrival, type ArrivalState } from './arrival';
 import {
-  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
-  buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
+  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid,
+  buildFlametrooper, buildGunfighter, buildGunslinger, buildImperialOfficer,
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
   buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
   buildKwazelMaw, buildNexu, buildSandworm, buildZillo,
   buildQuarren, buildRancor, buildRavinak,
   buildSpiderEgg, buildSpiderling,
-  buildRingEnforcer, buildWookieeEnforcer,
+  buildEscortDroid, buildRingEnforcer, buildWookieeEnforcer,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -82,10 +82,10 @@ export function aimHeight(target: Combatant): number {
 
 export type EnemyKind =
   | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
-  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
+  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'gunslinger' | 'officer'
   | 'capo' | 'enforcer'
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
-  | 'ig11' | 'marshal' | 'fennec'
+  | 'escortDroid' | 'marshal' | 'fennec'
   | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
   | 'sandworm' | 'zillo' | 'nexu' | 'kwazelMaw'
   | 'spiderEgg' | 'spiderling';
@@ -189,8 +189,10 @@ const DEFS: Record<EnemyKind, Def> = {
   // Imperial remnant
   stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, notice: 42, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
   deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
-  // Fast, accurate and hits hard, but folds if you can close on him.
-  duelist:      { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildDuelist },
+  // Fast, accurate and hits hard, but folds if you can close on him. Stats
+  // inherited wholesale from the retired Cad Bane-class duelist, so the wave
+  // tables that called for him are balanced exactly as they were.
+  gunslinger:   { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildGunslinger },
   // Closes to the darksaber's reach and hits like a truck when he gets there.
   officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 3.0, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
   // Shielded shooter: out-range him or flank him, he will not be rushed down.
@@ -266,7 +268,8 @@ const DEFS: Record<EnemyKind, Def> = {
   kwazelMaw: { hp: 3800, speed: 5.2, radius: 2.4, height: 4.2, style: 'melee', damage: 48, attackRange: 6.0, attackCd: 2.3, notice: 90, relentless: true, burnImmune: true,
     hitParts: [{ z: 3.6, y: 2.2, r: 1.9 }, { z: -3.0, y: 1.6, r: 1.5 }], build: buildKwazelMaw },
 
-  ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
+  // the covert's droid ally, in the slot IG-11 held before he became playable
+  escortDroid: { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildEscortDroid },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
   fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
 
@@ -304,7 +307,7 @@ const MONSTER_VOICE: Partial<Record<EnemyKind, string>> = {
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
-  duelist: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
+  gunslinger: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
   flametrooper: 'imperial_bark', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek', drone: 'drone_whine',
@@ -316,8 +319,8 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   // droid_death has existed since the first audio batch and was never wired:
   // every droid on the board died silently. Nothing mechanical borrows a
   // human death rattle — they get the power-down that was made for them.
-  droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
-  duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
+  droid: 'droid_death', darktrooper: 'droid_death', escortDroid: 'droid_death',
+  gunslinger: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
   flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek',
@@ -1580,6 +1583,33 @@ export class Enemy {
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
+    this.clampToCeiling(game);
+  }
+
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
+   *
+   * A body below the ceiling cannot climb through it — which is what keeps a
+   * flier in the fight instead of stalking it from out of reach, and what
+   * flattens a boss's super-jump arc into one that still lands where it aimed.
+   * A body *above* it is left alone: a squad falling out of a carrier's pass
+   * and a flier crossing the rim both enter through the ambient band, and
+   * clamping them there would strand the wave in the sky.
+   */
+  private clampToCeiling(game: Game): void {
+    const lid = game.ceilingY;
+    if (lid === null) return;
+    const head = this.position.y + this.height;
+    if (head <= lid) return;
+    // only on the way up: an arrival descending through the band keeps coming
+    if (this.velocity.y <= 0) return;
+    this.position.y = lid - this.height;
+    this.velocity.y = 0;
+  }
+
+  /** below the ceiling, and so allowed to fight rather than only to descend */
+  private inPlayableSky(game: Game): boolean {
+    return game.ceilingY === null || this.position.y + this.height <= game.ceilingY + 0.5;
   }
 
   /** brood spawns: enough damage taken and the egg sacs let go */
@@ -1635,7 +1665,7 @@ export class Enemy {
       // sideways on its bearing, or fanning out on approach, used to run
       // the forward cycle through it and moonwalk — and paced by the
       // stride the clip actually covers (as the player's is), so a 7 m/s
-      // duelist's feet keep up with the ground instead of skating.
+      // gunslinger's feet keep up with the ground instead of skating.
       let lower = 'idleLower';
       let rate = 1;
       if (d.style === 'hover') lower = 'flyLower';
@@ -2841,7 +2871,8 @@ export class Enemy {
     const passing = Math.cos(this.swoopPhase) < -0.25; // attack window on the inward leg
     if (passing && !this.prevPassing) audio.bark('swoop_pass', 0.5);
     this.prevPassing = passing;
-    const gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    let gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    if (game.ceilingY !== null) gy = Math.min(gy, game.ceilingY - this.height - 2);
     const goal = new THREE.Vector3(gx, gy, gz);
     const to = goal.sub(this.position);
     const dist = to.length();
@@ -2850,7 +2881,7 @@ export class Enemy {
     this.velocity.y = damp(this.velocity.y, to.y * d.speed * 0.8, 3.5, dt);
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3.5, dt);
     this.facingYaw = Math.atan2(this.velocity.x, this.velocity.z);
-    if (passing && this.attackCd <= 0) {
+    if (passing && this.attackCd <= 0 && this.inPlayableSky(game)) {
       const pd = this.position.distanceTo(target.position);
       if (pd < 30) {
         this.fireBoltAt(game, target);
@@ -2933,6 +2964,11 @@ export class Enemy {
         target.position.y + 4 + Math.random() * 6,
         target.position.z + Math.sin(a) * r
       );
+      // a mission level's playable sky has a lid; a flier orbits under it
+      // rather than above the fight it came for
+      if (game.ceilingY !== null) {
+        this.hoverTarget.y = Math.min(this.hoverTarget.y, game.ceilingY - this.height - 2);
+      }
     }
     const to = this.hoverTarget.clone().sub(this.position);
     to.normalize();
@@ -2941,7 +2977,10 @@ export class Enemy {
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3, dt);
     this.faceToward(dt, target.position.x, target.position.z, 6);
     const dist = this.position.distanceTo(target.position);
-    this.updateVolley(dt, game, target, dist);
+    // The cut between the playable sky and the ambient one is a rule about
+    // fighting, not only about flying: a flier that came in over the rim
+    // steers down into the fight before it is allowed to open up.
+    if (this.inPlayableSky(game)) this.updateVolley(dt, game, target, dist);
     // hover jets — a short burn under each nozzle, riding along with us
     const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
     for (const side of [-1, 1]) {

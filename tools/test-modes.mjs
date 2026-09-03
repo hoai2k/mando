@@ -414,6 +414,13 @@ check('select: ...and stands on the plinth once it has, picture retired',
   JSON.stringify(pendingNpc));
 
 // ---- Campaign ----
+// The level design these run over is the outdoor stage chain
+// (docs/MISSIONS_OUTDOOR.md); `tools/test-missions.mjs` is where its shells,
+// borders, ceiling and transport doors are checked in detail, and where
+// `?backup=missions` is checked to still put the old room chain back. What is
+// checked here is what makes Missions a *mode*: per-player cameras, a posted
+// garrison on a level of its own, one readable objective, fights that seal,
+// bosses that turn, and a run that can be won.
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 s = await page.evaluate(`(() => {
   const g = window.__game;
@@ -422,45 +429,50 @@ s = await page.evaluate(`(() => {
   return {
     shared: !!g.sharedCam, state: g.state,
     camsApart: g.players[0].cam !== g.players[1].cam,
-    rooms: c.level.rooms.map((r) => r.spec.kind).join(','),
+    zones: c.stage.zones.map((z) => z.spec.shell + ':' + z.spec.kind).join(','),
     elevated: g.players.every((p) => p.position.y > 60),
     posted: g.enemies.filter((e) => e.alive).length,
     hint: g.hudTopLine(g.players[0]),
+    ceiling: g.ceilingY - c.stage.floorY,
   };
 })()`);
 check('campaign: every player their own camera, no shared rig',
   !s.shared && s.camsApart && s.state === 'fighting');
-check('campaign: the mission level is a room chain — start to warlord, lieutenant mid-run',
-  s.rooms.startsWith('start') && s.rooms.endsWith('warlord')
-  && s.rooms.includes('lieutenant') && s.rooms.includes('assault') && s.rooms.includes('camp'), s.rooms);
+check('campaign: the run opens outdoors on a trailhead, not in a box',
+  s.zones.startsWith('open:start') && !s.zones.startsWith('hall'), s.zones);
 check('campaign: the party stands on the mission level, garrison posted',
-  s.elevated && s.posted > 6, `elevated ${s.elevated} · posted ${s.posted}`);
+  s.elevated && s.posted > 4, `elevated ${s.elevated} · posted ${s.posted}`);
 check('campaign: the guide reads a bearing and a distance', / \d+ m$/.test(s.hint), s.hint);
+check('campaign: the playable sky has a lid over it', s.ceiling > 20, `${s.ceiling} m`);
+
 const walk = await page.evaluate(`(() => {
   const g = window.__game;
   const c = g.campaign;
-  const out = { sealed: false, assaultWave: false, phases: 0 };
+  const out = { sealed: false, assaultWave: false, phases: 0, stages: 0 };
   let guard = 0;
-  // 100 rooms' worth of turns for an eight-room level: enough slack for a
-  // stall to be a stall, small enough that one fails in a couple of minutes
-  // instead of spinning for twenty. A room's waves now arrive by transport,
-  // so each one costs a few seconds of ship before there is anything to kill.
-  while (!c.done && guard++ < 100) {
-    // Walk to the middle of the room being approached, not to its doorway.
-    // objectivePos is a HUD bearing and points at the threshold, which is
-    // where the blast door's blocker stands until it has finished opening —
-    // teleporting onto it just gets the body pushed back out into the
-    // corridor, and the room never counts anyone as inside.
-    const room = c.level.rooms[Math.min(c.idx, c.level.rooms.length - 1)];
-    const obj = c.phase === 'travel' ? room.center : c.objectivePos;
+  // 140 zones' worth of turns for a three-stage run: enough slack for a stall
+  // to be a stall, small enough that one fails in a couple of minutes instead
+  // of spinning for twenty. A zone's waves arrive by transport or out of a
+  // wall hatch, so each costs a few seconds before there is anything to kill.
+  while (!c.done && guard++ < 140) {
+    out.stages = Math.max(out.stages, c.stageIdx + 1);
+    // Walk to the middle of the zone being approached, not to its threshold:
+    // objectivePos is a HUD bearing and points at a doorway, which is where a
+    // blast door's blocker stands until it has finished opening. Past the last
+    // zone the party is standing at the transport door to the next stage.
+    const stage = c.stage;
+    const atPortal = c.idx >= stage.zones.length && stage.exitPortal;
+    const zone = stage.zones[Math.min(c.idx, stage.zones.length - 1)];
+    const obj = atPortal ? stage.exitPortal.threshold
+      : (c.phase === 'travel' ? zone.center : c.objectivePos);
     for (const p of g.players) {
       p.position.set(obj.x, obj.y + 0.2, obj.z);
       p.velocity.set(0, 0, 0);
       p.hp = p.maxHp; p.alive = true;
     }
     (${STEP})(20);
-    for (const room of c.level.rooms) {
-      if (room.entryGate?.closed || room.exitGate?.closed) out.sealed = true;
+    for (const zz of c.stage.zones) {
+      if (zz.entryBarrier?.closed || zz.exitBarrier?.closed) out.sealed = true;
     }
     if (g.enemies.some((e) => e.alive && e.squad >= 9500 && e.squad < 9900)) out.assaultWave = true;
     if (g.boss && g.boss.alive && out.phases === 0) {
@@ -476,72 +488,46 @@ const walk = await page.evaluate(`(() => {
   (${STEP})(20);
   return { ...out, done: c.done, state: g.state };
 })()`);
-check('campaign: assault rooms seal their gates and run waves', walk.sealed && walk.assaultWave, JSON.stringify(walk));
+check('campaign: fights seal their way on and run waves', walk.sealed && walk.assaultWave, JSON.stringify(walk));
+check('campaign: the run crosses its transport doors', walk.stages > 1, String(walk.stages));
 check('campaign: the boss calls its retinue at the health marks', walk.phases > 3, String(walk.phases));
 check('campaign: liberation', walk.done && walk.state === 'victory', JSON.stringify(walk));
 
-// ---- blast doors, and who they wait for -------------------------------------
+// ---- blast doors, and what they let through ---------------------------------
+// The transport door between two stages is a blast door like any other, and
+// the one every run walks up to, so it is the one these check.
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 const doors = await h.page.evaluate(async () => {
   const g = window.__game, c = g.campaign, phys = g.board.physics;
-  const rooms = c.level.rooms, p = g.players[0], q = g.players[1];
+  const p = g.players[0];
   const V = (x, y, z) => p.position.clone().set(x, y, z);
+  const gate = c.stage.exitPortal;
   // can a bolt cross this doorway at chest height?
-  const shootThrough = (room) => {
-    const at = room.entry, to = room.center;
-    const dx = to.x - at.x, dz = to.z - at.z, len = Math.hypot(dx, dz) || 1;
-    const dir = V(dx / len, 0, dz / len);
-    return !phys.raycast(V(at.x - dir.x * 5, at.y + 1.2, at.z - dir.z * 5), dir, 10);
+  const shootThrough = (door) => {
+    const dir = V(door.forward.x, 0, door.forward.z);
+    return !phys.raycast(V(door.pos.x - dir.x * 5, door.pos.y + 1.2, door.pos.z - dir.z * 5), dir, 10);
   };
-  const blank = () => ({
-    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
-    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
-    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
-    zoomDelta: 0, blockHeld: false, pausePressed: false,
-    meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
-  });
-  const inputs = [blank(), blank(), blank(), blank()];
-  window.__manual = true;
-  const step = (secs) => { for (let t = 0; t < secs; t += 1 / 60) g.update(1 / 60, inputs); };
-  const ahead = rooms[rooms.length - 1];
-  const out = { aheadShut: !!ahead.entryGate?.closed, aheadBolt: shootThrough(ahead) };
+  const out = { aheadShut: !!gate.closed, aheadBolt: shootThrough(gate) };
 
   // What the doorway *looks* like has to follow what it is. The leaves are the
-  // door now: the authored blast_door sculpt is a single mesh of a shut door,
-  // so a gate that drew it stayed visibly closed while standing wide open.
-  const leafX = (gate) => gate.leaves.map((l) => +l.position.x.toFixed(2));
-  out.leavesShut = leafX(ahead.entryGate);
-  ahead.entryGate.open();
+  // door: the authored blast_door sculpt is a single mesh of a shut door, so a
+  // gate that drew it stayed visibly closed while standing wide open.
+  const leafX = (door) => door.leaves.map((l) => +l.position.x.toFixed(2));
+  out.leavesShut = leafX(gate);
+  gate.open();
   for (let i = 0; i < 300; i++) c.animateGates(1 / 60);
-  out.leavesOpen = leafX(ahead.entryGate);
+  out.leavesOpen = leafX(gate);
   out.sculptInDoorway = (() => {
     let found = false;
     g.board.group.traverse((o) => {
       if (o.userData?.prop !== 'blast_door') return;
       const w = o.getWorldPosition(p.position.clone());
-      if (Math.hypot(w.x - ahead.entry.x, w.z - ahead.entry.z) < 4) found = true;
+      if (Math.hypot(w.x - gate.pos.x, w.z - gate.pos.z) < 4) found = true;
     });
     return found;
   })();
-  ahead.entryGate.close();
+  gate.close();
   for (let i = 0; i < 300; i++) c.animateGates(1 / 60);
-
-  // find the first room that seals, and put ONE player inside it
-  const i = rooms.findIndex((r, n) => n > 0 && r.spec.kind !== 'camp');
-  const room = rooms[i];
-  c.idx = i;
-  c.phase = 'travel';
-  step(2);
-  p.position.copy(room.center); p.velocity.set(0, 0, 0);
-  q.position.copy(rooms[0].center); q.velocity.set(0, 0, 0);
-  step(1.5);
-  out.oneInside = c.phase;
-  // now bring the other one in
-  q.position.copy(room.center); q.velocity.set(0, 0, 0);
-  step(1.5);
-  out.bothInside = c.phase;
-  out.sealed = !!room.entryGate?.closed && !!room.exitGate?.closed;
   return out;
 });
 check('campaign: a door ahead of the party is shut', doors.aheadShut, JSON.stringify(doors));
@@ -552,12 +538,6 @@ check('campaign: opening a door moves its leaves clear',
 check('campaign: no static door sculpt left covering the doorway',
   doors.sculptInDoorway === false, JSON.stringify(doors));
 check('campaign: and nothing shoots through it', !doors.aheadBolt, JSON.stringify(doors));
-// The seal is the same door the party walks in by, so sealing on the first
-// body through locked everyone else out of their own boss fight.
-check('campaign: a sealing room waits for the whole party',
-  doors.oneInside === 'travel', JSON.stringify(doors));
-check('campaign: and seals once nobody is left outside',
-  doors.bothInside === 'fight' && doors.sealed, JSON.stringify(doors));
 
 // ---- Wave boss ----
 await startMode('wave', 1, 'desert', ['din']);

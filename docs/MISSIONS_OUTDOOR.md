@@ -58,7 +58,7 @@ The rules the rest of this document serves:
    and creature in the game is available to Missions — the inventory belongs
    to the game, not to the wave mode. Where the best version of a place wants
    a surface or a sculpt that does not exist, it is requested
-   (`docs/ASSETS_IMAGES.md`, `docs/ASSETS_MODELS.md`, §9 here) and the design
+   (`docs/ASSETS_IMAGES.md`, `docs/ASSETS_MODELS.md`, §10 here) and the design
    is written to the requested asset, with the procedural stand-in as the
    fallback — the rule every other system in the game already follows.
 9. **Rides are part of the fight where there is room.** The biggest outdoor
@@ -474,7 +474,7 @@ halls at 8 m, hull-plate walls, sodium work light, no sky).
 4. `corridor` + `hall` · **assault ×2** · *the spice vault* — 5×14 corridor
    with a bend, hall 20×18 — **rhydonium barrels**, alcove; hatches.
 5. `hall` · **lieutenant** · *the loading gantry* — 24×20 — pillars — the
-   **duelist**: a saber fight in a hold. Its far door: **⇒⇒ the far side**.
+   **gunslinger**: a gunfight in a hold. Its far door: **⇒⇒ the far side**.
 
 **Stage C — the prize** (*built*, back under the stars and the gravity
 field).
@@ -734,7 +734,7 @@ under one sky, so one map; the terminator's dark side is a later flourish.
    *facades*.
 8. `open` · **warlord** · *the high street terrace* — 64×56 — a raised
    terrace over the ring's curve (visual backdrop: the far side of the ring);
-   *towers, fence behind* — the duelist, then the **nexu**.
+   *towers, fence behind* — the gunslinger, then the **nexu**.
 
 Props: `tram` (parked at the tram stop; running the arcade on a loop as a
 `Mover` later — the armored ride through beat 2), `street_kiosk` ×6 (beat 2)
@@ -803,7 +803,7 @@ personality is the shock plates and the dive.
 | | desert | station | nevarro | crevasse | trask | refinery | forge | ringworld | narkina |
 |---|---|---|---|---|---|---|---|---|---|
 | ceiling | 30 | 45 | 30 | 32 | 28 | 30 (plant: its roof) | 34 | 28 | 28 (sea: the surface) |
-| stages | 3 | 3 | 3 | 2 | 1 | 3 | 3 | 1 | 4 |
+| stages | 3 | 3 | 3 | 2 | 1 | 3 | 3 | 1 | 3 |
 | opens on | the territory | built decks | the territory | the territory | built | built yard | the territory | built | built |
 
 Every ceiling is above a full jetpack burn on that board's gravity (the Spice
@@ -1247,7 +1247,83 @@ Forge, Ringworld (`panel`), Prison Rig (water, `panel`, the `sea` stage).
   the brief implies ("a hallway battle sequence"), drop each board to one
   hall and one corridor and give the beat to a second canyon.
 
-## 9. Assets this design asks for
+## 9. What shipped (2026-09-03)
+
+The design above is the plan; this is the state of the code, so nobody has to
+diff the two to find out. Implemented on branch
+`claude/missions-outdoor-design-iqs1c3`.
+
+**Built and playable.**
+
+- **The ceiling** (§2) — `Game.ceilingY` / `Game.dropHeight`, clamps on the
+  player and on every enemy style, hover and swoop goals held under the lid,
+  and the rule that makes the cut mean something: **a flier above the ceiling
+  may not fire**, it has to descend into the playable band first. Carriers
+  release from `ceiling + 10`, so a drop still falls *through* the cut.
+  `?ceiling=<m>` overrides it for tuning.
+- **Shells** (§1.1) — `open`, `canyon`, `hall`, `deck`, `road`, in
+  `world/mission.ts`. Outdoor zones are held in by `ridge()` borders; halls
+  are roofed and take their waves from **wall hatches**; decks have open
+  edges; roads carry drop marks and a barricade.
+- **Encounters** (§1.2) — `start`, `trek`, `camp`, `assault`, `chase`,
+  `lieutenant`, `warlord`, with the §1.3 sealing table: indoors the party is
+  sealed in, outdoors only the way on shuts and the fight starts on a trigger
+  line six metres past the entry.
+- **Stages and transport doors** (§1.9) — `built` and `interior` stages, the
+  `Portal` with its pocket, the forward rule (one player boards, all go), the
+  back rule (every living player in the pocket, an *exited* state on every
+  HUD, B to cancel), `StageMemory` so a stage you return to comes back as you
+  left it, and per-stage world overrides (fog, background, sky, gravity,
+  traction, a local water plane).
+- **Guidance** (§4) — the beacon pillar and radar pip, the per-viewport
+  **screen marker** with its off-screen edge chevron, the **ground arrow** at
+  every earned checkpoint, and **trail posts** down any lane over 30 m.
+- **Props and rides** (§1.7, §1.8) — every zone places authored sculpts
+  through the same loader the wave boards use, and parks its own rides;
+  `VehicleSpec.y` is new so a ride sits on the plate it was parked on rather
+  than on the territory ninety metres below. The **road/chase** beat runs on
+  the Dune Sea, the Lava Flats and the Great Forge.
+- **The way back** — `?backup=missions` runs the previous room chain whole
+  (`world/mission-legacy.ts`, `game/campaign-legacy.ts`). Both satisfy
+  `MissionController`; nothing else in the game branches on which is running.
+- **Tests** — `tools/test-missions.mjs`: the build, the borders, the ceiling
+  (including a measured jetpack burn and a flier that must come down before
+  it shoots), a golden-path walkthrough to liberation, the transport doors
+  both ways with the cancel, a per-board audit of all nine, and the backup
+  flag.
+
+**Changed from the plan, on evidence.**
+
+- **Ceilings went up.** One full burn measures **28.3 m** at Tatooine gravity,
+  which the planned 30 m lid did not clear — a player would have felt a rule
+  that is not meant to be felt. The table is now 38 / 60 / 38 / 38 / 34 / 36 /
+  40 / 34 / 34 (§3.10 order), with the Spice Run highest for its 0.45 g.
+- **A rim's collision is one slab per run, not one collider per rock.** Every
+  collider in the world is walked by every capsule step, every ground probe
+  and every spawn validation; four hundred cylinders per stage would be paid
+  for on every frame by every body. The rocks are merged mesh — what you see —
+  and a thin tall box just inside them is what you walk into. Free-standing
+  gap pillars keep their own cylinder.
+- **A ravine bends between zones, not inside one.** A bend inside a zone puts
+  half of it outside its own rect, and the seal, the vents, the trigger line
+  and the guidance all key off that rect. `LinkSpec.turn` already bent the
+  lanes *between* zones, so that is where the ravines bend.
+
+**Deferred, and honestly so.**
+
+- **The `territory`, `plant` and `sea` stage kinds** (§3's stage table).
+  Stages today are `built` plates and `interior` halls. So the Dune Sea's
+  opening is a built plate rather than the wave board's own dunes, the
+  Refinery's middle stage is a built interior rather than the plant itself,
+  and the Prison Rig has three stages rather than four — its sea is not yet a
+  stage. The stage machinery is what those need; each is a new `buildStage`
+  branch, not a new system.
+- **The landmark raycast audit** (§4.1). The pillars are built and the marker
+  works; nothing yet fails a level for hiding its own way on.
+- **Terrain relief inside a zone** — floors are flat plates, as §1.5 planned
+  for the first cut.
+
+## 10. Assets this design asks for
 
 Requested 2026-09-03 in the two asset docs; everything below ships procedural
 first and upgrades when the file lands, per the project rule. None of it

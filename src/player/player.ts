@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { travelClip, type Animator } from '../anim/animator';
+import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES,
   type MeleeKind, type PlayerCharacter, type RangedKind,
@@ -48,6 +48,13 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
 const HIT_IFRAMES = 0.3;
 /** how long an X press during a swing waits for the swing to clear */
 const MELEE_BUFFER = 0.25;
+/**
+ * How much of a hit aimed at a mounted rider carries into the ride under them.
+ * The rider takes the hit in full — they are the one in the open — and this is
+ * the splash off it: enough that a firefight fought from the saddle wears the
+ * ride down, nowhere near enough to make the hull a health bar again.
+ */
+const RIDER_HIT_BLEED = 0.25;
 /** and a fresh body gets a moment to find its feet before it can be shot */
 const RESPAWN_IFRAMES = 1.6;
 /** shove per hit, m/s, before the damage scale */
@@ -107,12 +114,6 @@ const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
-/** gauge spent turning one bolt aside on a blade */
-/**
- * Gauge spent turning one bolt on the blades, when the blades are *idle*. A
- * live swing costs nothing — see `consumeDeflect`.
- */
-const DEFLECT_ENERGY = 0.035;
 /** the forward block pane's radius, and the closed bubble's (IG-11) */
 const SHIELD_PANE_R = 0.78;
 const SHIELD_BUBBLE_R = 1.25;
@@ -152,6 +153,55 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+
+/**
+ * Cross-fade between two jetpack poses, seconds.
+ *
+ * Longer than a locomotion change (0.15-0.18): the flight poses are held
+ * shapes rather than cycles, so the fade between them *is* the movement — the
+ * legs swinging from trailing to plumb to reaching under. Cut short it reads
+ * as a twitch; much longer and the brace is still arriving as the boots do.
+ */
+const FLY_FADE = 0.26;
+/**
+ * How far down the flight code looks for the ground, metres.
+ *
+ * Only the last few metres change the pose (`BRACE_CEIL` in animator.ts is
+ * 7 m), so anything past this is "no ground" as far as the brace is concerned
+ * and the probe can stop early.
+ */
+const GROUND_PROBE = 12;
+/**
+ * Per-pose shaping of the flight lean: [how much of the velocity lean to
+ * keep, degrees of extra pitch].
+ *
+ * The lean is otherwise pure horizontal velocity, which is right for the
+ * cruise and wrong everywhere else — it tipped a body hovering on the spot
+ * flat when it drifted, and left one dropping onto a roof still nosed over.
+ * The climb and the descent keep only a third of it and stand up; the brace
+ * takes a couple of degrees the other way, so the boots lead the chest into
+ * the ground.
+ */
+const FLY_LEAN: Record<FlightPose, [number, number]> = {
+  fly: [1, 0],
+  // a lateral drift is carried by the legs and the arms; the body stays
+  // upright over them, and what forward component the travel has still leans
+  flyDrift: [0.8, 0],
+  flyDriftL: [0.8, 0],
+  flyRise: [0.35, -1.5],
+  flyFall: [0.3, -3],
+  flyBrace: [0.25, -5],
+};
+
+/**
+ * Fade from the flight brace into the landing crouch, seconds.
+ *
+ * Every other landing is all but a cut (0.05) because the body arrives out of
+ * a fall in a shape that has nothing to do with a crouch. Out of the brace it
+ * arrives in most of one, so this can be a real blend — the touchdown reads as
+ * the reach continuing into the give rather than as a change of pose.
+ */
+const LAND_BRACE_FADE = 0.12;
 /** how long the firing arm's recoil kick lasts, seconds */
 const ARM_KICK = 0.06;
 /** the kick's peak, radians — the shoulder rolls the muzzle up and rides it down */
@@ -200,6 +250,15 @@ export class Player {
   velocity = new THREE.Vector3();
   radius = 0.45;
   height = 1.75;
+  /**
+   * Standing in a transport door's pocket, waiting on the rest of the party
+   * (docs/MISSIONS_OUTDOOR.md §1.9). Going back through a door needs everyone
+   * aboard, so a player who steps in stops taking input and stops taking
+   * damage until the others join them — or until they cancel back out.
+   */
+  exited = false;
+  /** they pressed cancel this frame; the campaign walks them back out */
+  cancelExit = false;
   hp = 100;
   maxHp = 100;
   /** PvP: respawns left; other modes never read it */
@@ -265,12 +324,6 @@ export class Player {
    * she needs to, rather than jogging around lit like a road flare.
    */
   private saberIdle = 0;
-  /**
-   * Spacing between deflects. Short — the gauge, not the clock, is what limits
-   * a parry, and a squad's shots arriving together should mostly be turned —
-   * but non-zero, so a single burst cannot be met with one blade sweep.
-   */
-  private deflectCd = 0;
   /** scratch for the saber deflect collider */
   private saberSphere = {
     center: new THREE.Vector3(), radius: 0.95, normal: new THREE.Vector3(),
@@ -346,6 +399,14 @@ export class Player {
   private flipTarget = 0;
   /** the body lean the flight code asks for, kept apart from the somersault */
   private leanX = 0;
+  /**
+   * Which jetpack pose is on the body — hover/climb, cruise, descent or the
+   * brace for the ground. Kept from frame to frame because `flightPose` uses
+   * it for hysteresis: sitting on a threshold would otherwise strobe.
+   */
+  private flyPose: FlightPose = 'fly';
+  /** true while the flight poses own the body, so the lean can be shaped to them */
+  private flying = false;
   private coyote = 0;
   private fireCd = 0;
   private thrusting = 0;
@@ -703,8 +764,9 @@ export class Player {
    *   burning and standing in lava is still fatal.
    */
   damage(amount: number, from: THREE.Vector3, bySlot = -1, opts: { dot?: boolean; heavy?: boolean } = {}): void {
-    // a body still assembling isn't there to hit yet
-    if (!this.alive || this.formT > 0) return;
+    // a body still assembling isn't there to hit yet, and neither is one
+    // standing in a transport door waiting on the rest of the party
+    if (!this.alive || this.formT > 0 || this.exited) return;
     // A kill zone is not an attack and is never shrugged off, and neither is
     // a heavy blow (`opts.heavy`): the guard exists so a volley of bolts lands
     // as a rhythm rather than a wall, not so that a bolt 0.2 s before a
@@ -712,12 +774,17 @@ export class Player {
     // detonation turns the big, telegraphed hit into nothing. The callers
     // that commit to a hit say so; everything else still waits its turn.
     if (!opts.dot && !opts.heavy && amount < 500 && this.hitGuard > 0) return;
-    // Mounted, the hull is your HP: hits on the rider land on the vehicle —
-    // until it gives out. Kill zones (999) still kill the rider outright.
+    // Mounted, you are still the one in the open (PLAN.md §17, second pass).
+    // The hull used to soak every hit aimed at the rider, which made a ride a
+    // suit of armour worth more than the fight: a skiff's plate is not between
+    // a bolt and a man standing on its deck. What is aimed at the rider hits
+    // the rider; the hull has its own hit spheres and takes what is aimed at
+    // it. A share of it does carry into the ride — a swing or a blast around
+    // the saddle chews the thing you are sitting on — so a mounted fight
+    // still costs the ride something.
     if (this.vehicle && amount < 500) {
-      this.vehicle.damage(amount, from, -1);
+      this.vehicle.damage(amount * RIDER_HIT_BLEED, from, -1);
       this.noteVehicleHit(from);
-      return;
     }
     // A raised shield is a shield: the pane already turns bolts, and now a
     // swing, a flame or a slam arriving from the front lands at half force,
@@ -958,24 +1025,18 @@ export class Player {
   deflectEnemy: { position: THREE.Vector3 } | null = null;
 
   /**
-   * Charged per bolt turned, so holding blades into sustained fire costs the
-   * same gauge as sprinting. Returning false lets the bolt through.
+   * The blades turn everything they are facing, for as long as she holds them
+   * up. No cooldown and no gauge: what limits the guard is where she is
+   * pointing, not how long she has been at it — a shot from behind lands, and
+   * that is the only way through.
+   *
+   * This replaced a per-bolt energy charge plus a 0.05 s spacing. Both were
+   * balance guesses of mine, and both leaked bolts through a guard that was
+   * plainly working, which reads as the parry being broken rather than as a
+   * cost being paid. The arc does the limiting instead (`saberSphere.minDot`).
    */
   private consumeDeflect(): boolean {
-    if (this.deflectCd > 0) return false;
-    // A blade that is *moving* turns whatever it meets, and costs nothing to
-    // do it: while a swing is live the parry is the swing. Standing with the
-    // guard up still works, and that is what the gauge pays for. Without this
-    // split, sustained fire emptied the gauge in a couple of seconds and then
-    // everything landed while she was visibly swinging through it.
-    const swinging = this.meleeTimer > 0;
-    if (!swinging) {
-      if (this.energy <= 0) return false;
-      this.energy = Math.max(0, this.energy - DEFLECT_ENERGY);
-      this.sprintRefillDelay = Math.max(this.sprintRefillDelay, 0.5);
-    }
-    this.deflectCd = 0.05;
-    this.saberIdle = 0;
+    this.saberIdle = 0;   // turning a bolt counts as using the blades
     return true;
   }
 
@@ -994,6 +1055,22 @@ export class Player {
     // fades back in where it will stand — watchable, untouchable, and deaf to
     // input until it is whole
     if (this.formT > 0) { this.updateForming(dt, game, realDt, anim); return; }
+
+    // Waiting in a transport pocket: the body stands there, the camera still
+    // looks around, and the only button that does anything is the one that
+    // takes it back. Everything else would be a step out of the door the
+    // party is waiting at.
+    if (this.exited) {
+      // B is the cancel: it is the game's own "back", and while you are in
+      // the pocket the shield it normally raises has nothing to guard against
+      if (input.blockHeld) this.cancelExit = true;
+      input = { ...input, moveX: 0, moveY: 0, jumpHeld: false, jumpPressed: false,
+        dashPressed: false, sprintHeld: false, shootHeld: false, meleePressed: false,
+        rocketPressed: false, slamPressed: false, throttleHeld: false, brakeHeld: false,
+        blockHeld: false };
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+    }
 
     this.updateGrowth(dt, game);
     this.updateEggRack(dt);
@@ -1508,6 +1585,20 @@ export class Player {
     if (inVoid) this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.9));
   }
 
+  /**
+   * Metres from the boots to whatever is under them, out to `GROUND_PROBE`;
+   * Infinity when nothing is within reach.
+   *
+   * `groundHeight` only reports surfaces at or below the feet, which is
+   * exactly what is wanted here: a catwalk overhead is not a thing to brace
+   * for, and the roof you are about to set down on is.
+   */
+  private dropBelow(game: Game): number {
+    const g = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y);
+    const drop = this.position.y - g;
+    return drop >= 0 && drop <= GROUND_PROBE ? drop : Infinity;
+  }
+
   /** the capsule move, and what meeting the ground does: the crouch, and a slam */
   private integrateAndLand(dt: number, game: Game, anim: Animator): void {
     // how hard the ground is about to be met: the collision resolve takes the
@@ -1520,9 +1611,22 @@ export class Player {
       // Take the drop in the knees. A light landing is the same crouch played
       // brisk, a heavy one is the full absorb plus a beat before you can run
       // out of it; a kerb-step gets neither.
-      if (impact > LAND_ABSORB || this.slamming) {
+      //
+      // Setting down off the pack is the exception. A jetpack arrival is slow
+      // by design — the whole point of the descent is that it takes the fall —
+      // so it almost never clears `LAND_ABSORB`, and the body went from
+      // reaching for the ground straight to standing on it in one frame. A
+      // braced arrival always gets the crouch, played brisk and faded rather
+      // than cut, because the brace has already put the legs most of the way
+      // into it: what is left is the last few degrees of give.
+      const braced = anim.playing('lower') === 'flyBraceLower';
+      if (impact > LAND_ABSORB || this.slamming || braced) {
         const heavy = impact > LAND_HEAVY || this.slamming;
-        this.landTimer = anim.playOnce('lower', 'landLower', 0.05, false, heavy ? 1 : 1.5);
+        const soft = braced && impact <= LAND_ABSORB;
+        this.landTimer = anim.playOnce(
+          'lower', 'landLower', braced ? LAND_BRACE_FADE : 0.05, false,
+          heavy ? 1 : soft ? 1.9 : 1.5,
+        );
         if (heavy) this.landRecovery = LAND_RECOVER;
       }
       if (this.slamming) {
@@ -1545,6 +1649,30 @@ export class Player {
     }
     this.grounded = res.grounded;
     this.wasGrounded = res.grounded;
+    this.clampToCeiling(game);
+  }
+
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
+   *
+   * A mission level caps everyone below its ceiling so a border cannot be
+   * flown over and a beat cannot be skipped, and so the sky above it belongs
+   * to the backdrop — the band carriers cross and fliers come down out of. It
+   * sits well above what one burn reaches, so free flight never meets it; what
+   * meets it is a climb up a cliff, and there the pack sputters against it
+   * rather than pretending nothing happened.
+   */
+  private clampToCeiling(game: Game): void {
+    const lid = game.ceilingY;
+    if (lid === null) return;
+    const head = this.position.y + this.height;
+    if (head <= lid) return;
+    this.position.y = lid - this.height;
+    if (this.velocity.y > 0) this.velocity.y = 0;
+    if (this.thrusting > 0) {
+      this.thrusting = 0;
+      audio.setJetpackThrust(this.slot, 0.25);
+    }
   }
 
   /** out of bounds: a void board puts you back on your start, everything else kills */
@@ -1589,6 +1717,11 @@ export class Player {
   /** which clips the body plays for what it is doing */
   private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
     // ---- animation state ----
+    // Cleared here and set again only by the flight branch below, so the lean
+    // in `syncVisual` always reflects the pose that actually went on the body
+    // this frame — including the frames flight loses the body to a block, a
+    // somersault or the ground.
+    this.flying = false;
     // Jumping, dashing or thrusting straight back out of a landing cancels the
     // crouch: a one-shot holds the channel to its end, and the legs would stay
     // folded under a body that is already in the air.
@@ -1610,8 +1743,19 @@ export class Player {
       anim.play('lower', 'tuckLower', 0.12);
       if (this.meleeTimer <= 0) anim.play('upper', 'tuckUpper', 0.12);
     } else if (this.gliding || this.thrusting > 0 || (!this.grounded && this.velocity.y > 2 && input.jumpHeld)) {
-      anim.play('lower', 'flyLower');
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'flyUpper');
+      // Flight is four poses, not one: which of them is on the body comes from
+      // the climb angle and the ground below (see `flightPose`). The fade is
+      // longer than a locomotion change because these are held shapes rather
+      // than cycles — a snap between two of them reads as a twitch, and the
+      // slower blend is what makes going up, over and down one continuous
+      // movement instead of three states.
+      this.flying = true;
+      this.flyPose = flightPose(this.velocity, this.facingYaw, this.dropBelow(game), this.flyPose);
+      const fly = flightClips(this.flyPose);
+      anim.play('lower', fly.lower, FLY_FADE);
+      if (this.meleeTimer <= 0) {
+        anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : fly.upper, FLY_FADE);
+      }
     } else if (!this.grounded) {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'airUpper');
@@ -1732,6 +1876,7 @@ export class Player {
     // face and lean into the stroke
     const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
     if (speed2 > 0.6) this.facingYaw = dampAngle(this.facingYaw, Math.atan2(this.velocity.x, this.velocity.z), 8, dt);
+    this.flying = false;   // the swim has its own lean; see `syncVisual`
     anim.play('lower', 'flyLower');
     if (this.meleeTimer <= 0) anim.play('upper', 'flyUpper');
 
@@ -1957,9 +2102,11 @@ export class Player {
   }
 
   /**
-   * In the saddle: input drives the vehicle, the rider sits its seat, and the
-   * hull soaks the fire. RB steps off beside the ride; A hops off upward —
-   * straight into a jetpack chain, which is the fun exit.
+   * In the saddle: input drives the vehicle and the rider sits its seat —
+   * exposed, since a mounted rider takes what is aimed at them (only a
+   * quarter of it bleeds into the ride). RB steps off beside a parked ride and
+   * bails out of a moving one; either way a ride left with speed in it rolls
+   * on driverless until it stops.
    */
   private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
     const anim = this.char.animator!;
@@ -2278,7 +2425,6 @@ export class Player {
   }
 
   private updateCombat(dt: number, input: FrameInput, game: Game): void {
-    this.deflectCd -= dt;
     // Which slot is in hand is never something the player has to arrange: the
     // button that uses a weapon is the button that draws it. All the D-pad
     // does is pick *which* blade or which gun that is, for a fighter carrying
@@ -2722,18 +2868,37 @@ export class Player {
 
   private syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
+    // YXZ, not the default XYZ. Three applies an XYZ Euler outermost-X-last,
+    // which makes `rotation.x` a pitch about the *world* X axis — so a body
+    // facing north leaned forward correctly and the same body facing east
+    // rolled onto its shoulder instead, and a somersault taken sideways came
+    // out a cartwheel. Yaw-first puts the pitch back on the character's own
+    // right-hand axis, whichever way they are pointed, which is also the axis
+    // `_flipAxis` below has always swung the hips about.
+    this.char.root.rotation.order = 'YXZ';
     this.char.root.rotation.y = this.facingYaw;
     this.syncAimLayer(dt);
     // blade trails ride the swings (and the flourish), on every update path
     this.trailTimer -= dt;
     this.char.setTrail(this.weapon === 'gaffi' && (this.meleeTimer > 0 || this.trailTimer > 0));
-    // lean into velocity while flying; underwater the whole body pitches
-    // into the stroke — diving tips you prone, rising brings you upright
+    // Lean into velocity while flying; underwater the whole body pitches
+    // into the stroke — diving tips you prone, rising brings you upright.
+    //
+    // In flight the raw velocity lean is shaped by which of the four jetpack
+    // poses is on the body (`FLY_LEAN`): the cruise leans on it fully, the
+    // climb and the descent stand most of the way up, and the brace tips a
+    // few degrees back so the boots reach the ground ahead of the chest. The
+    // clips carry the legs and this carries the whole body, and it is the two
+    // together that make the difference between flying up and flying along.
     const lean = clamp((this.velocity.x * Math.sin(this.facingYaw) + this.velocity.z * Math.cos(this.facingYaw)) / 18, -0.35, 0.35);
-    const target = this.swimming
-      ? clamp(lean * 2.2 - this.velocity.y * 0.09, -0.6, 0.9)
-      : this.grounded ? 0 : lean * (this.thrusting ? 1 : 0.4);
-    this.leanX = damp(this.leanX, target, 8, dt);
+    let target: number;
+    if (this.swimming) target = clamp(lean * 2.2 - this.velocity.y * 0.09, -0.6, 0.9);
+    else if (this.grounded) target = 0;
+    else if (this.flying) {
+      const [share, pitchDeg] = FLY_LEAN[this.flyPose];
+      target = lean * share + pitchDeg * (Math.PI / 180);
+    } else target = lean * 0.4;
+    this.leanX = damp(this.leanX, target, this.flying ? 6 : 8, dt);
     this.char.root.rotation.x = this.leanX + this.flipAngle;
     if (this.flipAngle !== 0) {
       // A somersault turns about the body, and `position` is where the boots

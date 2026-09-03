@@ -5,16 +5,18 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open: the Missions v3 outdoor surface set (2026-09-03)** — see
-[below](#missions-v3--outdoor-surfaces-requested-2026-09-03). Everything before it was
-delivered by 2026-09-02, some of it weeks earlier, and has moved to the history doc:
+**Open: the two replacement-NPC character sheets (2026-09-03)** — see
+[below](#replacement-npc-character-sheets--requested-2026-09-03). The Missions v3 outdoor
+surface set was requested and delivered the same day and is wired into the mission
+stages, so it has moved to the history doc along with everything before it:
 the 27 environment prop reference sheets (all with their models in the game), the six
 optional drop-screen portraits for the playable NPCs, and the second monster batch's
 five canvases including the replacement `sandworm`. The cast, the boards, the skies,
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
-What remains below is not a request: the recipe for making more character sheets, and
+Besides the two sets above, what remains below is not a request: the recipe for making
+more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
 future request would otherwise have to rediscover.
 
@@ -30,63 +32,11 @@ were the one deliberate exception; both are delivered.)
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
 
-## Missions v3 — outdoor surfaces, requested 2026-09-03
-
-Opened by `docs/MISSIONS_OUTDOOR.md`, the redesign of the mission levels as outdoor
-zones held in by terrain: open ground, ravines, roads, a hallway beat behind a door in
-a cliff. The level's borders are **rim** pieces — noised cylinders 36 m and taller —
-and its floors are wide plates under the sky, and neither has a surface made for it:
-every environment texture in the game is a top-down ground tileable or a small-scale
-panel. A 36 m cliff face wants a *face*. All of these are pre-wired in design (each
-`ridge` style and each outdoor floor names its texture and keeps the palette colour as
-the fallback), so arriving at the path is the integration, as with the corridor set.
-
-**Specs:** seamless tileable, 1024×1024 unless noted, sRGB, even lighting, no shadows,
-no text. Cliff faces are viewed **side-on from 2–40 m** — so their features must be
-large (strata bands, fracture planes, rivet seams a metre apart), not the fine grain of
-the ground textures; each cliff also gets a matching normal map (`_normal.png`).
-Grounds are top-down like the existing set. Land in `public/assets/textures/`.
-
-### Cliff faces — one per `ridge` style (priority 1)
-
-| File | Where | Prompt |
-|---|---|---|
-| `cliff_sandstone.jpg` + `cliff_sandstone_normal.png` | Dune Sea rims, pillars and mesas; the Refinery's rock behind its tanks | "Seamless tileable texture of a tall desert sandstone cliff face seen side-on: thick horizontal strata bands in warm tan, ochre and rust, wind-scoured overhangs and vertical fracture planes, patches of pale dust in the ledges, large-scale features, even lighting, no shadows" |
-| `cliff_basalt.jpg` + normal | Lava Flats rims and pillars | "Seamless tileable texture of a columnar basalt cliff face side-on: tightly packed vertical hexagonal basalt columns in dark charcoal-grey, broken column tops, thin ember-orange glow deep in a few of the seams, ash dusting the ledges, even lighting, no shadows" |
-| `cliff_ice.jpg` + normal | Crevasse rims, ice pillars, the nest-mouth door surround | "Seamless tileable texture of a glacier wall side-on: pale blue-white ice with deep blue translucent depth, horizontal compression bands, vertical melt grooves, frost bloom and fine white fracture lines, wind-packed snow lodged on ledges, even lighting, no shadows" |
-| `cliff_ruin.jpg` + normal | Great Forge rims (collapsed facades, fused dunes) and pylons | "Seamless tileable texture of a war-ruined stone facade side-on, partly melted to green-grey glass: blast-scorched carved masonry with shallow angular sigil relief, sections slumped and fused into smooth vitrified glass, heat-cracked, ash-streaked, even lighting, no shadows" |
-| `tank_wall.jpg` + normal | Refinery rims: the storage tanks and fence walls | "Seamless tileable texture of the side of a huge industrial storage tank: curved riveted steel plates in oxidised grey-green, horizontal reinforcement ribs, a faded yellow-black hazard band, stencilled numbering worn to illegibility, rust weeping from the rivet lines, even lighting, no shadows" |
-| `warehouse_wall.jpg` + normal | Storm Docks rims: the warehouse rows | "Seamless tileable texture of a harbour warehouse wall side-on: tall corrugated iron sheets over a timber frame, green-black paint peeling to rust, salt streaks, barnacle crust at the base band, a row of small dark windows high up, even lighting, no shadows" |
-| `hull_plate_large.jpg` + `hull_plate_large_glow.jpg` + normal | Spice Run: the station's 120 m hull face and the Prison Rig's hull walls (tinted white at runtime) | Albedo: "Seamless tileable texture of a very large spacecraft hull seen side-on at distance: metre-scale armour panels in off-white and grey with chipped paint, heavy panel seams, recessed conduit runs, docking-light housings, a few vents and greebles, grime streaks, even lighting, no shadows, 2048×2048". Glow (emissive, same layout): "matching emissive map, near-black with small docking lights in amber and pale blue along the seams and a few lit porthole strips" |
-
-### Outdoor floors — the themes that have none (priority 2)
-
-| File | Where | Prompt |
-|---|---|---|
-| `ash_ground.jpg` | Lava Flats open zones and the causeway | "Seamless tileable top-down texture of a volcanic ash flat: fine grey-black ash with wind ripples, scattered pumice pebbles, faint pale mineral crust, even lighting, no shadows" |
-| `glass_plain.jpg` | Great Forge open zones and the glass highway | "Seamless tileable top-down texture of ground fused to glass by a great heat: smooth green-grey vitrified surface with frozen ripples and bubbles, cracked into large plates, dust in the cracks, faint reflections, even lighting, no shadows" |
-| `street_paving.jpg` | Ringworld plazas and streets | "Seamless tileable top-down texture of a sci-fi city street: large interlocking dark composite paving slabs with fine seams, a worn lane stripe in faded teal, drain grilles, scuffs and stains, even lighting, no shadows" |
-| `dock_planks.jpg` | Storm Docks quays and piers | "Seamless tileable top-down texture of a weathered harbour pier: wide grey-brown timber planks with iron bolts, gaps between planks, salt-bleached and wet-dark patches, rope fibres and fish scales caught in the gaps, even lighting, no shadows" |
-| `scree_ground.jpg` | ravine floors on the Dune Sea and the Crevasse (tinted per palette) | "Seamless tileable top-down texture of a canyon floor: packed gravel and angular scree in mixed grey-tan stone, a few larger flat rocks, dry silt between, even lighting, no shadows" |
-| `sea_surface.jpg` + `sea_surface_normal.png` | the local water plane on the Storm Docks and the Prison Rig | "Seamless tileable top-down texture of a cold harbour sea surface: dark green-grey water with short choppy wind waves, foam flecks, slight oily sheen, even lighting, no shadows". Normal: "matching seamless normal map of short choppy waves" |
-
-### Ridge silhouettes and small alphas (priority 3)
-
-| File | Where | Prompt |
-|---|---|---|
-| `ridge_silhouette_desert.png`, `_basalt.png`, `_ice.png`, `_ruin.png` (2048×512 PNG, alpha) | the horizon strip above each level's backdrop row — the `skyline_silhouette` technique, one per ridge family | "Wide horizontal silhouette strip of a distant [desert mesa range / jagged volcanic ridge / ice peaks and seracs / ruined city skyline melted into glass], solid near-black shapes on a transparent background, seamless left-to-right, no gradient, no text" — one image per bracketed subject |
-| `energy_cells.png` (512×512 PNG, alpha) | the fence pane and the ceiling-contact shimmer | "Seamless tileable alpha pattern of a fine hexagonal energy-field cell grid: thin bright lines on transparent, slightly irregular brightness per cell, no colour" |
-
-Not requested: a cliff **model** set (the rims are noised cylinders merged per zone,
-which the design prefers for a while — it is what lets a layout change in an
-afternoon), and any new sky (the nine panoramas already cover every level, since a
-mission level sits under its territory's sky).
-
 ## Making more character reference sheets
 
-Every character in `ASSETS_MODELS.md` already has its three views, so this section is
-here for the next character rather than for anything outstanding. Delivered sheets and
-their prompts are in the history doc.
+Beyond the two sets above, every character in `ASSETS_MODELS.md` already has its three
+views, so this section is here for the next character too. Delivered sheets and their
+prompts are in the history doc.
 
 These are the canonical visual reference for every authored 3D character in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md) — they drive image-to-3D generators (Meshy, Tripo,
