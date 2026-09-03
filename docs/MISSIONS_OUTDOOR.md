@@ -65,6 +65,12 @@ The rules the rest of this document serves:
    spaces park rides (swoops, speeder bikes, the landspeeder, the skiff, a
    bantha) and one beat per vehicle board is a **road**: a long outdoor lane
    meant to be ridden under fire, with enemy swoops harrying the column.
+10. **A level is a chain of stages, and a stage can be a different map.** Where
+   two parts of a run want different world rules — space and a hull interior,
+   a deck and the sea beneath it, the open ground of a territory and a plant
+   built inside it — the run crosses a **transport door** and the next stage
+   loads behind a short transition. Map size and resource limits never decide
+   the design; the door does. Where a run is one place, it stays one map.
 
 ## 1. The grammar: shells × encounters
 
@@ -194,13 +200,13 @@ What each territory draws on (the ids are the delivered `.glb` files):
 |---|---|---|
 | Dune Sea | `sandcrawler` on the trailhead's skyline, `homestead_dome` + `vaporator` ×3 at the trailhead, `sail_barge` in the caravan graves, `tusken_tent` ×3 in the ravine camp, a grounded `troop_carrier` wreck in the hollow | `cargo_crate`, `corridor_crate`, boulders (§9) |
 | Spice Run | the station **hull** (a `hull` ridge, §9 texture), a landed `freighter` on the docking bay, `cargo_crane` ×2 over the outer yard, `reactor_core` as the reactor ring's spire, a parked `raider_dropship` on the prize's hold | `cargo_crate` ×many, `fuel_barrel` (steel skin) |
-| Lava Flats | `adobe_tower` ×2 + `adobe_gate` as the **garrison door face** (the dead-end canyon ends at the town gate, doors shut), `survey_crawler` wrecked on the ash flats | `cargo_crate`, basalt boulders, `fuel_barrel` (rhydonium) in the pen |
+| Lava Flats | the board's own `adobe_tower` ×2 + `adobe_gate` as the **garrison's transport door** (the opening stage ends in front of the town gate, leaves shut), its `survey_crawler` wrecked on the ash flats | `cargo_crate`, basalt boulders, `fuel_barrel` (rhydonium) in the pen |
 | Crevasse | `survey_crawler` on the rim shelf, ice spires (the board's own procedural spires, lifted into the level), `krykna_brood` egg sacs (breakable, `addBreakable`) in the hatchery | ice boulders, `corridor_crate` |
 | Storm Docks | `trawler` as the trawler deck (static in Phase 3, a `Mover` in Phase 6), `dock_shed` on the quay, `freighter` as the freighter-hold's exterior, `fish_rack` ×4 on the pier | `cargo_crate`, `fish_rack` (thin cover), `fuel_barrel` |
 | Refinery | `reactor_core` rising through the reactor crown (40 m: it clears the ceiling, which is right), `pipe_rack` tiled along the pipe run, `alarm_console` ×2 per hall (**the alarm mechanic comes with them**: a console left standing calls the next hatch early) | `fuel_barrel` (rhydonium), `cargo_crate` |
 | Great Forge | `mythosaur_skull` at the rim of the sleeper's basin, `forge_brazier` on a dais in the glassed court, dome ribs (procedural) on the skyline | ruin rubble, `corridor_crate` |
 | Ringworld | `tram` parked at the tram stop (and running the arcade as a `Mover` in Phase 6), `street_kiosk` ×6 down the arcade, the ring's far side as the terrace's backdrop | `street_kiosk`, `cargo_crate` |
-| Prison Rig | a landed `troop_carrier` on the landing deck, `sunken_transport` beached against the assembly deck's edge (its hull is walkable cover), `alarm_console` in the work floor | `cargo_crate` (white skin), `fuel_barrel` |
+| Prison Rig | a landed `troop_carrier` on the landing deck, the board's own `sunken_transport`, kelp and reef in the sea stage (swum through, a cache inside the wreck), a second wreck beached against the assembly deck's edge as walkable cover, `alarm_console` in the work floor | `cargo_crate` (white skin), `fuel_barrel` |
 
 Breakables come with the props that have them (`fuel_barrel` rhydonium,
 `alarm_console`, the egg sacs) — `addBreakable` is board-agnostic.
@@ -237,9 +243,63 @@ Rules for where rides go:
   tram as a `Mover` later (Phase 6) — an armored ride you cannot steer is a
   different, good beat. The Storm Docks' harbour crossing by skiff (a `road`
   whose floor is the water plane) is designed but deferred with it.
+- **Rides stay in their stage.** A transport door is a map boundary; a ride
+  is left where it stands (and remembered there for a return trip). Every
+  stage that wants rides parks its own.
 - **Rides in arenas.** The two biggest warlord arenas (the Old One's hollow,
   the sleeper's basin) park a swoop and a skiff at the rim: ramming the
   warlord is allowed, and the monster's ground slam wrecks a ride outright.
+
+### 1.9 Stages and transport doors
+
+A run is a list of **stages**, each a map of its own: a purpose-built zone
+chain (the v3 level), **the territory itself** (a rimmed, ceilinged region of
+the wave board — its real dunes, its real lava rivers, its real dome), an
+**existing interior** used whole (the Refinery plant), or **the sea** (the
+Prison Rig's swimmable ocean). One stage is the default; a territory takes
+more only when its parts want different world rules — sky and fog, gravity,
+water, lighting, a roof — or when reusing a map that already exists is better
+than rebuilding it. Seven of the nine end up with two or three stages (§3);
+the Storm Docks and the Ringworld are one place and stay one map.
+
+A stage boundary is a **transport door** — a door, a canyon mouth, a lift, a
+dive hatch, a moon pool — and it behaves by these rules:
+
+- **Forward: one boards, all go.** The moment one living player crosses the
+  door's threshold, the party is transported: a 1.5 s beat (the door's light
+  goes white, inputs blank, everyone's camera drifts toward the door, the
+  transport sting), the loading card for the next stage, and the party
+  **re-forms** at the new stage's start with the existing dissolve-and-re-form
+  animation. Nobody is left behind and nobody is asked. The threshold sits at
+  the end of a 4 m pocket behind the door leaves, so it is stepped through
+  deliberately, never brushed by.
+- **Back: everyone boards, then go.** The door you arrived by is a transport
+  door too, and it takes the party back — but only when **every living
+  player** is in its pocket. A player who steps in is marked **exited** on
+  every HUD (their portrait dims, the line *⟨name⟩ has stepped out — waiting
+  on the others*), their own view shows *You have exited · B to cancel*, they
+  take no damage and no input but cancel, and pressing cancel walks them back
+  out. The dead are not counted: they are already at the checkpoint. When the
+  last living player steps in, the transport plays and the previous stage
+  loads **as the party left it** — cleared through the zone they exited, its
+  gates open, its garrison gone, its pickups taken — from a `StageMemory`
+  the campaign keeps per stage. Going back is a safety valve (a missed cache,
+  a ride left behind), and the all-aboard rule is what stops it happening by
+  accident.
+- **Checkpoints cross with the party.** Arriving in a stage checkpoints its
+  start; a wipe in a new stage re-forms the party there, never in the last
+  one.
+- **The ramp continues.** Difficulty is by *beat*, counted across stages; the
+  first zone of stage two is one deeper than the last zone of stage one.
+- **What loads.** A stage swap is the match boot's own path — put the loading
+  card up, tear the current board down (`Game.dispose`'s subtree pass, the
+  physics list, enemies, projectiles, carriers, rides), build the next
+  stage, re-place the players — with the next stage's assets **warmed while
+  the current one is played** (`prefetch.ts` already plans by mode; it gains
+  a stage index), so the card is a beat, not a wait. Music does not stop; the
+  ambience swaps with the board.
+- **Nothing skips.** A transport door is shut until its zone is clear, like
+  any exit barrier, and the ceiling and rim rules hold on every stage.
 
 ## 2. The flight ceiling
 
@@ -304,94 +364,127 @@ to say "that was the top", and it is cheap.
 
 Notation for each beat: **shell · encounter · label** — size — set pieces —
 *borders / landmark* — arrival. Links between beats are given as a trek
-distance where it matters. `⇒` marks a door. Ceilings are the starting
-values; every one is a tunable.
+distance where it matters. `⇒` marks a door; **⇒⇒** marks a **transport
+door** (§1.9) and the line after it names the stage it opens. Ceilings are
+the starting values; every one is a tunable.
 
-Territories run 8 beats, 9 where a road is added (the Dune Sea, the Lava
-Flats, the Great Forge). `TEXT.missions.rooms` carries one label per beat, in
-order — the labels are re-authored below and must be updated in `text.ts`; the
-load-time name check stays and now checks the count too. Each layout ends with
-its **props** and **rides** lines; ids are §1.7's. Boss shells are chosen per territory so that roughly half
-the lieutenants fight indoors and every warlord fights **outdoors** — the
+Territories run 8 or 9 beats across their stages. `TEXT.missions.rooms`
+carries one label per beat, in order — the labels are re-authored below and
+must be updated in `text.ts`; the load-time name check stays and now checks
+the count too. Each layout ends with its **props** and **rides** lines; ids
+are §1.7's. Boss shells are chosen per territory so that roughly half the
+lieutenants fight indoors and every warlord fights **outdoors** — the
 monsters need the room and the reveal is better under the sky.
 
-### 3.1 The Dune Sea (`desert`) — ceiling 30
+**Stage kinds used below.** *territory* — a rimmed, ceilinged region of the
+wave board itself, zones laid as rects on its real terrain, waves from its
+own validated posts, its props and parked rides already in place (the four
+heightfield boards open this way: nothing sells "this is the Dune Sea" like
+the dunes). *built* — the v3 zone chain on plates. *interior* — a built
+chain of halls and corridors under a roof, with its own fog and lighting and
+no sky. *plant* — the Refinery's existing wave board used whole. *sea* — the
+Prison Rig's ocean. The v1 campaign failed on the territory board because it
+was an open arena with a to-do list; a territory stage is not that: it is a
+**bounded region** (the rim follows the heightfield), two or three zones with
+trigger lines and an exit barrier, and the ceiling over it — the containment
+rules of §1.3 with the board's own ground under them.
+
+### 3.1 The Dune Sea (`desert`) — ceiling 30 · three stages
 
 The reference layout, the one in the brief.
 
-1. `open` · **start** · *the trailhead flats* — 70×60 — the homestead dome and
-   three vaporators at the near rim, a crashed skiff, three cover rocks; *rock
-   rim (sandstone mesas) on both sides and behind, the sandcrawler on the
-   skyline beyond it; the ravine mouth ahead, framed by two 30 m mesa pillars,
-   in the sun* — no fight. Two swoops and a bantha parked by the dome: the
-   40 m trek to the mouth can be ridden.
-2. `canyon` · **camp** · *the ravine* — 14×70, one bend — Tusken tents past
+**Stage A — the open desert** (*territory*: the wave board's dunes around
+the homestead, a 140×110 m region rimmed by its own mesas plus `ridge`
+fill, the sandcrawler on the real horizon).
+
+1. `open` · **start** · *the trailhead flats* — 70×60 — the homestead dome
+   and vaporators, the crashed skiff, the board's own rocks; *the mesas on
+   both sides and behind; the ravine mouth ahead, framed by two 36 m mesa
+   pillars, dark between them* — no fight. Two swoops and a bantha by the
+   dome.
+2. `road` · **chase** · *the dune road* — 28×160 over the real dunes, two
+   bends — a landspeeder, two swoops and the skiff parked at the near mouth, a
+   spare swoop pair at the 50 m mark; *rim both sides, cairns every 20 m* —
+   nikto swoops on the flanks, drops at 60 m and 110 m, a crate barricade at
+   the far mouth. The road ends at the ravine mouth: **⇒⇒ the ravine**.
+
+**Stage B — the ravine and the outpost** (*built*, then *interior*: the
+canyon under the open sky, the cistern behind its door).
+
+3. `canyon` · **camp** · *the ravine* — 14×70, one bend — Tusken tents past
    the bend, boulders as cover, bacta in a side crack; *cliffs both sides* —
    Tusken garrison (they cannot be seen from the mouth; they can hear you).
-3. `canyon` · **assault ×2** · *the cistern approach* — 12×50, dead end — a
-   lamp-lit blast door set in a hewn rock face (⇒ the outpost); *cliffs* —
-   carrier drops only (dead end: no runners). The door unlocks on the last
-   body.
-4. `corridor` + `hall` · **assault ×2** · *the cistern court* — corridor 6×14
+4. `canyon` · **assault ×2** · *the cistern approach* — 12×50, dead end — a
+   lamp-lit blast door in a hewn rock face (⇒ the outpost); *cliffs* —
+   carrier drops only. The door unlocks on the last body.
+5. `corridor` + `hall` · **assault ×2** · *the cistern court* — corridor 6×14
    with a bend, hall 20×18 — the **sarlacc-maw pit** in the middle, alcove
-   bacta; *walls, roofed at 9 m* — wall hatches.
-5. `corridor` ⇒ `open` · **lieutenant** · *the fighting pit* — 56×50 — a bowl
-   ringed by rocks, four cover rocks; *rim; the door behind you, a fence ahead*
-   — the **sandworm**, which now has sand to burrow through.
-6. `road` · **chase** · *the dune road* — 28×160, two bends — a landspeeder,
-   two swoops and the skiff parked at the near mouth, a spare swoop pair at
-   the 50 m mark; *rim both sides, cairns every 20 m* — nikto swoops on the
-   flanks the whole way, drops at 60 m and 110 m, a crate barricade at the
-   far mouth (ram it or dismount and clear it).
-7. `open` · **camp** · *the caravan graves* — 44×40 — the half-buried sail
-   barge as the cover playground, wrecked skiffs, the **Fennec cache**; *low
-   rim* — posted garrison. Rides that survived the road come in with you.
-8. `canyon` · **assault ×3** · *the dune gate* — 16×60, widening toward the
+   bacta; *walls, roofed at 9 m* — wall hatches. Its far door is an airlock
+   onto the far side of the mesas: **⇒⇒ the fighting pit**.
+
+**Stage C — the far side** (*built*: open ground and the last canyon, the
+tallest mesas of the level).
+
+6. `open` · **lieutenant** · *the fighting pit* — 56×50 — a bowl ringed by
+   rocks, four cover rocks; *rim; the airlock behind you, a fence ahead* —
+   the **sandworm**, which now has sand to burrow through.
+7. `canyon` · **assault ×3** · *the dune gate* — 16×60, widening toward the
    end, one bend — caravan crates, a **pass** at the far end; *cliffs* —
    drops + massiffs/Tuskens running in through the pass.
+8. `open` · **camp** · *the caravan graves* — 44×40 — the half-buried sail
+   barge as the cover playground, wrecked skiffs, the **Fennec cache**; *low
+   rim* — posted garrison.
 9. `open` · **warlord** · *the Old One's hollow* — 80×70 — the tallest mesas
    of the level all round, a grounded troop carrier wreck at one side, a
    sunken centre; a swoop and a skiff parked at the rim; *fence behind,
    nothing ahead* — the Pit Warlord, then the **krayt** erupts.
 
-Air: beats 1, 5, 6, 7, 9 (`air: true`) — the swoop gang finally shows up in
-a Mission.
-Props: `homestead_dome`, `vaporator` ×3, `sandcrawler` (backdrop, beyond the
-rim), `tusken_tent` ×3, `sail_barge`, `troop_carrier` (wreck), `cargo_crate`,
-`corridor_crate`, boulders.
-Rides: beat 1 swoop ×2 + bantha; beat 6 landspeeder, swoop ×2, skiff, spare
-swoop ×2; beat 9 swoop + skiff.
+Air: beats 1, 2, 6, 8, 9 (`air: true`).
+Props: the board's own (`homestead_dome`, `vaporator`, `sandcrawler`,
+`tusken_tent`) in stage A; `tusken_tent` ×3, `cargo_crate`, `corridor_crate`,
+boulders in B; `sail_barge`, `troop_carrier` (wreck), boulders in C.
+Rides: beat 1 swoop ×2 + bantha; beat 2 landspeeder, swoop ×2, skiff, spare
+swoop ×2; beat 9 swoop + skiff. Rides do not cross a transport door.
 
-### 3.2 The Spice Run (`station`) — ceiling 45
+### 3.2 The Spice Run (`station`) — ceiling 45 · three stages
 
 No mountains: the void is the border and the platforms are the guide. Rule:
 the next platform is always **lit along its near edge**, within 12–18 m, and
-never more than 6 m higher than the one you stand on. Gravity is the board's
-own (0.45 over a deck, a drift between), which is why the ceiling is the
-highest in the table — a jetpack goes a long way at 0.45 g, and the point is
-that nobody feels it.
+never more than 6 m higher than the one you stand on. The station's inside
+is a different world from its outside — flat 0.45 g throughout, no drift, no
+starfield, hull fog and work lights — which is exactly what a stage is for.
 
-1. `deck` · **start** · *the docking bay* — 40×30 pad — parked crates, a
-   fuel bowser; *the void; the **station hull** fills the sky ahead, 120 m
-   off, with one lit cargo door on its face* — no fight.
+**Stage A — the approach** (*built*, deck shells under the board's gravity
+field and starfield).
+
+1. `deck` · **start** · *the docking bay* — 40×30 pad — a landed freighter,
+   parked crates, a fuel bowser; *the void; the **station hull** fills the sky
+   ahead, 120 m off, with one lit cargo door on its face* — no fight.
 2. `deck` × 3 · **camp** · *the cargo gantries* — three 18×14 plates, 15 m
-   gaps, stepping 4 m up each — pirates posted on each plate; *void* — the
-   posted squad.
+   gaps, stepping 4 m up each — pirates posted on each plate; *void*.
 3. `deck` · **assault ×2** · *the outer yard* — 44×36 plate against the hull —
-   cargo containers as cover; *the hull wall on one side (a `hull` ridge 40 m
-   tall), void on three; the cargo door (⇒) in the hull* — raider dropship
-   passes + **jetpack pirates** over the edge. `air: true`.
+   cargo containers, two cranes overhead; *the hull wall on one side (a
+   `hull` ridge 40 m tall), void on three; the cargo door in the hull* —
+   raider dropship passes + **jetpack pirates** over the edge. `air: true`.
+   The cargo door is an airlock: **⇒⇒ inside the station**.
+
+**Stage B — inside the station** (*interior*: gravity 0.45 flat, roofed
+halls at 8 m, hull-plate walls, sodium work light, no sky).
+
 4. `corridor` + `hall` · **assault ×2** · *the spice vault* — 5×14 corridor
-   with a bend, hall 20×18 — **rhydonium barrels**, alcove; *hull interior,
-   roofed 8 m* — wall hatches.
+   with a bend, hall 20×18 — **rhydonium barrels**, alcove; hatches.
 5. `hall` · **lieutenant** · *the loading gantry* — 24×20 — pillars — the
-   **duelist** (indoors: a saber fight in a hold suits it).
-6. `corridor` ⇒ `deck` × 3 · **camp** · *the crew catwalks* — out through the
-   far door onto three plates running along the hull's other face; the
-   **Fennec cache** on the middle one; *void, hull behind*.
+   **duelist**: a saber fight in a hold. Its far door: **⇒⇒ the far side**.
+
+**Stage C — the prize** (*built*, back under the stars and the gravity
+field).
+
+6. `deck` × 3 · **camp** · *the crew catwalks* — three plates along the
+   hull's other face; the **Fennec cache** on the middle one; *void, hull
+   behind*.
 7. `deck` · **assault ×3** · *the reactor ring* — a 40×32 annulus around the
-   refinery spire (visual, 16 m column, physics cylinder); *void* — dropships
-   + jetpack pirates. `air: true`.
+   refinery spire (`reactor_core`, 16 m column, physics cylinder); *void* —
+   dropships + jetpack pirates. `air: true`.
 8. `deck` · **warlord** · *the hold of the prize* — 60×50 plate — container
    cover, a parked raider dropship at the far edge; *void; a fence behind* —
    the capo, then the **mudhorn** through the deck plates.
@@ -402,96 +495,115 @@ Props: `freighter` (landed, beat 1), `cargo_crane` ×2 (beat 3), the hull
 `fuel_barrel` (steel).
 Rides: none — the jetpack is the road, and the board's gravity makes it one.
 
-### 3.3 The Lava Flats (`nevarro`) — ceiling 30
+### 3.3 The Lava Flats (`nevarro`) — ceiling 30 · three stages
 
-1. `open` · **start** · *the ash flats* — 64×56 — one **lava channel** across
-   the flat with a crust bridge (the v2 `lava` feature), the wrecked survey
-   crawler, three basalt rocks; *basalt ridge rim; the trench mouth ahead
-   glows orange from inside* — no fight. Two speeder bikes by the crawler.
-   Trek 35 m.
-2. `canyon` · **camp** · *the lava trench* — 14×70, one bend — a lava channel
-   along one wall, the walk on the other; *basalt cliffs* — pirates behind
-   basalt.
-3. `canyon` · **assault ×2** · *the town gate* — 12×46, dead end — the
-   garrison's gate: two adobe watchtowers flanking the adobe gate arch, its
-   leaves shut (⇒ the `Gate` set in the arch); *cliffs* — drops.
+**Stage A — the flats** (*territory*: the wave board's lava flats between
+its two real rivers, rimmed by `basalt` ridge, the town gate's real towers
+at the far end).
+
+1. `open` · **start** · *the ash flats* — 64×56 — the board's lava river
+   crossing the flat on its crust plates, the wrecked survey crawler, basalt
+   rocks; *basalt rim; the gate towers ahead, glowing from the lava between
+   you and them* — no fight. Two speeder bikes by the crawler.
+2. `road` · **chase** · *the crust causeway* — 26×140, one bend — a causeway
+   of cooled crust with **live lava either side** (the board's own rivers:
+   drift and you cook), speeder bikes ×3 at the mouth; *basalt rim beyond the
+   lava* — swoops overhead, drops at 50 m and 100 m, a fence barricade at the
+   far mouth with a pirate squad behind it.
+3. `open` · **assault ×2** · *the town gate* — 44×36 in front of the gate —
+   the two adobe watchtowers flanking the adobe gate arch, its leaves shut,
+   basalt cover; *the town wall; drops*. The gate is the way in: **⇒⇒ the
+   garrison**.
+
+**Stage B — the garrison** (*interior*: adobe walls, roofed 8 m, lamp light).
+
 4. `corridor` + `hall` · **assault ×2** · *the garrison yard* — 22×16 —
-   crates, alcove; *roofed 8 m* — hatches.
+   crates, alcove; hatches.
 5. `hall` · **lieutenant** · *the magistrate court* — 24×22 — pillars — the
-   promoted **massiff**, indoors.
-6. `corridor` ⇒ `open` · **assault ×3** · *the crossing* — 50×44 — two lava
-   channels with bridges; *rim with a pass* — drops + massiffs through the
-   pass. `air: true`.
-7. `road` · **chase** · *the crust causeway* — 26×140, one bend — a causeway
-   of cooled crust with **live lava either side** (burn strips 4 m wide along
-   both edges: drift and you cook), speeder bikes ×3 parked at the mouth;
-   *basalt rim beyond the lava* — swoops overhead, drops at 50 m and 100 m,
-   a fence barricade at the far mouth with a pirate squad behind it.
-8. `canyon` · **camp** · *the cantina row* — 16×50 — crates, the **Fennec
-   cache**; *ruin walls* (a `ruin` ridge: the town's edge).
-9. `open` · **warlord** · *the rancor pen* — 76×66 — a lava moat ring at the
+   promoted **massiff**. Its far door: **⇒⇒ the glass fields**.
+
+**Stage C — the glass fields** (*built*).
+
+6. `open` · **assault ×3** · *the crossing* — 50×44 — two lava channels with
+   bridges; *rim with a pass* — drops + massiffs through the pass.
+   `air: true`.
+7. `canyon` · **camp** · *the lava trench* — 14×70, one bend — a lava channel
+   along one wall, the walk on the other, the **Fennec cache**; *basalt
+   cliffs* — pirates behind basalt.
+8. `open` · **warlord** · *the rancor pen* — 76×66 — a lava moat ring at the
    rim's foot (burn, 3 m wide, bridged at the entry), rhydonium barrels
    seeded; *basalt rim, fence behind* — the officer, then the **rancor**.
 
-Props: `survey_crawler` (wreck), `adobe_tower` ×2 + `adobe_gate` (the door
-face), `cargo_crate`, `fuel_barrel` (rhydonium), basalt boulders.
-Rides: beat 1 speeder bike ×2; beat 7 speeder bike ×3.
+Props: the board's own (`survey_crawler`, `adobe_tower` ×2, `adobe_gate`) in
+stage A; `cargo_crate`, `fuel_barrel` (rhydonium), basalt boulders.
+Rides: beat 1 speeder bike ×2; beat 2 speeder bike ×3.
 
-### 3.4 The Crevasse (`crevasse`) — ceiling 32 · traction 0.55 over the level
+### 3.4 The Crevasse (`crevasse`) — ceiling 32 · traction 0.55 · two stages
 
-The theme *is* a canyon, so this board leans hardest on the ravine beat and
-keeps the ice grip everywhere.
+The theme *is* a canyon, so this board leans hardest on the ravine beat —
+and the second half goes **under the ice**, which is a cavern with a roof, a
+different light and no sky: its own stage.
 
-1. `open` · **start** · *the rim shelf* — 60×50 snowfield — ice boulders; *ice
-   cliffs; the crack ahead, a dark seam between two 30 m ice pillars* — no
-   fight. Trek 40 m.
+**Stage A — the surface** (*territory*: the wave board's north rim
+snowfield and the crevasse's upper reach, `ice` ridge).
+
+1. `open` · **start** · *the rim shelf* — 60×50 snowfield — the wrecked
+   survey crawler, ice boulders; *ice cliffs; the crack ahead, a dark seam
+   between two 36 m ice pillars* — no fight. Trek 40 m.
 2. `canyon` · **camp** · *the frozen gallery* — 12×80, two bends — ice
-   **pillars** (v2 feature), bacta in a crack; *ice cliffs* — krykna posted
-   past the first bend.
+   **pillars**, bacta in a crack; *ice cliffs* — krykna posted past the first
+   bend.
 3. `canyon` · **assault ×2** · *the nest mouth* — 10×40, dead end — an
-   ice-crusted blast door (⇒ the same `Gate`, ice palette); *cliffs* — drops.
-4. `corridor` + `hall` · **assault ×2** · *the queen tunnel* — 20×18 —
-   pillars, alcove; *ice walls, roofed 8 m* — hatches.
-5. `hall` · **lieutenant** · *the hatchery* — 24×20 — pillars — the promoted
-   **krykna**, indoors.
-6. `corridor` ⇒ `open` · **assault ×3** · *the cracked lake* — 50×46 — flat
-   ice, traction 0.4 in a 20 m disc at the centre (a local `tractionAt`
-   ring), no cover in the disc, boulders at the edge; *ice rim with a pass* —
-   drops + krykna through the pass.
-7. `canyon` · **camp** · *the ice chimney* — 14×50 — the **Fennec cache**;
-   *cliffs*.
-8. `open` · **warlord** · *the breaker deep* — 72×62 — ice rim all round, a
-   frozen pool at the centre (the eruption point); *fence behind* — the
-   broodmother, then the **ravinak**.
+   ice-crusted door in the glacier face; *cliffs* — drops. **⇒⇒ the deep**.
 
-Props: `survey_crawler` (beat 1), the board's ice spires lifted into the
-level as cover, `krykna_brood` egg sacs as breakables in the hatchery,
-`corridor_crate`, ice boulders.
+**Stage B — the deep** (*interior* cavern: a stalactite roof at the
+ceiling's height, ice-blue fill light and lamps, fog close, traction 0.55,
+the frozen lake and the breaker pool in an open cavern floor).
+
+4. `corridor` + `hall` · **assault ×2** · *the queen tunnel* — 20×18 —
+   pillars, alcove; hatches.
+5. `hall` · **lieutenant** · *the hatchery* — 24×20 — pillars, egg sacs as
+   breakables — the promoted **krykna**.
+6. `open` · **assault ×3** · *the cracked lake* — 50×46 under the cavern
+   roof — flat ice, traction 0.4 in a 20 m disc at the centre, no cover in the
+   disc, boulders at the edge; *ice walls with a pass* — drops through roof
+   vents (the carrier is heard, not seen) + krykna through the pass.
+7. `canyon` · **camp** · *the ice chimney* — 14×50 — the **Fennec cache**;
+   *ice walls*.
+8. `open` · **warlord** · *the breaker deep* — 72×62 — ice walls all round, a
+   frozen pool at the centre; *fence behind* — the broodmother, then the
+   **ravinak**.
+
+Props: `survey_crawler` (beat 1), the board's ice spires as cover,
+`krykna_brood` egg sacs as breakables in the hatchery, `corridor_crate`, ice
+boulders.
 Rides: none — nothing with a repulsor belongs on this ice, and the board's
 personality is on foot.
 
-### 3.5 The Storm Docks (`trask`) — ceiling 28
+### 3.5 The Storm Docks (`trask`) — ceiling 28 · one stage
 
-Borders are warehouse rows (`hull`-style ridge, plank-and-iron, 24 m) and
-the **sea**: an open edge of a pier or quay drops into a local water plane at
-`floorY − 3`. Going in is "off the path" — you are hauled back to the
-checkpoint after a two-second cold beat (the banner: *the harbour took you*).
-The mission never uses the territory's real sea 90 m below.
+Borders are warehouse rows (`warehouse` ridge, 34 m) and the **sea**: an
+open edge of a pier or quay drops into a local water plane at `floorY − 3`.
+Going in is "off the path" — you are hauled back to the checkpoint after a
+two-second cold beat (the banner: *the harbour took you*). One place, one
+map: the freighter's hold is a small interior and nothing about the world
+changes inside it.
 
-1. `open` · **start** · *the quay steps* — 60×40 — crates, a beached skiff;
-   *warehouses on one side, the sea on the other; the pier chain runs out
-   ahead under the pier lamps* — no fight. Trek 30 m.
+1. `open` · **start** · *the quay steps* — 60×40 — the dock shed, crates, a
+   beached skiff; *warehouses on one side, the sea on the other; the pier
+   chain runs out ahead under the pier lamps* — no fight. Trek 30 m.
 2. `canyon` (pier) · **camp** · *the fish market* — 8×70, the sea both sides —
-   market stalls as cover; *the drop* — quarren posted among the stalls.
+   market stalls and fish racks as cover; *the drop* — quarren posted among
+   the stalls.
 3. `canyon` · **assault ×2** · *the net lofts* — 12×46 between two warehouse
-   rows, dead end at a **freighter's cargo door** (⇒ a `hull` face); *walls* —
-   drops.
+   rows, dead end at a **freighter's cargo door** (⇒ the freighter's hull);
+   *walls* — drops.
 4. `corridor` + `hall` · **assault ×2** · *the freighter hold* — 20×18 —
    **barrels**, alcove; *roofed 8 m* — hatches.
 5. `hall` · **lieutenant** · *the cold stores* — 24×20 — the officer,
    indoors.
-6. `corridor` ⇒ `open` · **assault ×3** · *the trawler deck* — 52×44 — a
-   static trawler deck with deckhouse cover; *the sea on three sides, the
+6. `corridor` ⇒ `open` · **assault ×3** · *the trawler deck* — 52×44 — the
+   trawler's deck with its deckhouse as cover; *the sea on three sides, the
    freighter's hull behind* — drops + **quarren surfacing** at the deck's
    edge (arrival `swim`, using the local water plane). `air: true`.
 7. `canyon` (pier) · **camp** · *the pier heads* — 10×50 — the **Fennec
@@ -502,91 +614,108 @@ The mission never uses the territory's real sea 90 m below.
 
 Props: `dock_shed` (beat 1), `fish_rack` ×4 (beats 2, 7), `freighter` (the
 hold's exterior at beat 3's dead end), `trawler` (beat 6's deck; a `Mover` in
-Phase 6), `cargo_crate`, `fuel_barrel`.
+the later phase), `cargo_crate`, `fuel_barrel`.
 Rides: the skiff, parked on the quay at beat 1 — the pier is 8 m wide and
 the skiff 1.7 m in radius, so it can be taken down the fish market as a
-moving wall — and the **harbour crossing** (a `road` on the water plane
-between beats 6 and 7) is designed but deferred to Phase 6 with the mover.
+moving wall. The **harbour crossing** (a `road` on the water plane between
+beats 6 and 7) is designed but deferred with the mover.
 
-### 3.6 The Refinery (`refinery`) — ceiling 30 outdoors, halls roofed at 7 m
+### 3.6 The Refinery (`refinery`) — ceiling 30 outdoors · three stages
 
-The only wave board that is an interior — so the Mission starts *outside*
-it and keeps the most interior beats of the nine (three), the tightest
-corridors (5 m, a bend in every link) and the barrels.
+The one wave board that is an interior — so the Mission starts *outside* it,
+and the plant in the middle is **the wave board itself**, used whole: its
+halls, its 40 m reactor shaft, its catwalks, its alarm consoles and barrel
+rows are already built and audited, and a zone chain laid over them beats
+rebuilding a lesser copy.
+
+**Stage A — the yard** (*built*, outdoors, `tank` ridge).
 
 1. `open` · **start** · *the tanker yard* — 60×50 — a tanker truck, drums;
-   *storage tanks (`tank` ridge: 30 m cylinders, walkway railings between)
-   and a fence wall; the plant's intake door lit in the wall ahead* — no
-   fight. Trek 35 m.
+   *storage tanks (30 m cylinders, walkway railings between) and a fence
+   wall; the plant's intake door lit in the wall ahead* — no fight. A
+   landspeeder by the truck. Trek 35 m.
 2. `canyon` · **camp** · *the pipe run* — 12×60 between pipe racks and tank
    walls — **barrels**; *tank walls* — stormtroopers behind the drums.
 3. `canyon` · **assault ×2** · *the intake ramp* — 12×40, dead end at the
-   intake hall's blast door (⇒); *walls* — drops.
-4. `corridor` + `hall` · **assault ×2** · *the barrel stores* — 18×16 —
-   barrels, alcove; *roofed 7 m* — hatches.
-5. `hall` · **lieutenant** · *the furnace floor* — 22×20 — the
-   **flametrooper**, indoors, pillars.
-6. `corridor` + `hall` · **assault ×2** · *the pump hall* — 20×16 — crates;
-   *roofed 7 m* — hatches. (The Refinery's second interior fight.)
-7. `corridor` ⇒ `open` · **camp** · *the reactor crown* — 50×44 — the
-   reactor shaft's open top: railings, vent stacks as cover, the **Fennec
-   cache**; *tanks and the plant's wall*.
+   intake hall's blast door; *walls* — drops. **⇒⇒ the plant**.
+
+**Stage B — the plant** (*plant*: the Refinery wave board, `enclosed`, its
+own lighting; zones are rects over its rooms, hatches are its existing
+doors, the ceiling is its roof).
+
+4. `hall` · **assault ×2** · *the barrel stores* — the board's barrel hall —
+   barrels, alcove; hatches.
+5. `hall` · **lieutenant** · *the reactor floor* — the shaft's base, the
+   40 m chimney overhead, catwalks as the high ground — the **flametrooper**.
+   The jetpack owns the shaft, which is the point of fighting here.
+6. `hall` · **assault ×2** · *the pump hall* — crates; hatches. Its far door
+   is the plant's rear airlock: **⇒⇒ the loading field**.
+
+**Stage C — the loading field** (*built*, outdoors).
+
+7. `open` · **camp** · *the reactor crown* — 50×44 — the shaft's open top
+   (`reactor_core` rising through it: it clears the ceiling), railings, vent
+   stacks as cover, the **Fennec cache**; *tanks and the plant's wall*.
 8. `open` · **warlord** · *the loading field* — 70×60 — barrels seeded in
    the fight; *tank ridge, fence behind* — the officer, then the **zillo**
    from under the yard.
 
-Props: `pipe_rack` tiled down the pipe run, `reactor_core` (beat 7's
-centrepiece, 40 m — it clears the ceiling), `alarm_console` ×2 in each hall
-(the alarm mechanic: a standing console calls the next hatch 5 s early),
-`fuel_barrel` (rhydonium) everywhere, `cargo_crate`.
-Rides: none inside the plant; a landspeeder in the tanker yard (beat 1) for
-the trek and, if it survives the run, the loading field.
+Props: `pipe_rack` (beat 2), the plant's own everything in stage B
+(`alarm_console`: the alarm mechanic runs as on the wave board),
+`reactor_core` (beat 7), `fuel_barrel` (rhydonium), `cargo_crate`.
+Rides: a landspeeder in the tanker yard for the trek to the ramp.
 
-### 3.7 The Great Forge (`forge`) — ceiling 34
+### 3.7 The Great Forge (`forge`) — ceiling 34 · three stages
 
 The board whose personality is emptiness — so it opens with the longest
-ride in the game.
+ride in the game, across the real plain toward the real dome.
 
-1. `open` · **start** · *the glassed plain* — 70×60 — fused-glass floor,
-   shard rocks, three speeder bikes and a landspeeder by the trailhead's
-   cairn; *`ruin` rim (collapsed facades, fused dunes); the broken dome's ribs
-   on the skyline ahead, the highway running toward them between two standing
-   pylons* — no fight.
-2. `road` · **chase** · *the glass highway* — 30×180, two bends — a
-   fused-glass road across the plain with ruin pylons every 20 m; *ruin rim*
-   — swoops on the flanks, drops at 60 m and 120 m, a fence barricade at the
-   far mouth held by alamites.
-3. `canyon` · **camp** · *the ruined concourse* — 16×70, one bend — rubble
-   cover; *ruin walls* — alamites among the rubble.
-4. `canyon` · **assault ×2** · *the shattered gate* — 12×46, dead end at the
-   dome's vault door (⇒ a hewn Mandalorian portal); *ruin walls* — drops.
-5. `corridor` + `hall` · **assault ×2** · *the dome undercroft* — 20×18 —
-   **pillars**, alcove; *roofed 9 m* — hatches.
-6. `hall` · **lieutenant** · *the armoury vault* — 22×20 — the promoted
-   **alamite**, indoors.
-7. `corridor` ⇒ `open` · **assault ×3** · *the glassed court* — 54×48 —
-   inside the dome ring under the open sky, the forge brazier lit on its dais
-   at the centre (a physics cylinder; fight around it), ruin pillars; *the
-   dome's ring wall with a pass* — drops + alamites through the pass.
-   `air: true`.
-8. `canyon` · **camp** · *the forge steps* — 14×50 — the **Fennec cache**;
+**Stage A — the plain** (*territory*: the wave board's glassed plain from
+the outer rim to the dome, `ruin` ridge fill).
+
+1. `open` · **start** · *the glassed plain* — 70×60 — shard rocks, three
+   speeder bikes and a landspeeder by the trailhead's cairn; *ruin rim; the
+   dome's broken ribs on the skyline ahead, the highway toward them between
+   two standing pylons* — no fight.
+2. `road` · **chase** · *the glass highway* — 30×180, two bends — ruin pylons
+   every 20 m; *ruin rim* — swoops on the flanks, drops at 60 m and 120 m, a
+   fence barricade at the far mouth held by alamites.
+3. `open` · **assault ×2** · *the shattered gate* — 44×40 at the dome's foot
+   — rubble, the vault door in the dome wall; drops. **⇒⇒ the undercroft**.
+
+**Stage B — the undercroft** (*interior*: carved-relief walls, roofed 9 m,
+brazier light).
+
+4. `corridor` + `hall` · **assault ×2** · *the dome undercroft* — 20×18 —
+   **pillars**, alcove; hatches.
+5. `hall` · **lieutenant** · *the armoury vault* — 22×20 — the promoted
+   **alamite**. Its far door climbs to the court: **⇒⇒ the glassed court**.
+
+**Stage C — the dome and the basin** (*built*, open sky through the broken
+roof).
+
+6. `open` · **assault ×3** · *the glassed court* — 54×48 — inside the dome
+   ring, the forge brazier lit on its dais at the centre (a physics cylinder;
+   fight around it), ruin pillars; *the ring wall with a pass* — drops +
+   alamites through the pass. `air: true`.
+7. `canyon` · **camp** · *the forge steps* — 14×50 — the **Fennec cache**;
    *ruin walls*.
-9. `open` · **warlord** · *the sleeper's basin* — 80×70 — a sinkhole: the
+8. `open` · **warlord** · *the sleeper's basin* — 80×70 — a sinkhole: the
    Living Waters pool at the centre, the half-buried mythosaur skull at the
    rim; a swoop and the skiff parked at the entry; *rock rim all round, fence
    behind* — the enforcer, then the **mythosaur** from the pool.
 
-Props: `forge_brazier` (beat 7), `mythosaur_skull` (beat 9), dome ribs
-(procedural), ruin rubble, `corridor_crate`.
-Rides: beat 1 speeder bike ×3 + landspeeder; beat 9 swoop + skiff.
+Props: the board's own dome and ribs in stage A, `forge_brazier` (beat 6),
+`mythosaur_skull` (beat 8), ruin rubble, `corridor_crate`.
+Rides: beat 1 speeder bike ×3 + landspeeder; beat 8 swoop + skiff.
 
-### 3.8 The Ringworld (`ringworld`) — ceiling 28
+### 3.8 The Ringworld (`ringworld`) — ceiling 28 · one stage
 
-Urban outdoors: the cliffs are tower facades (`panel` ridge with lit windows
-and signage), canyons are streets, opens are plazas. The terminator's dark
-side is a later flourish (`lightAt` over the level, §4 Phase 6).
+Urban outdoors: the cliffs are tower facades (`panel` ridge with the
+`city_facade` textures), canyons are streets, opens are plazas. One place
+under one sky, so one map; the terminator's dark side is a later flourish.
 
-1. `open` · **start** · *the tram stop* — 56×48 plaza — a parked tram car,
+1. `open` · **start** · *the tram stop* — 56×48 plaza — the parked tram,
    kiosks; *towers on three sides; the high street runs off ahead under a
    neon arch* — no fight. Trek 30 m.
 2. `canyon` · **camp** · *the market arcade* — 16×80, straight — kiosks and
@@ -608,53 +737,76 @@ side is a later flourish (`lightAt` over the level, §4 Phase 6).
    *towers, fence behind* — the duelist, then the **nexu**.
 
 Props: `tram` (parked at the tram stop; running the arcade on a loop as a
-`Mover` in Phase 6 — the armored ride through beat 2), `street_kiosk` ×6
-(beat 2) and ×3 (beat 6), the `city_facade` + glow textures on the `panel`
-ridge, `cargo_crate`.
+`Mover` later — the armored ride through beat 2), `street_kiosk` ×6 (beat 2)
+and ×3 (beat 6), `cargo_crate`.
 Rides: a swoop pair at the tram stop for the plaza fight (beat 6 is 50 m
 across — just wide enough); the tram is the road beat here.
 
-### 3.9 The Prison Rig (`narkina`) — ceiling 28
+### 3.9 The Prison Rig (`narkina`) — ceiling 28 · four stages
 
-Outdoors on a rig: white superstructure walls (`panel` ridge), railings, and
-the sea beyond the deck edges (the local water plane, as on Trask — the
-banner: *the sea took you*). Shock plates run outdoors too.
+The wave board's best half is **under the water** — a kelp forest, a reef, a
+sunken transport you swim through, a moon pool that surfaces inside the
+facility — and a level 90 m in the sky can never reach it. So the Mission
+goes down: decks, then the sea, then the block it surfaces into, then the
+top decks. The sea is a stage of its own (water rules, its own light and
+fog, no ceiling but the surface).
 
-1. `open` · **start** · *the landing deck* — 56×44 — a parked shuttle,
-   crates; *the block's wall on one side (a lit door in it, not the way yet),
-   the sea on two sides; the gantry ahead between two hull walls* — no fight.
-   Trek 30 m.
+**Stage A — the landing deck** (*built*, `panel` ridge, the sea at the
+edges).
+
+1. `open` · **start** · *the landing deck* — 56×44 — a landed troop carrier,
+   crates; *the block's wall on one side, the sea on two; the gantry ahead
+   between two hull walls* — no fight. Trek 30 m.
 2. `canyon` · **camp** · *the gantry run* — 12×60 between two hull walls —
-   two **shock strips** (v2 feature); *hull walls* — troopers posted past the
-   first strip.
-3. `canyon` · **assault ×2** · *the intake lift* — 10×40, dead end at the
-   block's door (⇒); *hull walls* — drops.
-4. `corridor` + `hall` · **assault ×2** · *the work floor* — 20×16 — shock
-   strips, alcove; *roofed 7 m* — hatches.
-5. `hall` · **lieutenant** · *the supervisor deck* — 22×20 — the
-   **deathtrooper**, indoors.
-6. `corridor` ⇒ `open` · **assault ×3** · *the assembly deck* — 50×44 — the
-   open top deck, shock plates, vent stacks; *hull walls on two sides, the sea
-   on two* — drops. `air: true`.
-7. `canyon` · **camp** · *the discharge gantry* — 12×50 — the **Fennec
-   cache**; *hull walls, the sea below*.
-8. `open` · **warlord** · *the moon pool deck* — 66×56 ring around a 14 m
-   pool (water/kill at the centre); *hull walls, fence behind* — the officer,
-   then the **kwazel maw** from the pool.
+   two **shock strips**; *hull walls* — troopers posted past the first strip.
+   The gantry ends at a **dive hatch** over the water: **⇒⇒ the sea**.
 
-Props: `troop_carrier` (landed, beat 1), `sunken_transport` beached against
-beat 6's edge (its hull is standable cover), `alarm_console` (beat 4),
+**Stage B — the sea** (*sea*: the wave board's ocean floor, kelp, reef and
+wreck, the surface as the ceiling, swim rules, drowning as the clock).
+
+3. `open` (underwater) · **trek** · *the kelp forest* — 90×70 of sea floor —
+   the way marked by the reef's glow and the wreck's silhouette; *the reef
+   walls; the kwazel maw's shadow crosses the light once, far off* — no
+   hostiles; the clock is air. A bacta cache in the sunken transport's
+   corridor for whoever swims through it.
+4. `canyon` (underwater) · **trek** · *the moon pool shaft* — the pool's
+   pylons, 12×40 up to the surface inside the block — the light above is the
+   goal. Surfacing is the transport: **⇒⇒ the cell block**.
+
+**Stage C — the cell block** (*interior*: white panels, shock floors,
+roofed 7 m, hard white light).
+
+5. `corridor` + `hall` · **assault ×2** · *the work floor* — 20×16 — shock
+   strips, alcove, the alarm console; hatches.
+6. `hall` · **lieutenant** · *the supervisor deck* — 22×20 — the
+   **deathtrooper**. Its far door is the lift: **⇒⇒ the top decks**.
+
+**Stage D — the top decks** (*built*, `panel` ridge, the sea at the edges).
+
+7. `open` · **assault ×3** · *the assembly deck* — 50×44 — the open top
+   deck, shock plates, vent stacks, the beached sunken transport's twin as a
+   wreck against the edge (standable cover), the **Fennec cache**; *hull
+   walls on two sides, the sea on two* — drops. `air: true`.
+8. `open` · **warlord** · *the moon pool deck* — 66×56 ring around a 14 m
+   pool (water at the centre — the thing below has been following you);
+   *hull walls, fence behind* — the officer, then the **kwazel maw** from
+   the pool.
+
+Props: `troop_carrier` (landed, beat 1), the board's own kelp, reef and
+`sunken_transport` in stage B, `alarm_console` (beat 5), a wreck on beat 7,
 `cargo_crate` (white skin), `fuel_barrel`.
 Rides: none — the decks are too tight and the sea too close; the rig's
-personality is the shock plates.
+personality is the shock plates and the dive.
 
-### 3.10 Ceiling table
+### 3.10 Ceiling and stage table
 
-| desert | station | nevarro | crevasse | trask | refinery | forge | ringworld | narkina |
-|---|---|---|---|---|---|---|---|---|
-| 30 | 45 | 30 | 32 | 28 | 30 (halls 7) | 34 | 28 | 28 |
+| | desert | station | nevarro | crevasse | trask | refinery | forge | ringworld | narkina |
+|---|---|---|---|---|---|---|---|---|---|
+| ceiling | 30 | 45 | 30 | 32 | 28 | 30 (plant: its roof) | 34 | 28 | 28 (sea: the surface) |
+| stages | 3 | 3 | 3 | 2 | 1 | 3 | 3 | 1 | 4 |
+| opens on | the territory | built decks | the territory | the territory | built | built yard | the territory | built | built |
 
-Every value is above a full jetpack burn on that board's gravity (the Spice
+Every ceiling is above a full jetpack burn on that board's gravity (the Spice
 Run's 45 assumes its 0.45 g pads; the drift between platforms is lighter
 still, which is why it is the one to watch). The Ringworld and the two rig /
 dock boards run lower because their borders are buildings and hull, which
@@ -700,6 +852,12 @@ objective.
    mouth, the door); in `fight` at the exit barrier (a shut door with a
    pillar over it reads "clear the area to open it"); in an arena, on the
    boss.
+
+**Transport doors as guides.** A transport door reads as *more* than a door:
+a wider frame, a white-blue light distinct from the accent, the marker's
+label says where it goes (*the ravine · airlock*), and the confirm pocket
+behind the leaves is lit. On the way back it is the only door in the stage
+whose marker is dimmed rather than lit — the way on is never in doubt.
 
 **Doors and fences as guides.** A shut barrier is dark (the seam glows red);
 the moment it may open, the frame's trim goes to the accent colour and the
@@ -752,10 +910,29 @@ export interface ZoneSpec {
   barricade?: 'fence' | 'crates';
 }
 
+export type StageKind = 'built' | 'territory' | 'interior' | 'plant' | 'sea';
+export type PortalKind = 'door' | 'mouth' | 'lift' | 'dive' | 'surface';
+
+/** one map of the run; a territory's `MissionSpec.stages` is walked in order */
+export interface StageSpec {
+  kind: StageKind;
+  label: string;                 // the loading card's line: "the ravine"
+  /** world overrides for this stage: fog, sky, gravity, waterY, lighting, roof */
+  world?: Partial<Pick<Board, 'fog' | 'background' | 'skyFile' | 'gravity' | 'waterY' | 'enclosed' | 'heroLight'>> & { roof?: boolean };
+  ceiling?: number;              // overrides the spec's; a sea stage uses the surface
+  /** territory stages: the region of the wave board the rim follows (world x,z polygon) */
+  region?: [number, number][];
+  zones: ZoneSpec[];
+  links: LinkSpec[];
+  /** how this stage is left; the last stage has none */
+  exitPortal?: PortalKind;
+}
+
 export interface MissionSpec {
   palette: { wall: number; floor: number; trim: number; accent: number; rock: number; backdrop: number };
   ridge: RidgeStyle;
-  ceiling: number;               // metres over floorY; default 20
+  ceiling: number;               // metres over floorY; default 30
+  stages: StageSpec[];           // one or more; `zones`/`links` below are stage 0's when there is one
   corrW?: number; wallH?: number; roofH?: number; traction?: number; fill?: number;
   water?: boolean;               // a local water plane at floorY - 3 beyond open edges (trask, narkina)
   zones: ZoneSpec[];
@@ -815,6 +992,19 @@ same `group`/`physics`/`rects`/`blocked` the v2 helpers use:
   `Fence` or a **crate line** (six `cargo_crate` breakables across the mouth
   at 40 hp each; a ram or a rocket opens a gap). Ride parking at u = 6 and at
   `l / 3`.
+- Stages: `buildMission` becomes `buildStage(board, spec, stageIdx)` and
+  returns one `MissionLevel` per stage. A `built`/`interior` stage is the v3
+  chain on plates (an `interior` adds the roof slab at the ceiling and its
+  own hemisphere + lamps, and its board overrides set `fog` close and
+  `background` dark); a `territory` stage skips plates and `ridge`s the
+  `region` polygon along the board's `heightAt`, lays zones as rects on the
+  terrain, and takes vents from the board's `groundSpawns` that fall inside
+  each zone (validated as now); a `plant` stage is the Refinery board with
+  zones as rects over its halls and its doors registered as hatches; a `sea`
+  stage builds nothing but the portal pylons and the markers — the wave
+  board's sea is the map. The **transport door** is a `Portal`: a `Gate`
+  variant 5 m wide with a 4 m pocket behind it, a threshold trigger at the
+  pocket's end, and the white-blue frame light.
 - Props: `zs.props` placed through `authoredProp` after the zone's own
   geometry, with `fitColliders` when `collide` is set; each lands on the
   `blocked` list so cover and vents stay out of it. A landmark prop (a
@@ -844,7 +1034,33 @@ same `group`/`physics`/`rects`/`blocked` the v2 helpers use:
 
 ### 5.3 Campaign (`src/game/campaign.ts`)
 
-- `game.ceilingY = level.ceilingY` in the constructor; null on teardown.
+- **Stages.** `Campaign` holds `stageIdx`, the current `level`, and a
+  `StageMemory[]` (per stage: the zone index cleared through, pickups taken,
+  rides left and where). Beat numbering for the ramp is global across stages
+  (`rampWave` takes the beat's index in the whole run). `enterStage(i,
+  fromBack)` runs the transition: `game.transition(label)` (the 1.5 s beat,
+  inputs blanked, cameras drift to the door), `game.swapStage(() =>
+  buildStageBoard(i))` (loading card via `LoadingScreen.show` dressed with
+  the stage label; teardown of the current board through the existing
+  `dispose` subtree pass plus the entity lists; build; `hud.setLayout`
+  untouched), then players `spawnAt` the stage's starts with the re-form
+  animation, checkpoint = the stage start. A stage entered `fromBack` is
+  built with its memory applied: gates open through the cleared zone, no
+  garrison there, taken pickups absent, rides parked where they were left.
+- **Portals.** Forward: the exit portal's threshold trigger with any living
+  player inside → `enterStage(stageIdx + 1)`. Back: the entry portal's
+  pocket keeps `exited: Set<slot>`; a player in the pocket is `p.exited =
+  true` (no input but cancel, no damage, the HUD state below); cancel
+  (`input.back`) walks them 3 m out and clears it; when `exited` equals the
+  living set, `enterStage(stageIdx − 1, true)`. The first stage's entry has
+  no back portal.
+- **Prefetch.** `matchAssets(board, chars, mode)` gains a stage index; the
+  campaign calls `warmFor` for stage *i+1* as stage *i* begins, so a swap's
+  card is a beat, not a wait. Territory stages need nothing new (the board
+  is already built at match start); a `plant` stage warms the Refinery's
+  prop list.
+- `game.ceilingY = level.ceilingY` in the constructor and on every stage
+  swap; null on teardown.
 - `enterRoom` → `enterZone`, with the §1.3 table: outdoor assaults close only
   `exitBarrier` (it is already closed by `syncGates`; the change is that the
   *entry* is left open) and start on the trigger line
@@ -892,8 +1108,11 @@ carries it. The `?ceiling=` override is read in `Campaign`'s constructor
 
 ### 5.5 HUD (`ui/hud.ts`, `ui/style.css`)
 
-One new element per viewport: `.objective` (diamond/chevron SVG + label +
-distance). `Hud.update` gets the campaign's `objectivePos` and label, projects
+Two new elements per viewport: `.objective` (diamond/chevron SVG + label +
+distance) and `.exited` — the back-portal state: on the exited player's own
+viewport a centred card (*You have exited · B to cancel*), on everyone
+else's a line under the objective (*⟨name⟩ has stepped out — waiting on
+⟨n⟩*) and the exited player's portrait dimmed in the party strip. `Hud.update` gets the campaign's `objectivePos` and label, projects
 with the player's camera, and positions it with `transform`; the chevron
 rotates to the direction of the clamped edge point. Hidden outside Missions.
 
@@ -930,6 +1149,19 @@ and add, run over **all nine** boards rather than the Dune Sea alone:
   hatches open; nobody spawns inside a wall.
 - **Fliers.** On a board with `air` zones, at least one air kind appears in
   the run and never leaves the level's footprint.
+- **Stages.** On a three-stage board: crossing the exit portal with one
+  player transports both (new `stageIdx`, the old board's group gone from
+  the scene, the physics list rebuilt, no hostiles carried over, both players
+  at the new starts, checkpoint there); the transition takes < 2.5 s with
+  warmed assets. Back portal: one player in the pocket → not transported,
+  `exited` set, the HUD card up; cancel clears it; both in → transported
+  back, and the previous stage is rebuilt cleared through the zone it was
+  left from (gates open, no garrison, taken pickups absent). A dead player
+  does not block the back transit.
+- **Territory stages.** The rim polygon closes (no gap but the authored
+  ones), every point of every zone rect is inside it, the walkthrough
+  crosses the region on the real heightfield with zero wedges, and no
+  hostile posts outside the rim.
 - **Rides.** Every parked ride stands on the level (`contains`), 6 m from
   any edge, and can be mounted; a ridden swoop driven at the rim for 5 s
   stays inside the zone; a road is cleared on foot by the autopilot (no
@@ -940,25 +1172,27 @@ and add, run over **all nine** boards rather than the Dune Sea alone:
 
 ## 6. Implementation plan
 
-Six phases; each is a mergeable change that leaves the game bootable and
+Eight phases; each is a mergeable change that leaves the game bootable and
 `npm test` green. Phase 0 ships on its own — it improves the *current*
 levels the moment it lands and de-risks everything after it.
 
 | Phase | Scope | Files | Done when |
 |---|---|---|---|
 | **0 · Ceiling** | `Game.ceilingY` and `Game.dropHeight`, the three clamps, hover/swoop goal clamps, the no-fire-above-ceiling hold, `?ceiling=`, the shimmer + one-time banner, the ceiling test | `game.ts`, `player.ts`, `enemy.ts`, `modes.ts`, `campaign.ts`, `hud.ts`, `text.ts`, `tools/test-modes.mjs` | jump-hold and jetpirate tests pass on the v2 Dune Sea level with ceiling 30; wave game unaffected (`ceilingY` null, `dropHeight` 38) |
-| **1 · Shells on the Dune Sea** | `ZoneSpec`/`Shell`, `ridge`, `openZone`, `canyonZone`, door face, `Fence`/`Barrier`, roofed halls + hatches, `deck` stub; zone props through `authoredProp`; rides from the level (`spawnVehicles` in campaign, `level.vehicles`); §1.3 sealing in the campaign; the Dune Sea layout from §3.1 *without* its road (beat 6 lands in Phase 4); labels | `mission.ts`, `campaign.ts`, `text.ts`, `arrival.ts` (runner `from`), `game.ts` (`dropReinforcements` accepts a runner split; vehicles in campaign), `vehicles.ts` (`waterY`), `prefetch.ts` | the §3.1 level walks to liberation under the autopilot; build audit green; the v2 tests still pass on the other eight (still v2 layouts, now expressed as `hall` zones — a mechanical translation of `ROOMS` to `zones` with `shell: 'hall'`) |
+| **1 · Shells on the Dune Sea** | `ZoneSpec`/`Shell`, `ridge`, `openZone`, `canyonZone`, door face, `Fence`/`Barrier`, roofed halls + hatches, `deck` stub; zone props through `authoredProp`; rides from the level (`spawnVehicles` in campaign, `level.vehicles`); §1.3 sealing; the Dune Sea's stages B and C from §3.1 built as **one** map for now (the airlock between them is a plain door until Phase 3), stage A's two beats as built plates; labels | `mission.ts`, `campaign.ts`, `text.ts`, `arrival.ts` (runner `from`), `game.ts` (`dropReinforcements` runner split; vehicles in campaign), `vehicles.ts` (`waterY`), `prefetch.ts` | the §3.1 run walks to liberation under the autopilot; build audit green; the v2 tests still pass on the other eight (still v2 layouts, expressed as `hall` zones — a mechanical translation of `ROOMS` to `zones` with `shell: 'hall'`) |
 | **2 · Guidance** | HUD marker, ground arrow, trail posts, barrier lighting, pillar position rule, landmark audit | `hud.ts`, `style.css`, `campaign.ts`, `mission.ts`, `tools/test-missions.mjs` | landmark audit green on the Dune Sea; a player with the HUD alone (no radar) reaches the warlord in a hands-on playtest |
-| **3 · Eight more territories** | §3.2–§3.9 layouts, per-style ridges (`ice`, `basalt`, `ruin`, `hull`, `tank`, `panel`), `deck` shell for real, water plane + off-path rule, the lake traction ring, local `lightAt` skipped | `mission.ts`, `text.ts`, `campaign.ts` | all nine pass the build, landmark and walkthrough audits |
-| **4 · Fliers, runners & roads** | `air` zones draw air kinds; `run` arrivals through passes; `swim` on the two water boards; the `road` shell and `chase` encounter, the three roads (§3.1 beat 6, §3.3 beat 7, §3.7 beat 2), barricades | `campaign.ts`, `arrival.ts`, `spawner.ts`, `mission.ts` | the flier test passes on desert/station/ringworld; runners enter through the pass, not through a cliff; all three roads clear on foot and on a ride |
-| **5 · Polish** | performance pass (merged ridge geometry, cylinder cull radius in `physics.ts` if the move loop shows up), backdrop tint by fog, the ceiling values tuned in play, `docs/LEVEL_DESIGN.md` rewritten to point here as the current design | `mission.ts`, `physics.ts`, docs | 60 fps at 4 players on the largest level (the Old One's hollow with a wave in the air); the ceiling table in §3.10 updated from play |
-| **6 · Later** | terrain relief (`heightAt` wrapper inside the footprint), the Ringworld's terminator over the level and its tram as a `Mover` down the arcade, Trask's heaving trawler deck as a `Mover` and the skiff harbour crossing, room streaming at the barriers | — | not scheduled |
+| **3 · Stages & transport doors** | `StageSpec`, `buildStage`, `Portal`, `Game.transition` + `swapStage` (loading card, teardown, rebuild, re-form), `StageMemory`, the back-portal all-aboard rule and its HUD state, per-stage prefetch; the Dune Sea split into its three stages; the Spice Run's interior stage and the Refinery's `plant` stage as the two proofs (a different world, an existing map) | `mission.ts`, `campaign.ts`, `game.ts`, `main.ts` (the boot path factored so a swap can call it), `ui/loading.ts`, `hud.ts`, `prefetch.ts`, `dispose.ts` | the stage tests pass on the Dune Sea; the Spice Run's stage B runs at flat 0.45 g with no starfield; the Refinery's plant stage uses the wave board's geometry with zero new colliders |
+| **4 · The other territories** | §3.2–§3.9 layouts on built plates (territory-stage openings come in Phase 6 — until then those four boards open on a built plate with the same beats), per-style ridges (`ice`, `basalt`, `ruin`, `hull`, `tank`, `warehouse`, `panel`), `deck` shell for real, the `interior` stage kind, water plane + off-path rule, the lake traction ring, the Prison Rig's `sea` stage | `mission.ts`, `text.ts`, `campaign.ts` | all nine pass the build, landmark, walkthrough and stage audits |
+| **5 · Fliers, runners & roads** | `air` zones draw air kinds; `run` arrivals through passes; `swim` on the two water boards; the `road` shell and `chase` encounter, the three roads (§3.1 beat 2, §3.3 beat 2, §3.7 beat 2), barricades | `campaign.ts`, `arrival.ts`, `spawner.ts`, `mission.ts` | the flier test passes on desert/station/ringworld; runners enter through the pass, not through a cliff; all three roads clear on foot and on a ride |
+| **6 · Territory stages** | the `territory` stage kind: `ridge` along a heightfield region, zones as rects on terrain, vents from the board's own posts, the board's props and rides as-is; the openings of the Dune Sea, Lava Flats, Great Forge and Crevasse moved onto their wave boards | `mission.ts`, `campaign.ts`, the four board modules (region anchors exported) | the territory-stage tests pass on all four; the built-plate openings stay as the fallback behind a flag until a playtest picks |
+| **7 · Polish** | performance pass (merged ridge geometry, cylinder cull radius in `physics.ts` if the move loop shows up), backdrop tint by fog, the ceiling values tuned in play, `docs/LEVEL_DESIGN.md` rewritten to point here as the current design | `mission.ts`, `physics.ts`, docs | 60 fps at 4 players on the largest stage (the Old One's hollow with a wave in the air); the ceiling table in §3.10 updated from play |
+| **8 · Later** | terrain relief on built plates (`heightAt` wrapper inside the footprint), the Ringworld's terminator over the level and its tram as a `Mover` down the arcade, Trask's heaving trawler deck as a `Mover` and the skiff harbour crossing | — | not scheduled |
 
-Order of the nine after the Dune Sea (Phase 3): Crevasse (the canyon board
-proves `ice` and the bends), Spice Run (proves `deck` and the hull door),
-Refinery (proves `tank` and the outdoor-start-of-an-interior-board case),
-then Lava Flats, Storm Docks (water), Great Forge, Ringworld (`panel`),
-Prison Rig (water + `panel`).
+Order of the territories in Phase 4 after the Dune Sea: Crevasse (proves
+`ice`, the bends and the cavern `interior`), Spice Run (already has its
+interior from Phase 3; adds `deck` for real), Refinery (its yard and field
+around the Phase 3 plant), then Lava Flats, Storm Docks (water), Great
+Forge, Ringworld (`panel`), Prison Rig (water, `panel`, the `sea` stage).
 
 ## 7. Tunables (one place: the top of `mission.ts`)
 
@@ -978,6 +1212,9 @@ Prison Rig (water + `panel`).
 | `RIDE_EDGE_CLEAR` | 6 | how far from an open edge a ride is parked |
 | `BARRICADE_HP` | 40 | per crate in a crate-line barricade |
 | `ROAD_MARK_LEAD` | 0 | seconds before the lead player reaches a mark that its drop is called |
+| `PORTAL_POCKET` | 4 | depth of the confirm pocket behind a transport door's leaves |
+| `PORTAL_BEAT` | 1.5 s | the transport beat before the loading card |
+| `PORTAL_CANCEL_STEP` | 3 | how far a cancelled exit walks the player back out |
 
 ## 8. Open questions (decide in play, not now)
 
@@ -994,6 +1231,14 @@ Prison Rig (water + `panel`).
 - **Where the lieutenant fights.** Half indoors, half out (§3) was chosen for
   variety. If the indoor arenas feel like v2, move them out; the shell is one
   word in the spec.
+- **Forward transit on one player.** The brief's rule, and the pocket makes
+  it deliberate. If a playtest still finds it fired by accident (a fight
+  spilling into the pocket), the fallback is *hold A in the pocket for 1 s*;
+  the all-aboard rule stays on the way back regardless.
+- **Territory stages vs built openings.** Phase 4 ships the four heightfield
+  boards' openings on plates and Phase 6 moves them onto the real terrain
+  behind a flag. If the rim on a heightfield misbehaves (v1's ghost), the
+  plates stay and nothing else changes.
 - **Roads on foot.** A road is 120–180 m; a player who never mounts walks it
   under swoop fire. That is meant to be survivable but worse; if it turns out
   to be a wall, the spare rides move closer and the drops thin.
@@ -1023,4 +1268,6 @@ alpha (`energy_cells`) for the fence pane and the ceiling shimmer.
 optional: a boulder set (3), a cliff pillar pair (rock and ice — the gap
 framers, the one rim piece players look straight at), the energy pylon and
 the trail post. Wall hatches reuse `blast_door` at 0.6 scale; barricades
-reuse `cargo_crate`; the door faces reuse `blast_door` in a `ridge` slab.
+reuse `cargo_crate`; the door faces and the transport doors reuse
+`blast_door` (the latter at 1.3 scale with the white-blue frame light) in a
+`ridge` slab.
