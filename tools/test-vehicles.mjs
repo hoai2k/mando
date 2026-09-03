@@ -539,19 +539,36 @@ for (const id of waveBoards) {
     `nearest ${r.nearest.toFixed(1)} m`);
 }
 
-// ---- Missions runs on a level 90 m up: no ground rides down below ----
+// ---- Missions parks its own rides, on the stage the party is standing on ----
+// This used to check that Missions spawned *no* rides at all: every mission
+// level was a plate raised ninety metres over the territory, so the board's
+// own parked rides were unreachable down below and spawning them was waste.
+// Missions parks rides per zone now, and a stage may stand on the territory's
+// own ground, so the rule is no longer "none" but "the stage's own, on the
+// stage" — a ride you cannot walk to is still the thing being guarded against.
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {
   const g = window.__game;
+  const stage = g.campaign?.stage;
+  if (!stage) return { noStage: true };
+  const off = g.vehicles.filter((v) => !stage.contains(v.pos.x, v.pos.z)).length;
+  const sunk = g.vehicles.filter((v) =>
+    Math.abs(v.pos.y - stage.groundAt(v.pos.x, v.pos.z)) > 3).length;
   return {
     n: g.vehicles.length,
-    declared: (g.board.vehicles ?? []).length,
-    floorY: g.campaign?.level.floorY ?? null,
+    want: stage.rides.length,
+    off,
+    sunk,
+    floorY: +stage.floorY.toFixed(1),
   };
 });
-check('missions spawns no unreachable ground rides', mission.n === 0,
-  `${mission.n} spawned, ${mission.declared} declared on the territory, floor at y=${mission.floorY}`);
+check('missions parks the rides its stage declares',
+  !mission.noStage && mission.n === mission.want,
+  `${mission.n} spawned, ${mission.want} declared by the stage`);
+check('and every one of them is standing on it',
+  !mission.noStage && mission.off === 0 && mission.sunk === 0,
+  `${mission.off} off the stage, ${mission.sunk} not on its ground (floor y=${mission.floorY})`);
 
 const bad = h.errors.length;
 console.log('page errors:', bad ? h.errors.slice(0, 3) : 'none');
