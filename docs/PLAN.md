@@ -113,13 +113,16 @@ docs/PLAN.md
   cover — switches itself off for her rather than needing a special case at each site:
   her stowed state is empty hands (`weapon: 'none'`) instead of a shouldered carbine,
   and everything already gated on holding the blaster is false by construction. What she
-  gets in exchange is **deflection**: bolts arriving from her front are batted back at
-  whoever is in front of her, at full damage and credited to her. It reuses the block
-  shield's collider rather than inventing a second mechanism, with three differences that
-  make it read as a parry and not a wall — a tighter frontal arc (about 70°, so fire from
-  the flank still lands), a short cooldown so one blade sweep cannot answer a whole burst,
-  and a cost on the same gauge sprinting spends, so holding blades into sustained fire
-  runs the gauge down and leaves nothing to dash out with.
+  gets in exchange is **deflection**: bolts arriving from her front or either flank are
+  batted back at whoever is in front of her, at full damage and credited to her. It
+  reuses the block shield's collider rather than inventing a second mechanism.
+  **It is continuous** (2026-09-03): no cooldown and no gauge, for as long as the blades
+  are up. What limits the guard is where she is pointing — the arc reaches about ±101°,
+  so front and both flanks are covered and a shot from behind is the only way through.
+  Two earlier versions charged the sprint gauge per bolt and spaced the parries out; both
+  leaked bolts through a guard the player could see working, which reads as the parry
+  being broken rather than as a cost being paid. Measured: bearings 0/45/70/90° all
+  turned, 135/180° both land, and forty sustained bolts turned with the gauge untouched.
 - **The blades stow themselves.** Four seconds without a swing or a deflect and they go
   away, so she walks the board with empty hands rather than jogging around lit like a road
   flare; pressing melee lights them again on the spot and swings in the same press, so

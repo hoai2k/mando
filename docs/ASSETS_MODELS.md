@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: only the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -577,3 +577,25 @@ The campaign bosses (docs/MODES.md §4a) are **promoted existing elites** by des
 no new sculpts for *them*. The expansion that outgrows that rule now exists: the six
 [monster bosses](#monster-bosses--open-2026-08-29) above are the unique boss models,
 requested 2026-08-29 with their design doc (`docs/BOSSES.md`).
+
+## Missions v3 — outdoor set (optional), requested 2026-09-03
+
+Opened by `docs/MISSIONS_OUTDOOR.md`. The mission levels are being rebuilt as outdoor
+zones bounded by terrain, and the design **reuses the existing shelf for everything
+that matters**: every environment prop above is placed in the new levels (§1.7 there
+lists which, where), `blast_door` becomes the door-in-a-cliff and, at 0.6 scale, the
+wall hatches a hall's waves come out of, `cargo_crate` lines the road barricades, the
+three vehicles and the swoop are parked in the big zones and on the roads. The rims
+themselves stay procedural (noised cylinders merged per zone) on purpose.
+
+That leaves four small sculpts, all optional — each has a procedural stand-in the game
+ships with, and each is the one piece of its kind players look straight at. Rigless
+props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris and one
+512² PBR set each unless noted. Style as ever: stylized-realistic, weathered, original.
+
+| Id | Count | Size | Role / constraints |
+|---|---|---|---|
+| `boulder_a`, `boulder_b`, `boulder_c` | 3 | 1.6 / 2.2 / 3.0 m across | The outdoor cover rock — what crates are to the halls. Three silhouettes (a rounded loaf, a split angular block, a leaning slab) so a scatter of them does not repeat. Untextured-neutral grey stone with a slot for the runtime palette tint (the level colours them per territory: sandstone, basalt, ice, glass). Each stands on a physics cylinder of its own footprint; keep the footprint round-ish. ≤ 800 tris each. |
+| `cliff_pillar_rock`, `cliff_pillar_ice` | 2 | 8 m across at the base, 36 m tall (scaled per level) | The gap framers: the two tall pieces either side of every canyon mouth and rim gap, the thing every zone's guidance points at. A tapering, slightly leaning tower — sandstone strata for the rock one, a glacier serac for the ice one — with a readable silhouette at 80 m. The collider is a cylinder r 4.5 m over the full height; the sculpt may flare past it above 12 m (nothing reaches there). ≤ 3k tris, 1024² with the matching `cliff_*` texture family. |
+| `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
+| `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |

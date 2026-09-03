@@ -6,6 +6,13 @@ How a territory becomes a Gauntlet-length liberation run. Companion to
 arena, watched through one shared camera) was replaced by purpose-built
 mission levels and per-player cameras.
 
+> **2026-09-03 — superseded in part.** The *shape* of the level described in
+> §2–§4 (eight walled rooms, roofed corridors, doors on every seam) is being
+> replaced by the outdoor zone design in `docs/MISSIONS_OUTDOOR.md`: open
+> ground bounded by terrain, ravines, an interior hallway beat behind a door,
+> a per-board flight ceiling, and layered guidance. The rules in §1, §5, §6
+> and §7 carry over unchanged. Read that document first.
+
 ## 1. The research, and what it demanded
 
 - **Gauntlet (2014/Slayer).** Chapters run 8–12 minutes as a chain of
