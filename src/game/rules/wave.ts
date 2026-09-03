@@ -175,7 +175,12 @@ export class WaveRules implements ModeRules {
     return postInView(g.board, p.position, p.cam.yaw, kind) ?? g.farPost();
   }
 
-  private nextWave(): void {
+  /**
+   * Ring the next wave now. Public because the match is not the only thing
+   * that rings it: `?waves=boss` and the browser suites drive the flow
+   * directly rather than waiting out four and a half seconds a time.
+   */
+  nextWave(): void {
     const g = this.g;
     this.waveTimer = 0;
     g.waveSpawned = 0;

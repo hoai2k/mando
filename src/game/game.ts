@@ -1530,6 +1530,14 @@ export class Game {
     return egg;
   }
 
+  /**
+   * Ring the next wave. Only the wave game has one; the other modes ignore
+   * it. Kept on `Game` because the suites drive the flow through it.
+   */
+  nextWave(): void {
+    if (this.rules instanceof WaveRules) this.rules.nextWave();
+  }
+
   /** HUD top line: the mode's, or the shared default (the HUD stays mode-agnostic) */
   hudTopLine(p: Player): string {
     if (this.state === 'victory') return 'VICTORY';
