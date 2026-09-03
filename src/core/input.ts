@@ -35,7 +35,12 @@ export interface FrameInput {
   pausePressed: boolean;
 }
 
-export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'fullscreen';
+/**
+ * `alt` is the menu's second button (Y / the Y key) — a screen's optional
+ * extra, where `confirm` is the one every screen answers. The character
+ * select uses it to put a bot in an empty place.
+ */
+export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'fullscreen' | 'alt';
 
 /** A menu action plus where it came from: -1 = keyboard/mouse, else gamepad index. */
 import { config } from '../config';
@@ -109,7 +114,7 @@ export class InputManager {
       const map: Record<string, MenuAction> = {
         ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
         ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
-        Enter: 'confirm', Space: 'confirm', Escape: 'back',
+        Enter: 'confirm', Space: 'confirm', Escape: 'back', KeyY: 'alt',
       };
       if (this.menuMode && map[e.code]) this.menuQueue.push({ action: map[e.code], source: -1 });
       if (!this.menuMode && e.code === 'Escape') this.menuQueue.push({ action: 'pause', source: -1 });
@@ -291,6 +296,7 @@ export class InputManager {
         }
         if (this.padPressed(pad, BTN.A, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
         if (this.padPressed(pad, BTN.B, st)) this.menuQueue.push({ action: 'back', source: pad.index });
+        if (this.padPressed(pad, BTN.Y, st)) this.menuQueue.push({ action: 'alt', source: pad.index });
         if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'confirm', source: pad.index });
       } else {
         if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'pause', source: pad.index });

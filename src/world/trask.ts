@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
@@ -364,8 +365,8 @@ export function buildTrask(): Board {
 
   const board: Board = {
     group, physics, kind: 'trask',
-    name: 'The Storm Docks',
-    objective: 'Trask · survive 7 waves',
+    name: TEXT.boards.trask.name,
+    objective: TEXT.boards.trask.objective,
     footstep: 'metal',
     ambience: { sample: 'amb_rain', bed: 'wind' },
     music: 'station',

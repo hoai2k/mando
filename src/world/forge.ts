@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng } from '../core/math';
@@ -254,8 +255,8 @@ export function buildForge(): Board {
 
   const board: Board = {
     group, physics, kind: 'forge',
-    name: 'The Great Forge',
-    objective: 'Mandalore · survive 7 waves',
+    name: TEXT.boards.forge.name,
+    objective: TEXT.boards.forge.objective,
     footstep: 'stone',
     ambience: { sample: 'amb_forge', bed: 'wind' },
     music: 'desert',

@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld, type StaticBox, type StaticCylinder } from '../core/physics';
 import { fbm2, makeRng, ridge2 } from '../core/math';
@@ -368,7 +369,7 @@ export function buildTatooine(): Board {
 
   return {
     group, physics, kind: 'desert',
-    name: 'The Dune Sea',
+    name: TEXT.boards.desert.name,
     footstep: 'sand',
     ambience: { sample: 'amb_desert', bed: 'wind' },
     music: 'desert',

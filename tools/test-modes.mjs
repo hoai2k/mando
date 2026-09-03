@@ -430,9 +430,9 @@ s = await page.evaluate(`(() => {
 })()`);
 check('campaign: every player their own camera, no shared rig',
   !s.shared && s.camsApart && s.state === 'fighting');
-check('campaign: the mission level is a room chain — start to warlord, champion mid-run',
+check('campaign: the mission level is a room chain — start to warlord, lieutenant mid-run',
   s.rooms.startsWith('start') && s.rooms.endsWith('warlord')
-  && s.rooms.includes('champion') && s.rooms.includes('assault') && s.rooms.includes('camp'), s.rooms);
+  && s.rooms.includes('lieutenant') && s.rooms.includes('assault') && s.rooms.includes('camp'), s.rooms);
 check('campaign: the party stands on the mission level, garrison posted',
   s.elevated && s.posted > 6, `elevated ${s.elevated} · posted ${s.posted}`);
 check('campaign: the guide reads a bearing and a distance', / \d+ m$/.test(s.hint), s.hint);
@@ -574,10 +574,10 @@ const wv = await page.evaluate(`(() => {
   return { wave: g.wave, boss: g.boss?.bossName, bossHp: g.boss?.maxHp, bosses, state: g.state };
 })()`);
 // The Dune Sea has a monster, so its run is three battles, not two: the
-// champion after wave 4, the warlord after wave 7, and then the thing the
+// lieutenant after wave 4, the warlord after wave 7, and then the thing the
 // warlord was standing on top of (docs/BOSSES.md). A board without a monster
 // still ends at the warlord — the ?nomodes pass below walks one of those.
-check('wave: three boss battles on a monster board — champion, warlord, monster',
+check('wave: three boss battles on a monster board — lieutenant, warlord, monster',
   wv.wave === 8 && wv.bosses.length === 3 && !!wv.boss, JSON.stringify(wv));
 check('wave: the warlord is a promoted elite', (wv.bossHp ?? 0) > 1000, String(wv.bossHp));
 check('wave: the monster is the last of them, at its own boss-scale health',
@@ -652,7 +652,7 @@ const br = await page.evaluate(`(() => {
   }
   return { wave: g.wave, bosses, state: g.state };
 })()`);
-check('?waves=boss: one wave to the champion, one more to the warlord and its monster',
+check('?waves=boss: one wave to the lieutenant, one more to the warlord and its monster',
   br.state === 'victory' && br.wave === 3 && br.bosses.length === 3, JSON.stringify(br));
 
 // ---- the escape hatch: ?nomodes is the game as it always was ----

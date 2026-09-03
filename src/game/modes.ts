@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import type { BoardId } from '../world/board';
 import type { EnemyKind } from '../enemies/enemy';
 
@@ -40,7 +41,7 @@ export const INFINITE_LIVES = true;
 
 /**
  * ?waves=boss — boss rush, for testing the boss battles: a single wave
- * before each boss. Wave 1 rings in the champion, wave 2 the warlord (and
+ * before each boss. Wave 1 rings in the lieutenant, wave 2 the warlord (and
  * the monster, where the territory has one).
  */
 export function bossRush(): boolean {
@@ -56,7 +57,7 @@ export function bossRush(): boolean {
  * (Enemy.promoteBoss) rather than a new character. Caps the wave game after
  * the final wave and holds the campaign's final arena — docs/MODES.md §4a.
  * Always the harder of the board's two boss battles: the warlord takes the
- * full promotion (×4.5 HP), where the mid-board champion below is promoted
+ * full promotion (×4.5 HP), where the mid-board lieutenant below is promoted
  * lighter and ends up with roughly half the warlord's health everywhere.
  */
 export const BOSS_KIND: Record<BoardId, EnemyKind> = {
@@ -66,21 +67,11 @@ export const BOSS_KIND: Record<BoardId, EnemyKind> = {
 };
 
 /** Banner/boss-bar name per territory. */
-export const BOSS_NAME: Record<BoardId, string> = {
-  desert: 'The Pit Warlord',
-  station: 'The Spice Baron',
-  nevarro: 'The Garrison Commander',
-  crevasse: 'The Broodmother',
-  trask: 'The Harbourmaster',
-  refinery: 'The Darksaber Officer',
-  forge: 'The Forge Tyrant',
-  ringworld: 'The Fastest Gun on Glavis',
-  narkina: 'The Prison Warden',
-};
+export const BOSS_NAME: Record<BoardId, string> = TEXT.bosses.warlord;
 
 /**
  * The mid-board boss battle: after wave MID_BOSS_WAVE (and at the campaign
- * path's midpoint) the warlord sends its champion — a monster where the
+ * path's midpoint) the warlord sends its lieutenant — a monster where the
  * board has one, an elite lieutenant otherwise. Promoted through the same
  * machinery as the warlord but lighter (the scales below are per-kind, so a
  * grunt-sized creature can be blown up into a proper monster), and always
@@ -94,19 +85,19 @@ export interface MidBossDef {
 }
 
 export const MID_BOSS: Record<BoardId, MidBossDef> = {
-  // The Dune Sea's champion is a monster in its own right — a burrowing worm
-  // whose Def is already champion-scale, so it takes the banner-only
-  // promotion the final monsters do. It used to be a promoted war massiff,
-  // which the Lava Flats also field: no creature bosses two territories now.
-  desert:    { kind: 'sandworm',     name: 'The Hunger Under the Sand', hp: 1, dmg: 1, bulk: 1 },
-  station:   { kind: 'duelist',      name: 'The Dock Assassin',     hp: 3.0, dmg: 1.3,  bulk: 1.15 },
-  nevarro:   { kind: 'massiff',      name: "The Magistrate's Hound", hp: 2.6, dmg: 1.2, bulk: 1.3 },
-  crevasse:  { kind: 'krykna',       name: 'The Tunnel Queen',      hp: 14,  dmg: 2.0,  bulk: 1.9 },
-  trask:     { kind: 'officer',      name: 'The Freighter Captain', hp: 2.6, dmg: 1.25, bulk: 1.15 },
-  refinery:  { kind: 'flametrooper', name: 'The Furnace Master',    hp: 4.2, dmg: 1.5,  bulk: 1.25 },
-  forge:     { kind: 'alamite',      name: 'The Rockdweller Alpha', hp: 11,  dmg: 1.9,  bulk: 1.6 },
-  ringworld: { kind: 'ringEnforcer', name: 'The Silent Sentinel',   hp: 2.4, dmg: 1.3,  bulk: 1.2 },
-  narkina:   { kind: 'deathtrooper', name: 'The Floor Supervisor',  hp: 4.0, dmg: 1.4,  bulk: 1.2 },
+  // The Dune Sea's lieutenant is a monster in its own right — a burrowing worm
+  // whose Def is already boss-scale, so it takes the banner-only promotion the
+  // final monsters do. It used to be a promoted war massiff, which the Lava
+  // Flats also field: no creature bosses two territories now.
+  desert:    { kind: 'sandworm',     name: TEXT.bosses.lieutenant.desert, hp: 1, dmg: 1, bulk: 1 },
+  station:   { kind: 'duelist',      name: TEXT.bosses.lieutenant.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
+  nevarro:   { kind: 'massiff',      name: TEXT.bosses.lieutenant.nevarro, hp: 2.6, dmg: 1.2, bulk: 1.3 },
+  crevasse:  { kind: 'krykna',       name: TEXT.bosses.lieutenant.crevasse, hp: 14,  dmg: 2.0,  bulk: 1.9 },
+  trask:     { kind: 'officer',      name: TEXT.bosses.lieutenant.trask, hp: 2.6, dmg: 1.25, bulk: 1.15 },
+  refinery:  { kind: 'flametrooper', name: TEXT.bosses.lieutenant.refinery, hp: 4.2, dmg: 1.5,  bulk: 1.25 },
+  forge:     { kind: 'alamite',      name: TEXT.bosses.lieutenant.forge, hp: 11,  dmg: 1.9,  bulk: 1.6 },
+  ringworld: { kind: 'ringEnforcer', name: TEXT.bosses.lieutenant.ringworld, hp: 2.4, dmg: 1.3,  bulk: 1.2 },
+  narkina:   { kind: 'deathtrooper', name: TEXT.bosses.lieutenant.narkina, hp: 4.0, dmg: 1.4,  bulk: 1.2 },
 };
 
 /**
@@ -135,15 +126,15 @@ export interface MonsterBossDef {
 }
 
 export const MONSTER_BOSS: Partial<Record<BoardId, MonsterBossDef>> = {
-  station:  { kind: 'mudhorn',  name: "The Smugglers' Prize",  retinue: 'pirate' },
-  crevasse: { kind: 'ravinak',  name: 'The Ice-Breaker',       retinue: 'krykna' },
-  trask:    { kind: 'mamacore', name: 'The Mamacore',          retinue: 'quarren' },
-  nevarro:  { kind: 'rancor',   name: "The Warlord's Rancor",  retinue: 'pirate' },
-  desert:   { kind: 'kraytDragon', name: 'The Old One of the Dune Sea', retinue: 'massiff' },
-  forge:    { kind: 'mythosaur', name: 'The Sleeper Below',      retinue: 'alamite' },
-  refinery:  { kind: 'zillo',     name: 'The Specimen',            retinue: 'stormtrooper' },
-  ringworld: { kind: 'nexu',      name: 'The Night-Side Stalker',  retinue: 'pirate' },
-  narkina:   { kind: 'kwazelMaw', name: 'The Thing in the Moon Pool', retinue: 'stormtrooper' },
+  station:  { kind: 'mudhorn',  name: TEXT.bosses.monster.station, retinue: 'pirate' },
+  crevasse: { kind: 'ravinak',  name: TEXT.bosses.monster.crevasse, retinue: 'krykna' },
+  trask:    { kind: 'mamacore', name: TEXT.bosses.monster.trask, retinue: 'quarren' },
+  nevarro:  { kind: 'rancor',   name: TEXT.bosses.monster.nevarro, retinue: 'pirate' },
+  desert:   { kind: 'kraytDragon', name: TEXT.bosses.monster.desert, retinue: 'massiff' },
+  forge:    { kind: 'mythosaur', name: TEXT.bosses.monster.forge, retinue: 'alamite' },
+  refinery:  { kind: 'zillo',     name: TEXT.bosses.monster.refinery, retinue: 'stormtrooper' },
+  ringworld: { kind: 'nexu',      name: TEXT.bosses.monster.ringworld, retinue: 'pirate' },
+  narkina:   { kind: 'kwazelMaw', name: TEXT.bosses.monster.narkina, retinue: 'stormtrooper' },
 };
 
 export const BOSS_RETINUE: Record<BoardId, EnemyKind> = {

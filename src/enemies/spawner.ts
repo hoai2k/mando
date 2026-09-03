@@ -6,7 +6,7 @@ import { hazardAt, killZones, type Board, type BoardId } from '../world/board';
 
 /**
  * The board runs seven waves of squads. Two boss battles interleave them —
- * after wave MID_BOSS_WAVE the board's champion walks out (modes.ts
+ * after wave MID_BOSS_WAVE the board's lieutenant walks out (modes.ts
  * MID_BOSS), and clearing wave FINAL_WAVE rings in the territory's warlord
  * (modes.ts BOSS_KIND). The ramp keeps the enemies themselves as they are:
  * waves grow by adding bodies and debuting new kinds sooner, never by
@@ -25,7 +25,7 @@ export const MID_BOSS_WAVE = 4;
  * It lives beside the wave tables rather than in the match, because two other
  * things read it: the match warms an ally's model before its cache lands, and
  * the prefetcher counts allies among the models a territory will eventually
- * want. The beats bracket the boss battles: one before the champion, one
+ * want. The beats bracket the boss battles: one before the lieutenant, one
  * right after it, one for the final wave before the warlord.
  */
 export const ALLY_WAVES: Record<number, EnemyKind> = { 3: 'marshal', 5: 'ig11', 7: 'fennec' };

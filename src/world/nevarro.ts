@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { fbm2, makeRng, ridge2 } from '../core/math';
@@ -221,8 +222,8 @@ export function buildNevarro(): Board {
 
   const board: Board = {
     group, physics, kind: 'nevarro',
-    name: 'The Lava Flats',
-    objective: 'Nevarro · survive 7 waves',
+    name: TEXT.boards.nevarro.name,
+    objective: TEXT.boards.nevarro.objective,
     footstep: 'stone',
     ambience: { sample: 'amb_lava', bed: 'wind' },
     music: 'desert',

@@ -284,6 +284,36 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', [0, 1], [[-25, 0, 0], [-25, 0, 0]]),
   ]);
 
+  // ---------- LOWER/UPPER: tuck roll (the acrobat's somersault) ----------
+  //
+  // Held while an acrobat somersaults through the air: knees to the chest,
+  // shins folded under, the arms wrapped in around the shins. The turning is
+  // not in here — the controller spins the whole body about its hips, and this
+  // is only the shape it holds while it turns, which is why both clips are a
+  // single held pose rather than a cycle. Letting go cross-fades back to the
+  // falling stance, and that fade *is* the unfolding.
+  clips.tuckLower = new THREE.AnimationClip('tuckLower', 0.6, [
+    pt('hips', [0, 0.3, 0.6], [[0, hipY - 0.05, 0], [0, hipY - 0.07, 0], [0, hipY - 0.05, 0]]),
+    qt('hips', [0, 0.6], [[16, 0, 0], [16, 0, 0]]),
+    qt('spine', [0, 0.3, 0.6], [[26, 0, 0], [29, 0, 0], [26, 0, 0]]),
+    qt('upperLegL', [0, 0.3, 0.6], [[-118, 0, 9], [-124, 0, 10], [-118, 0, 9]]),
+    qt('lowerLegL', [0, 0.3, 0.6], [[126, 0, 0], [131, 0, 0], [126, 0, 0]]),
+    qt('footL', [0, 0.6], [[24, 0, 0], [24, 0, 0]]),
+    // the trailing leg tucks a beat tighter, so the ball reads as a body
+    qt('upperLegR', [0, 0.3, 0.6], [[-124, 0, -8], [-118, 0, -7], [-124, 0, -8]]),
+    qt('lowerLegR', [0, 0.3, 0.6], [[131, 0, 0], [126, 0, 0], [131, 0, 0]]),
+    qt('footR', [0, 0.6], [[22, 0, 0], [22, 0, 0]]),
+  ]);
+  clips.tuckUpper = new THREE.AnimationClip('tuckUpper', 0.6, [
+    qt('chest', [0, 0.3, 0.6], [[22, 0, 0], [25, 0, 0], [22, 0, 0]]),
+    qt('head', [0, 0.6], [[18, 0, 0], [18, 0, 0]]),   // chin in, eyes on the knees
+    // arms wrapped around the shins rather than hanging: elbows in tight
+    qt('upperArmL', [0, 0.3, 0.6], [[-46, 0, 26], [-50, 0, 28], [-46, 0, 26]]),
+    qt('forearmL', [0, 0.6], [[-112, 0, 0], [-112, 0, 0]]),
+    qt('upperArmR', [0, 0.3, 0.6], [[-46, 0, -26], [-50, 0, -28], [-46, 0, -26]]),
+    qt('forearmR', [0, 0.6], [[-112, 0, 0], [-112, 0, 0]]),
+  ]);
+
   // ---------- LOWER: landing (absorb the drop) ----------
   //
   // A one-shot under whatever the upper body is doing: the knees fold to take

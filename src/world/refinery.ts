@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { makeRng } from '../core/math';
@@ -193,8 +194,8 @@ export function buildRefinery(): Board {
   const board: Board = {
     group, physics, kind: 'refinery',
     enclosed: true,
-    name: 'The Refinery',
-    objective: 'Imperial rhydonium plant · survive 7 waves',
+    name: TEXT.boards.refinery.name,
+    objective: TEXT.boards.refinery.objective,
     footstep: 'metal',
     ambience: { sample: 'amb_refinery', bed: 'hum' },
     music: 'station',

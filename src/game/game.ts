@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
+import { BotBrain } from './bot';
+import { TEXT } from '../text';
 import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave, standingSpot, waveComposition, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
@@ -130,7 +132,7 @@ export class Game {
   private huntCall = 0;
   private huntAnnounced = false;
   // ---- modes (docs/MODES.md) ----
-  /** the standing boss battle — the mid-board champion or the warlord */
+  /** the standing boss battle — the mid-board lieutenant or the warlord */
   boss: Enemy | null = null;
   /** true while the mid-board boss battle (rung in after wave MID_BOSS_WAVE) runs */
   private midBossActive = false;
@@ -141,7 +143,7 @@ export class Game {
    */
   private midBossWave = bossRush() ? 1 : MID_BOSS_WAVE;
   private finalWave = bossRush() ? 2 : FINAL_WAVE;
-  /** the champion has fallen; the second run of waves is open */
+  /** the lieutenant has fallen; the second run of waves is open */
   private midBossDown = false;
   /** the covert's supply cache on the old ally-milestone waves, if one is down */
   allyCrate: AllyCrate | null = null;
@@ -178,8 +180,15 @@ export class Game {
   /** per-frame cache behind hostilesFor */
   private hostileCache = new Map<number, Combatant[]>();
 
+  /**
+   * How many of `players` are human, and so how many pieces the screen is cut
+   * into. Bots sit after them in the same list — they are players in every way
+   * that matters to the match, and in none that matters to the window.
+   */
+  readonly humans: number;
+
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
-    characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave') {
+    characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave', bots = 0) {
     this.scene.add(board.group);
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
@@ -201,8 +210,12 @@ export class Game {
       });
     }
 
-    for (let i = 0; i < playerCount; i++) {
+    this.humans = playerCount;
+    for (let i = 0; i < playerCount + bots; i++) {
       const p = new Player(i, aspect, characters[i] ?? 'din');
+      // a bot is a player with nobody holding the controller: same body, same
+      // weapons, same rules — its input comes from `BotBrain` instead of a pad
+      p.isBot = i >= playerCount;
       if (mode === 'pvp') {
         // every fighter is their own side; 0/1 stay meaningful as co-op/hostile
         p.team = 2 + i;
@@ -276,7 +289,7 @@ export class Game {
         for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
       }
     }
-    // wave and campaign both run the champion and end at the territory's
+    // wave and campaign both run the lieutenant and end at the territory's
     // warlord: warm both models now
     if (mode !== 'pvp') {
       for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
@@ -286,9 +299,9 @@ export class Game {
 
     audio.startAmbient(board.ambience.sample, board.ambience.bed);
     audio.startMusic(board.music, board.kind);
-    const objective = mode === 'pvp' ? 'Last fighter standing takes it'
-      : mode === 'campaign' ? 'Follow the beacon · liberate the territory'
-        : board.objective ?? 'Survive 7 waves and two warlords';
+    const objective = mode === 'pvp' ? TEXT.banners.objective.pvp
+      : mode === 'campaign' ? TEXT.banners.objective.campaign
+        : board.objective ?? TEXT.banners.objective.wave;
     this.events.banner(board.name, objective);
   }
 
@@ -341,6 +354,19 @@ export class Game {
     return list;
   }
 
+  /**
+   * One hand on the controller per bot, made when that bot first needs one and
+   * kept for the life of the match so its burst timing and the way it circles
+   * are its own rather than reset every frame.
+   */
+  private brains = new Map<number, BotBrain>();
+
+  private botInput(p: Player, dt: number): FrameInput {
+    let brain = this.brains.get(p.slot);
+    if (!brain) { brain = new BotBrain(); this.brains.set(p.slot, brain); }
+    return brain.think(p, this, dt);
+  }
+
   /** the campaign controller's mouthpiece (events is private) */
   announce(text: string, sub?: string): void {
     this.events.banner(text, sub);
@@ -348,7 +374,7 @@ export class Game {
 
   /**
    * Spawn a boss battle (docs/MODES.md §4a) at `pos` with a small honour
-   * guard. `tier` picks the fight: the mid-board champion (MID_BOSS, a
+   * guard. `tier` picks the fight: the mid-board lieutenant (MID_BOSS, a
    * lighter promotion and a thinner guard) or the territory's warlord.
    * Shared by the wave game's boss battles and the campaign's two arenas.
    */
@@ -382,11 +408,11 @@ export class Game {
     this.bossMoveCd = 8;
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
-    const sub = tier === 'mid' ? `Champion of ${this.board.name}` : `Warlord of ${this.board.name}`;
+    const sub = tier === 'mid' ? TEXT.banners.lieutenantOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
     if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
-    else this.events.banner(boss.bossName, 'Bring them down');
+    else this.events.banner(boss.bossName, TEXT.banners.bringThemDown);
     audio.bossHorn();
-    // The warlord brings his own music. The champion does not: the board's
+    // The warlord brings his own music. The lieutenant does not: the board's
     // score carrying on through the mid-board fight is what leaves the change
     // at the last one meaning something.
     if (tier === 'final') this.startBossMusic();
@@ -569,7 +595,7 @@ export class Game {
     // the warlord is down and the monster has not been called: start the quake
     if (this.monsterAt && this.boss && !this.boss.alive && this.monsterQuake <= 0) {
       this.monsterQuake = MONSTER_QUAKE_LEN;
-      this.events.banner('Something is coming up', 'the ground will not hold');
+      this.events.banner(TEXT.banners.groundOpening.title, TEXT.banners.groundOpening.sub);
       audio.mythosaur(0.6);
       for (const p of this.players) p.cam.shake(0.5);
       return;
@@ -597,7 +623,7 @@ export class Game {
     this.bossMoveCd = 8;
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
-    const sub = `The ${this.board.name} was never empty`;
+    const sub = TEXT.banners.neverEmpty(this.board.name);
     if (this.events.bossIntro) this.events.bossIntro(monster.name, sub);
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
@@ -671,7 +697,7 @@ export class Game {
       // melee scrum so the new phase starts at range, on both sides' terms
       this.bossShockwave(b, 10, 0, 9);
       if (due === 2) b.enrage();
-      this.events.banner(b.bossName, due === 1 ? 'They call for backup' : 'Enraged — a last stand');
+      this.events.banner(b.bossName, due === 1 ? TEXT.banners.callsForBackup : TEXT.banners.lastStand);
       audio.bossHorn(false);
     }
 
@@ -1039,26 +1065,26 @@ export class Game {
         if (this.wave > this.finalWave) {
           // the warlord is down: the territory is truly held
           this.setState('victory');
-          this.events.banner('Territory held', 'This is the Way');
+          this.events.banner(TEXT.banners.territoryHeld.title, TEXT.banners.territoryHeld.sub);
           audio.waveClear();
         } else if (this.midBossActive) {
-          // the champion falls; the second run of waves opens
+          // the lieutenant falls; the second run of waves opens
           this.midBossActive = false;
           this.midBossDown = true;
           this.setState('break');
           this.stateTimer = 4.5;
-          this.events.banner('The champion falls', 'The warlord is watching');
+          this.events.banner(TEXT.banners.lieutenantFalls.title, TEXT.banners.lieutenantFalls.sub);
           audio.waveClear();
         } else if (this.wave === this.finalWave || (this.wave === this.midBossWave && !this.midBossDown)) {
           // a boss battle rings in on the next bell
           this.setState('break');
           this.stateTimer = 4.5;
-          this.events.banner(`Wave ${this.wave} cleared`, 'Something big is coming');
+          this.events.banner(TEXT.banners.waveCleared(this.wave), TEXT.banners.somethingBig);
           audio.waveClear();
         } else {
           this.setState('break');
           this.stateTimer = 4.5;
-          this.events.banner(`Wave ${this.wave} cleared`);
+          this.events.banner(TEXT.banners.waveCleared(this.wave));
           audio.waveClear();
         }
       }
@@ -1085,7 +1111,7 @@ export class Game {
       this.campaign.update(dt);
       if (this.campaign.done && this.state === 'fighting') {
         this.setState('victory');
-        this.events.banner('Territory liberated', 'This is the Way');
+        this.events.banner(TEXT.banners.territoryLiberated.title, TEXT.banners.territoryLiberated.sub);
         audio.waveClear();
       }
     }
@@ -1096,7 +1122,7 @@ export class Game {
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
-      p.update(dt, inputs[p.slot], this);
+      p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       if (this.mode === 'pvp') {
         // PvP keeps its finite stands: elimination is the mode's win condition
@@ -1115,7 +1141,7 @@ export class Game {
         // arcade checkpointing: the walk back is the cost (LEVEL_DESIGN.md §2)
         p.spawnAt(this.campaign?.respawnSpot(p.slot) ?? this.board.playerStarts[0].clone());
         p.hp = p.maxHp * 0.8;
-        this.events.banner('Back on your feet', 'the beacon waits');
+        this.events.banner(TEXT.banners.backOnYourFeet.title, TEXT.banners.backOnYourFeet.sub);
       } else {
         const partnerAlive = this.players.some((o) => o !== p && o.alive);
         if (INFINITE_LIVES || (this.players.length > 1 && partnerAlive)) {
@@ -1123,13 +1149,13 @@ export class Game {
           if (this.players.length > 1) p.hp = p.maxHp * 0.6;
         } else {
           this.setState('defeat');
-          this.events.banner('The hunter has fallen');
+          this.events.banner(TEXT.banners.hunterFallen);
         }
       }
     }
     if (!INFINITE_LIVES && this.mode === 'wave' && this.state !== 'defeat' && this.state !== 'victory' && this.players.every((p) => !p.alive) && this.players.length > 1) {
       this.setState('defeat');
-      this.events.banner('The hunters have fallen');
+      this.events.banner(TEXT.banners.huntersFallen);
     }
 
     // ---- vehicles ----
@@ -1169,7 +1195,7 @@ export class Game {
         for (const e of this.enemies) if (e.alive) e.alert(p.position, false);
         if (!this.huntAnnounced) {
           this.huntAnnounced = true;
-          this.events.banner('They are sweeping for you');
+          this.events.banner(TEXT.banners.sweepingForYou);
         }
       }
     }
@@ -1558,11 +1584,11 @@ export class Game {
       if (killer) {
         killer.kills++;
         this.events.hitMarker(killer.slot);
-        this.events.banner(`${killer.profile.name} downs ${p.profile.name}`,
-          heir ? 'the squad fights on'
-            : p.lives > 0 ? `${p.lives} stand${p.lives === 1 ? '' : 's'} left` : `${p.profile.name} is out`);
+        this.events.banner(TEXT.banners.downs(killer.profile.name, p.profile.name),
+          heir ? TEXT.banners.squadFightsOn
+            : p.lives > 0 ? TEXT.banners.standsLeft(p.lives) : TEXT.banners.isOut(p.profile.name));
       } else if (!heir && p.lives <= 0) {
-        this.events.banner(`${p.profile.name} is out`);
+        this.events.banner(TEXT.banners.isOut(p.profile.name));
       }
       audio.killConfirm();
       if (heir) this.takeOverFollower(p, heir);
@@ -1574,7 +1600,7 @@ export class Game {
       this.winnerSlot = winner.slot;
       this.setState('victory');
       audio.pvpRoundWin();   // the duel gets its own sting over the victory music
-      this.events.banner(`${winner.profile.name} takes the territory`, 'This is the Way');
+      this.events.banner(TEXT.banners.takesTheTerritory(winner.profile.name), TEXT.banners.thisIsTheWay);
     }
   }
 
@@ -1670,23 +1696,23 @@ export class Game {
 
   /** HUD top line, per mode (the HUD stays mode-agnostic) */
   hudTopLine(p: Player): string {
-    if (this.state === 'victory') return 'VICTORY';
+    if (this.state === 'victory') return TEXT.hud.victory;
     if (this.mode === 'pvp') {
       const stands = (p.alive ? 1 : 0) + p.lives;
-      return stands > 0 ? `${stands} stand${stands === 1 ? '' : 's'} left` : 'ELIMINATED';
+      return stands > 0 ? TEXT.hud.standsLeft(stands) : TEXT.hud.eliminated;
     }
-    if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? 'Follow the beacon';
-    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? 'The warlord';
-    return `Wave ${Math.max(this.wave, 1)}`;
+    if (this.mode === 'campaign') return this.campaign?.hint(p.position) ?? TEXT.hud.followBeacon;
+    if (this.midBossActive || this.wave > this.finalWave) return this.boss?.bossName ?? TEXT.hud.theWarlord;
+    return TEXT.hud.wave(Math.max(this.wave, 1));
   }
 
   /** HUD score line, per mode */
   hudScoreLine(p: Player): string {
     if (this.mode === 'pvp') {
       const rivals = this.players.filter((o) => o !== p && (o.alive || o.lives > 0 || o.respawnTimer > 0)).length;
-      return `${p.kills} kills · ${rivals} rival${rivals === 1 ? '' : 's'} left`;
+      return TEXT.hud.killsAndRivals(p.kills, rivals);
     }
-    return `${p.kills} kills · ${this.aliveEnemyCount + this.incoming} hostiles remaining`;
+    return TEXT.hud.killsAndHostiles(p.kills, this.aliveEnemyCount + this.incoming);
   }
 
   /** the far side of the board: the last resort for a boss with nowhere in view to stand */
@@ -1718,7 +1744,7 @@ export class Game {
     this.huntCall = 0;
     this.huntAnnounced = false;
     this.setState('fighting');
-    // clearing wave MID_BOSS_WAVE rings in the champion's battle instead of
+    // clearing wave MID_BOSS_WAVE rings in the lieutenant's battle instead of
     // the next wave: the board's first boss posts at the far side with a guard
     if (this.wave === this.midBossWave && !this.midBossDown) {
       this.midBossActive = true;
@@ -1746,8 +1772,8 @@ export class Game {
     this.preloadWave(this.wave + 1);
     const scattered = this.aliveEnemyCount + this.incoming;
     this.events.banner(
-      `Wave ${this.wave}`,
-      this.wave === this.finalWave ? `Final wave · ${scattered} hostiles` : `${scattered} hostiles · hunt them down`
+      TEXT.banners.wave(this.wave),
+      this.wave === this.finalWave ? TEXT.banners.finalWave(scattered) : TEXT.banners.huntThemDown(scattered),
     );
     // the little card naming kinds that debut this wave — the wave tables
     // are deterministic in which kinds appear, so a diff against every
@@ -1767,7 +1793,7 @@ export class Game {
     const cacheKind = ALLY_WAVES[this.wave] ?? null;
     if (cacheKind) {
       this.allyCrate = new AllyCrate(this, cacheKind, this.players[0]?.position ?? this.board.playerStarts[0]);
-      this.events.banner(`Wave ${this.wave}`, 'A covert supply cache is down — crack it open');
+      this.events.banner(TEXT.banners.wave(this.wave), TEXT.banners.supplyCache);
     }
   }
 
@@ -1810,7 +1836,7 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
 
-    const n = this.players.length;
+    const n = this.humans;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to

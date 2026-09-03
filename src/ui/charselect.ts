@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { audio } from '../core/audio';
-import { MAX_PLAYERS } from '../core/layout';
+import { MAX_FIGHTERS, MAX_PLAYERS } from '../core/layout';
+import { TEXT } from '../text';
 import { damp } from '../core/math';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import {
@@ -51,15 +52,17 @@ const BASE_GLOW = 0.22;
  * never four plinths with two of them dark. Spacing tightens and the camera
  * eases back as the line grows, both indexed by how many are on stage.
  */
-const STAGE_GAP = [0, 0, 2.8, 2.3, 1.9];
-const STAGE_Z = [0, 5.2, 5.2, 5.9, 6.5];
+// index = plinths on stage, out to the eight a PvP line can hold once bots
+// are in it; the line tightens and the camera walks back as it grows
+const STAGE_GAP = [0, 0, 2.8, 2.3, 1.9, 1.72, 1.6, 1.5, 1.42];
+const STAGE_Z = [0, 5.2, 5.2, 5.9, 6.5, 7.3, 8.0, 8.6, 9.2];
 /** how fast the line re-spaces itself, and how fast a plinth grows in or out */
 const STAGE_LAMBDA = 5.5;
 const APPEAR_LAMBDA = 7;
 
 /** x of the i-th pedestal when `n` of them are on stage, centred on the line */
 function stageX(i: number, n: number): number {
-  return (i - (n - 1) / 2) * STAGE_GAP[Math.max(1, Math.min(MAX_PLAYERS, n))];
+  return (i - (n - 1) / 2) * STAGE_GAP[Math.max(1, Math.min(MAX_FIGHTERS, n))];
 }
 
 /**
@@ -89,11 +92,28 @@ const _fitSize = new THREE.Vector3();
 
 type Phase = 'empty' | 'browsing' | 'spinning' | 'ready';
 
+/** one fighter's place in the line, while the line is being reordered */
+interface Occupant {
+  /** the plinth it came off, or -1 for one just added */
+  from: number;
+  bot: boolean;
+  owner: number;
+  phase: Phase;
+  choice: number;
+  spinT: number;
+  arcT: number;
+  manual: number;
+}
+
 /** shortest signed equivalent of an angle, so a full manual spin unwinds the near way */
 const wrapPi = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 
 interface Slot {
   phase: Phase;
+  /** an AI fighter rather than a seat somebody is sitting in */
+  bot: boolean;
+  /** for a bot, the human slot that adds it and picks for it; -1 for a human */
+  owner: number;
   choice: number;                 // index into ROSTER
   spinT: number;                  // 0..1 through the commit spin
   loadingFor: number;             // seconds the current model has kept us waiting
@@ -177,6 +197,8 @@ export class CharacterSelect {
   private roster: PlayableId[] = [...STANDARD_ROSTER];
   /** PvP refuses to start alone */
   private minPlayers = 1;
+  /** whether this mode lets a player put AI fighters in the line (PvP does) */
+  private allowBots = false;
   /** the Start button is on screen (everyone joined is locked in) */
   private startShown = false;
   private titleEl!: HTMLElement;
@@ -215,7 +237,7 @@ export class CharacterSelect {
 
     const title = document.createElement('div');
     title.className = 'menu-title charsel-title';
-    title.textContent = 'Choose Your Mandalorian';
+    title.textContent = TEXT.charSelect.title;
     this.root.appendChild(title);
     this.titleEl = title;
 
@@ -232,11 +254,11 @@ export class CharacterSelect {
     this.root.appendChild(panels);
     this.panels = panels;
 
-    for (let i = 0; i < MAX_PLAYERS; i++) this.slots.push(this.makeSlot(i, panels));
+    for (let i = 0; i < MAX_FIGHTERS; i++) this.slots.push(this.makeSlot(i, panels));
 
     this.startBtn = document.createElement('button');
     this.startBtn.className = 'menu-btn charsel-start';
-    this.startBtn.textContent = 'Start Game';
+    this.startBtn.textContent = TEXT.charSelect.start;
     // Hidden, not removed: the button sits in the same column as the panels,
     // and taking it out of the flow grew the panel box by its height — so the
     // clamp that keeps a name off the plinth had a different ceiling before
@@ -248,7 +270,7 @@ export class CharacterSelect {
 
     const hint = document.createElement('div');
     hint.className = 'menu-hint';
-    hint.innerHTML = '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b>/<b>click</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn';
+    hint.innerHTML = TEXT.charSelect.hint;
     this.root.appendChild(hint);
     this.hintEl = hint;
 
@@ -338,7 +360,8 @@ export class CharacterSelect {
     const n = this.onStage();
     // the camera eases back as the line widens, so four fit the frame without
     // two ever looking marooned at the edges
-    this.camera.position.z = dt > 0 ? damp(this.camera.position.z, STAGE_Z[n], STAGE_LAMBDA, dt) : STAGE_Z[n];
+    const z = STAGE_Z[Math.max(1, Math.min(MAX_FIGHTERS, n))];
+    this.camera.position.z = dt > 0 ? damp(this.camera.position.z, z, STAGE_LAMBDA, dt) : z;
     // aimed low so the line rides high in frame, leaving the band under the
     // plinths free for the name plates however few pedestals are up
     this.camera.lookAt(0, 0.85, 0);
@@ -373,17 +396,27 @@ export class CharacterSelect {
   }
 
   /**
-   * How many plinths belong on stage: everyone who has joined, plus a single
-   * open place inviting the next player — and nothing beyond four.
+   * How many plinths belong on stage: everyone in the line, plus a single open
+   * place — but only where something could actually take it.
+   *
+   * Another human can join while there are fewer than MAX_PLAYERS of them (the
+   * screen only divides so many ways), a bot can be added where the mode has
+   * them, and neither can once the line is MAX_FIGHTERS long. With no room for
+   * either, the invitation is a lie: an empty plinth nobody can stand on, which
+   * is what a full four-player line grew the moment the line was widened past
+   * four.
    *
    * Counting to the *highest* joined slot rather than the number joined keeps
-   * the invitation honest when a pad drops out mid-screen and leaves a hole:
-   * the hole is itself the open place, and the players past it stay put.
+   * it honest when a pad drops out mid-screen and leaves a hole: the hole is
+   * itself the open place, and the players past it stay put.
    */
   private onStage(): number {
     let last = 0;
     this.slots.forEach((s, i) => { if (s.phase !== 'empty') last = i; });
-    return Math.min(MAX_PLAYERS, last + 2);
+    const filled = last + 1;
+    const canJoin = this.humanCount() < MAX_PLAYERS || (this.allowBots && this.humanCount() > 0);
+    const inviting = filled < MAX_FIGHTERS && canJoin;
+    return Math.min(MAX_FIGHTERS, filled + (inviting ? 1 : 0));
   }
 
   private makeSlot(i: number, panels: HTMLElement): Slot {
@@ -436,7 +469,7 @@ export class CharacterSelect {
     group.position.y = 0.12;
 
     return {
-      phase: 'empty', choice: i % this.roster.length, spinT: 0, loadingFor: 0,
+      phase: 'empty', bot: false, owner: -1, choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
       panel, name, status, kit, spinner, arrows, waiting: false, poster: null,
@@ -465,7 +498,7 @@ export class CharacterSelect {
 
   private flip(slot: number, dir: -1 | 1): void {
     const s = this.slots[slot];
-    if (s.phase !== 'browsing') return;
+    if (s.phase !== 'browsing' || this.botLocked(slot)) return;
     audio.uiMove();
     s.choice = this.step(slot, s.choice, dir);
     s.loadingFor = 0;
@@ -633,15 +666,26 @@ export class CharacterSelect {
     // it was assigned, however many of them there are
     if (source === -1) return 0;
     const slot = pads.indexOf(source);
-    return slot >= 0 && slot < this.slots.length ? slot : -1;
+    if (slot < 0 || slot >= this.slots.length) return -1;
+    // A pad is seated by index as soon as it is plugged in, which can point it
+    // at a place a bot is standing in — and a bot is nobody's seat. That pad is
+    // simply not in the line yet, and pressing A puts it in one.
+    return this.slots[slot].bot ? -1 : slot;
   }
 
   /**
    * What a click (or A) on one pedestal means, by where that slot is up to.
    * Mouse and pad go through the same three beats: join, lock in, start.
    */
+  /** a bot's plinth answers to nobody until its owner has locked themselves in */
+  private botLocked(slot: number): boolean {
+    const s = this.slots[slot];
+    return s.bot && this.slots[s.owner]?.phase !== 'ready';
+  }
+
   private select(slot: number): void {
     const s = this.slots[slot];
+    if (this.botLocked(slot)) return;
     if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
     else if (s.phase === 'browsing') this.commit(slot);
     else if (s.phase === 'ready' && this.startShown) { audio.uiConfirm(); this.start(); }
@@ -659,16 +703,47 @@ export class CharacterSelect {
    * that player reading a seat their pad was not in.
    */
   private slotForJoin(source: number): number {
+    const seat = this.drivingSlot(source);
+    // already in the line — either their own place, or the bot they are picking for
+    if (seat >= 0 && this.slots[seat].phase !== 'empty') return seat;
+    // A human takes the place after the last human, which is a bot's place if
+    // any bots are standing there: they shuffle right to make room, so the
+    // people are always the front of the line and the machines the back of it.
+    const at = this.humanCount();
+    if (at >= MAX_PLAYERS || at + this.botCount() >= MAX_FIGHTERS) return -1;
+    if (this.slots[at].phase !== 'empty') {
+      const order = this.lineup();
+      // an empty place held open at `at`: the bots behind it shuffle right,
+      // and `join` fills it the moment this returns
+      order.splice(at, 0, {
+        from: -1, bot: false, owner: -1, phase: 'empty',
+        choice: this.slots[at].choice, spinT: 0, arcT: 0, manual: 0,
+      });
+      this.arrange(order);
+    }
+    if (source !== -1) this.opts.seatPad(source, at);
+    return at;
+  }
+
+  /**
+   * Which plinth this controller is driving right now.
+   *
+   * Its own, until that player has locked their own fighter in — from then on
+   * their stick and their A button pick for the first bot they asked for that
+   * has not been settled yet. That is the whole flow: choose yourself, then
+   * choose for the machines, then start. Once their bots are all ready the
+   * input comes back to them, so A starts the match as it always did.
+   */
+  private drivingSlot(source: number): number {
     const seat = this.slotFor(source);
-    if (seat >= 0 && this.slots[seat].phase !== 'empty') return seat;   // already in the line
-    const free = this.slots.findIndex((s) => s.phase === 'empty');
-    if (free < 0) return seat;
-    if (source !== -1) this.opts.seatPad(source, free);
-    return free;
+    if (seat < 0 || this.slots[seat].phase !== 'ready') return seat;
+    const bot = this.slots.findIndex((s) => s.bot && s.owner === seat && s.phase !== 'ready');
+    return bot >= 0 ? bot : seat;
   }
 
   handle(action: MenuAction, source: number): void {
-    const slot = action === 'confirm' ? this.slotForJoin(source) : this.slotFor(source);
+    if (action === 'alt') { this.addBot(this.slotFor(source)); return; }
+    const slot = action === 'confirm' ? this.slotForJoin(source) : this.drivingSlot(source);
     if (slot < 0) return;
     const s = this.slots[slot];
     switch (action) {
@@ -676,7 +751,9 @@ export class CharacterSelect {
       case 'right': this.flip(slot, 1); break;
       case 'confirm': this.select(slot); break;
       case 'back':
-        if (s.phase === 'ready') { audio.uiBack(); this.uncommit(slot); }
+        // a bot backs out of its pick, and out of the line altogether
+        if (s.bot) { audio.uiBack(); if (s.phase === 'ready') this.uncommit(slot); else this.leave(slot); }
+        else if (s.phase === 'ready') { audio.uiBack(); this.uncommit(slot); }
         else if (slot > 0 && s.phase === 'browsing') { audio.uiBack(); this.leave(slot); }
         else if (s.phase === 'browsing') { audio.uiBack(); this.opts.onBack(); }
         break;
@@ -714,23 +791,88 @@ export class CharacterSelect {
    * character yet).
    */
   private compact(): void {
+    this.arrange(this.lineup());
+    this.opts.compactPads();
+  }
+
+  /**
+   * The line as it should stand: everyone who is in it, humans in their join
+   * order and then every bot — which is what puts the bots at the end, just
+   * before the open place inviting the next player.
+   *
+   * A bot's `owner` is an index into the line, so it is remapped here to where
+   * its owner has ended up rather than where it used to be.
+   */
+  private lineup(): Occupant[] {
     const held = this.slots
-      .filter((s) => s.phase !== 'empty')
-      .map((s) => ({ phase: s.phase, choice: s.choice, spinT: s.spinT, arcT: s.arcT, manual: s.manual }));
-    // nothing to close up if the joined slots already run 0..k-1
-    if (this.slots.every((s, i) => (s.phase !== 'empty') === (i < held.length))) return;
+      .map((s, i) => ({
+        from: i, bot: s.bot, owner: s.owner, phase: s.phase,
+        choice: s.choice, spinT: s.spinT, arcT: s.arcT, manual: s.manual,
+      }))
+      .filter((e) => e.phase !== 'empty');
+    const order = [...held.filter((e) => !e.bot), ...held.filter((e) => e.bot)];
+    const moved = new Map(order.map((e, to) => [e.from, to]));
+    for (const e of order) if (e.bot) e.owner = moved.get(e.owner) ?? 0;
+    return order;
+  }
+
+  /**
+   * Write a line-up back onto the plinths and empty whatever is left over.
+   *
+   * The bodies a slot has built stay with the plinth rather than travelling
+   * with their occupant: they are a cache keyed by character, the next
+   * occupant reuses or refills it, and every frame decides for itself which
+   * one of them is the one to show.
+   */
+  private arrange(order: Occupant[]): void {
     this.slots.forEach((s, i) => {
-      const h = held[i];
-      s.phase = h ? h.phase : 'empty';
-      s.choice = h ? h.choice : s.choice;
-      s.spinT = h ? h.spinT : 0;
-      s.arcT = h ? h.arcT : 0;
-      s.manual = h ? h.manual : 0;
+      const e = order[i];
+      s.phase = e ? e.phase : 'empty';
+      s.bot = e ? e.bot : false;
+      s.owner = e ? e.owner : -1;
+      s.choice = e ? e.choice : s.choice;
+      s.spinT = e ? e.spinT : 0;
+      s.arcT = e ? e.arcT : 0;
+      s.manual = e ? e.manual : 0;
       s.loadingFor = 0;
       s.waiting = false;
-      if (!h) for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
+      if (!e) {
+        this.dropPoster(s);
+        for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
+      }
     });
-    this.opts.compactPads();
+  }
+
+  /** how many humans are in the line (they always hold the front of it) */
+  private humanCount(): number { return this.slots.filter((s) => s.phase !== 'empty' && !s.bot).length; }
+  /** how many bots are in the line */
+  private botCount(): number { return this.slots.filter((s) => s.phase !== 'empty' && s.bot).length; }
+
+  /**
+   * Put an AI fighter in the line.
+   *
+   * It lands after everyone already in it, which — since bots sort behind
+   * humans — is the end of the line. The player who asked for it picks its
+   * character, but only once they have committed their own: until then it
+   * stands there waiting, which is what the status line says.
+   */
+  private addBot(owner: number): void {
+    if (!this.allowBots || owner < 0 || this.slots[owner].bot) return;
+    if (this.humanCount() + this.botCount() >= MAX_FIGHTERS) return;
+    const order = this.lineup();
+    order.push({
+      from: -1, bot: true, owner, phase: 'browsing',
+      choice: 0, spinT: 0, arcT: 0, manual: 0,
+    });
+    this.arrange(order);
+    // land it on a face nobody has taken
+    const at = order.length - 1;
+    if (!this.available(at).has(this.roster[this.slots[at].choice])) {
+      this.slots[at].choice = this.step(at, this.slots[at].choice, 1);
+    }
+    audio.uiConfirm();
+    this.preloadAround();
+    this.refresh();
   }
 
   private commit(slot: number): void {
@@ -769,11 +911,12 @@ export class CharacterSelect {
    * Dress the screen for a mode: which ids are on offer, what the title says,
    * and how many players the mode insists on (PvP: two). Call before show().
    */
-  configure(opts: { roster: PlayableId[]; title: string; minPlayers?: number }): void {
+  configure(opts: { roster: PlayableId[]; title: string; minPlayers?: number; allowBots?: boolean }): void {
     const changed = opts.roster.length !== this.roster.length
       || opts.roster.some((id, i) => id !== this.roster[i]);
     this.roster = [...opts.roster];
     this.minPlayers = opts.minPlayers ?? 1;
+    this.allowBots = !!opts.allowBots;
     this.titleEl.textContent = opts.title;
     if (changed) {
       for (const s of this.slots) {
@@ -791,10 +934,12 @@ export class CharacterSelect {
     const joined = this.slots.filter((s) => s.phase === 'ready');
     if (joined.length === 0 || joined.length !== this.slots.filter((s) => s.phase !== 'empty').length) return;
     if (joined.length < this.minPlayers) {
-      this.hintEl.innerHTML = `<b>PvP needs ${this.minPlayers} fighters</b> — press <b>A</b> on another controller to join the duel`;
+      this.hintEl.innerHTML = TEXT.charSelect.needFighters(this.minPlayers);
       return;
     }
-    this.opts.onStart(joined.map((s) => this.roster[s.choice]), joined.length);
+    // humans first, bots after — the order the line is standing in, which is
+    // the order the match seats them in
+    this.opts.onStart(joined.map((s) => this.roster[s.choice]), joined.filter((s) => !s.bot).length);
   }
 
   // ---------- per-frame ----------
@@ -913,6 +1058,7 @@ export class CharacterSelect {
   private dropDisconnected(): void {
     const pads = this.opts.padForPlayer();
     for (let i = 1; i < this.slots.length; i++) {
+      if (this.slots[i].bot) continue;   // a bot is nobody's controller to lose
       if (this.slots[i].phase !== 'empty' && (pads[i] ?? -1) < 0) {
         audio.uiBack();
         this.leave(i);
@@ -1139,27 +1285,50 @@ export class CharacterSelect {
       const id = this.roster[s.choice];
       if (s.phase === 'empty') {
         s.name.textContent = '';
-        s.status.innerHTML = `<b>Player ${i + 1}</b><br/>Press <b>A</b> to join`;
+        const join = `<b>${TEXT.charSelect.player(this.humanCount() + 1)}</b><br/>${TEXT.charSelect.join}`;
+        // the invitation only offers a bot where the mode has them, and only
+        // to a line with somebody in it to pick for one
+        s.status.innerHTML = this.allowBots && this.humanCount() > 0
+          ? `${join}<br/>${TEXT.charSelect.joinBot}`
+          : join;
         s.panel.classList.add('empty');
         s.panel.classList.remove('ready');
+      } else if (s.bot) {
+        s.name.textContent = playableDef(id).profile.name;
+        const owner = TEXT.charSelect.player(s.owner + 1);
+        const tag = `<b>${TEXT.charSelect.bot}</b><br/>`;
+        s.status.innerHTML = s.phase === 'ready' ? `${tag}${TEXT.charSelect.ready}`
+          : s.waiting ? `${tag}${TEXT.charSelect.loading}`
+            : this.slots[s.owner]?.phase === 'ready'
+              ? `${tag}${TEXT.charSelect.botPicking(owner)}`
+              : `${tag}${TEXT.charSelect.botWaiting(owner)}`;
+        s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
+        s.panel.classList.remove('empty');
       } else {
         const pr = playableDef(id).profile;
         s.name.textContent = pr.name;
-        const bits = [`<b>${pr.maxHp} HP</b>`];
+        const bits = [TEXT.charSelect.kit.hp(pr.maxHp)];
         bits.push(pr.rangedName ? pr.rangedName : `<b>${pr.meleeName}</b>`);
-        bits.push(pr.flight === 'jetpack' ? 'jetpack' : 'super jump');
-        if (pr.squad) bits.push(`squad of ${pr.squad.count}`);
-        if (pr.special === 'layEgg') bits.push('lays eggs');
+        bits.push(pr.flight === 'jetpack' ? TEXT.charSelect.kit.jetpack : TEXT.charSelect.kit.superJump);
+        if (pr.squad) bits.push(TEXT.charSelect.kit.squad(pr.squad.count));
+        if (pr.special === 'layEgg') bits.push(TEXT.charSelect.kit.laysEggs);
         s.kit.innerHTML = `${pr.desc ? pr.desc + '<br/>' : ''}${bits.join(' · ')}`;
-        s.status.innerHTML = s.phase === 'ready' ? '<b>READY</b>'
-          : s.waiting ? `<b>Player ${i + 1}</b><br/>Loading…`
-            : `<b>Player ${i + 1}</b>`;
+        s.status.innerHTML = s.phase === 'ready' ? `<b>${TEXT.charSelect.ready}</b>`
+          : s.waiting ? `<b>${TEXT.charSelect.player(i + 1)}</b><br/>${TEXT.charSelect.loading}`
+            : `<b>${TEXT.charSelect.player(i + 1)}</b>`;
         s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
         s.panel.classList.remove('empty');
       }
-      const browsing = s.phase === 'browsing';
+      const browsing = s.phase === 'browsing' && (!s.bot || this.slots[s.owner]?.phase === 'ready');
       for (const a of s.arrows) a.style.visibility = browsing ? 'visible' : 'hidden';
     });
+  }
+
+  /** the line as it stands, for tests: who is in it, in the order they stand */
+  lineState(): Array<{ bot: boolean; phase: Phase; id: PlayableId | null; owner: number }> {
+    return this.slots
+      .filter((s) => s.phase !== 'empty')
+      .map((s) => ({ bot: s.bot, phase: s.phase, id: this.roster[s.choice] ?? null, owner: s.owner }));
   }
 
   show(): void {
@@ -1168,6 +1337,8 @@ export class CharacterSelect {
     // P1 walks in browsing; P2 waits for a join. Committed picks reset each visit.
     this.slots.forEach((s, i) => {
       s.phase = i === 0 ? 'browsing' : 'empty';
+      s.bot = false;
+      s.owner = -1;
       s.arcT = 0;
       s.manual = 0;
       s.group.rotation.y = s.baseYaw;

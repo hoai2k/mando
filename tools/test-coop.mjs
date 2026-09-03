@@ -56,7 +56,7 @@ async function toCharacterSelect() {
   await h.pad.tap(BTN.START);
   await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
   await h.pad.tap(BTN.A);
-  await h.waitForText(/MANDALORIAN|DIN DJARIN/i);
+  await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
   await sleep(900);
 }
 

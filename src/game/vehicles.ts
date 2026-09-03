@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Game } from './game';
 import type { Player } from '../player/player';
@@ -75,7 +76,7 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     modelId: 'nikto_swoop', modelSize: 2.6,
   },
   speederBike: {
-    name: 'Speeder bike', hp: 90, top: 27, throttle: 18, brake: 22, drag: 4,
+    name: TEXT.vehicles.speeder, hp: 90, top: 27, throttle: 18, brake: 22, drag: 4,
     turn: 2.6, grip: 3.8, boost: 10,
     radius: 0.8, body: 1.15, hover: 0.6, length: 3.0,
     seat: { x: 0, y: -0.34, z: -0.3 }, stance: 'saddle',
@@ -100,7 +101,7 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     modelId: 'bantha', modelSize: 4.5, modelAxis: 'z', modelGround: true,
   },
   skiff: {
-    name: 'Cargo skiff', hp: 220, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
+    name: TEXT.vehicles.skiff, hp: 220, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
     turn: 1.0, grip: 6.5, boost: 6,
     radius: 1.7, body: 1.3, hover: 0.9, length: 9,
     seat: { x: 0, y: 1.05, z: -3.1 }, stance: 'stand',

@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import {
   buildMandalorian, MANDO_ROSTER, meleeKinds, MELEE_NAMES, PLAYABLE_MANDO_IDS,
@@ -29,6 +30,11 @@ export interface PlayerProfile {
   maxHp: number;
   runSpeed: number;
   sprintSpeed: number;
+  /**
+   * Tapping jump again in the air rolls this fighter into a somersault for as
+   * long as the button is held. Acrobats only — see `acrobat` in the roster.
+   */
+  airFlip: boolean;
   /**
    * How this character fights gravity. 'jetpack' is the Mandalorian loop:
    * hold jump in the air to thrust, on a fuel budget. 'superjump' is
@@ -119,6 +125,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // the jetpack is a Mandalorian thing: the bare-headed hunters get the
     // held-A super jump instead
     flight: cfg.helmet === null ? 'superjump' : 'jetpack',
+    airFlip: !!cfg.acrobat,
     fireCd: 0.24, boltDamage: 34, boltSpeed: 75,
     meleeDamage: 32, meleeFinisher: 55,
     rangedOptions: ranged,
@@ -161,34 +168,34 @@ interface NpcTuning {
 
 const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   // ---- skirmishers: cheap bodies, real squads ----
-  tusken:       { desc: 'A raider of the wastes — and the two cousins who swing beside you.', hp: 100, run: 9.0, melee: [40, 62], meleeOnly: true, squad: { kind: 'tusken', count: 2 }, voice: 'masked' },
-  pyke:         { desc: 'Syndicate muscle. Thin blood, thick numbers.', hp: 95, run: 8.8, fireCd: 0.3, boltDamage: 24, squad: { kind: 'pyke', count: 2 }, voice: 'alien_m' },
-  pirate:       { desc: 'A gunner with a crew that follows the loudest voice — yours.', hp: 100, run: 8.6, fireCd: 0.28, boltDamage: 26, squad: { kind: 'pirate', count: 2 }, voice: 'masked' },
-  pirateMelee:  { desc: 'A brawler and his boarding party. Get close, stay close.', hp: 115, run: 9.2, melee: [42, 66], meleeOnly: true, squad: { kind: 'pirateMelee', count: 2 }, voice: 'masked' },
-  stormtrooper: { desc: 'The armour cannot aim, but three of you missing together adds up.', hp: 95, run: 8.8, fireCd: 0.26, boltDamage: 24, squad: { kind: 'stormtrooper', count: 2 }, voice: 'masked' },
-  quarren:      { desc: 'A dock hand with a net gun and two mates off the trawler.', hp: 105, run: 8.4, fireCd: 0.5, boltDamage: 20, boltSpeed: 45, squad: { kind: 'quarren', count: 2 }, voice: 'alien_m' },
-  alamite:      { desc: 'A cave-dweller and its pack — stone clubs, no manners.', hp: 95, run: 9.6, melee: [38, 58], meleeOnly: true, squad: { kind: 'alamite', count: 2 }, voice: 'masked' },
-  krykna:       { desc: 'One spider you steer, three that follow. The nest hunts as one.', hp: 85, run: 10.4, melee: [34, 52], meleeOnly: true, squad: { kind: 'krykna', count: 3 }, voice: 'reptile' },
-  nikto:        { desc: 'A swoop rider — the bike flies, and so do you.', hp: 90, run: 9.6, fireCd: 0.26, boltDamage: 24, voice: 'alien_m' },
+  tusken:       { desc: TEXT.npcs.tusken, hp: 100, run: 9.0, melee: [40, 62], meleeOnly: true, squad: { kind: 'tusken', count: 2 }, voice: 'masked' },
+  pyke:         { desc: TEXT.npcs.pyke, hp: 95, run: 8.8, fireCd: 0.3, boltDamage: 24, squad: { kind: 'pyke', count: 2 }, voice: 'alien_m' },
+  pirate:       { desc: TEXT.npcs.pirate, hp: 100, run: 8.6, fireCd: 0.28, boltDamage: 26, squad: { kind: 'pirate', count: 2 }, voice: 'masked' },
+  pirateMelee:  { desc: TEXT.npcs.pirateMelee, hp: 115, run: 9.2, melee: [42, 66], meleeOnly: true, squad: { kind: 'pirateMelee', count: 2 }, voice: 'masked' },
+  stormtrooper: { desc: TEXT.npcs.stormtrooper, hp: 95, run: 8.8, fireCd: 0.26, boltDamage: 24, squad: { kind: 'stormtrooper', count: 2 }, voice: 'masked' },
+  quarren:      { desc: TEXT.npcs.quarren, hp: 105, run: 8.4, fireCd: 0.5, boltDamage: 20, boltSpeed: 45, squad: { kind: 'quarren', count: 2 }, voice: 'alien_m' },
+  alamite:      { desc: TEXT.npcs.alamite, hp: 95, run: 9.6, melee: [38, 58], meleeOnly: true, squad: { kind: 'alamite', count: 2 }, voice: 'masked' },
+  krykna:       { desc: TEXT.npcs.krykna, hp: 85, run: 10.4, melee: [34, 52], meleeOnly: true, squad: { kind: 'krykna', count: 3 }, voice: 'reptile' },
+  nikto:        { desc: TEXT.npcs.nikto, hp: 90, run: 9.6, fireCd: 0.26, boltDamage: 24, voice: 'alien_m' },
   // ---- elites: one hook each, no squad ----
-  deathtrooper: { desc: 'Black armour, better rifle, no backup needed.', hp: 140, run: 9.4, fireCd: 0.22, boltDamage: 30, voice: 'masked', blaster: 'longrifle' },
-  darktrooper:  { desc: 'A war droid on thrusters. Slow trigger, heavy bolt, real flight.', hp: 160, run: 8.2, fireCd: 0.34, boltDamage: 32, voice: 'droid' },
-  jetpirate:    { desc: 'A pirate with a stolen jetpack and everything that implies.', hp: 105, run: 8.8, fireCd: 0.28, boltDamage: 25, voice: 'masked' },
-  droid:        { desc: 'A security frame: walks slowly, hits like a turret.', hp: 170, run: 6.2, sprint: 9.5, fireCd: 0.5, boltDamage: 40, boltSpeed: 85, voice: 'droid' },
-  flametrooper: { desc: 'Short reach, terrible opinions about your cover.', hp: 130, run: 8.6, fireCd: 0.09, boltDamage: 7, boltSpeed: 40, voice: 'masked' },
-  officer:      { desc: 'The darksaber does the talking.', hp: 150, run: 9.8, melee: [46, 72], meleeOnly: true, voice: 'masked' },
-  capo:         { desc: 'Pyke royalty behind a personal shield-heavy frame.', hp: 160, run: 7.8, fireCd: 0.3, boltDamage: 27, voice: 'alien_m' },
-  ringEnforcer: { desc: 'Oxblood plate and a tower shield habit — a walking wall.', hp: 160, run: 7.6, fireCd: 0.32, boltDamage: 28, voice: 'masked' },
-  marshal:      { desc: 'The Marshal of Mos Pelgo, quick on the draw.', hp: 120, run: 9.6, fireCd: 0.2, boltDamage: 28, voice: 'mando_m', blaster: 'pistols' },
-  fennec:       { desc: 'One shot, one answer. The rifle decides at any range.', hp: 110, run: 9.6, fireCd: 0.9, boltDamage: 65, boltSpeed: 110, voice: 'human_f', blaster: 'longrifle' },
+  deathtrooper: { desc: TEXT.npcs.deathtrooper, hp: 140, run: 9.4, fireCd: 0.22, boltDamage: 30, voice: 'masked', blaster: 'longrifle' },
+  darktrooper:  { desc: TEXT.npcs.darktrooper, hp: 160, run: 8.2, fireCd: 0.34, boltDamage: 32, voice: 'droid' },
+  jetpirate:    { desc: TEXT.npcs.jetpirate, hp: 105, run: 8.8, fireCd: 0.28, boltDamage: 25, voice: 'masked' },
+  droid:        { desc: TEXT.npcs.droid, hp: 170, run: 6.2, sprint: 9.5, fireCd: 0.5, boltDamage: 40, boltSpeed: 85, voice: 'droid' },
+  flametrooper: { desc: TEXT.npcs.flametrooper, hp: 130, run: 8.6, fireCd: 0.09, boltDamage: 7, boltSpeed: 40, voice: 'masked' },
+  officer:      { desc: TEXT.npcs.officer, hp: 150, run: 9.8, melee: [46, 72], meleeOnly: true, voice: 'masked' },
+  capo:         { desc: TEXT.npcs.capo, hp: 160, run: 7.8, fireCd: 0.3, boltDamage: 27, voice: 'alien_m' },
+  ringEnforcer: { desc: TEXT.npcs.ringEnforcer, hp: 160, run: 7.6, fireCd: 0.32, boltDamage: 28, voice: 'masked' },
+  marshal:      { desc: TEXT.npcs.marshal, hp: 120, run: 9.6, fireCd: 0.2, boltDamage: 28, voice: 'mando_m', blaster: 'pistols' },
+  fennec:       { desc: TEXT.npcs.fennec, hp: 110, run: 9.6, fireCd: 0.9, boltDamage: 65, boltSpeed: 110, voice: 'human_f', blaster: 'longrifle' },
   // ---- heavies: melee monsters ----
-  massiff:      { desc: 'Five and a half metres of war beast. You are the pounce now.', hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
-  broodmother:  { desc: 'The Crevasse made flesh. Lay eggs on Y; the brood hunts for you.', hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, special: 'layEgg', voice: 'reptile' },
+  massiff:      { desc: TEXT.npcs.massiff, hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
+  broodmother:  { desc: TEXT.npcs.broodmother, hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, special: 'layEgg', voice: 'reptile' },
   // Not on the select screen: the body the broodmother's player carries on in
   // when she falls with a hatchling still alive (docs/MODES.md §3). Survive
   // ten seconds in it and you grow back into her.
-  spiderling:   { desc: 'A hatchling of the brood. Small, quick, and ten seconds from motherhood.', hp: 40, run: 10.5, melee: [16, 26], meleeOnly: true, voice: 'reptile' },
-  enforcer:     { desc: 'A Wookiee gladiator. Doors are a suggestion.', hp: 260, run: 8.4, melee: [52, 80], meleeOnly: true, voice: 'reptile' },
+  spiderling:   { desc: TEXT.npcs.spiderling, hp: 40, run: 10.5, melee: [16, 26], meleeOnly: true, voice: 'reptile' },
+  enforcer:     { desc: TEXT.npcs.enforcer, hp: 260, run: 8.4, melee: [52, 80], meleeOnly: true, voice: 'reptile' },
 };
 
 /**
@@ -274,6 +281,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
       runSpeed: t.run,
       sprintSpeed: t.sprint ?? Math.max(t.run + 4.5, 13),
       flight: 'superjump',   // no NPC wears a jetpack; they all get the held-A leap
+      airFlip: false,        // and none of them tumble: the somersault is an acrobat's
       fireCd: t.fireCd ?? 0.3,
       boltDamage: t.boltDamage ?? 24,
       boltSpeed: t.boltSpeed ?? 60,
@@ -285,8 +293,9 @@ function npcDef(kind: EnemyKind): PlayableDef {
       rangedOptions: meleeOnly ? [] : [t.blaster ?? 'carbine'],
       meleeOptions: ['gaffi'],
       meleeKind: 'gaffi',
-      rangedName: meleeOnly ? null : ENEMY_NAME[kind] + (t.blaster === 'longrifle' ? ' Rifle' : ' Blaster'),
-      meleeName: meleeOnly ? 'Claws & Steel' : 'Rifle Butt',
+      rangedName: meleeOnly ? null
+        : t.blaster === 'longrifle' ? TEXT.weapons.npcRifle(ENEMY_NAME[kind]) : TEXT.weapons.npcBlaster(ENEMY_NAME[kind]),
+      meleeName: meleeOnly ? TEXT.weapons.npcClaws : TEXT.weapons.npcRifleButt,
       blasterVoice: t.blaster ?? 'carbine',
       voice: t.voice,
       squad: t.squad,

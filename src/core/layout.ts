@@ -14,6 +14,16 @@ export interface Rect { x: number; y: number; w: number; h: number; }
 export const MAX_PLAYERS = 4;
 
 /**
+ * The most fighters a match will hold: humans plus bots.
+ *
+ * Only humans need a piece of the screen, which is what MAX_PLAYERS is about;
+ * a bot needs a body and nothing else, so the two numbers are different on
+ * purpose. Eight is what the PvP arena and the select's line of plinths are
+ * built to hold.
+ */
+export const MAX_FIGHTERS = 8;
+
+/**
  * Three players get two on top and one across the bottom rather than a blank
  * quadrant: nobody wants the smallest share of the screen *and* a hole next to
  * them, and a solo bottom strip reads as a deliberate layout instead of a

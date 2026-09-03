@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import { PhysicsWorld } from '../core/physics';
 import { clamp, makeRng } from '../core/math';
@@ -322,8 +323,8 @@ export function buildRingworld(): Board {
 
   const board: Board = {
     group, physics, kind: 'ringworld',
-    name: 'The Ringworld',
-    objective: 'Glavis · survive 7 waves',
+    name: TEXT.boards.ringworld.name,
+    objective: TEXT.boards.ringworld.objective,
     footstep: 'stone',
     ambience: { sample: 'amb_city', bed: 'hum' },
     music: 'station',

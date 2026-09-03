@@ -1,3 +1,4 @@
+import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Game } from './game';
 import { addBreakable, type Breakable } from '../world/board';
@@ -153,7 +154,7 @@ export class AllyCrate {
       this.allies.push(ally);
       game.addAlly(ally, 8);
     }
-    game.announce('Reinforcements!', `${ENEMY_NAME[this.kind]} ×${CRATE_ALLY_COUNT} join the fight`);
+    game.announce(TEXT.banners.reinforcements, TEXT.banners.reinforcementsSub(ENEMY_NAME[this.kind], CRATE_ALLY_COUNT));
   }
 
   update(dt: number): void {
