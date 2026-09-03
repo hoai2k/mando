@@ -815,18 +815,16 @@ export class Vehicle {
     for (const other of game.vehicles) {
       if (other === this || !other.alive) continue;
       const dx = other.pos.x - this.pos.x, dz = other.pos.z - this.pos.z;
-      // hulls are long, so measure to the nearest point on the other's axis
-      const sin = Math.sin(other.yaw), cos = Math.cos(other.yaw);
-      const half = other.def.length / 2;
-      const along = clamp(dx * sin + dz * cos, -half, half);
-      const px = other.pos.x + sin * along - this.pos.x;
-      const pz = other.pos.z + cos * along - this.pos.z;
-      const d = Math.hypot(px, pz);
-      const reach = this.def.radius + other.def.radius + this.def.length / 2;
-      if (d > reach || d < 1e-4) continue;
+      const d = Math.hypot(dx, dz);
+      if (d < 1e-4) continue;
+      const ux = dx / d, uz = dz / d;
+      // How much hull each of them has facing the other: the support width of
+      // the oriented box, which is the same shape `park` registers with the
+      // physics world. Measured any coarser and a ride bounces off a parked
+      // hull's collision box before this ever sees the two of them touch.
+      if (d > this.extentToward(ux, uz) + other.extentToward(ux, uz) + 0.6) continue;
       if (Math.abs(other.pos.y - this.pos.y) > this.def.body + other.def.body) continue;
       // closing speed along the line between the two hulls
-      const ux = px / d, uz = pz / d;
       const closing = (this.vel.x - other.vel.x) * ux + (this.vel.z - other.vel.z) * uz;
       if (closing < VEHICLE_CRASH_MIN) continue;
       const until = this.hitMemo.get(other) ?? 0;
@@ -834,24 +832,27 @@ export class Vehicle {
       this.hitMemo.set(other, game.time + 0.5);
       other.hitMemo.set(this, game.time + 0.5);
 
-      // mass shares the impact: the light one takes the lion's share of it
+      // Mass shares the impact, and each hull pays at its own crash rate. What
+      // that works out to is the thing you would expect: the swoop is folded
+      // around the skiff and the skiff needs the paint touching up.
       const total = this.def.mass + other.def.mass;
       this.damage(closing * this.def.crashScale * (other.def.mass / total) * 1.6, other.pos, -1, 'crash');
       other.damage(closing * other.def.crashScale * (this.def.mass / total) * 1.6, this.pos, -1, 'crash');
 
       // and they bounce apart, again by mass
-      const push = closing * 0.55;
-      this.vel.x -= ux * push * (other.def.mass / total) * 2;
-      this.vel.z -= uz * push * (other.def.mass / total) * 2;
-      other.vel.x += ux * push * (this.def.mass / total) * 2;
-      other.vel.z += uz * push * (this.def.mass / total) * 2;
-      if (other.parkedBox && other.alive) {
+      const push = closing * 1.1;
+      this.vel.x -= ux * push * (other.def.mass / total);
+      this.vel.z -= uz * push * (other.def.mass / total);
+      other.vel.x += ux * push * (this.def.mass / total);
+      other.vel.z += uz * push * (this.def.mass / total);
+      if (other.parkedBox) {
         // a parked ride that has just been hit is rolling now, not parked
         other.unpark();
         other.coasting = true;
       }
-      const at = new THREE.Vector3(this.pos.x + ux * d * 0.5, this.pos.y + 0.6, this.pos.z + uz * d * 0.5);
-      game.particles.impactSparks(at, 16);
+      game.particles.impactSparks(
+        new THREE.Vector3(this.pos.x + ux * d * 0.5, this.pos.y + 0.6, this.pos.z + uz * d * 0.5), 16,
+      );
       audio.impact();
       this.rider?.cam.shake(Math.min(0.35, closing * 0.014));
       other.rider?.cam.shake(Math.min(0.35, closing * 0.014));
@@ -859,6 +860,17 @@ export class Vehicle {
       if (!this.alive) break;
     }
     return hit;
+  }
+
+  /**
+   * Half the hull's width in a given direction — the support width of the
+   * oriented box `park` uses, so a nose-on meeting measures the length and a
+   * flank measures the beam.
+   */
+  private extentToward(ux: number, uz: number): number {
+    const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
+    return Math.abs(ux * nx + uz * nz) * this.def.length / 2
+      + Math.abs(ux * nz - uz * nx) * this.def.radius;
   }
 
   private syncMesh(dt: number, speed: number): void {

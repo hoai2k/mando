@@ -392,13 +392,19 @@ const smash = await h.page.evaluate(() => {
 await h.step(0.6);
 const smashed = await h.page.evaluate(([i, j]) => {
   const g = window.__game;
-  return { bikeHp: g.vehicles[i].hp, skiffHp: g.vehicles[j].hp, bikeAlive: g.vehicles[i].alive };
+  return {
+    bikeHp: g.vehicles[i].hp, skiffHp: g.vehicles[j].hp,
+    bikeMax: g.vehicles[i].maxHp, skiffMax: g.vehicles[j].maxHp,
+  };
 }, [smash.i, smash.j]);
 const bikeLost = smash.bikeHp - smashed.bikeHp, skiffLost = smash.skiffHp - smashed.skiffHp;
 check('ride-on-ride crash bills both sides', bikeLost > 0 && skiffLost > 0,
   `swoop -${bikeLost.toFixed(0)}, skiff -${skiffLost.toFixed(0)}`);
-check('and the light one comes off far worse', bikeLost > skiffLost * 2,
-  `swoop -${bikeLost.toFixed(0)} vs skiff -${skiffLost.toFixed(0)}`);
+// worse in the only sense that matters when the hulls are 180 and 600: the
+// share of itself each one lost
+const bikeShare = bikeLost / smashed.bikeMax, skiffShare = skiffLost / smashed.skiffMax;
+check('and the light one comes off far worse', bikeShare > skiffShare * 3,
+  `swoop -${(bikeShare * 100).toFixed(0)}% vs skiff -${(skiffShare * 100).toFixed(0)}%`);
 
 // ---- a bantha dies as an animal, then reforms ----
 const beast = await h.page.evaluate(() => {
