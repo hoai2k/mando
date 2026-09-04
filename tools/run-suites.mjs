@@ -51,11 +51,13 @@ const URL_ = `http://localhost:${PORT}/`;
  * splits the list into piles that take about the same time as each other
  * rather than piles with the same number of suites in them. A stale number
  * costs a little packing efficiency and nothing else, and every run ends with
- * the real ones, so it is cheap to refresh. These were measured on a
- * four-core box in September 2026.
+ * the real ones, so it is cheap to refresh. Measured in September 2026; the
+ * two that a CI runner disagrees with a laptop about most — test-modes and
+ * check-creature-gaits — carry the runner's number, since the runner is where
+ * the packing has to come out even.
  */
 const SUITES = [
-  { name: 'test-modes', weight: 345 },
+  { name: 'test-modes', weight: 409 },
   { name: 'test-vehicles', weight: 294 },
   { name: 'test-airplay', weight: 207 },
   { name: 'test-loadperf', weight: 190 },
@@ -63,7 +65,7 @@ const SUITES = [
   { name: 'test-coop', weight: 142 },
   { name: 'test-loadout', weight: 137 },
   { name: 'test-arrivals', weight: 127 },
-  { name: 'check-creature-gaits', weight: 123 },
+  { name: 'check-creature-gaits', weight: 224 },
   { name: 'test-loading', weight: 92 },
   { name: 'check-flight-poses', weight: 85 },
   { name: 'check-bots', weight: 75 },
