@@ -36,6 +36,11 @@ export interface PlayerProfile {
    */
   airFlip: boolean;
   /**
+   * At home in water: faster, sharper to steer, and a higher breach out of
+   * it. Reptiles and amphibians — see `amphibious` in the roster.
+   */
+  amphibious: boolean;
+  /**
    * How this character fights gravity. 'jetpack' is the Mandalorian loop:
    * hold jump in the air to thrust, on a fuel budget. 'superjump' is
    * everyone else's: hold A from the leap and keep rising as long as it
@@ -126,6 +131,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // held-A super jump instead
     flight: cfg.helmet === null ? 'superjump' : 'jetpack',
     airFlip: !!cfg.acrobat,
+    amphibious: !!cfg.amphibious,
     fireCd: 0.24, boltDamage: 34, boltSpeed: 75,
     meleeDamage: 32, meleeFinisher: 55,
     rangedOptions: ranged,
@@ -154,6 +160,8 @@ interface NpcTuning {
   hp: number;
   run: number;
   sprint?: number;
+  /** a reptile or an amphibian: at home in the water (see PlayerProfile) */
+  amphibious?: boolean;
   fireCd?: number;
   boltDamage?: number;
   boltSpeed?: number;
@@ -173,7 +181,7 @@ const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   pirate:       { desc: TEXT.npcs.pirate, hp: 100, run: 8.6, fireCd: 0.28, boltDamage: 26, squad: { kind: 'pirate', count: 2 }, voice: 'masked' },
   pirateMelee:  { desc: TEXT.npcs.pirateMelee, hp: 115, run: 9.2, melee: [42, 66], meleeOnly: true, squad: { kind: 'pirateMelee', count: 2 }, voice: 'masked' },
   stormtrooper: { desc: TEXT.npcs.stormtrooper, hp: 95, run: 8.8, fireCd: 0.26, boltDamage: 24, squad: { kind: 'stormtrooper', count: 2 }, voice: 'masked' },
-  quarren:      { desc: TEXT.npcs.quarren, hp: 105, run: 8.4, fireCd: 0.5, boltDamage: 20, boltSpeed: 45, squad: { kind: 'quarren', count: 2 }, voice: 'alien_m' },
+  quarren:      { amphibious: true, desc: TEXT.npcs.quarren, hp: 105, run: 8.4, fireCd: 0.5, boltDamage: 20, boltSpeed: 45, squad: { kind: 'quarren', count: 2 }, voice: 'alien_m' },
   alamite:      { desc: TEXT.npcs.alamite, hp: 95, run: 9.6, melee: [38, 58], meleeOnly: true, squad: { kind: 'alamite', count: 2 }, voice: 'masked' },
   krykna:       { desc: TEXT.npcs.krykna, hp: 85, run: 10.4, melee: [34, 52], meleeOnly: true, squad: { kind: 'krykna', count: 3 }, voice: 'reptile' },
   nikto:        { desc: TEXT.npcs.nikto, hp: 90, run: 9.6, fireCd: 0.26, boltDamage: 24, voice: 'alien_m' },
@@ -189,7 +197,7 @@ const NPC_TUNING: Partial<Record<EnemyKind, NpcTuning>> = {
   marshal:      { desc: TEXT.npcs.marshal, hp: 120, run: 9.6, fireCd: 0.2, boltDamage: 28, voice: 'mando_m', blaster: 'pistols' },
   fennec:       { desc: TEXT.npcs.fennec, hp: 110, run: 9.6, fireCd: 0.9, boltDamage: 65, boltSpeed: 110, voice: 'human_f', blaster: 'longrifle' },
   // ---- heavies: melee monsters ----
-  massiff:      { desc: TEXT.npcs.massiff, hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
+  massiff:      { amphibious: true, desc: TEXT.npcs.massiff, hp: 240, run: 11.5, sprint: 15.5, melee: [50, 75], meleeOnly: true, voice: 'reptile' },
   broodmother:  { desc: TEXT.npcs.broodmother, hp: 300, run: 7.0, melee: [55, 85], meleeOnly: true, special: 'layEgg', voice: 'reptile' },
   // Not on the select screen: the body the broodmother's player carries on in
   // when she falls with a hatchling still alive (docs/MODES.md §3). Survive
@@ -282,6 +290,7 @@ function npcDef(kind: EnemyKind): PlayableDef {
       sprintSpeed: t.sprint ?? Math.max(t.run + 4.5, 13),
       flight: 'superjump',   // no NPC wears a jetpack; they all get the held-A leap
       airFlip: false,        // and none of them tumble: the somersault is an acrobat's
+      amphibious: !!t.amphibious,
       fireCd: t.fireCd ?? 0.3,
       boltDamage: t.boltDamage ?? 24,
       boltSpeed: t.boltSpeed ?? 60,

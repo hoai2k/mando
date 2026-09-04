@@ -314,6 +314,43 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', [0, 0.6], [[-112, 0, 0], [-112, 0, 0]]),
   ]);
 
+  // ---------- LOWER/UPPER: swimming (a front crawl) ----------
+  //
+  // The controller pitches the whole body prone while swimming, so these move
+  // the limbs against a torso that is already lying in the water: a flutter
+  // kick under an over-arm stroke, the two on the same clock so the pull lands
+  // on the opposite leg's downbeat. Played faster the harder the fighter is
+  // driving, which is what makes a sprint through water read as effort.
+  //
+  // A creature playable (the war massiff) has no rig to hang these on and
+  // swims on its own gait; the stub animator makes that a no-op rather than a
+  // special case in the controller.
+  const st = [0, 0.3, 0.6, 0.9, 1.2];
+  clips.swimLower = new THREE.AnimationClip('swimLower', 1.2, [
+    pt('hips', st, [[0, hipY, 0], [0, hipY + 0.01, 0], [0, hipY, 0], [0, hipY - 0.01, 0], [0, hipY, 0]]),
+    // the hips roll with the stroke, a beat behind the shoulders
+    qt('hips', st, [[0, 0, 4], [0, 0, 0], [0, 0, -4], [0, 0, 0], [0, 0, 4]]),
+    qt('spine', st, [[-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
+    // flutter kick: shallow, fast, from the hip, knees barely bending
+    qt('upperLegL', st, [[-16, 0, 4], [4, 0, 4], [16, 0, 4], [-2, 0, 4], [-16, 0, 4]]),
+    qt('lowerLegL', st, [[6, 0, 0], [22, 0, 0], [10, 0, 0], [4, 0, 0], [6, 0, 0]]),
+    qt('upperLegR', st, [[16, 0, -4], [-2, 0, -4], [-16, 0, -4], [4, 0, -4], [16, 0, -4]]),
+    qt('lowerLegR', st, [[10, 0, 0], [4, 0, 0], [6, 0, 0], [22, 0, 0], [10, 0, 0]]),
+    // toes pointed, the way a swimmer holds them
+    qt('footL', st, [[26, 0, 0], [22, 0, 0], [26, 0, 0], [22, 0, 0], [26, 0, 0]]),
+    qt('footR', st, [[24, 0, 0], [26, 0, 0], [24, 0, 0], [26, 0, 0], [24, 0, 0]]),
+  ]);
+  clips.swimUpper = new THREE.AnimationClip('swimUpper', 1.2, [
+    // shoulders roll into each catch, and the head stays low and forward
+    qt('chest', st, [[-6, 6, -8], [-6, 0, 0], [-6, -6, 8], [-6, 0, 0], [-6, 6, -8]]),
+    qt('head', st, [[-12, 0, 0], [-10, 0, 0], [-12, 0, 0], [-10, 0, 0], [-12, 0, 0]]),
+    // one arm reaches past the head and pulls through while the other recovers
+    qt('upperArmL', st, [[-150, 0, 18], [-40, 0, 26], [40, 0, 20], [-70, 0, 30], [-150, 0, 18]]),
+    qt('forearmL', st, [[-10, 0, 0], [-26, 0, 0], [-44, 0, 0], [-58, 0, 0], [-10, 0, 0]]),
+    qt('upperArmR', st, [[40, 0, -20], [-70, 0, -30], [-150, 0, -18], [-40, 0, -26], [40, 0, -20]]),
+    qt('forearmR', st, [[-44, 0, 0], [-58, 0, 0], [-10, 0, 0], [-26, 0, 0], [-44, 0, 0]]),
+  ]);
+
   // ---------- LOWER: landing (absorb the drop) ----------
   //
   // A one-shot under whatever the upper body is doing: the knees fold to take

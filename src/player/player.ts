@@ -81,6 +81,22 @@ const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
 const FUEL_SECONDS = 3.4;
 const DASH_SPEED = 19;
+/**
+ * Swimming, and what being built for it is worth.
+ *
+ * A fighter at home in the water — a Trandoshan, a Quarren, a massiff — swims
+ * half again as fast, answers the stick harder (the damping and the turn rate
+ * are the "manoeuvrability" half of it), kicks further off the dash and comes
+ * out of a breach higher.
+ */
+const SWIM_SPEED = 5.4;
+const SWIM_STEER = 3.5;
+const SWIM_TURN = 8;
+const SWIM_KICK = 8;
+/** upward speed a jump near the surface throws you out with, m/s */
+const BREACH_VEL = 8.5;
+/** what all of the above are multiplied by for an amphibian */
+const AMPHIB = 1.5;
 /** super jump: sustained climb speed while A stays held from the leap, m/s */
 const SUPERJUMP_RISE = 9;
 /** super jump: gravity multiplier while feathering the fall with A held */
@@ -1472,7 +1488,8 @@ export class Player {
     const snared = this.snareTimer > 0;
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
     if (snared) topSpeed *= 0.32;
-    if (this.wading) topSpeed *= 0.45; // chest-deep: slow, loud, exposed
+    // chest-deep: slow, loud, exposed — less so for something built for it
+    if (this.wading) topSpeed *= this.profile.amphibious ? 0.75 : 0.45;
     // a heavy landing has to be absorbed before it can be run out of: the top
     // speed comes back over the recovery rather than switching on at the end
     this.landRecovery = Math.max(0, this.landRecovery - dt);
@@ -1955,6 +1972,10 @@ export class Player {
     const anim = this.char.animator!;
     const waterY = game.board.waterY!;
 
+    // Everything about how this body moves in water scales off one number:
+    // a fighter built for it is faster, steers harder and kicks further.
+    const amphib = this.profile.amphibious ? AMPHIB : 1;
+
     // camera-directed wish, with Space as ballast
     const fwd = this.cam.aimDir(new THREE.Vector3());
     const { rightX, rightZ } = yawBasis(this.cam.yaw);
@@ -1973,28 +1994,35 @@ export class Player {
       this.dashCd = 0.8;
       this.energy = Math.max(0, this.energy - DASH_ENERGY);
       this.sprintRefillDelay = 0.7;
-      this.velocity.addScaledVector(wish.clone().normalize(), 8);
+      this.velocity.addScaledVector(wish.clone().normalize(), SWIM_KICK * amphib);
       game.particles.splash(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 6);
     } else {
       this.sprintRefillDelay -= dt;
       if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
     }
 
-    const SWIM_SPEED = 5.4;
-    this.velocity.x = damp(this.velocity.x, wish.x * SWIM_SPEED, 3.5, dt);
-    this.velocity.z = damp(this.velocity.z, wish.z * SWIM_SPEED, 3.5, dt);
+    const swimSpeed = SWIM_SPEED * amphib;
+    this.velocity.x = damp(this.velocity.x, wish.x * swimSpeed, SWIM_STEER * amphib, dt);
+    this.velocity.z = damp(this.velocity.z, wish.z * swimSpeed, SWIM_STEER * amphib, dt);
     // Beskar is neutrally buoyant here: let go of the controls and you hold
     // your depth. It used to drift up to visor-at-surface, which parked an
     // idle diver exactly on the line the AI uses to decide whether it can see
     // you — so lurking underwater worked or didn't at random. Holding depth
     // makes the stealth route dependable and puts surfacing on the jump
     // button, where the breach already is.
-    const buoy = Math.abs(wish.y) > 0.05 ? wish.y * SWIM_SPEED : 0;
-    this.velocity.y = damp(this.velocity.y, buoy, 3, dt);
+    const buoy = Math.abs(wish.y) > 0.05 ? wish.y * swimSpeed : 0;
+    this.velocity.y = damp(this.velocity.y, buoy, 3 * amphib, dt);
 
-    // breach: a jump taken with the head near the surface throws you clear
+    // Breach: a jump taken with the head near the surface throws you clear —
+    // and, for a fighter with no jetpack, arms the same held climb a standing
+    // leap does. Without that, a super jumper who went in the water could
+    // reach the surface and no further: every deck on a water board sits above
+    // what a breach alone clears, so the swim was a one-way trip. Holding the
+    // button out of the water is now the way back onto the platform.
     if (input.jumpPressed && this.position.y + 1.7 > waterY) {
-      this.velocity.y = 8.5;
+      this.velocity.y = BREACH_VEL * amphib;
+      this.grounded = false;
+      this.riseHold = this.profile.flight === 'superjump';
       game.particles.splash(this.position.clone().setY(waterY), 18);
       audio.splash(false);
     }
@@ -2023,10 +2051,15 @@ export class Player {
 
     // face and lean into the stroke
     const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
-    if (speed2 > 0.6) this.facingYaw = dampAngle(this.facingYaw, Math.atan2(this.velocity.x, this.velocity.z), 8, dt);
+    if (speed2 > 0.6) {
+      this.facingYaw = dampAngle(this.facingYaw, Math.atan2(this.velocity.x, this.velocity.z), SWIM_TURN * amphib, dt);
+    }
     this.flying = false;   // the swim has its own lean; see `syncVisual`
-    anim.play('lower', 'flyLower');
-    if (this.meleeTimer <= 0) anim.play('upper', 'flyUpper');
+    // the stroke runs at the pace of the swimming: a drift is a slow scull, a
+    // driven line is a racing crawl
+    const stroke = clamp(0.55 + Math.hypot(speed2, this.velocity.y) * 0.11, 0.55, 1.9);
+    anim.play('lower', 'swimLower', 0.2, stroke);
+    if (this.meleeTimer <= 0) anim.play('upper', 'swimUpper', 0.2, stroke);
 
     this.syncVisual(dt, game);
     anim.update(this.animDt(dt));
