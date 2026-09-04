@@ -49,13 +49,25 @@ function z(board: BoardId, beat: number, spec: Omit<ZoneSpec, 'label'>): ZoneSpe
 const desert: StageSpec[] = [
   {
     // The run opens on the Dune Sea itself — its dunes, its mesas, its sky —
-    // rather than on a clean copy of them raised over the top. The chain is
-    // laid along a clear lane between the board's own landmarks and rimmed
-    // with sandstone, and it is shorter than a plate stage would be because
-    // the real bowl is only so wide: past d ≈ 150 the ground climbs out.
+    // rather than on a clean copy of them raised over the top.
+    //
+    // And it opens *inside one canyon*, not inside a row of walled boxes. The
+    // sandstone stands seventy-eight metres to either side at the trailhead —
+    // far enough to be scenery rather than a corridor, high enough to hold the
+    // run in — and closes to thirty by the far end, so the ride down the road
+    // is a place shutting around you. It ends against a cliff with a sixteen-
+    // metre slot cut into it: the gorge is what the guidance points at from a
+    // hundred metres out, what the barricade is set into, and what the run
+    // walks into to reach the ravine. Constrained after the open ground, not
+    // tight.
+    //
+    // The lane is laid a little north of the bowl's middle so the slot clears
+    // the board's east mesa, and it is shorter than a plate stage would be
+    // because the real bowl is only so wide: past d ≈ 150 the ground climbs out.
     kind: 'territory',
     label: TEXT.missions.stages.desert[0],
-    anchor: { x: -85, z: -5, dx: 1, dz: 0 },
+    anchor: { x: -85, z: 2, dx: 1, dz: 0 },
+    canyon: { from: 78, to: 30, gorge: { w: 16, len: 26 } },
     zones: [
       z('desert', 0, {
         shell: 'open', kind: 'start', w: 44, l: 56, air: true,

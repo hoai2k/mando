@@ -139,6 +139,7 @@ export class Campaign implements MissionController {
     this.beacon.position.copy(this.objectivePos);
     this.beacon.position.y += 30;
     this.beacon.frustumCulled = false;
+    this.beacon.visible = !this.atTrailhead;
     game.scene.add(this.beacon);
 
     // ---- the ground arrow: laid at every checkpoint, pointing at the next ----
@@ -486,10 +487,26 @@ export class Campaign implements MissionController {
 
   // ---------------------------------------------------------------- guidance
 
+  /**
+   * The run's opening beat — the trailhead the party spawns standing in.
+   *
+   * Nothing marks it. The beacon is a sixty-metre column of light and the
+   * objective it stands on is, for one beat, the ground under the party's own
+   * feet: the first thing a run showed you was a wall of glow filling half the
+   * screen, pointing at where you already were. Guidance is for progress, so
+   * the column lights at the first checkpoint and the trailhead is left to the
+   * HUD marker, the hint line and the landmark ahead.
+   */
+  private get atTrailhead(): boolean {
+    return this.stageIdx === 0 && this.idx === 0
+      && this.stage.zones[0]?.spec.kind === 'start';
+  }
+
   /** where the beacon stands and the radar pip points */
   get objectivePos(): THREE.Vector3 {
     const zone = this.zone;
-    if (this.phase === 'travel') return zone.entry;
+    // never the zone you are standing in: on the trailhead that is your feet
+    if (this.phase === 'travel' && !this.atTrailhead) return zone.entry;
     // boss arenas: the beacon walks you onto the battle. Everything else
     // points at the way out — never at a set piece — and a sealed exit reads
     // as "clear this and it opens".
@@ -920,8 +937,10 @@ export class Campaign implements MissionController {
     this.syncGates();
     this.stage.tick(game.time);
 
-    // beacon rides the objective and breathes
+    // beacon rides the objective and breathes — but not over the trailhead,
+    // which is ground the party is already standing on
     const obj = this.objectivePos;
+    this.beacon.visible = !this.atTrailhead;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
     this.updateVentGlyphs(dt);

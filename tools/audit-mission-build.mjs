@@ -16,7 +16,7 @@ const only = process.argv[2];
 const BOARDS = ['desert', 'station', 'nevarro', 'crevasse', 'trask', 'refinery', 'forge', 'ringworld', 'narkina'];
 const boards = only ? [only] : BOARDS;
 
-const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new` });
 const { page } = h;
 page.on('pageerror', (e) => console.log(`  PAGE ERROR: ${String(e).slice(0, 300)}`));
 

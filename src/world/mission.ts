@@ -156,6 +156,27 @@ export interface StageSpec {
    * `plant` and `sea`, where the building and the water already hold it in.
    */
   rim?: boolean;
+  /**
+   * Hold the whole chain in **one canyon** instead of a rim per zone.
+   *
+   * A per-zone rim is a box with sides taller than the box is wide, and a run
+   * built out of them reads as a corridor of them — walls at arm's length the
+   * whole way, and the territory only visible over the top. A canyon is the
+   * other shape the same rule allows: two walls a long way off that run the
+   * length of the chain and **close as it goes**, so the opening minutes are
+   * open ground with the horizon in them and the last stretch is a place that
+   * is closing in on you. `from` and `to` are the half-widths at the chain's
+   * start and at its end; the taper is weighted late, so it stays wide and
+   * *then* narrows rather than pinching from the first step.
+   *
+   * `gorge` closes the far end with a cliff and cuts the way on into it: a
+   * slot you can see from a long way back, walk up to, and go into. Its
+   * transport door stands at the far end of the slot, so the stage is left
+   * from inside a ravine rather than through a door in open ground.
+   *
+   * Straight chains only — the walls are laid along the stage's anchor.
+   */
+  canyon?: { from: number; to: number; gorge?: { w: number; len: number } };
   zones: ZoneSpec[];
   links: LinkSpec[];
 }
@@ -514,6 +535,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   /** a `plant` adds fights to a building that is already built; it lays no geometry */
   const bare = stage.kind === 'plant' || stage.kind === 'sea';
   const wantRim = stage.rim ?? (stage.kind === 'territory');
+  /**
+   * One canyon down the whole chain, in place of a rim per zone. Only ground
+   * stages that build their own geometry can have one: a `plant` and a `sea`
+   * are held in by the building and the water they stand in.
+   */
+  const canyon = bare ? undefined : stage.canyon;
   const terrainAt = (x: number, z: number): number =>
     board.physics.heightAt ? board.physics.heightAt(x, z) : 0;
   const rand = rng(index * 104729 + stage.zones.length * 7919 + pal.wall);
@@ -595,6 +622,17 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const backGeo: THREE.BufferGeometry[] = [];
   let spaceN = 0;
 
+  /**
+   * Whether this stage has been torn down. A sculpt lands frames — sometimes
+   * seconds — after it is asked for, and a stage swap can happen in between:
+   * the fit that arrives late has to be dropped rather than installed into a
+   * world the stage no longer owns.
+   */
+  let retired = false;
+  const removeBoxes = (bs: StaticBox[]): void => {
+    const gone = new Set<StaticBox>(bs);
+    board.physics.boxes = board.physics.boxes.filter((b) => !gone.has(b));
+  };
   const addBox = (cx: number, cy: number, cz: number, sx: number, sy: number, sz: number): StaticBox => {
     const b = board.physics.addBox(cx, cy, cz, sx, sy, sz);
     boxes.push(b);
@@ -759,7 +797,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     mesh.rotation.y = rand() * Math.PI;
     mesh.castShadow = mesh.receiveShadow = true;
     group.add(mesh);
-    addCyl(x, y + h / 2, z, size * 0.46, h);
+    // the mesh's base ring is size * 0.5 and the noise pushes it out to 0.6,
+    // so a 0.46 disc left a shoulder's worth of rock you walked into
+    addCyl(x, y + h / 2, z, size * 0.54, h);
     const id = ['boulder_a', 'boulder_b', 'boulder_c'][Math.floor(rand() * 3)];
     authoredProp(group, mesh, id, size, { x, y, z, yaw: rand() * Math.PI, axis: 'longest' });
     blocked.push({ x, z, r: size * 0.6 + 0.8 });
@@ -791,15 +831,36 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * A border along a polyline, in world coordinates: overlapping pieces tall
    * enough to clear the ceiling, plus a sparser, taller row behind that is
    * mesh only — the mountains beyond, which nothing has to reach.
+   *
+   * **A border has a side.** `opts.inside` is a point on the playable side of
+   * the line, and every rock this lays is placed *away* from it. Without that
+   * the geometry and the collision disagreed twice over, and both were felt:
+   *
+   * - the rocks were centred on the line, so four to six metres of cliff stood
+   *   inside a slab that only stops you 1.6 m in — you walked several metres
+   *   into solid-looking rock before anything pushed back;
+   * - the row of mountains behind was offset along a *fixed* perpendicular,
+   *   which is only "behind" for half the rims in a level. The other half —
+   *   every zone's right-hand wall, every front face, every lane's far side —
+   *   put twenty-metre boulders with no collider at all inside the playable
+   *   space. That is the "I walk through the walls" and the "why am I going
+   *   around a mountain" of a run in one bug.
    */
-  const ridge = (pts: [number, number][], y0: number, opts: { pillarAt?: [number, number][] } = {}): void => {
-    const h = ceiling + RIM_OVER_CEILING;
+  const ridge = (pts: [number, number][], y0: number,
+    opts: { pillarAt?: [number, number][]; inside?: { x: number; z: number } } = {}): void => {
     for (let i = 0; i + 1 < pts.length; i++) {
       const [x0, z0] = pts[i];
       const [x1, z1] = pts[i + 1];
       const len = Math.hypot(x1 - x0, z1 - z0);
       if (len < 0.01) continue;
       const nx = (x1 - x0) / len, nz = (z1 - z0) / len;
+      // which way is out of the level: the perpendicular that points away
+      // from the playable side, where the caller says which side that is
+      let ox = -nz, oz = nx;
+      if (opts.inside) {
+        const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+        if ((opts.inside.x - mx) * ox + (opts.inside.z - mz) * oz > 0) { ox = -ox; oz = -oz; }
+      }
       // The wall is **one box per run**, not one collider per rock.
       //
       // A rim is forty-odd pieces and a stage is a dozen rims, and every
@@ -820,24 +881,44 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         base -= 3;
       }
       const wallH2 = ceilingY - base + RIM_OVER_CEILING;
-      addBox((x0 + x1) / 2, base + wallH2 / 2, (z0 + z1) / 2,
-        Math.abs(nx) * len + Math.abs(nz) * T, wallH2, Math.abs(nz) * len + Math.abs(nx) * T);
+      // One slab is the right answer for a run along an axis. A *diagonal* one
+      // is not: an axis-aligned box drawn round it fills the whole bounding
+      // rectangle, so a wall that leans ten metres across the level walls off
+      // ten metres of ground the rock never covers. A leaning run is laid as a
+      // short staircase instead — a handful of boxes, still nothing next to a
+      // collider per rock, and it follows the line it is drawn along.
+      const lean = Math.min(Math.abs(nx), Math.abs(nz)) * len;
+      const parts = lean <= T ? 1 : Math.min(16, Math.ceil(lean / T));
+      const segLen = len / parts;
+      for (let s = 0; s < parts; s++) {
+        const tm = (s + 0.5) * segLen;
+        addBox(x0 + nx * tm, base + wallH2 / 2, z0 + nz * tm,
+          Math.abs(nx) * segLen + Math.abs(nz) * T, wallH2,
+          Math.abs(nz) * segLen + Math.abs(nx) * T);
+      }
       const r = 4 + rand() * 2;
       const step = r * 1.15;
       const n = Math.max(1, Math.round(len / step));
       for (let k = 0; k <= n; k++) {
         const t = (k / n) * len;
-        const jitter = (rand() - 0.5) * 1.4;
-        const px = x0 + nx * t - nz * jitter;
-        const pz = z0 + nz * t + nx * jitter;
+        // The rock stands *outside* the slab, not on top of it. A piece is a
+        // cylinder of radius r, so a centre on the line puts r metres of it in
+        // front of the collider; pushing the centre out by that much lands the
+        // face of the cliff on the face of the wall, which is where a player
+        // who cannot walk through it expects to be stopped. The jitter only
+        // ever goes further out, for the same reason.
+        const out = r - T / 2 + 0.25 + rand() * 1.1;
+        const px = x0 + nx * t + ox * out;
+        const pz = z0 + nz * t + oz * out;
         // On ground each piece is seated in the ground under it, a couple of
         // metres deep so a rise between two pieces never shows daylight below
         // the rock; on a plate they all stand on the plate.
         const base = onGround ? groundAt(px, pz) - 2.5 : y0;
         rimPiece(px, pz, r, ceilingY - base + RIM_OVER_CEILING, base, false);
-        // the row behind, set back across the line's normal
+        // the row behind — further out again, never back across the level
         if (k % 2 === 0) {
-          const bx = px - nz * (14 + rand() * 10), bz = pz + nx * (14 + rand() * 10);
+          const away = 14 + rand() * 10;
+          const bx = px + ox * away, bz = pz + oz * away;
           rimPiece(bx, bz, r * (1.2 + rand() * 0.6),
             ceiling * BACKDROP_H * (0.8 + rand() * 0.5),
             (onGround ? groundAt(bx, bz) : y0) - 6, true);
@@ -848,12 +929,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     // than their neighbours, which is what the eye picks out from 80 m
     for (const [px, pz] of opts.pillarAt ?? []) {
       const ph = (ceiling + RIM_OVER_CEILING) * 1.25;
-      rimPiece(px, pz, 4.6, ph, y0, false);
+      // seated in the ground under the spire itself, not at the zone's
+      // nominal floor: on rolling dunes those are metres apart, and the
+      // difference is a spire hanging in the air or buried to its shoulders
+      const py = (onGround ? groundAt(px, pz) : y0) - 1.5;
+      rimPiece(px, pz, 4.6, ph, py, false);
       // a pillar stands on its own, away from any wall run, so it carries its
       // own collider — the one shape in a rim that is round on every side
-      addCyl(px, y0 + ph / 2, pz, 4.4, ph);
+      addCyl(px, py + ph / 2, pz, 4.4, ph);
       authoredProp(group, [], spec.ridge === 'ice' ? 'cliff_pillar_ice' : 'cliff_pillar_rock',
-        ph, { x: px, y: y0, z: pz, axis: 'y' });
+        ph, { x: px, y: py, z: pz, axis: 'y' });
     }
   };
 
@@ -872,8 +957,20 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         stand.position.set(x, top + p.solid.h / 2, z);
         stand.castShadow = stand.receiveShadow = true;
         group.add(stand);
-        addCyl(x, top + p.solid.h / 2, z, p.solid.r, p.solid.h);
-        authoredProp(group, stand, p.id, size, { x, y: top, z, yaw: p.yaw, axis: 'longest' });
+        const disc = addCyl(x, top + p.solid.h / 2, z, p.solid.r, p.solid.h);
+        // `solid` describes the *stand-in*, and the sculpt that replaces it is
+        // usually nothing like a disc — a twenty-six metre sail barge stood on
+        // a four-metre cylinder is a wreck you walk through the length of. So
+        // the sculpt supplies its own the moment it lands (`world/collide.ts`),
+        // exactly as the boards do, and the disc it replaces goes.
+        authoredProp(group, stand, p.id, size, { x, y: top, z, yaw: p.yaw, axis: 'longest' }, {
+          physics: board.physics,
+          replace: [disc],
+          maxBoxes: 24,
+          // a stage that was torn down while its art was still in flight must
+          // not put colliders back into the world it has already given up
+          onFit: (fitted) => { if (retired) removeBoxes(fitted); else boxes.push(...fitted); },
+        });
         blocked.push({ x, z, r: p.solid.r + 1.2 });
       } else {
         authoredProp(group, [], p.id, size, { x, y: top, z, yaw: p.yaw, axis: 'longest' });
@@ -1148,11 +1245,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
        * after it keeps its border.
        */
       const openTrailhead = onGround && zs.kind === 'start';
-      const rimmed = (wantRim || !onGround) && !openTrailhead;
+      // A canyon stage is bordered once, down the whole chain, rather than a
+      // box per zone — so the zones inside it lay no rim of their own.
+      const rimmed = (wantRim || !onGround) && !openTrailhead && !canyon;
+      /** the playable side of this zone's borders, for the rock to stand clear of */
+      const heart = { x: f.x(l / 2, 0), z: f.z(l / 2, 0) };
       // sides run the full length
       if (rimmed) {
-        ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top);
-        ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top);
+        ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
+        ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top, { inside: heart });
       }
       // A dead end's way on is a door in the rock rather than an open mouth —
       // except where the stage itself ends here, because then the transport
@@ -1168,23 +1269,25 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (rimmed) {
         // the back wall, with the way in
         if (entryOpen) {
-          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, gapHalf), f.z(back, gapHalf)]], top);
-          ridge([[f.x(back, -gapHalf), f.z(back, -gapHalf)], [f.x(back, -half), f.z(back, -half)]], top);
+          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, gapHalf), f.z(back, gapHalf)]], top, { inside: heart });
+          ridge([[f.x(back, -gapHalf), f.z(back, -gapHalf)], [f.x(back, -half), f.z(back, -half)]], top, { inside: heart });
         } else {
-          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, -half), f.z(back, -half)]], top);
+          ridge([[f.x(back, half), f.z(back, half)], [f.x(back, -half), f.z(back, -half)]], top, { inside: heart });
         }
         // the front, minus the way on and any runner notch
         let at = -half;
         for (const [a, b] of frontGaps) {
-          if (a > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, a), f.z(front, a)]], top);
+          if (a > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, a), f.z(front, a)]], top, { inside: heart });
           at = b;
         }
-        if (half > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, half), f.z(front, half)]], top);
+        if (half > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
       }
       // The way on is framed whether or not the zone is walled: the pair of
       // spires is what the eye picks out from eighty metres, and an unrimmed
       // trailhead needs that more than a walled zone does, not less.
-      if (exitOpen) {
+      // (a canyon stage's last beat is framed by the gorge mouth instead — a
+      // second pair of spires three metres short of it is a gate to nowhere)
+      if (exitOpen && !(canyon?.gorge && i === last)) {
         pillars.push([f.x(front, gapHalf + 3), f.z(front, gapHalf + 3)],
           [f.x(front, -gapHalf - 3), f.z(front, -gapHalf - 3)]);
       }
@@ -1225,9 +1328,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (zs.shell === 'road') {
         for (const m of zs.marks ?? [0.4, 0.75]) marks.push(surf(f, l * m, 0));
         if (zs.barricade === 'crates') {
-          for (let k = -2; k <= 2; k++) {
-            const x = f.x(l - 2, k * 2.6), z = f.z(l - 2, k * 2.6);
-            const mesh = crate(x, top, z, 1.5);
+          // A crate line plugs a mouth. Out in the open ground of a canyon
+          // there is nothing to plug — you drive round it — so where the run
+          // ends at a gorge the barricade goes into the gorge's own mouth,
+          // which is the one place on the road that is narrower than the ride.
+          const inMouth = !!canyon?.gorge && i === last;
+          const bu = inMouth ? l + 5 : l - 2;
+          const bn = inMouth ? Math.max(2, Math.round(canyon!.gorge!.w / 5.2)) : 2;
+          for (let k = -bn; k <= bn; k++) {
+            const x = f.x(bu, k * 2.6), z = f.z(bu, k * 2.6);
+            const mesh = crate(x, groundAt(x, z), z, 1.5);
             const box = boxes[boxes.length - 1];
             addBreakable(board, mesh, box, BARRICADE_HP);
             breakables.push({ mesh });
@@ -1303,7 +1413,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         const light = new THREE.PointLight(0xffd9a0, 9, len + 12, 1.6);
         light.position.set(lf.x(len / 2, 0), ltop + CORR_H - 0.5, lf.z(len / 2, 0));
         group.add(light);
-      } else {
+      } else if (!canyon) {
         // An outdoor lane: cliffs, not walls, and the sky stays overhead.
         //
         // The runs stop at the leg's own ends. They used to overshoot by a
@@ -1313,8 +1423,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         // and never out of. The roofed corridors have always stopped short
         // for exactly this reason; the cliffs have to as well.
         const hw = laneW / 2 + 1.5;
-        ridge([[lf.x(0, hw), lf.z(0, hw)], [lf.x(len, hw), lf.z(len, hw)]], ltop);
-        ridge([[lf.x(0, -hw), lf.z(0, -hw)], [lf.x(len, -hw), lf.z(len, -hw)]], ltop);
+        const lane = { x: lf.x(len / 2, 0), z: lf.z(len / 2, 0) };
+        ridge([[lf.x(0, hw), lf.z(0, hw)], [lf.x(len, hw), lf.z(len, hw)]], ltop, { inside: lane });
+        ridge([[lf.x(0, -hw), lf.z(0, -hw)], [lf.x(len, -hw), lf.z(len, -hw)]], ltop, { inside: lane });
       }
       if (!onGround) slab(lf, 0.5, len - 0.5, -laneW / 2 + 0.02, -laneW / 2 + 0.2, ltop + 0.04, ltop + 0.16, trimMat);
       rects.push(lf.rect(-0.5, len + 0.5, -laneW / 2 - 0.5, laneW / 2 + 0.5));
@@ -1364,9 +1475,11 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         wallV(jf, -link.turn * (laneW / 2 + WALL_T / 2), -WALL_T, laneW + WALL_T, [], jtop, CORR_H);
       } else {
         const outer = -link.turn * (laneW / 2 + 1.5);
-        ridge([[jf.x(-1.5, outer), jf.z(-1.5, outer)], [jf.x(laneW + 1.5, outer), jf.z(laneW + 1.5, outer)]], jtop);
+        const bend = { x: jf.x(laneW / 2, link.turn * laneW * 0.25), z: jf.z(laneW / 2, link.turn * laneW * 0.25) };
+        ridge([[jf.x(-1.5, outer), jf.z(-1.5, outer)], [jf.x(laneW + 1.5, outer), jf.z(laneW + 1.5, outer)]],
+          jtop, { inside: bend });
         ridge([[jf.x(laneW + 1.5, outer), jf.z(laneW + 1.5, outer)],
-          [jf.x(laneW + 1.5, -outer), jf.z(laneW + 1.5, -outer)]], jtop);
+          [jf.x(laneW + 1.5, -outer), jf.z(laneW + 1.5, -outer)]], jtop, { inside: bend });
       }
       rects.push(jf.rect(0, laneW, -laneW / 2, laneW / 2));
       // The corner itself is a point on the golden path. Without it the route
@@ -1388,6 +1501,88 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     // bacta midway down every other link — the attrition beat pays for itself
     if (i % 2 === 1) pickups.push(surf(g, 6, -1.4));
     defenders.push(linkPosts);
+  }
+
+  // ---------------------------------------------------------------- the canyon
+
+  /**
+   * The stage's border as one place rather than a row of boxes.
+   *
+   * Two walls laid along the chain's own axis, wide apart where the run
+   * starts and closing as it goes, and a cliff across the far end with the way
+   * on cut into it. The taper is weighted late (t²) so the opening is genuinely
+   * open — the point of the shape is that you *notice* it closing, which you
+   * cannot do if it has been closing since the first step.
+   *
+   * Everything here is laid in the anchor's frame: a canyon is for a straight
+   * chain, which is what the layouts that ask for one are.
+   */
+  /** how far along the chain's axis the way on stands, when a gorge holds it */
+  let gorgeDepth = 0;
+  if (canyon && zoneFrames.length) {
+    const axis = new Frame(anchor.x, anchor.z, anchor.dx, anchor.dz);
+    const lastF = zoneFrames[last];
+    // where the last zone's far edge falls along the axis
+    const chainEnd = (lastF.ex - anchor.x) * anchor.dx + (lastF.ez - anchor.z) * anchor.dz
+      + stage.zones[last].l;
+    const halfAt = (u: number): number => {
+      const t = Math.min(1, Math.max(0, u / Math.max(1, chainEnd)));
+      return canyon.from + (canyon.to - canyon.from) * t * t;
+    };
+    /** one wall run, in short segments so the taper is a curve and not a corner */
+    const wall = (u0: number, u1: number, side: 1 | -1): void => {
+      const steps = Math.max(1, Math.ceil((u1 - u0) / 14));
+      for (let k = 0; k < steps; k++) {
+        const ua = u0 + ((u1 - u0) * k) / steps;
+        const ub = u0 + ((u1 - u0) * (k + 1)) / steps;
+        const va = side * halfAt(ua), vb = side * halfAt(ub);
+        const mid = (ua + ub) / 2;
+        ridge([[axis.x(ua, va), axis.z(ua, va)], [axis.x(ub, vb), axis.z(ub, vb)]],
+          groundAt(axis.x(mid, 0), axis.z(mid, 0)),
+          { inside: { x: axis.x(mid, 0), z: axis.z(mid, 0) } });
+      }
+    };
+    const gorge = hasNext ? canyon.gorge : undefined;
+    // the mouth of the gorge sits a little past the last zone, so the cliff is
+    // something you walk *up to* rather than something the fight ends against
+    const uCliff = chainEnd + 3;
+    gorgeDepth = gorge ? gorge.len : 0;
+    wall(-8, uCliff, 1);
+    wall(-8, uCliff, -1);
+    // the wall behind: a canyon is a place, and a place has a back to it
+    const backHalf = halfAt(-8);
+    ridge([[axis.x(-8, backHalf), axis.z(-8, backHalf)], [axis.x(-8, -backHalf), axis.z(-8, -backHalf)]],
+      groundAt(axis.x(-8, 0), axis.z(-8, 0)), { inside: { x: axis.x(10, 0), z: axis.z(10, 0) } });
+
+    if (gorge) {
+      const gh = gorge.w / 2;
+      const endHalf = halfAt(uCliff);
+      const face = groundAt(axis.x(uCliff, 0), axis.z(uCliff, 0));
+      const behind = { x: axis.x(uCliff - 14, 0), z: axis.z(uCliff - 14, 0) };
+      // the cliff that closes the canyon, either side of the slot
+      for (const side of [1, -1] as const) {
+        ridge([[axis.x(uCliff, side * gh), axis.z(uCliff, side * gh)],
+          [axis.x(uCliff, side * endHalf), axis.z(uCliff, side * endHalf)]], face, { inside: behind });
+      }
+      // the slot itself: constrained, not tight — wide enough to fight down
+      const inSlot = { x: axis.x(uCliff + gorgeDepth / 2, 0), z: axis.z(uCliff + gorgeDepth / 2, 0) };
+      for (const side of [1, -1] as const) {
+        ridge([[axis.x(uCliff, side * gh), axis.z(uCliff, side * gh)],
+          [axis.x(uCliff + gorgeDepth + 4, side * gh), axis.z(uCliff + gorgeDepth + 4, side * gh)]],
+        face, { inside: inSlot });
+      }
+      // two spires at the mouth: the thing you steer at from a hundred metres
+      ridge([], face, {
+        pillarAt: [
+          [axis.x(uCliff - 1, gh + 4.5), axis.z(uCliff - 1, gh + 4.5)],
+          [axis.x(uCliff - 1, -gh - 4.5), axis.z(uCliff - 1, -gh - 4.5)],
+        ],
+      });
+      // the guidance points at the mouth, not at the last zone's far edge
+      const mouth = new THREE.Vector3(axis.x(uCliff, 0), face + 3, axis.z(uCliff, 0));
+      zones[last].landmark = mouth.clone();
+      path.push(mouth.clone());
+    }
   }
 
   // ---- the transport doors at the stage's ends (docs/MISSIONS_OUTDOOR.md §1.9) ----
@@ -1413,12 +1608,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   let backPortal: Portal | null = null;
   if (hasNext) {
     const f = zoneFrames[last];
+    // A gorge puts the door at the far end of the slot rather than in open
+    // ground: the way on is *walked into* — cliff, mouth, ravine, door.
+    const u0 = stage.zones[last].l + 1 + (gorgeDepth ? gorgeDepth + 3 : 0);
     const top = onGround
-      ? groundAt(f.x(stage.zones[last].l + 3, 0), f.z(stage.zones[last].l + 3, 0))
+      ? groundAt(f.x(u0 + 2, 0), f.z(u0 + 2, 0))
       : zoneTops[last];
     const doorH = Math.max(6, (stage.zones[last].roofH ?? ROOF_H));
-    pocket(f, stage.zones[last].l + 1, top, false, doorH);
-    exitPortal = new Portal(board, group, f.vec(stage.zones[last].l + 1, 0, top),
+    pocket(f, u0, top, false, doorH);
+    exitPortal = new Portal(board, group, f.vec(u0, 0, top),
       { x: f.dx, z: f.dz }, doorH, PORTAL_POCKET);
     path.push(exitPortal.threshold.clone());
   }
@@ -1529,6 +1727,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
 
   // ---- teardown: a stage swap has to give all of this back ----
   const dispose = (): void => {
+    retired = true;
     board.group.remove(group);
     // `disposeSubtree`, not a hand-rolled traverse: a stage is full of authored
     // sculpts, and a loaded .glb is cached once and *cloned* per instance, so
