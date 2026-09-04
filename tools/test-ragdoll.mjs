@@ -12,6 +12,9 @@
  * 2. **The corpse ends up on the ground it fell onto**, not inside it and not
  *    hanging in the air — which is what a solver that never saw the world
  *    would do.
+ * 3. **A wall stops it.** The articulated solver used to answer the ground and
+ *    nothing else, so a body knocked into a wall passed through it — most
+ *    visible in the mission mode's room chain, where every fight is walled.
  *
  * Run:  node tools/test-ragdoll.mjs
  */
@@ -314,6 +317,42 @@ const results = await h.page.evaluate(async () => {
     run(0.2);
   }
   out.__shoved = shoved;
+
+  // ---- a wall is a thing to drape over, not a curtain ----
+  //
+  // The articulated solver only ever answered the *ground*: `groundHeight`
+  // and nothing else. So a body knocked into a wall went through it and kept
+  // falling on the far side, which on the mission mode's room chain — where
+  // every fight is held in by walls — swallowed corpses whole. A slab is
+  // stood up here rather than a room being found, so the check is the same
+  // on every board: throw the body at it and no part of the body may end up
+  // past its near face.
+  const walled = [];
+  for (let trial = 0; trial < TRIALS; trial++) {
+    const spot = p.position.clone();
+    spot.x += 16;
+    spot.z += 22 + trial * 6;
+    const e = g.addReinforcement('stormtrooper', spot);
+    for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+    run(0.6);
+    // the slab: 4 m past the body, across the line it is about to be thrown
+    const faceX = e.position.x + 4;
+    const wall = g.board.physics.addBox(faceX + 1.5, e.position.y + 3, e.position.z, 3, 8, 24);
+    // shoved from the near side, hard enough to reach the wall and go through
+    const from = e.position.clone();
+    from.x -= 6;
+    e.damage(9999, from, 0);
+    e.knockback(from, 16, 0.35);
+    run(3.5);
+    const body = drawn(e.char.root);
+    walled.push({ faceX: +faceX.toFixed(2), bodyX: body ? +body.cx.toFixed(2) : null });
+    const at = g.board.physics.boxes.indexOf(wall);
+    if (at >= 0) g.board.physics.boxes.splice(at, 1);
+    e.removeMe = true;
+    run(0.2);
+  }
+  out.__walled = walled;
+
   window.__manual = false;
   return out;
 });
@@ -326,6 +365,10 @@ const felled = results.__felled;
 delete results.__felled;
 const shoved = results.__shoved;
 delete results.__shoved;
+const walled = results.__walled;
+delete results.__walled;
+check('a corpse thrown at a wall stops at the wall',
+  walled.every((r) => r.bodyX !== null && r.bodyX < r.faceX), walled);
 check('a settled corpse is still something you can shoot',
   shoved.every((r) => r.target), shoved);
 check('...and shooting it moves it', most(shoved, (r) => r.moved > 0.4), shoved);

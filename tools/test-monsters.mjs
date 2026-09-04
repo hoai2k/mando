@@ -93,6 +93,55 @@ for (const kind of [...BURIED]) {
   check(`${kind}'s head clears it`, m.above > 2.5, m);
 }
 
+// ---- a monster is something you walk into, not through ----
+//
+// A boss is a capsule the enemy solver carries and nothing else in the world
+// knows about: it is not in `PhysicsWorld`, so the player's own capsule never
+// met one and the chase camera never saw one either. You strolled through the
+// middle of a krayt dragon and the lens sat inside a rancor's hide. Grunts
+// stay run-through-able on purpose — a crowd you cannot push through is a
+// crowd that pins you — so the line is `Game.BIG_BODY_R`, and this checks
+// both sides of it.
+const solid = await h.page.evaluate(`(() => {
+  const g = window.__game, p = g.players[0];
+  const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
+    dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
+    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    pausePressed:false });
+  const step = (n) => { const i = [blank(), blank(), blank(), blank()];
+    for (let k = 0; k < n; k++) g.update(1/60, i); };
+  const walkInto = (kind) => {
+    const spot = p.position.clone();
+    spot.x += 26;
+    const e = g.addReinforcement(kind, spot);
+    e.velocity.set(0, 0, 0);
+    step(4);
+    const out = { r: e.radius };
+    // stand the player exactly where the body is and let one step resolve it
+    for (let i = 0; i < 6; i++) {
+      p.position.set(e.position.x, e.position.y, e.position.z);
+      p.velocity.set(0, 0, 0);
+      e.position.copy(spot);
+      e.velocity.set(0, 0, 0);
+      step(1);
+    }
+    out.apart = +Math.hypot(p.position.x - e.position.x, p.position.z - e.position.z).toFixed(2);
+    // ...and how close the camera is allowed to get to its middle
+    const c = p.cam.camera.position;
+    out.camApart = +Math.hypot(c.x - e.position.x, c.z - e.position.z).toFixed(2);
+    e.removeMe = true;
+    step(2);
+    return out;
+  };
+  return { rancor: walkInto('rancor'), trooper: walkInto('stormtrooper') };
+})()`);
+check('a monster pushes the player out of its own body',
+  solid.rancor.apart > solid.rancor.r * 0.9, solid.rancor);
+check('...and the chase camera too', solid.rancor.camApart > solid.rancor.r * 0.7, solid.rancor);
+check('a grunt is still something you can run through',
+  solid.trooper.apart < 0.6, solid.trooper);
+
 // ---- 2. the warlord falling opens the second stage, and only then ends ----
 await h.page.evaluate(() => window.__quitToTitle());
 await sleep(1500);

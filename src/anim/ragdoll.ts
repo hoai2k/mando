@@ -254,11 +254,22 @@ export class Ragdoll {
   private collide(physics: PhysicsWorld): void {
     for (let i = 0; i < COUNT; i++) {
       const p = this.pos[i];
+      const q = this.prev[i];
+      // Out of anything solid first — the same call the rigid solver next door
+      // has always made, and the one this one never did. Only the ground was
+      // ever answered here, so a body knocked into a wall (or a crate, or a
+      // blast door) went straight through it and kept falling on the far side:
+      // in the room chain, where a fight is held in by walls, half the corpses
+      // vanished into one. A wall is a thing to drape over, not a curtain.
+      if (physics.pushOutPoint(p, this.radius[i])) {
+        this.touching = true;
+        q.x += (p.x - q.x) * GROUND_FRICTION;
+        q.z += (p.z - q.z) * GROUND_FRICTION;
+      }
       const g = physics.groundHeight(p.x, p.z, p.y);
       if (g === -Infinity) continue;
       const floor = g + this.radius[i];
       if (p.y >= floor) continue;
-      const q = this.prev[i];
       this.touching = true;
       p.y = floor;
       // friction bleeds the horizontal slide, and the little bounce left keeps

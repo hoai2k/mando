@@ -6,7 +6,8 @@ import type { EnemyKind } from '../enemies/enemy';
  *
  * There are two of them: the outdoor stage runner (`game/campaign.ts`,
  * docs/MISSIONS_OUTDOOR.md) and the walled room chain it replaced
- * (`game/campaign-legacy.ts`, kept behind `?backup=missions` as a way back if
+ * (`game/campaign-legacy.ts`, the default, with the outdoor chain behind
+ * `?missions=new` — a way across if
  * the new design does not work out). Nothing outside those two files and the
  * mode's rules should care which is running, so `Game.campaign` is typed by
  * this surface rather than by either class.

@@ -27,9 +27,9 @@ import { disposeSubtree } from '../core/dispose';
  * transport door and the next stage is raised in place of the last. That is
  * what keeps map size and resource limits out of the level design.
  *
- * Everything here is geometry + data; `game/campaign.ts` owns the flow. The
- * previous design is kept whole in `world/mission-legacy.ts` behind
- * `?backup=missions`.
+ * Everything here is geometry + data; `game/campaign.ts` owns the flow. This
+ * design is **experimental** and sits behind `?missions=new`; the walled room
+ * chain in `world/mission-legacy.ts` is what Missions runs by default.
  */
 
 // ---------------------------------------------------------------- types
@@ -1132,16 +1132,28 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const back = -1.5, front = l + 1.5;
       const gapHalf = (GATE_W + 3) / 2;
       const pillars: [number, number][] = [];
+      /**
+       * No rim on a trailhead standing on the territory's own ground.
+       *
+       * A rim has to clear the flight ceiling, so it is one 45-plus-metre
+       * slab per run whatever the zone is. Around a 56 x 44 m `open` zone
+       * that is a box with sides taller than they are far apart, and the
+       * first thing the Dune Sea's run did was stand you in the middle of
+       * one with the board's own mesa poking through the west wall: cramped,
+       * unreadable, and neither outdoor nor indoor, which is the opposite of
+       * what rule 1 of docs/MISSIONS_OUTDOOR.md asks the opening ten seconds
+       * to do. The trailhead has no fight to hold in and nothing behind it to
+       * come back from, so the territory holds it instead — its dunes, its
+       * mesas, its horizon — and the guidance points the way on. Every zone
+       * after it keeps its border.
+       */
+      const openTrailhead = onGround && zs.kind === 'start';
+      const rimmed = (wantRim || !onGround) && !openTrailhead;
       // sides run the full length
-      if (wantRim || !onGround) {
+      if (rimmed) {
         ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top);
         ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top);
       }
-      // The way in, the way on, and what frames them. A rim is optional on
-      // ground the board already encloses; the doorway, its pillars and the
-      // dead end's door are not, because those are the run's own furniture
-      // rather than the territory's.
-      const rimmed = wantRim || !onGround;
       // A dead end's way on is a door in the rock rather than an open mouth —
       // except where the stage itself ends here, because then the transport
       // door *is* that door and a second one 20 cm in front of it is just a
@@ -1168,12 +1180,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           at = b;
         }
         if (half > at) ridge([[f.x(front, at), f.z(front, at)], [f.x(front, half), f.z(front, half)]], top);
-        if (exitOpen) {
-          pillars.push([f.x(front, gapHalf + 3), f.z(front, gapHalf + 3)],
-            [f.x(front, -gapHalf - 3), f.z(front, -gapHalf - 3)]);
-        }
-        if (pillars.length) ridge([], top, { pillarAt: pillars });
       }
+      // The way on is framed whether or not the zone is walled: the pair of
+      // spires is what the eye picks out from eighty metres, and an unrimmed
+      // trailhead needs that more than a walled zone does, not less.
+      if (exitOpen) {
+        pillars.push([f.x(front, gapHalf + 3), f.z(front, gapHalf + 3)],
+          [f.x(front, -gapHalf - 3), f.z(front, -gapHalf - 3)]);
+      }
+      if (pillars.length) ridge([], top, { pillarAt: pillars });
       if (exitOpen) landmark = surf(f, front, 0, ceiling * 0.5);
 
       if (doorFace) {

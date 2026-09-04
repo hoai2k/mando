@@ -18,6 +18,7 @@ import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
 import { enemyModelIds, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
+import type { StaticCylinder } from '../core/physics';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import type { AllyCrate } from './allycrate';
@@ -151,6 +152,17 @@ interface Rocket {
   bySlot: number;
 }
 
+/**
+ * The capsule radius at which a body stops being someone you brush past and
+ * starts being something you walk into.
+ *
+ * Above it: the monsters (nexu 1.2 up to the krayt dragon and mythosaur at
+ * 3.0). Below it: every grunt and every elite, the enforcer and the
+ * broodmother included, which stay run-through-able because a crowd you
+ * cannot push through is a crowd that pins you.
+ */
+export const BIG_BODY_R = 1.1;
+
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
@@ -158,6 +170,19 @@ export class Game {
   allies: Enemy[] = [];
   /** rides parked around the board (PLAN.md §17) */
   vehicles: Vehicle[] = [];
+  /**
+   * The bodies big enough to be scenery: every live combatant at or over
+   * `BIG_BODY_R`, as cylinders, rebuilt in place each frame.
+   *
+   * A monster is a capsule the enemy solver carries and nothing else in the
+   * world knows about — it is not in `PhysicsWorld`, so neither the chase
+   * camera nor the player's own capsule ever met one. You walked through a
+   * krayt dragon and the camera sat inside a rancor. Grunts stay as they were
+   * (an arcade fight wants bodies you can run through); the ones you could
+   * hide behind are solid now. The array is shared with every player camera
+   * rather than copied, so it is filled in place and never reassigned.
+   */
+  readonly bigBodies: StaticCylinder[] = [];
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
   /** spreads alerts and decides who is allowed to push the player */
@@ -310,6 +335,7 @@ export class Game {
         p.lives = 2; // three stands in total
       }
       p.spawnAt(this.rules.startFor?.(i) ?? this.startFor(i));
+      p.cam.blockers = this.bigBodies;
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
@@ -317,6 +343,10 @@ export class Game {
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
+    // The level exists now (a mission raises its own and re-places the party
+    // on it), so this is the first moment anyone can be pointed at open
+    // ground rather than at whatever the default bearing happened to face.
+    for (const p of this.players) p.faceOpenGround(this);
 
     // Parked rides belong to the territory's own ground, so they only make
     // sense in the modes fought on it. A mission level is raised to
@@ -1195,12 +1225,29 @@ export class Game {
     // decided by the campaign's own rules above
     this.campaign?.animateGates(dt);
 
+    // ---- the big bodies, before anything moves against them ----
+    this.bigBodies.length = 0;
+    for (const list of [this.enemies, this.allies]) {
+      for (const e of list) {
+        if (!e.alive || !e.targetable || e.radius < BIG_BODY_R) continue;
+        this.bigBodies.push({
+          x: e.position.x, z: e.position.z, r: e.radius,
+          minY: e.position.y, maxY: e.position.y + e.height,
+        });
+      }
+    }
+
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       this.rules.respawn(p);
+      // ...facing out of wherever the mode put them. A checkpoint hands out a
+      // spot, not a bearing, and a room's spot is usually against a wall.
+      // Only where a body actually came back: a mode that has run out of
+      // lives to give leaves the player down, and a corpse has no bearing.
+      if (p.alive) p.faceOpenGround(this);
     }
     this.rules.partyWiped?.();
 
