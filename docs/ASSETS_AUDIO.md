@@ -26,6 +26,18 @@ README and the track map in `src/core/music.ts`. The `music_combat_desert` /
 loudness-matched (SFX peaks ≈ −6 dBFS), seamless where looping. Original or licensed audio
 only — no ripped film audio; prompts describe character without naming trademarked sources.
 
+### Menu music
+
+The menus play the place-agnostic tracks (`MUSIC_MENU` in `src/core/music.ts`), started
+from `setState` in `main.ts` and from the audio unlock — the title screen is necessarily
+silent until the player's first input, because autoplay rules forbid sound before a
+gesture. A match takes the bus over when it starts and hands it back on quit; a pause or
+an overlay opened mid-fight is not a menu, so the board's music keeps playing under it.
+
+The engine has had a `'title'` mode and a `music_title` loop since the first audio batch
+and nothing ever called either, so every menu was silent from the beginning until
+2026-09-04. `music_title` remains the fallback if the streamed tracks will not play.
+
 ### Coverage, as of 2026-09-03
 
 Every sound the engine can ask for has a file: 152 sample names in `SampleName`
