@@ -8,7 +8,8 @@
  */
 import { launch } from './harness.mjs';
 
-const h = await launch();
+const PAGE = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/`;
+const h = await launch({ url: PAGE });
 let failed = 0;
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
@@ -664,9 +665,29 @@ for (const id of waveBoards) {
 // This used to check that Missions spawned *no* rides at all: every mission
 // level was a plate raised ninety metres over the territory, so the board's
 // own parked rides were unreachable down below and spawning them was waste.
-// Missions parks rides per zone now, and a stage may stand on the territory's
-// own ground, so the rule is no longer "none" but "the stage's own, on the
-// stage" — a ride you cannot walk to is still the thing being guarded against.
+// That is still what ships by default, and still checked below.
+//
+// The stage chain (docs/MISSIONS_OUTDOOR.md) parks rides per zone instead, and
+// a stage may stand on the territory's own ground, so its rule is not "none"
+// but "the stage's own, on the stage" — a ride you cannot walk to is the thing
+// being guarded against either way. It lives behind `?missions=new`, so it has
+// to be *booted* behind that flag too: on the default page `game.campaign` is
+// a LegacyCampaign, which has no `.stage` at all, and reading one off it
+// yields a wall of `undefined` rather than a real measurement. That is what
+// nightly run 217 reported.
+await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
+await settle('desert');
+const legacy = await h.page.evaluate(() => ({
+  rides: window.__game.vehicles.length,
+  declared: (window.__game.board.vehicles ?? []).length,
+}));
+check('missions: the walled level parks no unreachable rides',
+  legacy.rides === 0,
+  `${legacy.rides} spawned, ${legacy.declared} declared by the board`);
+
+// the stage chain, on its own page — the flag is read at construction
+await h.page.goto(`${PAGE}?missions=new`, { waitUntil: 'networkidle' });
+await new Promise((r) => setTimeout(r, 1500));
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {
@@ -684,6 +705,8 @@ const mission = await h.page.evaluate(() => {
     floorY: +stage.floorY.toFixed(1),
   };
 });
+check('missions: the stage chain raised its own level', !mission.noStage,
+  mission.noStage ? 'game.campaign has no .stage — ?missions=new did not take' : '');
 check('missions parks the rides its stage declares',
   !mission.noStage && mission.n === mission.want,
   `${mission.n} spawned, ${mission.want} declared by the stage`);
