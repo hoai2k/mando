@@ -59,7 +59,7 @@ const start = await h.page.evaluate(() => {
   g.players[0].cam.yaw = v.yaw;
   return { x: v.pos.x, z: v.pos.z, yaw: v.yaw };
 });
-await h.step(2, { throttleHeld: true });
+await h.step(2, { moveY: 1 });
 const drove = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
@@ -77,14 +77,14 @@ check('rider stays on the seat', drove.seatDrift < 1.5, `${drove.seatDrift.toFix
 
 // ---- the brake hauls it up, and then backs it away ----
 const braked = await h.page.evaluate(() => ({ speed: Math.hypot(window.__game.vehicles[0].vel.x, window.__game.vehicles[0].vel.z) }));
-await h.step(1.2, { brakeHeld: true });
+await h.step(1.2, { moveY: -1 });
 const stopped = await h.page.evaluate(() => {
   const v = window.__game.vehicles[0];
   const fwd = v.vel.x * Math.sin(v.yaw) + v.vel.z * Math.cos(v.yaw);
   return { fwd };
 });
 check('the brake stops it', stopped.fwd < braked.speed * 0.35, `${braked.speed.toFixed(1)} -> ${stopped.fwd.toFixed(1)} m/s`);
-await h.step(1.5, { brakeHeld: true });
+await h.step(1.5, { moveY: -1 });
 const reversing = await h.page.evaluate(() => {
   const v = window.__game.vehicles[0];
   return { fwd: v.vel.x * Math.sin(v.yaw) + v.vel.z * Math.cos(v.yaw) };
@@ -99,7 +99,7 @@ const steered = await h.page.evaluate(async () => {
   v.vel.set(0, 0, 12);
   return { before: v.yaw };
 });
-await h.step(1, { moveX: 1, throttleHeld: true });
+await h.step(1, { moveX: 1, moveY: 1 });
 const turn = await h.page.evaluate(() => {
   const v = window.__game.vehicles[0];
   const nose = { x: Math.sin(v.yaw), z: Math.cos(v.yaw) };
@@ -130,6 +130,110 @@ const ramAfter = await h.page.evaluate(() => {
 check('ram damages the hostile', ramAfter.eHp < ramBefore.eHp, `${ramBefore.eHp} -> ${ramAfter.eHp.toFixed(0)}`);
 check('ram chips the ride', ramAfter.vHp < ramBefore.vHp, `${ramBefore.vHp} -> ${ramAfter.vHp}`);
 
+// The three checks below read *held* state — a hop mid-arc, a raised shield,
+// a rider's health the frame their ride went up — and the page's own render
+// loop keeps stepping the match with nothing on the buttons between one
+// evaluate and the next, which drops a damped value like the shield before it
+// can be read. Drive the loop by hand until they are done.
+await h.page.evaluate(() => { window.__manual = true; });
+
+// ---- A hops the ride: a kick off the repulsors, not a way to travel ----
+// Stop it and let the hover settle before measuring: the ram run above left
+// it crossing dunes at 16 m/s, and the spring lags the ground under a moving
+// ride — so "the height it was at" is only the height it rests at once it has
+// stopped moving.
+await h.page.evaluate(() => { window.__game.vehicles[0].vel.set(0, 0, 0); });
+await h.step(0.6);
+const hopFrom = await h.page.evaluate(() => ({ y: window.__game.vehicles[0].pos.y }));
+await h.step(1 / 60, { jumpPressed: true, jumpHeld: true });
+await h.step(0.3);
+const hopping = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  const p = g.players[0];
+  return { y: v.pos.y, riderOver: p.position.y - v.pos.y };
+});
+check('A hops the ride off its ride height', hopping.y > hopFrom.y + 0.7,
+  `+${(hopping.y - hopFrom.y).toFixed(2)} m`);
+check('the rider goes up with it', Math.abs(hopping.riderOver) < 3.2,
+  `${hopping.riderOver.toFixed(2)} m over the keel`);
+await h.step(1.5);
+const hopDone = await h.page.evaluate(() => ({ y: window.__game.vehicles[0].pos.y }));
+check('and the repulsors catch it again', Math.abs(hopDone.y - hopFrom.y) < 0.3,
+  `${hopDone.y.toFixed(2)} vs ${hopFrom.y.toFixed(2)}`);
+
+// ---- B is the ride's deflector: it turns fire, and never a wall ----
+await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  const p = g.players[0];
+  v.hp = v.maxHp;
+  p.hp = p.maxHp;
+  p.energy = 1;
+  p.hitGuard = 0;
+});
+await h.step(0.4, { blockHeld: true });
+const bubble = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  const p = g.players[0];
+  const out = { shielded: v.shielded, energy0: p.energy };
+  let vHp = v.hp, pHp = p.hp;
+  v.damage(60, v.pos, -1, 'shot');            // a bolt into the hull
+  out.shotLost = vHp - v.hp; vHp = v.hp;
+  p.damage(40, v.pos);                        // and a swing at the rider on top of it
+  out.riderLost = pHp - p.hp;
+  out.bleed = vHp - v.hp; vHp = v.hp;         // nothing bleeds into the hull either
+  v.damage(50, v.pos, -1, 'crash');           // a wall is not an attack
+  out.crashLost = vHp - v.hp;
+  out.energy1 = p.energy;
+  return out;
+});
+check('B raises the ride\'s deflector', bubble.shielded);
+check('the bubble turns fire off the hull', bubble.shotLost === 0, `hull -${bubble.shotLost}`);
+check('and off the rider on top of it', bubble.riderLost === 0 && bubble.bleed === 0,
+  `rider -${bubble.riderLost}, hull -${bubble.bleed}`);
+// billed in full: `crashScale` is applied by whatever crashed it (the wall
+// path, the ride-on-ride path), so 50 of crash damage is 50 off the hull
+check('a crash goes straight through it', bubble.crashLost === 50, `hull -${bubble.crashLost}`);
+check('holding it burns the rider\'s gauge', bubble.energy1 < bubble.energy0 - 0.05,
+  `${bubble.energy0.toFixed(2)} -> ${bubble.energy1.toFixed(2)}`);
+// ramming is a collision, not an attack: the bubble does not make it free
+const shieldRam = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  const e = g.enemies.find((en) => en.alive);
+  v.hp = v.maxHp;
+  v.yaw = 0;
+  v.vel.set(0, 0, 16);
+  e.position.set(v.pos.x, v.pos.y, v.pos.z + 5);
+  return { shielded: v.shielded, hp: v.hp, eHp: e.hp };
+});
+await h.step(0.5, { blockHeld: true });
+const rammed = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  const e = g.enemies.find((en) => en.hp < en.maxHp) ?? g.enemies[0];
+  return { shielded: v.shielded, hp: v.hp, eHp: e.hp };
+});
+check('a shielded ride still bowls what is in front of it', rammed.eHp < shieldRam.eHp,
+  `${shieldRam.eHp.toFixed(0)} -> ${rammed.eHp.toFixed(0)}`);
+check('and still chips itself doing it', rammed.shielded && rammed.hp < shieldRam.hp,
+  `hull -${(shieldRam.hp - rammed.hp).toFixed(0)} with the bubble up`);
+
+// let go and the same bolt lands again
+await h.step(0.4);
+const lowered = await h.page.evaluate(() => {
+  const g = window.__game;
+  const v = g.vehicles[0];
+  v.hp = v.maxHp;                             // the crash above left it nearly out
+  const hp = v.hp;
+  v.damage(60, v.pos, -1, 'shot');
+  return { shielded: v.shielded, lost: hp - v.hp };
+});
+check('lowered, the same bolt lands again', !lowered.shielded && lowered.lost > 0,
+  `hull -${lowered.lost.toFixed(0)}`);
+
 // ---- shot down: rider thrown, wreck explodes, and the ride comes back ----
 // A wreck is not gone any more: it sits dead for RESPAWN_DELAY and then
 // reforms where the board parked it, so a match cannot run out of rides.
@@ -137,24 +241,40 @@ const home = await h.page.evaluate(() => {
   const v = window.__game.vehicles[0];
   return { x: v.pos.x, z: v.pos.z, specX: v.spec.x, specZ: v.spec.z, hp: v.maxHp };
 });
+// Killed with the deflector up, deliberately: the bubble turns what is shot
+// at you and never the wall, so a ride crashed until it detonates detonates
+// around the person riding it whatever they are holding.
+await h.step(0.4, { blockHeld: true });
 const boom = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
   const p = g.players[0];
-  v.damage(2000, v.pos, -1);
-  return { vAlive: v.alive, thrown: !p.vehicle, vy: p.velocity.y, respawnIn: v.respawnIn };
+  p.hp = p.maxHp;
+  const shielded = v.shielded;
+  v.damage(2000, v.pos, -1, 'crash');
+  return {
+    shielded, vAlive: v.alive, thrown: !p.vehicle, vy: p.velocity.y,
+    respawnIn: v.respawnIn, riderLost: p.maxHp - p.hp,
+  };
 });
 check('destruction throws the rider clear', !boom.vAlive && boom.thrown && boom.vy > 4, `vy=${boom.vy.toFixed(1)}`);
+check('a shielded ride still dies to a crash', boom.shielded && !boom.vAlive);
+check('the wreck takes a piece of the rider with it', boom.riderLost > 12,
+  `rider -${boom.riderLost.toFixed(0)}`);
 check('the wreck is on a respawn clock', boom.respawnIn > 15 && boom.respawnIn <= 20,
   `${boom.respawnIn.toFixed(0)} s`);
 await h.step(0.5);
 const post = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
-  return { n: g.vehicles.length, alive: g.players[0].alive, vAlive: v.alive, targeted: false };
+  const p = g.players[0];
+  return { n: g.vehicles.length, alive: p.alive, hp: p.hp, vAlive: v.alive, targeted: false };
 });
 check('the wreck stays in the roster, dead', post.n === 6 && !post.vAlive, `${post.n} rides`);
-check('rider survives the ejection', post.alive);
+// hurt, and hurt by the blast wave on top of the detonation itself — but a
+// swoop is a bad landing, not an execution
+check('rider survives the ejection, the worse for it', post.alive && post.hp < 85,
+  `${post.hp.toFixed(0)}/100 hp`);
 // a dead ride is not a target and not on the radar (both read `alive`)
 await h.step(19.5);
 const back = await h.page.evaluate(() => {
@@ -170,6 +290,7 @@ check('it comes back whole', back.hp === home.hp, `${back.hp}/${home.hp}`);
 check('it comes back where the board parked it',
   Math.hypot(back.x - home.specX, back.z - home.specZ) < 0.5,
   `(${back.x.toFixed(1)}, ${back.z.toFixed(1)}) vs (${home.specX}, ${home.specZ})`);
+await h.page.evaluate(() => { window.__manual = false; });
 
 // ---- the rider is the one in the open, not the hull ----
 await h.page.evaluate(() => {
@@ -233,7 +354,7 @@ const onBantha = await h.page.evaluate((i) => {
 check('RB mounts the bantha', onBantha.on, `seat ${onBantha.seatY.toFixed(2)} m over the keel`);
 check('the rider sits above the beast, not inside it', onBantha.seatY > 1.2 && onBantha.seatY < 3.2,
   `${onBantha.seatY.toFixed(2)} m`);
-await h.step(2, { throttleHeld: true });
+await h.step(2, { moveY: 1 });
 const walked = await h.page.evaluate(([i, x, z]) => {
   const g = window.__game;
   const v = g.vehicles[i];
@@ -474,7 +595,7 @@ await h.page.evaluate(() => {
   g.vehicles[0].yaw = Math.PI;              // point down the channel
   g.players[0].cam.yaw = Math.PI;
 });
-await h.step(3, { throttleHeld: true });
+await h.step(3, { moveY: 1 });
 const sail = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];

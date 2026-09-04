@@ -31,8 +31,8 @@ function check(name, ok, detail) {
 const RIG = `
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    switchPressed:false, pausePressed:false });
   const g = window.__game;
   const p = g.players[0];
   const step = (n, over) => {

@@ -46,7 +46,6 @@ const results = await h.page.evaluate(async () => {
     meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
   });
   const inputs = [blank(), blank(), blank(), blank()];
   const DT = 1 / 60;

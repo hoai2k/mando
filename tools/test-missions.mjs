@@ -32,8 +32,8 @@ const STEP = `(args) => {
   const g = window.__game;
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const inputs = [0,1,2,3].map(() => ({ ...blank(), ...(over ?? {}) }));
   for (let i = 0; i < n; i++) g.update(1/30, inputs);
@@ -149,8 +149,8 @@ const ceiling = await page.evaluate(async () => {
   const s = g.campaign.stage;
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   // one full burn from the floor: the ceiling is meant to sit clear above it
   p.position.copy(s.zones[0].center);
@@ -188,8 +188,8 @@ const flier = await page.evaluate(async () => {
   e.alert(g.players[0].position, true);
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const idle = [blank(), blank(), blank(), blank()];
   // count the shots it actually takes, and where it was standing to take them
@@ -224,8 +224,8 @@ const walk = await page.evaluate(async () => {
   const out = { stagesSeen: new Set(), sealed: false, hatched: false, done: false, offPath: 0, turns: 0 };
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
 
   // Walk the level's own golden path rather than steering at the objective.
@@ -321,8 +321,8 @@ const portal = await page.evaluate(async () => {
   const c = g.campaign;
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const idle = [blank(), blank(), blank(), blank()];
   const out = {};

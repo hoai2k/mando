@@ -30,8 +30,8 @@ const sleepFrames = async (n) => { for (let i = 0; i < n; i++) await page.evalua
 const STEP = `(n) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const g = window.__game;
   const inputs = [blank(), blank(), blank(), blank()];
@@ -162,8 +162,8 @@ s = await page.evaluate(`(() => {
   const g = window.__game;
   const blankIn = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    switchPressed:false, pausePressed:false });
   const stepWith = (n, mut) => {
     for (let i = 0; i < n; i++) {
       const inputs = [blankIn(), blankIn(), blankIn(), blankIn()];
