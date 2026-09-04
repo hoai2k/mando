@@ -45,8 +45,7 @@ await h.waitForText(/WAVE BATTLE|PRESS START/i);
 // desert wave 2 exercises drops, chutes, runners and fliers; trask wave 2 the
 // swimmers; station wave 3 puts every landing on a floating platform
 for (const [board, wave] of [['desert', 2], ['trask', 2], ['station', 3]]) {
-  await h.page.evaluate((b) => { window.__quitToTitle?.(); window.__startCoop(1, b); }, board);
-  await sleep(9000);
+  await h.startCoop(1, board);
   const r = await h.page.evaluate(`(async () => {
     const g = window.__game;
     for (const e of g.enemies) e.removeMe = true;
@@ -103,8 +102,7 @@ for (const [board, wave] of [['desert', 2], ['trask', 2], ['station', 3]]) {
 }
 
 // ---- landings: where the ground allows it, every other transport sets down ----
-await h.page.evaluate((b) => { window.__quitToTitle?.(); window.__startCoop(1, b); }, 'desert');
-await sleep(9000);
+await h.startCoop(1, 'desert');
 const land = await h.page.evaluate(`(async () => {
   const g = window.__game;
   for (const e of g.enemies) e.removeMe = true;
@@ -198,6 +196,20 @@ const miss = await h.page.evaluate(`(async () => {
       });
     }
   }
+  // The loop above stops the moment nobody is flagged as arriving, which is
+  // the moment the transport lets go — not the moment the last man is standing
+  // on the floor. Read there, a body still a few metres into its drop counts
+  // as one that landed somewhere it should not have: offFloor came back 1-of-6
+  // about one run in four, on a squad that was about to land perfectly well.
+  //
+  // So let the fall finish — and only the fall. Stepping a flat couple of
+  // seconds instead would work too, and would also hand the room's firefight
+  // two seconds it did not have: the squad this check is about was down to one
+  // or two men by the time anyone measured them, which passes and means
+  // nothing. This stops the moment the last of them is down.
+  const down = () => g.enemies.filter((e) => e.alive)
+    .every((e) => Math.abs(e.position.y - c.level.floorY) <= 2);
+  for (let n = 0; n < 60 && !down(); n++) (${STEP})(2);
   const alive = g.enemies.filter((e) => e.alive);
   const r = room.rect;
   let outside = 0, offFloor = 0;

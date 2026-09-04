@@ -20,7 +20,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -54,8 +53,7 @@ const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
 
 // ---- 1. fighting in the air ----
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
 const air = await h.page.evaluate(`(() => {
   ${RIG}
   const out = {};
@@ -108,8 +106,7 @@ check('...and an empty tank falls like a stone',
 // the desert is a light sky, the station a dark one; a dark trooper needs a
 // rim on the second and nothing on the first
 for (const [board, wantHalo] of [['station', true], ['desert', false]]) {
-  await h.page.evaluate((b) => { window.__quitToTitle?.(); window.__startCoop(1, b); }, board);
-  await sleep(10000);
+  await h.startCoop(1, board);
   const r = await h.page.evaluate(`(async () => {
     ${RIG}
     for (const e of g.enemies) e.removeMe = true;
