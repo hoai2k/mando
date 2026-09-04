@@ -158,6 +158,17 @@ const doors = await page.evaluate(() => {
   for (const r of g.campaign.level.rooms) {
     for (const gate of [r.entryGate, r.exitGate]) if (gate) gates.push(gate);
   }
+  // Open every door first, and check they really opened.
+  //
+  // A shut gate parks a blocker 4.8 m across the opening, which swallows the
+  // posts whole — probing them with the door closed measures the door and
+  // passes whatever the frame is made of. The bug is at an *open* doorway,
+  // which is the only place it could ever have been.
+  for (const gate of gates) {
+    gate.open();
+    for (let i = 0; i < 60 && gate.closed; i++) gate.update(1 / 30);
+  }
+  const stillShut = gates.filter((gate) => gate.closed).length;
   // the frame's own numbers: posts 0.5 m square, 3.6 m tall, 1.6 m out either side
   const POST_X = 1.6;
   let solid = 0, shot = 0, total = 0;
@@ -182,8 +193,10 @@ const doors = await page.evaluate(() => {
       if (hit) shot++;
     }
   }
-  return { total, solid, shot };
+  return { total, solid, shot, stillShut };
 });
+check('the doors under test are actually open', doors.stillShut === 0,
+  `${doors.stillShut} still blocking`);
 check('every mission door post is solid', doors.solid === doors.total,
   `${doors.solid}/${doors.total} posts`);
 check('and fire does not reach a body tucked behind one', doors.shot === 0,
