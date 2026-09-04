@@ -61,6 +61,8 @@ export interface Barrier {
  */
 export class Gate implements Barrier {
   pos: THREE.Vector3;
+  /** the doorway's bearing — the frame and its posts stand square to it */
+  readonly yaw: number;
   private box: StaticBox | null = null;
   /** the frame's own posts and head — solid for as long as the doorway stands */
   private frameSolids: StaticBox[] = [];
@@ -79,6 +81,7 @@ export class Gate implements Barrier {
     this.pos = pos.clone();
     const gateW = opts.width ?? GATE_W;
     const yaw = Math.atan2(dir.x, dir.z);
+    this.yaw = yaw;
     this.frameSolids = buildDoorFrame(parent, pos.clone(), yaw,
       { leaf: false, physics: board.physics }).solids;
     // blocker half-extents: thin along the travel axis, spanning the gap
