@@ -2819,6 +2819,12 @@ export class Enemy {
     if (tDist > reach + 1.2) return;
     toT.normalize();
     if (toT.dot(dir) < 0.9) return; // stepped out of the stream
+    // A jet burns what it reaches. The stream commits to its line when the
+    // trigger is squeezed and then holds it for the better part of a second,
+    // so without this a body that ducked behind a wall mid-volley went on
+    // taking the whole of it through the wall — the one attack in the game
+    // that cover did nothing about.
+    if (game.board.physics.raycast(from, toT, tDist)) return;
     target.damage(d.damage * this.dmgScale, from);
   }
 
