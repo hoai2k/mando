@@ -228,6 +228,21 @@ const STANCE_RISE: Record<VehicleDef['stance'], number> = { saddle: 0.85, seated
 const SADDLE_PAD = 0.13;
 const SADDLE_SINK = 0.26;
 
+/**
+ * The seat height a kind's sculpt measures at, over the keel — measured once
+ * for the whole session.
+ *
+ * Measuring is a dozen rays against a model that can be enormous (the swoop's
+ * is eighty thousand triangles), and a board parks six rides while its waves
+ * bring a seventh in by the squad. Doing it per instance is the same answer
+ * computed over and over — the sculpt is one file, the seat offset is one
+ * number per kind — and enough main thread in one frame to hang the renderer
+ * hard enough that the browser kills it, which is what it did to the modes
+ * suite. The sculpt cannot change under a running session, so neither can the
+ * answer.
+ */
+const seatByKind = new Map<VehicleSpec['kind'], number>();
+
 const _ramPoint = new THREE.Vector3();
 const _seatFrom = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
@@ -574,10 +589,19 @@ export class Vehicle {
     // ray takes the *topmost* thing in the column, and on a speeder that is
     // the headrest — which is how a droid ended up perched on the back of the
     // seat instead of sitting in it. `seatSurface` takes the surface most of
-    // the footprint lands on instead, which is the cushion.
-    const world = seatSurface(root, _seatFrom, _fwd, _right, this.def.body + 6);
-    if (world === null) return;             // nothing under the seat: keep the default
-    const surface = world - this.pos.y;
+    // the footprint lands on instead, which is the cushion. Once per kind:
+    // see `seatByKind`.
+    let surface = seatByKind.get(this.spec.kind);
+    if (surface === undefined) {
+      const world = seatSurface(root, _seatFrom, _fwd, _right, this.def.body + 6);
+      if (world === null) return;           // nothing under the seat: keep the default
+      surface = world - this.pos.y;
+      // A sculpt that answers from somewhere the ride does not reach was
+      // measured before it was placed (a cached model can land inside the
+      // constructor). Use it for this instance, but do not teach it to the
+      // rest of the session.
+      if (Math.abs(surface) < this.def.body + 4) seatByKind.set(this.spec.kind, surface);
+    }
     // The saddle is ours, not the sculpt's: sit it on the back the model
     // actually has, so a mount reads as ridden whichever build is showing —
     // and then the rider sits on the *saddle*, not on the animal under it,

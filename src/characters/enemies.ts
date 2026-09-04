@@ -695,6 +695,17 @@ export function buildMassiff(authored = true): CharacterInstance {
  */
 const SWOOP_SEAT = { x: 0, z: -0.28, stand: 0.67 };
 const SWOOP_BARS = { x: 0.28, y: 0.29, z: 0.23 };
+/**
+ * Where the sculpt's saddle came out, in the bike group's space — measured
+ * once for the whole session rather than once per rider.
+ *
+ * `nikto_swoop.glb` is eighty thousand triangles and the measurement is a
+ * dozen rays through it; a wave can post half a dozen of these fighters in a
+ * frame, and six of those measurements in one frame is a stall long enough
+ * for the browser to kill the renderer for not answering. Every rider is on
+ * the same bike, so they all get the same answer.
+ */
+let swoopSaddleY: number | null = null;
 
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
@@ -781,10 +792,13 @@ export function buildNikto(authored = true): CharacterInstance {
     const right = new THREE.Vector3();
     group.getWorldDirection(fwd);
     right.set(fwd.z, 0, -fwd.x);
-    const at = group.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, bike.position.y + 3, SWOOP_SEAT.z));
-    const world = seatSurface(swoopModel, at, fwd, right, 5);
-    if (world === null) return;
-    const saddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+    if (swoopSaddleY === null) {
+      const at = group.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, bike.position.y + 3, SWOOP_SEAT.z));
+      const world = seatSurface(swoopModel, at, fwd, right, 5);
+      if (world === null) return;
+      swoopSaddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+    }
+    const saddleY = swoopSaddleY;
     // the pose above is tuned to the *stand-in* saddle, so this corrects it by
     // however far the sculpt's own saddle differs — which keeps the tuning for
     // the procedural rider and the retargeted one both
