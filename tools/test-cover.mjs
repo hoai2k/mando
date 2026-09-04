@@ -193,7 +193,12 @@ const doors = await page.evaluate(() => {
       if (hit) shot++;
     }
   }
-  return { total, solid, shot, stillShut };
+  // ...and the doorway is still a doorway. Solid posts narrow the opening
+  // from 3.8 m to the 2.7 m between them, which every body has to fit
+  // through — the widest capsule the game walks around is r = 0.6.
+  const walkable = gates.filter((gate) =>
+    phys.capsuleFree(gate.pos.x, gate.pos.y + 0.1, gate.pos.z, 0.6, 2.1)).length;
+  return { total, solid, shot, stillShut, gates: gates.length, walkable };
 });
 check('the doors under test are actually open', doors.stillShut === 0,
   `${doors.stillShut} still blocking`);
@@ -201,6 +206,9 @@ check('every mission door post is solid', doors.solid === doors.total,
   `${doors.solid}/${doors.total} posts`);
 check('and fire does not reach a body tucked behind one', doors.shot === 0,
   `${doors.shot}/${doors.total} shot through`);
+
+check('and the doorway is still wide enough to walk through',
+  doors.walkable === doors.gates, `${doors.walkable}/${doors.gates} passable`);
 
 check.done('cover');
 await h.close();
