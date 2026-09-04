@@ -34,7 +34,7 @@ permissions:
 #
 # THE FULL SUITE RUNS NIGHTLY, NOT ON EVERY PUSH.
 #
-# Taking it off the deploy path was not enough on its own. The suite needs the
+# Taking it off the deploy path was not enough on its own. The suite took the
 # better part of an hour, pushes to `main` land every twenty to fifty minutes,
 # and `cancel-in-progress` killed it every time: runs 180-189 were cancelled
 # without exception. So for ten consecutive pushes nobody saw a test result at
@@ -43,10 +43,15 @@ permissions:
 # one. A signal nothing ever reads is not a signal.
 #
 # The split now is: every push builds, deploys, and runs a short smoke; the
-# whole suite and both audits run once a night against `main`, where nothing
+# whole suite and the audits run once a night against `main`, where nothing
 # supersedes them and they always finish. Whoever is changing something runs
 # the suites that cover it before pushing — that is the real per-change
 # coverage, and it is far better targeted than re-running everything.
+#
+# `npm test` is `tools/run-suites.mjs`, which serves the build once for all of
+# them and runs several at a time; the nightly splits that four ways again
+# across runners. See the header of that file for what the old `&&` chain of
+# twenty-four `node tools/<suite>.mjs` calls was costing.
 jobs:
   build:
     # The nightly run is here to test, not to republish an unchanged tree.
@@ -117,20 +122,36 @@ jobs:
 
   # Everything, once a night against `main` — and on demand, which is how you
   # check a tree before a big merge without waiting for the small hours.
+  #
+  # SPLIT ACROSS FOUR RUNNERS. One runner ran the lot in 75 minutes (run 196),
+  # which is a long time to find out about a broken check and a long time for a
+  # timeout to hide in. `tools/run-suites.mjs --shard=k/n` packs the suites into
+  # n roughly equal piles by measured weight, so four runners finish in about
+  # the time the heaviest pile takes rather than the sum of all of them.
+  #
+  # `fail-fast: false` is the point of the split as much as the speed is: with
+  # it on, one shard failing cancels the other three, and the cancelled ones
+  # report as `cancelled` — which is exactly the "a failure hid behind a
+  # failure" problem the nightly job was created to end.
   nightly:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    name: nightly (shard ${{ matrix.shard }}/4)
     # Headroom, not a fitted budget. A job killed on the timeout reports as
     # `cancelled`, which reads exactly like a run superseded by the next push,
     # so a too-tight budget is a failure mode that hides itself — it once cost
     # a day of deploys that looked merely skipped. If a run ever approaches
     # this, raise it rather than trimming coverage to fit.
-    timeout-minutes: 120
+    timeout-minutes: 60
     # No cancellation and no ref in the group: a nightly run that never
     # finishes is the whole problem this job exists to solve. Two of them
     # overlapping is not a scenario worth optimising for.
     concurrency:
-      group: nightly
+      group: nightly-${{ matrix.shard }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -142,10 +163,42 @@ jobs:
       - run: npm run build
       # Boot the built game in Chromium behind a synthetic pad and play a wave.
       - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - run: node tools/run-suites.mjs --shard=${{ matrix.shard }}/4
+
+  # The audits, in their own job rather than after the suites.
+  #
+  # They used to be the last two steps of the one nightly job, which meant a
+  # failing suite skipped them: on run 199 a single check in test-block failed
+  # and neither audit ran at all, so nobody learned anything about the boards
+  # that night. They are quick — nine seconds for both — and they answer a
+  # different question from the suites, so they should not be able to lose
+  # their turn to one. `if: always()` on the second does the same for the two
+  # of them between themselves.
+  #
+  # `audit:hitboxes` and `audit:props` are deliberately NOT here. They exist as
+  # npm scripts and nothing runs them; whether they are green on `main` today
+  # is not known, and a nightly is the wrong place to find out. Run them by
+  # hand first, and add them here once they are.
+  audits:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: nightly-audits
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
       # Every board's props measured against its colliders: nothing that looks
       # solid may be walked through, and no collider may sit on empty air.
       - run: npm run audit:boards
       # Every wave on every board, planned and measured: no hostile may be
       # posted inside the scenery it is supposed to fight in front of.
       - run: npm run audit:spawns
+        if: always()

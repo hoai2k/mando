@@ -546,6 +546,15 @@ for (const id of waveBoards) {
 // Missions parks rides per zone now, and a stage may stand on the territory's
 // own ground, so the rule is no longer "none" but "the stage's own, on the
 // stage" — a ride you cannot walk to is still the thing being guarded against.
+//
+// The stages are behind `?missions=new`: the walled room chain became the
+// default again on 2026-09-04 (docs/MISSIONS_OUTDOOR.md, "Demoted to
+// experimental") and this check was left asking the plain URL for a
+// `campaign.stage` that is no longer built there — `undefined spawned,
+// undefined declared`, on `main`, since that landed. Ask for the design the
+// check is about, the way test-missions.mjs does.
+await h.page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new`);
+await h.page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {

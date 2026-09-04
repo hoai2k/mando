@@ -17,7 +17,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -26,10 +25,10 @@ function check(name, ok, detail) {
 
 const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-// wall clock is right here: this waits for the board and its models to load,
-// which is real elapsed time, not simulated time
-await sleep(9000);
+// The board and its models are real elapsed time, not simulated time — but
+// asking when they are up beats guessing at nine seconds, which was both
+// longer than it usually takes and shorter than it sometimes does.
+await h.startCoop(1, 'desert');
 
 const results = await h.page.evaluate(async () => {
   // Step the simulation directly rather than sleeping on the wall clock.
