@@ -50,7 +50,6 @@ const BLANK_INPUT: FrameInput = {
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
   zoomDelta: 0, blockHeld: false, pausePressed: false,
   meleeSwapPressed: false, rangedSwapPressed: false,
-  throttleHeld: false, brakeHeld: false,
 };
 
 export interface GameEvents {
@@ -1496,6 +1495,24 @@ export class Game {
         t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
         t.radius = r;
         t.team = 2;
+        targets.push(t);
+      }
+      // A ride with its deflector up meets bolts before its hull does. The
+      // bubble rides a target of its own, for two reasons: it is tested first
+      // whatever order the hull spheres came in, and it carries the *rider's*
+      // team rather than the props' — a bolt turned by a team-2 target would
+      // fly on as loose ordnance that hits both sides, including the person
+      // who just blocked it. No body of its own (radius 0): the hull spheres
+      // above are what a bolt that gets past it actually meets.
+      const bubble = v.shieldCollider;
+      if (bubble && v.rider) {
+        const t = this.claim(slot++);
+        t.vehicle = v;
+        t.position.copy(bubble.center);
+        t.radius = 0;
+        t.team = v.rider.team;
+        t.shield = bubble;
+        t.slot = v.rider.slot;
         targets.push(t);
       }
     }

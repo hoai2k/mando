@@ -824,6 +824,15 @@ export class Player {
     // detonation turns the big, telegraphed hit into nothing. The callers
     // that commit to a hit say so; everything else still waits its turn.
     if (!opts.dot && !opts.heavy && amount < 500 && this.hitGuard > 0) return;
+    // The ride's deflector answers before anything else does (PLAN.md §17).
+    // While it is up, what is aimed at the rider stops at the bubble: nothing
+    // lands on them and nothing bleeds into the hull under them, and the field
+    // takes its sip of the gauge that is holding it there. A kill zone is not
+    // an attack and goes through it, the same way it goes through the hull.
+    if (this.vehicle?.shielded && amount < 500) {
+      this.vehicle.shieldHit(amount);
+      return;
+    }
     // Mounted, you are still the one in the open (PLAN.md §17, second pass).
     // The hull used to soak every hit aimed at the rider, which made a ride a
     // suit of armour worth more than the fight: a skiff's plate is not between
@@ -1116,8 +1125,7 @@ export class Player {
       if (input.blockHeld) this.cancelExit = true;
       input = { ...input, moveX: 0, moveY: 0, jumpHeld: false, jumpPressed: false,
         dashPressed: false, sprintHeld: false, shootHeld: false, meleePressed: false,
-        rocketPressed: false, slamPressed: false, throttleHeld: false, brakeHeld: false,
-        blockHeld: false };
+        rocketPressed: false, slamPressed: false, blockHeld: false };
       this.velocity.x = 0;
       this.velocity.z = 0;
     }
@@ -1368,6 +1376,23 @@ export class Player {
     }
     this.swimming = false;
     return false;
+  }
+
+  /**
+   * Spend the gauge on something that is not a step: the ride's deflector,
+   * and the hits it turns.
+   *
+   * The bubble round a vehicle is this rider's shield thrown wider (PLAN.md
+   * §17), so it comes out of this rider's budget — the same one sprinting,
+   * dodging and the on-foot block draw on — and holding it up holds the
+   * refill off exactly as blocking does. False once the gauge is empty, which
+   * is what drops the field rather than any timer on the ride.
+   */
+  spendShield(amount: number): boolean {
+    if (this.energy <= 0) return false;
+    this.energy = Math.max(0, this.energy - amount);
+    this.sprintRefillDelay = 0.7;
+    return true;
   }
 
   /** block (hold B / R): the same gauge as sprinting, so a fight is a budget */
@@ -2227,9 +2252,10 @@ export class Player {
   /**
    * In the saddle: input drives the vehicle and the rider sits its seat —
    * exposed, since a mounted rider takes what is aimed at them (only a
-   * quarter of it bleeds into the ride). RB steps off beside a parked ride and
-   * bails out of a moving one; either way a ride left with speed in it rolls
-   * on driverless until it stops.
+   * quarter of it bleeds into the ride) unless the ride's own deflector is up
+   * over both of them. RB steps off beside a parked ride and bails out of a
+   * moving one; either way a ride left with speed in it rolls on driverless
+   * until it stops.
    */
   private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
     const anim = this.char.animator!;

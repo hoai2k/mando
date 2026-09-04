@@ -5,21 +5,30 @@ import type { Player } from '../player/player';
 import type { Board, VehicleSpec } from '../world/board';
 import type { FrameInput } from '../core/input';
 import type { StaticBox } from '../core/physics';
+import type { DeflectSphere } from '../fx/projectiles';
 import { loadProp } from '../characters/authored';
 import { propsUsed } from '../world/props';
 import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
+import { createShieldField, type ShieldField } from '../fx/shieldfield';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
- * boards. RB near one mounts, the stick drives it camera-relative with real
- * momentum, ramming is the weapon, and sooner or later it is shot out from
- * under you or you put it into a wall — then the rider is thrown, the wreck
- * goes up at the size of the hull that made it, and twenty seconds later the
- * ride is back where the board parked it. Not transport: a toy that ends in a
- * crash.
+ * boards. RB near one mounts, the left stick drives it — forward and back on
+ * the throttle, left and right on the nose, the same stick that moves the
+ * character on foot — ramming is the weapon, and sooner or later it is shot
+ * out from under you or you put it into a wall. Then the rider is thrown, the
+ * wreck goes up at the size of the hull that made it *and takes a piece of
+ * the rider with it*, and twenty seconds later the ride is back where the
+ * board parked it. Not transport: a toy that ends in a crash.
+ *
+ * The other two face buttons keep the meaning they have on foot, which is the
+ * whole point of the scheme: A hops the ride the way it jumps the character,
+ * and B raises a shield — the rider's own field thrown round the hull, over
+ * both of them. It turns attacks and nothing else: a wall is not an attack,
+ * and neither is your own repulsor core going up under you.
  *
  * What breaks a ride depends on what it is. Gunfire is what kills the light
  * frames; crashing is what kills the heavy ones, and the heavier the hull the
@@ -151,8 +160,20 @@ const CHARGE_COOLDOWN = 5;
 /** what the charge is worth as a multiple of the animal's own top speed */
 const CHARGE_TOP = 1.75;
 
-/** What hurt the ride: a shot is armoured against, a crash is not. */
-export type DamageKind = 'shot' | 'crash';
+/**
+ * What hurt the ride.
+ *
+ * - `shot` — a bolt, a blade, a blast, a burn: something aimed at the hull.
+ *   Armoured against (`shotResist`), and the one kind the deflector turns.
+ * - `crash` — a wall, or another hull. Charged in full (`crashScale`), and no
+ *   field is any help against it.
+ * - `contact` — the chip a hull takes for ramming a body. Billed at the shot
+ *   rate, because that is what the number was tuned as, but it is the ride
+ *   running into something rather than something being aimed at the ride, so
+ *   the bubble does not pay for it: a shielded ride bowling a squad still
+ *   wears itself down doing it.
+ */
+export type DamageKind = 'shot' | 'crash' | 'contact';
 
 /**
  * How long a wreck stays a wreck. Rides are the board's toys, not a resource
@@ -175,6 +196,60 @@ const COAST_STOP = 0.8;
 const REVERSE_FRACTION = 0.35;
 /** below this forward speed the brake stops stopping and starts reversing */
 const REVERSE_THRESHOLD = 0.4;
+/** stick deflection under which the throttle reads as centred and it coasts */
+const PEDAL_DEADZONE = 0.05;
+
+/**
+ * The hop (A): a repulsor kick, not a jump.
+ *
+ * The field dumps everything it has downward for a moment, the ride leaves
+ * ride height, arcs, and is caught again the instant it comes back down to
+ * it. Enough to clear a crate line, a low wall or a body in the road — and
+ * nowhere near enough to be flight, which is what the cooldown is for.
+ */
+const HOP_VEL = 8;
+/** how long the repulsors stay let go: a ceiling on the arc, not its length */
+const HOP_TIME = 1.2;
+const HOP_COOLDOWN = 1;
+/** what a hopping ride falls at while the field is off, m/s² */
+const HOP_GRAVITY = 22;
+/**
+ * How far above ride height the repulsors reach up and take the hop back.
+ *
+ * Without the reach a hop arrives at ride height still doing eight metres a
+ * second and punches straight through it into the ground, then spends the
+ * next second climbing back out — which reads as the ride being dropped
+ * rather than landing. Caught this far up, the hover's own damping has the
+ * room to arrest it and set it down.
+ */
+const HOP_CATCH = 0.6;
+
+/** seconds of ride deflector on a full rider gauge */
+const SHIELD_SECONDS = 4;
+/** what turning one bolt costs the gauge, on top of the drain for holding it */
+const SHIELD_BOLT_COST = 0.035;
+/**
+ * And what everything else costs, per point of damage it would have done.
+ *
+ * Proportional rather than flat because the rest of what a bubble turns is
+ * not a discrete event: a warlord's slam should be expensive, and sitting a
+ * ride in a lava river should bleed the gauge rather than empty it in a third
+ * of a second, which is what a per-frame flat charge on a burn tick does.
+ */
+const SHIELD_COST_PER_DAMAGE = 0.0012;
+/** a hit under this is a graze: it costs the gauge, it does not ring the field */
+const SHIELD_RING_MIN = 5;
+/** the bubble is real from here up, so a field still rising turns nothing */
+const SHIELD_LIVE = 0.6;
+
+/**
+ * What your own ride going up under you costs, before the hull's own measure
+ * scales it (`blastScale`). This is the counterweight to the deflector: the
+ * bubble turns everything anyone shoots at you, so the thing that still has
+ * to be feared is the wall — and a hull crashed until it detonates detonates
+ * around the rider, shield or no shield.
+ */
+const RIDER_BLAST = 26;
 
 const _ramPoint = new THREE.Vector3();
 const _seatRay = new THREE.Raycaster();
@@ -198,6 +273,19 @@ export class Vehicle {
   private parkedBox: StaticBox | null = null;
   private bobPhase = Math.random() * Math.PI * 2;
   private boostCd = 0;
+  /** seconds left in a hop's arc (0 = on its repulsors), and the wait for another */
+  private hopT = 0;
+  private hopCd = 0;
+  /** the rider is asking for the deflector; `shieldRaise` is how far up it is */
+  private shieldWanted = false;
+  private shieldRaise = 0;
+  /** the field itself, built the first time one is actually raised */
+  private shieldField: ShieldField | null = null;
+  /** scratch for the bubble handed to the projectile system */
+  private shieldSphere: DeflectSphere = {
+    center: new THREE.Vector3(), radius: 1, normal: new THREE.Vector3(0, 0, 1),
+    kind: 'shield', minDot: -1.1, consume: () => this.spendShield(),
+  };
   /** last frame's steering input, for the visual bank into a turn */
   private steer = 0;
   /**
@@ -310,9 +398,14 @@ export class Vehicle {
     if (!rider) return;
     this.rider = null;
     rider.vehicle = null;
+    this.shieldWanted = false;
     audio.setEngine(rider.slot, 0);
     if (!this.alive) return;
-    if (Math.hypot(this.vel.x, this.vel.z) > COAST_STOP) this.coasting = true;
+    // Still in the air off a hop counts as still rolling: parking registers a
+    // solid box where the ride is *now*, and a rider who bails at the top of
+    // one would otherwise leave an invisible box hanging over the road while
+    // the hull sank out of it.
+    if (Math.hypot(this.vel.x, this.vel.z) > COAST_STOP || this.hopT > 0) this.coasting = true;
     else this.park();
   }
 
@@ -328,7 +421,12 @@ export class Vehicle {
    */
   damage(amount: number, from: THREE.Vector3, bySlot = -1, kind: DamageKind = 'shot'): void {
     if (!this.alive || amount <= 0) return;
-    if (kind === 'shot') amount *= this.def.shotResist;
+    // The deflector is up: a bolt, a blade, a blast or a burn stops at the
+    // bubble and costs the rider's gauge instead of the hull. A **crash** goes
+    // straight through it — the field is between the ride and what is shooting
+    // at it, not between the ride and the wall.
+    if (kind === 'shot' && this.shielded) { this.shieldHit(amount); return; }
+    if (kind !== 'crash') amount *= this.def.shotResist;
     this.hp -= amount;
     if (bySlot >= 0) this.lastHitBy = bySlot;
     if (this.rider) {
@@ -362,7 +460,17 @@ export class Vehicle {
       r.velocity.x += Math.sin(this.yaw + Math.PI / 2) * 3;
       r.velocity.z += Math.cos(this.yaw + Math.PI / 2) * 3;
       r.position.y += 0.6;
+      // and it costs them. Thrown clear is not away: a hull detonating is
+      // detonating *under* the person sitting on it, so the ride you crash
+      // takes a piece of you with it — sized to the hull, like the fireball,
+      // so a swoop is a bad landing and a skiff is most of a Mandalorian.
+      // Nothing turns this: the deflector answers attacks, and your own
+      // repulsor core is not attacking you.
+      if (explode) r.damage(RIDER_BLAST * this.blastScale, at, -1, { heavy: true });
     }
+    this.shieldWanted = false;
+    this.shieldRaise = 0;
+    this.shieldField?.setStrength(0);
     this.unpark();
     this.coasting = false;
     this.vel.set(0, 0, 0);
@@ -430,6 +538,7 @@ export class Vehicle {
     this.alive = true;
     this.lastHitBy = -1;
     this.coasting = false;
+    this.hopT = this.hopCd = 0;
     this.dissolveT = 0;
     this.reformT = REFORM_TIME;
     this.hitMemo.clear();
@@ -439,6 +548,69 @@ export class Vehicle {
     this.body.position.y = 0;
     this.park();
     this.pendingReform = this.pos.clone();
+  }
+
+  /**
+   * The deflector's reach: a bubble big enough to hold the hull and whoever is
+   * sitting or standing on top of it. A long ride gets a wide field rather
+   * than a tight one round the keel — a skiff's rider stands three metres
+   * behind the bow, and a shield that left them outside it would be no shield.
+   */
+  get shieldRadius(): number {
+    return Math.max(this.def.radius, this.def.length * 0.42) + 0.5;
+  }
+
+  /** height of the bubble's centre over the keel */
+  private get shieldY(): number { return this.def.body * 0.5 + 0.15; }
+
+  /** true once the field is really up — a bubble still rising turns nothing */
+  get shielded(): boolean {
+    return this.alive && this.shieldRaise >= SHIELD_LIVE && !!this.rider;
+  }
+
+  /**
+   * The deflector as the projectile system sees it: a closed bubble round the
+   * hull, answering from every bearing (`minDot` under -1, so a bolt from dead
+   * astern is met too). Null unless the field is actually up.
+   */
+  get shieldCollider(): DeflectSphere | null {
+    if (!this.shielded) return null;
+    const s = this.shieldSphere;
+    s.center.set(this.pos.x, this.pos.y + this.shieldY, this.pos.z);
+    s.radius = this.shieldRadius;
+    // a mirrored bolt goes back out along the nose rather than nowhere
+    s.normal.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    return s;
+  }
+
+  /**
+   * A hit turned by the bubble: the ring runs out from where it landed, and
+   * the rider pays a sip of the same gauge that is holding it up. Asked by the
+   * projectile system before each deflect (`consume`), so an empty gauge lets
+   * the bolt through instead of holding a field nobody is powering.
+   */
+  private spendShield(): boolean {
+    const rider = this.rider;
+    if (!this.shielded || !rider || !rider.spendShield(SHIELD_BOLT_COST)) return false;
+    this.shieldField?.hit();
+    rider.cam.shake(0.02);
+    return true;
+  }
+
+  /**
+   * A hit the bubble turned that was not a bolt — a swing, a blast, a burn,
+   * or anything aimed at the rider on top of it (`Player.damage` routes those
+   * here).
+   *
+   * Charged in proportion to what it would have done. Only a real blow rings
+   * the field: a burn tick restarting the impact ring sixty times a second
+   * reads as a strobe rather than as a shield holding.
+   */
+  shieldHit(amount: number): void {
+    this.rider?.spendShield(amount * SHIELD_COST_PER_DAMAGE);
+    if (amount < SHIELD_RING_MIN) return;
+    this.shieldField?.hit();
+    this.rider?.cam.shake(0.02);
   }
 
   /** true while the horns are down (drives the HUD's charge cue) */
@@ -544,7 +716,7 @@ export class Vehicle {
     // settle toward hover height and idle-bob gently inside the parked box
     const target = this.groundAt(this.pos.x, this.pos.z) + this.def.hover;
     this.pos.y = damp(this.pos.y, target, 4, dt) + Math.sin(game.time * 1.7 + this.bobPhase) * 0.004;
-    this.syncMesh(dt, 0);
+    this.syncMesh(dt, 0, game);
   }
 
   /**
@@ -587,8 +759,7 @@ export class Vehicle {
     lat = damp(lat, 0, def.grip, dt);
     this.vel.x = nx * fwd + rx * lat;
     this.vel.z = nz * fwd + rz * lat;
-    const target = this.groundAt(this.pos.x, this.pos.z) + def.hover;
-    this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
+    this.applyHover(dt);
 
     this.crashGrace -= dt;
     const hitRide = this.collideVehicles(game);
@@ -600,28 +771,58 @@ export class Vehicle {
 
     if (this.pos.y < game.board.physics.killY) { this.destroy(!def.living); return; }
     const speed = Math.hypot(this.vel.x, this.vel.z);
-    if (speed < COAST_STOP) {
-      // it has finished rolling: solid again, where it came to rest
+    if (speed < COAST_STOP && this.hopT <= 0) {
+      // it has finished rolling — and come back down — so it is solid again,
+      // where it came to rest
       this.vel.set(0, 0, 0);
       this.coasting = false;
       this.park();
     }
-    this.syncMesh(dt, speed);
+    this.syncMesh(dt, speed, game);
   }
 
   /**
    * One frame of driving, called from the rider's update so input flows the
    * same path it does on foot.
    *
-   * This is a vehicle, not a character: the stick does not point where to go,
-   * it turns the nose, and speed comes off the pedals. So the state that
-   * matters is the nose direction (`yaw`) plus how fast we are travelling
-   * along it and how much we are sliding sideways — the slide is what gives a
-   * hard turn its drift before the grip bites.
+   * This is still a vehicle rather than a character — the stick does not point
+   * where to go, it turns the nose — but it is the *same stick*: left and
+   * right steer, forward and back are the throttle and the brake, exactly
+   * where they are on foot. So the state that matters is the nose direction
+   * (`yaw`) plus how fast we are travelling along it and how much we are
+   * sliding sideways, and the slide is what gives a hard turn its drift before
+   * the grip bites.
    */
   drive(dt: number, input: FrameInput, rider: Player, game: Game): void {
     const def = this.def;
     this.boostCd -= dt;
+
+    // ---- the deflector (B) ----
+    // The rider's own shield thrown round the hull instead of held in front of
+    // their chest, over the ride and the one exposed person on top of it
+    // alike. It runs on the rider's gauge — the same budget sprinting, dodging
+    // and the on-foot block come out of — so it is seconds, not a state, and
+    // it stops being up the moment that gauge is empty.
+    this.shieldWanted = input.blockHeld && rider.alive && rider.spendShield(dt / SHIELD_SECONDS);
+
+    // ---- the hop (A) ----
+    // The same button that jumps the character, doing the nearest thing a ride
+    // has to a jump: a kick off the repulsors that clears a crate line, a low
+    // wall or a body in the road. It is not steering and it is not flight —
+    // the arc is whatever the kick was worth, and the cooldown is what stops
+    // it being a way to travel.
+    this.hopCd -= dt;
+    if (this.hopT > 0) this.hopT -= dt;
+    if (input.jumpPressed && this.hopCd <= 0) {
+      this.hopCd = HOP_COOLDOWN;
+      this.hopT = HOP_TIME;
+      // heft costs lift: a swoop leaps, a laden skiff barely clears the sand
+      this.vel.y = Math.max(this.vel.y, HOP_VEL / (0.75 + def.mass * 0.25));
+      if (def.living) audio.banthaLow(0.35);
+      else audio.dash();
+      rider.cam.shake(0.045);
+      game.particles.dustPuff(this.pos.clone().setY(this.pos.y - def.hover), 6);
+    }
 
     // ---- the charge (X), a mount only ----
     // The one attack a rider commands rather than improvises: the head goes
@@ -662,18 +863,32 @@ export class Vehicle {
     let fwd = this.vel.x * nx + this.vel.z * nz;
     let lat = this.vel.x * rx + this.vel.z * rz;
 
-    // ---- the pedals: A accelerates, B brakes and then reverses ----
+    // ---- the pedals: the stick's own forward and back ----
+    // Push the stick the way you would push it walking and the ride goes that
+    // way; pull it back and it hauls up, then reverses out. It is analogue,
+    // like every other thing that stick does: half forward is half the ride's
+    // top speed held, which is the difference between threading a camp and
+    // arriving in it.
+    const pedal = input.moveY;
     if (charging) {
-      // the charge owns the legs: neither pedal is worth anything until it ends
+      // the charge owns the legs: the stick is worth nothing until it ends
       fwd = Math.min(def.top * CHARGE_TOP, fwd + def.throttle * 3 * dt);
-    } else if (input.throttleHeld && !input.brakeHeld) {
-      fwd = Math.min(def.top, fwd + def.throttle * dt);
-    } else if (input.brakeHeld && !input.throttleHeld) {
+    } else if (pedal > PEDAL_DEADZONE) {
+      // Over the speed the stick is asking for — off a boost, down a slope —
+      // it coasts back down to it rather than being clipped there, so a boost
+      // is still worth something with the stick buried.
+      const want = def.top * pedal;
+      fwd = fwd < want
+        ? Math.min(want, fwd + def.throttle * dt)
+        : Math.max(want, fwd - def.drag * dt);
+    } else if (pedal < -PEDAL_DEADZONE) {
+      const pull = -pedal;
       fwd = fwd > REVERSE_THRESHOLD
-        ? Math.max(0, fwd - def.brake * dt)                                  // hauling it up
-        : Math.max(-def.top * REVERSE_FRACTION, fwd - def.throttle * 0.6 * dt); // backing off
+        ? Math.max(0, fwd - def.brake * pull * dt)                            // hauling it up
+        : Math.max(-def.top * REVERSE_FRACTION * pull,
+          fwd - def.throttle * 0.6 * pull * dt);                              // backing off
     } else {
-      // coasting: repulsors bleed speed slowly, so momentum is worth carrying
+      // stick centred: repulsors bleed speed slowly, so momentum is worth carrying
       const bleed = def.drag * dt;
       fwd = fwd > 0 ? Math.max(0, fwd - bleed) : Math.min(0, fwd + bleed);
     }
@@ -693,9 +908,7 @@ export class Vehicle {
     this.vel.x = nx * fwd + rx * lat;
     this.vel.z = nz * fwd + rz * lat;
 
-    // hover: spring the keel toward ride height over ground or water
-    const target = this.groundAt(this.pos.x, this.pos.z) + def.hover;
-    this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
+    this.applyHover(dt);
 
     // integrate against the world; a wall eats velocity, and a hard stop hurts
     this.crashGrace -= dt;
@@ -742,9 +955,10 @@ export class Vehicle {
         audio.impact();
         rider.cam.shake(0.09);
         if (wasAlive) game.hitMarker(rider.slot);
-        // every body struck chips the ride — nothing is free, though an
-        // animal that meant to do it comes off better than one that did not
-        this.damage(charging ? 1 : 3, e.position, -1);
+        // every body struck chips the ride — nothing is free, and the
+        // deflector does not make it free either (see `DamageKind`) — though
+        // an animal that meant to do it comes off better than one that did not
+        this.damage(charging ? 1 : 3, e.position, -1, 'contact');
         if (!this.alive) break;
       }
     }
@@ -766,7 +980,7 @@ export class Vehicle {
     // safety: past the bottom of the world the ride is simply gone
     if (this.pos.y < game.board.physics.killY) this.destroy(false);
 
-    this.syncMesh(dt, speed);
+    this.syncMesh(dt, speed, game);
   }
 
   /**
@@ -801,6 +1015,28 @@ export class Vehicle {
       this.walkAction.timeScale = clamp(speed / Math.max(this.walkStride, 0.1), 0.25, 2.4);
     }
     this.mixer.update(dt);
+  }
+
+  /**
+   * Ride height, and the one thing that suspends it.
+   *
+   * Normally the keel is sprung toward `hover` metres over whatever is under
+   * it — ground or water, whichever is higher — which is why a repulsor rides
+   * the swell and cannot be flown. A **hop** takes the spring out for the
+   * length of its arc: while the ride is still climbing, or still above ride
+   * height, it simply falls at `HOP_GRAVITY`, and the moment it is back down
+   * the repulsors catch it again. `HOP_TIME` is the ceiling on that, not its
+   * length — an arc off a ledge ends when the ground comes back, not on a
+   * clock.
+   */
+  private applyHover(dt: number): void {
+    const target = this.groundAt(this.pos.x, this.pos.z) + this.def.hover;
+    if (this.hopT > 0 && (this.vel.y > 0 || this.pos.y > target + HOP_CATCH)) {
+      this.vel.y -= HOP_GRAVITY * dt;
+      return;
+    }
+    this.hopT = 0;
+    this.vel.y += ((target - this.pos.y) * 26 - this.vel.y * 7.5) * dt;
   }
 
   /**
@@ -898,7 +1134,7 @@ export class Vehicle {
       + Math.abs(ux * nz - uz * nx) * this.def.radius;
   }
 
-  private syncMesh(dt: number, speed: number): void {
+  private syncMesh(dt: number, speed: number, game: Game): void {
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
     // Bank into the turn — both the slide the tail is carrying and the steering
@@ -912,7 +1148,29 @@ export class Vehicle {
     const lean = (-lateral * 0.4 - this.steer * 0.3 * Math.min(1, speed / (this.def.top * 0.5))) * bank;
     this.body.rotation.z = damp(this.body.rotation.z, lean, 8, dt);
     this.body.rotation.x = damp(this.body.rotation.x, (-this.vel.y * 0.02 + speed * 0.004) * bank, 8, dt);
+    this.updateShield(dt, game.time);
     this.updateGait(dt, speed);
+  }
+
+  /**
+   * The deflector, as a thing on screen.
+   *
+   * The field is built the first time one is actually raised rather than with
+   * the ride: most hulls on a board are never mounted, let alone shielded, and
+   * a shader and two meshes apiece for six parked rides is a cost for nothing.
+   * Once built it stays — a rider who shields once will shield again.
+   */
+  private updateShield(dt: number, time: number): void {
+    const want = this.shieldWanted && this.alive && this.rider ? 1 : 0;
+    this.shieldRaise = damp(this.shieldRaise, want, 14, dt);
+    if (!this.shieldField) {
+      if (this.shieldRaise < 0.02) return;
+      this.shieldField = createShieldField({ radius: this.shieldRadius });
+      this.shieldField.root.position.y = this.shieldY;
+      this.group.add(this.shieldField.root);
+    }
+    this.shieldField.setStrength(this.shieldRaise);
+    this.shieldField.update(dt, time);
   }
 }
 

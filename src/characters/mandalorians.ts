@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
+import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
 
 /**
@@ -417,110 +418,19 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   let trailActive = false;
 
   // ---- block shield ----
-  // A force field, not a pane with a border: the body of the dome carries the
-  // effect and the edge falls out of it. A Fresnel term brightens the surface
-  // where it turns away from the eye, which is what makes a curved field read
-  // as a volume; a hex interference pattern drifts across it so it looks
-  // energised rather than painted; and a hit sends a ring out from the point
-  // of impact. The old bright torus rim did all the work and left the middle
-  // empty, so the whole thing read as an outline.
+  // The shared force field (src/fx/shieldfield.ts), at fighter scale: a
+  // forward dome off the chest, or a closed bubble for a carrier who has one.
+  // The ride's deflector is the same field around a hull, which is why the
+  // shader lives out there rather than in here.
   const bubble = !!cfg.bubbleShield;
-  const shieldRoot = new THREE.Group();
+  const shield = createShieldField({
+    radius: bubble ? 1.12 : 0.72,
+    arc: bubble ? Math.PI : Math.PI * 0.46,
+  });
+  const shieldRoot = shield.root;
   b.chest.add(shieldRoot);
   // a forward dome sits off the chest; a bubble is centred on the body it encloses
   shieldRoot.position.set(0, bubble ? 0.02 : 0.14, bubble ? 0 : 0.34);
-  const shieldMat = new THREE.ShaderMaterial({
-    uniforms: {
-      uStrength: { value: 0 },
-      uFlash: { value: 0 },
-      uTime: { value: 0 },
-      uColor: { value: new THREE.Color(0x63b4ff) },
-      uHot: { value: new THREE.Color(0xdcefff) },
-    },
-    vertexShader: /* glsl */`
-      varying vec3 vNormalV;
-      varying vec3 vViewV;
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vNormalV = normalMatrix * normal;
-        vViewV = -mv.xyz;
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */`
-      uniform float uStrength;
-      uniform float uFlash;
-      uniform float uTime;
-      uniform vec3 uColor;
-      uniform vec3 uHot;
-      varying vec3 vNormalV;
-      varying vec3 vViewV;
-      varying vec2 vUv;
-
-      // distance to the nearest hex cell edge, for the interference lattice
-      float hexEdge(vec2 p) {
-        p.x *= 1.1547;
-        p.y += mod(floor(p.x), 2.0) * 0.5;
-        p = abs(fract(p) - 0.5);
-        return abs(max(p.x * 1.5 + p.y, p.y * 2.0) - 1.0);
-      }
-
-      void main() {
-        if (uStrength <= 0.001) discard;
-        vec3 n = normalize(vNormalV);
-        vec3 v = normalize(vViewV);
-        // grazing angles glow: the dome gains a body instead of a border
-        float fres = pow(1.0 - abs(dot(n, v)), 2.4);
-
-        // lattice drifting across the surface — kept faint, it is a texture on
-        // the field, not the field itself
-        vec2 hp = vec2(vUv.x * 15.0 + uTime * 0.10, vUv.y * 15.0 - uTime * 0.04);
-        float cells = smoothstep(0.09, 0.0, hexEdge(hp)) * 0.14;
-
-        // slow standing ripple so an idle field still breathes
-        float shimmer = sin(vUv.y * 34.0 - uTime * 2.4) * 0.5 + 0.5;
-
-        // impact ring travelling out from the centre of the dome
-        float r = vUv.y / 0.46;
-        float ring = smoothstep(0.16, 0.0, abs(r - (1.0 - uFlash))) * uFlash;
-
-        // the dome is double-sided, so a head-on look adds the far wall to the
-        // near one; the halved total keeps the middle see-through
-        float a = (0.05 + fres * 0.8 + cells + shimmer * 0.05 + ring * 1.0) * uStrength * 0.62;
-        vec3 col = mix(uColor, uHot, clamp(fres * 0.55 + ring, 0.0, 1.0));
-        gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-    transparent: true,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  // a little bigger than before, and opened out slightly so it covers more —
-  // and for a bubble carrier, all the way round and wide enough to clear the
-  // body it has to enclose
-  const SHIELD_R = bubble ? 1.12 : 0.72, SHIELD_ARC = bubble ? Math.PI : Math.PI * 0.46;
-  const shieldGeo = new THREE.SphereGeometry(SHIELD_R, 30, 16, 0, Math.PI * 2, 0, SHIELD_ARC);
-  const shieldSkin = new THREE.Mesh(shieldGeo, shieldMat);
-  shieldSkin.rotation.x = Math.PI / 2;   // cap opens forward, along +Z
-  shieldRoot.add(shieldSkin);
-  // a faint edge, sitting exactly on the dome's lip so it reads as the field
-  // ending rather than as a frame drawn around it. A closed bubble has no lip,
-  // so the ring becomes its equator.
-  const rimMat = new THREE.MeshBasicMaterial({
-    color: 0x9fd0ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false,
-  });
-  const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(SHIELD_R * (bubble ? 1 : Math.sin(SHIELD_ARC)), 0.012, 8, 40), rimMat);
-  if (bubble) rim.rotation.x = Math.PI / 2;
-  else rim.position.z = SHIELD_R * Math.cos(SHIELD_ARC);
-  shieldRoot.add(rim);
-  shieldRoot.visible = false;
-  let shieldFlash = 0;
 
   // ---- hero ambient ----
   // The player is the one thing that must never be lost against a board, and
@@ -628,25 +538,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // both hands go to the shield, so the weapon is stowed while it is up
       const up = t > 0.5;
       if (up !== shieldUp) { shieldUp = up; showWeapon(); }
-      shieldRoot.visible = t > 0.02;
-      // it grows into place rather than popping, and sits flat until it is up
-      shieldRoot.scale.setScalar(0.55 + t * 0.45);
-      shieldMat.uniforms.uStrength.value = t;
-      rimMat.opacity = 0.22 * t;
+      shield.setStrength(t);
     },
-    shieldHit: () => { shieldFlash = 1; },
+    shieldHit: () => { shield.hit(); },
     setHeroLight: (intensity) => {
       heroAmbient = intensity;
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
-      shieldMat.uniforms.uTime.value = time;
-      if (shieldFlash > 0) {
-        // the ring runs out from the centre and the lip lifts with it
-        shieldFlash = Math.max(0, shieldFlash - dt * 3);
-        rimMat.opacity += shieldFlash * 0.3;
-      }
-      shieldMat.uniforms.uFlash.value = shieldFlash;
+      shield.update(dt, time);
       swap.update();
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);

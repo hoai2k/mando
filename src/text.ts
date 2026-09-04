@@ -115,10 +115,10 @@ export const TEXT = {
     takeCover: 'C / RB — take cover',
     rideVehicle: (name: string) => `C / RB — ride the ${name}`,
     driving: (name: string, hp: number, maxHp: number) =>
-      `${name} ${hp}/${maxHp} · A gas · B brake · RB off`,
+      `${name} ${hp}/${maxHp} · stick drives · A hop · B shield · RB off`,
     /** a living mount is ridden, not driven: it charges, and your gun hand is free */
     riding: (name: string, hp: number, maxHp: number, charge: string) =>
-      `${name} ${hp}/${maxHp} · A go · B stop · X ${charge} · RT fire · RB off`,
+      `${name} ${hp}/${maxHp} · A hop · B shield · X ${charge} · RT fire · RB off`,
     chargeReady: 'charge',
     chargeWait: 'charge…',
     reforming: 'RE-FORMING',
@@ -277,9 +277,10 @@ export const TEXT = {
     ] as Array<[string, string]>,
     driving: [
       ['Mount a parked ride · get off', 'RB · C'],
-      ['Accelerate', 'A · W'],
-      ['Brake, then reverse', 'B · S'],
-      ['Steer', 'Left stick · A · D'],
+      ['Accelerate · brake, then reverse', 'Left stick ↑↓ · W S'],
+      ['Steer', 'Left stick ←→ · A D'],
+      ['Hop — a kick off the repulsors', 'A · Space'],
+      ['Shield the ride (hold) — turns fire, not walls', 'B · R'],
       ['Boost', 'LB · Shift'],
       ['Charge — on a bantha', 'X · F'],
       ['Fire from the saddle — on a bantha', 'RT · Left mouse'],
