@@ -156,7 +156,30 @@ const post = await h.page.evaluate(() => {
 check('the wreck stays in the roster, dead', post.n === 6 && !post.vAlive, `${post.n} rides`);
 check('rider survives the ejection', post.alive);
 // a dead ride is not a target and not on the radar (both read `alive`)
+//
+// Nineteen and a half seconds of stepping is nineteen and a half seconds of a
+// live wave shooting at a rider who is now on foot, and whether it leaves him
+// standing is luck. That luck has failed this suite two different ways: the
+// mount below reading `p.vehicle` as null and crashing, and the redirect check
+// reporting a 20-point hit as doing nothing at all — both of them "he was dead
+// before the check ran". What is measured here is the respawn clock, and then
+// *where* a hit lands once he is back on a ride; neither is about surviving
+// the desert. So he is armoured for the length of the wait and handed back a
+// whole body — and the wave is left alone, because the charge test below needs
+// something alive to trample.
+const guard = await h.page.evaluate(() => {
+  const p = window.__game.players[0];
+  const was = p.maxHp;
+  p.maxHp = 1e6;
+  p.hp = 1e6;
+  return was;
+});
 await h.step(19.5);
+await h.page.evaluate(([was]) => {
+  const p = window.__game.players[0];
+  p.maxHp = was;
+  p.hp = was;
+}, [guard]);
 const back = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
