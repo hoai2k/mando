@@ -352,6 +352,39 @@ export class PhysicsWorld {
     return best;
   }
 
+  /**
+   * The most open bearing from a point: the compass yaw with the most clear
+   * ground in front of it, out to `probe` metres.
+   *
+   * What this is for is the corner you re-form in. A respawn drops a body
+   * wherever the checkpoint is, facing whatever the last camera happened to
+   * be looking at — which in a walled room is usually the wall 40 cm from
+   * your visor, so the first thing a fresh body does is turn around. Facing
+   * the open side instead means the run resumes on the first step.
+   *
+   * `prefer` is the bearing to keep where the answer is a tie — the camera's
+   * current one, so standing in the open never spins the view for no reason.
+   * Ties are broken by `PREFER_BONUS` metres' worth of agreement, which a
+   * real wall (metres of difference) always outweighs.
+   */
+  openBearing(x: number, y: number, z: number, prefer = 0, probe = 12): number {
+    const PREFER_BONUS = 2.5;
+    const N = 16;
+    const dir = new THREE.Vector3();
+    const from = new THREE.Vector3(x, y, z);
+    let bestYaw = prefer;
+    let bestScore = -Infinity;
+    for (let i = 0; i < N; i++) {
+      const yaw = (i / N) * Math.PI * 2;
+      dir.set(Math.sin(yaw), 0, Math.cos(yaw));
+      const hit = this.raycast(from, dir, probe);
+      const clear = hit ? hit.dist : probe;
+      const score = clear + PREFER_BONUS * Math.cos(yaw - prefer);
+      if (score > bestScore) { bestScore = score; bestYaw = yaw; }
+    }
+    return bestYaw;
+  }
+
   groundNormal(x: number, z: number): THREE.Vector3 {
     if (!this.heightAt) return new THREE.Vector3(0, 1, 0);
     const e = 0.5;
@@ -361,8 +394,13 @@ export class PhysicsWorld {
   }
 }
 
-/** Ray vs upright finite cylinder: infinite-side quadratic, then the two caps. */
-function rayCylinder(o: THREE.Vector3, d: THREE.Vector3, c: StaticCylinder, maxDist: number): RayHit | null {
+/**
+ * Ray vs upright finite cylinder: infinite-side quadratic, then the two caps.
+ *
+ * Exported because a cylinder is also the shape of a body — the camera keeps
+ * itself out of the big ones with this, and they are not in `cylinders`.
+ */
+export function rayCylinder(o: THREE.Vector3, d: THREE.Vector3, c: StaticCylinder, maxDist: number): RayHit | null {
   const ox = o.x - c.x, oz = o.z - c.z;
   const a = d.x * d.x + d.z * d.z;
   let best = Infinity;

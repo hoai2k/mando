@@ -1283,14 +1283,29 @@ diff the two to find out. Implemented on branch
   `VehicleSpec.y` is new so a ride sits on the plate it was parked on rather
   than on the territory ninety metres below. The **road/chase** beat runs on
   the Dune Sea, the Lava Flats and the Great Forge.
-- **The way back** — `?backup=missions` runs the previous room chain whole
-  (`world/mission-legacy.ts`, `game/campaign-legacy.ts`). Both satisfy
+- **Which one runs** — the room chain (`world/mission-legacy.ts`,
+  `game/campaign-legacy.ts`) is what Missions runs; **this design is behind
+  `?missions=new`** (see "Demoted to experimental" below). Both satisfy
   `MissionController`; nothing else in the game branches on which is running.
 - **Tests** — `tools/test-missions.mjs`: the build, the borders, the ceiling
   (including a measured jetpack burn and a flier that must come down before
   it shoots), a golden-path walkthrough to liberation, the transport doors
-  both ways with the cancel, a per-board audit of all nine, and the backup
+  both ways with the cancel, a per-board audit of all nine, and the mode
   flag.
+
+**Demoted to experimental (2026-09-03).** Played rather than measured, the
+outdoor chain does not yet deliver rule 1 ("begin outdoors") or rule 2 ("vary
+the volume"). Every outdoor zone is rimmed on all four sides by a wall that
+must clear the flight ceiling, so the Dune Sea's trailhead — a 56 x 44 m
+`open` zone under a 45.6 m ceiling — is walled by four 48 m slabs standing
+1.5 m outside its own rect, with the board's own mesa at (-95, -25) standing
+through the west rim. What it reads as from inside is a box canyon with
+random rock in it: neither outdoor nor indoor, and no way to tell the level's
+walls from the territory's landmarks. The trailhead of a ground stage no
+longer takes a rim (§ "no rim on a trailhead" in `world/mission.ts`), which
+is the first step and not the whole of it; the remaining work is the rim
+itself — standing it off from the fight, and letting a ground stage's border
+be the board's terrain where the board already has one.
 
 **Changed from the plan, on evidence.**
 

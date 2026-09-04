@@ -71,15 +71,25 @@ export function ceilingOverride(): number | null {
 }
 
 /**
- * `?backup=missions` — run the previous Missions level design (the walled
- * room chain, `world/mission-legacy.ts` + `game/campaign-legacy.ts`) instead
- * of the outdoor stages. Kept as a one-flag path back while the new design
- * settles; both are built and tested, and nothing else in the game branches
- * on it.
+ * `?missions=new` — run the **experimental** outdoor Missions level design
+ * (the stage chain, `world/mission.ts` + `game/campaign.ts`) instead of the
+ * walled room chain.
+ *
+ * The two swapped places on 2026-09-03. The outdoor design shipped as the
+ * default and did not survive contact: a territory stage rims every outdoor
+ * zone with a wall that has to clear the flight ceiling, so the Dune Sea's
+ * trailhead came out as a 56 x 44 m box with 48 m sides — cramped, and
+ * neither outdoor nor indoor to stand in. Until that reads the way
+ * docs/MISSIONS_OUTDOOR.md describes, Missions runs the room chain that
+ * plays, and the outdoor stages are one flag away for anyone working on them.
+ *
+ * `?backup=missions` — the old spelling, from when this was the other way
+ * round — still names the room chain, which is now simply the default.
+ * Nothing else in the game branches on either flag.
  */
-export function missionsBackup(): boolean {
+export function missionsOutdoor(): boolean {
   try {
-    return new URLSearchParams(window.location.search).get('backup') === 'missions';
+    return new URLSearchParams(window.location.search).get('missions') === 'new';
   } catch {
     return false;
   }

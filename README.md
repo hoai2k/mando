@@ -68,7 +68,9 @@ The title screen offers three modes:
 | **Missions** | The campaign: a path across the galaxy on a shared screen, door-gated corridors between arenas, a boss holding each territory. |
 
 Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
-one-button title and the wave game on its own.
+one-button title and the wave game on its own, or `?missions=new` for the experimental
+outdoor Missions level design ([`docs/MISSIONS_OUTDOOR.md`](docs/MISSIONS_OUTDOOR.md))
+in place of the room chain Missions ships with.
 
 Then pick a territory, and pick your fighter. Eight of them, in two families — the covert's
 Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,

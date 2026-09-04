@@ -27,7 +27,8 @@ const _probe = new THREE.Vector3();
  * transport doors that swap one stage for the next.
  *
  * The previous design — one walled room chain per territory — is kept whole
- * in `campaign-legacy.ts` behind `?backup=missions`.
+ * in `campaign-legacy.ts`, and is what Missions runs unless `?missions=new`
+ * asks for this one.
  */
 
 /** how close to the exit point counts as "through" a walked zone */

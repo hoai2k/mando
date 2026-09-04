@@ -24,7 +24,8 @@ import type { BoardId } from './board';
  * geometry while keeping its own sky, fog, ambience, gravity and wave tables.
  * Everything here is geometry + data; `game/campaign-legacy.ts` owns the flow.
  *
- * **This is the previous design**, kept whole behind `?backup=missions` — see
+ * **This is the design Missions runs by default** — the outdoor stage chain
+ * that briefly replaced it is behind `?missions=new` — see
  * docs/MISSIONS_OUTDOOR.md, which supersedes it, and `world/mission.ts`,
  * which builds the outdoor stages that replaced it. Only the `Gate` class has
  * moved out (to `world/gate.ts`, shared with the new builder); everything

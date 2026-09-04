@@ -5,8 +5,9 @@
  * cameras, sealed fights, bosses, liberation. This is about the level design
  * that replaced the room chain: the shells and their borders, the flight
  * ceiling and the sky it cuts in two, the stages and their transport doors,
- * the guidance, and the rides. It also checks that `?backup=missions` still
- * puts the old room chain back, since that is the whole point of keeping it.
+ * the guidance, and the rides. That design is experimental and lives behind
+ * `?missions=new`, so every check here asks for it; the last section checks
+ * that the plain URL still runs the walled room chain, which is the default.
  *
  * The headless GPU renders this game at a crawl, so the checks drive the
  * *simulation* directly: `__manual` pauses the live loop and `game.update` is
@@ -40,12 +41,22 @@ const STEP = `(args) => {
 
 const step = (n, over = null) => page.evaluate(STEP, [n, over]);
 
-const startMode = async (mode, players, board, chars, query = '') => {
-  if (query) {
-    // `?board=reload` is not a game flag — it is how this suite asks for a
-    // fresh page without changing anything the game reads.
-    await page.goto(`http://localhost:${PORT}/${query === '?board=reload' ? '' : query}`);
+/**
+ * `?missions=new` is what raises the outdoor stages — Missions runs the walled
+ * room chain by default (docs/MISSIONS_OUTDOOR.md, "Demoted to experimental"),
+ * so every check in this file has to ask for the design it is about. Pass
+ * `reload` where a check wants a fresh page on the flag it is already on
+ * (the per-board audit builds nine levels and does not want the last one's
+ * geometry still standing).
+ */
+const OUTDOOR = '?missions=new';
+/** the query the page currently stands on, so only a change costs a reload */
+let onQuery = null;
+const startMode = async (mode, players, board, chars, query = OUTDOOR, reload = false) => {
+  if (reload || query !== onQuery) {
+    await page.goto(`http://localhost:${PORT}/${query}`);
     await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
+    onQuery = query;
   }
   await page.evaluate(([m, n, b, c]) => {
     window.__manual = false;
@@ -103,12 +114,27 @@ const rim = await page.evaluate(() => {
     const n = o.geometry?.attributes?.position?.count ?? 0;
     if (n > 5000) { bigMeshes++; rockVerts += n; }
   });
+  // ...and the trailhead is the one outdoor zone that gets none of them: a
+  // rim has to clear the ceiling whatever it rings, and a 45 m wall 1.5 m
+  // outside a 56 x 44 m opening zone is a box canyon, not the Dune Sea.
+  // A rim run is a slab laid along one edge of the zone it rings, so its
+  // centre sits on that edge; a link's or the next zone's rim has its centre
+  // well outside. Counting centres inside the rect (with the 1.5 m the rim
+  // stands off it, and a little slack) is what tells the two apart.
+  const z0 = s.zones[0].rect;
+  const mid = (a, b) => (a + b) / 2;
+  const boxedIn = walls.filter((b) => {
+    const cx = mid(b.min.x, b.max.x), cz = mid(b.min.z, b.max.z);
+    return cx > z0.minX - 3 && cx < z0.maxX + 3 && cz > z0.minZ - 3 && cz < z0.maxZ + 3;
+  }).length;
   return {
-    walls: walls.length, over: over.length, bigMeshes, rockVerts,
+    walls: walls.length, over: over.length, bigMeshes, rockVerts, boxedIn,
     ceiling: s.ceilingY - s.floorY,
   };
 });
-check('the borders hold the level in', rim.walls > 8, `${rim.walls} wall runs`);
+check('the borders hold the level in', rim.walls >= 5, `${rim.walls} wall runs`);
+check('...but not the trailhead, which the territory holds', rim.boxedIn === 0,
+  `${rim.boxedIn} wall runs around the opening zone`);
 check('and every one of them clears the flight ceiling',
   rim.walls > 0 && rim.over === rim.walls, `${rim.over}/${rim.walls} over ${rim.ceiling} m`);
 check('the rock they are made of is merged, not a mesh per boulder',
@@ -367,7 +393,7 @@ for (const board of boards) {
   // box runs out of memory somewhere around the seventh — a crash that says
   // nothing about any of the levels. Reloading costs a few seconds and makes
   // the result mean what it says.
-  await startMode('campaign', 1, board, ['din'], '?board=reload');
+  await startMode('campaign', 1, board, ['din'], OUTDOOR, true);
   const audit = await page.evaluate(() => {
     const g = window.__game;
     const c = g.campaign;
@@ -398,24 +424,35 @@ for (const board of boards) {
   check(`${board}: the ceiling clears a jetpack burn`, audit.ceiling >= 33, `${audit.ceiling} m`);
 }
 
-// ---------------------------------------------------------------- the way back
+// ---------------------------------------------------------------- the default
 
-await startMode('campaign', 1, 'desert', ['din'], '?backup=missions');
-const legacy = await page.evaluate(() => {
+// The outdoor chain is experimental and the room chain is what Missions runs
+// with no flag at all, so the plain URL is the case that matters most here.
+// What is running is told by what it *has*, not by its class name: the bundle
+// is minified, so `constructor.name` is two letters in a build. The room chain
+// has `level.rooms`; the outdoor stages have `stage.zones`.
+const chainOf = () => page.evaluate(() => {
   const c = window.__game.campaign;
-  // What is running is told by what it *has*, not by its class name: the
-  // bundle is minified, so `constructor.name` is two letters in a build. The
-  // room chain has `level.rooms`; the outdoor stages have `stage.zones`.
   return {
     rooms: c.level?.rooms?.map((r) => r.spec.kind).join(','),
     hasStages: !!c.stage,
     ceiling: window.__game.ceilingY,
   };
 });
-check('?backup=missions puts the old room chain back',
-  !legacy.hasStages && legacy.rooms?.startsWith('start') && legacy.rooms?.endsWith('warlord'),
+
+await startMode('campaign', 1, 'desert', ['din'], '');
+const plain = await chainOf();
+check('with no flag Missions runs the room chain',
+  !plain.hasStages && plain.rooms?.startsWith('start') && plain.rooms?.endsWith('warlord'),
+  `stages=${plain.hasStages}: ${plain.rooms}`);
+check('and the room chain runs without a ceiling over it', plain.ceiling === null, String(plain.ceiling));
+
+// the old spelling names the same room chain it always did — now by being the
+// default rather than by branching
+await startMode('campaign', 1, 'desert', ['din'], '?backup=missions');
+const legacy = await chainOf();
+check('?backup=missions still names the room chain', !legacy.hasStages && !!legacy.rooms,
   `stages=${legacy.hasStages}: ${legacy.rooms}`);
-check('and the room chain runs without a ceiling over it', legacy.ceiling === null, String(legacy.ceiling));
 
 await h.close();
 console.log(failures.length ? `\n${failures.length} FAILED` : '\nall good');

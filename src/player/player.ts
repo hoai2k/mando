@@ -144,6 +144,31 @@ const BLOCK_SPEED = 3.2;
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 /**
+ * Outer space, as the *vertical* has to decide it: the gravity scale at or
+ * under which the pull where you are standing counts as none at all.
+ *
+ * The Spice Run is the board this is for. Its field is a real 0.45 g directly
+ * over a deck and nothing at all out in the open, blending across the
+ * eighteen metres between — so this threshold is a *place* on that board
+ * rather than the whole of it: true out among the platforms and under the
+ * void plane, false again about ten metres above something you could land
+ * on, which is exactly where the pull should take over and set you down.
+ *
+ * Deliberately looser than `ZERO_G`, which is the horizontal's line (see
+ * `coasting`). The two axes want different answers: momentum should be kept
+ * only where there is genuinely nothing to push against, while altitude
+ * should stop drifting as soon as there is nothing to fall towards. Between
+ * the two — roughly ten to fifteen metres over a deck — you hold your height
+ * and still steer against the deck below, which is the reading that keeps a
+ * platform fight feeling like a platform fight.
+ */
+const SPACE_GRAVITY = 0.15;
+/** how fast a vertical drift bleeds to nothing out there (per second) */
+const SPACE_STOP = 4;
+/** the descent B settles at in the vacuum, m/s, and how briskly it gets there */
+const SPACE_SINK = 6;
+const SPACE_SINK_CATCH = 4.5;
+/**
  * Landing, by the speed the ground was met at (m/s).
  *
  * A plain jump tops out at JUMP_VEL and comes back down at it, so the floor
@@ -710,10 +735,33 @@ export class Player {
       this.formT = DISSOLVE_TIME;
       this.setOpacity(0);
       this.cam.glideFrom(0.9);
+      // Where the view *ends up* is settled by `faceOpenGround`, which the
+      // caller runs once the body is placed: a checkpoint inside a room hands
+      // out spots against a wall, and swinging the look onto the new body
+      // from wherever the old one died left half of them staring into one.
       const look = p.clone();
       look.y += this.height;
       this.cam.snapToward(look, 0.5);
     }
+  }
+
+  /**
+   * Turn a freshly placed body — and its camera — toward the open side.
+   *
+   * Called after a spawn rather than inside `spawnAt`, because the answer
+   * depends on the world and `spawnAt` is handed nothing but a point. A body
+   * re-formed in a corner used to come back facing the corner: the camera
+   * kept the bearing the last body died on, the legs kept the last facing,
+   * and the first second of a fresh life was spent turning round. Now both
+   * point down the clearest line out of the spot, which in the open is
+   * whatever the camera was already looking at (see `openBearing`).
+   */
+  faceOpenGround(game: Game): void {
+    const yaw = game.board.physics.openBearing(
+      this.position.x, this.position.y + this.height * 0.55, this.position.z, this.cam.yaw);
+    this.facingYaw = yaw;
+    this.char.root.rotation.y = yaw;
+    this.cam.face(yaw);
   }
 
   /** the takeover possesses a body already standing: no re-form on its spawnAt */
@@ -1566,6 +1614,15 @@ export class Player {
     // eases right off: you drift, and a tap of jetpack lifts you back out.
     const board = game.board;
     const inVoid = board.voidY !== undefined && this.position.y < board.voidY && !this.grounded;
+    // The pull acting here: the board's own field, or the flat void scale
+    // under it. A local field is about where you can land, and under the board
+    // there is nowhere.
+    const localG = inVoid ? (board.gravity ?? 1) * (board.voidGravity ?? 0.15) : this.gravity(board);
+    // ...and whether that adds up to standing in space at all. The Spice Run's
+    // field is a real 0.45 g over a deck and almost nothing between the
+    // platforms, so this is a *place*, not a board: out in the open it is
+    // true, and it stops being true a dozen metres above something to land on.
+    const weightless = !this.grounded && localG <= SPACE_GRAVITY;
     if (this.dashTimer <= 0) {
       // a super jumper feathers the fall: holding A on the way down is a
       // controlled drop — lighter gravity, a capped fall speed — never a rise
@@ -1580,15 +1637,26 @@ export class Player {
         // the drift bleeds off with it, so a shot can be held on a line
         this.velocity.x = damp(this.velocity.x, 0, GLIDE_DRAG, dt);
         this.velocity.z = damp(this.velocity.z, 0, GLIDE_DRAG, dt);
+      } else if (weightless) {
+        // ---- out in the vacuum ----
+        // Momentum out here is horizontal only. There is nothing to fall
+        // towards, so a nudge up or down used to be kept forever and the
+        // whole board drifted away under you; now the vertical bleeds off
+        // the moment nothing is pushing on it and altitude is something you
+        // hold. Up is the pack (A). Down is the shield (B): a reverse burn
+        // easing to a set descent, rather than the 16 m/s² brace-and-drop
+        // that a floor would have caught — out here nothing catches it, so
+        // holding B was a dive to the kill plane.
+        if (this.blocking) {
+          this.velocity.y = damp(this.velocity.y, -SPACE_SINK, SPACE_SINK_CATCH, dt);
+        } else if (this.thrusting <= 0 && !this.superRising) {
+          this.velocity.y = damp(this.velocity.y, 0, SPACE_STOP, dt);
+        }
       } else {
         const gScale = this.superRising ? 0
           : this.superGliding ? SUPERJUMP_GLIDE
           : this.jetEasing ? JET_DESCENT_GRAV : 1;
-        // The void keeps the board's flat scale: a local field is about where
-        // you can land, and under the board there is nowhere — leaving the drift
-        // on the field would hang a fallen player in the dark forever.
-        const g = inVoid ? (board.gravity ?? 1) * (board.voidGravity ?? 0.15) : this.gravity(board);
-        this.velocity.y -= GRAVITY * g * gScale * dt;
+        this.velocity.y -= GRAVITY * localG * gScale * dt;
         if (this.superGliding && this.velocity.y < -SUPERJUMP_FALL) this.velocity.y = -SUPERJUMP_FALL;
         if (this.jetEasing && this.velocity.y < -JET_DESCENT_FALL) this.velocity.y = -JET_DESCENT_FALL;
         // A brace wants the ground under it: raising the shield mid-air kills
@@ -1621,12 +1689,45 @@ export class Player {
     return drop >= 0 && drop <= GROUND_PROBE ? drop : Infinity;
   }
 
+  /**
+   * Out of a body too big to walk through (`Game.bigBodies`).
+   *
+   * A monster is a capsule the enemy solver carries; the world's colliders
+   * know nothing about it, so the capsule move never met one and you strolled
+   * through the middle of a krayt dragon. This is the same radial push-out the
+   * physics world does for a rock, run against the live list of the big ones —
+   * grunts are deliberately not in it, because a crowd you cannot walk through
+   * is a crowd that pins you against a wall.
+   *
+   * Horizontal only, and never while riding: standing on a monster's back is
+   * not a thing this game promises, and a ride carries its own hull.
+   */
+  private pushOutOfBigBodies(game: Game): void {
+    if (this.vehicle || !this.alive) return;
+    for (const b of game.bigBodies) {
+      const head = this.position.y + this.height;
+      if (head <= b.minY || this.position.y >= b.maxY) continue;
+      const reach = b.r + this.radius;
+      let dx = this.position.x - b.x, dz = this.position.z - b.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= reach * reach) continue;
+      let d = Math.sqrt(d2);
+      if (d < 1e-5) { dx = 1; dz = 0; d = 1; }   // dead centre: shove somewhere
+      const nx = dx / d, nz = dz / d;
+      this.position.x = b.x + nx * reach;
+      this.position.z = b.z + nz * reach;
+      const into = this.velocity.x * nx + this.velocity.z * nz;
+      if (into < 0) { this.velocity.x -= into * nx; this.velocity.z -= into * nz; }
+    }
+  }
+
   /** the capsule move, and what meeting the ground does: the crouch, and a slam */
   private integrateAndLand(dt: number, game: Game, anim: Animator): void {
     // how hard the ground is about to be met: the collision resolve takes the
     // downward velocity away, so the impact has to be read before the move
     const impact = this.grounded ? 0 : -this.velocity.y;
     const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    this.pushOutOfBigBodies(game);
     if (res.grounded && !this.wasGrounded) {
       audio.land(this.slamming || impact > 14);
       game.particles.dustPuff(this.position, this.slamming ? 18 : 6);

@@ -23,7 +23,8 @@ const _probe = new THREE.Vector3();
  * watches through their own camera — Missions splits the screen exactly like
  * the wave game.
  *
- * **This is the previous design**, kept whole behind `?backup=missions`
+ * **This is the design Missions runs by default**; the outdoor stage chain
+ * that briefly replaced it is behind `?missions=new`
  * (docs/MISSIONS_OUTDOOR.md supersedes it). The outdoor stage runner that
  * replaced it is `game/campaign.ts`; both satisfy `MissionController`, and
  * `rules/campaign-rules.ts` picks between them on the flag. Nothing here has

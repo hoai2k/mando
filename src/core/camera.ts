@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle, yawBasis } from './math';
 import { config } from '../config';
-import type { PhysicsWorld } from './physics';
+import { rayCylinder, type PhysicsWorld, type StaticCylinder } from './physics';
 
 /**
  * Default chase distance, and the range the right-stick dolly can set.
@@ -56,6 +56,26 @@ const REF_REACH = 0.5;
 const BODY_CLEARANCE = 0.85;
 /** a wide body pushes the over-the-shoulder step out too, but only so far */
 const MAX_SHOULDER_SCALE = 3;
+/**
+ * Air kept between the lens and a big body it would otherwise sit inside.
+ *
+ * The world's colliders are in `PhysicsWorld`; the monsters are not — a
+ * krayt dragon or a rancor is a capsule the enemy solver carries, invisible
+ * to the raycast that keeps the camera out of walls. So one backed into
+ * during a boss fight swallowed the camera whole, and the shot became the
+ * inside of its hide. `blockers` is the game's live list of the big ones,
+ * and the chase ray treats them exactly as it treats a rock.
+ */
+const BLOCKER_PAD = 0.35;
+/**
+ * ...and the ground, which the camera used to be able to dip under.
+ *
+ * `raycast` marches the heightfield in fixed 0.6 m steps, so a ridge or a
+ * dune crest between two samples is a hole the lens goes through and the
+ * shot is suddenly the underside of the world. The march finds the far
+ * ones; this is the floor under the result, which cannot be stepped over.
+ */
+const CAM_GROUND_CLEAR = 0.4;
 
 // ---- dynamic follow ----
 // The chase distance is the dialled-in `baseDist` times a pace multiplier, so
@@ -133,6 +153,12 @@ export class ThirdPersonCamera {
   private tmpTarget = new THREE.Vector3();
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
+  private tmpBack = new THREE.Vector3();
+  /**
+   * Bodies too big to see past, as cylinders: the game refreshes this list in
+   * place every frame, so the camera holds the array rather than a copy.
+   */
+  blockers: readonly StaticCylinder[] = [];
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(72, aspect, 0.1, 2000);
@@ -171,6 +197,20 @@ export class ThirdPersonCamera {
    * lens inside a war beast is not a framing anyone chose.
    */
   private get clearance(): number { return this.reach + BODY_CLEARANCE; }
+
+  /**
+   * Point the view along a bearing outright, cancelling any lock-on snap.
+   *
+   * Used where a body is placed rather than moved to — a respawn — so the
+   * camera comes back behind it looking the way it is meant to run, not at
+   * the wall it re-formed against. Position is still eased by `glideFrom`;
+   * this is only where the rig is looking.
+   */
+  face(yaw: number, pitch = -0.12): void {
+    this.yaw = yaw;
+    this.pitch = clamp(pitch, -1.25, 1.05);
+    this.snapT = 0;
+  }
 
   /** Pull the view onto a world point over ~0.15 s (aim-press lock-on). */
   snapToward(point: THREE.Vector3, duration = 0.15): void {
@@ -270,9 +310,22 @@ export class ThirdPersonCamera {
     this.tmpDesired.copy(head).addScaledVector(this.tmpDir, -this.dist);
 
     // collide camera with world
-    const back = this.tmpDir.clone().multiplyScalar(-1);
-    const hit = physics.raycast(head, back, this.dist + 0.3);
-    if (hit) this.tmpDesired.copy(head).addScaledVector(back, Math.max(hit.dist - 0.25, 0.3));
+    const back = this.tmpBack.copy(this.tmpDir).multiplyScalar(-1);
+    const reach = this.dist + 0.3;
+    const hit = physics.raycast(head, back, reach);
+    let stop = hit ? Math.max(hit.dist - 0.25, 0.3) : this.dist;
+    // ...and with the big bodies, which are not in the world's colliders
+    for (const b of this.blockers) {
+      const bh = rayCylinder(head, back, b, reach);
+      if (bh) stop = Math.min(stop, Math.max(bh.dist - BLOCKER_PAD, 0.3));
+    }
+    if (stop < this.dist) this.tmpDesired.copy(head).addScaledVector(back, stop);
+    // The ground is a floor under all of it: never below the surface, whatever
+    // the march between its samples missed.
+    if (physics.heightAt) {
+      const floor = physics.heightAt(this.tmpDesired.x, this.tmpDesired.z) + CAM_GROUND_CLEAR;
+      if (this.tmpDesired.y < floor) this.tmpDesired.y = floor;
+    }
 
     // hand-off glide: blend from the stored start toward the live chase
     // framing, so a body swap flies the view over instead of cutting

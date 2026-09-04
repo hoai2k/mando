@@ -10,8 +10,10 @@
  * point; over a deck it comes back, full strength, so landing and fighting on a
  * platform are exactly as they were.
  *
- * What is checked here is the shape of that field, and that no other board
- * grew one by accident.
+ * What is checked here is the shape of that field, that no other board grew
+ * one by accident, and what the field means for how a body moves inside it:
+ * no vertical drift out in the open, the shield as a reverse burn down, the
+ * pack as the way up, and the pull still landing you close over a deck.
  *
  * **Riding the freighter.** The visitor that lands on the north-east pad is a
  * mover, and its colliders are now fitted to the hull rather than being one box
@@ -127,6 +129,55 @@ const ride = await h.page.evaluate(`(async () => {
 
 check('the freighter actually moves during the test', ride.travelled > 1, ride);
 check('and a rider on its hull goes with it', ride.worstGap < 0.6, ride);
+
+// ---- how a body moves out in the vacuum ----
+//
+// Momentum out here is horizontal. There is nothing to fall towards, so a
+// nudge up or down used to be kept forever and the whole board drifted away
+// under you; and holding the shield — a brace that expects a floor to catch
+// it — was a dive at 16 m/s² to the kill plane. Altitude is something you
+// hold now: A to climb, B for a reverse burn down at a set speed, and
+// nothing at all to stay where you are. Close over a deck the board's own
+// field takes over again, which is what still lands you on one.
+const vacuum = await h.page.evaluate(`(() => {
+  const g = window.__game, p = g.players[0];
+  const blank = (o) => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
+    dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
+    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    pausePressed:false, ...(o || {}) });
+  const step = (n, o) => { const i = [blank(o), blank(o), blank(o), blank(o)];
+    for (let k = 0; k < n; k++) g.update(1/60, i); };
+  // out in the open, with nothing under it for a long way
+  const park = () => { p.position.set(40, 40, 40); p.velocity.set(0, 0, 0);
+    p.grounded = false; p.hp = p.maxHp; p.alive = true; p.energy = 1; p.fuel = 1; };
+  const out = {};
+  park(); p.velocity.y = 8; step(120);
+  out.upDrift = { vy: +p.velocity.y.toFixed(2), y: +p.position.y.toFixed(2) };
+  park(); p.velocity.y = -8; step(120);
+  out.downDrift = { vy: +p.velocity.y.toFixed(2), y: +p.position.y.toFixed(2) };
+  park(); p.velocity.x = 12; step(30);
+  out.horizontal = +(p.position.x - 40).toFixed(2);
+  park(); step(180, { blockHeld: true });
+  out.block = { vy: +p.velocity.y.toFixed(2), dropped: +(40 - p.position.y).toFixed(2) };
+  park(); step(60, { jumpHeld: true });
+  out.jet = { vy: +p.velocity.y.toFixed(2), climbed: +(p.position.y - 40).toFixed(2) };
+  // and a body a jump above a deck is still pulled onto it
+  p.position.set(0, 6, -6); p.velocity.set(0, 0, 0); p.grounded = false;
+  step(400);
+  out.overDeck = { y: +p.position.y.toFixed(2), grounded: p.grounded };
+  return out;
+})()`);
+
+check('a vertical nudge in open space bleeds off instead of drifting',
+  Math.abs(vacuum.upDrift.vy) < 0.2 && Math.abs(vacuum.downDrift.vy) < 0.2
+  && Math.abs(vacuum.upDrift.y - 40) < 4 && Math.abs(vacuum.downDrift.y - 40) < 4, vacuum);
+check('...while horizontal momentum still carries', vacuum.horizontal > 1, vacuum.horizontal);
+check('block is a reverse burn: a steady descent, not a dive',
+  vacuum.block.vy < -3 && vacuum.block.vy > -9 && vacuum.block.dropped > 8, vacuum.block);
+check('and the pack still climbs against it', vacuum.jet.climbed > 3, vacuum.jet);
+check('close over a deck the board\'s own pull still lands you',
+  vacuum.overDeck.grounded && vacuum.overDeck.y < 1, vacuum.overDeck);
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();

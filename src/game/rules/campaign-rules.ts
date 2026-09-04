@@ -3,7 +3,7 @@ import type { Player } from '../../player/player';
 import { openMatch, type ModeRules } from './rules';
 import { Campaign } from '../campaign';
 import { LegacyCampaign } from '../campaign-legacy';
-import { missionsBackup } from '../modes';
+import { missionsOutdoor } from '../modes';
 import type { MissionController } from '../mission-api';
 import { audio } from '../../core/audio';
 import { TEXT } from '../../text';
@@ -31,11 +31,11 @@ export class CampaignRules implements ModeRules {
     // trailhead, so it waits for players to exist; every player keeps their
     // own camera, split-screen as ever.
     //
-    // Which level: the outdoor stage chain (docs/MISSIONS_OUTDOOR.md), or the
-    // walled room chain it replaced when `?backup=missions` asks for it. The
+    // Which level: the walled room chain, or the experimental outdoor stage
+    // chain (docs/MISSIONS_OUTDOOR.md) when `?missions=new` asks for it. The
     // two are interchangeable behind `MissionController`, which is the whole
-    // point of the flag — a way back that costs one URL rather than a revert.
-    this.built = missionsBackup() ? new LegacyCampaign(this.g) : new Campaign(this.g);
+    // point of the flag — either design is one URL away rather than a revert.
+    this.built = missionsOutdoor() ? new Campaign(this.g) : new LegacyCampaign(this.g);
     this.g.campaign = this.built;
   }
 
