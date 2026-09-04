@@ -44,7 +44,6 @@ export function blankInput(over = {}) {
     meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
     ...over,
   };
 }
@@ -110,6 +109,59 @@ function padShim() {
   // No synthetic 'gamepadconnected' event: its constructor demands a real
   // Gamepad and rejects a plain object. The game polls getGamepads() every
   // frame anyway, so the pad is picked up on the next tick regardless.
+}
+
+/**
+ * Page-side simulation control, installed before the game's own scripts.
+ *
+ * This is the difference between a suite that takes twenty seconds and one
+ * that takes six minutes.
+ *
+ * Anything a suite wants to see happen in the match — a quake running out, a
+ * boss coming up, a burrowing animal completing its cycle — happens in
+ * `game.update(dt)`. Left to itself, that is called once per animation frame,
+ * and under `--use-gl=swiftshader` the page paints at one or two frames a
+ * second: four seconds of match are four minutes of waiting, and a suite that
+ * polls `setTimeout(100)` in that page is not sampling every 100 ms either,
+ * because the timer queue is starved along with everything else.
+ *
+ * `__manual` (a hook the game already had, for capture) stops the live loop
+ * and with it the rendering that was the whole cost. `__sim` then advances the
+ * match by hand at a fixed step, as fast as the physics can be computed —
+ * seconds of match in milliseconds, and deterministically, which is the second
+ * prize: no result here depends on how quickly the machine happened to draw.
+ *
+ * `__simUntil` is the shape the suites actually want: run until something is
+ * true, up to a cap, and say when it happened.
+ */
+function simShim(BLANK) {
+  const inputsFor = (over) => [
+    { ...BLANK, ...over }, { ...BLANK }, { ...BLANK }, { ...BLANK },
+  ];
+  /** advance `seconds` of match time; returns the game for chaining */
+  window.__sim = (seconds, over = {}, dt = 1 / 30) => {
+    const g = window.__game;
+    if (!g) throw new Error('__sim: no game running');
+    const inputs = inputsFor(over);
+    for (let i = 0, n = Math.max(1, Math.round(seconds / dt)); i < n; i++) g.update(dt, inputs);
+    return g;
+  };
+  /**
+   * Step until `done(game)` returns true, or `maxSeconds` of match time have
+   * passed. Returns the match seconds spent, or null if it never came true —
+   * so a suite can tell "it took a while" from "it never happened", which a
+   * bare timeout cannot.
+   */
+  window.__simUntil = (done, maxSeconds = 30, over = {}, dt = 1 / 30) => {
+    const g = window.__game;
+    if (!g) throw new Error('__simUntil: no game running');
+    const inputs = inputsFor(over);
+    for (let t = 0; t < maxSeconds; t += dt) {
+      if (done(g)) return +t.toFixed(3);
+      g.update(dt, inputs);
+    }
+    return done(g) ? +maxSeconds.toFixed(3) : null;
+  };
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -227,6 +279,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     if (!/authored/.test(m.text())) errors.push(m.text());
   });
   await page.addInitScript(padShim);
+  await page.addInitScript(simShim, blankInput());
   await page.goto(url, { waitUntil: 'networkidle' });
   await sleep(1500);
 
@@ -323,6 +376,65 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   }
 
   /**
+   * Take the match off the live loop (or hand it back).
+   *
+   * With it off, nothing renders and nothing updates until `__sim` says so.
+   * That is what makes stepping worth doing: the frame the suite is not
+   * waiting for is also the frame the software renderer is not drawing.
+   */
+  const manual = (on = true) => page.evaluate((v) => { window.__manual = v; }, on);
+
+  /** Wait for the app to be back on the title screen after `__quitToTitle()`. */
+  async function waitForTitle(timeoutMs = 20000) {
+    const t0 = Date.now();
+    for (;;) {
+      if (await page.evaluate(() => window.__state === 'title')) return;
+      if (Date.now() - t0 > timeoutMs) throw new Error(`still ${await page.evaluate(() => window.__state)} after ${timeoutMs}ms`);
+      await sleep(100);
+    }
+  }
+
+  /**
+   * Drop straight into a match and wait until it is actually live.
+   *
+   * The suites all used to write this as `evaluate(__startCoop)` followed by
+   * `sleep(9000)` or `sleep(10000)` — a guess at how long a board takes to
+   * come up, and wrong in both directions. A warm board is on screen in three
+   * seconds and the suite waited out the other seven; a cold one on a loaded
+   * machine can want more than ten, and the suite then read a menu screen and
+   * failed a game that works. There were a dozen of them across six suites,
+   * about two and a half minutes of standing still per run, and every one was
+   * a "passes locally, fails on CI" waiting for a slow enough machine.
+   *
+   * `__state` flips to 'playing' the moment the drop finishes, so ask.
+   */
+  async function startCoop(players = 1, board, timeoutMs = 90000) {
+    await toTitle();
+    await page.evaluate(([n, b]) => window.__startCoop(n, b), [players, board]);
+    await waitForPlaying(timeoutMs);
+  }
+
+  /** As `startCoop`, for the modes that need one: `pvp`, `missions`, `wave`. */
+  async function startMode(mode, players = 1, board, chars, timeoutMs = 120000) {
+    await toTitle();
+    await page.evaluate(([m, n, b, c]) => window.__startMode(m, n, b, c), [mode, players, board, chars]);
+    await waitForPlaying(timeoutMs);
+  }
+
+  /**
+   * Back to the title, ready to start something. The live loop has to be
+   * running for this: the drop that follows is animated by it, and a suite
+   * that stepped the last match by hand has left it switched off.
+   */
+  async function toTitle() {
+    await manual(false);
+    if (await page.evaluate(() => window.__state !== 'title')) {
+      await page.evaluate(() => window.__quitToTitle?.());
+      await waitForTitle();
+    }
+  }
+
+  /**
    * Advance game time directly. Software rendering runs at a few frames a
    * second, so waiting in wall-clock time for anything in-game is hopeless;
    * stepping the loop is both faster and deterministic.
@@ -346,7 +458,8 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   return {
     browser, page, pad, pads, errors,
-    text, waitForText, tapUntil, clickText, startMatch, waitForPlaying, step, game,
+    text, waitForText, tapUntil, clickText, startMatch, waitForPlaying, waitForTitle,
+    startCoop, startMode, manual, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
     close: async () => {
       await browser.close();

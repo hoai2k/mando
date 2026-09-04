@@ -502,8 +502,9 @@ model actually has.
 - **Firing from the saddle.** A machine takes both hands; an animal takes one. So a
   mounted rider keeps the blaster: RT fires, LT aims, the chest twists to the camera
   while the gun is up and settles back onto the animal's nose when it comes down. The
-  rocket rack and the blade stay stowed (X belongs to the charge), and the hull-soaks-
-  the-hits rule is unchanged — the bantha's 260 HP is between you and the fire.
+  rocket rack and the blade stay stowed (X belongs to the charge). The rider is still
+  the one in the open — the hide is not armour against what is aimed at the saddle —
+  unless the animal's deflector is up over both of them.
 
 **Where they are parked is a reachability constraint, not just flavour** (audited
 2026-08-30). A ride the party never walks past may as well not exist: the Forge and
@@ -520,11 +521,12 @@ ride parked 82–89 m *below* the floor the party walks — unreachable, un-moun
 still costing a model, a collider and a bolt target — so Missions no longer spawns them.
 
 **Mount / dismount:** RB (C on keyboard) near a parked vehicle mounts — the same
-contextual button as cover, and a vehicle in range wins the press. RB is also the only
+contextual button as cover, and a vehicle in range wins the press. RB is also the
 exit, and it reads the speedometer: step off a parked ride, **bail out of a moving
-one** — keeping its momentum and popping up into a jetpack chain. The rider sits a
-real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
-skins ride too).
+one** — keeping its momentum and popping up into a jetpack chain, which is the exit you
+want when the hull is about to go, since the hull going up is worth a real piece of you.
+The rider sits a real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig,
+so authored skins ride too).
 
 **Sitting on the seat, hands on the controls** (audited 2026-09-04, `anim/seating.ts`).
 Every number that places a rider was measured against the *procedural stand-in*, and
@@ -553,11 +555,34 @@ in the wrong place twice over. Both halves now ask the model.
 - The Nikto's swoop (an *enemy* on a static pose, not a pilotable ride) reads the same
   two measurements off the same sculpt the moment it lands.
 
-**Driving is a vehicle scheme, not a character one.** The stick does not point where to
-go; it **turns the nose** (left/right only), and speed comes off pedals: **A is the
-accelerator, B is the brake and then reverse** once it has come to a stop. On the
-keyboard that is W and S (Space and R also work, being the same buttons). LB is a boost
-impulse on a short cooldown.
+**Driving is a vehicle scheme on the character's own stick** (revised 2026-09-04). The
+stick still does not point where to go — left and right **turn the nose** — but forward
+and back are the throttle and the brake, exactly where they are on foot: push it to go,
+pull it to haul up and then **reverse** once stopped. It is analogue, like everything
+else that stick does, so half forward is half the ride's top speed held. On the keyboard
+that is W A S D, unchanged from walking. LB is a boost impulse on a short cooldown, and
+over the speed the stick is asking for the ride coasts back down to it rather than being
+clipped there, so a boost is still worth something with the stick buried.
+
+Freeing the two face buttons is the point of the change, because on a ride they now mean
+what they mean on foot:
+
+- **A hops it.** A kick off the repulsors — the field lets go for the length of the arc
+  and the ride simply falls until ride height catches it again — worth clearing a crate
+  line, a low wall or a body in the road, on a one-second cooldown so it is never a way
+  to travel. Heft costs lift: a swoop leaps, a laden skiff barely clears the sand. A
+  bantha gets it too; an animal jumps.
+- **B shields it.** The rider's own force field (the same one `src/fx/shieldfield.ts`
+  draws for a raised block) thrown round the hull as a closed bubble, over the ride and
+  the exposed person on top of it alike. It answers from every bearing, turns bolts back
+  out as the rider's own fire, and runs on **the rider's gauge** — the budget sprinting,
+  dodging and the on-foot block already share — so it is about four seconds, not a
+  state, and it drops the moment that gauge is empty.
+
+  **It turns attacks and only attacks.** A wall is not an attack: crash damage goes
+  straight through the bubble untouched, and so does the ride's own detonation. That is
+  the whole balance of it — a shielded ride is untouchable to everything on the board
+  and still exactly as fragile in your hands as it ever was.
 
 What the ride carries is a forward speed along its nose plus a sideways slide, and the
 slide is the point: grip bleeds it off over time, so a hard turn drifts before it
@@ -587,6 +612,14 @@ you reach it. At 0 HP the rider is thrown clear and the wreck explodes for real:
 knockdowns, chained breakables — **sized to the hull that made it** (`Vehicle.blastScale`
 feeds `explode`, which scales the fireball, the wave's reach and what it is worth), so
 a swoop going up beside you is survivable and a skiff going up beside you is not.
+
+**And it takes a piece of the rider with it** (2026-09-04). Thrown clear is not away:
+a hull detonating detonates *under* the person sitting on it, so on top of the blast
+wave the rider wears a direct hit scaled by the same `blastScale` — a swoop is a bad
+landing, a skiff is most of a Mandalorian. Nothing turns it, the deflector least of all:
+the bubble is between the ride and what is shooting at it, never between the ride and
+the wall it is about to be wrapped around. Crashing the thing you are riding has to
+stay the way you lose, or a shielded ride would be a free battering ram.
 
 **What actually hurts a ride** (second pass, 2026-09-03). Every hull is on roughly
 double its old HP, and two numbers on the def decide how it dies:

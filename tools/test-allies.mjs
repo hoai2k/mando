@@ -12,7 +12,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -21,8 +20,7 @@ function check(name, ok, detail) {
 
 const h = await launch();
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
-await h.page.evaluate(() => window.__startCoop(2, 'desert'));
-await sleep(9000);
+await h.startCoop(2, 'desert');
 
 // The cache waves are milestone waves; jump to the first one rather than
 // clearing waves of hostiles by hand.
@@ -61,7 +59,6 @@ const STEP_SETUP = `
     meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
   });
   const inputs = [blank(), blank(), blank(), blank()];
   const DT = 1 / 30;

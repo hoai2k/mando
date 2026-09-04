@@ -13,7 +13,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -24,8 +23,14 @@ const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
 
 // ---- 1. every delivered monster sculpt loads, at its designed size, animated ----
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+//
+// The sculpts are fetched and parsed, which is real elapsed time and has to be
+// waited for. What does not have to be waited for is the renderer: with the
+// live loop off, the download and the parse have the machine to themselves and
+// the poll below fires when it says it does, instead of whenever a starved
+// frame loop next lets a timer through.
+await h.startCoop(1, 'desert');
+await h.manual();
 const sizes = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -104,13 +109,7 @@ for (const kind of [...BURIED]) {
 // both sides of it.
 const solid = await h.page.evaluate(`(() => {
   const g = window.__game, p = g.players[0];
-  const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
-    dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
-    pausePressed:false });
-  const step = (n) => { const i = [blank(), blank(), blank(), blank()];
-    for (let k = 0; k < n; k++) g.update(1/60, i); };
+  const step = (n) => window.__sim(n / 60, {}, 1 / 60);
   const walkInto = (kind) => {
     const spot = p.position.clone();
     spot.x += 26;
@@ -143,11 +142,16 @@ check('a grunt is still something you can run through',
   solid.trooper.apart < 0.6, solid.trooper);
 
 // ---- 2. the warlord falling opens the second stage, and only then ends ----
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'station'));
-await sleep(10000);
-const stage = await h.page.evaluate(async () => {
+//
+// The quake between the two stages is four seconds of *match* time, and the
+// monster is placed on the far side of it. Watching for that by polling the
+// live loop is what made this suite the longest in the repository: under
+// software rendering the page paints about once a second, so four seconds of
+// match cost six minutes of waiting — per board. Step the simulation instead
+// and the same four seconds cost milliseconds.
+await h.startCoop(1, 'station');
+await h.manual();
+const stage = await h.page.evaluate(() => {
   const g = window.__game;
   const p = g.players[0];
   g.state = 'fighting';
@@ -157,17 +161,17 @@ const stage = await h.page.evaluate(async () => {
   g.nextWave();
   const warlord = g.boss;
   const warlordName = warlord.bossName;
-  await new Promise((r) => setTimeout(r, 500));
+  window.__sim(0.5);
   // drop the warlord and watch what the game does next
   warlord.damage(99999, p.position, 0);
   const seen = { staging: false, victoryDuringQuake: false };
   let monster = null;
-  for (let i = 0; i < 200; i++) {
-    if (g.monsterStaging) seen.staging = true;
-    if (g.state === 'victory' && !monster) seen.victoryDuringQuake = true;
-    if (g.boss && g.boss.alive && g.boss !== warlord) { monster = g.boss; break; }
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  window.__simUntil((live) => {
+    if (live.monsterStaging) seen.staging = true;
+    if (live.state === 'victory' && !monster) seen.victoryDuringQuake = true;
+    if (live.boss && live.boss.alive && live.boss !== warlord) { monster = live.boss; return true; }
+    return false;
+  }, 20);
   return {
     warlordName,
     quakeSeen: seen.staging,
@@ -187,23 +191,14 @@ check('victory is not called into the quake', !stage.victoryDuringQuake, stage);
 // rumble stops reading as the world moving and starts reading as the view
 // being broken.
 const rumble = await h.page.evaluate(`(() => {
-  window.__manual = true;
-  const blank = () => ({
-    moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
-    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
-    meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
-    zoomDelta: 0, blockHeld: false, pausePressed: false,
-    meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
-  });
-  const inputs = [blank(), blank(), blank(), blank()];
   const DT = 1 / 30;
+  const step = (n) => window.__sim(n * DT, {}, DT);
   const g = window.__game;
   const p = g.players[0];
   const home = p.position.clone();
   // out from under the monster's introduction first: it runs the simulation at
   // a fraction of real time, which would stretch every clock this measures
-  for (let i = 0; i < 400 && g.bossIntroT > 0; i++) g.update(DT, inputs);
+  window.__simUntil((live) => live.bossIntroT <= 0, 400 * DT);
   // nothing else is allowed to shake the camera while this is measured
   const park = () => { for (const e of g.enemies) e.position.set(home.x + 500, home.y, home.z); };
   const beat = (fly) => {
@@ -217,14 +212,14 @@ const rumble = await h.page.evaluate(`(() => {
     for (let i = 0; i < 40; i++) {
       park();
       if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
-      g.update(DT, inputs);
+      step(1);
     }
     p.cam.shakeAmt = 0;
     let peak = 0;
     for (let i = 0; i < 10; i++) {
       park();
       if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
-      g.update(DT, inputs);
+      step(1);
       peak = Math.max(peak, p.cam.shakeAmt);
     }
     g.monsterQuake = 0;
@@ -233,7 +228,6 @@ const rumble = await h.page.evaluate(`(() => {
   const onFoot = beat(false);
   const flying = beat(true);
   p.position.copy(home);
-  window.__manual = false;
   return { onFoot, flying };
 })()`);
 check('the quake shakes a player standing in it',
@@ -243,16 +237,15 @@ check('...and leaves one in the air alone',
 
 // and the match must actually be able to end: a stage that never clears its
 // own flag would leave a board nobody can finish
-const ending = await h.page.evaluate(async () => {
+const ending = await h.page.evaluate(() => {
   const g = window.__game;
   const p = g.players[0];
   // clear the field, monster and retinue alike — victory is "everything the
   // wave put up is down", which is what the two-stage flow must not strand
-  for (let i = 0; i < 200; i++) {
-    for (const e of g.enemies) if (e.alive) e.damage(99999, p.position, 0);
-    if (g.state === 'victory') break;
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  window.__simUntil((live) => {
+    for (const e of live.enemies) if (e.alive) e.damage(99999, p.position, 0);
+    return live.state === 'victory';
+  }, 20);
   return { state: g.state, staging: g.monsterStaging };
 });
 check('the monster comes up, with its own name and bar',
@@ -264,10 +257,8 @@ check('and the territory is held when it falls', ending.state === 'victory' && !
 // Four more monsters (docs/BOSSES.md §2.7–2.10) with no .glb yet: each has to
 // come up as a visible procedural body at its Def's numbers, so a boss you
 // cannot see never happens on the three boards that just gained one.
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const standIns = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -294,11 +285,9 @@ for (const [board, want] of [
   ['ringworld', { kind: 'nexu', name: 'The Night-Side Stalker', hp: 2800 }],
   ['narkina', { kind: 'kwazelMaw', name: 'The Thing in the Moon Pool', hp: 3800 }],
 ]) {
-  await h.page.evaluate(() => window.__quitToTitle());
-  await sleep(1500);
-  await h.page.evaluate((b) => window.__startCoop(1, b), board);
-  await sleep(10000);
-  const st = await h.page.evaluate(async () => {
+  await h.startCoop(1, board);
+  await h.manual();
+  const st = await h.page.evaluate(() => {
     const g = window.__game;
     const p = g.players[0];
     g.state = 'fighting';
@@ -306,13 +295,13 @@ for (const [board, want] of [
     g.wave = 7;
     g.nextWave();
     const warlord = g.boss;
-    await new Promise((r) => setTimeout(r, 500));
+    window.__sim(0.5);
     warlord.damage(99999, p.position, 0);
     let monster = null;
-    for (let i = 0; i < 200; i++) {
-      if (g.boss && g.boss.alive && g.boss !== warlord) { monster = g.boss; break; }
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    window.__simUntil((live) => {
+      if (live.boss && live.boss.alive && live.boss !== warlord) { monster = live.boss; return true; }
+      return false;
+    }, 20);
     return monster ? { kind: monster.kind, name: monster.bossName, hp: monster.hp } : null;
   });
   check(`${board}: the warlord falls and its monster comes up`,
@@ -320,10 +309,8 @@ for (const [board, want] of [
 }
 
 // ---- 5. the worm's cycle: under, up, under again — and only hurt while up ----
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const worm = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -344,6 +331,9 @@ const worm = await h.page.evaluate(async () => {
   };
   let head = null;
   for (let i = 0; i < 80 && !head; i++) { head = headOf(); if (!head) await new Promise((r) => setTimeout(r, 250)); }
+  // The cycle below is match time, not real time: the burrow states want about
+  // twelve seconds of it. Stepped, that is milliseconds; watched through the
+  // live loop under software rendering it was six minutes.
   const headY = () => {
     if (!head) return null;
     const v = new e.position.constructor();
@@ -364,7 +354,7 @@ const worm = await h.page.evaluate(async () => {
       if (upLanded === null) { const before = e.hp; e.damage(100, p.position, 0); upLanded = e.hp === before - 100; }
     }
     if (seen.size === 4 && underIgnored !== null && upLanded !== null && e.eruptions >= 1 && e.burrow === 'under' && seen.has('sinking')) break;
-    await new Promise((r) => setTimeout(r, 100));
+    window.__sim(0.1);
   }
   const out = { stages: [...seen], eruptions: e.eruptions, underIgnored, upLanded, sunkDepth, raisedDepth,
                 foundHead: !!head, alive: e.alive };
@@ -387,10 +377,8 @@ check('and the head actually goes under the sand and comes back out of it',
 // wrong space, or a bind matrix taken from a rest pose that is not the bind
 // pose — both leave the model looking fine until the bone turns, and then fling
 // the weighted vertices to the horizon. So this measures the travel.
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const jawRig = await h.page.evaluate(async () => {
   const g = window.__game, p = g.players[0];
   for (const e of g.enemies) e.removeMe = true;

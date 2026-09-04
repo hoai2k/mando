@@ -37,8 +37,8 @@ await h.waitForText(/WAVE BATTLE|PRESS START/i);
 const PROBE = `(spec) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const g = window.__game;
   const p = g.players[0];

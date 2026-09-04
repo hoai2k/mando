@@ -6,7 +6,7 @@
 
 import { ASSET_ROOT } from './assets';
 import { config } from '../config';
-import { MUSIC_BOSS, playlistFor } from './music';
+import { MUSIC_BOSS, MUSIC_MENU, playlistFor } from './music';
 import type { BoardId } from '../world/board';
 
 type SampleName =
@@ -1100,6 +1100,7 @@ export class AudioEngine {
   startMusic(kind: 'title' | 'desert' | 'station', board?: BoardId): void {
     if (!this.ctx) return;
     this.stopMusic();
+    this.musicTag = 'board';
     if (kind !== 'title') {
       // The board's signature track opens; its playlist is what follows.
       const { urls, hasLead } = playlistFor(kind, board);
@@ -1119,6 +1120,7 @@ export class AudioEngine {
   startBossMusic(kind: 'desert' | 'station', board?: BoardId): void {
     if (!this.ctx) return;
     this.stopMusic();
+    this.musicTag = 'boss';
     if (this.startPlaylist([MUSIC_BOSS], kind, 0)) return;
     this.startMusic(kind, board);
   }
@@ -1202,7 +1204,33 @@ export class AudioEngine {
     }
     this.musicStop = () => stops.forEach((s) => s());
   }
-  stopMusic(): void { this.musicStop?.(); this.musicStop = null; }
+  stopMusic(): void { this.musicStop?.(); this.musicStop = null; this.musicTag = null; }
+
+  /**
+   * What the music bus is playing, so asking for the same thing twice is a
+   * no-op rather than a restart. The menus ask on every screen change — title
+   * to territory to character select is three of them — and the score has to
+   * run through them instead of beginning again on each.
+   */
+  private musicTag: string | null = null;
+
+  /**
+   * The menus' score. Nothing ever started it: the engine has had a 'title'
+   * mode and a `music_title` loop since the first audio batch, but no screen
+   * ever asked for either, so every menu in the game has been silent. It plays
+   * the place-agnostic tracks, and a match takes the bus over when it starts.
+   */
+  startMenuMusic(): void {
+    if (!this.ctx || this.musicTag === 'menu') return;
+    this.stopMusic();
+    this.musicTag = 'menu';
+    // 'station' only picks the synth bed if every file fails; the menu tracks
+    // are not a board's, so neither flavor is more right than the other
+    if (this.startPlaylist(MUSIC_MENU, 'station')) return;
+    const sampled = this.loopSample('music_title', 0.5);
+    if (sampled) { this.musicStop = sampled; return; }
+    this.startSynthMusic('title');
+  }
 
   /**
    * Victory/defeat sting (sample only; wave sounds already cover fallback).

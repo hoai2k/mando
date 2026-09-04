@@ -24,14 +24,24 @@ const check = (name, ok, detail = '') => {
 // the modes are on by default now, so the plain URL is the mode-select case
 const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
-const sleepFrames = async (n) => { for (let i = 0; i < n; i++) await page.evaluate(() => new Promise(requestAnimationFrame)); };
+/**
+ * Wait out `n` animation frames.
+ *
+ * Counted page-side in one call: a round trip per frame turned an eight-frame
+ * pause into eight round trips, and the 280-frame one below into 280.
+ */
+const sleepFrames = (n) => page.evaluate((k) => new Promise((done) => {
+  let i = 0;
+  const tick = () => (++i >= k ? done() : requestAnimationFrame(tick));
+  requestAnimationFrame(tick);
+}), n);
 
 /** page-side simulation stepper: n fixed ticks with idle sticks */
 const STEP = `(n) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const g = window.__game;
   const inputs = [blank(), blank(), blank(), blank()];
@@ -141,7 +151,16 @@ check('pvp: last fighter standing takes the territory, with credit',
 // (endTimer runs 3 s on the wall clock), so un-pause it and give it its beat —
 // then the hero block holds the winner's face art
 await page.evaluate(() => { window.__manual = false; });
-await sleepFrames(280);
+// 280 frames was a guess at "three seconds at sixty a second", and a bad one:
+// this page paints about once a second under software rendering, so it spent
+// nearly five minutes waiting out a three-second transition. Watch for the
+// block instead, on a generous cap — if it never comes up, the check below
+// still reads `shown: false` and fails, which is the point of it.
+const heroUp = () => page.evaluate(() => {
+  const el = document.querySelector('.end-hero');
+  return !!el && el.style.display !== 'none';
+});
+for (let i = 0; i < 90 && !(await heroUp()); i++) await sleepFrames(4);
 const hero = await page.evaluate(() => {
   const el = document.querySelector('.end-hero');
   return {
@@ -162,8 +181,8 @@ s = await page.evaluate(`(() => {
   const g = window.__game;
   const blankIn = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, switchPressed:false, pausePressed:false });
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    switchPressed:false, pausePressed:false });
   const stepWith = (n, mut) => {
     for (let i = 0; i < n; i++) {
       const inputs = [blankIn(), blankIn(), blankIn(), blankIn()];

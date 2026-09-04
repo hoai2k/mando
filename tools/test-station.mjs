@@ -97,8 +97,8 @@ const ride = await h.page.evaluate(`(async () => {
   const p = g.players[0];
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const step = (n) => { for (let i = 0; i < n; i++) g.update(1/30, [blank(), blank(), blank(), blank()]); };
   const mover = g.board.movers[0];
@@ -143,8 +143,8 @@ const vacuum = await h.page.evaluate(`(() => {
   const g = window.__game, p = g.players[0];
   const blank = (o) => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false, ...(o || {}) });
   const step = (n, o) => { const i = [blank(o), blank(o), blank(o), blank(o)];
     for (let k = 0; k < n; k++) g.update(1/60, i); };

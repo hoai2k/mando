@@ -17,6 +17,14 @@ export const MUSIC_ANY: string[] = [
   'music/mando-capoeira.mp3',
 ];
 
+/**
+ * The menus' score, played from the first screen the player touches until a
+ * match takes the music over. These are the place-agnostic tracks on purpose:
+ * nothing here belongs to a territory, so arriving on one still sounds like
+ * arriving somewhere.
+ */
+export const MUSIC_MENU: string[] = [...MUSIC_ANY];
+
 /** Tracks tied to a board's flavor: dusty frontier vs. cold Imperial steel. */
 export const MUSIC_PLAYLISTS: Record<'desert' | 'station', string[]> = {
   desert: ['music/bone-totem-march-1.mp3', 'music/bone-totem-march-2.mp3'],
