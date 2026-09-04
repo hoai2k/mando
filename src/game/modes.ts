@@ -53,6 +53,49 @@ export function bossRush(): boolean {
 }
 
 /**
+ * `?ceiling=<m>` — the mission flight ceiling, for tuning it in play
+ * (docs/MISSIONS_OUTDOOR.md §2). The ceiling exists to stop a border being
+ * flown over and to cut the playable sky from the ambient sky above it; it is
+ * not meant to be felt in free flight, so the tuning direction is always up.
+ * Returns null when the URL says nothing and the layout's own value stands.
+ */
+export function ceilingOverride(): number | null {
+  try {
+    const v = new URLSearchParams(window.location.search).get('ceiling');
+    if (v === null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 10 && n <= 80 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `?missions=new` — run the **experimental** outdoor Missions level design
+ * (the stage chain, `world/mission.ts` + `game/campaign.ts`) instead of the
+ * walled room chain.
+ *
+ * The two swapped places on 2026-09-03. The outdoor design shipped as the
+ * default and did not survive contact: a territory stage rims every outdoor
+ * zone with a wall that has to clear the flight ceiling, so the Dune Sea's
+ * trailhead came out as a 56 x 44 m box with 48 m sides — cramped, and
+ * neither outdoor nor indoor to stand in. Until that reads the way
+ * docs/MISSIONS_OUTDOOR.md describes, Missions runs the room chain that
+ * plays, and the outdoor stages are one flag away for anyone working on them.
+ *
+ * `?backup=missions` — the old spelling, from when this was the other way
+ * round — still names the room chain, which is now simply the default.
+ * Nothing else in the game branches on either flag.
+ */
+export function missionsOutdoor(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('missions') === 'new';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Each territory's boss: its signature final-wave elite, promoted
  * (Enemy.promoteBoss) rather than a new character. Caps the wave game after
  * the final wave and holds the campaign's final arena — docs/MODES.md §4a.
@@ -63,7 +106,7 @@ export function bossRush(): boolean {
 export const BOSS_KIND: Record<BoardId, EnemyKind> = {
   desert: 'enforcer', station: 'capo', nevarro: 'officer',
   crevasse: 'broodmother', trask: 'capo', refinery: 'officer',
-  forge: 'enforcer', ringworld: 'duelist', narkina: 'officer',
+  forge: 'enforcer', ringworld: 'gunslinger', narkina: 'officer',
 };
 
 /** Banner/boss-bar name per territory. */
@@ -90,7 +133,7 @@ export const MID_BOSS: Record<BoardId, MidBossDef> = {
   // final monsters do. It used to be a promoted war massiff, which the Lava
   // Flats also field: no creature bosses two territories now.
   desert:    { kind: 'sandworm',     name: TEXT.bosses.lieutenant.desert, hp: 1, dmg: 1, bulk: 1 },
-  station:   { kind: 'duelist',      name: TEXT.bosses.lieutenant.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
+  station:   { kind: 'gunslinger',   name: TEXT.bosses.lieutenant.station, hp: 3.0, dmg: 1.3,  bulk: 1.15 },
   nevarro:   { kind: 'massiff',      name: TEXT.bosses.lieutenant.nevarro, hp: 2.6, dmg: 1.2, bulk: 1.3 },
   crevasse:  { kind: 'krykna',       name: TEXT.bosses.lieutenant.crevasse, hp: 14,  dmg: 2.0,  bulk: 1.9 },
   trask:     { kind: 'officer',      name: TEXT.bosses.lieutenant.trask, hp: 2.6, dmg: 1.25, bulk: 1.15 },

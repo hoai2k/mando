@@ -139,6 +139,23 @@ export class ProjectileSystem {
       step.copy(b.vel).multiplyScalar(dt);
       const stepLen = step.length();
       const from = b.mesh.position;
+      /**
+       * Where this step ends against the world — and nothing past that point
+       * is hittable.
+       *
+       * A step is as long as the weapon is fast: a bolt covers half a metre a
+       * frame at 60 Hz and three metres on a hitched one, and the sphere tests
+       * below are happy to report a contact anywhere along it. Testing bodies
+       * before the wall in front of them therefore let fire land on someone
+       * pressed against the far side of their cover — a metre of blast-door
+       * wall counted for nothing the moment the frame rate dipped, which is
+       * exactly when a player is hugging a doorway. The wall is found first
+       * now, the way the rockets have always done it, and the segment the
+       * bodies are tested against stops there.
+       */
+      const dir = _dir.copy(step).divideScalar(stepLen || 1);
+      const worldHit = stepLen > 0 ? physics.raycast(from, dir, stepLen) : null;
+      const reach = worldHit ? Math.min(worldHit.dist, stepLen) : stepLen;
 
       // the sea swallows bolts, both ways: fire doesn't reach a diver, and a
       // diver's fire doesn't reach the surface world — surface to fight
@@ -161,9 +178,9 @@ export class ProjectileSystem {
         if (!t.alive || t.team === b.team || !t.shield) continue;
         const sh = t.shield;
         // only the outward face blocks — you cannot shelter behind your own back
-        const face = -b.vel.dot(sh.normal) / (b.vel.length() || 1);
+        const face = -dir.dot(sh.normal);
         if (face <= (sh.minDot ?? 0)) continue;
-        if (!segSphere(from, step, stepLen, sh.center, sh.radius)) continue;
+        if (!segSphere(from, dir, reach, sh.center, sh.radius)) continue;
         if (sh.consume && !sh.consume()) continue;
         // hand the bolt to the blocker's team, so a good block is also a
         // counterattack: a pane mirrors it, blades throw it at a chosen point
@@ -177,10 +194,10 @@ export class ProjectileSystem {
         b.life = Math.min(b.life, 1.6);
         b.mesh.material = t.team === 0 ? this.matPlayer : this.matEnemy;
         b.glow.material = t.team === 0 ? this.glowPlayer : this.glowEnemy;
-        const dir = b.vel.clone().normalize();
-        b.mesh.quaternion.setFromUnitVectors(FORWARD, dir);
+        const away = b.vel.clone().normalize();
+        b.mesh.quaternion.setFromUnitVectors(FORWARD, away);
         b.glow.quaternion.copy(b.mesh.quaternion);
-        from.copy(sh.center).addScaledVector(dir, sh.radius * 0.6);
+        from.copy(sh.center).addScaledVector(away, sh.radius * 0.6);
         b.glow.position.copy(from);
         this.onDeflect?.(from.clone(), sh.normal);
         deflected = true;
@@ -192,21 +209,16 @@ export class ProjectileSystem {
       let hit = false;
       for (const t of targets) {
         if (!t.alive || t.team === b.team) continue;
-        if (segSphere(from, step, stepLen, t.position, t.radius)) {
+        if (segSphere(from, dir, reach, t.position, t.radius)) {
           t.onHit(b.damage, from, b.bySlot, b.tag);
           this.onImpact?.(t.position.clone(), true, b.team);
           hit = true;
           break;
         }
       }
-      if (!hit) {
-        // world hit
-        const dir = step.clone().normalize();
-        const worldHit = physics.raycast(from, dir, stepLen);
-        if (worldHit) {
-          this.onImpact?.(worldHit.point, false, b.team);
-          hit = true;
-        }
+      if (!hit && worldHit) {
+        this.onImpact?.(worldHit.point, false, b.team);
+        hit = true;
       }
       if (hit) { b.active = false; b.mesh.visible = b.glow.visible = false; continue; }
       from.add(step);
@@ -217,11 +229,17 @@ export class ProjectileSystem {
 
 const FORWARD = new THREE.Vector3(0, 0, 1);
 const tmp = new THREE.Vector3();
-function segSphere(from: THREE.Vector3, step: THREE.Vector3, stepLen: number, center: THREE.Vector3, radius: number): boolean {
+const _dir = new THREE.Vector3();
+/**
+ * Does the segment from `from` along unit `dir` for `len` metres pass within
+ * `radius` of `center`? `len` is the *clear* length of the step — whatever the
+ * world leaves of it — not necessarily the whole of it.
+ */
+function segSphere(from: THREE.Vector3, dir: THREE.Vector3, len: number, center: THREE.Vector3, radius: number): boolean {
   tmp.subVectors(center, from);
-  const t = Math.max(0, Math.min(stepLen, tmp.dot(step) / (stepLen || 1)));
-  const cx = from.x + (step.x / (stepLen || 1)) * t - center.x;
-  const cy = from.y + (step.y / (stepLen || 1)) * t - center.y;
-  const cz = from.z + (step.z / (stepLen || 1)) * t - center.z;
+  const t = Math.max(0, Math.min(len, tmp.dot(dir)));
+  const cx = from.x + dir.x * t - center.x;
+  const cy = from.y + dir.y * t - center.y;
+  const cz = from.z + dir.z * t - center.z;
   return cx * cx + cy * cy + cz * cz <= radius * radius;
 }

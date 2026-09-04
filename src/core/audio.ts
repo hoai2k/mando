@@ -6,7 +6,7 @@
 
 import { ASSET_ROOT } from './assets';
 import { config } from '../config';
-import { MUSIC_BOSS, playlistFor } from './music';
+import { MUSIC_BOSS, MUSIC_MENU, playlistFor } from './music';
 import type { BoardId } from '../world/board';
 
 type SampleName =
@@ -78,9 +78,37 @@ interface SaberVoice {
   stop: () => void;
 }
 
+/**
+ * Fixed makeup gain between the buses and the limiter: the headroom the mix was
+ * leaving unused.
+ *
+ * Measured 2026-09-03 by sweeping this value in one match with analysers either
+ * side of the limiter, under a deliberately dense scene: score and ambience
+ * beneath blaster fire, explosions, rockets and impacts at once.
+ *
+ *   trim   out peak   out RMS   limiter reduction
+ *   1.0    −5.1 dB    −13.6 dB   0.0 dB   ceiling unused; the limiter never engaged
+ *   1.6    −1.3 dB    −10.9 dB   0.4 dB   lands just under the limiter
+ *   2.2    +0.5 dB     −8.7 dB   4.3 dB   above full scale, and squashing
+ *   3.0    −0.2 dB     −9.6 dB   6.0 dB   quieter than 2.2 — all limiter, no gain
+ *
+ * So 1.6 is where the headroom runs out: +3.8 dB of peak and +2.7 dB of loudness
+ * over what the game was doing, with the limiter still only kissing the peaks.
+ * Past it the limiter does the work and the mix flattens for nothing.
+ *
+ * It lives here rather than in `config.audio.master` because the volume sliders
+ * run 0–1: a default above 1 would render pinned at maximum and *drop* the
+ * volume the moment a player touched it. Everything the game plays passes
+ * through this one node, so no sound is rebalanced against any other — the mix
+ * is the mix, just louder.
+ */
+const OUTPUT_TRIM = 1.6;
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
+  /** fixed makeup gain; see OUTPUT_TRIM */
+  private output!: GainNode;
   /** brick-wall limiter between the master bus and the speakers */
   private limiter!: DynamicsCompressorNode;
   private sfx!: GainNode;
@@ -119,7 +147,10 @@ export class AudioEngine {
     this.limiter.ratio.value = 20;
     this.limiter.attack.value = 0.003;
     this.limiter.release.value = 0.25;
-    this.master.connect(this.limiter);
+    this.output = this.ctx.createGain();
+    this.output.gain.value = OUTPUT_TRIM;
+    this.master.connect(this.output);
+    this.output.connect(this.limiter);
     this.limiter.connect(this.ctx.destination);
     this.sfx = this.ctx.createGain();
     this.sfx.connect(this.master);
@@ -1069,6 +1100,7 @@ export class AudioEngine {
   startMusic(kind: 'title' | 'desert' | 'station', board?: BoardId): void {
     if (!this.ctx) return;
     this.stopMusic();
+    this.musicTag = 'board';
     if (kind !== 'title') {
       // The board's signature track opens; its playlist is what follows.
       const { urls, hasLead } = playlistFor(kind, board);
@@ -1088,6 +1120,7 @@ export class AudioEngine {
   startBossMusic(kind: 'desert' | 'station', board?: BoardId): void {
     if (!this.ctx) return;
     this.stopMusic();
+    this.musicTag = 'boss';
     if (this.startPlaylist([MUSIC_BOSS], kind, 0)) return;
     this.startMusic(kind, board);
   }
@@ -1171,7 +1204,33 @@ export class AudioEngine {
     }
     this.musicStop = () => stops.forEach((s) => s());
   }
-  stopMusic(): void { this.musicStop?.(); this.musicStop = null; }
+  stopMusic(): void { this.musicStop?.(); this.musicStop = null; this.musicTag = null; }
+
+  /**
+   * What the music bus is playing, so asking for the same thing twice is a
+   * no-op rather than a restart. The menus ask on every screen change — title
+   * to territory to character select is three of them — and the score has to
+   * run through them instead of beginning again on each.
+   */
+  private musicTag: string | null = null;
+
+  /**
+   * The menus' score. Nothing ever started it: the engine has had a 'title'
+   * mode and a `music_title` loop since the first audio batch, but no screen
+   * ever asked for either, so every menu in the game has been silent. It plays
+   * the place-agnostic tracks, and a match takes the bus over when it starts.
+   */
+  startMenuMusic(): void {
+    if (!this.ctx || this.musicTag === 'menu') return;
+    this.stopMusic();
+    this.musicTag = 'menu';
+    // 'station' only picks the synth bed if every file fails; the menu tracks
+    // are not a board's, so neither flavor is more right than the other
+    if (this.startPlaylist(MUSIC_MENU, 'station')) return;
+    const sampled = this.loopSample('music_title', 0.5);
+    if (sampled) { this.musicStop = sampled; return; }
+    this.startSynthMusic('title');
+  }
 
   /**
    * Victory/defeat sting (sample only; wave sounds already cover fallback).

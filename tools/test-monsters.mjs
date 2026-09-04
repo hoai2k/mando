@@ -13,7 +13,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -24,8 +23,14 @@ const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
 
 // ---- 1. every delivered monster sculpt loads, at its designed size, animated ----
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+//
+// The sculpts are fetched and parsed, which is real elapsed time and has to be
+// waited for. What does not have to be waited for is the renderer: with the
+// live loop off, the download and the parse have the machine to themselves and
+// the poll below fires when it says it does, instead of whenever a starved
+// frame loop next lets a timer through.
+await h.startCoop(1, 'desert');
+await h.manual();
 const sizes = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -93,12 +98,60 @@ for (const kind of [...BURIED]) {
   check(`${kind}'s head clears it`, m.above > 2.5, m);
 }
 
+// ---- a monster is something you walk into, not through ----
+//
+// A boss is a capsule the enemy solver carries and nothing else in the world
+// knows about: it is not in `PhysicsWorld`, so the player's own capsule never
+// met one and the chase camera never saw one either. You strolled through the
+// middle of a krayt dragon and the lens sat inside a rancor's hide. Grunts
+// stay run-through-able on purpose — a crowd you cannot push through is a
+// crowd that pins you — so the line is `Game.BIG_BODY_R`, and this checks
+// both sides of it.
+const solid = await h.page.evaluate(`(() => {
+  const g = window.__game, p = g.players[0];
+  const step = (n) => window.__sim(n / 60, {}, 1 / 60);
+  const walkInto = (kind) => {
+    const spot = p.position.clone();
+    spot.x += 26;
+    const e = g.addReinforcement(kind, spot);
+    e.velocity.set(0, 0, 0);
+    step(4);
+    const out = { r: e.radius };
+    // stand the player exactly where the body is and let one step resolve it
+    for (let i = 0; i < 6; i++) {
+      p.position.set(e.position.x, e.position.y, e.position.z);
+      p.velocity.set(0, 0, 0);
+      e.position.copy(spot);
+      e.velocity.set(0, 0, 0);
+      step(1);
+    }
+    out.apart = +Math.hypot(p.position.x - e.position.x, p.position.z - e.position.z).toFixed(2);
+    // ...and how close the camera is allowed to get to its middle
+    const c = p.cam.camera.position;
+    out.camApart = +Math.hypot(c.x - e.position.x, c.z - e.position.z).toFixed(2);
+    e.removeMe = true;
+    step(2);
+    return out;
+  };
+  return { rancor: walkInto('rancor'), trooper: walkInto('stormtrooper') };
+})()`);
+check('a monster pushes the player out of its own body',
+  solid.rancor.apart > solid.rancor.r * 0.9, solid.rancor);
+check('...and the chase camera too', solid.rancor.camApart > solid.rancor.r * 0.7, solid.rancor);
+check('a grunt is still something you can run through',
+  solid.trooper.apart < 0.6, solid.trooper);
+
 // ---- 2. the warlord falling opens the second stage, and only then ends ----
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'station'));
-await sleep(10000);
-const stage = await h.page.evaluate(async () => {
+//
+// The quake between the two stages is four seconds of *match* time, and the
+// monster is placed on the far side of it. Watching for that by polling the
+// live loop is what made this suite the longest in the repository: under
+// software rendering the page paints about once a second, so four seconds of
+// match cost six minutes of waiting — per board. Step the simulation instead
+// and the same four seconds cost milliseconds.
+await h.startCoop(1, 'station');
+await h.manual();
+const stage = await h.page.evaluate(() => {
   const g = window.__game;
   const p = g.players[0];
   g.state = 'fighting';
@@ -108,17 +161,17 @@ const stage = await h.page.evaluate(async () => {
   g.nextWave();
   const warlord = g.boss;
   const warlordName = warlord.bossName;
-  await new Promise((r) => setTimeout(r, 500));
+  window.__sim(0.5);
   // drop the warlord and watch what the game does next
   warlord.damage(99999, p.position, 0);
   const seen = { staging: false, victoryDuringQuake: false };
   let monster = null;
-  for (let i = 0; i < 200; i++) {
-    if (g.monsterStaging) seen.staging = true;
-    if (g.state === 'victory' && !monster) seen.victoryDuringQuake = true;
-    if (g.boss && g.boss.alive && g.boss !== warlord) { monster = g.boss; break; }
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  window.__simUntil((live) => {
+    if (live.monsterStaging) seen.staging = true;
+    if (live.state === 'victory' && !monster) seen.victoryDuringQuake = true;
+    if (live.boss && live.boss.alive && live.boss !== warlord) { monster = live.boss; return true; }
+    return false;
+  }, 20);
   return {
     warlordName,
     quakeSeen: seen.staging,
@@ -129,18 +182,70 @@ const stage = await h.page.evaluate(async () => {
 });
 check('the warlord falls and the ground shakes', stage.quakeSeen, stage);
 check('victory is not called into the quake', !stage.victoryDuringQuake, stage);
+// ---- 2b. the quake is in the ground, so it reaches what is standing on it ----
+//
+// The beat between the warlord falling and the monster coming up is the ground
+// itself opening. It used to go straight to every player's camera, which
+// rattled a Mandalorian hovering forty metres up on the jetpack exactly as
+// hard as one standing in the dust — and with nothing under your feet a
+// rumble stops reading as the world moving and starts reading as the view
+// being broken.
+const rumble = await h.page.evaluate(`(() => {
+  const DT = 1 / 30;
+  const step = (n) => window.__sim(n * DT, {}, DT);
+  const g = window.__game;
+  const p = g.players[0];
+  const home = p.position.clone();
+  // out from under the monster's introduction first: it runs the simulation at
+  // a fraction of real time, which would stretch every clock this measures
+  window.__simUntil((live) => live.bossIntroT <= 0, 400 * DT);
+  // nothing else is allowed to shake the camera while this is measured
+  const park = () => { for (const e of g.enemies) e.position.set(home.x + 500, home.y, home.z); };
+  const beat = (fly) => {
+    p.position.copy(home);
+    if (fly) p.position.y += 25;
+    p.velocity.set(0, 0, 0);
+    g.monsterQuake = 6;
+    // Settle into the state first, and give it time: the jolt fades out with
+    // the last of the ground contact, so a player who was standing a moment
+    // ago still feels it — which is the point, and not what is being measured.
+    for (let i = 0; i < 40; i++) {
+      park();
+      if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
+      step(1);
+    }
+    p.cam.shakeAmt = 0;
+    let peak = 0;
+    for (let i = 0; i < 10; i++) {
+      park();
+      if (fly) { p.position.set(home.x, home.y + 25, home.z); p.velocity.set(0, 0, 0); }
+      step(1);
+      peak = Math.max(peak, p.cam.shakeAmt);
+    }
+    g.monsterQuake = 0;
+    return { peak: +peak.toFixed(3), grounded: p.grounded, y: +p.position.y.toFixed(1) };
+  };
+  const onFoot = beat(false);
+  const flying = beat(true);
+  p.position.copy(home);
+  return { onFoot, flying };
+})()`);
+check('the quake shakes a player standing in it',
+  rumble.onFoot.grounded === true && rumble.onFoot.peak > 0.05, rumble);
+check('...and leaves one in the air alone',
+  rumble.flying.grounded === false && rumble.flying.peak < 0.01, rumble);
+
 // and the match must actually be able to end: a stage that never clears its
 // own flag would leave a board nobody can finish
-const ending = await h.page.evaluate(async () => {
+const ending = await h.page.evaluate(() => {
   const g = window.__game;
   const p = g.players[0];
   // clear the field, monster and retinue alike — victory is "everything the
   // wave put up is down", which is what the two-stage flow must not strand
-  for (let i = 0; i < 200; i++) {
-    for (const e of g.enemies) if (e.alive) e.damage(99999, p.position, 0);
-    if (g.state === 'victory') break;
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  window.__simUntil((live) => {
+    for (const e of live.enemies) if (e.alive) e.damage(99999, p.position, 0);
+    return live.state === 'victory';
+  }, 20);
   return { state: g.state, staging: g.monsterStaging };
 });
 check('the monster comes up, with its own name and bar',
@@ -152,10 +257,8 @@ check('and the territory is held when it falls', ending.state === 'victory' && !
 // Four more monsters (docs/BOSSES.md §2.7–2.10) with no .glb yet: each has to
 // come up as a visible procedural body at its Def's numbers, so a boss you
 // cannot see never happens on the three boards that just gained one.
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const standIns = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -182,11 +285,9 @@ for (const [board, want] of [
   ['ringworld', { kind: 'nexu', name: 'The Night-Side Stalker', hp: 2800 }],
   ['narkina', { kind: 'kwazelMaw', name: 'The Thing in the Moon Pool', hp: 3800 }],
 ]) {
-  await h.page.evaluate(() => window.__quitToTitle());
-  await sleep(1500);
-  await h.page.evaluate((b) => window.__startCoop(1, b), board);
-  await sleep(10000);
-  const st = await h.page.evaluate(async () => {
+  await h.startCoop(1, board);
+  await h.manual();
+  const st = await h.page.evaluate(() => {
     const g = window.__game;
     const p = g.players[0];
     g.state = 'fighting';
@@ -194,13 +295,13 @@ for (const [board, want] of [
     g.wave = 7;
     g.nextWave();
     const warlord = g.boss;
-    await new Promise((r) => setTimeout(r, 500));
+    window.__sim(0.5);
     warlord.damage(99999, p.position, 0);
     let monster = null;
-    for (let i = 0; i < 200; i++) {
-      if (g.boss && g.boss.alive && g.boss !== warlord) { monster = g.boss; break; }
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    window.__simUntil((live) => {
+      if (live.boss && live.boss.alive && live.boss !== warlord) { monster = live.boss; return true; }
+      return false;
+    }, 20);
     return monster ? { kind: monster.kind, name: monster.bossName, hp: monster.hp } : null;
   });
   check(`${board}: the warlord falls and its monster comes up`,
@@ -208,10 +309,8 @@ for (const [board, want] of [
 }
 
 // ---- 5. the worm's cycle: under, up, under again — and only hurt while up ----
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const worm = await h.page.evaluate(async () => {
   const g = window.__game;
   const p = g.players[0];
@@ -232,6 +331,9 @@ const worm = await h.page.evaluate(async () => {
   };
   let head = null;
   for (let i = 0; i < 80 && !head; i++) { head = headOf(); if (!head) await new Promise((r) => setTimeout(r, 250)); }
+  // The cycle below is match time, not real time: the burrow states want about
+  // twelve seconds of it. Stepped, that is milliseconds; watched through the
+  // live loop under software rendering it was six minutes.
   const headY = () => {
     if (!head) return null;
     const v = new e.position.constructor();
@@ -252,7 +354,7 @@ const worm = await h.page.evaluate(async () => {
       if (upLanded === null) { const before = e.hp; e.damage(100, p.position, 0); upLanded = e.hp === before - 100; }
     }
     if (seen.size === 4 && underIgnored !== null && upLanded !== null && e.eruptions >= 1 && e.burrow === 'under' && seen.has('sinking')) break;
-    await new Promise((r) => setTimeout(r, 100));
+    window.__sim(0.1);
   }
   const out = { stages: [...seen], eruptions: e.eruptions, underIgnored, upLanded, sunkDepth, raisedDepth,
                 foundHead: !!head, alive: e.alive };
@@ -275,10 +377,8 @@ check('and the head actually goes under the sand and comes back out of it',
 // wrong space, or a bind matrix taken from a rest pose that is not the bind
 // pose — both leave the model looking fine until the bone turns, and then fling
 // the weighted vertices to the horizon. So this measures the travel.
-await h.page.evaluate(() => window.__quitToTitle());
-await sleep(1500);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(10000);
+await h.startCoop(1, 'desert');
+await h.manual();
 const jawRig = await h.page.evaluate(async () => {
   const g = window.__game, p = g.players[0];
   for (const e of g.enemies) e.removeMe = true;

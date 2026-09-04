@@ -89,9 +89,18 @@ export class CombatDirector {
       }
     }
 
-    // group the engaged hostiles by whichever player they are fighting
+    // Group the fighters by whatever they are fighting — the hostiles by the
+    // player they have picked, the allies by the hostile they have picked.
+    //
+    // The allies were left out of this entirely, and it was why a cache squad
+    // never joined a fight: `committed` is what tells a shooter to press in to
+    // killing range and a melee body to actually charge, and an ally could
+    // never be granted it. Five marshals would jog to the standoff band
+    // fifteen to thirty metres off the nearest hostile, hold a bearing nobody
+    // ever re-planned, and shuffle there for the rest of the wave. They are
+    // the player's muscle: every one of them commits.
     const byTarget = new Map<unknown, Enemy[]>();
-    for (const e of game.enemies) {
+    for (const e of game.fighters()) {
       if (!e.alive || !e.isEngaged || !e.target || e.outOfFight) { e.committed = false; continue; }
       const list = byTarget.get(e.target);
       if (list) list.push(e);
@@ -113,7 +122,8 @@ export class CombatDirector {
         const e = group[i];
         // keep each enemy near the bearing it already holds, but spread the set
         e.slotAngle = i * step + (e.id % 7) * 0.09;
-        if (e.def.relentless) e.committed = true;      // beasts never hold back
+        if (e.team === 0) e.committed = true;          // the player's own never hang back
+        else if (e.def.relentless) e.committed = true; // beasts never hold back
         else if (e.def.style === 'melee') e.committed = melee++ < MELEE_COMMIT;
         else if (e.def.style === 'ranged') e.committed = ranged++ < RANGED_COMMIT;
         else e.committed = true; // fliers run their own orbit patterns

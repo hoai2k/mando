@@ -5,21 +5,24 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Nothing is open (audited 2026-09-02).** Every request this file was carrying had in
-fact been delivered, some of it weeks earlier, and has now moved to the history doc:
+**Open: the two replacement-NPC character sheets (2026-09-03)** — see
+[below](#replacement-npc-character-sheets--requested-2026-09-03). The Missions v3 outdoor
+surface set was requested and delivered the same day and is wired into the mission
+stages, so it has moved to the history doc along with everything before it:
 the 27 environment prop reference sheets (all with their models in the game), the six
 optional drop-screen portraits for the playable NPCs, and the second monster batch's
 five canvases including the replacement `sandworm`. The cast, the boards, the skies,
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
-What remains below is not a request: the recipe for making more character sheets, and
+Besides the two sets above, what remains below is not a request: the recipe for making
+more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
 future request would otherwise have to rediscover.
 
-**The open asset work is on the model side, not here** —
-[`ASSETS_MODELS.md`](ASSETS_MODELS.md) carries the second monster batch's four sculpts
-and the mouth re-exports for the three oldest creature rigs.
+The model side ([`ASSETS_MODELS.md`](ASSETS_MODELS.md)) carries the mouth re-exports
+for the older creature rigs and a small optional outdoor set for the same Missions
+design.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -31,9 +34,9 @@ Production-only reference art lives in `reference/` and is **not** shipped.
 
 ## Making more character reference sheets
 
-Every character in `ASSETS_MODELS.md` already has its three views, so this section is
-here for the next character rather than for anything outstanding. Delivered sheets and
-their prompts are in the history doc.
+Beyond the two sets above, every character in `ASSETS_MODELS.md` already has its three
+views, so this section is here for the next character too. Delivered sheets and their
+prompts are in the history doc.
 
 These are the canonical visual reference for every authored 3D character in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md) — they drive image-to-3D generators (Meshy, Tripo,

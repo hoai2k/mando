@@ -37,8 +37,8 @@ await h.waitForText(/WAVE BATTLE|PRESS START/i);
 const PROBE = `(spec) => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,
     dashPressed:false, sprintHeld:false, shootHeld:false, aimHeld:false, meleePressed:false,
-    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, throttleHeld:false,
-    brakeHeld:false, slamPressed:false, meleeSwapPressed:false, rangedSwapPressed:false,
+    rocketPressed:false, zoomHeld:false, zoomDelta:0, blockHeld:false, slamPressed:false,
+    meleeSwapPressed:false, rangedSwapPressed:false,
     pausePressed:false });
   const g = window.__game;
   const p = g.players[0];
@@ -105,6 +105,20 @@ async function probe(id, spec) {
     window.__startMode('wave', 1, 'desert', [who]);
   }, id);
   await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+  // A fighter is born as a procedural stand-in and its authored model arrives
+  // on a network round trip, bringing its OWN clip durations with it. The
+  // blades' free parry is keyed on `meleeTimer > 0`, so a swing rhythm that
+  // changes mid-probe changes which bolts arrive inside a live swing — which
+  // is how this passes on a fast machine and drops a handful of bolts on a
+  // slow one (nightly run 199: five of forty through). Wait for the skin
+  // before measuring, the same rule the model intake documents.
+  await page.waitForFunction(() => {
+    const g = window.__game;
+    if (!g || !g.players.length) return false;
+    let skinned = false;
+    g.players[0].char.root.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
+    return skinned;
+  }, null, { timeout: 60000 });
   await page.evaluate(() => { window.__manual = true; });
   const out = await page.evaluate(`(${PROBE})(${JSON.stringify(spec)})`);
   // leaving manual stepping on wedges the next startMode: it never reaches

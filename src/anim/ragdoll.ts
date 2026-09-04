@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Rig } from './skeleton';
-import type { PhysicsWorld } from '../core/physics';
+import type { PhysicsWorld, SolidSet } from '../core/physics';
 
 /**
  * Verlet ragdoll: a real simulation, not a canned fall.
@@ -79,6 +79,13 @@ const RELAX = ['spine', 'chest', 'head', 'shoulderL', 'shoulderR', 'footL', 'foo
 
 const GRAVITY = 20;
 /**
+ * How far around a body its shortlist of colliders is gathered (see
+ * `PhysicsWorld.solidsNear`). A corpse is about two metres from head to foot,
+ * and a frame of falling adds under one more at any speed the game throws a
+ * body at; four metres covers both with room to spare.
+ */
+const SOLID_REACH = 4;
+/**
  * A corpse standing upright is a *stable* arrangement of distance constraints.
  *
  * That is the whole reason tuskens kept dying on their feet. Nothing in a
@@ -118,6 +125,8 @@ export class Ragdoll {
   private radius: number[] = [];
   private rest: number[] = [];
   private accum = 0;
+  /** the colliders near the body, refreshed once a frame (see SOLID_REACH) */
+  private near: SolidSet = { boxes: [], cylinders: [] };
   /** consecutive quiet steps — a corpse's way of falling asleep */
   private quiet = 0;
   /** did any point rest on the world during the last step? */
@@ -187,6 +196,14 @@ export class Ragdoll {
   step(dt: number, physics: PhysicsWorld): void {
     // fixed substeps: Verlet with a variable dt changes stiffness frame to frame
     this.accum = Math.min(this.accum + dt, 0.1);
+    // The crates, walls and pillars this body might touch this frame. Gathered
+    // once here rather than per point per iteration: the contact pass below
+    // runs a hundred times a step, and the whole board's boxes in each of them
+    // is what a corpse solver cannot afford.
+    if (this.active) {
+      const h = this.pos[HIPS];
+      physics.solidsNear(h.x, h.y, h.z, SOLID_REACH, this.near);
+    }
     // a settled corpse stops simulating: nothing can wake it, and leaving it
     // integrating only lets round-off jitter it
     while (this.active && this.accum >= STEP) {
@@ -254,11 +271,21 @@ export class Ragdoll {
   private collide(physics: PhysicsWorld): void {
     for (let i = 0; i < COUNT; i++) {
       const p = this.pos[i];
+      const q = this.prev[i];
+      // Out of anything solid first. This solver used to know about the floor
+      // and nothing else, so a body that died against a wall, a crate or a
+      // pillar simply sank through it — the ground under the far side caught
+      // it, and the corpse ended up inside the scenery. The rigid solver next
+      // door had the world all along; this is the same call.
+      if (physics.pushOutPoint(p, this.radius[i], this.near)) {
+        this.touching = true;
+        q.x += (p.x - q.x) * GROUND_FRICTION;
+        q.z += (p.z - q.z) * GROUND_FRICTION;
+      }
       const g = physics.groundHeight(p.x, p.z, p.y);
       if (g === -Infinity) continue;
       const floor = g + this.radius[i];
       if (p.y >= floor) continue;
-      const q = this.prev[i];
       this.touching = true;
       p.y = floor;
       // friction bleeds the horizontal slide, and the little bounce left keeps
@@ -447,6 +474,10 @@ export class RigidRagdoll {
   private touching = false;
   /** the bearing this body rolls off on while it is still the right way up */
   private tip = new THREE.Vector3();
+  /** the colliders near the body, refreshed once a frame (see SOLID_REACH) */
+  private near: SolidSet = { boxes: [], cylinders: [] };
+  /** how far that shortlist reaches: the body's own bulk plus SOLID_REACH */
+  private reach = SOLID_REACH;
   /** how many times it has been rolled off its feet (see MAX_ROLLS) */
   private rolls = 0;
   active = true;
@@ -508,6 +539,9 @@ export class RigidRagdoll {
         .add(new THREE.Vector3().copy(spin).cross(p.clone().sub(this.center)));
       this.prev.push(p.clone().addScaledVector(v, -STEP));
     }
+    // A rancor is not a marshal: gather the shortlist around the whole animal,
+    // or a corner of it reaches a wall the centre never heard about.
+    this.reach = SOLID_REACH + Math.max(hw, hh, hd);
     this.originOffset.copy(node.position).sub(this.center).applyQuaternion(
       this.startQuat.clone().invert(),
     );
@@ -545,6 +579,10 @@ export class RigidRagdoll {
 
   step(dt: number, physics: PhysicsWorld): void {
     this.accum = Math.min(this.accum + dt, 0.1);
+    if (this.active) {
+      const c = this.center;
+      physics.solidsNear(c.x, c.y, c.z, this.reach, this.near);
+    }
     while (this.active && this.accum >= STEP) {
       this.accum -= STEP;
       // Order matters, and only one pass of each: contacts push the corners
@@ -656,7 +694,7 @@ export class RigidRagdoll {
       const p = this.pos[i], q = this.prev[i];
       // out of anything solid first, so a corner never comes to rest inside a
       // crate it fell against
-      if (physics.pushOutPoint(p, this.radius)) {
+      if (physics.pushOutPoint(p, this.radius, this.near)) {
         this.touching = true;
         q.x += (p.x - q.x) * GROUND_FRICTION;
         q.z += (p.z - q.z) * GROUND_FRICTION;

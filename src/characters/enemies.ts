@@ -3,6 +3,10 @@ import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
+import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
+
+// the clutch's size is the sculpt's, and it is the rack module that counts it
+export { BROOD_EGG_RACK };
 
 /** Enemy character builders — show-inspired silhouettes, procedural meshes on the canonical rig. */
 
@@ -76,10 +80,9 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
  * their DEFS entry uses for hit spheres and camera framing.
  */
 const AUTHORED_ENEMY: Record<string, number> = {
-  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2, duelist: 1.9,
+  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2,
   pirate: 1.9, pirate_melee: 1.9, marshal: 1.85, fennec: 1.8, imperial_officer: 1.88,
   tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
-  ig11: 2.2,
   // the swoop rider is measured standing, then posted on the saddle by the pose
   nikto: 1.76,
   // the new-board roster (see ASSETS_MODELS.md for the model briefs)
@@ -257,22 +260,40 @@ export function buildDarkTrooper(authored = true): CharacterInstance {
 }
 
 // ---------- Allies ----------
-/** IG-series assassin droid: tall thin cylinder head, spindly limbs. */
-export function buildIG(authored = true): CharacterInstance {
-  const steel = mat(0x8a8578, { rough: 0.5, metal: 0.6 });
-  const p: Proportions = { ...HUMAN, hipHeight: 1.15, headSize: 0.34, shoulderWidth: 0.2, upperLegLen: 0.56, lowerLegLen: 0.56 };
-  const { inst, rig } = buildBiped({ skin: steel, torso: steel, proportions: p });
+/**
+ * Escort droid — the covert's ranged ally, out of the supply cache.
+ *
+ * It replaced IG-11 in the ally caches on 2026-09-03: IG-11 is a playable
+ * bounty hunter now, and a character you can pick off the select screen has
+ * no business also walking out of a supply crate as an NPC. The niche it left
+ * behind is what this fills — a tall, durable droid that lays down a long
+ * volley — so the ally beat plays the same, from a body that is nobody's
+ * player character.
+ *
+ * Deliberately not IG's silhouette: a broad wedge skull and heavy shoulders
+ * rather than a cylinder head on spindly limbs.
+ */
+export function buildEscortDroid(): CharacterInstance {
+  const shell = mat(0x3a3d44, { rough: 0.45, metal: 0.7 });
+  const p: Proportions = { ...HUMAN, hipHeight: 1.16, headSize: 0.34, shoulderWidth: 0.3, upperLegLen: 0.55, lowerLegLen: 0.55 };
+  const { inst, rig } = buildBiped({ skin: shell, torso: shell, proportions: p });
   const b = rig.bones;
-  const dark = mat(0x2c2c28, { rough: 0.6 });
-  addCyl(b.head, steel, 0.055, 0.075, 0.3, 0, 0.1, 0, 0, 0, 0, 8);
-  // sensor ring
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    addSphere(b.head, mat(0xd8342a, { emissive: 0x881510, rough: 0.4 }), 0.016, Math.cos(a) * 0.07, 0.16, Math.sin(a) * 0.07, 5, 4);
-  }
-  addCyl(b.chest, dark, 0.09, 0.11, 0.3, 0, 0.06, 0, 0, 0, 0, 8);
+  const dark = mat(0x1c1e22, { rough: 0.6, metal: 0.5 });
+  // wedge skull: long muzzle box under a flat brow, no cylinder anywhere
+  addBox(b.head, shell, 0.19, 0.17, 0.2, 0, 0.09, 0.01);
+  addBox(b.head, dark, 0.15, 0.06, 0.1, 0, 0.03, 0.12);
+  const optic = mat(0x4aa8d8, { emissive: 0x14384e, rough: 0.35 });
+  addSphere(b.head, optic, 0.024, -0.055, 0.11, 0.09, 6, 5);
+  addSphere(b.head, optic, 0.024, 0.055, 0.11, 0.09, 6, 5);
+  // heavy shoulder blocks and a slab chest: a bodyguard's frame
+  addBox(b.shoulderL, dark, 0.16, 0.13, 0.17, -0.04, 0.04, 0);
+  addBox(b.shoulderR, dark, 0.16, 0.13, 0.17, 0.04, 0.04, 0);
+  addBox(b.chest, shell, 0.34, 0.38, 0.22, 0, 0.07, 0);
   inst.muzzle = rifle(b.weaponR);
-  authoredEnemy(inst, rig, 'ig11', authored);
+  // No sculpt yet — `escort_droid` is an open model request (ASSETS_MODELS.md),
+  // so this takes no `authored` flag: there is nothing to compare against. The
+  // day the file lands, wiring it is an `authoredEnemy` call plus a height in
+  // AUTHORED_ENEMY, exactly as every other kind was wired.
   return inst;
 }
 
@@ -299,28 +320,41 @@ export function buildGunfighter(kind: 'marshal' | 'fennec', authored = true): Ch
 }
 
 /**
- * Cad Bane-class duelist: blue-skinned gunslinger under a wide brim, twin
- * pistols, breathing tubes from nose to temple. Listed in ASSETS_MODELS.md as
- * a planned boss; with a model in hand it enters as a late-wave elite instead
- * of a scripted fight — a fast, high-damage shooter you have to answer.
+ * Guild gunslinger — the late-wave lone shooter.
+ *
+ * Successor to the Cad Bane-class duelist, retired from the hostile roster on
+ * 2026-09-03 when Cad Bane became playable: the same sculpt cannot be a
+ * fighter you pick and an elite you shoot. The *role* survives him unchanged —
+ * fast, accurate, hits hard, and folds if you can close on him — so the wave
+ * tables kept their slot and only the body in it changed.
+ *
+ * A freelancer out of the hunters' guild rather than a named face: sealed
+ * breath mask under a low hood, armoured long coat, bandolier across the
+ * chest, and a pistol in each hand.
  */
-export function buildDuelist(authored = true): CharacterInstance {
-  const coat = mat(0x2b2f38, { rough: 0.9 });
-  const suitM = mat(0x1e2129, { rough: 0.9 });
+export function buildGunslinger(): CharacterInstance {
+  const coat = mat(0x3a3229, { rough: 0.9 });
+  const suitM = mat(0x241f1a, { rough: 0.9 });
   const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
   const b = rig.bones;
-  const skinM = mat(0x5a86a8, { rough: 0.8 });     // blue-grey hide
-  addSphere(b.head, skinM, 0.12, 0, 0.04, 0, 10, 8);
-  // wide-brim hat
-  addCyl(b.head, coat, 0.22, 0.22, 0.02, 0, 0.13, 0, 0, 0, 0, 14);
-  addCyl(b.head, coat, 0.1, 0.11, 0.11, 0, 0.19, 0, 0, 0, 0, 10);
-  // breathing tubes, nose to temple
-  const tube = mat(0x8a8f98, { rough: 0.5, metal: 0.5 });
-  addCyl(b.head, tube, 0.014, 0.014, 0.14, -0.06, 0.02, 0.08, 0.5, 0, -0.25);
-  addCyl(b.head, tube, 0.014, 0.014, 0.14, 0.06, 0.02, 0.08, 0.5, 0, 0.25);
+  const plate = mat(0x6a6258, { rough: 0.55, metal: 0.4 });
+  // sealed mask: a plated skull with a dark filter slot, no face showing
+  addSphere(b.head, plate, 0.12, 0, 0.04, 0, 10, 8);
+  addBox(b.head, mat(0x14161a, { rough: 0.4 }), 0.16, 0.05, 0.04, 0, 0.05, 0.1);
+  addCyl(b.head, mat(0x8a8f98, { rough: 0.5, metal: 0.5 }), 0.03, 0.035, 0.05, 0, -0.03, 0.1, Math.PI / 2, 0, 0, 8);
+  // low hood over the plate, and a collar standing off the shoulders
+  addSphere(b.head, coat, 0.135, 0, 0.06, -0.02, 10, 8, 0.75, 1);
+  addCyl(b.chest, coat, 0.17, 0.13, 0.09, 0, 0.26, 0, 0, 0, 0, 10);
   addBox(b.chest, coat, 0.36, 0.4, 0.24, 0, 0.08, 0);
+  // bandolier: shells across the chest, the one read at a glance
+  for (let i = 0; i < 6; i++) {
+    addBox(b.chest, plate, 0.03, 0.055, 0.03, -0.13 + i * 0.05, 0.19 - i * 0.05, 0.12, 0, 0, 0.6);
+  }
   inst.muzzle = rifle(b.weaponR);
-  authoredEnemy(inst, rig, 'duelist', authored);
+  // No sculpt yet — `gunslinger` is an open model request (ASSETS_MODELS.md),
+  // so no `authored` flag here either. `duelist.glb` is deliberately *not*
+  // borrowed in the meantime: that file is Cad Bane, and reusing it would put
+  // a player character straight back on the hostile side.
   return inst;
 }
 
@@ -790,6 +824,8 @@ export function buildFlametrooper(authored = true): CharacterInstance {
 function buildKryknaBase(
   scale: number, bodyColor: number, authored: boolean, creatureId: CreatureId,
   decorate?: (body: THREE.Group) => void,
+  /** the sculpt, the moment it lands: the broodmother's clutch rides on it */
+  onModel?: (model: THREE.Object3D) => void,
 ): CharacterInstance {
   const chitin = mat(bodyColor, { rough: 0.75 });
   const joint = mat(0x8d867a, { rough: 0.85 });
@@ -847,6 +883,7 @@ function buildKryknaBase(
       onLoad: (loaded) => {
         body.visible = false;
         posed = false;
+        onModel?.(loaded);
         const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
         if (!clips.length) return;
         const idle = clips.find((c) => /idle|breath|stand/i.test(c.name));
@@ -965,44 +1002,29 @@ export function buildSpiderling(): CharacterInstance {
   return buildKryknaBase(0.55, 0xcfc6b4, true, 'krykna');
 }
 
-/** how many eggs the broodmother's back visibly carries — her whole clutch */
-export const BROOD_EGG_RACK = 6;
-
 /**
- * Where the sculpt's own six eggs sit, in the character root's frame, measured
- * off `krykna_brood.glb` rather than guessed: the sac bones' vertices were
- * taken, a dome fitted to the abdomen, and what stands proud of it is the
- * clutch. Two outer eggs sit low on the flanks and four ride the top of the
- * abdomen. The radii cover the sculpted egg underneath — these meshes *are*
- * the eggs as far as the player is concerned, so a spent one has to read as
- * dark, and a pale sculpt bump showing around the edge would spoil that.
+ * Where the stand-in's rack sits: `[x, y, z, radius]` on the *procedural*
+ * spider, in the character root's frame.
+ *
+ * Only the stand-in needs these. The authored sculpt carries six real eggs and
+ * the game drives those (`characters/eggrack.ts`); this is the same clutch in
+ * the same 1–2–2–1 pyramid, sized down onto the stand-in's much smaller
+ * abdomen so a queen whose .glb has not landed still has an ammunition readout
+ * to look at.
  */
 const RACK_SPOTS: readonly (readonly [number, number, number, number])[] = [
-  [-0.54, 1.92, -1.28, 0.27],
-  [0.54, 1.92, -1.28, 0.26],
-  [-0.49, 2.20, -1.45, 0.26],
-  [0.49, 2.20, -1.45, 0.27],
-  [-0.19, 2.38, -1.36, 0.24],
-  [0.19, 2.38, -1.36, 0.25],
+  [0, 1.00, -0.80, 0.16],
+  [-0.23, 1.05, -0.72, 0.17],
+  [0.23, 1.05, -0.72, 0.17],
+  [-0.22, 1.25, -0.62, 0.17],
+  [0.22, 1.25, -0.62, 0.17],
+  [0, 1.35, -0.55, 0.17],
 ];
 
-/**
- * How small a spent sac gets. Not zero, and not a free choice: the sculpt's
- * own pale egg is underneath every one of these, so the floor is whatever
- * still covers it. Measured against the sculpted clutch, 0.7 of full clears
- * it with a little to spare.
- */
+/** How small a spent stand-in sac gets: slack, not gone. */
 const EMPTY_FILL = 0.38;
 /** and a slack sac is flatter than a full one, not merely smaller */
 const SLACK_SQUASH = 0.55;
-/**
- * How far the sculpt's own three egg-sac bones are wound in once the game is
- * driving the rack. The abdomen is skinned to them too, but only lightly —
- * collapsing them takes the sculpted clutch off her back and leaves the body
- * itself untouched, which is what lets a spent sac deflate properly instead
- * of shrinking down to reveal a bright egg underneath it.
- */
-const SAC_HIDE = 0.01;
 /** how fast a sac fills and empties, in units of fullness per second */
 const FILL_RATE = 3.5;
 const EMPTY_RATE = 7;
@@ -1016,36 +1038,48 @@ const GLOW_READY = new THREE.Color(0x4c5142);
 
 /** Broodmother: half again the size, darker, egg sacs riding the abdomen. */
 export function buildBroodmother(authored = true): CharacterInstance {
-  // The egg sacs on her back are the playable broodmother's ammunition readout
-  // (docs/MODES.md §3), and there are six because the sculpt carries six. They
-  // ride the root — not the procedural body — so they stay visible over the
-  // authored sculpt, sitting on its own eggs rather than beside them, and each
-  // carries its own material so the Player controller can shade it: black
-  // while spent, flashing blue as it charges, white when ready to lay.
-  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood');
+  // Her clutch is the playable broodmother's ammunition readout (docs/MODES.md
+  // §3), and there are six because the sculpt carries six — real geometry on
+  // her abdomen, not decoration laid over it. Once the .glb is in, the game
+  // drives those eggs themselves: a ready egg is the sculpt untouched and a
+  // spent one is that same egg darkened and collapsed against her back.
+  //
+  // Until then — and forever, on a board where the file never arrives — the
+  // stand-in spider wears the six spheres built below instead. They hang off
+  // the procedural `body` group, so the moment the sculpt lands and that group
+  // goes invisible they go with it, and there is never a frame wearing both.
+  let rack: SculptRack | null = null;
   const rackMeshes: THREE.Mesh[] = [];
-  for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
-    // a shell, not a bead: rough enough that six of them do not read as one
-    // glossy mass when the whole clutch is up
-    const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.78 });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), m);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    // A readout, not skin: the player's hurt flash clones every material it
-    // finds and drives it red, which would both steal these out from under
-    // the closure below and paint the clutch a colour that means something
-    // else. This flag is what keeps the flash off them.
-    mesh.userData.readout = true;
-    // Hidden until something drives it. The same body fights as a wave boss,
-    // where nobody is counting her eggs and no one calls setEggs — she would
-    // otherwise wear six black balls over the sculpt's own pale clutch. The
-    // first push of the rack state is what brings it out.
-    mesh.visible = false;
-    inst.root.add(mesh);
-    rackMeshes.push(mesh);
-  }
-  // the delivered egg spawns at the sac it left, so it reads as the same egg
+  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood', (body) => {
+    for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
+      // a shell, not a bead: rough enough that six of them do not read as one
+      // glossy mass when the whole clutch is up
+      const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.78 });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), m);
+      // the spots are in the root's frame; the stand-in's abdomen is not
+      mesh.position.set(x, y - body.position.y, z);
+      mesh.castShadow = true;
+      // A readout, not skin: the player's hurt flash clones every material it
+      // finds and drives it red, which would both steal these out from under
+      // the closure below and paint the clutch a colour that means something
+      // else. This flag is what keeps the flash off them.
+      mesh.userData.readout = true;
+      // Hidden until something drives it. The same body fights as a wave boss,
+      // where nobody is counting her eggs and no one calls setEggs — she would
+      // otherwise wear six black balls for no reason. The first push of the
+      // rack state is what brings it out.
+      mesh.visible = false;
+      body.add(mesh);
+      rackMeshes.push(mesh);
+    }
+  }, (model) => {
+    // the sculpt is in: take its own eggs, and let the stand-in's go dark
+    rack = attachEggRack(model);
+  });
+
+  // the delivered egg spawns at the egg it left, so it reads as the same egg
   inst.eggSpot = (index, out) => {
+    if (rack?.spot(index, out)) return true;
     const mesh = rackMeshes[index];
     if (!mesh) return false;
     mesh.getWorldPosition(out);
@@ -1058,18 +1092,27 @@ export function buildBroodmother(authored = true): CharacterInstance {
   const want = new Array(BROOD_EGG_RACK).fill(0);
   const fill = new Array(BROOD_EGG_RACK).fill(0);
   const raw = new Array(BROOD_EGG_RACK).fill(-1);
+  const tint = new THREE.Color();
   let driven = false;
 
   /** Paint and size sac `i` from its eased fullness. */
   const dress = (i: number): void => {
-    const mesh = rackMeshes[i];
     const f = fill[i];
-    // A spent sac is slack, not gone: it collapses to a flattened shell on
-    // her back and swells as the egg inside it grows.
+    const s = raw[i];
+    // The sculpt's own egg, when there is one: full and pale at ready, dark
+    // and slack at spent, and the shader mixes the two.
+    if (rack) {
+      rack.setFill(i, f);
+      rack.setTint(i, eggTint(s, f, tint));
+      return;
+    }
+    // ...and the stand-in's bead, which has no egg underneath it to reveal, so
+    // it says the same thing by collapsing to a slack shell instead.
+    const mesh = rackMeshes[i];
+    if (!mesh) return;
     const k = EMPTY_FILL + (1 - EMPTY_FILL) * f;
     mesh.scale.set(k, k * (SLACK_SQUASH + (1 - SLACK_SQUASH) * f), k);
     const m = mesh.material as THREE.MeshStandardMaterial;
-    const s = raw[i];
     if (s >= 0.72 && s < 1) {
       // the last beat of the charge: a couple of blue flashes
       const flash = Math.sin(((s - 0.72) / 0.28) * Math.PI * 4) > 0;
@@ -1085,8 +1128,8 @@ export function buildBroodmother(authored = true): CharacterInstance {
 
   inst.setEggs = (states) => {
     driven = true;
-    for (let i = 0; i < rackMeshes.length; i++) {
-      rackMeshes[i].visible = true;
+    for (let i = 0; i < BROOD_EGG_RACK; i++) {
+      if (rackMeshes[i]) rackMeshes[i].visible = true;
       const s = states[i] ?? -1;
       raw[i] = s;
       want[i] = s >= 1 ? 1 : Math.max(0, s);
@@ -1094,23 +1137,30 @@ export function buildBroodmother(authored = true): CharacterInstance {
     }
   };
 
-  // The sculpt's own clutch, retired once the game drives the rack — found
-  // lazily, because the authored model arrives seconds into a match, and
-  // re-applied every frame, because whatever poses the rig owns these bones.
-  const sacBones: THREE.Object3D[] = [];
-  let boneScan = 0;
+  // What the rack is showing right now, for the checks that read it back
+  // (tools/test-brood.mjs): how full sac `i` looks and how brightly it reads,
+  // 0 for a spent sac and 1 for the sculpt's own pale egg.
+  inst.eggShown = (index) => {
+    if (index < 0 || index >= BROOD_EGG_RACK) return null;
+    if (rack) return rack.shown(index);
+    const m = rackMeshes[index]?.material as THREE.MeshStandardMaterial | undefined;
+    if (!m) return null;
+    const lum = m.color.r * 0.2126 + m.color.g * 0.7152 + m.color.b * 0.0722;
+    // the stand-in's own pale bead is the brightest it goes, so report against
+    // that rather than against white — the two racks answer on one scale
+    const top = EGG_READY.r * 0.2126 + EGG_READY.g * 0.7152 + EGG_READY.b * 0.0722;
+    return { fill: fill[index], shade: lum / top };
+  };
 
   const prevCosmetic = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     prevCosmetic?.(dt, time);
     if (!driven) return;
-    boneScan -= dt;
-    if (!sacBones.length && boneScan <= 0) {
-      boneScan = 0.5;
-      inst.root.traverse((o) => { if (/^sac\d/i.test(o.name)) sacBones.push(o); });
-    }
-    for (const b of sacBones) b.scale.setScalar(SAC_HIDE);
-    for (let i = 0; i < rackMeshes.length; i++) {
+    // The hurt flash takes private copies of the body's materials, and a copy
+    // does not carry the rack's shader hook: this puts it back on whatever the
+    // mesh is wearing now, rather than shading a material nothing draws.
+    rack?.refresh();
+    for (let i = 0; i < BROOD_EGG_RACK; i++) {
       // Filling is slow because the egg is: it tracks the three-second charge
       // rather than racing it. Emptying is quick — the egg physically left her
       // back — but not instant, or the sac would pop out of existence.
@@ -1119,9 +1169,6 @@ export function buildBroodmother(authored = true): CharacterInstance {
       dress(i);
     }
   };
-  // the mesh's *current* material is what dress() writes to, never one captured
-  // at build time: a player body has its materials cloned and swapped when the
-  // hit flash adopts them, and writing to the original would shade nothing
   return inst;
 }
 

@@ -56,7 +56,13 @@ window.addEventListener('resize', resize);
 
 // ---------- input & audio unlock ----------
 const input = new InputManager(renderer.domElement);
-const unlockAudio = () => audio.init();
+const unlockAudio = () => {
+  audio.init();
+  // Autoplay rules mean the title screen is necessarily silent until the
+  // player touches something; this is the first legal moment for the score,
+  // and setState has already been and gone by now.
+  if (!game && state !== 'playing') audio.startMenuMusic();
+};
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
@@ -563,6 +569,12 @@ function setState(s: AppState): void {
   if (s === 'playing') hud.show();
   else hud.hide();
   if (s !== 'playing' && s !== 'paused') input.releasePointerLock();
+  // Menu music runs on every screen that is not a match. A pause or an overlay
+  // opened mid-fight is not a menu — `game` is still live there, and the
+  // board's own music keeps playing under it. Starting a match hands the bus
+  // over, and quitting disposes the game, so coming back out starts it again.
+  if (!game && s !== 'playing') audio.startMenuMusic();
+
   // one place, every transition: re-plan from wherever the player now stands.
   // The overlays (pause, controls, settings, the end card) are not stops on the
   // route and leave the last plan in force.

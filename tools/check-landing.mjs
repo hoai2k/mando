@@ -24,7 +24,6 @@ async function drop(height) {
       dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
       meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
       zoomDelta: 0, blockHeld: false, switchPressed: false, pausePressed: false,
-      throttleHeld: false, brakeHeld: false,
     };
     const inputs = [input, { ...input }, { ...input }, { ...input }];
     // put it in the air over where it already stands, then let go

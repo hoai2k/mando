@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { travelClip, type Animator } from '../anim/animator';
 import { beginArrival, clearArrival, updateArrival, type ArrivalState } from './arrival';
 import {
-  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid, buildDuelist,
-  buildFlametrooper, buildGunfighter, buildIG, buildImperialOfficer,
+  buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid,
+  buildFlametrooper, buildGunfighter, buildGunslinger, buildImperialOfficer,
   buildInterceptorDrone, buildKrykna, buildMassiff, buildNikto, buildPykeCapo,
   buildKraytDragon, buildMamacore, buildMudhorn, buildMythosaur,
   buildKwazelMaw, buildNexu, buildSandworm, buildZillo,
   buildQuarren, buildRancor, buildRavinak,
   buildSpiderEgg, buildSpiderling,
-  buildRingEnforcer, buildWookieeEnforcer,
+  buildEscortDroid, buildRingEnforcer, buildWookieeEnforcer,
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
@@ -82,10 +82,10 @@ export function aimHeight(target: Combatant): number {
 
 export type EnemyKind =
   | 'tusken' | 'massiff' | 'pirateMelee' | 'pyke' | 'pirate' | 'droid' | 'nikto' | 'jetpirate'
-  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'duelist' | 'officer'
+  | 'stormtrooper' | 'deathtrooper' | 'darktrooper' | 'gunslinger' | 'officer'
   | 'capo' | 'enforcer'
   | 'flametrooper' | 'krykna' | 'broodmother' | 'quarren' | 'alamite' | 'drone' | 'ringEnforcer'
-  | 'ig11' | 'marshal' | 'fennec'
+  | 'escortDroid' | 'marshal' | 'fennec'
   | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
   | 'sandworm' | 'zillo' | 'nexu' | 'kwazelMaw'
   | 'spiderEgg' | 'spiderling';
@@ -189,8 +189,10 @@ const DEFS: Record<EnemyKind, Def> = {
   // Imperial remnant
   stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, notice: 42, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
   deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
-  // Fast, accurate and hits hard, but folds if you can close on him.
-  duelist:      { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildDuelist },
+  // Fast, accurate and hits hard, but folds if you can close on him. Stats
+  // inherited wholesale from the retired Cad Bane-class duelist, so the wave
+  // tables that called for him are balanced exactly as they were.
+  gunslinger:   { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildGunslinger },
   // Closes to the darksaber's reach and hits like a truck when he gets there.
   officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 3.0, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
   // Shielded shooter: out-range him or flank him, he will not be rushed down.
@@ -266,7 +268,8 @@ const DEFS: Record<EnemyKind, Def> = {
   kwazelMaw: { hp: 3800, speed: 5.2, radius: 2.4, height: 4.2, style: 'melee', damage: 48, attackRange: 6.0, attackCd: 2.3, notice: 90, relentless: true, burnImmune: true,
     hitParts: [{ z: 3.6, y: 2.2, r: 1.9 }, { z: -3.0, y: 1.6, r: 1.5 }], build: buildKwazelMaw },
 
-  ig11:    { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildIG },
+  // the covert's droid ally, in the slot IG-11 held before he became playable
+  escortDroid: { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildEscortDroid },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
   fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
 
@@ -304,7 +307,7 @@ const MONSTER_VOICE: Partial<Record<EnemyKind, string>> = {
 
 const SPAWN_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   tusken: 'tusken_cry', pyke: 'pyke_chatter', pirate: 'pirate_taunt', pirateMelee: 'pirate_taunt',
-  duelist: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
+  gunslinger: 'pirate_taunt', officer: 'imperial_bark', capo: 'pyke_chatter', enforcer: 'pirate_taunt',
   flametrooper: 'imperial_bark', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek', drone: 'drone_whine',
@@ -316,8 +319,8 @@ const DEATH_BARKS: Partial<Record<EnemyKind, BarkName>> = {
   // droid_death has existed since the first audio batch and was never wired:
   // every droid on the board died silently. Nothing mechanical borrows a
   // human death rattle — they get the power-down that was made for them.
-  droid: 'droid_death', darktrooper: 'droid_death', ig11: 'droid_death',
-  duelist: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
+  droid: 'droid_death', darktrooper: 'droid_death', escortDroid: 'droid_death',
+  gunslinger: 'pirate_death', officer: 'imperial_death', capo: 'pyke_death', enforcer: 'pirate_death',
   flametrooper: 'imperial_death', krykna: 'spider_chitter', broodmother: 'spider_chitter',
   spiderling: 'spider_chitter',
   quarren: 'quarren_bark', alamite: 'alamite_shriek',
@@ -360,6 +363,20 @@ const ESCORT_ENGAGE = 45;
 const ESCORT_NEAR = 5;
 /** how far a milling ally's loiter goal may fall behind the player before it picks a new one */
 const ESCORT_DRIFT = 8;
+/** past this far behind, an ally stops jogging and runs flat out to catch up */
+const ESCORT_SPRINT = 12;
+/**
+ * A squad that cannot follow is no squad at all.
+ *
+ * Allies walk; players fly, dash and take lifts, and a board has ledges an
+ * ally's own pathing will never solve. Rather than leave the squad stranded on
+ * the far side of the map for the rest of the wave, one that falls this far
+ * behind for `RECALL_TIME` catches up off-screen: it is set down on clear
+ * ground near whoever it escorts, in a puff of dust.
+ */
+const RECALL_DIST = 55;
+/** how long it has to be that far behind before the catch-up fires */
+const RECALL_TIME = 4;
 
 /**
  * Blaster heat, the same mechanic the players carry. Volleys are small and
@@ -604,6 +621,8 @@ export class Enemy {
   private visible = false;
   /** how many were posted with this squad, for the morale check */
   squadSize = 1;
+  /** how long an ally has been too far behind its player to catch up on foot */
+  private recallT = 0;
   // ---- hit reactions & self-preservation (the RDR2 feel) ----
   /** flat on the ground after a heavy hit; gets back up when it runs out */
   private downTimer = 0;
@@ -1173,6 +1192,30 @@ export class Enemy {
   }
 
   /**
+   * The hostile nearest `anchor` and within `reach` of it — the escort's
+   * target pick, measured from the person being escorted rather than from the
+   * ally itself.
+   */
+  private foeNear(game: Game, anchor: THREE.Vector3, reach: number): Combatant | null {
+    let best: Combatant | null = null;
+    let bestD = reach * reach;
+    const foes = _foes;
+    foes.length = 0;
+    for (const pl of game.players) foes.push(pl);
+    for (const a of game.allies) foes.push(a);
+    for (const e of game.enemies) if (e !== this) foes.push(e);
+    for (const f of foes) {
+      if (!f.alive || f.team === this.team) continue;
+      if (f instanceof Enemy && !f.targetable) continue;   // nothing to shoot at under the sand
+      const d = f.position.distanceToSquared(anchor);
+      if (d >= bestD) continue;
+      bestD = d;
+      best = f;
+    }
+    return best;
+  }
+
+  /**
    * Is this body still standing, as the rig has it?
    *
    * Asked of the bones rather than of a state flag, because the flags describe
@@ -1489,15 +1532,24 @@ export class Enemy {
     }
   }
 
-  /** crowd spacing: bodies push each other apart rather than stacking */
+  /**
+   * Crowd spacing: bodies push each other apart rather than stacking.
+   *
+   * Allies are in this too. They were not, and a cache squad of five walking
+   * out of the same crate shared one patch of ground the whole wave — five
+   * bodies in the same metre reads as one body with a rendering fault.
+   */
   private separate(dt: number, game: Game): void {
-    for (const other of game.enemies) {
-      if (other === this || !other.alive) continue;
-      const dx = this.position.x - other.position.x;
-      const dz = this.position.z - other.position.z;
-      const dist2 = dx * dx + dz * dz;
-      const min = this.radius + other.radius + 0.3;
-      if (dist2 < min * min && dist2 > 1e-6) {
+    // The two lists by hand rather than through `fighters()`: this runs for
+    // every body every frame, and the generator's iterator is an allocation.
+    for (let side = 0; side < 2; side++) {
+      for (const other of side === 0 ? game.enemies : game.allies) {
+        if (other === this || !other.alive) continue;
+        const dx = this.position.x - other.position.x;
+        const dz = this.position.z - other.position.z;
+        const dist2 = dx * dx + dz * dz;
+        const min = this.radius + other.radius + 0.3;
+        if (dist2 >= min * min || dist2 <= 1e-6) continue;
         const dist = Math.sqrt(dist2);
         // An acceleration, so it has to be scaled by dt like every other
         // steering write in here — as a raw per-frame velocity add it was
@@ -1531,6 +1583,33 @@ export class Enemy {
     } else {
       this.position.addScaledVector(this.velocity, dt);
     }
+    this.clampToCeiling(game);
+  }
+
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
+   *
+   * A body below the ceiling cannot climb through it — which is what keeps a
+   * flier in the fight instead of stalking it from out of reach, and what
+   * flattens a boss's super-jump arc into one that still lands where it aimed.
+   * A body *above* it is left alone: a squad falling out of a carrier's pass
+   * and a flier crossing the rim both enter through the ambient band, and
+   * clamping them there would strand the wave in the sky.
+   */
+  private clampToCeiling(game: Game): void {
+    const lid = game.ceilingY;
+    if (lid === null) return;
+    const head = this.position.y + this.height;
+    if (head <= lid) return;
+    // only on the way up: an arrival descending through the band keeps coming
+    if (this.velocity.y <= 0) return;
+    this.position.y = lid - this.height;
+    this.velocity.y = 0;
+  }
+
+  /** below the ceiling, and so allowed to fight rather than only to descend */
+  private inPlayableSky(game: Game): boolean {
+    return game.ceilingY === null || this.position.y + this.height <= game.ceilingY + 0.5;
   }
 
   /** brood spawns: enough damage taken and the egg sacs let go */
@@ -1586,7 +1665,7 @@ export class Enemy {
       // sideways on its bearing, or fanning out on approach, used to run
       // the forward cycle through it and moonwalk — and paced by the
       // stride the clip actually covers (as the player's is), so a 7 m/s
-      // duelist's feet keep up with the ground instead of skating.
+      // gunslinger's feet keep up with the ground instead of skating.
       let lower = 'idleLower';
       let rate = 1;
       if (d.style === 'hover') lower = 'flyLower';
@@ -1645,9 +1724,17 @@ export class Enemy {
       // Leash the engagement to the player, not to the foe: chasing whatever
       // is nearest to *itself* walks an ally across the board one target at a
       // time. Anything worth shooting is near the person being escorted.
+      //
+      // And *pick* by the player too. `nearestFoe` answers "nearest to me",
+      // which on a board with hostiles posted all over is routinely one
+      // across the map: the ally then measured that one against the leash,
+      // found it far from the player, and stood down — beside a player being
+      // shot at. Choosing the hostile nearest the person being escorted is
+      // what makes the squad join the fight the player is actually in.
       const anchor = p ? p.position : this.position;
       const strayed = p ? this.position.distanceTo(p.position) > ESCORT_LEASH : false;
-      const close = foe && !strayed && foe.position.distanceTo(anchor) < ESCORT_ENGAGE ? foe : null;
+      const close = strayed ? null : this.foeNear(game, anchor, ESCORT_ENGAGE);
+      this.target = close ?? foe;
       this.visible = !!close;
       if (!close && p) this.interest.copy(p.position);
       return close;
@@ -1751,10 +1838,18 @@ export class Enemy {
    * hostile came within range of the player.
    */
   private updateEscort(dt: number, game: Game): void {
-    const p = this.nearestPlayer(game);
+    const p = this.owner && this.owner.alive ? this.owner : this.nearestPlayer(game);
     if (!p) { this.updateSearch(dt, game, 0.8); return; }
-    if (this.position.distanceTo(p.position) > ESCORT_NEAR) {
-      this.updateSearch(dt, game, 0.8);
+    const gap = this.position.distanceTo(p.position);
+    if (this.updateRecall(dt, game, p, gap)) return;
+    if (gap > ESCORT_NEAR) {
+      // Head for the player at a pace that actually closes the gap. At a flat
+      // 0.8 an ally is slower than a walking Mandalorian and hopelessly slower
+      // than a sprinting one: the squad fell behind by metres a second and the
+      // player only ever saw it again as five bodies milling where they used
+      // to be. Well behind, it runs.
+      this.interest.copy(p.position);
+      this.updateSearch(dt, game, gap > ESCORT_SPRINT ? 1.35 : 0.9);
       return;
     }
     // loiter around the player rather than a post they never took. The goal is
@@ -1764,6 +1859,42 @@ export class Enemy {
     this.post.copy(p.position);
     if (this.idleGoal.distanceTo(this.post) > ESCORT_DRIFT) this.idleTimer = 0;
     this.updateIdle(dt, game);
+  }
+
+  /**
+   * The catch-up (see RECALL_DIST): an ally that has been left far behind for
+   * a few seconds is set down on clear ground beside the player it escorts.
+   *
+   * A walking body cannot follow a jetpack up a mesa or a lift down a shaft,
+   * and a squad stranded on the far side of the board is a squad the player
+   * paid for and never sees again. Returns true when it fires, since the frame
+   * belongs to the move.
+   */
+  private updateRecall(dt: number, game: Game, p: { position: THREE.Vector3 }, gap: number): boolean {
+    if (gap < RECALL_DIST) { this.recallT = 0; return false; }
+    this.recallT += dt;
+    if (this.recallT < RECALL_TIME) return false;
+    this.recallT = 0;
+    const a = Math.random() * Math.PI * 2;
+    // a fresh vector, not one of the frame scratches: the mission placer may
+    // hand back the very object it was given
+    const want = p.position.clone().add(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4));
+    // Down to the floor under them first. The player may be forty metres up on
+    // the jetpack, and a spot that high is not somewhere a walker stands: the
+    // placer would reject it and fall back to a board spawn on the far side of
+    // the map, which is the opposite of catching up.
+    const gy = game.board.physics.groundHeight(want.x, want.z, want.y);
+    if (isFinite(gy)) want.y = gy + 0.2;
+    const at = game.groundSpot(want, this.kind);
+    game.particles.dustPuff(this.position, 8);    // where it was
+    this.position.copy(at);
+    this.velocity.set(0, 0, 0);
+    this.post.copy(at);
+    this.idleGoal.copy(at);
+    this.idleTimer = 0;
+    this.cover = null;
+    game.particles.dustPuff(this.position, 10);   // and where it arrives
+    return true;
   }
 
   /** heading for the last thing it saw or heard */
@@ -2118,7 +2249,7 @@ export class Enemy {
     game.director.noise(game, this.position, 40);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 18) p.cam.shake(0.3 * (1 - dd / 18));
+      if (dd < 18) p.groundShake(0.3 * (1 - dd / 18));
       if (!p.alive || dd > r) continue;
       p.damage(d.damage * this.dmgScale * 0.6, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0).normalize();
@@ -2185,7 +2316,7 @@ export class Enemy {
         if (Math.random() < dt * 30) game.particles.dustPuff(this.position, 3);
         for (const p of game.players) {
           const dd = p.position.distanceTo(this.position);
-          if (dd < 20) p.cam.shake(0.05 * (1 - dd / 20));
+          if (dd < 20) p.groundShake(0.05 * (1 - dd / 20));
         }
         const prog = 1 - Math.max(0, this.burrowT) / b.rise;
         depth = 1 - prog * prog;
@@ -2257,7 +2388,7 @@ export class Enemy {
     game.director.noise(game, this.position, 50, true);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 24) p.cam.shake(0.45 * (1 - dd / 24));
+      if (dd < 24) p.groundShake(0.45 * (1 - dd / 24));
       if (!p.alive || dd > b.eruptR) continue;
       p.damage(b.erupt * this.dmgScale, this.position, -1, { heavy: true });
       const push = p.position.clone().sub(this.position).setY(0);
@@ -2513,7 +2644,7 @@ export class Enemy {
     game.director.noise(game, this.position, 25);
     for (const p of game.players) {
       const dd = p.position.distanceTo(this.position);
-      if (dd < 12) p.cam.shake(0.25 * (1 - dd / 12));
+      if (dd < 12) p.groundShake(0.25 * (1 - dd / 12));
     }
     let hit = false;
     for (const c of this.foesWithin(game, SLAM_RADIUS)) {
@@ -2688,6 +2819,12 @@ export class Enemy {
     if (tDist > reach + 1.2) return;
     toT.normalize();
     if (toT.dot(dir) < 0.9) return; // stepped out of the stream
+    // A jet burns what it reaches. The stream commits to its line when the
+    // trigger is squeezed and then holds it for the better part of a second,
+    // so without this a body that ducked behind a wall mid-volley went on
+    // taking the whole of it through the wall — the one attack in the game
+    // that cover did nothing about.
+    if (game.board.physics.raycast(from, toT, tDist)) return;
     target.damage(d.damage * this.dmgScale, from);
   }
 
@@ -2740,7 +2877,8 @@ export class Enemy {
     const passing = Math.cos(this.swoopPhase) < -0.25; // attack window on the inward leg
     if (passing && !this.prevPassing) audio.bark('swoop_pass', 0.5);
     this.prevPassing = passing;
-    const gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    let gy = Math.max(groundY + (passing ? 2.2 : 5.5), target.position.y + (passing ? 1.2 : 4));
+    if (game.ceilingY !== null) gy = Math.min(gy, game.ceilingY - this.height - 2);
     const goal = new THREE.Vector3(gx, gy, gz);
     const to = goal.sub(this.position);
     const dist = to.length();
@@ -2749,7 +2887,7 @@ export class Enemy {
     this.velocity.y = damp(this.velocity.y, to.y * d.speed * 0.8, 3.5, dt);
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3.5, dt);
     this.facingYaw = Math.atan2(this.velocity.x, this.velocity.z);
-    if (passing && this.attackCd <= 0) {
+    if (passing && this.attackCd <= 0 && this.inPlayableSky(game)) {
       const pd = this.position.distanceTo(target.position);
       if (pd < 30) {
         this.fireBoltAt(game, target);
@@ -2832,6 +2970,11 @@ export class Enemy {
         target.position.y + 4 + Math.random() * 6,
         target.position.z + Math.sin(a) * r
       );
+      // a mission level's playable sky has a lid; a flier orbits under it
+      // rather than above the fight it came for
+      if (game.ceilingY !== null) {
+        this.hoverTarget.y = Math.min(this.hoverTarget.y, game.ceilingY - this.height - 2);
+      }
     }
     const to = this.hoverTarget.clone().sub(this.position);
     to.normalize();
@@ -2840,7 +2983,10 @@ export class Enemy {
     this.velocity.z = damp(this.velocity.z, to.z * d.speed, 3, dt);
     this.faceToward(dt, target.position.x, target.position.z, 6);
     const dist = this.position.distanceTo(target.position);
-    this.updateVolley(dt, game, target, dist);
+    // The cut between the playable sky and the ambient one is a rule about
+    // fighting, not only about flying: a flier that came in over the rim
+    // steers down into the fight before it is allowed to open up.
+    if (this.inPlayableSky(game)) this.updateVolley(dt, game, target, dist);
     // hover jets — a short burn under each nozzle, riding along with us
     const fs = Math.sin(this.facingYaw), fc = Math.cos(this.facingYaw);
     for (const side of [-1, 1]) {

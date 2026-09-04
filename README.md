@@ -68,7 +68,9 @@ The title screen offers three modes:
 | **Missions** | The campaign: a path across the galaxy on a shared screen, door-gated corridors between arenas, a boss holding each territory. |
 
 Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
-one-button title and the wave game on its own.
+one-button title and the wave game on its own, or `?missions=new` for the experimental
+outdoor Missions level design ([`docs/MISSIONS_OUTDOOR.md`](docs/MISSIONS_OUTDOOR.md))
+in place of the room chain Missions ships with.
 
 Then pick a territory, and pick your fighter. Eight of them, in two families — the covert's
 Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,
@@ -205,7 +207,13 @@ __saveAudio();              // remember it across reloads
 
 ```bash
 npm run build     # tsc --noEmit + vite build
-npm test          # boot the built game in Chromium and play a wave
+npm test          # every suite: boot the built game in Chromium and play it
+```
+
+```bash
+node tools/run-suites.mjs test-modes test-block   # just these two
+node tools/run-suites.mjs --list                  # what there is to run
+node tools/run-suites.mjs --shard=2/4             # a quarter of the work
 ```
 
 ```bash
@@ -213,13 +221,32 @@ npm run audit:boards   # every board's props vs. its colliders
 npm run audit:spawns   # every wave's spawns vs. its colliders
 ```
 
-`npm test` drives the real build behind a synthetic Xbox pad
-([`tools/harness.mjs`](tools/harness.mjs)) — it starts its own preview server, walks
-title → board → character select, plays a wave and fails on any console error. It needs
-a browser once: `npx playwright install chromium` (or point `CHROMIUM_PATH` at one you
-already have). CI runs it before every deploy, along with both audits: `audit:boards`
-fails a build where something solid-looking has no collider, and `audit:spawns` fails one
-where any wave, on any board, would post a hostile inside the scenery.
+Every suite drives the real build behind a synthetic Xbox pad
+([`tools/harness.mjs`](tools/harness.mjs)) — walking title → board → character select,
+playing a wave, and failing on any console error. `npm test`
+([`tools/run-suites.mjs`](tools/run-suites.mjs)) serves the build once for all of them,
+runs every one of them whatever the others do, and ends with a table of what each cost.
+It needs a browser once: `npx playwright install chromium` (or point `CHROMIUM_PATH` at
+one you already have).
+
+**Run the suites that cover what you changed before you push.** The whole set is around
+half an hour of software rendering, so it is a nightly rather than a gate: every push
+builds, deploys and runs `tools/harness.mjs` as a smoke test, and once a night the full
+set runs against `main`, split four ways across runners, alongside the audits —
+`audit:boards` fails a tree where something solid-looking has no collider, and
+`audit:spawns` fails one where any wave, on any board, would post a hostile inside the
+scenery.
+
+Two things to know before writing one. **Do not wait on the wall clock for anything
+in-game.** Software rendering paints this page about once a second, so a `sleep` long
+enough to be safe on CI is a suite that mostly sleeps, and one short enough to be quick
+is a suite that fails on a loaded machine. `h.startCoop(...)` / `h.startMode(...)` wait
+for the match rather than guessing at it, and `h.manual()` plus the page-side
+`__sim(seconds)` / `__simUntil(pred)` advance the match itself — seconds of play in
+milliseconds, and the same number of steps on every machine. **And ask for the state you
+mean:** `window.__state`, `window.__game`, and the other `__` hooks in
+[`src/main.ts`](src/main.ts) are there so a check can be about the game rather than
+about how fast the machine drew it.
 
 The harness is also a library, for writing one-off probes against a running match:
 

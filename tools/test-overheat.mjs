@@ -14,7 +14,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -23,8 +22,7 @@ function check(name, ok, detail) {
 
 const h = await launch();
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await sleep(9000);
+await h.startCoop(1, 'desert');
 
 // ---- 1. a player holding the trigger overheats, then recovers ----
 const player = await h.page.evaluate(() => {

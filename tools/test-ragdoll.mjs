@@ -17,7 +17,6 @@
  */
 import { launch } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -26,10 +25,10 @@ function check(name, ok, detail) {
 
 const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-// wall clock is right here: this waits for the board and its models to load,
-// which is real elapsed time, not simulated time
-await sleep(9000);
+// The board and its models are real elapsed time, not simulated time — but
+// asking when they are up beats guessing at nine seconds, which was both
+// longer than it usually takes and shorter than it sometimes does.
+await h.startCoop(1, 'desert');
 
 const results = await h.page.evaluate(async () => {
   // Step the simulation directly rather than sleeping on the wall clock.
@@ -46,7 +45,6 @@ const results = await h.page.evaluate(async () => {
     meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
-    throttleHeld: false, brakeHeld: false,
   });
   const inputs = [blank(), blank(), blank(), blank()];
   const DT = 1 / 60;
@@ -314,6 +312,80 @@ const results = await h.page.evaluate(async () => {
     run(0.2);
   }
   out.__shoved = shoved;
+
+  // ---- and the world is solid: a body thrown at a wall stays out of it ----
+  //
+  // The articulated solver knew about the floor and nothing else. Every point
+  // was clamped to the ground height under it and left free in every other
+  // direction, so a body that died against a crate, a wall or a pillar sank
+  // straight through the side of it and came to rest inside the scenery —
+  // which is the corpse the player sees half-buried in a wall. The rigid
+  // solver next door had been pushing its corners out of the world all along.
+  const walled = [];
+  {
+    const phys = g.board.physics;
+    // a solid the board actually has: something tall and wide enough to throw
+    // a body at, as near the player as one gets
+    const solid = phys.boxes
+      .filter((b) => b.max.y - b.min.y > 1.8 && b.max.x - b.min.x > 1.2 && b.max.z - b.min.z > 1.2)
+      .sort((u, v) => Math.hypot(u.min.x - p.position.x, u.min.z - p.position.z)
+        - Math.hypot(v.min.x - p.position.x, v.min.z - p.position.z))[0];
+    // every bone of the drawn body, so this measures what is on screen
+    const bones = (root) => {
+      root.updateMatrixWorld(true);
+      const pts = [];
+      root.traverse((o) => {
+        if (!o.isSkinnedMesh || !o.visible) return;
+        for (const b of o.skeleton.bones) {
+          const e = b.matrixWorld.elements;
+          pts.push([e[12], e[13], e[14]]);
+        }
+      });
+      return pts;
+    };
+    for (let trial = 0; solid && trial < TRIALS; trial++) {
+      const cz = (solid.min.z + solid.max.z) / 2;
+      const e = g.addReinforcement('stormtrooper', p.position.clone());
+      for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+      for (let i = 0; i < 60 && !(e.char.modelReady?.() ?? true); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        run(0.1);
+      }
+      // stood just off one face, then thrown flat into it
+      const stand = phys.groundHeight(solid.max.x + 1.4, cz, solid.max.y + 2);
+      e.position.set(solid.max.x + 1.4, stand > -Infinity ? stand : solid.min.y, cz);
+      e.velocity.set(0, 0, 0);
+      run(0.2);
+      const from = e.position.clone();
+      from.x += 5;
+      e.damage(9999, from, 0);
+      e.knockback(from, 14, 0.2);
+      run(3);
+      const pts = bones(e.char.root);
+      // how far the deepest bone is inside the box: the shallowest face it
+      // would have to come out through
+      const depth = ([x, y, z]) => (x <= solid.min.x || x >= solid.max.x
+        || y <= solid.min.y || y >= solid.max.y || z <= solid.min.z || z >= solid.max.z)
+        ? 0
+        : Math.min(x - solid.min.x, solid.max.x - x, y - solid.min.y,
+          solid.max.y - y, z - solid.min.z, solid.max.z - z);
+      const rag = e.ragdoll;
+      walled.push({
+        bones: pts.length,
+        // the simulated body itself — the fifteen points the solver moves
+        points: rag?.pos?.length ?? 0,
+        pointsInside: rag?.pos?.filter((q) => phys.solidAt(q.x, q.y, q.z)).length ?? -1,
+        // and the drawn body, which hangs off those points on the sculpt's own
+        // bone lengths: a hand may overlap a face, a body may not be in there
+        deepest: +Math.max(0, ...pts.map(depth)).toFixed(2),
+        // it is genuinely against the thing, not stopped metres short of it
+        reached: +Math.min(...pts.map(([x]) => x - solid.max.x)).toFixed(2),
+      });
+      e.removeMe = true;
+      run(0.2);
+    }
+  }
+  out.__walled = walled;
   window.__manual = false;
   return out;
 });
@@ -326,6 +398,23 @@ const felled = results.__felled;
 delete results.__felled;
 const shoved = results.__shoved;
 delete results.__shoved;
+const walled = results.__walled;
+delete results.__walled;
+// The simulated body has to stay out of the solid outright. The drawn one is
+// allowed to graze it: fifteen points drive an authored sculpt with its own
+// bone lengths, so a hand or a boot can overlap a face by a hand's width —
+// what this rules out is the body lying *in* the crate, which is what a solver
+// that only knew about the floor did with every corpse that fell against one.
+check('a corpse thrown at a wall does not end up inside it',
+  walled.length > 0 && walled.every((r) => r.points > 0 && r.pointsInside === 0), walled);
+check('...and the body it draws stays out of it too',
+  walled.every((r) => r.bones > 0 && r.deepest < 0.5), walled);
+// Not a property of the solver — a guard on the other two, so they cannot
+// pass by the body never reaching the wall. Two of three, like every other
+// stochastic ragdoll check here: where a tumbling corpse comes to rest is the
+// dice, and one that ends up a stride short still had the throw.
+check('...having actually been thrown against it',
+  most(walled, (r) => r.reached < 0.5), walled);
 check('a settled corpse is still something you can shoot',
   shoved.every((r) => r.target), shoved);
 check('...and shooting it moves it', most(shoved, (r) => r.moved > 0.4), shoved);

@@ -6,7 +6,7 @@ import { BotBrain } from './bot';
 import { TEXT } from '../text';
 import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
-import { Carrier, carrierShipId, landingSite, squadArrival } from '../enemies/arrival';
+import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
@@ -18,10 +18,11 @@ import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
 import { enemyModelIds, warmAuthored } from '../characters/authored';
 import type { FrameInput } from '../core/input';
+import type { StaticCylinder } from '../core/physics';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
 import type { AllyCrate } from './allycrate';
-import type { Campaign } from './campaign';
+import type { MissionController } from './mission-api';
 import type { ModeRules } from './rules/rules';
 import { WaveRules } from './rules/wave';
 import { PvpRules } from './rules/pvp';
@@ -49,7 +50,6 @@ const BLANK_INPUT: FrameInput = {
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
   zoomDelta: 0, blockHeld: false, pausePressed: false,
   meleeSwapPressed: false, rangedSwapPressed: false,
-  throttleHeld: false, brakeHeld: false,
 };
 
 export interface GameEvents {
@@ -134,7 +134,7 @@ interface BlastSpec {
   corpses?: Ring;
   vehicles?: Ring;
   breakables?: Ring;
-  shake?: { amount: number; radius: number; flat?: boolean };
+  shake?: { amount: number; radius: number; flat?: boolean; ground?: boolean };
   /** how far the bang carries to the AI director */
   noise?: number;
   sound?: 'explosion' | 'impact';
@@ -151,6 +151,17 @@ interface Rocket {
   bySlot: number;
 }
 
+/**
+ * The capsule radius at which a body stops being someone you brush past and
+ * starts being something you walk into.
+ *
+ * Above it: the monsters (nexu 1.2 up to the krayt dragon and mythosaur at
+ * 3.0). Below it: every grunt and every elite, the enforcer and the
+ * broodmother included, which stay run-through-able because a crowd you
+ * cannot push through is a crowd that pins you.
+ */
+export const BIG_BODY_R = 1.1;
+
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
@@ -158,6 +169,19 @@ export class Game {
   allies: Enemy[] = [];
   /** rides parked around the board (PLAN.md §17) */
   vehicles: Vehicle[] = [];
+  /**
+   * The bodies big enough to be scenery: every live combatant at or over
+   * `BIG_BODY_R`, as cylinders, rebuilt in place each frame.
+   *
+   * A monster is a capsule the enemy solver carries and nothing else in the
+   * world knows about — it is not in `PhysicsWorld`, so neither the chase
+   * camera nor the player's own capsule ever met one. You walked through a
+   * krayt dragon and the camera sat inside a rancor. Grunts stay as they were
+   * (an arcade fight wants bodies you can run through); the ones you could
+   * hide behind are solid now. The array is shared with every player camera
+   * rather than copied, so it is filled in place and never reassigned.
+   */
+  readonly bigBodies: StaticCylinder[] = [];
   projectiles = new ProjectileSystem();
   particles = new ParticleFX();
   /** spreads alerts and decides who is allowed to push the player */
@@ -228,7 +252,28 @@ export class Game {
   /** alternates eligible transports between setting down and overflying */
   private landToggle = 0;
   /** campaign controller; null outside campaign mode (set by CampaignRules) */
-  campaign: Campaign | null = null;
+  campaign: MissionController | null = null;
+  /**
+   * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2), absolute Y — null
+   * everywhere but a mission level.
+   *
+   * Two jobs and no others: a border cannot be flown over, so a beat cannot be
+   * skipped; and the sky is cut into a **playable** band the fight lives in
+   * and an **ambient** band above it that belongs to the backdrop. It is set
+   * well above what one jetpack burn reaches, so free flight never meets it.
+   *
+   * The clamp is one-directional by design: a body below it cannot climb
+   * through, but a body above it — a carrier's squad on the way down, a flier
+   * crossing the rim — is left alone and falls in. That is what keeps a drop
+   * reading as reinforcements committed from above.
+   */
+  ceilingY: number | null = null;
+  /**
+   * How high a carrier pass flies over its drop. The wave game's 38 m; a
+   * mission level raises it clear of the ceiling so the squad falls *through*
+   * the cut rather than being clamped on the way in.
+   */
+  dropHeight = DROP_HEIGHT;
   /** the mode's rule set: everything Wave Battle, PvP and Missions disagree on */
   readonly rules: ModeRules;
   /**
@@ -289,6 +334,7 @@ export class Game {
         p.lives = 2; // three stands in total
       }
       p.spawnAt(this.rules.startFor?.(i) ?? this.startFor(i));
+      p.cam.blockers = this.bigBodies;
       p.char.setHeroLight(board.heroLight ?? 0);
       this.scene.add(p.char.root);
       this.players.push(p);
@@ -296,6 +342,10 @@ export class Game {
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
+    // The level exists now (a mission raises its own and re-places the party
+    // on it), so this is the first moment anyone can be pointed at open
+    // ground rather than at whatever the default bearing happened to face.
+    for (const p of this.players) p.faceOpenGround(this);
 
     // Parked rides belong to the territory's own ground, so they only make
     // sense in the modes fought on it. A mission level is raised to
@@ -373,6 +423,23 @@ export class Game {
     for (const a of this.allies) if (a.alive && a.team !== who.team) list.push(a);
     this.hostileCache.set(who.team, list);
     return list;
+  }
+
+  /**
+   * What a player's HUD says about the transport door, if anything.
+   *
+   * Going back through one needs the whole party aboard, so a player who has
+   * stepped into the pocket sees how to change their mind and everyone else
+   * sees who they are waiting on — without that, the run just stops for
+   * reasons nobody on the other screens can see.
+   */
+  exitNotice(p: Player): string {
+    const c = this.campaign;
+    if (!c || c.exited.size === 0) return '';
+    if (c.exited.has(p.slot)) return TEXT.missions.exited;
+    const waiting = this.players.filter((q) => q.alive && !c.exited.has(q.slot)).length;
+    const who = this.players.find((q) => c.exited.has(q.slot));
+    return TEXT.missions.waitingOn(who?.profile.name ?? '', waiting);
   }
 
   /** the campaign controller's mouthpiece (events is private) */
@@ -542,7 +609,7 @@ export class Game {
         return e;
       });
       opts.onRelease?.(bodies);
-    });
+    }, { dropHeight: this.dropHeight });
     this.carriers.push(carrier);
     this.scene.add(carrier.group);
     return carrier;
@@ -610,14 +677,16 @@ export class Game {
       this.monsterQuake = MONSTER_QUAKE_LEN;
       this.events.banner(TEXT.banners.groundOpening.title, TEXT.banners.groundOpening.sub);
       audio.mythosaur(0.6);
-      for (const p of this.players) p.cam.shake(0.5);
+      for (const p of this.players) p.groundShake(0.5);
       return;
     }
     if (this.monsterQuake <= 0) return;
 
     this.monsterQuake -= dt;
-    // a rolling shake rather than one jolt, so the beat builds
-    for (const p of this.players) p.cam.shake(0.12);
+    // A rolling shake rather than one jolt, so the beat builds — and it is the
+    // *ground* opening, so it reaches whoever is standing on it. A player up
+    // on the jetpack watches it happen instead of being rattled by it.
+    for (const p of this.players) p.groundShake(0.12);
     if (this.monsterQuake > 0) return;
 
     const wanted = (this.monsterAt ?? this.players[0].position).clone();
@@ -778,7 +847,7 @@ export class Game {
       // flat, not falling off: standing at the rim of a warlord's slam has
       // always cost the full 26, and the ember ring promises exactly that reach
       players: { radius, damage: dmg, flat: true, push, lift: push * 0.8 },
-      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true },
+      shake: { amount: dmg > 0 ? 0.3 : 0.15, radius, flat: true, ground: true },
       sound: 'explosion',
     });
   }
@@ -861,10 +930,14 @@ export class Game {
       }
     }
     if (spec.shake) {
-      const { amount, radius, flat } = spec.shake;
+      const { amount, radius, flat, ground } = spec.shake;
       for (const p of this.players) {
         const d = p.position.distanceTo(point);
-        p.cam.shake(flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius)));
+        const amt = flat ? (d < radius ? amount : 0) : Math.max(0, amount * (1 - d / radius));
+        // a ring that travels through the floor (a slam, a stomp) only shakes
+        // what is standing on it; a blast wave in the air reaches everyone
+        if (ground) p.groundShake(amt);
+        else p.cam.shake(amt);
       }
     }
     if (spec.noise) this.director.noise(this, point, spec.noise, true);
@@ -889,6 +962,29 @@ export class Game {
     this.hostileCache.clear();
     if (opts.puff) this.particles.dustPuff(e.position, opts.puff);
     return e;
+  }
+
+  /**
+   * Every body on the field with an AI behind it, hostiles and allies alike.
+   * Two lists exist because spawning and cleanup differ, not because the AI
+   * does — anything planning for the fight as a whole (the director) wants
+   * both.
+   */
+  *fighters(): Generator<Enemy> {
+    for (const e of this.enemies) yield e;
+    for (const a of this.allies) yield a;
+  }
+
+  /**
+   * A clear patch of ground for a body of `kind` at or near `want`.
+   *
+   * In a mission the level's own placement is the only safe one: the
+   * board-wide `standingSpot` falls back to the territory's ground ninety
+   * metres below the mission floor. Three callers had grown their own copy of
+   * this two-line pick; they all come through here now.
+   */
+  groundSpot(want: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+    return this.campaign ? this.campaign.placeNear(want, kind) : standingSpot(this.board, want, kind);
   }
 
   /** the same door for the allies' list */
@@ -930,7 +1026,60 @@ export class Game {
     }
   }
 
-  private hurtBreakable(b: Breakable, dmg: number): void {
+  /**
+   * A swing lands on the world, not only on bodies.
+   *
+   * Everything a bolt can break — the supply cache, the barrels, the ice
+   * plates, a parked ride — a blade, a gaffi stick or a bare fist can break
+   * too. Anything a player can do with the trigger has to be something the
+   * melee build can do as well, and the cache was the case that made it plain:
+   * the only way to spring it was to shoot it, so a fighter who had put the
+   * gun away could not open their own reinforcements.
+   *
+   * Same arc as the body hit — reach in front of the swinger — but measured to
+   * the nearest point of the prop rather than to its middle, so a long plate
+   * is struck where the blade actually met it.
+   *
+   * @returns true if the swing found something, so the swing can play contact
+   */
+  meleeProps(from: THREE.Vector3, facingYaw: number, range: number, dmg: number, bySlot: number): boolean {
+    const fx = Math.sin(facingYaw), fz = Math.cos(facingYaw);
+    // chest height: a swing is not a scan of the ground under your boots
+    const y = from.y + 1;
+    let hit = false;
+    const inFront = (x: number, z: number, reach: number): boolean => {
+      const dx = x - from.x, dz = z - from.z;
+      const flat = Math.hypot(dx, dz);
+      if (flat > reach) return false;
+      return flat < 0.2 || (dx * fx + dz * fz) / flat > 0.25;
+    };
+    for (const b of this.board.breakables ?? []) {
+      if (b.broken) continue;
+      const box = b.box;
+      const nx = Math.min(Math.max(from.x, box.min.x), box.max.x);
+      const nz = Math.min(Math.max(from.z, box.min.z), box.max.z);
+      const ny = Math.min(Math.max(y, box.min.y), box.max.y);
+      if (Math.abs(ny - y) > range) continue;                 // over your head / at your feet
+      if (!inFront(nx, nz, range)) continue;
+      this.hurtBreakable(b, dmg);
+      hit = true;
+    }
+    for (const v of this.vehicles) {
+      if (!v.alive) continue;
+      if (Math.abs(v.pos.y + 1 - y) > range + 1) continue;
+      if (!inFront(v.pos.x, v.pos.z, range + v.def.radius)) continue;
+      v.damage(dmg, from, bySlot);
+      hit = true;
+    }
+    return hit;
+  }
+
+  /**
+   * Hurt one prop, and break it when it runs out. Public because the things
+   * that can hit a prop are not all bolts: a swing, a thrown blade and a blast
+   * all come through here.
+   */
+  hurtBreakable(b: Breakable, dmg: number): void {
     if (b.broken || dmg <= 0) return;
     b.hp -= dmg;
     if (b.hp > 0) return;
@@ -1033,19 +1182,27 @@ export class Game {
     this.events.hitMarker(slot);
   }
 
-  private explode(point: THREE.Vector3, bySlot: number): void {
-    this.particles.explosion(point);
+  /**
+   * `scale` sizes the whole event — the fireball, how far the wave reaches and
+   * what it is worth when it gets there. A rocket is 1; a destroyed ride
+   * passes its own hull's measure (see `Vehicle.blastScale`), so a swoop going
+   * up beside you is survivable and a skiff going up beside you is not.
+   */
+  private explode(point: THREE.Vector3, bySlot: number, scale = 1): void {
+    this.particles.explosion(point, scale);
+    const r = (base: number) => base * (0.75 + scale * 0.25);
+    const d = (base: number) => base * (0.6 + scale * 0.4);
     this.blast(point, {
       bySlot,
       // the blast wave puts a body flat as well as hurting it
-      enemies: { radius: 7, damage: 90, zero: 8, push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
-      corpses: { radius: 9, damage: 26, zero: 10 },
+      enemies: { radius: r(7), damage: d(90), zero: r(8), push: 18, stagger: 0.6, knockdown: [1.4, 0.8] },
+      corpses: { radius: r(9), damage: d(26), zero: r(10) },
       // in PvP a rocket is a duel-ender against a rival; against yourself it
       // is the same graze it has always been
-      players: { radius: 4.5, damage: 18, rival: this.mode === 'pvp' ? 70 : undefined },
-      vehicles: { radius: 7, damage: 80, zero: 8 },
-      breakables: { radius: 6, damage: 90 },   // scenery is not exempt (chains!)
-      shake: { amount: 0.35, radius: 35 },
+      players: { radius: r(4.5), damage: d(18), rival: this.mode === 'pvp' ? d(70) : undefined },
+      vehicles: { radius: r(7), damage: d(80), zero: r(8) },
+      breakables: { radius: r(6), damage: d(90) },   // scenery is not exempt (chains!)
+      shake: { amount: 0.35 * (0.7 + scale * 0.4), radius: 35 * (0.8 + scale * 0.2) },
       noise: 70,                                // an explosion is not subtle
       sound: 'explosion',
     });
@@ -1149,12 +1306,29 @@ export class Game {
     // decided by the campaign's own rules above
     this.campaign?.animateGates(dt);
 
+    // ---- the big bodies, before anything moves against them ----
+    this.bigBodies.length = 0;
+    for (const list of [this.enemies, this.allies]) {
+      for (const e of list) {
+        if (!e.alive || !e.targetable || e.radius < BIG_BODY_R) continue;
+        this.bigBodies.push({
+          x: e.position.x, z: e.position.z, r: e.radius,
+          minY: e.position.y, maxY: e.position.y + e.height,
+        });
+      }
+    }
+
     // ---- players ----
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       this.rules.respawn(p);
+      // ...facing out of wherever the mode put them. A checkpoint hands out a
+      // spot, not a bearing, and a room's spot is usually against a wall.
+      // Only where a body actually came back: a mode that has run out of
+      // lives to give leaves the player down, and a corpse has no bearing.
+      if (p.alive) p.faceOpenGround(this);
     }
     this.rules.partyWiped?.();
 
@@ -1166,7 +1340,7 @@ export class Game {
       if (v.pendingExplosion) {
         const px = v.pendingExplosion;
         v.pendingExplosion = null;
-        this.explode(px.at, px.slot);
+        this.explode(px.at, px.slot, px.scale);
       }
       // a mount has no repulsor core to go up: it drops, and the sand it
       // kicks up is the whole of it
@@ -1174,11 +1348,21 @@ export class Game {
         const at = v.pendingCollapse;
         v.pendingCollapse = null;
         this.particles.dustPuff(at, 26);
+        this.particles.disintegrate(at.clone().setY(at.y + 1.2), 14);
         audio.banthaLow(0.6);
       }
-      if (v.removeMe) this.scene.remove(v.group);
+      // twenty seconds on, it is back where it was parked: the sand gathers
+      // itself up into an animal again, or a hull settles onto its repulsors
+      if (v.pendingReform) {
+        const at = v.pendingReform;
+        v.pendingReform = null;
+        this.particles.dustPuff(at, 16);
+        if (v.def.living) {
+          this.particles.disintegrate(at.clone().setY(at.y + 1.4), 16);
+          audio.banthaLow(0.4);
+        }
+      }
     }
-    this.vehicles = this.vehicles.filter((v) => !v.removeMe);
 
     // ---- enemies ----
     this.director.update(dt, this);
@@ -1311,6 +1495,24 @@ export class Game {
         t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
         t.radius = r;
         t.team = 2;
+        targets.push(t);
+      }
+      // A ride with its deflector up meets bolts before its hull does. The
+      // bubble rides a target of its own, for two reasons: it is tested first
+      // whatever order the hull spheres came in, and it carries the *rider's*
+      // team rather than the props' — a bolt turned by a team-2 target would
+      // fly on as loose ordnance that hits both sides, including the person
+      // who just blocked it. No body of its own (radius 0): the hull spheres
+      // above are what a bolt that gets past it actually meets.
+      const bubble = v.shieldCollider;
+      if (bubble && v.rider) {
+        const t = this.claim(slot++);
+        t.vehicle = v;
+        t.position.copy(bubble.center);
+        t.radius = 0;
+        t.team = v.rider.team;
+        t.shield = bubble;
+        t.slot = v.rider.slot;
         targets.push(t);
       }
     }
