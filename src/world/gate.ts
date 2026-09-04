@@ -62,6 +62,8 @@ export interface Barrier {
 export class Gate implements Barrier {
   pos: THREE.Vector3;
   private box: StaticBox | null = null;
+  /** the frame's own posts and head — solid for as long as the doorway stands */
+  private frameSolids: StaticBox[] = [];
   private leaves: THREE.Mesh[] = [];
   private seam: THREE.Mesh;
   private half: THREE.Vector3;
@@ -77,7 +79,8 @@ export class Gate implements Barrier {
     this.pos = pos.clone();
     const gateW = opts.width ?? GATE_W;
     const yaw = Math.atan2(dir.x, dir.z);
-    buildDoorFrame(parent, pos.clone(), yaw, { leaf: false });
+    this.frameSolids = buildDoorFrame(parent, pos.clone(), yaw,
+      { leaf: false, physics: board.physics }).solids;
     // blocker half-extents: thin along the travel axis, spanning the gap
     const across = gateW / 2 + 0.5;
     this.half = new THREE.Vector3(
@@ -136,7 +139,18 @@ export class Gate implements Barrier {
     this.want = 1;
   }
 
-  retire(): void { this.block(false); }
+  retire(): void {
+    this.block(false);
+    // The frame outlives the blocker — it is the doorway, not the door — so a
+    // stage torn down mid-run has to take its posts back out with it or the
+    // next one is built around a set of invisible ones.
+    const boxes = this.board.physics.boxes;
+    for (const f of this.frameSolids) {
+      const i = boxes.indexOf(f);
+      if (i >= 0) boxes.splice(i, 1);
+    }
+    this.frameSolids.length = 0;
+  }
 
   update(dt: number): void {
     if (this.t === this.want) return;
