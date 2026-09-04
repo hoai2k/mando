@@ -11,6 +11,7 @@ import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
+import { seatSurface } from '../anim/seating';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
@@ -56,8 +57,25 @@ export interface VehicleDef {
   length: number;
   /** player-root offset from the keel while riding (saddle top − hip height) */
   seat: { x: number; y: number; z: number };
-  /** saddle straddle or standing at a tiller */
-  stance: 'saddle' | 'stand';
+  /**
+   * How the rider is carried: thrown across a saddle, sitting in a seat with
+   * the legs forward, or standing at a tiller. It picks the pose clips and
+   * how far under the seat surface the rider's root goes.
+   */
+  stance: 'saddle' | 'seated' | 'stand';
+  /**
+   * Where the rider's hands go, measured **from the seat surface** in the
+   * ride's own space: `x` is the half-spacing (mirrored for the two hands),
+   * `y` the height above the seat, `z` how far ahead of it.
+   *
+   * Anchored to the seat rather than to the keel because the seat is the one
+   * thing that is measured off the sculpt (`seatToModel`): a model whose
+   * saddle sits higher than the stand-in's carries the bars up with it, which
+   * is the whole point. A ride that leaves this out keeps the animation's own
+   * arms — `hands: 'left'` is for an animal, where the off hand holds the
+   * reins and the other one holds a blaster.
+   */
+  hands?: { x: number; y: number; z: number; only?: 'left' };
   /** authored .glb to swap in when present */
   modelId?: string;
   modelSize?: number;
@@ -99,8 +117,11 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     turn: 2.3, grip: 4.5, boost: 9,
     shotResist: 1, crashScale: 1.6, mass: 1,
     radius: 0.85, body: 1.1, hover: 0.55, length: 2.8,
-    seat: { x: 0, y: -0.38, z: -0.15 }, stance: 'saddle',
+    // saddle at 0.44 over the keel on `nikto_swoop`, bars either side of the
+    // cowl just ahead of it — both measured off the sculpt, see `seatToModel`
+    seat: { x: 0, y: -0.38, z: -0.28 }, stance: 'saddle',
     modelId: 'nikto_swoop', modelSize: 2.6,
+    hands: { x: 0.28, y: 0.29, z: 0.23 },
   },
   speederBike: {
     name: TEXT.vehicles.speeder, hp: 150, top: 27, throttle: 18, brake: 22, drag: 4,
@@ -109,16 +130,23 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     // ride that is genuinely fragile in a straight line
     shotResist: 1.15, crashScale: 1.6, mass: 0.9,
     radius: 0.8, body: 1.15, hover: 0.6, length: 3.0,
-    seat: { x: 0, y: -0.34, z: -0.3 }, stance: 'saddle',
+    // back on the saddle (0.50 over the keel on `speeder_bike`) with the bars
+    // half a metre ahead of it and 34 cm up — the sculpt's own measurements
+    seat: { x: 0, y: -0.34, z: -0.55 }, stance: 'saddle',
     modelId: 'speeder_bike', modelSize: 3.0,
+    hands: { x: 0.3, y: 0.34, z: 0.5 },
   },
   landspeeder: {
     name: 'Landspeeder', hp: 320, top: 22, throttle: 11, brake: 18, drag: 3.5,
     turn: 1.7, grip: 5.5, boost: 8,
     shotResist: 0.5, crashScale: 4, mass: 2.4,
     radius: 1.15, body: 1.1, hover: 0.45, length: 4.4,
-    seat: { x: 0, y: -0.32, z: -0.5 }, stance: 'saddle',
+    // An open cockpit, not a saddle: the driver sits in the right-hand seat
+    // (the sculpt's cushion is at x +0.22, z -0.42) with the legs forward into
+    // the footwell and the hands out on the yoke over it.
+    seat: { x: 0.22, y: -0.32, z: -0.42 }, stance: 'seated',
     modelId: 'landspeeder', modelSize: 4.5,
+    hands: { x: 0.16, y: 0.19, z: 0.37 },
   },
   bantha: {
     // The Tuskens' own transport, and the one ride on the board that is alive:
@@ -133,6 +161,8 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     radius: 1.5, body: 2.5, hover: 0.02, length: 5.4,
     seat: { x: 0, y: 2.05, z: -0.2 }, stance: 'saddle', living: true,
     modelId: 'bantha', modelSize: 4.5, modelAxis: 'z', modelGround: true,
+    // the rein hand goes to the saddle's own pommel, 45 cm forward of the seat
+    hands: { x: 0.14, y: 0.13, z: 0.45, only: 'left' },
   },
   skiff: {
     name: TEXT.vehicles.skiff, hp: 600, top: 15, throttle: 6.5, brake: 10, drag: 2.4,
@@ -140,7 +170,10 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     // freight plate: a hundred bolts to bring down, a dozen good crashes
     shotResist: 0.28, crashScale: 6, mass: 6,
     radius: 1.7, body: 1.3, hover: 0.9, length: 9,
-    seat: { x: 0, y: 1.05, z: -3.1 }, stance: 'stand',
+    // Astern of the cargo on the flat of the deck (0.13 over the keel on the
+    // sculpt) rather than out on the stern, where the hull falls away and a
+    // tillerman stood on nothing.
+    seat: { x: 0, y: 0.8, z: -1.6 }, stance: 'stand',
     modelId: 'skiff', modelSize: 9,
   },
 };
@@ -176,10 +209,29 @@ const REVERSE_FRACTION = 0.35;
 /** below this forward speed the brake stops stopping and starts reversing */
 const REVERSE_THRESHOLD = 0.4;
 
+/**
+ * How far a rider's root (its feet, on the canonical rig) sits below the
+ * surface it is carried on. A straddled saddle takes the weight on the thighs
+ * and carries the hips a hand's width proud of it; a seat takes it on the
+ * backside, so the hips sit almost on the cushion; a deck takes the feet.
+ */
+const STANCE_RISE: Record<VehicleDef['stance'], number> = { saddle: 0.85, seated: 0.93, stand: 0 };
+/**
+ * Our own woven saddle, from `buildVehicleMesh`: how far its seat stands over
+ * the group's origin, and how far into the fur the whole thing is pressed.
+ *
+ * A mount is measured against the *animal*, and a flat saddle laid on top of
+ * a measurement taken off the shaggiest point of a curved back floats over it
+ * with daylight underneath. Sinking it by its own thickness beds it into the
+ * coat and leaves the rider sitting at the height the back actually is.
+ */
+const SADDLE_PAD = 0.13;
+const SADDLE_SINK = 0.26;
+
 const _ramPoint = new THREE.Vector3();
-const _seatRay = new THREE.Raycaster();
 const _seatFrom = new THREE.Vector3();
-const _down = new THREE.Vector3(0, -1, 0);
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
 
 export class Vehicle {
   def: VehicleDef;
@@ -516,17 +568,50 @@ export class Vehicle {
       this.pos.y + this.def.body + 3,
       this.pos.z - sin * s.x + cos * s.z,
     );
-    _seatRay.set(_seatFrom, _down);
-    const hit = _seatRay.intersectObject(root, true)[0];
-    if (!hit) return;                       // nothing under the seat: keep the default
-    const surface = hit.point.y - this.pos.y;
-    // a straddled saddle carries the hips a hand's width above it; a standing
-    // rider's feet go straight onto the deck
-    this.seatY = this.def.stance === 'stand' ? surface : surface - 0.85;
-    // the saddle is ours, not the sculpt's: sit it on the back the model
-    // actually has, so a mount reads as ridden whichever build is showing
+    _fwd.set(sin, 0, cos);
+    _right.set(cos, 0, -sin);
+    // A grid over the seat's footprint, not one ray down its middle. A single
+    // ray takes the *topmost* thing in the column, and on a speeder that is
+    // the headrest — which is how a droid ended up perched on the back of the
+    // seat instead of sitting in it. `seatSurface` takes the surface most of
+    // the footprint lands on instead, which is the cushion.
+    const world = seatSurface(root, _seatFrom, _fwd, _right, this.def.body + 6);
+    if (world === null) return;             // nothing under the seat: keep the default
+    const surface = world - this.pos.y;
+    // The saddle is ours, not the sculpt's: sit it on the back the model
+    // actually has, so a mount reads as ridden whichever build is showing —
+    // and then the rider sits on the *saddle*, not on the animal under it,
+    // which is a hand's depth of leather the measurement cannot see.
     const saddle = this.body.getObjectByName('saddle');
-    if (saddle) saddle.position.y = surface - 0.04;
+    let sit = surface;
+    if (saddle) {
+      saddle.position.y = surface - SADDLE_SINK;
+      sit = surface - SADDLE_SINK + SADDLE_PAD;
+    }
+    this.seatY = sit - STANCE_RISE[this.def.stance];
+  }
+
+  /** the height of the surface being sat on, over the keel */
+  private get seatTop(): number {
+    return this.seatY + STANCE_RISE[this.def.stance];
+  }
+
+  /**
+   * Where one hand goes, in world space — the grip on the far end of the
+   * rider's reach. Measured off the seat surface, so it follows the sculpt
+   * the seat was measured from.
+   */
+  gripWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
+    const g = this.def.hands;
+    if (!g) return null;
+    const s = this.def.seat;
+    const lx = s.x + side * g.x, lz = s.z + g.z;
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    return out.set(
+      this.pos.x + cos * lx + sin * lz,
+      this.pos.y + this.seatTop + g.y,
+      this.pos.z - sin * lx + cos * lz,
+    );
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
@@ -1018,11 +1103,11 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel
     saddle.name = 'saddle';
     saddle.position.y = 3.2;
     const cloth = mat(0x8c3f2e, 0.95, 0);
-    addBox(saddle, cloth, 1.5, 0.1, 2.0, 0, 0, -0.1);
+    addBox(saddle, cloth, 1.15, 0.07, 1.5, 0, 0, -0.1);
     const leather = mat(0x4a3524, 0.9, 0.05);
-    addBox(saddle, leather, 0.9, 0.22, 0.9, 0, 0.14, -0.2);
-    addBox(saddle, leather, 0.5, 0.3, 0.14, 0, 0.3, 0.25);       // pommel
-    for (const sx of [-1, 1]) addBox(saddle, leather, 0.06, 0.5, 0.3, sx * 0.72, -0.2, -0.2); // stirrup straps
+    addBox(saddle, leather, 0.85, 0.12, 0.85, 0, 0.07, -0.2);
+    addBox(saddle, leather, 0.42, 0.2, 0.12, 0, 0.16, 0.25);     // pommel
+    for (const sx of [-1, 1]) addBox(saddle, leather, 0.06, 0.5, 0.3, sx * 0.62, -0.2, -0.2); // stirrup straps
     saddle.traverse((o) => { o.castShadow = true; });
     group.add(saddle);
   } else {

@@ -546,6 +546,12 @@ for (const id of waveBoards) {
 // Missions parks rides per zone now, and a stage may stand on the territory's
 // own ground, so the rule is no longer "none" but "the stage's own, on the
 // stage" — a ride you cannot walk to is still the thing being guarded against.
+//
+// The stage chain is behind `?missions=new`, so this section has to *ask* for
+// it: without the flag Missions runs the legacy room chain, which has no
+// `stage` at all and quietly answered every check below with `undefined`.
+await h.page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new`);
+await h.page.waitForFunction(() => !!window.__startMode, null, { timeout: 30000 });
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {

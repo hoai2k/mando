@@ -1582,6 +1582,19 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const mouth = new THREE.Vector3(axis.x(uCliff, 0), face + 3, axis.z(uCliff, 0));
       zones[last].landmark = mouth.clone();
       path.push(mouth.clone());
+    } else {
+      // no gorge: the canyon still has to *end*, or the far wall is two lines
+      // running off into the territory with open ground between them. A cliff
+      // across it, with the doorway's own gap left where a way on exists.
+      const endHalf = halfAt(uCliff);
+      const face = groundAt(axis.x(uCliff, 0), axis.z(uCliff, 0));
+      const behind = { x: axis.x(uCliff - 14, 0), z: axis.z(uCliff - 14, 0) };
+      const gapHalf = hasNext ? (GATE_W + 4) / 2 : 0;
+      for (const side of [1, -1] as const) {
+        if (endHalf <= gapHalf) continue;
+        ridge([[axis.x(uCliff, side * gapHalf), axis.z(uCliff, side * gapHalf)],
+          [axis.x(uCliff, side * endHalf), axis.z(uCliff, side * endHalf)]], face, { inside: behind });
+      }
     }
   }
 

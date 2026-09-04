@@ -157,6 +157,50 @@ border on every board:
   break is framed by two **pillar** pieces (r 4–5, taller than their
   neighbours) so the way through is a shape you recognise from across the
   zone.
+- **A border has a side** (2026-09-04). Every `ridge` call names a point on
+  the *playable* side of the line, and both rows are laid away from it. Two
+  bugs lived in not having that:
+
+  1. the collider is one slab per run, 3.2 m thick, on the line — but the
+     rocks are 4–6 m across and were centred on it too, so metres of cliff
+     stood inside the level with nothing under them. You walked into the face
+     and kept going. Pieces now stand *outside* the slab, offset by their own
+     radius, so the drawn face and the collision face are the same surface;
+  2. the backdrop row was offset along a **fixed** perpendicular, which is
+     only "behind" for half the borders in a level. The other half — every
+     zone's right-hand wall, every front face, every lane's far side — put
+     twenty-metre boulders **with no collider at all** in the middle of the
+     playable space. That is where "I walk through the walls" and "why am I
+     going around a mountain" both came from, on every outdoor board.
+
+  A run that leans across the level is laid as a short staircase of slabs
+  rather than one AABB around the whole diagonal, so a wall that closes as it
+  goes (§1.4a) does not wall off the ground beside it.
+
+### 1.4a Canyons: one border for a whole chain
+
+A rim per zone is a box whose sides are taller than the box is wide, and a
+run built out of them reads as a corridor of them: walls at arm's length the
+whole way, the territory only visible over the top. `StageSpec.canyon` is the
+other shape the same rules allow — **two walls down the length of the chain
+that close as it goes**:
+
+- `from` / `to` are the half-widths at the chain's start and at its end,
+  interpolated with a late-weighted (t²) taper so the opening stays open and
+  the *closing* is what you notice. The zones inside lay no rim of their own,
+  and neither do the lanes between them: it is one place, not a row of rooms.
+- `gorge` closes the far end with a cliff and cuts the way on into it — a
+  slot you can see from a hundred metres, walk up to, and enter, with the
+  stage's transport door at the far end of it. The mouth is framed by the
+  usual pillar pair, and a `road` beat that ends there puts its barricade
+  **in the mouth** rather than out in open ground where it can be driven
+  round.
+- Straight chains only: the walls are laid along the stage's `anchor`.
+
+The Dune Sea's opening stage is the one that asks for it — 78 m to either
+side at the trailhead, 30 m at the far end, a 16 m gorge — because the run
+opens on the board's own dunes and a box around them was the wrong shape for
+a desert.
 
 Sizing rule: border height = `ceiling + 6` minimum. A 30 m ceiling wants a
 36 m cliff; the backdrop row at 60–70 m sells the scale. Nothing has to be
@@ -392,6 +436,17 @@ rules of §1.3 with the board's own ground under them.
 ### 3.1 The Dune Sea (`desert`) — ceiling 30 · three stages
 
 The reference layout, the one in the brief.
+
+**Stage A is one canyon** (§1.4a, 2026-09-04). The trailhead and the road are
+not two boxes on the sand: sandstone stands 78 m to either side of the lane at
+the trailhead and closes to 30 m by the far end, and the chain ends against a
+cliff with a 16 m gorge cut into it — spires at the mouth, the road's
+barricade set into it, the transport door 26 m down the slot. So the run opens
+on open ground with the horizon and the board's own landmarks in it (the
+homestead, the Tusken camp, the mesas), spends the ride watching the walls
+come in, and *enters* the ravine rather than stepping through a door standing
+in the desert. The lane is anchored a little north of the bowl's middle so the
+slot clears the board's east mesa.
 
 **Stage A — the open desert** (*territory*: the wave board's dunes around
 the homestead, a 140×110 m region rimmed by its own mesas plus `ridge`

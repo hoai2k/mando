@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
+import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
@@ -683,6 +684,18 @@ export function buildMassiff(authored = true): CharacterInstance {
   };
 }
 
+/**
+ * The swoop's saddle and bars, in the bike group's own space.
+ *
+ * `stand` is where the *procedural* bike's saddle sits — the height every pose
+ * angle in `buildNikto` was tuned against — so a sculpt whose saddle is
+ * somewhere else is corrected by the difference rather than re-tuned. The bar
+ * offsets are the same ones the pilotable swoop declares in `VEHICLE_DEFS`,
+ * because it is the same sculpt.
+ */
+const SWOOP_SEAT = { x: 0, z: -0.28, stand: 0.67 };
+const SWOOP_BARS = { x: 0.28, y: 0.29, z: 0.23 };
+
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
   // swoop bike
@@ -703,10 +716,12 @@ export function buildNikto(authored = true): CharacterInstance {
   // The bike is a vehicle, not a character — nothing animates it, so it comes
   // in through the prop path and simply replaces the procedural box.
   let bikeSettled = !authored;
+  /** the sculpt, once it lands: what the rider is seated and gripped against */
+  let swoopModel: THREE.Object3D | null = null;
   if (authored) {
     const swoop = loadProp('nikto_swoop', 2.6, {
       onLoad: () => { for (const m of bike.children) if ((m as THREE.Mesh).isMesh) m.visible = false; },
-      onSettle: () => { bikeSettled = true; },
+      onSettle: () => { bikeSettled = true; swoopModel = swoop; },
     });
     bike.add(swoop);
   }
@@ -745,6 +760,45 @@ export function buildNikto(authored = true): CharacterInstance {
     onLoad: () => { rider.root.position.y = -0.09; },
   });
 
+  /**
+   * Sit the rider on the swoop it is actually riding, and put its hands on
+   * the bars.
+   *
+   * Every number in the pose above is measured against the procedural box the
+   * bike used to be. The sculpt's saddle is somewhere else and its bars are
+   * somewhere else again, so on the authored build this fighter rode along
+   * beside its own bike holding nothing. Both are read off the sculpt the
+   * frame after it lands: the saddle by the same footprint probe the pilotable
+   * rides use, the bars by the grips the swoop's own definition declares.
+   * Done once — the rider is a still pose, not an animation.
+   */
+  let seated = false;
+  const seatRider = (): void => {
+    if (seated || !swoopModel) return;
+    seated = true;
+    group.updateMatrixWorld(true);
+    const fwd = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    group.getWorldDirection(fwd);
+    right.set(fwd.z, 0, -fwd.x);
+    const at = group.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, bike.position.y + 3, SWOOP_SEAT.z));
+    const world = seatSurface(swoopModel, at, fwd, right, 5);
+    if (world === null) return;
+    const saddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+    // the pose above is tuned to the *stand-in* saddle, so this corrects it by
+    // however far the sculpt's own saddle differs — which keeps the tuning for
+    // the procedural rider and the retargeted one both
+    rider.root.position.y += saddleY - SWOOP_SEAT.stand;
+    group.updateMatrixWorld(true);
+    for (const side of [-1, 1] as const) {
+      const grip = group.localToWorld(new THREE.Vector3(
+        SWOOP_SEAT.x + side * SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z));
+      const hint = grip.clone().addScaledVector(right, side * 0.5);
+      hint.y -= 0.4;
+      reachArm(riderRig, side === 1 ? 'L' : 'R', grip, hint);
+    }
+  };
+
   // the swoop's melee is a ram: nose dipped and driven forward, then pulled up
   let attackT = -1;
   const ATTACK_DUR = 0.45;
@@ -756,6 +810,7 @@ export function buildNikto(authored = true): CharacterInstance {
     attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
       swap.update();
+      if (swap.settled) seatRider();
       bike.position.y = 0.55 + Math.sin(time * 6) * 0.05;
       bike.rotation.z = Math.sin(time * 3.1) * 0.06;
       bike.rotation.x = 0;

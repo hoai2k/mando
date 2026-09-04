@@ -20,6 +20,7 @@ import type { Vehicle } from '../game/vehicles';
 import { markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
+import { reachArm } from '../anim/seating';
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -71,6 +72,9 @@ const _flipAxis = new THREE.Vector3();
 const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
+/** the ride's grip and the elbow hint that picks the arm's bend */
+const _grip = new THREE.Vector3();
+const _elbowHint = new THREE.Vector3();
 
 const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
@@ -2335,18 +2339,56 @@ export class Player {
     const gunUp = armed && (input.aimHeld || input.shootHeld
       || (this.weapon === 'blaster' && this.fireCd > -0.6));
     this.facingYaw = dampAngle(this.facingYaw, gunUp ? this.cam.yaw : v.yaw, gunUp ? 14 : 10, dt);
-    const stand = v.def.stance === 'stand';
-    anim.play('lower', stand ? 'idleLower' : 'rideLower');
+    // three ways to be carried, three poses: on your feet at a tiller, sat in
+    // a seat with the legs forward, or straddling a saddle over the hull
+    const stance = v.def.stance;
+    const lower = stance === 'stand' ? 'idleLower' : stance === 'seated' ? 'driveLower' : 'rideLower';
+    const upper = stance === 'stand' ? 'idleUpper' : stance === 'seated' ? 'driveUpper' : 'rideUpper';
+    anim.play('lower', lower);
     if (this.meleeTimer <= 0) {
-      anim.play('upper', gunUp ? 'aimUpper' : stand ? 'idleUpper' : 'rideUpper');
+      anim.play('upper', gunUp ? 'aimUpper' : upper);
     }
 
     this.syncVisual(dt, game);
     anim.update(dt);
+    this.handsToControls(v, gunUp);
     const speed = Math.hypot(v.vel.x, v.vel.z);
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,
     });
+  }
+
+  /**
+   * Put the hands on the ride's controls.
+   *
+   * `rideUpper` is one pose for every ride in the game, and no single pair of
+   * arm angles reaches a swoop's bars, a landspeeder's yoke and a bantha's
+   * reins — so on most of them it reached none of them, and Din rode a speeder
+   * bike holding two handfuls of air. The clip still owns the lean, the head
+   * and the shoulders; the forearms are solved onto the grip the ride declares
+   * (`VehicleDef.hands`), which is measured off the seat the sculpt actually
+   * has. A ride with no declared grip, a hand busy with a gun, and anything
+   * not on the canonical rig all keep the clip's arms.
+   */
+  private handsToControls(v: Vehicle, gunUp: boolean): void {
+    const rig = this.char.rig;
+    const hold = v.def.hands;
+    if (!rig || !hold) return;
+    // the world matrices the solve reads are the ones `syncVisual` just wrote
+    this.char.root.updateMatrixWorld(true);
+    const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);
+    for (const side of [-1, 1] as const) {
+      // an animal is steered one-handed: reins in the off hand, gun in the
+      // other, so the right arm is the combat pose's to keep
+      if (hold.only === 'left' && side !== 1) continue;
+      if (gunUp && side === -1) continue;
+      if (!v.gripWorld(side, _grip)) continue;
+      // the elbow rides outboard of the bar and a little below it, which is
+      // where a rider's elbow goes and what stops the solve folding the arm
+      // up over the shoulder
+      _elbowHint.set(_grip.x + cos * side * 0.55, _grip.y - 0.42, _grip.z - sin * side * 0.55);
+      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _elbowHint);
+    }
   }
 
   /**

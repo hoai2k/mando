@@ -526,6 +526,33 @@ one** — keeping its momentum and popping up into a jetpack chain. The rider si
 real saddle pose (`rideLower`/`rideUpper` clips on the canonical rig, so authored
 skins ride too).
 
+**Sitting on the seat, hands on the controls** (audited 2026-09-04, `anim/seating.ts`).
+Every number that places a rider was measured against the *procedural stand-in*, and
+every stand-in is a box where the sculpt that replaces it is a shape — so riders were
+in the wrong place twice over. Both halves now ask the model.
+
+- **The seat.** A single ray down the seat column takes the **topmost** thing in it,
+  which on the landspeeder is the headrest: that is how a droid ended up perched on
+  the back of the seat rather than sitting in it. `seatSurface` drops a small grid of
+  rays over the footprint a body occupies, keeps only faces you could *sit* on (an
+  open cockpit otherwise measures the underside of its own hull), and takes the
+  surface most of them landed on — the cushion, never the headrest, ties going to the
+  lower surface. A mount is measured against the animal and then sat on the saddle
+  strapped over it.
+- **The hands.** One pair of arm angles cannot reach a swoop's bars, a landspeeder's
+  yoke and a bantha's reins, so on most rides it reached none of them — Din rode a
+  speeder bike holding two handfuls of air. Each def declares a `hands` grip measured
+  **from the seat surface**, and `reachArm` solves the arm onto it (two-bone IK on the
+  canonical rig, with an elbow hint so the arm bends outboard the way a rider's does).
+  The pose clip still owns the lean, the head and the shoulders. An animal is steered
+  one-handed, so only the rein hand is solved and the gun hand is the combat pose's.
+- **A cockpit is not a saddle.** The landspeeder gets `stance: 'seated'` and its own
+  `driveLower`/`driveUpper` pair — legs forward into the footwell, knees together,
+  torso near upright — because a rider carrying the straddle into an open seat sits
+  bow-legged with a leg out over each side.
+- The Nikto's swoop (an *enemy* on a static pose, not a pilotable ride) reads the same
+  two measurements off the same sculpt the moment it lands.
+
 **Driving is a vehicle scheme, not a character one.** The stick does not point where to
 go; it **turns the nose** (left/right only), and speed comes off pedals: **A is the
 accelerator, B is the brake and then reverse** once it has come to a stop. On the
