@@ -105,6 +105,13 @@ interface MandoConfig {
    */
   thrusters?: 'jetpack' | 'feet';
   /**
+   * Built for water: a reptilian or amphibious fighter swims faster, turns
+   * harder and comes out of a breach higher than a body that has to be
+   * carried through it. Bossk and the Quarren are the obvious ones; the war
+   * massiff is a reptile too.
+   */
+  amphibious?: boolean;
+  /**
    * An acrobat somersaults: tapping jump again in the air tucks them into a
    * roll that keeps turning while the button is held, and unwinds to a normal
    * falling stance when it is let go. Only for fighters who read as tumblers —
@@ -183,7 +190,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     ...TEXT.characters.bossk,
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
-    voice: 'reptile',
+    voice: 'reptile', amphibious: true,
   },
   duelist: {
     ...TEXT.characters.duelist,
