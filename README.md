@@ -214,7 +214,18 @@ npm test          # every suite: boot the built game in Chromium and play it
 node tools/run-suites.mjs test-modes test-block   # just these two
 node tools/run-suites.mjs --list                  # what there is to run
 node tools/run-suites.mjs --shard=2/4             # a quarter of the work
+node tools/run-suites.mjs --retries=0             # don't re-run failures
 ```
+
+**A suite that fails is re-run once, and a pass on that second run is reported
+as FLAKY rather than as fixed.** A flake does not fail the run — a nightly
+turned red by a test that passes on a retry is how a red nightly stops meaning
+anything — but it is not shrugged off either: the runner prints the failing
+checks under a `FLAKY` banner, writes `flaky-report.json`, and on CI raises a
+warning annotation on the run summary and keeps the report as an artifact for
+thirty days. Treat one as a bug in the test. Every flake this project has had
+was the same bug underneath: something sampled on a fixed frame count or a
+`sleep` while the thing being measured arrives asynchronously.
 
 ```bash
 npm run audit:boards   # every board's props vs. its colliders

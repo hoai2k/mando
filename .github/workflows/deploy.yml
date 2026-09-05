@@ -164,6 +164,20 @@ jobs:
       # Boot the built game in Chromium behind a synthetic pad and play a wave.
       - run: npx playwright install --with-deps chromium
       - run: node tools/run-suites.mjs --shard=${{ matrix.shard }}/4
+      # A suite that failed and then passed on the retry did not fail the step
+      # above -- a nightly turned red by a test that passes on a re-run is how
+      # a red nightly stops meaning anything. It is flagged instead: the runner
+      # writes a warning annotation onto the run summary, and the report is
+      # kept here so the fix has the failing checks to work from. `always()`
+      # because the interesting case is a shard that also had a real failure.
+      - name: Keep the flaky-suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-report-shard-${{ matrix.shard }}
+          path: flaky-report.json
+          if-no-files-found: ignore
+          retention-days: 30
 
   # The audits, in their own job rather than after the suites.
   #

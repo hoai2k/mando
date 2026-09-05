@@ -28,6 +28,7 @@
  *   node tools/run-suites.mjs --shard=2/4     # CI: this quarter of the work
  *   node tools/run-suites.mjs --jobs=2        # only if the box can take it
  *   node tools/run-suites.mjs --list
+ *   node tools/run-suites.mjs --retries=0   # don't re-run failures
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -245,6 +246,47 @@ async function worker() {
 }
 
 await Promise.all(Array.from({ length: Math.min(jobs, chosen.length) }, worker));
+// NB: the server stays up through the retries below — they are real suite
+// runs and need something to talk to. It is killed once they are done.
+
+// ---------- flake detection ----------
+/**
+ * Re-run whatever failed, once, and split the failures in two.
+ *
+ * A suite that fails and then passes on the same commit, same machine and same
+ * build is by definition not measuring what it claims to: it is FLAKY. That is
+ * worth knowing separately from a real failure, because the two want opposite
+ * responses -- a red suite is a bug to fix now, a flaky one is a test to fix
+ * before it cries wolf over something real. Every flake this repo has had was
+ * one bug: sampling on a frame count or a clock while the thing measured
+ * arrives asynchronously (test-arrivals' campaign intro, the PvP camera's
+ * ease, test-block's SkinnedMesh, the collision audit's sculpts). None of them
+ * announced itself as a flake -- each one read as a broken feature, and two
+ * were "fixed" on the strength of a local pass that proved nothing.
+ *
+ * A flake does NOT fail the run. Making the nightly red for a test that passes
+ * on the retry is how a red nightly stops meaning anything, which is the state
+ * this repo was already in once. It is flagged instead: a banner at the end of
+ * the log, a machine-readable report, and a GitHub warning annotation that
+ * shows on the run summary without turning it red.
+ */
+const RETRIES = Number(flag('retries') ?? 1);
+const flaky = [];
+if (RETRIES > 0 && done.some((r) => r.code)) {
+  const suspects = done.filter((r) => r.code);
+  console.log(`\n${'='.repeat(70)}\nre-running ${suspects.length} failed suite(s) once — a pass here means flaky, not fixed\n${'='.repeat(70)}`);
+  for (const r of suspects) {
+    process.stdout.write(`>>> retry ${r.name}\n`);
+    const again = await runSuite(r);
+    if (!again.code) {
+      flaky.push({ name: r.name, firstSeconds: r.seconds, retrySeconds: again.seconds, firstOutput: r.out });
+      r.code = 0;                    // not a failure of the code under test
+      r.flaky = true;
+    }
+    process.stdout.write(`    ${again.code ? 'failed again — a real failure' : 'PASSED on retry — FLAKY'}\n`);
+  }
+}
+
 server?.kill();
 
 // ---------- the report ----------
@@ -252,9 +294,37 @@ const total = (Date.now() - wall) / 1000;
 const cpu = done.reduce((a, r) => a + r.seconds, 0);
 const failed = done.filter((r) => r.code);
 
+if (flaky.length) {
+  console.log(`\n${'='.repeat(70)}\n${flaky.length} FLAKY suite(s) — failed, then passed on retry\n${'='.repeat(70)}`);
+  for (const f of flaky) {
+    console.log(`\n  ${f.name}  (failed in ${f.firstSeconds.toFixed(1)}s, passed in ${f.retrySeconds.toFixed(1)}s)`);
+    for (const l of f.firstOutput.split('\n').filter((l) => /^\s*(FAIL|Error)/.test(l)).slice(0, 6)) {
+      console.log(`    ${l.trim()}`);
+    }
+  }
+  console.log('\n  These pass on a re-run, so they are not blocking. They are still bugs:');
+  console.log('  a test that answers differently twice is not measuring what it says.');
+  console.log('  Look first for a fixed frame count or a sleep standing in for an');
+  console.log('  arrival that is actually asynchronous — that is what every one so far was.');
+
+  const { writeFileSync } = await import('node:fs');
+  const report = flaky.map((f) => ({
+    suite: f.name, firstSeconds: +f.firstSeconds.toFixed(1), retrySeconds: +f.retrySeconds.toFixed(1),
+    failingChecks: f.firstOutput.split('\n').filter((l) => /^\s*(FAIL|Error)/.test(l)).map((l) => l.trim()).slice(0, 12),
+  }));
+  writeFileSync(join(ROOT, 'flaky-report.json'), JSON.stringify({ when: new Date().toISOString(), flaky: report }, null, 2));
+  console.log('\n  written to flaky-report.json');
+  // shows on the GitHub run summary without making the run red
+  if (process.env.GITHUB_ACTIONS) {
+    for (const f of flaky) {
+      console.log(`::warning file=tools/${f.name}.mjs,title=Flaky suite::${f.name} failed then passed on retry — it is not measuring what it claims. See flaky-report.json.`);
+    }
+  }
+}
+
 console.log(`\n${'='.repeat(70)}\nslowest first\n${'='.repeat(70)}`);
 for (const r of [...done].sort((a, b) => b.seconds - a.seconds)) {
-  console.log(`${(r.code ? 'FAIL' : 'ok  ')}  ${r.seconds.toFixed(1).padStart(7)}s  ${r.name}`);
+  console.log(`${(r.code ? 'FAIL' : r.flaky ? 'FLAKY' : 'ok  ')}  ${r.seconds.toFixed(1).padStart(7)}s  ${r.name}`);
 }
 console.log(`\n${done.length} suite(s) in ${(total / 60).toFixed(1)} min`
   + (jobs > 1 ? ` (${(cpu / 60).toFixed(1)} min of suite time, ${(cpu / total).toFixed(2)}x overlap)` : ''));
@@ -272,4 +342,6 @@ if (failed.length) {
   }
   process.exit(1);
 }
-console.log('\nall suites passed');
+console.log(flaky.length
+  ? `\nall suites passed, but ${flaky.length} needed a retry to do it — see the FLAKY section above`
+  : '\nall suites passed');

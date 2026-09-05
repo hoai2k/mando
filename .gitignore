@@ -3,3 +3,4 @@ dist
 .elevenlabs_key
 .claude/worktrees/
 .vite/
+flaky-report.json
