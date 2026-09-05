@@ -425,7 +425,8 @@ when its files land (asset ids below; requests in `docs/ASSETS_MODELS.md` /
 
 3. **Banthas at the Tusken camp** (Dune Sea, ×2–3). Ambient grazers on the massiff's
    `loadCreature` intake: their own quadruped rig, a slow code-authored gait in
-   `anim/quadruped.ts`, procedural stand-in until `bantha.glb` lands. They drift at
+   `anim/quadruped.ts`, on the delivered `bantha.glb` (the procedural build is still
+   the fallback where a file is absent). They drift at
    grazing pace (~0.5 m/s) within ~25 m of the camp on mover-carried cylinder
    colliders, so they are genuinely solid — bolts stop on the hide with a dust puff
    (`physics.raycast` already sees world boxes), at which they bellow (`bantha_low`)
