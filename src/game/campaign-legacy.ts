@@ -219,6 +219,11 @@ export class LegacyCampaign implements MissionController {
     );
     glow.position.y = 0.5;
     g.add(body, glow);
+    // A pickup is collected by walking into it, so it must never be solid --
+    // and the collision audit has to be told that out loud, or it reads the
+    // canister as decoration you can shoot through (the bug it exists to
+    // catch) rather than as the trigger volume it is.
+    g.userData.decor = true;
     g.position.copy(pos);
     this.game.board.group.add(g);
     this.pickups.push({ pos: pos.clone(), mesh: g, taken: false });
