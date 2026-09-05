@@ -390,6 +390,13 @@ end.onBack = () => quitToTitle();
 // physics world without having to play nine matches to reach them.
 (window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
 (window as unknown as { __voices?: unknown }).__voices = VOICES;   // debug/testing handle
+// debug/testing handle: the .glb loads still in the air. A sculpt's colliders
+// are fitted in loadProp's onLoad, so "the board is up" and "the board is
+// solid" are different moments -- furthest apart on the second board of a
+// session, whose sculpts the previous match's releaseModels() gave back. The
+// collision audit waits on this rather than on a frame count, so a slow runner
+// measures the same world a fast one does.
+(window as unknown as { __loading?: () => string[] }).__loading = () => tracked.inFlight();
 // debug/testing handle: plan a wave's spawn positions without building any of
 // it, so tools/audit-spawns.mjs can check every board's every wave for a body
 // standing inside the scenery.

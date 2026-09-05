@@ -273,6 +273,29 @@ for (const board of (only ? [only] : BOARDS)) {
     console.log(`\n=== ${board} (mission) — did not reach play, skipped`);
     continue;
   }
+  // `playing` is not `built`. A sculpt's colliders are fitted in loadProp's
+  // onLoad (world/props.ts authoredProp), so they land whole frames after the
+  // board does -- and later here than anywhere else, because the match before
+  // this one ended in releaseModels() and gave that territory's sculpts back.
+  // Measured on desert straight after a wave sweep: 215 boxes with the butte at
+  // [45,65] carrying none of its own, then 299 and all six of them at about ten
+  // seconds, stable after. Sweeping on `playing` reported that butte and twenty
+  // other props as decoration you could walk through -- twenty-one of the
+  // twenty-two findings in nightly run 227, every one a clock rather than a
+  // ghost.
+  //
+  // Waiting for the collider count to stop changing does NOT work: it is flat
+  // at 215 for six seconds before the first model lands, so "unchanged twice"
+  // is true long before anything has arrived. Wait on the loads themselves
+  // instead -- __loading is the asset tracker's in-flight list -- which is a
+  // positive signal that the world is finished rather than a guess that it has
+  // stopped moving.
+  try {
+    await h.page.waitForFunction(() => (window.__loading?.() ?? []).length === 0,
+      null, { timeout: 90000, polling: 500 });
+  } catch {
+    console.log(`\n=== ${board} (mission) — models still in flight, measuring anyway`);
+  }
   results.push(...await h.page.evaluate(`(${audit.toString()})(${JSON.stringify(`${board} (mission)`)})`));
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
