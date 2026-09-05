@@ -109,6 +109,18 @@ function audit(mode) {
       seen.push({ lo, hi });
 
       // ---- filters: things that are meant to be walked through ----
+      // Nothing you cannot see can be decoration you shoot through, and the
+      // rule this tool enforces is "if it is *visible* it is solid". A prop
+      // that has been replaced by an authored sculpt is the case that matters:
+      // authoredProp (world/props.ts) hides the procedural stand-in the moment
+      // the model lands, and fitColliders replaces the hand-placed colliders
+      // that stood around it with ones fitted to the sculpt. The stand-in is
+      // then invisible AND deliberately unbacked -- which is the finished,
+      // correct state, and which this pass read as a bug. All 22 findings in
+      // nightly run 227 were that: hidden stand-ins, the three "zero of nine"
+      // station crates among them. Checked up the parent chain, since a prop
+      // is hidden by the group as often as by the mesh.
+      for (let n = obj; n; n = n.parent) if (!n.visible) { skipped++; return; }
       // `userData.decor` is the board author saying so out loud — kelp you
       // swim through, coral, writhing tentacles. Everything else has to earn
       // its exemption by being a decal, a glow, or the world itself.
@@ -156,6 +168,41 @@ function audit(mode) {
         for (let i = 0; i < 8; i++) {
           const a = (i / 8) * Math.PI * 2;
           push(Math.cos(a) * radius * 0.7, Math.sin(a) * radius * 0.7);
+        }
+      } else if (!par.width && !par.radius && geo.attributes && geo.attributes.position) {
+        // An authored sculpt is a BufferGeometry with no `parameters`, so the
+        // round-shape shortcut above cannot fire and the box grid below samples
+        // its bounding-box corners -- which for a crane, a freighter hull, a
+        // mythosaur skull or a reactor column is air. That is what every one of
+        // the nine remaining findings was: the procedural twin gets the radius
+        // treatment, the model that replaced it does not, so a sculpt is asked
+        // to be solid out to the corners of a box it never filled.
+        //
+        // Sample its own vertices instead. A vertex is on the surface by
+        // definition, so this asks the question the tool means to ask -- is
+        // what is drawn backed -- rather than whether a box around it is. It is
+        // strictly more honest than the grid, not a loosening: the grid could
+        // miss a real hole between its nine points, and the surface cannot.
+        // Take a horizontal slice at the height being probed, not the whole
+        // surface. Coverage is tested at one height (`ly`), so a vertex from
+        // the bottom of the model answers a question about the middle of it --
+        // and gets it wrong wherever the shape is not a column. The mythosaur
+        // skull is the case: it is fitted with `skirt: 0.9`, which drops its
+        // buried jaw from the fit on purpose, and sampling that jaw reported
+        // the crown above it as unbacked.
+        const pos = geo.attributes.position;
+        const band = Math.max(0.5, (bb.max.y - bb.min.y) * 0.25);
+        const near = [];
+        for (let i = 0; i < pos.count; i++) {
+          if (Math.abs(pos.getY(i) - ly) <= band) near.push(i);
+        }
+        const src = near.length >= 8 ? near : null;
+        if (src) {
+          const step = Math.max(1, Math.floor(src.length / 24));
+          for (let i = 0; i < src.length; i += step) push(pos.getX(src[i]), pos.getZ(src[i]));
+        } else {
+          const step = Math.max(1, Math.floor(pos.count / 24));
+          for (let i = 0; i < pos.count; i += step) push(pos.getX(i), pos.getZ(i));
         }
       } else {
         for (let i = 0; i < 3; i++) {
@@ -277,24 +324,29 @@ for (const board of (only ? [only] : BOARDS)) {
   // onLoad (world/props.ts authoredProp), so they land whole frames after the
   // board does -- and later here than anywhere else, because the match before
   // this one ended in releaseModels() and gave that territory's sculpts back.
-  // Measured on desert straight after a wave sweep: 215 boxes with the butte at
-  // [45,65] carrying none of its own, then 299 and all six of them at about ten
-  // seconds, stable after. Sweeping on `playing` reported that butte and twenty
-  // other props as decoration you could walk through -- twenty-one of the
-  // twenty-two findings in nightly run 227, every one a clock rather than a
-  // ghost.
+  // Measured on desert straight after a wave sweep: 215 collider boxes with the
+  // butte at [45,65] carrying none of its own, then 299 and all six of them at
+  // about ten seconds. Sweeping on `playing` measures a board that is up but
+  // not yet solid.
   //
-  // Waiting for the collider count to stop changing does NOT work: it is flat
-  // at 215 for six seconds before the first model lands, so "unchanged twice"
-  // is true long before anything has arrived. Wait on the loads themselves
-  // instead -- __loading is the asset tracker's in-flight list -- which is a
-  // positive signal that the world is finished rather than a guess that it has
-  // stopped moving.
+  // Wait for THIS BOARD'S sculpts, named from the holders standing in the scene
+  // (authoredProp writes userData.prop). Waiting for the tracker's in-flight
+  // list to empty does not work: the warm queue is always pulling something in
+  // the background -- droid.glb, then fennec.glb, then a portrait -- so the
+  // list never empties and the wait just burns its timeout. Waiting for the
+  // collider count to stop changing does not work either: it sits flat for the
+  // six seconds before the first model lands, so "unchanged twice" is true
+  // before anything has arrived.
   try {
-    await h.page.waitForFunction(() => (window.__loading?.() ?? []).length === 0,
-      null, { timeout: 90000, polling: 500 });
+    await h.page.waitForFunction(() => {
+      const want = new Set();
+      window.__game?.board.group.traverse((o) => {
+        if (o.userData && o.userData.prop) want.add(`models/${o.userData.prop}.glb`);
+      });
+      return !(window.__loading?.() ?? []).some((k) => want.has(k));
+    }, null, { timeout: 60000, polling: 500 });
   } catch {
-    console.log(`\n=== ${board} (mission) — models still in flight, measuring anyway`);
+    console.log(`\n=== ${board} (mission) — sculpts still in flight, measuring anyway`);
   }
   results.push(...await h.page.evaluate(`(${audit.toString()})(${JSON.stringify(`${board} (mission)`)})`));
 }

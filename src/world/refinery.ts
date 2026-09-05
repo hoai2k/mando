@@ -111,16 +111,23 @@ export function buildRefinery(): Board {
   group.add(core);
   // the column stands the full 40 m of the shaft; the additive glow shell
   // around it stays game FX and is not part of the sculpt
-  authoredProp(group, core, 'reactor_core', 40, { axis: 'y' });
   // The column tapers 5.5 -> 4.5 over its height; one 5.2 m cylinder sank you
   // 0.3 m into the base and put an invisible wall 0.7 m off the top. Stack a
   // few, each matching the radius over its own slice.
+  const coreStack = [];
   for (let i = 0; i < 4; i++) {
     const h = 40 / 4;
     const cy = i * h + h / 2;
     const r = 5.5 - (cy / 40) * 1.0;   // radius at the middle of this slice
-    physics.addCylinder(0, cy, 0, r, h);
+    coreStack.push(physics.addCylinder(0, cy, 0, r, h));
   }
+  // That stack is tuned to the *procedural* taper, which is the shape only
+  // until the sculpt lands. The model is not a plain cone -- the collision
+  // audit found a sliver of its surface standing outside the last cylinder --
+  // so once it arrives the colliders come from the model instead, and the
+  // hand-tuned stack it replaces is handed over to be dropped.
+  authoredProp(group, core, 'reactor_core', 40, { axis: 'y' },
+    { physics, replace: coreStack, cell: 1.1, maxBoxes: 24 });
   // Outside the core at every height, not just the top five metres: a straight
   // 4.7 m shell against a 5.5 -> 4.5 taper was swallowed by its own column for
   // 29 of its 34 m, so the board's signature light only showed near the roof.
