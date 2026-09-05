@@ -7,6 +7,13 @@
  * reads as a solid object but has no collider under it is reported, which is
  * exactly the "I ran straight through that" class of bug.
  *
+ * It sweeps the **mission levels** too, and not as an afterthought: a board is
+ * only half of what a player stands in. Missions raise their own level on top
+ * of one — rooms, walls, doorways — and that half went unaudited for as long
+ * as this file existed. It is where the blast doors' posts turned out to be
+ * decoration you could shoot straight through, which is the exact bug this
+ * tool was written to find and could not see.
+ *
  * Decoration is filtered out rather than reported: particles and point clouds,
  * additive glow panes, thin decals and light strips, and the enormous meshes
  * (terrain, sea, sky domes) that are either the ground itself or scenery.
@@ -20,20 +27,33 @@ import { launch } from './harness.mjs';
 
 // NB: the audit body is stringified into the page, so everything it uses has
 // to live inside it — no closure over module scope.
-function audit() {
+function audit(mode) {
   /** anything thinner than this is a decal, not an object */
   const THIN = 0.3;
   /** meshes bigger than this are the world itself (terrain, sea, sky) */
   const HUGE = 150;
   /** ignore what barely stands off the floor — you step over it anyway */
   const MIN_STANDING = 0.45;
-  const boards = window.__boards;
   const out = [];
 
-  for (const info of boards) {
-    const board = info.build();
-    board.group.updateMatrixWorld(true);
-    const phys = board.physics;
+  // Either every board raised from the registry, or the one level the running
+  // campaign has already built — the mission's own group hangs off the board's,
+  // so a single walk covers the board and the level standing on it.
+  const scenes = [];
+  if (mode === 'boards') {
+    for (const info of window.__boards) {
+      const b = info.build();
+      b.group.updateMatrixWorld(true);
+      scenes.push({ id: info.id, group: b.group, phys: b.physics });
+    }
+  } else {
+    const g = window.__game;
+    g.board.group.updateMatrixWorld(true);
+    scenes.push({ id: mode, group: g.board.group, phys: g.board.physics });
+  }
+
+  for (const sc of scenes) {
+    const phys = sc.phys;
     const findings = [];
     let meshes = 0;
     let skipped = 0;
@@ -166,7 +186,7 @@ function audit() {
       });
     };
 
-    board.group.traverse((obj) => {
+    sc.group.traverse((obj) => {
       if (obj.isPoints || obj.isLine || obj.isSprite) return;
       if (!obj.isMesh) return;
       if (obj.isInstancedMesh) {
@@ -219,7 +239,7 @@ function audit() {
 
     findings.sort((a, b) => b.volume - a.volume);
     out.push({
-      board: info.id,
+      board: sc.id,
       meshes,
       skipped,
       boxes: phys.boxes.length,
@@ -234,14 +254,34 @@ function audit() {
 const only = process.argv[2];
 const h = await launch();
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
-const results = await h.page.evaluate(`(${audit.toString()})()`);
+const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
+
+// ---- and again, on the level a mission raises over each board ----
+// The campaign is driven the way a player drives it and the level it built is
+// read back, which is the only handle on it from out here — the bundle does
+// not export the builder (audit-mission-build.mjs takes the same route).
+const BOARDS = results.map((r) => r.board);
+for (const board of (only ? [only] : BOARDS)) {
+  await h.page.evaluate(([b]) => {
+    window.__manual = false;
+    window.__quitToTitle?.();
+    window.__startMode('campaign', 1, b, ['din']);
+  }, [board]);
+  try {
+    await h.page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+  } catch {
+    console.log(`\n=== ${board} (mission) — did not reach play, skipped`);
+    continue;
+  }
+  results.push(...await h.page.evaluate(`(${audit.toString()})(${JSON.stringify(`${board} (mission)`)})`));
+}
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
 
 let total = 0;
 let ghosts = 0;
 for (const r of results) {
-  if (only && r.board !== only) continue;
+  if (only && r.board !== only && r.board !== `${only} (mission)`) continue;
   const n = r.findings.length;
   total += n;
   ghosts += r.phantoms.length;

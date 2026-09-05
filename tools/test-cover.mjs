@@ -137,5 +137,78 @@ check('flame: a stream committed to its line does not burn through a wall',
 check('flame: control — with nothing in the way it still burns',
   flame.open > 0, flame.open);
 
+// ---- and the doorway a player actually hides at ---------------------------
+// The synthetic wall above proves the projectile maths. This proves the thing
+// that was reported: standing at the side of a real mission door, behind the
+// post, and being shot through it. The posts were decoration.
+await page.evaluate(() => {
+  window.__manual = false;
+  window.__quitToTitle?.();
+  window.__startMode('campaign', 1, 'refinery', ['din']);
+});
+await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+await page.evaluate(() => { window.__manual = true; });
+
+const doors = await page.evaluate(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const V3 = p.position.constructor;
+  const phys = g.board.physics;
+  const gates = [];
+  for (const r of g.campaign.level.rooms) {
+    for (const gate of [r.entryGate, r.exitGate]) if (gate) gates.push(gate);
+  }
+  // Open every door first, and check they really opened.
+  //
+  // A shut gate parks a blocker 4.8 m across the opening, which swallows the
+  // posts whole — probing them with the door closed measures the door and
+  // passes whatever the frame is made of. The bug is at an *open* doorway,
+  // which is the only place it could ever have been.
+  for (const gate of gates) {
+    gate.open();
+    for (let i = 0; i < 60 && gate.closed; i++) gate.update(1 / 30);
+  }
+  const stillShut = gates.filter((gate) => gate.closed).length;
+  // the frame's own numbers: posts 0.5 m square, 3.6 m tall, 1.6 m out either side
+  const POST_X = 1.6;
+  let solid = 0, shot = 0, total = 0;
+  for (const gate of gates) {
+    const cos = Math.cos(gate.yaw), sin = Math.sin(gate.yaw);
+    for (const side of [-1, 1]) {
+      total++;
+      const cx = gate.pos.x + cos * side * POST_X;
+      const cz = gate.pos.z - sin * side * POST_X;
+      // 1. the post is solid at chest height
+      if (phys.solidAt(cx, gate.pos.y + 1.2, cz)) solid++;
+      // 2. and a bolt aimed at a body tucked behind it does not arrive.
+      //    The body sits one capsule-radius behind the post, square on.
+      const bx = cx - cos * 0.75, bz = cz + sin * 0.75;
+      const chest = new V3(bx, gate.pos.y + 1.0, bz);
+      const target = { position: chest, radius: p.profile.hitRadius + 0.35, team: 0,
+        alive: true, shield: null, onHit: () => { hit = true; } };
+      let hit = false;
+      const from = new V3(cx + cos * 6, gate.pos.y + 1.0, cz - sin * 6);
+      g.projectiles.fire(from, chest.clone().sub(from).normalize(), 34, 25, 1, -1);
+      for (let i = 0; i < 40 && !hit; i++) g.projectiles.update(0.05, phys, [target], g.board.waterY);
+      if (hit) shot++;
+    }
+  }
+  // ...and the doorway is still a doorway. Solid posts narrow the opening
+  // from 3.8 m to the 2.7 m between them, which every body has to fit
+  // through — the widest capsule the game walks around is r = 0.6.
+  const walkable = gates.filter((gate) =>
+    phys.capsuleFree(gate.pos.x, gate.pos.y + 0.1, gate.pos.z, 0.6, 2.1)).length;
+  return { total, solid, shot, stillShut, gates: gates.length, walkable };
+});
+check('the doors under test are actually open', doors.stillShut === 0,
+  `${doors.stillShut} still blocking`);
+check('every mission door post is solid', doors.solid === doors.total,
+  `${doors.solid}/${doors.total} posts`);
+check('and fire does not reach a body tucked behind one', doors.shot === 0,
+  `${doors.shot}/${doors.total} shot through`);
+
+check('and the doorway is still wide enough to walk through',
+  doors.walkable === doors.gates, `${doors.walkable}/${doors.gates} passable`);
+
 check.done('cover');
 await h.close();
