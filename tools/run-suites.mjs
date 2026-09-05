@@ -42,11 +42,12 @@ const URL_ = `http://localhost:${PORT}/`;
 /**
  * The suites, with roughly what each costs in seconds.
  *
- * This is the same list `npm test` used to chain with `&&`, in the same
- * membership — `tools/test-missions.mjs` is a real suite and is deliberately
- * still not in it, because it never was; it has no CI history and adding it
- * here would quietly change what a green `npm test` means. Run it by hand,
- * or name it on the command line: `node tools/run-suites.mjs test-missions`.
+ * This began as the same list `npm test` used to chain with `&&`, in the same
+ * membership. `test-missions` was held out of it on the grounds that it had no
+ * CI history and adding it would quietly change what a green `npm test` means.
+ * It is in now (2026-09-05): Missions is a whole game mode, it was the only one
+ * with no nightly coverage at all, and the reason for holding it back was a
+ * lack of evidence rather than a doubt about the suite. It runs green in 230 s.
  *
  * The weight is only ever used to order the work — longest first, so `--shard`
  * splits the list into piles that take about the same time as each other
@@ -62,6 +63,7 @@ const SUITES = [
   { name: 'test-vehicles', weight: 294 },
   { name: 'test-airplay', weight: 207 },
   { name: 'test-loadperf', weight: 190 },
+  { name: 'test-missions', weight: 230 },
   { name: 'test-monsters', weight: 154 },
   { name: 'test-coop', weight: 142 },
   { name: 'test-loadout', weight: 137 },
