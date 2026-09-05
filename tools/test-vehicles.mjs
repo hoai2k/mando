@@ -708,9 +708,20 @@ check('missions: the walled level parks no unreachable rides',
   legacy.rides === 0,
   `${legacy.rides} spawned, ${legacy.declared} declared by the board`);
 
-// the stage chain, on its own page — the flag is read at construction
+// the stage chain, on its own page — the flag is read at construction.
+//
+// Navigating away is a teardown, and a teardown revokes the blob URLs that
+// glTF textures are still being decoded from, so THREE logs "Couldn't load
+// texture blob:..." for whatever was in the air. Those are errors of the page
+// we deliberately threw away, not of the page under test, and counting them
+// failed this suite on a run where every one of its checks passed. Drop
+// exactly those, added exactly across the navigation, and keep everything
+// else — including any other error raised in the same window.
+const before = h.errors.length;
 await h.page.goto(`${PAGE}?missions=new`, { waitUntil: 'networkidle' });
 await new Promise((r) => setTimeout(r, 1500));
+const during = h.errors.splice(before, h.errors.length - before);
+h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {
