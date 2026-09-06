@@ -187,6 +187,17 @@ function audit(mode) {
       for (let n = obj; n; n = n.parent) {
         if (n.userData && n.userData.gateShut === false) { skipped++; return; }
       }
+      // `userData.facing` is a third answer, between decoration and a solid:
+      // geometry whose collision is carried by a slab behind it rather than by
+      // its own shape. A mission border is the case — one slab per run with
+      // forty boulders laid outward from it, so most of the rock is outside
+      // its own collider on purpose and no amount of sampling the mesh can
+      // tell that from a hole. What backs it is checked instead by
+      // test-missions (a wall run per border, all clearing the ceiling) and by
+      // this file's own pass for colliders with nothing standing on them.
+      for (let n = obj; n; n = n.parent) {
+        if (n.userData && n.userData.facing) { skipped++; return; }
+      }
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
       const m = mats[0] || {};
       if (m.isShaderMaterial) { skipped++; return; }                    // sky domes

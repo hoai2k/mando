@@ -1705,7 +1705,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
 
   // ---- one draw call per rim row ----
   const mergeInto = (geos: THREE.BufferGeometry[], m: THREE.Material,
-    shadow: boolean, decor = false): void => {
+    shadow: boolean, tag: 'facing' | 'decor' | null): void => {
     if (!geos.length) return;
     const merged = mergeGeometries(geos, false);
     for (const g of geos) g.dispose();
@@ -1713,17 +1713,26 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const mesh = new THREE.Mesh(merged, m);
     mesh.castShadow = shadow;
     mesh.receiveShadow = shadow;
-    mesh.userData.decor = decor;
+    if (tag) mesh.userData[tag] = true;
     group.add(mesh);
   };
-  mergeInto(rimGeo, rockMat, true);
+  // The rim rock is the border's *facing*, not the border. `ridge()` says it
+  // outright: the wall is one slab per run, and the rock is laid outward from
+  // that slab so its inward face lands on the slab's face — "the rocks are
+  // what you see; this is what you walk into". A five-metre boulder set into a
+  // 3.2 m slab therefore has most of its surface outside its own collider by
+  // construction, which is not a hole and cannot be told apart from one by
+  // looking at the mesh. `facing` says which it is; the slab behind it is
+  // checked by test-missions (every run, clearing the ceiling) and by this
+  // audit's own pass for colliders with nothing on them.
+  mergeInto(rimGeo, rockMat, true, 'facing');
   // The backdrop row is the mountains beyond — `ridge()` says so in as many
   // words: "mesh only, which nothing has to reach". It stands fourteen to
   // twenty-four metres further out again than a border that is itself outside
   // its own collider, so it is scenery by construction, and saying so is what
   // stops `tools/audit-collision` reporting a hundred and seventy metres of
   // horizon as a wall you can walk through.
-  mergeInto(backGeo, backdropMat, false, true);
+  mergeInto(backGeo, backdropMat, false, 'decor');
 
   // The horizon: an alpha strip standing well behind the backdrop row, in the
   // fog's own colour. The rims and the row behind them give the level its
