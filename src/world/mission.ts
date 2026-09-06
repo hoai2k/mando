@@ -1704,7 +1704,8 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   }
 
   // ---- one draw call per rim row ----
-  const mergeInto = (geos: THREE.BufferGeometry[], m: THREE.Material, shadow: boolean): void => {
+  const mergeInto = (geos: THREE.BufferGeometry[], m: THREE.Material,
+    shadow: boolean, decor = false): void => {
     if (!geos.length) return;
     const merged = mergeGeometries(geos, false);
     for (const g of geos) g.dispose();
@@ -1712,10 +1713,17 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const mesh = new THREE.Mesh(merged, m);
     mesh.castShadow = shadow;
     mesh.receiveShadow = shadow;
+    mesh.userData.decor = decor;
     group.add(mesh);
   };
   mergeInto(rimGeo, rockMat, true);
-  mergeInto(backGeo, backdropMat, false);
+  // The backdrop row is the mountains beyond — `ridge()` says so in as many
+  // words: "mesh only, which nothing has to reach". It stands fourteen to
+  // twenty-four metres further out again than a border that is itself outside
+  // its own collider, so it is scenery by construction, and saying so is what
+  // stops `tools/audit-collision` reporting a hundred and seventy metres of
+  // horizon as a wall you can walk through.
+  mergeInto(backGeo, backdropMat, false, true);
 
   // The horizon: an alpha strip standing well behind the backdrop row, in the
   // fog's own colour. The rims and the row behind them give the level its
