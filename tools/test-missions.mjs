@@ -501,14 +501,16 @@ const riders = await page.evaluate(`(() => {
   const rider = mounted[0], v = rider.ride;
   const onFoot = crew().filter((e) => !e.ride && !e.boarding).length;
   // and a few seconds at the pedals: it moves, and it moves at the party
-  const d0 = v.pos.distanceTo(p.position);
+  // the closest it comes, not where it ends up: a swoop at 18 m/s crosses a
+  // 40 m corral in two seconds, overshoots, and is turning back when the
+  // window closes — end-to-start distance measures the turn, not the attack
   const seat0 = rider.position.clone();
-  let top = 0;
+  let top = 0, nearest = v.pos.distanceTo(p.position);
   for (let i = 0; i < 90; i++) {
     window.__sim(1 / 30);
     top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));
+    nearest = Math.min(nearest, v.pos.distanceTo(p.position));
   }
-  const d1 = v.pos.distanceTo(p.position);
   const seated = rider.position.distanceTo(v.seatWorld(new (rider.position.constructor)())) < 0.05;
   // shot out of the saddle
   rider.damage(9999, p.position, 0);
@@ -522,7 +524,7 @@ const riders = await page.evaluate(`(() => {
     before, claimed, running, mounted: mounted.length, onFoot,
     kind: v.spec.kind, riderKind: rider.kind,
     moved: +(seat0.distanceTo(rider.position)).toFixed(1), top: +top.toFixed(1),
-    closed: +(d0 - d1).toFixed(1), seated,
+    nearest: +nearest.toFixed(1), seated,
     dropped, speedAfter: +speedAfter.toFixed(2), yours,
   };
 })()`);
@@ -533,8 +535,8 @@ check('an alerted camp sends riders for its rides, and keeps half its feet',
   riders.claimed > 0 && riders.mounted > 0 && riders.onFoot > 0,
   `claimed ${riders.claimed} · running ${riders.running} · mounted ${riders.mounted} · on foot ${riders.onFoot}`);
 check('the rider sits the seat and the ride comes at the party',
-  riders.mounted > 0 && riders.seated && riders.top > 4 && riders.closed > 3,
-  `${riders.riderKind} on a ${riders.kind}: seated ${riders.seated}, top ${riders.top} m/s, closed ${riders.closed} m`);
+  riders.mounted > 0 && riders.seated && riders.top > 4 && riders.nearest < 8,
+  `${riders.riderKind} on a ${riders.kind}: seated ${riders.seated}, top ${riders.top} m/s, came within ${riders.nearest} m`);
 check('drop the rider and the saddle is empty, the ride whole',
   riders.mounted > 0 && !riders.dropped.hostile && !riders.dropped.alive && riders.dropped.rideAlive && !riders.dropped.rideRef,
   JSON.stringify(riders.dropped));
