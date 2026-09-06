@@ -606,17 +606,26 @@ const debut = await page.evaluate(`(() => {
   const wave = c.squadFor(4, 8, zone, { debut: true });
   const waveKinds = [...new Set(wave)];
   const newOnes = waveKinds.filter((k) => !known.includes(k));
-  // and once they are known, the mixing resumes
-  const after = [...new Set(c.squadFor(4, 8, zone, { debut: true }))];
+  // where a step up the ramp brings several new kinds they queue: the next
+  // wave is the next one of them, alone again
+  const next = [...new Set(c.squadFor(4, 8, zone, { debut: true }))];
+  // ...and once there is nothing new left, the mixing resumes
+  let after = next;
+  for (let i = 0; i < 6 && after.every((k) => !known.includes(k)); i++) {
+    after = [...new Set(c.squadFor(4, 8, zone, { debut: true }))];
+  }
   return {
-    known: [...new Set(early)], waveKinds, newOnes,
-    pure: newOnes.length > 0 && newOnes.length === waveKinds.length,
+    known: [...new Set(early)], waveKinds, newOnes, next,
+    alone: waveKinds.length === 1 && newOnes.length === 1,
+    nextAlone: next.length === 1,
     mixedAfter: after.some((k) => known.includes(k)),
   };
 })()`);
-check('a wave that brings a new kind brings only new kinds',
-  debut.pure, `met ${JSON.stringify(debut.known)} then the wave was ${JSON.stringify(debut.waveKinds)}`);
-check('and once they are known the mixing resumes',
+check('a new kind arrives as a squadron of its own',
+  debut.alone, `met ${JSON.stringify(debut.known)} then the wave was ${JSON.stringify(debut.waveKinds)}`);
+check('and several new kinds queue up, a wave each',
+  debut.nextAlone && debut.next[0] !== debut.waveKinds[0], JSON.stringify(debut.next));
+check('and once they are all known the mixing resumes',
   debut.mixedAfter, JSON.stringify(debut));
 
 // ---------------------------------------------------------------- every board
@@ -641,6 +650,24 @@ for (const board of boards) {
       if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) bad.push(`${z.spec.label}: vents`);
       if (!z.posts.length) bad.push(`${z.spec.label}: posts`);
     }
+    // A ride stands on the ground, not on the furniture. It takes its hover
+    // height from the physics — the highest surface under it — so one authored
+    // a metre and a half from a Tusken tent settles onto the tent's roof and
+    // sits there, which is where a playtest found a landspeeder. Checked in
+    // the zone's own coordinates, where both were written, so it holds however
+    // the stage is placed in the world.
+    for (const zone of spec.zones) {
+      for (const ride of zone.spec.rides ?? []) {
+        for (const prop of zone.spec.props ?? []) {
+          if (!prop.solid) continue;
+          const d = Math.hypot(ride.u - prop.u, ride.v - prop.v);
+          if (d < prop.solid.r + 3) {
+            bad.push(`${zone.spec.label}: a ${ride.kind} is parked ${d.toFixed(1)} m from a ${prop.id} (needs ${(prop.solid.r + 3).toFixed(1)})`);
+          }
+        }
+      }
+    }
+
     // and every parked ride has to be standing on the stage — in somebody's
     // camp. A ride with no owner standing in the middle of nowhere is the
     // thing the corrals exist to prevent: it is either in a held camp or in
@@ -651,10 +678,6 @@ for (const board of boards) {
         && r.z >= z.rect.minZ && r.z <= z.rect.maxZ);
       const kind = owner?.spec.kind;
       if (kind !== 'camp' && kind !== 'warlord') bad.push(`ride ${r.kind} has no owner (${kind ?? 'no zone'})`);
-      // ...and it stands on the ground, not on the furniture. A ride finds its
-      // hover height from the physics — the highest surface under it — so one
-      // parked a metre from a tent settles onto the tent, which is where a
-      // playtest found a landspeeder.
       for (const q of spec.rides) {
         if (q === r) continue;
         if (Math.hypot(q.x - r.x, q.z - r.z) < 2.5) bad.push(`ride ${r.kind} is parked inside a ${q.kind}`);

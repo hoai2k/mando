@@ -432,15 +432,17 @@ export class Campaign implements MissionController {
     }
     if (!kinds.length) return ['stormtrooper'];
     // A kind nobody has met yet arrives as a squadron of its own (see
-    // `seenKinds`). Only a *wave* does this — a camp's garrison is who lives
-    // there, and a corral of Tuskens is not a debut to stage-manage.
+    // `seenKinds`) — *one* kind, so meeting it is a thing that happened rather
+    // than a busier version of the last fight. Where a wave would introduce
+    // several at once they queue up and take a wave each, in the order the
+    // board's table lists them, and the mixing starts when there is nothing
+    // new left to meet. Only a *wave* does this: a camp's garrison is who
+    // lives there, and a corral of Tuskens is not a debut to stage-manage.
     if (opts.debut) {
-      const fresh = kinds.filter((k) => !this.seenKinds.has(k));
-      if (fresh.length) {
-        const out: EnemyKind[] = [];
-        while (out.length < Math.max(budget, fresh.length)) out.push(fresh[out.length % fresh.length]);
-        for (const k of out) this.seenKinds.add(k);
-        return out.slice(0, Math.max(budget, new Set(fresh).size));
+      const fresh = kinds.find((k) => !this.seenKinds.has(k));
+      if (fresh) {
+        this.seenKinds.add(fresh);
+        return new Array(Math.max(1, budget)).fill(fresh);
       }
     }
     for (const k of kinds) this.seenKinds.add(k);
