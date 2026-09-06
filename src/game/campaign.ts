@@ -47,6 +47,8 @@ const VENT_CUE_LIFE = 3.4;
 const ARROW_PULSE = 8;
 /** close enough to the transport door that the line stops being a distance */
 const PORTAL_HINT_NEAR = 12;
+/** how near a hatch's closet counts as standing in it */
+const HATCH_CLEAR = 4;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
 const PORTAL_BEAT = 1.5;
 /** how far a cancelled exit walks the player back out of the pocket */
@@ -806,7 +808,17 @@ export class Campaign implements MissionController {
   private clearZone(zone: MissionZone, fought: boolean): void {
     zone.entryBarrier?.open();
     zone.exitBarrier?.open();
-    for (const h of zone.hatches) h.gate.close();
+    // A wall hatch opens onto a four-metre closet with one door and nothing
+    // else. Shutting it on somebody who walked in there after the wave came
+    // out of it is a player deleted from the run — no way out, nothing to
+    // shoot, and the rest of the party waiting on them at the next door. So a
+    // hatch with a body in it stays open. It is a spent spawn door by then: an
+    // open one is untidy, a shut one is a cell.
+    for (const h of zone.hatches) {
+      const inside = this.game.players.some((p) => p.alive
+        && p.position.distanceToSquared(h.post) < HATCH_CLEAR * HATCH_CLEAR);
+      if (!inside) h.gate.close();
+    }
     // the far end of the zone is the safe ground — never a set piece's centre
     this.checkpoint.copy(zone.exit);
     this.idx++;

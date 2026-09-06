@@ -308,6 +308,13 @@ const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
 // read back, which is the only handle on it from out here — the bundle does
 // not export the builder (audit-mission-build.mjs takes the same route).
 const BOARDS = results.map((r) => r.board);
+// Missions runs the walled room chain unless it is *asked* for the outdoor
+// stages, and this sweep never asked — so for as long as it has existed it has
+// been auditing `mission-legacy.ts` and reporting it as "the mission level".
+// The design actually shipped behind the flag had never been swept at all,
+// which is how a run came to have rock walls you could walk through in it.
+await h.page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new`);
+await h.page.waitForFunction(() => !!window.__startMode, null, { timeout: 30000 });
 for (const board of (only ? [only] : BOARDS)) {
   await h.page.evaluate(([b]) => {
     window.__manual = false;
@@ -348,7 +355,43 @@ for (const board of (only ? [only] : BOARDS)) {
   } catch {
     console.log(`\n=== ${board} (mission) — sculpts still in flight, measuring anyway`);
   }
-  results.push(...await h.page.evaluate(`(${audit.toString()})(${JSON.stringify(`${board} (mission)`)})`));
+  // Every stage of the run, not just the one the match opens on. A run is a
+  // chain of maps behind transport doors and only the first was ever measured;
+  // the ravine and the far side of the Dune Sea had never been looked at.
+  for (let stage = 0; stage < 6; stage++) {
+    results.push(...await h.page.evaluate(
+      `(${audit.toString()})(${JSON.stringify(`${board} (mission ${stage + 1})`)})`));
+    const crossed = await h.page.evaluate(() => {
+      const g = window.__game;
+      const c = g.campaign;
+      if (!c || !c.stage || !c.stage.exitPortal) return false;
+      const blank = {
+        moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+        dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+        meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+        zoomDelta: 0, blockHeld: false, pausePressed: false, meleeSwapPressed: false,
+        rangedSwapPressed: false, throttleHeld: false, brakeHeld: false,
+      };
+      const idle = [blank, { ...blank }, { ...blank }, { ...blank }];
+      window.__manual = true;
+      c.idx = c.stage.zones.length;
+      c.phase = 'travel';
+      for (const e of g.enemies) e.removeMe = true;
+      const was = c.stageIdx;
+      for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+      const portal = c.stage.exitPortal;
+      if (!portal) { window.__manual = false; return false; }
+      for (let i = 0; i < 300 && c.stageIdx === was; i++) {
+        if (i % 20 === 0) g.players[0].position.copy(portal.threshold);
+        g.update(1 / 30, idle);
+      }
+      window.__manual = false;
+      return c.stageIdx !== was;
+    });
+    if (!crossed) break;
+    // the next stage's sculpts have to land before it is worth measuring
+    await new Promise((r) => setTimeout(r, 4000));
+  }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
@@ -356,7 +399,7 @@ await h.close();
 let total = 0;
 let ghosts = 0;
 for (const r of results) {
-  if (only && r.board !== only && r.board !== `${only} (mission)`) continue;
+  if (only && r.board !== only && !r.board.startsWith(`${only} (mission`)) continue;
   const n = r.findings.length;
   total += n;
   ghosts += r.phantoms.length;

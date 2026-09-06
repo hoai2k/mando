@@ -302,6 +302,12 @@ const SHOCK_CYCLE = 9;
 const SHOCK_CHARGE_AT = 5.2;
 const SHOCK_LIVE_AT = 6.4;
 const SHOCK_DPS = 22;
+/**
+ * What a zone's pit costs a second. High enough that standing in one is a
+ * mistake you feel at once and a couple of seconds is fatal, low enough that
+ * walking across a corner of it is a wound rather than the end of the run.
+ */
+const PIT_DPS = 60;
 
 /** crate proportions, matched to corridor_crate.glb */
 const CRATE_H_MIN = 1.15;
@@ -1018,7 +1024,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(f.x(l / 2, 0), top + 0.03, f.z(l / 2, 0));
       group.add(ring);
-      addHazard({ center: f.vec(l / 2, 0, top), radius: r - 0.3, kind: 'kill', yMax: top + 2.2 });
+      // A pit *hurts*. It used to be `kind: 'kill'` — step on the ring and the
+      // run is over with no reading of it and no way back out — which for a
+      // set piece sitting in the middle of the floor you are fighting across
+      // is a trap, not a hazard. The territory's own sarlacc is the thing that
+      // eats you whole; the ones a zone lays are ground you must not stand on.
+      addHazard({ center: f.vec(l / 2, 0, top), radius: r - 0.3, kind: 'burn', dps: PIT_DPS, yMax: top + 2.2 });
       blocked.push({ x: f.x(l / 2, 0), z: f.z(l / 2, 0), r: r + 2 });
     }
     if (dressed && (zs.feature === 'lava' || zs.feature === 'shock')) {
