@@ -208,16 +208,7 @@ function audit(mode) {
       const bb = geo.boundingBox;
       const cx = (lo[0] + hi[0]) / 2, cz = (lo[2] + hi[2]) / 2;
       const par = geo.parameters || {};
-      // The height coverage is judged at. Mid-height is right for anything a
-      // body's size, and wrong for anything much taller: the merged border of
-      // a mission stage is sixty-six metres of cliff, and its middle is
-      // thirty-three metres up — geometry nobody can walk into, sampled to
-      // answer a question about walking into things. You cannot pass through
-      // the top of a cliff, so a tall mesh is asked about its *base*, which is
-      // the only part of it anyone ever meets. A crane still answers for its
-      // legs, which is exactly the part that was missing.
-      const tall = bb.max.y - bb.min.y > 6;
-      const ly = tall ? bb.min.y + 1.2 : (bb.min.y + bb.max.y) / 2;
+      const ly = (bb.min.y + bb.max.y) / 2;
       let radius = null;
       if (geo.type === 'ConeGeometry' && par.radius && par.height) {
         radius = par.radius * (1 - (ly + par.height / 2) / par.height);
