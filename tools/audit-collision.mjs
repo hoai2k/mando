@@ -49,11 +49,63 @@ function audit(mode) {
   } else {
     const g = window.__game;
     g.board.group.updateMatrixWorld(true);
-    scenes.push({ id: mode, group: g.board.group, phys: g.board.physics });
+    scenes.push({ id: mode, group: g.board.group, phys: g.board.physics,
+      start: g.campaign?.stage?.starts?.[0] ?? g.players[0]?.position });
   }
+
+  /**
+   * Where a body can actually get to, flooded out from the party's own start
+   * with the mover's own two tests: the highest surface at or below feet plus
+   * a step (`groundHeight`), then room to stand there (`capsuleFree`). One
+   * pass per scene, reused by every mesh.
+   *
+   * This is the difference between "unbacked" and "a hole". A mission's border
+   * is one merged mesh of rock standing OUTSIDE the slab that colliders it
+   * (`ridge()` in world/mission.ts: the face of the cliff lands on the face of
+   * the wall, so nothing is proud of its collider), and a stage's floor plate
+   * runs out past that slab — so probing "is there standable ground beside
+   * this vertex" says yes on the dead side of a wall no player is ever on. A
+   * hundred metres of border came back as findings that way and buried two
+   * real ones on the Dune Sea. Asking where a body can *walk* answers it: the
+   * far side of a wall is not in the fill, a crate in the middle of a fight is.
+   */
+  const reachOf = (sc) => {
+    const phys = sc.phys, start = sc.start;
+    if (!start || !phys.groundHeight || !phys.capsuleFree) return null;
+    const CELL = 1, R = 0.6, H = 1.7, STEP = 0.55, CAP = 400000;
+    const stands = (x, z, fromY) => {
+      const y = phys.groundHeight(x, z, fromY + STEP);
+      if (!isFinite(y) || Math.abs(y - fromY) > STEP) return null;
+      return phys.capsuleFree(x, y + 0.05, z, R, H) ? y : null;
+    };
+    const key = (i, j) => i + ',' + j;
+    const seen = new Map();
+    const i0 = Math.round(start.x / CELL), j0 = Math.round(start.z / CELL);
+    const y0 = phys.groundHeight(start.x, start.z, start.y + STEP);
+    seen.set(key(i0, j0), y0);
+    const q = [[i0, j0, y0]];
+    let n = 0;
+    while (q.length && n < CAP) {
+      const [i, j, y] = q.pop(); n++;
+      for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + d[0], nj = j + d[1], k = key(ni, nj);
+        if (seen.has(k)) continue;
+        const nx = ni * CELL, nz = nj * CELL;
+        if (Math.abs(nx) > 600 || Math.abs(nz) > 600) continue;
+        const ny = stands(nx, nz, y);
+        if (ny === null) continue;
+        seen.set(k, ny);
+        q.push([ni, nj, ny]);
+      }
+    }
+    // A fill that hit the cap is not a map of anywhere; better to fall back to
+    // reporting everything than to call the unvisited half of a level solid.
+    return n >= CAP ? null : { seen, key, CELL };
+  };
 
   for (const sc of scenes) {
     const phys = sc.phys;
+    const reach = reachOf(sc);
     const findings = [];
     let meshes = 0;
     let skipped = 0;
@@ -129,6 +181,23 @@ function audit(mode) {
       let decor = false;
       for (let n = obj; n; n = n.parent) if (n.userData && n.userData.decor) { decor = true; break; }
       if (decor) { skipped++; return; }
+      // A retracted door leaf has slid into the wall and its blocker is gone,
+      // which is the correct state of an open door and looks exactly like a
+      // wall you can walk through. `Gate.block` writes this on every leaf.
+      for (let n = obj; n; n = n.parent) {
+        if (n.userData && n.userData.gateShut === false) { skipped++; return; }
+      }
+      // `userData.facing` is a third answer, between decoration and a solid:
+      // geometry whose collision is carried by a slab behind it rather than by
+      // its own shape. A mission border is the case — one slab per run with
+      // forty boulders laid outward from it, so most of the rock is outside
+      // its own collider on purpose and no amount of sampling the mesh can
+      // tell that from a hole. What backs it is checked instead by
+      // test-missions (a wall run per border, all clearing the ceiling) and by
+      // this file's own pass for colliders with nothing standing on them.
+      for (let n = obj; n; n = n.parent) {
+        if (n.userData && n.userData.facing) { skipped++; return; }
+      }
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
       const m = mats[0] || {};
       if (m.isShaderMaterial) { skipped++; return; }                    // sky domes
@@ -213,8 +282,37 @@ function audit(mode) {
         }
       }
       let hits = 0;
-      for (const [px, pz] of pts) if (covered(px, pz, lo[1], hi[1])) hits++;
+      const bare = [];
+      for (const [px, pz] of pts) {
+        if (covered(px, pz, lo[1], hi[1])) hits++;
+        else bare.push([px, pz]);
+      }
       if (hits === pts.length) return;                                   // fully backed
+
+      // ---- and the question behind the question: can anyone get to it? ----
+      // The rule is "if it is visible it is solid", but the *report* this tool
+      // exists to serve is "I walked straight through that", and you cannot
+      // walk through what you cannot walk up to. So each unbacked point is
+      // asked whether a body could ever be standing beside it — against the
+      // fill above, not against a local probe, because the far side of a wall
+      // has perfectly good standable floor on it and nobody is ever there.
+      // This is narrower than it sounds: a crate, a tent, a pillar or a crane
+      // in the middle of a fight passes trivially, so everything this tool
+      // used to catch it still catches.
+      if (reach) {
+        const near = (px, pz) => {
+          const i0 = Math.round(px / reach.CELL), j0 = Math.round(pz / reach.CELL);
+          for (let i = i0 - 1; i <= i0 + 1; i++) {
+            for (let j = j0 - 1; j <= j0 + 1; j++) {
+              const y = reach.seen.get(reach.key(i, j));
+              // and at this height: a walkway forty metres below is not "beside"
+              if (y !== undefined && y > lo[1] - 2.5 && y < hi[1] + 0.5) return true;
+            }
+          }
+          return false;
+        };
+        if (!bare.some(([px, pz]) => near(px, pz))) { skipped++; return; }
+      }
 
       // a mesh sunk into the terrain isn't standing in the way of anything
       if (phys.heightAt) {
@@ -308,6 +406,13 @@ const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
 // read back, which is the only handle on it from out here — the bundle does
 // not export the builder (audit-mission-build.mjs takes the same route).
 const BOARDS = results.map((r) => r.board);
+// This sweep used to run on a page that had not asked for the outdoor stages,
+// back when Missions ran the walled room chain unless it was told otherwise —
+// so for as long as it existed it audited `mission-legacy.ts` and reported it
+// as "the mission level". The design actually shipped had never been swept at
+// all, which is how a run came to have rock walls you could walk through in
+// it. The stage chain is the default now, so the plain page is the right one;
+// what had to change is that the sweep walks *every* stage of a run.
 for (const board of (only ? [only] : BOARDS)) {
   await h.page.evaluate(([b]) => {
     window.__manual = false;
@@ -348,7 +453,67 @@ for (const board of (only ? [only] : BOARDS)) {
   } catch {
     console.log(`\n=== ${board} (mission) — sculpts still in flight, measuring anyway`);
   }
-  results.push(...await h.page.evaluate(`(${audit.toString()})(${JSON.stringify(`${board} (mission)`)})`));
+  // Every stage of the run, not just the one the match opens on. A run is a
+  // chain of maps behind transport doors and only the first was ever measured;
+  // the ravine and the far side of the Dune Sea had never been looked at.
+  for (let stage = 0; stage < 6; stage++) {
+    // Open the stage before measuring it. Coverage is now judged against where
+    // a body can walk (see `reachOf`), and on a stage still being fought that
+    // is one zone: every gate past it is sealed, so a hole in the second half
+    // of the level would be filtered out as unreachable — the exact opposite
+    // of what this tool is for. Clearing the zones is what the crossing code
+    // below already does to reach the next stage; it just has to happen first.
+    await h.page.evaluate(() => {
+      const g = window.__game, c = g.campaign;
+      if (!c || !c.stage) return;
+      const blank = {
+        moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+        dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+        meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+        zoomDelta: 0, blockHeld: false, pausePressed: false, meleeSwapPressed: false,
+        rangedSwapPressed: false, throttleHeld: false, brakeHeld: false,
+      };
+      const idle = [blank, { ...blank }, { ...blank }, { ...blank }];
+      window.__manual = true;
+      c.idx = c.stage.zones.length;
+      c.phase = 'travel';
+      for (const e of g.enemies) e.removeMe = true;
+      for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+      window.__manual = false;
+    });
+    results.push(...await h.page.evaluate(
+      `(${audit.toString()})(${JSON.stringify(`${board} (mission ${stage + 1})`)})`));
+    const crossed = await h.page.evaluate(() => {
+      const g = window.__game;
+      const c = g.campaign;
+      if (!c || !c.stage || !c.stage.exitPortal) return false;
+      const blank = {
+        moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+        dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
+        meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
+        zoomDelta: 0, blockHeld: false, pausePressed: false, meleeSwapPressed: false,
+        rangedSwapPressed: false, throttleHeld: false, brakeHeld: false,
+      };
+      const idle = [blank, { ...blank }, { ...blank }, { ...blank }];
+      window.__manual = true;
+      c.idx = c.stage.zones.length;
+      c.phase = 'travel';
+      for (const e of g.enemies) e.removeMe = true;
+      const was = c.stageIdx;
+      for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+      const portal = c.stage.exitPortal;
+      if (!portal) { window.__manual = false; return false; }
+      for (let i = 0; i < 300 && c.stageIdx === was; i++) {
+        if (i % 20 === 0) g.players[0].position.copy(portal.threshold);
+        g.update(1 / 30, idle);
+      }
+      window.__manual = false;
+      return c.stageIdx !== was;
+    });
+    if (!crossed) break;
+    // the next stage's sculpts have to land before it is worth measuring
+    await new Promise((r) => setTimeout(r, 4000));
+  }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
@@ -356,7 +521,7 @@ await h.close();
 let total = 0;
 let ghosts = 0;
 for (const r of results) {
-  if (only && r.board !== only && r.board !== `${only} (mission)`) continue;
+  if (only && r.board !== only && !r.board.startsWith(`${only} (mission`)) continue;
   const n = r.findings.length;
   total += n;
   ghosts += r.phantoms.length;

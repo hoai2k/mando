@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { gravityScale, hazardAt, type Board } from '../world/board';
+import { gravityScale, hazardAt, type Board, type Hazard } from '../world/board';
 import type { GroundHit } from './physics';
 
 /**
@@ -96,11 +96,11 @@ export function tickHazards(
   board: Board,
   pos: THREE.Vector3,
   dt: number,
-  apply: (amount: number, kill: boolean) => void,
+  apply: (amount: number, kill: boolean, by?: Hazard | null) => void,
   opts: { drownAt?: number; immune?: boolean } = {},
 ): void {
   const hzd = hazardAt(board, pos);
-  if (hzd.kill) { apply(0, true); return; }
+  if (hzd.kill) { apply(0, true, hzd.by); return; }
   if (opts.immune) return;
   let dps = hzd.dps;
   if (opts.drownAt !== undefined) {

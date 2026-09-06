@@ -285,7 +285,11 @@ export function buildTatooine(): Board {
     // hit spheres. The animal sways on the spot, so its colliders stay put:
     // the fit is what the sculpt occupies at rest, which is where it is.
     const bnAxis = new THREE.Vector2(Math.sin(bnYaw), Math.cos(bnYaw));
-    const bnStand = ([[-1.7, 1.7, 1.9, 3.4], [0.3, 1.8, 1.6, 3.8], [2.4, 1.4, 1.7, 2.8]] as const).map(
+    // Fitted to the animal, not to the space around it: `bantha.glb` is drawn
+    // 2.5 m across, and 1.8 m discs held you almost a metre off its flank —
+    // near enough that you could never walk up to one. These are what the
+    // sculpt occupies until the sculpt lands and fits its own.
+    const bnStand = ([[-1.7, 1.15, 1.9, 3.4], [0.3, 1.25, 1.6, 3.8], [2.4, 0.95, 1.7, 2.8]] as const).map(
       ([t, r, cy, ch]) => physics.addCylinder(bnx + bnAxis.x * t, base + cy, bnz + bnAxis.y * t, r, ch));
     authoredProp(node, parts, 'bantha', 4.5, { axis: 'z' },
       { physics, replace: bnStand, maxBoxes: 10 });

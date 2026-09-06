@@ -45,6 +45,12 @@ const VENT_CUE_LEAD = 1.0;
 const VENT_CUE_LIFE = 3.4;
 /** how long a ground arrow pulses before settling to a breadcrumb */
 const ARROW_PULSE = 8;
+/** close enough to the transport door that the line stops being a distance */
+const PORTAL_HINT_NEAR = 12;
+/** how near a hatch's closet counts as standing in it */
+const HATCH_CLEAR = 4;
+/** stand this close to the objective and its column goes out — you are there */
+const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
 const PORTAL_BEAT = 1.5;
 /** how far a cancelled exit walks the player back out of the pocket */
@@ -538,6 +544,17 @@ export class Campaign implements MissionController {
     const obj = this.objectivePos;
     const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
     if (this.transitT > 0) return TEXT.missions.boarding(this.objectiveLabel);
+    // Everything is cleared and the way on is a door: say so, and name what is
+    // through it. `this.zone` clamps to the last zone once the run is past it,
+    // so without this the line read "Make for <the last zone>" — the zone you
+    // are standing behind — while the run waited on you to walk through a door
+    // it had already opened.
+    if (this.idx >= this.stage.zones.length && this.stage.exitPortal) {
+      const next = MISSION_LAYOUTS[this.game.board.kind].stages[this.stageIdx + 1]?.label ?? '';
+      return d <= PORTAL_HINT_NEAR
+        ? TEXT.missions.stepThrough(next)
+        : TEXT.missions.wayOn(next, d);
+    }
     if (this.phase === 'travel') return TEXT.missions.makeFor(zone.spec.label, d);
     switch (zone.spec.kind) {
       case 'assault': return TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount);
@@ -780,7 +797,13 @@ export class Campaign implements MissionController {
         this.ventCue = null;
       }
     }
-    if (this.glyphLife <= 0) return;
+    if (this.glyphLife <= 0) {
+      // idempotent, and the only place that guarantees it: `glyphLife` is
+      // zeroed from several directions (a stage swap, a won run) and a glyph
+      // that was lit when that happened has to go out with it.
+      for (const gl of this.glyphs) if (gl.mesh.visible) gl.mesh.visible = false;
+      return;
+    }
     this.glyphLife -= dt;
     const pulse = 0.45 + 0.35 * Math.sin(this.game.time * 9);
     const fade = Math.min(1, this.glyphLife / 0.6);
@@ -790,10 +813,33 @@ export class Campaign implements MissionController {
     }
   }
 
+  /**
+   * Put every light out. Called wherever the frame stops early — a won run, a
+   * transport beat — so nothing is left burning over a place that no longer
+   * means anything.
+   */
+  private douse(): void {
+    this.beacon.visible = false;
+    this.arrow.visible = false;
+    this.glyphLife = 0;
+    this.ventCue = null;
+    for (const gl of this.glyphs) gl.mesh.visible = false;
+  }
+
   private clearZone(zone: MissionZone, fought: boolean): void {
     zone.entryBarrier?.open();
     zone.exitBarrier?.open();
-    for (const h of zone.hatches) h.gate.close();
+    // A wall hatch opens onto a four-metre closet with one door and nothing
+    // else. Shutting it on somebody who walked in there after the wave came
+    // out of it is a player deleted from the run — no way out, nothing to
+    // shoot, and the rest of the party waiting on them at the next door. So a
+    // hatch with a body in it stays open. It is a spent spawn door by then: an
+    // open one is untidy, a shut one is a cell.
+    for (const h of zone.hatches) {
+      const inside = this.game.players.some((p) => p.alive
+        && p.position.distanceToSquared(h.post) < HATCH_CLEAR * HATCH_CLEAR);
+      if (!inside) h.gate.close();
+    }
     // the far end of the zone is the safe ground — never a set piece's centre
     this.checkpoint.copy(zone.exit);
     this.idx++;
@@ -925,11 +971,16 @@ export class Campaign implements MissionController {
 
   update(dt: number): void {
     const game = this.game;
-    if (this.done) return;
+    // Nothing is lit on a run that is over. Every early return below used to
+    // leave whatever was glowing at that instant glowing for good — a column
+    // of light standing in an empty canyon with nothing to walk to and nothing
+    // to pick up, which is what a marker must never be.
+    if (this.done) { this.douse(); return; }
 
     // the transport beat: inputs are blanked by `Player.exited`, the card is
     // up, and the swap lands when the clock runs out
     if (this.transitT > 0) {
+      this.douse();
       this.transitT -= dt;
       if (this.transitT <= 0) {
         const to = this.transitTo;
@@ -942,10 +993,16 @@ export class Campaign implements MissionController {
     this.syncGates();
     this.stage.tick(game.time);
 
-    // beacon rides the objective and breathes — but not over the trailhead,
-    // which is ground the party is already standing on
+    // The beacon rides the objective and breathes — but only where it is
+    // telling you something. A sixty-metre column of light reads as a thing to
+    // walk into and collect, so one standing on ground the party is already on
+    // is a promise the run cannot keep: it was touched, nothing happened, and
+    // the only lesson was that the lights lie. It is dark on the trailhead
+    // (ground you are spawned on) and dark once you are on top of it.
     const obj = this.objectivePos;
-    this.beacon.visible = !this.atTrailhead;
+    const near = game.players.some((p) => p.alive
+      && p.position.distanceToSquared(obj) < BEACON_HIDE * BEACON_HIDE);
+    this.beacon.visible = !this.atTrailhead && !near;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
     this.updateVentGlyphs(dt);

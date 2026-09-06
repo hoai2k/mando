@@ -176,6 +176,13 @@ export class Gate implements Barrier {
   }
 
   private block(on: boolean): void {
+    // A retracted leaf is meant to be walked through, and it has slid into the
+    // wall to say so. Nothing in the game reads this; `tools/audit-collision`
+    // does, because a leaf standing in its pocket with no blocker under it is
+    // the correct state of an open door and reads exactly like a wall you can
+    // walk through. Set on every leaf rather than the gate, since the audit
+    // walks meshes and looks up the parent chain.
+    for (const leaf of this.leaves) leaf.userData.gateShut = on;
     if (on === (this.box !== null)) return;
     if (on) {
       this.box = this.board.physics.addBox(

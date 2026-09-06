@@ -74,6 +74,13 @@ const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
 /** the ride's grip and the elbow hint that picks the arm's bend */
+/** how long a kill zone takes to close over a body, in seconds */
+const TAKEN_TIME = 1.15;
+/** how hard it hauls you in toward the middle of it (damp lambda) */
+const TAKEN_PULL = 3.2;
+/** and how fast it takes you under, m/s at the start of the pull */
+const TAKEN_SINK = 1.5;
+
 const _grip = new THREE.Vector3();
 const _elbowHint = new THREE.Vector3();
 
@@ -372,6 +379,14 @@ export class Player {
   isBot = false;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
+  /**
+   * Being taken by a kill zone: how long is left of it, and what has hold of
+   * you. A kill used to be instant — full health one frame, the respawn card
+   * the next, and nothing at all to say a sarlacc had you rather than a stray
+   * bolt. See `updateTaken`.
+   */
+  private takenT = 0;
+  private takenBy = new THREE.Vector3();
   /** riding the boosters down on the sights: slow descent, fuel burning */
   gliding = false;
   /** blaster heat, 0..1; at 1 the weapon locks out until it has vented */
@@ -810,6 +825,71 @@ export class Player {
   }
 
   /**
+   * A kill zone has you.
+   *
+   * Instant death is the one outcome in this game that cannot be read. Full
+   * health one frame and the respawn card the next says *something* killed
+   * you, and on a board with a sarlacc, a lava river and a shock floor on it
+   * that is not enough to learn from — the report was "the ground circles kill
+   * you", which is exactly what it looks like from the inside.
+   *
+   * So being taken is a beat of its own. Control goes, the body is dragged in
+   * to whatever has hold of it and pulled under, and the death lands at the
+   * end of it — where the dissolve that already plays for every death carries
+   * on as normal. About a second: long enough to see the mouth close over you,
+   * short enough that it is never a wait.
+   */
+  private takenByHazard(at: THREE.Vector3): void {
+    if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
+    this.takenT = TAKEN_TIME;
+    this.takenBy.copy(at);
+    this.vehicle?.dropRider();
+    this.cover = null;
+    this.velocity.set(0, 0, 0);
+    audio.hurt(this.profile.voice);
+  }
+
+  /**
+   * One frame of being taken: hauled off your feet toward the middle of it and
+   * sunk, arms up, with the camera left where it is so you watch it happen.
+   */
+  private updateTaken(dt: number, game: Game): void {
+    this.takenT -= dt;
+    const gone = 1 - Math.max(0, this.takenT) / TAKEN_TIME;
+    // in toward the centre, and down: a mouth and a pool are the same motion
+    this.position.x = damp(this.position.x, this.takenBy.x, TAKEN_PULL, dt);
+    this.position.z = damp(this.position.z, this.takenBy.z, TAKEN_PULL, dt);
+    this.position.y -= TAKEN_SINK * dt * (0.4 + gone);
+    this.velocity.set(0, 0, 0);
+    this.grounded = false;
+    this.blocking = false;
+    this.aiming = false;
+    this.thrusting = 0;
+    this.char.setThrust(0);
+    audio.setJetpackThrust(this.slot, 0);
+    // the flail: the fall pose, sinking, with the body turned to face what has
+    // it so the shape reads from any camera
+    const anim = this.char.animator;
+    if (anim) {
+      anim.play('lower', 'flyFallLower');
+      anim.play('upper', 'flyFallUpper');
+    }
+    this.facingYaw = dampAngle(this.facingYaw,
+      Math.atan2(this.takenBy.x - this.position.x, this.takenBy.z - this.position.z), 6, dt);
+    game.particles.dustPuff(this.position, 2);
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+    this.cam.update(dt, this.position, game.board.physics,
+      { aiming: false, speed: 0, dashing: false });
+    if (this.takenT <= 0) {
+      this.takenT = 0;
+      // 9999 so nothing shrugs it off; the dissolve and the respawn are the
+      // ordinary ones from here
+      this.damage(9999, this.takenBy, -1, { heavy: true });
+    }
+  }
+
+  /**
    * Turn a freshly placed body — and its camera — toward the open side.
    *
    * Called after a spawn rather than inside `spawnAt`, because the answer
@@ -1173,6 +1253,10 @@ export class Player {
     // (they come home to the body) — so they tick before any early return.
     this.updateSaberThrow(dt, input, game);
     if (!this.alive) { this.updateDeadBody(dt, game, anim); return; }
+
+    // a kill zone has hold of you: no input, no fighting, just the beat it
+    // takes to pull you under (see `takenByHazard`)
+    if (this.takenT > 0) { this.updateTaken(dt, game); return; }
 
     // re-forming after a respawn: motes converge head-to-feet and the figure
     // fades back in where it will stand — watchable, untouchable, and deaf to
@@ -2123,9 +2207,9 @@ export class Player {
    */
   private applyHazards(dt: number, game: Game): void {
     if (!this.alive) return;
-    tickHazards(this.burn, game.board, this.position, dt, (amount, kill) => {
+    tickHazards(this.burn, game.board, this.position, dt, (amount, kill, by) => {
       // no drowning term: the helmet is sealed, and swimming is a mode here
-      if (kill) this.damage(999, this.position);
+      if (kill) this.takenByHazard(by ? by.center : this.position);
       else this.damage(amount, this.position, -1, { dot: true });
     });
   }
@@ -2421,7 +2505,7 @@ export class Player {
     // kill zones still end the rider (the hull is not armour against a sarlacc);
     // burn zones cook the hull instead
     const hzd = hazardAt(game.board, this.position);
-    if (hzd.kill) { this.damage(999, this.position); return; }
+    if (hzd.kill) { this.takenByHazard(hzd.by ? hzd.by.center : this.position); return; }
     if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
     if (!this.vehicle) return; // the burn just finished the ride
 

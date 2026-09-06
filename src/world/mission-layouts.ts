@@ -69,41 +69,58 @@ const desert: StageSpec[] = [
     anchor: { x: -85, z: 2, dx: 1, dz: 0 },
     canyon: { from: 78, to: 30, gorge: { w: 16, len: 26 } },
     zones: [
-      z('desert', 0, {
-        shell: 'open', kind: 'start', w: 44, l: 56, air: true,
+      // The trailhead parks nothing. A run that opens with the whole motor
+      // pool standing on the spawn hands the ride over before it has asked
+      // for anything — you sit on a swoop in the first five seconds and the
+      // walk out is skipped entirely. What is out here is the horizon and the
+      // camp's tents in it.
+      z('desert', 0, { shell: 'open', kind: 'start', w: 44, l: 44, air: true }),
+      // The corral: the Tuskens' own camp, and where the rides *are*. It is a
+      // held position with a squad posted in it, so mounting up is something
+      // you take off them rather than something the level leaves lying about.
+      z('desert', 1, {
+        shell: 'open', kind: 'camp', w: 44, l: 40, air: true,
+        props: [
+          { id: 'tusken_tent', u: 26, v: 9, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 32, v: -7, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 21, v: -13, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+        ],
         rides: [
-          { kind: 'swoop', u: 16, v: 6, yaw: 0 },
-          { kind: 'swoop', u: 16, v: 10, yaw: 0 },
-          { kind: 'bantha', u: 12, v: -8, yaw: 1.6 },
+          { kind: 'swoop', u: 12, v: 9, yaw: 0 },
+          { kind: 'swoop', u: 16, v: 13, yaw: 0 },
+          { kind: 'bantha', u: 13, v: -11, yaw: 1.6 },
+          { kind: 'landspeeder', u: 20, v: -14, yaw: 0 },
         ],
       }),
-      z('desert', 1, {
-        shell: 'road', kind: 'chase', w: 26, l: 90,
+      // The road keeps two: the skiff at its mouth for whoever came out of the
+      // corral on foot, and a swoop halfway down for whoever's ride went up.
+      z('desert', 2, {
+        shell: 'road', kind: 'chase', w: 26, l: 70,
         marks: [0.36, 0.72], barricade: 'crates', air: true,
         rides: [
-          { kind: 'landspeeder', u: 8, v: -6, yaw: 0 },
-          { kind: 'swoop', u: 8, v: 3, yaw: 0 },
-          { kind: 'swoop', u: 12, v: 6, yaw: 0 },
-          { kind: 'skiff', u: 14, v: -8, yaw: 0 },
-          { kind: 'swoop', u: 40, v: 7, yaw: 0 },
+          { kind: 'skiff', u: 10, v: -6, yaw: 0 },
+          { kind: 'swoop', u: 38, v: 7, yaw: 0 },
         ],
       }),
     ],
-    links: [{ len: 24, kind: 'trek' }],
+    links: [{ len: 16, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'built',
     label: TEXT.missions.stages.desert[1],
     zones: [
-      z('desert', 2, {
+      z('desert', 3, {
         shell: 'canyon', kind: 'camp', w: 14, l: 70, alcove: true,
         props: [
-          { id: 'tusken_tent', u: 44, v: 4, size: 5.2 },
-          { id: 'tusken_tent', u: 52, v: -4, size: 5.2 },
+          // solid, like the corral's: a 5 m tent you walk through is the
+          // "rock walls we walked right through" report, and these two were
+          // the only props on the run that had been left decorative.
+          { id: 'tusken_tent', u: 44, v: 4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 52, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
         ],
       }),
-      z('desert', 3, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
-      z('desert', 4, {
+      z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
+      z('desert', 5, {
         shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pit', alcove: true,
       }),
     ],
@@ -113,13 +130,13 @@ const desert: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.desert[2],
     zones: [
-      z('desert', 5, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
-      z('desert', 6, { shell: 'canyon', kind: 'assault', w: 16, l: 60, waves: 3, pass: true }),
-      z('desert', 7, {
+      z('desert', 6, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
+      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, waves: 3, pass: true }),
+      z('desert', 8, {
         shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'crates',
         props: [{ id: 'sail_barge', u: 22, v: 9, size: 26, yaw: 0.5, solid: { r: 4.4, h: 5 } }],
       }),
-      z('desert', 8, {
+      z('desert', 9, {
         shell: 'open', kind: 'warlord', w: 80, l: 70, air: true,
         props: [{ id: 'troop_carrier', u: 20, v: 28, size: 14, yaw: 2.2, solid: { r: 3, h: 3 } }],
         rides: [{ kind: 'swoop', u: 10, v: 22, yaw: 0 }, { kind: 'skiff', u: 12, v: -24, yaw: 0 }],
@@ -144,8 +161,13 @@ const station: StageSpec[] = [
       z('station', 2, {
         shell: 'deck', kind: 'assault', w: 44, l: 36, waves: 2, air: true, feature: 'crates',
         props: [
-          { id: 'cargo_crane', u: 10, v: 19, size: 18 },
-          { id: 'cargo_crane', u: 28, v: -19, size: 18 },
+          // solid, like every other prop in this file: `solid` is only the
+          // stand-in's shape — the sculpt fits its own colliders the moment it
+          // lands, so a gantry keeps the gap between its legs. Left off, these
+          // were two eighteen-metre cranes you walked straight through, which
+          // is the Spice Run half of the walk-through-walls report.
+          { id: 'cargo_crane', u: 10, v: 19, size: 18, solid: { r: 3.2, h: 12 } },
+          { id: 'cargo_crane', u: 28, v: -19, size: 18, solid: { r: 3.2, h: 12 } },
         ],
       }),
     ],
