@@ -112,8 +112,11 @@ const desert: StageSpec[] = [
       z('desert', 3, {
         shell: 'canyon', kind: 'camp', w: 14, l: 70, alcove: true,
         props: [
-          { id: 'tusken_tent', u: 44, v: 4, size: 5.2 },
-          { id: 'tusken_tent', u: 52, v: -4, size: 5.2 },
+          // solid, like the corral's: a 5 m tent you walk through is the
+          // "rock walls we walked right through" report, and these two were
+          // the only props on the run that had been left decorative.
+          { id: 'tusken_tent', u: 44, v: 4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 52, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
         ],
       }),
       z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),

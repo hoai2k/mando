@@ -213,8 +213,47 @@ function audit(mode) {
         }
       }
       let hits = 0;
-      for (const [px, pz] of pts) if (covered(px, pz, lo[1], hi[1])) hits++;
+      const bare = [];
+      for (const [px, pz] of pts) {
+        if (covered(px, pz, lo[1], hi[1])) hits++;
+        else bare.push([px, pz]);
+      }
       if (hits === pts.length) return;                                   // fully backed
+
+      // ---- and the question behind the question: can anyone get to it? ----
+      // The rule is "if it is visible it is solid", but the *report* this tool
+      // exists to serve is "I walked straight through that", and you cannot
+      // walk through what you cannot walk up to. A mission's border is one
+      // merged mesh of rock the length of the level, standing OUTSIDE the slab
+      // that colliders it (see `ridge()` in world/mission.ts: the face of the
+      // cliff lands on the face of the wall, and the rest of every boulder is
+      // behind it). Sample that merge and half its vertices come back unbacked
+      // by construction -- the outward half, on the dead side of a wall no
+      // player is ever on. Reported as holes, they bury the real ones: two
+      // tusken tents on the Dune Sea's second stage were flagged in the same
+      // breath as 122 m of border and read as more of the same.
+      //
+      // So each unbacked point is asked whether there is standable, capsule-
+      // free ground beside it -- the mover's own two tests, `groundHeight`
+      // then `capsuleFree`, at the height being probed. If not one of them can
+      // be reached, nothing is walking through this mesh. This is narrower
+      // than it sounds: standing next to a tent, a crate or a pillar passes
+      // trivially, so everything the tool used to catch it still catches.
+      if (phys.groundHeight && phys.capsuleFree) {
+        const REACH = 1.2, R = 0.6, H = 1.7, STEP = 0.55;
+        const y = (lo[1] + hi[1]) / 2;
+        const reachable = bare.some(([px, pz]) => {
+          for (let a = 0; a < 8; a++) {
+            const th = (a / 8) * Math.PI * 2;
+            const sx = px + Math.cos(th) * REACH, sz = pz + Math.sin(th) * REACH;
+            const gy = phys.groundHeight(sx, sz, y + STEP);
+            if (!isFinite(gy) || gy < lo[1] - STEP || gy > hi[1]) continue;
+            if (phys.capsuleFree(sx, gy + 0.05, sz, R, H)) return true;
+          }
+          return false;
+        });
+        if (!reachable) { skipped++; return; }
+      }
 
       // a mesh sunk into the terrain isn't standing in the way of anything
       if (phys.heightAt) {
@@ -308,13 +347,13 @@ const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
 // read back, which is the only handle on it from out here — the bundle does
 // not export the builder (audit-mission-build.mjs takes the same route).
 const BOARDS = results.map((r) => r.board);
-// Missions runs the walled room chain unless it is *asked* for the outdoor
-// stages, and this sweep never asked — so for as long as it has existed it has
-// been auditing `mission-legacy.ts` and reporting it as "the mission level".
-// The design actually shipped behind the flag had never been swept at all,
-// which is how a run came to have rock walls you could walk through in it.
-await h.page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new`);
-await h.page.waitForFunction(() => !!window.__startMode, null, { timeout: 30000 });
+// This sweep used to run on a page that had not asked for the outdoor stages,
+// back when Missions ran the walled room chain unless it was told otherwise —
+// so for as long as it existed it audited `mission-legacy.ts` and reported it
+// as "the mission level". The design actually shipped had never been swept at
+// all, which is how a run came to have rock walls you could walk through in
+// it. The stage chain is the default now, so the plain page is the right one;
+// what had to change is that the sweep walks *every* stage of a run.
 for (const board of (only ? [only] : BOARDS)) {
   await h.page.evaluate(([b]) => {
     window.__manual = false;

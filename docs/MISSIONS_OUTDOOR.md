@@ -1338,15 +1338,28 @@ diff the two to find out. Implemented on branch
   `VehicleSpec.y` is new so a ride sits on the plate it was parked on rather
   than on the territory ninety metres below. The **road/chase** beat runs on
   the Dune Sea, the Lava Flats and the Great Forge.
-- **Which one runs** — the room chain (`world/mission-legacy.ts`,
-  `game/campaign-legacy.ts`) is what Missions runs; **this design is behind
-  `?missions=new`** (see "Demoted to experimental" below). Both satisfy
+- **Which one runs** — **this design is what Missions runs** (default again
+  since 2026-09-06); the room chain (`world/mission-legacy.ts`,
+  `game/campaign-legacy.ts`) is behind **`?missions=old`**, and the older
+  spelling `?backup=missions` still names it. Both satisfy
   `MissionController`; nothing else in the game branches on which is running.
 - **Tests** — `tools/test-missions.mjs`: the build, the borders, the ceiling
   (including a measured jetpack burn and a flier that must come down before
   it shoots), a golden-path walkthrough to liberation, the transport doors
   both ways with the cancel, a per-board audit of all nine, and the mode
   flag.
+
+**Restored as the default (2026-09-06).** The three things the demotion named
+are done. A ground stage is no longer rimmed zone by zone: one **canyon**
+(`StageSpec.canyon`) runs the length of the stage, wide and far off at the
+trailhead and closing as you go, and it ends at a cliff with a **gorge** cut
+into it — a constrained slot, not a squeeze — which is where the way on
+stands. The trailhead takes no rim at all. And the border's rock and the
+border's collision are now the same surface: `ridge()` is told which side is
+playable and pushes both its boulders and its backdrop row *outward* from the
+slab it colliders, which is what "I walked straight through that wall" was on
+every outdoor board. What follows is the demotion as it was written, kept
+because the reasoning is the record of why the shape changed.
 
 **Demoted to experimental (2026-09-03).** Played rather than measured, the
 outdoor chain does not yet deliver rule 1 ("begin outdoors") or rule 2 ("vary

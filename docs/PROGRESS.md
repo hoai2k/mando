@@ -62,8 +62,8 @@ image sets recorded as declined in `ASSETS_COMPLETED.md`.
   `docs/BOSSES.md` §2. Ten monsters fight on the shared boss rhythm today and
   the Dune Sea worm's burrow cycle is the one bespoke moveset shipped; the
   ledger of what is and is not implemented lives in that doc.
-- The Missions v3 outdoor stage chain (`docs/MISSIONS_OUTDOOR.md`) is behind
-  `?missions=new`; the default is still the legacy room chain. Its optional
+- The Missions v3 outdoor stage chain (`docs/MISSIONS_OUTDOOR.md`) is what
+  Missions runs; the legacy room chain is behind `?missions=old`. Its optional
   outdoor model set is marked optional in `ASSETS_MODELS.md`.
 
 **Still genuinely first-pass:** real-hardware playtest and feel tuning. Every

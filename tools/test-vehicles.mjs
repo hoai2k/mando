@@ -688,16 +688,18 @@ for (const id of waveBoards) {
 // This used to check that Missions spawned *no* rides at all: every mission
 // level was a plate raised ninety metres over the territory, so the board's
 // own parked rides were unreachable down below and spawning them was waste.
-// That is still what ships by default, and still checked below.
+// That is still the rule for the room chain, and still checked below — it is
+// `?missions=old` now rather than the default.
 //
 // The stage chain (docs/MISSIONS_OUTDOOR.md) parks rides per zone instead, and
 // a stage may stand on the territory's own ground, so its rule is not "none"
 // but "the stage's own, on the stage" — a ride you cannot walk to is the thing
-// being guarded against either way. It lives behind `?missions=new`, so it has
-// to be *booted* behind that flag too: on the default page `game.campaign` is
-// a LegacyCampaign, which has no `.stage` at all, and reading one off it
-// yields a wall of `undefined` rather than a real measurement. That is what
-// nightly run 217 reported.
+// being guarded against either way. Each design has to be *booted* on its own
+// page, because the flag is read at construction: ask the room chain for a
+// `.stage` and you get a wall of `undefined` rather than a measurement, which
+// is what nightly run 217 reported.
+await h.page.goto(`${PAGE}?missions=old`, { waitUntil: 'networkidle' });
+await new Promise((r) => setTimeout(r, 1500));
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const legacy = await h.page.evaluate(() => ({
@@ -708,7 +710,8 @@ check('missions: the walled level parks no unreachable rides',
   legacy.rides === 0,
   `${legacy.rides} spawned, ${legacy.declared} declared by the board`);
 
-// the stage chain, on its own page — the flag is read at construction.
+// the stage chain, on the plain page — it is the default, and the flag is
+// read at construction.
 //
 // Navigating away is a teardown, and a teardown revokes the blob URLs that
 // glTF textures are still being decoded from, so THREE logs "Couldn't load
@@ -718,7 +721,7 @@ check('missions: the walled level parks no unreachable rides',
 // exactly those, added exactly across the navigation, and keep everything
 // else — including any other error raised in the same window.
 const before = h.errors.length;
-await h.page.goto(`${PAGE}?missions=new`, { waitUntil: 'networkidle' });
+await h.page.goto(PAGE, { waitUntil: 'networkidle' });
 await new Promise((r) => setTimeout(r, 1500));
 const during = h.errors.splice(before, h.errors.length - before);
 h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
@@ -740,7 +743,7 @@ const mission = await h.page.evaluate(() => {
   };
 });
 check('missions: the stage chain raised its own level', !mission.noStage,
-  mission.noStage ? 'game.campaign has no .stage — ?missions=new did not take' : '');
+  mission.noStage ? 'game.campaign has no .stage — the stage chain did not boot' : '');
 check('missions parks the rides its stage declares',
   !mission.noStage && mission.n === mission.want,
   `${mission.n} spawned, ${mission.want} declared by the stage`);
