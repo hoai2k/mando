@@ -161,8 +161,13 @@ const station: StageSpec[] = [
       z('station', 2, {
         shell: 'deck', kind: 'assault', w: 44, l: 36, waves: 2, air: true, feature: 'crates',
         props: [
-          { id: 'cargo_crane', u: 10, v: 19, size: 18 },
-          { id: 'cargo_crane', u: 28, v: -19, size: 18 },
+          // solid, like every other prop in this file: `solid` is only the
+          // stand-in's shape — the sculpt fits its own colliders the moment it
+          // lands, so a gantry keeps the gap between its legs. Left off, these
+          // were two eighteen-metre cranes you walked straight through, which
+          // is the Spice Run half of the walk-through-walls report.
+          { id: 'cargo_crane', u: 10, v: 19, size: 18, solid: { r: 3.2, h: 12 } },
+          { id: 'cargo_crane', u: 28, v: -19, size: 18, solid: { r: 3.2, h: 12 } },
         ],
       }),
     ],
