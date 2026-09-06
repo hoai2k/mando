@@ -698,8 +698,18 @@ for (const id of waveBoards) {
 // page, because the flag is read at construction: ask the room chain for a
 // `.stage` and you get a wall of `undefined` rather than a measurement, which
 // is what nightly run 217 reported.
-await h.page.goto(`${PAGE}?missions=old`, { waitUntil: 'networkidle' });
-await new Promise((r) => setTimeout(r, 1500));
+//
+// Both navigations drop the blob-texture noise a teardown makes — see the
+// comment on the second one, which is where it was first diagnosed. There are
+// two of them now: the room chain no longer sits on the page this suite opens.
+const goTo = async (url) => {
+  const n = h.errors.length;
+  await h.page.goto(url, { waitUntil: 'networkidle' });
+  await new Promise((r) => setTimeout(r, 1500));
+  const during = h.errors.splice(n, h.errors.length - n);
+  h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
+};
+await goTo(`${PAGE}?missions=old`);
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const legacy = await h.page.evaluate(() => ({
@@ -720,11 +730,7 @@ check('missions: the walled level parks no unreachable rides',
 // failed this suite on a run where every one of its checks passed. Drop
 // exactly those, added exactly across the navigation, and keep everything
 // else — including any other error raised in the same window.
-const before = h.errors.length;
-await h.page.goto(PAGE, { waitUntil: 'networkidle' });
-await new Promise((r) => setTimeout(r, 1500));
-const during = h.errors.splice(before, h.errors.length - before);
-h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
+await goTo(PAGE);
 await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
 await settle('desert');
 const mission = await h.page.evaluate(() => {
