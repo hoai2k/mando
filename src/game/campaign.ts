@@ -33,6 +33,8 @@ const _probe = new THREE.Vector3();
 
 /** how close to the exit point counts as "through" a walked zone */
 const EXIT_R = 4.2;
+/** how long the stage must stand empty before the chain moves on by itself */
+const FIELD_CLEAR_DWELL = 1.2;
 /** vertical slack when judging who is inside a zone (jetpack hops included) */
 const ZONE_Y_SLACK = 12;
 /** falling this far below the stage floor reads as "off the path" */
@@ -103,6 +105,21 @@ export class Campaign implements MissionController {
   private marksFired: boolean[] = [];
   /** camps whose riders have already been sent for their rides */
   private ridersSent = new Set<MissionZone>();
+  /** who holds each zone: the bodies posted in it at raise, for the clear test */
+  private garrison = new Map<MissionZone, Enemy[]>();
+  /**
+   * Kinds the party has already met on this run.
+   *
+   * A new enemy is worth meeting on its own: swoop riders arriving as a
+   * squadron read as a thing that has happened, where two of them folded into
+   * a mixed drop read as more of the same. So the first wave that would
+   * contain a kind nobody has seen yet contains *only* the new kinds, and the
+   * mixing starts once they are known. Camps count as meeting them — the
+   * locals holding a corral are who lives there, and they are met on foot.
+   */
+  private seenKinds = new Set<EnemyKind>();
+  /** seconds the stage has had no living hostile in it (see `fieldClear`) */
+  private emptyT = 0;
   /** where the fallen return: the last safe ground the party earned */
   checkpoint: THREE.Vector3;
   done = false;
@@ -220,6 +237,8 @@ export class Campaign implements MissionController {
     // not yet the current one reads the last one, or nothing at all.
     this.stage = stage;
     this.ridersSent.clear();
+    this.garrison.clear();
+    this.emptyT = 0;
     this.populate(stage, i);
     return stage;
   }
@@ -234,11 +253,12 @@ export class Campaign implements MissionController {
       if (zone.spec.kind === 'camp') {
         const size = Math.min(zone.posts.length + 2,
           3 + Math.floor(this.rampWave(zone.beat) / 3) + game.players.length);
-        this.postSquad(this.squadFor(this.rampWave(zone.beat), size, zone), zone.posts, 9000 + zone.beat);
+        this.garrison.set(zone,
+          this.postSquad(this.squadFor(this.rampWave(zone.beat), size, zone), zone.posts, 9000 + zone.beat));
       } else if (zone.spec.kind === 'trek' && zone.spec.lookouts) {
         // lookouts hold nothing: they see you and tell the next zone about it
-        this.postSquad(this.squadFor(this.rampWave(zone.beat), zone.spec.lookouts, zone),
-          zone.posts, 9100 + zone.beat);
+        this.garrison.set(zone, this.postSquad(this.squadFor(this.rampWave(zone.beat), zone.spec.lookouts, zone),
+          zone.posts, 9100 + zone.beat));
       } else if (zone.spec.shell === 'road' && zone.spec.barricade) {
         // the squad behind the barricade at the far mouth
         this.postSquad(this.squadFor(this.rampWave(zone.beat), 3 + game.players.length, zone),
@@ -399,7 +419,8 @@ export class Campaign implements MissionController {
    * exactly what one is for — and with the ceiling holding them inside the
    * level, an air kind can no longer stalk the run from out of reach.
    */
-  private squadFor(wave: number, budget: number, zone: MissionZone | null): EnemyKind[] {
+  private squadFor(wave: number, budget: number, zone: MissionZone | null,
+    opts: { debut?: boolean } = {}): EnemyKind[] {
     const over = Math.max(0, wave - FINAL_WAVE);
     const comp = waveComposition(this.game.board.kind,
       Math.min(FINAL_WAVE, Math.max(1, wave)), this.game.players.length);
@@ -410,6 +431,19 @@ export class Campaign implements MissionController {
       for (let i = 0; i < entry.count; i++) kinds.push(entry.kind);
     }
     if (!kinds.length) return ['stormtrooper'];
+    // A kind nobody has met yet arrives as a squadron of its own (see
+    // `seenKinds`). Only a *wave* does this — a camp's garrison is who lives
+    // there, and a corral of Tuskens is not a debut to stage-manage.
+    if (opts.debut) {
+      const fresh = kinds.filter((k) => !this.seenKinds.has(k));
+      if (fresh.length) {
+        const out: EnemyKind[] = [];
+        while (out.length < Math.max(budget, fresh.length)) out.push(fresh[out.length % fresh.length]);
+        for (const k of out) this.seenKinds.add(k);
+        return out.slice(0, Math.max(budget, new Set(fresh).size));
+      }
+    }
+    for (const k of kinds) this.seenKinds.add(k);
     const take = Math.min(budget, kinds.length);
     const out: EnemyKind[] = [];
     const stride = Math.max(1, Math.floor(kinds.length / take));
@@ -504,8 +538,9 @@ export class Campaign implements MissionController {
     if (sent > 0) game.announce(TEXT.banners.riders.title, TEXT.banners.riders.sub);
   }
 
-  private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): void {
-    if (!posts.length) return;
+  private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): Enemy[] {
+    if (!posts.length) return [];
+    const bodies: Enemy[] = [];
     kinds.forEach((kind, i) => {
       const base = posts[i % posts.length].clone();
       base.x += (Math.random() - 0.5) * 3;
@@ -514,7 +549,10 @@ export class Campaign implements MissionController {
       e.squad = squad;
       e.squadSize = kinds.length;
       this.game.addEnemy(e);
+      bodies.push(e);
+      this.seenKinds.add(kind);
     });
+    return bodies;
   }
 
   private addPickup(pos: THREE.Vector3, index: number): void {
@@ -650,6 +688,34 @@ export class Campaign implements MissionController {
     return alive.length > 0 && alive.every((p) => this.inside(zone, p, 'sealRect'));
   }
 
+  /**
+   * Nothing hostile is left standing in the stage, and has not been for a
+   * moment.
+   *
+   * This is what makes a checkpoint optional. The chain used to advance on
+   * geography alone — walk into the next zone's rect, touch this one's exit —
+   * so a party that killed everything and pushed on to the door found it
+   * locked and the only cure a walk back to a checkpoint they had run past.
+   * An empty field is the same statement the checkpoint was making: this
+   * ground is done. The dwell is so it reads as *then the next lot arrive*
+   * rather than as one continuous spawn.
+   */
+  private fieldClear(): boolean { return this.emptyT >= FIELD_CLEAR_DWELL; }
+
+  /** the zone's own garrison, posted at raise, is dead */
+  private garrisonDown(zone: MissionZone): boolean {
+    const held = this.garrison.get(zone);
+    return !!held && held.length > 0 && held.every((e) => !e.alive);
+  }
+
+  /** somebody alive has walked past this zone's entry, along the way on */
+  private anyPastEntry(zone: MissionZone): boolean {
+    const to = _probe.subVectors(zone.exit, zone.entry);
+    const len = Math.hypot(to.x, to.z) || 1;
+    return this.game.players.some((p) => p.alive
+      && ((p.position.x - zone.entry.x) * to.x + (p.position.z - zone.entry.z) * to.z) / len > 0);
+  }
+
   private nearExit(zone: MissionZone): boolean {
     return this.game.players.some((p) => p.alive
       && p.position.distanceToSquared(zone.exit) < EXIT_R * EXIT_R);
@@ -735,7 +801,7 @@ export class Campaign implements MissionController {
     this.waveNum++;
     const wave = this.rampWave(zone.beat) + this.waveNum - 1;
     const budget = Math.min(12, 3 + wave + this.game.players.length);
-    const kinds = this.squadFor(wave, budget, zone);
+    const kinds = this.squadFor(wave, budget, zone, { debut: true });
 
     if (zone.spec.shell === 'hall' && zone.hatches.length) {
       const bodies: Enemy[] = [];
@@ -1050,6 +1116,8 @@ export class Campaign implements MissionController {
 
     this.syncGates();
     this.stage.tick(game.time);
+    // the clock behind `fieldClear`
+    this.emptyT = game.enemies.some((e) => e.alive && e.team === 1) ? 0 : this.emptyT + dt;
 
     // The beacon rides the objective and breathes — but only where it is
     // telling you something. A sixty-metre column of light reads as a thing to
@@ -1149,16 +1217,29 @@ export class Campaign implements MissionController {
       const ready = seals || arena ? this.allInside(zone)
         : walked ? this.anyInside(zone)
           : this.anyInside(zone, 'triggerRect');
-      if (ready) this.enterZone(zone);
+      // ...or the party is past this zone's mouth with nothing left alive
+      // behind them, in which case waiting for them to walk back into its rect
+      // is waiting for nothing. What is in the zone comes to them instead.
+      if (ready || (this.fieldClear() && this.anyPastEntry(zone))) this.enterZone(zone);
       return;
     }
     switch (zone.spec.kind) {
       case 'start':
       case 'trek':
-      case 'camp':
+      case 'camp': {
         if (zone.spec.kind === 'camp') this.sendRiders(zone);
-        if (this.nearExit(zone)) this.clearZone(zone, false);
+        // A checkpoint marks the way, it does not unlock it. Clearing the
+        // ground clears the zone, whether or not anybody walked to the flag —
+        // *except* the last zone of a stage, whose exit is the transport door
+        // itself: that one is a deliberate walk, so the way on never opens
+        // behind you while you are still fighting in front of it.
+        const last = this.idx === this.stage.zones.length - 1;
+        const done = this.nearExit(zone)
+          || (!last && this.garrisonDown(zone))
+          || (this.fieldClear() && this.game.players.some((p) => p.alive && this.pastExit(zone, p.position)));
+        if (done) this.clearZone(zone, this.garrisonDown(zone));
         break;
+      }
       case 'chase':
         this.updateChase(dt, zone);
         break;
@@ -1213,7 +1294,7 @@ export class Campaign implements MissionController {
         // Each mark you reach is ground earned.
         this.checkpoint.copy(m);
         const wave = this.rampWave(zone.beat);
-        const kinds = this.squadFor(wave, 3 + this.game.players.length, zone);
+        const kinds = this.squadFor(wave, 3 + this.game.players.length, zone, { debut: true });
         const spots = kinds.map((_, k) => {
           const at = m.clone();
           at.x += (Math.random() - 0.5) * zone.spec.w * 0.6;

@@ -318,6 +318,67 @@ Rules for where rides go:
   the sleeper's basin) park a swoop and a skiff at the rim: ramming the
   warlord is allowed, and the monster's ground slam wrecks a ride outright.
 
+### 1.8a Checkpoints mark the way; they do not unlock it (2026-09-06)
+
+A zone used to clear on **geography alone** — walk into the next one's rect,
+touch this one's exit — so a party that killed everything and pushed on to the
+transport door found it shut, with the only cure a walk back to a flag they had
+run past. Playtest, exactly: *"the door was locked, but I had killed all the
+enemies... instead of being required to hit checkpoints, if I go ahead and kill
+all enemies, the new ones should spawn."*
+
+So an empty field says what the checkpoint was saying:
+
+- A **walked zone clears when its garrison is dead** (`Campaign.garrison`
+  records who was posted in it at raise), whether or not anybody went near its
+  exit.
+- **`fieldClear`** — no living hostile in the stage for `FIELD_CLEAR_DWELL`
+  (1.2 s) — advances the chain past a zone the party has walked beyond, and
+  triggers the next one wherever they are standing, so its wave is *delivered
+  to them* rather than waiting for them to come back and ask.
+- **The last zone of a stage is the exception.** Its exit is the transport
+  door, and that one is a deliberate walk: the way on never opens behind you
+  while you are still fighting in front of it.
+
+### 1.8b A new kind arrives on its own (2026-09-06)
+
+`Campaign.seenKinds` remembers who the party has met on this run. A **wave**
+that would contain a kind nobody has met yet contains *only* the new kinds;
+the mixing starts once they are known. A camp's garrison is drawn without the
+rule — the locals holding a corral are who lives there, not a debut to
+stage-manage — and posting one counts as meeting them. Playtest: *"I liked
+fighting the speeder-bike enemies, but we should have them be a wave
+themselves... Each new type of enemy should show up first in a group of their
+own."*
+
+### 1.8c A border piece never stands on the level's own floor (2026-09-06)
+
+`ridge` pushes its rock outward from the collider slab so the face of the cliff
+lands on the face of the wall. That holds along a run and fails at its **ends**:
+where a lane turns, the pieces closing one run's corner reach across the next
+one's floor, and the slab under them follows the run they belong to, not the
+one they are standing in. What that is, standing in it, is a wall drawn across
+the way on with nothing to stop you — the golden path goes through it, the
+floor arrow points at it, and you walk through it. Reported from the ravine,
+and true at the same corner on the far side.
+
+So the merge at the end of a stage build drops any piece that reaches onto a
+floor the level laid and is **unbacked at body height** there. Both halves
+matter: rock on the level's floor is only wrong if nothing backs it (the wall a
+dead end is a door in *is* laid across the lane, and it is solid, and it
+stays), and the height matters because a doorway's lintel answers "solid" a
+third of the way up a cliff while the doorway under it is open — which is the
+one place rock gets drawn across a way through.
+
+`tools/audit-trail.mjs` is the check. It walks the golden path and every zone's
+spine and asks two questions of each step — is geometry drawn here, can a body
+stand here — deciding both **exactly**, by triangle parity voted across three
+ray directions rather than by bounding boxes. That precision is the tool: a box
+test on a merged border (whose box is the whole stage) or on a boulder (whose
+box has four corners of open sand in it) reports holes that are only ever air,
+and a single parity ray through a union of overlapping boulders puts a wall six
+metres from the nearest rock.
+
 ### 1.9 Stages and transport doors
 
 A run is a list of **stages**, each a map of its own: a purpose-built zone
