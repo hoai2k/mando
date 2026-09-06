@@ -45,6 +45,8 @@ const VENT_CUE_LEAD = 1.0;
 const VENT_CUE_LIFE = 3.4;
 /** how long a ground arrow pulses before settling to a breadcrumb */
 const ARROW_PULSE = 8;
+/** close enough to the transport door that the line stops being a distance */
+const PORTAL_HINT_NEAR = 12;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
 const PORTAL_BEAT = 1.5;
 /** how far a cancelled exit walks the player back out of the pocket */
@@ -538,6 +540,17 @@ export class Campaign implements MissionController {
     const obj = this.objectivePos;
     const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
     if (this.transitT > 0) return TEXT.missions.boarding(this.objectiveLabel);
+    // Everything is cleared and the way on is a door: say so, and name what is
+    // through it. `this.zone` clamps to the last zone once the run is past it,
+    // so without this the line read "Make for <the last zone>" — the zone you
+    // are standing behind — while the run waited on you to walk through a door
+    // it had already opened.
+    if (this.idx >= this.stage.zones.length && this.stage.exitPortal) {
+      const next = MISSION_LAYOUTS[this.game.board.kind].stages[this.stageIdx + 1]?.label ?? '';
+      return d <= PORTAL_HINT_NEAR
+        ? TEXT.missions.stepThrough(next)
+        : TEXT.missions.wayOn(next, d);
+    }
     if (this.phase === 'travel') return TEXT.missions.makeFor(zone.spec.label, d);
     switch (zone.spec.kind) {
       case 'assault': return TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount);

@@ -473,7 +473,7 @@ export const TEXT = {
      * announced as "undefined", which is the one failure worth catching loudly.
      */
     rooms: {
-    desert: ['the trailhead flats', 'the dune road', 'the ravine', 'the cistern approach', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
+    desert: ['the trailhead flats', 'the Tusken corral', 'the dune road', 'the ravine', 'the cistern approach', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
     station: ['the docking bay', 'the cargo gantries', 'the outer yard', 'the spice vault', 'the loading gantry', 'the crew catwalks', 'the reactor ring', 'the hold of the prize'],
     nevarro: ['the ash flats', 'the crust causeway', 'the town gate', 'the garrison yard', 'the magistrate court', 'the crossing', 'the cantina row', 'the rancor pen'],
     crevasse: ['the rim shelf', 'the frozen gallery', 'the nest mouth', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
@@ -525,6 +525,14 @@ export const TEXT = {
     clearTheWay: 'Break through the barricade',
     /** the transport door, and the wait to go back through one */
     boarding: (where: string) => `Transport · ${where}`,
+    /**
+     * The stage is cleared and the party is walking to the transport door.
+     * Without this the HUD kept naming the last zone — "Make for the dune
+     * road" while you stood at the door it opens — so a run that was waiting
+     * on one step through looked like a run with nothing left to say.
+     */
+    wayOn: (where: string, metres: number) => `The way on is open · ${where} · ${metres} m`,
+    stepThrough: (where: string) => `Step through to ${where}`,
     exited: 'You have exited · B to cancel',
     waitingOn: (name: string, n: number) => `${name} has stepped out — waiting on ${n} more`,
     arrivedAt: (where: string) => `Arrived · ${where}`,

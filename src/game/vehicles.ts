@@ -317,8 +317,23 @@ const SADDLE_SINK = 0.26;
  * answer.
  */
 const seatByKind = new Map<VehicleSpec['kind'], number>();
+/**
+ * The footprint a kind's sculpt actually occupies — half its width and half
+ * its length over the keel, measured once per session like the seat.
+ *
+ * A parked ride used to be boxed from `def.radius`, which is the *driving*
+ * capsule: one number, deliberately generous, so a hull at speed shoulders
+ * things aside rather than catching on them. As a parked footprint it is
+ * simply the wrong measurement — too fat on a bantha (1.5 against an animal
+ * drawn 1.26 across, so you were held off it by two-thirds of a metre of
+ * nothing and could never walk up to one) and too *thin* on a landspeeder
+ * (1.15 against a hull drawn 1.6, so you walked into its flank). The sculpt
+ * knows how wide it is; ask it.
+ */
+const footByKind = new Map<VehicleSpec['kind'], { x: number; z: number }>();
 
 const _ramPoint = new THREE.Vector3();
+const _foot = new THREE.Box3();
 const _seatFrom = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -338,6 +353,8 @@ export class Vehicle {
   lastHitBy = -1;
   private body = new THREE.Group();
   private parkedBox: StaticBox | null = null;
+  /** half-width and half-length of the sculpt, once it has been measured */
+  private foot: { x: number; z: number } | null = null;
   private bobPhase = Math.random() * Math.PI * 2;
   private boostCd = 0;
   /** seconds left in a hop's arc (0 = on its repulsors), and the wait for another */
@@ -424,9 +441,13 @@ export class Vehicle {
   /** A parked ride is solid: one axis-aligned box over its footprint. */
   private park(): void {
     if (this.parkedBox) return;
+    // the sculpt's own footprint where it has landed, the def's numbers until
+    // then — and the AABB of that rectangle turned to the ride's yaw
+    const hx = this.foot?.x ?? this.def.radius;
+    const hz = this.foot?.z ?? this.def.length / 2;
     const s = Math.abs(Math.sin(this.yaw)), c = Math.abs(Math.cos(this.yaw));
-    const w = s * this.def.length + c * this.def.radius * 2;
-    const d = c * this.def.length + s * this.def.radius * 2;
+    const w = 2 * (s * hz + c * hx);
+    const d = 2 * (c * hz + s * hx);
     const bottom = this.pos.y - this.def.hover;
     const top = this.pos.y + this.def.body;
     this.parkedBox = this.board.physics.addBox(
@@ -698,6 +719,7 @@ export class Vehicle {
 
   /** Everything that has to be measured off the sculpt, the moment it lands. */
   private onModel(root: THREE.Object3D): void {
+    this.footToModel(root);
     this.seatToModel(root);
     if (this.def.living) this.gaitFromModel(root);
   }
@@ -785,6 +807,34 @@ export class Vehicle {
       sit = surface - SADDLE_SINK + SADDLE_PAD;
     }
     this.seatY = sit - STANCE_RISE[this.def.stance];
+  }
+
+  /**
+   * How much ground the sculpt covers, so a parked ride is as solid as it
+   * looks and no more. Measured square to the ride (the yaw is taken off for
+   * the measurement and put back), once per kind — see `footByKind`.
+   */
+  private footToModel(root: THREE.Object3D): void {
+    const cached = footByKind.get(this.spec.kind);
+    if (cached) { this.foot = cached; return; }
+    const yaw = this.group.rotation.y;
+    this.group.rotation.y = 0;
+    this.group.updateMatrixWorld(true);
+    _foot.setFromObject(root);
+    this.group.rotation.y = yaw;
+    this.group.updateMatrixWorld(true);
+    if (_foot.isEmpty()) return;
+    const half = {
+      x: Math.max(0.3, (_foot.max.x - _foot.min.x) / 2),
+      z: Math.max(0.3, (_foot.max.z - _foot.min.z) / 2),
+    };
+    // a sculpt that answers with something the ride could not possibly be was
+    // measured before it was placed; use it here, do not teach it to the rest
+    if (half.x < this.def.length && half.z < this.def.length) {
+      footByKind.set(this.spec.kind, half);
+    }
+    this.foot = half;
+    if (this.parkedBox) { this.unpark(); this.park(); }
   }
 
   /** the height of the surface being sat on, over the keel */
@@ -1239,8 +1289,13 @@ export class Vehicle {
    */
   private extentToward(ux: number, uz: number): number {
     const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
-    return Math.abs(ux * nx + uz * nz) * this.def.length / 2
-      + Math.abs(ux * nz - uz * nx) * this.def.radius;
+    // the footprint `park` registers — the sculpt's where it has landed. These
+    // two have to be the same shape or a ride is bounced off a parked hull's
+    // collider from outside the distance this counts as a collision, and two
+    // rides can never meet at all.
+    const hz = this.foot?.z ?? this.def.length / 2;
+    const hx = this.foot?.x ?? this.def.radius;
+    return Math.abs(ux * nx + uz * nz) * hz + Math.abs(ux * nz - uz * nx) * hx;
   }
 
   private syncMesh(dt: number, speed: number, game: Game): void {

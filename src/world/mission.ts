@@ -1519,6 +1519,8 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    */
   /** how far along the chain's axis the way on stands, when a gorge holds it */
   let gorgeDepth = 0;
+  /** half the width of that gorge, so the door's face can fill it wall to wall */
+  let gorgeHalf = 0;
   if (canyon && zoneFrames.length) {
     const axis = new Frame(anchor.x, anchor.z, anchor.dx, anchor.dz);
     const lastF = zoneFrames[last];
@@ -1564,11 +1566,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         ridge([[axis.x(uCliff, side * gh), axis.z(uCliff, side * gh)],
           [axis.x(uCliff, side * endHalf), axis.z(uCliff, side * endHalf)]], face, { inside: behind });
       }
-      // the slot itself: constrained, not tight — wide enough to fight down
+      // The slot itself: constrained, not tight — wide enough to fight down.
+      // It runs *past* the doorway at its end rather than stopping short of
+      // it, so the rock closes over the pocket behind the door instead of
+      // leaving it standing out of the back of the cliff.
+      gorgeHalf = gh;
       const inSlot = { x: axis.x(uCliff + gorgeDepth / 2, 0), z: axis.z(uCliff + gorgeDepth / 2, 0) };
       for (const side of [1, -1] as const) {
         ridge([[axis.x(uCliff, side * gh), axis.z(uCliff, side * gh)],
-          [axis.x(uCliff + gorgeDepth + 4, side * gh), axis.z(uCliff + gorgeDepth + 4, side * gh)]],
+          [axis.x(uCliff + gorgeDepth + 9, side * gh), axis.z(uCliff + gorgeDepth + 9, side * gh)]],
         face, { inside: inSlot });
       }
       // two spires at the mouth: the thing you steer at from a hundred metres
@@ -1617,6 +1623,29 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     rects.push(f.rect(s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6));
   };
 
+  /**
+   * The rock a transport door is set into.
+   *
+   * A pocket on its own is a shed: four walls and a roof standing in the open,
+   * with sky over it and the zone's rim metres behind. Outdoors that reads as
+   * a prop dropped on the sand rather than a way out of the place — you cannot
+   * tell whether it is shut, and there is nothing to say the door *is* the
+   * border. So the border closes over it, in the two bands a dead end's face
+   * already uses: a low band with the opening cut into it, and solid rock from
+   * there to the top of the cliff. No gap beside the door, no sky above it.
+   *
+   * Halls and decks skip it — a hall's own wall is already the face, and a deck
+   * has no rim to fill.
+   */
+  const doorwayFace = (f: Frame, u: number, half: number, top: number, doorH: number): void => {
+    const gap = { c: 0, w: GATE_W + 2.6 };
+    wallU(f, u, -half, half, [gap], top, doorH);
+    solid(f, u - WALL_T / 2, u + WALL_T / 2, -half, half,
+      top + doorH, top + ceiling + RIM_OVER_CEILING, rockMat);
+  };
+  /** does this shell hold a transport door in a border that has to be closed? */
+  const facedShell = (shell: Shell): boolean => shell !== 'hall' && shell !== 'deck';
+
   let exitPortal: Portal | null = null;
   let backPortal: Portal | null = null;
   if (hasNext) {
@@ -1629,6 +1658,24 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       : zoneTops[last];
     const doorH = Math.max(6, (stage.zones[last].roofH ?? ROOF_H));
     pocket(f, u0, top, false, doorH);
+    // A gorge's way on is a **door in a wall**, not a shed standing in a
+    // ravine. The pocket is only nine metres across; a sixteen-metre slot left
+    // two metres of walkable rock down either side of it, and the slot's own
+    // walls stopped before the pocket did — so the door could be walked round,
+    // past the end of the ravine, and out into open desert. Worse, it read as
+    // *shut* while you did it: nothing about it said the run was waiting on
+    // you to step through.
+    //
+    // So the slot is closed across its full width at the doorway, in the two
+    // bands a rim already uses for a dead end's face: a low band with the
+    // opening cut into it, and solid rock from there to the top of the cliff,
+    // so there is no gap beside the door and no sky above it.
+    // wall to wall: a face that stops short of the border leaves sand either
+    // side of the door, which is the walk-round it was built to close
+    if (gorgeHalf) doorwayFace(f, u0 - WALL_T, gorgeHalf + 1.5, top, doorH);
+    else if (!bare && facedShell(stage.zones[last].shell)) {
+      doorwayFace(f, u0 - WALL_T, stage.zones[last].w / 2 + 1.5, top, doorH);
+    }
     exitPortal = new Portal(board, group, f.vec(u0, 0, top),
       { x: f.dx, z: f.dz }, doorH, PORTAL_POCKET);
     path.push(exitPortal.threshold.clone());
@@ -1638,6 +1685,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     const top = onGround ? groundAt(f.x(-3, 0), f.z(-3, 0)) : zoneTops[0];
     const doorH = Math.max(6, (stage.zones[0].roofH ?? ROOF_H));
     pocket(f, -1, top, true, doorH);
+    if (!bare && facedShell(stage.zones[0].shell)) {
+      doorwayFace(f, -1 + WALL_T, stage.zones[0].w / 2 + 1.5, top, doorH);
+    }
     backPortal = new Portal(board, group, f.vec(-1, 0, top),
       { x: -f.dx, z: -f.dz }, doorH, PORTAL_POCKET);
   }
