@@ -62,9 +62,14 @@ image sets recorded as declined in `ASSETS_COMPLETED.md`.
   `docs/BOSSES.md` §2. Ten monsters fight on the shared boss rhythm today and
   the Dune Sea worm's burrow cycle is the one bespoke moveset shipped; the
   ledger of what is and is not implemented lives in that doc.
-- The Missions v3 outdoor stage chain (`docs/MISSIONS_OUTDOOR.md`) is behind
-  `?missions=new`; the default is still the legacy room chain. Its optional
-  outdoor model set is marked optional in `ASSETS_MODELS.md`.
+**In progress, owned by the author — do not switch it on.** The Missions v3
+outdoor stage chain (`docs/MISSIONS_OUTDOOR.md`) stays behind `?missions=new`
+while its bugs are worked through; it becomes the default when the author says
+so, and not as a side effect of anything else. Its optional outdoor model set
+is marked optional in `ASSETS_MODELS.md`. It does have nightly cover from
+2026-09-05: `test-missions` runs on the flag for nearly every check and is in
+the suite list now, and `test-vehicles`, `test-modes` and
+`audit-mission-build` each exercise it too.
 
 **Still genuinely first-pass:** real-hardware playtest and feel tuning. Every
 movement and combat number is a first guess, the six newer boards most of all.
