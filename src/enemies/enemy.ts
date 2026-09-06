@@ -20,6 +20,9 @@ import { markOwned } from '../core/dispose';
 import { audio, type BarkName } from '../core/audio';
 import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
+import type { Vehicle } from '../game/vehicles';
+import type { VehicleSpec } from '../world/board';
+import { reachArm } from '../anim/seating';
 import { TEXT } from '../text';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
@@ -171,6 +174,29 @@ interface Def {
   egg?: { hatchIn: number; hatchTo: EnemyKind };
   build: () => CharacterInstance;
 }
+
+/**
+ * Who gets on what. Not every hostile rides — a droid never will, and a
+ * gladiator is not going to fold itself onto a speeder bike — but the ones
+ * that do are the ones whose camps the rides stand in: Tuskens and their
+ * banthas, the swoop gangs, scout troopers on bikes. A kind that is not in
+ * this table stays on foot whatever is parked beside it.
+ */
+const RIDERS: Partial<Record<EnemyKind, VehicleSpec['kind'][]>> = {
+  tusken: ['bantha', 'swoop'],
+  pirate: ['swoop', 'speederBike', 'landspeeder'],
+  pirateMelee: ['swoop', 'speederBike'],
+  pyke: ['speederBike', 'landspeeder'],
+  stormtrooper: ['speederBike'],
+  nikto: ['swoop', 'speederBike'],
+};
+
+/** the rider's seat, in the pose the ride's stance asks for */
+const _seat = new THREE.Vector3();
+const _grip = new THREE.Vector3();
+const _elbow = new THREE.Vector3();
+/** how sharply a hostile at the pedals turns the nose onto its mark */
+const RIDE_STEER_GAIN = 1.6;
 
 const DEFS: Record<EnemyKind, Def> = {
   tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
@@ -591,6 +617,12 @@ export class Enemy {
   /** memo for the firing line-of-sight check; see losThrottled */
   private losCheckAt = -1;
   private losMemo = false;
+
+  // ---- in the saddle ----
+  /** the ride this one is driving; the vehicle carries the body while it is set */
+  ride: Vehicle | null = null;
+  /** the ride this one is running for, claimed but not yet reached */
+  boarding: Vehicle | null = null;
 
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
@@ -1023,7 +1055,7 @@ export class Enemy {
     // into a wounded crawl instead of a clean fight-on — it is out of the
     // fight, dragging itself away, and bleeds out unless finished.
     if (
-      this.hp > 0 && !this.wounded && this.team === 1 && this.downTimer <= 0 && !this.boss &&
+      this.hp > 0 && !this.wounded && !this.ride && this.team === 1 && this.downTimer <= 0 && !this.boss &&
       (this.def.style === 'melee' || this.def.style === 'ranged') &&
       this.kind !== 'droid' && // droids don't bleed
       this.hp < this.def.hp * 0.25 && Math.random() < 0.4
@@ -1042,6 +1074,16 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
+      // Shot out of the saddle: the ride rolls on without them and parks where
+      // it stops, which is the whole bargain — drop the rider, take the ride.
+      // The corpse leaves at the ride's speed, so it is thrown rather than
+      // dropped, and lands well clear of a hull still moving.
+      if (this.ride) {
+        const v = this.ride;
+        this.velocity.copy(v.vel);
+        v.dropHostile();
+      }
+      this.boarding = null;
       if (BEASTS.has(this.kind)) {
         const voice = MONSTER_VOICE[this.kind];
         if (voice) audio.monster(voice, 'death', 1);
@@ -1120,6 +1162,7 @@ export class Enemy {
    */
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
     if (this.submerged) return;   // the ground it is under does not shove
+    if (this.ride) return;        // the saddle holds; the ride takes the shove
     // `lift` is what separates a shove from a launch: keep it low to slide the
     // target clear along the ground, raise it when a pop is wanted (explosions)
     applyKnockback(this.velocity, this.position, from, force, force * lift, true);
@@ -1132,7 +1175,7 @@ export class Enemy {
    * falling over mid-air reads as a bug, not a haymaker).
    */
   knockdown(secs = 1.8): void {
-    if (!this.alive || this.def.style === 'swoop' || this.def.style === 'hover') return;
+    if (!this.alive || this.ride || this.def.style === 'swoop' || this.def.style === 'hover') return;
     if (this.def.burrows) return;   // a worm has no feet to be knocked off
     if (this.def.egg) return;   // an egg has nothing to knock over
     if (this.wounded) return; // already on the ground
@@ -1306,6 +1349,10 @@ export class Enemy {
     const target = this.senses(dt, game);
     this.updateKillWatch();
 
+    // ---- on a ride, or running for one ----
+    if (this.ride) { this.updateRiding(dt, game, target); return; }
+    if (this.boarding) { this.updateBoarding(dt, game, anim); return; }
+
     // ---- boss super jump: airborne and committed ----
     if (this.leapT > 0) {
       this.updateLeap(dt, game);
@@ -1325,6 +1372,117 @@ export class Enemy {
 
     this.syncVisual(dt, game);
     anim?.update(dt);
+  }
+
+  /** whether this kind gets on that kind of ride at all */
+  canRide(kind: VehicleSpec['kind']): boolean {
+    return (RIDERS[this.kind] ?? []).includes(kind);
+  }
+
+  /**
+   * Go and get on it. The ride is claimed so nobody else in the squad runs for
+   * the same saddle — claimed, not taken: a player who reaches it first has
+   * it, and this one arrives to find it gone and goes back to the fight.
+   */
+  boardRide(v: Vehicle): void {
+    if (!this.alive || this.ride || this.boarding || v.hostile || v.rider || !v.alive) return;
+    v.reserved = true;
+    this.boarding = v;
+    this.awareness = 'engaged';
+    this.memory = MEMORY;
+  }
+
+  /** the run to a claimed ride: straight at it, and up the moment it is reached */
+  private updateBoarding(dt: number, game: Game, anim: Animator | null): void {
+    const v = this.boarding!;
+    if (!v.alive || v.rider || v.hostile) {
+      // gone, or taken from under them: back to the fight on foot
+      if (v.reserved && !v.hostile) v.reserved = false;
+      this.boarding = null;
+      return;
+    }
+    const dx = v.pos.x - this.position.x, dz = v.pos.z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < v.def.radius + 1.3) {
+      v.mountHostile(this);
+      this.ride = v;
+      this.boarding = null;
+      return;
+    }
+    const speed = this.def.speed * 1.1;
+    this.velocity.x = damp(this.velocity.x, (dx / dist) * speed, 8, dt);
+    this.velocity.z = damp(this.velocity.z, (dz / dist) * speed, 8, dt);
+    this.faceToward(dt, v.pos.x, v.pos.z, 8);
+    this.separate(dt, game);
+    this.integrate(dt, game);
+    if (this.boardHazards(game, dt)) return;
+    if (anim) this.updateLocomotionAnim(anim);
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+  }
+
+  /**
+   * At the pedals.
+   *
+   * The ride is the weapon and the whole of the plan: nose onto the nearest
+   * foe, pedal down, and through them. A mount is goaded into its charge once
+   * it is lined up and close; a machine boosts on a long straight. Past the
+   * target it keeps going — the steering model does the turn-and-come-again
+   * on its own, because a repulsor at speed cannot pivot — which is what
+   * gives the party the gap to shoot the rider off.
+   */
+  private updateRiding(dt: number, game: Game, target: Combatant | null): void {
+    const v = this.ride!;
+    if (!v.alive) { this.ride = null; return; }
+    let steer = 0, pedal = 0, boost = false, charge = false;
+    if (target) {
+      const dx = target.position.x - this.position.x, dz = target.position.z - this.position.z;
+      const dist = Math.hypot(dx, dz);
+      const want = Math.atan2(dx, dz);
+      let err = want - v.yaw;
+      err = Math.atan2(Math.sin(err), Math.cos(err));
+      // the stick turns the nose by *decreasing* yaw (see Vehicle.run)
+      steer = clamp(-err * RIDE_STEER_GAIN, -1, 1);
+      const lined = Math.abs(err) < 0.3;
+      pedal = dist > 5 ? 1 : 0.7;
+      charge = !!v.def.living && lined && dist < 22 && dist > 6 && v.chargeReady;
+      boost = !v.def.living && lined && dist > 28;
+    } else {
+      pedal = 0;
+    }
+    v.driveHostile(dt, steer, pedal, boost, charge, game);
+    if (!this.ride) return;   // thrown clear inside the drive
+    // carried: the body sits the seat and moves with the hull
+    v.seatWorld(this.position);
+    this.velocity.copy(v.vel);
+    this.grounded = true;
+    this.facingYaw = v.yaw;
+    // a kill zone ends the rider, hull or no hull
+    if (this.boardHazards(game, dt)) return;
+    const anim = this.char.animator;
+    if (anim) {
+      const stance = v.def.stance;
+      anim.play('lower', stance === 'stand' ? 'idleLower' : stance === 'seated' ? 'driveLower' : 'rideLower', 0.2);
+      anim.play('upper', stance === 'stand' ? 'idleUpper' : stance === 'seated' ? 'driveUpper' : 'rideUpper', 0.2);
+    }
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+    this.handsToGrips(v);
+  }
+
+  /** both hands to the ride's grips, or the rein hand on a mount — the player's own solve */
+  private handsToGrips(v: Vehicle): void {
+    const rig = this.char.rig;
+    const hold = v.def.hands;
+    if (!rig || !hold) return;
+    this.char.root.updateMatrixWorld(true);
+    const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);
+    for (const side of [-1, 1] as const) {
+      if (hold.only === 'left' && side !== 1) continue;
+      if (!v.gripWorld(side, _grip)) continue;
+      _elbow.set(_grip.x + cos * side * 0.55, _grip.y - 0.42, _grip.z - sin * side * 0.55);
+      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _elbow);
+    }
   }
 
   /** a body that is down: the ragdoll (or a slide to rest), the fade, the kill plane */

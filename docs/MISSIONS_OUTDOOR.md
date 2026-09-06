@@ -277,10 +277,34 @@ Rules for where rides go:
   to `killY` and explodes as it does today; the rider is returned by the
   off-path rule. The level's build audit checks that no parked ride sits
   within 6 m of an open edge.
-- **Enemy rides.** The nikto swoop is an `air` kind, so every zone with rides
-  also draws it (`air: true`) — vehicle-on-vehicle is the point. A ridden
-  bantha is a moving wall for a camp assault; a skiff is a mobile platform
-  whose deck a second player stands and shoots from.
+- **Every ride has an owner (2026-09-06).** A ride is parked only in a
+  `camp` — inside the posted squad's own rect — or in a warlord's arena.
+  Never on a trailhead, never on a road: a ride with no owner standing in the
+  middle of nowhere hands the mount over before the run has asked for
+  anything. Playtest put it exactly: *"they should have to invade an enemy
+  encampment to steal vehicles."* So the Dune Sea's Tusken corral, Nevarro's
+  bike pool and the Forge's glass corral are camps holding the motor pool
+  between the trailhead and the road; the Storm Docks, the Refinery and the
+  Ringworld park theirs in the first camp instead, at its **near edge** — the
+  skiff tied up at the fish market's mouth, the swoops outside the arcade's
+  first kiosk with their riders inside it — which is the easier steal: get
+  there quietly and you are aboard before the owners turn round.
+  `test-missions` refuses any ride whose rect is not a camp's or an arena's.
+- **Enemy riders (2026-09-06).** The rides in a camp are the camp's, so an
+  alerted camp gets on them. `Campaign.sendRiders` runs the moment any of the
+  squad is off `idle`: the kinds that ride (`Enemy.canRide` — Tuskens on
+  banthas and swoops, pirates and Nikto on swoops and bikes, Pykes and
+  troopers on bikes and speeders; a droid never) run for the nearest ride
+  they can use, never more than half the squad, and the *Riders* banner says
+  what to do about it: **drop the rider, take the ride.** A hostile-driven
+  hull is the same `Vehicle` under `Vehicle.run` with the AI at the pedals
+  (`Enemy.updateRiding`: nose onto the nearest foe, pedal down, a mount's
+  charge once it is lined up), and it rams the *party*. Shoot the rider out
+  of the saddle and the ride rolls on without them and parks where it stops,
+  mountable; wreck the hull and the rider is thrown with it. A claimed ride
+  is not a taken one — a player who reaches it first has it. The nikto swoop
+  is still an `air` kind, so every zone with rides also draws it (`air:
+  true`) — vehicle-on-vehicle is the point.
 - **The road beat** (`road` shell, `chase` encounter) is the set piece. Three
   territories get one: the Dune Sea's dune road, the Lava Flats' crust
   causeway, the Great Forge's glass highway. The Ringworld's arcade gets its
@@ -901,12 +925,23 @@ objective.
    carries **trail posts** — emissive marker posts every ~15 m along the
    golden path (`MissionLevel.path`, §5.2), lit in the accent colour on the
    side facing back toward the party — the Minecraft Dungeons breadcrumb.
-4. **The beacon pillar (kept).** The v2 light pillar and radar pip remain,
-   because they work from any distance and cost nothing. Its position rule
-   changes slightly: in `travel` it stands at the next zone's **entry** (the
-   mouth, the door); in `fight` at the exit barrier (a shut door with a
-   pillar over it reads "clear the area to open it"); in an arena, on the
-   boss.
+4. **The beacon pillar (kept, and only where it means something).** The v2
+   light pillar and radar pip remain, because they work from any distance
+   and cost nothing. Its position rule changes slightly: in `travel` it
+   stands at the next zone's **entry** (the mouth, the door); in `fight` at
+   the exit barrier (a shut door with a pillar over it reads "clear the area
+   to open it"); in an arena, on the boss. **It is lit only where it is
+   telling you something** (2026-09-06): dark on the trailhead (ground you
+   are spawned on), dark within 7 m of what it points at, and put out with
+   the arrow and the vent glyphs by every early return in `Campaign.update`
+   (a won run, a transport beat). A sixty-metre column reads as a thing to
+   walk into and collect, so one standing on ground you are already on is a
+   promise the run cannot keep. **A beacon that has been reached becomes an
+   arrow**: the column goes out and `layArrow` puts the chevron where it
+   stood, pointing on — at the zone's exit, or through the transport door.
+   An arrow is the one marker allowed to outlive its moment; it says "this
+   way", which stays true, where a beacon says "come here", which stops
+   being true the moment you have.
 
 **Transport doors as guides.** A transport door reads as *more* than a door:
 a wider frame, a white-blue light distinct from the accent, the marker's

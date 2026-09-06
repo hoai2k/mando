@@ -101,6 +101,8 @@ export class Campaign implements MissionController {
   private bossCalled = false;
   /** road: which of its drop marks have fired */
   private marksFired: boolean[] = [];
+  /** camps whose riders have already been sent for their rides */
+  private ridersSent = new Set<MissionZone>();
   /** where the fallen return: the last safe ground the party earned */
   checkpoint: THREE.Vector3;
   done = false;
@@ -217,6 +219,7 @@ export class Campaign implements MissionController {
     // through — validates against `this.stage`, so populating a stage that is
     // not yet the current one reads the last one, or nothing at all.
     this.stage = stage;
+    this.ridersSent.clear();
     this.populate(stage, i);
     return stage;
   }
@@ -454,6 +457,51 @@ export class Campaign implements MissionController {
       }
     }
     return new THREE.Vector3(pos.x, yAt(pos.x, pos.z), pos.z);
+  }
+
+  /**
+   * An alerted camp gets on its rides.
+   *
+   * The rides in a camp are the camp's — that is why they are there — so the
+   * moment its squad knows the party is coming, the ones who ride go for
+   * their saddles: a Tusken to a bantha, a pirate to a swoop. Not everyone,
+   * never more than about half, and only kinds that ride at all (`Enemy.canRide`).
+   * What comes at the party is then a ride with a rider on it, and the order
+   * of business is the one the banner says: drop the rider, take the ride.
+   *
+   * A claimed ride is not a taken one. The player who gets to it first has
+   * it, which is the quiet steal the near-edge parking is for.
+   */
+  private sendRiders(zone: MissionZone): void {
+    if (this.ridersSent.has(zone)) return;
+    const game = this.game;
+    const squad = 9000 + zone.beat;
+    const crew = game.enemies.filter((e) => e.alive && e.squad === squad && !e.ride && !e.boarding);
+    if (!crew.length || !crew.some((e) => e.awareness !== 'idle')) return;
+    this.ridersSent.add(zone);
+    const r = zone.rect;
+    const rides = game.vehicles.filter((v) => v.alive && !v.rider && !v.hostile && !v.reserved
+      && v.pos.x >= r.minX && v.pos.x <= r.maxX && v.pos.z >= r.minZ && v.pos.z <= r.maxZ);
+    if (!rides.length) return;
+    // leave at least half the squad on foot: a camp that empties itself onto
+    // its bikes is a camp with nobody in it to clear
+    let seats = Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2)));
+    let sent = 0;
+    for (const v of rides) {
+      if (seats <= 0) break;
+      let best: Enemy | null = null;
+      let bestD = Infinity;
+      for (const e of crew) {
+        if (e.boarding || e.ride || !e.canRide(v.spec.kind)) continue;
+        const d = e.position.distanceToSquared(v.pos);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (!best) continue;
+      best.boardRide(v);
+      seats--;
+      sent++;
+    }
+    if (sent > 0) game.announce(TEXT.banners.riders.title, TEXT.banners.riders.sub);
   }
 
   private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): void {
@@ -814,6 +862,19 @@ export class Campaign implements MissionController {
   }
 
   /**
+   * The floor arrow: laid at `at`, pointing at `to`. Bright for a few seconds,
+   * then a dim breadcrumb. An arrow is the one marker that is allowed to
+   * outlive its moment — it says "this way", which stays true, where a beacon
+   * says "come here", which stops being true the moment you have.
+   */
+  private layArrow(at: THREE.Vector3, to: THREE.Vector3): void {
+    this.arrow.position.set(at.x, at.y + 0.08, at.z);
+    this.arrow.rotation.z = -Math.atan2(to.x - at.x, to.z - at.z);
+    this.arrow.visible = true;
+    this.arrowLife = ARROW_PULSE;
+  }
+
+  /**
    * Put every light out. Called wherever the frame stops early — a won run, a
    * transport beat — so nothing is left burning over a place that no longer
    * means anything.
@@ -854,10 +915,7 @@ export class Campaign implements MissionController {
     const to = this.idx < this.stage.zones.length
       ? this.stage.zones[this.idx].entry
       : this.stage.exitPortal?.pos ?? zone.exit;
-    this.arrow.position.set(zone.exit.x, zone.exit.y + 0.08, zone.exit.z);
-    this.arrow.rotation.z = -Math.atan2(to.x - zone.exit.x, to.z - zone.exit.z);
-    this.arrow.visible = true;
-    this.arrowLife = ARROW_PULSE;
+    this.layArrow(zone.exit, to);
 
     if (this.idx < this.stage.zones.length) {
       this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(this.stage.zones[this.idx].spec.label));
@@ -1002,6 +1060,18 @@ export class Campaign implements MissionController {
     const obj = this.objectivePos;
     const near = game.players.some((p) => p.alive
       && p.position.distanceToSquared(obj) < BEACON_HIDE * BEACON_HIDE);
+    // A beacon that has been reached becomes an arrow. The column said "come
+    // here" and you did; what is still worth saying is which way on, and an
+    // arrow on the floor says that without asking to be walked into again.
+    // Reached over the way on itself, it points through the door.
+    if (near && this.beacon.visible) {
+      const ahead = this.idx < this.stage.zones.length
+        ? this.zone.exit
+        : this.stage.exitPortal
+          ? new THREE.Vector3(obj.x + this.stage.exitPortal.forward.x, obj.y, obj.z + this.stage.exitPortal.forward.z)
+          : null;
+      if (ahead && ahead.distanceToSquared(obj) > 0.5) this.layArrow(obj, ahead);
+    }
     this.beacon.visible = !this.atTrailhead && !near;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
@@ -1086,6 +1156,7 @@ export class Campaign implements MissionController {
       case 'start':
       case 'trek':
       case 'camp':
+        if (zone.spec.kind === 'camp') this.sendRiders(zone);
         if (this.nearExit(zone)) this.clearZone(zone, false);
         break;
       case 'chase':

@@ -2,6 +2,8 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Game } from './game';
 import type { Player } from '../player/player';
+import type { Enemy } from '../enemies/enemy';
+import { applyKnockback } from '../core/body';
 import type { Board, VehicleSpec } from '../world/board';
 import type { FrameInput } from '../core/input';
 import type { StaticBox } from '../core/physics';
@@ -333,6 +335,8 @@ const seatByKind = new Map<VehicleSpec['kind'], number>();
 const footByKind = new Map<VehicleSpec['kind'], { x: number; z: number }>();
 
 const _ramPoint = new THREE.Vector3();
+/** the bodies a hostile-driven hull is measured against, filled per frame */
+const _rammable: (Player | Enemy)[] = [];
 const _foot = new THREE.Box3();
 const _seatFrom = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
@@ -348,6 +352,17 @@ export class Vehicle {
   maxHp: number;
   alive = true;
   rider: Player | null = null;
+  /**
+   * A hostile in the saddle instead. Every ride on a mission stands in
+   * somebody's camp (docs/MISSIONS_OUTDOOR.md §1.8), and when that camp is
+   * alerted some of them get on: a Tusken on its bantha is a wall of hide
+   * coming at you at a run, and the way to have the bantha is to drop the
+   * Tusken. One occupant or the other, never both; `rider` stays the
+   * player's slot so nothing that reads it has to learn a second shape.
+   */
+  hostile: Enemy | null = null;
+  /** a hostile is on its way to this one — the player can still get there first */
+  reserved = false;
   group = new THREE.Group();
   /** who shot it last, for kill credit on the explosion */
   lastHitBy = -1;
@@ -472,6 +487,30 @@ export class Vehicle {
     else audio.speederIgnite();
   }
 
+  /** A hostile swings up: the ride is theirs until they are shot off it. */
+  mountHostile(e: Enemy): void {
+    this.unpark();
+    this.reserved = false;
+    this.hostile = e;
+    if (this.def.living) audio.banthaLow(0.5);
+    else audio.speederIgnite();
+  }
+
+  /**
+   * The hostile is off — shot out of the saddle, or the ride went up under
+   * them. Same rule as a player's exit: speed still in it rolls on and parks
+   * where it stops, which is where the party walks up and takes it.
+   */
+  dropHostile(): void {
+    const e = this.hostile;
+    if (!e) return;
+    this.hostile = null;
+    e.ride = null;
+    if (!this.alive) return;
+    if (Math.hypot(this.vel.x, this.vel.z) > COAST_STOP || this.hopT > 0) this.coasting = true;
+    else this.park();
+  }
+
   /**
    * Let the rider off — stepped off, bailed out, shot off the saddle, killed.
    *
@@ -556,6 +595,19 @@ export class Vehicle {
       // repulsor core is not attacking you.
       if (explode) r.damage(RIDER_BLAST * this.blastScale, at, -1, { heavy: true });
     }
+    if (this.hostile) {
+      // the same throw, and it is fatal more often than not: a hostile has a
+      // fraction of a player's health and no armour against its own hull
+      const e = this.hostile;
+      this.dropHostile();
+      e.velocity.copy(this.vel);
+      e.velocity.y = Math.max(e.velocity.y, 7.5);
+      e.velocity.x += Math.sin(this.yaw + Math.PI / 2) * 3;
+      e.velocity.z += Math.cos(this.yaw + Math.PI / 2) * 3;
+      e.position.y += 0.6;
+      e.damage(explode ? RIDER_BLAST * this.blastScale * 3 : 30, at, slot);
+      if (e.alive) e.knockdown(1.6);
+    }
     this.shieldWanted = false;
     this.shieldRaise = 0;
     this.shieldField?.setStrength(0);
@@ -591,6 +643,8 @@ export class Vehicle {
    */
   retire(): void {
     if (this.rider) this.dropRider();
+    if (this.hostile) { this.hostile.ride = null; this.hostile = null; }
+    this.reserved = false;
     this.unpark();
     this.group.visible = false;
     // Dead and staying dead: a wreck comes back on `respawnIn`, and a ride
@@ -867,7 +921,7 @@ export class Vehicle {
       this.updateWreck(dt, game);
       return;
     }
-    if (this.rider) return;                 // driven from the rider's update
+    if (this.rider || this.hostile) return; // driven from the rider's update
     if (this.coasting) {
       this.coast(dt, game);
       return;
@@ -999,6 +1053,67 @@ export class Vehicle {
     }
     const charging = this.chargeT > 0;
 
+    // boost: the dash button, a straight shove along the nose
+    let boost = false;
+    if (input.dashPressed && this.boostCd <= 0) {
+      this.boostCd = 1.4;
+      boost = true;
+      // a mount does not have a thruster to fire: it is goaded into a charge
+      if (def.living) audio.banthaLow(0.45);
+      else audio.dash();
+      rider.cam.shake(0.05);
+    }
+
+    const speed = this.run(dt, input.moveX, input.moveY, boost, charging, rider, game);
+    if (!this.alive) return;
+
+    // The camera trails the nose while you drive, but only when you are not
+    // working the right stick — steering is the heading now, so a camera left
+    // pointing where you were is a camera you have to fight. It eases rather
+    // than snaps, and it never fights a look the player is actually giving it.
+    const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
+    if (this.vel.x * nx + this.vel.z * nz > 2 && Math.abs(input.lookX) < 1e-4) {
+      rider.cam.yaw = dampAngle(rider.cam.yaw, this.yaw, 2.0, dt);
+    }
+    if (!def.living) audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
+  }
+
+  /**
+   * A hostile's frame of driving: the same ride, the same physics, and an AI
+   * at the pedals instead of a stick. What it rams is the other side.
+   */
+  driveHostile(dt: number, steer: number, pedal: number, boost: boolean, charge: boolean, game: Game): void {
+    const def = this.def;
+    this.boostCd -= dt;
+    this.hopCd -= dt;
+    if (this.hopT > 0) this.hopT -= dt;
+    this.chargeCd -= dt;
+    if (this.chargeT > 0) this.chargeT -= dt;
+    if (def.living && charge && this.chargeCd <= 0 && this.chargeT <= 0) {
+      this.chargeT = CHARGE_TIME;
+      this.chargeCd = CHARGE_TIME + CHARGE_COOLDOWN;
+      audio.banthaLow(0.7);
+    }
+    let kick = false;
+    if (boost && this.boostCd <= 0) {
+      this.boostCd = 1.4;
+      kick = true;
+      if (def.living) audio.banthaLow(0.45);
+      else audio.dash();
+    }
+    this.run(dt, steer, pedal, kick, this.chargeT > 0, null, game);
+  }
+
+  /**
+   * One frame of the ride itself, whoever is on it: steering, the pedals,
+   * grip, hover, the world, and the ram. Returns the speed it ends the frame
+   * at. `rider` is the player at the controls, or null for a hostile — and
+   * that is the only thing that decides which side the hull is a weapon
+   * against.
+   */
+  private run(dt: number, steerIn: number, pedal: number, boost: boolean, charging: boolean,
+    rider: Player | null, game: Game): number {
+    const def = this.def;
     // ---- steering ----
     // Screen-right is -X for a nose on +Z (see yawBasis), so a stick pushed
     // right turns the nose by *decreasing* yaw.
@@ -1012,7 +1127,7 @@ export class Vehicle {
     const speedNow = Math.hypot(this.vel.x, this.vel.z);
     const bite = 0.45 + 0.55 * Math.min(1, speedNow / (def.top * 0.35));
     const fast = clamp((speedNow - def.top * 0.55) / (def.top * 0.45), 0, 1);
-    this.steer = input.moveX;
+    this.steer = clamp(steerIn, -1, 1);
     // a charging animal is aimed before it is launched, not steered through
     this.yaw -= this.steer * def.turn * bite * (1 - 0.32 * fast) * (charging ? 0.4 : 1) * dt;
 
@@ -1028,7 +1143,6 @@ export class Vehicle {
     // like every other thing that stick does: half forward is half the ride's
     // top speed held, which is the difference between threading a camp and
     // arriving in it.
-    const pedal = input.moveY;
     if (charging) {
       // the charge owns the legs: the stick is worth nothing until it ends
       fwd = Math.min(def.top * CHARGE_TOP, fwd + def.throttle * 3 * dt);
@@ -1052,15 +1166,8 @@ export class Vehicle {
       fwd = fwd > 0 ? Math.max(0, fwd - bleed) : Math.min(0, fwd + bleed);
     }
 
-    // boost: the dash button, a straight shove along the nose
-    if (input.dashPressed && this.boostCd <= 0) {
-      this.boostCd = 1.4;
-      fwd = Math.min(def.top * 1.6, fwd + def.boost);
-      // a mount does not have a thruster to fire: it is goaded into a charge
-      if (def.living) audio.banthaLow(0.45);
-      else audio.dash();
-      rider.cam.shake(0.05);
-    }
+    // boost: a straight shove along the nose
+    if (boost) fwd = Math.min(def.top * 1.6, fwd + def.boost);
 
     // grip bleeds the slide off; what is left is the drift through a turn
     lat = damp(lat, 0, def.grip, dt);
@@ -1080,19 +1187,21 @@ export class Vehicle {
 
     const speed = Math.hypot(this.vel.x, this.vel.z);
 
-    // The camera trails the nose while you drive, but only when you are not
-    // working the right stick — steering is the heading now, so a camera left
-    // pointing where you were is a camera you have to fight. It eases rather
-    // than snaps, and it never fights a look the player is actually giving it.
-    if (fwd > 2 && Math.abs(input.lookX) < 1e-4) {
-      rider.cam.yaw = dampAngle(rider.cam.yaw, this.yaw, 2.0, dt);
-    }
-
     // ---- ramming: the vehicle is the weapon ----
+    // Whose weapon is the one thing the driver decides: a player's hull bowls
+    // hostiles over, a hostile's hull is what a bantha with a Tusken on it is
+    // *for*, and the party on foot is what it is aimed at.
     if (speed > 6) {
       const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
       const half = def.length / 2;
-      for (const e of game.enemies) {
+      const slot = rider ? rider.slot : -1;
+      const marks: readonly (Player | Enemy)[] = rider ? game.enemies : _rammable;
+      if (!rider) {
+        _rammable.length = 0;
+        for (const p of game.players) _rammable.push(p);
+        for (const a of game.allies) _rammable.push(a);
+      }
+      for (const e of marks) {
         if (!e.alive) continue;
         if (Math.abs(e.position.y - this.pos.y) > 2.4) continue;
         // nearest point on the hull's axis, so a long skiff hits with its bow
@@ -1107,13 +1216,22 @@ export class Vehicle {
         // horns first: a charge lands better than twice what a shoulder does
         const dmg = Math.min(charging ? 120 : 48, speed * (charging ? 5 : 2.1));
         const wasAlive = e.alive;
-        e.damage(dmg, this.pos, rider.slot);
-        e.knockback(this.pos, Math.min(charging ? 30 : 20, speed * (charging ? 1.6 : 0.9)), 0.5, 0.3);
-        e.knockdown((charging ? 2 : 1.2) + Math.random() * 0.6);
+        const shove = Math.min(charging ? 30 : 20, speed * (charging ? 1.6 : 0.9));
+        if ('knockback' in e) {
+          e.damage(dmg, this.pos, slot);
+          e.knockback(this.pos, shove, 0.5, 0.3);
+          e.knockdown((charging ? 2 : 1.2) + Math.random() * 0.6);
+        } else {
+          // a player: the hit is telegraphed by two tonnes of animal, so it
+          // is never shrugged off by the hit guard, and it throws them
+          e.damage(dmg, this.pos, slot, { heavy: true });
+          applyKnockback(e.velocity, e.position, this.pos, shove, shove * 0.4, true);
+          e.cam.shake(0.25);
+        }
         game.particles.impactSparks(e.position.clone().setY(e.position.y + 1), 10);
         audio.impact();
-        rider.cam.shake(0.09);
-        if (wasAlive) game.hitMarker(rider.slot);
+        rider?.cam.shake(0.09);
+        if (wasAlive && rider) game.hitMarker(rider.slot);
         // every body struck chips the ride — nothing is free, and the
         // deflector does not make it free either (see `DamageKind`) — though
         // an animal that meant to do it comes off better than one that did not
@@ -1122,9 +1240,10 @@ export class Vehicle {
       }
     }
 
-    // engine leans with the throttle; dust or spray kicks up in the wake
+    // an animal sounds like an animal under anyone; a machine's engine is the
+    // player's own mix (set by `drive`), and a hostile's is left to the world.
+    // Dust or spray kicks up in the wake either way.
     if (def.living) this.mountVoice(dt, speed);
-    else audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
     this.dustTimer -= dt * speed;
     if (this.dustTimer <= 0 && speed > 3) {
       this.dustTimer = 2.2;
@@ -1137,9 +1256,10 @@ export class Vehicle {
     }
 
     // safety: past the bottom of the world the ride is simply gone
-    if (this.pos.y < game.board.physics.killY) this.destroy(false);
+    if (this.pos.y < game.board.physics.killY) { this.destroy(!def.living); return speed; }
 
     this.syncMesh(dt, speed, game);
+    return speed;
   }
 
   /**

@@ -2404,7 +2404,9 @@ export class Player {
     let best: Vehicle | null = null;
     let bestD = 2.4;
     for (const v of game.vehicles) {
-      if (!v.alive || v.rider) continue;
+      // one with a hostile in the saddle is theirs until they are off it;
+      // one a hostile is still running for is anyone's — get there first
+      if (!v.alive || v.rider || v.hostile) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;

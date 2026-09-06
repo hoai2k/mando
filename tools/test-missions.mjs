@@ -414,7 +414,8 @@ const guide = await page.evaluate(`(() => {
   const door = { lit: c.beacon.visible, d: +g.players[0].position.distanceTo(c.objectivePos).toFixed(1) };
   put(o.x, o.z, o.y);
   window.__sim(0.1);
-  const on = { lit: c.beacon.visible, d: +g.players[0].position.distanceTo(c.objectivePos).toFixed(1) };
+  const on = { lit: c.beacon.visible, d: +g.players[0].position.distanceTo(c.objectivePos).toFixed(1),
+    arrow: c.arrow.visible, arrowAt: +Math.hypot(c.arrow.position.x - o.x, c.arrow.position.z - o.z).toFixed(1) };
   c.done = true;
   window.__sim(0.1);
   const over = { lit: c.beacon.visible, glyphs: c.glyphs.filter((gl) => gl.mesh.visible).length };
@@ -429,6 +430,8 @@ check('and it stands on the way on once the zones are cleared',
   guide.door.lit && guide.door.d > 20, JSON.stringify(guide.door));
 check('but goes out when you are standing on it',
   !guide.on.lit && guide.on.d < 4, JSON.stringify(guide.on));
+check('and leaves a floor arrow where it stood, pointing on',
+  guide.on.arrow && guide.on.arrowAt < 1, JSON.stringify(guide.on));
 check('and a finished run leaves nothing burning',
   !guide.over.lit && guide.over.glyphs === 0, JSON.stringify(guide.over));
 
@@ -464,6 +467,81 @@ check('it hauls the body into it and pulls it under first',
 check('and it is over inside a second and a half',
   taken.none || (taken.took !== null && taken.took < 1.5), JSON.stringify(taken));
 
+// ------------------------------------------------------------------ the riders
+
+// The corral's rides are the Tuskens'. Alert the camp and some of them get on:
+// a Tusken to its bantha, and it comes at the party. Drop the rider and the
+// ride rolls to a stop with nobody on it, which is when it is yours.
+await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+const riders = await page.evaluate(`(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  window.__simUntil(() => g.state === 'fighting', 30);
+  p.maxHp = 1e6; p.hp = 1e6;
+  const corral = c.stage.zones[1];
+  const squad = 9000 + corral.beat;
+  const crew = () => g.enemies.filter((e) => e.alive && e.squad === squad);
+  const before = {
+    posted: crew().length,
+    kinds: [...new Set(crew().map((e) => e.kind))].join(','),
+    canRide: crew().filter((e) => g.vehicles.some((v) => e.canRide(v.spec.kind))).length,
+    rides: g.vehicles.length,
+    hostiles: g.vehicles.filter((v) => v.hostile).length,
+  };
+  // stand the party at the corral's mouth and let the camp see them
+  c.idx = 1; c.phase = 'fight';
+  p.position.set(corral.entry.x, corral.entry.y + 0.5, corral.entry.z);
+  for (const e of crew()) e.alert(p.position, true);
+  window.__sim(0.5);
+  const claimed = g.vehicles.filter((v) => v.reserved || v.hostile).length;
+  const running = crew().filter((e) => e.boarding).length;
+  // give them the run to the saddle
+  window.__simUntil(() => crew().some((e) => e.ride), 12);
+  const mounted = crew().filter((e) => e.ride);
+  if (!mounted.length) return { before, claimed, running, mounted: 0 };
+  const rider = mounted[0], v = rider.ride;
+  const onFoot = crew().filter((e) => !e.ride && !e.boarding).length;
+  // and a few seconds at the pedals: it moves, and it moves at the party
+  const d0 = v.pos.distanceTo(p.position);
+  const seat0 = rider.position.clone();
+  let top = 0;
+  for (let i = 0; i < 90; i++) {
+    window.__sim(1 / 30);
+    top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));
+  }
+  const d1 = v.pos.distanceTo(p.position);
+  const seated = rider.position.distanceTo(v.seatWorld(new (rider.position.constructor)())) < 0.05;
+  // shot out of the saddle
+  rider.damage(9999, p.position, 0);
+  const dropped = { hostile: v.hostile, alive: rider.alive, rideAlive: v.alive, rideRef: rider.ride };
+  window.__sim(4);
+  const speedAfter = Math.hypot(v.vel.x, v.vel.z);
+  // and it is the party's for the taking: walk up, and the prompt is there
+  p.position.set(v.pos.x + v.def.radius + 1.0, v.pos.y + 0.3, v.pos.z);
+  const yours = p.findVehicle(g) === v;
+  return {
+    before, claimed, running, mounted: mounted.length, onFoot,
+    kind: v.spec.kind, riderKind: rider.kind,
+    moved: +(seat0.distanceTo(rider.position)).toFixed(1), top: +top.toFixed(1),
+    closed: +(d0 - d1).toFixed(1), seated,
+    dropped, speedAfter: +speedAfter.toFixed(2), yours,
+  };
+})()`);
+check('the corral posts a squad that can ride what is parked there',
+  riders.before.posted >= 3 && riders.before.canRide > 0 && riders.before.hostiles === 0,
+  JSON.stringify(riders.before));
+check('an alerted camp sends riders for its rides, and keeps half its feet',
+  riders.claimed > 0 && riders.mounted > 0 && riders.onFoot > 0,
+  `claimed ${riders.claimed} · running ${riders.running} · mounted ${riders.mounted} · on foot ${riders.onFoot}`);
+check('the rider sits the seat and the ride comes at the party',
+  riders.mounted > 0 && riders.seated && riders.top > 4 && riders.closed > 3,
+  `${riders.riderKind} on a ${riders.kind}: seated ${riders.seated}, top ${riders.top} m/s, closed ${riders.closed} m`);
+check('drop the rider and the saddle is empty, the ride whole',
+  riders.mounted > 0 && !riders.dropped.hostile && !riders.dropped.alive && riders.dropped.rideAlive && !riders.dropped.rideRef,
+  JSON.stringify(riders.dropped));
+check('and it rolls to a stop where the party can take it',
+  riders.mounted > 0 && riders.speedAfter < 0.5 && riders.yours,
+  `speed ${riders.speedAfter} · mountable ${riders.yours}`);
+
 // ---------------------------------------------------------------- every board
 
 const boards = ['desert', 'station', 'nevarro', 'crevasse', 'trask', 'refinery', 'forge', 'ringworld', 'narkina'];
@@ -486,9 +564,16 @@ for (const board of boards) {
       if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) bad.push(`${z.spec.label}: vents`);
       if (!z.posts.length) bad.push(`${z.spec.label}: posts`);
     }
-    // and every parked ride has to be standing on the stage
+    // and every parked ride has to be standing on the stage — in somebody's
+    // camp. A ride with no owner standing in the middle of nowhere is the
+    // thing the corrals exist to prevent: it is either in a held camp or in
+    // a warlord's arena, and never on a trailhead or a road.
     for (const r of spec.rides) {
       if (!spec.contains(r.x, r.z)) bad.push(`ride ${r.kind} off the stage`);
+      const owner = spec.zones.find((z) => r.x >= z.rect.minX && r.x <= z.rect.maxX
+        && r.z >= z.rect.minZ && r.z <= z.rect.maxZ);
+      const kind = owner?.spec.kind;
+      if (kind !== 'camp' && kind !== 'warlord') bad.push(`ride ${r.kind} has no owner (${kind ?? 'no zone'})`);
     }
     return {
       bad,

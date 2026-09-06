@@ -90,17 +90,17 @@ const desert: StageSpec[] = [
           { kind: 'swoop', u: 16, v: 13, yaw: 0 },
           { kind: 'bantha', u: 13, v: -11, yaw: 1.6 },
           { kind: 'landspeeder', u: 20, v: -14, yaw: 0 },
+          { kind: 'skiff', u: 30, v: 12, yaw: 0 },
         ],
       }),
-      // The road keeps two: the skiff at its mouth for whoever came out of the
-      // corral on foot, and a swoop halfway down for whoever's ride went up.
+      // The road parks nothing. It used to keep a skiff at its mouth and a
+      // swoop halfway down "for whoever came out of the corral on foot" — which
+      // is a ride with no owner standing in the middle of nowhere, the exact
+      // thing the corral exists to prevent. Everything with a saddle on this
+      // stage is the Tuskens', and it is in their camp.
       z('desert', 2, {
         shell: 'road', kind: 'chase', w: 26, l: 70,
         marks: [0.36, 0.72], barricade: 'crates', air: true,
-        rides: [
-          { kind: 'skiff', u: 10, v: -6, yaw: 0 },
-          { kind: 'swoop', u: 38, v: 7, yaw: 0 },
-        ],
       }),
     ],
     links: [{ len: 16, kind: 'trek' }, { len: 14, kind: 'trek' }],
@@ -213,31 +213,32 @@ const nevarro: StageSpec[] = [
     label: TEXT.missions.stages.nevarro[0],
     anchor: { x: -72, z: -80, dx: 1, dz: 0 },
     zones: [
-      z('nevarro', 0, {
-        shell: 'open', kind: 'start', w: 40, l: 48,
-        rides: [{ kind: 'speederBike', u: 10, v: 6, yaw: 0 }, { kind: 'speederBike', u: 10, v: 10, yaw: 0 }],
-      }),
+      z('nevarro', 0, { shell: 'open', kind: 'start', w: 40, l: 48 }),
+      // The bike pool: the remnant's own, with a squad posted round it. Every
+      // ride on a run is somebody's — you take it off them, or you walk.
       z('nevarro', 1, {
-        shell: 'road', kind: 'chase', w: 26, l: 72,
-        marks: [0.34, 0.7], barricade: 'fence', air: true,
+        shell: 'open', kind: 'camp', w: 44, l: 40, air: true, feature: 'crates',
         rides: [
-          { kind: 'speederBike', u: 8, v: -5, yaw: 0 },
-          { kind: 'speederBike', u: 8, v: 0, yaw: 0 },
-          { kind: 'speederBike', u: 8, v: 5, yaw: 0 },
-          { kind: 'speederBike', u: 40, v: 6, yaw: 0 },
+          { kind: 'speederBike', u: 14, v: 8, yaw: 0 },
+          { kind: 'speederBike', u: 18, v: 12, yaw: 0 },
+          { kind: 'speederBike', u: 22, v: -10, yaw: 0 },
         ],
       }),
-      z('nevarro', 2, { shell: 'open', kind: 'assault', w: 36, l: 30, waves: 2, feature: 'crates' }),
+      z('nevarro', 2, {
+        shell: 'road', kind: 'chase', w: 26, l: 72,
+        marks: [0.34, 0.7], barricade: 'fence', air: true,
+      }),
+      z('nevarro', 3, { shell: 'open', kind: 'assault', w: 36, l: 30, waves: 2, feature: 'crates' }),
     ],
-    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'interior',
     label: TEXT.missions.stages.nevarro[1],
     world: { fogColor: 0x1a120e, fogNear: 10, fogFar: 80, background: 0x0d0806, roofed: true, fill: 1.4 },
     zones: [
-      z('nevarro', 3, { shell: 'hall', kind: 'assault', w: 22, l: 16, waves: 2, feature: 'crates', alcove: true }),
-      z('nevarro', 4, { shell: 'hall', kind: 'lieutenant', w: 24, l: 22, feature: 'pillars' }),
+      z('nevarro', 4, { shell: 'hall', kind: 'assault', w: 22, l: 16, waves: 2, feature: 'crates', alcove: true }),
+      z('nevarro', 5, { shell: 'hall', kind: 'lieutenant', w: 24, l: 22, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: 1, len2: 12, kind: 'corridor' }],
   },
@@ -245,9 +246,9 @@ const nevarro: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.nevarro[2],
     zones: [
-      z('nevarro', 5, { shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'lava', pass: true, air: true }),
-      z('nevarro', 6, { shell: 'canyon', kind: 'camp', w: 16, l: 50, alcove: true }),
-      z('nevarro', 7, { shell: 'open', kind: 'warlord', w: 76, l: 66, feature: 'barrels' }),
+      z('nevarro', 6, { shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'lava', pass: true, air: true }),
+      z('nevarro', 7, { shell: 'canyon', kind: 'camp', w: 16, l: 50, alcove: true }),
+      z('nevarro', 8, { shell: 'open', kind: 'warlord', w: 76, l: 66, feature: 'barrels' }),
     ],
     links: [{ len: 16, kind: 'trek' }, { len: 18, kind: 'trek' }],
   },
@@ -299,14 +300,18 @@ const trask: StageSpec[] = [
       z('trask', 0, {
         shell: 'open', kind: 'start', w: 60, l: 40,
         props: [{ id: 'dock_shed', u: 12, v: 22, size: 10, yaw: 1.6, solid: { r: 3.4, h: 7 } }],
-        rides: [{ kind: 'skiff', u: 20, v: -14, yaw: 0 }],
       }),
+      // The fish market is the harbour's camp, and the skiff is tied up at the
+      // near end of it — the easier steal: the crews are further in among the
+      // racks, and a party that comes in quiet can be aboard before they turn.
       z('trask', 1, {
-        shell: 'canyon', kind: 'camp', w: 12, l: 70, alcove: true,
+        shell: 'open', kind: 'camp', w: 44, l: 40, alcove: true,
         props: [
-          { id: 'fish_rack', u: 22, v: 3, size: 2, solid: { r: 0.9, h: 2 } },
-          { id: 'fish_rack', u: 40, v: -3, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 22, v: 6, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 30, v: -6, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 26, v: 13, size: 2, solid: { r: 0.9, h: 2 } },
         ],
+        rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
       z('trask', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 46, waves: 2, deadEnd: true }),
       z('trask', 3, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'barrels', alcove: true }),
@@ -339,14 +344,17 @@ const refinery: StageSpec[] = [
       z('refinery', 0, {
         shell: 'open', kind: 'start', w: 60, l: 50,
         props: [{ id: 'pipe_rack', u: 30, v: 22, size: 6, solid: { r: 1.2, h: 4 } }],
-        rides: [{ kind: 'landspeeder', u: 14, v: -8, yaw: 0 }],
       }),
+      // The pipe run is the yard's camp. Its landspeeder is parked at the near
+      // end, by the first rack: closer to you than to the crew working the far
+      // one, which is the whole of why it is worth trying to take quietly.
       z('refinery', 1, {
-        shell: 'canyon', kind: 'camp', w: 12, l: 60, feature: 'barrels', alcove: true,
+        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'barrels', alcove: true,
         props: [
-          { id: 'pipe_rack', u: 18, v: 5, size: 6, solid: { r: 1.2, h: 4 } },
-          { id: 'pipe_rack', u: 42, v: -5, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 16, v: 8, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 30, v: -8, size: 6, solid: { r: 1.2, h: 4 } },
         ],
+        rides: [{ kind: 'landspeeder', u: 9, v: -11, yaw: 0 }],
       }),
       z('refinery', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 40, waves: 2, deadEnd: true }),
     ],
@@ -399,30 +407,32 @@ const forge: StageSpec[] = [
     label: TEXT.missions.stages.forge[0],
     anchor: { x: -74, z: -62, dx: 1, dz: 0 },
     zones: [
-      z('forge', 0, {
-        shell: 'open', kind: 'start', w: 44, l: 50,
+      z('forge', 0, { shell: 'open', kind: 'start', w: 44, l: 50 }),
+      // The corral on the glass: the pirates' rides, and the pirates.
+      z('forge', 1, {
+        shell: 'open', kind: 'camp', w: 44, l: 40, air: true,
         rides: [
-          { kind: 'speederBike', u: 12, v: 4, yaw: 0 },
-          { kind: 'speederBike', u: 12, v: 8, yaw: 0 },
-          { kind: 'landspeeder', u: 16, v: -8, yaw: 0 },
+          { kind: 'speederBike', u: 14, v: 8, yaw: 0 },
+          { kind: 'speederBike', u: 18, v: 12, yaw: 0 },
+          { kind: 'swoop', u: 24, v: 10, yaw: 0 },
+          { kind: 'landspeeder', u: 20, v: -12, yaw: 0 },
         ],
       }),
-      z('forge', 1, {
+      z('forge', 2, {
         shell: 'road', kind: 'chase', w: 28, l: 78,
         marks: [0.34, 0.7], barricade: 'fence', air: true,
-        rides: [{ kind: 'speederBike', u: 44, v: 6, yaw: 0 }, { kind: 'swoop', u: 46, v: -6, yaw: 0 }],
       }),
-      z('forge', 2, { shell: 'open', kind: 'assault', w: 38, l: 32, waves: 2, feature: 'pillars' }),
+      z('forge', 3, { shell: 'open', kind: 'assault', w: 38, l: 32, waves: 2, feature: 'pillars' }),
     ],
-    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
   {
     kind: 'interior',
     label: TEXT.missions.stages.forge[1],
     world: { fogColor: 0x1b1e1a, fogNear: 10, fogFar: 80, background: 0x0c0e0b, roofed: true, fill: 1.4 },
     zones: [
-      z('forge', 3, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pillars', alcove: true }),
-      z('forge', 4, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, feature: 'pillars' }),
+      z('forge', 4, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pillars', alcove: true }),
+      z('forge', 5, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
   },
@@ -430,12 +440,12 @@ const forge: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.forge[2],
     zones: [
-      z('forge', 5, {
+      z('forge', 6, {
         shell: 'open', kind: 'assault', w: 54, l: 48, waves: 3, pass: true, air: true, feature: 'pillars',
         props: [{ id: 'forge_brazier', u: 24, v: 0, size: 3.5, solid: { r: 1.6, h: 1.6 } }],
       }),
-      z('forge', 6, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
-      z('forge', 7, {
+      z('forge', 7, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
+      z('forge', 8, {
         shell: 'open', kind: 'warlord', w: 80, l: 70,
         props: [{ id: 'mythosaur_skull', u: 14, v: 26, size: 8, yaw: 0.6, solid: { r: 2.6, h: 3 } }],
         rides: [{ kind: 'swoop', u: 10, v: 22, yaw: 0 }, { kind: 'skiff', u: 12, v: -24, yaw: 0 }],
@@ -455,15 +465,19 @@ const ringworld: StageSpec[] = [
       z('ringworld', 0, {
         shell: 'open', kind: 'start', w: 56, l: 48,
         props: [{ id: 'tram', u: 12, v: 18, size: 12.2, yaw: 0, solid: { r: 1.9, h: 3.4 } }],
-        rides: [{ kind: 'swoop', u: 20, v: -8, yaw: 0 }, { kind: 'swoop', u: 20, v: -12, yaw: 0 }],
       }),
+      // The market arcade is the high street's camp. Two swoops stand outside
+      // the first kiosk with their riders inside it — the tavern steal: the
+      // bikes are at the near edge, the owners are a wall away, and whether
+      // you get one started before they come out is the fight.
       z('ringworld', 1, {
-        shell: 'canyon', kind: 'camp', w: 16, l: 80, feature: 'crates', alcove: true,
+        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'crates', alcove: true,
         props: [
-          { id: 'street_kiosk', u: 20, v: 5, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 42, v: -5, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 62, v: 5, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 14, v: 10, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 26, v: -9, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 32, v: 8, size: 3.2, solid: { r: 1.7, h: 2.4 } },
         ],
+        rides: [{ kind: 'swoop', u: 9, v: 12, yaw: 0 }, { kind: 'swoop', u: 10, v: 16, yaw: 0 }],
       }),
       z('ringworld', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
       z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 22, l: 18, waves: 2, feature: 'crates', alcove: true }),
