@@ -153,6 +153,23 @@ function audit(stageName) {
   const seenSolid = new Set();
   const seenBlock = new Set();
 
+  /** what is actually stopping a body here, when nothing is drawn to explain it */
+  const blockerAt = (x, z, floor) => {
+    const y = floor + 1;
+    for (const b of phys.boxes) {
+      if (x > b.min.x - R && x < b.max.x + R && z > b.min.z - R && z < b.max.z + R
+        && y > b.min.y && y < b.max.y) {
+        return `an unseen box ${(b.max.x - b.min.x).toFixed(1)}x${(b.max.z - b.min.z).toFixed(1)}`;
+      }
+    }
+    for (const c of phys.cylinders) {
+      if (y > c.minY && y < c.maxY && Math.hypot(x - c.x, z - c.z) < c.r + R) {
+        return `an unseen cylinder r${c.r.toFixed(1)}`;
+      }
+    }
+    return 'nothing drawn';
+  };
+
   const check = (x, z, label) => {
     const floor = phys.groundHeight(x, z, st.groundAt(x, z) + 0.7);
     if (!isFinite(floor)) return;
@@ -173,7 +190,7 @@ function audit(stageName) {
         tag: drawn.tag || '(untagged)', type: drawn.type,
         size: [+(drawn.hi[0] - drawn.lo[0]).toFixed(1), +(drawn.hi[1] - drawn.lo[1]).toFixed(1), +(drawn.hi[2] - drawn.lo[2]).toFixed(1)] });
     }
-    return { free, drawn };
+    return { free, drawn, floor };
   };
 
   /**
@@ -196,7 +213,7 @@ function audit(stageName) {
           seenBlock.add(k);
           blockedAt.push({ at: [+mid.x.toFixed(1), +mid.z.toFixed(1)], label,
             metres: +((run.length - 1) * (d / n)).toFixed(1),
-            drawn: mid.drawn ? (mid.drawn.tag || mid.drawn.type) : 'nothing drawn' });
+            drawn: mid.drawn ? (mid.drawn.tag || mid.drawn.type) : blockerAt(mid.x, mid.z, mid.floor) });
         }
       }
       run = [];
@@ -205,7 +222,7 @@ function audit(stageName) {
       const t = i / n;
       const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
       const r = check(x, z, label);
-      if (r && !r.free) run.push({ x, z, drawn: r.drawn });
+      if (r && !r.free) run.push({ x, z, drawn: r.drawn, floor: r.floor });
       else flush();
     }
     flush();

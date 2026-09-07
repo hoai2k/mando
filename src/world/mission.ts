@@ -285,6 +285,19 @@ const TRAIL_EVERY = 15;
 const RIDE_MIN_SIDE = 40;
 /** how far from an open edge a ride is parked */
 const RIDE_EDGE_CLEAR = 6;
+/**
+ * How much room a parked ride needs around it, measured from its keel: enough
+ * that the longest hull (a skiff, ~5 m nose to tail) is clear of a prop's own
+ * blocked circle rather than settling onto its roof.
+ */
+const RIDE_CLEAR = 3;
+/**
+ * How far past its nominal radius a rim piece's drawn rock actually reaches,
+ * once `rimPiece` has noised its vertices outward. The noise is a fraction of
+ * `r` scaled by height, so the overhang grows with the boulder rather than
+ * being a fixed margin — 1.6 covers the worst of it on every ridge style.
+ */
+const RIM_NOISE_REACH = 1.6;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -1006,9 +1019,36 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (edge < RIDE_EDGE_CLEAR) {
         console.warn(`[mission] ${zs.label}: a ride is parked ${edge.toFixed(1)} m from an edge`);
       }
-      const rx = f.x(r.u, r.v), rz = f.z(r.u, r.v);
+      // A ride stands on the ground, never on the furniture.
+      //
+      // `Vehicle` finds its own hover height from the *physics* — the highest
+      // surface under it — so a landspeeder authored a metre and a half from a
+      // tent settles onto the tent's roof and sits there, which is what a
+      // playtest found in the Tusken corral. Authored coordinates are written
+      // by eye against a zone diagram and the props move; rather than trust
+      // them, take the authored spot when it is clear of everything already
+      // standing here (`blocked` — props, crates, pillars, other rides) and
+      // otherwise walk outward in rings until it is. The ride stays in its
+      // zone and near where it was meant to be; it just stops being on a roof.
+      let u = r.u, v = r.v, moved = 0;
+      if (!clearOf(f.x(u, v), f.z(u, v), RIDE_CLEAR)) {
+        const uMin = RIDE_EDGE_CLEAR, uMax = zs.l - RIDE_EDGE_CLEAR;
+        const vMax = zs.w / 2 - RIDE_EDGE_CLEAR;
+        search: for (const ring of [3, 5, 7, 9, 12]) {
+          for (let a = 0; a < 12; a++) {
+            const th = (a / 12) * Math.PI * 2;
+            const cu = r.u + Math.cos(th) * ring, cv = r.v + Math.sin(th) * ring;
+            if (cu < uMin || cu > uMax || Math.abs(cv) > vMax) continue;
+            if (!clearOf(f.x(cu, cv), f.z(cu, cv), RIDE_CLEAR)) continue;
+            u = cu; v = cv; moved = ring;
+            break search;
+          }
+        }
+        if (!moved) console.warn(`[mission] ${zs.label}: nowhere clear to park a ${r.kind}`);
+      }
+      const rx = f.x(u, v), rz = f.z(u, v);
       rides.push({ kind: r.kind, x: rx, z: rz, yaw: r.yaw, y: groundAt(rx, rz) });
-      blocked.push({ x: rx, z: rz, r: 3 });
+      blocked.push({ x: rx, z: rz, r: RIDE_CLEAR });
     }
   };
 
@@ -1775,7 +1815,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const keptRim = rimGeo.filter((geo, i) => {
     const at = rimAt[i];
     if (!at) return true;
-    if (nearestFloor(at.x, at.z) > at.r) return true;          // nowhere near a floor
+    // Out to the piece's *drawn* extent, not its nominal radius. `rimPiece`
+    // noises every vertex outward by up to `look.noise * r`, scaled again by
+    // height, which on rock takes a five-metre boulder past seven — so a grid
+    // stopping at `r` leaves the overhang that is actually in the lane
+    // untested. That is what survived this cull on the Crevasse and the Storm
+    // Docks after it had cleared the other seven boards.
+    const reach = at.r * RIM_NOISE_REACH;
+    if (nearestFloor(at.x, at.z) > reach) return true;          // nowhere near a floor
     // The piece's whole footprint on a metre grid, not a ring of samples: a
     // ring with any spacing can straddle a lane and miss it, and a piece whose
     // centre sits on the floor has no ring to sample in the first place.
@@ -1785,9 +1832,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     // it is inside its own collider and answers `backedAt`. Only rock with
     // nothing under it goes — and the wall a dead end is a door in is laid
     // across its lane, is solid, and stays.
-    for (let dx = -at.r; dx <= at.r; dx += 1) {
-      for (let dz = -at.r; dz <= at.r; dz += 1) {
-        if (dx * dx + dz * dz > at.r * at.r) continue;
+    for (let dx = -reach; dx <= reach; dx += 1) {
+      for (let dz = -reach; dz <= reach; dz += 1) {
+        if (dx * dx + dz * dz > reach * reach) continue;
         const px = at.x + dx, pz = at.z + dz;
         if (onFloor(px, pz) && !backedAt(px, pz)) { culled++; return false; }
       }
