@@ -45,6 +45,12 @@ const VENT_CUE_LEAD = 1.0;
 const VENT_CUE_LIFE = 3.4;
 /** how long a ground arrow pulses before settling to a breadcrumb */
 const ARROW_PULSE = 8;
+/** close enough to the transport door that the line stops being a distance */
+const PORTAL_HINT_NEAR = 12;
+/** how near a hatch's closet counts as standing in it */
+const HATCH_CLEAR = 4;
+/** stand this close to the objective and its column goes out — you are there */
+const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
 const PORTAL_BEAT = 1.5;
 /** how far a cancelled exit walks the player back out of the pocket */
@@ -95,6 +101,8 @@ export class Campaign implements MissionController {
   private bossCalled = false;
   /** road: which of its drop marks have fired */
   private marksFired: boolean[] = [];
+  /** camps whose riders have already been sent for their rides */
+  private ridersSent = new Set<MissionZone>();
   /** where the fallen return: the last safe ground the party earned */
   checkpoint: THREE.Vector3;
   done = false;
@@ -211,6 +219,7 @@ export class Campaign implements MissionController {
     // through — validates against `this.stage`, so populating a stage that is
     // not yet the current one reads the last one, or nothing at all.
     this.stage = stage;
+    this.ridersSent.clear();
     this.populate(stage, i);
     return stage;
   }
@@ -450,6 +459,51 @@ export class Campaign implements MissionController {
     return new THREE.Vector3(pos.x, yAt(pos.x, pos.z), pos.z);
   }
 
+  /**
+   * An alerted camp gets on its rides.
+   *
+   * The rides in a camp are the camp's — that is why they are there — so the
+   * moment its squad knows the party is coming, the ones who ride go for
+   * their saddles: a Tusken to a bantha, a pirate to a swoop. Not everyone,
+   * never more than about half, and only kinds that ride at all (`Enemy.canRide`).
+   * What comes at the party is then a ride with a rider on it, and the order
+   * of business is the one the banner says: drop the rider, take the ride.
+   *
+   * A claimed ride is not a taken one. The player who gets to it first has
+   * it, which is the quiet steal the near-edge parking is for.
+   */
+  private sendRiders(zone: MissionZone): void {
+    if (this.ridersSent.has(zone)) return;
+    const game = this.game;
+    const squad = 9000 + zone.beat;
+    const crew = game.enemies.filter((e) => e.alive && e.squad === squad && !e.ride && !e.boarding);
+    if (!crew.length || !crew.some((e) => e.awareness !== 'idle')) return;
+    this.ridersSent.add(zone);
+    const r = zone.rect;
+    const rides = game.vehicles.filter((v) => v.alive && !v.rider && !v.hostile && !v.reserved
+      && v.pos.x >= r.minX && v.pos.x <= r.maxX && v.pos.z >= r.minZ && v.pos.z <= r.maxZ);
+    if (!rides.length) return;
+    // leave at least half the squad on foot: a camp that empties itself onto
+    // its bikes is a camp with nobody in it to clear
+    let seats = Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2)));
+    let sent = 0;
+    for (const v of rides) {
+      if (seats <= 0) break;
+      let best: Enemy | null = null;
+      let bestD = Infinity;
+      for (const e of crew) {
+        if (e.boarding || e.ride || !e.canRide(v.spec.kind)) continue;
+        const d = e.position.distanceToSquared(v.pos);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (!best) continue;
+      best.boardRide(v);
+      seats--;
+      sent++;
+    }
+    if (sent > 0) game.announce(TEXT.banners.riders.title, TEXT.banners.riders.sub);
+  }
+
   private postSquad(kinds: EnemyKind[], posts: THREE.Vector3[], squad: number): void {
     if (!posts.length) return;
     kinds.forEach((kind, i) => {
@@ -538,6 +592,17 @@ export class Campaign implements MissionController {
     const obj = this.objectivePos;
     const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
     if (this.transitT > 0) return TEXT.missions.boarding(this.objectiveLabel);
+    // Everything is cleared and the way on is a door: say so, and name what is
+    // through it. `this.zone` clamps to the last zone once the run is past it,
+    // so without this the line read "Make for <the last zone>" — the zone you
+    // are standing behind — while the run waited on you to walk through a door
+    // it had already opened.
+    if (this.idx >= this.stage.zones.length && this.stage.exitPortal) {
+      const next = MISSION_LAYOUTS[this.game.board.kind].stages[this.stageIdx + 1]?.label ?? '';
+      return d <= PORTAL_HINT_NEAR
+        ? TEXT.missions.stepThrough(next)
+        : TEXT.missions.wayOn(next, d);
+    }
     if (this.phase === 'travel') return TEXT.missions.makeFor(zone.spec.label, d);
     switch (zone.spec.kind) {
       case 'assault': return TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount);
@@ -780,7 +845,13 @@ export class Campaign implements MissionController {
         this.ventCue = null;
       }
     }
-    if (this.glyphLife <= 0) return;
+    if (this.glyphLife <= 0) {
+      // idempotent, and the only place that guarantees it: `glyphLife` is
+      // zeroed from several directions (a stage swap, a won run) and a glyph
+      // that was lit when that happened has to go out with it.
+      for (const gl of this.glyphs) if (gl.mesh.visible) gl.mesh.visible = false;
+      return;
+    }
     this.glyphLife -= dt;
     const pulse = 0.45 + 0.35 * Math.sin(this.game.time * 9);
     const fade = Math.min(1, this.glyphLife / 0.6);
@@ -790,10 +861,46 @@ export class Campaign implements MissionController {
     }
   }
 
+  /**
+   * The floor arrow: laid at `at`, pointing at `to`. Bright for a few seconds,
+   * then a dim breadcrumb. An arrow is the one marker that is allowed to
+   * outlive its moment — it says "this way", which stays true, where a beacon
+   * says "come here", which stops being true the moment you have.
+   */
+  private layArrow(at: THREE.Vector3, to: THREE.Vector3): void {
+    this.arrow.position.set(at.x, at.y + 0.08, at.z);
+    this.arrow.rotation.z = -Math.atan2(to.x - at.x, to.z - at.z);
+    this.arrow.visible = true;
+    this.arrowLife = ARROW_PULSE;
+  }
+
+  /**
+   * Put every light out. Called wherever the frame stops early — a won run, a
+   * transport beat — so nothing is left burning over a place that no longer
+   * means anything.
+   */
+  private douse(): void {
+    this.beacon.visible = false;
+    this.arrow.visible = false;
+    this.glyphLife = 0;
+    this.ventCue = null;
+    for (const gl of this.glyphs) gl.mesh.visible = false;
+  }
+
   private clearZone(zone: MissionZone, fought: boolean): void {
     zone.entryBarrier?.open();
     zone.exitBarrier?.open();
-    for (const h of zone.hatches) h.gate.close();
+    // A wall hatch opens onto a four-metre closet with one door and nothing
+    // else. Shutting it on somebody who walked in there after the wave came
+    // out of it is a player deleted from the run — no way out, nothing to
+    // shoot, and the rest of the party waiting on them at the next door. So a
+    // hatch with a body in it stays open. It is a spent spawn door by then: an
+    // open one is untidy, a shut one is a cell.
+    for (const h of zone.hatches) {
+      const inside = this.game.players.some((p) => p.alive
+        && p.position.distanceToSquared(h.post) < HATCH_CLEAR * HATCH_CLEAR);
+      if (!inside) h.gate.close();
+    }
     // the far end of the zone is the safe ground — never a set piece's centre
     this.checkpoint.copy(zone.exit);
     this.idx++;
@@ -808,10 +915,7 @@ export class Campaign implements MissionController {
     const to = this.idx < this.stage.zones.length
       ? this.stage.zones[this.idx].entry
       : this.stage.exitPortal?.pos ?? zone.exit;
-    this.arrow.position.set(zone.exit.x, zone.exit.y + 0.08, zone.exit.z);
-    this.arrow.rotation.z = -Math.atan2(to.x - zone.exit.x, to.z - zone.exit.z);
-    this.arrow.visible = true;
-    this.arrowLife = ARROW_PULSE;
+    this.layArrow(zone.exit, to);
 
     if (this.idx < this.stage.zones.length) {
       this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(this.stage.zones[this.idx].spec.label));
@@ -925,11 +1029,16 @@ export class Campaign implements MissionController {
 
   update(dt: number): void {
     const game = this.game;
-    if (this.done) return;
+    // Nothing is lit on a run that is over. Every early return below used to
+    // leave whatever was glowing at that instant glowing for good — a column
+    // of light standing in an empty canyon with nothing to walk to and nothing
+    // to pick up, which is what a marker must never be.
+    if (this.done) { this.douse(); return; }
 
     // the transport beat: inputs are blanked by `Player.exited`, the card is
     // up, and the swap lands when the clock runs out
     if (this.transitT > 0) {
+      this.douse();
       this.transitT -= dt;
       if (this.transitT <= 0) {
         const to = this.transitTo;
@@ -942,10 +1051,28 @@ export class Campaign implements MissionController {
     this.syncGates();
     this.stage.tick(game.time);
 
-    // beacon rides the objective and breathes — but not over the trailhead,
-    // which is ground the party is already standing on
+    // The beacon rides the objective and breathes — but only where it is
+    // telling you something. A sixty-metre column of light reads as a thing to
+    // walk into and collect, so one standing on ground the party is already on
+    // is a promise the run cannot keep: it was touched, nothing happened, and
+    // the only lesson was that the lights lie. It is dark on the trailhead
+    // (ground you are spawned on) and dark once you are on top of it.
     const obj = this.objectivePos;
-    this.beacon.visible = !this.atTrailhead;
+    const near = game.players.some((p) => p.alive
+      && p.position.distanceToSquared(obj) < BEACON_HIDE * BEACON_HIDE);
+    // A beacon that has been reached becomes an arrow. The column said "come
+    // here" and you did; what is still worth saying is which way on, and an
+    // arrow on the floor says that without asking to be walked into again.
+    // Reached over the way on itself, it points through the door.
+    if (near && this.beacon.visible) {
+      const ahead = this.idx < this.stage.zones.length
+        ? this.zone.exit
+        : this.stage.exitPortal
+          ? new THREE.Vector3(obj.x + this.stage.exitPortal.forward.x, obj.y, obj.z + this.stage.exitPortal.forward.z)
+          : null;
+      if (ahead && ahead.distanceToSquared(obj) > 0.5) this.layArrow(obj, ahead);
+    }
+    this.beacon.visible = !this.atTrailhead && !near;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
     this.updateVentGlyphs(dt);
@@ -1029,6 +1156,7 @@ export class Campaign implements MissionController {
       case 'start':
       case 'trek':
       case 'camp':
+        if (zone.spec.kind === 'camp') this.sendRiders(zone);
         if (this.nearExit(zone)) this.clearZone(zone, false);
         break;
       case 'chase':

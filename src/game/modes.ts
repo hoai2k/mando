@@ -71,27 +71,28 @@ export function ceilingOverride(): number | null {
 }
 
 /**
- * `?missions=new` — run the **experimental** outdoor Missions level design
- * (the stage chain, `world/mission.ts` + `game/campaign.ts`) instead of the
- * walled room chain.
+ * Which of the two Missions level designs runs: the outdoor stage chain
+ * (`world/mission.ts` + `game/campaign.ts`) or the walled room chain
+ * (`world/mission-legacy.ts` + `game/campaign-legacy.ts`).
  *
- * The two swapped places on 2026-09-03. The outdoor design shipped as the
- * default and did not survive contact: a territory stage rims every outdoor
- * zone with a wall that has to clear the flight ceiling, so the Dune Sea's
- * trailhead came out as a 56 x 44 m box with 48 m sides — cramped, and
- * neither outdoor nor indoor to stand in. Until that reads the way
- * docs/MISSIONS_OUTDOOR.md describes, Missions runs the room chain that
- * plays, and the outdoor stages are one flag away for anyone working on them.
+ * These have swapped places twice. The outdoor design shipped as the default
+ * on 2026-09-03 and did not survive contact — every outdoor zone was rimmed on
+ * all four sides by a wall that has to clear the flight ceiling, so the Dune
+ * Sea's trailhead was a 56 x 44 m box with 48 m sides — so it went behind
+ * `?missions=new` while that was fixed. It has been: the trailhead takes no
+ * rim, a territory stage is held by one canyon that closes as it goes rather
+ * than a rim per zone, and the borders' rock and their collision are the same
+ * surface. **It is the default again as of 2026-09-06.**
  *
- * `?backup=missions` — the old spelling, from when this was the other way
- * round — still names the room chain, which is now simply the default.
- * Nothing else in the game branches on either flag.
+ * `?missions=old` runs the room chain, and so does the older spelling
+ * `?backup=missions`. Nothing else in the game branches on either.
  */
 export function missionsOutdoor(): boolean {
   try {
-    return new URLSearchParams(window.location.search).get('missions') === 'new';
+    const q = new URLSearchParams(window.location.search);
+    return q.get('missions') !== 'old' && q.get('backup') !== 'missions';
   } catch {
-    return false;
+    return true;
   }
 }
 

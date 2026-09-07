@@ -433,11 +433,15 @@ check('select: ...and stands on the plinth once it has, picture retired',
   pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner && !pendingNpc.poster,
   JSON.stringify(pendingNpc));
 
-// ---- Campaign: the default level design ----
-// Missions runs the walled room chain (docs/LEVEL_DESIGN.md) unless
-// `?missions=new` asks for the experimental outdoor stages. This is the
-// default path, so it is checked first and on the plain URL: per-player
-// cameras, a garrison posted on a level of its own, one readable objective.
+// ---- Campaign: the walled room chain ----
+// Missions runs the outdoor stage chain by default as of 2026-09-06; the room
+// chain (docs/LEVEL_DESIGN.md) is what `?missions=old` names. It is still a
+// shipped level design, so it is still checked: per-player cameras, a garrison
+// posted on a level of its own, one readable objective, and a body that comes
+// back off a wall rather than facing it.
+await page.evaluate(() => { window.__manual = false; });
+await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=old`);
+await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 const roomChain = await page.evaluate(`(() => {
   const g = window.__game;
@@ -453,15 +457,15 @@ const roomChain = await page.evaluate(`(() => {
     hint: g.hudTopLine(g.players[0]),
   };
 })()`);
-check('campaign: the default level is the room chain, not the outdoor stages',
+check('campaign: ?missions=old is the room chain, not the outdoor stages',
   !roomChain.stages && roomChain.rooms?.startsWith('start') && roomChain.rooms?.endsWith('warlord'),
   `stages=${roomChain.stages}: ${roomChain.rooms}`);
-check('campaign (default): every player their own camera, no shared rig',
+check('campaign (room chain): every player their own camera, no shared rig',
   !roomChain.shared && roomChain.camsApart && roomChain.state === 'fighting');
-check('campaign (default): the party stands on the mission level, garrison posted',
+check('campaign (room chain): the party stands on the mission level, garrison posted',
   roomChain.elevated && roomChain.posted > 4,
   `elevated ${roomChain.elevated} · posted ${roomChain.posted}`);
-check('campaign (default): the guide reads a bearing and a distance',
+check('campaign (room chain): the guide reads a bearing and a distance',
   / \d+ m$/.test(roomChain.hint), roomChain.hint);
 
 // ---- a fresh body faces out of the room it re-formed in ----
@@ -497,19 +501,19 @@ const facing = await page.evaluate(`(() => {
     wired: Math.abs(Math.atan2(Math.sin(p.yaw - p.cam.yaw), Math.cos(p.yaw - p.cam.yaw))) < 0.05,
   };
 })()`);
-check('campaign (default): a body standing at a wall is turned off it',
+check('campaign (room chain): a body standing at a wall is turned off it',
   !!facing && facing.chosen > facing.intoWall + 3 && facing.chosen > 4, JSON.stringify(facing));
-check('campaign (default): the body and its camera agree on the bearing',
+check('campaign (room chain): the body and its camera agree on the bearing',
   !!facing && facing.wired, JSON.stringify(facing));
 
-// ---- Campaign: the experimental outdoor stage chain ----
+// ---- Campaign: the outdoor stage chain, which is the default ----
 // `tools/test-missions.mjs` is where its shells, borders, ceiling and
 // transport doors are checked in detail. What is checked here is what makes
 // Missions a *mode* on that design too: fights that seal, bosses that turn,
-// and a run that can be won. The page is navigated once and stays on
-// `?missions=new` — nothing after this section reads the flag.
+// and a run that can be won. The page goes back to the plain URL for it —
+// nothing after this section reads a flag.
 await page.evaluate(() => { window.__manual = false; });
-await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=new`);
+await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/`);
 await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 s = await page.evaluate(`(() => {
@@ -533,13 +537,13 @@ s = await page.evaluate(`(() => {
     ceiling: Math.round(g.ceilingY - c.stage.floorY),
   };
 })()`);
-check('campaign (?missions=new): every player their own camera, no shared rig',
+check('campaign (stages): every player their own camera, no shared rig',
   !s.shared && s.camsApart && s.state === 'fighting');
 check('campaign: the run opens outdoors on a trailhead, not in a box',
   s.zones.startsWith('open:start') && !s.zones.startsWith('hall'), s.zones);
-check('campaign (?missions=new): the party stands on the stage, garrison posted',
+check('campaign (stages): the party stands on the stage, garrison posted',
   s.onStage && s.posted > 4, `on the stage ${s.onStage} · posted ${s.posted}`);
-check('campaign (?missions=new): the guide reads a bearing and a distance',
+check('campaign (stages): the guide reads a bearing and a distance',
   / \d+ m$/.test(s.hint), s.hint);
 check('campaign: the playable sky has a lid over it', s.ceiling > 20, `${s.ceiling} m`);
 

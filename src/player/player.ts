@@ -67,12 +67,20 @@ const _facing = new THREE.Vector3();
 const _jetPos = new THREE.Vector3();
 const _jetDir = new THREE.Vector3();
 const _flipPivot = new THREE.Vector3();
+const _flipRest = new THREE.Vector3();
 const _flipSwung = new THREE.Vector3();
 const _flipAxis = new THREE.Vector3();
 const _jetRot = new THREE.Quaternion();
 // scratch for where a returning saber is caught
 const _catch = new THREE.Vector3();
 /** the ride's grip and the elbow hint that picks the arm's bend */
+/** how long a kill zone takes to close over a body, in seconds */
+const TAKEN_TIME = 1.15;
+/** how hard it hauls you in toward the middle of it (damp lambda) */
+const TAKEN_PULL = 3.2;
+/** and how fast it takes you under, m/s at the start of the pull */
+const TAKEN_SINK = 1.5;
+
 const _grip = new THREE.Vector3();
 const _elbowHint = new THREE.Vector3();
 
@@ -128,6 +136,47 @@ const FLIP_SPIN = 11;
 const FLIP_SPIN_UP = 9;
 const FLIP_SETTLE_MIN = 5;
 const FLIP_SETTLE_EASE = 4.5;
+/**
+ * How long the shortest possible somersault takes: the spin winding up from
+ * nothing and carrying the body through one whole revolution. Integrated off
+ * the constants above rather than written down beside them, so tuning the
+ * turn rate cannot leave the airtime test quoting a stale number.
+ */
+const FLIP_TURN_TIME = (() => {
+  const step = 1 / 240;
+  let t = 0, spin = 0, angle = 0;
+  while (angle < Math.PI * 2 && t < 5) {
+    spin = damp(spin, FLIP_SPIN, FLIP_SPIN_UP, step);
+    angle += spin * step;
+    t += step;
+  }
+  return t;
+})();
+/** and the beat on top of it for the legs to come down and meet the ground */
+const FLIP_LAND_MARGIN = 0.12;
+/**
+ * Where the somersault turns about, in fractions of the body's height.
+ *
+ * An upright body turns about its hips, and PIVOT_Y is where those sit. A
+ * tucked one does not: the tuck folds the knees up and curls the chest and
+ * head *forward*, and the weight goes with them. Summing the segments of a
+ * body in the tuck puts the middle of that ball a hand above the hips and a
+ * quarter of a metre in front of the spine — so the pivot rides up and forward
+ * as the tuck comes on (`tuckBlend`) and slides back to the hips as the body
+ * unfolds out of it. Turning about the standing hips throughout was the bug:
+ * the ball swung round a point behind itself, which reads as a fighter thrown
+ * round their own tumble rather than spinning in place.
+ *
+ * The two tuck numbers are measured, not reasoned: `check-airflip` sums a real
+ * fighter's bones through a real roll and holds what it finds to a line, so
+ * they answer to the body the game actually builds — bulk, authored model and
+ * all — rather than to the bare rig's proportions.
+ */
+const FLIP_PIVOT_Y = 0.55;
+const FLIP_TUCK_RISE = 0.04;
+const FLIP_TUCK_FWD = 0.14;
+/** how fast the pivot follows the tuck in and out — the clips' own cross-fade */
+const FLIP_TUCK_FADE = 18;
 /** eased jetpack descent: gravity multiplier while the pack idles against the fall */
 const JET_DESCENT_GRAV = 0.3;
 /** eased jetpack descent: terminal fall speed, m/s */
@@ -330,6 +379,14 @@ export class Player {
   isBot = false;
   /** sprint gauge, separate from jetpack fuel: 1 = full */
   energy = 1;
+  /**
+   * Being taken by a kill zone: how long is left of it, and what has hold of
+   * you. A kill used to be instant — full health one frame, the respawn card
+   * the next, and nothing at all to say a sarlacc had you rather than a stray
+   * bolt. See `updateTaken`.
+   */
+  private takenT = 0;
+  private takenBy = new THREE.Vector3();
   /** riding the boosters down on the sights: slow descent, fuel burning */
   gliding = false;
   /** blaster heat, 0..1; at 1 the weapon locks out until it has vented */
@@ -444,6 +501,8 @@ export class Player {
   private flipSpin = 0;
   /** where the unwind is heading: the next whole revolution, radians */
   private flipTarget = 0;
+  /** how far into the tuck the body is, 0..1 — the pivot rides this */
+  private tuckBlend = 0;
   /** the body lean the flight code asks for, kept apart from the somersault */
   private leanX = 0;
   /**
@@ -762,6 +821,71 @@ export class Player {
       const look = p.clone();
       look.y += this.height;
       this.cam.snapToward(look, 0.5);
+    }
+  }
+
+  /**
+   * A kill zone has you.
+   *
+   * Instant death is the one outcome in this game that cannot be read. Full
+   * health one frame and the respawn card the next says *something* killed
+   * you, and on a board with a sarlacc, a lava river and a shock floor on it
+   * that is not enough to learn from — the report was "the ground circles kill
+   * you", which is exactly what it looks like from the inside.
+   *
+   * So being taken is a beat of its own. Control goes, the body is dragged in
+   * to whatever has hold of it and pulled under, and the death lands at the
+   * end of it — where the dissolve that already plays for every death carries
+   * on as normal. About a second: long enough to see the mouth close over you,
+   * short enough that it is never a wait.
+   */
+  private takenByHazard(at: THREE.Vector3): void {
+    if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
+    this.takenT = TAKEN_TIME;
+    this.takenBy.copy(at);
+    this.vehicle?.dropRider();
+    this.cover = null;
+    this.velocity.set(0, 0, 0);
+    audio.hurt(this.profile.voice);
+  }
+
+  /**
+   * One frame of being taken: hauled off your feet toward the middle of it and
+   * sunk, arms up, with the camera left where it is so you watch it happen.
+   */
+  private updateTaken(dt: number, game: Game): void {
+    this.takenT -= dt;
+    const gone = 1 - Math.max(0, this.takenT) / TAKEN_TIME;
+    // in toward the centre, and down: a mouth and a pool are the same motion
+    this.position.x = damp(this.position.x, this.takenBy.x, TAKEN_PULL, dt);
+    this.position.z = damp(this.position.z, this.takenBy.z, TAKEN_PULL, dt);
+    this.position.y -= TAKEN_SINK * dt * (0.4 + gone);
+    this.velocity.set(0, 0, 0);
+    this.grounded = false;
+    this.blocking = false;
+    this.aiming = false;
+    this.thrusting = 0;
+    this.char.setThrust(0);
+    audio.setJetpackThrust(this.slot, 0);
+    // the flail: the fall pose, sinking, with the body turned to face what has
+    // it so the shape reads from any camera
+    const anim = this.char.animator;
+    if (anim) {
+      anim.play('lower', 'flyFallLower');
+      anim.play('upper', 'flyFallUpper');
+    }
+    this.facingYaw = dampAngle(this.facingYaw,
+      Math.atan2(this.takenBy.x - this.position.x, this.takenBy.z - this.position.z), 6, dt);
+    game.particles.dustPuff(this.position, 2);
+    this.syncVisual(dt, game);
+    anim?.update(dt);
+    this.cam.update(dt, this.position, game.board.physics,
+      { aiming: false, speed: 0, dashing: false });
+    if (this.takenT <= 0) {
+      this.takenT = 0;
+      // 9999 so nothing shrugs it off; the dissolve and the respawn are the
+      // ordinary ones from here
+      this.damage(9999, this.takenBy, -1, { heavy: true });
     }
   }
 
@@ -1130,6 +1254,10 @@ export class Player {
     this.updateSaberThrow(dt, input, game);
     if (!this.alive) { this.updateDeadBody(dt, game, anim); return; }
 
+    // a kill zone has hold of you: no input, no fighting, just the beat it
+    // takes to pull you under (see `takenByHazard`)
+    if (this.takenT > 0) { this.updateTaken(dt, game); return; }
+
     // re-forming after a respawn: motes converge head-to-feet and the figure
     // fades back in where it will stand — watchable, untouchable, and deaf to
     // input until it is whole
@@ -1173,7 +1301,7 @@ export class Player {
     const jumped = this.updateJump(dt, input, game);
     this.updateJetpack(dt, input, game, jumped);
     this.updateSuperRise(dt, input);
-    this.updateAirFlip(dt, input, jumped);
+    this.updateAirFlip(dt, input, game, jumped);
 
     // ---- slam ----
     if (input.slamPressed && !this.grounded && this.velocity.y < 6) {
@@ -2079,9 +2207,9 @@ export class Player {
    */
   private applyHazards(dt: number, game: Game): void {
     if (!this.alive) return;
-    tickHazards(this.burn, game.board, this.position, dt, (amount, kill) => {
+    tickHazards(this.burn, game.board, this.position, dt, (amount, kill, by) => {
       // no drowning term: the helmet is sealed, and swimming is a mode here
-      if (kill) this.damage(999, this.position);
+      if (kill) this.takenByHazard(by ? by.center : this.position);
       else this.damage(amount, this.position, -1, { dot: true });
     });
   }
@@ -2276,7 +2404,9 @@ export class Player {
     let best: Vehicle | null = null;
     let bestD = 2.4;
     for (const v of game.vehicles) {
-      if (!v.alive || v.rider) continue;
+      // one with a hostile in the saddle is theirs until they are off it;
+      // one a hostile is still running for is anyone's — get there first
+      if (!v.alive || v.rider || v.hostile) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
@@ -2377,7 +2507,7 @@ export class Player {
     // kill zones still end the rider (the hull is not armour against a sarlacc);
     // burn zones cook the hull instead
     const hzd = hazardAt(game.board, this.position);
-    if (hzd.kill) { this.damage(999, this.position); return; }
+    if (hzd.kill) { this.takenByHazard(hzd.by ? hzd.by.center : this.position); return; }
     if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
     if (!this.vehicle) return; // the burn just finished the ride
 
@@ -3013,6 +3143,29 @@ export class Player {
   }
 
   /**
+   * How long this body has left in the air, in seconds, given what is under
+   * it and how fast it is going up or down: the positive root of the ballistic
+   * drop. Infinity where nothing is close enough underneath to land on, or
+   * where there is not enough gravity for the fall to arrive.
+   *
+   * Only ever an estimate, and deliberately the pessimistic one: it reads the
+   * column under the boots *now*, so a ledge stepped over on the way down is
+   * not in it, and it reads a plain fall, so a super jumper feathering the
+   * descent with the same button held has more air than this rather than less.
+   * A roll asks whether there is *enough* time, so erring short is the safe
+   * way to be wrong.
+   */
+  private airTimeLeft(game: Game): number {
+    const g = GRAVITY * this.gravity(game.board);
+    if (g < 1e-3) return Infinity;
+    const ground = game.board.physics.groundHeight(this.position.x, this.position.z, this.position.y);
+    const drop = this.position.y - ground;
+    if (!(drop >= 0) || drop > GROUND_PROBE) return Infinity;
+    const v = this.velocity.y;
+    return (v + Math.sqrt(v * v + 2 * g * drop)) / g;
+  }
+
+  /**
    * The acrobat's air somersault.
    *
    * Jump again once you are already airborne and the body tucks and turns for
@@ -3022,23 +3175,40 @@ export class Player {
    * whole revolution and unwinds into a normal fall, arriving upright every
    * time. Landing takes precedence over both — feet come first.
    *
+   * Which is why the height has to buy the turn before it starts. A hop with
+   * a metre of air in it cannot hold a revolution, and the roll that started
+   * in one only ever ended the way the ground ended it: cut off mid-tumble and
+   * snapped upright on contact. So a press only takes if what is left of the
+   * flight (`airTimeLeft`) covers a whole turn and the landing after it, and a
+   * roll already turning gives up the tuck as soon as the ground gets close
+   * enough that finishing the revolution is all there is time for. Between the
+   * two, a tumble that begins always ends on its feet.
+   *
    * `jumped` says this frame's press was the take-off, which is the one press
    * that must not start a roll.
    */
-  private updateAirFlip(dt: number, input: FrameInput, jumped: boolean): void {
+  private updateAirFlip(dt: number, input: FrameInput, game: Game, jumped: boolean): void {
     if (!this.profile.airFlip || this.grounded || !this.alive || this.blocking) {
       // upright on the ground, whatever the roll was doing a moment ago
       this.flipping = false;
       this.flipAngle = 0;
       this.flipSpin = 0;
+      this.tuckBlend = 0;
       return;
     }
-    if (input.jumpPressed && !jumped) this.flipping = true;
-    if (this.flipping && !input.jumpHeld) {
-      // the button is gone: pick the revolution to finish on and unwind to it
+    const air = this.airTimeLeft(game);
+    if (input.jumpPressed && !jumped && !this.flipping
+      && air >= FLIP_TURN_TIME + FLIP_LAND_MARGIN) {
+      this.flipping = true;
+    }
+    // the button is gone — or the ground has come up far enough that the turn
+    // left is all the air left: either way, pick the revolution to finish on
+    // and unwind to it
+    if (this.flipping && (!input.jumpHeld || air <= this.unwindTime())) {
       this.flipping = false;
       this.flipTarget = (Math.floor(this.flipAngle / (Math.PI * 2)) + 1) * Math.PI * 2;
     }
+    this.tuckBlend = damp(this.tuckBlend, this.flipping ? 1 : 0, FLIP_TUCK_FADE, dt);
     if (this.flipping) {
       this.flipSpin = damp(this.flipSpin, FLIP_SPIN, FLIP_SPIN_UP, dt);
       this.flipAngle += this.flipSpin * dt;
@@ -3050,11 +3220,33 @@ export class Player {
     // frozen a few degrees short of upright is the bug this avoids.
     const left = this.flipTarget - this.flipAngle;
     this.flipSpin = Math.max(FLIP_SETTLE_MIN, Math.min(this.flipSpin, left * FLIP_SETTLE_EASE));
+    // ...and never slower than the ground allows. The airtime test only ever
+    // guards the *start* of a roll, off a reading of the ground that a step
+    // sideways can change; this is the promise itself, and it holds whatever
+    // the floor does: what is left of the revolution gets spent before the
+    // boots arrive, hurried up if the ground came sooner than it looked.
+    this.flipSpin = Math.max(this.flipSpin, left / Math.max(air - FLIP_LAND_MARGIN, 1 / 30));
     this.flipAngle += this.flipSpin * dt;
     if (this.flipAngle >= this.flipTarget - 0.02) {
       this.flipAngle = 0;   // a whole number of turns is the pose it started in
       this.flipSpin = 0;
     }
+  }
+
+  /**
+   * Seconds the unwind needs if the tuck were let go this instant: what is
+   * left of the revolution in hand at the rate the roll is turning, plus the
+   * beat to put the feet down.
+   *
+   * The settle is what actually turns it, and the settle eases — but it is
+   * also floored against the ground below (see the unwind in `updateAirFlip`),
+   * so what it can hold is the turn rate, not the easing. Measuring against
+   * the easing instead would have every roll bail out the frame it began.
+   */
+  private unwindTime(): number {
+    const turn = Math.PI * 2;
+    const left = (Math.floor(this.flipAngle / turn) + 1) * turn - this.flipAngle;
+    return left / FLIP_SPIN + FLIP_LAND_MARGIN;
   }
 
   /**
@@ -3125,14 +3317,35 @@ export class Player {
     this.leanX = damp(this.leanX, target, this.flying ? 6 : 8, dt);
     this.char.root.rotation.x = this.leanX + this.flipAngle;
     if (this.flipAngle !== 0) {
-      // A somersault turns about the body, and `position` is where the boots
-      // are — spun about that the fighter scythes round their own feet like a
-      // vaulting pole. So the root is shifted by whatever the turn moved the
-      // hips, which pins the turn to the hips and leaves the feet to swing.
-      _flipPivot.set(0, this.height * 0.55, 0);
+      // A somersault turns about the body's mass, and `position` is where the
+      // boots are — spun about that the fighter scythes round their own feet
+      // like a vaulting pole. So the root is shifted by however much the turn
+      // moved the point the body should be turning about, which pins that
+      // point and leaves the feet to swing.
+      //
+      // That point is not the standing hips. The tuck folds the knees, chest
+      // and head in *front* of the spine and gathers the weight there, a hand
+      // above the hips and a quarter-metre ahead of them, so the pivot rides
+      // forward and up with the tuck (`tuckBlend`) and slides back to the hips
+      // as the body unfolds out of it. Turning about the hips regardless left
+      // the ball orbiting a point behind itself instead of spinning in place.
+      //
+      // Local first, then yawed into the world: the root's rotation is
+      // yaw-then-pitch, so the pitch acts on the body's own right-hand axis
+      // (`_flipAxis`) and the offset has to be carried round to meet it.
+      const fwd = this.height * FLIP_TUCK_FWD * this.tuckBlend;
+      _flipPivot.set(
+        fwd * Math.sin(this.facingYaw),
+        this.height * (FLIP_PIVOT_Y + FLIP_TUCK_RISE * this.tuckBlend),
+        fwd * Math.cos(this.facingYaw));
       _flipAxis.set(Math.cos(this.facingYaw), 0, -Math.sin(this.facingYaw));
-      _flipSwung.copy(_flipPivot).applyAxisAngle(_flipAxis, this.flipAngle);
-      this.char.root.position.copy(this.position).add(_flipPivot).sub(_flipSwung);
+      // Only the roll's share of the pitch is pinned: the flight lean is on
+      // the same axis and has always turned about the feet, so the shift is
+      // measured from where the lean alone would have put the pivot. Reading
+      // the roll alone instead let the lean drag the body off its own pivot.
+      _flipRest.copy(_flipPivot).applyAxisAngle(_flipAxis, this.leanX);
+      _flipSwung.copy(_flipPivot).applyAxisAngle(_flipAxis, this.leanX + this.flipAngle);
+      this.char.root.position.copy(this.position).add(_flipRest).sub(_flipSwung);
     }
     // creature playables (PvP heavies) animate themselves off their gait
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);

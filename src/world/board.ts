@@ -241,23 +241,27 @@ export function gravityScale(board: Board, x: number, y: number, z: number): num
   return board.gravityAt ? board.gravityAt(x, y, z) : board.gravity ?? 1;
 }
 
-const _out = { kill: false, dps: 0 };
+const _out: { kill: boolean; dps: number; by: Hazard | null } = { kill: false, dps: 0, by: null };
 
 /**
  * What the board does to whoever stands at `pos`: instant death (kill zone) or
  * damage per second (burn zones and the board's burnAt field). One shared
  * answer for players and enemies both.
  */
-export function hazardAt(board: Board, pos: THREE.Vector3): { kill: boolean; dps: number } {
+export function hazardAt(board: Board, pos: THREE.Vector3): { kill: boolean; dps: number; by: Hazard | null } {
   _out.kill = false;
   _out.dps = 0;
+  _out.by = null;
   if (board.hazards) {
     for (const h of board.hazards) {
       const yMax = h.yMax ?? h.center.y + 3;
       if (pos.y > yMax) continue;
       const dx = pos.x - h.center.x, dz = pos.z - h.center.z;
       if (dx * dx + dz * dz > h.radius * h.radius) continue;
-      if (h.kind === 'kill') { _out.kill = true; return _out; }
+      // `by` is what claimed you, which is the difference between a death and
+      // a death you can read: something has to know where the mouth was to
+      // pull a body down into it.
+      if (h.kind === 'kill') { _out.kill = true; _out.by = h; return _out; }
       _out.dps += h.dps ?? 10;
     }
   }
