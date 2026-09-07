@@ -625,6 +625,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const shockStrips: { hazards: Hazard[]; mat: THREE.MeshBasicMaterial; phase: number }[] = [];
   /** rim faces, merged per stage into one draw call each */
   const rimGeo: THREE.BufferGeometry[] = [];
+  /**
+   * Where each piece of border rock stands, parallel to `rimGeo`, so the merge
+   * at the end of the build can throw out the ones that turned out to be in
+   * the way. Nothing earlier can judge them: a rim is laid zone by zone, and
+   * the floor it might be standing on — the link out of that zone, the pocket
+   * behind a door — is not built until later.
+   */
+  const rimAt: { x: number; z: number; r: number }[] = [];
   const backGeo: THREE.BufferGeometry[] = [];
   let spaceN = 0;
 
@@ -818,6 +826,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * thing, and the mesas proved that years ago.
    */
   const rimPiece = (x: number, z: number, r: number, h: number, y0: number, backdrop: boolean): void => {
+    if (!backdrop) rimAt.push({ x, z, r });
     const geo = new THREE.CylinderGeometry(r * look.taper, r, h, look.facets, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -1725,7 +1734,71 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   // looking at the mesh. `facing` says which it is; the slab behind it is
   // checked by test-missions (every run, clearing the ceiling) and by this
   // audit's own pass for colliders with nothing on them.
-  mergeInto(rimGeo, rockMat, true, 'facing');
+  // ---- a border piece never stands on the floor the level laid ----
+  //
+  // `ridge` pushes its rock outward from the collider slab so the face of the
+  // cliff lands on the face of the wall. That holds along a run and fails at
+  // its ends: where a lane turns, or where a stage's own doorway cuts the rim,
+  // the pieces closing one run reach across the next one's floor — and the
+  // slab under them follows the run they belong to, not the one they are
+  // standing in. What that is, standing in it, is a wall drawn across the way
+  // on with nothing to stop you: the golden path goes through it, the floor
+  // arrow points at it, and you walk through it. Reported from the ravine, and
+  // true at the mouth of nearly every stage on the other eight boards.
+  const onFloor = (x: number, z: number): boolean =>
+    rects.some((rc) => x > rc.minX && x < rc.maxX && z > rc.minZ && z < rc.maxZ);
+  /** the nearest point of any laid floor to `(x, z)`, and how far off it is */
+  const nearestFloor = (x: number, z: number): number => {
+    let best = Infinity;
+    for (const rc of rects) {
+      const cx = Math.min(Math.max(x, rc.minX), rc.maxX);
+      const cz = Math.min(Math.max(z, rc.minZ), rc.maxZ);
+      best = Math.min(best, Math.hypot(x - cx, z - cz));
+    }
+    return best;
+  };
+  /**
+   * Is something solid here, at the height a body walks?
+   *
+   * The height is the whole of it. Asked a third of the way up a fifty-metre
+   * cliff, the rock over a doorway answers yes — that lintel *is* solid, and
+   * the doorway under it is not, which is the one place rock gets drawn across
+   * a way through. A wall is only a wall where you would walk into it.
+   */
+  const backedAt = (x: number, z: number): boolean => {
+    const y = groundAt(x, z) + 1;
+    return boxes.some((b) => x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z
+      && y > b.min.y && y < b.max.y)
+      || cylinders.some((c) => y > c.minY && y < c.maxY && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
+  };
+  let culled = 0;
+  const keptRim = rimGeo.filter((geo, i) => {
+    const at = rimAt[i];
+    if (!at) return true;
+    if (nearestFloor(at.x, at.z) > at.r) return true;          // nowhere near a floor
+    // The piece's whole footprint on a metre grid, not a ring of samples: a
+    // ring with any spacing can straddle a lane and miss it, and a piece whose
+    // centre sits on the floor has no ring to sample in the first place.
+    //
+    // This does not cull the wall itself. A rim piece is laid with its inner
+    // face *on* the slab's inner face, so where it reaches over a floor at all
+    // it is inside its own collider and answers `backedAt`. Only rock with
+    // nothing under it goes — and the wall a dead end is a door in is laid
+    // across its lane, is solid, and stays.
+    for (let dx = -at.r; dx <= at.r; dx += 1) {
+      for (let dz = -at.r; dz <= at.r; dz += 1) {
+        if (dx * dx + dz * dz > at.r * at.r) continue;
+        const px = at.x + dx, pz = at.z + dz;
+        if (onFloor(px, pz) && !backedAt(px, pz)) { culled++; return false; }
+      }
+    }
+    return true;
+  });
+  for (const geo of rimGeo) if (!keptRim.includes(geo)) geo.dispose();
+  if (culled) {
+    console.warn(`[mission] ${stage.label}: dropped ${culled} border piece(s) standing on the level's own floor`);
+  }
+  mergeInto(keptRim, rockMat, true, 'facing');
   // The backdrop row is the mountains beyond — `ridge()` says so in as many
   // words: "mesh only, which nothing has to reach". It stands fourteen to
   // twenty-four metres further out again than a border that is itself outside
