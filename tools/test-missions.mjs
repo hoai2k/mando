@@ -642,6 +642,7 @@ for (const board of boards) {
     const g = window.__game;
     const c = g.campaign;
     const spec = c.stage;
+    const phys = g.board.physics;
     const bad = [];
     // every fight zone needs somewhere to put a wave
     for (const z of spec.zones) {
@@ -665,6 +666,24 @@ for (const board of boards) {
             bad.push(`${zone.spec.label}: a ${ride.kind} is parked ${d.toFixed(1)} m from a ${prop.id} (needs ${(prop.solid.r + 3).toFixed(1)})`);
           }
         }
+      }
+    }
+
+    // One barrier per way on, and no orphans. Two code paths used to build a
+    // road's far mouth — the generic outdoor exit and the road's own
+    // barricade — so a `chase` zone got two fences at one spot, the second
+    // taking the variable and the first left holding a blocker nothing could
+    // open: an invisible wall across the way on that survived clearing the
+    // road. Counting the colliders that stand where a barrier stands catches
+    // any repeat of that on any board.
+    for (const zone of spec.zones) {
+      for (const [which, bar] of [['exit', zone.exitBarrier], ['entry', zone.entryBarrier]]) {
+        if (!bar) continue;
+        const n = phys.boxes.filter((b) =>
+          bar.pos.x > b.min.x - 0.5 && bar.pos.x < b.max.x + 0.5
+          && bar.pos.z > b.min.z - 0.5 && bar.pos.z < b.max.z + 0.5
+          && b.max.y - b.min.y > 6).length;
+        if (n > 1) bad.push(`${zone.spec.label}: ${n} blockers stand on its ${which} barrier`);
       }
     }
 

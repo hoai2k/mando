@@ -1372,9 +1372,19 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         landmark = surf(f, l + 1.2, 0, 3);
       }
 
-      // an outdoor fight is held in by its exit, never by a cage behind it
+      // An outdoor fight is held in by its exit, never by a cage behind it.
+      //
+      // A **road** is not in this list, because a road builds its own far
+      // mouth below — crates or a fence, by `barricade`. It used to be, and
+      // the two of them made two fences at the same spot: the second
+      // assignment took the variable and the first was orphaned, still holding
+      // its blocker, which nothing could then open. What that leaves is an
+      // invisible wall across the way on that survives clearing the road —
+      // one metre by seven point eight, standing on Nevarro's causeway and the
+      // Great Forge's highway, the two roads whose barricade is a fence. The
+      // Dune Sea escaped it only because its barricade is crates.
       if (internalExit && !doorFace
-        && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord' || zs.kind === 'chase')) {
+        && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord')) {
         exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
       if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && internalEntry) {
