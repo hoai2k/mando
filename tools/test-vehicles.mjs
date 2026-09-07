@@ -738,8 +738,12 @@ const mission = await h.page.evaluate(() => {
   const stage = g.campaign?.stage;
   if (!stage) return { noStage: true };
   const off = g.vehicles.filter((v) => !stage.contains(v.pos.x, v.pos.z)).length;
+  // On the ground, to within a hand's width of its own hover height — not
+  // "within three metres of the floor", which is loose enough to pass a
+  // landspeeder sitting on top of a two-and-a-half-metre Tusken tent. That is
+  // what a playtest found, and what this number was hiding.
   const sunk = g.vehicles.filter((v) =>
-    Math.abs(v.pos.y - stage.groundAt(v.pos.x, v.pos.z)) > 3).length;
+    Math.abs(v.pos.y - v.def.hover - stage.groundAt(v.pos.x, v.pos.z)) > 0.6).length;
   return {
     n: g.vehicles.length,
     want: stage.rides.length,
@@ -755,7 +759,7 @@ check('missions parks the rides its stage declares',
   `${mission.n} spawned, ${mission.want} declared by the stage`);
 check('and every one of them is standing on it',
   !mission.noStage && mission.off === 0 && mission.sunk === 0,
-  `${mission.off} off the stage, ${mission.sunk} not on its ground (floor y=${mission.floorY})`);
+  `${mission.off} off the stage, ${mission.sunk} not on the ground under them (floor y=${mission.floorY})`);
 
 const bad = h.errors.length;
 console.log('page errors:', bad ? h.errors.slice(0, 3) : 'none');

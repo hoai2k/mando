@@ -89,7 +89,9 @@ const desert: StageSpec[] = [
           { kind: 'swoop', u: 12, v: 9, yaw: 0 },
           { kind: 'swoop', u: 16, v: 13, yaw: 0 },
           { kind: 'bantha', u: 13, v: -11, yaw: 1.6 },
-          { kind: 'landspeeder', u: 20, v: -14, yaw: 0 },
+          // 1.4 m from the tent at (21, -13) is a landspeeder parked on a
+          // yurt: the hull settles onto whatever the physics finds under it.
+          { kind: 'landspeeder', u: 30, v: -15, yaw: 0 },
           { kind: 'skiff', u: 30, v: 12, yaw: 0 },
         ],
       }),
@@ -133,8 +135,13 @@ const desert: StageSpec[] = [
       z('desert', 6, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
       z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, waves: 3, pass: true }),
       z('desert', 8, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'crates',
-        props: [{ id: 'sail_barge', u: 22, v: 9, size: 26, yaw: 0.5, solid: { r: 4.4, h: 5 } }],
+        // A twenty-six metre barge nine metres off a lane twenty-two metres
+        // wide is a barge lying across the lane: the golden path ran through
+        // its hull, so the arrow pointed into it and the way on was a wreck
+        // you had to be told to walk around. The graves are wider now and it
+        // is beached along the north side, where it is a landmark instead.
+        shell: 'open', kind: 'camp', w: 60, l: 40, feature: 'crates',
+        props: [{ id: 'sail_barge', u: 24, v: 19, size: 20, yaw: 0.5, solid: { r: 4.4, h: 5 } }],
       }),
       z('desert', 9, {
         shell: 'open', kind: 'warlord', w: 80, l: 70, air: true,
@@ -442,7 +449,10 @@ const forge: StageSpec[] = [
     zones: [
       z('forge', 6, {
         shell: 'open', kind: 'assault', w: 54, l: 48, waves: 3, pass: true, air: true, feature: 'pillars',
-        props: [{ id: 'forge_brazier', u: 24, v: 0, size: 3.5, solid: { r: 1.6, h: 1.6 } }],
+        // v: 0 is the lane's own centreline, which is where the golden path
+        // runs and where the floor arrow points — a brazier there is a thing
+        // the guidance sends you into. Off to one side it is a landmark.
+        props: [{ id: 'forge_brazier', u: 24, v: 9, size: 3.5, solid: { r: 1.6, h: 1.6 } }],
       }),
       z('forge', 7, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
       z('forge', 8, {

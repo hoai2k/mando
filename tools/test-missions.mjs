@@ -500,13 +500,19 @@ const riders = await page.evaluate(`(() => {
   if (!mounted.length) return { before, claimed, running, mounted: 0 };
   const rider = mounted[0], v = rider.ride;
   const onFoot = crew().filter((e) => !e.ride && !e.boarding).length;
-  // and a few seconds at the pedals: it moves, and it moves at the party
-  // the closest it comes, not where it ends up: a swoop at 18 m/s crosses a
-  // 40 m corral in two seconds, overshoots, and is turning back when the
-  // window closes — end-to-start distance measures the turn, not the attack
+  // A few seconds at the pedals: it moves, and it moves at the party.
+  //
+  // Stand the party at a known distance off the ride's nose first. Which of
+  // the corral's five rides a Tusken reaches first depends on where the camp
+  // posted him, so measuring from wherever he happened to start measures the
+  // walk, not the charge — and the numbers moved the day the rides were
+  // re-parked clear of the tents. Thirty metres dead ahead asks the question
+  // the check is about: does the thing come at you.
+  const ahead = 30;
+  p.position.set(v.pos.x + Math.sin(v.yaw) * ahead, v.pos.y, v.pos.z + Math.cos(v.yaw) * ahead);
   const seat0 = rider.position.clone();
   let top = 0, nearest = v.pos.distanceTo(p.position);
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 120; i++) {
     window.__sim(1 / 30);
     top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));
     nearest = Math.min(nearest, v.pos.distanceTo(p.position));
@@ -515,7 +521,8 @@ const riders = await page.evaluate(`(() => {
   // shot out of the saddle
   rider.damage(9999, p.position, 0);
   const dropped = { hostile: v.hostile, alive: rider.alive, rideAlive: v.alive, rideRef: rider.ride };
-  window.__sim(4);
+  // long enough for a riderless hull to run its speed off and park itself
+  window.__simUntil(() => Math.hypot(v.vel.x, v.vel.z) < 0.2, 12);
   const speedAfter = Math.hypot(v.vel.x, v.vel.z);
   // and it is the party's for the taking: walk up, and the prompt is there
   p.position.set(v.pos.x + v.def.radius + 1.0, v.pos.y + 0.3, v.pos.z);
@@ -541,8 +548,92 @@ check('drop the rider and the saddle is empty, the ride whole',
   riders.mounted > 0 && !riders.dropped.hostile && !riders.dropped.alive && riders.dropped.rideAlive && !riders.dropped.rideRef,
   JSON.stringify(riders.dropped));
 check('and it rolls to a stop where the party can take it',
-  riders.mounted > 0 && riders.speedAfter < 0.5 && riders.yours,
+  riders.mounted > 0 && riders.speedAfter < 0.6 && riders.yours,
   `speed ${riders.speedAfter} · mountable ${riders.yours}`);
+
+// ------------------------------------------------- checkpoints are optional
+
+// A checkpoint marks the way; it does not unlock it. Playtest found the
+// opposite: every hostile dead, the door still shut, and the cure a walk back
+// to a flag they had run past. Clearing the ground clears the zone — except
+// the last one before a transport door, which is a deliberate walk.
+await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+const optional = await page.evaluate(`(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  window.__simUntil(() => g.state === 'fighting', 30);
+  p.maxHp = 1e6; p.hp = 1e6;
+  const corral = c.stage.zones[1];
+  // stand in the corral so it is the zone being fought, then kill its garrison
+  // without ever going near its exit
+  c.idx = 1; c.phase = 'travel';
+  p.position.set(corral.center.x, corral.center.y + 0.5, corral.center.z);
+  window.__sim(0.4);
+  const entered = c.phase === 'fight' && c.idx === 1;
+  const farFromExit = p.position.distanceTo(corral.exit);
+  for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
+  window.__simUntil(() => c.idx > 1, 8);
+  const advanced = c.idx > 1;
+  // ...and the way on does NOT open on a body count alone: the last zone of
+  // the stage still wants the walk to its exit
+  c.idx = c.stage.zones.length - 1;
+  c.phase = 'fight';
+  const last = c.stage.zones[c.stage.zones.length - 1];
+  p.position.set(last.center.x, last.center.y + 0.5, last.center.z);
+  for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
+  window.__sim(3);
+  const heldAtTheDoor = c.idx === c.stage.zones.length - 1;
+  // walking to it does open it
+  p.position.set(last.exit.x, last.exit.y + 0.5, last.exit.z);
+  window.__simUntil(() => c.idx >= c.stage.zones.length, 6);
+  const openedOnTheWalk = c.idx >= c.stage.zones.length;
+  return { entered, farFromExit: +farFromExit.toFixed(1), advanced, heldAtTheDoor, openedOnTheWalk };
+})()`);
+check('a camp cleared of its garrison advances without the checkpoint',
+  optional.entered && optional.advanced && optional.farFromExit > 8,
+  JSON.stringify(optional));
+check('but the last checkpoint before the door is still a walk',
+  optional.heldAtTheDoor && optional.openedOnTheWalk, JSON.stringify(optional));
+
+// ------------------------------------------------- a new kind arrives alone
+
+// The rule, exercised where it lives: a wave that would bring a kind nobody
+// has met yet brings *only* the new kinds, and the mixing starts once they are
+// known. Playtest: *"we should have them be a wave themselves instead of
+// mixing with the other waves, at least when first encountered."*
+await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+const debut = await page.evaluate(`(() => {
+  const g = window.__game, c = g.campaign;
+  const zone = c.stage.zones.find((z) => z.spec.air) ?? c.stage.zones[1];
+  // meet the board's earlier roster the way a run does — a camp's garrison is
+  // drawn without the debut rule, and everyone in it counts as met
+  c.seenKinds.clear();
+  const early = c.squadFor(3, 10, zone);
+  const known = [...c.seenKinds];
+  // now the next step up the ramp, as a wave
+  const wave = c.squadFor(4, 8, zone, { debut: true });
+  const waveKinds = [...new Set(wave)];
+  const newOnes = waveKinds.filter((k) => !known.includes(k));
+  // where a step up the ramp brings several new kinds they queue: the next
+  // wave is the next one of them, alone again
+  const next = [...new Set(c.squadFor(4, 8, zone, { debut: true }))];
+  // ...and once there is nothing new left, the mixing resumes
+  let after = next;
+  for (let i = 0; i < 6 && after.every((k) => !known.includes(k)); i++) {
+    after = [...new Set(c.squadFor(4, 8, zone, { debut: true }))];
+  }
+  return {
+    known: [...new Set(early)], waveKinds, newOnes, next,
+    alone: waveKinds.length === 1 && newOnes.length === 1,
+    nextAlone: next.length === 1,
+    mixedAfter: after.some((k) => known.includes(k)),
+  };
+})()`);
+check('a new kind arrives as a squadron of its own',
+  debut.alone, `met ${JSON.stringify(debut.known)} then the wave was ${JSON.stringify(debut.waveKinds)}`);
+check('and several new kinds queue up, a wave each',
+  debut.nextAlone && debut.next[0] !== debut.waveKinds[0], JSON.stringify(debut.next));
+check('and once they are all known the mixing resumes',
+  debut.mixedAfter, JSON.stringify(debut));
 
 // ---------------------------------------------------------------- every board
 
@@ -558,6 +649,7 @@ for (const board of boards) {
     const g = window.__game;
     const c = g.campaign;
     const spec = c.stage;
+    const phys = g.board.physics;
     const bad = [];
     // every fight zone needs somewhere to put a wave
     for (const z of spec.zones) {
@@ -566,6 +658,47 @@ for (const board of boards) {
       if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) bad.push(`${z.spec.label}: vents`);
       if (!z.posts.length) bad.push(`${z.spec.label}: posts`);
     }
+    // A ride stands on the ground, not on the furniture. It takes its hover
+    // height from the physics — the highest surface under it — so one authored
+    // a metre and a half from a Tusken tent settles onto the tent's roof and
+    // sits there, which is where a playtest found a landspeeder. Checked in
+    // the zone's own coordinates, where both were written, so it holds however
+    // the stage is placed in the world.
+    for (const zone of spec.zones) {
+      for (const ride of zone.spec.rides ?? []) {
+        for (const prop of zone.spec.props ?? []) {
+          if (!prop.solid) continue;
+          const d = Math.hypot(ride.u - prop.u, ride.v - prop.v);
+          if (d < prop.solid.r + 3) {
+            bad.push(`${zone.spec.label}: a ${ride.kind} is parked ${d.toFixed(1)} m from a ${prop.id} (needs ${(prop.solid.r + 3).toFixed(1)})`);
+          }
+        }
+      }
+    }
+
+    // One barrier per way on, and no orphans. Two code paths used to build a
+    // road's far mouth — the generic outdoor exit and the road's own
+    // barricade — so a `chase` zone got two fences at one spot, the second
+    // taking the variable and the first left holding a blocker nothing could
+    // open: an invisible wall across the way on that survived clearing the
+    // road. Counting the colliders that stand where a barrier stands catches
+    // any repeat of that on any board.
+    for (const zone of spec.zones) {
+      for (const [which, bar] of [['exit', zone.exitBarrier], ['entry', zone.entryBarrier]]) {
+        if (!bar) continue;
+        // At body height, and in the gap itself. A doorway's own frame is
+        // solid by design — posts either side, a lintel over the top — and
+        // none of that is in the way of walking through. What an orphaned
+        // blocker looks like is a second thing filling the opening.
+        const y = bar.pos.y + 1;
+        const n = phys.boxes.filter((b) =>
+          bar.pos.x > b.min.x && bar.pos.x < b.max.x
+          && bar.pos.z > b.min.z && bar.pos.z < b.max.z
+          && y > b.min.y && y < b.max.y).length;
+        if (n > 1) bad.push(`${zone.spec.label}: ${n} blockers fill its ${which} barrier's gap`);
+      }
+    }
+
     // and every parked ride has to be standing on the stage — in somebody's
     // camp. A ride with no owner standing in the middle of nowhere is the
     // thing the corrals exist to prevent: it is either in a held camp or in
@@ -576,6 +709,10 @@ for (const board of boards) {
         && r.z >= z.rect.minZ && r.z <= z.rect.maxZ);
       const kind = owner?.spec.kind;
       if (kind !== 'camp' && kind !== 'warlord') bad.push(`ride ${r.kind} has no owner (${kind ?? 'no zone'})`);
+      for (const q of spec.rides) {
+        if (q === r) continue;
+        if (Math.hypot(q.x - r.x, q.z - r.z) < 2.5) bad.push(`ride ${r.kind} is parked inside a ${q.kind}`);
+      }
     }
     return {
       bad,

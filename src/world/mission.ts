@@ -285,6 +285,19 @@ const TRAIL_EVERY = 15;
 const RIDE_MIN_SIDE = 40;
 /** how far from an open edge a ride is parked */
 const RIDE_EDGE_CLEAR = 6;
+/**
+ * How much room a parked ride needs around it, measured from its keel: enough
+ * that the longest hull (a skiff, ~5 m nose to tail) is clear of a prop's own
+ * blocked circle rather than settling onto its roof.
+ */
+const RIDE_CLEAR = 3;
+/**
+ * How far past its nominal radius a rim piece's drawn rock actually reaches,
+ * once `rimPiece` has noised its vertices outward. The noise is a fraction of
+ * `r` scaled by height, so the overhang grows with the boulder rather than
+ * being a fixed margin — 1.6 covers the worst of it on every ridge style.
+ */
+const RIM_NOISE_REACH = 1.6;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -625,6 +638,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const shockStrips: { hazards: Hazard[]; mat: THREE.MeshBasicMaterial; phase: number }[] = [];
   /** rim faces, merged per stage into one draw call each */
   const rimGeo: THREE.BufferGeometry[] = [];
+  /**
+   * Where each piece of border rock stands, parallel to `rimGeo`, so the merge
+   * at the end of the build can throw out the ones that turned out to be in
+   * the way. Nothing earlier can judge them: a rim is laid zone by zone, and
+   * the floor it might be standing on — the link out of that zone, the pocket
+   * behind a door — is not built until later.
+   */
+  const rimAt: { x: number; z: number; r: number }[] = [];
   const backGeo: THREE.BufferGeometry[] = [];
   let spaceN = 0;
 
@@ -818,6 +839,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * thing, and the mesas proved that years ago.
    */
   const rimPiece = (x: number, z: number, r: number, h: number, y0: number, backdrop: boolean): void => {
+    if (!backdrop) rimAt.push({ x, z, r });
     const geo = new THREE.CylinderGeometry(r * look.taper, r, h, look.facets, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -997,9 +1019,36 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (edge < RIDE_EDGE_CLEAR) {
         console.warn(`[mission] ${zs.label}: a ride is parked ${edge.toFixed(1)} m from an edge`);
       }
-      const rx = f.x(r.u, r.v), rz = f.z(r.u, r.v);
+      // A ride stands on the ground, never on the furniture.
+      //
+      // `Vehicle` finds its own hover height from the *physics* — the highest
+      // surface under it — so a landspeeder authored a metre and a half from a
+      // tent settles onto the tent's roof and sits there, which is what a
+      // playtest found in the Tusken corral. Authored coordinates are written
+      // by eye against a zone diagram and the props move; rather than trust
+      // them, take the authored spot when it is clear of everything already
+      // standing here (`blocked` — props, crates, pillars, other rides) and
+      // otherwise walk outward in rings until it is. The ride stays in its
+      // zone and near where it was meant to be; it just stops being on a roof.
+      let u = r.u, v = r.v, moved = 0;
+      if (!clearOf(f.x(u, v), f.z(u, v), RIDE_CLEAR)) {
+        const uMin = RIDE_EDGE_CLEAR, uMax = zs.l - RIDE_EDGE_CLEAR;
+        const vMax = zs.w / 2 - RIDE_EDGE_CLEAR;
+        search: for (const ring of [3, 5, 7, 9, 12]) {
+          for (let a = 0; a < 12; a++) {
+            const th = (a / 12) * Math.PI * 2;
+            const cu = r.u + Math.cos(th) * ring, cv = r.v + Math.sin(th) * ring;
+            if (cu < uMin || cu > uMax || Math.abs(cv) > vMax) continue;
+            if (!clearOf(f.x(cu, cv), f.z(cu, cv), RIDE_CLEAR)) continue;
+            u = cu; v = cv; moved = ring;
+            break search;
+          }
+        }
+        if (!moved) console.warn(`[mission] ${zs.label}: nowhere clear to park a ${r.kind}`);
+      }
+      const rx = f.x(u, v), rz = f.z(u, v);
       rides.push({ kind: r.kind, x: rx, z: rz, yaw: r.yaw, y: groundAt(rx, rz) });
-      blocked.push({ x: rx, z: rz, r: 3 });
+      blocked.push({ x: rx, z: rz, r: RIDE_CLEAR });
     }
   };
 
@@ -1323,9 +1372,19 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         landmark = surf(f, l + 1.2, 0, 3);
       }
 
-      // an outdoor fight is held in by its exit, never by a cage behind it
+      // An outdoor fight is held in by its exit, never by a cage behind it.
+      //
+      // A **road** is not in this list, because a road builds its own far
+      // mouth below — crates or a fence, by `barricade`. It used to be, and
+      // the two of them made two fences at the same spot: the second
+      // assignment took the variable and the first was orphaned, still holding
+      // its blocker, which nothing could then open. What that leaves is an
+      // invisible wall across the way on that survives clearing the road —
+      // one metre by seven point eight, standing on Nevarro's causeway and the
+      // Great Forge's highway, the two roads whose barricade is a fence. The
+      // Dune Sea escaped it only because its barricade is crates.
       if (internalExit && !doorFace
-        && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord' || zs.kind === 'chase')) {
+        && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord')) {
         exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
       if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && internalEntry) {
@@ -1725,7 +1784,78 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   // looking at the mesh. `facing` says which it is; the slab behind it is
   // checked by test-missions (every run, clearing the ceiling) and by this
   // audit's own pass for colliders with nothing on them.
-  mergeInto(rimGeo, rockMat, true, 'facing');
+  // ---- a border piece never stands on the floor the level laid ----
+  //
+  // `ridge` pushes its rock outward from the collider slab so the face of the
+  // cliff lands on the face of the wall. That holds along a run and fails at
+  // its ends: where a lane turns, or where a stage's own doorway cuts the rim,
+  // the pieces closing one run reach across the next one's floor — and the
+  // slab under them follows the run they belong to, not the one they are
+  // standing in. What that is, standing in it, is a wall drawn across the way
+  // on with nothing to stop you: the golden path goes through it, the floor
+  // arrow points at it, and you walk through it. Reported from the ravine, and
+  // true at the mouth of nearly every stage on the other eight boards.
+  const onFloor = (x: number, z: number): boolean =>
+    rects.some((rc) => x > rc.minX && x < rc.maxX && z > rc.minZ && z < rc.maxZ);
+  /** the nearest point of any laid floor to `(x, z)`, and how far off it is */
+  const nearestFloor = (x: number, z: number): number => {
+    let best = Infinity;
+    for (const rc of rects) {
+      const cx = Math.min(Math.max(x, rc.minX), rc.maxX);
+      const cz = Math.min(Math.max(z, rc.minZ), rc.maxZ);
+      best = Math.min(best, Math.hypot(x - cx, z - cz));
+    }
+    return best;
+  };
+  /**
+   * Is something solid here, at the height a body walks?
+   *
+   * The height is the whole of it. Asked a third of the way up a fifty-metre
+   * cliff, the rock over a doorway answers yes — that lintel *is* solid, and
+   * the doorway under it is not, which is the one place rock gets drawn across
+   * a way through. A wall is only a wall where you would walk into it.
+   */
+  const backedAt = (x: number, z: number): boolean => {
+    const y = groundAt(x, z) + 1;
+    return boxes.some((b) => x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z
+      && y > b.min.y && y < b.max.y)
+      || cylinders.some((c) => y > c.minY && y < c.maxY && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
+  };
+  let culled = 0;
+  const keptRim = rimGeo.filter((geo, i) => {
+    const at = rimAt[i];
+    if (!at) return true;
+    // Out to the piece's *drawn* extent, not its nominal radius. `rimPiece`
+    // noises every vertex outward by up to `look.noise * r`, scaled again by
+    // height, which on rock takes a five-metre boulder past seven — so a grid
+    // stopping at `r` leaves the overhang that is actually in the lane
+    // untested. That is what survived this cull on the Crevasse and the Storm
+    // Docks after it had cleared the other seven boards.
+    const reach = at.r * RIM_NOISE_REACH;
+    if (nearestFloor(at.x, at.z) > reach) return true;          // nowhere near a floor
+    // The piece's whole footprint on a metre grid, not a ring of samples: a
+    // ring with any spacing can straddle a lane and miss it, and a piece whose
+    // centre sits on the floor has no ring to sample in the first place.
+    //
+    // This does not cull the wall itself. A rim piece is laid with its inner
+    // face *on* the slab's inner face, so where it reaches over a floor at all
+    // it is inside its own collider and answers `backedAt`. Only rock with
+    // nothing under it goes — and the wall a dead end is a door in is laid
+    // across its lane, is solid, and stays.
+    for (let dx = -reach; dx <= reach; dx += 1) {
+      for (let dz = -reach; dz <= reach; dz += 1) {
+        if (dx * dx + dz * dz > reach * reach) continue;
+        const px = at.x + dx, pz = at.z + dz;
+        if (onFloor(px, pz) && !backedAt(px, pz)) { culled++; return false; }
+      }
+    }
+    return true;
+  });
+  for (const geo of rimGeo) if (!keptRim.includes(geo)) geo.dispose();
+  if (culled) {
+    console.warn(`[mission] ${stage.label}: dropped ${culled} border piece(s) standing on the level's own floor`);
+  }
+  mergeInto(keptRim, rockMat, true, 'facing');
   // The backdrop row is the mountains beyond — `ridge()` says so in as many
   // words: "mesh only, which nothing has to reach". It stands fourteen to
   // twenty-four metres further out again than a border that is itself outside
