@@ -17,7 +17,7 @@ const line = () => h.page.evaluate(() => window.__charselLine());
 
 // ---- to the PvP character select ----
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
-await h.pad.tap(BTN.DRIGHT);            // Wave Battle -> PvP
+await h.focusButton(/PVP/i);            // by name, not by counting from Wave Battle
 await h.pad.tap(BTN.A);
 await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
 await h.pad.tap(BTN.A);

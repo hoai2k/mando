@@ -63,9 +63,9 @@ The title screen offers three modes:
 
 | Mode | What it is |
 |---|---|
+| **Missions** | The campaign: a path across the galaxy on a shared screen, door-gated corridors between arenas, a boss holding each territory. |
 | **Wave Battle** | The core game — ten waves on one territory, then the board's warlord as a boss wave. Solo or up to four in split-screen. |
 | **PvP** | Hunter against hunter, each with a squad of followers, last one standing. |
-| **Missions** | The campaign: a path across the galaxy on a shared screen, door-gated corridors between arenas, a boss holding each territory. |
 
 Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
 one-button title and the wave game on its own, or `?missions=new` for the experimental

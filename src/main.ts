@@ -150,10 +150,12 @@ if (modesEnabled()) {
     enterFullscreen();
     setState(next);
   };
+  // Missions first, then Wave Battle, then PvP. The menu focuses its first
+  // button, so this also makes Missions what START opens from a cold title.
   title.addButtons(null, [
+    { label: TEXT.title.missions, action: () => pickMode('campaign', 'planets') },
     { label: TEXT.title.waveBattle, action: () => pickMode('wave', 'select') },
     { label: TEXT.title.pvp, action: () => pickMode('pvp', 'select') },
-    { label: TEXT.title.missions, action: () => pickMode('campaign', 'planets') },
   ]);
 } else {
   title.addButtons(null, [

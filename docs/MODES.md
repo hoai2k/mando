@@ -1,8 +1,9 @@
 # Game Modes — research, analysis & design
 
 Three modes, **on by default** as of 2026-08-29: the title shows three choices —
-**Wave Battle**, **PvP**, and **Missions** (the campaign; the mode keeps its
-internal id `campaign`) — one per mode. They spent their build behind a `?modes`
+**Missions** (the campaign; the mode keeps its
+internal id `campaign`), **Wave Battle** and **PvP**, in that order on screen —
+one per mode. They spent their build behind a `?modes`
 URL flag; that escape hatch survives inverted, so `?nomodes` (or `?modes=off`)
 puts the single **Press Start** back and the game is exactly the wave game. The
 regression test drives both paths. A second testing flag, **`?waves=boss`**,

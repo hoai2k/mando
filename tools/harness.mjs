@@ -339,13 +339,34 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   }
 
   /** title -> board select -> character select -> playing */
+  /**
+   * Move the menu's focus onto the button whose label matches, by walking
+   * right. Every suite that starts a match used to lean on Wave Battle being
+   * the *first* button, so START opened it without anyone saying so — which
+   * meant reordering the title screen silently sent the whole suite into
+   * another mode. Name the button instead of counting to it.
+   *
+   * A no-op on a screen with no such button (`?nomodes`), so callers can ask
+   * for it unconditionally.
+   */
+  async function focusButton(re) {
+    const focused = () => page.evaluate(() => document.querySelector('.menu-btn.focused')?.textContent ?? '');
+    const count = await page.$$eval('.menu-btn', (els) => els.length).catch(() => 0);
+    for (let i = 0; i < count; i++) {
+      if (re.test(await focused())) return true;
+      await pad.tap(BTN.DRIGHT);
+      await sleep(220);
+    }
+    return re.test(await focused());
+  }
+
   async function startMatch({ board = 0, character = 0 } = {}) {
-    // The title screen has two shapes: the mode select (the default — Wave
-    // Battle / PvP / Missions) and the single Press Start behind `?nomodes`.
-    // Wave Battle is the focused button on the mode select, so START opens the
-    // same board select from either; wait for whichever one is up rather than
-    // for the wording of one of them.
+    // The title screen has two shapes: the mode select (the default — Missions
+    // / Wave Battle / PvP) and the single Press Start behind `?nomodes`. Wait
+    // for whichever is up, then put the focus on Wave Battle by name; on the
+    // one-button title there is nothing to move to and the call does nothing.
     await waitForText(/PRESS START|WAVE BATTLE/i);
+    await focusButton(/WAVE BATTLE/i);
     await pad.tap(BTN.START);
     await waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
     for (let i = 0; i < board; i++) { await pad.tap(BTN.DRIGHT); }
@@ -458,7 +479,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   return {
     browser, page, pad, pads, errors,
-    text, waitForText, tapUntil, clickText, startMatch, waitForPlaying, waitForTitle,
+    text, waitForText, tapUntil, clickText, focusButton, startMatch, waitForPlaying, waitForTitle,
     startCoop, startMode, manual, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
     close: async () => {

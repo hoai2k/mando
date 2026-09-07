@@ -52,6 +52,10 @@ await press(BTN.DUP);
 check('...and back up one', await titleFocus(), t0);
 
 // ---- 2. the territory grid moves by where the cards are ----
+// The grid belongs to Wave Battle and PvP; Missions opens a planet strip
+// instead, and it is the first button on the title now. Ask for the mode by
+// name rather than relying on which one the menu happens to focus.
+await h.focusButton(/WAVE BATTLE/i);
 await press(BTN.START);
 await h.waitForText(/CHOOSE|TERRITORY/i);
 await sleep(500);
