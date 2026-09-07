@@ -449,7 +449,10 @@ const forge: StageSpec[] = [
     zones: [
       z('forge', 6, {
         shell: 'open', kind: 'assault', w: 54, l: 48, waves: 3, pass: true, air: true, feature: 'pillars',
-        props: [{ id: 'forge_brazier', u: 24, v: 0, size: 3.5, solid: { r: 1.6, h: 1.6 } }],
+        // v: 0 is the lane's own centreline, which is where the golden path
+        // runs and where the floor arrow points — a brazier there is a thing
+        // the guidance sends you into. Off to one side it is a landmark.
+        props: [{ id: 'forge_brazier', u: 24, v: 9, size: 3.5, solid: { r: 1.6, h: 1.6 } }],
       }),
       z('forge', 7, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
       z('forge', 8, {
