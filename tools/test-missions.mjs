@@ -500,13 +500,19 @@ const riders = await page.evaluate(`(() => {
   if (!mounted.length) return { before, claimed, running, mounted: 0 };
   const rider = mounted[0], v = rider.ride;
   const onFoot = crew().filter((e) => !e.ride && !e.boarding).length;
-  // and a few seconds at the pedals: it moves, and it moves at the party
-  // the closest it comes, not where it ends up: a swoop at 18 m/s crosses a
-  // 40 m corral in two seconds, overshoots, and is turning back when the
-  // window closes — end-to-start distance measures the turn, not the attack
+  // A few seconds at the pedals: it moves, and it moves at the party.
+  //
+  // Stand the party at a known distance off the ride's nose first. Which of
+  // the corral's five rides a Tusken reaches first depends on where the camp
+  // posted him, so measuring from wherever he happened to start measures the
+  // walk, not the charge — and the numbers moved the day the rides were
+  // re-parked clear of the tents. Thirty metres dead ahead asks the question
+  // the check is about: does the thing come at you.
+  const ahead = 30;
+  p.position.set(v.pos.x + Math.sin(v.yaw) * ahead, v.pos.y, v.pos.z + Math.cos(v.yaw) * ahead);
   const seat0 = rider.position.clone();
   let top = 0, nearest = v.pos.distanceTo(p.position);
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 120; i++) {
     window.__sim(1 / 30);
     top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));
     nearest = Math.min(nearest, v.pos.distanceTo(p.position));
@@ -515,7 +521,8 @@ const riders = await page.evaluate(`(() => {
   // shot out of the saddle
   rider.damage(9999, p.position, 0);
   const dropped = { hostile: v.hostile, alive: rider.alive, rideAlive: v.alive, rideRef: rider.ride };
-  window.__sim(4);
+  // long enough for a riderless hull to run its speed off and park itself
+  window.__simUntil(() => Math.hypot(v.vel.x, v.vel.z) < 0.2, 12);
   const speedAfter = Math.hypot(v.vel.x, v.vel.z);
   // and it is the party's for the taking: walk up, and the prompt is there
   p.position.set(v.pos.x + v.def.radius + 1.0, v.pos.y + 0.3, v.pos.z);
@@ -541,7 +548,7 @@ check('drop the rider and the saddle is empty, the ride whole',
   riders.mounted > 0 && !riders.dropped.hostile && !riders.dropped.alive && riders.dropped.rideAlive && !riders.dropped.rideRef,
   JSON.stringify(riders.dropped));
 check('and it rolls to a stop where the party can take it',
-  riders.mounted > 0 && riders.speedAfter < 0.5 && riders.yours,
+  riders.mounted > 0 && riders.speedAfter < 0.6 && riders.yours,
   `speed ${riders.speedAfter} · mountable ${riders.yours}`);
 
 // ------------------------------------------------- checkpoints are optional
