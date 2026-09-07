@@ -679,11 +679,16 @@ for (const board of boards) {
     for (const zone of spec.zones) {
       for (const [which, bar] of [['exit', zone.exitBarrier], ['entry', zone.entryBarrier]]) {
         if (!bar) continue;
+        // At body height, and in the gap itself. A doorway's own frame is
+        // solid by design — posts either side, a lintel over the top — and
+        // none of that is in the way of walking through. What an orphaned
+        // blocker looks like is a second thing filling the opening.
+        const y = bar.pos.y + 1;
         const n = phys.boxes.filter((b) =>
-          bar.pos.x > b.min.x - 0.5 && bar.pos.x < b.max.x + 0.5
-          && bar.pos.z > b.min.z - 0.5 && bar.pos.z < b.max.z + 0.5
-          && b.max.y - b.min.y > 6).length;
-        if (n > 1) bad.push(`${zone.spec.label}: ${n} blockers stand on its ${which} barrier`);
+          bar.pos.x > b.min.x && bar.pos.x < b.max.x
+          && bar.pos.z > b.min.z && bar.pos.z < b.max.z
+          && y > b.min.y && y < b.max.y).length;
+        if (n > 1) bad.push(`${zone.spec.label}: ${n} blockers fill its ${which} barrier's gap`);
       }
     }
 
