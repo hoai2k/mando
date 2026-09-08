@@ -189,6 +189,31 @@ async function main() {
       await page.close();
     }
 
+    // ---- 7. the door can be asked for again -------------------------------
+    //
+    // The owner needs this every time they test an invite; nobody else ever
+    // does. It cannot be a way *in* — forgetting a pass only ever costs you the
+    // door you were already through.
+    {
+      const pass = { id: 'A Friend', name: 'A Friend', since: Date.now() };
+      const { page } = await open('/gated/?gatereset=1', { pass });
+      await sleep(3000);
+      check('?gatereset=1 brings the door back', await gateUp(page));
+      check('and forgets the pass', await page.evaluate(() => localStorage.getItem('gate.pass')) === null);
+      // Left in the URL it would fire again on the next reload, and testing an
+      // invite would mean being thrown back to the door every time.
+      const url = await page.evaluate(() => location.href);
+      check('and takes itself out of the address bar', !url.includes('gatereset'), url);
+      await page.close();
+    }
+    {
+      const pass = { id: 'A Friend', name: 'A Friend', since: Date.now() };
+      const { page } = await open('/gated/', { pass });
+      await sleep(3000);
+      check('gateReset() is there for the console', await page.evaluate(() => typeof window.gateReset === 'function'));
+      await page.close();
+    }
+
     // ---- 5. a refusal stops the warming -----------------------------------
     {
       const { page, asked } = await open('/gated/?invite=NOPE-XXXXXX', { endpoint: { ok: false, reason: 'unknown' } });
