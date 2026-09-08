@@ -107,17 +107,29 @@ read alarmingly. It no longer does.)
 
 ### 3. Turn it on
 
-In the repository: **Settings ▸ Secrets and variables ▸ Actions ▸ Variables**,
-and add one:
+The deployment URL lives in `.github/workflows/deploy.yml`, in the build step's
+`VITE_GATE_ENDPOINT`. It is committed rather than kept in a repository variable
+because **it is not a secret** — it is compiled into the published bundle, so
+anyone who opens the site can read it either way. Committing it means the door
+needs no settings step at all, and one fewer place to look when it misbehaves.
 
-| Name | Value |
-|---|---|
-| `GATE_ENDPOINT` | the `.../exec` deployment URL |
+To point it at a different deployment, either edit that line, or set a
+`GATE_ENDPOINT` repository variable (**Settings ▸ Secrets and variables ▸
+Actions ▸ Variables**, on the *repository's* Settings tab, not your account's)
+— a variable wins over the committed default when one is set, which is the way
+to change deployments without a commit.
 
-A *variable*, not a secret: it ends up in the published bundle anyway, and a
-secret would only be hidden from you. The next push to `main` deploys the gated
-site — or run the **Deploy to GitHub Pages** workflow by hand. Deleting the
-variable and pushing takes the door away again.
+Emptying both takes the door away again: the site publishes open, exactly as it
+did before any of this existed.
+
+**Check the deployment answers anonymously before turning the door on.** Open
+the `/exec` URL in a browser. It should print
+`{"ok":true,"service":"invite-gate"}`. If it shows a Google sign-in page
+instead, *Who has access* is not set to **Anyone** — and the door would then
+shut the site for everyone, since the browser's POST is anonymous and a
+redirect to Google fails CORS. Fix it with **Deploy ▸ Manage deployments ▸**
+pencil ▸ *Who has access: Anyone* ▸ Deploy, which keeps the same URL. Note that
+*Anyone with a Google account* is a different setting and fails the same way.
 
 ### 4. Invite yourself first
 
