@@ -213,6 +213,21 @@ class WarmQueue {
 
   /** How many warm requests are still outstanding, for tests and debugging. */
   outstanding(): number { return this.queued.length + this.running; }
+
+  /**
+   * Drop everything queued but not yet started.
+   *
+   * Added for the sign-in door (`src/gate/`), which starts warming while a
+   * visitor reads it and calls this if the visitor turns out not to be on the
+   * guest list. Requests already in flight are left to finish — cancelling a
+   * half-received file only wastes what it already cost, and the queue runs two
+   * at a time, so what is running is small and what is queued is the megabytes.
+   *
+   * `started` is deliberately NOT cleared: a file dropped here should not be
+   * re-requested if something asks for it again later in the same page, which
+   * is the same promise `want` already makes for everything else.
+   */
+  clear(): void { this.queued.length = 0; }
 }
 
 export const warmQueue = new WarmQueue();

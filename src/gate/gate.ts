@@ -11,6 +11,12 @@
  * (Cloudflare Access in front of the whole site) rather than more code here —
  * see `docs/AUTH.md`.
  *
+ * IT KNOWS NOTHING ABOUT THIS GAME, on purpose. The words on the door and the
+ * decision of what to pull down while it is up are both passed in by the host
+ * page (`GateOptions`), and nothing in this file imports from `src/` outside
+ * its own directory. Porting it to another game is copying `src/gate/` and
+ * writing that page's own `boot.ts`.
+ *
  * THE DESIGN CONSTRAINT IS "FRIENDS SEE THIS ONCE." Everything else bends to
  * that:
  *
@@ -28,6 +34,15 @@
  *    show (its own cooldown after dismissals, or no Google session at all) and
  *    a door with nothing to click is a locked door.
  *
+ * THE DOOR IS NOT DEAD TIME. The seconds a visitor spends reading it are
+ * seconds the connection is idle, and somebody at this door is somebody about
+ * to play — so `GateOptions.warm` is called the moment the door is up and the
+ * host starts pulling down what comes next. This is a deliberate reversal of
+ * an earlier property of this file: a stranger at a shut door used to cost 6.9
+ * kB and now costs whatever the host chooses to warm. The trade is made
+ * knowingly, because the population at this door is friends, and it is
+ * bounded: warming is dropped the moment a visitor is actually refused.
+ *
  * UNSET MEANS OPEN. With no client ID and no endpoint compiled in, `openGate`
  * resolves immediately and this file may as well not exist. That is the state
  * of every dev server and every browser suite in `tools/`, which is why none of
@@ -35,6 +50,25 @@
  * a deploy that loses its configuration: the site keeps working, it just stops
  * counting.
  */
+
+/** Everything this door needs to know that is not about signing in. */
+export interface GateOptions {
+  /** Heading. The game's name, usually. */
+  title: string;
+  /** The line under it: who this is for, and what to do about it. */
+  blurb: string;
+  /**
+   * Called once, immediately after the door is shown, with a signal that is
+   * aborted if the visitor is refused. Start downloading what the visitor is
+   * about to need. Anything begun here must be a hint — the host has to work
+   * whether or not any of it arrives, because a visitor who signs in on their
+   * phone's flaky connection is the same visitor.
+   */
+  warm?: (signal: AbortSignal) => void;
+  /** Overrides for the compiled-in values, for a host that sources its own. */
+  clientId?: string;
+  endpoint?: string;
+}
 
 /** What we keep about a friend who has been let in. No expiry, by design. */
 export interface Pass {
@@ -50,8 +84,13 @@ export interface Pass {
 /** One key, in the `mando.*` namespace the rest of the settings use. */
 const PASS_STORE = 'mando.pass';
 
-const CLIENT_ID = import.meta.env.VITE_GATE_CLIENT_ID ?? '';
-const ENDPOINT = import.meta.env.VITE_GATE_ENDPOINT ?? '';
+/**
+ * The compiled-in pair, which `GateOptions` may override. They are `let` rather
+ * than `const` only so that a host sourcing its own can set them once at the
+ * top of `openGate`; nothing else writes them.
+ */
+let CLIENT_ID = import.meta.env.VITE_GATE_CLIENT_ID ?? '';
+let ENDPOINT = import.meta.env.VITE_GATE_ENDPOINT ?? '';
 
 /** Configured means gated. Either value missing leaves the door standing open. */
 export function gateEnabled(): boolean {
@@ -194,7 +233,7 @@ const CSS = `
   font-size: clamp(22px, 4.2vw, 40px); font-weight: 600; letter-spacing: 0.14em;
   text-transform: uppercase; color: #d8b25a; margin-bottom: 2px;
 }
-.gate-veil p { max-width: 30rem; line-height: 1.55; font-size: 14px; color: #b9ac95; }
+.gate-veil p, .gate-veil .gate-blurb { max-width: 30rem; line-height: 1.55; font-size: 14px; color: #b9ac95; }
 .gate-veil .gate-slot { min-height: 44px; display: flex; align-items: center; justify-content: center; }
 .gate-veil .gate-note { font-size: 12px; color: #7d7365; max-width: 26rem; }
 .gate-veil .gate-bad { color: #e08a6a; }
@@ -216,20 +255,18 @@ interface Door {
   close(): void;
 }
 
-function buildDoor(): Door {
+function buildDoor(opts: GateOptions): Door {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
 
   const veil = document.createElement('div');
   veil.className = 'gate-veil';
-  veil.innerHTML = `
-    <h1>Bounty Hunters</h1>
-    <p>This one is for friends. Sign in with Google once and this browser
-       won't ask again.</p>
-    <div class="gate-slot"></div>
-    <p class="gate-note"></p>
-  `;
+  // textContent for the two host-supplied strings: they are configuration, and
+  // configuration should not be able to inject markup into the page.
+  veil.innerHTML = '<h1></h1><p class="gate-blurb"></p><div class="gate-slot"></div><p class="gate-note"></p>';
+  veil.querySelector('h1')!.textContent = opts.title;
+  veil.querySelector<HTMLParagraphElement>('.gate-blurb')!.textContent = opts.blurb;
   document.body.appendChild(veil);
 
   return {
@@ -247,7 +284,9 @@ function buildDoor(): Door {
  * boot path is a white screen, so every failure ends either at a retry button
  * or — when the door itself is broken rather than the visitor — wide open.
  */
-export function openGate(): Promise<void> {
+export function openGate(opts: GateOptions): Promise<void> {
+  if (opts.clientId !== undefined) CLIENT_ID = opts.clientId;
+  if (opts.endpoint !== undefined) ENDPOINT = opts.endpoint;
   if (!gateEnabled()) return Promise.resolve();
 
   const pass = readPass();
@@ -259,8 +298,15 @@ export function openGate(): Promise<void> {
   }
 
   return new Promise<void>((resolve) => {
-    const door = buildDoor();
+    const door = buildDoor(opts);
     let settled = false;
+
+    // The door is up and the connection is idle: start pulling. Refusing a
+    // visitor aborts this; being admitted deliberately does not, because the
+    // whole point is that the files are already coming when the game starts.
+    const warming = new AbortController();
+    try { opts.warm?.(warming.signal); } catch (e) { console.warn('[gate] warm hook threw', e); }
+    const refuse = () => warming.abort();
     const admit = (p: Pass) => {
       if (settled) return;
       settled = true;
@@ -289,7 +335,7 @@ export function openGate(): Promise<void> {
       if (!token) { door.note.className = 'gate-note gate-bad'; door.note.textContent = 'Google sent nothing back. Try again?'; return; }
       door.note.className = 'gate-note';
       door.note.textContent = 'Checking the guest list…';
-      void verify(token, door, admit);
+      void verify(token, door, admit, refuse);
     };
 
     loadGsi().then((gsi) => {
@@ -320,7 +366,7 @@ export function openGate(): Promise<void> {
 }
 
 /** Ask the endpoint whether this token belongs to somebody on the list. */
-async function verify(token: string, door: Door, admit: (p: Pass) => void): Promise<void> {
+async function verify(token: string, door: Door, admit: (p: Pass) => void, refuse: () => void): Promise<void> {
   try {
     const r = await post({ kind: 'signin', credential: token }) as {
       ok?: boolean; sub?: string; email?: string; name?: string; picture?: string; reason?: string;
@@ -334,6 +380,9 @@ async function verify(token: string, door: Door, admit: (p: Pass) => void): Prom
     }
     // A real answer that says no. Not on the list is the expected case, and it
     // is worth saying plainly rather than looking like a bug.
+    // A definite no. Stop pulling down a game this visitor is not going to
+    // play — the one case where warming should not have been started.
+    refuse();
     door.note.className = 'gate-note gate-bad';
     door.note.textContent = r.reason === 'not-listed'
       ? `${r.email ?? 'That account'} isn't on the guest list. Ask for an invite and try again.`
@@ -348,7 +397,7 @@ async function verify(token: string, door: Door, admit: (p: Pass) => void): Prom
     const retry = document.createElement('button');
     retry.className = 'gate-retry';
     retry.textContent = 'Try again';
-    retry.onclick = () => { retry.remove(); door.note.textContent = 'Checking the guest list…'; void verify(token, door, admit); };
+    retry.onclick = () => { retry.remove(); door.note.textContent = 'Checking the guest list…'; void verify(token, door, admit, refuse); };
     door.note.after(retry);
   }
 }

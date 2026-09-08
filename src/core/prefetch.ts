@@ -317,9 +317,33 @@ function matchNeeds(board: BoardId, ctx: WarmContext): Need[] {
 /** What a screen is made of. Unknowns yield nothing: the plan never guesses. */
 function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
   switch (screen) {
-    // the key art and the logo behind the title are in the page's own CSS and
-    // are already on their way before any of this runs
-    case 'title': return [];
+    /**
+     * The logo and the key art behind the title.
+     *
+     * These used to be declared as nothing, on the grounds that they were "in
+     * the page's own CSS and already on their way before any of this runs".
+     * That was never quite true — `MenuScreen.addTitle` builds the logo with
+     * `new Image()` and `main.ts` sets the backdrop as an inline
+     * `background-image` — so both were fetched when the title screen was
+     * *constructed*, which merely happened to be early enough not to notice.
+     *
+     * Behind the sign-in door (`src/gate/`) it stopped being true in a way
+     * that costs real seconds: nothing constructs the title screen until the
+     * visitor is through, so the two largest files on it — `logo.png` at 1.2
+     * MB and `title_bg.jpg` at 326 kB — sat untouched for the whole sign-in
+     * and then began downloading at the moment they were wanted.
+     *
+     * Declaring them here puts them in the `now` lane of whatever screen the
+     * planner is asked about, which is what the door asks for the instant it
+     * appears. Warming them is also correct without a door: the plan is run at
+     * boot either way, and a file already in hand is skipped.
+     *
+     * THE GENERAL RULE, for anything added to this screen later: a file the
+     * page fetches lazily — a CSS background, an `Image()` built in a
+     * constructor — is not "already coming" just because it is early. If the
+     * title screen needs it, name it here.
+     */
+    case 'title': return [pic('logo', 'png'), pic('title_bg', 'jpg')];
     case 'select': return BOARDS.map((info) => pic(artName(info), artExt(info)));
     case 'planets': return BOARDS.map((info) => pic(`planet_${info.id}`, 'png'));
     case 'characters': return rosterNeeds(ctx);
