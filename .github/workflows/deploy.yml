@@ -76,9 +76,17 @@ jobs:
       # could not run at all, and an unconfigured build has no door — see the
       # header of `src/gate/gate.ts`. Unset here too (the state of a fresh
       # fork) simply publishes the open site it always did.
+      #
+      # The URL is committed rather than kept in a repository variable because
+      # it is not a secret: it is compiled into the published bundle, so anyone
+      # who opens the site can read it anyway. Keeping it here means the door
+      # needs no settings step to work, and one fewer place to look when it
+      # does not. A `GATE_ENDPOINT` repository variable still wins if one is
+      # set, which is the escape hatch for changing the deployment without a
+      # commit.
       - run: npm run build
         env:
-          VITE_GATE_ENDPOINT: ${{ vars.GATE_ENDPOINT }}
+          VITE_GATE_ENDPOINT: ${{ vars.GATE_ENDPOINT || 'https://script.google.com/macros/s/AKfycbx5Jp9z8XG0nnk60z5zccDoIy8MdkFDr0Cn61p84fcqKyKzhZ_700c_zCJVqjwsNfvlsQ/exec' }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true
