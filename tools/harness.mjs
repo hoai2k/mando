@@ -24,7 +24,13 @@ import { createRequire } from 'module';
 // Playwright lives with the global toolchain in this environment, not in the
 // project's node_modules; fall back to a plain resolve when it is local.
 const require_ = createRequire(import.meta.url);
-function loadPlaywright() {
+/**
+ * Exported because `test-gate` drives Playwright directly rather than through
+ * `launch()` — it needs init scripts and request routing in place before the
+ * first navigation, which `launch()` deliberately owns. Resolving the browser
+ * is the one piece worth sharing rather than copying.
+ */
+export function loadPlaywright() {
   for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright/index.js']) {
     try { return require_(id); } catch { /* try the next */ }
   }

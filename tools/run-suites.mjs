@@ -86,6 +86,9 @@ const SUITES = [
   { name: 'test-cover', weight: 24 },
   { name: 'test-hits', weight: 23 },
   { name: 'test-menunav', weight: 10 },
+  // Builds a second, gated copy of the site as part of its run, so its weight
+  // is mostly `vite build` rather than browser time. Measured September 2026.
+  { name: 'test-gate', weight: 21 },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
