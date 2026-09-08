@@ -290,6 +290,22 @@ void openGate({
 pass is shared across the origin, a friend invited once is admitted to every
 game you publish. The `game` label is what keeps their rows tellable apart.
 
+### Secondary pages
+
+Stats pages, workbenches and dev viewers are behind the same door, each with its
+own label (`battlebotarena-stats`, `jjkbrawler-workbench`, and so on), so the
+`Who` tab's **games** column tells you what someone actually opened.
+
+They get the door as a **curtain** rather than the full deferral a game gets:
+the veil goes up and the page loads behind it. Deferring their scripts properly
+would mean rewriting each page's load order, and several mix classic and module
+tags — a classic `<script>` cannot be held back past an `await`. For pages
+nothing links to, quietly breaking a working tool is the worse trade. It is the
+same doorman promise one notch weaker.
+
+They are not listed in `GAME_URLS`: nobody needs an invite *link* to a
+workbench, and listing them would make the Invites dialog a wall of URLs.
+
 The `warm` hook is handed an `AbortSignal` that fires if the visitor is
 refused; honour it, and treat everything it starts as a hint — the app has to
 work whether or not any of it arrives.

@@ -59,6 +59,14 @@ var GAME_URLS = {
   'tennis': 'https://hoai2k.github.io/tennis/',
 };
 
+/**
+ * Only the games are listed above, deliberately. Every stats page, workbench
+ * and dev viewer is behind the same door and reports its own label — the
+ * `Who` tab's `games` column shows `battlebotarena-stats` and the rest — but
+ * nobody needs an invite *link* to a workbench, so listing them here would
+ * make the Invites dialog a wall of URLs for no gain.
+ */
+
 /** How long the code list is cached, in seconds. A new invite takes this long
  *  to start working; the alternative is re-reading the tab on every arrival. */
 var CODES_TTL = 300;
