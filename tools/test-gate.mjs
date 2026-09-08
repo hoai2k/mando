@@ -8,9 +8,13 @@
  *     protects the other twenty-odd suites and every dev server: the moment
  *     the door shows up unasked, all of them break at once and this says so
  *     first.
- *  2. CONFIGURED IS SHUT, AND CHEAP. A stranger gets the door, and the game's
- *     chunks are never fetched behind it — the point of loading the gate from
- *     its own entry.
+ *  2. CONFIGURED IS SHUT, AND WARMING. A stranger gets the door — and the game
+ *     starts coming down behind it, because somebody at this door is about to
+ *     play and the connection is otherwise idle. This check replaced an earlier
+ *     one asserting the opposite (that a shut door cost 6.9 kB); the reversal
+ *     was deliberate and this is where it is written down.
+ *  5. A REFUSAL STOPS THE WARMING. The one visitor who should not be sent a
+ *     game is the one who is not getting in.
  *  3. A STORED PASS SKIPS IT ENTIRELY, and pings the log on the way through.
  *     This is the "friends see it once" promise, and it is the one a careless
  *     refactor is most likely to cost.
@@ -85,6 +89,9 @@ function buildGated(outDir) {
  */
 const GSI_STUB = `
   window.__gsi = { initialized: null, prompted: 0, buttons: 0 };
+  // Lets a check hand the door a credential, which is the only way to reach
+  // the guest-list path without talking to Google.
+  window.__fireCredential = (token) => window.__gsi.initialized.callback({ credential: token });
   window.google = { accounts: { id: {
     initialize: (o) => { window.__gsi.initialized = o; },
     prompt: () => { window.__gsi.prompted++; },
@@ -109,7 +116,7 @@ async function main() {
     });
 
     /** One page, with the network pinned down: nothing here talks to Google. */
-    async function open(path, { gsi = 'stub', pass = null } = {}) {
+    async function open(path, { gsi = 'stub', pass = null, endpoint = 'abort' } = {}) {
       const page = await browser.newPage({ viewport: { width: 1024, height: 700 } });
       const beacons = [];
       await page.exposeFunction('__recordBeacon', (url, body) => { beacons.push({ url, body }); });
@@ -130,8 +137,11 @@ async function main() {
         if (gsi === 'block') return route.abort('failed');
         return route.fulfill({ status: 200, contentType: 'text/javascript', body: GSI_STUB });
       });
-      // The endpoint is never real in a test; anything that reaches it fails.
-      await page.route(`${ENDPOINT}*`, (route) => route.abort('failed'));
+      // The endpoint is never real in a test. It either refuses to answer at
+      // all (the default) or returns a verdict the door has to act on.
+      await page.route(`${ENDPOINT}*`, (route) => endpoint === 'abort'
+        ? route.abort('failed')
+        : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endpoint) }));
 
       const asked = [];
       page.on('request', (r) => asked.push(r.url()));
@@ -165,14 +175,23 @@ async function main() {
       check('auto_select is on (the once-ever promise)', opts?.auto_select === true, JSON.stringify(opts?.auto_select));
       check('itp_support is on (Safari keeps working)', opts?.itp_support === true);
       check('the client id is the one built in', opts?.client_id === CLIENT_ID, opts?.client_id);
-      // The point of booting from src/gate: the game is not downloaded by
-      // somebody who never gets in. Weighed in bytes rather than matched by
-      // name — the gate's own entry chunk is also called `main-*.js`, and the
-      // question here is how much a stranger costs us, not what it is called.
+      // The door is not dead time: the warm hook fires as soon as it is up, and
+      // the game's chunks come down while the visitor reads it. Measured in
+      // bytes rather than by chunk name, because which chunk carries what is
+      // rollup's business and changes with the module graph.
       const bytes = await page.evaluate(() => performance.getEntriesByType('resource')
         .filter((e) => /\.js$/.test(e.name))
         .reduce((n, e) => n + (e.decodedBodySize || 0), 0));
-      check('a stranger downloads the door, not the game', bytes < 100_000, `${bytes} B of JS`);
+      check('the game warms while the door is up', bytes > 500_000, `${bytes} B of JS`);
+      check('warming does not boot the game behind the door',
+            !(await titled(page)) && await gateUp(page));
+      // The title screen's own two files. They are the largest things a player
+      // waits on at the title (1.2 MB and 326 kB) and they are fetched lazily
+      // by the screen's construction, so behind a door nothing asks for them
+      // until it is too late to help — see the `title` case in prefetch.ts.
+      const art = ['logo.png', 'title_bg.jpg']
+        .filter((f) => !asked.some((u) => u.endsWith(f)));
+      check('the title screen\'s own art warms too', art.length === 0, `missing: ${art.join(', ')}`);
       await page.close();
     }
 
@@ -187,6 +206,24 @@ async function main() {
       const sent = beacons[0] ? JSON.parse(beacons[0].body) : {};
       check('the ping says which friend, and that it is a session',
             sent.kind === 'session' && sent.sub === pass.sub, JSON.stringify(sent));
+      await page.close();
+    }
+
+    // ---- 5. a refusal stops the warming -----------------------------------
+    {
+      const { page, asked } = await open('/gated/', { endpoint: { ok: false, reason: 'not-listed', email: 'nobody@example.com' } });
+      await sleep(2500);
+      await page.evaluate(() => window.__fireCredential('a-token'));
+      await sleep(1500);
+      const said = await page.evaluate(() => document.querySelector('.gate-note')?.textContent ?? '');
+      check('a refused visitor is told plainly why', /guest list/i.test(said), said);
+      check('and the door stays shut', await gateUp(page));
+      // Whatever was still queued is dropped; what was already in flight is
+      // allowed to land, so this counts new requests rather than expecting none.
+      const before = asked.length;
+      await sleep(2500);
+      check('nothing further is pulled down for them', asked.length - before <= 2,
+            `${asked.length - before} more request(s)`);
       await page.close();
     }
 

@@ -20,9 +20,20 @@ setting two repository variables; turning it off is deleting them.
 
 ## What a friend experiences
 
-The first time, on each browser: a short screen with a **Continue with Google**
-button, or Google's own one-tap card if they are already signed in. One click,
-no password, no form.
+The first time, on each browser: a short screen — *This game is for friends of
+Hoai Nguyen. Please log in with your Google account.* — with a **Continue with
+Google** button, or Google's own one-tap card if they are already signed in.
+One click, no password, no form.
+
+**The game is already downloading while they read it.** Somebody standing at
+this door is somebody about to play, and the connection is otherwise idle, so
+the door starts the game's own warming plan the moment it appears: the title
+screen's art first, the screens after it next, the rest on idle time. Roughly a
+megabyte of the game's code comes down before they have clicked anything, so
+signing in lands them on a title screen that is mostly already there. It does
+not boot the game behind the door — see `src/core/warmboot.ts` for how that is
+kept true — and a visitor who turns out **not** to be on the list has the
+warming dropped the moment they are refused.
 
 After that, nothing. The pass is written to `localStorage` with **no expiry**,
 so that browser goes straight to the title screen forever.
@@ -61,6 +72,22 @@ The other tabs — `Signins`, `Sessions YYYY-MM`, `Who` — create themselves.
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
 5. Copy the deployment URL. It ends in `/exec`.
+
+**"Google hasn't verified this app" — expected, click through it.** The first
+deployment asks you to authorise the script, and because the script is yours
+and has never been submitted for review, Google shows a warning screen. Click
+**Advanced**, then **Go to _&lt;your project name&gt;_ (unsafe)**, then **Allow**.
+You are the developer, the reviewer and the only person being asked: the script
+is granted access to your own spreadsheet and to fetch Google's token-info URL,
+and nothing else.
+
+This screen is a one-time thing for **you**, at deploy time. **Your friends
+never see it.** Their sign-in goes through Google Identity Services with only
+the non-sensitive `openid`, `email` and `profile` scopes, which is precisely
+why step 3 says not to add any others — that combination shows the ordinary
+account-picker card with no warning and no verification requirement. If a
+friend ever *does* report an unverified-app warning, it means a scope was added
+to the consent screen; take it back off.
 
 *Who has access: Anyone* sounds alarming and is correct. It means the URL can
 be POSTed to without a Google login, which is exactly what a browser at the
@@ -167,6 +194,34 @@ word. Forging one adds a junk row to a session tab and nothing else. The
 `Signins` rows are the verified ones, and those are the guest list.
 
 ---
+
+## Porting it to another game
+
+`src/gate/` imports nothing outside itself. It shows two strings and calls one
+hook, and everything that knows about *this* game lives in `src/gate/boot.ts`.
+To move it:
+
+1. Copy `src/gate/` and `tools/gate/Code.gs`.
+2. Write that game's `boot.ts`: a `title`, a `blurb`, an optional `warm` hook,
+   and whatever starts the app.
+3. Point the page's `<script type="module">` at it, and give the build the same
+   two environment variables.
+
+```ts
+void openGate({
+  title: 'Some Other Game',
+  blurb: 'This game is for friends of Hoai Nguyen. Please log in with your Google account.',
+  warm: (signal) => startPullingThings(signal),   // optional
+  // clientId / endpoint may also be passed here, for a host that sources
+  // its own rather than taking the two compiled-in values.
+}).then(() => import('./main'));
+```
+
+The `warm` hook is handed an `AbortSignal` that fires if the visitor is
+refused; honour it, and treat everything it starts as a hint — the app has to
+work whether or not any of it arrives. One Apps Script deployment and one Sheet
+can serve several games: give each its own `Allowlist` tab if the guest lists
+differ, or share one if they do not.
 
 ## If it needs to be a real lock
 
