@@ -33,8 +33,15 @@ playing", your own name for someone is worth as much as Google's.
 You send them a link:
 
 ```
-https://hoai2k.github.io/mando/?invite=ANYA-7F2C9K
+https://games.hoai.net/mando/?invite=ANYA-7F2C9K
 ```
+
+**`games.hoai.net` is the canonical domain.** A custom domain is set on the
+account's Pages site, so every game moved with it and
+`hoai2k.github.io/<game>/` answers a 301 to `games.hoai.net/<game>/` — query
+string included, so an invite link on the old host still works. The Invites
+menu mints links on the canonical host: one less hop, and one less chance of a
+redirect quietly dropping something.
 
 They click it. That is the entire experience — nothing to click on the page,
 nothing to type, no account. The code is spent on arrival and then **wiped from
@@ -48,9 +55,16 @@ into, and codes are compared with case and punctuation thrown away, so
 `anya 7f2c9k` works as well as `ANYA-7F2C9K`.
 
 **One invite covers every game.** The pass is stored under a key that is not
-namespaced to any one game, and GitHub Pages project sites all share an origin
-(`https://hoai2k.github.io/...` differ only by path). A friend admitted to one
+namespaced to any one game, and every game shares the one origin
+(`https://games.hoai.net/...` differ only by path). A friend admitted to one
 game is silently already admitted to the rest.
+
+The origin is also the limit of that. `localStorage` is keyed by it, so a pass
+stored on `games.hoai.net` means nothing on `hoai2k.github.io` — harmless only
+because the 301 means nobody stays on the old host long enough to store one.
+Remove the custom domain, or publish a game somewhere else, and that game is
+its own origin where every friend redeems once more. Their code still works;
+they just spend it again.
 
 **The game is downloading while they look at the door.** Somebody standing here
 is somebody about to play, so the door starts the game's warming plan the

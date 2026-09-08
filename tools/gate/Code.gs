@@ -49,14 +49,30 @@ var REFUSAL_CAP_PER_HOUR = 100;
  * Where each game lives, for the invite links the Invite menu builds.
  * Add a line per game; the key is the `game` string that game's boot.ts sends.
  */
+/**
+ * THE CANONICAL DOMAIN IS games.hoai.net, not hoai2k.github.io.
+ *
+ * A custom domain is set on the account's Pages site, so every project site
+ * moved with it: `hoai2k.github.io/<game>/` answers 301 to
+ * `games.hoai.net/<game>/`, query string and all, and an invite link on the
+ * old host still works. Links are minted on the canonical host anyway — one
+ * less hop, and one less chance of a redirect quietly dropping something.
+ *
+ * IT ALSO DECIDES WHERE A PASS LIVES. localStorage is keyed by origin, so a
+ * friend admitted on games.hoai.net is admitted to every game there and to
+ * none on github.io. That is only harmless because the 301 means nobody stays
+ * on github.io long enough to store a pass. If the custom domain is ever
+ * removed, or a game is published somewhere else, that game becomes its own
+ * origin and every friend redeems once more there.
+ */
 var GAME_URLS = {
-  'bounty-hunters': 'https://hoai2k.github.io/mando/',
-  'jjkbrawler': 'https://hoai2k.github.io/jjkbrawler/',
-  'battlebotarena': 'https://hoai2k.github.io/battlebotarena/',
-  'rounders': 'https://hoai2k.github.io/rounders/',
-  'jujutsubattlegrounds': 'https://hoai2k.github.io/jujutsubattlegrounds/',
-  'supergoatman': 'https://hoai2k.github.io/supergoatman/',
-  'tennis': 'https://hoai2k.github.io/tennis/',
+  'bounty-hunters': 'https://games.hoai.net/mando/',
+  'jjkbrawler': 'https://games.hoai.net/jjkbrawler/',
+  'battlebotarena': 'https://games.hoai.net/battlebotarena/',
+  'rounders': 'https://games.hoai.net/rounders/',
+  'jujutsubattlegrounds': 'https://games.hoai.net/jujutsubattlegrounds/',
+  'supergoatman': 'https://games.hoai.net/supergoatman/',
+  'tennis': 'https://games.hoai.net/tennis/',
 };
 
 /**
