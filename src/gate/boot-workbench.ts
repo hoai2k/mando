@@ -14,5 +14,6 @@ import { openGate } from './gate';
 
 void openGate({
   title: 'Model workbench',
-  blurb: 'This game is for friends of Hoai Nguyen. Please log in with your Google account.',
+  game: 'workbench',
+  blurb: 'This game is for friends of Hoai Nguyen. Use your invite link, or enter your code below.',
 }).then(() => import('../workbench/main'));

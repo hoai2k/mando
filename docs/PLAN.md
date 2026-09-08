@@ -13,10 +13,11 @@ This document describes every component and how it is built. It began as a pre-i
 3. **Faithful atmosphere** — Tatooine's twin suns, ochre dunes, moisture vaporators, Tusken silhouettes, Pyke helmets, the neon-and-sandstone feel of Mos Espa; a grimy industrial spice-running waystation hanging in space.
 4. **Procedural now, authored later** — every character is built on a real skeleton (bone hierarchy) with procedural meshes skinned to it. Swapping in an authored glTF later means matching bone names, not rewriting the animation system.
 5. **Instant play** — static web build, no server, loads in seconds, 60 fps on a mid laptop.
-   Amended 2026-09-08: the published site may sit behind a one-time Google sign-in, because
+   Amended 2026-09-08: the published site may sit behind a one-time invite code, because
    this is a game for friends rather than for the open web (`docs/AUTH.md`). "Instant" is
-   preserved for the people it is for — the door is shown once per browser and never again,
-   and a returning friend never waits on the network. It is off unless configured, so the
+   preserved for the people it is for — an invite link spends itself on arrival with nothing
+   to click, the door is shown once per browser and never again, and a returning friend never
+   waits on the network. It is off unless configured, so the
    build, the dev server and every test suite remain exactly what this pillar describes.
 
 ---

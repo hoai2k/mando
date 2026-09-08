@@ -1,7 +1,7 @@
-# The door: Google sign-in for friends
+# The door: invite codes for friends
 
-The published site can sit behind a one-time Google sign-in, so that the game
-is for people who were invited and the owner can see who is playing.
+The published site can sit behind a one-time invite code, so that the game is
+for people who were invited and the owner can see who is playing.
 
 **It is a doorman, not a lock.** The site is a static build in a public
 repository: everything shipped to the browser can be read, and anyone willing
@@ -11,40 +11,52 @@ security boundary, and nothing behind it is a secret. If it ever needs to be
 one, that is a hosting change rather than more code — see
 [If it needs to be a real lock](#if-it-needs-to-be-a-real-lock) at the end.
 
-**Unconfigured, it does not exist.** With no client ID and no endpoint built
-in, the door never appears: `npm run dev`, every browser suite in `tools/`, and
-any fork all behave exactly as they did before it was written. Turning it on is
-setting two repository variables; turning it off is deleting them.
+**Unconfigured, it does not exist.** With no endpoint built in, the door never
+appears: `npm run dev`, every browser suite in `tools/`, and any fork all behave
+exactly as they did before it was written. Turning it on is setting one
+repository variable; turning it off is deleting it.
+
+**Why not "sign in with Google"?** This door was first built that way, and
+Google sign-in is a fine door — it just costs the *owner* a Google Cloud
+project, and Google now requires MFA on the account to open one. That is a
+steep price for the front door of a fan game. Invite codes need no identity
+provider, no OAuth client, no consent screen and no account of any kind, and
+they are better for the visitor: a friend clicks their link and is playing, with
+no account picker and no Google account required. What they give up is verified
+identity — a code is a code, and a friend can pass theirs on. For "who is
+playing", your own name for someone is worth as much as Google's.
 
 ---
 
 ## What a friend experiences
 
-The first time, on each browser: a short screen — *This game is for friends of
-Hoai Nguyen. Please log in with your Google account.* — with a **Continue with
-Google** button, or Google's own one-tap card if they are already signed in.
-One click, no password, no form.
+You send them a link:
 
-**The game is already downloading while they read it.** Somebody standing at
-this door is somebody about to play, and the connection is otherwise idle, so
-the door starts the game's own warming plan the moment it appears: the title
-screen's art first, the screens after it next, the rest on idle time. Roughly a
-megabyte of the game's code comes down before they have clicked anything, so
-signing in lands them on a title screen that is mostly already there. It does
-not boot the game behind the door — see `src/core/warmboot.ts` for how that is
-kept true — and a visitor who turns out **not** to be on the list has the
-warming dropped the moment they are refused.
+```
+https://hoai2k.github.io/mando/?invite=ANYA-7F2C9K
+```
+
+They click it. That is the entire experience — nothing to click on the page,
+nothing to type, no account. The code is spent on arrival and then **wiped from
+the address bar**, so it is not left sitting in a screenshot, a bookmark, or a
+URL they paste into a group chat meaning to share the game.
 
 After that, nothing. The pass is written to `localStorage` with **no expiry**,
-so that browser goes straight to the title screen forever.
+so that browser goes straight to the title screen forever. Someone who arrives
+without a link — a friend on a new phone, say — gets a box to paste their code
+into, and codes are compared with case and punctuation thrown away, so
+`anya 7f2c9k` works as well as `ANYA-7F2C9K`.
 
-If the pass is ever lost — a new device, cleared site data, or Safari's
-tracking prevention, which drops script-written storage after seven days
-without a visit — Google's One Tap is asked to put it back with `auto_select`.
-For anyone still signed into Google in that browser this is **silent and
-click-free**: the door flashes and the game loads. The one case that costs a
-click is a browser with no Google session at all, and even then it is *pick
-your account*, not *log in*.
+**One invite covers every game.** The pass is stored under a key that is not
+namespaced to any one game, and GitHub Pages project sites all share an origin
+(`https://hoai2k.github.io/...` differ only by path). A friend admitted to one
+game is silently already admitted to the rest.
+
+**The game is downloading while they look at the door.** Somebody standing here
+is somebody about to play, so the door starts the game's warming plan the
+moment it appears: the title screen's art first, the screens after it next.
+Roughly a megabyte comes down before they have done anything. A visitor who
+turns out not to be on the list has it dropped the moment they are refused.
 
 ---
 
@@ -56,10 +68,14 @@ Make a Google Sheet — call it whatever you like. It is private to your Google
 account by default, and **leave it that way**: do not share it, and do not use
 *File ▸ Share ▸ Publish to web*. That single fact is what keeps the log yours.
 
-Add one tab named **`Allowlist`**. Put one email address per row in column A —
-your friends' Google addresses, the ones they would sign in with. A header row
-is fine (anything without an `@` is skipped) and column B onwards is yours for
-notes; nothing reads it.
+Add one tab named **`Codes`** with these headers in row 1:
+
+| code | name | revoked | notes |
+|---|---|---|---|
+
+You do not have to fill it in by hand — the **Invites** menu in step 3 writes
+rows for you. Anything at all in the `revoked` column turns that invite off
+without deleting the row, so the history in `Signins` still means something.
 
 The other tabs — `Signins`, `Sessions YYYY-MM`, `Who` — create themselves.
 
@@ -68,92 +84,84 @@ The other tabs — `Signins`, `Sessions YYYY-MM`, `Who` — create themselves.
 1. In the Sheet: **Extensions ▸ Apps Script**.
 2. Delete the placeholder and paste all of [`tools/gate/Code.gs`](../tools/gate/Code.gs).
 3. Leave `SHEET_ID` as `''` — the script is bound to this Sheet already.
-4. **Deploy ▸ New deployment ▸ Web app**, with:
+4. Check `GAME_URLS` near the top. Add a line per game you publish; the key is
+   the `game` string that game's `boot.ts` sends.
+5. **Deploy ▸ New deployment ▸ Web app**, with:
    - *Execute as*: **Me**
    - *Who has access*: **Anyone**
-5. Copy the deployment URL. It ends in `/exec`.
+6. Copy the deployment URL. It ends in `/exec`.
 
-**"Google hasn't verified this app" — expected, click through it.** The first
-deployment asks you to authorise the script, and because the script is yours
-and has never been submitted for review, Google shows a warning screen. Click
-**Advanced**, then **Go to _&lt;your project name&gt;_ (unsafe)**, then **Allow**.
-You are the developer, the reviewer and the only person being asked: the script
-is granted access to your own spreadsheet and to fetch Google's token-info URL,
-and nothing else.
+*Who has access: Anyone* sounds alarming and is correct. It means the URL can be
+POSTed to without a Google login, which is exactly what a browser at the door
+has to do; the script decides what to do with what arrives. It does not share
+the spreadsheet with anyone.
 
-This screen is a one-time thing for **you**, at deploy time. **Your friends
-never see it.** Their sign-in goes through Google Identity Services with only
-the non-sensitive `openid`, `email` and `profile` scopes, which is precisely
-why step 3 says not to add any others — that combination shows the ordinary
-account-picker card with no warning and no verification requirement. If a
-friend ever *does* report an unverified-app warning, it means a scope was added
-to the consent screen; take it back off.
+**"Google hasn't verified this app"** — expected on the first deploy, click
+through it: **Advanced**, then **Go to _&lt;your project&gt;_ (unsafe)**, then
+**Allow**. You are the developer, the reviewer and the only person being asked,
+and the script's only permission is your own spreadsheet. Your friends never
+see this — they never talk to Apps Script as a signed-in Google user, or at
+all. (An earlier version of the script verified Google sign-in tokens and so
+also needed permission to fetch external URLs, which is what made this prompt
+read alarmingly. It no longer does.)
 
-*Who has access: Anyone* sounds alarming and is correct. It means the URL can
-be POSTed to without a Google login, which is exactly what a browser at the
-door has to do; the script decides what to do with what arrives. It does not
-share the spreadsheet with anyone.
-
-### 3. The Google client ID
-
-1. [Google Cloud console](https://console.cloud.google.com/) → a new project.
-2. **APIs & Services ▸ OAuth consent screen**. External; fill in the name and
-   your email. **Do not add any scopes** — the defaults (`openid`, `email`,
-   `profile`) are non-sensitive, which means no verification, no review, and no
-   user cap. Adding a scope beyond them changes all three.
-3. **Credentials ▸ Create credentials ▸ OAuth client ID ▸ Web application**.
-   - *Authorised JavaScript origins*: `https://hoai2k.github.io`
-   - Leave the redirect URIs empty — this flow does not use them.
-4. Copy the client ID. It ends in `.apps.googleusercontent.com`.
-
-Paste that same client ID into `CLIENT_ID` at the top of the Apps Script and
-re-deploy. The script checks that every token it is handed was issued **for
-this site**; without that a valid Google token minted for any other app would
-open the door.
-
-The client ID is public — it is compiled into the bundle, by design. The origin
-restriction above is what makes it useless anywhere else.
-
-### 4. Turn it on
+### 3. Turn it on
 
 In the repository: **Settings ▸ Secrets and variables ▸ Actions ▸ Variables**,
-and add two:
+and add one:
 
 | Name | Value |
 |---|---|
-| `GATE_CLIENT_ID` | the `...apps.googleusercontent.com` id |
 | `GATE_ENDPOINT` | the `.../exec` deployment URL |
 
-They are *variables*, not secrets: both end up in the published bundle anyway,
-and a secret would only be hidden from you. The next push to `main` deploys the
-gated site. Deleting them and pushing takes the door away again.
+A *variable*, not a secret: it ends up in the published bundle anyway, and a
+secret would only be hidden from you. The next push to `main` deploys the gated
+site — or run the **Deploy to GitHub Pages** workflow by hand. Deleting the
+variable and pushing takes the door away again.
 
-Sign in as yourself first, before telling anyone — it is the quickest way to
-confirm the whole chain works, and your row will be the first one in `Signins`.
+### 4. Invite yourself first
+
+Reload the Sheet so the script's menu appears, then **Invites ▸ Invite a
+friend…**, and put your own name in. It mints a code, writes the row, and shows
+you the links. Open yours: you should land straight on the title screen, with a
+row in `Signins` marked `admitted`.
+
+Then invite everyone else the same way. **Invites ▸ Show a friend's link…**
+brings a link back up later without minting a new one.
 
 ---
 
 ## Seeing who has played
 
-Open the Sheet. **Bounty Hunters ▸ Refresh the Who tab** builds the report:
+Open the Sheet. **Invites ▸ Refresh the Who tab** builds the report:
 
 | column | meaning |
 |---|---|
-| name, email | as Google gave it |
-| sessions | every time they have opened the game, ever |
+| name | what you called them when you invited them |
+| sessions | every time they have opened a game, ever |
 | last 30 days | the same count, recently — who is actually playing now |
+| games | which of your games they have opened |
 | first seen, last seen | when they arrived, and the last time they turned up |
 
 Under it are the raw tabs, if you want them:
 
-- **`Signins`** — every attempt to come through the door, `admitted` or
-  `refused`. Refusals are logged deliberately: when a friend says "it doesn't
-  work", this tab usually says why in one line, and it is where an address
-  typo'd on the allowlist shows up.
+- **`Codes`** — the guest list. Delete a row or put anything in its `revoked`
+  column to turn an invite off; it stops working within five minutes.
+- **`Signins`** — every attempt at the door, `admitted`, `revoked` or
+  `unknown`. Unknown codes are logged deliberately: it is how "my link doesn't
+  work" gets answered in one line, and a burst of them is the only sign you
+  would get of somebody guessing.
 - **`Sessions YYYY-MM`** — one row per launch, in a **new tab each month**.
 
 Nobody sees any of this but you. The endpoint only ever writes; it has no read
-route, and the door's own code never asks for one.
+route, and the door's code never asks for one.
+
+### If a code gets passed around
+
+You would see it as one name with implausible session counts in the `Who` tab.
+Put anything in that row's `revoked` column and mint them a fresh one. This is
+the honest cost of not using an identity provider, and it is the reason the
+`Signins` tab records every attempt rather than only the successful ones.
 
 ### On the log growing
 
@@ -162,36 +170,36 @@ bound and the one you open to see last week stays small and fast. The endpoint
 appends a single row per launch and never reads the log back, so a write costs
 the same on day one and in year three.
 
-The allowlist *is* read on every sign-in, so it is cached for five minutes —
-which is also the only lag in the system: a friend you add takes up to five
-minutes to be able to get in.
+The `Codes` tab *is* read at the door, so it is cached for five minutes — which
+is also the only lag in the system: a friend you invite from the menu works
+immediately (the menu clears the cache), but a row you type in by hand takes up
+to five minutes.
 
 The ceiling worth knowing: a Google spreadsheet holds 10 million cells across
-all its tabs, which at four columns is about 2.5 million session rows. For a
-game played by friends that is not a number anyone reaches. If it ever came
-close, delete or archive the oldest month tabs — which is the reason the
-rotation is there — or start a new Sheet and point `SHEET_ID` at it. `Signins`
-is the tab worth carrying over.
+all its tabs, which at four columns is about 2.5 million session rows. For games
+played by friends that is not a number anyone reaches. If it ever came close,
+delete or archive the oldest month tabs — which is the reason the rotation is
+there — or start a new Sheet and point `SHEET_ID` at it.
 
 ---
 
 ## How it fails
 
-Deliberate, and worth knowing, because the two directions are opposite:
+Deliberate, and worth knowing:
 
-- **Google's script will not load** (an ad blocker, a network that cannot reach
-  Google) — **the door opens.** Turning a friend away because our own machinery
-  broke is the wrong trade for a doorman, and the stranger it would have
-  stopped could have edited `localStorage` anyway.
-- **The endpoint cannot be reached** — **the door stays shut**, with a *try
+- **The endpoint cannot be reached** — the door **stays shut**, with a *try
   again*. The endpoint is the guest list; admitting everyone whenever a request
   fails would make the list optional for anyone able to drop one. Friends who
-  are already in hold a pass and never touch this path.
+  are already in hold a pass and never touch this path, so an outage strands
+  only people arriving for the first time.
+- **No endpoint is configured at all** — the door **does not exist**. That is
+  the difference between "broken" and "switched off", and it is why a deploy
+  that loses its variable publishes the open site rather than a locked one.
 
-Session pings are unverified and cannot let anybody in: there is no fresh
-Google token on a returning visit, so a ping is the stored profile taken at its
-word. Forging one adds a junk row to a session tab and nothing else. The
-`Signins` rows are the verified ones, and those are the guest list.
+Session pings carry an id rather than a code and cannot let anybody in: the
+browser never stores the invite, so a pass read out of `localStorage` is not a
+reusable invite. Forging a ping adds a junk row to a session tab and nothing
+else. The `Signins` rows are the ones that decided something.
 
 ---
 
@@ -201,34 +209,49 @@ word. Forging one adds a junk row to a session tab and nothing else. The
 hook, and everything that knows about *this* game lives in `src/gate/boot.ts`.
 To move it:
 
-1. Copy `src/gate/` and `tools/gate/Code.gs`.
-2. Write that game's `boot.ts`: a `title`, a `blurb`, an optional `warm` hook,
-   and whatever starts the app.
-3. Point the page's `<script type="module">` at it, and give the build the same
-   two environment variables.
+1. Copy `src/gate/`.
+2. Write that game's `boot.ts`: a `title`, a `blurb`, a `game` label, an
+   optional `warm` hook, and whatever starts the app.
+3. Point the page's `<script type="module">` at it, and give that repository the
+   same `GATE_ENDPOINT` variable.
+4. Add the game to `GAME_URLS` in the Apps Script.
 
 ```ts
 void openGate({
   title: 'Some Other Game',
-  blurb: 'This game is for friends of Hoai Nguyen. Please log in with your Google account.',
+  blurb: 'This game is for friends of Hoai Nguyen. Use your invite link, or enter your code below.',
+  game: 'some-other-game',
   warm: (signal) => startPullingThings(signal),   // optional
-  // clientId / endpoint may also be passed here, for a host that sources
-  // its own rather than taking the two compiled-in values.
+  // `endpoint` may also be passed here, for a host that sources its own
+  // rather than taking the compiled-in value.
 }).then(() => import('./main'));
 ```
 
+**One endpoint, one Sheet, one guest list serves all of them**, and because the
+pass is shared across the origin, a friend invited once is admitted to every
+game you publish. The `game` label is what keeps their rows tellable apart.
+
 The `warm` hook is handed an `AbortSignal` that fires if the visitor is
 refused; honour it, and treat everything it starts as a hint — the app has to
-work whether or not any of it arrives. One Apps Script deployment and one Sheet
-can serve several games: give each its own `Allowlist` tab if the guest lists
-differ, or share one if they do not.
+work whether or not any of it arrives.
+
+**A note for future integrations:** a file the page fetches lazily — a CSS
+background, an `Image()` built in a screen's constructor — is *not* "already on
+its way" just because it happens early. Behind a door, nothing constructs that
+screen until the visitor is through. Whatever the first screen is made of has
+to be named to the warm hook explicitly. This game learned it the expensive
+way: `logo.png` (1.2 MB) and `title_bg.jpg` (326 kB) sat untouched through the
+whole sign-in and then started downloading at the moment they were wanted.
+
+---
 
 ## If it needs to be a real lock
 
-Put **Cloudflare Access** in front of the whole site. It does Google login with
-an email allowlist natively, sessions can be set to a month, it is free up to
-50 users, and the game code does not change at all — this door would be deleted
-rather than adapted.
+Put **Cloudflare Access** in front of the whole site. Its built-in **one-time
+PIN** login needs no identity provider at all — a friend enters their email,
+gets a six-digit code, and is in — with an email allowlist, sessions up to a
+month, free to 50 users, and no change to the game code: this door would be
+deleted rather than adapted.
 
 The cost is hosting: Cloudflare Pages instead of GitHub Pages, and a custom
 domain, because Access policies attach to a hostname on a Cloudflare zone

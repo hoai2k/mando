@@ -70,15 +70,14 @@ jobs:
       - run: npm ci
       # typecheck and bundle — the one gate the published site has
       #
-      # The two GATE_* repository variables are what turn the Google door on,
-      # and THIS IS THE ONLY JOB THAT PASSES THEM. The smoke and nightly jobs
-      # below build without them on purpose: a suite that had to sign in to
-      # Google could not run at all, and an unconfigured build has no door —
-      # see the header of `src/gate/gate.ts`. Unset here too (the state of a
-      # fresh fork) simply publishes the open site it always did.
+      # The GATE_ENDPOINT repository variable is what turns the invite door on,
+      # and THIS IS THE ONLY JOB THAT PASSES IT. The smoke and nightly jobs
+      # below build without it on purpose: a suite that had to redeem an invite
+      # could not run at all, and an unconfigured build has no door — see the
+      # header of `src/gate/gate.ts`. Unset here too (the state of a fresh
+      # fork) simply publishes the open site it always did.
       - run: npm run build
         env:
-          VITE_GATE_CLIENT_ID: ${{ vars.GATE_CLIENT_ID }}
           VITE_GATE_ENDPOINT: ${{ vars.GATE_ENDPOINT }}
       - uses: actions/configure-pages@v5
         with:

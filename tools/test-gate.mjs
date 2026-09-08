@@ -3,7 +3,7 @@
  *
  * Four things are worth holding still here, and they are the four checks:
  *
- *  1. UNCONFIGURED IS INVISIBLE. With no client ID compiled in, the built site
+ *  1. UNCONFIGURED IS INVISIBLE. With no endpoint compiled in, the built site
  *     boots straight to the title with no door at all. This is the check that
  *     protects the other twenty-odd suites and every dev server: the moment
  *     the door shows up unasked, all of them break at once and this says so
@@ -18,9 +18,12 @@
  *  3. A STORED PASS SKIPS IT ENTIRELY, and pings the log on the way through.
  *     This is the "friends see it once" promise, and it is the one a careless
  *     refactor is most likely to cost.
- *  4. A BROKEN DOOR OPENS. If Google's script cannot load, the gate lets
- *     everyone in rather than stranding a friend behind machinery of ours that
- *     failed. It is a doorman, not a lock, and this is where that shows.
+ *  4. AN INVITE LINK SPENDS ITSELF. `?invite=CODE` redeems on arrival with
+ *     nothing clicked and nothing typed, and the code is then wiped from the
+ *     address bar so it is not left in a screenshot or a shared URL.
+ *  6. THE CODE IS NEVER STORED. What the browser keeps is the id the endpoint
+ *     answered with, so a pass read out of localStorage is not a reusable
+ *     invite.
  *
  * The suite builds its own gated copy of the site, because being gated is a
  * build-time property and `dist/` is deliberately not. Both copies are served
@@ -38,8 +41,8 @@ import { loadPlaywright, makeCheck } from './harness.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.GATE_PORT ?? 4188);
-const CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
 const ENDPOINT = 'https://gate.example.invalid/exec';
+const CODE = 'ANYA-7F2C9K';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -75,29 +78,12 @@ function buildGated(outDir) {
     const child = spawn('npx', ['vite', 'build', '--outDir', outDir, '--emptyOutDir'], {
       cwd: ROOT,
       stdio: 'ignore',
-      env: { ...process.env, VITE_GATE_CLIENT_ID: CLIENT_ID, VITE_GATE_ENDPOINT: ENDPOINT },
+      env: { ...process.env, VITE_GATE_ENDPOINT: ENDPOINT },
     });
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`vite build exited ${code}`)));
     child.on('error', reject);
   });
 }
-
-/**
- * A stand-in for Google Identity Services that never calls back, so the door
- * stays up and the checks can look at it. Served in place of the real script,
- * which this suite must never reach for.
- */
-const GSI_STUB = `
-  window.__gsi = { initialized: null, prompted: 0, buttons: 0 };
-  // Lets a check hand the door a credential, which is the only way to reach
-  // the guest-list path without talking to Google.
-  window.__fireCredential = (token) => window.__gsi.initialized.callback({ credential: token });
-  window.google = { accounts: { id: {
-    initialize: (o) => { window.__gsi.initialized = o; },
-    prompt: () => { window.__gsi.prompted++; },
-    renderButton: (el) => { window.__gsi.buttons++; el.innerHTML = '<div id="stub-btn">Continue with Google</div>'; },
-  } } };
-`;
 
 async function main() {
   const check = makeCheck();
@@ -116,7 +102,7 @@ async function main() {
     });
 
     /** One page, with the network pinned down: nothing here talks to Google. */
-    async function open(path, { gsi = 'stub', pass = null, endpoint = 'abort' } = {}) {
+    async function open(path, { pass = null, endpoint = 'abort' } = {}) {
       const page = await browser.newPage({ viewport: { width: 1024, height: 700 } });
       const beacons = [];
       await page.exposeFunction('__recordBeacon', (url, body) => { beacons.push({ url, body }); });
@@ -130,13 +116,9 @@ async function main() {
           else window.__recordBeacon(url, String(body));
           return true;
         };
-        if (pass) localStorage.setItem('mando.pass', JSON.stringify(pass));
+        if (pass) localStorage.setItem('gate.pass', JSON.stringify(pass));
       }, { pass });
 
-      await page.route('https://accounts.google.com/gsi/client', (route) => {
-        if (gsi === 'block') return route.abort('failed');
-        return route.fulfill({ status: 200, contentType: 'text/javascript', body: GSI_STUB });
-      });
       // The endpoint is never real in a test. It either refuses to answer at
       // all (the default) or returns a verdict the door has to act on.
       await page.route(`${ENDPOINT}*`, (route) => endpoint === 'abort'
@@ -169,12 +151,10 @@ async function main() {
       const { page, asked } = await open('/gated/');
       await sleep(3000);
       check('gated build shows the door', await gateUp(page));
-      check('the door renders a Google button', await page.evaluate(() => !!document.querySelector('#stub-btn')));
-      check('One Tap is asked for the silent path', await page.evaluate(() => window.__gsi.prompted > 0));
-      const opts = await page.evaluate(() => window.__gsi.initialized);
-      check('auto_select is on (the once-ever promise)', opts?.auto_select === true, JSON.stringify(opts?.auto_select));
-      check('itp_support is on (Safari keeps working)', opts?.itp_support === true);
-      check('the client id is the one built in', opts?.client_id === CLIENT_ID, opts?.client_id);
+      check('the door offers somewhere to type a code',
+            await page.evaluate(() => !!document.querySelector('.gate-veil input')));
+      check('the owner\'s own words are on it', await page.evaluate(
+        () => (document.querySelector('.gate-blurb')?.textContent ?? '').includes('friends of Hoai Nguyen')));
       // The door is not dead time: the warm hook fires as soon as it is up, and
       // the game's chunks come down while the visitor reads it. Measured in
       // bytes rather than by chunk name, because which chunk carries what is
@@ -197,7 +177,7 @@ async function main() {
 
     // ---- 3. a stored pass skips it entirely -------------------------------
     {
-      const pass = { sub: '1234567890', email: 'friend@example.com', name: 'A Friend', since: Date.now() };
+      const pass = { id: 'A Friend', name: 'A Friend', since: Date.now() };
       const { page, beacons } = await open('/gated/', { pass });
       await sleep(3500);
       check('a stored pass shows no door', !(await gateUp(page)));
@@ -205,18 +185,18 @@ async function main() {
       check('the session is logged on the way through', beacons.length === 1, JSON.stringify(beacons));
       const sent = beacons[0] ? JSON.parse(beacons[0].body) : {};
       check('the ping says which friend, and that it is a session',
-            sent.kind === 'session' && sent.sub === pass.sub, JSON.stringify(sent));
+            sent.kind === 'session' && sent.id === pass.id, JSON.stringify(sent));
       await page.close();
     }
 
     // ---- 5. a refusal stops the warming -----------------------------------
     {
-      const { page, asked } = await open('/gated/', { endpoint: { ok: false, reason: 'not-listed', email: 'nobody@example.com' } });
-      await sleep(2500);
-      await page.evaluate(() => window.__fireCredential('a-token'));
-      await sleep(1500);
+      const { page, asked } = await open('/gated/?invite=NOPE-XXXXXX', { endpoint: { ok: false, reason: 'unknown' } });
+      await sleep(3000);
       const said = await page.evaluate(() => document.querySelector('.gate-note')?.textContent ?? '');
-      check('a refused visitor is told plainly why', /guest list/i.test(said), said);
+      check('a refused visitor is told plainly why', /isn.t recognised/i.test(said), said);
+      check('and is left able to correct it',
+            await page.evaluate(() => !document.querySelector('.gate-veil input')?.disabled));
       check('and the door stays shut', await gateUp(page));
       // Whatever was still queued is dropped; what was already in flight is
       // allowed to land, so this counts new requests rather than expecting none.
@@ -227,12 +207,35 @@ async function main() {
       await page.close();
     }
 
-    // ---- 4. a broken door opens -------------------------------------------
+    // ---- 4. an invite link spends itself ----------------------------------
     {
-      const { page } = await open('/gated/', { gsi: 'block' });
+      const admits = { ok: true, id: 'Anya', name: 'Anya' };
+      const { page, beacons } = await open(`/gated/?invite=${encodeURIComponent(CODE)}`, { endpoint: admits });
       await sleep(4000);
-      check('a door that cannot load Google lets everyone through', !(await gateUp(page)));
-      check('and the game still boots', await titled(page));
+      check('an invite link needs nothing clicked', !(await gateUp(page)));
+      check('and lands on the game', await titled(page));
+      // The address bar is the least private place on a computer: screenshots,
+      // bookmarks, autocomplete, and links pasted into group chats by someone
+      // meaning to share the game rather than their own invite.
+      const url = await page.evaluate(() => location.href);
+      check('the code is wiped from the address bar', !url.includes('invite'), url);
+      const sent = beacons[0] ? JSON.parse(beacons[0].body) : {};
+      check('the session says which game it was', sent.game === 'bounty-hunters', JSON.stringify(sent));
+      await page.close();
+    }
+
+    // ---- 6. the code is never stored --------------------------------------
+    {
+      const admits = { ok: true, id: 'Anya', name: 'Anya' };
+      const { page } = await open(`/gated/?invite=${encodeURIComponent(CODE)}`, { endpoint: admits });
+      await sleep(3500);
+      const stored = await page.evaluate(() => localStorage.getItem('gate.pass') ?? '');
+      check('the stored pass holds an id, not the invite', !stored.includes('7F2C9K'), stored);
+      check('and it is the id the endpoint answered with', stored.includes('Anya'), stored);
+      // Not namespaced to this game: every game of the owner's on this origin
+      // shares the key, so one invite admits a friend to all of them.
+      const keys = await page.evaluate(() => Object.keys(localStorage));
+      check('the pass is shared across the owner\'s games', keys.includes('gate.pass'), keys.join(', '));
       await page.close();
     }
 

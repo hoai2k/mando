@@ -21,7 +21,8 @@ import { openGate } from './gate';
 
 void openGate({
   title: 'Bounty Hunters',
-  blurb: 'This game is for friends of Hoai Nguyen. Please log in with your Google account.',
+  game: 'bounty-hunters',
+  blurb: 'This game is for friends of Hoai Nguyen. Use your invite link, or enter your code below.',
   // Fire and forget, and deliberately not awaited: the game must not wait on
   // a warm-up, and a warm-up that fails must not keep anyone out. The import
   // is inside the hook so that a browser holding a pass — which never calls
