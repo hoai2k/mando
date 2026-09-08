@@ -232,6 +232,32 @@ else. The `Signins` rows are the ones that decided something.
 
 ---
 
+## Getting the door back (for testing)
+
+Once a browser holds a pass it never sees the door again — which is the point,
+and a nuisance the one time you want to check that an invite actually works.
+Two ways to stop holding one:
+
+| | |
+|---|---|
+| `?gatereset=1` on any game's URL | forgets this browser's pass and puts the door back |
+| `gateReset()` in the browser console | the same thing, always defined |
+
+Neither is a way *in*. Forgetting a pass can only ever cost you the door you
+were already through, so there is nothing here worth protecting — which is why
+it is a plain URL parameter rather than something hidden.
+
+The parameter takes itself out of the address bar the moment it is spent. Left
+in place it would fire on every reload, and testing an invite would mean being
+thrown back to the door each time. An `?invite=` alongside it is left alone —
+that one has not been spent yet — so
+`?gatereset=1&invite=ANYA-7F2C9K` is a one-URL round trip: forget the pass, then
+redeem the code as if for the first time. That is the quickest way to check an
+invite really works.
+
+A private window works too, and is the better check of the two, since it also
+proves the code works for somebody who has never been to the site.
+
 ## Letting your own agents in
 
 Three ways, in the order they are usually wanted:
@@ -268,7 +294,8 @@ why "someone" played at 04:00.
 hook, and everything that knows about *this* game lives in `src/gate/boot.ts`.
 To move it:
 
-1. Copy `src/gate/`.
+1. Copy `tools/gate/gate.js` (the portable copy — this repository's own
+   `src/gate/gate.ts` is the same door for a TypeScript site).
 2. Write that game's `boot.ts`: a `title`, a `blurb`, a `game` label, an
    optional `warm` hook, and whatever starts the app.
 3. Point the page's `<script type="module">` at it, and give that repository the
