@@ -31,7 +31,19 @@ var SHEET_ID = '';
 /** Tab names. Sessions get one tab per month; see sessionTab_(). */
 var CODES_TAB = 'Codes';
 var SIGNIN_TAB = 'Signins';
+var REFUSED_TAB = 'Refused';
 var SESSION_PREFIX = 'Sessions ';
+
+/**
+ * How many refusals to write in one hour before the tab stops growing.
+ *
+ * Refusals are rare in normal life — a friend fumbling a code, once. A burst of
+ * them is the only warning you would get that somebody is guessing, and it is
+ * worth seeing; but somebody guessing in a loop should not be able to fill your
+ * spreadsheet. Past this many in an hour the rows stop and one line says so,
+ * which is a louder signal than the thousand rows would have been anyway.
+ */
+var REFUSAL_CAP_PER_HOUR = 100;
 
 /**
  * Where each game lives, for the invite links the Invite menu builds.
@@ -39,6 +51,12 @@ var SESSION_PREFIX = 'Sessions ';
  */
 var GAME_URLS = {
   'bounty-hunters': 'https://hoai2k.github.io/mando/',
+  'jjkbrawler': 'https://hoai2k.github.io/jjkbrawler/',
+  'battlebotarena': 'https://hoai2k.github.io/battlebotarena/',
+  'rounders': 'https://hoai2k.github.io/rounders/',
+  'jujutsubattlegrounds': 'https://hoai2k.github.io/jujutsubattlegrounds/',
+  'supergoatman': 'https://hoai2k.github.io/supergoatman/',
+  'tennis': 'https://hoai2k.github.io/tennis/',
 };
 
 /** How long the code list is cached, in seconds. A new invite takes this long
@@ -77,16 +95,11 @@ function handleInvite_(body) {
 
   var found = lookup_(code);
   if (!found) {
-    // Logged anyway, and on purpose: "somebody tried a code that isn't ours"
-    // is the most useful row in the book when a friend says the link is broken,
-    // and a burst of them is the only sign you would get of someone guessing.
-    append_(SIGNIN_TAB, ['when', 'game', 'name', 'code', 'verdict'],
-            [new Date(), game, '', code, 'unknown']);
+    refuse_(game, '', code, 'unknown', body.client);
     return { ok: false, reason: 'unknown' };
   }
   if (found.revoked) {
-    append_(SIGNIN_TAB, ['when', 'game', 'name', 'code', 'verdict'],
-            [new Date(), game, found.name, code, 'revoked']);
+    refuse_(game, found.name, code, 'revoked', body.client);
     return { ok: false, reason: 'revoked' };
   }
 
@@ -95,6 +108,49 @@ function handleInvite_(body) {
   // The id, not the code, is what the browser keeps — so a stored pass carries
   // no secret that could be read out of localStorage and passed on.
   return { ok: true, id: found.id, name: found.name };
+}
+
+/**
+ * Record a turned-away attempt, in its own tab.
+ *
+ * Separate from Signins on purpose: the two are read for different reasons and
+ * at different rates. Signins answers "who got in"; this answers "is anything
+ * odd happening", and a burst of rows here should be visible at a glance rather
+ * than buried between a week of ordinary arrivals.
+ *
+ * WHAT CAN AND CANNOT BE RECORDED. Apps Script hands `doPost` the body and
+ * nothing else — no client IP, no headers, no user agent. So there is no
+ * server-side location, and anything resembling one has to be reported by the
+ * browser itself. `client` is that: the visitor's own timezone, language,
+ * screen size, user agent and referrer, which are a decent coarse hint about
+ * who and where, and are ALSO SELF-REPORTED AND TRIVIALLY FORGED. Read them as
+ * "what the browser said about itself", never as fact. The timestamp is the one
+ * field here that is genuinely ours.
+ */
+function refuse_(game, name, code, verdict, client) {
+  var c = client || {};
+  var header = ['when', 'game', 'name', 'code tried', 'verdict',
+                'timezone (self-reported)', 'language', 'screen', 'user agent', 'came from'];
+  var cache = CacheService.getScriptCache();
+  var hourKey = 'refusals-' + Utilities.formatDate(new Date(), 'UTC', 'yyyyMMddHH');
+  var n = Number(cache.get(hourKey) || 0) + 1;
+  cache.put(hourKey, String(n), 3600);
+
+  if (n > REFUSAL_CAP_PER_HOUR) {
+    // One line, once, rather than a spreadsheet full of somebody's loop.
+    if (n === REFUSAL_CAP_PER_HOUR + 1) {
+      append_(REFUSED_TAB, header,
+              [new Date(), game, '', '', 'FLOOD — over ' + REFUSAL_CAP_PER_HOUR +
+               ' refusals this hour; further rows suppressed until the hour turns',
+               '', '', '', '', '']);
+    }
+    return;
+  }
+
+  append_(REFUSED_TAB, header, [
+    new Date(), game, name, code, verdict,
+    c.tz || '', c.lang || '', c.screen || '', c.ua || '', c.ref || '',
+  ]);
 }
 
 function handleSession_(body) {
@@ -182,6 +238,7 @@ function onOpen() {
     .addItem('Show a friend’s link…', 'showLink')
     .addSeparator()
     .addItem('Refresh the Who tab', 'refreshSummary')
+    .addItem('Refused attempts (last 20)', 'showRefusals')
     .addToUi();
 }
 
@@ -244,6 +301,23 @@ function linksFor_(code) {
     out.push('', key + ':', base + (base.indexOf('?') === -1 ? '?' : '&') + 'invite=' + encodeURIComponent(code));
   }
   return out.join('\n');
+}
+
+/** A quick look at the turned-away attempts without leaving the sheet. */
+function showRefusals() {
+  var ui = SpreadsheetApp.getUi();
+  var tab = book_().getSheetByName(REFUSED_TAB);
+  if (!tab || tab.getLastRow() < 2) { ui.alert('Nothing refused yet.'); return; }
+  var last = tab.getLastRow();
+  var from = Math.max(2, last - 19);
+  var rows = tab.getRange(from, 1, last - from + 1, 6).getValues();
+  var out = [];
+  for (var i = rows.length - 1; i >= 0; i--) {
+    out.push(Utilities.formatDate(rows[i][0], 'UTC', 'MMM d HH:mm') + '  ' +
+             (rows[i][4] || '') + '  "' + (rows[i][3] || '') + '"  ' +
+             (rows[i][1] || '') + '  ' + (rows[i][5] || ''));
+  }
+  ui.alert('Refused — most recent first\n(time UTC · verdict · code tried · game · timezone)\n\n' + out.join('\n'));
 }
 
 /**

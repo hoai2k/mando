@@ -181,6 +181,32 @@ function pingSession(pass: Pass, game: string): void {
   }).catch(() => { /* the log is never worth failing a boot over */ });
 }
 
+/**
+ * What the browser can say about itself, for the refusal log.
+ *
+ * Sent only with an invite attempt, never with a session ping — the question it
+ * answers is "is anything odd happening at the door", and a friend who is
+ * already through is not that question.
+ *
+ * ALL OF IT IS SELF-REPORTED AND TRIVIALLY FORGED, which is not a flaw so much
+ * as the ceiling: Apps Script hands its `doPost` the body and nothing else — no
+ * client IP, no headers — so there is no server-side truth to compare it
+ * against and no real location to be had. The timezone is the useful field in
+ * practice: it is a coarse "roughly where", it is not something a casual
+ * guesser thinks to change, and a run of attempts from an unexpected one is
+ * exactly the shape worth noticing.
+ */
+function clientInfo(): Record<string, string> {
+  const safe = <T>(f: () => T, fallback: T): T => { try { return f(); } catch { return fallback; } };
+  return {
+    tz: safe(() => Intl.DateTimeFormat().resolvedOptions().timeZone, ''),
+    lang: safe(() => navigator.language, ''),
+    screen: safe(() => `${screen.width}x${screen.height}`, ''),
+    ua: safe(() => navigator.userAgent, '').slice(0, 300),
+    ref: safe(() => document.referrer, '').slice(0, 300),
+  };
+}
+
 // ---------- the invite in the address bar ----------
 
 /** The code an invite link carries, if this is one. */
@@ -371,7 +397,7 @@ async function redeem(code: string, ctx: RedeemCtx): Promise<void> {
   door.note.className = 'gate-note';
   door.note.textContent = 'Checking your invite…';
   try {
-    const r = await post({ kind: 'invite', game: opts.game, code }) as {
+    const r = await post({ kind: 'invite', game: opts.game, code, client: clientInfo() }) as {
       ok?: boolean; id?: string; name?: string; reason?: string;
     };
     if (r.ok && typeof r.id === 'string' && r.id !== '') {
