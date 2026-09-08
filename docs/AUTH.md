@@ -159,10 +159,27 @@ Under it are the raw tabs, if you want them:
 
 - **`Codes`** — the guest list. Delete a row or put anything in its `revoked`
   column to turn an invite off; it stops working within five minutes.
-- **`Signins`** — every attempt at the door, `admitted`, `revoked` or
-  `unknown`. Unknown codes are logged deliberately: it is how "my link doesn't
-  work" gets answered in one line, and a burst of them is the only sign you
-  would get of somebody guessing.
+- **`Signins`** — who was admitted, and when.
+- **`Refused`** — its own tab, because refusals and admissions are read for
+  different reasons: `Signins` answers "who got in", this answers "is anything
+  odd happening", and a burst here should be visible at a glance rather than
+  buried between a week of ordinary arrivals. **Invites ▸ Refused attempts**
+  shows the last twenty without leaving the sheet.
+
+  Each row has the time, the game, the code that was tried, and whether it was
+  unknown or revoked — plus the visitor's timezone, language, screen size,
+  browser and referrer. **Read those last five as "what the browser said about
+  itself", never as fact.** Apps Script hands its `doPost` the body and nothing
+  else — no client IP, no headers — so there is no server-side location to be
+  had and everything resembling one is self-reported and trivially forged. The
+  timezone is the useful field in practice: a coarse "roughly where", and not
+  something a casual guesser thinks to change, so a run of attempts from an
+  unexpected one is the shape worth noticing. The timestamp is the only field
+  here that is genuinely ours.
+
+  Past 100 refusals in one hour the rows stop and a single `FLOOD` line says
+  so. Somebody guessing in a loop should not be able to fill the spreadsheet,
+  and one line is a louder signal than a thousand rows would have been.
 - **`Sessions YYYY-MM`** — one row per launch, in a **new tab each month**.
 
 Nobody sees any of this but you. The endpoint only ever writes; it has no read
@@ -214,6 +231,36 @@ reusable invite. Forging a ping adds a junk row to a session tab and nothing
 else. The `Signins` rows are the ones that decided something.
 
 ---
+
+## Letting your own agents in
+
+Three ways, in the order they are usually wanted:
+
+**Running locally: there is nothing to do.** The no-build games' door is off on
+`localhost`, `file://` and LAN addresses, and the Vite games' door is off
+without `VITE_GATE_ENDPOINT`, which only the deploy job sets. So `npm run dev`,
+`npm start`, the test tooling and any agent driving a local server never meet a
+door at all. Append `?gatetest=1` on a local server if you ever want to *see*
+the real door.
+
+**Against the live site, in a browser the agent controls** — seed the pass
+before the first navigation and it never sees the door:
+
+```js
+// Playwright / Puppeteer, before page.goto
+await page.addInitScript(() => localStorage.setItem(
+  'gate.pass', JSON.stringify({ id: 'agent', name: 'agent', since: 0 })));
+```
+
+Nothing is logged, because nothing is redeemed. That is the right choice for a
+test run you do not want in the numbers, and the wrong one if you *do* want to
+see agent traffic.
+
+**Against the live site, and counted** — mint an invite the way you would for a
+person, called something like `agent-ci`, and have the agent open
+`?invite=THE-CODE` once. Its sessions then show up in the `Who` tab under that
+name, which is how you tell agent traffic from friends rather than wondering
+why "someone" played at 04:00.
 
 ## Porting it to another game
 
