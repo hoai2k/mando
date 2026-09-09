@@ -278,6 +278,17 @@ function audit(stageName) {
           const hz = zn.center.z + dz * (dPhys + 0.05);
           bare = bareness(hx, oy, hz, 6);
           if (bare <= BARE) continue;                 // the ray clipped a shoulder
+        } else {
+          // The other way round: rock drawn nearer than the thing that stops
+          // you. Along a ray that grazes a wall, a few centimetres of offset
+          // becomes metres of distance, so the number on its own says very
+          // little. Ask the physics the question the player would: can a body
+          // actually stand where that rock is drawn? If not, the ray clipped a
+          // face at a shallow angle. If so, you can walk into a cliff.
+          const hx = zn.center.x + dx * (dMesh + 0.6);
+          const hz = zn.center.z + dz * (dMesh + 0.6);
+          const fy = phys.groundHeight(hx, hz, oy + 3);
+          if (!isFinite(fy) || !phys.capsuleFree(hx, fy + 0.15, hz, 0.4, 1.7)) continue;
           for (const b of phys.boxes) {
             if (hx < b.min.x - 0.2 || hx > b.max.x + 0.2 || hz < b.min.z - 0.2 || hz > b.max.z + 0.2) continue;
             if (oy < b.min.y || oy > b.max.y) continue;
