@@ -298,6 +298,12 @@ const RIDE_CLEAR = 3;
  * being a fixed margin — 1.6 covers the worst of it on every ridge style.
  */
 const RIM_NOISE_REACH = 1.6;
+/**
+ * How much of a border piece has to be *standing* on the level's own floor —
+ * over it, with no collider under it — before the piece is dropped as being in
+ * the way rather than leaning over the edge like a cliff.
+ */
+const RIM_IN_THE_WAY = 0.4;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -938,10 +944,17 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         const out = r - T / 2 + 0.25 + rand() * 1.1;
         const px = x0 + nx * t + ox * out;
         const pz = z0 + nz * t + oz * out;
-        // On ground each piece is seated in the ground under it, a couple of
-        // metres deep so a rise between two pieces never shows daylight below
-        // the rock; on a plate they all stand on the plate.
-        const base = onGround ? groundAt(px, pz) - 2.5 : y0;
+        // Every piece is seated *below* the floor it stands on, a couple of
+        // metres deep, so a rise between two of them never shows daylight
+        // under the rock. On the ground that is the terrain; on a plate it
+        // used to be the plate top exactly, which put the cylinder's bottom
+        // cap on the floor plane — and a tapering, noised cap meeting a flat
+        // floor at exactly one height is a hard seam with the void behind it
+        // showing through wherever the two disagree. From inside the ravine
+        // that reads as a wall floating over the path rather than the side of
+        // a ravine, which is what a playtest called it. The plate hides
+        // whatever is under it, so sinking them costs nothing.
+        const base = (onGround ? groundAt(px, pz) : y0) - 2.5;
         rimPiece(px, pz, r, ceilingY - base + RIM_OVER_CEILING, base, false);
         // the row behind — further out again, never back across the level
         if (k % 2 === 0) {
@@ -1825,30 +1838,35 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const keptRim = rimGeo.filter((geo, i) => {
     const at = rimAt[i];
     if (!at) return true;
-    // Out to the piece's *drawn* extent, not its nominal radius. `rimPiece`
-    // noises every vertex outward by up to `look.noise * r`, scaled again by
-    // height, which on rock takes a five-metre boulder past seven — so a grid
-    // stopping at `r` leaves the overhang that is actually in the lane
-    // untested. That is what survived this cull on the Crevasse and the Storm
-    // Docks after it had cleared the other seven boards.
-    const reach = at.r * RIM_NOISE_REACH;
-    if (nearestFloor(at.x, at.z) > reach) return true;          // nowhere near a floor
-    // The piece's whole footprint on a metre grid, not a ring of samples: a
-    // ring with any spacing can straddle a lane and miss it, and a piece whose
-    // centre sits on the floor has no ring to sample in the first place.
+    // A piece that is part of a wall carries its own collider under it. That
+    // is the whole test, and getting it wrong the other way is expensive: a
+    // first pass culled anything with a single unbacked grid point over laid
+    // floor, which in a canyon twelve metres wide is every piece of the rim —
+    // eighty-five of them in the ravine and two hundred on the far side. What
+    // that leaves is a lane with the sky showing through where the wall should
+    // be and a fifty-five-metre collider standing in the open with no rock on
+    // it, which is what a playtest then reported from both ends.
     //
-    // This does not cull the wall itself. A rim piece is laid with its inner
-    // face *on* the slab's inner face, so where it reaches over a floor at all
-    // it is inside its own collider and answers `backedAt`. Only rock with
-    // nothing under it goes — and the wall a dead end is a door in is laid
-    // across its lane, is solid, and stays.
-    for (let dx = -reach; dx <= reach; dx += 1) {
-      for (let dz = -reach; dz <= reach; dz += 1) {
-        if (dx * dx + dz * dz > reach * reach) continue;
+    // So: a rim piece may lean over the lane, the way a cliff does. What it
+    // may not do is *stand* in it unbacked. Judge that by how much of the
+    // piece is over walkable floor with nothing under it — an orphan closing a
+    // corner is mostly that, a cliff face overhanging its own edge is barely
+    // any of it — and by its centre, which for an orphan is out on the floor.
+    if (nearestFloor(at.x, at.z) > at.r) return true;          // nowhere near a floor
+    let over = 0, bare = 0, total = 0;
+    for (let dx = -at.r; dx <= at.r; dx += 1) {
+      for (let dz = -at.r; dz <= at.r; dz += 1) {
+        if (dx * dx + dz * dz > at.r * at.r) continue;
+        total++;
         const px = at.x + dx, pz = at.z + dz;
-        if (onFloor(px, pz) && !backedAt(px, pz)) { culled++; return false; }
+        if (!onFloor(px, pz)) continue;
+        over++;
+        if (!backedAt(px, pz)) bare++;
       }
     }
+    const standing = onFloor(at.x, at.z) && !backedAt(at.x, at.z);
+    if (standing || (total > 0 && bare / total >= RIM_IN_THE_WAY)) { culled++; return false; }
+    void over;
     return true;
   });
   for (const geo of rimGeo) if (!keptRim.includes(geo)) geo.dispose();
