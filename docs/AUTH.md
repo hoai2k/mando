@@ -1,5 +1,12 @@
 # The door: invite codes for friends
 
+> **The scripts live in the library repository now.**
+> `Code.gs` and the portable `gate.js` moved to
+> [`hoai2k.github.io/tools/`](https://github.com/hoai2k/hoai2k.github.io/tree/main/tools),
+> so that no single game looks like the owner of something every game uses.
+> This document stayed here: it is written for whoever is wiring a game up, and
+> it is versioned alongside a game that uses it.
+
 The published site can sit behind a one-time invite code, so that the game is
 for people who were invited and the owner can see who is playing.
 
@@ -96,7 +103,9 @@ The other tabs — `Signins`, `Sessions YYYY-MM`, `Who` — create themselves.
 ### 2. The endpoint
 
 1. In the Sheet: **Extensions ▸ Apps Script**.
-2. Delete the placeholder and paste all of [`tools/gate/Code.gs`](../tools/gate/Code.gs).
+2. Delete the placeholder and paste all of
+   [`tools/gate/Code.gs`](https://github.com/hoai2k/hoai2k.github.io/blob/main/tools/gate/Code.gs),
+   which lives in the **library** repository — see the note below.
 3. Leave `SHEET_ID` as `''` — the script is bound to this Sheet already.
 4. Check `GAME_URLS` near the top. Add a line per game you publish; the key is
    the `game` string that game's `boot.ts` sends.
@@ -327,8 +336,9 @@ why "someone" played at 04:00.
 hook, and everything that knows about *this* game lives in `src/gate/boot.ts`.
 To move it:
 
-1. Copy `tools/gate/gate.js` (the portable copy — this repository's own
-   `src/gate/gate.ts` is the same door for a TypeScript site).
+1. Copy [`gate.js`](https://github.com/hoai2k/hoai2k.github.io/blob/main/tools/gate/gate.js)
+   from the library's `tools/` directory (the portable copy — this repository's
+   own `src/gate/gate.ts` is the same door for a TypeScript site).
 2. Write that game's `boot.ts`: a `title`, a `blurb`, a `game` label, an
    optional `warm` hook, and whatever starts the app.
 3. Point the page's `<script type="module">` at it, and give that repository the
