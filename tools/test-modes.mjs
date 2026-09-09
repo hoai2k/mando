@@ -494,17 +494,48 @@ const facing = await page.evaluate(`(() => {
   if (!near) return null;
   const spot = p.position.clone().addScaledVector(dirOf(near.yaw), near.d - 0.6);
   const chosen = phys.openBearing(spot.x, eye, spot.z, near.yaw);
+  const apart = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
+  // ...and the camera is turned with the body, not left on the wall.
+  //
+  // Read where \`faceOpenGround\` sets them, which is the only place the two are
+  // promised to agree: it takes one bearing and gives it to both. This used to
+  // sample a player who had been standing in a live match for four seconds
+  // instead, which is not that promise — the legs turn with movement and the
+  // camera does not, so the two drift apart for entirely ordinary reasons and
+  // the check went red on runs where nothing was wrong.
+  //
+  // Twice, because both halves can fail on their own: at the wall this probe
+  // just found, which is the case the feature exists for and one no checkpoint
+  // is guaranteed to put anybody in, and again coming back from a real death,
+  // which is what proves the respawn path still calls it at all.
+  p.position.copy(spot);
+  p.cam.face(near.yaw);                 // looking into the wall, as after a death
+  p.faceOpenGround(g);
+  const atWall = { yaw: +p.yaw.toFixed(3), cam: +p.cam.yaw.toFixed(3),
+    agree: apart(p.yaw, p.cam.yaw) < 1e-6, offWall: apart(p.yaw, near.yaw) > 0.2 };
+
+  p.damage(1e9, p.position, -1);
+  const died = !p.alive;
+  // \`__simUntil\` tests before it steps, so it returns on the first frame the
+  // body is back — the frame \`Game.update\` respawned it and called
+  // \`faceOpenGround\` at the end of. Nothing has moved either since.
+  const cameBack = window.__simUntil(() => g.players[0].alive, 20);
+  const reborn = { died, cameBack, agree: apart(p.yaw, p.cam.yaw) < 1e-6 };
   return {
     wall: near.d,
     intoWall: clearFrom(spot, near.yaw),
     chosen: clearFrom(spot, chosen),
-    wired: Math.abs(Math.atan2(Math.sin(p.yaw - p.cam.yaw), Math.cos(p.yaw - p.cam.yaw))) < 0.05,
+    atWall, reborn,
   };
 })()`);
 check('campaign (room chain): a body standing at a wall is turned off it',
   !!facing && facing.chosen > facing.intoWall + 3 && facing.chosen > 4, JSON.stringify(facing));
-check('campaign (room chain): the body and its camera agree on the bearing',
-  !!facing && facing.wired, JSON.stringify(facing));
+check('campaign (room chain): turning a body off a wall turns its camera too',
+  !!facing && facing.atWall.agree && facing.atWall.offWall, JSON.stringify(facing?.atWall));
+check('campaign (room chain): ...and a body that respawns comes back agreeing',
+  !!facing && facing.reborn.died && facing.reborn.cameBack !== null && facing.reborn.agree,
+  JSON.stringify(facing?.reborn));
 
 // ---- Campaign: the outdoor stage chain, which is the default ----
 // `tools/test-missions.mjs` is where its shells, borders, ceiling and

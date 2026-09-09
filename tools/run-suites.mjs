@@ -33,6 +33,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { pickSeed } from './harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -193,7 +194,15 @@ async function startServer() {
  */
 const SUITE_TIMEOUT_MS = Number(flag('timeout') ?? 20 * 60_000);
 
-function runSuite(suite) {
+/**
+ * Run one suite, on dice we can hand back.
+ *
+ * `seed` is what the game's `Math.random` is wound to (see the seed shim in
+ * `harness.mjs`). Every run gets one and it is carried on the result, so
+ * nothing that goes red here is ever a failure nobody can reproduce: the
+ * report below prints the line that replays it.
+ */
+function runSuite(suite, seed = pickSeed()) {
   const started = Date.now();
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [join(HERE, `${suite.name}.mjs`)], {
@@ -201,7 +210,7 @@ function runSuite(suite) {
       // HARNESS_PORT is what points every suite at the server we already
       // started; `launch()` reuses whatever answers there rather than
       // starting — and killing — one of its own.
-      env: { ...process.env, HARNESS_PORT: PORT },
+      env: { ...process.env, HARNESS_PORT: PORT, HARNESS_SEED: String(seed) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
@@ -212,7 +221,7 @@ function runSuite(suite) {
     child.on('close', (code) => {
       clearTimeout(killer);
       if (timedOut) out += `\n[runner] killed after ${(SUITE_TIMEOUT_MS / 1000).toFixed(0)}s\n`;
-      resolve({ ...suite, code: timedOut ? 124 : code, out, seconds: (Date.now() - started) / 1000 });
+      resolve({ ...suite, seed, code: timedOut ? 124 : code, out, seconds: (Date.now() - started) / 1000 });
     });
   });
 }
@@ -259,15 +268,29 @@ await Promise.all(Array.from({ length: Math.min(jobs, chosen.length) }, worker))
  * Re-run whatever failed, once, and split the failures in two.
  *
  * A suite that fails and then passes on the same commit, same machine and same
- * build is by definition not measuring what it claims to: it is FLAKY. That is
- * worth knowing separately from a real failure, because the two want opposite
- * responses -- a red suite is a bug to fix now, a flaky one is a test to fix
- * before it cries wolf over something real. Every flake this repo has had was
- * one bug: sampling on a frame count or a clock while the thing measured
- * arrives asynchronously (test-arrivals' campaign intro, the PvP camera's
- * ease, test-block's SkinnedMesh, the collision audit's sculpts). None of them
- * announced itself as a flake -- each one read as a broken feature, and two
- * were "fixed" on the strength of a local pass that proved nothing.
+ * build did not fail for the reason it says. That is worth knowing separately
+ * from a steady failure, because the two want different responses.
+ *
+ * THE RETRY IS ON DIFFERENT DICE, ON PURPOSE. Every run is seeded (see
+ * `harness.mjs`) and the retry is seeded differently, which is what makes the
+ * result mean something: the suites step at a fixed dt, so the game's own
+ * randomness is very nearly the only thing left that can differ between two
+ * runs of the same build. A suite that fails on one seed and passes on the
+ * next is therefore reporting a bug that happens on *some* of the dice —
+ * a wave that draws a kind nothing handles, a body posted where it should not
+ * fit, a hull shot out from under a rider at the wrong moment. That is a real
+ * bug found probabilistically, not a test crying wolf, and the first seed is
+ * how to look at it: it is printed below and kept in the report, and it plays
+ * the failing run back exactly.
+ *
+ * So "FLAKY" here means "does not happen every time", not "ignore me". The
+ * older meaning is still worth watching for — a check sampling on a frame
+ * count or a clock while the thing it measures arrives asynchronously, which
+ * is what every flake in this repo was before the dice were seeded
+ * (test-arrivals' campaign intro, the PvP camera's ease, test-block's
+ * SkinnedMesh, the collision audit's sculpts) — and it now has a signature:
+ * a suite that fails and passes *on the same seed* is not being tripped by
+ * the dice at all, and the check itself is what to go and read.
  *
  * A flake does NOT fail the run. Making the nightly red for a test that passes
  * on the retry is how a red nightly stops meaning anything, which is the state
@@ -281,10 +304,13 @@ if (RETRIES > 0 && done.some((r) => r.code)) {
   const suspects = done.filter((r) => r.code);
   console.log(`\n${'='.repeat(70)}\nre-running ${suspects.length} failed suite(s) once — a pass here means flaky, not fixed\n${'='.repeat(70)}`);
   for (const r of suspects) {
-    process.stdout.write(`>>> retry ${r.name}\n`);
-    const again = await runSuite(r);
+    // A fresh seed, so the retry is a second roll rather than the same one.
+    const retrySeed = pickSeed();
+    process.stdout.write(`>>> retry ${r.name} (seed ${retrySeed}; it failed on ${r.seed})\n`);
+    const again = await runSuite(r, retrySeed);
     if (!again.code) {
-      flaky.push({ name: r.name, firstSeconds: r.seconds, retrySeconds: again.seconds, firstOutput: r.out });
+      flaky.push({ name: r.name, seed: r.seed, retrySeed,
+        firstSeconds: r.seconds, retrySeconds: again.seconds, firstOutput: r.out });
       r.code = 0;                    // not a failure of the code under test
       r.flaky = true;
     }
@@ -306,15 +332,27 @@ if (flaky.length) {
     for (const l of f.firstOutput.split('\n').filter((l) => /^\s*(FAIL|Error)/.test(l)).slice(0, 6)) {
       console.log(`    ${l.trim()}`);
     }
+    console.log(`    same dice: HARNESS_SEED=${f.seed} node tools/${f.name}.mjs`);
   }
-  console.log('\n  These pass on a re-run, so they are not blocking. They are still bugs:');
-  console.log('  a test that answers differently twice is not measuring what it says.');
-  console.log('  Look first for a fixed frame count or a sleep standing in for an');
-  console.log('  arrival that is actually asynchronous — that is what every one so far was.');
+  console.log('\n  These passed on a second roll, so they are not blocking. They are');
+  console.log('  still bugs — ones that happen on some runs and not others, which is');
+  console.log('  the kind a frozen scenario would never have found at all.');
+  console.log('  Start from the seed printed above. It deals the same dice, which is');
+  console.log('  not the same thing as replaying the run — the boot is still live, so');
+  console.log('  expect to re-run it a few times to catch the failure again (see the');
+  console.log('  seed shim in harness.mjs for why, and what would close the gap).');
+  console.log('  If it will not come back at all, suspect the check rather than the');
+  console.log('  code: a frame count or a sleep standing in for something that arrives');
+  console.log('  asynchronously is what every flake in this repo has been so far.');
 
   const { writeFileSync } = await import('node:fs');
   const report = flaky.map((f) => ({
-    suite: f.name, firstSeconds: +f.firstSeconds.toFixed(1), retrySeconds: +f.retrySeconds.toFixed(1),
+    suite: f.name,
+    // the whole point of the report: the dice that showed the bug, and the
+    // ones that hid it
+    seed: f.seed, retrySeed: f.retrySeed,
+    sameDice: `HARNESS_SEED=${f.seed} node tools/${f.name}.mjs`,
+    firstSeconds: +f.firstSeconds.toFixed(1), retrySeconds: +f.retrySeconds.toFixed(1),
     failingChecks: f.firstOutput.split('\n').filter((l) => /^\s*(FAIL|Error)/.test(l)).map((l) => l.trim()).slice(0, 12),
   }));
   writeFileSync(join(ROOT, 'flaky-report.json'), JSON.stringify({ when: new Date().toISOString(), flaky: report }, null, 2));
@@ -322,14 +360,15 @@ if (flaky.length) {
   // shows on the GitHub run summary without making the run red
   if (process.env.GITHUB_ACTIONS) {
     for (const f of flaky) {
-      console.log(`::warning file=tools/${f.name}.mjs,title=Flaky suite::${f.name} failed then passed on retry — it is not measuring what it claims. See flaky-report.json.`);
+      console.log(`::warning file=tools/${f.name}.mjs,title=Flaky suite::${f.name} failed on seed ${f.seed} and passed on ${f.retrySeed} — it does not happen every run. Start from HARNESS_SEED=${f.seed} node tools/${f.name}.mjs; see flaky-report.json.`);
     }
   }
 }
 
 console.log(`\n${'='.repeat(70)}\nslowest first\n${'='.repeat(70)}`);
 for (const r of [...done].sort((a, b) => b.seconds - a.seconds)) {
-  console.log(`${(r.code ? 'FAIL' : r.flaky ? 'FLAKY' : 'ok  ')}  ${r.seconds.toFixed(1).padStart(7)}s  ${r.name}`);
+  console.log(`${(r.code ? 'FAIL' : r.flaky ? 'FLAKY' : 'ok  ')}  ${r.seconds.toFixed(1).padStart(7)}s  ${r.name}`
+    + (r.code || r.flaky ? `   (seed ${r.seed})` : ''));
 }
 console.log(`\n${done.length} suite(s) in ${(total / 60).toFixed(1)} min`
   + (jobs > 1 ? ` (${(cpu / 60).toFixed(1)} min of suite time, ${(cpu / total).toFixed(2)}x overlap)` : ''));
@@ -344,6 +383,9 @@ if (failed.length) {
     const lines = r.out.split('\n').filter((l) => /^\s*(FAIL|\d+ check)|Error|failed/.test(l));
     for (const l of lines.slice(0, 12)) console.log(`  ${l.trim()}`);
     if (!lines.length) console.log(`  exited ${r.code} with nothing that looks like a failing check`);
+    // A red suite that failed twice failed on two different sets of dice, so
+    // either seed shows it. The first is the one whose output is above.
+    console.log(`  same dice: HARNESS_SEED=${r.seed} node tools/${r.name}.mjs`);
   }
   process.exit(1);
 }
