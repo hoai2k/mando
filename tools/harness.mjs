@@ -144,10 +144,24 @@ function simShim(BLANK) {
   const inputsFor = (over) => [
     { ...BLANK, ...over }, { ...BLANK }, { ...BLANK }, { ...BLANK },
   ];
+  /**
+   * The suite is taking the clock: put the dice at a known offset (see
+   * `__reseed`). Once only — a suite steps thousands of times and the stream
+   * has to run on from wherever the last step left it.
+   */
+  let took = false;
+  const takeTheClock = () => {
+    if (took) return;
+    took = true;
+    // a fixed shuffle of the run's seed, so this offset is its own stream
+    // rather than a replay of the frames that came before it
+    window.__reseed?.((window.__seed ^ 0x9E3779B9) >>> 0);
+  };
   /** advance `seconds` of match time; returns the game for chaining */
   window.__sim = (seconds, over = {}, dt = 1 / 30) => {
     const g = window.__game;
     if (!g) throw new Error('__sim: no game running');
+    takeTheClock();
     const inputs = inputsFor(over);
     for (let i = 0, n = Math.max(1, Math.round(seconds / dt)); i < n; i++) g.update(dt, inputs);
     return g;
@@ -161,6 +175,7 @@ function simShim(BLANK) {
   window.__simUntil = (done, maxSeconds = 30, over = {}, dt = 1 / 30) => {
     const g = window.__game;
     if (!g) throw new Error('__simUntil: no game running');
+    takeTheClock();
     const inputs = inputsFor(over);
     for (let t = 0; t < maxSeconds; t += dt) {
       if (done(g)) return +t.toFixed(3);
@@ -168,6 +183,86 @@ function simShim(BLANK) {
     }
     return done(g) ? +maxSeconds.toFixed(3) : null;
   };
+}
+
+/**
+ * Seed the game's dice, so the same run can be asked for twice.
+ *
+ * These suites step the match by hand at a fixed dt, so nothing in the stepped
+ * part depends on how fast the machine draws. The big thing left that makes
+ * two runs of the same suite on the same build differ is the game's own
+ * randomness: which kinds a wave draws, where a camp posts a body, the jitter
+ * on an AI's aim, which of five rides a Tusken runs to.
+ *
+ * That randomness is worth keeping. It is why these suites find things a
+ * frozen scenario never would, and a check that goes red one run in five is
+ * usually a bug that happens one time in five rather than a bad check.
+ *
+ * What it should not be is unrepeatable. A red run whose dice are gone is a
+ * bug report with no way back in, which is how a real failure gets waved off
+ * as "flaky" and left standing. So the seed is drawn once per run, printed on
+ * the first line of every suite, and can be put back:
+ *
+ *     HARNESS_SEED=1234567890 node tools/test-missions.mjs
+ *
+ * `tools/run-suites.mjs` records the seed of every suite it runs and prints
+ * that line for anything that goes red.
+ *
+ * HOW FAR THIS GOES, MEASURED. The same seed gives the same dice, in the same
+ * order, from the same point (see `__reseed`). It does NOT yet give the same
+ * run: test-arrivals and test-brood were both run twice on one seed and both
+ * came back with different numbers — small ones, a body a decimetre off where
+ * it was last time, and enough to move a check that sits near its threshold.
+ *
+ * What is left is the boot. A suite asks for a match and then waits, in real
+ * time, for it to come up; the loading screen is driven by the live frame loop
+ * rather than by `Game.update`, so the number of frames that run before the
+ * suite takes the clock depends on how fast the machine loaded the files, and
+ * two runs reach the first stepped frame with slightly different worlds.
+ * Freezing the loop earlier does not work today: take the clock at `loading`
+ * and the match never reaches `playing`, because nothing but the live loop
+ * advances it. Closing that gap means driving the loading state machine from
+ * the stepped update — a change to the game, not to this file.
+ *
+ * So: a seed narrows a failure to one axis and is worth having and worth
+ * printing. It is not yet a replay button, and nothing here should be read as
+ * promising one.
+ *
+ * Installed as an init script, so it is in place before a single game module
+ * has evaluated — some of them draw at import time.
+ */
+function seedShim(seed) {
+  // mulberry32 — small, fast, and far better dice than a game needs
+  let s = seed >>> 0;
+  Math.random = () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  window.__seed = seed;
+  /**
+   * Wind the dice back to a known place mid-run.
+   *
+   * Seeding at load leaves the stream at a different offset every run: before
+   * a suite takes the clock, the game runs its own frame loop while the files
+   * the match needs come in over a real socket — a different number of frames
+   * each time, each drawing a different number of times.
+   *
+   * `__sim` and `__simUntil` therefore wind the stream to a fixed offset on
+   * their first call, which is the instant the suite takes over. The stepped
+   * part of a run then draws the same numbers in the same order on the same
+   * seed. It starts from a slightly different world each time all the same —
+   * see the seed shim's header for what is still open.
+   */
+  window.__reseed = (n) => { s = n >>> 0; };
+}
+
+/** the seed this process runs on: the one asked for, or a fresh one */
+export function pickSeed() {
+  const asked = Number(process.env.HARNESS_SEED);
+  return Number.isFinite(asked) && asked > 0 ? asked >>> 0 : (Math.random() * 2 ** 32) >>> 0;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -284,6 +379,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     if (/Failed to load resource/.test(m.text()) && optional.test(url)) return;
     if (!/authored/.test(m.text())) errors.push(m.text());
   });
+  const seed = pickSeed();
+  // First line of every suite's output, red or green: whatever the dice did,
+  // they can be dealt again.
+  console.log(`seed ${seed} — same dice with HARNESS_SEED=${seed}`);
+  await page.addInitScript(seedShim, seed);
   await page.addInitScript(padShim);
   await page.addInitScript(simShim, blankInput());
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -485,6 +585,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
 
   return {
     browser, page, pad, pads, errors,
+    seed,
     text, waitForText, tapUntil, clickText, focusButton, startMatch, waitForPlaying, waitForTitle,
     startCoop, startMode, manual, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),

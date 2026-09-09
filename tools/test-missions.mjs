@@ -511,19 +511,51 @@ const riders = await page.evaluate(`(() => {
   const ahead = 30;
   p.position.set(v.pos.x + Math.sin(v.yaw) * ahead, v.pos.y, v.pos.z + Math.cos(v.yaw) * ahead);
   const seat0 = rider.position.clone();
-  let top = 0, nearest = v.pos.distanceTo(p.position);
-  for (let i = 0; i < 120; i++) {
-    window.__sim(1 / 30);
-    top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));
-    nearest = Math.min(nearest, v.pos.distanceTo(p.position));
-  }
+  // Wait for the charge to arrive; do not hand it four seconds and measure
+  // where it got to. It covers the thirty metres in a second or two of the
+  // fifteen allowed, but which of the corral's five rides the Tusken reaches
+  // and what he has to steer round on the way move that by enough that a fixed
+  // frame budget was a coin toss on the runs where he set off late — 10.2 m
+  // against a limit of 8, on a charge that was going to arrive.
+  let top = 0;
+  const closed = window.__simUntil(() => {
+    top = Math.max(top, Math.hypot(v.vel.x, v.vel.z));   // sampled every frame
+    return v.pos.distanceTo(p.position) < 8;
+  }, 15);
+  const nearest = v.pos.distanceTo(p.position);
   const seated = rider.position.distanceTo(v.seatWorld(new (rider.position.constructor)())) < 0.05;
-  // shot out of the saddle
+
+  // ---- shot out of the saddle, and the hull rolls on without him ----
+  //
+  // Staged, rather than taken where the charge happened to end. A rider shot
+  // off at twenty-four metres a second with the party a metre off the nose is
+  // a crash as often as a dismount: the hull grinds into what it was charging,
+  // \`crashIntoWall\` writes it off, and a wreck keeps the velocity it died
+  // carrying — so "has it rolled to a stop yet" was being asked of a burning
+  // hull that was never going to answer, and answered differently run to run.
+  //
+  // What the check is named for is what the drag does with a hull nobody is
+  // steering, and that is not a question about the fight. So: the hull on the
+  // corral's own entry, which is on the golden path and clear by construction,
+  // pointed down that path, the party eighty metres away, and a known speed in
+  // it. \`dropHostile\` reads the speed at the moment the saddle empties, so the
+  // speed goes in on the same frame as the kill, with nothing stepped between.
+  const dx = corral.exit.x - corral.entry.x, dz = corral.exit.z - corral.entry.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const DROP_SPEED = 12;
+  v.pos.set(corral.entry.x, corral.entry.y + 0.5, corral.entry.z);
+  v.yaw = Math.atan2(dx / len, dz / len);
+  p.position.set(corral.entry.x + 80, corral.entry.y + 2, corral.entry.z + 80);
+  v.vel.set((dx / len) * DROP_SPEED, 0, (dz / len) * DROP_SPEED);
   rider.damage(9999, p.position, 0);
   const dropped = { hostile: v.hostile, alive: rider.alive, rideAlive: v.alive, rideRef: rider.ride };
-  // long enough for a riderless hull to run its speed off and park itself
-  window.__simUntil(() => Math.hypot(v.vel.x, v.vel.z) < 0.2, 12);
+  // It rolls, and it stops. Waited for rather than timed: the drag is a rate,
+  // and how long twelve metres a second takes to bleed off is that rate's
+  // business, not a number this file should be holding a stopwatch to.
+  const rolled = window.__simUntil(
+    () => !v.coasting && Math.hypot(v.vel.x, v.vel.z) < 0.05, 20);
   const speedAfter = Math.hypot(v.vel.x, v.vel.z);
+  const carried = corral.entry.distanceTo(v.pos);
   // and it is the party's for the taking: walk up, and the prompt is there
   p.position.set(v.pos.x + v.def.radius + 1.0, v.pos.y + 0.3, v.pos.z);
   const yours = p.findVehicle(g) === v;
@@ -531,8 +563,9 @@ const riders = await page.evaluate(`(() => {
     before, claimed, running, mounted: mounted.length, onFoot,
     kind: v.spec.kind, riderKind: rider.kind,
     moved: +(seat0.distanceTo(rider.position)).toFixed(1), top: +top.toFixed(1),
-    nearest: +nearest.toFixed(1), seated,
-    dropped, speedAfter: +speedAfter.toFixed(2), yours,
+    closed, nearest: +nearest.toFixed(1), seated,
+    dropped, rolled, dropSpeed: DROP_SPEED, carried: +carried.toFixed(1),
+    speedAfter: +speedAfter.toFixed(2), yours,
   };
 })()`);
 check('the corral posts a squad that can ride what is parked there',
@@ -542,11 +575,19 @@ check('an alerted camp sends riders for its rides, and keeps half its feet',
   riders.claimed > 0 && riders.mounted > 0 && riders.onFoot > 0,
   `claimed ${riders.claimed} · running ${riders.running} · mounted ${riders.mounted} · on foot ${riders.onFoot}`);
 check('the rider sits the seat and the ride comes at the party',
-  riders.mounted > 0 && riders.seated && riders.top > 4 && riders.nearest < 8,
-  `${riders.riderKind} on a ${riders.kind}: seated ${riders.seated}, top ${riders.top} m/s, came within ${riders.nearest} m`);
+  riders.mounted > 0 && riders.seated && riders.top > 4 && riders.closed !== null,
+  `${riders.riderKind} on a ${riders.kind}: seated ${riders.seated}, top ${riders.top} m/s,`
+  + ` closed 30 m to 8 m in ${riders.closed === null ? 'never (' + riders.nearest + ' m)' : riders.closed + ' s'}`);
 check('drop the rider and the saddle is empty, the ride whole',
   riders.mounted > 0 && !riders.dropped.hostile && !riders.dropped.alive && riders.dropped.rideAlive && !riders.dropped.rideRef,
   JSON.stringify(riders.dropped));
+// The bargain `dropRider` documents, and which nothing checked: a hull with
+// speed still in it does not stop dead the moment the saddle empties. It has
+// to carry itself some real distance, or "rolls to a stop" below is satisfied
+// by a ride that never rolled.
+check('a hull with speed still in it rolls on rather than stopping dead',
+  riders.mounted > 0 && riders.rolled !== null && riders.carried > 2,
+  `parked ${riders.rolled} s and ${riders.carried} m on from ${riders.dropSpeed} m/s`);
 check('and it rolls to a stop where the party can take it',
   riders.mounted > 0 && riders.speedAfter < 0.6 && riders.yours,
   `speed ${riders.speedAfter} · mountable ${riders.yours}`);
