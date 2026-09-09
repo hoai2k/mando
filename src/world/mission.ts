@@ -325,6 +325,8 @@ const RIM_SOLID_FRACTION = 0.72;
  * a collider — the one case where the answer is to take the wall away.
  */
 const PATH_CLEAR = 1.2;
+/** how wide a strip either side of the golden path counts as walkable ground */
+const PATH_WALKABLE = 2.5;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -1901,7 +1903,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       for (let dz = -at.r; dz <= at.r; dz += 1) {
         if (dx * dx + dz * dz > at.r * at.r) continue;
         const px = at.x + dx, pz = at.z + dz;
-        if (onFloor(px, pz) && !backedAt(px, pz)) bare++;
+        // Walkable ground is the floors the level registered *and* the golden
+        // path itself. A path can run over ground no rect covers — a doorway's
+        // threshold, the mouth of a link — and rock leaning over one of those
+        // is still rock a player walks into: the Crevasse and the Storm Docks
+        // each kept a wall there through three goes at this, invisible to a
+        // test that only knew about rects.
+        if (!onFloor(px, pz) && pathNear(px, pz) > PATH_WALKABLE) continue;
+        if (!backedAt(px, pz)) bare++;
       }
     }
     if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
