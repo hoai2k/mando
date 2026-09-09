@@ -189,9 +189,40 @@ function audit(stageName) {
       }
       if (d2 >= best * best) continue;
       const t = s.tris;
-      for (let i = 0; i < t.length; i += 3) {
-        const d = Math.hypot(t[i] - x, t[i + 1] - y, t[i + 2] - z);
-        if (d < best) best = d;
+      // To the nearest *triangle*, not the nearest vertex. A rim piece is
+      // seventy metres tall with two height segments, so its rings are
+      // thirty-five metres apart: measuring to a corner said "four metres of
+      // clear air" while the face of the rock was against your chest. Every
+      // tall wall on every board read as bare that way.
+      for (let i = 0; i < t.length; i += 9) {
+        const ax = t[i], ay = t[i + 1], az = t[i + 2];
+        const e1x = t[i + 3] - ax, e1y = t[i + 4] - ay, e1z = t[i + 5] - az;
+        const e2x = t[i + 6] - ax, e2y = t[i + 7] - ay, e2z = t[i + 8] - az;
+        const dx0 = ax - x, dy0 = ay - y, dz0 = az - z;
+        const a = e1x * e1x + e1y * e1y + e1z * e1z;
+        const b = e1x * e2x + e1y * e2y + e1z * e2z;
+        const c = e2x * e2x + e2y * e2y + e2z * e2z;
+        const d = e1x * dx0 + e1y * dy0 + e1z * dz0;
+        const e = e2x * dx0 + e2y * dy0 + e2z * dz0;
+        const det = a * c - b * b;
+        let u = b * e - c * d, v = b * d - a * e;
+        // clamp (u, v) into the triangle — the standard region walk, folded
+        // down to the three cases that matter for a distance query
+        if (u + v <= det) {
+          if (u < 0) { if (v < 0) { if (d < 0) { v = 0; u = a <= 0 ? 1 : Math.min(1, -d / a); } else { u = 0; v = e >= 0 ? 0 : c <= 0 ? 1 : Math.min(1, -e / c); } } else { u = 0; v = e >= 0 ? 0 : c <= 0 ? 1 : Math.min(1, -e / c); } }
+          else if (v < 0) { v = 0; u = d >= 0 ? 0 : a <= 0 ? 1 : Math.min(1, -d / a); }
+          else if (det > 0) { u /= det; v /= det; }
+          else { u = 0; v = 0; }
+        } else {
+          const num = c + e - b - d;
+          if (num <= 0) { u = 0; v = 1; }
+          else { const den = a - 2 * b + c; u = den <= 0 ? 1 : Math.min(1, num / den); v = 1 - u; }
+        }
+        const px = ax + e1x * u + e2x * v - x;
+        const py = ay + e1y * u + e2y * v - y;
+        const pz = az + e1z * u + e2z * v - z;
+        const dist = Math.hypot(px, py, pz);
+        if (dist < best) best = dist;
       }
     }
     return best;
