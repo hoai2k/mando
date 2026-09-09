@@ -150,7 +150,12 @@ function audit(stageName) {
       const e2 = [t[i + 6] - t[i], t[i + 7] - t[i + 1], t[i + 8] - t[i + 2]];
       const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
       bestT = dist;
-      bestBack = n[ic] < 0;      // facing away from a ray travelling +c
+      // Inside a solid, the first surface a ray travelling +c meets is the
+      // boundary on its far side, whose outward normal points the same way
+      // the ray does. Outside, the first thing met is a face turned back
+      // toward the ray. So: inside iff that normal agrees with the direction
+      // of travel.
+      bestBack = n[ic] > 0;
     }
     return bestT < Infinity && bestBack;
   };
