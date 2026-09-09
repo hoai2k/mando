@@ -620,6 +620,15 @@ function keyEnemies(board: BoardId): EnemyKind[] {
 }
 
 function buildMatch(): void {
+  // A test's chance to put the dice at a known place before the level is
+  // drawn. The build is the single biggest draw in a run — the board, the
+  // stage, where every body in the garrison stands — and it runs from a
+  // `requestAnimationFrame` rather than from anything a suite can time, so
+  // whatever the loader happened to draw while the files were landing shifted
+  // it. That was the last thing keeping two runs on one seed apart; see the
+  // seed shim in `tools/harness.mjs`. Unset outside the harness, and one
+  // optional call either way.
+  dbg.__beforeBuild?.();
   // the registry describes the board being raised now, not every board this
   // tab has ever seen
   propsUsed.clear();
@@ -666,11 +675,25 @@ const LOAD_SKIP_AFTER = 5;
 let loadTimer = 0;
 let built = false;
 
-function updateLoading(dt: number): void {
-  loadTimer += dt;
+/**
+ * What the drop is still waiting on.
+ *
+ * Pulled out of `updateLoading` so it can be asked without advancing anything
+ * — a test driving the drop by hand needs to know where it has got to without
+ * that question itself costing a frame. Note that the drop does need frames:
+ * freezing it entirely does not work, because the loader's own bookkeeping
+ * runs on them. Stepping it is free of consequence instead, since `step`
+ * leaves `Game.update` alone while the screen is `loading`.
+ */
+function loadProgress(): ReturnType<typeof tracked.progress> {
   const chars = matchCast();
   const keys = [...matchAssets(chosenBoard.id, chars, mode), ...(built ? boardLoads() : [])];
-  const p = tracked.progress(keys);
+  return tracked.progress(keys);
+}
+
+function updateLoading(dt: number): void {
+  loadTimer += dt;
+  const p = loadProgress();
   // The build itself is a real part of the wait, and worth a moving bar. The
   // last stretch is held just short of full while anything is still coming:
   // a bar reading 100% over "2 files to go" reads as a stuck loader, and the
@@ -808,6 +831,24 @@ let last = performance.now();
 // test/capture hooks: __manual pauses the live loop; __renderOnce renders one frame
 const dbg = window as unknown as {
   __manual?: boolean; __renderOnce?: (dt?: number) => void; __holdLoading?: boolean;
+  __stepFrame?: (dt?: number) => void;
+  __loadState?: () => { screen: string; built: boolean; pending: number };
+  __beforeBuild?: () => void;
+};
+/**
+ * Drive one frame by hand, whatever `__manual` says.
+ *
+ * The pair to `__manual`: that stops the live loop, this advances it, so a
+ * test owns both the size of a frame and how many there are. It covers the
+ * menus and the drop as well as the match — `window.__sim` only ever drove
+ * `Game.update`, which is why a suite that took the clock while the loading
+ * screen was up sat there forever.
+ */
+dbg.__stepFrame = (dt = 1 / 30) => { step(dt); };
+/** the drop's state, readable without advancing it (see `loadProgress`) */
+dbg.__loadState = () => {
+  const p = loadProgress();
+  return { screen: state, built, pending: p.pending };
 };
 dbg.__renderOnce = (dt = 1 / 24) => {
   if (game) {
@@ -820,7 +861,25 @@ function frame(now: number): void {
   if (dbg.__manual) { last = now; return; }
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
+  step(dt);
+}
 
+/**
+ * One frame of everything — menus, the drop, the match — on a dt somebody
+ * else chose.
+ *
+ * Split out from `frame` so the clock is an argument rather than a reading.
+ * Nothing in the game asks the wall what time it is: `Game.time` is the sum of
+ * the dt it has been given, and every timer under it is the same. The only
+ * place real time entered was the line above, which is why two runs of a suite
+ * on identical dice still came out different — the frames were not the same
+ * size, and there were not the same number of them.
+ *
+ * `__stepFrame` above hands this a fixed dt, so a test can drive the whole
+ * thing — including the loading screen, which `__manual` otherwise freezes
+ * solid — at a size and a count it chooses. See `tools/harness.mjs`.
+ */
+function step(dt: number): void {
   updateCursor(dt);
   input.poll(dt);
   const events = input.drainMenuEvents();

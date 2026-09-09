@@ -25,10 +25,13 @@ function check(name, ok, detail) {
 
 const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
-// The board and its models are real elapsed time, not simulated time — but
-// asking when they are up beats guessing at nine seconds, which was both
-// longer than it usually takes and shorter than it sometimes does.
-await h.startCoop(1, 'desert');
+// Booted stepped, so this suite repeats: the drop is driven frame by frame at
+// a fixed dt and the match's first frame is this suite's, rather than the
+// browser running a few seconds of its own first — a different few every time.
+// With the seed printed above, the same run comes back. This one went FLAKY on
+// the nightly, and a flake nobody can play back twice is a bug report with no
+// way into it.
+await h.startStepped('wave', 1, 'desert');
 
 const results = await h.page.evaluate(async () => {
   // Step the simulation directly rather than sleeping on the wall clock.
@@ -175,14 +178,20 @@ const results = await h.page.evaluate(async () => {
     // mean to measure. `arrival` is live for exactly as long as that is going
     // on; give it a little settling afterwards.
     for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
-    run(0.6);
     // The sculpt arrives on wall-clock time, not simulated time, and the
     // sculpt is the body the player watches fall: measuring the procedural
     // stand-in would be measuring something that is about to be replaced.
+    //
+    // Wait for it WITHOUT simulating. This used to step 0.1 s of match per
+    // poll, which handed the body a different amount of settling depending on
+    // how fast the file landed — a fast load got one tenth of a second, a slow
+    // one got half — and that, not the dice, was what made this suite come out
+    // differently every run. The settle is a fixed amount afterwards, so it is
+    // the same on every machine.
     for (let i = 0; i < 60 && !(e.char.modelReady?.() ?? true); i++) {
       await new Promise((r) => setTimeout(r, 100));
-      run(0.1);
     }
+    run(0.6);
     const root = e.char.root;
     const standing = drawn(root);
     const before = { pos: root.position.clone() };
@@ -252,13 +261,13 @@ const results = await h.page.evaluate(async () => {
     spot.z -= 8;
     const e = g.addReinforcement('tusken', spot);
     for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
-    run(0.8);
-    // the .glb lands on wall-clock time, not simulated time
+    // the .glb lands on wall-clock time, not simulated time — so wait for it
+    // without simulating, then settle a fixed amount (see above)
     const skinCount = () => { let n = 0; e.char.root.traverse((o) => { if (o.isSkinnedMesh) n++; }); return n; };
     for (let i = 0; i < 60 && !skinCount(); i++) {
       await new Promise((r) => setTimeout(r, 100));
-      run(0.1);
     }
+    run(0.8);
     e.velocity.set(0, 0, 0);
     e.knockdown(1.8);
     run(0.1);                       // over, but nowhere near flat yet

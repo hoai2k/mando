@@ -198,35 +198,36 @@ function simShim(BLANK) {
  * frozen scenario never would, and a check that goes red one run in five is
  * usually a bug that happens one time in five rather than a bad check.
  *
- * What it should not be is unrepeatable. A red run whose dice are gone is a
- * bug report with no way back in, which is how a real failure gets waved off
- * as "flaky" and left standing. So the seed is drawn once per run, printed on
- * the first line of every suite, and can be put back:
+ * What it must not be is unrepeatable. A red run whose dice are gone is a bug
+ * report with no way back in, which is how a real failure gets waved off as
+ * "flaky" and left standing. So the seed is drawn once per run, printed on the
+ * first line of every suite, and can be put back:
  *
  *     HARNESS_SEED=1234567890 node tools/test-missions.mjs
  *
  * `tools/run-suites.mjs` records the seed of every suite it runs and prints
  * that line for anything that goes red.
  *
- * HOW FAR THIS GOES, MEASURED. The same seed gives the same dice, in the same
- * order, from the same point (see `__reseed`). It does NOT yet give the same
- * run: test-arrivals and test-brood were both run twice on one seed and both
- * came back with different numbers — small ones, a body a decimetre off where
- * it was last time, and enough to move a check that sits near its threshold.
+ * HOW FAR THIS GOES, MEASURED. Seeding on its own was not enough, and it took
+ * three things to get to a run that repeats:
  *
- * What is left is the boot. A suite asks for a match and then waits, in real
- * time, for it to come up; the loading screen is driven by the live frame loop
- * rather than by `Game.update`, so the number of frames that run before the
- * suite takes the clock depends on how fast the machine loaded the files, and
- * two runs reach the first stepped frame with slightly different worlds.
- * Freezing the loop earlier does not work today: take the clock at `loading`
- * and the match never reaches `playing`, because nothing but the live loop
- * advances it. Closing that gap means driving the loading state machine from
- * the stepped update — a change to the game, not to this file.
+ *   1. the seed, here — the same dice in the same order;
+ *   2. `__beforeBuild` below, so the level is drawn from a fixed offset rather
+ *      than from wherever the loader left the stream;
+ *   3. `startStepped`, so the drop is stepped by hand at a fixed dt and the
+ *      match's first frame belongs to the suite rather than to the browser.
  *
- * So: a seed narrows a failure to one axis and is worth having and worth
- * printing. It is not yet a replay button, and nothing here should be read as
- * promising one.
+ * With all three, five runs of the same scenario on one seed came back with
+ * the same world to three decimal places. With (1) and (3) but not (2) it was
+ * four of five. With (1) alone it was none of two — which is what this comment
+ * used to have to say.
+ *
+ * A suite that still boots the old way (ask for a match, wait in real time,
+ * then take the clock) gets (1) and (2) but not (3): the browser runs frames
+ * of its own between the match starting and the suite owning it, a different
+ * number at a different size each run, so the match is already a little way
+ * along and a little way apart. Those suites are better off than they were and
+ * are still not exactly repeatable. `startStepped` is how one opts in.
  *
  * Installed as an init script, so it is in place before a single game module
  * has evaluated — some of them draw at import time.
@@ -257,6 +258,18 @@ function seedShim(seed) {
    * see the seed shim's header for what is still open.
    */
   window.__reseed = (n) => { s = n >>> 0; };
+  /**
+   * Wind the dice back before the level is drawn.
+   *
+   * `main.ts` calls this at the top of `buildMatch`, which is the single
+   * biggest draw in a run — the board, the stage, and where every body in the
+   * garrison stands — and which runs off a `requestAnimationFrame` rather than
+   * off anything a suite can time. Whatever the loader drew while files were
+   * landing used to shift it, and that was the last thing keeping two runs on
+   * one seed apart. Set for every suite, because it costs nothing and pins the
+   * level even for suites that still let the live loop boot them.
+   */
+  window.__beforeBuild = () => { s = (seed ^ 0x85EBCA6B) >>> 0; };
 }
 
 /** the seed this process runs on: the one asked for, or a fresh one */
@@ -466,6 +479,55 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     return re.test(await focused());
   }
 
+  /**
+   * Start a match without ever letting the live loop run: the deterministic
+   * way in, and the one a suite that cares about reproducing a run should use.
+   *
+   * `startMode`'s usual shape — ask for a match, wait in real time for
+   * `playing`, then take the clock — leaves the browser running frames of its
+   * own, a different number of them at a different size every run, and the
+   * match is already several seconds old and several metres along by the time
+   * the suite owns it. This takes the clock first and steps the drop by hand
+   * instead. Stepping the loading screen costs the match nothing: `step()`
+   * does not call `Game.update` while the screen is `loading`, so the only
+   * thing those frames advance is the loader itself. `enterMatch` then happens
+   * inside a step we own, and the match's first frame is ours.
+   *
+   * Measured on the Dune Sea: five runs on one seed, five identical worlds.
+   * The same probe was 4-of-5 before `__beforeBuild` and 0-of-2 before any of
+   * this.
+   */
+  async function startStepped(mode, players, board, chars, { maxBootFrames = 1500 } = {}) {
+    await page.evaluate(([m, n, b, c]) => {
+      window.__manual = true;              // nothing runs that we did not ask for
+      window.__quitToTitle?.();
+      window.__startMode(m, n, b, c);
+    }, [mode, players, board, chars]);
+    const booted = await page.evaluate(async (maxFrames) => {
+      let frames = 0;
+      for (; frames < maxFrames && window.__state !== 'playing'; frames++) {
+        window.__stepFrame(1 / 30);
+        // yield between frames or the files never land: they arrive on this
+        // same thread, and a synchronous loop starves them out
+        if (window.__state !== 'playing') await new Promise((r) => setTimeout(r, 0));
+      }
+      return { frames, state: window.__state, load: window.__loadState?.() };
+    }, maxBootFrames);
+    if (booted.state !== 'playing') {
+      throw new Error(`startStepped: still ${booted.state} after ${booted.frames} frames`
+        + ` (${JSON.stringify(booted.load)})`);
+    }
+    // Anchor the dice to the start of the match, not to the end of the drop.
+    // How many frames the drop took still depends on how fast the files
+    // landed, and anything that drew while they arrived moved the stream on by
+    // an amount that varies. Re-anchoring here makes the guarantee a property
+    // of starting this way rather than of which stepping helper a suite
+    // happens to reach for — `__sim` does the same on its first call, but a
+    // suite stepping `game.update` itself would not get it.
+    await page.evaluate(() => window.__reseed?.((window.__seed ^ 0xC2B2AE35) >>> 0));
+    return booted.frames;
+  }
+
   async function startMatch({ board = 0, character = 0 } = {}) {
     // The title screen has two shapes: the mode select (the default — Missions
     // / Wave Battle / PvP) and the single Press Start behind `?nomodes`. Wait
@@ -586,7 +648,8 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   return {
     browser, page, pad, pads, errors,
     seed,
-    text, waitForText, tapUntil, clickText, focusButton, startMatch, waitForPlaying, waitForTitle,
+    text, waitForText, tapUntil, clickText, focusButton, startMatch, startStepped,
+    waitForPlaying, waitForTitle,
     startCoop, startMode, manual, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),
     close: async () => {
