@@ -168,11 +168,33 @@ function audit(stageName) {
       if (edge >= MAX) { openDirs++; continue; }
       edges.push(edge);
       if (Math.abs(dPhys - dMesh) > TOL) {
+        // Name what is stopping you. "A collider with nothing drawn on it" is
+        // not a finding anybody can act on; its size and where it sits is.
+        let what = '';
+        if (dPhys < dMesh) {
+          const hx = zn.center.x + dx * (dPhys + 0.05);
+          const hz = zn.center.z + dz * (dPhys + 0.05);
+          for (const b of phys.boxes) {
+            if (hx < b.min.x - 0.2 || hx > b.max.x + 0.2 || hz < b.min.z - 0.2 || hz > b.max.z + 0.2) continue;
+            if (oy < b.min.y || oy > b.max.y) continue;
+            what = `box ${(b.max.x - b.min.x).toFixed(1)}x${(b.max.z - b.min.z).toFixed(1)}, ${(b.max.y - b.min.y).toFixed(0)} tall`;
+            break;
+          }
+          if (!what) {
+            for (const c of phys.cylinders) {
+              if (oy < c.minY || oy > c.maxY) continue;
+              if (Math.hypot(hx - c.x, hz - c.z) > c.r + 0.3) continue;
+              what = `cylinder r${c.r.toFixed(1)}, ${(c.maxY - c.minY).toFixed(0)} tall`;
+              break;
+            }
+          }
+        }
         lies.push({
           zone: zn.spec.label, shell: zn.spec.shell,
           bearing: Math.round((th * 180) / Math.PI),
           stopped: dPhys >= MAX ? null : +dPhys.toFixed(1),
           drawn: dMesh >= MAX ? null : +dMesh.toFixed(1),
+          what,
           kind: dMesh < dPhys ? 'rock before its collider' : 'a collider before any rock',
         });
       }
@@ -301,7 +323,8 @@ for (const r of results) {
   for (const l of r.lies) {
     lies++;
     console.log(`   EDGE LIES  ${l.zone} (${l.shell}) at ${String(l.bearing).padStart(3)}° — ` +
-      `stopped at ${l.stopped ?? 'never'}, drawn at ${l.drawn ?? 'nothing'} · ${l.kind}`);
+      `stopped at ${l.stopped ?? 'never'}, drawn at ${l.drawn ?? 'nothing'} · ${l.kind}` +
+      `${l.what ? ` (${l.what})` : ''}`);
   }
 }
 console.log(lies
