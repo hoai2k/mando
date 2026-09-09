@@ -44,6 +44,24 @@ const RUNNERS = new Set<EnemyKind>(['tusken', 'massiff', 'alamite', 'krykna', 'p
 
 /** how high over the post a carrier flies, and releases */
 export const DROP_HEIGHT = 38;
+/**
+ * How far above its post a drop may touch down and still count as arrived.
+ *
+ * `dropClear` keeps a squad off posts with a roof over them, but it is a
+ * straight-down ray from the post: it says nothing about what the body passes
+ * on the way, and a release from a carrier on a pass has real lateral drift to
+ * bleed off. On a mission canyon that drift crosses the rim, so a man could
+ * ground on top of the wall and — grounded being the only test for touchdown —
+ * stand there for the rest of the run, out of the fight he was sent to.
+ *
+ * Measured at touchdown, where the number means something: a drop steered onto
+ * a post the planner validated lands on that post's own ground, so any real
+ * gap is the terrain's, not the fall's. Both snags seen on the Dune Sea canyon
+ * cleared this comfortably — one on the rim forty-three metres up, one on the
+ * five-metre wall at the zone's far edge, which is why this is not set at the
+ * height of a wall.
+ */
+const SNAG_OVER_POST = 3;
 
 /**
  * Which transport drops troops on which territory: Imperial garrisons fly the
@@ -574,7 +592,16 @@ export function updateArrival(b: ArrivalBody, dt: number, game: Game): void {
       anim.play('lower', canopy ? 'idleLower' : 'flyLower', 0.3);
       anim.play('upper', canopy ? 'idleUpper' : 'airUpper', 0.3);
     }
-    if (res.grounded) finishArrival(b, game, true);
+    if (res.grounded) {
+      // Grounded is not the same as arrived. This drop was aimed at a post the
+      // planner validated as somewhere a body of this kind can stand; ground
+      // found well above it is not that post but whatever the fall snagged on.
+      // Put the body where it was sent. It is the spot that was checked, the
+      // squad is what the zone is owed, and a reinforcement standing on a wall
+      // out of everyone's reach is the one outcome worse than a hard cut.
+      if (b.position.y - a.target.y > SNAG_OVER_POST) b.position.copy(a.target);
+      finishArrival(b, game, true);
+    }
   } else if (a.mode === 'run') {
     const dx = a.target.x - b.position.x;
     const dz = a.target.z - b.position.z;

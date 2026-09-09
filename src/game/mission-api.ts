@@ -5,12 +5,16 @@ import type { EnemyKind } from '../enemies/enemy';
  * What the rest of the game asks of a Missions controller.
  *
  * There are two of them: the outdoor stage runner (`game/campaign.ts`,
- * docs/MISSIONS_OUTDOOR.md) and the walled room chain it replaced
- * (`game/campaign-legacy.ts`, the default, with the outdoor chain behind
- * `?missions=new` — a way across if
- * the new design does not work out). Nothing outside those two files and the
- * mode's rules should care which is running, so `Game.campaign` is typed by
- * this surface rather than by either class.
+ * docs/MISSIONS_OUTDOOR.md, the default) and the walled room chain it
+ * replaced (`game/campaign-legacy.ts`, behind `?missions=old` — a way back
+ * if the new design does not work out). Nothing outside those two files and
+ * the mode's rules should care which is running, so `Game.campaign` is typed
+ * by this surface rather than by either class.
+ *
+ * The two do not have the same shape underneath: the stage runner raises one
+ * `stage` of zones at a time where the room chain holds a whole `level` of
+ * rooms. Anything reaching past this interface for those — a test probing
+ * doorways, say — has to handle both, or say which it wants.
  */
 export interface MissionController {
   /** the run is won — the warlord, and any monster under it, are down */

@@ -52,6 +52,16 @@ permissions:
 # them and runs several at a time; the nightly splits that four ways again
 # across runners. See the header of that file for what the old `&&` chain of
 # twenty-four `node tools/<suite>.mjs` calls was costing.
+#
+# AND IT SKIPS A NIGHT THAT HAS NOTHING TO TEST.
+#
+# `main` does not move every day, and a suite run over a tree that was already
+# tested last night cannot say anything new — the same code and the same
+# checks give the same answer, for the better part of an hour of runner time.
+# The `changed` job below compares what is standing against what the last full
+# run tested and skips everything when they are the same commit. It fails
+# open: when it cannot find out, the suites run. See its header for what
+# counts as the last run, and why a cancelled one does not.
 jobs:
   build:
     # The nightly run is here to test, not to republish an unchanged tree.
@@ -137,6 +147,78 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tools/harness.mjs
 
+  # Has anything changed since the last time the suites actually ran?
+  #
+  # The nightly exists to test a tree, and `main` does not move every day. A
+  # run over a tree that was already tested last night burns the better part
+  # of an hour of runner time to reprint a result nobody has to read: the
+  # answer cannot have changed, because neither the code nor the suites did.
+  # So look up what the last full run tested and compare it with what is
+  # standing now — same commit, nothing to learn, and every job below skips.
+  #
+  # WHAT COUNTS AS THE LAST RUN. The most recent completed schedule- or
+  # dispatch-triggered run of this workflow, whatever it concluded:
+  #
+  #   - a run that FAILED still tested the tree. Nothing has changed since, so
+  #     the failure stands and re-running it says the same thing again.
+  #   - a run that SKIPPED for this same reason carries the sha it skipped at,
+  #     which is by definition the sha the run before it tested. The chain
+  #     holds however many quiet days there are in a row.
+  #   - a run that was CANCELLED did NOT finish testing, and is deliberately
+  #     not counted: a timeout or a stop button must never be able to convince
+  #     the next night that a tree was covered when it was not.
+  #
+  # Only pushes to `main` move the sha, so this is exactly "has the codebase
+  # changed" — a docs-only commit does count as a change and buys a run, which
+  # is the harmless side of the trade. `workflow_dispatch` always runs: asking
+  # for a suite by hand is asking for it now, whatever ran last night.
+  changed:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != 'schedule' ]; then
+            echo "asked for by hand — running whatever last night did"
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # THIS GATE FAILS OPEN, DELIBERATELY. Everything below is a lookup
+          # that can come back empty for reasons that have nothing to do with
+          # the tree: a rate limit, a 500, a repository with no history yet.
+          # Skipping is the answer to a *known* "already tested this"; not
+          # knowing is an answer to nothing, and a night quietly untested
+          # because an API call hiccupped is the failure mode this whole file
+          # was written to end. So `last` empty means run.
+          #
+          # Newest first, and asked for per event because a busy week of
+          # pushes would otherwise crowd every nightly off the first page.
+          last=$(
+            for ev in schedule workflow_dispatch; do
+              gh api "repos/${{ github.repository }}/actions/workflows/deploy.yml/runs?event=$ev&status=completed&per_page=20" \
+                --jq '.workflow_runs[]
+                      | select(.conclusion == "success" or .conclusion == "failure")
+                      | {id, head_sha, created_at}' || true
+            done | jq -rs --argjson me "${{ github.run_id }}" \
+              '[.[] | select(.id != $me)] | sort_by(.created_at) | last | .head_sha // ""'
+          ) || last=''
+          echo "last full run tested: ${last:-<nothing found — running>}"
+          echo "standing now:         ${{ github.sha }}"
+          if [ -n "$last" ] && [ "$last" = "${{ github.sha }}" ]; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo "::notice::Nothing has landed on main since the last full run tested ${last}. Skipping the suites."
+          else
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+
   # Everything, once a night against `main` — and on demand, which is how you
   # check a tree before a big merge without waiting for the small hours.
   #
@@ -151,7 +233,8 @@ jobs:
   # report as `cancelled` — which is exactly the "a failure hid behind a
   # failure" problem the nightly job was created to end.
   nightly:
-    if: github.event_name != 'push'
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -211,7 +294,8 @@ jobs:
   # is not known, and a nightly is the wrong place to find out. Run them by
   # hand first, and add them here once they are.
   audits:
-    if: github.event_name != 'push'
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
