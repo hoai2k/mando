@@ -304,11 +304,14 @@ const RIM_NOISE_REACH = 1.6;
  * the way rather than leaning over the edge like a cliff.
  */
 /**
- * How many square metres of a border piece have to be standing over the
- * level's own floor with nothing under them before the piece is treated as in
- * the way rather than leaning over the edge the way a cliff does.
+ * How many square metres of a border piece have to be over the level's own
+ * floor with nothing under them before the piece is given a collider of its
+ * own. Low on purpose: backing rock is cheap and cannot make the level worse,
+ * where leaving it unbacked is a wall you walk through. Two boards kept one
+ * apiece at a threshold of eight — pieces leaning just far enough over a lane
+ * to be walked into, and not far enough to be noticed.
  */
-const RIM_BARE_MIN = 8;
+const RIM_BARE_MIN = 2;
 /**
  * How much of a rim piece's radius its own collider fills. The drawn rock is
  * a noised cylinder that tapers going up, so a collider on the full radius
