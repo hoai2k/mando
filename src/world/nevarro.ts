@@ -160,7 +160,16 @@ export function buildNevarro(): Board {
     col.position.set(mx, base + h / 2 - 0.4, mz);
     col.castShadow = col.receiveShadow = true;
     group.add(col);
-    physics.addCylinder(mx, base + h / 2 - 0.4, mz, r * 0.96, h);
+    // A hexagon's flats sit at 0.866 of its corners, and the column tapers on
+    // top of that, so one 0.96r disc stood nearly two metres proud of the
+    // stone at the crown — an edge you are stopped by and cannot see. Two
+    // bands down the taper, each splitting the difference between a face and
+    // a corner, keep the collider inside a metre of the rock all the way up.
+    const HEX = (1 + Math.cos(Math.PI / 6)) / 2;         // corner/flat midpoint
+    const my = base + h / 2 - 0.4;
+    for (const [lo, hi, circ] of [[0, 0.5, 0.975], [0.5, 1, 0.925]] as const) {
+      physics.addCylinder(mx, my + ((lo + hi) / 2 - 0.5) * h, mz, r * circ * HEX, (hi - lo) * h);
+    }
   }
 
   // scattered basalt blocks: the board's cover boxes

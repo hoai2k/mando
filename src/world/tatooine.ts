@@ -100,11 +100,16 @@ export function buildTatooine(): Board {
   ];
   for (const [mx, mz, r, h] of mesas) {
     const base = heightAt(mx, mz);
-    const geo = new THREE.CylinderGeometry(r * 0.82, r, h, 9, 3);
+    const RINGS = 3;
+    const geo = new THREE.CylinderGeometry(r * 0.82, r, h, 9, RINGS);
     const gp = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < gp.count; i++) {
       const nx = gp.getX(i), ny = gp.getY(i), nz = gp.getZ(i);
-      const w = 1 + (ridge2(nx * 0.2 + mx, nz * 0.2 + mz, 3) - 0.5) * 0.35;
+      // The sideways noise used to run to ±17%, which on a fourteen-metre mesa
+      // is two and a half metres of lobe. No round collider can follow that,
+      // so the wide lobes and the deep bays disagreed with it by metres in
+      // opposite directions. Half the wobble still breaks the silhouette.
+      const w = 1 + (ridge2(nx * 0.2 + mx, nz * 0.2 + mz, 3) - 0.5) * 0.18;
       gp.setX(i, nx * w); gp.setZ(i, nz * w);
       if (Math.abs(ny - h / 2) > 0.01) gp.setY(i, ny + (fbm2(nx + mx, nz + mz, 2) - 0.5) * 1.4);
     }
@@ -113,10 +118,39 @@ export function buildTatooine(): Board {
     mesa.position.set(mx, base + h / 2 - 0.6, mz);
     mesa.castShadow = mesa.receiveShadow = true;
     group.add(mesa);
-    // A box only covered 0.75r of a mesa that is r wide at the base and wider
-    // still where the noise pushes it out, so the sloping faces between the
-    // box corners were walk-through. A cylinder is what the mesa actually is.
-    physics.addCylinder(mx, base + h / 2 - 0.6, mz, r * 1.04, h);
+    // A box only covered 0.75r of a mesa that is r wide at the base, so the
+    // sloping faces between the box corners were walk-through. One cylinder
+    // fixed that and introduced the opposite lie: a mesa *tapers*, from r at
+    // the foot to 0.82r at the crown, and a single 1.04r disc therefore stood
+    // up to six metres out in clear air near the top — an invisible wall you
+    // could neither walk up to nor fly over, which is what a playtest found.
+    // So read the ring radii back off the mesh that was actually built and
+    // stack a disc per band, each one the mean of the two rings it spans.
+    const ringY: number[] = [], ringR: number[] = [], ringN: number[] = [];
+    for (let k = 0; k <= RINGS; k++) { ringY.push(0); ringR.push(0); ringN.push(0); }
+    for (let i = 0; i < gp.count; i++) {
+      const px = gp.getX(i), py = gp.getY(i), pz = gp.getZ(i);
+      const rad = Math.hypot(px, pz);
+      if (rad < r * 0.2) continue;                       // a cap's centre vertex
+      // bin by the row the vertex came from, not by its noised height: the
+      // rows are h/3 apart and the vertical noise is only ±0.7
+      const k = Math.max(0, Math.min(RINGS, Math.round((h / 2 - py) / (h / RINGS))));
+      ringY[k] += py; ringR[k] += rad; ringN[k]++;
+    }
+    for (let k = 0; k <= RINGS; k++) {
+      if (!ringN[k]) { ringN[k] = 1; ringY[k] = h / 2 - (k * h) / RINGS; ringR[k] = r; }
+      ringY[k] /= ringN[k]; ringR[k] /= ringN[k];
+    }
+    const my = base + h / 2 - 0.6;
+    for (let k = 0; k < RINGS; k++) {
+      // ring 0 is the crown; walk down. The top band reaches the true crown
+      // and the bottom one sinks into the ground, so there is no lip at
+      // either end for a jetpack to catch on.
+      const yHi = k === 0 ? h / 2 : ringY[k];
+      const yLo = k === RINGS - 1 ? -h / 2 - 1.5 : ringY[k + 1];
+      physics.addCylinder(mx, my + (yHi + yLo) / 2, mz,
+        (ringR[k] + ringR[k + 1]) / 2, yHi - yLo);
+    }
   }
 
   // scattered boulders (instanced)

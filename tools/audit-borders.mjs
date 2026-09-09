@@ -44,6 +44,8 @@ function audit(stageName) {
   /** how far apart the two answers may be before the edge is lying */
   const TOL = 2.5;
   const EYE = 1.2;
+  /** rock this close to where you were stopped is the rock that stopped you */
+  const BARE = 1.5;
 
   const xf = (e, x, y, z) => [
     e[0] * x + e[4] * y + e[8] * z + e[12],
@@ -59,10 +61,16 @@ function audit(stageName) {
   // eight of those in the Tusken corral alone, which is a motor pool doing
   // exactly what it should.
   const solids = [];
+  const instanced = [];
   const roots = [g.board.group, ...g.vehicles.map((v) => v.group)];
   for (const root of roots) root.updateMatrixWorld(true);
   const collect = (o) => {
     if (!o.isMesh || o.isPoints || o.isLine || o.isSprite) return;
+    // An InstancedMesh draws its geometry once per instance matrix. Walking it
+    // as an ordinary mesh puts every copy at the group origin, so a field of
+    // ninety boulders reported ninety colliders with no rock on them — the
+    // rock was all piled up at 0,0 where the audit had put it.
+    if (o.isInstancedMesh) { instanced.push(o); return; }
     for (let n = o; n; n = n.parent) {
       if (!n.visible) return;
       if (n.userData && n.userData.decor) return;
@@ -99,6 +107,29 @@ function audit(stageName) {
     solids.push({ tris, lo, hi });
   };
   for (const root of roots) root.traverse(collect);
+  // …and then once per instance, with the instance matrix folded in
+  for (const im of instanced) {
+    const pos = im.geometry?.attributes?.position;
+    if (!pos) continue;
+    const idx = im.geometry.index;
+    const count = idx ? idx.count : pos.count;
+    const m = im.matrixWorld.clone();
+    for (let inst = 0; inst < im.count; inst++) {
+      im.getMatrixAt(inst, m);
+      m.premultiply(im.matrixWorld);
+      const e = m.elements;
+      const tris = new Float64Array(count * 3);
+      let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+      for (let i = 0; i < count; i++) {
+        const k = idx ? idx.getX(i) : i;
+        const p = xf(e, pos.getX(k), pos.getY(k), pos.getZ(k));
+        tris[i * 3] = p[0]; tris[i * 3 + 1] = p[1]; tris[i * 3 + 2] = p[2];
+        for (let c = 0; c < 3; c++) { if (p[c] < lo[c]) lo[c] = p[c]; if (p[c] > hi[c]) hi[c] = p[c]; }
+      }
+      solids.push({ tris, lo, hi });
+      m.copy(im.matrixWorld);
+    }
+  }
 
   /** nearest drawn surface along a ray (Möller–Trumbore), or Infinity */
   const meshDist = (ox, oy, oz, dx, dy, dz, max) => {
@@ -137,6 +168,35 @@ function audit(stageName) {
     return best;
   };
 
+  /**
+   * How far the nearest drawn surface is from a point, in any direction.
+   *
+   * A ray is a line and a body is not. Grazing the crown of a knee-high
+   * boulder hits the disc under it and misses the sloping mesh over it by
+   * centimetres, and reporting that as "a collider with no rock on it" buried
+   * the real findings under it. So before calling an edge a lie, ask what is
+   * actually *at* the place you were stopped: rock within arm's reach means
+   * the ray clipped a shoulder, and rock nowhere near means an invisible wall.
+   */
+  const bareness = (x, y, z, cap) => {
+    let best = cap;
+    for (const s of solids) {
+      let d2 = 0;
+      for (let k = 0; k < 3; k++) {
+        const p = [x, y, z][k];
+        const q = p < s.lo[k] ? s.lo[k] - p : p > s.hi[k] ? p - s.hi[k] : 0;
+        d2 += q * q;
+      }
+      if (d2 >= best * best) continue;
+      const t = s.tris;
+      for (let i = 0; i < t.length; i += 3) {
+        const d = Math.hypot(t[i] - x, t[i + 1] - y, t[i + 2] - z);
+        if (d < best) best = d;
+      }
+    }
+    return best;
+  };
+
   // `PhysicsWorld.raycast` clones its arguments, so it wants real vectors.
   // THREE is not a global in the built bundle; borrow two from something that
   // already has them and re-set them each cast.
@@ -154,16 +214,26 @@ function audit(stageName) {
     for (let i = 0; i < RAYS; i++) {
       const th = (i / RAYS) * Math.PI * 2;
       const dx = Math.sin(th), dz = Math.cos(th);
-      _o.set(zn.center.x, oy, zn.center.z);
-      _d.set(dx, 0, dz);
-      // Boxes and cylinders only. `raycast` also marches the heightfield, and
-      // the territory's own terrain is drawn as a ground plane this audit
-      // skips — so every dune came back as "a collider with no rock on it",
-      // which is the terrain being terrain. Excluding it from both sides keeps
-      // the two answers measuring the same things.
-      const solid = phys.raycastSolids ? phys.raycastSolids(_o, _d, MAX) : null;
-      const dPhys = solid ? solid.dist : Infinity;
-      const dMesh = meshDist(zn.center.x, oy, zn.center.z, dx, 0, dz, MAX);
+      // A body is not a line. One ray at eye height grazed the crown of every
+      // knee-high boulder — the disc under it is hit, the sloping mesh over it
+      // is missed by centimetres — and every one of those came back as a
+      // collider standing in clear air. So sweep the band a body actually
+      // occupies and ask, of the whole band, what is the nearest thing that
+      // stops you and the nearest thing you can see.
+      let dPhys = Infinity, dMesh = Infinity;
+      for (const dy of [-0.45, 0, 0.45]) {
+        _o.set(zn.center.x, oy + dy, zn.center.z);
+        _d.set(dx, 0, dz);
+        // Boxes and cylinders only. `raycast` also marches the heightfield, and
+        // the territory's own terrain is drawn as a ground plane this audit
+        // skips — so every dune came back as "a collider with no rock on it",
+        // which is the terrain being terrain. Excluding it from both sides keeps
+        // the two answers measuring the same things.
+        const solid = phys.raycastSolids ? phys.raycastSolids(_o, _d, MAX) : null;
+        if (solid && solid.dist < dPhys) dPhys = solid.dist;
+        const m = meshDist(zn.center.x, oy + dy, zn.center.z, dx, 0, dz, MAX);
+        if (m < dMesh) dMesh = m;
+      }
       const edge = Math.min(dPhys, dMesh);
       if (edge >= MAX) { openDirs++; continue; }
       edges.push(edge);
@@ -171,9 +241,12 @@ function audit(stageName) {
         // Name what is stopping you. "A collider with nothing drawn on it" is
         // not a finding anybody can act on; its size and where it sits is.
         let what = '';
+        let bare = null;
         if (dPhys < dMesh) {
           const hx = zn.center.x + dx * (dPhys + 0.05);
           const hz = zn.center.z + dz * (dPhys + 0.05);
+          bare = bareness(hx, oy, hz, 6);
+          if (bare <= BARE) continue;                 // the ray clipped a shoulder
           for (const b of phys.boxes) {
             if (hx < b.min.x - 0.2 || hx > b.max.x + 0.2 || hz < b.min.z - 0.2 || hz > b.max.z + 0.2) continue;
             if (oy < b.min.y || oy > b.max.y) continue;
@@ -195,6 +268,7 @@ function audit(stageName) {
           stopped: dPhys >= MAX ? null : +dPhys.toFixed(1),
           drawn: dMesh >= MAX ? null : +dMesh.toFixed(1),
           what,
+          bare: bare === null ? null : +bare.toFixed(1),
           kind: dMesh < dPhys ? 'rock before its collider' : 'a collider before any rock',
         });
       }
@@ -324,6 +398,7 @@ for (const r of results) {
     lies++;
     console.log(`   EDGE LIES  ${l.zone} (${l.shell}) at ${String(l.bearing).padStart(3)}° — ` +
       `stopped at ${l.stopped ?? 'never'}, drawn at ${l.drawn ?? 'nothing'} · ${l.kind}` +
+      `${l.bare !== null && l.bare !== undefined ? `, ${l.bare >= 6 ? 'no rock within 6' : l.bare} m of clear air` : ''}` +
       `${l.what ? ` (${l.what})` : ''}`);
   }
 }
