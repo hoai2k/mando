@@ -881,7 +881,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const py = pos.getY(i);
       // leave the base ring alone so neighbours still meet at the floor
       const grip = (py + h / 2) / h;
-      const n = (rand() - 0.5) * look.noise * r * (0.35 + grip);
+      // Outward only, which is the same rule `ridge` already applies to how far
+      // the piece is pushed off the wall line, and for the same reason. A
+      // two-sided noise can take a base ring to less than half its radius, and
+      // a piece that thin has its face metres behind the slab that stops you:
+      // the borders audit found that standoff on nearly two hundred bearings
+      // across the nine boards, and named the slab itself as the thing doing
+      // the stopping. Bulges still vary per vertex, so the silhouette is as
+      // craggy as it was — it just never eats into the face.
+      const n = Math.abs(rand() - 0.5) * look.noise * r * (0.35 + grip);
       pos.setX(i, pos.getX(i) * (1 + n));
       pos.setZ(i, pos.getZ(i) * (1 + n));
     }
