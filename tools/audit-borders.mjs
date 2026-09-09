@@ -258,7 +258,8 @@ await h.close();
 const WANT = {
   hall: { max: 22, note: 'a room' },
   canyon: { max: 30, note: 'a lane' },
-  road: { max: 40, note: 'a lane' },
+  // a road is a lane you ride down, not a corridor: its sides can be far off
+  road: { max: 60, note: 'a lane' },
   open: { min: 18, note: 'open ground' },
   deck: null,
 };

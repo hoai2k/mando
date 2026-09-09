@@ -954,7 +954,10 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           Math.abs(nz) * segLen + Math.abs(nx) * T);
       }
       const r = 4 + rand() * 2;
-      const step = r * 1.15;
+      // Pieces overlap rather than merely touching: a ray threading the gap
+      // between two of them travels metres past the wall line before it meets
+      // rock, which reads as the same standoff from inside.
+      const step = r * 0.95;
       const n = Math.max(1, Math.round(len / step));
       for (let k = 0; k <= n; k++) {
         const t = (k / n) * len;
@@ -964,7 +967,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         // face of the cliff on the face of the wall, which is where a player
         // who cannot walk through it expects to be stopped. The jitter only
         // ever goes further out, for the same reason.
-        const out = r - T / 2 + 0.25 + rand() * 1.1;
+        // How far out the piece's centre goes, so its *face* lands on the
+        // slab's face. The margin is small on purpose: every centimetre of it
+        // is a centimetre you are stopped short of the rock you can see, and
+        // the borders audit measured the old numbers — a quarter metre plus up
+        // to one and a tenth of jitter, and the noise shrinking a base ring on
+        // top of that — as a standoff of about three metres all round every
+        // zone on the board. Stopping three metres in front of a cliff face is
+        // an invisible wall, however honest the intent behind it.
+        const out = r - T / 2 + 0.05 + rand() * 0.35;
         const px = x0 + nx * t + ox * out;
         const pz = z0 + nz * t + oz * out;
         // Every piece is seated *below* the floor it stands on, a couple of
