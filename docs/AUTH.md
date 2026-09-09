@@ -246,6 +246,25 @@ else. The `Signins` rows are the ones that decided something.
 
 ---
 
+## The arcade library
+
+`games.hoai.net` lists every game. The ones behind the door are **hidden from a
+browser holding no pass** — the shelf shows the public games and the count
+follows — and appear as soon as there is one. The panel offers **Authenticate**
+until then, and an *Authenticated* badge afterwards; neither says what it
+unlocks, and the door it opens asks only for a code.
+
+That page is public, so its door is **dismissible** — a *Back* button, since
+unlike a game there is something behind it to return to. `openGate` therefore
+resolves on *Back* **without** a pass, and the library re-checks `readPass()`
+before acting.
+
+The hidden-card list lives in `index.html` as `GATED`, and **has to be kept in
+step with the games that actually carry the gate**: a slug listed but not gated
+hides a game for no reason; a game gated but not listed shows a card that opens
+onto a door. It is presentation, not protection — the list ships in the page
+like everything else.
+
 ## Getting the door back (for testing)
 
 Once a browser holds a pass it never sees the door again — which is the point,
