@@ -298,6 +298,41 @@ const RIDE_CLEAR = 3;
  * being a fixed margin — 1.6 covers the worst of it on every ridge style.
  */
 const RIM_NOISE_REACH = 1.6;
+/**
+ * How much of a border piece has to be *standing* on the level's own floor —
+ * over it, with no collider under it — before the piece is dropped as being in
+ * the way rather than leaning over the edge like a cliff.
+ */
+/**
+ * How many square metres of a border piece have to be over the level's own
+ * floor with nothing under them before the piece is given a collider of its
+ * own. Low on purpose: backing rock is cheap and cannot make the level worse,
+ * where leaving it unbacked is a wall you walk through. One square metre, which is to say
+ * any at all: two boards kept a wall apiece at eight and again at two —
+ * pieces leaning just far enough over a lane to be walked into, and not far
+ * enough to be counted.
+ */
+const RIM_BARE_MIN = 1;
+/**
+ * How much of a rim piece's radius its own collider fills. The drawn rock is
+ * a noised cylinder that tapers going up, so a collider on the full radius
+ * would stop you a metre short of the face; this is the solid part of it.
+ */
+const RIM_SOLID_FRACTION = 0.72;
+/**
+ * How long each step of a leaning border's staircase is. Half of it is how far
+ * that step's axis-aligned box reaches past the rock line into the lane, so
+ * this is the standoff between a diagonal cliff and the wall that stops you.
+ */
+const STAIR_STEP = 1.6;
+/**
+ * Room a body needs beside the golden path. Rock closer than its own radius
+ * plus this is standing on the way through, and is removed rather than given
+ * a collider — the one case where the answer is to take the wall away.
+ */
+const PATH_CLEAR = 1.2;
+/** how wide a strip either side of the golden path counts as walkable ground */
+const PATH_WALKABLE = 2.5;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -645,7 +680,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * the floor it might be standing on — the link out of that zone, the pocket
    * behind a door — is not built until later.
    */
-  const rimAt: { x: number; z: number; r: number }[] = [];
+  const rimAt: { x: number; z: number; r: number; h: number }[] = [];
   const backGeo: THREE.BufferGeometry[] = [];
   let spaceN = 0;
 
@@ -839,14 +874,30 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * thing, and the mesas proved that years ago.
    */
   const rimPiece = (x: number, z: number, r: number, h: number, y0: number, backdrop: boolean): void => {
-    if (!backdrop) rimAt.push({ x, z, r });
+    if (!backdrop) rimAt.push({ x, z, r, h });
     const geo = new THREE.CylinderGeometry(r * look.taper, r, h, look.facets, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
       const py = pos.getY(i);
       // leave the base ring alone so neighbours still meet at the floor
       const grip = (py + h / 2) / h;
-      const n = (rand() - 0.5) * look.noise * r * (0.35 + grip);
+      // The wobble is a *fraction* of the piece, and only ever inward.
+      //
+      // It used to be scaled by `r` as well, which made it a fraction of the
+      // square: a five-metre piece could swell to seven and a half, and since
+      // `ridge` pushes a piece out by the radius it asked for, every one of
+      // that extra reached back through the slab. The audit measured it from
+      // inside the fighting pit and the dune gate — rock drawn four metres
+      // nearer than the thing that stops you, so you walk into a cliff and
+      // stand inside it.
+      //
+      // Inward, then, and bounded: a piece never grows past the radius it was
+      // placed for, so its face never crosses the wall it is facing, and at
+      // a tenth of its radius it is never more than about a metre shy of it
+      // either. Craggy enough at this scale — a half-metre bite out of a
+      // five-metre column, nine facets round and three rings up — and the
+      // silhouette's big shape was always the taper and the backdrop row.
+      const n = -Math.abs(rand() - 0.5) * look.noise * (0.35 + grip);
       pos.setX(i, pos.getX(i) * (1 + n));
       pos.setZ(i, pos.getZ(i) * (1 + n));
     }
@@ -916,7 +967,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // short staircase instead — a handful of boxes, still nothing next to a
       // collider per rock, and it follows the line it is drawn along.
       const lean = Math.min(Math.abs(nx), Math.abs(nz)) * len;
-      const parts = lean <= T ? 1 : Math.min(16, Math.ceil(lean / T));
+      // How fine the staircase is decides how far it bulges into the lane. A
+      // step is an axis-aligned box drawn round a slanted segment, so it
+      // reaches past the rock line by about half the segment's length — with
+      // steps sized to the slab's own thickness that is three metres, and the
+      // borders audit measured exactly that standoff on every diagonal wall of
+      // the Dune Sea's canyon: stopped three metres in front of the cliff you
+      // are looking at. Finer steps, more of them, and the bulge comes down
+      // with the segment length.
+      const parts = lean <= STAIR_STEP ? 1 : Math.min(40, Math.ceil(lean / STAIR_STEP));
       const segLen = len / parts;
       for (let s = 0; s < parts; s++) {
         const tm = (s + 0.5) * segLen;
@@ -925,7 +984,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           Math.abs(nz) * segLen + Math.abs(nx) * T);
       }
       const r = 4 + rand() * 2;
-      const step = r * 1.15;
+      /** corner-to-flat midpoint of the piece's cross-section, as a fraction of r */
+      const shape = (1 + Math.cos(Math.PI / look.facets)) / 2;
+      // Pieces overlap rather than merely touching: a ray threading the gap
+      // between two of them travels metres past the wall line before it meets
+      // rock, which reads as the same standoff from inside.
+      const step = r * 0.95;
       const n = Math.max(1, Math.round(len / step));
       for (let k = 0; k <= n; k++) {
         const t = (k / n) * len;
@@ -935,13 +999,37 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         // face of the cliff on the face of the wall, which is where a player
         // who cannot walk through it expects to be stopped. The jitter only
         // ever goes further out, for the same reason.
-        const out = r - T / 2 + 0.25 + rand() * 1.1;
+        // How far out the piece's centre goes, so its *face* lands on the
+        // slab's face. The margin is small on purpose: every centimetre of it
+        // is a centimetre you are stopped short of the rock you can see, and
+        // the borders audit measured the old numbers — a quarter metre plus up
+        // to one and a tenth of jitter, and the noise shrinking a base ring on
+        // top of that — as a standoff of about three metres all round every
+        // zone on the board. Stopping three metres in front of a cliff face is
+        // an invisible wall, however honest the intent behind it.
+        // …but `r` is the radius of a *polygon's corners*, and what faces the
+        // wall is usually a flat between two of them. A nine-sided rock hardly
+        // notices; a four-sided hull plate is a diamond whose face sits at
+        // 0.707 of its corner radius, so pushing it out by the corner put its
+        // face a metre and a half behind the slab — and the audit measured
+        // that as a standoff on every bearing of the Storm Docks, twenty-three
+        // of them. Split the difference between corner and flat: whichever of
+        // the two faces the wall, it is out by half the gap rather than all of
+        // it, and half of it is under a metre on every style in the table.
+        const out = r * shape - T / 2 + 0.05 + rand() * 0.35;
         const px = x0 + nx * t + ox * out;
         const pz = z0 + nz * t + oz * out;
-        // On ground each piece is seated in the ground under it, a couple of
-        // metres deep so a rise between two pieces never shows daylight below
-        // the rock; on a plate they all stand on the plate.
-        const base = onGround ? groundAt(px, pz) - 2.5 : y0;
+        // Every piece is seated *below* the floor it stands on, a couple of
+        // metres deep, so a rise between two of them never shows daylight
+        // under the rock. On the ground that is the terrain; on a plate it
+        // used to be the plate top exactly, which put the cylinder's bottom
+        // cap on the floor plane — and a tapering, noised cap meeting a flat
+        // floor at exactly one height is a hard seam with the void behind it
+        // showing through wherever the two disagree. From inside the ravine
+        // that reads as a wall floating over the path rather than the side of
+        // a ravine, which is what a playtest called it. The plate hides
+        // whatever is under it, so sinking them costs nothing.
+        const base = (onGround ? groundAt(px, pz) : y0) - 2.5;
         rimPiece(px, pz, r, ceilingY - base + RIM_OVER_CEILING, base, false);
         // the row behind — further out again, never back across the level
         if (k % 2 === 0) {
@@ -1821,39 +1909,77 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       && y > b.min.y && y < b.max.y)
       || cylinders.some((c) => y > c.minY && y < c.maxY && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
   };
+  /** how near the golden path a piece may stand before it is in the way */
+  const pathNear = (x: number, z: number): number => {
+    let best = Infinity;
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a2 = path[i], b2 = path[i + 1];
+      const dx = b2.x - a2.x, dz = b2.z - a2.z;
+      const len2 = dx * dx + dz * dz;
+      const t = len2 > 1e-6
+        ? Math.max(0, Math.min(1, ((x - a2.x) * dx + (z - a2.z) * dz) / len2)) : 0;
+      best = Math.min(best, Math.hypot(x - (a2.x + dx * t), z - (a2.z + dz * t)));
+    }
+    return best;
+  };
+
+  // ---- a border piece is either solid or it is not there ----
+  //
+  // `ridge` pushes its rock outward from the collider slab so the face of the
+  // cliff lands on the face of the wall. That holds along a run and fails at
+  // its ends: where a lane turns, or where a stage's doorway cuts the rim, the
+  // pieces closing one run reach across the next one's floor, and the slab
+  // under them follows the run they belong to. Standing in it, that is a wall
+  // drawn across the way on with nothing to stop you.
+  //
+  // The first answer here was to delete those pieces, and it was the wrong
+  // one: judged by whether any part of them was over unbacked floor, it
+  // deleted the rim itself — eighty-five pieces in the ravine, two hundred on
+  // the far side — leaving a lane with the sky showing through where the wall
+  // should be, and the rim pillars' fifty-five-metre colliders standing in the
+  // open with no rock on them.
+  //
+  // So: **back it, unless it is in the way.** A piece standing over the
+  // level's own floor with nothing under it gets a collider of its own, sized
+  // to the rock that is drawn — which is what "a wall always has a collider"
+  // means. Only a piece actually standing on the golden path is removed, since
+  // a collider there would be a wall across the way through.
   let culled = 0;
+  let backed = 0;
   const keptRim = rimGeo.filter((geo, i) => {
     const at = rimAt[i];
     if (!at) return true;
-    // Out to the piece's *drawn* extent, not its nominal radius. `rimPiece`
-    // noises every vertex outward by up to `look.noise * r`, scaled again by
-    // height, which on rock takes a five-metre boulder past seven — so a grid
-    // stopping at `r` leaves the overhang that is actually in the lane
-    // untested. That is what survived this cull on the Crevasse and the Storm
-    // Docks after it had cleared the other seven boards.
-    const reach = at.r * RIM_NOISE_REACH;
-    if (nearestFloor(at.x, at.z) > reach) return true;          // nowhere near a floor
-    // The piece's whole footprint on a metre grid, not a ring of samples: a
-    // ring with any spacing can straddle a lane and miss it, and a piece whose
-    // centre sits on the floor has no ring to sample in the first place.
-    //
-    // This does not cull the wall itself. A rim piece is laid with its inner
-    // face *on* the slab's inner face, so where it reaches over a floor at all
-    // it is inside its own collider and answers `backedAt`. Only rock with
-    // nothing under it goes — and the wall a dead end is a door in is laid
-    // across its lane, is solid, and stays.
-    for (let dx = -reach; dx <= reach; dx += 1) {
-      for (let dz = -reach; dz <= reach; dz += 1) {
-        if (dx * dx + dz * dz > reach * reach) continue;
+    if (nearestFloor(at.x, at.z) > at.r) return true;          // nowhere near a floor
+    let bare = 0;
+    for (let dx = -at.r; dx <= at.r; dx += 1) {
+      for (let dz = -at.r; dz <= at.r; dz += 1) {
+        if (dx * dx + dz * dz > at.r * at.r) continue;
         const px = at.x + dx, pz = at.z + dz;
-        if (onFloor(px, pz) && !backedAt(px, pz)) { culled++; return false; }
+        // Walkable ground is the floors the level registered *and* the golden
+        // path itself. A path can run over ground no rect covers — a doorway's
+        // threshold, the mouth of a link — and rock leaning over one of those
+        // is still rock a player walks into: the Crevasse and the Storm Docks
+        // each kept a wall there through three goes at this, invisible to a
+        // test that only knew about rects.
+        if (!onFloor(px, pz) && pathNear(px, pz) > PATH_WALKABLE) continue;
+        if (!backedAt(px, pz)) bare++;
       }
     }
+    if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
+    // Measured against the rock's own reach, not its middle: a six-metre
+    // boulder whose centre is eight metres off the path still has its face in
+    // it, and backing that is how a piece that should have been removed became
+    // a two-and-a-half-metre wall across the way on instead.
+    if (pathNear(at.x, at.z) < at.r + PATH_CLEAR) { culled++; return false; }
+    // solid, from the floor under it to the top of the rock that is drawn
+    const foot = groundAt(at.x, at.z) - 1;
+    addCyl(at.x, foot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
+    backed++;
     return true;
   });
   for (const geo of rimGeo) if (!keptRim.includes(geo)) geo.dispose();
-  if (culled) {
-    console.warn(`[mission] ${stage.label}: dropped ${culled} border piece(s) standing on the level's own floor`);
+  if (culled || backed) {
+    console.warn(`[mission] ${stage.label}: border rock — ${backed} piece(s) given a collider, ${culled} removed from the path`);
   }
   mergeInto(keptRim, rockMat, true, 'facing');
   // The backdrop row is the mountains beyond — `ridge()` says so in as many

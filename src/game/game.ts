@@ -1494,7 +1494,16 @@ export class Game {
         t.vehicle = v;
         t.position.set(v.pos.x + sin * along, v.pos.y + v.def.body * 0.5, v.pos.z + cos * along);
         t.radius = r;
-        t.team = 2;
+        // A ride belongs to whoever is on it. Parked, it is a prop that both
+        // sides can shoot (team 2); ridden, it takes its rider's team, and
+        // bolts skip their own side — which is what stops the animal you are
+        // sitting on from eating the shots you fire over its head. A bantha is
+        // three 1.5 m spheres reaching most of three metres above its own
+        // keel, so from the saddle a good part of the forward arc went into
+        // the mount: no hit marker, no damage to what you were aiming at, and
+        // your own ride quietly taking it. That was reported as "I shot at him
+        // lots of times and nothing happened".
+        t.team = v.rider ? v.rider.team : v.hostile ? v.hostile.team : 2;
         targets.push(t);
       }
       // A ride with its deflector up meets bolts before its hull does. The
@@ -1677,7 +1686,16 @@ export class Game {
         // A corpse takes no damage — it is already dead — but it moves.
         if (entry.corpse) { entry.enemy?.shoveCorpse(from, 9); return; }
         if (entry.breakable) { this.hurtBreakable(entry.breakable, dmg); return; }
-        if (entry.vehicle) { entry.vehicle.damage(dmg, from, bySlot); return; }
+        if (entry.vehicle) {
+          const veh = entry.vehicle;
+          const carried = !!veh.hostile;
+          veh.damage(dmg, from, bySlot);
+          // Hitting a hull says nothing on its own, and a hull with a hostile
+          // on it is a target like any other: mark it, or shooting the ride
+          // out from under a rider reads as shooting at nothing.
+          if (carried && bySlot >= 0) this.hitMarker(bySlot);
+          return;
+        }
         if (entry.player) {
           const p = entry.player;
           p.damage(dmg, from, bySlot);

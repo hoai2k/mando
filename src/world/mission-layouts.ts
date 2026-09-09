@@ -382,9 +382,17 @@ const refinery: StageSpec[] = [
     // board left at their ends rather than through the walls themselves.
     anchor: { x: -40, z: -46, dx: 1, dz: 0 },
     zones: [
-      z('refinery', 3, { shell: 'open', kind: 'assault', w: 18, l: 18, waves: 2 }),
-      z('refinery', 4, { shell: 'open', kind: 'lieutenant', w: 18, l: 18 }),
-      z('refinery', 5, { shell: 'open', kind: 'assault', w: 18, l: 18, waves: 2 }),
+      // Rooms, and declared as rooms. These three sit *inside* the plant,
+      // between its tanks and partition walls, and they are 18 m on a side:
+      // the borders audit measures five to eleven metres to the nearest wall
+      // all round each of them, which is a hall's number, not open ground's.
+      // Calling them `open` was the muddle a playtest asked about — the fight
+      // reads as a room whatever the layout says, so the layout should say it,
+      // and then the room behaviour that goes with it (the party gathers, the
+      // doors seal, the cover is crates rather than boulders) follows.
+      z('refinery', 3, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
+      z('refinery', 4, { shell: 'hall', kind: 'lieutenant', w: 18, l: 18 }),
+      z('refinery', 5, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
     ],
     links: [{ len: 12, kind: 'trek' }, { len: 12, kind: 'trek' }],
   },

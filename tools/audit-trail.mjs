@@ -113,10 +113,22 @@ function audit(stageName) {
    */
   const parity = (s, x, y, z, axis) => {
     const t = s.tris;
-    let hits = 0;
     // (a, b) are the two axes the ray does NOT travel along; c is the ray's
     const [ia, ib, ic] = axis === 0 ? [1, 2, 0] : axis === 1 ? [0, 2, 1] : [0, 1, 2];
     const pa = [x, y, z][ia], pb = [x, y, z][ib], pc = [x, y, z][ic];
+    // The nearest surface along the ray, and which way it faces. Counting
+    // crossings — plain parity — is only exact for a single closed surface,
+    // and a mission border is a union of forty overlapping boulders whose
+    // interior faces are all still in the mesh. A ray through that can come
+    // back odd from open ground: it put a wall in the middle of a Crevasse
+    // lane with the nearest rock seven and a half metres away on either side,
+    // and survived three goes at the level trying to satisfy it.
+    //
+    // Orientation does not have that problem. Leaving a solid you cross a
+    // back face; entering one you cross a front face — true of a union as
+    // much as of one shape. So: inside iff the first thing the ray meets is
+    // facing away from it.
+    let bestT = Infinity, bestBack = false;
     for (let i = 0; i < t.length; i += 9) {
       const aa = t[i + ia], ba = t[i + 3 + ia], ca = t[i + 6 + ia];
       if ((aa < pa && ba < pa && ca < pa) || (aa > pa && ba > pa && ca > pa)) continue;
@@ -130,10 +142,31 @@ function audit(stageName) {
       const l2 = ((ca - aa) * (pb - cb) + (ab - cb) * (pa - ca)) / d;
       const l3 = 1 - l1 - l2;
       if (l1 < 0 || l2 < 0 || l3 < 0) continue;
-      if (l1 * ac + l2 * bc + l3 * cc > pc) hits++;
+      const hit = l1 * ac + l2 * bc + l3 * cc;
+      const dist = hit - pc;
+      if (dist <= 0 || dist >= bestT) continue;
+      // the triangle's own normal, along the ray's axis
+      const e1 = [t[i + 3] - t[i], t[i + 4] - t[i + 1], t[i + 5] - t[i + 2]];
+      const e2 = [t[i + 6] - t[i], t[i + 7] - t[i + 1], t[i + 8] - t[i + 2]];
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      bestT = dist;
+      // Inside a solid, the first surface a ray travelling +c meets is the
+      // boundary on its far side, whose outward normal points the same way
+      // the ray does. Outside, the first thing met is a face turned back
+      // toward the ray. So: inside iff that normal agrees with the direction
+      // of travel.
+      bestBack = n[ic] > 0;
     }
-    return (hits & 1) === 1;
+    return bestT < Infinity && bestBack;
   };
+
+  /**
+   * Inside this mesh's own surface? Three rays and a majority. The
+   * orientation test above is exact for a well-formed solid, so the vote is
+   * only there for the degenerate cases — a ray that leaves along an edge or
+   * exactly through a shared vertex — which a border of forty merged,
+   * noised cylinders has plenty of.
+   */
   const inside = (s, x, y, z) => {
     if (x < s.lo[0] || x > s.hi[0] || y < s.lo[1] || y > s.hi[1] || z < s.lo[2] || z > s.hi[2]) return false;
     let votes = 0;

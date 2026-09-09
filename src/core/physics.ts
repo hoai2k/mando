@@ -279,13 +279,26 @@ export class PhysicsWorld {
       vel.y = 0;
       grounded = true;
     }
-    // box ceilings
+    // ---- ceilings: duck under an overhang, never sink through the floor ----
+    //
+    // Ducking is `feet = underside - height`, which is only a place to be if
+    // it is still above the ground. For a tall body under a low overhang it is
+    // not: a bantha is two and a half metres and a prop's fitted colliders
+    // carry boxes a metre or so up, so passing one put its feet a metre *under
+    // the sand* — and down there every collider around it reads as a wall to
+    // be pushed out of, so the animal bobbed into the ground and jammed. Both
+    // halves of that were one playtest report.
+    //
+    // So the duck is floored at the ground under it. Where there is no room to
+    // duck at all the body simply does not fit, and the side push-out above —
+    // which sees the same box, since its head is inside it — is what stops it.
+    const duckFloor = g > -Infinity ? g : -Infinity;
     for (const b of this.boxes) {
       if (pos.x < b.min.x - radius || pos.x > b.max.x + radius || pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
       const head = pos.y + height;
       if (head > b.min.y && pos.y < b.min.y && vel.y > 0 && b.min.y - pos.y > STEP_HEIGHT) {
-        pos.y = b.min.y - height;
-        vel.y = 0;
+        const want = b.min.y - height;
+        if (want >= duckFloor) { pos.y = want; vel.y = 0; }
       }
     }
     for (const c of this.cylinders) {
@@ -293,8 +306,8 @@ export class PhysicsWorld {
       if (dx * dx + dz * dz > reach * reach) continue;
       const head = pos.y + height;
       if (head > c.minY && pos.y < c.minY && vel.y > 0 && c.minY - pos.y > STEP_HEIGHT) {
-        pos.y = c.minY - height;
-        vel.y = 0;
+        const want = c.minY - height;
+        if (want >= duckFloor) { pos.y = want; vel.y = 0; }
       }
     }
     return { grounded, groundY: g };
