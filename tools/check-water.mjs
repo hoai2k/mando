@@ -18,8 +18,15 @@ const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); 
 /** start a Wave Battle on the Prison Rig as the named fighter */
 async function startAs(name) {
   await h.waitForText(/PRESS START|WAVE BATTLE/i);
+  // Name the mode rather than trusting START's default focus. Missions is the
+  // first button on the title now, so a bare START opens the planet strip —
+  // and that strip lists every territory, so the wait below matched it and
+  // this walked on into the wrong screen carrying a passing check with it.
+  await h.focusButton(/WAVE BATTLE/i);
   await h.pad.tap(BTN.START);
-  await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
+  // `CHOOSE TERRITORY` exactly, and nothing a mission card can spell: the strip
+  // says DUNE SEA too, which is how the wrong screen slipped through before.
+  await h.waitForText(/CHOOSE TERRITORY/i);
   // by name, not by counting presses: the territory grid moves focus by where
   // cards sit on screen, so a run of DRIGHTs does not land on a known board
   await h.clickText('The Prison Rig');

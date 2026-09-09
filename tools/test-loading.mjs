@@ -50,8 +50,11 @@ check('the title warms the territory art', await waitForAsset('board_tatooine.jp
 check('the title warms the planet discs', await waitForAsset('planet_desert.png'));
 
 // ---- 2. the territory grid warms the rest of the roster ----
+// Name the mode rather than trusting START's default focus: Missions is the
+// first button on the title now, so a bare START opens the planet strip.
+await h.focusButton(/WAVE BATTLE/i);
 await h.pad.tap(BTN.START);
-await h.waitForText(/CHOOSE|TERRITORY/i);
+await h.waitForText(/CHOOSE TERRITORY/i);
 await sleep(4000);
 // The roster comes from the game rather than a list here: it has gained
 // characters and been renamed wholesale, and a frozen copy silently stops

@@ -26,9 +26,10 @@ const _probe = new THREE.Vector3();
  * come from, the guidance, the checkpoints, the flight ceiling, and the
  * transport doors that swap one stage for the next.
  *
- * The previous design — one walled room chain per territory — is kept whole
- * in `campaign-legacy.ts`, and is what Missions runs unless `?missions=new`
- * asks for this one.
+ * **This is what Missions runs by default.** The previous design — one
+ * walled room chain per territory — is kept whole in `campaign-legacy.ts`
+ * and is one URL away at `?missions=old`, which is the way back if this
+ * design does not work out.
  */
 
 /** how close to the exit point counts as "through" a walked zone */

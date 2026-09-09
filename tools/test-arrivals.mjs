@@ -163,10 +163,39 @@ await sleep(500);
 const miss = await h.page.evaluate(`(async () => {
   const g = window.__game;
   const c = g.campaign;
-  const rooms = c.level.rooms;
-  const i = rooms.findIndex((r) => r.spec.kind === 'assault');
-  if (i < 0) return { skipped: true };
+  // Missions has two level builders behind one controller interface. The
+  // outdoor stage chain (the default since the stage chain landed) raises one
+  // **stage** of the run at a time and calls its fight areas zones; the walled
+  // room chain still reachable at \`?missions=old\` calls them rooms. Either
+  // way what this is after is an assault area — the kind that seals and calls
+  // its wave — and both spell that \`spec.kind === 'assault'\`.
+  //
+  // Only one stage of the run stands at a time, and the trailhead is a walk
+  // in rather than a fight: the desert's first stage is start/trek/camp, so
+  // looking only at what happens to be up found no assault area and skipped
+  // this whole section without saying so. Walk the chain to the first stage
+  // that has one — \`enterStage\` is the transport door's own path, and lowers
+  // the stage it leaves before raising the next.
+  const areas = () => (c.stage ? c.stage.zones : c.level.rooms);
+  const findAssault = () => areas().findIndex((r) => r.spec.kind === 'assault');
+  let i = findAssault();
+  const kinds = [areas().map((r) => r.spec.kind).join('/')];
+  for (let s = 1; i < 0 && c.stage && s < c.memory.length; s++) {
+    c.enterStage(s, false);
+    (${STEP})(30);
+    i = findAssault();
+    kinds.push(areas().map((r) => r.spec.kind).join('/'));
+  }
+  if (i < 0) return { skipped: true, kinds };
+  const rooms = areas();
   const room = rooms[i];
+  // Where the floor is under a body. A walled room has one floor height for
+  // the whole level; an outdoor stage may stand on the territory's own
+  // terrain, where \"the floor\" is not one number — so ask the stage, which
+  // is the question \`floorY\` was standing in for all along.
+  const floorAt = c.stage
+    ? (x, z) => c.stage.groundAt(x, z)
+    : () => c.level.floorY;
   // stand the party in the middle of that room and let the seal happen
   c.idx = i;
   c.phase = 'travel';
@@ -208,7 +237,7 @@ const miss = await h.page.evaluate(`(async () => {
   // or two men by the time anyone measured them, which passes and means
   // nothing. This stops the moment the last of them is down.
   const down = () => g.enemies.filter((e) => e.alive)
-    .every((e) => Math.abs(e.position.y - c.level.floorY) <= 2);
+    .every((e) => Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) <= 2);
   for (let n = 0; n < 60 && !down(); n++) (${STEP})(2);
   const alive = g.enemies.filter((e) => e.alive);
   const r = room.rect;
@@ -218,12 +247,27 @@ const miss = await h.page.evaluate(`(async () => {
     // settle with its centre just inside it
     if (e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
       || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2) outside++;
-    if (Math.abs(e.position.y - c.level.floorY) > 2) offFloor++;
+    if (Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) > 2) offFloor++;
   }
-  return { calledWave, inboundBefore, carriers, clearedEarly, chutes,
+  // Where the strays actually are, not just how many: a body four metres up
+  // on the wall at the zone's edge and one forty-three metres up on the rim
+  // are the same count and different bugs, and the count alone sent the first
+  // reading of this after the wrong one.
+  const strays = alive
+    .filter((e) => Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) > 2
+      || e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
+      || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2)
+    .map((e) => e.kind + ' at ' + e.position.x.toFixed(1) + ',' + e.position.z.toFixed(1)
+      + ' ' + (e.position.y - floorAt(e.position.x, e.position.z)).toFixed(1) + ' m up');
+  return { strays, calledWave, inboundBefore, carriers, clearedEarly, chutes,
     arrived: alive.length, stillArriving: alive.filter((e) => e.arriving).length,
     incoming: g.incomingCount, outside, offFloor };
 })()`);
+// Not a silent skip. This section stopped running at all when the level
+// builder changed under it, and a section that quietly runs no checks looks
+// exactly like a section that passed.
+check('missions: the run has an assault room to seal', !miss.skipped,
+  miss.skipped ? `no assault zone in ${miss.kinds.join(' | ')}` : 'found');
 if (!miss.skipped) {
   check('missions: a sealed room calls its wave by transport',
     miss.calledWave && miss.carriers > 0 && miss.inboundBefore > 0, miss);

@@ -154,52 +154,103 @@ const doors = await page.evaluate(() => {
   const p = g.players[0];
   const V3 = p.position.constructor;
   const phys = g.board.physics;
-  const gates = [];
-  for (const r of g.campaign.level.rooms) {
-    for (const gate of [r.entryGate, r.exitGate]) if (gate) gates.push(gate);
-  }
-  // Open every door first, and check they really opened.
-  //
-  // A shut gate parks a blocker 4.8 m across the opening, which swallows the
-  // posts whole — probing them with the door closed measures the door and
-  // passes whatever the frame is made of. The bug is at an *open* doorway,
-  // which is the only place it could ever have been.
-  for (const gate of gates) {
-    gate.open();
-    for (let i = 0; i < 60 && gate.closed; i++) gate.update(1 / 30);
-  }
-  const stillShut = gates.filter((gate) => gate.closed).length;
+  const c = g.campaign;
+
+  /**
+   * Every door standing in the map that is up right now.
+   *
+   * Missions has two level builders behind one controller interface: the
+   * outdoor stage chain (the default since the stage chain landed) hangs its
+   * doors off the standing stage's zones, and the walled room chain still
+   * reachable at `?missions=old` hangs them off its rooms. Take whichever is
+   * up — this suite is about what a doorway is made of, not about which
+   * builder raised it.
+   *
+   * A `Barrier` is anything that stands in the way and then gets out of it: a
+   * blast door, an energy fence across a canyon mouth, a crate barricade
+   * across a road. Only a door has a frame with posts, and `yaw` — the
+   * frame's bearing — is both what marks one out and what the probe below
+   * needs in order to find them.
+   */
+  const doorsUp = () => {
+    const barriers = c.stage
+      ? [c.stage.exitPortal, c.stage.backPortal, ...c.stage.zones.flatMap((z) =>
+          [z.entryBarrier, z.exitBarrier, ...z.hatches.map((h) => h.gate)])]
+      : c.level.rooms.flatMap((r) => [r.entryGate, r.exitGate]);
+    return barriers.filter((b) => b && typeof b.yaw === 'number');
+  };
   // the frame's own numbers: posts 0.5 m square, 3.6 m tall, 1.6 m out either side
   const POST_X = 1.6;
-  let solid = 0, shot = 0, total = 0;
-  for (const gate of gates) {
-    const cos = Math.cos(gate.yaw), sin = Math.sin(gate.yaw);
-    for (const side of [-1, 1]) {
-      total++;
-      const cx = gate.pos.x + cos * side * POST_X;
-      const cz = gate.pos.z - sin * side * POST_X;
-      // 1. the post is solid at chest height
-      if (phys.solidAt(cx, gate.pos.y + 1.2, cz)) solid++;
-      // 2. and a bolt aimed at a body tucked behind it does not arrive.
-      //    The body sits one capsule-radius behind the post, square on.
-      const bx = cx - cos * 0.75, bz = cz + sin * 0.75;
-      const chest = new V3(bx, gate.pos.y + 1.0, bz);
-      const target = { position: chest, radius: p.profile.hitRadius + 0.35, team: 0,
-        alive: true, shield: null, onHit: () => { hit = true; } };
-      let hit = false;
-      const from = new V3(cx + cos * 6, gate.pos.y + 1.0, cz - sin * 6);
-      g.projectiles.fire(from, chest.clone().sub(from).normalize(), 34, 25, 1, -1);
-      for (let i = 0; i < 40 && !hit; i++) g.projectiles.update(0.05, phys, [target], g.board.waterY);
-      if (hit) shot++;
+  let solid = 0, shot = 0, total = 0, stillShut = 0, walkable = 0, seen = 0;
+
+  /**
+   * Probe every door in the map that is standing right now.
+   *
+   * A territory is a chain of stages and only one of them is raised at a
+   * time, so probing what happens to be up finds the trailhead's single
+   * transport door and nothing else — the halls, the canyon dead ends and
+   * the hatches all belong to stages further in. Walking the chain is what
+   * gets the frame checked on every shape of doorway the territory builds.
+   */
+  const probeStandingStage = () => {
+    const gates = doorsUp();
+    seen += gates.length;
+    // Open every door first, and check they really opened.
+    //
+    // A shut gate parks a blocker 4.8 m across the opening, which swallows the
+    // posts whole — probing them with the door closed measures the door and
+    // passes whatever the frame is made of. The bug is at an *open* doorway,
+    // which is the only place it could ever have been.
+    for (const gate of gates) {
+      gate.open();
+      for (let i = 0; i < 60 && gate.closed; i++) gate.update(1 / 30);
     }
+    stillShut += gates.filter((gate) => gate.closed).length;
+    // ...and the doorway is still a doorway. Solid posts narrow the opening
+    // from 3.8 m to the 2.7 m between them, which every body has to fit
+    // through — the widest capsule the game walks around is r = 0.6.
+    walkable += gates.filter((gate) =>
+      phys.capsuleFree(gate.pos.x, gate.pos.y + 0.1, gate.pos.z, 0.6, 2.1)).length;
+    for (const gate of gates) {
+      const cos = Math.cos(gate.yaw), sin = Math.sin(gate.yaw);
+      for (const side of [-1, 1]) {
+        total++;
+        const cx = gate.pos.x + cos * side * POST_X;
+        const cz = gate.pos.z - sin * side * POST_X;
+        // 1. the post is solid at chest height
+        if (phys.solidAt(cx, gate.pos.y + 1.2, cz)) solid++;
+        // 2. and a bolt aimed at a body tucked behind it does not arrive.
+        //    The body sits one capsule-radius behind the post, square on.
+        const bx = cx - cos * 0.75, bz = cz + sin * 0.75;
+        const chest = new V3(bx, gate.pos.y + 1.0, bz);
+        const target = { position: chest, radius: p.profile.hitRadius + 0.35, team: 0,
+          alive: true, shield: null, onHit: () => { hit = true; } };
+        let hit = false;
+        const from = new V3(cx + cos * 6, gate.pos.y + 1.0, cz - sin * 6);
+        g.projectiles.fire(from, chest.clone().sub(from).normalize(), 34, 25, 1, -1);
+        for (let i = 0; i < 40 && !hit; i++) g.projectiles.update(0.05, phys, [target], g.board.waterY);
+        if (hit) shot++;
+      }
+    }
+  };
+
+  probeStandingStage();
+  // ...then on through the rest of the chain. `enterStage` is the transport
+  // door's own path — it lowers the standing stage before raising the next,
+  // which matters here: two stages up at once would leave both sets of
+  // colliders in the world and every measurement above would be reading a
+  // map the game never shows anyone.
+  for (let s = 1; s < c.memory.length; s++) {
+    c.enterStage(s, false);
+    probeStandingStage();
   }
-  // ...and the doorway is still a doorway. Solid posts narrow the opening
-  // from 3.8 m to the 2.7 m between them, which every body has to fit
-  // through — the widest capsule the game walks around is r = 0.6.
-  const walkable = gates.filter((gate) =>
-    phys.capsuleFree(gate.pos.x, gate.pos.y + 0.1, gate.pos.z, 0.6, 2.1)).length;
-  return { total, solid, shot, stillShut, gates: gates.length, walkable };
+  return { total, solid, shot, stillShut, gates: seen, walkable, stages: c.memory.length };
 });
+// Nothing below fails on an empty list — `0/0 posts solid` reads as a pass —
+// so say out loud that there were doors to probe. The level builder changing
+// under this suite is exactly how it would come to be looking at none.
+check('the mission chain has doorways to probe', doors.gates > 0,
+  `${doors.gates} door(s) over ${doors.stages} stage(s)`);
 check('the doors under test are actually open', doors.stillShut === 0,
   `${doors.stillShut} still blocking`);
 check('every mission door post is solid', doors.solid === doors.total,
