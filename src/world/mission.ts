@@ -315,6 +315,12 @@ const RIM_BARE_MIN = 8;
  * would stop you a metre short of the face; this is the solid part of it.
  */
 const RIM_SOLID_FRACTION = 0.72;
+/**
+ * Room a body needs beside the golden path. Rock closer than its own radius
+ * plus this is standing on the way through, and is removed rather than given
+ * a collider — the one case where the answer is to take the wall away.
+ */
+const PATH_CLEAR = 1.2;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -1895,7 +1901,11 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       }
     }
     if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
-    if (pathNear(at.x, at.z) < at.r * 0.8) { culled++; return false; }
+    // Measured against the rock's own reach, not its middle: a six-metre
+    // boulder whose centre is eight metres off the path still has its face in
+    // it, and backing that is how a piece that should have been removed became
+    // a two-and-a-half-metre wall across the way on instead.
+    if (pathNear(at.x, at.z) < at.r + PATH_CLEAR) { culled++; return false; }
     // solid, from the floor under it to the top of the rock that is drawn
     const foot = groundAt(at.x, at.z) - 1;
     addCyl(at.x, foot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
