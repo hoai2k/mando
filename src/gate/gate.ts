@@ -83,6 +83,18 @@ export interface GateOptions {
   warm?: (signal: AbortSignal) => void;
   /** Override for the compiled-in endpoint, for a host that sources its own. */
   endpoint?: string;
+  /**
+   * Offer a way out of the door.
+   *
+   * A game has nothing behind its door, so there is nowhere to go back to and
+   * no button to draw. A page that uses the door as a *redeem box* — the arcade
+   * library, which is public and merely hides the locked cards — does have
+   * something behind it, and stranding a visitor on a veil they cannot dismiss
+   * would be a bug rather than a policy. When set, `openGate` resolves on
+   * "Back" WITHOUT a pass, so a caller that cares must check `readPass()`
+   * rather than assume resolution means admission.
+   */
+  dismissible?: boolean;
 }
 
 /** What we keep about a friend who has been let in. No expiry, by design. */
@@ -284,6 +296,8 @@ const CSS = `
 }
 .gate-veil button:hover { background: linear-gradient(180deg, #d8b25a, #8a6f38); }
 .gate-veil button:disabled { opacity: 0.5; cursor: default; }
+.gate-veil .gate-back { background: transparent; border-color: transparent; opacity: 0.65; }
+.gate-veil .gate-back:hover { background: transparent; opacity: 1; text-decoration: underline; }
 .gate-veil .gate-note { font-size: 12px; color: #7d7365; max-width: 26rem; min-height: 1.2em; }
 .gate-veil .gate-bad { color: #e08a6a; }
 @media (prefers-reduced-motion: no-preference) {
@@ -401,6 +415,20 @@ export function openGate(opts: GateOptions): Promise<void> {
     };
     go.onclick = submit;
     input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
+
+    if (opts.dismissible) {
+      const back = document.createElement('button');
+      back.textContent = 'Back';
+      back.className = 'gate-back';
+      back.onclick = () => {
+        if (settled) return;
+        settled = true;
+        warming.abort();
+        door.close();
+        resolve();          // resolved WITHOUT a pass — see GateOptions.dismissible
+      };
+      door.slot.append(back);
+    }
 
     const fromLink = codeFromUrl();
     if (fromLink) {
