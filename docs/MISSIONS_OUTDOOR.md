@@ -379,6 +379,67 @@ box has four corners of open sand in it) reports holes that are only ever air,
 and a single parity ray through a union of overlapping boulders puts a wall six
 metres from the nearest rock.
 
+### 1.8d A collider stands for a shape, so it has to be that shape (2026-09-09)
+
+The rock the border rule is about is the *far* edge of a level. The same class
+of lie turns up in the middle of one, on the territory's own landmarks, and it
+plays worse there because you are standing next to it: a playtest found a rock
+you could neither walk up to nor fly over.
+
+It was a mesa. A mesa is drawn as a tapering column — full width at the foot,
+about four fifths of that at the crown, with sideways noise on top — and it
+stood on **one** cylinder sized to its base. Near the top that disc was up to
+six metres out in clear air. Nevarro's basalt columns had the same shape of
+lie, smaller: a hexagon's flats sit at 0.866 of its corners, and the column
+tapers on top of that.
+
+The rule that fixes both, and the one to apply to any landmark solid enough to
+carry a collider:
+
+* **Follow the taper.** One disc for a tapering solid is wrong at one end or
+  the other. Read the ring radii back off the mesh that was actually built and
+  stack a disc per band. Three bands is enough for a mesa.
+* **Aim at the middle, not the widest.** A round collider cannot follow a
+  noised outline, so it should sit between the lobes and the bays — and the
+  noise should be small enough that the gap either way is under a metre. A
+  wobble a disc cannot follow is a wobble the mesh should not have.
+* **Nothing to catch on at the ends.** The top band reaches the true crown and
+  the bottom one sinks into the ground, so a jetpack landing does not clip a
+  lip that is not drawn.
+
+### 1.8e Open, contained, and an edge you can believe (2026-09-09)
+
+Two questions decide whether a mission area reads: does its edge stop you
+where it looks like it should, and does the *shape* of the room match what the
+zone claims to be. `tools/audit-borders.mjs` asks both. Standing at each zone's
+centre and turning on the spot, it casts through the band a body occupies and
+compares the distance at which the physics stops you against the distance at
+which something is drawn.
+
+* **Rock nearer than its collider** is a wall you walk into and through.
+* **A collider nearer than any rock** is a wall that is not there — and the
+  audit says how much clear air is at the point you were stopped, which is the
+  difference between an invisible wall and a ray clipping a boulder's shoulder.
+* Neither test is a line test. A body is not a ray, an `InstancedMesh` draws
+  its geometry once per instance, and a ride hangs its model off its own group:
+  all three of those reported walls that were simply being measured wrong.
+
+The second half is the design read. What a place feels like is how far the edge
+is, all round, and a design is only clear if that matches what the zone says:
+
+| shell | wants | reads as |
+|---|---|---|
+| `hall` | edge within ~22 m all round | a room |
+| `canyon` | close across, far along | a lane |
+| `road` | a lane you ride down; sides may be far | a run |
+| `open` | median edge beyond ~18 m, or sightlines off the board | open ground |
+| `deck` | exempt — its edge is the void, and stepping off is the boundary |
+
+The Dune Sea is the worked example: its `open` zones measure 17–41 m to the
+median edge with sightlines past 100 m, its canyons 6.8–9.1 m and its hall
+10.9 m. Two clearly separated bands, which is what "clear in the design between
+open and constrained" means in a number.
+
 ### 1.9 Stages and transport doors
 
 A run is a list of **stages**, each a map of its own: a purpose-built zone
