@@ -330,15 +330,36 @@ const results = await h.page.evaluate(async () => {
   // straight through the side of it and came to rest inside the scenery —
   // which is the corpse the player sees half-buried in a wall. The rigid
   // solver next door had been pushing its corners out of the world all along.
+  //
+  // THE WALL IS RAISED HERE, NOT FOUND ON THE BOARD.
+  //
+  // This used to pick the nearest board box over 1.8 m tall and throw a body
+  // at whatever that turned out to be, which made the check a hostage to the
+  // territory. The box moved when the props moved; the ground in front of it
+  // was whatever the dunes were doing; and a body that skidded down a slope
+  // instead of fetching up against the face failed a check about ragdolls with
+  // nothing wrong with the ragdoll. It went red about one run in four that
+  // way, and red for a reason no reader could act on — the Dune Sea's props
+  // changing under it was enough.
+  //
+  // A `StaticBox` is a `StaticBox`: the solver cannot tell one raised here
+  // from one a board raised, and `groundHeight` counts a box top as ground the
+  // same either way. So a floor and a wall of our own put the same code
+  // against geometry that is identical on every board, every territory and
+  // every run. The floor stands clear of the terrain so nothing underneath can
+  // reach the body, and both come back out at the end.
   const walled = [];
   {
     const phys = g.board.physics;
-    // a solid the board actually has: something tall and wide enough to throw
-    // a body at, as near the player as one gets
-    const solid = phys.boxes
-      .filter((b) => b.max.y - b.min.y > 1.8 && b.max.x - b.min.x > 1.2 && b.max.z - b.min.z > 1.2)
-      .sort((u, v) => Math.hypot(u.min.x - p.position.x, u.min.z - p.position.z)
-        - Math.hypot(v.min.x - p.position.x, v.min.z - p.position.z))[0];
+    const FLOOR = 26, THICK = 2, WALL_W = 14, WALL_H = 5, WALL_D = 1.5;
+    // well off the spawn, and above whatever the ground is doing there
+    const ax = p.position.x + 60, az = p.position.z + 60;
+    const under = phys.heightAt ? phys.heightAt(ax, az) : p.position.y;
+    const topY = (Number.isFinite(under) ? under : p.position.y) + 15;
+    const floor = phys.addBox(ax, topY - THICK / 2, az, FLOOR, THICK, FLOOR);
+    // the wall's near face sits exactly on `ax`, so the throw is square to it
+    const solid = phys.addBox(ax - WALL_D / 2, topY + WALL_H / 2, az,
+      WALL_D, WALL_H, WALL_W);
     // every bone of the drawn body, so this measures what is on screen
     const bones = (root) => {
       root.updateMatrixWorld(true);
@@ -356,13 +377,17 @@ const results = await h.page.evaluate(async () => {
       const cz = (solid.min.z + solid.max.z) / 2;
       const e = g.addReinforcement('stormtrooper', p.position.clone());
       for (let t = 0; t < 15 && e.arrival; t += DT) g.update(DT, inputs);
+      // Wait for the sculpt WITHOUT simulating — the third of these in this
+      // file, and the one that mattered. Stepping 0.1 s of match per poll
+      // handed the body a different amount of settling depending on how fast
+      // the file came down, which is why two runs on one seed still came out
+      // differently after the other two were fixed.
       for (let i = 0; i < 60 && !(e.char.modelReady?.() ?? true); i++) {
         await new Promise((r) => setTimeout(r, 100));
-        run(0.1);
       }
-      // stood just off one face, then thrown flat into it
-      const stand = phys.groundHeight(solid.max.x + 1.4, cz, solid.max.y + 2);
-      e.position.set(solid.max.x + 1.4, stand > -Infinity ? stand : solid.min.y, cz);
+      // stood just off the face, on our own floor, then thrown flat into it
+      const stand = phys.groundHeight(solid.max.x + 1.4, cz, topY + 2);
+      e.position.set(solid.max.x + 1.4, stand > -Infinity ? stand : topY, cz);
       e.velocity.set(0, 0, 0);
       run(0.2);
       const from = e.position.clone();
@@ -392,6 +417,12 @@ const results = await h.page.evaluate(async () => {
       });
       e.removeMe = true;
       run(0.2);
+    }
+    // take the arena back out: a suite that leaves colliders standing in the
+    // world is a suite that breaks whatever runs after it
+    for (const b of [solid, floor]) {
+      const i = phys.boxes.indexOf(b);
+      if (i >= 0) phys.boxes.splice(i, 1);
     }
   }
   out.__walled = walled;
