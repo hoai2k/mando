@@ -286,6 +286,9 @@ const SHIELD_LIVE = 0.6;
  */
 const RIDER_BLAST = 26;
 
+/** how far a seated rider's head stands over the seat, for framing the shot */
+const RIDER_OVER_SEAT = 1.5;
+
 /**
  * How far a rider's root (its feet, on the canonical rig) sits below the
  * surface it is carried on. A straddled saddle takes the weight on the thighs
@@ -892,8 +895,31 @@ export class Vehicle {
   }
 
   /** the height of the surface being sat on, over the keel */
-  private get seatTop(): number {
+  get seatTop(): number {
     return this.seatY + STANCE_RISE[this.def.stance];
+  }
+
+  /**
+   * How big this ride is to a camera: the height a body of this size would
+   * be, and half its widest horizontal span.
+   *
+   * The chase rig is tuned around a Mandalorian and already knows how to
+   * frame something bigger (`ThirdPersonCamera.setSubject`, written for the
+   * war beasts) — it lifts the look to the subject's own head and puts a floor
+   * under the chase distance so the lens stays outside its hide. A ride is
+   * exactly that problem: framed as a 1.8 m man, a bantha fills the screen and
+   * a skiff is a wall you are standing on. So a mounted rider hands the camera
+   * the *ride's* measurements instead of its own.
+   *
+   * Height is to the top of whoever is sitting on it rather than to the hull,
+   * because that is what has to stay in shot; the span is the sculpt's own
+   * footprint where it has been measured, the same one `park` registers.
+   */
+  get camSubject(): { height: number; reach: number } {
+    return {
+      height: Math.max(this.def.body, this.seatTop + RIDER_OVER_SEAT),
+      reach: Math.max(this.foot?.x ?? this.def.radius, this.foot?.z ?? this.def.length / 2),
+    };
   }
 
   /**
@@ -1050,6 +1076,14 @@ export class Vehicle {
       this.chargeCd = CHARGE_TIME + CHARGE_COOLDOWN;
       audio.banthaLow(0.7);
       rider.cam.shake(0.08);
+    } else if (def.living && input.meleePressed && this.chargeT <= 0) {
+      // Asked for and refused. Silence here is the worst answer: the button
+      // does nothing, and from the saddle there is no way to tell a cooldown
+      // from being wedged against something — a playtest reported exactly that
+      // uncertainty. A short grunt and a tick of the camera say "heard, not
+      // yet", which is all it needs to be legible.
+      audio.banthaLow(0.2);
+      rider.cam.shake(0.02);
     }
     const charging = this.chargeT > 0;
 

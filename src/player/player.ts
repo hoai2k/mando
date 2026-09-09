@@ -648,6 +648,17 @@ export class Player {
    * own size — a frame computed once is a frame of the wrong body.
    */
   private frameCamera(): void {
+    // In the saddle the camera frames the *ride*, not the rider: see
+    // `Vehicle.camSubject`. Re-measured every frame while mounted, which is
+    // two reads and costs nothing, and `framedNodes` is dropped so stepping
+    // off puts the body's own framing back.
+    const v = this.vehicle;
+    if (v) {
+      const sub = v.camSubject;
+      this.cam.setSubject(sub.height, sub.reach);
+      this.framedNodes = -1;
+      return;
+    }
     const nodes = nodeCount(this.char.root);
     if (nodes === this.framedNodes) return;
     visibleBounds(this.char.root, _bodyBox);
@@ -2541,6 +2552,7 @@ export class Player {
     this.syncVisual(dt, game);
     anim.update(dt);
     this.handsToControls(v, gunUp);
+    this.frameCamera();
     const speed = Math.hypot(v.vel.x, v.vel.z);
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,

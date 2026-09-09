@@ -303,7 +303,18 @@ const RIM_NOISE_REACH = 1.6;
  * over it, with no collider under it — before the piece is dropped as being in
  * the way rather than leaning over the edge like a cliff.
  */
-const RIM_IN_THE_WAY = 0.4;
+/**
+ * How many square metres of a border piece have to be standing over the
+ * level's own floor with nothing under them before the piece is treated as in
+ * the way rather than leaning over the edge the way a cliff does.
+ */
+const RIM_BARE_MIN = 8;
+/**
+ * How much of a rim piece's radius its own collider fills. The drawn rock is
+ * a noised cylinder that tapers going up, so a collider on the full radius
+ * would stop you a metre short of the face; this is the solid part of it.
+ */
+const RIM_SOLID_FRACTION = 0.72;
 /** per crate in a crate-line barricade */
 const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
@@ -651,7 +662,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * the floor it might be standing on — the link out of that zone, the pocket
    * behind a door — is not built until later.
    */
-  const rimAt: { x: number; z: number; r: number }[] = [];
+  const rimAt: { x: number; z: number; r: number; h: number }[] = [];
   const backGeo: THREE.BufferGeometry[] = [];
   let spaceN = 0;
 
@@ -845,7 +856,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * thing, and the mesas proved that years ago.
    */
   const rimPiece = (x: number, z: number, r: number, h: number, y0: number, backdrop: boolean): void => {
-    if (!backdrop) rimAt.push({ x, z, r });
+    if (!backdrop) rimAt.push({ x, z, r, h });
     const geo = new THREE.CylinderGeometry(r * look.taper, r, h, look.facets, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -1834,44 +1845,66 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       && y > b.min.y && y < b.max.y)
       || cylinders.some((c) => y > c.minY && y < c.maxY && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
   };
+  /** how near the golden path a piece may stand before it is in the way */
+  const pathNear = (x: number, z: number): number => {
+    let best = Infinity;
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a2 = path[i], b2 = path[i + 1];
+      const dx = b2.x - a2.x, dz = b2.z - a2.z;
+      const len2 = dx * dx + dz * dz;
+      const t = len2 > 1e-6
+        ? Math.max(0, Math.min(1, ((x - a2.x) * dx + (z - a2.z) * dz) / len2)) : 0;
+      best = Math.min(best, Math.hypot(x - (a2.x + dx * t), z - (a2.z + dz * t)));
+    }
+    return best;
+  };
+
+  // ---- a border piece is either solid or it is not there ----
+  //
+  // `ridge` pushes its rock outward from the collider slab so the face of the
+  // cliff lands on the face of the wall. That holds along a run and fails at
+  // its ends: where a lane turns, or where a stage's doorway cuts the rim, the
+  // pieces closing one run reach across the next one's floor, and the slab
+  // under them follows the run they belong to. Standing in it, that is a wall
+  // drawn across the way on with nothing to stop you.
+  //
+  // The first answer here was to delete those pieces, and it was the wrong
+  // one: judged by whether any part of them was over unbacked floor, it
+  // deleted the rim itself — eighty-five pieces in the ravine, two hundred on
+  // the far side — leaving a lane with the sky showing through where the wall
+  // should be, and the rim pillars' fifty-five-metre colliders standing in the
+  // open with no rock on them.
+  //
+  // So: **back it, unless it is in the way.** A piece standing over the
+  // level's own floor with nothing under it gets a collider of its own, sized
+  // to the rock that is drawn — which is what "a wall always has a collider"
+  // means. Only a piece actually standing on the golden path is removed, since
+  // a collider there would be a wall across the way through.
   let culled = 0;
+  let backed = 0;
   const keptRim = rimGeo.filter((geo, i) => {
     const at = rimAt[i];
     if (!at) return true;
-    // A piece that is part of a wall carries its own collider under it. That
-    // is the whole test, and getting it wrong the other way is expensive: a
-    // first pass culled anything with a single unbacked grid point over laid
-    // floor, which in a canyon twelve metres wide is every piece of the rim —
-    // eighty-five of them in the ravine and two hundred on the far side. What
-    // that leaves is a lane with the sky showing through where the wall should
-    // be and a fifty-five-metre collider standing in the open with no rock on
-    // it, which is what a playtest then reported from both ends.
-    //
-    // So: a rim piece may lean over the lane, the way a cliff does. What it
-    // may not do is *stand* in it unbacked. Judge that by how much of the
-    // piece is over walkable floor with nothing under it — an orphan closing a
-    // corner is mostly that, a cliff face overhanging its own edge is barely
-    // any of it — and by its centre, which for an orphan is out on the floor.
     if (nearestFloor(at.x, at.z) > at.r) return true;          // nowhere near a floor
-    let over = 0, bare = 0, total = 0;
+    let bare = 0;
     for (let dx = -at.r; dx <= at.r; dx += 1) {
       for (let dz = -at.r; dz <= at.r; dz += 1) {
         if (dx * dx + dz * dz > at.r * at.r) continue;
-        total++;
         const px = at.x + dx, pz = at.z + dz;
-        if (!onFloor(px, pz)) continue;
-        over++;
-        if (!backedAt(px, pz)) bare++;
+        if (onFloor(px, pz) && !backedAt(px, pz)) bare++;
       }
     }
-    const standing = onFloor(at.x, at.z) && !backedAt(at.x, at.z);
-    if (standing || (total > 0 && bare / total >= RIM_IN_THE_WAY)) { culled++; return false; }
-    void over;
+    if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
+    if (pathNear(at.x, at.z) < at.r * 0.8) { culled++; return false; }
+    // solid, from the floor under it to the top of the rock that is drawn
+    const foot = groundAt(at.x, at.z) - 1;
+    addCyl(at.x, foot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
+    backed++;
     return true;
   });
   for (const geo of rimGeo) if (!keptRim.includes(geo)) geo.dispose();
-  if (culled) {
-    console.warn(`[mission] ${stage.label}: dropped ${culled} border piece(s) standing on the level's own floor`);
+  if (culled || backed) {
+    console.warn(`[mission] ${stage.label}: border rock — ${backed} piece(s) given a collider, ${culled} removed from the path`);
   }
   mergeInto(keptRim, rockMat, true, 'facing');
   // The backdrop row is the mountains beyond — `ridge()` says so in as many
