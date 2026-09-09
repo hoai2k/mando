@@ -984,6 +984,8 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
           Math.abs(nz) * segLen + Math.abs(nx) * T);
       }
       const r = 4 + rand() * 2;
+      /** corner-to-flat midpoint of the piece's cross-section, as a fraction of r */
+      const shape = (1 + Math.cos(Math.PI / look.facets)) / 2;
       // Pieces overlap rather than merely touching: a ray threading the gap
       // between two of them travels metres past the wall line before it meets
       // rock, which reads as the same standoff from inside.
@@ -1005,7 +1007,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         // top of that — as a standoff of about three metres all round every
         // zone on the board. Stopping three metres in front of a cliff face is
         // an invisible wall, however honest the intent behind it.
-        const out = r - T / 2 + 0.05 + rand() * 0.35;
+        // …but `r` is the radius of a *polygon's corners*, and what faces the
+        // wall is usually a flat between two of them. A nine-sided rock hardly
+        // notices; a four-sided hull plate is a diamond whose face sits at
+        // 0.707 of its corner radius, so pushing it out by the corner put its
+        // face a metre and a half behind the slab — and the audit measured
+        // that as a standoff on every bearing of the Storm Docks, twenty-three
+        // of them. Split the difference between corner and flat: whichever of
+        // the two faces the wall, it is out by half the gap rather than all of
+        // it, and half of it is under a metre on every style in the table.
+        const out = r * shape - T / 2 + 0.05 + rand() * 0.35;
         const px = x0 + nx * t + ox * out;
         const pz = z0 + nz * t + oz * out;
         // Every piece is seated *below* the floor it stands on, a couple of
