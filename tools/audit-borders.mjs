@@ -143,7 +143,12 @@ function audit(stageName) {
       const dx = Math.sin(th), dz = Math.cos(th);
       _o.set(zn.center.x, oy, zn.center.z);
       _d.set(dx, 0, dz);
-      const solid = phys.raycast ? phys.raycast(_o, _d, MAX) : null;
+      // Boxes and cylinders only. `raycast` also marches the heightfield, and
+      // the territory's own terrain is drawn as a ground plane this audit
+      // skips — so every dune came back as "a collider with no rock on it",
+      // which is the terrain being terrain. Excluding it from both sides keeps
+      // the two answers measuring the same things.
+      const solid = phys.raycastSolids ? phys.raycastSolids(_o, _d, MAX) : null;
       const dPhys = solid ? solid.dist : Infinity;
       const dMesh = meshDist(zn.center.x, oy, zn.center.z, dx, 0, dz, MAX);
       const edge = Math.min(dPhys, dMesh);
