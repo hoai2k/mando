@@ -320,6 +320,12 @@ const RIM_BARE_MIN = 1;
  */
 const RIM_SOLID_FRACTION = 0.72;
 /**
+ * How long each step of a leaning border's staircase is. Half of it is how far
+ * that step's axis-aligned box reaches past the rock line into the lane, so
+ * this is the standoff between a diagonal cliff and the wall that stops you.
+ */
+const STAIR_STEP = 1.6;
+/**
  * Room a body needs beside the golden path. Rock closer than its own radius
  * plus this is standing on the way through, and is removed rather than given
  * a collider — the one case where the answer is to take the wall away.
@@ -945,7 +951,15 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // short staircase instead — a handful of boxes, still nothing next to a
       // collider per rock, and it follows the line it is drawn along.
       const lean = Math.min(Math.abs(nx), Math.abs(nz)) * len;
-      const parts = lean <= T ? 1 : Math.min(16, Math.ceil(lean / T));
+      // How fine the staircase is decides how far it bulges into the lane. A
+      // step is an axis-aligned box drawn round a slanted segment, so it
+      // reaches past the rock line by about half the segment's length — with
+      // steps sized to the slab's own thickness that is three metres, and the
+      // borders audit measured exactly that standoff on every diagonal wall of
+      // the Dune Sea's canyon: stopped three metres in front of the cliff you
+      // are looking at. Finer steps, more of them, and the bulge comes down
+      // with the segment length.
+      const parts = lean <= STAIR_STEP ? 1 : Math.min(40, Math.ceil(lean / STAIR_STEP));
       const segLen = len / parts;
       for (let s = 0; s < parts; s++) {
         const tm = (s + 0.5) * segLen;
