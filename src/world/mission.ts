@@ -881,15 +881,23 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       const py = pos.getY(i);
       // leave the base ring alone so neighbours still meet at the floor
       const grip = (py + h / 2) / h;
-      // Outward only, which is the same rule `ridge` already applies to how far
-      // the piece is pushed off the wall line, and for the same reason. A
-      // two-sided noise can take a base ring to less than half its radius, and
-      // a piece that thin has its face metres behind the slab that stops you:
-      // the borders audit found that standoff on nearly two hundred bearings
-      // across the nine boards, and named the slab itself as the thing doing
-      // the stopping. Bulges still vary per vertex, so the silhouette is as
-      // craggy as it was — it just never eats into the face.
-      const n = Math.abs(rand() - 0.5) * look.noise * r * (0.35 + grip);
+      // The wobble is a *fraction* of the piece, and only ever inward.
+      //
+      // It used to be scaled by `r` as well, which made it a fraction of the
+      // square: a five-metre piece could swell to seven and a half, and since
+      // `ridge` pushes a piece out by the radius it asked for, every one of
+      // that extra reached back through the slab. The audit measured it from
+      // inside the fighting pit and the dune gate — rock drawn four metres
+      // nearer than the thing that stops you, so you walk into a cliff and
+      // stand inside it.
+      //
+      // Inward, then, and bounded: a piece never grows past the radius it was
+      // placed for, so its face never crosses the wall it is facing, and at
+      // a tenth of its radius it is never more than about a metre shy of it
+      // either. Craggy enough at this scale — a half-metre bite out of a
+      // five-metre column, nine facets round and three rings up — and the
+      // silhouette's big shape was always the taper and the backdrop row.
+      const n = -Math.abs(rand() - 0.5) * look.noise * (0.35 + grip);
       pos.setX(i, pos.getX(i) * (1 + n));
       pos.setZ(i, pos.getZ(i) * (1 + n));
     }
