@@ -124,6 +124,12 @@ function audit(stageName) {
     return best;
   };
 
+  // `PhysicsWorld.raycast` clones its arguments, so it wants real vectors.
+  // THREE is not a global in the built bundle; borrow two from something that
+  // already has them and re-set them each cast.
+  const _o = g.players[0].position.clone();
+  const _d = g.players[0].position.clone();
+
   const zones = [];
   const lies = [];
   for (const zn of st.zones) {
@@ -135,9 +141,9 @@ function audit(stageName) {
     for (let i = 0; i < RAYS; i++) {
       const th = (i / RAYS) * Math.PI * 2;
       const dx = Math.sin(th), dz = Math.cos(th);
-      const solid = phys.raycast
-        ? phys.raycast({ x: zn.center.x, y: oy, z: zn.center.z }, { x: dx, y: 0, z: dz }, MAX)
-        : null;
+      _o.set(zn.center.x, oy, zn.center.z);
+      _d.set(dx, 0, dz);
+      const solid = phys.raycast ? phys.raycast(_o, _d, MAX) : null;
       const dPhys = solid ? solid.dist : Infinity;
       const dMesh = meshDist(zn.center.x, oy, zn.center.z, dx, 0, dz, MAX);
       const edge = Math.min(dPhys, dMesh);
