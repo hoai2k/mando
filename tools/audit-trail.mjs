@@ -155,6 +155,20 @@ function audit(stageName) {
     return bestT < Infinity && bestBack;
   };
 
+  /**
+   * Inside this mesh's own surface? Three rays and a majority. The
+   * orientation test above is exact for a well-formed solid, so the vote is
+   * only there for the degenerate cases — a ray that leaves along an edge or
+   * exactly through a shared vertex — which a border of forty merged,
+   * noised cylinders has plenty of.
+   */
+  const inside = (s, x, y, z) => {
+    if (x < s.lo[0] || x > s.hi[0] || y < s.lo[1] || y > s.hi[1] || z < s.lo[2] || z > s.hi[2]) return false;
+    let votes = 0;
+    for (const axis of [0, 1, 2]) if (parity(s, x, y, z, axis)) votes++;
+    return votes >= 2;
+  };
+
   // Cover you can shoot out of the way is not a blocked trail. A road's crate
   // barricade stands across the lane on purpose and comes apart when it is
   // rammed or shot, which is the beat it exists for.
