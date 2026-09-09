@@ -52,8 +52,16 @@ function audit(stageName) {
   ];
 
   // ---- what is drawn, as world triangles ----
+  //
+  // The board's own group *and* every parked ride. A ride registers a solid
+  // box with the physics but hangs its model off its own group, so walking
+  // only the board reported each one as a collider with nothing drawn on it —
+  // eight of those in the Tusken corral alone, which is a motor pool doing
+  // exactly what it should.
   const solids = [];
-  g.board.group.traverse((o) => {
+  const roots = [g.board.group, ...g.vehicles.map((v) => v.group)];
+  for (const root of roots) root.updateMatrixWorld(true);
+  const collect = (o) => {
     if (!o.isMesh || o.isPoints || o.isLine || o.isSprite) return;
     for (let n = o; n; n = n.parent) {
       if (!n.visible) return;
@@ -69,7 +77,11 @@ function audit(stageName) {
     const pos = geo.attributes.position;
     const idx = geo.index;
     const count = idx ? idx.count : pos.count;
-    if (count > 240000) return;                        // the territory itself
+    // A cap only to keep one pathological mesh from stalling the audit. It
+    // used to be low enough to drop the territory's own mesas, which are
+    // drawn and solid and exactly the kind of edge this is about — they came
+    // back as "stopped at eighty metres, nothing drawn".
+    if (count > 1200000) return;
     const e = o.matrixWorld.elements;
     const tris = new Float64Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -85,7 +97,8 @@ function audit(stageName) {
       }
     }
     solids.push({ tris, lo, hi });
-  });
+  };
+  for (const root of roots) root.traverse(collect);
 
   /** nearest drawn surface along a ray (Möller–Trumbore), or Infinity */
   const meshDist = (ox, oy, oz, dx, dy, dz, max) => {
