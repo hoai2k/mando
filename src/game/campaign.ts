@@ -2,7 +2,8 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import type { Game } from './game';
 import {
-  buildStage, MISSION_LAYOUTS, PORTAL_POCKET, type MissionStage, type MissionZone, type Portal,
+  buildStage, MISSION_LAYOUTS, PORTAL_POCKET,
+  type MissionStage, type MissionZone, type Portal, type Shell,
 } from '../world/mission';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
@@ -52,6 +53,17 @@ const ARROW_PULSE = 8;
 const PORTAL_HINT_NEAR = 12;
 /** how near a hatch's closet counts as standing in it */
 const HATCH_CLEAR = 4;
+/**
+ * Shells with sky over them.
+ *
+ * A fight under the sky is held by people standing in it; a fight in a sealed
+ * room is held by people standing in it *and* by what comes through the wall
+ * hatches once it starts. The difference matters because a carrier pass over
+ * open ground is the thing a playtest called a "wave" — enemies appearing at
+ * the end of a walk — while a hatch opening in a room you are already locked
+ * in is the room doing what it was built to do.
+ */
+const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
 /** stand this close to the objective and its column goes out — you are there */
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
@@ -273,6 +285,35 @@ export class Campaign implements MissionController {
         // the squad behind the barricade at the far mouth
         this.postSquad(this.squadFor(this.rampWave(zone.beat), 3 + game.players.length, zone),
           zone.farVents, 9200 + zone.beat);
+      } else if (zone.spec.kind === 'assault') {
+        // A fight starts with people already in it.
+        //
+        // An assault used to be an empty room that filled up the moment you
+        // stepped over its line, twice, by transport. That reads as a wave
+        // game, and a playtest said so: a long walk through nothing, then
+        // enemies arriving at the end of it. Ground that is held is held
+        // *before* you get there — posted across the zone's own spots and the
+        // edges a wave would otherwise have come in at, so they are found
+        // rather than delivered. `enterZone` counts them as the first wave,
+        // so the fight is the same size it always was; what changed is where
+        // it was standing when you walked in.
+        const waves = zone.spec.waves ?? 2;
+        const size = OUTDOOR_SHELLS.has(zone.spec.shell)
+          // Under the sky the whole fight is posted at once and nothing is
+          // ever flown in. It does not all come at you at once either: a
+          // fifty-metre zone holds its back rank out of the fight until you
+          // push into it, so what bounded the numbers before — calling the
+          // next wave — is now the ground itself.
+          ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + (waves - 1) * 2)
+          // A sealed room is small enough that everyone in it is in the fight
+          // from the first second, so it keeps its reinforcements — which is
+          // what the wall hatches are for, and the one place a wave still
+          // reads as a wave rather than as a spawn.
+          : Math.min(12, 3 + this.rampWave(zone.beat) + game.players.length);
+        const held = [...zone.posts, ...zone.sideVents];
+        this.garrison.set(zone,
+          this.postSquad(this.squadFor(this.rampWave(zone.beat), size, zone),
+            held.length ? held : zone.posts, 9400 + zone.beat));
       }
     });
     stage.defenders.forEach((posts, i) => {
@@ -794,11 +835,18 @@ export class Campaign implements MissionController {
         // you already cleared is its own worse fight.
         if (zone.spec.shell === 'hall') zone.entryBarrier?.close();
         zone.exitBarrier?.close();
-        this.waveCount = zone.spec.waves ?? 2;
-        this.waveNum = 0;
-        this.zoneForce = [];
+        // Outdoors the posted force is the whole fight; indoors it is the
+        // first of them and the hatches supply the rest.
+        this.waveCount = OUTDOOR_SHELLS.has(zone.spec.shell) ? 1 : (zone.spec.waves ?? 2);
+        // Whoever was already holding this ground is the first wave. They are
+        // standing in it when you arrive, so nothing has to be flown in to
+        // start the fight — and the zone's budget is unchanged, because the
+        // wave they replace is the one that is no longer called.
+        const held = (this.garrison.get(zone) ?? []).filter((e) => e.alive);
+        this.zoneForce = held;
+        this.waveNum = held.length ? 1 : 0;
         this.dropping = false;
-        this.waveDelay = 0.9;
+        this.waveDelay = held.length ? 0 : 0.9;
         this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(zone.spec.label));
         audio.waveStart();
         break;
@@ -1318,9 +1366,19 @@ export class Campaign implements MissionController {
     const lead = this.game.players.filter((p) => p.alive)
       .sort((a, b) => a.position.distanceToSquared(zone.exit) - b.position.distanceToSquared(zone.exit))[0];
     if (lead) {
+      // How far down the road the lead is, so a mark they have already driven
+      // past fires even if they took a wide line round it. The barricade now
+      // waits for every mark, and a mark that can never fire would be a road
+      // with no way off it.
+      const toExit = new THREE.Vector3().subVectors(zone.exit, zone.entry);
+      const runLen = toExit.length() || 1;
+      toExit.divideScalar(runLen);
+      const along = (p: THREE.Vector3): number =>
+        (p.x - zone.entry.x) * toExit.x + (p.z - zone.entry.z) * toExit.z;
+      const leadAlong = along(lead.position);
       zone.marks.forEach((m, i) => {
         if (this.marksFired[i]) return;
-        if (lead.position.distanceToSquared(m) > 18 * 18) return;
+        if (lead.position.distanceToSquared(m) > 18 * 18 && leadAlong < along(m)) return;
         this.marksFired[i] = true;
         // A road is a hundred and sixty metres of fight; dying at the far end
         // and walking the whole of it again is not a cost, it is a punishment.
@@ -1344,9 +1402,19 @@ export class Campaign implements MissionController {
         audio.waveStart();
       });
     }
-    // the barricade is the wall: a fence lifts when the road's escort is down,
-    // crates are shot or rammed out of the way
-    if (zone.spec.barricade === 'fence' && this.zoneForce.every((e) => !e.alive) && !this.dropping) {
+    // The barricade is the wall: a fence lifts when the road's escort is down,
+    // crates are shot or rammed out of the way.
+    //
+    // "The escort is down" is not "nothing is alive". Before the first mark is
+    // reached `zoneForce` is empty, and `[].every()` is true — so the fence
+    // lifted the moment the road began, and again in the seconds between one
+    // mark's squad falling and the next mark being reached. A playtest walked
+    // up to an open door to the ravine with the last of the road still to
+    // come. The road is not run until every mark on it has fired and what
+    // they sent is down.
+    const allMarksFired = this.marksFired.length > 0 && this.marksFired.every(Boolean);
+    if (zone.spec.barricade === 'fence' && allMarksFired
+      && this.zoneForce.length > 0 && this.zoneForce.every((e) => !e.alive) && !this.dropping) {
       zone.exitBarrier?.open();
     }
     // Through: the barricade is open and someone is out the far mouth. The

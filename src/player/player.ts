@@ -14,7 +14,7 @@ import { gravityScale, hazardAt, type Board } from '../world/board';
 import { GRAVITY, applyGravity, applyKnockback, newBurnState, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
 import type { Combatant, Enemy } from '../enemies/enemy';
-import type { StaticBox } from '../core/physics';
+import type { StaticBox, StaticCylinder } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
 import { markOwned } from '../core/dispose';
@@ -250,6 +250,28 @@ const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
 
+// ---- cover ----
+/** a face this much above the boots is worth hugging: chest-high or better */
+const COVER_MIN_H = 1.0;
+/** and this wide, or it does not hide a person */
+const COVER_MIN_W = 1.0;
+/**
+ * How much of a round rock's radius counts as a face you can put your back
+ * against. A cylinder curves away on both sides, so the flat it lends is a
+ * chord, not a diameter — past about two thirds of the radius your shoulder
+ * is past the rock.
+ */
+const COVER_ARC = 0.62;
+/**
+ * Cover this much taller than the body is full-height: you stand behind it.
+ * Anything shorter and the body has to get under its line, which is the
+ * crouch. The margin is a head's worth — cover exactly your own height still
+ * leaves your helmet over the top of it.
+ */
+const COVER_STAND_OVER = 0.25;
+/** how far the hips drop into the cover crouch, as a fraction of body height */
+const CROUCH_DROP = 0.3;
+
 /**
  * Cross-fade between two jetpack poses, seconds.
  *
@@ -336,6 +358,26 @@ const ROCKET_CD = 12;
 const DEATH_ANIM_TIME = 1.1;
 /** seconds the disintegration takes — and the re-form on the other side */
 const DISSOLVE_TIME = 1.3;
+
+/**
+ * One hugging surface: a flat, vertical, axis-aligned face with a top and two
+ * corners to lean around. Boxes lend one of their four sides; cylinders lend
+ * the tangent plane on the side you came at them from.
+ */
+export interface CoverFace {
+  /** outward normal, axis-aligned — exactly one of nx/nz is non-zero */
+  nx: number;
+  nz: number;
+  /** where the face is on its normal's axis (an x if nx, a z if nz) */
+  plane: number;
+  /** the face's extent along its tangent, in world coordinates */
+  tMin: number;
+  tMax: number;
+  /** the top of the cover: what decides whether a body has to duck behind it */
+  top: number;
+  /** the solid it belongs to, so breaking a crate drops whoever is behind it */
+  solid: StaticBox | StaticCylinder;
+}
 
 export class Player {
   char: PlayerCharacter;
@@ -588,8 +630,18 @@ export class Player {
   aiming = false;
   lastDamageDir = new THREE.Vector3();
   // ---- cover (RDR2 snap-to-cover) ----
-  /** the box being hugged, plus the outward normal of the face we're on */
-  cover: { box: StaticBox; nx: number; nz: number } | null = null;
+  /**
+   * The face being hugged.
+   *
+   * A *face*, not a box. Cover used to be "a StaticBox and which side of it",
+   * which quietly meant only boxes were ever cover — and outdoors the boxes
+   * are the crates. Every boulder in the game is a cylinder, so a playtest
+   * found chest-high rock that would not shelter anyone standing beside a
+   * crate that would. A cylinder has no flat side, so it lends one: the
+   * tangent plane on the side you approached from, narrowed because the rock
+   * curves away from it.
+   */
+  cover: CoverFace | null = null;
   /** a face is close enough to snap to right now (drives the HUD prompt) */
   nearCover = false;
   /** currently leaning out past the corner to shoot */
@@ -2233,13 +2285,16 @@ export class Player {
    * Nearest box face worth hugging: tall enough to hide behind, wide enough
    * to matter, within snap range, and not the thing we're standing on.
    */
-  private findCoverFace(game: Game): { box: StaticBox; nx: number; nz: number } | null {
-    let best: { box: StaticBox; nx: number; nz: number } | null = null;
+  private findCoverFace(game: Game): CoverFace | null {
+    let best: CoverFace | null = null;
     let bestD = 2.4; // snap range
+    /** the height and standing tests every candidate has to pass */
+    const usable = (top: number, bottom: number): boolean =>
+      top - this.position.y >= COVER_MIN_H          // tall enough to cover the chest
+      && bottom <= this.position.y + 0.5            // not floating above us
+      && this.position.y <= top - 0.3;              // and we are not standing on it
     for (const b of game.board.physics.boxes) {
-      if (b.max.y - this.position.y < 1.0) continue;              // too low to cover the chest
-      if (b.min.y > this.position.y + 0.5) continue;              // floating above us
-      if (this.position.y > b.max.y - 0.3) continue;              // we're standing on it
+      if (!usable(b.max.y, b.min.y)) continue;
       // outside distance to the box, and which face is closest
       const cx = clamp(this.position.x, b.min.x, b.max.x);
       const cz = clamp(this.position.z, b.min.z, b.max.z);
@@ -2251,9 +2306,40 @@ export class Player {
       else nz = Math.sign(oz) || 1;
       // the face must be wide enough to actually hide a person
       const width = nx !== 0 ? b.max.z - b.min.z : b.max.x - b.min.x;
-      if (width < 1.0) continue;
+      if (width < COVER_MIN_W) continue;
       bestD = dist;
-      best = { box: b, nx, nz };
+      best = {
+        nx, nz,
+        plane: nx > 0 ? b.max.x : nx < 0 ? b.min.x : nz > 0 ? b.max.z : b.min.z,
+        tMin: nx !== 0 ? b.min.z : b.min.x,
+        tMax: nx !== 0 ? b.max.z : b.max.x,
+        top: b.max.y, solid: b,
+      };
+    }
+    // A boulder is a cylinder, and a cylinder has no side to put your back
+    // against — so it lends the tangent plane on the side you came at it
+    // from. The usable width of that plane is much less than the rock's
+    // diameter, because the rock falls away from it: past `COVER_ARC` of the
+    // radius there is more sky than stone at your shoulder.
+    for (const c of game.board.physics.cylinders) {
+      if (c.r * COVER_ARC * 2 < COVER_MIN_W) continue;      // a post, not cover
+      if (!usable(c.maxY, c.minY)) continue;
+      const ox = this.position.x - c.x, oz = this.position.z - c.z;
+      const out = Math.hypot(ox, oz);
+      const dist = out - c.r;
+      if (out < 0.01 || dist < -0.4 || dist > bestD) continue;
+      let nx = 0, nz = 0;
+      if (Math.abs(ox) >= Math.abs(oz)) nx = Math.sign(ox) || 1;
+      else nz = Math.sign(oz) || 1;
+      const half = c.r * COVER_ARC;
+      bestD = Math.max(dist, 0);
+      best = {
+        nx, nz,
+        plane: nx !== 0 ? c.x + nx * c.r : c.z + nz * c.r,
+        tMin: (nx !== 0 ? c.z : c.x) - half,
+        tMax: (nx !== 0 ? c.z : c.x) + half,
+        top: c.maxY, solid: c,
+      };
     }
     return best;
   }
@@ -2289,13 +2375,14 @@ export class Player {
     this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
 
     const c = this.cover!;
-    const b = c.box;
+    // Cover has to stand a head over you before it is worth standing behind.
+    // At or below your own height, the body ducks under its line.
+    const crouched = c.top - this.position.y < this.height + COVER_STAND_OVER;
     // face geometry: n = outward normal, t = tangent along the face
     const tx = -c.nz, tz = c.nx;
-    const facePlane = (c.nx > 0 ? b.max.x : c.nx < 0 ? b.min.x : c.nz > 0 ? b.max.z : b.min.z);
+    const facePlane = c.plane;
     const hugDist = this.radius + 0.22;
-    const tMin = (c.nx !== 0 ? b.min.z : b.min.x);
-    const tMax = (c.nx !== 0 ? b.max.z : b.max.x);
+    const { tMin, tMax } = c;
     const myT = c.nx !== 0 ? this.position.z : this.position.x;
 
     // ---- exits ----
@@ -2404,7 +2491,12 @@ export class Player {
     // ---- facing & pose ----
     const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
-    anim.play('lower', 'idleLower');
+    // Behind cover shorter than you are, get under its line. Standing at full
+    // height behind a crate that comes up to your chest is not cover, it is a
+    // man standing next to a crate — which is what a playtest saw. The crouch
+    // holds while leaning out too: the peek goes round the corner, not over
+    // the top, so there is nothing to stand up for.
+    anim.play('lower', crouched ? 'coverLower' : 'idleLower');
     if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper');
 
     this.syncVisual(dt, game);
