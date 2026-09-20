@@ -72,13 +72,18 @@ export function applyGravity(vel: THREE.Vector3, board: Board, at: THREE.Vector3
   vel.y -= bodyGravity(board, at) * dt * scale;
 }
 
-/** gravity for this step, then the capsule move it produces */
+/**
+ * Gravity for this step, then the capsule move it produces. `grounded` is
+ * whether the body was standing when the step began: a body that was keeps
+ * contact with ground that falls away under it (`moveCapsule`'s ground-stick)
+ * rather than flickering in and out of the air down every slope.
+ */
 export function stepBody(
   board: Board, pos: THREE.Vector3, radius: number, height: number,
-  vel: THREE.Vector3, dt: number,
+  vel: THREE.Vector3, dt: number, grounded = false,
 ): GroundHit {
   applyGravity(vel, board, pos, dt);
-  return board.physics.moveCapsule(pos, radius, height, vel, dt);
+  return board.physics.moveCapsule(pos, radius, height, vel, dt, grounded);
 }
 
 /**

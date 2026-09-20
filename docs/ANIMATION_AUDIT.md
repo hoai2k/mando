@@ -346,3 +346,69 @@ skitter; drone hover; duelist twin pistols; IG-11's whole set.
   per-character aim-pose polish pass in the workbench editor would tighten it.
 - The massiff reads correctly in motion but the workbench's auto-framing
   fills the viewport with it; judge it zoomed out.
+
+## The run that vibrated (2026-09-20)
+
+Playtest: *"sometimes when running straight he starts to look like he's
+vibrating instead of running."* Two separate causes, both measured rather than
+guessed, and either one on its own is enough to produce it.
+
+**1. The ground let go of him, thirteen times a second.** Contact is resolved
+after a step, so a runner crossing a downhill slope leaves the ground by
+however much the ground fell away under him: at 9.2 m/s down a dune that is
+three centimetres a frame, where gravity has pulled his feet three
+millimetres. So he was airborne, landed, was airborne again — and the legs
+flicked between the run cycle and the falling pose on a 0.15 s crossfade that
+never finished. Measured over twelve seconds of running straight across the
+Dune Sea: 13.3 grounded changes a second at 60 fps, with 19% of frames
+airborne on flat-looking sand.
+
+`PhysicsWorld.moveCapsule` now takes a ground-stick (`STICK_SLOPE`): a body
+that was standing when the step began follows ground that falls away, as far
+as a slope it could be running down — the horizontal distance of the sub-step,
+times one, plus a little for a kerb. A cliff edge drops much further than that
+in one sub-step, so walking off one is still a fall, and a body moving upward
+is never stuck to anything, so jumps and jetpack burns are untouched. After:
+zero grounded changes a second, zero clip changes, 0% airborne, at 30 fps and
+60 fps and on every heading.
+
+**2. The gaits had no flight phase, so they had to spin.** `cycleDistance`
+measured the foot's sweep and doubled it, which assumes a foot is planted
+exactly half the time — a walk's timing. A run is not a walk with the feet
+moving faster: each step throws the body forward and it travels with neither
+foot down, so a cycle covers far more ground than the sweep. The rate is set
+to hold the planted foot still, and against an averaged sweep that asked for
+**six steps a second at 9.2 m/s** and nearly nine at a sprint.
+
+Both halves are fixed. The measurement is now the foot's backward speed
+*during contact* (metres per second of clip) times the cycle's length, so a
+clip with a real flight phase earns a long stride and a slow cadence out of
+the same leg. And the run, sprint and back-pedal are retimed to have one: the
+foot sweeps from its forward reach to toe-off in the first third of the cycle
+(a quarter, sprinting) and spends the rest in the air, with the hips lowest
+under the planted foot and highest through the flight. The poses are
+unchanged; only when they happen is.
+
+| gait | speed | before | after |
+|---|---|---|---|
+| run | 9.2 m/s | 6.25 steps/s, 1.47 m | **4.37 steps/s, 2.11 m** |
+| sprint | 14.4 m/s | 9.80 steps/s, 1.47 m | **4.90 steps/s, 2.94 m** |
+| back-pedal | 9.2 m/s | 5.49 steps/s | **4.37 steps/s** |
+
+Those are human numbers: a runner at 9.2 m/s takes about 4.4 steps a second
+on a 2.1 m stride, and a sprinter at 14.4 about 4.9 on 2.9 m.
+
+**The plant is real, and measured.** Sampling the ankle's world speed against
+its height over the ground while running at 9.2 m/s: at or below ground level
+the foot moves at **0.47 m/s** — it is standing on the sand while the body
+goes past at 9.2 — and the moment it lifts it whips forward at up to 17 m/s.
+That is a stride with a contact and a flight in it rather than a shuffle, and
+it is what the second fix was for.
+
+**A test that was passing by luck.** `check-airflip` lifts the player, clears
+`grounded` and calls that "no jump left to spend" — but leaving the ground
+does not spend the jump, the coyote window (0.12 s) keeps it for a moment
+afterwards. With contact now reliable that window was reliably open, so the
+press meant as "roll" was taken as "jump" and the body climbed instead of
+tumbling. The fighter was behaving correctly; the test now falls for longer
+than the window before asking for the roll.

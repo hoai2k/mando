@@ -1911,7 +1911,11 @@ export class Player {
     // how hard the ground is about to be met: the collision resolve takes the
     // downward velocity away, so the impact has to be read before the move
     const impact = this.grounded ? 0 : -this.velocity.y;
-    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
+    // Standing when the step began means ground that falls away is followed,
+    // not left: without it a run down any slope is a stutter of tiny falls
+    // (see `STICK_SLOPE`), and the legs flicker between the run and the air.
+    const res = game.board.physics.moveCapsule(
+      this.position, this.radius, this.height, this.velocity, dt, this.grounded);
     this.pushOutOfBigBodies(game);
     if (res.grounded && !this.wasGrounded) {
       audio.land(this.slamming || impact > 14);

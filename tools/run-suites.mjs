@@ -76,6 +76,7 @@ const SUITES = [
   { name: 'check-water', weight: 70 },
   { name: 'test-block', weight: 56 },
   { name: 'check-airflip', weight: 44 },
+  { name: 'check-gait', weight: 60 },
   { name: 'harness', weight: 43 },
   { name: 'test-allies', weight: 38 },
   { name: 'test-station', weight: 38 },

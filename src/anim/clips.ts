@@ -36,6 +36,37 @@ function qt(bone: string, times: number[], rots: [number, number, number][]): TH
   return new THREE.QuaternionKeyframeTrack(`${bone}.quaternion`, times, values);
 }
 
+/** a keyframe's rotation, in degrees */
+type Deg = [number, number, number];
+
+/**
+ * The other leg: the same cycle, half a period later.
+ *
+ * Both legs of a gait walk the same curve in antiphase, and while that curve
+ * sat on an evenly spaced grid the mirror could be written out by hand — the
+ * keys landed on the same times. A gait with a contact and a flight in it does
+ * not: its keys are bunched into the contact, and shifting them half a cycle
+ * lands them between the other leg's. So the second leg is sampled off the
+ * first rather than transcribed, which also means retiming a gait is a matter
+ * of moving one set of numbers.
+ */
+function halfCycle(times: number[], rots: Deg[], dur: number): { times: number[]; rots: Deg[] } {
+  const at = (u: number): Deg => {
+    const t = ((u % dur) + dur) % dur;
+    let i = 0;
+    while (i + 1 < times.length && times[i + 1] <= t) i++;
+    const t0 = times[i], t1 = i + 1 < times.length ? times[i + 1] : dur;
+    const a = rots[i], b = i + 1 < rots.length ? rots[i + 1] : rots[0];
+    const k = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  };
+  const half = dur / 2;
+  const keys = new Set<number>([0, dur]);
+  for (const t of times) keys.add((((t - half) % dur) + dur) % dur);
+  const out = [...keys].sort((a, b) => a - b);
+  return { times: out, rots: out.map((t) => at(t + half)) };
+}
+
 function pt(bone: string, times: number[], pos: [number, number, number][]): THREE.VectorKeyframeTrack {
   const values: number[] = [];
   for (const p of pos) values.push(...p);
@@ -54,61 +85,92 @@ const strideCache = new WeakMap<THREE.AnimationClip, number>();
  * Measured off the clip rather than hand-tuned: run forward kinematics on the
  * leg chain across the cycle and take how far the foot travels, hip-relative,
  * between its most-forward and most-back pose. While a foot is planted the hip
- * travels exactly that far over it, and a cycle has two stances — so that
- * doubled is the distance the clip is "worth". Playing it at
+ * travels exactly that far over it. Playing the clip at
  * speed * duration / distance is what makes the feet push off the ground
  * instead of skating over it.
  *
- * Positive X on a leg bone swings it backward (the bone points down -Y), so
- * the sagittal offset is negated to read forward-positive; only the range
- * matters, but keeping the sign honest makes the maths checkable.
+ * **A run is not a walk with the feet moving faster.** The rate is whatever
+ * holds the planted foot still on the ground, and that is set by how fast the
+ * foot sweeps back *while it is down* — not by an average over the cycle. A
+ * walk has a foot down all the time, so the two are the same number. A run
+ * does not: each step throws the body forward and it travels through the air
+ * with neither foot down, so the foot has to whip back through its sweep in a
+ * fraction of the cycle, and the cycle covers far more ground than the sweep.
  *
- * A strafe cycle swings the legs sideways (Z on the thigh) rather than fore
- * and aft, so both planes are measured and the larger sweep wins — a forward
- * gait keeps its old number exactly, and a lateral one stops measuring as
- * "no stride" and freezing at rate 1.
+ * Measuring the average instead is what made every running gait too fast. At
+ * the player's 9.2 m/s the run came out at six steps a second and the sprint
+ * at nearly nine — a blur of legs under a body travelling in a straight line,
+ * which is half of what "he vibrates instead of running" is. (The other half
+ * was the ground: see `STICK_SLOPE` in `core/physics.ts`.)
  *
- * Both legs are measured and the wider sweep wins. The left thigh alone was
- * the measure, and the strafe's two legs do not swing alike — the leading
- * leg reaches, the trailing one closes — so its mirror (`strafeLLower`,
- * which carries the right leg's sweep under the left's name) came out 30%
- * shorter, and one strafe direction ran slower than the other and skated.
+ * So what is measured is the foot's backward speed during **contact**, in
+ * metres per second of clip, and the distance a cycle covers is that times the
+ * cycle's length. A clip with a real flight phase earns a long stride and a
+ * slow, heavy cadence out of the same leg; one whose feet never leave the
+ * ground gets the walk's answer, which is the one it should have.
  */
 export function cycleDistance(clip: THREE.AnimationClip, p: Proportions): number {
   const cached = strideCache.get(clip);
   if (cached !== undefined) return cached;
-  const out = Math.max(legSweep(clip, p, 'L'), legSweep(clip, p, 'R'));
+  const out = Math.max(legGround(clip, p, 'L'), legGround(clip, p, 'R'));
   strideCache.set(clip, out);
   return out;
 }
 
-/** ground distance one cycle carries one leg's foot through, doubled for the two stances (see `cycleDistance`) */
-function legSweep(clip: THREE.AnimationClip, p: Proportions, side: 'L' | 'R'): number {
+/**
+ * Ground one cycle covers on this leg: the foot's backward speed while it is
+ * planted, times the cycle's length (see `cycleDistance`).
+ *
+ * Planted is read off the clip — the samples where the foot is within a band
+ * of the lowest it ever reaches, the clips carrying no root motion, so the
+ * lowest the foot gets *is* the floor. The band is a share of the foot's own
+ * vertical travel rather than a fixed height, so it means the same thing on a
+ * shuffle and on a sprint. The backward speed is taken as the median across
+ * that window: the ends of a contact are where the foot is rolling onto and
+ * off the ground, and a mean would let them drag the answer around.
+ */
+function legGround(clip: THREE.AnimationClip, p: Proportions, side: 'L' | 'R'): number {
   const track = (bone: string) => clip.tracks.find((t) => t.name === `${bone}.quaternion`);
   const upper = track(`upperLeg${side}`);
   if (!upper) return 0;
   const upperI = upper.createInterpolant();
-  const lowerT = track(`lowerLeg${side}`);
-  const lowerI = lowerT?.createInterpolant();
-  const angles = (buf: ArrayLike<number>): [number, number] => {
-    _q.set(buf[0], buf[1], buf[2], buf[3]);
-    _e.setFromQuaternion(_q, 'XYZ');
-    return [_e.x, _e.z];
-  };
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  const STEPS = 48;
-  for (let i = 0; i <= STEPS; i++) {
-    const t = (clip.duration * i) / STEPS;
-    const [thigh, thighZ] = angles(upperI.evaluate(t));
-    const [shin] = lowerI ? angles(lowerI.evaluate(t)) : [0, 0];
+  const lowerI = track(`lowerLeg${side}`)?.createInterpolant();
+  const STEPS = 96;
+  const dt = clip.duration / STEPS;
+  const fore: number[] = [];
+  const drop: number[] = [];
+  for (let i = 0; i < STEPS; i++) {
+    const [thigh, thighZ] = legAngles(upperI.evaluate(i * dt));
+    const [shin] = lowerI ? legAngles(lowerI.evaluate(i * dt)) : [0, 0];
+    // Forward-positive along travel, and the lateral plane for a side-step:
+    // whichever the gait actually uses is the one with the sweep in it.
     const x = -(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin));
     const z = (p.upperLegLen + p.lowerLegLen) * Math.sin(thighZ);
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (z < minZ) minZ = z;
-    if (z > maxZ) maxZ = z;
+    fore.push(Math.abs(z) > Math.abs(x) ? z : x);
+    drop.push(p.upperLegLen * Math.cos(thigh) + p.lowerLegLen * Math.cos(thigh + shin));
   }
-  return Math.max(0, maxX - minX, maxZ - minZ) * 2;
+  const low = Math.max(...drop);
+  const lift = low - Math.min(...drop);
+  const band = Math.max(0.02, lift * PLANT_BAND);
+  const speeds: number[] = [];
+  for (let i = 0; i < STEPS; i++) {
+    if (low - drop[i] > band) continue;                       // foot is off the ground
+    const back = (fore[i] - fore[(i + 1) % STEPS]) / dt;      // + is travelling backward
+    if (back > 0) speeds.push(back);
+  }
+  if (!speeds.length) return 0;
+  speeds.sort((a, b) => a - b);
+  return speeds[speeds.length >> 1] * clip.duration;
+}
+
+/** a foot within this share of its own vertical travel of its lowest point is on the ground */
+const PLANT_BAND = 0.3;
+
+/** the sagittal and lateral angles of a leg bone's keyframe */
+function legAngles(buf: ArrayLike<number>): [number, number] {
+  _q.set(buf[0], buf[1], buf[2], buf[3]);
+  _e.setFromQuaternion(_q, 'XYZ');
+  return [_e.x, _e.z];
 }
 
 /**
@@ -184,39 +246,78 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 1.5, 3], [[0, 0, 0], [1, -3, 0], [0, 0, 0]]),
   ]);
 
-  // ---------- LOWER: run (0.6s cycle) ----------
+  // the even five-key grid the held gaits and the shuffles are written on
   const rt = [0, 0.15, 0.3, 0.45, 0.6];
+
+  // ---------- LOWER: run (0.6s cycle) ----------
+  //
+  // **Contact, then flight.** The poses are a run's — reach, gather under the
+  // body, drive back, swing through — and what makes them a run rather than a
+  // fast walk is *when* they happen: the foot sweeps from its forward reach to
+  // toe-off in the first third of the cycle and spends the other two thirds in
+  // the air. With both legs on that timing the body has neither foot down for
+  // a fifth of every cycle, which is the part of a stride that a step throws
+  // you through — and it is the whole difference between a stride and a
+  // shuffle. The cycle used to split the two halves evenly, which is a walk's
+  // timing: `cycleDistance` reads the foot's speed while it is *down*, so an
+  // even split asked for six steps a second to carry 9.2 m/s and the legs
+  // blurred. On this timing the same speed is four and a bit, on a stride of
+  // a little over two metres.
+  //
+  // The hips follow from it rather than decorating it: lowest under the
+  // planted foot, highest in the middle of the flight, which is the body
+  // being thrown along rather than gliding.
+  const runT = [0, 0.105, 0.21, 0.40, 0.6];
+  const runThighL: Deg[] = [[-62, 0, 0], [-12, 0, 0], [42, 0, 0], [-6, 0, 0], [-62, 0, 0]];
+  const runShinL: Deg[] = [[20, 0, 0], [12, 0, 0], [70, 0, 0], [92, 0, 0], [20, 0, 0]];
+  const runFootL: Deg[] = [[12, 0, 0], [1, 0, 0], [-16, 0, 0], [-4, 0, 0], [12, 0, 0]];
+  const runFootR: Deg[] = [[-14, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-14, 0, 0]];
+  const runThighR = halfCycle(runT, runThighL, 0.6);
+  const runShinR = halfCycle(runT, runShinL, 0.6);
+  const runFootRs = halfCycle(runT, runFootR, 0.6);
   clips.runLower = new THREE.AnimationClip('runLower', 0.6, [
-    pt('hips', rt, [[0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0], [0, hipY + 0.03, 0], [0, hipY - 0.03, 0]]),
+    // low under each planted foot (0.105, 0.40), high through each flight (0.255, 0.555)
+    pt('hips', [0, 0.105, 0.255, 0.405, 0.555, 0.6],
+      [[0, hipY, 0], [0, hipY - 0.05, 0], [0, hipY + 0.05, 0], [0, hipY - 0.05, 0], [0, hipY + 0.05, 0], [0, hipY, 0]]),
     qt('hips', rt, [[8, 0, -3], [8, 0, 0], [8, 0, 3], [8, 0, 0], [8, 0, -3]]),
     qt('spine', rt, [[4, 4, 0], [4, 0, 0], [4, -4, 0], [4, 0, 0], [4, 4, 0]]),
-    qt('upperLegL', rt, [[-62, 0, 0], [-12, 0, 0], [42, 0, 0], [-6, 0, 0], [-62, 0, 0]]),
-    qt('lowerLegL', rt, [[20, 0, 0], [12, 0, 0], [70, 0, 0], [92, 0, 0], [20, 0, 0]]),
-    qt('upperLegR', rt, [[42, 0, 0], [-6, 0, 0], [-62, 0, 0], [-12, 0, 0], [42, 0, 0]]),
-    qt('lowerLegR', rt, [[70, 0, 0], [92, 0, 0], [20, 0, 0], [12, 0, 0], [70, 0, 0]]),
+    qt('upperLegL', runT, runThighL),
+    qt('lowerLegL', runT, runShinL),
+    qt('upperLegR', runThighR.times, runThighR.rots),
+    qt('lowerLegR', runShinR.times, runShinR.rots),
     // a couple of degrees of left/right asymmetry so the cycle doesn't read
     // as perfectly mirrored clockwork
-    qt('footL', rt, [[12, 0, 0], [1, 0, 0], [-16, 0, 0], [-4, 0, 0], [12, 0, 0]]),
-    qt('footR', rt, [[-14, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-14, 0, 0]]),
+    qt('footL', runT, runFootL),
+    qt('footR', runFootRs.times, runFootRs.rots),
   ]);
 
   // ---------- LOWER: sprint (0.6s cycle) ----------
   // The run opened up: the lead thigh reaches further forward and the shin
   // straightens into that reach, so the stride lands ahead of where the run
-  // would put it, with a deeper hip pitch behind it. Longer strides also mean
-  // cycleDistance measures a bigger number, so gaitRate plays it *slower* per
-  // metre than the run — fewer, longer steps at speed rather than the same
-  // gait spun faster.
+  // would put it, with a deeper hip pitch behind it. The contact is shorter
+  // again — a quarter of the cycle against the run's third — so the drive is
+  // harder, the flight longer and the stride longer still: at full sprint it
+  // is five steps a second covering nearly three metres each, where the run's
+  // timing would have asked for seven.
+  const sprT = [0, 0.10, 0.20, 0.39, 0.6];
+  const sprThighL: Deg[] = [[-76, 0, 0], [-14, 0, 0], [46, 0, 0], [-8, 0, 0], [-76, 0, 0]];
+  const sprShinL: Deg[] = [[12, 0, 0], [10, 0, 0], [74, 0, 0], [100, 0, 0], [12, 0, 0]];
+  const sprFootL: Deg[] = [[14, 0, 0], [2, 0, 0], [-18, 0, 0], [-5, 0, 0], [14, 0, 0]];
+  const sprFootR: Deg[] = [[-16, 0, 0], [-7, 0, 0], [10, 0, 0], [0, 0, 0], [-16, 0, 0]];
+  const sprThighR = halfCycle(sprT, sprThighL, 0.6);
+  const sprShinR = halfCycle(sprT, sprShinL, 0.6);
+  const sprFootRs = halfCycle(sprT, sprFootR, 0.6);
   clips.sprintLower = new THREE.AnimationClip('sprintLower', 0.6, [
-    pt('hips', rt, [[0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0], [0, hipY + 0.035, 0], [0, hipY - 0.04, 0]]),
+    pt('hips', [0, 0.10, 0.25, 0.40, 0.55, 0.6],
+      [[0, hipY, 0], [0, hipY - 0.065, 0], [0, hipY + 0.065, 0], [0, hipY - 0.065, 0], [0, hipY + 0.065, 0], [0, hipY, 0]]),
     qt('hips', rt, [[12, 0, -3], [12, 0, 0], [12, 0, 3], [12, 0, 0], [12, 0, -3]]),
     qt('spine', rt, [[6, 5, 0], [6, 0, 0], [6, -5, 0], [6, 0, 0], [6, 5, 0]]),
-    qt('upperLegL', rt, [[-76, 0, 0], [-14, 0, 0], [46, 0, 0], [-8, 0, 0], [-76, 0, 0]]),
-    qt('lowerLegL', rt, [[12, 0, 0], [10, 0, 0], [74, 0, 0], [100, 0, 0], [12, 0, 0]]),
-    qt('upperLegR', rt, [[46, 0, 0], [-8, 0, 0], [-76, 0, 0], [-14, 0, 0], [46, 0, 0]]),
-    qt('lowerLegR', rt, [[74, 0, 0], [100, 0, 0], [12, 0, 0], [10, 0, 0], [74, 0, 0]]),
-    qt('footL', rt, [[14, 0, 0], [2, 0, 0], [-18, 0, 0], [-5, 0, 0], [14, 0, 0]]),
-    qt('footR', rt, [[-16, 0, 0], [-7, 0, 0], [10, 0, 0], [0, 0, 0], [-16, 0, 0]]),
+    qt('upperLegL', sprT, sprThighL),
+    qt('lowerLegL', sprT, sprShinL),
+    qt('upperLegR', sprThighR.times, sprThighR.rots),
+    qt('lowerLegR', sprShinR.times, sprShinR.rots),
+    qt('footL', sprT, sprFootL),
+    qt('footR', sprFootRs.times, sprFootRs.rots),
   ]);
 
   // ---------- LOWER: back-pedal (0.6s cycle, played in reverse) ----------
@@ -224,16 +325,29 @@ function makeClips(p: Proportions): ClipSet {
   // reach rebalanced for it: the trailing leg no longer stretches far behind
   // (nothing is being pushed off toward), while the leading leg reaches a
   // little further forward to catch the body's weight as it travels back.
+  // Its contact is a shade longer than the run's — you do not throw yourself
+  // backward the way you throw yourself forward — but it is still a contact
+  // and a flight rather than an even split, so a fast back-pedal takes the
+  // same four-and-a-bit steps a second the run does instead of five and a half.
+  const bpT = [0, 0.12, 0.24, 0.42, 0.6];
+  const bpThighL: Deg[] = [[-70, 0, 0], [-14, 0, 0], [24, 0, 0], [-6, 0, 0], [-70, 0, 0]];
+  const bpShinL: Deg[] = [[22, 0, 0], [14, 0, 0], [62, 0, 0], [88, 0, 0], [22, 0, 0]];
+  const bpFootL: Deg[] = [[12, 0, 0], [1, 0, 0], [-14, 0, 0], [-4, 0, 0], [12, 0, 0]];
+  const bpFootR: Deg[] = [[-12, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-12, 0, 0]];
+  const bpThighR = halfCycle(bpT, bpThighL, 0.6);
+  const bpShinR = halfCycle(bpT, bpShinL, 0.6);
+  const bpFootRs = halfCycle(bpT, bpFootR, 0.6);
   clips.backpedalLower = new THREE.AnimationClip('backpedalLower', 0.6, [
-    pt('hips', rt, [[0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0], [0, hipY + 0.025, 0], [0, hipY - 0.025, 0]]),
+    pt('hips', [0, 0.12, 0.27, 0.42, 0.57, 0.6],
+      [[0, hipY, 0], [0, hipY - 0.035, 0], [0, hipY + 0.035, 0], [0, hipY - 0.035, 0], [0, hipY + 0.035, 0], [0, hipY, 0]]),
     qt('hips', rt, [[8, 0, -3], [8, 0, 0], [8, 0, 3], [8, 0, 0], [8, 0, -3]]),
     qt('spine', rt, [[4, 4, 0], [4, 0, 0], [4, -4, 0], [4, 0, 0], [4, 4, 0]]),
-    qt('upperLegL', rt, [[-70, 0, 0], [-14, 0, 0], [24, 0, 0], [-6, 0, 0], [-70, 0, 0]]),
-    qt('lowerLegL', rt, [[22, 0, 0], [14, 0, 0], [62, 0, 0], [88, 0, 0], [22, 0, 0]]),
-    qt('upperLegR', rt, [[24, 0, 0], [-6, 0, 0], [-70, 0, 0], [-14, 0, 0], [24, 0, 0]]),
-    qt('lowerLegR', rt, [[62, 0, 0], [88, 0, 0], [22, 0, 0], [14, 0, 0], [62, 0, 0]]),
-    qt('footL', rt, [[12, 0, 0], [1, 0, 0], [-14, 0, 0], [-4, 0, 0], [12, 0, 0]]),
-    qt('footR', rt, [[-12, 0, 0], [-6, 0, 0], [9, 0, 0], [0, 0, 0], [-12, 0, 0]]),
+    qt('upperLegL', bpT, bpThighL),
+    qt('lowerLegL', bpT, bpShinL),
+    qt('upperLegR', bpThighR.times, bpThighR.rots),
+    qt('lowerLegR', bpShinR.times, bpShinR.rots),
+    qt('footL', bpT, bpFootL),
+    qt('footR', bpFootRs.times, bpFootRs.rots),
   ]);
 
   // ---------- LOWER: strafe (lateral shuffle, 0.6s cycle) ----------

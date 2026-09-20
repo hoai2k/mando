@@ -1727,7 +1727,8 @@ export class Enemy {
     const d = this.def;
     if (d.style === 'melee' || d.style === 'ranged') {
       this.edgeGuard(game);
-      const res = stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt);
+      const res = stepBody(game.board, this.position, this.radius, this.height, this.velocity, dt,
+        this.grounded);
       this.grounded = res.grounded;
       // A half-buried colossus is *of* the ground: it swims through the
       // surface rather than standing on it, never jumps and never falls. Left

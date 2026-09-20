@@ -21,6 +21,25 @@ export interface StaticCylinder { x: number; z: number; r: number; minY: number;
 export interface SolidSet { boxes: StaticBox[]; cylinders: StaticCylinder[] }
 
 const STEP_HEIGHT = 0.55;
+/**
+ * Ground-stick: how far the feet may drop in one sub-step and still count as
+ * standing on the ground.
+ *
+ * A body on a slope is not falling, but the maths of a step says it is. Contact
+ * is resolved *after* the move, so a runner crossing a downhill slope leaves the
+ * ground by however much the ground fell away under them — at 9 m/s down a dune
+ * that is three centimetres a frame, where gravity has only pulled the feet
+ * three millimetres. So the body was airborne, then landed, then was airborne
+ * again, thirteen times a second: the legs never finished the crossfade between
+ * the run and the fall, which is what "he vibrates instead of running" is.
+ *
+ * The allowance is the ground a body could be running down rather than a fixed
+ * number: the horizontal distance this sub-step covered, times the steepest
+ * slope worth sticking to, plus a little for a kerb taken slowly. A cliff edge
+ * drops far more than that in one sub-step, so walking off one is still a fall.
+ */
+const STICK_SLOPE = 1;        // 45°
+const STICK_MIN = 0.06;
 
 export class PhysicsWorld {
   /** ground height function; null = bottomless (space) */
@@ -218,7 +237,14 @@ export class PhysicsWorld {
    * Move a capsule (pos = feet position, mutated) by vel*dt, resolving
    * collisions. Returns grounded state.
    */
-  moveCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3, dt: number): GroundHit {
+  /**
+   * `stick` says this body was standing on the ground when the step began, so
+   * ground that falls away under it should be followed rather than left (see
+   * `STICK_SLOPE`). It never applies to a body moving upward, so a jump, a
+   * jetpack burn and a launch all leave the ground exactly as they did.
+   */
+  moveCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3,
+    dt: number, stick = false): GroundHit {
     // Movement is teleport-then-push-out, so it only sees a wall it ends the
     // step overlapping. At dash speed against the loop's 0.05 s frame clamp a
     // single step covers most of a metre and can cross a thin wall or platform
@@ -226,11 +252,12 @@ export class PhysicsWorld {
     const dist = Math.hypot(vel.x, vel.y, vel.z) * dt;
     const steps = Math.min(8, Math.max(1, Math.ceil(dist / Math.max(0.05, radius * 0.5))));
     let res: GroundHit = { grounded: false, groundY: -Infinity };
-    for (let i = 0; i < steps; i++) res = this.stepCapsule(pos, radius, height, vel, dt / steps);
+    for (let i = 0; i < steps; i++) res = this.stepCapsule(pos, radius, height, vel, dt / steps, stick);
     return res;
   }
 
-  private stepCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3, dt: number): GroundHit {
+  private stepCapsule(pos: THREE.Vector3, radius: number, height: number, vel: THREE.Vector3,
+    dt: number, stick = false): GroundHit {
     pos.x += vel.x * dt;
     pos.z += vel.z * dt;
 
@@ -278,6 +305,15 @@ export class PhysicsWorld {
       pos.y = g;
       vel.y = 0;
       grounded = true;
+    } else if (stick && g > -Infinity && vel.y <= 0 && pos.y > g) {
+      // the ground fell away under a body that was walking on it: follow it
+      // down, as far as a slope it could be running down (see STICK_SLOPE)
+      const allow = STICK_MIN + Math.hypot(vel.x, vel.z) * dt * STICK_SLOPE;
+      if (pos.y - g <= allow) {
+        pos.y = g;
+        vel.y = 0;
+        grounded = true;
+      }
     }
     // ---- ceilings: duck under an overhang, never sink through the floor ----
     //

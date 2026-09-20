@@ -61,7 +61,15 @@ async function tumble(holdFrames) {
     p.position.y += 24;
     p.velocity.set(0, 0, 0);
     p.grounded = false;
-    g.update(dt, pad({}));
+    // ...and that last clause has to be waited out, not just declared. Leaving
+    // the ground does not spend the jump: the coyote window (0.12 s) keeps it
+    // available for a moment afterwards, which is what lets you jump off the
+    // lip of a ledge you have already stepped past. Lifting the body and
+    // clearing `grounded` leaves that window wide open, so the press this
+    // helper means as "roll" was taken as "jump" — the body climbed instead of
+    // tumbling, and the check failed on a fighter behaving correctly. Fall for
+    // longer than the window before asking for the roll.
+    for (let i = 0; i < 12; i++) g.update(dt, pad({}));
 
     const out = { held: [], settle: [], clipsHeld: new Set(), clipsAfter: new Set() };
     for (let i = 0; i < frames; i++) {
