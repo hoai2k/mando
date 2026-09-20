@@ -137,18 +137,24 @@ function legGround(clip: THREE.AnimationClip, p: Proportions, side: 'L' | 'R'): 
   const lowerI = track(`lowerLeg${side}`)?.createInterpolant();
   const STEPS = 96;
   const dt = clip.duration / STEPS;
-  const fore: number[] = [];
+  const sag: number[] = [];
+  const lat: number[] = [];
   const drop: number[] = [];
   for (let i = 0; i < STEPS; i++) {
     const [thigh, thighZ] = legAngles(upperI.evaluate(i * dt));
     const [shin] = lowerI ? legAngles(lowerI.evaluate(i * dt)) : [0, 0];
-    // Forward-positive along travel, and the lateral plane for a side-step:
-    // whichever the gait actually uses is the one with the sweep in it.
-    const x = -(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin));
-    const z = (p.upperLegLen + p.lowerLegLen) * Math.sin(thighZ);
-    fore.push(Math.abs(z) > Math.abs(x) ? z : x);
+    sag.push(-(p.upperLegLen * Math.sin(thigh) + p.lowerLegLen * Math.sin(thigh + shin)));
+    lat.push((p.upperLegLen + p.lowerLegLen) * Math.sin(thighZ));
     drop.push(p.upperLegLen * Math.cos(thigh) + p.lowerLegLen * Math.cos(thigh + shin));
   }
+  // Forward along travel, or across it for a side-step: whichever plane the
+  // gait actually sweeps in is the one with the stride in it. Chosen **once
+  // for the clip**, on the wider sweep of the two — picking per sample would
+  // hop between the planes wherever their magnitudes crossed, and a series
+  // that hops between two different measurements has a step in it that reads
+  // as the foot moving when it did not.
+  const range = (a: number[]) => Math.max(...a) - Math.min(...a);
+  const fore = range(lat) > range(sag) ? lat : sag;
   const low = Math.max(...drop);
   const lift = low - Math.min(...drop);
   const band = Math.max(0.02, lift * PLANT_BAND);
