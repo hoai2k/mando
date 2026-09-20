@@ -195,12 +195,22 @@ const flier = await page.evaluate(async () => {
   // count the shots it actually takes, and where it was standing to take them
   let firedHigh = 0;
   let firedLow = 0;
+  // Attribute the bolt to whoever it came out of, and judge its height by its
+  // own muzzle. This used to count *every* bolt in the level as the flier's
+  // and classify it by where the flier happened to be standing — which was
+  // sound only while the flier was the one thing shooting. It is not any more:
+  // a stage now stands its fights up posted rather than dropping them in, so
+  // there are bolts in the air from the first frame, and all of them were
+  // being read as this one nikto firing out of the sky.
   const realFire = g.projectiles.fire.bind(g.projectiles);
-  g.projectiles.fire = (...a) => {
-    if (e.alive) {
-      if (e.position.y + e.height > s.ceilingY + 0.5) firedHigh++; else firedLow++;
+  g.projectiles.fire = (origin, ...rest) => {
+    const mine = e.alive
+      && Math.hypot(origin.x - e.position.x, origin.z - e.position.z) < 2.5
+      && Math.abs(origin.y - (e.position.y + e.height * 0.6)) < 2.5;
+    if (mine) {
+      if (origin.y > s.ceilingY + 0.5) firedHigh++; else firedLow++;
     }
-    return realFire(...a);
+    return realFire(origin, ...rest);
   };
   let settled = -1;
   for (let i = 0; i < 400; i++) {
