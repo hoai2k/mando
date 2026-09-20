@@ -1967,6 +1967,18 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     return best;
   };
 
+  /**
+   * Is a solid of this reach standing in one of the stage's doorways?
+   *
+   * `PORTAL_CLEAR` is the widest capsule the game walks around (a playable war
+   * beast, clamped to 0.6 in `roster.ts`) and a hand's width over, so a body
+   * can stand in the opening rather than merely not quite touch the rock.
+   */
+  const PORTAL_CLEAR = 0.95;
+  const blocksADoorway = (x: number, z: number, r: number): boolean =>
+    [exitPortal, backPortal].some((p) =>
+      p !== null && Math.hypot(x - p.pos.x, z - p.pos.z) < r + PORTAL_CLEAR);
+
   // ---- a border piece is either solid or it is not there ----
   //
   // `ridge` pushes its rock outward from the collider slab so the face of the
@@ -2015,6 +2027,28 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     // it, and backing that is how a piece that should have been removed became
     // a two-and-a-half-metre wall across the way on instead.
     if (pathNear(at.x, at.z) < at.r + PATH_CLEAR) { culled++; return false; }
+    // ...and nothing at all stands in a doorway.
+    //
+    // A transport door is the one piece of ground on a stage that has to be
+    // walkable: it is the way on, or the way home, and there is no way round it.
+    // The golden path does not cover it — `path` runs from the first zone's
+    // entry to the last one's exit, and only the *exit* portal's threshold is
+    // appended to it — so a rim piece beside the door at the other end is
+    // measured against nothing and gets a collider like any other.
+    //
+    // Two of them did, either side of the Refinery's last stage, and put their
+    // faces a third of a metre inside the doorway: a transport door with no
+    // way through it on the run's way home. `test-cover` caught it as 13 of 14
+    // doorways passable.
+    //
+    // Measured against the door itself rather than by putting the door on the
+    // path. The path rule clears `at.r + PATH_CLEAR` either side of a *line*,
+    // which for a five-metre rock is a corridor several metres wide; drawn
+    // through a doorway it takes out border rock doing real work well away
+    // from it, and the Prison Rig's top decks came back with two holes in the
+    // floor when it did. This asks the narrow question instead — is the rock
+    // in the opening? — and so takes only what is actually in the way.
+    if (blocksADoorway(at.x, at.z, at.r * RIM_SOLID_FRACTION)) { culled++; return false; }
     // solid, from the floor under it to the top of the rock that is drawn
     const foot = groundAt(at.x, at.z) - 1;
     addCyl(at.x, foot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
