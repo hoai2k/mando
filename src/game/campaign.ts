@@ -58,6 +58,8 @@ const BEACON_HIDE = 7;
 const PORTAL_BEAT = 1.5;
 /** how far a cancelled exit walks the player back out of the pocket */
 const PORTAL_CANCEL_STEP = 3;
+/** a body this wide across is a monster, not a soldier: it debuts alone */
+const BIG_BODY_R = 0.8;
 /** ranged kinds, for corridor defenders — the pinch is the cover-discipline beat */
 const RANGED = new Set<EnemyKind>([
   'pyke', 'pirate', 'stormtrooper', 'deathtrooper', 'flametrooper',
@@ -176,6 +178,13 @@ export class Campaign implements MissionController {
     const chev = new THREE.Shape();
     chev.moveTo(0, 1.6); chev.lineTo(1.3, -0.6); chev.lineTo(0, 0.1); chev.lineTo(-1.3, -0.6);
     this.arrow = new THREE.Mesh(new THREE.ShapeGeometry(chev), this.arrowMat);
+    // Laid flat, then turned about the world's up axis: the yaw has to be
+    // applied *after* the tilt (`YXZ`), not before it. With the default order
+    // the yaw turned the chevron in its own plane before the tilt laid it
+    // down, which mirrored it across the x axis — right on a lane running
+    // east-west, and pointing straight back the way you came on any lane
+    // running north-south. Every arrow past a bend was wrong, on every board.
+    this.arrow.rotation.order = 'YXZ';
     this.arrow.rotation.x = -Math.PI / 2;
     this.arrow.visible = false;
     game.scene.add(this.arrow);
@@ -443,7 +452,7 @@ export class Campaign implements MissionController {
       const fresh = kinds.find((k) => !this.seenKinds.has(k));
       if (fresh) {
         this.seenKinds.add(fresh);
-        return new Array(Math.max(1, budget)).fill(fresh);
+        return new Array(this.debutSize(fresh, comp, budget)).fill(fresh);
       }
     }
     for (const k of kinds) this.seenKinds.add(k);
@@ -455,6 +464,25 @@ export class Campaign implements MissionController {
     out[out.length - 1] = kinds[kinds.length - 1];
     for (let i = 0; i < over; i++) out.push(kinds[kinds.length - 1]);
     return out;
+  }
+
+  /**
+   * How many of a kind its first appearance is.
+   *
+   * The debut used to fill the whole wave budget with the new kind — written
+   * for swoop riders arriving as a squadron, and fine for grunts. It was not
+   * fine for a war massiff: the board's own table asks for *one* at the wave
+   * it first appears ("a couple at a time, late on"), and the debut turned
+   * that into eight of them let into a twenty-metre hall at once. So a debut
+   * takes the table's own count for the kind, and a big body — anything much
+   * wider than a person — is met **alone**, whatever the table says: the first
+   * sight of the monster is one monster. A grunt still comes as a squad worth
+   * meeting, never fewer than three where the budget allows.
+   */
+  private debutSize(kind: EnemyKind, comp: { kind: EnemyKind; count: number }[], budget: number): number {
+    const table = comp.find((c) => c.kind === kind)?.count ?? 1;
+    if (enemyBody(kind).radius >= BIG_BODY_R) return 1;
+    return Math.max(1, Math.min(budget, Math.max(table, 3)));
   }
 
   /**
@@ -938,7 +966,9 @@ export class Campaign implements MissionController {
    */
   private layArrow(at: THREE.Vector3, to: THREE.Vector3): void {
     this.arrow.position.set(at.x, at.y + 0.08, at.z);
-    this.arrow.rotation.z = -Math.atan2(to.x - at.x, to.z - at.z);
+    // the chevron's tip is its local +y; tilted flat that is world -z, so the
+    // yaw that points it at `to` is the bearing of the *opposite* direction
+    this.arrow.rotation.y = Math.atan2(at.x - to.x, at.z - to.z);
     this.arrow.visible = true;
     this.arrowLife = ARROW_PULSE;
   }

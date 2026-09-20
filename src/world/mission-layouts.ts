@@ -111,22 +111,33 @@ const desert: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.desert[1],
     zones: [
+      // The ravine is a run of corridors that happen to be cut from rock:
+      // walls both sides, close, and the way on always round the next bend.
+      // The bends are on the links (a zone cannot bend), and there are three
+      // of them between the camp and the cistern approach — an S through
+      // the rock — so it twists rather than running straight.
       z('desert', 3, {
-        shell: 'canyon', kind: 'camp', w: 14, l: 70, alcove: true,
+        shell: 'canyon', kind: 'camp', w: 14, l: 56, alcove: true,
         props: [
           // solid, like the corral's: a 5 m tent you walk through is the
           // "rock walls we walked right through" report, and these two were
           // the only props on the run that had been left decorative.
-          { id: 'tusken_tent', u: 44, v: 4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
-          { id: 'tusken_tent', u: 52, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 36, v: 4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 44, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
         ],
       }),
       z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
+      // The cistern court is where the run first meets a war massiff, and a
+      // war massiff wants room: the hall is sized for a beast to come out of
+      // a hatch and be fought round the pit, not for a squad to hold a door.
       z('desert', 5, {
-        shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pit', alcove: true,
+        shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pit', alcove: true,
       }),
     ],
-    links: [{ len: 16, turn: 1, len2: 14, kind: 'trek' }, { len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    links: [
+      { len: 14, turn: 1, len2: 14, legs: [{ turn: -1, len: 14 }], kind: 'trek' },
+      { len: 14, turn: -1, len2: 12, kind: 'corridor' },
+    ],
   },
   {
     kind: 'built',
@@ -185,8 +196,8 @@ const station: StageSpec[] = [
     label: TEXT.missions.stages.station[1],
     world: { fogColor: 0x14181f, fogNear: 12, fogFar: 90, background: 0x0b0d12, roofed: true, gravity: 0.45, fill: 1.5 },
     zones: [
-      z('station', 3, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'barrels', alcove: true }),
-      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 24, l: 20, feature: 'pillars' }),
+      z('station', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
+      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
   },
@@ -244,8 +255,8 @@ const nevarro: StageSpec[] = [
     label: TEXT.missions.stages.nevarro[1],
     world: { fogColor: 0x1a120e, fogNear: 10, fogFar: 80, background: 0x0d0806, roofed: true, fill: 1.4 },
     zones: [
-      z('nevarro', 4, { shell: 'hall', kind: 'assault', w: 22, l: 16, waves: 2, feature: 'crates', alcove: true }),
-      z('nevarro', 5, { shell: 'hall', kind: 'lieutenant', w: 24, l: 22, feature: 'pillars' }),
+      z('nevarro', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
+      z('nevarro', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: 1, len2: 12, kind: 'corridor' }],
   },
@@ -283,8 +294,8 @@ const crevasse: StageSpec[] = [
     label: TEXT.missions.stages.crevasse[1],
     world: { fogColor: 0x16303e, fogNear: 8, fogFar: 70, background: 0x08161e, roofed: true, traction: 0.55, fill: 1.6 },
     zones: [
-      z('crevasse', 3, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pillars', alcove: true }),
-      z('crevasse', 4, { shell: 'hall', kind: 'lieutenant', w: 24, l: 20, feature: 'pillars' }),
+      z('crevasse', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
+      z('crevasse', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('crevasse', 5, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true }),
       z('crevasse', 6, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
       z('crevasse', 7, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
@@ -321,8 +332,8 @@ const trask: StageSpec[] = [
         rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
       z('trask', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 46, waves: 2, deadEnd: true }),
-      z('trask', 3, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'barrels', alcove: true }),
-      z('trask', 4, { shell: 'hall', kind: 'lieutenant', w: 24, l: 20, feature: 'pillars' }),
+      z('trask', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
+      z('trask', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('trask', 5, {
         shell: 'open', kind: 'assault', w: 52, l: 44, waves: 3, air: true, feature: 'crates',
         props: [{ id: 'trawler', u: 26, v: 14, size: 16, yaw: 0.2, solid: { r: 3.5, h: 4 } }],
@@ -446,8 +457,8 @@ const forge: StageSpec[] = [
     label: TEXT.missions.stages.forge[1],
     world: { fogColor: 0x1b1e1a, fogNear: 10, fogFar: 80, background: 0x0c0e0b, roofed: true, fill: 1.4 },
     zones: [
-      z('forge', 4, { shell: 'hall', kind: 'assault', w: 20, l: 18, waves: 2, feature: 'pillars', alcove: true }),
-      z('forge', 5, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, feature: 'pillars' }),
+      z('forge', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
+      z('forge', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
   },
@@ -498,8 +509,8 @@ const ringworld: StageSpec[] = [
         rides: [{ kind: 'swoop', u: 9, v: 12, yaw: 0 }, { kind: 'swoop', u: 10, v: 16, yaw: 0 }],
       }),
       z('ringworld', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
-      z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 22, l: 18, waves: 2, feature: 'crates', alcove: true }),
-      z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 22, l: 22, feature: 'pillars' }),
+      z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
+      z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('ringworld', 5, {
         shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, pass: true, air: true,
         props: [
@@ -557,10 +568,10 @@ const narkina: StageSpec[] = [
     world: { fogColor: 0xdde8ee, fogNear: 14, fogFar: 90, background: 0xc8d4dc, roofed: true, fill: 1.7 },
     zones: [
       z('narkina', 4, {
-        shell: 'hall', kind: 'assault', w: 20, l: 16, waves: 2, feature: 'shock', alcove: true, roofH: 7,
+        shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'shock', alcove: true, roofH: 7,
         props: [{ id: 'alarm_console', u: 3, v: 7, size: 2.6, solid: { r: 1, h: 2.6 } }],
       }),
-      z('narkina', 5, { shell: 'hall', kind: 'lieutenant', w: 22, l: 20, roofH: 7, feature: 'pillars' }),
+      z('narkina', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, roofH: 7, feature: 'pillars' }),
     ],
     links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
   },

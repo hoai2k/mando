@@ -276,59 +276,15 @@ export function buildTatooine(): Board {
   authoredProp(crawler, [scHull, scProw], 'sandcrawler', 35, { axis: 'z' },
     { physics, replace: scStand, cell: 0.95, maxBoxes: 26 });
 
-  // ---- banthas at the Tusken camp (PLAN.md §16) ----
-  // The camp's livestock: solid, so bolts stop on the hide, but no health and
-  // no team — they are scenery that breathes, not targets. Placed clear of the
-  // tents, and they sway on their own clock rather than wandering, so a moving
-  // collider can never shoulder anything into the fire.
-  const banthas: Array<{ node: THREE.Group; phase: number }> = [];
+  // ---- the herd at the Tusken camp ----
+  // Every bantha here is a ride (`vehicles`, below). The camp used to keep
+  // three grazers as scenery beside the two broken to the saddle — the same
+  // animal twice, and only one of them mountable, which a playtest read as
+  // banthas that could not be ridden standing next to ones that could. The
+  // herd still lows; it just does it from the saddled animals.
   let banthaLowIn = 8;
   /** the far-off krayt: rare enough to stay a surprise, on no schedule you can read */
   let kraytCallIn = 40 + Math.random() * 50;
-  const banthaMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
-  const hornMat = new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: 0.8 });
-  for (const [bnx, bnz, bnYaw] of [[-58, -70, 1.2], [-52, -62, 2.1], [-62, -78, 0.4]] as const) {
-    const base = heightAt(bnx, bnz);
-    const node = new THREE.Group();
-    const parts: THREE.Mesh[] = [];
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 9), banthaMat);
-    body.scale.set(1, 1.05, 1.9);
-    body.position.y = 1.9;
-    parts.push(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 8), banthaMat);
-    head.position.set(0, 1.6, 2.7);
-    parts.push(head);
-    for (const sx of [-1, 1]) {
-      const horn = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 10, Math.PI * 1.3), hornMat);
-      horn.position.set(sx * 0.55, 2.1, 2.7);
-      horn.rotation.set(Math.PI / 2, 0, sx * 0.6);
-      parts.push(horn);
-      for (const sz of [-1, 1]) {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 1.5, 6), banthaMat);
-        leg.position.set(sx * 0.8, 0.75, sz * 1.1);
-        parts.push(leg);
-      }
-    }
-    for (const p of parts) { p.castShadow = true; node.add(p); }
-    node.position.set(bnx, base, bnz);
-    node.rotation.y = bnYaw;
-    group.add(node);
-    // A bantha is nearly six metres nose to tail, so one disc at its middle
-    // left both ends — the head most of all — as geometry with nothing under
-    // it. Three along the animal's own axis, the way a long body gets extra
-    // hit spheres. The animal sways on the spot, so its colliders stay put:
-    // the fit is what the sculpt occupies at rest, which is where it is.
-    const bnAxis = new THREE.Vector2(Math.sin(bnYaw), Math.cos(bnYaw));
-    // Fitted to the animal, not to the space around it: `bantha.glb` is drawn
-    // 2.5 m across, and 1.8 m discs held you almost a metre off its flank —
-    // near enough that you could never walk up to one. These are what the
-    // sculpt occupies until the sculpt lands and fits its own.
-    const bnStand = ([[-1.7, 1.15, 1.9, 3.4], [0.3, 1.25, 1.6, 3.8], [2.4, 0.95, 1.7, 2.8]] as const).map(
-      ([t, r, cy, ch]) => physics.addCylinder(bnx + bnAxis.x * t, base + cy, bnz + bnAxis.y * t, r, ch));
-    authoredProp(node, parts, 'bantha', 4.5, { axis: 'z' },
-      { physics, replace: bnStand, maxBoxes: 10 });
-    banthas.push({ node, phase: banthas.length * 2.1 });
-  }
 
   // crashed sail barge — tilted hull + deck planes for cover
   const hullMat = new THREE.MeshStandardMaterial({ color: 0x7a6a52, roughness: 0.8, metalness: 0.3 });
@@ -430,9 +386,8 @@ export function buildTatooine(): Board {
     hazards: [{ center: new THREE.Vector3(SARLACC.x, pitBase, SARLACC.z), radius: 8.5, kind: 'kill' }],
     // rides (PLAN.md §17): the Tuskens' swoops at the camp, the farmer's
     // landspeeder by the homestead, a cargo skiff out past the barge — and
-    // two of the herd broken to the saddle, standing at the corral's edge
-    // where the grazers behind them are scenery and these are not. What tells
-    // them apart on sight is the woven saddle; on the radar they are rides.
+    // the herd, every animal of it broken to the saddle. A ride and a
+    // look-alike that is not one should never stand side by side.
     vehicles: [
       { kind: 'swoop', x: -80, z: -50, yaw: 0.8 },
       { kind: 'swoop', x: -77, z: -45, yaw: 1.2 },
@@ -440,6 +395,8 @@ export function buildTatooine(): Board {
       { kind: 'skiff', x: 58, z: 48, yaw: 0.5 },
       { kind: 'bantha', x: -66, z: -58, yaw: 1.6 },
       { kind: 'bantha', x: -49, z: -71, yaw: 2.6 },
+      { kind: 'bantha', x: -58, z: -70, yaw: 1.2 },
+      { kind: 'bantha', x: -62, z: -78, yaw: 0.4 },
     ],
     update: (dt, time, game) => {
       // one of the herd lows every so often, louder the closer you graze
@@ -453,17 +410,12 @@ export function buildTatooine(): Board {
       banthaLowIn -= dt;
       if (banthaLowIn <= 0 && game) {
         banthaLowIn = 16 + Math.random() * 22;
-        const b = banthas[Math.floor(Math.random() * banthas.length)];
+        const herd = game.vehicles.filter((v) => v.spec.kind === 'bantha' && v.alive && !v.rider);
+        const b = herd[Math.floor(Math.random() * herd.length)];
         if (b) {
-          const near = game.players.reduce((m, p) => Math.min(m, p.position.distanceTo(b.node.position)), 999);
+          const near = game.players.reduce((m, p) => Math.min(m, p.position.distanceTo(b.pos)), 999);
           audio.banthaLow(Math.max(0.04, Math.min(0.4, 30 / Math.max(near, 8))));
         }
-      }
-      // the herd shifts its weight and swings its heads, slowly
-      for (const b of banthas) {
-        b.node.rotation.z = Math.sin(time * 0.4 + b.phase) * 0.03;
-        b.node.position.y = heightAt(b.node.position.x, b.node.position.z)
-          + Math.sin(time * 0.7 + b.phase) * 0.04;
       }
       tentacles.forEach((t, i) => {
         t.rotation.x = Math.sin(time * 1.3 + i * 2.1) * 0.35;

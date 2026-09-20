@@ -56,6 +56,8 @@ const REF_REACH = 0.5;
 const BODY_CLEARANCE = 0.85;
 /** a wide body pushes the over-the-shoulder step out too, but only so far */
 const MAX_SHOULDER_SCALE = 3;
+/** ...and pulls the chase distance out in proportion to its size, up to this */
+const MAX_SUBJECT_SCALE = 3;
 /**
  * Air kept between the lens and a big body it would otherwise sit inside.
  *
@@ -150,6 +152,17 @@ export class ThirdPersonCamera {
   /** where the look sits above the feet, and how far the body reaches sideways */
   private eye = REF_EYE;
   private reach = REF_REACH;
+  /**
+   * How much bigger than a Mandalorian the followed body is, as a multiplier
+   * on the chase distance. The rig's distances were tuned to frame a 1.8 m
+   * figure; framed at those same distances a bantha with a rider on it was
+   * mostly *under* the lens — a wall of hide across the bottom of the screen
+   * and the animal itself invisible. The floor under the distance kept the
+   * camera outside the body, but outside is not the same as seeing it. So a
+   * bigger subject is framed as a Mandalorian would be if they were that
+   * size: the camera pulls back in proportion and still centres on the rider.
+   */
+  private scale = 1;
   private tmpTarget = new THREE.Vector3();
   private tmpDesired = new THREE.Vector3();
   private tmpDir = new THREE.Vector3();
@@ -189,6 +202,11 @@ export class ThirdPersonCamera {
   setSubject(height: number, reach: number): void {
     this.eye = REF_EYE * (height / REF_HEIGHT);
     this.reach = reach;
+    // Height counts in full; the span only by its square root, because a long
+    // body is seen along its length from behind — the depth it adds to the
+    // shot is not the width it adds. Never under 1: the eight Mandalorians
+    // measure the reference and keep the framing tuned by hand.
+    this.scale = clamp(Math.max(height / REF_HEIGHT, Math.sqrt(reach / REF_REACH)), 1, MAX_SUBJECT_SCALE);
   }
 
   /**
@@ -285,7 +303,8 @@ export class ThirdPersonCamera {
     // something you are looking at rather than something you are looking from
     // inside. A Mandalorian's outline sits under even the closest framing the
     // tuning asks for, so for the eight of them this max() never binds.
-    const targetDist = Math.max(this.clearance, this.baseDist * (opts.aiming ? AIM_RATIO : follow));
+    const targetDist = Math.max(this.clearance,
+      this.baseDist * this.scale * (opts.aiming ? AIM_RATIO : follow));
     const targetFov = opts.aiming ? 52 : 72 + Math.min(opts.speed / 14, 1) * 7 + (opts.dashing ? 6 : 0);
     this.dist = this.framed ? damp(this.dist, targetDist, 10, dt) : targetDist;
     this.framed = true;

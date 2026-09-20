@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "node tools/run-suites.mjs",
     "audit:boards": "node tools/audit-collision.mjs",
+    "audit:floor": "node tools/audit-floor.mjs",
     "audit:spawns": "node tools/audit-spawns.mjs",
     "audit:hitboxes": "node tools/audit-hitboxes.mjs",
     "audit:props": "node tools/audit-props.mjs",

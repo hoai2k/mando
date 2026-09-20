@@ -246,6 +246,8 @@ const HOP_VEL = 8;
 /** how long the repulsors stay let go: a ceiling on the arc, not its length */
 const HOP_TIME = 1.2;
 const HOP_COOLDOWN = 1;
+/** how long after the sights come down the camera keeps settling onto the nose */
+const AIM_SETTLE = 1.2;
 /** what a hopping ride falls at while the field is off, m/s² */
 const HOP_GRAVITY = 22;
 /**
@@ -390,6 +392,8 @@ export class Vehicle {
   };
   /** last frame's steering input, for the visual bank into a turn */
   private steer = 0;
+  /** seconds left of the camera settling back onto the nose after the sights come down */
+  private aimSettle = 0;
   /**
    * Height of the rider's root above the keel. Starts at the def's value,
    * which is tuned to the procedural stand-in, and is re-measured off the
@@ -1098,17 +1102,30 @@ export class Vehicle {
       rider.cam.shake(0.05);
     }
 
-    const speed = this.run(dt, input.moveX, input.moveY, boost, charging, rider, game);
+    // Down the sights, the stick is the gun's, not the reins'. A mount is the
+    // one ride you can fight from, and while you are aiming from its back a
+    // turn is a turn of the *aim* — the animal keeps the line it was on. To
+    // steer it you come off the sights (the camera settles back onto the
+    // nose) and then steer. Without this a rider tracking a target across
+    // the flank was also hauling the bantha round under themselves, and the
+    // camera trailing the nose was fighting the aim the whole time.
+    const aiming = !!def.living && rider.aiming;
+    const speed = this.run(dt, aiming ? 0 : input.moveX, input.moveY, boost, charging, rider, game);
     if (!this.alive) return;
 
     // The camera trails the nose while you drive, but only when you are not
     // working the right stick — steering is the heading now, so a camera left
     // pointing where you were is a camera you have to fight. It eases rather
     // than snaps, and it never fights a look the player is actually giving it.
+    // Never while aiming, where the look *is* the aim; and for a moment after
+    // the sights come down it settles back onto the nose whatever the speed,
+    // so leaving aim mode reads as "back to riding".
     const nx = Math.sin(this.yaw), nz = Math.cos(this.yaw);
-    if (this.vel.x * nx + this.vel.z * nz > 2 && Math.abs(input.lookX) < 1e-4) {
-      rider.cam.yaw = dampAngle(rider.cam.yaw, this.yaw, 2.0, dt);
-    }
+    if (aiming) this.aimSettle = AIM_SETTLE;
+    else if (this.aimSettle > 0) this.aimSettle -= dt;
+    const trail = !aiming && Math.abs(input.lookX) < 1e-4
+      && (this.vel.x * nx + this.vel.z * nz > 2 || this.aimSettle > 0);
+    if (trail) rider.cam.yaw = dampAngle(rider.cam.yaw, this.yaw, this.aimSettle > 0 ? 4.0 : 2.0, dt);
     if (!def.living) audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
   }
 

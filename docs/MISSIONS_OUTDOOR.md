@@ -84,7 +84,7 @@ geometry) carrying an **encounter** (the rules).
 |---|---|---|---|---|---|
 | `open` | a wide outdoor floor: a flat, a court, a deck, a plaza | 40–90 × 36–70 | sky | **rim**: a ring of cliff/ridge/wall pieces taller than the ceiling, with a gap where the path enters and one where it leaves; optional **pass** notch in the rim for runners | carrier drop (from above the ceiling); runners through the pass; fliers over the rim (if `air`) |
 | `canyon` | a constrained outdoor lane: a ravine, a trench, a street, a pier, a gantry | 8–16 × 40–90, ≤ 2 bends | sky | cliff walls both sides (or the drop, for a pier); mouths framed by two tall pillar pieces | carrier drop; runners from the far mouth unless it is a dead end |
-| `hall` | the v2 walled room, now **roofed** | 16–26 × 14–22 | slab at `roofH` (8–10 m) | real walls, blast doors in both mouths | **wall hatches**: a door leaf in a side wall with a closet behind it; the squad is posted in the closet and the hatch opens (arrival `post`, then walk) |
+| `hall` | the v2 walled room, now **roofed**; sized for a beast to come out of a hatch and be fought round | 28 × 24 (assault), 30 × 26 (lieutenant) | slab at `roofH` (8–10 m) | real walls, blast doors in both mouths | **wall hatches**: a door leaf in a side wall with a closet behind it; the squad is posted in the closet and the hatch opens (arrival `post`, then walk) |
 | `corridor` | the v2 corridor leg, unchanged | 5–6 wide, 12–18 per leg, ≤ 1 bend | 3.8 m | walls | posted defenders behind flush crates (unchanged) |
 | `deck` | a floating platform or platform cluster (the Spice Run only) | plates 18–60 across, gaps 12–18 | sky | the void: stepping off is "off the path" and returns you to the checkpoint | dropship pass; fliers; jetpack pirates |
 | `road` | a long outdoor lane meant to be **ridden**: a dune road, a crust causeway, a glass highway | 24–30 × 120–180, bends through 30 m-wide junctions so a ride can take them at speed | sky | rim both sides (a ride into the rim is a crash, not an exit); mouths framed by pillars | enemy swoops orbiting the column; carrier drops at two marks along the road; a squad behind a barricade at the far mouth |
@@ -152,7 +152,17 @@ border on every board:
   styles use boxes and clean cylinders instead of noise.
 - **Backdrop row**: a second, mesh-only row 12–25 m behind the first, taller
   (1.5–2.5× the ceiling), sparser, tinted toward the fog colour: the
-  "mountains beyond". Never collided with; never reachable.
+  "mountains beyond". Never collided with — **and therefore never allowed on
+  the level's own floor** (2026-09-20). "Behind a border" is only unreachable
+  from the one side the border was laid for; a chain that bends puts the next
+  lane 14–24 m behind this one's wall, which is exactly where the row is laid.
+  That put twenty-metre boulders with no collider in the middle of the Dune
+  Sea's ravine (the floor audit counted 120 walk-through points there and 660
+  on the far side), and both older audits skipped every one of them as scenery.
+  The merge at the end of a stage build now drops any backdrop piece whose
+  footprint reaches a laid floor or the golden path, and
+  `tools/audit-floor.mjs` samples the whole walkable footprint, scenery
+  included, so a wall you can walk through is a wall whatever it was laid as.
 - Gaps: the polyline is authored with breaks where the path passes; each
   break is framed by two **pillar** pieces (r 4–5, taller than their
   neighbours) so the way through is a shape you recognise from across the
@@ -344,7 +354,13 @@ So an empty field says what the checkpoint was saying:
 
 `Campaign.seenKinds` remembers who the party has met on this run. A **wave**
 that would contain a kind nobody has met yet contains *only* the new kinds;
-the mixing starts once they are known. A camp's garrison is drawn without the
+the mixing starts once they are known. **How many** (2026-09-20): the debut
+takes the board table's own count for the kind (never fewer than three for a
+grunt, so it is still a squad), and a **big body** — anything wider across
+than a person, a war massiff say — is met **alone**. The rule used to fill the
+whole wave budget with the new kind, which is right for swoop riders and was
+eight war massiffs in a twenty-metre hall for a table that had asked for one;
+the level design never asked for that, the debut rule did. A camp's garrison is drawn without the
 rule — the locals holding a corral are who lives there, not a debut to
 stage-manage — and posting one counts as meeting them. Playtest: *"I liked
 fighting the speeder-bike enemies, but we should have them be a wave
@@ -610,7 +626,12 @@ fill, the sandcrawler on the real horizon).
    the far mouth. The road ends at the ravine mouth: **⇒⇒ the ravine**.
 
 **Stage B — the ravine and the outpost** (*built*, then *interior*: the
-canyon under the open sky, the cistern behind its door).
+canyon under the open sky, the cistern behind its door). The ravine is a run
+of corridors cut from rock: close walls both sides and the way on always
+round the next bend. A zone cannot bend, so the twists are the links'
+(`LinkSpec.legs`, any number of 90° turns) — three between the camp and the
+cistern approach, an S through the rock. The cistern court is sized for the
+war massiff that first appears there (28×24), not for a squad holding a door.
 
 3. `canyon` · **camp** · *the ravine* — 14×70, one bend — Tusken tents past
    the bend, boulders as cover, bacta in a side crack; *cliffs both sides* —

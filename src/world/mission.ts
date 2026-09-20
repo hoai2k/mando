@@ -117,6 +117,14 @@ export interface LinkSpec {
   turn?: -1 | 1;
   len2?: number;
   /**
+   * Further bends after `len2`, each a 90° turn and a leg. A ravine wants
+   * more twists than one bend per link gives it, and a zone cannot bend (its
+   * rect is what the seal, the vents and the guidance key off), so the twists
+   * live here. Lay them so the chain never folds back on itself: a lane laid
+   * across another lane is two walls sharing one floor.
+   */
+  legs?: { turn: -1 | 1; len: number }[];
+  /**
    * A roofed corridor pinch or an open lane between two outdoor zones.
    * Defaults to a corridor when either end is indoors, a trek otherwise.
    */
@@ -315,10 +323,14 @@ const RIM_NOISE_REACH = 1.6;
 const RIM_BARE_MIN = 1;
 /**
  * How much of a rim piece's radius its own collider fills. The drawn rock is
- * a noised cylinder that tapers going up, so a collider on the full radius
- * would stop you a metre short of the face; this is the solid part of it.
+ * a cylinder that tapers going *up*, and its noise only ever bites inward by
+ * a tenth of the radius at most, so at body height the rock is very nearly
+ * the full radius it was placed for. This used to be 0.72, from when the
+ * noise swelled pieces outward: on a six-metre boulder that left a metre and
+ * a half of drawn rock all round with nothing in it, which the floor audit
+ * reported as walk-through points along every backed piece.
  */
-const RIM_SOLID_FRACTION = 0.72;
+const RIM_SOLID_FRACTION = 0.92;
 /**
  * How long each step of a leaning border's staircase is. Half of it is how far
  * that step's axis-aligned box reaches past the rock line into the lane, so
@@ -682,6 +694,18 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    */
   const rimAt: { x: number; z: number; r: number; h: number }[] = [];
   const backGeo: THREE.BufferGeometry[] = [];
+  /**
+   * Where each backdrop piece stands, parallel to `backGeo`. The row behind
+   * is scenery — mesh only, "which nothing has to reach" — and that is true
+   * of a border seen from the one side it was laid for. A chain that bends
+   * puts the *next* lane behind this one's wall, fourteen to twenty-four
+   * metres away, exactly where the row is laid: a twenty-metre boulder with
+   * no collider standing in the middle of a ravine. The floor audit measured
+   * a hundred and twenty such points in the Dune Sea's ravine and six hundred
+   * on its far side, and both older audits skipped every one of them as
+   * "decor, said so". So the merge checks the row against the floors too.
+   */
+  const backAt: { x: number; z: number; r: number }[] = [];
   let spaceN = 0;
 
   /**
@@ -874,7 +898,8 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    * thing, and the mesas proved that years ago.
    */
   const rimPiece = (x: number, z: number, r: number, h: number, y0: number, backdrop: boolean): void => {
-    if (!backdrop) rimAt.push({ x, z, r, h });
+    if (backdrop) backAt.push({ x, z, r });
+    else rimAt.push({ x, z, r, h });
     const geo = new THREE.CylinderGeometry(r * look.taper, r, h, look.facets, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -1620,9 +1645,13 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       path.push(surf(lf, len / 2, 0));
     };
 
+    const legs: { turn: -1 | 1; len: number }[] = [];
+    if (link.turn && link.len2) legs.push({ turn: link.turn, len: link.len2 });
+    for (const extra of link.legs ?? []) legs.push(extra);
     leg(g, link.len, true);
-    if (link.turn && link.len2) {
-      const jf = new Frame(g.x(link.len, 0), g.z(link.len, 0), g.dx, g.dz);
+    let lastLen = link.len;
+    for (const { turn, len: len2 } of legs) {
+      const jf = new Frame(g.x(lastLen, 0), g.z(lastLen, 0), g.dx, g.dz);
       const jtop = onGround
         ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
         : floorY + (spaceN++ % 3) * EPS;
@@ -1630,10 +1659,10 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       if (roofed) {
         solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
         wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);
-        wallV(jf, -link.turn * (laneW / 2 + WALL_T / 2), -WALL_T, laneW + WALL_T, [], jtop, CORR_H);
+        wallV(jf, -turn * (laneW / 2 + WALL_T / 2), -WALL_T, laneW + WALL_T, [], jtop, CORR_H);
       } else {
-        const outer = -link.turn * (laneW / 2 + 1.5);
-        const bend = { x: jf.x(laneW / 2, link.turn * laneW * 0.25), z: jf.z(laneW / 2, link.turn * laneW * 0.25) };
+        const outer = -turn * (laneW / 2 + 1.5);
+        const bend = { x: jf.x(laneW / 2, turn * laneW * 0.25), z: jf.z(laneW / 2, turn * laneW * 0.25) };
         ridge([[jf.x(-1.5, outer), jf.z(-1.5, outer)], [jf.x(laneW + 1.5, outer), jf.z(laneW + 1.5, outer)]],
           jtop, { inside: bend });
         ridge([[jf.x(laneW + 1.5, outer), jf.z(laneW + 1.5, outer)],
@@ -1645,17 +1674,16 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // line between those two cuts across the inside of the bend — into the
       // cliff that makes the bend a bend.
       path.push(surf(jf, laneW / 2, 0));
-      const ndx = link.turn > 0 ? jf.px : -jf.px;
-      const ndz = link.turn > 0 ? jf.pz : -jf.pz;
+      const ndx = turn > 0 ? jf.px : -jf.px;
+      const ndz = turn > 0 ? jf.pz : -jf.pz;
       const g2 = new Frame(
-        jf.x(laneW / 2, link.turn * (laneW / 2)),
-        jf.z(laneW / 2, link.turn * (laneW / 2)), ndx, ndz);
-      leg(g2, link.len2, false);
+        jf.x(laneW / 2, turn * (laneW / 2)),
+        jf.z(laneW / 2, turn * (laneW / 2)), ndx, ndz);
+      leg(g2, len2, false);
       g = g2;
-      frame = new Frame(g2.x(link.len2 + 1.5, 0), g2.z(link.len2 + 1.5, 0), ndx, ndz);
-    } else {
-      frame = new Frame(g.x(link.len + 1.5, 0), g.z(link.len + 1.5, 0), g.dx, g.dz);
+      lastLen = len2;
     }
+    frame = new Frame(g.x(lastLen + 1.5, 0), g.z(lastLen + 1.5, 0), g.dx, g.dz);
     // bacta midway down every other link — the attrition beat pays for itself
     if (i % 2 === 1) pickups.push(surf(g, 6, -1.4));
     defenders.push(linkPosts);
@@ -1982,13 +2010,29 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     console.warn(`[mission] ${stage.label}: border rock — ${backed} piece(s) given a collider, ${culled} removed from the path`);
   }
   mergeInto(keptRim, rockMat, true, 'facing');
+  // The row behind never gets a collider — it is the horizon, not a wall — so
+  // a piece of it standing over the level's own floor, or leaning into the
+  // way through, is simply not there. Its reach is its radius: the noise only
+  // ever bites inward.
+  let culledBack = 0;
+  const keptBack = backGeo.filter((geo, i) => {
+    const at = backAt[i];
+    if (!at) return true;
+    if (nearestFloor(at.x, at.z) < at.r + PATH_CLEAR || pathNear(at.x, at.z) < at.r + PATH_WALKABLE) {
+      culledBack++;
+      geo.dispose();
+      return false;
+    }
+    return true;
+  });
+  if (culledBack) console.warn(`[mission] ${stage.label}: backdrop — ${culledBack} piece(s) removed from the level's floor`);
   // The backdrop row is the mountains beyond — `ridge()` says so in as many
   // words: "mesh only, which nothing has to reach". It stands fourteen to
   // twenty-four metres further out again than a border that is itself outside
   // its own collider, so it is scenery by construction, and saying so is what
   // stops `tools/audit-collision` reporting a hundred and seventy metres of
   // horizon as a wall you can walk through.
-  mergeInto(backGeo, backdropMat, false, 'decor');
+  mergeInto(keptBack, backdropMat, false, 'decor');
 
   // The horizon: an alpha strip standing well behind the backdrop row, in the
   // fog's own colour. The rims and the row behind them give the level its

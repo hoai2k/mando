@@ -414,8 +414,13 @@ const guide = await page.evaluate(`(() => {
   const door = { lit: c.beacon.visible, d: +g.players[0].position.distanceTo(c.objectivePos).toFixed(1) };
   put(o.x, o.z, o.y);
   window.__sim(0.1);
+  // which way the chevron's tip points on the floor: its local +y, tilted flat
+  // (rotation.x = -90°) and then yawed about the world's up (order YXZ)
+  const tip = { x: -Math.sin(c.arrow.rotation.y), z: -Math.cos(c.arrow.rotation.y) };
+  const fwd = c.stage.exitPortal ? c.stage.exitPortal.forward : { x: 0, z: 0 };
   const on = { lit: c.beacon.visible, d: +g.players[0].position.distanceTo(c.objectivePos).toFixed(1),
-    arrow: c.arrow.visible, arrowAt: +Math.hypot(c.arrow.position.x - o.x, c.arrow.position.z - o.z).toFixed(1) };
+    arrow: c.arrow.visible, arrowAt: +Math.hypot(c.arrow.position.x - o.x, c.arrow.position.z - o.z).toFixed(1),
+    order: c.arrow.rotation.order, along: +(tip.x * fwd.x + tip.z * fwd.z).toFixed(2) };
   c.done = true;
   window.__sim(0.1);
   const over = { lit: c.beacon.visible, glyphs: c.glyphs.filter((gl) => gl.mesh.visible).length };
@@ -432,6 +437,12 @@ check('but goes out when you are standing on it',
   !guide.on.lit && guide.on.d < 4, JSON.stringify(guide.on));
 check('and leaves a floor arrow where it stood, pointing on',
   guide.on.arrow && guide.on.arrowAt < 1, JSON.stringify(guide.on));
+// The chevron used to be yawed *before* it was laid flat, which mirrored it
+// across the x axis: right on an east-west lane and pointing back the way you
+// came on any north-south one. The door here faces along the stage's last
+// heading, so the tip has to agree with it.
+check('and the arrow points the way it says it does',
+  guide.on.order === 'YXZ' && guide.on.along > 0.9, JSON.stringify(guide.on));
 check('and a finished run leaves nothing burning',
   !guide.over.lit && guide.over.glyphs === 0, JSON.stringify(guide.over));
 

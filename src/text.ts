@@ -195,7 +195,7 @@ export const TEXT = {
     ceilingHit: (line: string) => line,
     ceilingSub: 'nothing flies over the rim',
     transport: (where: string) => `Making for ${where}`,
-    transportSub: 'the party goes together',
+    transportSub: 'stand by',
     steppedOut: { title: 'Standing in the transport', sub: 'everyone aboard before it goes back' },
     lieutenantFallsMission: { title: 'The lieutenant falls', sub: 'the warlord waits at the end' },
   },

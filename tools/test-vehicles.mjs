@@ -450,6 +450,18 @@ check('the blaster fires from the saddle of a mount',
   `heat ${beforeShots.heat.toFixed(2)} -> ${shots.heat.toFixed(2)} on the ${shots.kind}`);
 check('the gun comes up in the saddle', shots.pose === 'aimUpper', `upper: ${shots.pose}`);
 
+// Down the sights the stick is the gun's: a turn while aiming turns the aim,
+// and the animal keeps its line. Off the sights the same stick steers it.
+const aimSteer = await h.page.evaluate(([i]) => window.__game.vehicles[i].yaw, [banthaAt.i]);
+await h.step(0.8, { aimHeld: true, moveX: 1, moveY: 1 });
+const aimed = await h.page.evaluate(([i]) => window.__game.vehicles[i].yaw, [banthaAt.i]);
+await h.step(0.8, { moveX: 1, moveY: 1 });
+const steeredAfter = await h.page.evaluate(([i]) => window.__game.vehicles[i].yaw, [banthaAt.i]);
+check('the stick does not steer a mount while aiming from it', Math.abs(aimed - aimSteer) < 0.02,
+  `yaw ${aimSteer.toFixed(3)} -> ${aimed.toFixed(3)}`);
+check('and steers it again once the sights are down', Math.abs(steeredAfter - aimed) > 0.1,
+  `yaw ${aimed.toFixed(3)} -> ${steeredAfter.toFixed(3)}`);
+
 // dismount and leave the herd as we found it
 await h.step(1 / 60, { slamPressed: true });
 const offBantha = await h.page.evaluate(() => !window.__game.players[0].vehicle);
