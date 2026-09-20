@@ -276,6 +276,14 @@ function audit(stageName) {
         if (dPhys < dMesh) {
           const hx = zn.center.x + dx * (dPhys + 0.05);
           const hz = zn.center.z + dz * (dPhys + 0.05);
+          // A ray at one eye height across a hundred metres of real dunes can
+          // arrive *under* the ground: the Dune Sea's back wall stands six
+          // metres above its corral. The slab under a rim reaches that deep on
+          // purpose (so a dip is never a gap) and the rock is seated at the
+          // ground, so the ray met the slab with nothing drawn around it —
+          // which is the terrain being terrain, not a wall that is not there.
+          const gy = st.groundAt(hx, hz);
+          if (isFinite(gy) && oy < gy) continue;
           bare = bareness(hx, oy, hz, 6);
           if (bare <= BARE) continue;                 // the ray clipped a shoulder
         } else {
