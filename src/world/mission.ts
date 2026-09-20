@@ -1967,6 +1967,18 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     return best;
   };
 
+  /**
+   * Is a solid of this reach standing in one of the stage's doorways?
+   *
+   * `PORTAL_CLEAR` is the widest capsule the game walks around (a playable war
+   * beast, clamped to 0.6 in `roster.ts`) and a hand's width over, so a body
+   * can stand in the opening rather than merely not quite touch the rock.
+   */
+  const PORTAL_CLEAR = 0.95;
+  const blocksADoorway = (x: number, z: number, r: number): boolean =>
+    [exitPortal, backPortal].some((p) =>
+      p !== null && Math.hypot(x - p.pos.x, z - p.pos.z) < r + PORTAL_CLEAR);
+
   // ---- a border piece is either solid or it is not there ----
   //
   // `ridge` pushes its rock outward from the collider slab so the face of the
@@ -2009,12 +2021,62 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         if (!backedAt(px, pz)) bare++;
       }
     }
-    if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
+    if (bare < RIM_BARE_MIN) {
+      // A lean, not a stand — it is not holding up any of the level's own
+      // floor, so it does not need a collider *of its own*. It does still
+      // need one if it has nothing behind it.
+      //
+      // `bare` only counts ground the level registered as a floor rect, or
+      // ground within `PATH_WALKABLE` of the golden path. On an open zone
+      // standing on the territory's own terrain, neither covers the ground a
+      // player can actually walk: the Great Forge's glassed plain is 44x50 m
+      // of registered rect in the middle of an open plain, and its border
+      // stands forty metres out on ordinary ground. Every piece of it counted
+      // zero bare samples — not because it was backed, but because nothing
+      // under it was *looked at* — and so was kept, drawn, and hollow. The
+      // borders audit has been reporting that as two edges you walk through
+      // since the stage chain landed.
+      //
+      // Backed by the slab is the normal case and stays free. Backed by
+      // nothing is a wall that is not there, and gets its own collider sized
+      // to the rock that is drawn — the same collider the branch below would
+      // have given it. Nothing extra is *removed* here, deliberately: culling
+      // near a path is what put two holes in the Prison Rig's floor earlier
+      // today, and adding a collider where a rock is drawn cannot open one.
+      if (!backedAt(at.x, at.z)) {
+        const leanFoot = groundAt(at.x, at.z) - 1;
+        addCyl(at.x, leanFoot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
+        backed++;
+      }
+      return true;
+    }
     // Measured against the rock's own reach, not its middle: a six-metre
     // boulder whose centre is eight metres off the path still has its face in
     // it, and backing that is how a piece that should have been removed became
     // a two-and-a-half-metre wall across the way on instead.
     if (pathNear(at.x, at.z) < at.r + PATH_CLEAR) { culled++; return false; }
+    // ...and nothing at all stands in a doorway.
+    //
+    // A transport door is the one piece of ground on a stage that has to be
+    // walkable: it is the way on, or the way home, and there is no way round it.
+    // The golden path does not cover it — `path` runs from the first zone's
+    // entry to the last one's exit, and only the *exit* portal's threshold is
+    // appended to it — so a rim piece beside the door at the other end is
+    // measured against nothing and gets a collider like any other.
+    //
+    // Two of them did, either side of the Refinery's last stage, and put their
+    // faces a third of a metre inside the doorway: a transport door with no
+    // way through it on the run's way home. `test-cover` caught it as 13 of 14
+    // doorways passable.
+    //
+    // Measured against the door itself rather than by putting the door on the
+    // path. The path rule clears `at.r + PATH_CLEAR` either side of a *line*,
+    // which for a five-metre rock is a corridor several metres wide; drawn
+    // through a doorway it takes out border rock doing real work well away
+    // from it, and the Prison Rig's top decks came back with two holes in the
+    // floor when it did. This asks the narrow question instead — is the rock
+    // in the opening? — and so takes only what is actually in the way.
+    if (blocksADoorway(at.x, at.z, at.r * RIM_SOLID_FRACTION)) { culled++; return false; }
     // solid, from the floor under it to the top of the rock that is drawn
     const foot = groundAt(at.x, at.z) - 1;
     addCyl(at.x, foot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
