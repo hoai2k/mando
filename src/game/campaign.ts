@@ -1412,17 +1412,28 @@ export class Campaign implements MissionController {
     // up to an open door to the ravine with the last of the road still to
     // come. The road is not run until every mark on it has fired and what
     // they sent is down.
-    const allMarksFired = this.marksFired.length > 0 && this.marksFired.every(Boolean);
-    if (zone.spec.barricade === 'fence' && allMarksFired
-      && this.zoneForce.length > 0 && this.zoneForce.every((e) => !e.alive) && !this.dropping) {
-      zone.exitBarrier?.open();
-    }
-    // Through: the barricade is open and someone is out the far mouth. The
-    // ride is the encounter, so it ends where the road does — waiting on every
-    // last player to cross would hold the run on whoever is walking back.
+    // **The road has been run** when every mark on it has fired and what they
+    // sent is down. Nothing below may use "the escort is down" on its own:
+    // `zoneForce` is empty before the first mark fires and again in the gaps
+    // between them, and `[].every()` is true, so that read as "run" from the
+    // moment the road began.
+    const roadRun = (this.marksFired.length === 0 || this.marksFired.every(Boolean))
+      && !this.dropping && this.zoneForce.every((e) => !e.alive);
+    if (zone.spec.barricade === 'fence' && roadRun) zone.exitBarrier?.open();
+    // Through: the road is run, and someone is out the far mouth. The ride is
+    // the encounter, so it ends where the road does — waiting on every last
+    // player to cross would hold the run on whoever is walking back.
+    //
+    // A road's *last* zone has no barricade at all, because the way on from it
+    // is the stage's transport door rather than a fence. That left `open`
+    // unconditionally true here, so reaching the far end cleared the zone and
+    // opened the door to the next stage with the rest of the road still
+    // coming — which is what a playtest saw at the mouth of the ravine. The
+    // barricade is not the only thing that has to wait for the road; the road
+    // does.
     const open = !zone.exitBarrier || zone.exitBarrier.open_;
     const alive = this.game.players.filter((p) => p.alive);
-    if (open && alive.some((p) => this.pastExit(zone, p.position))) this.clearZone(zone, true);
+    if (roadRun && open && alive.some((p) => this.pastExit(zone, p.position))) this.clearZone(zone, true);
   }
 
   /** past the far mouth of a road: the ride is over and the ground is earned */
