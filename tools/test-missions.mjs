@@ -644,10 +644,17 @@ const optional = await page.evaluate(`(() => {
   for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
   window.__sim(3);
   const heldAtTheDoor = c.idx === c.stage.zones.length - 1;
-  // walking to it does open it
-  p.position.set(last.exit.x, last.exit.y + 0.5, last.exit.z);
-  window.__simUntil(() => c.idx >= c.stage.zones.length, 6);
-  const openedOnTheWalk = c.idx >= c.stage.zones.length;
+  // ...and walking to it does open it. On a road that means *running* the
+  // road: reaching the far mouth fires every mark you drove past, and the way
+  // on waits for what they send, so this keeps putting them down as it walks
+  // rather than clearing the field once and hoping.
+  let openedOnTheWalk = false;
+  for (let k = 0; k < 40 && !openedOnTheWalk; k++) {
+    p.position.set(last.exit.x, last.exit.y + 0.5, last.exit.z);
+    for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
+    window.__sim(0.5);
+    openedOnTheWalk = c.idx >= c.stage.zones.length;
+  }
   return { entered, farFromExit: +farFromExit.toFixed(1), advanced, heldAtTheDoor, openedOnTheWalk };
 })()`);
 check('a camp cleared of its garrison advances without the checkpoint',
@@ -919,9 +926,12 @@ const cover = await page.evaluate(async () => {
   const out = { height: p.height };
   // a boulder: round, and taller than a body
   const floor = p.position.y;
+  // Tall on purpose: this one has to stand a clear head over the body, or
+  // "cover that stands over you is not ducked behind" passes without ever
+  // testing the standing half of the rule.
   const rock = nearest(
-    phys.cylinders.filter((c) => c.r >= 0.9 && c.maxY - c.minY > 1.2 && c.maxY - c.minY < 6
-      && Math.abs(c.minY - floor) < 6),
+    phys.cylinders.filter((c) => c.r >= 0.9 && c.maxY - c.minY < 6
+      && c.maxY - c.minY > p.height + 0.8 && Math.abs(c.minY - floor) < 6),
     (c) => Math.hypot(c.x - p.position.x, c.z - p.position.z));
   if (rock) {
     const a = Math.atan2(p.position.x - rock.x, p.position.z - rock.z);
@@ -945,8 +955,8 @@ check('cover no taller than the body is ducked behind',
   cover.crate ? `${cover.crate.over?.toFixed(2)} m of cover over a ${cover.height.toFixed(2)} m body · ${cover.crate.lower}`
     : 'no crate near the start');
 check('and cover that stands over you is not',
-  !cover.rock?.took || cover.rock.over < cover.height + 0.25 || cover.rock.lower === 'idleLower',
-  cover.rock ? `${cover.rock.over?.toFixed(2)} m over the boots · ${cover.rock.lower}` : '—');
+  !!cover.rock?.took && cover.rock.over >= cover.height + 0.25 && cover.rock.lower === 'idleLower',
+  cover.rock ? `${cover.rock.over?.toFixed(2)} m over a ${cover.height.toFixed(2)} m body · ${cover.rock.lower}` : '—');
 
 // ------------------------------------------------- ground somebody is holding
 //
