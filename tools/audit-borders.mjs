@@ -363,6 +363,46 @@ const OPEN_STAGE = () => {
   window.__manual = false;
 };
 
+/**
+ * Wait for the authored sculpts, and mean it.
+ *
+ * A prop is raised with a fitted stand-in collider and then *refitted* when
+ * its .glb lands, so measuring before the sculpts arrive measures a collider
+ * the game will not be using a second later. On the Storm Docks that read as
+ * two lying edges at the fish market — "stopped at 18.6, drawn at 15.9" —
+ * where the finished prop is a 7.2 m box with a 7.2 m sculpt on it, agreeing
+ * to within a metre. The audit was racing the download and reporting the
+ * stand-in.
+ *
+ * The old wait was "nothing outstanding is a sculpt *this scene wants*", and
+ * it never waited for anything. Two reasons, either enough on its own: the
+ * want set is read off `board.group`, and a mission stage hangs its props off
+ * the stage's own group, so the set came back empty; and an empty set is
+ * vacuously satisfied before a single request has been made. It passed on the
+ * first poll, every time.
+ *
+ * So: watch the whole in-flight queue rather than a guessed subset of it,
+ * require it quiet on several polls in a row — which a queue that has not
+ * started cannot satisfy — and hold a floor under the whole thing, because
+ * even a quiet queue is only quiet until the next frame asks for something.
+ * And wait again after every stage swap: a stage raises its own props, and the
+ * loop below only ever slept four seconds for them.
+ */
+async function settleProps(quietPolls = 6, minMs = 4000, timeoutMs = 60000) {
+  const t0 = Date.now();
+  let quiet = 0;
+  for (;;) {
+    const outstanding = await page
+      .evaluate(() => (window.__loading?.() ?? []).length)
+      .catch(() => 0);
+    quiet = outstanding === 0 ? quiet + 1 : 0;
+    const waited = Date.now() - t0;
+    if (waited >= timeoutMs) return;
+    if (quiet >= quietPolls && waited >= minMs) return;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 const results = [];
 for (const board of (only ? [only] : BOARDS)) {
   await page.evaluate(([b]) => {
@@ -373,15 +413,7 @@ for (const board of (only ? [only] : BOARDS)) {
   try {
     await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
   } catch { console.log(`\n=== ${board} — did not reach play`); continue; }
-  try {
-    await page.waitForFunction(() => {
-      const want = new Set();
-      window.__game?.board.group.traverse((o) => {
-        if (o.userData && o.userData.prop) want.add(`models/${o.userData.prop}.glb`);
-      });
-      return !(window.__loading?.() ?? []).some((k) => want.has(k));
-    }, null, { timeout: 60000, polling: 500 });
-  } catch { /* measure anyway */ }
+  await settleProps();
 
   for (let stage = 0; stage < 6; stage++) {
     await page.evaluate(OPEN_STAGE);
@@ -407,7 +439,8 @@ for (const board of (only ? [only] : BOARDS)) {
       return c.stageIdx !== was;
     });
     if (!crossed) break;
-    await new Promise((r) => setTimeout(r, 4000));
+    await new Promise((r) => setTimeout(r, 2000));
+    await settleProps();
   }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));

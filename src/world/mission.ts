@@ -2021,7 +2021,35 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         if (!backedAt(px, pz)) bare++;
       }
     }
-    if (bare < RIM_BARE_MIN) return true;                      // a lean, not a stand
+    if (bare < RIM_BARE_MIN) {
+      // A lean, not a stand — it is not holding up any of the level's own
+      // floor, so it does not need a collider *of its own*. It does still
+      // need one if it has nothing behind it.
+      //
+      // `bare` only counts ground the level registered as a floor rect, or
+      // ground within `PATH_WALKABLE` of the golden path. On an open zone
+      // standing on the territory's own terrain, neither covers the ground a
+      // player can actually walk: the Great Forge's glassed plain is 44x50 m
+      // of registered rect in the middle of an open plain, and its border
+      // stands forty metres out on ordinary ground. Every piece of it counted
+      // zero bare samples — not because it was backed, but because nothing
+      // under it was *looked at* — and so was kept, drawn, and hollow. The
+      // borders audit has been reporting that as two edges you walk through
+      // since the stage chain landed.
+      //
+      // Backed by the slab is the normal case and stays free. Backed by
+      // nothing is a wall that is not there, and gets its own collider sized
+      // to the rock that is drawn — the same collider the branch below would
+      // have given it. Nothing extra is *removed* here, deliberately: culling
+      // near a path is what put two holes in the Prison Rig's floor earlier
+      // today, and adding a collider where a rock is drawn cannot open one.
+      if (!backedAt(at.x, at.z)) {
+        const leanFoot = groundAt(at.x, at.z) - 1;
+        addCyl(at.x, leanFoot + at.h / 2, at.z, at.r * RIM_SOLID_FRACTION, at.h);
+        backed++;
+      }
+      return true;
+    }
     // Measured against the rock's own reach, not its middle: a six-metre
     // boulder whose centre is eight metres off the path still has its face in
     // it, and backing that is how a piece that should have been removed became
