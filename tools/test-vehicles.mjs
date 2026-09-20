@@ -28,7 +28,7 @@ const spawned = await h.page.evaluate(() => {
     grounded: g.vehicles.every((v) => Number.isFinite(v.pos.y)),
   };
 });
-check('desert spawns 6 vehicles', spawned.n === 6, spawned.kinds);
+check('desert spawns 8 vehicles', spawned.n === 8, spawned.kinds);
 check('vehicles sit on real ground', spawned.grounded);
 
 // ---- walk up: prompt, then RB mounts ----
@@ -271,7 +271,7 @@ const post = await h.page.evaluate(() => {
   const p = g.players[0];
   return { n: g.vehicles.length, alive: p.alive, hp: p.hp, vAlive: v.alive, targeted: false };
 });
-check('the wreck stays in the roster, dead', post.n === 6 && !post.vAlive, `${post.n} rides`);
+check('the wreck stays in the roster, dead', post.n === 8 && !post.vAlive, `${post.n} rides`);
 // hurt, and hurt by the blast wave on top of the detonation itself — but a
 // swoop is a bad landing, not an execution
 check('rider survives the ejection, the worse for it', post.alive && post.hp < 85,
