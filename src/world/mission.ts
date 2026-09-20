@@ -1632,8 +1632,14 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
         // Flush matters — a crate floating off the wall leaves a gap too narrow
         // for a body, and that pocket catches anyone hugging the wall.
         for (const [t, side] of [[0.42, 1], [0.68, -1]] as const) {
-          const ch = CRATE_H_MIN + rand() * CRATE_H_VAR;
-          const across = (lf.dx !== 0 ? CRATE_D_PER_H : CRATE_W_PER_H) * ch;
+          // Sized to the lane: a crate is flush to the wall, so in a five-metre
+          // corridor its full depth reached to within half a metre of the
+          // centreline and the golden path — the line the arrow sends you
+          // down — ran through its shoulder. The trail audit read it as a
+          // wall across the way. A crate leaves the middle of the lane clear.
+          const per = lf.dx !== 0 ? CRATE_D_PER_H : CRATE_W_PER_H;
+          const ch = Math.min(CRATE_H_MIN + rand() * CRATE_H_VAR, (laneW / 2 - 1.0) / per);
+          const across = per * ch;
           const v = side * (laneW / 2 + 0.03 - across / 2);
           crate(lf.x(len * t, v), ltop, lf.z(len * t, v), ch);
           linkPosts.push({
