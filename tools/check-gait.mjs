@@ -54,23 +54,30 @@ const contact = await page.evaluate(([BLANK]) => {
     p.cam.yaw = yaw;
     const seconds = 10;
     const n = Math.round(seconds / dt);
-    let groundFlips = 0, clipFlips = 0, air = 0, lastG = null, lastC = null, counted = 0;
+    let groundFlips = 0, clipFlips = 0, air = 0, lastG = null, lastC = null, counted = 0, running = 0;
     for (let i = 0; i < n; i++) {
       g.update(dt, pad({ moveY: 1 }));
       const clip = p.char.animator?.playing('lower') ?? null;
-      // the first fifth is the walk up to speed, which legitimately changes clip
-      if (i > n * 0.2) {
+      const speed = Math.hypot(p.velocity.x, p.velocity.z);
+      // The first fifth is the walk up to speed, which legitimately changes
+      // clip. And a heading that ends against a mesa or a dune's steep face
+      // legitimately ends in the idle — what is being measured is the gait of
+      // a body that *is* running, so only frames at running speed are judged.
+      if (i > n * 0.2 && speed > 5) {
         counted++;
         if (lastG !== null && p.grounded !== lastG) groundFlips++;
         if (lastC !== null && clip !== lastC) clipFlips++;
         if (!p.grounded) air++;
+        running = i;
       }
       lastG = p.grounded; lastC = clip;
     }
-    const dur = counted * dt;
-    return { label, clip: lastC, speed: +Math.hypot(p.velocity.x, p.velocity.z).toFixed(1),
+    void running;
+    const dur = Math.max(1e-3, counted * dt);
+    return { label, clip: lastC, seconds: +dur.toFixed(1),
+      speed: +Math.hypot(p.velocity.x, p.velocity.z).toFixed(1),
       groundPerSec: +(groundFlips / dur).toFixed(2), clipPerSec: +(clipFlips / dur).toFixed(2),
-      airPct: +((100 * air) / counted).toFixed(1) };
+      airPct: +((100 * air) / Math.max(1, counted)).toFixed(1) };
   };
   const out = [];
   for (const [label, yaw] of [['east', Math.PI / 2], ['west', -Math.PI / 2], ['north', 0], ['south', Math.PI]]) {
@@ -88,15 +95,17 @@ const contact = await page.evaluate(([BLANK]) => {
 }, [blankInput()]);
 
 for (const r of contact.runs) {
-  console.log(`  running ${r.label}: ${r.speed} m/s on ${r.clip}, ` +
+  console.log(`  running ${r.label}: ${r.seconds} s at speed, ` +
     `${r.groundPerSec}/s contact changes, ${r.clipPerSec}/s clip changes, ${r.airPct}% airborne`);
 }
+check('every heading gave the gait time to be measured',
+  contact.runs.every((r) => r.seconds > 2), JSON.stringify(contact.runs.map((r) => [r.label, r.seconds])));
 check('running straight never loses the ground',
   contact.runs.every((r) => r.groundPerSec === 0 && r.airPct === 0),
   JSON.stringify(contact.runs.map((r) => [r.label, r.groundPerSec, r.airPct])));
 check('...so the legs never flicker between the run and the fall',
-  contact.runs.every((r) => r.clipPerSec === 0 && r.clip === 'runLower'),
-  JSON.stringify(contact.runs.map((r) => [r.label, r.clipPerSec, r.clip])));
+  contact.runs.every((r) => r.clipPerSec === 0),
+  JSON.stringify(contact.runs.map((r) => [r.label, r.clipPerSec])));
 check('and a body with nothing under it still falls',
   contact.fell > 3, `${contact.fell} m in a second`);
 
