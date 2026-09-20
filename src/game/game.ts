@@ -1089,7 +1089,7 @@ export class Game {
     const bi = boxes.indexOf(b.box);
     if (bi >= 0) boxes.splice(bi, 1);
     b.mesh.visible = false;
-    for (const p of this.players) if (p.cover?.box === b.box) { p.cover = null; p.peeking = false; }
+    for (const p of this.players) if (p.cover?.solid === b.box) { p.cover = null; p.peeking = false; }
     this.particles.deathBurst(b.center, 18);
     b.onBreak?.(this);
     if (b.explosive) this.explode(b.center.clone(), -1);

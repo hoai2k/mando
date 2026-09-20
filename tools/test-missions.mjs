@@ -195,12 +195,22 @@ const flier = await page.evaluate(async () => {
   // count the shots it actually takes, and where it was standing to take them
   let firedHigh = 0;
   let firedLow = 0;
+  // Attribute the bolt to whoever it came out of, and judge its height by its
+  // own muzzle. This used to count *every* bolt in the level as the flier's
+  // and classify it by where the flier happened to be standing — which was
+  // sound only while the flier was the one thing shooting. It is not any more:
+  // a stage now stands its fights up posted rather than dropping them in, so
+  // there are bolts in the air from the first frame, and all of them were
+  // being read as this one nikto firing out of the sky.
   const realFire = g.projectiles.fire.bind(g.projectiles);
-  g.projectiles.fire = (...a) => {
-    if (e.alive) {
-      if (e.position.y + e.height > s.ceilingY + 0.5) firedHigh++; else firedLow++;
+  g.projectiles.fire = (origin, ...rest) => {
+    const mine = e.alive
+      && Math.hypot(origin.x - e.position.x, origin.z - e.position.z) < 2.5
+      && Math.abs(origin.y - (e.position.y + e.height * 0.6)) < 2.5;
+    if (mine) {
+      if (origin.y > s.ceilingY + 0.5) firedHigh++; else firedLow++;
     }
-    return realFire(...a);
+    return realFire(origin, ...rest);
   };
   let settled = -1;
   for (let i = 0; i < 400; i++) {
@@ -634,10 +644,17 @@ const optional = await page.evaluate(`(() => {
   for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
   window.__sim(3);
   const heldAtTheDoor = c.idx === c.stage.zones.length - 1;
-  // walking to it does open it
-  p.position.set(last.exit.x, last.exit.y + 0.5, last.exit.z);
-  window.__simUntil(() => c.idx >= c.stage.zones.length, 6);
-  const openedOnTheWalk = c.idx >= c.stage.zones.length;
+  // ...and walking to it does open it. On a road that means *running* the
+  // road: reaching the far mouth fires every mark you drove past, and the way
+  // on waits for what they send, so this keeps putting them down as it walks
+  // rather than clearing the field once and hoping.
+  let openedOnTheWalk = false;
+  for (let k = 0; k < 40 && !openedOnTheWalk; k++) {
+    p.position.set(last.exit.x, last.exit.y + 0.5, last.exit.z);
+    for (const e of g.enemies) if (e.alive) e.damage(9999, p.position, 0);
+    window.__sim(0.5);
+    openedOnTheWalk = c.idx >= c.stage.zones.length;
+  }
   return { entered, farFromExit: +farFromExit.toFixed(1), advanced, heldAtTheDoor, openedOnTheWalk };
 })()`);
 check('a camp cleared of its garrison advances without the checkpoint',
@@ -812,6 +829,209 @@ for (const flag of ['?missions=old', '?backup=missions']) {
     `stages=${legacy.hasStages}: ${legacy.rooms}`);
   check(`${flag} runs without a ceiling over it`, legacy.ceiling === null, String(legacy.ceiling));
 }
+
+// ---------------------------------------------------------------- the road
+//
+// Everything from here down moves the party about, empties zones and walks the
+// stage chain, so it runs last and on a board of its own — an earlier version
+// of these checks ran before `the walk` and left it looking at a campaign
+// already standing on its final stage.
+//
+// A road's barricade lifts when its escort is down, and "the escort is down"
+// was written as `zoneForce.every(e => !e.alive)` — which is true of an empty
+// list. Before the first mark fired there was no escort, so the way on stood
+// open from the moment the road began; a playtest walked up to an open door
+// with the whole road still ahead of it.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const road = await page.evaluate(async () => {
+  const g = window.__game;
+  const c = g.campaign;
+  const i = c.stage.zones.findIndex((z) => z.spec.kind === 'chase');
+  if (i < 0) return null;
+  const z = c.stage.zones[i];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  c.idx = i;
+  c.phase = 'travel';
+  for (const p of g.players) if (p.alive) p.position.copy(z.entry);
+  for (let k = 0; k < 90; k++) g.update(1 / 30, idle);
+  const atEntry = { open: !!z.exitBarrier?.open_, fired: c.marksFired.filter(Boolean).length, marks: z.marks.length };
+  // …and the road does end: ride it to the far mouth, put down whatever the
+  // marks send (they arrive by transport, so this has to keep killing across
+  // the flight rather than clearing the field once), and the zone clears.
+  let ran = false;
+  for (let k = 0; k < 900 && !ran; k++) {
+    for (const p of g.players) if (p.alive) p.position.copy(z.exit);
+    for (const e of g.enemies) if (e.alive) e.damage(99999, e.position, -1);
+    g.update(1 / 30, idle);
+    ran = c.idx > i || !!z.exitBarrier?.open_;
+  }
+  const atEnd = { ran, fired: c.marksFired.filter(Boolean).length };
+  window.__manual = false;
+  return { atEntry, atEnd };
+});
+
+if (road) {
+  check('the road holds its barricade until the road has been run',
+    !road.atEntry.open,
+    `at the mouth: ${road.atEntry.open ? 'open' : 'shut'}, ${road.atEntry.fired}/${road.atEntry.marks} marks fired`);
+  check('and opens the way on once every mark is down',
+    road.atEnd.ran, `${road.atEnd.fired} marks fired, ${road.atEnd.ran ? 'through' : 'still held'}`);
+}
+
+// ---------------------------------------------------------------- cover
+//
+// Cover used to mean "a StaticBox and which side of it", which quietly meant
+// only boxes were ever cover — and the boxes outdoors are the crates. Every
+// boulder in the game is a cylinder, so a playtest found chest-high rock that
+// sheltered nobody standing next to a crate that worked.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const cover = await page.evaluate(async () => {
+  const g = window.__game;
+  const p = g.players[0];
+  const phys = g.board.physics;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  /** stand beside a solid, press the cover button, and report what happened */
+  const hug = (x, z, baseY) => {
+    p.cover = null;
+    p.velocity.set(0, 0, 0);
+    // from the solid's own foot, not from wherever the body happened to be:
+    // a mission stage stands ninety metres over the territory, so searching
+    // for ground from the player's altitude found the floor under the *other*
+    // one and reported forty-five metres of crate
+    const y = phys.groundHeight(x, z, baseY + 1.5);
+    p.position.set(x, isFinite(y) ? y : baseY, z);
+    for (let k = 0; k < 4; k++) g.update(1 / 30, idle);
+    g.update(1 / 30, [{ ...blank(), slamPressed: true }, blank(), blank(), blank()]);
+    for (let k = 0; k < 8; k++) g.update(1 / 30, idle);
+    return p.cover
+      ? { took: true, over: p.cover.top - p.position.y, lower: p.char.animator?.playing('lower') }
+      : { took: false };
+  };
+  const nearest = (list, dist) => list.map((o) => ({ o, d: dist(o) }))
+    .filter((e) => isFinite(e.d)).sort((a, b) => a.d - b.d)[0]?.o ?? null;
+  const out = { height: p.height };
+  // a boulder: round, and taller than a body
+  const floor = p.position.y;
+  // Tall on purpose: this one has to stand a clear head over the body, or
+  // "cover that stands over you is not ducked behind" passes without ever
+  // testing the standing half of the rule.
+  const rock = nearest(
+    phys.cylinders.filter((c) => c.r >= 0.9 && c.maxY - c.minY < 6
+      && c.maxY - c.minY > p.height + 0.8 && Math.abs(c.minY - floor) < 6),
+    (c) => Math.hypot(c.x - p.position.x, c.z - p.position.z));
+  if (rock) {
+    const a = Math.atan2(p.position.x - rock.x, p.position.z - rock.z);
+    out.rock = hug(rock.x + Math.sin(a) * (rock.r + 0.75), rock.z + Math.cos(a) * (rock.r + 0.75), rock.minY);
+  }
+  // a crate: square, and lower than a body
+  const crate = nearest(
+    phys.boxes.filter((b) => b.max.y - b.min.y > 1 && b.max.y - b.min.y < 2
+      && b.max.x - b.min.x < 4 && b.max.z - b.min.z < 4 && Math.abs(b.min.y - floor) < 6),
+    (b) => Math.hypot((b.min.x + b.max.x) / 2 - p.position.x, (b.min.z + b.max.z) / 2 - p.position.z));
+  if (crate) out.crate = hug(crate.max.x + 0.75, (crate.min.z + crate.max.z) / 2, crate.min.y);
+  p.cover = null;
+  window.__manual = false;
+  return out;
+});
+
+check('a boulder is cover, the same as a crate',
+  !!cover.rock?.took, cover.rock ? JSON.stringify(cover.rock) : 'no boulder near the start');
+check('cover no taller than the body is ducked behind',
+  cover.crate?.took && cover.crate.over <= cover.height && cover.crate.lower === 'coverLower',
+  cover.crate ? `${cover.crate.over?.toFixed(2)} m of cover over a ${cover.height.toFixed(2)} m body · ${cover.crate.lower}`
+    : 'no crate near the start');
+check('and cover that stands over you is not',
+  !!cover.rock?.took && cover.rock.over >= cover.height + 0.25 && cover.rock.lower === 'idleLower',
+  cover.rock ? `${cover.rock.over?.toFixed(2)} m over a ${cover.height.toFixed(2)} m body · ${cover.rock.lower}` : '—');
+
+// ------------------------------------------------- ground somebody is holding
+//
+// A level is held by people standing in it, not by people arriving in it. A
+// playtest walked the ravine and found a long stretch of nothing and then a
+// wave at the end of it, which was two omissions compounding: corridors were
+// only garrisoned where the builder happened to have put crates (and crates
+// only go into roofed lanes), and an `assault` zone was populated by nothing
+// at all until you crossed its line.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const posted = await page.evaluate(async () => {
+  const g = window.__game;
+  const c = g.campaign;
+  const out = [];
+  for (let stage = 0; stage < 6; stage++) {
+    const s = c.stage;
+    const alive = g.enemies.filter((e) => e.alive);
+    const inRect = (e, r) => e.position.x > r.minX && e.position.x < r.maxX
+      && e.position.z > r.minZ && e.position.z < r.maxZ;
+    out.push({
+      label: s.spec.label,
+      zones: s.zones.map((z) => ({
+        kind: z.spec.kind, shell: z.spec.shell,
+        held: alive.filter((e) => inRect(e, z.rect)).length,
+      })),
+      links: alive.filter((e) => !s.zones.some((z) => inRect(e, z.rect))).length,
+    });
+    // step to the next stage with the ground cleared behind us
+    if (!s.exitPortal) break;
+    const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+      dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+      rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+      meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+    const idle = [blank(), blank(), blank(), blank()];
+    window.__manual = true;
+    c.idx = s.zones.length;
+    c.phase = 'travel';
+    for (const e of g.enemies) e.removeMe = true;
+    for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+    const was = c.stageIdx;
+    const portal = s.exitPortal;
+    for (let i = 0; i < 300 && c.stageIdx === was; i++) {
+      if (i % 20 === 0) for (const p of g.players) p.position.copy(portal.threshold);
+      g.update(1 / 30, idle);
+    }
+    window.__manual = false;
+    if (c.stageIdx === was) break;
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return out;
+});
+
+// Fights are found, not delivered: every assault zone holds somebody before
+// anyone has walked into it.
+const emptyFights = posted.flatMap((st) => st.zones
+  .filter((z) => z.kind === 'assault' && z.held === 0)
+  .map((z) => `${st.label}/${z.shell}:${z.kind}`));
+check('an assault zone is held before you walk into it',
+  emptyFights.length === 0,
+  emptyFights.length ? emptyFights.join(', ')
+    : posted.map((st) => st.zones.filter((z) => z.kind === 'assault')
+      .map((z) => z.held).join('+')).join(' · '));
+
+// And the walk between them is not a walk through nothing.
+const lonelyLinks = posted.filter((st) => st.zones.length > 1 && st.links === 0).map((st) => st.label);
+check('and the corridors between zones are picketed',
+  lonelyLinks.length === 0,
+  lonelyLinks.length ? `empty: ${lonelyLinks.join(', ')}`
+    : posted.map((st) => `${st.links}`).join(' · '));
+
+check('so every stage stands up populated end to end',
+  posted.every((st) => st.zones.reduce((n, z) => n + z.held, 0) + st.links >= 5),
+  posted.map((st) => st.zones.reduce((n, z) => n + z.held, 0) + st.links).join(' · '));
 
 await h.close();
 console.log(failures.length ? `\n${failures.length} FAILED` : '\nall good');

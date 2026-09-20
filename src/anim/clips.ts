@@ -242,6 +242,32 @@ function makeClips(p: Proportions): ClipSet {
     qt('lowerLegR', [0, 3], [[5, 0, 0], [5, 0, 0]]),
   ]);
 
+  // ---------- LOWER: tucked behind low cover ----------
+  //
+  // Not a landing: a landing is an absorb that springs back, and this is a
+  // hold. The shape is the same fold — hips down over feet that stay planted,
+  // the weight back over the heels — held at about two thirds of the landing's
+  // depth, which is low enough to get a helmet under chest-high cover and high
+  // enough to stand out of in one step.
+  //
+  // The feet stay where the standing clip leaves them. A crouch that walks the
+  // boots inward reads as a curtsey, and behind cover you can see both of them
+  // against the crate the whole time.
+  clips.coverLower = new THREE.AnimationClip('coverLower', 3.4, [
+    pt('hips', [0, 1.7, 3.4], [[0, hipY - 0.3, 0], [0, hipY - 0.325, 0], [0, hipY - 0.3, 0]]),
+    qt('hips', [0, 1.7, 3.4], [[11, 0, 0], [13, 0, -1], [11, 0, 0]]),
+    qt('spine', [0, 1.7, 3.4], [[7, 0, 0], [9, 0, 0], [7, 0, 0]]),
+    qt('upperLegL', [0, 1.7, 3.4], [[-52, 0, 7], [-55, 0, 7], [-52, 0, 7]]),
+    qt('lowerLegL', [0, 1.7, 3.4], [[76, 0, 0], [80, 0, 0], [76, 0, 0]]),
+    qt('footL', [0, 3.4], [[-22, 0, 0], [-22, 0, 0]]),
+    // the trailing leg is folded a shade deeper, so the stance is a crouch
+    // rather than a squat — one knee leads, which is what a body behind a
+    // wall actually does when it means to come back up shooting
+    qt('upperLegR', [0, 1.7, 3.4], [[-46, 0, -8], [-49, 0, -8], [-46, 0, -8]]),
+    qt('lowerLegR', [0, 1.7, 3.4], [[84, 0, 0], [88, 0, 0], [84, 0, 0]]),
+    qt('footR', [0, 3.4], [[-26, 0, 0], [-26, 0, 0]]),
+  ]);
+
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),

@@ -289,6 +289,18 @@ const TRIGGER_IN = 6;
 /** trail posts along any link at least this long, every this many metres */
 const TRAIL_MIN_LEN = 30;
 const TRAIL_EVERY = 15;
+/**
+ * A link long enough to be worth holding, and how often somebody stands in it.
+ *
+ * A corridor used to be garrisoned only where the builder happened to put
+ * crates — and crates only go into *roofed* lanes, so every outdoor canyon
+ * link in the game was a walk with nobody in it. What a playtest reported was
+ * exactly that: a long stretch of nothing and then a wave at the end. A lane
+ * is ground somebody holds, and a picket every dozen metres is what makes it
+ * read that way.
+ */
+const PICKET_MIN_LEN = 12;
+const PICKET_EVERY = 13;
 /** the shortest side a non-road zone needs before it may park a ride */
 const RIDE_MIN_SIDE = 40;
 /** how far from an open edge a ride is parked */
@@ -1648,6 +1660,19 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
             pos: lf.vec(len * t + 1.5, v, ltop + 0.2),
             toward: lf.vec(0, 0, ltop),
           });
+        }
+      }
+      // Pickets down the lane, roofed or not: somebody is *in* the corridor
+      // rather than waiting at the far end of it. They alternate sides so the
+      // walk is a series of angles rather than a shooting gallery, and they
+      // stand off the centreline so the golden path stays clear. Anything
+      // that lands inside a crate or a wall is dropped by `fits` below.
+      if (len >= PICKET_MIN_LEN) {
+        let n = 0;
+        for (let d = PICKET_EVERY * 0.6; d < len - 2; d += PICKET_EVERY) {
+          const side = n++ % 2 ? 1 : -1;
+          const v = side * Math.min(laneW / 2 - 1.4, 3.2);
+          linkPosts.push({ pos: surf(lf, d, v), toward: lf.vec(0, 0, ltop) });
         }
       }
       path.push(surf(lf, len / 2, 0));
