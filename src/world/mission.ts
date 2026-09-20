@@ -324,13 +324,13 @@ const RIM_BARE_MIN = 1;
 /**
  * How much of a rim piece's radius its own collider fills. The drawn rock is
  * a cylinder that tapers going *up*, and its noise only ever bites inward by
- * a tenth of the radius at most, so at body height the rock is very nearly
- * the full radius it was placed for. This used to be 0.72, from when the
+ * a few per cent of the radius near the base, so at body height the rock is
+ * very nearly the full radius it was placed for. This used to be 0.72, from when the
  * noise swelled pieces outward: on a six-metre boulder that left a metre and
  * a half of drawn rock all round with nothing in it, which the floor audit
  * reported as walk-through points along every backed piece.
  */
-const RIM_SOLID_FRACTION = 0.92;
+const RIM_SOLID_FRACTION = 0.97;
 /**
  * How long each step of a leaning border's staircase is. Half of it is how far
  * that step's axis-aligned box reaches past the rock line into the lane, so
@@ -343,6 +343,8 @@ const STAIR_STEP = 1.6;
  * a collider — the one case where the answer is to take the wall away.
  */
 const PATH_CLEAR = 1.2;
+/** how far a canyon's closing walls run past its side walls, so the corners are rock */
+const CORNER_LAP = 8;
 /** how wide a strip either side of the golden path counts as walkable ground */
 const PATH_WALKABLE = 2.5;
 /** per crate in a crate-line barricade */
@@ -1743,14 +1745,22 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     gorgeDepth = gorge ? gorge.len : 0;
     wall(-8, uCliff, 1);
     wall(-8, uCliff, -1);
-    // the wall behind: a canyon is a place, and a place has a back to it
-    const backHalf = halfAt(-8);
+    // the wall behind: a canyon is a place, and a place has a back to it.
+    //
+    // It runs past the corners. Each run pushes its rock outward along its
+    // own perpendicular, so where two meet at a corner the square outside it
+    // has no rock in it at all — and a ray from the middle of the canyon
+    // reaching that corner at a glancing angle met the slab with three metres
+    // of clear air behind it before any cliff. The borders audit measured it
+    // from the corral, on the bearing of each back corner. So the closing
+    // runs overlap the sides by more than a piece's reach.
+    const backHalf = halfAt(-8) + CORNER_LAP;
     ridge([[axis.x(-8, backHalf), axis.z(-8, backHalf)], [axis.x(-8, -backHalf), axis.z(-8, -backHalf)]],
       groundAt(axis.x(-8, 0), axis.z(-8, 0)), { inside: { x: axis.x(10, 0), z: axis.z(10, 0) } });
 
     if (gorge) {
       const gh = gorge.w / 2;
-      const endHalf = halfAt(uCliff);
+      const endHalf = halfAt(uCliff) + CORNER_LAP;
       const face = groundAt(axis.x(uCliff, 0), axis.z(uCliff, 0));
       const behind = { x: axis.x(uCliff - 14, 0), z: axis.z(uCliff - 14, 0) };
       // the cliff that closes the canyon, either side of the slot
@@ -1784,7 +1794,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       // no gorge: the canyon still has to *end*, or the far wall is two lines
       // running off into the territory with open ground between them. A cliff
       // across it, with the doorway's own gap left where a way on exists.
-      const endHalf = halfAt(uCliff);
+      const endHalf = halfAt(uCliff) + CORNER_LAP;
       const face = groundAt(axis.x(uCliff, 0), axis.z(uCliff, 0));
       const behind = { x: axis.x(uCliff - 14, 0), z: axis.z(uCliff - 14, 0) };
       const gapHalf = hasNext ? (GATE_W + 4) / 2 : 0;

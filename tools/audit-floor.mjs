@@ -43,6 +43,13 @@ function audit(stageName) {
     if (!o.isMesh || o.isPoints || o.isLine || o.isSprite) return;
     let decor = false;
     for (let n = o; n; n = n.parent) {
+      // A sculpt that has fitted its own colliders is collidered where it is
+      // drawn by construction (`world/collide.ts` voxelises its triangles).
+      // What a parity test finds *inside* one is its interior — a shed you
+      // walk into, an open-ended tram — walled in single-sided quads that
+      // read as solid from within. That is the sculpt's business, not the
+      // level's, and `audit-props.mjs` is the audit that judges the fit.
+      if (n.userData && n.userData.fitted) return;
       if (!n.visible) return;                                   // a hidden stand-in
       if (n.userData && n.userData.decor) { decor = true; }      // scenery: still a wall if you can walk through it
       if (n.userData && n.userData.gateShut === false) return;  // an open door
@@ -207,9 +214,9 @@ function audit(stageName) {
       const zone = st.zones.find((zn) => x >= zn.rect.minX && x <= zn.rect.maxX && z >= zn.rect.minZ && z <= zn.rect.maxZ);
       const where = zone ? zone.spec.label : 'a lane';
       const e = seen.get(k);
-      if (e) { e.points++; e.places.add(where); continue; }
+      if (e) { e.points++; e.places.add(where); if (e.sample.length < 12) e.sample.push([+x.toFixed(1), +z.toFixed(1)]); continue; }
       const rec = { tag: drawn.tag || '(untagged)', type: drawn.type, points: 1, places: new Set([where]),
-        at: [+x.toFixed(1), +z.toFixed(1)],
+        at: [+x.toFixed(1), +z.toFixed(1)], sample: [[+x.toFixed(1), +z.toFixed(1)]],
         size: [+(drawn.hi[0] - drawn.lo[0]).toFixed(1), +(drawn.hi[1] - drawn.lo[1]).toFixed(1), +(drawn.hi[2] - drawn.lo[2]).toFixed(1)] };
       seen.set(k, rec);
       found.push(rec);
@@ -314,6 +321,7 @@ for (const r of results) {
   for (const f of r.found) {
     console.log(`   WALK-THROUGH  ${String(f.tag).padEnd(24)} ${f.type.padEnd(16)} size ${JSON.stringify(f.size).padEnd(20)} ` +
       `${String(f.points).padStart(3)} pts · first at ${JSON.stringify(f.at)} · in ${f.places.join(', ')}`);
+    console.log(`                 points: ${JSON.stringify(f.sample)}`);
   }
 }
 console.log(bad ? `\n${bad} walk-through point(s) on the floor` : '\nevery wall on the floor is real');
