@@ -1,160 +1,193 @@
 /**
- * Minimal Node-side glTF binary reader for the authored models: JSON + BIN
- * chunks, EXT_meshopt_compression on the buffer views (decoded through the
- * same WASM decoder the game uses), KHR_mesh_quantization on the attributes.
+ * A very small GLB reader, for looking inside the delivered sculpts.
  *
- * Enough to get at what the skin audits need — node hierarchy and rest-pose
- * world matrices, and each skinned primitive's positions, joints and weights
- * in world space — without a DOM or a renderer.
+ * The models in `public/models` arrive from a generator and are occasionally
+ * wrong in ways no amount of code around them can see — a lump of geometry
+ * floating off a shoulder, welded to nothing, inside the same skinned mesh as
+ * the body. Finding that means reading the container, which is what this is
+ * for: the two chunks a .glb is, the accessors inside them (decompressed and
+ * de-interleaved, since these files are meshopt-compressed and quantised), and
+ * the connected pieces a primitive's triangles fall into.
+ *
+ * Read-only on purpose. Nothing here writes a model back: the files on disk
+ * stay exactly as delivered and the fixes are applied at load
+ * (`src/characters/strays.ts`), so a redelivery costs a re-run of a tool
+ * rather than an edit somebody has to remember to make again.
  */
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { MeshoptDecoder } from '../../node_modules/three/examples/jsm/libs/meshopt_decoder.module.js';
 
-const require_ = createRequire(import.meta.url);
-const THREE = require_('three');
+const MAGIC = 0x46546c67;      // 'glTF'
+const JSON_CHUNK = 0x4e4f534a; // 'JSON'
+const BIN_CHUNK = 0x004e4942;  // 'BIN\0'
 
 const COMPONENT = {
-  5120: { array: Int8Array, size: 1 }, 5121: { array: Uint8Array, size: 1 },
-  5122: { array: Int16Array, size: 2 }, 5123: { array: Uint16Array, size: 2 },
-  5125: { array: Uint32Array, size: 4 }, 5126: { array: Float32Array, size: 4 },
+  5120: { array: Int8Array, size: 1 },
+  5121: { array: Uint8Array, size: 1 },
+  5122: { array: Int16Array, size: 2 },
+  5123: { array: Uint16Array, size: 2 },
+  5125: { array: Uint32Array, size: 4 },
+  5126: { array: Float32Array, size: 4 },
 };
-const TYPE_SIZE = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
+const ITEMS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 
-export async function readGlb(path) {
-  await MeshoptDecoder.ready;
-  const file = readFileSync(path);
-  if (file.readUInt32LE(0) !== 0x46546c67) throw new Error(`${path}: not a .glb`);
-  const chunks = [];
-  let off = 12;
-  while (off < file.length) {
-    const len = file.readUInt32LE(off);
-    const type = file.readUInt32LE(off + 4);
-    chunks.push({ type, data: file.subarray(off + 8, off + 8 + len) });
-    off += 8 + len;
+export function readGlb(path) {
+  const buf = readFileSync(path);
+  const magic = buf.readUInt32LE(0);
+  if (magic !== MAGIC) throw new Error(`${path}: not a .glb`);
+  const version = buf.readUInt32LE(4);
+  let at = 12;
+  let json = null;
+  let bin = null;
+  while (at + 8 <= buf.length) {
+    const len = buf.readUInt32LE(at);
+    const type = buf.readUInt32LE(at + 4);
+    const body = buf.subarray(at + 8, at + 8 + len);
+    if (type === JSON_CHUNK) json = JSON.parse(body.toString('utf8'));
+    else if (type === BIN_CHUNK) bin = Buffer.from(body);
+    at += 8 + len + ((4 - (len % 4)) % 4);
   }
-  const json = JSON.parse(chunks.find((c) => c.type === 0x4e4f534a).data.toString());
-  const bin = chunks.find((c) => c.type === 0x004e4942)?.data;
-  return new Glb(json, bin);
+  if (!json || !bin) throw new Error(`${path}: expected a JSON chunk and a BIN chunk`);
+  return { version, json, bin };
 }
 
-export class Glb {
-  constructor(json, bin) {
-    this.json = json;
-    this.bin = bin;
-    this.viewCache = new Map();
+/**
+ * One buffer view's bytes, decompressed where the file says they are.
+ *
+ * These sculpts ship under `EXT_meshopt_compression`, so the bytes in the file
+ * are not the bytes an accessor reads: the extension names a compressed blob
+ * and the shape to expand it into. Decoded views are cached per file, since a
+ * primitive asks for the same one several times over.
+ */
+export function viewBytes(glb, i) {
+  glb._views ??= new Map();
+  const had = glb._views.get(i);
+  if (had) return had;
+  const v = glb.json.bufferViews[i];
+  const ext = v.extensions?.EXT_meshopt_compression;
+  let out;
+  if (!ext) {
+    const at = v.byteOffset ?? 0;
+    out = new Uint8Array(glb.bin.subarray(at, at + v.byteLength));
+  } else {
+    out = new Uint8Array(ext.count * ext.byteStride);
+    const at = ext.byteOffset ?? 0;
+    const src = new Uint8Array(glb.bin.subarray(at, at + ext.byteLength));
+    MeshoptDecoder.decodeGltfBuffer(out, ext.count, ext.byteStride, src, ext.mode, ext.filter);
   }
+  glb._views.set(i, out);
+  return out;
+}
 
-  /** decoded bytes of a buffer view, meshopt-expanded when it is compressed */
-  bufferView(index) {
-    let out = this.viewCache.get(index);
-    if (out) return out;
-    const bv = this.json.bufferViews[index];
-    const ext = bv.extensions?.EXT_meshopt_compression;
-    if (ext) {
-      const src = new Uint8Array(this.bin.buffer, this.bin.byteOffset + (ext.byteOffset ?? 0), ext.byteLength);
-      out = new Uint8Array(ext.count * ext.byteStride);
-      MeshoptDecoder.decodeGltfBuffer(out, ext.count, ext.byteStride, src,
-        ext.mode, ext.filter ?? 'NONE');
-      out = { data: out, stride: ext.byteStride };
-    } else {
-      const data = new Uint8Array(this.bin.buffer, this.bin.byteOffset + (bv.byteOffset ?? 0), bv.byteLength);
-      out = { data, stride: bv.byteStride ?? 0 };
+/** the decoder has to be up before any compressed view is read */
+export const decoderReady = MeshoptDecoder.ready;
+
+/**
+ * A typed view onto accessor `i`, de-interleaved if it needs to be.
+ *
+ * Quantised attributes (`KHR_mesh_quantization`) are padded to a stride wider
+ * than the values themselves — a three-short position inside eight bytes —
+ * so an accessor is not always a tightly packed array and has to be gathered
+ * element by element when it is not.
+ */
+export function accessor(glb, i) {
+  const acc = glb.json.accessors[i];
+  const comp = COMPONENT[acc.componentType];
+  const items = ITEMS[acc.type];
+  if (!comp || !items) throw new Error(`accessor ${i}: unsupported ${acc.componentType}/${acc.type}`);
+  const view = glb.json.bufferViews[acc.bufferView];
+  const bytes = viewBytes(glb, acc.bufferView);
+  const start = acc.byteOffset ?? 0;
+  const packed = comp.size * items;
+  const stride = view.byteStride || packed;
+  let data;
+  if (stride === packed) {
+    data = new comp.array(bytes.buffer, bytes.byteOffset + start, acc.count * items);
+  } else {
+    data = new comp.array(acc.count * items);
+    for (let e = 0; e < acc.count; e++) {
+      const row = new comp.array(bytes.buffer, bytes.byteOffset + start + e * stride, items);
+      for (let k = 0; k < items; k++) data[e * items + k] = row[k];
     }
-    this.viewCache.set(index, out);
-    return out;
   }
+  return { data, count: acc.count, items, acc, view, comp };
+}
 
-  /** accessor -> { array: flat Float64Array (normalised applied), count, size } */
-  accessor(index) {
-    const acc = this.json.accessors[index];
-    const comp = COMPONENT[acc.componentType];
-    const n = TYPE_SIZE[acc.type];
-    const out = new Float64Array(acc.count * n);
-    if (acc.bufferView === undefined) return { array: out, count: acc.count, size: n, raw: null };
-    const { data, stride } = this.bufferView(acc.bufferView);
-    const step = stride || comp.size * n;
-    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    const base = acc.byteOffset ?? 0;
-    const read = {
-      5120: (o) => view.getInt8(o), 5121: (o) => view.getUint8(o),
-      5122: (o) => view.getInt16(o, true), 5123: (o) => view.getUint16(o, true),
-      5125: (o) => view.getUint32(o, true), 5126: (o) => view.getFloat32(o, true),
-    }[acc.componentType];
-    const norm = acc.normalized ? {
-      5120: (v) => Math.max(v / 127, -1), 5121: (v) => v / 255,
-      5122: (v) => Math.max(v / 32767, -1), 5123: (v) => v / 65535,
-    }[acc.componentType] : null;
-    const raw = new comp.array(acc.count * n);
-    for (let i = 0; i < acc.count; i++) {
-      for (let k = 0; k < n; k++) {
-        const v = read(base + i * step + k * comp.size);
-        raw[i * n + k] = v;
-        out[i * n + k] = norm ? norm(v) : v;
+/**
+ * Every primitive in the file, with its positions and indices already read.
+ * A mesh with no indices is given the implied 0,1,2,… so callers have one
+ * shape to work with.
+ */
+export function primitives(glb) {
+  const out = [];
+  (glb.json.meshes ?? []).forEach((mesh, mi) => {
+    (mesh.primitives ?? []).forEach((prim, pi) => {
+      if (prim.attributes?.POSITION === undefined) return;
+      const pos = accessor(glb, prim.attributes.POSITION);
+      const idx = prim.indices !== undefined ? accessor(glb, prim.indices) : null;
+      const indices = idx ? idx.data : Uint32Array.from({ length: pos.count }, (_, k) => k);
+      out.push({ mesh: mi, prim: pi, name: mesh.name ?? `mesh ${mi}`, spec: prim, pos, idx, indices });
+    });
+  });
+  return out;
+}
+
+/**
+ * The connected pieces of one primitive.
+ *
+ * Vertices are welded by position first: a sculpt splits vertices at every UV
+ * and normal seam, so triangles that plainly share an edge do not share an
+ * index, and a body would otherwise come back as a hundred "pieces". Welding
+ * to a tenth of a millimetre puts it back together, and what is left apart is
+ * genuinely apart — which is what a lump floating off a shoulder is.
+ */
+export function components(prim, weld = 1e-4) {
+  const { data } = prim.pos;
+  const n = prim.pos.count;
+  const key = new Map();
+  const weldOf = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.round(data[i * 3] / weld)},${Math.round(data[i * 3 + 1] / weld)},${Math.round(data[i * 3 + 2] / weld)}`;
+    let id = key.get(k);
+    if (id === undefined) { id = key.size; key.set(k, id); }
+    weldOf[i] = id;
+  }
+  const parent = new Int32Array(key.size).map((_, i) => i);
+  const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  const tris = prim.indices.length / 3;
+  for (let t = 0; t < tris; t++) {
+    const a = weldOf[prim.indices[t * 3]], b = weldOf[prim.indices[t * 3 + 1]], c = weldOf[prim.indices[t * 3 + 2]];
+    union(a, b); union(b, c);
+  }
+  const byRoot = new Map();
+  for (let t = 0; t < tris; t++) {
+    const root = find(weldOf[prim.indices[t * 3]]);
+    let g = byRoot.get(root);
+    if (!g) {
+      g = { tris: [], verts: new Set(), min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+      byRoot.set(root, g);
+    }
+    g.tris.push(t);
+    for (let k = 0; k < 3; k++) {
+      const v = prim.indices[t * 3 + k];
+      g.verts.add(v);
+      for (let ax = 0; ax < 3; ax++) {
+        const c = data[v * 3 + ax];
+        if (c < g.min[ax]) g.min[ax] = c;
+        if (c > g.max[ax]) g.max[ax] = c;
       }
     }
-    return { array: out, count: acc.count, size: n, raw, accessor: acc };
   }
-
-  /** local and world matrices of every node in the default scene's rest pose */
-  nodeMatrices() {
-    const nodes = this.json.nodes;
-    const local = nodes.map((nd) => {
-      const m = new THREE.Matrix4();
-      if (nd.matrix) return m.fromArray(nd.matrix);
-      const t = new THREE.Vector3(...(nd.translation ?? [0, 0, 0]));
-      const r = new THREE.Quaternion(...(nd.rotation ?? [0, 0, 0, 1]));
-      const s = new THREE.Vector3(...(nd.scale ?? [1, 1, 1]));
-      return m.compose(t, r, s);
-    });
-    const world = nodes.map(() => null);
-    const parent = nodes.map(() => -1);
-    nodes.forEach((nd, i) => (nd.children ?? []).forEach((c) => { parent[c] = i; }));
-    const visit = (i) => {
-      if (world[i]) return world[i];
-      const p = parent[i];
-      world[i] = p < 0 ? local[i].clone() : visit(p).clone().multiply(local[i]);
-      return world[i];
-    };
-    nodes.forEach((_, i) => visit(i));
-    return { local, world, parent };
-  }
-
-  /**
-   * Every skinned primitive, with world-space rest positions and the joints /
-   * weights per vertex, plus the skin's joints as node indices.
-   */
-  skinnedPrimitives() {
-    const { world, parent } = this.nodeMatrices();
-    const out = [];
-    this.json.nodes.forEach((nd, nodeIndex) => {
-      if (nd.mesh === undefined || nd.skin === undefined) return;
-      const skin = this.json.skins[nd.skin];
-      const mesh = this.json.meshes[nd.mesh];
-      mesh.primitives.forEach((prim, primIndex) => {
-        const a = prim.attributes;
-        if (a.JOINTS_0 === undefined || a.WEIGHTS_0 === undefined) return;
-        const pos = this.accessor(a.POSITION);
-        const joints = this.accessor(a.JOINTS_0);
-        const weights = this.accessor(a.WEIGHTS_0);
-        const indices = prim.indices !== undefined ? this.accessor(prim.indices) : null;
-        const m = world[nodeIndex];
-        const positions = new Float64Array(pos.count * 3);
-        const v = new THREE.Vector3();
-        for (let i = 0; i < pos.count; i++) {
-          v.set(pos.array[i * 3], pos.array[i * 3 + 1], pos.array[i * 3 + 2]).applyMatrix4(m);
-          positions[i * 3] = v.x; positions[i * 3 + 1] = v.y; positions[i * 3 + 2] = v.z;
-        }
-        out.push({
-          nodeIndex, meshIndex: nd.mesh, primIndex, skinIndex: nd.skin,
-          count: pos.count, positions,
-          joints: joints.array, weights: weights.array, weightsRaw: weights,
-          indices: indices ? indices.array : null,
-          skinJoints: skin.joints,
-          jointNames: skin.joints.map((j) => this.json.nodes[j].name ?? `node${j}`),
-        });
-      });
-    });
-    return { primitives: out, world, parent };
-  }
+  return [...byRoot.values()]
+    .map((g) => ({
+      tris: g.tris,
+      triCount: g.tris.length,
+      vertCount: g.verts.size,
+      min: g.min,
+      max: g.max,
+      size: [g.max[0] - g.min[0], g.max[1] - g.min[1], g.max[2] - g.min[2]],
+      centre: [(g.min[0] + g.max[0]) / 2, (g.min[1] + g.max[1]) / 2, (g.min[2] + g.max[2]) / 2],
+    }))
+    .sort((a, b) => b.triCount - a.triCount);
 }

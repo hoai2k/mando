@@ -181,6 +181,31 @@ check('a dropped model is asked for again without anything new requesting it',
 check('...and the retry lands, so the character is not stuck on its stand-in',
   missed === false && recovered === true, `missed ${missed} -> recovered ${recovered}`);
 
+// ---- the geometry a sculpt was delivered with that belongs to nobody ----
+//
+// `din.glb` carries a 1,290-triangle ball welded to nothing, riding behind a
+// shoulder (see src/characters/strays.ts). The fix file says which triangles
+// it is and the loader drops them, which is invisible when it works — so check
+// the body mesh came out the smaller size, and that the model is otherwise all
+// there rather than having been cut down by a fix aimed at the wrong mesh.
+const body = await h.page.evaluate(() => {
+  const p = window.__game?.players?.[0];
+  let out = null;
+  p?.char.root.traverse((o) => {
+    const g = o.geometry;
+    if (!o.isMesh || !g?.index) return;
+    const from = g.userData.gltf ?? o.userData.gltf;
+    if (from && from.mesh === 0 && from.primitive === 0 && g.attributes.position.count > 10000) {
+      out = { verts: g.attributes.position.count, tris: g.index.count / 3, dropped: !!g.userData.straysDropped };
+    }
+  });
+  return out;
+});
+check('the stray ball is dropped from the delivered sculpt at load',
+  !!body && body.dropped && body.tris === 118710, JSON.stringify(body));
+check('...and the rest of the model is still there',
+  !!body && body.verts === 69089, JSON.stringify(body));
+
 // The blocked krykna request above logs a console error in the page. That is
 // this test staging a failure on purpose, so it must not count as one.
 const unexpected = h.errors.filter((e) => !/ERR_FAILED|Failed to load resource/.test(e));

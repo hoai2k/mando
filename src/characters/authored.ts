@@ -11,6 +11,7 @@ import { ASSET_ROOT } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
+import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 
 /**
@@ -220,6 +221,9 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     const fixes = loadSkinFix(id);
     // ...and the bones it was delivered without (see jawrig.ts)
     const jaw = loadJawRig(id);
+    // ...and the geometry it was delivered *with* that belongs to nobody — the
+    // ball off Din's shoulder and its like (see strays.ts)
+    const strays = loadStrays(id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
@@ -233,6 +237,12 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
               o.userData.gltf = { mesh: assoc.meshes, primitive: assoc.primitives ?? 0 };
             }
           });
+          // Stray geometry goes first, and before anything measures this
+          // model: it is the one fix that changes what the mesh *is* rather
+          // than how it bends, so a lump off a shoulder is gone before a
+          // bounding sphere, a camera framing or a collider is taken from it.
+          const strayDoc = await strays;
+          if (strayDoc) applyStrays(gltf.scene, strayDoc);
           const doc = await fixes;
           // on the file's own geometry, which every clone shares: one pass
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));

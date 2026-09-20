@@ -1,0 +1,58 @@
+{
+  "format": "mando-strays/1",
+  "model": "din",
+  "note": "Geometry welded to nothing, dropped at load. Written by tools/audit-strays.mjs.",
+  "strays": [
+    {
+      "mesh": 0,
+      "primitive": 0,
+      "triangles": 1290,
+      "vertices": 763,
+      "shareOfModel": 1.09,
+      "sizeM": [
+        0.056,
+        0.078,
+        0.052
+      ],
+      "centreM": [
+        0.123,
+        0.846,
+        0.05
+      ],
+      "runs": [
+        [
+          30862,
+          31204
+        ],
+        [
+          35324,
+          35601
+        ],
+        [
+          38944,
+          39023
+        ],
+        [
+          39866,
+          39971
+        ],
+        [
+          40844,
+          41262
+        ],
+        [
+          43608,
+          43650
+        ],
+        [
+          50704,
+          50722
+        ],
+        [
+          119964,
+          119965
+        ]
+      ]
+    }
+  ]
+}

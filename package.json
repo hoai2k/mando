@@ -13,6 +13,7 @@
     "audit:spawns": "node tools/audit-spawns.mjs",
     "audit:hitboxes": "node tools/audit-hitboxes.mjs",
     "audit:props": "node tools/audit-props.mjs",
+    "audit:strays": "node tools/audit-strays.mjs",
     "audit:eggrack": "node tools/audit-eggrack.mjs"
   },
   "dependencies": {

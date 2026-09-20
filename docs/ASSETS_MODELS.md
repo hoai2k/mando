@@ -636,3 +636,54 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 | `cliff_pillar_rock`, `cliff_pillar_ice` | 2 | 8 m across at the base, 36 m tall (scaled per level) | The gap framers: the two tall pieces either side of every canyon mouth and rim gap, the thing every zone's guidance points at. A tapering, slightly leaning tower — sandstone strata for the rock one, a glacier serac for the ice one — with a readable silhouette at 80 m. The collider is a cylinder r 4.5 m over the full height; the sculpt may flare past it above 12 m (nothing reaches there). ≤ 3k tris, 1024² with the matching `cliff_*` texture family. |
 | `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
 | `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |
+
+## Stray geometry in a delivered sculpt (2026-09-20)
+
+Playtest: *"the (detached) floating sphere thing just behind one of Din
+Djarin's shoulders — that is a 3D model error."* It is. `din.glb` carries a
+**1,290-triangle ball**, 11 cm across once the character is scaled up, welded
+to no part of the body and sitting inside the same skinned mesh as everything
+else. It rides the shoulder wherever he goes, and nothing in the game can tell
+it from armour: it is in the file, on the same material, weighted to the same
+skeleton.
+
+**How it is found.** A sculpt is one connected surface. Weld each primitive's
+vertices by position first — a generated mesh splits them at every UV seam, so
+raw indices under-report what is joined — then take the connected pieces. What
+shares no edge with the surface the rest of the model is on, and is tiny beside
+it, belongs to nobody. `tools/audit-strays.mjs` does that for every file in
+`public/models`.
+
+**How it is fixed.** The same contract `skinfix` keeps: the files on disk stay
+exactly as delivered, and a fix file beside them says what to do at load.
+`public/models/strays/<id>.json` names the triangles as runs over the
+primitive's index order, and `src/characters/strays.ts` rebuilds the index
+without them when the model lands — before anything measures the model, since a
+lump off a shoulder is exactly what stretches a bounding sphere. Editing the
+`.glb` itself was the alternative and is worse on both counts: these files are
+meshopt-compressed, so rewriting the index means decompressing it (+1.3 MB on
+this model alone, with no encoder to put it back), and the edit would be lost
+the next time the model is redelivered. A re-run of the tool is not.
+
+**Detached is not the same as wrong.** Eleven of the eighty models have
+detached pieces, and most of them are intentional: the fish hanging on a
+`fish_rack`, symmetric pairs of lamps on the `tram` and the `survey_crawler`,
+details on the `freighter`. So the tool **reports** by default, and cutting a
+fix takes a model's name (`node tools/audit-strays.mjs din --write`) — a piece
+is only ever deleted after somebody has looked at it. The rest are listed below
+and want a look before anything is done to them:
+
+| model | pieces | triangles | note |
+|---|---|---|---|
+| `fish_rack` | 5 | 368 | almost certainly the fish |
+| `mythosaur` | 1 | 532 | 11 cm lump, worth a look |
+| `sandworm` | 1 | 472 | worth a look |
+| `freighter` | 2 | 180 | symmetric pair, likely detail |
+| `tram` | 2 | 106 | symmetric pair, likely detail |
+| `survey_crawler` | 2 | 84 | symmetric pair, likely detail |
+| `tusken_tent` | 1 | 60 | worth a look |
+| `trawler`, `cargo_crane`, `street_kiosk` | 1 each | 20, 16, 4 | too small to read |
+
+`tools/test-loading.mjs` holds the applied end of it — Din's body mesh comes
+out at 118,710 triangles with all 69,089 vertices still there — and the audit
+exits non-zero if a fix file stops matching the model it was cut for.
