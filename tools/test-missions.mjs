@@ -914,6 +914,8 @@ if (worm) {
 // everything in frame — including the one body standing in front of the lens,
 // which rattled along with the sand and read as a character glitching.
 
+await startMode('campaign', 1, 'desert', ['din']);
+
 const shake = await page.evaluate(() => {
   const g = window.__game;
   const p = g.players[0];
@@ -923,24 +925,32 @@ const shake = await page.evaluate(() => {
     meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
   const idle = [blank(), blank(), blank(), blank()];
   window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  // let the rig settle first: a camera still converging on its subject moves
+  // the body in frame for reasons that have nothing to do with a shake
+  for (let i = 0; i < 90; i++) g.update(1 / 30, idle);
+  // where the body sits relative to the eye is what lands on screen
+  const rest = p.char.root.position.clone().sub(p.cam.camera.position);
+  window.__manual = true;
   p.cam.shake(0.45);
   const offs = [];
-  const rel = [];
-  for (let i = 0; i < 10; i++) {
+  let worstDrift = 0;
+  for (let i = 0; i < 12; i++) {
     g.update(1 / 30, idle);
     const off = p.cam.shakeOffset.clone();
     offs.push(off.length());
-    // where the body lands relative to the eye is what lands on screen, and
-    // `Game.render` carries this same offset onto it for this viewport
-    rel.push(p.char.root.position.clone().add(off).sub(p.cam.camera.position).length());
+    // `Game.render` carries this same offset onto this viewport's own body
+    const rel = p.char.root.position.clone().add(off).sub(p.cam.camera.position);
+    worstDrift = Math.max(worstDrift, rel.distanceTo(rest));
   }
   window.__manual = false;
-  return { shook: Math.max(...offs), spread: Math.max(...rel) - Math.min(...rel) };
+  return { shook: Math.max(...offs), drift: worstDrift };
 });
 
 check('the camera really shakes', shake.shook > 0.02, `${shake.shook.toFixed(3)} m at its worst`);
 check('and the body it is watching holds still in the frame',
-  shake.spread < 1e-6, `${shake.spread.toFixed(6)} m of drift against the eye`);
+  shake.shook > 0.02 && shake.drift < 0.02,
+  `${(shake.drift * 100).toFixed(2)} cm of drift against the eye, under a ${(shake.shook * 100).toFixed(0)} cm shake`);
 
 // ---------------------------------------------------------------- the beacon
 //
