@@ -338,6 +338,119 @@ if (!miss.skipped) {
   check('missions: no parachutes indoors', miss.chutes === 0, miss.chutes);
 }
 
+// ---- Missions: the one outdoor fight that *is* a wave battle ----
+//
+// The rule above is the run's rule: open ground is held by whoever is standing
+// on it and nothing is flown in. A run still wants one of the other thing —
+// late, on a big piece of open ground, ships crossing the ceiling and putting
+// squads down — so `ZoneSpec.siege` marks the zones that get it.
+//
+// Both halves are checked, because each is only worth having if the other
+// holds. A siege that gets no ships is the feature not working; ordinary open
+// ground that *does* get them is the wave game creeping back in, which is the
+// thing the posted-garrison design was built to stop.
+// Nevarro, because that is where one of the two is: the Lava Flats' crossing,
+// the big open assault of its last stage. The Dune Sea the section above runs
+// on has none, and should not.
+await h.page.evaluate(() => {
+  window.__manual = false;
+  window.__quitToTitle?.();
+  window.__startMode('campaign', 1, 'nevarro', ['din']);
+});
+await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
+await h.page.evaluate(`(() => {
+  window.__manual = true;
+  (${STEP})(120);          // past the intro card, as above
+})()`);
+const siege = await h.page.evaluate(`(async () => {
+  const g = window.__game, c = g.campaign;
+  const blank = () => ({ moveX:0,moveY:0,lookX:0,lookY:0,jumpHeld:false,jumpPressed:false,
+    dashPressed:false,sprintHeld:false,shootHeld:false,aimHeld:false,meleePressed:false,
+    rocketPressed:false,slamPressed:false,zoomHeld:false,zoomDelta:0,blockHeld:false,
+    pausePressed:false,meleeSwapPressed:false,rangedSwapPressed:false });
+  const inputs = [blank(),blank(),blank(),blank()];
+  const step = (n) => { for (let i = 0; i < n; i++) g.update(1/30, inputs); };
+
+  const hold = (zone, idx) => {
+    c.idx = idx; c.phase = 'travel';
+    for (const p of g.players) {
+      p.position.set(zone.center.x, zone.center.y + 0.2, zone.center.z);
+      p.velocity.set(0,0,0); p.maxHp = 1e6; p.hp = 1e6; p.alive = true;
+    }
+    step(60);
+  };
+  // Shoot whatever is standing and report what brings the next lot, if
+  // anything does. Waited for, not timed: a carrier flies a real pass.
+  const nextWave = (idx) => {
+    const lead = g.players.find((p) => p.alive) ?? g.players[0];
+    for (const e of g.enemies) if (e.alive) e.damage(9999, lead.position, 0);
+    let carriers = 0, incoming = 0;
+    for (let n = 0; n < 200 && !g.enemies.some((e) => e.alive) && c.idx === idx; n++) {
+      step(10);
+      carriers = Math.max(carriers, g.carrierCount);
+      incoming = Math.max(incoming, g.incomingCount);
+    }
+    return { arrived: g.enemies.filter((e) => e.alive).length, carriers, incoming,
+      cleared: c.idx !== idx };
+  };
+  const find = (pick) => {
+    for (let s = 0; s < c.memory.length; s++) {
+      if (s) { c.enterStage(s, false); step(30); }
+      const i = c.stage.zones.findIndex(pick);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  // First, ordinary open ground — on this board it comes before the siege in
+  // walk order, so the same forward walk finds both. Its whole fight is
+  // posted: shoot it and the zone is done, with nothing called and no ship.
+  const oi = find((z) => z.spec.kind === 'assault' && !z.spec.siege
+    && ['open', 'canyon', 'road'].includes(z.spec.shell));
+  let ordinary = null;
+  if (oi >= 0) {
+    const oz = c.stage.zones[oi];
+    hold(oz, oi);
+    const held = c.waveCount;
+    const after = nextWave(oi);
+    ordinary = { label: oz.spec.label, shell: oz.spec.shell, waveCount: held,
+      waves: oz.spec.waves ?? 2, ...after };
+  }
+
+  // the siege zone: a holding force, and the rest arrives by air
+  const si = find((z) => z.spec.siege);
+  if (si < 0) return { err: 'no siege zone on this board' };
+  const zone = c.stage.zones[si];
+  const posted = (c.garrison.get(zone) ?? []).filter((e) => e.alive).length;
+  hold(zone, si);
+  const waveCount = c.waveCount;
+  const supplied = nextWave(si);
+  return { label: zone.spec.label, shell: zone.spec.shell, waves: zone.spec.waves,
+    posted, waveCount, supplied, ordinary };
+})()`);
+check('missions: the run\'s one wave battle holds with what is posted',
+  !siege.err && siege.posted > 0 && siege.waveCount === siege.waves,
+  { label: siege.label, shell: siege.shell, posted: siege.posted,
+    waveCount: siege.waveCount, of: siege.waves, err: siege.err });
+check('missions: ordinary open ground is held, never supplied',
+  !siege.err && siege.ordinary && siege.ordinary.waveCount === 1
+  && siege.ordinary.carriers === 0 && siege.ordinary.arrived === 0
+  && siege.ordinary.cleared, siege.ordinary);
+check('missions: ...and the rest of it comes in by ship',
+  !siege.err && siege.supplied && siege.supplied.carriers > 0
+  && siege.supplied.arrived > 0 && !siege.supplied.cleared, siege.supplied);
+
+// ---- ...and it stays rare ----
+// A wave battle is a beat, not the run. Counted across every territory rather
+// than trusted to stay rare on its own: the check that keeps this from
+// becoming the thing it was introduced as an exception to.
+const zones = await h.page.evaluate(() => window.__missionZones());
+const sieges = zones.filter((z) => z.siege);
+const outdoor = zones.filter((z) => ['open', 'canyon', 'road'].includes(z.shell));
+check('missions: a wave battle is rare, and outdoors',
+  sieges.length > 0 && sieges.length <= 3 && sieges.every((z) => z.shell === 'open'),
+  { sieges: sieges.map((z) => `${z.board} ${z.label}`), ofOutdoor: outdoor.length });
+
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();
 if (failures.length || h.errors.length) {

@@ -264,7 +264,13 @@ const nevarro: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.nevarro[2],
     zones: [
-      z('nevarro', 6, { shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'lava', pass: true, air: true }),
+      // The run's wave battle. Fifty metres of black glass cut by lava, the
+      // last big piece of open ground before the warlord's, and the one place
+      // a Nevarro run watches ships come in and put squads on the floor.
+      z('nevarro', 6, {
+        shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3,
+        feature: 'lava', pass: true, air: true, siege: true,
+      }),
       z('nevarro', 7, { shell: 'canyon', kind: 'camp', w: 16, l: 50, alcove: true }),
       z('nevarro', 8, { shell: 'open', kind: 'warlord', w: 76, l: 66, feature: 'barrels' }),
     ],
@@ -296,7 +302,9 @@ const crevasse: StageSpec[] = [
     zones: [
       z('crevasse', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
       z('crevasse', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
-      z('crevasse', 5, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true }),
+      // The other one: the ice shelf under the open sky, out of the halls and
+      // before the last camp. Two in the game, and this is the second.
+      z('crevasse', 5, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true, siege: true }),
       z('crevasse', 6, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
       z('crevasse', 7, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
     ],

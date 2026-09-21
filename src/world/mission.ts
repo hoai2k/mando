@@ -81,6 +81,27 @@ export interface ZoneSpec {
   l: number;
   /** assault rooms: how many sealed waves the zone runs */
   waves?: number;
+  /**
+   * Open ground fought for in waves, supplied from the air.
+   *
+   * The rule outdoors is the opposite of this and should stay that way: ground
+   * is held by whoever is standing on it, posted before the party arrives,
+   * nothing flown in. A run that is wave after wave is a wave game wearing a
+   * campaign's clothes, and a playtest said as much.
+   *
+   * But a wave battle is a *different beat*, and a run wants one. Late, on a
+   * big piece of open ground, with ships crossing the ceiling and letting
+   * squads fall out of them: the fight is sequenced, you can see the next one
+   * coming, and the ground you are holding is worth holding because something
+   * is being committed to take it from you.
+   *
+   * So: outdoors only, and rare — two zones in the game carry it, both the
+   * large open assault of their territory's last stage. A siege zone posts a
+   * holding force rather than its whole fight (the waves are the fight) and
+   * runs `waves` of them, which is what every sealed zone does and what no
+   * other outdoor zone does.
+   */
+  siege?: boolean;
   feature?: ZoneFeature;
   /** a bacta niche off one side (halls) or a side crack (canyons) */
   alcove?: boolean;

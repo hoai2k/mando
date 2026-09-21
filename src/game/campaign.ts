@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Game } from './game';
 import {
   buildStage, MISSION_LAYOUTS, PORTAL_POCKET,
-  type MissionStage, type MissionZone, type Portal, type Shell,
+  type MissionStage, type MissionZone, type Portal, type Shell, type ZoneSpec,
 } from '../world/mission';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
@@ -64,6 +64,22 @@ const HATCH_CLEAR = 4;
  * in is the room doing what it was built to do.
  */
 const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
+/**
+ * Does this zone get reinforcements, or is its whole fight already standing
+ * in it?
+ *
+ * One question, because it settles two things that must agree: how many are
+ * posted at stage raise, and how many waves the zone runs. A zone that is
+ * supplied posts a holding force and calls the rest; a zone that is not posts
+ * the lot and calls nothing. Answering them apart is how a zone ends up with
+ * a full outdoor garrison *and* three waves on top of it.
+ *
+ * Sealed by a roof or a void — a hall, a deck — is supplied by definition.
+ * Open ground is not, unless the layout says `siege`, which is the one
+ * deliberate wave battle a run is allowed (see `ZoneSpec.siege`).
+ */
+const supplied = (spec: ZoneSpec): boolean =>
+  !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
 /** stand this close to the objective and its column goes out — you are there */
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
@@ -298,17 +314,19 @@ export class Campaign implements MissionController {
         // so the fight is the same size it always was; what changed is where
         // it was standing when you walked in.
         const waves = zone.spec.waves ?? 2;
-        const size = OUTDOOR_SHELLS.has(zone.spec.shell)
+        const size = !supplied(zone.spec)
           // Under the sky the whole fight is posted at once and nothing is
           // ever flown in. It does not all come at you at once either: a
           // fifty-metre zone holds its back rank out of the fight until you
           // push into it, so what bounded the numbers before — calling the
           // next wave — is now the ground itself.
           ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + (waves - 1) * 2)
-          // A sealed room is small enough that everyone in it is in the fight
+          // A supplied zone posts a holding force and is sent the rest. A
+          // sealed room is small enough that everyone in it is in the fight
           // from the first second, so it keeps its reinforcements — which is
-          // what the wall hatches are for, and the one place a wave still
-          // reads as a wave rather than as a spawn.
+          // what the wall hatches are for. A siege is the same bargain struck
+          // on open ground: what is standing there when you arrive is what
+          // holds it, and the ships bring what takes it back.
           : Math.min(12, 3 + this.rampWave(zone.beat) + game.players.length);
         const held = [...zone.posts, ...zone.sideVents];
         this.garrison.set(zone,
@@ -835,9 +853,10 @@ export class Campaign implements MissionController {
         // you already cleared is its own worse fight.
         if (zone.spec.shell === 'hall') zone.entryBarrier?.close();
         zone.exitBarrier?.close();
-        // Outdoors the posted force is the whole fight; indoors it is the
-        // first of them and the hatches supply the rest.
-        this.waveCount = OUTDOOR_SHELLS.has(zone.spec.shell) ? 1 : (zone.spec.waves ?? 2);
+        // Outdoors the posted force is the whole fight; a supplied zone —
+        // a room, a deck, or the one open siege a run is allowed — holds with
+        // what is standing there and is sent the rest.
+        this.waveCount = supplied(zone.spec) ? (zone.spec.waves ?? 2) : 1;
         // Whoever was already holding this ground is the first wave. They are
         // standing in it when you arrive, so nothing has to be flown in to
         // start the fight — and the zone's budget is unchanged, because the

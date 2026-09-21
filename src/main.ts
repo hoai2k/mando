@@ -26,6 +26,8 @@ import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type Playab
 import { authoredCached, releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
 import { fitStats } from './world/collide';
+import { MISSION_LAYOUTS } from './world/mission-layouts';
+import type { StageSpec, ZoneSpec } from './world/mission';
 import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
@@ -800,6 +802,14 @@ Object.assign(window, {
   // against a rule — that everyone is armed in both hands, for one
   __playables: () => PVP_ROSTER.map((id) => playableDef(id)),
   __boardProps: () => BOARD_PROPS,
+  // Every territory's zone list, flat, for a test that has something to say
+  // about the shape of the whole run rather than about one stage of one board
+  // — that a wave battle is rare, for one.
+  __missionZones: () => Object.entries(MISSION_LAYOUTS).flatMap(([board, spec]) =>
+    spec.stages.flatMap((st: StageSpec, si: number) => st.zones.map((zn: ZoneSpec) => ({
+      board, stage: si, label: zn.label, shell: zn.shell, kind: zn.kind,
+      waves: zn.waves ?? null, siege: !!zn.siege,
+    })))),
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
     if (boardId) chosenBoard = BOARDS.find((b) => b.id === boardId) ?? chosenBoard;
