@@ -135,11 +135,22 @@ if (land.landings > 0) {
     land.stillArriving === 0 && land.incoming === 0 && land.bad === 0 && land.arrived > 0, land);
 }
 
-// ---- Missions: a sealed room's waves come in by transport too ----
-// A mission level is a chain of walled rooms with the open sky above them, so
-// the same carrier pass serves it. What has to hold is that the room is not
-// declared clear while its defenders are still aboard, and that they end up on
-// the room's floor rather than wherever the fall took them.
+// ---- Missions: a sealed room is held, and its hatches supply the rest ----
+//
+// This section used to read "a sealed room's waves come in by transport too",
+// and that stopped being true when Missions changed what a wave *is*. Ground
+// is now held by whoever is standing on it: an assault zone's force is posted
+// across it at stage raise, and entering counts that standing force as the
+// first wave, so nothing has to be flown in to start a fight. Outdoors that is
+// the whole of it — `waveCount` is 1 under the sky and no carrier ever comes.
+// A roofed hall keeps its reinforcements, because a hatch opening in a room
+// you are locked into is the room doing what it was built for: later waves are
+// posted in the closets behind the wall hatches and the doors open.
+//
+// So this asks the sealed room's version of the same three questions the
+// transport version asked. Is the ground held before you get there; is the
+// room refused a clear while it still owes a wave; and does that wave end up
+// on the room's floor rather than wherever it was put.
 await h.page.evaluate(() => {
   window.__quitToTitle?.();
   window.__startMode('campaign', 1, 'desert', ['din']);
@@ -176,15 +187,24 @@ const miss = await h.page.evaluate(`(async () => {
   // this whole section without saying so. Walk the chain to the first stage
   // that has one — \`enterStage\` is the transport door's own path, and lowers
   // the stage it leaves before raising the next.
+  //
+  // A **hall** assault, specifically. The shell is what decides how a wave
+  // arrives now, and only a roofed one has hatches to send anything through;
+  // an outdoor assault posts its whole fight and calls nothing, which is the
+  // design and not a thing this section can measure. Taking the first assault
+  // of any shell is what put this on the Dune Sea's canyon and failed the
+  // nightly with "called the wave, nobody came" — quite right, nobody was
+  // coming.
   const areas = () => (c.stage ? c.stage.zones : c.level.rooms);
-  const findAssault = () => areas().findIndex((r) => r.spec.kind === 'assault');
-  let i = findAssault();
-  const kinds = [areas().map((r) => r.spec.kind).join('/')];
+  const sealedRoom = (r) => r.spec.kind === 'assault' && r.spec.shell === 'hall';
+  const findRoom = () => areas().findIndex(sealedRoom);
+  let i = findRoom();
+  const kinds = [areas().map((r) => r.spec.shell + ':' + r.spec.kind).join(' ')];
   for (let s = 1; i < 0 && c.stage && s < c.memory.length; s++) {
     c.enterStage(s, false);
     (${STEP})(30);
-    i = findAssault();
-    kinds.push(areas().map((r) => r.spec.kind).join('/'));
+    i = findRoom();
+    kinds.push(areas().map((r) => r.spec.shell + ':' + r.spec.kind).join(' '));
   }
   if (i < 0) return { skipped: true, kinds };
   const rooms = areas();
@@ -196,6 +216,18 @@ const miss = await h.page.evaluate(`(async () => {
   const floorAt = c.stage
     ? (x, z) => c.stage.groundAt(x, z)
     : () => c.level.floorY;
+  const inRoom = (e) => e.position.x >= room.rect.minX - 2 && e.position.x <= room.rect.maxX + 2
+    && e.position.z >= room.rect.minZ - 2 && e.position.z <= room.rect.maxZ + 2;
+
+  // ---- 1. the ground is held before you reach it ----
+  // Read before the party is anywhere near: this force is posted at stage
+  // raise, not summoned by arriving. That is the whole of the change this
+  // section was rewritten for, so it is worth an assertion of its own rather
+  // than being assumed by the ones below.
+  const heldBefore = (c.garrison.get(room) ?? []).filter((e) => e.alive).length;
+  const hatches = room.hatches.length;
+  const shutBefore = room.hatches.filter((x) => x.gate.closed).length;
+
   // stand the party in the middle of that room and let the seal happen
   c.idx = i;
   c.phase = 'travel';
@@ -205,48 +237,66 @@ const miss = await h.page.evaluate(`(async () => {
     p.hp = p.maxHp;
     p.alive = true;
   }
-  for (const e of g.enemies) e.removeMe = true;
   (${STEP})(60);
   const calledWave = c.phase === 'fight';
-  // the transport is inbound: nothing on the field, and the room must hold
+  // ---- 2. ...and that standing force is the first wave ----
+  // Nothing is in the sky over a room: no carrier, nobody mid-arrival. The
+  // fight starts because the men holding it are already in it.
+  const firstWave = g.enemies.filter((e) => e.alive && inRoom(e)).length;
+  const flownIn = g.carrierCount;
   const inboundBefore = g.incomingCount;
-  const carriers = g.carrierCount;
+
+  // ---- 3. cut the standing force down and the hatches supply the rest ----
+  // The zone owes another wave (\`waveCount\` is the hall's \`waves\`, 2 by
+  // default) and may not call itself clear until it has sent it.
+  //
+  // Killed, not deleted. \`removeMe\` takes a body out of \`game.enemies\` and
+  // leaves \`alive\` where it was, and the next wave is owed on
+  // \`zoneForce.every(e => !e.alive)\` — which stayed false forever against a
+  // force that had been spirited away rather than beaten. Shooting them is
+  // also the only way a room is cleared in play.
+  const lead = g.players.find((p) => p.alive) ?? g.players[0];
+  for (const e of g.enemies) if (e.alive) e.damage(9999, lead.position, 0);
   (${STEP})(20);
   const clearedEarly = c.idx !== i;
-
-  // fly it in
   let chutes = 0;
-  for (let n = 0; n < 120 && (g.incomingCount > 0 || g.enemies.some((e) => e.alive && e.arriving)); n++) {
-    (${STEP})(10);
-    for (const e of g.enemies) {
-      if (!e.alive || !e.arriving) continue;
-      e.char.root.traverse((o) => {
-        if (o.isMesh && o.geometry?.type === 'SphereGeometry' && o.material?.side === 2) chutes++;
-      });
-    }
+  for (let n = 0; n < 120 && !g.enemies.some((e) => e.alive); n++) (${STEP})(10);
+  for (const e of g.enemies) {
+    if (!e.alive) continue;
+    e.char.root.traverse((o) => {
+      if (o.isMesh && o.geometry?.type === 'SphereGeometry' && o.material?.side === 2) chutes++;
+    });
   }
-  // The loop above stops the moment nobody is flagged as arriving, which is
-  // the moment the transport lets go — not the moment the last man is standing
-  // on the floor. Read there, a body still a few metres into its drop counts
-  // as one that landed somewhere it should not have: offFloor came back 1-of-6
-  // about one run in four, on a squad that was about to land perfectly well.
-  //
-  // So let the fall finish — and only the fall. Stepping a flat couple of
-  // seconds instead would work too, and would also hand the room's firefight
-  // two seconds it did not have: the squad this check is about was down to one
-  // or two men by the time anyone measured them, which passes and means
-  // nothing. This stops the moment the last of them is down.
+  // The doors are asked to open on the frame the wave is posted and take about
+  // three quarters of a second to travel, so \`closed\` is still true the
+  // instant the men appear. Waited for rather than timed.
+  for (let n = 0; n < 90 && room.hatches.some((x) => x.gate.closed); n++) (${STEP})(2);
+  const openedHatches = room.hatches.filter((x) => !x.gate.closed).length;
+  // A hatch wave is put on the floor rather than dropped onto it, so there is
+  // no fall to wait out — but wait for one anyway, and only for as long as it
+  // takes. Stepping a flat couple of seconds instead would work and would also
+  // hand the room's firefight two seconds it did not have: the squad this
+  // check is about was down to one or two men by the time anyone measured
+  // them, which passes and means nothing. This stops the moment they are down,
+  // which for a hatch wave is the first look.
   const down = () => g.enemies.filter((e) => e.alive)
     .every((e) => Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) <= 2);
   for (let n = 0; n < 60 && !down(); n++) (${STEP})(2);
   const alive = g.enemies.filter((e) => e.alive);
   const r = room.rect;
+  // A hatch is a door in a side wall with a *closet* behind it, and the post a
+  // body is put on is that closet — 3.2 m beyond the room's own wall by
+  // construction. So a man who has just come through one is briefly outside
+  // the rect and entirely where he should be. Legal is: in the room, or still
+  // stepping out of the hatch he was posted in.
+  const atAHatch = (e) => room.hatches.some((x) =>
+    Math.hypot(e.position.x - x.post.x, e.position.z - x.post.z) < 5);
   let outside = 0, offFloor = 0;
   for (const e of alive) {
     // two metres of slack: the wall itself is a metre thick and a body can
     // settle with its centre just inside it
-    if (e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
-      || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2) outside++;
+    if ((e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
+      || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2) && !atAHatch(e)) outside++;
     if (Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) > 2) offFloor++;
   }
   // Where the strays actually are, not just how many: a body four metres up
@@ -255,24 +305,33 @@ const miss = await h.page.evaluate(`(async () => {
   // reading of this after the wrong one.
   const strays = alive
     .filter((e) => Math.abs(e.position.y - floorAt(e.position.x, e.position.z)) > 2
-      || e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
-      || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2)
+      || ((e.position.x < r.minX - 2 || e.position.x > r.maxX + 2
+        || e.position.z < r.minZ - 2 || e.position.z > r.maxZ + 2) && !atAHatch(e)))
     .map((e) => e.kind + ' at ' + e.position.x.toFixed(1) + ',' + e.position.z.toFixed(1)
       + ' ' + (e.position.y - floorAt(e.position.x, e.position.z)).toFixed(1) + ' m up');
-  return { strays, calledWave, inboundBefore, carriers, clearedEarly, chutes,
+  return { strays, calledWave, heldBefore, hatches, shutBefore, firstWave,
+    flownIn, inboundBefore, clearedEarly, chutes, openedHatches,
     arrived: alive.length, stillArriving: alive.filter((e) => e.arriving).length,
     incoming: g.incomingCount, outside, offFloor };
 })()`);
 // Not a silent skip. This section stopped running at all when the level
 // builder changed under it, and a section that quietly runs no checks looks
 // exactly like a section that passed.
-check('missions: the run has an assault room to seal', !miss.skipped,
+check('missions: the run has a sealed room to fight in', !miss.skipped,
   miss.skipped ? `no assault zone in ${miss.kinds.join(' | ')}` : 'found');
 if (!miss.skipped) {
-  check('missions: a sealed room calls its wave by transport',
-    miss.calledWave && miss.carriers > 0 && miss.inboundBefore > 0, miss);
-  check('missions: the room is not cleared while the squad is still aboard',
+  check('missions: the room is held before the party reaches it',
+    miss.heldBefore > 0 && miss.hatches > 0 && miss.shutBefore === miss.hatches,
+    { heldBefore: miss.heldBefore, hatches: miss.hatches, shut: miss.shutBefore });
+  check('missions: entering seals it, and the men standing in it are the wave',
+    miss.calledWave && miss.firstWave > 0 && miss.flownIn === 0 && miss.inboundBefore === 0,
+    { calledWave: miss.calledWave, firstWave: miss.firstWave,
+      carriers: miss.flownIn, inbound: miss.inboundBefore });
+  check('missions: the room is not cleared while it still owes a wave',
     !miss.clearedEarly, miss);
+  check('missions: and the hatches supply that wave',
+    miss.arrived > 0 && miss.openedHatches > 0,
+    { arrived: miss.arrived, opened: miss.openedHatches, of: miss.hatches });
   check('missions: the squad lands on the room floor',
     miss.arrived > 0 && miss.stillArriving === 0 && miss.incoming === 0
     && miss.outside === 0 && miss.offFloor === 0, miss);
