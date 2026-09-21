@@ -830,6 +830,207 @@ for (const flag of ['?missions=old', '?backup=missions']) {
   check(`${flag} runs without a ceiling over it`, legacy.ceiling === null, String(legacy.ceiling));
 }
 
+// ---------------------------------------------------------------- what a hit is worth
+//
+// The bolt is 34 and a swing is 32. For most of the roster's life the mooks
+// sat just over both — a Tusken at 80 was three bolts, which on the first
+// board is a rifle that does not work.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const lethality = await page.evaluate(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const hits = (kind) => {
+    const e = g.addReinforcement(kind, p.position.clone(), 4242);
+    if (!e) return null;
+    let n = 0;
+    while (e.alive && n < 20) { e.damage(p.profile.boltDamage, p.position, 0); n++; }
+    e.removeMe = true;
+    return n;
+  };
+  const out = { bolt: p.profile.boltDamage, swing: p.profile.meleeDamage, unarmored: {}, armored: {} };
+  for (const k of ['tusken', 'pyke', 'pirate', 'nikto', 'alamite', 'krykna']) out.unarmored[k] = hits(k);
+  for (const k of ['stormtrooper', 'deathtrooper', 'officer']) out.armored[k] = hits(k);
+  return out;
+});
+
+const softest = Object.entries(lethality.unarmored).filter(([, n]) => n !== null && n > 1);
+check('an unarmored hostile goes down to one bolt',
+  softest.length === 0,
+  softest.length ? softest.map(([k, n]) => `${k} ${n}`).join(', ')
+    : Object.entries(lethality.unarmored).map(([k, n]) => `${k} ${n}`).join(' · '));
+check('and armour is worth something',
+  Object.values(lethality.armored).every((n) => n === null || n >= 2),
+  Object.entries(lethality.armored).map(([k, n]) => `${k} ${n}`).join(' · '));
+
+// ---------------------------------------------------------------- the worm
+//
+// A burrower is untouchable under the sand and a body out of it, and the line
+// between those was drawn at the wrong place: `submerged` read which leg of
+// the cycle it was on, so the whole of the 0.8 s sink was unhittable while the
+// animal was still standing in front of you.
+
+const worm = await page.evaluate(async () => {
+  const g = window.__game;
+  const p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  const w = g.addReinforcement('sandworm', p.position.clone().add(new g.players[0].position.constructor(12, 0, 0)), 777);
+  if (!w) return null;
+  window.__manual = true;
+  const states = new Set();
+  let outButUntouchable = 0;
+  for (let i = 0; i < 900; i++) {
+    g.update(1 / 30, idle);
+    states.add(w.burrow);
+    // more of it out of the sand than in, and yet not a thing you can hit
+    if (w.burrowDepth < 0.5 && w.submerged) outButUntouchable++;
+  }
+  let meshes = 0, culled = 0;
+  w.char.root.traverse((o) => { if (o.isMesh) { meshes++; if (o.frustumCulled) culled++; } });
+  const parts = w.hitParts.length;
+  w.removeMe = true;
+  window.__manual = false;
+  return { states: [...states], outButUntouchable, meshes, culled, parts };
+});
+
+if (worm) {
+  check('a worm with more of it out than in is a body you can hit',
+    worm.outButUntouchable === 0 && worm.states.includes('sinking'),
+    `${worm.outButUntouchable} frame(s) out but untouchable · cycle ${worm.states.join(',')}`);
+  check('and it is never culled out of the frame while it is on screen',
+    worm.meshes > 0 && worm.culled === 0, `${worm.culled} of ${worm.meshes} meshes culled`);
+  check('a blade reaches the body a bolt aims at',
+    worm.parts > 0, `${worm.parts} hit volume(s) beyond the chest sphere`);
+}
+
+// ---------------------------------------------------------------- the shake
+//
+// A shake is the world lurching. Translating the camera says that about
+// everything in frame — including the one body standing in front of the lens,
+// which rattled along with the sand and read as a character glitching.
+
+const shake = await page.evaluate(() => {
+  const g = window.__game;
+  const p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.cam.shake(0.45);
+  const offs = [];
+  const rel = [];
+  for (let i = 0; i < 10; i++) {
+    g.update(1 / 30, idle);
+    const off = p.cam.shakeOffset.clone();
+    offs.push(off.length());
+    // where the body lands relative to the eye is what lands on screen, and
+    // `Game.render` carries this same offset onto it for this viewport
+    rel.push(p.char.root.position.clone().add(off).sub(p.cam.camera.position).length());
+  }
+  window.__manual = false;
+  return { shook: Math.max(...offs), spread: Math.max(...rel) - Math.min(...rel) };
+});
+
+check('the camera really shakes', shake.shook > 0.02, `${shake.shook.toFixed(3)} m at its worst`);
+check('and the body it is watching holds still in the frame',
+  shake.spread < 1e-6, `${shake.spread.toFixed(6)} m of drift against the eye`);
+
+// ---------------------------------------------------------------- the beacon
+//
+// The guide column was lit whenever nobody was standing on it, so walking
+// three paces off an objective brought it straight back up — which reads as a
+// checkpoint respawning, and most often while the fight it belongs to is still
+// running.
+
+const column = await page.evaluate(() => {
+  const g = window.__game;
+  const c = g.campaign;
+  const p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  let col = null;
+  g.scene.traverse((o) => {
+    if (!col && o.isMesh && o.geometry?.type === 'CylinderGeometry'
+      && o.geometry.parameters?.height === 60) col = o;
+  });
+  if (!col) return null;
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  let reaches = 0, wasReached = false, relit = 0, away = 0;
+  for (let i = 0; i < 1200; i++) {
+    // a minute of standing on the objective and walking well off it again
+    const obj = c.objectivePos;
+    const onIt = Math.floor(i / 60) % 2 === 0;
+    if (onIt) p.position.set(obj.x, obj.y + 0.5, obj.z);
+    else { p.position.set(obj.x + 26, obj.y + 0.5, obj.z + 26); away++; }
+    g.update(1 / 30, idle);
+    if (c.beaconReached && !wasReached) reaches++;
+    wasReached = c.beaconReached;
+    // lit again for an objective it has already been walked up to
+    if (c.beaconReached && c.beaconDone.distanceTo(c.objectivePos) <= 7 && col.visible) relit++;
+  }
+  window.__manual = false;
+  return { reaches, relit, away };
+});
+
+if (column) {
+  check('a beacon that has been reached stays reached',
+    column.reaches > 0 && column.relit === 0,
+    `reached ${column.reaches}x, lit again ${column.relit}x over ${column.away} frames spent away from it`);
+}
+
+// ---------------------------------------------------------------- the door
+//
+// A transport door raises a whole level inside one frame, and whatever that
+// stage asks for is asked for at that moment. The run holds behind the veil
+// until it is dressed.
+
+const door = await page.evaluate(async () => {
+  const g = window.__game;
+  const c = g.campaign;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  c.idx = c.stage.zones.length;
+  c.phase = 'travel';
+  for (const e of g.enemies) e.removeMe = true;
+  for (let i = 0; i < 120; i++) g.update(1 / 30, idle);
+  const was = c.stageIdx;
+  const portal = c.stage.exitPortal;
+  let held = 0, veil = false, frozenAt = null;
+  for (let i = 0; i < 900; i++) {
+    if (i % 20 === 0 && c.stageIdx === was) for (const p of g.players) p.position.copy(portal.threshold);
+    g.update(1 / 30, idle);
+    if (c.settlingStage) {
+      veil = true;
+      held++;
+      // nothing runs behind the veil: the zone flow is frozen
+      if (frozenAt === null) frozenAt = c.idx;
+    }
+    if (c.stageIdx !== was && veil && !c.settlingStage) break;
+  }
+  window.__manual = false;
+  return { crossed: c.stageIdx !== was, veil, held, stage: c.stage.spec.label };
+});
+
+check('a transport door holds the run while the next stage is dressed',
+  door.crossed && door.veil, `${door.held} frame(s) held, arrived at ${door.stage}`);
+check('and lets it go once the stage is ready',
+  door.crossed && door.held < 240, `${door.held} frame(s) — the cap is 240`);
+
 // ---------------------------------------------------------------- the road
 //
 // Everything from here down moves the party about, empties zones and walks the
