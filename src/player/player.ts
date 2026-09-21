@@ -325,6 +325,18 @@ const ARM_KICK = 0.06;
 /** the kick's peak, radians — the shoulder rolls the muzzle up and rides it down */
 const ARM_KICK_ANGLE = 0.16;
 /** how much of the camera pitch the chest takes when aiming; the rest is the arms' fixed pose */
+/** how fast the body comes round to where it is going, out of a fight */
+const TURN_RATE = 14;
+/**
+ * ...and inside a swing, where it is slower.
+ *
+ * A strike has weight and a direction it was aimed in, so it cannot spin on
+ * the spot — but it cannot be a rail either, or a melee fight is fought facing
+ * one way. At this rate a swing comes round about ninety degrees over its own
+ * length: enough to follow a target that moves, not enough to whip round and
+ * land somewhere the player never pointed.
+ */
+const MELEE_TURN = 6;
 const AIM_PITCH_SHARE = 0.6;
 /** the chest will not fold further than this either way, radians */
 const AIM_PITCH_MAX = 0.55;
@@ -2069,13 +2081,41 @@ export class Player {
       : input, game);
   }
 
-  /** where the chest points: the camera in a fight, the direction of travel otherwise */
+  /**
+   * Where the body points: square to the camera in the stances that need it,
+   * and where it is going the rest of the time.
+   *
+   * **A swing is not one of those stances** (2026-09-21). Holding the body
+   * square to the camera for the length of every melee attack meant a fight at
+   * blade range was fought entirely sideways: swings chain, so `meleeTimer` is
+   * up almost continuously, and the legs ran the strafe cycle while the player
+   * circled a target they could never turn away from. Playtest: *"for melee
+   * they need to be able to turn while fighting."*
+   *
+   * So a swing turns with the stick like everything else — only heavier.
+   * `MELEE_TURN` is the rate: a committed strike still lands roughly where it
+   * was aimed (the lunge points the body at its target as the swing starts),
+   * but a player leaning on the stick brings it round, and the blade goes where
+   * the body does — `updateCombat` measures its arc off this same yaw.
+   *
+   * What stays square: **aiming**, which is the strafe stance and the way to
+   * ask for one, and **blocking**, because a shield has to face what it is
+   * stopping. Firing from the hip stays square too — guns are unchanged.
+   */
   private updateFacing(dt: number, input: FrameInput, speed2: number): void {
-    const combatFacing = this.blocking || input.aimHeld || input.shootHeld || this.meleeTimer > 0 || this.weapon === 'blaster' && this.fireCd > -0.6;
+    const squareToCamera = this.blocking || input.aimHeld || input.shootHeld
+      || this.weapon === 'blaster' && this.fireCd > -0.6;
     let targetYaw = this.facingYaw;
-    if (combatFacing) targetYaw = this.cam.yaw;
-    else if (speed2 > 0.8) targetYaw = Math.atan2(this.velocity.x, this.velocity.z);
-    this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
+    let turn = TURN_RATE;
+    if (squareToCamera) targetYaw = this.cam.yaw;
+    else if (speed2 > 0.8) {
+      targetYaw = Math.atan2(this.velocity.x, this.velocity.z);
+      // Standing still mid-swing holds the aim it was struck at: there is no
+      // travel to turn toward, and a stationary strike that drifts is a strike
+      // that misses what the player pointed it at.
+      if (this.meleeTimer > 0) turn = MELEE_TURN;
+    }
+    this.facingYaw = dampAngle(this.facingYaw, targetYaw, turn, dt);
   }
 
   /** which clips the body plays for what it is doing */

@@ -412,3 +412,41 @@ afterwards. With contact now reliable that window was reliably open, so the
 press meant as "roll" was taken as "jump" and the body climbed instead of
 tumbling. The fighter was behaving correctly; the test now falls for longer
 than the window before asking for the roll.
+
+## Which way the body points in a fight (2026-09-21)
+
+Playtest: *"for melee they need to be able to turn while fighting."*
+
+A melee swing used to hold the body square to the camera for its whole
+duration, along with aiming, blocking and firing. Swings chain — `meleeTimer`
+is up almost continuously through a fight at blade range — so the effect was
+that the entire melee game was fought sideways: the legs ran the strafe cycle,
+the body faced wherever the camera did, and a player circling a target could
+never turn to face it.
+
+**The rule now.** Two stances hold the body square to the camera, and both are
+asked for: **aiming**, which *is* the strafe stance, and **blocking**, because
+a shield has to face what it is stopping. Firing from the hip keeps it too —
+guns are unchanged, and a bolt leaves a muzzle whose position turns with the
+body. Everything else, a swing included, turns toward where it is going.
+
+**A swing turns heavier than a free step.** `MELEE_TURN` (6, against the
+ordinary 14) brings the body round about ninety degrees over a swing's own
+length: enough to follow a target that moves, not enough to whip round and land
+somewhere the player never pointed. The lunge still snaps the body onto its
+target as the strike begins, and the blade's arc is measured off the same yaw,
+so steering the swing steers what it hits — which is the point.
+
+Measured, running left at full speed and swinging throughout:
+
+| stance | body vs camera | body vs travel | legs |
+|---|---|---|---|
+| swinging | 90° | **0°** | `runLower` |
+| swinging, running backward | 180° | **0°** | `runLower` |
+| aiming | **0°** | 90° | `strafeLLower` |
+| firing from the hip | **0°** | 90° | `strafeLLower` |
+| blocking | **0°** | 90° | — |
+
+Strikes still land where they are aimed: a swing thrown at a target dead ahead,
+60° off the camera and 180° behind all connect, with the body turning to meet
+each one. `tools/check-gait.mjs` holds all of it.

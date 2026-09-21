@@ -174,6 +174,67 @@ check('the planted foot stands on the ground while the body goes past',
 check('...and the swinging foot travels faster than the body, to catch up',
   plant.swinging > plant.body, `${plant.swinging} m/s against ${plant.body}`);
 
+// ---------------------------------------------------------------- the stance
+
+// Which way the body points while it is moving, and which cycle the legs run
+// for it. Playtest, 2026-09-21: *"for melee they need to be able to turn while
+// fighting."* A swing used to hold the body square to the camera, and since
+// swings chain, a whole melee fight was fought sideways on the strafe cycle.
+// Aiming is the stance that asks for that, and blocking keeps it because a
+// shield has to face what it stops; a swing turns with the stick.
+const stance = await page.evaluate(([BLANK]) => {
+  const g = window.__game, p = g.players[0];
+  const pad = (o) => [{ ...BLANK, ...o }, { ...BLANK }, { ...BLANK }, { ...BLANK }];
+  const norm = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const deg = (r) => +((r * 180) / Math.PI).toFixed(0);
+  window.__manual = true;
+  for (const e of g.enemies) e.removeMe = true;
+  const dt = 1 / 60;
+  const run = (label, over, swing) => {
+    p.hp = p.maxHp = 1e6;
+    p.position.set(-40, g.board.physics.groundHeight(-40, 0, 40) + 0.2, 0);
+    p.velocity.set(0, 0, 0);
+    p.cam.yaw = Math.PI / 2;
+    p.facingYaw = Math.PI / 2;
+    const clips = new Set();
+    for (let i = 0; i < 120; i++) {
+      g.update(dt, pad({ ...over, meleePressed: swing && i % 30 === 0 }));
+      const c = p.char.animator?.playing('lower');
+      if (c && c !== 'airLower') clips.add(c);
+    }
+    return { label,
+      offCamera: Math.abs(deg(norm(p.facingYaw - p.cam.yaw))),
+      offTravel: Math.abs(deg(norm(p.facingYaw - Math.atan2(p.velocity.x, p.velocity.z)))),
+      clip: p.char.animator?.playing('lower'), clips: [...clips].join(',') };
+  };
+  const out = {
+    swingLeft: run('swinging, running left', { moveX: -1 }, true),
+    swingBack: run('swinging, running back', { moveY: -1 }, true),
+    aimLeft: run('aiming, running left', { moveX: -1, aimHeld: true }, false),
+    fireLeft: run('firing, running left', { moveX: -1, shootHeld: true }, false),
+    blockLeft: run('blocking, running left', { moveX: -1, blockHeld: true }, false),
+  };
+  window.__manual = false;
+  return out;
+}, [blankInput()]);
+
+for (const k of Object.keys(stance)) {
+  const r = stance[k];
+  console.log(`  ${r.label}: ${r.offCamera}° off the camera, ${r.offTravel}° off travel, legs on ${r.clip}`);
+}
+check('a swing turns with the stick instead of holding square to the camera',
+  stance.swingLeft.offTravel <= 5 && stance.swingBack.offTravel <= 5,
+  JSON.stringify([stance.swingLeft.offTravel, stance.swingBack.offTravel]));
+check('...so a fight on the move runs rather than strafes',
+  stance.swingLeft.clip === 'runLower' && stance.swingBack.clip === 'runLower',
+  JSON.stringify([stance.swingLeft.clip, stance.swingBack.clip]));
+check('aiming is still the stance that holds the body square',
+  stance.aimLeft.offCamera <= 5 && stance.aimLeft.clips.includes('strafe'),
+  JSON.stringify(stance.aimLeft));
+check('...and so are firing from the hip and blocking',
+  stance.fireLeft.offCamera <= 5 && stance.blockLeft.offCamera <= 5,
+  JSON.stringify([stance.fireLeft.offCamera, stance.blockLeft.offCamera]));
+
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
 check.done('the run');
