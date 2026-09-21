@@ -251,6 +251,10 @@ export class LegacyCampaign implements MissionController {
    */
   get objectiveLabel(): string { return this.room.spec.label; }
 
+  /** the room chain raises nothing mid-run, so it never waits on a stage */
+  readonly settlingStage = false;
+  stageSettleProgress(): { ratio: number; pending: number } { return { ratio: 1, pending: 0 }; }
+
   /** no transport doors in the room chain: nobody is ever waiting in one */
   readonly exited: ReadonlySet<number> = new Set<number>();
 

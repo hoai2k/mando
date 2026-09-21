@@ -82,6 +82,25 @@ export class LoadingScreen {
   }
 
   /**
+   * The same screen, dressed for a transport door rather than for a drop.
+   *
+   * A stage change is the same problem as a match start — a place is being
+   * raised, and it should be finished before it is looked at — but none of the
+   * drop's furniture belongs to it: the cast is already chosen, the hostiles
+   * are already met, and the territory is the one underfoot. So it keeps the
+   * art and the bar and says where the party is going.
+   */
+  showTransit(board: BoardInfo, label: string, sub: string): void {
+    this.art.style.backgroundImage =
+      `url('${ASSET_ROOT}assets/textures/${board.art}'), ${board.gradient}`;
+    this.title.textContent = label;
+    this.sub.textContent = sub;
+    this.cast.innerHTML = '';
+    this.progress(0, TEXT.loading.preparing);
+    this.root.style.display = '';
+  }
+
+  /**
    * One face. The drawn mark shows immediately and an authored portrait
    * replaces it if the file turns out to exist — the same "procedural now,
    * authored when it arrives" contract the rest of the game runs on, which

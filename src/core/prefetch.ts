@@ -5,6 +5,7 @@ import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes'
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { carrierShipId } from '../enemies/arrival';
 import { BOARDS, type BoardInfo } from '../world/boards';
+import { MISSION_LAYOUTS } from '../world/mission-layouts';
 import type { BoardId } from '../world/board';
 import { portraitName, textureUrl, warmTexture } from './assets';
 import { warmPoster } from '../ui/posters';
@@ -312,6 +313,61 @@ function matchNeeds(board: BoardId, ctx: WarmContext): Need[] {
     for (const id of CORRIDOR_PROPS) out.push(model(id, true));
   }
   return out;
+}
+
+/**
+ * The models one *stage* of a mission run asks for.
+ *
+ * A campaign board is not one level: it is a chain of stages, each raised from
+ * scratch when the party walks through a transport door. `BOARD_PROPS` names
+ * the territory's own art, and `matchAssets` waits for the cast — neither
+ * knows anything about the tents, hulls and cliff spires a mission stage puts
+ * on the plate. Those were fetched at the moment they were placed, which is
+ * why a stage arrived and then visibly dressed itself, on the first one and at
+ * every door after it.
+ *
+ * Read off the layout, plus the handful of ids `mission.ts` places itself. A
+ * name that is wrong or missing costs one wasted fetch, exactly as everywhere
+ * else in this file: the stage still asks for what it asks for.
+ */
+export function stagePropIds(board: BoardId, stageIdx: number): string[] {
+  const spec = MISSION_LAYOUTS[board];
+  const stage = spec?.stages[stageIdx];
+  if (!stage) return [];
+  const out = new Set<string>();
+  // the builder's own furniture: the spires that frame a way on, the posts
+  // down a long lane, the crates in a roofed one, the boulders in an open one
+  out.add(spec.ridge === 'ice' ? 'cliff_pillar_ice' : 'cliff_pillar_rock');
+  out.add('trail_post');
+  out.add('corridor_crate');
+  for (const id of ['boulder_a', 'boulder_b', 'boulder_c']) out.add(id);
+  for (const zone of stage.zones) {
+    for (const p of zone.props ?? []) out.add(p.id);
+    for (const r of zone.rides ?? []) {
+      const model = RIDE_MODEL[r.kind];
+      if (model) out.add(model);
+    }
+  }
+  return [...out];
+}
+
+/** the sculpt behind each ride, so a stage's motor pool arrives with it */
+const RIDE_MODEL: Record<string, string> = {
+  swoop: 'nikto_swoop', speederBike: 'speeder_bike', landspeeder: 'landspeeder',
+  bantha: 'bantha', skiff: 'skiff',
+};
+
+/**
+ * Pull a stage's art down ahead of time.
+ *
+ * Called twice for every stage: once at `idle` the moment the *previous* one
+ * is raised — the party has a level to walk through, and the browser has
+ * nothing better to do with the gaps between its frames — and once at `now`
+ * when they step into the transport, which is the point at which the wait
+ * becomes visible.
+ */
+export function warmStage(board: BoardId, stageIdx: number, priority: WarmPriority = 'idle'): void {
+  for (const id of stagePropIds(board, stageIdx)) warmAuthored(id, priority);
 }
 
 /** What a screen is made of. Unknowns yield nothing: the plan never guesses. */
