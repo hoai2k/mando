@@ -1718,6 +1718,17 @@ const WORM_NECK = 8;
  * tail forward with each bone aimed at the next joint's target. Both read the
  * same trail, so the stand-in moves exactly like the real thing.
  */
+/**
+ * Draw every mesh under `o` unconditionally.
+ *
+ * For a body whose parts are posed in world space each frame — a worm laid
+ * along its own trail — a bounding sphere measured from the rest pose is not
+ * a statement about where anything is, so the cull it drives is a coin toss.
+ */
+function noCulling(o: THREE.Object3D): void {
+  o.traverse((n) => { (n as THREE.Mesh).frustumCulled = false; });
+}
+
 export function buildSandworm(): CharacterInstance {
   const root = new THREE.Group();
   const skin = mat(0xc9b184, { rough: 0.92 });
@@ -1788,9 +1799,18 @@ export function buildSandworm(): CharacterInstance {
       chain = links;
       jaw = find('jaw');
       standIn.visible = false;
+      noCulling(loaded);
     },
   });
   root.add(sculpt);
+  // Forty metres of animal, solved onto a trail, with every part of it placed
+  // by hand each frame. Three culls a mesh by the bounding sphere of its rest
+  // pose carried through its world matrix — which here describes the head's
+  // model at the holder's position and says nothing about where the body
+  // actually is. So the whole worm winked out while humps of it were still on
+  // screen and above the sand, which is what a playtest reported. One animal
+  // is not worth culling; draw it.
+  noCulling(standIn);
 
   // ---- the path the body is laid along ----
   // World points of where the root has been, newest last, sampled about every

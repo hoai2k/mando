@@ -140,6 +140,16 @@ export class ThirdPersonCamera {
   private framed = false;
   private fov = 72;
   private shakeAmt = 0;
+  /**
+   * How far the shake moved the eye this frame.
+   *
+   * The ground going is the *world* lurching, and a camera translation says
+   * that — except that it says it about the body in front of the lens too,
+   * which rattles on screen along with everything else and reads as a broken
+   * character rather than a shaken world. Anything that wants to sit still in
+   * the frame through a shake rides this same offset; see `Player.syncVisual`.
+   */
+  readonly shakeOffset = new THREE.Vector3();
   // lock-on snap: on aim-press the camera pulls onto the target over a few
   // frames (RDR2's "Normal" lock-on), then hands fine aim back to the player
   private snapYaw = 0;
@@ -356,12 +366,21 @@ export class ThirdPersonCamera {
 
     this.camera.position.copy(this.tmpDesired);
     if (this.shakeAmt > 0.001) {
-      this.camera.position.x += (Math.random() - 0.5) * this.shakeAmt;
-      this.camera.position.y += (Math.random() - 0.5) * this.shakeAmt;
-      this.camera.position.z += (Math.random() - 0.5) * this.shakeAmt;
+      this.shakeOffset.set(
+        (Math.random() - 0.5) * this.shakeAmt,
+        (Math.random() - 0.5) * this.shakeAmt,
+        (Math.random() - 0.5) * this.shakeAmt,
+      );
+      this.camera.position.add(this.shakeOffset);
       this.shakeAmt *= Math.exp(-9 * dt);
+    } else {
+      this.shakeOffset.set(0, 0, 0);
     }
-    const lookAt = head.clone().addScaledVector(this.tmpDir, 30);
+    // The look target moves with the eye, so the shake is a *translation* of
+    // the whole rig rather than a wobble of its aim. That matters to whoever
+    // reads `shakeOffset`: a body translated by the same vector holds exactly
+    // still in the frame while everything around it moves.
+    const lookAt = head.clone().add(this.shakeOffset).addScaledVector(this.tmpDir, 30);
     this.camera.lookAt(lookAt);
   }
 }

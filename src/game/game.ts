@@ -1860,7 +1860,8 @@ export class Game {
     const wY = this.board.waterY;
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
-      const cam = this.players[i].cam.camera;
+      const viewer = this.players[i];
+      const cam = viewer.cam.camera;
       cam.aspect = vw / vh;
       cam.updateProjectionMatrix();
       renderer.setViewport(vx, vy, vw, vh);
@@ -1868,7 +1869,23 @@ export class Game {
       const under = wY !== undefined && cam.position.y < wY;
       this.scene.fog = under ? this.underFog : surfaceFog;
       this.scene.background = under ? this.underColor : surfaceBg;
+      // The ground going is the *world* lurching, and shaking the camera says
+      // that — except about the one body standing in front of the lens, which
+      // rattled along with the sand and read as a character glitching rather
+      // than as a world moving. Carrying the eye's own offset onto its own
+      // hero, for this viewport only, puts them back at the same point in
+      // camera space: the rocks shake, the hunter does not.
+      //
+      // Here rather than in `syncVisual` for two reasons. The pose is written
+      // before the camera advances its shake, so a body offset there would
+      // carry *last* frame's random vector and jitter by the difference. And
+      // split-screen shares one scene: done per viewport, each player's own
+      // camera steadies their own body without touching anyone else's view.
+      const ride = viewer.cam.shakeOffset;
+      const shaking = ride.lengthSq() > 0;
+      if (shaking) viewer.char.root.position.add(ride);
       renderer.render(this.scene, cam);
+      if (shaking) viewer.char.root.position.sub(ride);
     }
     this.scene.fog = surfaceFog;
     this.scene.background = surfaceBg;

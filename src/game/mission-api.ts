@@ -23,6 +23,14 @@ export interface MissionController {
   readonly objectivePos: THREE.Vector3;
   /** what the objective is called, for the HUD's screen marker */
   readonly objectiveLabel: string;
+  /**
+   * True while a newly raised stage's art is still arriving. The run is frozen
+   * behind it and the shell holds a veil over the top — the same bargain the
+   * drop makes, applied to every transport door after it.
+   */
+  readonly settlingStage: boolean;
+  /** how far that wait has got, for the bar over it */
+  stageSettleProgress(): { ratio: number; pending: number };
   /** slots standing in a transport door's pocket, waiting on the rest */
   readonly exited: ReadonlySet<number>;
   /** somewhere inside the level a body of this kind can stand, at or near `pos` */

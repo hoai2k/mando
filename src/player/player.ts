@@ -2385,6 +2385,36 @@ export class Player {
   }
 
   /**
+   * How far a swing has to reach to touch `e`, and which way that is.
+   *
+   * Distance is to the *surface* of the nearest of the target's hit volumes —
+   * its body sphere and whatever extra spheres its kind carries — so a long
+   * animal is hit anywhere along itself rather than only where its origin
+   * happens to sit. Height is deliberately ignored: a blade swung at a thing
+   * towering over you should land, and every melee in this game has always
+   * been a horizontal reach test.
+   */
+  private meleeNearest(e: Combatant): { dist: number; toward: THREE.Vector3 } {
+    let bestX = e.position.x - this.position.x;
+    let bestZ = e.position.z - this.position.z;
+    let best = Math.hypot(bestX, bestZ) - e.radius;
+    const big = e as Partial<Enemy> & { yaw?: number };
+    const parts = big.hitParts;
+    if (parts && parts.length) {
+      const yaw = big.yaw ?? 0;
+      const sin = Math.sin(yaw), cos = Math.cos(yaw);
+      for (const part of parts) {
+        const dx = e.position.x + sin * part.z - this.position.x;
+        const dz = e.position.z + cos * part.z - this.position.z;
+        const d = Math.hypot(dx, dz) - part.r;
+        if (d < best) { best = d; bestX = dx; bestZ = dz; }
+      }
+    }
+    const len = Math.hypot(bestX, bestZ) || 1;
+    return { dist: best, toward: new THREE.Vector3(bestX / len, 0, bestZ / len) };
+  }
+
+  /**
    * Hugging a box, RDR2-style: slide along the face with the stick, hold aim
    * to lean out past the corner and shoot, release to tuck back in. Jump,
    * dash, melee, pressing the cover button again, or pushing away all leave.
@@ -3008,13 +3038,21 @@ export class Player {
       this.meleeHitPending -= dt;
       if (this.meleeHitPending <= 0) {
         let hitAny = false;
+        const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
         for (const e of game.hostilesFor(this)) {
           if (!e.alive) continue;
-          const to = e.position.clone().sub(this.position);
-          const dist = to.length();
-          if (dist > this.meleeRange + e.radius) continue;
-          to.normalize();
-          const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+          // Swing at the body a bolt would hit, not at the point the body is
+          // filed under. A blade used to measure to `position` and `radius`
+          // alone — one sphere on the chest — which is fine for a trooper and
+          // nonsense for anything long: a war massiff is five metres of animal
+          // and the Dune Sea's worm is a head on a neck the height of a house.
+          // Standing under the worm's jaw and swinging did nothing at all,
+          // which is what a playtest found. The extra spheres are already
+          // there; they are what bolts aim at (`Game.addBody`), so the blade
+          // reads the same ones.
+          const near = this.meleeNearest(e);
+          if (near.dist > this.meleeRange) continue;
+          const to = near.toward;
           if (to.dot(facing) < 0.25) continue;
           const wasAlive = e.alive;
           e.damage(this.meleeDamage, this.position, this.slot);

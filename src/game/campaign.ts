@@ -12,6 +12,8 @@ import { hazardAt, type Board } from '../world/board';
 import { AllyCrate } from './allycrate';
 import { spawnVehicles } from './vehicles';
 import { ceilingOverride } from './modes';
+import { warmStage } from '../core/prefetch';
+import { tracked } from '../core/warm';
 import type { MissionController } from './mission-api';
 
 /** scratch for the hazard probe in placeNear */
@@ -84,6 +86,8 @@ const supplied = (spec: ZoneSpec): boolean =>
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
 const PORTAL_BEAT = 1.5;
+/** longest the run will stand in a doorway waiting on a stage's art, seconds */
+const STAGE_SETTLE_CAP = 8;
 /** how far a cancelled exit walks the player back out of the pocket */
 const PORTAL_CANCEL_STEP = 3;
 /** a body this wide across is a monster, not a soldier: it debuts alone */
@@ -163,12 +167,29 @@ export class Campaign implements MissionController {
   private fallNote = 0;
   private ceilingNoted = false;
   private ventCue: { at: number; spots: THREE.Vector3[] } | null = null;
+  /** the objective the guide column was last walked up to, and whether it was */
+  private beaconDone = new THREE.Vector3();
+  private beaconReached = false;
   private glyphs: { mesh: THREE.Group; mat: THREE.MeshBasicMaterial }[] = [];
   private glyphLife = 0;
   private memory: StageMemory[] = [];
   /** the transport beat: seconds left, and where the party is headed */
   private transitT = 0;
   private transitTo = -1;
+  /**
+   * Seconds the run has been standing on a stage whose art is still arriving.
+   *
+   * A transport door is a hard cut: one level is torn down and the next is
+   * raised inside a frame, and whatever that stage asks for is asked for at
+   * that moment. What a playtest saw was the far side of the door dressing
+   * itself — tents, hulls and cliffs fading in over the first seconds of a
+   * place. So the run holds here instead, behind the loading veil, until the
+   * files the new stage actually requested are in hand.
+   *
+   * Capped, like the drop is: a file that will not come is not a reason to
+   * stand in a doorway forever, and everything here has a stand-in.
+   */
+  private settleT = -1;
   /** back-transit: the slots standing in the pocket, waiting on the others */
   readonly exited = new Set<number>();
   /** what the board looked like before this stage dressed it */
@@ -231,6 +252,11 @@ export class Campaign implements MissionController {
   private raise(i: number): MissionStage {
     const game = this.game;
     const spec = MISSION_LAYOUTS[game.board.kind];
+    // The next stage's art, on the idle lane, from the moment this one stands
+    // up. The party now has a level to walk through and the browser has the
+    // gaps between frames to spend, which is exactly the shape of the problem:
+    // a transport door is a hard cut to a place that has to be dressed already.
+    if (i + 1 < spec.stages.length) warmStage(game.board.kind, i + 1, 'idle');
     const board = game.board;
     let beat0 = 0;
     for (let k = 0; k < i; k++) beat0 += spec.stages[k].zones.length;
@@ -453,6 +479,8 @@ export class Campaign implements MissionController {
       p.spawnAt(at);
     });
     this.checkpoint.copy(stage.zones[Math.min(this.idx, stage.zones.length - 1)].center);
+    // hold behind the veil until this place is dressed (see `settleT`)
+    this.settleT = 0;
     game.announce(TEXT.missions.arrivedAt(stage.spec.label), TEXT.banners.transportSub);
     audio.checkpointChime();
   }
@@ -462,6 +490,9 @@ export class Campaign implements MissionController {
     if (this.transitT > 0) return;
     this.transitT = PORTAL_BEAT;
     this.transitTo = to;
+    // they are in the doorway: whatever is left of that stage's art stops
+    // being a background errand
+    warmStage(this.game.board.kind, to, 'now');
     const spec = MISSION_LAYOUTS[this.game.board.kind];
     this.game.announce(TEXT.banners.transport(spec.stages[to]?.label ?? ''), TEXT.banners.transportSub);
     audio.doorCycle();
@@ -741,6 +772,44 @@ export class Campaign implements MissionController {
       case 'warlord': return TEXT.missions.bringDownWarlord;
       default: return TEXT.missions.pushThrough(zone.spec.label, d);
     }
+  }
+
+  /**
+   * True while the run is holding for a newly raised stage's art.
+   *
+   * `main` reads this to keep the veil up and to leave `Game.update` alone,
+   * which is the same bargain the drop makes: the player waits a moment and
+   * walks into a finished place rather than into one that finishes around
+   * them.
+   */
+  get settlingStage(): boolean { return this.settleT >= 0; }
+
+  /** how far along that wait is, 0..1, and what is left of it */
+  stageSettleProgress(): { ratio: number; pending: number } {
+    const p = tracked.progress(this.stageKeys());
+    return { ratio: p.ratio, pending: p.pending };
+  }
+
+  /**
+   * What this stage is still fetching.
+   *
+   * Whatever the build really requested, and *only* that. A declared list is
+   * the wrong instrument here: `tracked.progress` counts a file nobody has
+   * asked for as pending, so naming a prop this particular stage happens not
+   * to place — or one that has no file at all — holds the door open until the
+   * cap, every single time. That is what the first version of this did.
+   *
+   * The declared list still earns its keep one step earlier, as the thing to
+   * *warm*: a hint that costs a wasted download when it is wrong, which is
+   * the price this whole file is built to pay.
+   */
+  private stageKeys(): string[] {
+    return tracked.inFlight().filter((k) => !k.startsWith('warm:')
+      && (k.includes('assets/models/') || k.includes('assets/textures/')));
+  }
+
+  private stageReady(): boolean {
+    return this.stageSettleProgress().pending === 0;
   }
 
   /** where player `slot` comes back: the checkpoint, fanned out and validated */
@@ -1201,6 +1270,14 @@ export class Campaign implements MissionController {
     // to pick up, which is what a marker must never be.
     if (this.done) { this.douse(); return; }
 
+    // Standing on a stage that is still arriving: nothing moves and nothing
+    // shoots, and `main` holds the veil over it. See `settleT`.
+    if (this.settleT >= 0) {
+      this.douse();
+      this.settleT += dt;
+      if (this.stageReady() || this.settleT > STAGE_SETTLE_CAP) this.settleT = -1;
+      return;
+    }
     // the transport beat: inputs are blanked by `Player.exited`, the card is
     // up, and the swap lands when the clock runs out
     if (this.transitT > 0) {
@@ -1232,15 +1309,39 @@ export class Campaign implements MissionController {
     // here" and you did; what is still worth saying is which way on, and an
     // arrow on the floor says that without asking to be walked into again.
     // Reached over the way on itself, it points through the door.
-    if (near && this.beacon.visible) {
-      const ahead = this.idx < this.stage.zones.length
-        ? this.zone.exit
-        : this.stage.exitPortal
-          ? new THREE.Vector3(obj.x + this.stage.exitPortal.forward.x, obj.y, obj.z + this.stage.exitPortal.forward.z)
-          : null;
-      if (ahead && ahead.distanceToSquared(obj) > 0.5) this.layArrow(obj, ahead);
+    if (near) {
+      // The arrow is laid only where the column was actually up: it is what
+      // the column turns into, and one dropped over an objective that was
+      // never lit is a chevron from nowhere.
+      if (this.beacon.visible) {
+        const ahead = this.idx < this.stage.zones.length
+          ? this.zone.exit
+          : this.stage.exitPortal
+            ? new THREE.Vector3(obj.x + this.stage.exitPortal.forward.x, obj.y, obj.z + this.stage.exitPortal.forward.z)
+            : null;
+        if (ahead && ahead.distanceToSquared(obj) > 0.5) this.layArrow(obj, ahead);
+      }
+      // Reaching it, though, is reaching it, lit or not. Hanging this on the
+      // column having been up last frame meant it was almost never recorded —
+      // by the time you are standing on an objective the column has already
+      // gone dark for being stood on, so the memory never took and the thing
+      // lit straight back up the moment you stepped away.
+      this.beaconDone.copy(obj);
+      this.beaconReached = true;
     }
-    this.beacon.visible = !this.atTrailhead && !near;
+    // A beacon that has been reached stays reached.
+    //
+    // This used to be `!near` alone — lit whenever nobody was standing on the
+    // objective — so walking three paces off the flag brought the column
+    // straight back up. What that reads as, from the floor, is a checkpoint
+    // respawning: you took it, it went out, and a moment later there it is
+    // again, most often while the fight it belongs to is still going. The
+    // column is a "come here"; once you have, it has nothing left to say
+    // until the objective moves, and the arrow it laid says the rest.
+    if (this.beaconReached && this.beaconDone.distanceToSquared(obj) > BEACON_HIDE * BEACON_HIDE) {
+      this.beaconReached = false;      // a new objective: light it again
+    }
+    this.beacon.visible = !this.atTrailhead && !near && !this.beaconReached;
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
     this.updateVentGlyphs(dt);

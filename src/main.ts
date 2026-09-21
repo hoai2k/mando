@@ -723,7 +723,42 @@ function updateLoading(dt: number): void {
  * waiting on files this match does not need.
  */
 function boardLoads(): string[] {
-  return tracked.inFlight().filter((k) => !k.startsWith('warm:') && k.includes('assets/textures/'));
+  // Models as well as textures. A campaign board raises a mission *stage* as
+  // it builds, and that stage asks for its own art — tents, hulls, the spires
+  // that frame a way on. None of that is in `matchAssets`, which knows about
+  // the cast and the sky, so the drop used to end with the level still
+  // fetching what it is made of and the player watched it dress itself. What
+  // the build really requested is the only honest account of it.
+  return tracked.inFlight().filter((k) => !k.startsWith('warm:')
+    && (k.includes('assets/textures/') || k.includes('assets/models/')));
+}
+
+/**
+ * Hold a veil over a transport door until the far side of it is dressed.
+ *
+ * The drop already does this for a match. A campaign run crosses two or three
+ * doors after that, and each one raises a whole level inside one frame — so
+ * the far side used to be walked into while its tents, hulls and cliffs were
+ * still arriving, which is what a playtest saw. The campaign freezes itself
+ * (`settlingStage`); this is the picture over the freeze.
+ */
+let stageVeil = false;
+function updateStageVeil(): void {
+  const c = game?.campaign;
+  const want = !!c?.settlingStage;
+  if (!want) {
+    if (stageVeil) { stageVeil = false; loading.hide(); }
+    return;
+  }
+  const p = c!.stageSettleProgress();
+  if (!stageVeil) {
+    stageVeil = true;
+    loading.showTransit(chosenBoard, c!.objectiveLabel, TEXT.banners.transportSub);
+  }
+  loading.progress(
+    Math.min(p.pending > 0 ? 0.99 : 1, 0.1 + p.ratio * 0.9),
+    p.pending > 0 ? TEXT.loading.filesToGo(p.pending) : TEXT.loading.ready,
+  );
 }
 
 function enterMatch(): void {
@@ -921,6 +956,13 @@ function step(dt: number): void {
       const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
       hud.update(dt, game);
+      // A stage that is still arriving gets the same veil the drop gets: the
+      // campaign has frozen the run behind it (see `Campaign.settlingStage`),
+      // and this puts something over the top so a place is not watched
+      // dressing itself. `game.update` still runs, because that is what ticks
+      // the clock the settle is counted on and what keeps the loaders' own
+      // bookkeeping moving.
+      updateStageVeil();
       // transition to end screen shortly after victory/defeat
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;

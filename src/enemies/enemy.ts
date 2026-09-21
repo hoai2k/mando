@@ -198,23 +198,43 @@ const _elbow = new THREE.Vector3();
 /** how sharply a hostile at the pedals turns the nose onto its mark */
 const RIDE_STEER_GAIN = 1.6;
 
+/**
+ * How many hits a body is worth.
+ *
+ * The player's bolt is 34 and a swing is 32, and for most of this table's life
+ * the mooks sat just over both: a Tusken at 80 was three bolts, which on the
+ * *first board* is a rifle that does not work. A playtest said so. What a
+ * hunter should feel is that anything not wearing plate goes down when it is
+ * hit, and that the exceptions are exceptions.
+ *
+ * So the tiers are:
+ *
+ *   - **Unarmored** — Tuskens, Pykes, pirates, Niktos, Alamites, krykna,
+ *     spiderlings, drones: under one bolt *and* under one swing. They are
+ *     dangerous in numbers, from behind, and at close range, not by soaking.
+ *   - **Armored regulars** — troopers, droids: two to four. Enough that the
+ *     plate reads as plate.
+ *   - **Elites and named kinds** — officer, capo, enforcer, gunslinger,
+ *     massiff, ring enforcer, broodmother: unchanged. These are the fights.
+ *   - **Bosses and monsters** — unchanged; their numbers are the design's.
+ */
 const DEFS: Record<EnemyKind, Def> = {
-  tusken:      { hp: 80, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
-  pirateMelee: { hp: 95, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
+  tusken:      { hp: 30, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
+  pirateMelee: { hp: 32, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
   // War massiff: an elite beast, not a wave-1 critter. Outruns a jog but not a
   // sprint, so breaking away costs the energy gauge; hits hard enough that
   // letting one close is a real mistake, and it pounces to cover the last gap.
   massiff:     { hp: 300, speed: 10.5, radius: 0.85, height: 2.0, style: 'melee', damage: 30, attackRange: 3.6, attackCd: 1.8, notice: 52, relentless: true,
     // skull/neck out front and the haunches behind the shoulders
     hitParts: [{ z: 1.75, y: 1.0, r: 0.65 }, { z: -1.15, y: 1.15, r: 0.7 }], build: buildMassiff },
-  pyke:        { hp: 70, speed: 4.6, radius: 0.5, height: 2.0, style: 'ranged', damage: 8, attackRange: 26, attackCd: 2.4, notice: 42, boltSpeed: 26, volley: 3, build: buildPyke },
-  pirate:      { hp: 85, speed: 4.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 9, attackRange: 30, attackCd: 2.6, notice: 42, boltSpeed: 28, volley: 3, build: () => buildPirate(false) },
-  droid:       { hp: 170, speed: 1.6, radius: 0.55, height: 2.1, style: 'ranged', damage: 15, attackRange: 40, attackCd: 1.7, notice: 48, boltSpeed: 34, volley: 1, build: buildDroid },
-  nikto:       { hp: 60, speed: 15, radius: 0.8, height: 1.6, style: 'swoop', damage: 8, attackRange: 40, attackCd: 0.4, notice: 80, boltSpeed: 34, build: buildNikto },
-  jetpirate:   { hp: 70, speed: 6.5, radius: 0.5, height: 1.9, style: 'hover', damage: 9, attackRange: 30, attackCd: 2.2, notice: 50, boltSpeed: 28, volley: 2, build: () => buildPirate(false) },
+  pyke:        { hp: 30, speed: 4.6, radius: 0.5, height: 2.0, style: 'ranged', damage: 8, attackRange: 26, attackCd: 2.4, notice: 42, boltSpeed: 26, volley: 3, build: buildPyke },
+  pirate:      { hp: 32, speed: 4.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 9, attackRange: 30, attackCd: 2.6, notice: 42, boltSpeed: 28, volley: 3, build: () => buildPirate(false) },
+  droid:       { hp: 136, speed: 1.6, radius: 0.55, height: 2.1, style: 'ranged', damage: 15, attackRange: 40, attackCd: 1.7, notice: 48, boltSpeed: 34, volley: 1, build: buildDroid },
+  nikto:       { hp: 30, speed: 15, radius: 0.8, height: 1.6, style: 'swoop', damage: 8, attackRange: 40, attackCd: 0.4, notice: 80, boltSpeed: 34, build: buildNikto },
+  jetpirate:   { hp: 32, speed: 6.5, radius: 0.5, height: 1.9, style: 'hover', damage: 9, attackRange: 30, attackCd: 2.2, notice: 50, boltSpeed: 28, volley: 2, build: () => buildPirate(false) },
   // Imperial remnant
   stormtrooper: { hp: 60, speed: 4.8, radius: 0.5, height: 1.9, style: 'ranged', damage: 8, attackRange: 28, attackCd: 2.1, notice: 42, boltSpeed: 27, volley: 3, build: () => buildStormtrooper(false) },
-  deathtrooper: { hp: 150, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
+  deathtrooper: { hp: 102, speed: 5.2, radius: 0.52, height: 2.0, style: 'ranged', damage: 12, attackRange: 32, attackCd: 2.0, notice: 48, boltSpeed: 32, volley: 4, build: () => buildStormtrooper(true) },
   // Fast, accurate and hits hard, but folds if you can close on him. Stats
   // inherited wholesale from the retired Cad Bane-class duelist, so the wave
   // tables that called for him are balanced exactly as they were.
@@ -225,25 +245,25 @@ const DEFS: Record<EnemyKind, Def> = {
   capo:         { hp: 260, speed: 4.2, radius: 0.55, height: 2.05, style: 'ranged', damage: 14, attackRange: 30, attackCd: 1.8, notice: 50, boltSpeed: 30, volley: 4, build: buildPykeCapo },
   // Two and a half metres of gladiator; slow to arrive, ruinous once there.
   enforcer:     { hp: 420, speed: 5.4, radius: 0.68, height: 2.6, style: 'melee', damage: 34, attackRange: 3.4, attackCd: 1.6, notice: 45, build: buildWookieeEnforcer },
-  darktrooper:  { hp: 160, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
+  darktrooper:  { hp: 136, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
   // ---- the new-board roster ----
   // Flame projector: short reach, but the stream suppresses nothing — it has
   // to be sidestepped, and it cooks anyone who tries to hold a crate against it.
-  flametrooper: { hp: 130, speed: 5.0, radius: 0.52, height: 1.9, style: 'ranged', damage: 6, attackRange: 12, attackCd: 2.6, notice: 42, volley: 9, flame: true, build: buildFlametrooper },
+  flametrooper: { hp: 102, speed: 5.0, radius: 0.52, height: 1.9, style: 'ranged', damage: 6, attackRange: 12, attackCd: 2.6, notice: 42, volley: 9, flame: true, build: buildFlametrooper },
   // Cave spiders hunt like the massiff hunts: no turns taken, no morale. Low
   // HP each — the fight is volume, not weight.
-  krykna:       { hp: 55, speed: 8.5, radius: 0.6, height: 1.6, style: 'melee', damage: 12, attackRange: 2.5, attackCd: 1.3, notice: 46, relentless: true, build: buildKrykna },
+  krykna:       { hp: 30, speed: 8.5, radius: 0.6, height: 1.6, style: 'melee', damage: 12, attackRange: 2.5, attackCd: 1.3, notice: 46, relentless: true, build: buildKrykna },
   broodmother:  { hp: 560, speed: 6.2, radius: 0.95, height: 2.6, style: 'melee', damage: 30, attackRange: 3.8, attackCd: 1.9, notice: 60, relentless: true,
     // slung high on its legs: the body rides around y=2.4, well over the
     // centre sphere, and runs the full 6 m from spinnerets to fangs
     hitParts: [{ z: 0, y: 2.5, r: 1.5 }, { z: -2.1, y: 2.5, r: 1.4 }, { z: 2.0, y: 2.0, r: 1.4 }],
     spawnOnHurt: { kind: 'krykna', per: 0.22, count: 2, max: 8 }, build: buildBroodmother },
   // The net gun barely hurts; being rooted in front of his friends is the hurt.
-  quarren:      { hp: 100, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
-  alamite:      { hp: 65, speed: 6.4, radius: 0.5, height: 1.85, style: 'melee', damage: 13, attackRange: 2.5, attackCd: 1.4, notice: 32, build: buildAlamite },
+  quarren:      { hp: 34, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
+  alamite:      { hp: 30, speed: 6.4, radius: 0.5, height: 1.85, style: 'melee', damage: 13, attackRange: 2.5, attackCd: 1.4, notice: 32, build: buildAlamite },
   // The drone *is* the projectile: it stalks, then dives and detonates. The
   // dive is committed like the massiff's pounce — a dash beats it.
-  drone:        { hp: 45, speed: 8.0, radius: 0.55, height: 1.7, style: 'hover', damage: 24, attackRange: 30, attackCd: 4.0, notice: 60, kamikaze: true, build: buildInterceptorDrone },
+  drone:        { hp: 30, speed: 8.0, radius: 0.55, height: 1.7, style: 'hover', damage: 24, attackRange: 30, attackCd: 4.0, notice: 60, kamikaze: true, build: buildInterceptorDrone },
   // A walking priority-target puzzle: bolts bounce off the front pane, so the
   // answer is a flank, a melee rush, or a rocket.
   ringEnforcer: { hp: 260, speed: 3.8, radius: 0.55, height: 2.1, style: 'ranged', damage: 13, attackRange: 30, attackCd: 2.2, notice: 48, boltSpeed: 30, volley: 3, frontShield: true, build: buildRingEnforcer },
@@ -304,7 +324,7 @@ const DEFS: Record<EnemyKind, Def> = {
   // whole time, and what crawls out is a half-size krykna that hunts for
   // whoever laid it.
   spiderEgg:  { hp: 60, speed: 0, radius: 0.45, height: 0.9, style: 'melee', damage: 0, attackRange: 0, attackCd: 9, notice: 0, egg: { hatchIn: 5, hatchTo: 'spiderling' }, build: buildSpiderEgg },
-  spiderling: { hp: 40, speed: 9.0, radius: 0.35, height: 0.9, style: 'melee', damage: 8, attackRange: 1.8, attackCd: 1.1, notice: 46, relentless: true, build: buildSpiderling },
+  spiderling: { hp: 22, speed: 9.0, radius: 0.35, height: 0.9, style: 'melee', damage: 8, attackRange: 1.8, attackCd: 1.1, notice: 46, relentless: true, build: buildSpiderling },
 };
 
 /**
@@ -551,6 +571,8 @@ export class Enemy {
    * boss fight and the test harness can read where it is.
    */
   burrow: 'under' | 'rising' | 'up' | 'sinking' = 'under';
+  /** how far under the surface it is this frame: 0 fully out … 1 fully under */
+  burrowDepth = 1;
   /** seconds left in the current burrow stage */
   private burrowT = 0;
   /** eruptions so far, for the test harness */
@@ -691,7 +713,13 @@ export class Enemy {
    * a boss on the bar — it simply is not a body to shoot at until it comes up.
    */
   get submerged(): boolean {
-    return !!this.def.burrows && (this.burrow === 'under' || this.burrow === 'sinking');
+    // How far under it *is*, not which leg of the cycle it is on. Reading the
+    // stage meant the whole 0.8 s of `sinking` was untouchable, and for most
+    // of that the animal is still standing out of the sand in front of you —
+    // bolts passed through it and a blade found nothing, which is not a thing
+    // a player will believe about a target they can see. Half under is the
+    // line: while more of it is out than in, it is a body.
+    return !!this.def.burrows && this.burrowDepth > 0.55;
   }
 
   /** a body a bolt, a blade or a lock-on can find */
@@ -2526,6 +2554,7 @@ export class Enemy {
         break;
       }
     }
+    this.burrowDepth = depth;
     this.char.setBurrow?.(depth);
   }
 
