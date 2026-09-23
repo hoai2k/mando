@@ -482,11 +482,13 @@ export class Fence implements Barrier {
   private t = 1;
   private want = 1;
   private half: THREE.Vector3;
+  private forward: { x: number; z: number };
   private cylinders: StaticCylinder[] = [];
 
   constructor(private board: Board, parent: THREE.Object3D, pos: THREE.Vector3,
     dir: { x: number; z: number }, width: number, height: number, accent: number) {
     this.pos = pos.clone();
+    this.forward = { x: dir.x, z: dir.z };
     const across = width / 2;
     this.half = new THREE.Vector3(
       dir.x !== 0 ? 0.5 : across + 0.5, height / 2, dir.x !== 0 ? across + 0.5 : 0.5);
@@ -539,7 +541,15 @@ export class Fence implements Barrier {
     this.paint();
   }
 
-  close(): void { this.want = 0; this.block(true); }
+  close(): void {
+    this.want = 0;
+    this.block(true);
+    if (this.box) delete this.box.oneWay;
+  }
+  closeOneWay(): void {
+    this.close();
+    if (this.box) this.box.oneWay = this.forward;
+  }
   open(): void { this.want = 1; }
 
   retire(): void {
@@ -633,6 +643,12 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const interior = stage.kind === 'interior';
   /** this stage stands on ground the board already has, not on plates */
   const onGround = stage.kind === 'territory' || stage.kind === 'plant' || stage.kind === 'sea';
+  // Built stages stand on their own plates. The territory's analytic terrain
+  // continues beyond its visible mesh; on the Dune Sea it climbs through the
+  // last boss floor, making everyone walk up an invisible slope. Let the
+  // plates alone supply ground until this stage is disposed.
+  const worldHeightAt = board.physics.heightAt;
+  if (!onGround) board.physics.heightAt = null;
   /** a `plant` adds fights to a building that is already built; it lays no geometry */
   const bare = stage.kind === 'plant' || stage.kind === 'sea';
   const wantRim = stage.rim ?? (stage.kind === 'territory');
@@ -643,7 +659,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
    */
   const canyon = bare ? undefined : stage.canyon;
   const terrainAt = (x: number, z: number): number =>
-    board.physics.heightAt ? board.physics.heightAt(x, z) : 0;
+    worldHeightAt ? worldHeightAt(x, z) : 0;
   const rand = rng(index * 104729 + stage.zones.length * 7919 + pal.wall);
 
   // ---- materials (own copies: mat() caches by colour and shares game-wide) ----
@@ -2243,6 +2259,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   // ---- teardown: a stage swap has to give all of this back ----
   const dispose = (): void => {
     retired = true;
+    board.physics.heightAt = worldHeightAt;
     board.group.remove(group);
     // `disposeSubtree`, not a hand-rolled traverse: a stage is full of authored
     // sculpts, and a loaded .glb is cached once and *cloned* per instance, so

@@ -941,7 +941,7 @@ export class Campaign implements MissionController {
       default:
         // a boss arena: the way in and the way on both seal, and the battle
         // owns the ground between them
-        zone.entryBarrier?.close();
+        zone.entryBarrier?.closeOneWay();
         zone.exitBarrier?.close();
         this.bossCalled = true;
         this.game.spawnBoss(zone.center, zone.spec.kind === 'lieutenant' ? 'mid' : 'final');
@@ -1418,10 +1418,11 @@ export class Campaign implements MissionController {
       const ready = seals || arena ? this.allInside(zone)
         : walked ? this.anyInside(zone)
           : this.anyInside(zone, 'triggerRect');
-      // ...or the party is past this zone's mouth with nothing left alive
-      // behind them, in which case waiting for them to walk back into its rect
-      // is waiting for nothing. What is in the zone comes to them instead.
-      if (ready || (this.fieldClear() && this.anyPastEntry(zone))) this.enterZone(zone);
+      // An unsealed zone can also catch up when the party has walked past it
+      // and left the field empty. A boss or sealed room still waits for every
+      // living player; this shortcut used to start the fight with someone
+      // behind the entry field.
+      if (ready || (!seals && !arena && this.fieldClear() && this.anyPastEntry(zone))) this.enterZone(zone);
       return;
     }
     switch (zone.spec.kind) {

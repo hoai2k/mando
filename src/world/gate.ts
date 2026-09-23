@@ -34,6 +34,7 @@ export interface Barrier {
   readonly pos: THREE.Vector3;
   open(): void;
   close(): void;
+  closeOneWay(): void;
   update(dt: number): void;
   /**
    * Take every collider this barrier has in the world back out, now.
@@ -69,6 +70,7 @@ export class Gate implements Barrier {
   private leaves: THREE.Mesh[] = [];
   private seam: THREE.Mesh;
   private half: THREE.Vector3;
+  private entryDirection: { x: number; z: number };
   /** 0 = shut, 1 = fully retracted */
   private t = 0;
   private want = 0;
@@ -79,6 +81,7 @@ export class Gate implements Barrier {
     dir: { x: number; z: number }, wallH: number, accent: number,
     opts: { width?: number } = {}) {
     this.pos = pos.clone();
+    this.entryDirection = { x: dir.x, z: dir.z };
     const gateW = opts.width ?? GATE_W;
     const yaw = Math.atan2(dir.x, dir.z);
     this.yaw = yaw;
@@ -136,7 +139,15 @@ export class Gate implements Barrier {
     this.block(true);
   }
 
-  close(): void { this.want = 0; this.block(true); }
+  close(): void {
+    this.want = 0;
+    this.block(true);
+    if (this.box) delete this.box.oneWay;
+  }
+  closeOneWay(): void {
+    this.close();
+    if (this.box) this.box.oneWay = this.entryDirection;
+  }
   open(): void {
     if (this.want !== 1) audio.doorCycle();   // only the transition speaks
     this.want = 1;
@@ -196,4 +207,3 @@ export class Gate implements Barrier {
     }
   }
 }
-

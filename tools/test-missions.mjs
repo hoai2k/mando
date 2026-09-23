@@ -663,6 +663,51 @@ check('a camp cleared of its garrison advances without the checkpoint',
 check('but the last checkpoint before the door is still a walk',
   optional.heldAtTheDoor && optional.openedOnTheWalk, JSON.stringify(optional));
 
+await startMode('campaign', 2, 'desert', ['din', 'armorer'], OUTDOOR, true);
+const bossEntrance = await page.evaluate(() => {
+  const g = window.__game, c = g.campaign;
+  c.enterStage(2, false);
+  c.settleT = -1;
+  const zone = c.stage.zones.at(-1);
+  const lastGround = g.board.physics.groundHeight(zone.exit.x, zone.exit.z, c.stage.floorY + 0.1);
+  const floor = c.stage.floorY;
+  c.idx = c.stage.zones.length - 1;
+  c.phase = 'travel';
+  c.emptyT = 2;
+  const dir = zone.exit.clone().sub(zone.entry).setY(0).normalize();
+  const gate = zone.entryBarrier;
+  g.players[0].position.copy(zone.center);
+  g.players[1].position.copy(gate.pos).addScaledVector(dir, -2);
+  c.update(1 / 30);
+  const waited = c.phase === 'travel';
+  g.players[1].position.copy(zone.center).addScaledVector(dir, -2);
+  c.update(1 / 30);
+  const started = c.phase === 'fight' && gate.closed;
+  const blocker = g.board.physics.boxes.find((b) => b.oneWay
+    && gate.pos.x > b.min.x && gate.pos.x < b.max.x
+    && gate.pos.z > b.min.z && gate.pos.z < b.max.z);
+  const physics = g.board.physics;
+  const enter = gate.pos.clone().addScaledVector(dir, -2).setY(zone.entry.y + 0.1);
+  const forward = dir.clone().multiplyScalar(8);
+  physics.moveCapsule(enter, 0.4, 1.8, forward, 0.5);
+  const entered = enter.clone().sub(gate.pos).dot(dir);
+  const retreat = gate.pos.clone().addScaledVector(dir, 2).setY(zone.entry.y + 0.1);
+  const backward = dir.clone().multiplyScalar(-8);
+  physics.moveCapsule(retreat, 0.4, 1.8, backward, 0.5);
+  const held = retreat.clone().sub(gate.pos).dot(dir);
+  c.enterStage(0, true);
+  return { waited, started, oneWay: !!blocker, entered, held,
+    floor, lastGround, terrainRestored: typeof g.board.physics.heightAt === 'function' };
+});
+check('the Dune Sea boss waits for every living player before sealing',
+  bossEntrance.waited && bossEntrance.started, JSON.stringify(bossEntrance));
+check('the sealed boss field admits late players but blocks retreat',
+  bossEntrance.oneWay && bossEntrance.entered > 0.7 && bossEntrance.held > 0.7,
+  JSON.stringify(bossEntrance));
+check('the final arena floor has no invisible dune rising through it',
+  Math.abs(bossEntrance.lastGround - bossEntrance.floor) < 0.2 && bossEntrance.terrainRestored,
+  JSON.stringify(bossEntrance));
+
 // ------------------------------------------------- a new kind arrives alone
 
 // The rule, exercised where it lives: a wave that would bring a kind nobody

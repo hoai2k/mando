@@ -9,7 +9,12 @@ import * as THREE from 'three';
 export interface GroundHit { grounded: boolean; groundY: number; }
 export interface RayHit { dist: number; point: THREE.Vector3; normal: THREE.Vector3; }
 
-export interface StaticBox { min: THREE.Vector3; max: THREE.Vector3; }
+export interface StaticBox {
+  min: THREE.Vector3;
+  max: THREE.Vector3;
+  /** A sealed entrance can be crossed in this direction by moving bodies. */
+  oneWay?: { x: number; z: number };
+}
 /** Upright cylinder — rocks, mesas, pillars: round things a box lies about. */
 export interface StaticCylinder { x: number; z: number; r: number; minY: number; maxY: number; }
 /**
@@ -263,6 +268,7 @@ export class PhysicsWorld {
 
     // push out of box sides
     for (const b of this.boxes) {
+      if (b.oneWay && vel.x * b.oneWay.x + vel.z * b.oneWay.z > 0) continue;
       const minX = b.min.x - radius, maxX = b.max.x + radius;
       const minZ = b.min.z - radius, maxZ = b.max.z + radius;
       if (pos.x <= minX || pos.x >= maxX || pos.z <= minZ || pos.z >= maxZ) continue;
