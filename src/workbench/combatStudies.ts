@@ -88,7 +88,7 @@ const vtrack = (bone: string, times: number[], positions: A[]): THREE.VectorKeyf
 const DEFAULT_TIMES = [0, 0.28, 0.53, 0.7, 1];
 
 function addMove(clips: ClipSet, move: Move, p: Proportions, style: CombatStyle): void {
-  const duration = move.duration * pace[style];
+  const duration = move.duration * pace[style] * (move.id.startsWith('unarmed') ? 1 : 0.5);
   const times = (move.times ?? DEFAULT_TIMES).map((t) => t * duration);
   const power = weight[style];
   const scaled = (bone: Bone, poses: A[]): A[] => poses.map((v, i) => {
@@ -309,6 +309,20 @@ export function combatStudyClips(
     if (move.id.startsWith('staff') && !weapons.staff) continue;
     if (move.id.startsWith('saber') && !weapons.sabers) continue;
     addMove(out, unarmedMove(enemyMove(move, character), style), p, style);
+  }
+  return out;
+}
+
+/** The three extra gaderffii hits available to Din's existing combo steps. */
+export function dinMeleeVariants(p: Proportions): ClipSet {
+  const spear = spearTestClips(p);
+  const out: ClipSet = {
+    spearTest2Upper: spear.spearTest2Upper,
+    spearTest2Lower: spear.spearTest2Lower,
+  };
+  for (const id of ['staffRise', 'staffDiagonal']) {
+    const move = moves.find((candidate) => candidate.id === id)!;
+    addMove(out, move, p, combatStyle('din'));
   }
   return out;
 }

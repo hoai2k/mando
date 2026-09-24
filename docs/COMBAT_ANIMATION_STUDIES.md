@@ -1,6 +1,6 @@
 # Workbench combat animation studies
 
-These are candidates for visual review. The **In game** picker group contains clips that gameplay requests. A `•` means that attack has workbench alternates; **None** runs the original clip. The **Not in game · preview** group and `◆` badge identify motions gameplay does not currently call. The three unarmed clips are in this group. Their hands are empty in the workbench. The player currently reuses saber motions when both sabers are thrown, so these dedicated unarmed clips are not yet part of the combat controller.
+These are candidates for visual review. The **In game** picker group contains clips that gameplay requests. A `•` means that attack has workbench alternates; **None** runs the original clip. The **Not in game · preview** group and `◆` badge identify motions gameplay does not currently call. The three unarmed clips are in this group. Their hands are empty in the workbench. The player currently reuses saber motions when all sabers are thrown, so these dedicated unarmed clips are not yet part of the combat controller. Attack alternates play at twice their original study speed; unarmed previews retain their original pacing.
 
 ## Options
 
@@ -30,4 +30,6 @@ Pacing and committed pose vary by style: Paz and the Armorer are heavier and slo
 
 ## Review limits
 
-The right hand drives the gaderffii and Maul's connected double blade. Their free arms now have keyed counterweight poses instead of a runtime grip solver. The old solver reached across the chest and made the forearm pass through the torso; that was the cause of the reported regression. The workbench slider previews authored variants from 0% to 125% reach while the game uses the subtle 50% version. The looped workbench preview is longer than the gameplay one-shot. Study the weapon path, hand contact, foot placement, and return to guard before promoting any candidate. Gameplay hit windows, audio, damage, and reach are unchanged.
+The right hand drives the gaderffii and Maul's connected double blade. Their free arms have keyed counterweight poses instead of a runtime grip solver. The old solver reached across the chest and made the forearm pass through the torso; that was the cause of the reported regression. The workbench slider previews authored variants from 0% to 125% reach while the game uses the subtle 50% version. Din's three-hit spear combo keeps its original strikes and has a 25% chance per hit to use Long lunge thrust, Low rising sweep, or Diagonal step and strike at the corresponding combo step. The alternate's keyed contact beat sets that hit's timing. Other characters still use these as workbench studies. Study the weapon path, hand contact, foot placement, and return to guard before promoting other candidates.
+
+Din carries one right-hand Darksaber with the Jedi hilt asset and a black blade edged in white, following the [Star Wars Databank description](https://www.starwars.com/databank/darksaber). His second and third saber hits now use right-hand backswing and overhead clips instead of left-blade choreography.

@@ -729,27 +729,24 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     }
   }
 
-  // Relative to the model's own A-pose: +5% half-width with the arm down,
-  // unchanged at the delivered angle, and -5% at a full sideways extension.
-  // The signed outward component leaves an arm crossing the torso in the
-  // widest state; forward aiming does not count as a sideways extension.
+  // Keep the widened rest shoulder placement for forward reaches and arms
+  // near the torso. Fade only when the arm opens beyond its model's A-pose
+  // angle AND points mostly sideways rather than forward.
   const spacing = shoulderSpacingFor(model.id);
   for (const slide of model.shoulderSlides) {
     const upper = source.bones[slide.side === 1 ? 'upperArmL' : 'upperArmR'];
-    const outward = THREE.MathUtils.clamp(
-      slide.side * armDir.copy(ARM_DOWN).applyQuaternion(upper.quaternion).x, 0, 1);
-    const widthChange = outward <= slide.aPoseSplay
-      ? 1 - outward / slide.aPoseSplay
-      : -(outward - slide.aPoseSplay) / (1 - slide.aPoseSplay);
+    armDir.copy(ARM_DOWN).applyQuaternion(upper.quaternion);
+    const outward = THREE.MathUtils.clamp(slide.side * armDir.x, 0, 1);
+    const forward = Math.abs(armDir.z);
+    const sideFraction = outward / Math.max(0.0001, outward + forward);
+    const start = Math.max(0.35, slide.aPoseSplay);
+    const reach = THREE.MathUtils.smoothstep(outward, start, Math.max(0.9, start + 0.1));
+    const sideBias = THREE.MathUtils.smoothstep(sideFraction, 0.7, 0.95);
+    const fade = reach * sideBias;
+    const widthChange = 1 - 2 * fade;
     const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
-    // Arms angled forward for aiming can still lie close to the torso. Use
-    // lateral splay rather than total elevation, with a smooth fade back to
-    // the delivered A-pose width as the arm opens to the side.
-    const fadeEnd = Math.max(0.35, slide.aPoseSplay);
-    const u = THREE.MathUtils.clamp((outward - 0.12) / (fadeEnd - 0.12), 0, 1);
-    const closeWeight = 1 - u * u * (3 - 2 * u);
     const extra = slide.restWidthOffset * (
-      spacing.rest * closeWeight + spacing.aPose * (1 - closeWeight));
+      spacing.rest * (1 - fade) + spacing.aPose * fade);
     slide.shoulder.position.x = slide.shoulderX + dx + extra;
     slide.arm.position.x = slide.armX + dx + extra;
   }

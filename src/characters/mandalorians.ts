@@ -5,6 +5,8 @@ import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, make
 import { attachAuthored } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
+import { dinMeleeVariants } from '../workbench/combatStudies';
+import { counterweightTracks } from '../anim/counterweight';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -300,6 +302,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
 
   const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
+  if (id === 'din' && inst.animator) {
+    Object.assign(inst.animator.clips, dinMeleeVariants(rig.proportions));
+    for (const [name, source] of [['darksaber1', 'saber1'], ['darksaber2', 'melee2'], ['darksaber3', 'melee3']] as const) {
+      const clip = inst.animator.clips[source].clone();
+      const arm = clip.tracks.find((track) => track.name === 'upperArmL.quaternion')!;
+      clip.tracks = clip.tracks.filter((track) => track.name !== 'upperArmL.quaternion' && track.name !== 'forearmL.quaternion');
+      clip.tracks.push(...counterweightTracks(name, Array.from(arm.times)));
+      clip.name = name;
+      inst.animator.clips[name] = clip;
+    }
+  }
   if (cfg.broad) { rig.root.scale.x *= cfg.broad; rig.root.scale.z *= cfg.broad; }
   const b = rig.bones;
 
@@ -464,7 +477,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
   const blades = new Map<MeleeKind, Held>();
-  const saberStyle = id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa'
+  const saberStyle = id === 'din' ? 'darksaber' : id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa'
     : id === 'maul' ? 'double' : id === 'revan' ? 'dark' : 'red';
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
@@ -475,7 +488,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       main.name = 'saberHandR';
       // One blade light per wielder: the off-hand saber skips it, since two
       // point lights buy a glow the eye already reads from one.
-      if (id !== 'maul' && id !== 'revan') {
+      if (id !== 'din' && id !== 'maul' && id !== 'revan') {
         offhand = pairOn(() => makeSaber(silver, dark, { light: false, style: saberStyle }));
         offhand.name = 'saberHandL';
       }

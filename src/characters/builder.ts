@@ -291,10 +291,11 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
 export function makeSaber(
   mHilt: THREE.Material,
   mDark: THREE.Material,
-  opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'dark' | 'double' } = {},
+  opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'dark' | 'double' | 'darksaber' } = {},
 ): THREE.Group {
   const g = new THREE.Group();
   const white = opts.style === 'white';
+  const darksaber = opts.style === 'darksaber';
   const tonfa = opts.style === 'tonfa';
   const double = opts.style === 'double';
   // Maris spins the shaft around its cross-grip. Keep the outer group as the
@@ -315,7 +316,7 @@ export function makeSaber(
     addCyl(body, mDark, 0.019, 0.019, 0.075, 0, -0.15, 0, 0, 0, 0, 10);
     addCyl(body, mHilt, 0.024, 0.018, 0.04, 0, 0.095, 0, 0, 0, 0, 10);
     addCyl(body, mDark, 0.016, 0.016, 0.12, -0.065, -0.085, 0, 0, 0, Math.PI / 2, 10);
-  } else if (white || opts.style === 'dark' || double) {
+  } else if (white || darksaber || opts.style === 'dark' || double) {
     // The Jedi's separate hilt is a procedural stand-in until its concept is
     // approved and modelled. Keep the same mount and length as the final prop.
     addCyl(g, mHilt, 0.021, 0.021, double ? 0.4 : 0.21, 0, double ? 0 : -0.06, 0, 0, 0, 0, 10);
@@ -347,8 +348,20 @@ export function makeSaber(
   // the trail builder needs the blade's frame and reach to sample tip arcs
   g.userData.blade = blade;
   g.userData.bladeLen = BLADE_LEN;
-  g.userData.trailColor = tonfa || white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
-  for (const [r, color, opacity] of [
+  g.userData.trailColor = darksaber ? [0.9, 0.95, 1.0] : tonfa || white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
+  if (darksaber) {
+    // Opaque flat black blade masks the middle of a wider white fringe.
+    // Keeping the fringe behind the core preserves the black silhouette.
+    const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.14, BLADE_LEN, 0.008),
+      new THREE.MeshBasicMaterial({ color: 0xe7eeff, transparent: true, opacity: 0.72,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    fringe.position.y = BLADE_LEN / 2;
+    blade.add(fringe);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.09, BLADE_LEN - 0.03, 0.028),
+      new THREE.MeshBasicMaterial({ color: 0x08080c }));
+    core.position.y = BLADE_LEN / 2 - 0.015;
+    blade.add(core);
+  } else for (const [r, color, opacity] of [
     [0.011, tonfa || white ? 0xffffff : 0xfff0f0, 0.95],
     [0.026, tonfa || white ? 0xe8f5ff : 0xff2a1e, 0.42],
     [0.045, tonfa || white ? 0xc9e8ff : 0xff2a1e, 0.14],
@@ -377,7 +390,7 @@ export function makeSaber(
   // swing and, because the renderer skips invisible subtrees, costs nothing
   // while the weapon is stowed.
   if (opts.light !== false) {
-    const light = new THREE.PointLight(tonfa || white ? 0xddefff : 0xff3a24, 3.2, 5, 2);
+    const light = new THREE.PointLight(tonfa || white || darksaber ? 0xddefff : 0xff3a24, 3.2, 5, 2);
     light.position.y = BLADE_LEN * 0.45;
     light.castShadow = false;
     blade.add(light);
@@ -385,12 +398,12 @@ export function makeSaber(
   // Measured at the generator caps of the fitted authored hilts. Their
   // origins and curved shafts differ; placing every blade at Y=.06 buried
   // most bases inside metal, while Maris' offset emitter missed its shaft.
-  swapWeapon(body, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2, () => {
+  swapWeapon(body, tonfa ? 'maris_tonfa' : white || darksaber ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2, () => {
     if (tonfa) blade.position.set(0.003, -0.255, -0.048);
     else if (double) {
       blade.position.set(-0.001, 0.211, 0);
       opposite?.position.set(0.002, -0.212, -0.001);
-    } else if (white) blade.position.set(0.001, 0.126, -0.008);
+    } else if (white || darksaber) blade.position.set(0.001, 0.126, -0.008);
     else if (opts.style === 'dark') blade.position.set(-0.003, 0.127, -0.013);
     else blade.position.set(-0.002, 0.125, -0.029);
   });

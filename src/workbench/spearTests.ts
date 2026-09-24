@@ -3,7 +3,7 @@ import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
 import { counterweightTracks } from '../anim/counterweight';
 
-/** Workbench-only spear studies. The game's melee combo remains untouched. */
+/** Spear studies shared by the workbench and selected game combo variants. */
 const D = Math.PI / 180;
 type Angles = [number, number, number];
 const rot = (bone: string, times: number[], poses: Angles[]): THREE.QuaternionKeyframeTrack => {
@@ -78,5 +78,11 @@ export function spearTestClips(p: Proportions): ClipSet {
     rot('upperLegR', c, [[12, 0, -5], [12, 0, -5], [16, 0, -5], [16, 0, -5], [21, 0, -5], [21, 0, -5], [12, 0, -5]]),
     rot('lowerLegR', c, [[17, 0, 0], [17, 0, 0], [18, 0, 0], [18, 0, 0], [23, 0, 0], [23, 0, 0], [17, 0, 0]]),
   ]);
+  // Original studies were deliberately slow for inspection. Their keyed
+  // timing now matches the faster combat preview and occasional game use.
+  for (const clip of Object.values(clips)) {
+    for (const track of clip.tracks) track.scale(0.5);
+    clip.duration *= 0.5;
+  }
   return clips;
 }

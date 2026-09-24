@@ -15,6 +15,7 @@ const GUARD: Record<'upperArmL' | 'forearmL', Angles> = {
 const BEATS: Record<string, number[]> = {
   melee1: [0.75, 1, 0.1, 0.75], melee2: [0.75, 1, 0.1, 0.75], melee3: [0.75, 1, 0.1, 0.75],
   staff1: [0.75, 1, 0.1, 0.75], staff2: [0.75, 1, 0.1, 0.75], staff3: [0.75, 1, 0.1, 0.75],
+  darksaber1: [0.75, 1, 0.1, 0.75], darksaber2: [0.75, 1, 0.1, 0.75], darksaber3: [0.75, 1, 0.1, 0.75],
   spearTest1Upper: [0.75, 1, 0.65, 0.1, 0.1, 0.75],
   spearTest2Upper: [0.75, 1, 0.65, 0.1, 0.1, 0.75],
   spearTest3Upper: [0.75, 1, 0.75, 0.45, 0.1, 0.1, 0.75],

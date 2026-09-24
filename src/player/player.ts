@@ -49,6 +49,11 @@ const GUARD_TINT = new THREE.Color(0x4fc8ff);
 const HIT_IFRAMES = 0.3;
 /** how long an X press during a swing waits for the swing to clear */
 const MELEE_BUFFER = 0.25;
+const DIN_STAFF_VARIANTS = [
+  { upper: 'spearTest2Upper', lower: 'spearTest2Lower', hit: 0.44 },
+  { upper: 'staffRiseUpper', lower: 'staffRiseLower', hit: 0.53 },
+  { upper: 'staffDiagonalUpper', lower: 'staffDiagonalLower', hit: 0.53 },
+] as const;
 /**
  * How much of a hit aimed at a mounted rider carries into the ride under them.
  * The rider takes the hit in full — they are the one in the open — and this is
@@ -1308,7 +1313,7 @@ export class Player {
   }
 
   private get saberCapacity(): number {
-    return this.characterId === 'maul' || this.characterId === 'revan' ? 1 : 2;
+    return this.characterId === 'din' || this.characterId === 'maul' || this.characterId === 'revan' ? 1 : 2;
   }
 
   /** blades physically in hand — thrown ones are out in the world */
@@ -3029,7 +3034,7 @@ export class Player {
     let t = this.thrownSabers[hand];
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
       light: hand === 0,
-      style: this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
+      style: this.characterId === 'din' ? 'darksaber' : this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
         : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
     });
     this.saberIdle = 0;
@@ -3119,16 +3124,21 @@ export class Player {
       const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
-      // The double-ended hilt needs two-handed sweeps and a returning end.
-      const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
-      const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
+      // Use the weapon's keyed attack family; Din's single Darksaber keeps
+      // the striking blade in his right hand across all three hits.
+      const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+      // The three original staff hits stay in the combo. Each hit has a
+      // one-in-four chance to use its faster, individually keyed variation.
+      const variant = this.characterId === 'din' && set === 'melee' && Math.random() < 0.25
+        ? DIN_STAFF_VARIANTS[this.meleeStep - 1] : null;
+      const clip = variant?.upper ?? `${set}${this.meleeStep}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
       // nothing at all
       const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
-      this.meleeHitPending = dur * 0.45;
+      this.meleeHitPending = dur * (variant?.hit ?? 0.45);
       this.meleeDamage = (this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage)
         * (bare ? 0.4 : 1);
       // Melee draws: pressing swing with the blades away lights them on the
@@ -3149,7 +3159,7 @@ export class Player {
       } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
         // no lunge to carry the body, so the legs join the swing: weight
         // drop, step, pivot — one-shots matched to each upper's duration
-        this.char.animator!.playOnce('lower', `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
     }
@@ -3394,7 +3404,7 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+    const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');

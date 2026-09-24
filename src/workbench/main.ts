@@ -158,14 +158,21 @@ let paused = false;
 let offhandStrength = 0.5;
 let alternateChoice = initialParams.get('alternate') ?? 'none';
 function alternatesFor(p: Pose): Alternate[] {
-  return (ATTACK_ALTERNATES[p.id] ?? []).filter((alt) => figures.length > 0
+  const dinSingleSaber: Record<string, Alternate[]> = {
+    saber2: [{ id: 'staffRise', name: 'Rising cut', lower: 'staffRiseLower', upper: 'staffRiseUpper', reference: 'staff' }],
+    saber3: [{ id: 'staffDiagonal', name: 'Diagonal finish', lower: 'staffDiagonalLower', upper: 'staffDiagonalUpper', reference: 'staff' }],
+  };
+  const choices = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id] : ATTACK_ALTERNATES[p.id] ?? [];
+  return choices.filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
 function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
   let upper = selected.upper;
-  if (alternateChoice === 'none' && (subject.id === 'maris' || subject.id === 'maul')) {
-    const weaponClips: Record<string, string> = subject.id === 'maris' ? {
+  if (alternateChoice === 'none' && (subject.id === 'din' || subject.id === 'maris' || subject.id === 'maul')) {
+    const weaponClips: Record<string, string> = subject.id === 'din' ? {
+      saber1: 'darksaber1', saber2: 'darksaber2', saber3: 'darksaber3',
+    } : subject.id === 'maris' ? {
       saberIdleUpper: 'tonfaIdleUpper', saberRunUpper: 'tonfaRunUpper',
       saber1: 'tonfa1', saber2: 'tonfa2', saber3: 'tonfa3',
       saberFlourish: 'tonfaFlourish',
@@ -581,14 +588,19 @@ function renderPanel(): void {
     .join('');
   const list = available();
   const rest = list.find((p) => p.id === 'rest');
+  const dinSaberLabels: Record<string, string> = {
+    saberIdle: 'Darksaber stance — idle', saberRun: 'Darksaber stance — run',
+    flourish: 'Darksaber flourish', saber1: 'Darksaber 1 — right cut',
+    saber2: 'Darksaber 2 — backswing', saber3: 'Darksaber 3 — overhead',
+  };
   const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
-    option(p.id, `${p.name}${alternatesFor(p).length ? ' •' : ''}`, p.id === pose.id)).join('');
+    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${alternatesFor(p).length ? ' •' : ''}`, p.id === pose.id)).join('');
   const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
   const selectedUpper = (choices.find((alt) => alt.id === alternateChoice) ?? pose).upper;
   const counterweightAvailable = hasCounterweight(selectedUpper)
-    || (subject.id === 'maul' && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
+    || ((subject.id === 'maul' || subject.id === 'din') && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
   if (alternateChoice !== 'none' && !choices.some((alt) => alt.id === alternateChoice)) alternateChoice = 'none';
   syncSelectionUrl();
 
@@ -619,6 +631,8 @@ function renderPanel(): void {
       </select>
     </div>` : ''}
     ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed study · weapons hidden · not used in combat yet.</p>` : ''}
+    ${subject.id === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
+      ? `<p class="study-note">In game, this combo hit occasionally uses ${pose.id === 'melee1' ? 'Long lunge thrust' : pose.id === 'melee2' ? 'Low rising sweep' : 'Diagonal step and strike'} instead of the original (25% chance).</p>` : ''}
     ${counterweightAvailable ? `<div class="field playback">
       <label for="offhandStrength">Free arm counterweight <output id="offhandValue">${Math.round(offhandStrength * 100)}%</output></label>
       <input id="offhandStrength" type="range" min="0" max="1.25" step="0.25" value="${offhandStrength}" aria-label="Free arm counterweight">

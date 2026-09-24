@@ -51,7 +51,7 @@ export class ThrownSaber {
    *   hand's throw carries it, the off-hand's flies unlit (same rule as the
    *   blades in hand)
    */
-  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' } = {}) {
+  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' | 'darksaber' } = {}) {
     const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
     const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
     this.saber = makeSaber(silver, dark, { light: opts.light, style: opts.style });
