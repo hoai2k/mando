@@ -1,5 +1,6 @@
 import { TEXT } from '../text';
 import * as THREE from 'three';
+import { holdPolearm } from '../anim/polearmGrip';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
@@ -396,9 +397,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(gunmetal, dark)) : null });
   }
 
-  // The melee prop keeps the gaffi's mount and orientation whatever it looks
-  // like, so the melee clips swing a saber exactly as they swing the staff.
+  // Staff and saber share the gripping hand, but their local axes need
+  // different mount rotations: a spear thrust carries its point forward.
   const blades = new Map<MeleeKind, Held>();
+  // This stays on the canonical right hand when an authored prop moves onto
+  // its visible hand. Both builds therefore solve the base-hand grip from the
+  // same weapon axis before the authored skeleton is updated.
+  const polearmAxis = new THREE.Group();
+  polearmAxis.rotation.x = Math.PI;
+  b.weaponR.add(polearmAxis);
   const saberStyle = id === 'jedi' ? 'white' : 'red';
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
@@ -413,8 +420,12 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       offhand.name = 'saberHandL';
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+      // makeGaffi's point is local +Y. Turn it toward the extended arm's
+      // forward axis; the old quarter-turn left the point nearly vertical
+      // during a thrust. This also keeps the butt behind the gripping hand.
+      main.rotation.x = Math.PI;
     }
-    main.rotation.x = Math.PI / 2;
+    if (kind === 'sabers') main.rotation.x = Math.PI / 2;
     main.visible = false;
     b.weaponR.add(main);
     blades.set(kind, { main, offhand });
@@ -606,6 +617,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     },
     cosmetic: (dt, time) => {
       shield.update(dt, time);
+      if (!shieldUp && weapon === 'gaffi' && blade === blades.get('gaffi'))
+        holdPolearm(rig, polearmAxis);
       swap.update();
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);

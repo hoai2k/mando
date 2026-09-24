@@ -17,9 +17,8 @@ const pos = (bone: string, times: number[], poses: Angles[]): THREE.VectorKeyfra
 
 export function spearTestClips(p: Proportions): ClipSet {
   const y = p.hipHeight;
-  // The weapon is mounted on the right hand, with its shaft pointing along
-  // that hand's forward axis. Left-arm keys suggest the supporting grip;
-  // the current rig does not constrain that hand to the shaft.
+  // The point is local +Y and the mount turns it toward the extended arm's
+  // forward axis. The base hand follows the rear shaft through polearmGrip.
   const guardR: Angles = [-69, -12, -15];
   const guardL: Angles = [-73, 25, 14];
   const recoverR: Angles = [-68, -10, -14];

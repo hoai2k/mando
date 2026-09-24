@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { holdPolearm } from '../anim/polearmGrip';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
@@ -102,7 +103,8 @@ const AUTHORED_ENEMY: Record<string, number> = {
  * finding it wherever the gun goes; shot direction is computed from the
  * chest, never from the barrel, so aim is untouched.
  */
-function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
+function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY,
+  enabled = true, beforeRetarget?: () => void): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
@@ -112,7 +114,7 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
     },
   });
   const prev = inst.cosmetic;
-  inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
+  inst.cosmetic = (dt, time) => { beforeRetarget?.(); swap.update(); prev?.(dt, time); };
   // the menus show a spinner rather than the body underneath until this turns
   // true; `settled` covers "no file exists" too, so a kind without a sculpt is
   // presentable immediately
@@ -139,9 +141,13 @@ export function buildTusken(authored = true): CharacterInstance {
   for (const sx of [-0.045, 0.045]) addCyl(head, dark, 0.006, 0.012, 0.06, sx, -0.04, 0.12, Math.PI / 2, 0, 0, 5);
   // gaderffii in right hand
   const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), mat(0x8a8f92, { rough: 0.4, metal: 0.6 }));
-  gaffi.rotation.x = Math.PI / 2;
+  // The +Y spearhead should point with the striking arm, not up from it.
+  gaffi.rotation.x = Math.PI;
   b.weaponR.add(gaffi);
-  authoredEnemy(inst, rig, 'tusken', authored);
+  const polearmAxis = new THREE.Group();
+  polearmAxis.rotation.x = Math.PI;
+  b.weaponR.add(polearmAxis);
+  authoredEnemy(inst, rig, 'tusken', authored, () => holdPolearm(rig, polearmAxis));
   return inst;
 }
 

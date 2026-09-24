@@ -8,7 +8,7 @@ The three **Melee 1 → Alternates** options are workbench-only candidates. **No
 | Test Animation 2 | Extended point followed by a front-foot lunge | Point starts moving before the forward weight transfer at 0.47 s; deep front-leg bend marks the finish. |
 | Test Animation 3 | Outward circular deflection and immediate straight thrust | The arms describe the deflection by 0.31 s, re-center, then thrust around 0.55 s. |
 
-These are interpretations for a short, right-hand-mounted gaderffii. The current canonical rig has no sliding grip or constraint connecting the support hand to the shaft, so the hand positions approximate two-handed control. Assess silhouette, weapon path, and foot contact in the workbench before considering any of them for game combat.
+These are interpretations for a short, right-hand-mounted gaderffii. The point is the weapon's local +Y end (the narrow spearhead); the hooked blade is the butt end. The mount now turns the point along the extending arm instead of leaving it upright during thrusts. The left base hand follows a reachable place on the rear shaft, sliding slightly as the arm extends. This correction also applies to the original gaderffii swings and to the Tusken's staff. Assess silhouette, weapon path, and foot contact in the workbench before considering any candidate for game combat.
 
 ## Research basis
 

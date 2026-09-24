@@ -30,4 +30,4 @@ Pacing and committed pose vary by style: Paz and the Armorer are heavier and slo
 
 ## Review limits
 
-The rig does not constrain the support hand to a staff shaft, and the looped workbench preview is longer than the gameplay one-shot. Study the weapon path, hand contact, foot placement, and return to guard before promoting any candidate. Gameplay hit windows, audio, damage, and reach are unchanged.
+The right hand drives the gaderffii. A support-hand reach solver follows a reachable point on its rear shaft; extreme one-handed swing poses can still leave a small gap. The looped workbench preview is longer than the gameplay one-shot. Study the weapon path, hand contact, foot placement, and return to guard before promoting any candidate. Gameplay hit windows, audio, damage, and reach are unchanged.
