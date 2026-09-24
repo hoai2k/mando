@@ -137,8 +137,8 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     rangedOptions: ranged,
     meleeOptions: melee,
     meleeKind: melee[0],
-    // null names a fighter with no gun — Ventress, whose ranged weapon is the
-    // blade she throws; the HUD then reads off the melee slot
+    // Null means no gun; the HUD reads the melee slot, and saber wielders
+    // can use their trigger to throw a blade instead.
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
     meleeName: id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
     blasterVoice: ranged[0] ?? 'carbine',

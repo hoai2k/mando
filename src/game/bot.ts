@@ -129,8 +129,8 @@ export class BotBrain {
 
     // ---- trigger ----
     // A gun it does not have is a gun it does not pull: a melee-only fighter
-    // (Ventress, whose ranged weapon is a thrown blade) still presses the
-    // trigger, and the controller decides what that means for her.
+    // (including saber wielders, whose ranged attack is a thrown blade) still
+    // presses the trigger, and the controller decides what that means.
     if (this.rest > 0) {
       this.rest -= dt;
     } else if (this.burst > 0) {

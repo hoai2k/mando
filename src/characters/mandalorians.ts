@@ -126,10 +126,9 @@ interface MandoConfig {
    * can name several weapons; the fighter carries all of them and the D-pad
    * cycles that slot, and whichever button uses a slot draws it.
    *
-   * `ranged: 'none'` is a fighter whose trigger is not a gun — Ventress, whose
-   * RT throws a saber instead. It is not "unarmed at range": the throw is her
-   * ranged weapon, and it is always in hand, which is the same promise the
-   * rest of the roster keeps with a blaster.
+   * `ranged: 'none'` is a fighter whose trigger is not a gun. Saber wielders
+   * throw a blade with RT; fighters carrying a blaster throw while their
+   * sabers are drawn and fire while the blaster is drawn.
    */
   ranged?: RangedKind | RangedKind[] | 'none';
   melee?: MeleeKind | MeleeKind[];
@@ -216,7 +215,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   ventress: {
     ...TEXT.characters.ventress,
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
-    melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,   // her trigger throws a blade
+    melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
     voice: 'human_f', acrobat: true,
   },
   jedi: {

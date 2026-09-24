@@ -6,7 +6,7 @@ import type { Game } from '../game/game';
 import type { Player } from './player';
 
 /**
- * A lightsaber in flight (Ventress's RT). The blade leaves the hand spinning
+ * A lightsaber in flight (RT while sabers are wielded). It leaves the hand spinning
  * flat like a thrown disc, sails out while the trigger stays down, and comes
  * home the moment it is released — or of its own accord, once it has spent
  * its range or met a wall. Two of these exist at most — one
@@ -158,8 +158,7 @@ export class ThrownSaber {
       if (wasAlive && !e.alive) owner.fuel = Math.min(1, owner.fuel + 0.4);
     }
 
-    // And the scenery. For Ventress the thrown blade *is* the ranged weapon —
-    // she has no gun — so anything a bolt can break has to go down to it too:
+    // And the scenery. A thrown blade can break anything a bolt can break:
     // crates, barrels, the covert's supply cache. Same per-target beat as a
     // body takes, measured to the nearest point of the prop.
     for (const b of game.board.breakables ?? []) {

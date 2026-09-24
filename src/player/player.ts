@@ -17,7 +17,7 @@ import type { Combatant, Enemy } from '../enemies/enemy';
 import type { StaticBox, StaticCylinder } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import type { Vehicle } from '../game/vehicles';
-import { markOwned } from '../core/dispose';
+import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
@@ -504,7 +504,7 @@ export class Player {
     consume: () => this.consumeDeflect(),
   };
   private deflectAim = new THREE.Vector3();
-  // ---- saber throw (RT, saber fighters only) ----
+  // ---- saber throw (RT while wielding sabers) ----
   /** the blades in flight, one slot per hand (0 = main, 1 = off) */
   private thrownSabers: [ThrownSaber | null, ThrownSaber | null] = [null, null];
   /** seconds RT has been held since the pull, or -1 when not tracking one */
@@ -1029,6 +1029,18 @@ export class Player {
    */
   morph(id: PlayableId, game: Game): void {
     this.restoreMats();   // any dissolve clones belong to the body being shed
+    // A thrown saber belongs to the old body and its old hilt style. Retire
+    // the flight effect before the new character takes over its hand slots.
+    if (this.throwFx) {
+      game.scene.remove(this.throwFx);
+      disposeSubtree(this.throwFx);
+      this.throwFx = null;
+    }
+    this.thrownSabers = [null, null];
+    this.throwHold = -1;
+    this.throwWind = -1;
+    this.pendingMelee = false;
+    this.prevThrowHeld = false;
     game.scene.remove(this.char.root);
     const def = playableDef(id);
     this.characterId = id;
@@ -1310,12 +1322,12 @@ export class Player {
   }
 
   /**
-   * Twin blades bat blaster fire away. It reuses the block shield's collider
+   * Held blades bat blaster fire away. It reuses the block shield's collider
    * rather than inventing a second mechanism, with three differences that make
    * it read as a parry and not a wall: a tighter frontal arc (a bolt from the
    * flank still lands), a short cooldown so a squad firing together gets shots
    * through, and an aim point — the bolt goes back at whoever is in front of
-   * her rather than mirroring off a pane, which is the whole fantasy.
+   * the wielder rather than mirroring off a pane, which is the whole fantasy.
    */
   private get saberCollider(): DeflectSphere | null {
     // empty hands turn nothing: with both blades thrown there is no parry
@@ -2884,9 +2896,8 @@ export class Player {
   }
 
   /**
-   * Blades put themselves away after a lull, for a fighter who carries nothing
-   * else — the playable war beasts, whose other hand is empty rather than
-   * holding a gun. They are lit by swinging or by turning a bolt (both reset
+   * Blades put themselves away after a lull for a fighter who carries no gun.
+   * They are lit by swinging or by turning a bolt (both reset
    * the clock) and the next swing brings them straight back out, so stowing is
    * never something you have to undo before you can fight.
    *
@@ -2910,9 +2921,9 @@ export class Player {
   }
 
   /**
-   * RT for the saber fighter, tap or hold.
+   * RT while wielding sabers, tap or hold.
    *
-   * A quick pull is just a swing — the trigger is her attack button, and
+   * A quick pull is just a swing — the trigger is the wielder's attack button, and
    * every pull throwing a blade meant she could not strike with RT at all
    * without disarming herself. Hold it past THROW_HOLD and the blade leaves
    * the hand instead, spins out ahead for as long as the trigger stays down,
@@ -2925,12 +2936,17 @@ export class Player {
    * blocks, hugs cover, rides, swims, or dies.
    */
   private updateSaberThrow(dt: number, input: FrameInput, game: Game): void {
-    if (!this.meleeOnly || this.meleeKind !== 'sabers') return;
+    // A fighter with a gun fires it while it is drawn. Once they draw sabers,
+    // the same trigger uses the throw, including a quick-tap melee swing.
+    // Existing projectiles must still tick after a weapon switch so they can
+    // be recalled and caught rather than freezing in the world.
+    const wieldingSabers = this.meleeKind === 'sabers'
+      && (this.meleeOnly || this.weapon === 'gaffi');
     const pressed = input.shootHeld && !this.prevThrowHeld;
     this.prevThrowHeld = input.shootHeld;
     // letting go — or losing the ability to hold on — turns the blades home
-    const held = input.shootHeld && this.alive && !this.blocking;
-    const free = this.alive && !this.blocking && !this.cover && !this.vehicle
+    const held = wieldingSabers && input.shootHeld && this.alive && !this.blocking;
+    const free = wieldingSabers && this.alive && !this.blocking && !this.cover && !this.vehicle
       && !this.swimming && this.snareTimer <= 0;
 
     if (pressed && free && this.meleeTimer <= 0) this.throwHold = 0;
@@ -2973,8 +2989,10 @@ export class Player {
         this.char.setSaberHeld?.(hand, true);
         this.saberIdle = 0;
         audio.saberIgnite();
-        this.char.animator?.playOnce('upper', hand === 0 ? 'saberCatchR' : 'saberCatchL', 0.05);
-        this.meleeTimer = Math.max(this.meleeTimer, 0.3);
+        if (wieldingSabers && this.alive) {
+          this.char.animator?.playOnce('upper', hand === 0 ? 'saberCatchR' : 'saberCatchL', 0.05);
+          this.meleeTimer = Math.max(this.meleeTimer, 0.3);
+        }
       }
     }
   }
@@ -2984,7 +3002,7 @@ export class Player {
    *
    * The throw is two beats, because one beat does not read as a throw — the
    * blade used to leave on the button, during a borrowed slash animation, so
-   * nothing on her body said she had let go of it. `saberThrow*` cocks back
+   * nothing on the body said it had let go of it. `saberThrow*` cocks back
    * over the shoulder, and `releaseSaber` runs on the forward whip.
    */
   private beginThrow(hand: 0 | 1): void {
@@ -3214,7 +3232,7 @@ export class Player {
     // of it shooting rather than losing a beat to a swap they never asked for.
     // The swing itself still finishes — the gun comes up as the blade comes
     // down, not through it.
-    if ((input.shootHeld || input.aimHeld) && !this.meleeOnly
+    if (((input.shootHeld && !this.sabersDrawn) || input.aimHeld) && !this.meleeOnly
         && this.weapon !== 'blaster' && this.meleeTimer <= 0) {
       this.weapon = 'blaster';
       this.char.setWeapon('blaster');
