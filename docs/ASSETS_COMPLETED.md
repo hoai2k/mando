@@ -513,6 +513,16 @@ name is the one thing meant to be readable.
 `portrait_ig11.jpg` (512×614), the last face still drawn as a mark, to the same recipe as
 the earlier portrait batches. Every card on the drop screen carries authored art now.
 
+## Additional playable portraits — 6 files, delivered 2026-09-24
+
+`portrait_jedi.jpg`, `portrait_maris.jpg`, `portrait_revan.jpg`,
+`portrait_marshal.jpg`, and `portrait_fennec.jpg` were generated as 512×614
+head-and-shoulders portraits from their canonical character sheets. The portrait
+for `maul` was cropped directly from `reference/characters/sith_soldier_front.png`
+after the image generator rejected the reference, preserving the canonical face
+and costume. All six are under `public/assets/textures/` and use the existing
+`portrait_<id>.jpg` lookup on the loading and VS screens.
+
 ---
 
 ## Game-mode art and the favicon — 13 files, delivered 2026-08-29
