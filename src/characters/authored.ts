@@ -393,6 +393,7 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',
   flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
   ringEnforcer: 'ring_enforcer',
+  gunslinger: 'gunslinger', escortDroid: 'escort_droid',
   // the three creatures come through loadCreature, but the file is the same
   // download, so warming it here is what stops a first-spawn hitch
   krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',

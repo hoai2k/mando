@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: the two [replacement NPCs](#replacement-npcs--requested-2026-09-03) the player-character cleanup left without a sculpt, the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The two replacement NPCs were generated, processed, and integrated on 2026-09-23. The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
 
 ## Swap contract (applies to every biped)
 
@@ -58,7 +58,7 @@ enemy kind on every board's late waves and `ig11.glb` the wave-5 ally — the sa
 both sides, which had been deliberate and is no longer: a character you can pick off the
 select screen is not also a body you shoot or escort. Those two enemy kinds are deleted,
 and the roles they held are carried by two new NPCs, `gunslinger` and `escortDroid`, whose
-sculpts are [requested below](#replacement-npcs--requested-2026-09-03). **Neither
+sculpts are [documented below](#replacement-npcs--requested-2026-09-03). **Neither
 replacement may reuse `duelist.glb` or `ig11.glb`** — borrowing either file puts the
 player character straight back on the NPC side, which is the whole thing this change
 removed.
@@ -162,9 +162,15 @@ boss bar — remain future work, and their voice sets are deferred with them
 that — the `duelist` and `ig11` enemy kinds are deleted, so neither appears as a hostile
 or as an ally in Waves or Missions (see `docs/PLAN.md` §7). Both held real roles that the
 wave tables were built around, and each is now filled by a new NPC carrying the retired
-kind's exact stats, so no board's balance moved. **Both ship today as procedural bodies**
-(`buildGunslinger` / `buildEscortDroid` in `src/characters/enemies.ts`) and play correctly
-without a file; these two sculpts are what turns them from a stand-in into a character.
+kind's exact stats, so no board's balance moved. Both now load authored models, with the
+procedural bodies in `buildGunslinger` / `buildEscortDroid` as fallbacks.
+
+The `gunslinger.glb` and `escort_droid.glb` files were generated from their three-view
+reference sheets using Tripo P1, oriented to +Z for the game, cleaned, Rigify rigged,
+limited to four weights per vertex, and Meshopt compressed. Each has one skinned mesh,
+33 deform bones, three 512² PBR maps, and 7,599 / 7,600 triangles respectively.
+The untouched Tripo sources, editable Blender stages, validation reports, and final
+copies are kept locally under `model-work/` (the game files are in `public/models/`).
 
 **Hard constraint on both: do not reuse or re-dress `duelist.glb` or `ig11.glb`.** Those
 files are Cad Bane and IG-11. Putting either back on the NPC side, in any recognisable

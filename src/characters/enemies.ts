@@ -3,7 +3,7 @@ import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
-import { addBox, addCyl, addSphere, buildBiped, makeGaffi, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, type CharacterInstance } from './builder';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
 // the clutch's size is the sculpt's, and it is the rack module that counts it
@@ -88,6 +88,7 @@ const AUTHORED_ENEMY: Record<string, number> = {
   nikto: 1.76,
   // the new-board roster (see ASSETS_MODELS.md for the model briefs)
   flametrooper: 1.9, quarren: 1.9, alamite: 1.85, ring_enforcer: 2.1,
+  gunslinger: 1.9, escort_droid: 2.2,
 };
 
 /**
@@ -274,7 +275,7 @@ export function buildDarkTrooper(authored = true): CharacterInstance {
  * Deliberately not IG's silhouette: a broad wedge skull and heavy shoulders
  * rather than a cylinder head on spindly limbs.
  */
-export function buildEscortDroid(): CharacterInstance {
+export function buildEscortDroid(authored = true): CharacterInstance {
   const shell = mat(0x3a3d44, { rough: 0.45, metal: 0.7 });
   const p: Proportions = { ...HUMAN, hipHeight: 1.16, headSize: 0.34, shoulderWidth: 0.3, upperLegLen: 0.55, lowerLegLen: 0.55 };
   const { inst, rig } = buildBiped({ skin: shell, torso: shell, proportions: p });
@@ -291,10 +292,7 @@ export function buildEscortDroid(): CharacterInstance {
   addBox(b.shoulderR, dark, 0.16, 0.13, 0.17, 0.04, 0.04, 0);
   addBox(b.chest, shell, 0.34, 0.38, 0.22, 0, 0.07, 0);
   inst.muzzle = rifle(b.weaponR);
-  // No sculpt yet — `escort_droid` is an open model request (ASSETS_MODELS.md),
-  // so this takes no `authored` flag: there is nothing to compare against. The
-  // day the file lands, wiring it is an `authoredEnemy` call plus a height in
-  // AUTHORED_ENEMY, exactly as every other kind was wired.
+  authoredEnemy(inst, rig, 'escort_droid', authored);
   return inst;
 }
 
@@ -333,7 +331,7 @@ export function buildGunfighter(kind: 'marshal' | 'fennec', authored = true): Ch
  * breath mask under a low hood, armoured long coat, bandolier across the
  * chest, and a pistol in each hand.
  */
-export function buildGunslinger(): CharacterInstance {
+export function buildGunslinger(authored = true): CharacterInstance {
   const coat = mat(0x3a3229, { rough: 0.9 });
   const suitM = mat(0x241f1a, { rough: 0.9 });
   const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
@@ -351,11 +349,20 @@ export function buildGunslinger(): CharacterInstance {
   for (let i = 0; i < 6; i++) {
     addBox(b.chest, plate, 0.03, 0.055, 0.03, -0.13 + i * 0.05, 0.19 - i * 0.05, 0.12, 0, 0, 0.6);
   }
-  inst.muzzle = rifle(b.weaponR);
-  // No sculpt yet — `gunslinger` is an open model request (ASSETS_MODELS.md),
-  // so no `authored` flag here either. `duelist.glb` is deliberately *not*
-  // borrowed in the meantime: that file is Cad Bane, and reusing it would put
-  // a player character straight back on the hostile side.
+  const gunmetal = mat(0x57534d, { rough: 0.5, metal: 0.55 });
+  const gunDark = mat(0x242424, { rough: 0.55, metal: 0.5 });
+  for (const weaponBone of [b.weaponR, b.weaponL]) {
+    const pistol = makePistol(gunmetal, gunDark);
+    pistol.rotation.x = Math.PI / 2;
+    weaponBone.add(pistol);
+    if (weaponBone === b.weaponR) {
+      const muzzle = new THREE.Group();
+      muzzle.position.z = 0.3;
+      pistol.add(muzzle);
+      inst.muzzle = muzzle;
+    }
+  }
+  authoredEnemy(inst, rig, 'gunslinger', authored);
   return inst;
 }
 

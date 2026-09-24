@@ -73,7 +73,7 @@ export const GROUPS: SubjectGroup[] = [
   {
     label: 'Allies',
     subjects: [
-      plain('escortDroid', 'Escort Droid — ally build', () => buildEscortDroid()),
+      plain('escortDroid', 'Escort Droid — ally build', (a) => buildEscortDroid(a), true, 'escort_droid'),
       plain('marshal', 'Cobb Vanth', (a) => buildGunfighter('marshal', a), true),
       plain('fennec', 'Fennec Shand', (a) => buildGunfighter('fennec', a), true),
     ],
@@ -91,7 +91,7 @@ export const GROUPS: SubjectGroup[] = [
       plain('stormtrooper', 'Stormtrooper', (a) => buildStormtrooper(false, a), true),
       plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a), true),
       plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a), true),
-      plain('gunslinger', 'Guild Gunslinger', () => buildGunslinger()),
+      plain('gunslinger', 'Guild Gunslinger', (a) => buildGunslinger(a), true),
       plain('capo', 'Pyke Capo', (a) => buildPykeCapo(a), true, 'pyke_capo'),
       plain('enforcer', 'Wookiee Enforcer', (a) => buildWookieeEnforcer(a), true, 'wookiee_enforcer'),
       plain('officer', 'Imperial Officer', (a) => buildImperialOfficer(a), true, 'imperial_officer'),

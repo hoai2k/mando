@@ -4,3 +4,4 @@ dist
 .claude/worktrees/
 .vite/
 flaky-report.json
+model-work/
