@@ -21,6 +21,10 @@ five canvases including the replacement `sandworm`. The cast, the boards, the sk
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
+`reference/characters/maris_brood_front.png` is a front-only character concept
+for review. She is not yet in the playable roster; generate matching side and
+back views if her design is selected for a 3D model.
+
 `reference/characters/jedi_saber_options.png` is a four-hilt comparison sheet
 for design review: the current Jedi concept, a slim heroic hilt, a double hilt,
 and a dark armored hilt. It is exploration art, not four approved canonical

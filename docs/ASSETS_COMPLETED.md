@@ -9,6 +9,18 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
+## Maris Brood front character concept — delivered 2026-09-24
+
+`reference/characters/maris_brood_front.png` is a 1024×1536 orthographic
+full-body front concept based on the supplied image. It preserves her dark
+braided hair, pale face and red forehead markings, wrapped neck, strappy dark
+top, burgundy waist sash, fitted trousers, forearm wraps, and armored boots.
+The modelling reference has empty hands, no sabers or belt-mounted hilts, and
+no jetpack. It is a front concept for review; side/back views, a 3D model, and
+playable integration have not been requested or completed.
+
+---
+
 ## Spice Run sky frigate reference and model — delivered 2026-09-24
 
 `reference/props/spice_run_frigate_ref.png` is the canonical side, front and top
