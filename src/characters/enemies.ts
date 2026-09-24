@@ -138,7 +138,8 @@ export function buildTusken(authored = true): CharacterInstance {
   addCyl(head, dark, 0.012, 0.02, 0.09, 0, -0.01, 0.13, Math.PI / 2, 0, 0, 6);
   for (const sx of [-0.045, 0.045]) addCyl(head, dark, 0.006, 0.012, 0.06, sx, -0.04, 0.12, Math.PI / 2, 0, 0, 5);
   // gaderffii in right hand
-  const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), mat(0x8a8f92, { rough: 0.4, metal: 0.6 }));
+  const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }),
+    mat(0x8a8f92, { rough: 0.4, metal: 0.6 }), 'gaffi_collection');
   // The +Y spearhead should point with the striking arm, not up from it.
   gaffi.rotation.x = Math.PI;
   b.weaponR.add(gaffi);

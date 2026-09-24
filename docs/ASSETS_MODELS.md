@@ -56,17 +56,37 @@ when a name does.
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
-### Polearm collection concept — pending 3D validation
+### Polearm collection — generated and split 2026-09-24
 
 [`reference/characters/polearm_collection_v1.png`](../reference/characters/polearm_collection_v1.png)
 is a seven-weapon side-view sheet, arranged top to bottom: Tusken-style gaffi
 stick, Rey-style scavenger staff, unpowered MagnaGuard-style electrostaff,
 beskar spear, Imperial force pike, Gamorrean poleaxe, and Nightsister ritual
 polearm. Each is fully visible in its own row against a plain background so
-one Tripo image-to-3D generation can be tried and its meshes separated later.
-The sheet is concept art only: it has not yet been generated or validated as a
-single 3D asset. Inspect whether Tripo preserves separate weapon geometry and
-clean up thin wraps and hanging ties before treating any slice as a game prop.
+one Tripo image-to-3D generation can supply all seven. Task
+`3b43e03a-2ef6-47a8-9f7a-d7775f07f33d` used 50 credits and produced the
+untouched local source at `model-work/source/polearm_collection_orig.glb`.
+Blender welded coincident vertices, found seven main connected shells,
+assigned detached details to their nearest shell, reduced three slices to
+3,200 triangles, and exported independent 1K-textured GLBs with the tracked
+[`tools/slice-polearm-collection.py`](../tools/slice-polearm-collection.py).
+All seven reimported as single static meshes with UVs and materials.
+
+| Game GLB | Triangles | Assignment |
+|---|---:|---|
+| `beskar_spear.glb` | 665 | Din Djarin, replacing his gaffi stick |
+| `gaffi_collection.glb` | 2,441 | Tusken Raiders, including playable Tuskens |
+| `poleaxe.glb` | 2,442 | The Armorer |
+| `rey_staff.glb` | 3,199 | Available for a future scavenger staff user |
+| `electrostaff.glb` | 3,200 | Available for a future MagnaGuard-type elite; electricity remains an FX task |
+| `force_pike.glb` | 1,260 | Available for a future Imperial guard |
+| `nightsister_polearm.glb` | 3,200 | Available for a future Nightsister enemy |
+
+The last four are ready as props but intentionally unassigned: existing
+Ventress, Maul, Revan and Galen keep their signature sabers, and the current
+security droids and Imperial soldiers are built around ranged weapons. A
+scavenger, MagnaGuard, ceremonial guard, or Nightsister would give each of the
+remaining polearms a distinct role without changing those characters' kits.
 
 ## Playable bounty hunters (5) — priority 2
 

@@ -197,7 +197,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
     ...TEXT.characters.din,
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
-    // the staff he took off the raiders, and the blade he won: D-pad left picks
+    // The spear and the blade he won: D-pad left picks between them.
     melee: ['gaffi', 'sabers'],
   },
   paz: {
@@ -493,14 +493,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         offhand.name = 'saberHandL';
       }
     } else {
-      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver,
+        id === 'din' ? 'beskar_spear' : id === 'armorer' ? 'poleaxe' : 'gaffi');
       // The shaft is local Y on both the fallback and the mounted sculpt.
-      // Slim Din's copy across X/Z while preserving its full reach.
-      if (id === 'din') main.scale.set(0.7, 1, 0.7);
-      // makeGaffi's point is local +Y. Turn it toward the extended arm's
-      // forward axis; the old quarter-turn left the point nearly vertical
-      // during a thrust. This also keeps the butt behind the gripping hand.
+      // Din's dedicated beskar sculpt is already narrow; preserve its full
+      // shaft width and reach when the authored model arrives. Turn the
+      // weapon's +Y head toward the extended arm's forward axis.
       main.rotation.x = Math.PI;
+      // Present the broad face of the Armorer's axe to the chase camera.
+      if (id === 'armorer') main.rotation.y = -Math.PI / 2;
     }
     if (kind === 'sabers') {
       main.rotation.x = id === 'maris' ? -Math.PI / 2 : Math.PI / 2;

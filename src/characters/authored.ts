@@ -468,6 +468,7 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
   nikto: ['nikto_swoop'],
+  tusken: ['gaffi_collection'],
   rivalMaul: ['saber_double'], rivalRevan: ['saber_dark'],
   rivalGalen: ['saber_jedi'], rivalMaris: ['maris_tonfa'],
   rivalVentress: ['saber_curved'],

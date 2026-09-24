@@ -175,9 +175,9 @@ retired kind's exact stats so no board's balance moved:
 
 | Character | Role | Visual notes (from the show) |
 |---|---|---|
-| **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, gaffi stick + EE-3 carbine. |
+| **Din Djarin** (player, `din`) | Mandalorian | Polished bare-silver **beskar** cuirass and helmet (no rangefinder), brown flight suit and cape, cheek-ridged helmet, slim jetpack, beskar spear + EE-3 carbine. |
 | **Paz Vizsla** (player, `paz`) | Mandalorian | Heavy dark-blue plate, oversized pauldrons and chest, reinforced helmet crest, broadest silhouette; same jetpack and weapon loadout. |
-| **The Armorer** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; same loadout. |
+| **The Armorer** (player, `armorer`) | Mandalorian | Gold plate and horned helm, forge-keeper bearing; poleaxe for melee. |
 | **Asajj Ventress** (player, `ventress`) | Hunter | Pale bald assassin, bare-headed, twin red curved-hilt sabers in place of the staff (blades are FX meshes). **Melee only** — she carries no ranged weapon, and turns blaster bolts back at their shooter instead. |
 | **Embo** (player, `embo`) | Hunter | Slatted rebreather mask under a wide woven-metal hat, red poncho-cape, laser crossbow. |
 | **Bossk** (player, `bossk`) | Hunter | Hulking reptilian in a tan flight suit, long-barrelled hunting rifle. |

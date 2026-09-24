@@ -140,7 +140,8 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // Null means no gun; the HUD reads the melee slot, and saber wielders
     // can use their trigger to throw a blade instead.
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
-    meleeName: id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
+    meleeName: id === 'din' ? 'Beskar Spear' : id === 'armorer' ? 'Poleaxe'
+      : id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
@@ -304,7 +305,8 @@ function npcDef(kind: EnemyKind): PlayableDef {
       meleeKind: 'gaffi',
       rangedName: meleeOnly ? null
         : t.blaster === 'longrifle' ? TEXT.weapons.npcRifle(ENEMY_NAME[kind]) : TEXT.weapons.npcBlaster(ENEMY_NAME[kind]),
-      meleeName: meleeOnly ? TEXT.weapons.npcClaws : TEXT.weapons.npcRifleButt,
+      meleeName: kind === 'tusken' ? 'Gaffi Stick'
+        : meleeOnly ? TEXT.weapons.npcClaws : TEXT.weapons.npcRifleButt,
       blasterVoice: t.blaster ?? 'carbine',
       voice: t.voice,
       squad: t.squad,
@@ -323,7 +325,8 @@ const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
   DEFS.set(id, {
     id,
-    modelIds: id === 'maul' ? [id, 'saber_double'] : id === 'revan' ? [id, 'saber_dark'] : [id],
+    modelIds: id === 'din' ? [id, 'beskar_spear'] : id === 'armorer' ? [id, 'poleaxe']
+      : id === 'maul' ? [id, 'saber_double'] : id === 'revan' ? [id, 'saber_dark'] : [id],
     build: () => buildMandalorian(id),
     profile: mandoProfile(id),
   });

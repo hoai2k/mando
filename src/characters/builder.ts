@@ -255,13 +255,26 @@ export function propsSettled(root: THREE.Object3D): boolean {
   return !waiting;
 }
 
-export function makeGaffi(m1: THREE.Material, m2: THREE.Material): THREE.Group {
+export function makeGaffi(
+  m1: THREE.Material, m2: THREE.Material,
+  propId: 'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' = 'gaffi',
+): THREE.Group {
   const g = new THREE.Group();
-  addCyl(g, m1, 0.02, 0.024, 1.35, 0, 0, 0, 0, 0, 0, 8); // shaft
-  addCyl(g, m2, 0.005, 0.05, 0.22, 0, 0.78, 0, 0, 0, 0, 8); // spearhead
-  addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
-  addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
-  swapWeapon(g, 'gaffi', 1.5, -Math.PI / 2);
+  if (propId === 'beskar_spear') {
+    addCyl(g, m2, 0.015, 0.015, 1.43, 0, 0, 0, 0, 0, 0, 10);
+    addCyl(g, m2, 0.002, 0.048, 0.23, 0, 0.82, 0, 0, 0, 0, 10);
+    addCyl(g, m2, 0.022, 0.018, 0.07, 0, -0.73, 0, 0, 0, 0, 10);
+  } else if (propId === 'poleaxe') {
+    addCyl(g, m1, 0.026, 0.028, 1.27, 0, 0, 0, 0, 0, 0, 8);
+    addBox(g, m2, 0.3, 0.25, 0.045, 0.14, 0.59, 0);
+    addCyl(g, m2, 0.006, 0.04, 0.13, 0, 0.76, 0, 0, 0, 0, 8);
+  } else {
+    addCyl(g, m1, 0.02, 0.024, 1.35, 0, 0, 0, 0, 0, 0, 8); // shaft
+    addCyl(g, m2, 0.005, 0.05, 0.22, 0, 0.78, 0, 0, 0, 0, 8); // spearhead
+    addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
+    addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
+  }
+  swapWeapon(g, propId, propId === 'beskar_spear' ? 1.65 : propId === 'poleaxe' ? 1.45 : 1.5, -Math.PI / 2);
   return g;
 }
 
