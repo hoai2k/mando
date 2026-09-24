@@ -295,9 +295,12 @@ function dropNeeds(board: BoardId, ctx: WarmContext): Need[] {
 function matchNeeds(board: BoardId, ctx: WarmContext): Need[] {
   const mode = ctx.mode ?? 'wave';
   const out: Need[] = [];
-  for (const id of boardEnemyIds(board, 2)) out.push(model(id));
-  for (const name of BOARD_TEXTURES[board]) out.push(tex(name));
-  for (const id of BOARD_PROPS[board]) out.push(model(id));
+  // The board builder requests its own first-use art. Everything on this list
+  // is speculative once play starts; promoting it to `now` on the playing
+  // screen used to parse whole models in the middle of a firefight.
+  for (const id of boardEnemyIds(board, 2)) out.push(model(id, true));
+  for (const name of BOARD_TEXTURES[board]) out.push(tex(name, 'jpg', true));
+  for (const id of BOARD_PROPS[board]) out.push(model(id, true));
   // the later waves and the boss ladder: real needs on a full run, but the
   // match has ten waves to find them, so they stay behind the opening minute
   for (const id of boardEnemyIds(board)) out.push(model(id, true));

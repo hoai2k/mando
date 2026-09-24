@@ -1956,18 +1956,31 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
       { x: -f.dx, z: -f.dz }, doorH, PORTAL_POCKET);
   }
 
-  // ---- one draw call per rim row ----
+  // A single merged rim made every cliff on a stage share one frustum bound:
+  // seeing one nearby rock drew the entire chain, including its shadow pass.
+  // Merge nearby pieces instead, so Three can skip sections behind the camera.
   const mergeInto = (geos: THREE.BufferGeometry[], m: THREE.Material,
     shadow: boolean, tag: 'facing' | 'decor' | null): void => {
     if (!geos.length) return;
-    const merged = mergeGeometries(geos, false);
-    for (const g of geos) g.dispose();
-    if (!merged) return;
-    const mesh = new THREE.Mesh(merged, m);
-    mesh.castShadow = shadow;
-    mesh.receiveShadow = shadow;
-    if (tag) mesh.userData[tag] = true;
-    group.add(mesh);
+    const cells = new Map<string, THREE.BufferGeometry[]>();
+    for (const geo of geos) {
+      geo.computeBoundingBox();
+      const box = geo.boundingBox!;
+      const key = `${Math.floor((box.min.x + box.max.x) / 96)},${Math.floor((box.min.z + box.max.z) / 96)}`;
+      const cell = cells.get(key);
+      if (cell) cell.push(geo);
+      else cells.set(key, [geo]);
+    }
+    for (const cell of cells.values()) {
+      const merged = mergeGeometries(cell, false);
+      for (const geo of cell) geo.dispose();
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, m);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = shadow;
+      if (tag) mesh.userData[tag] = true;
+      group.add(mesh);
+    }
   };
   // The rim rock is the border's *facing*, not the border. `ridge()` says it
   // outright: the wall is one slab per run, and the rock is laid outward from

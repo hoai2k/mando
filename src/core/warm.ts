@@ -167,12 +167,20 @@ class WarmQueue {
   private queued: Job[] = [];
   private started = new Set<string>();
   private running = 0;
+  private combatBusy = false;
   /**
    * Two at a time. Warming shares the connection with whatever the game is
    * loading for real, and a queue of ten 4 MB models saturating it would make
    * the thing the player is actually waiting for arrive last.
    */
   private readonly limit = 2;
+
+  /** Pause speculative parses while the player is in an active fight. */
+  setCombatBusy(busy: boolean): void {
+    if (this.combatBusy === busy) return;
+    this.combatBusy = busy;
+    if (!busy) this.pump();
+  }
 
   /**
    * Ask for a file early. Repeat requests only ever raise its priority — the
@@ -195,10 +203,21 @@ class WarmQueue {
     // a stable sort, and deliberately so: the planner queues near screens before
     // far ones, and that order is what ranks everything sharing a priority
     this.queued.sort((a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority));
-    const job = this.queued.shift()!;
+    const index = this.combatBusy ? this.queued.findIndex((j) => j.priority === 'now') : 0;
+    if (index < 0) return;
+    const job = this.queued.splice(index, 1)[0];
     this.running++;
     this.started.add(job.key);
     const go = () => {
+      // The browser may have become busy while an idle callback was waiting.
+      // Put the job back so it can run after the fight; it has done no work.
+      if (this.combatBusy && job.priority !== 'now') {
+        this.running--;
+        this.started.delete(job.key);
+        this.queued.push(job);
+        this.pump();
+        return;
+      }
       job.start().catch(() => { /* a warm miss is not an error: the real load will say so */ })
         .then(() => {
           this.running--;

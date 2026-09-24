@@ -4,7 +4,7 @@ import { config, loadSavedConfig, saveAudioConfig, saveCameraConfig, saveInputCo
 import { InputManager } from './core/input';
 import { MAX_PLAYERS, splitLayout } from './core/layout';
 import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type WarmScreen } from './core/prefetch';
-import { tracked } from './core/warm';
+import { tracked, warmQueue } from './core/warm';
 import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
 import { FINAL_WAVE, planWave } from './enemies/spawner';
@@ -557,6 +557,7 @@ function planContext(): WarmContext {
 
 function setState(s: AppState): void {
   state = s;
+  if (s !== 'playing') warmQueue.setCombatBusy(false);
   (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
   for (const key of Object.keys(screens)) screens[key].hide();
   if (s === 'characters') {
@@ -955,6 +956,7 @@ function step(dt: number): void {
     if (state === 'playing') {
       const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
+      warmQueue.setCombatBusy(game.enemies.some((e) => e.alive && e.isEngaged));
       hud.update(dt, game);
       // A stage that is still arriving gets the same veil the drop gets: the
       // campaign has frozen the run behind it (see `Campaign.settlingStage`),
