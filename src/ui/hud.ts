@@ -77,6 +77,8 @@ export class Hud {
   private layer: HTMLElement;
   private huds: PlayerHud[] = [];
   private shared: SharedHud | null = null;
+  private transitionCard: HTMLElement | null = null;
+  private transitionTimer = 0;
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement('div');
@@ -88,6 +90,8 @@ export class Hud {
     this.layer.innerHTML = '';
     this.huds = [];
     this.shared = null;
+    this.transitionCard = null;
+    this.transitionTimer = 0;
     // the same rectangles the renderer sets its viewports from, so a player's
     // bars always sit inside that player's picture — every mode splits the
     // screen the same way now that Missions gives each player their own camera
@@ -183,6 +187,11 @@ export class Hud {
       bannerTimer: 0,
       contactsTimer: 0,
     };
+    const transition = document.createElement('div');
+    transition.className = 'hud-transition';
+    transition.innerHTML = '<div class="transition-title"></div><div class="transition-sub"></div>';
+    this.layer.appendChild(transition);
+    this.transitionCard = transition;
   }
 
   /**
@@ -192,6 +201,7 @@ export class Hud {
    * rebuilds and never leaves a stray node behind.
    */
   bossIntro(title: string, sub: string): void {
+    this.clearTransition();
     const card = document.createElement('div');
     card.className = 'boss-intro';
     card.innerHTML = `
@@ -209,12 +219,33 @@ export class Hud {
   }
 
   banner(text: string, sub?: string): void {
+    this.clearTransition();
     const h = this.shared;
     if (!h) return;
     h.banner.textContent = text;
     h.bannerSub.textContent = sub ?? '';
     h.banner.parentElement!.classList.add('show');
     h.bannerTimer = 2.1;
+  }
+
+  /** A door title is centered over the quiet transport beat, then expires. */
+  transition(text: string, sub?: string): void {
+    const card = this.transitionCard;
+    if (!card) return;
+    const shared = this.shared;
+    if (shared) {
+      shared.banner.parentElement!.classList.remove('show');
+      shared.bannerTimer = 0;
+    }
+    (card.querySelector('.transition-title') as HTMLElement).textContent = text;
+    (card.querySelector('.transition-sub') as HTMLElement).textContent = sub ?? '';
+    card.classList.add('show');
+    this.transitionTimer = 1.8;
+  }
+
+  private clearTransition(): void {
+    this.transitionCard?.classList.remove('show');
+    this.transitionTimer = 0;
   }
 
   /**
@@ -305,6 +336,10 @@ export class Hud {
   }
 
   update(dt: number, game: Game): void {
+    if (this.transitionTimer > 0) {
+      this.transitionTimer -= dt;
+      if (this.transitionTimer <= 0) this.clearTransition();
+    }
     const shared = this.shared;
     const boss = game.boss;
     if (shared) {

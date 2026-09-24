@@ -481,7 +481,6 @@ export class Campaign implements MissionController {
     this.checkpoint.copy(stage.zones[Math.min(this.idx, stage.zones.length - 1)].center);
     // hold behind the veil until this place is dressed (see `settleT`)
     this.settleT = 0;
-    game.announce(TEXT.missions.arrivedAt(stage.spec.label), TEXT.banners.transportSub);
     audio.checkpointChime();
   }
 
@@ -494,7 +493,7 @@ export class Campaign implements MissionController {
     // being a background errand
     warmStage(this.game.board.kind, to, 'now');
     const spec = MISSION_LAYOUTS[this.game.board.kind];
-    this.game.announce(TEXT.banners.transport(spec.stages[to]?.label ?? ''), TEXT.banners.transportSub);
+    this.game.announceTransition(TEXT.banners.transport(spec.stages[to]?.label ?? ''), TEXT.banners.transportSub);
     audio.doorCycle();
   }
 
@@ -1271,7 +1270,12 @@ export class Campaign implements MissionController {
     if (this.settleT >= 0) {
       this.douse();
       this.settleT += dt;
-      if (this.stageReady() || this.settleT > STAGE_SETTLE_CAP) this.settleT = -1;
+      if (this.stageReady() || this.settleT > STAGE_SETTLE_CAP) {
+        this.settleT = -1;
+        // Start the visible title when the veil comes down, so its short
+        // lifetime is spent in the new place instead of behind loading art.
+        game.announceTransition(TEXT.missions.arrivedAt(this.stage.spec.label));
+      }
       return;
     }
     // the transport beat: inputs are blanked by `Player.exited`, the card is

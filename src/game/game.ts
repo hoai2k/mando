@@ -54,6 +54,8 @@ const BLANK_INPUT: FrameInput = {
 
 export interface GameEvents {
   banner: (text: string, sub?: string) => void;
+  /** brief, centered title for a transport between mission areas */
+  transition?: (text: string, sub?: string) => void;
   /** the boss introduction card: letterbox + name, over the slow-motion reveal */
   bossIntro?: (title: string, sub: string) => void;
   /** the little card naming enemy kinds making their first appearance this wave */
@@ -445,6 +447,10 @@ export class Game {
   /** the campaign controller's mouthpiece (events is private) */
   announce(text: string, sub?: string): void {
     this.events.banner(text, sub);
+  }
+
+  announceTransition(text: string, sub?: string): void {
+    this.events.transition?.(text, sub);
   }
 
   /** the card naming enemy kinds making their first appearance this wave */

@@ -742,6 +742,26 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 .hud-shared:not(.solo) .hud-contacts { padding: 6px 8px; }
 .hud-shared:not(.solo) .hud-contacts .nc-names { font-size: 14px; }
 .hud-shared:not(.solo) .hud-boss .bossname { font-size: 12px; }
+
+/* Doors are a deliberate break in play: one brief title may use the center.
+   Its own timer starts when the destination's loading veil is removed. */
+.hud-transition {
+  position: absolute; z-index: 5; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); width: min(680px, 82vw);
+  padding: 16px 24px; text-align: center; pointer-events: none;
+  background: radial-gradient(ellipse, rgba(5, 9, 13, 0.78), rgba(5, 9, 13, 0) 76%);
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.hud-transition.show { opacity: 1; }
+.hud-transition .transition-title {
+  font-size: clamp(24px, 3.6vw, 48px); font-weight: 700; letter-spacing: 0.17em;
+  text-transform: uppercase; color: #f0d08c;
+  text-shadow: 0 2px 8px #000, 0 0 24px #000;
+}
+.hud-transition .transition-sub {
+  margin-top: 5px; font-size: 13px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: #cbb98e; text-shadow: 0 2px 6px #000;
+}
 @media (max-width: 700px) {
   .hud-shared:not(.solo) { width: min(260px, 48vw); padding: 6px 8px; }
   .hud-shared:not(.solo) .hud-banner { font-size: 15px; }

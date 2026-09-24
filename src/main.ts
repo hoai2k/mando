@@ -647,6 +647,7 @@ function buildMatch(): void {
   hud.setLayout(playerCount);
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
+    transition: (t, s) => hud.transition(t, s),
     bossIntro: (t, s) => hud.bossIntro(t, s),
     newContacts: (names) => hud.newContacts(names),
     stateChanged: () => { endTimer = 3; },
