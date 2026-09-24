@@ -160,7 +160,16 @@ function alternatesFor(p: Pose): Alternate[] {
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
 function activeClips(): { lower: string | null; upper: string | null } {
-  return alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
+  const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
+  if (subject.id === 'maris' && alternateChoice === 'none') {
+    const tonfa: Record<string, string> = {
+      saberIdleUpper: 'tonfaIdleUpper', saberRunUpper: 'tonfaRunUpper',
+      saber1: 'tonfa1', saber2: 'tonfa2', saber3: 'tonfa3',
+      saberFlourish: 'tonfaFlourish',
+    };
+    return { lower: selected.lower, upper: selected.upper ? (tonfa[selected.upper] ?? selected.upper) : null };
+  }
+  return selected;
 }
 
 /**

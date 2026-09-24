@@ -320,6 +320,14 @@ export class Animator {
     return this.current[channel];
   }
 
+  /** Current normalized clip time, including workbench-sampled looping poses. */
+  clipProgress(channel: 'lower' | 'upper'): number {
+    const name = this.current[channel];
+    const clip = name ? this.clips[name] : null;
+    const action = clip && this.mixer.existingAction(clip);
+    return clip && action && clip.duration > 0 ? Math.min(1, action.time / clip.duration) : 0;
+  }
+
   /**
    * How far through its clip the one-shot holding a channel is, 0..1 — or 1
    * when no one-shot holds it (a loop, a released channel, a clamped pose

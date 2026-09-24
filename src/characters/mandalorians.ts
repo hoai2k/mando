@@ -76,6 +76,28 @@ const AUTHORED_STOWED_SABER_GRIPS: Partial<Record<MandoId, Record<'left' | 'righ
   },
 };
 
+/** Spin a tonfa's shaft around its perpendicular grip during Maris' cuts. */
+function tonfaTurns(clip: string | null, progress: number): [number, number] {
+  const turn = (p: number): number => {
+    const keys: Array<[number, number]> = [[0, 0], [0.28, -0.3], [0.55, 2.5], [0.82, Math.PI * 2], [1, Math.PI * 2]];
+    for (let i = 1; i < keys.length; i++) {
+      if (p <= keys[i][0]) {
+        const [t0, a0] = keys[i - 1], [t1, a1] = keys[i];
+        return a0 + (a1 - a0) * (p - t0) / (t1 - t0);
+      }
+    }
+    return Math.PI * 2;
+  };
+  if (clip === 'tonfa1') return [turn(progress), 0];
+  if (clip === 'tonfa2') return [0, -turn(progress)];
+  if (clip === 'tonfa3') return [turn(progress), -turn(progress)];
+  if (clip === 'tonfaFlourish') {
+    const angle = Math.min(1, progress / 0.82) * Math.PI * 2;
+    return [angle, -angle];
+  }
+  return [0, 0];
+}
+
 interface MandoConfig {
   name: string;
   desc: string;
@@ -612,6 +634,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         sabers.main.position.set(...grip.right);
         sabers.offhand?.position.set(...grip.left);
       }
+      // Maris' cross-grips sit at a different angle from an inline saber.
+      // These hand-local transforms are the paired saberIdle workbench export.
+      if (id === 'maris' && sabers?.offhand) {
+        sabers.main.position.set(0.056147, -0.0761, -0.04007);
+        sabers.main.quaternion.set(-0.1108576, 0.0752094, -0.0055576, 0.9909709).normalize();
+        sabers.offhand.position.set(-0.056131, -0.068665, -0.032891);
+        sabers.offhand.quaternion.set(-0.145249, -0.1509221, -0.0204729, 0.9776022).normalize();
+      }
       // The procedural hip keeps animating but is hidden under the authored
       // skin. Carry the stowed hilts on the visible pelvis instead.
       if (model.holsterMount) for (const hilt of holsters) {
@@ -688,6 +718,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         holdPolearm(rig, polearmAxis);
       if (id === 'maul' && !shieldUp && weapon === 'gaffi' && blade === blades.get('sabers') && saberHeld[0])
         holdPolearm(rig, blade.main, [-0.17, -0.15, -0.13, -0.11]);
+      if (id === 'maris' && sabers) {
+        const [right, left] = tonfaTurns(inst.animator?.playing('upper') ?? null,
+          inst.animator?.clipProgress('upper') ?? 0);
+        const rightSpin = sabers.main.userData.tonfaSpin as THREE.Group | undefined;
+        const leftSpin = sabers.offhand?.userData.tonfaSpin as THREE.Group | undefined;
+        if (rightSpin) rightSpin.rotation.x = right;
+        if (leftSpin) leftSpin.rotation.x = left;
+      }
       swap.update();
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);

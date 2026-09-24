@@ -917,18 +917,35 @@ function makeClips(p: Proportions): ClipSet {
       source.tracks.map((track) => track.clone()));
   }
 
-  // Maris turns the perpendicular grips in her palms. The shaft tracks each
-  // forearm through compact alternating cuts instead of staying in a straight
-  // saber grip; the shared body timing and hit windows remain unchanged.
-  for (const step of [1, 2, 3] as const) {
-    const base = clips[`saber${step}`];
-    const times = step === 3 ? [0, 0.22, 0.29, 0.5] : step === 2 ? [0, 0.15, 0.21, 0.38] : [0, 0.13, 0.19, 0.36];
-    clips[`tonfa${step}`] = new THREE.AnimationClip(`tonfa${step}`, base.duration, [
-      ...base.tracks.map((track) => track.clone()),
-      qt('handR', times, [[0, 0, -65], [0, 0, -82], [0, 0, -35], [0, 0, -65]]),
-      qt('handL', times, [[0, 0, 65], [0, 0, 35], [0, 0, 82], [0, 0, 65]]),
-    ]);
-  }
+  // Maris fights close with the elbows folded. A tonfa's cross-grip is not
+  // an inline sword: the strike is a short forearm turn and a shaft rotation
+  // around the grip (driven by the prop pivot in mandalorians.ts). Keep the
+  // contact keys at 45% of each clip, matching the controller's hit window.
+  clips.tonfa1 = new THREE.AnimationClip('tonfa1', 0.36, [
+    qt('chest', [0, 0.12, 0.18, 0.36], [[7, -12, 0], [9, -22, 0], [8, 18, 0], [7, -12, 0]]),
+    qt('upperArmR', [0, 0.12, 0.18, 0.36], [[-56, -12, -18], [-69, -24, -22], [-47, 18, -10], [-56, -12, -18]]),
+    qt('forearmR', [0, 0.12, 0.18, 0.36], [[-68, 18, 0], [-83, 25, 0], [-35, -8, 0], [-68, 18, 0]]),
+    qt('handR', [0, 0.12, 0.18, 0.36], [[8, -16, -10], [14, -28, -18], [-10, 22, 8], [8, -16, -10]]),
+    qt('upperArmL', [0, 0.18, 0.36], [[-54, 12, 32], [-58, 18, 36], [-54, 12, 32]]),
+    qt('forearmL', [0, 0.36], [[-70, -18, -14], [-70, -18, -14]]),
+  ]);
+  clips.tonfa2 = new THREE.AnimationClip('tonfa2', 0.38, [
+    qt('chest', [0, 0.13, 0.19, 0.38], [[7, -12, 0], [9, 20, 0], [8, -20, 0], [7, -12, 0]]),
+    qt('upperArmL', [0, 0.13, 0.19, 0.38], [[-54, 12, 32], [-70, 24, 38], [-46, -20, 24], [-54, 12, 32]]),
+    qt('forearmL', [0, 0.13, 0.19, 0.38], [[-70, -18, -14], [-84, -25, -16], [-34, 10, -8], [-70, -18, -14]]),
+    qt('handL', [0, 0.13, 0.19, 0.38], [[8, 16, 10], [14, 28, 18], [-10, -22, -8], [8, 16, 10]]),
+    qt('upperArmR', [0, 0.19, 0.38], [[-56, -12, -18], [-60, -18, -22], [-56, -12, -18]]),
+    qt('forearmR', [0, 0.38], [[-68, 18, 0], [-68, 18, 0]]),
+  ]);
+  clips.tonfa3 = new THREE.AnimationClip('tonfa3', 0.5, [
+    qt('chest', [0, 0.16, 0.25, 0.5], [[7, -12, 0], [-2, 0, 0], [12, 0, 0], [7, -12, 0]]),
+    qt('upperArmR', [0, 0.16, 0.25, 0.5], [[-56, -12, -18], [-76, -28, -8], [-42, 26, -28], [-56, -12, -18]]),
+    qt('forearmR', [0, 0.16, 0.25, 0.5], [[-68, 18, 0], [-85, 20, 0], [-30, -12, 0], [-68, 18, 0]]),
+    qt('handR', [0, 0.16, 0.25, 0.5], [[8, -16, -10], [18, -25, -16], [-12, 28, 14], [8, -16, -10]]),
+    qt('upperArmL', [0, 0.16, 0.25, 0.5], [[-54, 12, 32], [-76, 28, 18], [-42, -26, 38], [-54, 12, 32]]),
+    qt('forearmL', [0, 0.16, 0.25, 0.5], [[-70, -18, -14], [-85, -20, -14], [-30, 12, -8], [-70, -18, -14]]),
+    qt('handL', [0, 0.16, 0.25, 0.5], [[8, 16, 10], [18, 25, 16], [-12, -28, -14], [8, 16, 10]]),
+  ]);
 
   // ---------- UPPER: throwing a blade, and catching it coming back ----------
   // A thrown saber has to read as thrown. Reusing the first combo swing meant
@@ -1010,19 +1027,19 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 1.5, 3], [[1, 10, 0], [1, 8, 0], [1, 10, 0]]),
     qt('upperArmR', [0, 1.5, 3], [[-56, -12, -18], [-58, -12, -18], [-56, -12, -18]]),
     qt('forearmR', [0, 1.5, 3], [[-68, 18, 0], [-70, 18, 0], [-68, 18, 0]]),
-    qt('handR', [0, 1.5, 3], [[0, 0, -65], [0, 0, -68], [0, 0, -65]]),
+    qt('handR', [0, 1.5, 3], [[8, -16, -10], [10, -18, -12], [8, -16, -10]]),
     qt('upperArmL', [0, 1.5, 3], [[-54, 12, 32], [-56, 12, 33], [-54, 12, 32]]),
     qt('forearmL', [0, 1.5, 3], [[-70, -18, -14], [-72, -18, -14], [-70, -18, -14]]),
-    qt('handL', [0, 1.5, 3], [[0, 0, 65], [0, 0, 68], [0, 0, 65]]),
+    qt('handL', [0, 1.5, 3], [[8, 16, 10], [10, 18, 12], [8, 16, 10]]),
   ]);
   clips.tonfaRunUpper = new THREE.AnimationClip('tonfaRunUpper', 0.6, [
     qt('chest', rt, [[8, -6, 0], [8, -3, 0], [8, 0, 0], [8, -3, 0], [8, -6, 0]]),
     qt('upperArmR', rt, [[-45, -9, -20], [-43, -9, -20], [-41, -9, -20], [-43, -9, -20], [-45, -9, -20]]),
     qt('forearmR', rt, [[-57, 12, 0], [-55, 12, 0], [-53, 12, 0], [-55, 12, 0], [-57, 12, 0]]),
-    qt('handR', rt, [[0, 0, -65], [0, 0, -65], [0, 0, -65], [0, 0, -65], [0, 0, -65]]),
+    qt('handR', rt, [[8, -16, -10], [8, -16, -10], [8, -16, -10], [8, -16, -10], [8, -16, -10]]),
     qt('upperArmL', rt, [[-41, 9, 30], [-43, 9, 30], [-45, 9, 30], [-43, 9, 30], [-41, 9, 30]]),
     qt('forearmL', rt, [[-58, -12, -12], [-60, -12, -12], [-62, -12, -12], [-60, -12, -12], [-58, -12, -12]]),
-    qt('handL', rt, [[0, 0, 65], [0, 0, 65], [0, 0, 65], [0, 0, 65], [0, 0, 65]]),
+    qt('handL', rt, [[8, 16, 10], [8, 16, 10], [8, 16, 10], [8, 16, 10], [8, 16, 10]]),
   ]);
 
   // ---------- UPPER: saber flourish (combo punctuation) ----------
@@ -1038,6 +1055,15 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmL', [0, 0.18, 0.32, 0.46, 0.55], [[-30, -18, -22], [-56, 48, -18], [-48, -58, -20], [-62, -14, -17], [-64, -12, -16]]),
     qt('handL', [0, 0.18, 0.32, 0.46, 0.55], [[0, 0, 0], [-26, 0, 28], [26, 0, -28], [-5, 0, 6], [0, 0, 0]]),
     qt('head', [0, 0.28, 0.55], [[0, 0, 0], [1, 8, 0], [2, 15, 0]]),
+  ]);
+  clips.tonfaFlourish = new THREE.AnimationClip('tonfaFlourish', 0.55, [
+    qt('chest', [0, 0.28, 0.55], [[7, -12, 0], [9, 0, 0], [7, -12, 0]]),
+    qt('upperArmR', [0, 0.28, 0.55], [[-56, -12, -18], [-62, -18, -20], [-56, -12, -18]]),
+    qt('forearmR', [0, 0.28, 0.55], [[-68, 18, 0], [-76, 24, 0], [-68, 18, 0]]),
+    qt('handR', [0, 0.28, 0.55], [[8, -16, -10], [14, -22, -14], [8, -16, -10]]),
+    qt('upperArmL', [0, 0.28, 0.55], [[-54, 12, 32], [-62, 18, 34], [-54, 12, 32]]),
+    qt('forearmL', [0, 0.28, 0.55], [[-70, -18, -14], [-78, -24, -16], [-70, -18, -14]]),
+    qt('handL', [0, 0.28, 0.55], [[8, 16, 10], [14, 22, 14], [8, 16, 10]]),
   ]);
   clips.staffFlourish = new THREE.AnimationClip('staffFlourish', 0.56, [
     qt('chest', [0, 0.18, 0.37, 0.56], [[5, -8, 0], [6, -25, 0], [6, 24, 0], [5, -12, 0]]),

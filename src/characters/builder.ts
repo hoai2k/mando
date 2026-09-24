@@ -221,7 +221,7 @@ export function attachCape(rig: Rig, m: THREE.Material, width = 0.42, segs = 5, 
  * They hang off the same group, so the mount, the muzzle and every clip that
  * swings them are untouched by the swap.
  */
-function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0): void {
+function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0, onLoad?: () => void): void {
   // Marked while the file is in flight, so anything that has to depict the
   // finished fighter can wait for the weapon as well as the body — a
   // character-select picture shot with the stand-in in hand shows a thin
@@ -230,7 +230,10 @@ function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0): vo
   g.userData.propPending = true;
   const prop = loadProp(id, length, {
     axis: 'longest',
-    onLoad: () => { for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false; },
+    onLoad: () => {
+      for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false;
+      onLoad?.();
+    },
     onSettle: () => { g.userData.propPending = false; },
   });
   // The sculpts lie along their longest axis, which is Z; a procedural weapon
@@ -294,13 +297,24 @@ export function makeSaber(
   const white = opts.style === 'white';
   const tonfa = opts.style === 'tonfa';
   const double = opts.style === 'double';
+  // Maris spins the shaft around its cross-grip. Keep the outer group as the
+  // editable hand attachment, and rotate the visible hilt and blade together.
+  const spin = tonfa ? new THREE.Group() : null;
+  const body = spin ? new THREE.Group() : g;
+  if (spin) {
+    spin.position.set(0, 0.08, 0.01);
+    body.position.copy(spin.position).multiplyScalar(-1);
+    spin.add(body);
+    g.add(spin);
+    g.userData.tonfaSpin = spin;
+  }
   if (tonfa) {
     // The emitter is on the long end; the short end is capped. The grip
     // branches across the palm, as a tonfa does, instead of sitting in-line.
-    addCyl(g, mHilt, 0.016, 0.016, 0.24, 0, -0.035, 0, 0, 0, 0, 10);
-    addCyl(g, mDark, 0.019, 0.019, 0.075, 0, -0.15, 0, 0, 0, 0, 10);
-    addCyl(g, mHilt, 0.024, 0.018, 0.04, 0, 0.095, 0, 0, 0, 0, 10);
-    addCyl(g, mDark, 0.016, 0.016, 0.12, -0.065, -0.085, 0, 0, 0, Math.PI / 2, 10);
+    addCyl(body, mHilt, 0.016, 0.016, 0.24, 0, -0.035, 0, 0, 0, 0, 10);
+    addCyl(body, mDark, 0.019, 0.019, 0.075, 0, -0.15, 0, 0, 0, 0, 10);
+    addCyl(body, mHilt, 0.024, 0.018, 0.04, 0, 0.095, 0, 0, 0, 0, 10);
+    addCyl(body, mDark, 0.016, 0.016, 0.12, -0.065, -0.085, 0, 0, 0, Math.PI / 2, 10);
   } else if (white || opts.style === 'dark' || double) {
     // The Jedi's separate hilt is a procedural stand-in until its concept is
     // approved and modelled. Keep the same mount and length as the final prop.
@@ -318,7 +332,7 @@ export function makeSaber(
   if (tonfa) {
     // Keep the temporary fallback at the authored hilt's new size while its
     // GLB loads; it is hidden as soon as the authored mesh arrives.
-    for (const part of g.children) {
+    for (const part of body.children) {
       part.position.multiplyScalar(2);
       part.scale.multiplyScalar(2);
     }
@@ -328,7 +342,7 @@ export function makeSaber(
   // hilt. The previous positive-Y emitter lit the short capped end instead.
   blade.position.y = tonfa ? -0.26 : double ? 0.24 : 0.06;
   if (tonfa) blade.rotation.z = Math.PI;
-  g.add(blade);
+  body.add(blade);
   const BLADE_LEN = tonfa ? 0.78 : 0.92;
   // the trail builder needs the blade's frame and reach to sample tip arcs
   g.userData.blade = blade;
@@ -348,12 +362,13 @@ export function makeSaber(
     tip.castShadow = false;
     blade.add(tip);
   }
+  let opposite: THREE.Group | null = null;
   if (double) {
     // One hilt, two opposed emitters. Both ends follow the same hand and swing.
-    const opposite = blade.clone();
+    opposite = blade.clone();
     opposite.position.y = -0.24;
     opposite.rotation.z = Math.PI;
-    g.add(opposite);
+    body.add(opposite);
     g.userData.oppositeBlade = opposite;
   }
   // A blade that lights nothing reads as a painted stick. One point light per
@@ -367,7 +382,18 @@ export function makeSaber(
     light.castShadow = false;
     blade.add(light);
   }
-  swapWeapon(g, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2);
+  // Measured at the generator caps of the fitted authored hilts. Their
+  // origins and curved shafts differ; placing every blade at Y=.06 buried
+  // most bases inside metal, while Maris' offset emitter missed its shaft.
+  swapWeapon(body, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2, () => {
+    if (tonfa) blade.position.set(0.003, -0.255, -0.048);
+    else if (double) {
+      blade.position.set(-0.001, 0.211, 0);
+      opposite?.position.set(0.002, -0.212, -0.001);
+    } else if (white) blade.position.set(0.001, 0.126, -0.008);
+    else if (opts.style === 'dark') blade.position.set(-0.003, 0.127, -0.013);
+    else blade.position.set(-0.002, 0.125, -0.029);
+  });
   return g;
 }
 

@@ -3144,7 +3144,8 @@ export class Player {
       && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
     ) {
       this.flourished = true;
-      this.char.animator!.playOnce('upper', this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish', 0.12);
+      this.char.animator!.playOnce('upper', this.characterId === 'maris' ? 'tonfaFlourish'
+        : this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish', 0.12);
       this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
