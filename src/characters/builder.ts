@@ -221,7 +221,7 @@ export function attachCape(rig: Rig, m: THREE.Material, width = 0.42, segs = 5, 
  * They hang off the same group, so the mount, the muzzle and every clip that
  * swings them are untouched by the swap.
  */
-function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0, onLoad?: () => void): void {
+function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0, onLoad?: (root: THREE.Object3D) => void): void {
   // Marked while the file is in flight, so anything that has to depict the
   // finished fighter can wait for the weapon as well as the body — a
   // character-select picture shot with the stand-in in hand shows a thin
@@ -230,9 +230,9 @@ function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0, onL
   g.userData.propPending = true;
   const prop = loadProp(id, length, {
     axis: 'longest',
-    onLoad: () => {
+    onLoad: (root) => {
       for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false;
-      onLoad?.();
+      onLoad?.(root);
     },
     onSettle: () => { g.userData.propPending = false; },
   });
@@ -523,7 +523,13 @@ export function makePistol(mBody: THREE.Material, mDark: THREE.Material): THREE.
   addCyl(g, mDark, 0.024, 0.02, 0.05, 0, 0.025, 0.29, Math.PI / 2, 0, 0, 8);  // flared muzzle
   addBox(g, mDark, 0.028, 0.11, 0.045, 0, -0.07, -0.01, 0.22); // grip
   addBox(g, mDark, 0.02, 0.025, 0.06, 0, 0.06, 0.02);          // hammer/sight
-  swapWeapon(g, 'pistol', 0.34);
+  // The authored pistol's muzzle is at local -Z and its grip at +Z, opposite
+  // the procedural shape and the shot marker. Turn only the sculpt, then seat
+  // its grip in the hand so the barrel reaches the +Z muzzle at 0.3 m.
+  swapWeapon(g, 'pistol', 0.34, 0, (model) => {
+    model.rotation.y = Math.PI;
+    model.position.set(0, 0.1, 0.12);
+  });
   return g;
 }
 
