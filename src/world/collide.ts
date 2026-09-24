@@ -45,7 +45,7 @@ export interface FitOptions {
    * (an invisible ledge, a mover's box) by simply not listing it.
    */
   replace?: (StaticBox | StaticCylinder)[];
-  /** ceiling on fitted boxes; the grid coarsens until the fit is under it */
+  /** target ceiling on fitted boxes; ignored when preserving openings */
   maxBoxes?: number;
   /** called with the fitted boxes once they are in — a mover takes them to carry */
   onFit?: (boxes: StaticBox[]) => void;
@@ -55,6 +55,8 @@ export interface FitOptions {
    * walk on (a tent's guy lines, a dome's apron).
    */
   skirt?: number;
+  /** Keep doors, holds and gaps in a traversable prop open at the requested cell size. */
+  preserveOpenings?: boolean;
 }
 
 const MAX_CELLS = 42;    // per axis, so a grid never runs away
@@ -134,8 +136,8 @@ export function fitColliders(
   let boxes: StaticBox[] = [];
   // Coarsen until the fit fits the budget: a tighter grid is always preferable,
   // but not at the price of a hundred boxes in everyone's collision loop.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    boxes = fitAt(tris, lo, hi, floor, cell);
+  for (let attempt = 0; attempt < (opts.preserveOpenings ? 1 : 5); attempt++) {
+    boxes = fitAt(tris, lo, hi, floor, cell, !!opts.preserveOpenings);
     if (boxes.length <= maxBoxes) break;
     cell *= 1.5;
   }
@@ -161,7 +163,7 @@ export function fitColliders(
 function fitAt(
   tris: Tri[],
   lo: THREE.Vector3, hi: THREE.Vector3, floorY: number,
-  cell: number,
+  cell: number, preserveOpenings: boolean,
 ): StaticBox[] {
   const nx = Math.min(MAX_CELLS, Math.max(1, Math.ceil((hi.x - lo.x) / cell)));
   const ny = Math.min(MAX_CELLS, Math.max(1, Math.ceil((hi.y - lo.y) / cell)));
@@ -197,11 +199,12 @@ function fitAt(
     }
   }
 
-  // ---- close thin hollows ----
+  // ---- close thin hollows on solid props ----
   // A sculpt is a shell, so a column through it reads solid-air-solid. Small
   // gaps are the inside of the thing and are filled; a large one is a real
-  // opening (an archway, the gap under a boom) and is left alone.
-  for (let x = 0; x < nx; x++) {
+  // opening (an archway, the gap under a boom) and is left alone. Traversable
+  // props skip this pass so a hold or doorway cannot be filled in.
+  if (!preserveOpenings) for (let x = 0; x < nx; x++) {
     for (let z = 0; z < nz; z++) {
       let run = -1;
       for (let y = 0; y < ny; y++) {

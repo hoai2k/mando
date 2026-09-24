@@ -8,7 +8,8 @@
  * a fight against a floor that wasn't there. Now the pull exists only over
  * something you could land on: out in the open you drift and fly wherever you
  * point; over a deck it comes back, full strength, so landing and fighting on a
- * platform are exactly as they were.
+ * platform are exactly as they were. The pull reaches all the way up the
+ * column above that platform, so players no longer hover over it.
  *
  * What is checked here is the shape of that field, that no other board grew
  * one by accident, and what the field means for how a body moves inside it:
@@ -43,7 +44,7 @@ const out = await h.page.evaluate(() => {
     // the main pad is at the origin, its deck top at y = 0
     const overDeck = b.gravityAt(0, 1, 0);
     const justAbove = b.gravityAt(0, 6, 0);
-    // far out between the islands, with nothing under it for 200 m
+    // high over the main deck still has ground below; open space does not
     const open = b.gravityAt(0, 120, 0);
     const wayOut = b.gravityAt(300, 30, 300);
     // hanging underneath the main pad: a deck over your head is not a deck
@@ -72,8 +73,9 @@ if (station) {
   // deliberately so: the drift used to be 0.05 g, which reads as nothing and
   // is 1.3 m/s² — enough that five seconds between platforms had you falling
   // at 6.5 m/s on a board whose whole idea is that it has no down.
-  check('open space pulls at nothing at all',
-    station.open === 0 && station.wayOut === 0, { open: station.open, wayOut: station.wayOut });
+  check('gravity reaches every height above a deck, but open space pulls at nothing',
+    station.open === station.flat && station.wayOut === 0,
+    { overDeckHigh: station.open, wayOut: station.wayOut });
   check('and neither does a deck over your head',
     station.underDeck === 0, { underDeck: station.underDeck });
 }

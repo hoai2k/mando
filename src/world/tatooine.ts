@@ -329,7 +329,7 @@ export function buildTatooine(): Board {
   // sculpt carries its own mast, so the procedural sail goes with the hull —
   // and the fit takes the deck, the mast and the lean together.
   authoredProp(barge, [hull, sail], 'sail_barge', 26, { yaw: 0.6, axis: 'z' },
-    { physics, replace: bargeStand, cell: 0.9, maxBoxes: 26 });
+    { physics, replace: bargeStand, cell: 0.65, preserveOpenings: true });
 
   // sarlacc: teeth ring + tentacles that sway
   const pitBase = heightAt(SARLACC.x, SARLACC.z);

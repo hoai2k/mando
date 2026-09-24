@@ -27,17 +27,13 @@ interface Plat { x: number; y: number; z: number; w: number; d: number; }
  * the player was told has no down. Out here you keep whatever velocity you
  * had and you go where you point.
  *
- * `PAD_GRAVITY` is what acts directly over a deck, unchanged from the flat
- * 0.45 the board used to run, so fighting on a platform feels exactly as it
- * did. Between `GRAV_FULL` and `GRAV_REACH` metres above a surface the two
- * blend. The pull only ever comes from something *below* you
- * (`supportBelow`), so passing under a gantry is weightless — a deck you are
- * beneath is not a deck you could land on.
+ * `PAD_GRAVITY` acts anywhere above a surface. The pull only comes from
+ * something below you (`supportBelow`), so open space and the underside of a
+ * gantry remain weightless. A fading field used to let players hover above a
+ * visible platform, especially near the flight ceiling.
  */
 const DRIFT_GRAVITY = 0;
 const PAD_GRAVITY = 0.45;
-const GRAV_FULL = 5;
-const GRAV_REACH = 18;
 
 export function buildWaystation(): Board {
   const group = new THREE.Group();
@@ -273,7 +269,7 @@ export function buildWaystation(): Board {
   // the cockpit blister sits 2 m proud of the hull box, out over the pad edge
   const blister = physics.addCylinder(-33.4, 6.4, -16, 1.5, 3.2);
   authoredProp(ship, ship.children.slice(), 'freighter', 11, { axis: 'z', yaw: Math.PI / 2 },
-    { physics, replace: [hullBox, blister], cell: 0.55, maxBoxes: 22 });
+    { physics, replace: [hullBox, blister], cell: 0.5, preserveOpenings: true });
 
   // ---- the working landing pad (PLAN.md §16.2) ----
   // The x8 z60 outrigger is a live pad: on a ~100 s cycle a freighter comes
@@ -297,8 +293,8 @@ export function buildWaystation(): Board {
     {
       physics,
       replace: [visitorBox],
-      cell: 0.55,
-      maxBoxes: 22,
+      cell: 0.5,
+      preserveOpenings: true,
       onFit: (boxes) => visitorMover.carry(boxes),
     });
   // thruster wash: two glow planes under the hull, shown only while moving
@@ -357,16 +353,10 @@ export function buildWaystation(): Board {
     skyFile: 'sky_space',
     // drifting between platforms should never feel like a death sentence
     gravity: 0.45,
-    // Deep space pulls at almost nothing: out in the open you fly wherever you
-    // point, and the pull only exists over something you could land on. It
-    // comes up over a deck (or a crate, or a crane arm) and fades out again
-    // within a few body-lengths of leaving it — enough to bring you down onto
-    // a platform, never enough to drag you off one.
+    // Deep space pulls at nothing. A deck, crate, or crane arm beneath the
+    // player supplies the same 0.45 g at any altitude over its footprint.
     gravityAt: (x, y, z) => {
-      const top = physics.supportBelow(x, y, z, GRAV_REACH);
-      if (top === -Infinity) return DRIFT_GRAVITY;
-      const t = Math.min(1, Math.max(0, (GRAV_REACH - (y - top)) / (GRAV_REACH - GRAV_FULL)));
-      return DRIFT_GRAVITY + (PAD_GRAVITY - DRIFT_GRAVITY) * t * t;
+      return physics.supportBelow(x, y, z) === -Infinity ? DRIFT_GRAVITY : PAD_GRAVITY;
     },
     heroLight: 0.34,
     voidY: -3,
