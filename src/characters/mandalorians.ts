@@ -432,7 +432,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // during a thrust. This also keeps the butt behind the gripping hand.
       main.rotation.x = Math.PI;
     }
-    if (kind === 'sabers') main.rotation.x = Math.PI / 2;
+    if (kind === 'sabers') {
+      main.rotation.x = id === 'maris' ? -Math.PI / 2 : Math.PI / 2;
+      if (id === 'maris' && offhand) offhand.rotation.x = -Math.PI / 2;
+    }
     main.visible = false;
     b.weaponR.add(main);
     blades.set(kind, { main, offhand });
@@ -554,15 +557,18 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
           if (w.offhand) model.weaponMountL.add(w.offhand);
         }
       }
-      if (id === 'ventress') {
-        // Her authored palms sit to the side of the generic Rigify hand
-        // origins. Keep the correction on the saber props so other weapons
-        // and the canonical animation tracks retain their existing mounts.
-        const sabers = blades.get('sabers');
-        if (sabers) {
-          sabers.main.position.set(0.06, 0.02, 0.08);
-          if (sabers.offhand) sabers.offhand.position.set(0.06, 0.1, 0.08);
-        }
+      // Measured in the workbench against the authored palms at saberIdle.
+      // The prop remains parented to each authored hand, so these grip-local
+      // offsets carry through the other saber clips without per-pose copies.
+      const authoredSaberGrips: Partial<Record<MandoId, { right: [number, number, number]; left: [number, number, number] }>> = {
+        jedi: { right: [0.029395, -0.042681, 0.084449], left: [-0.025574, -0.036594, 0.052764] },
+        ventress: { right: [-0.061119, 0.037725, -0.05356], left: [0.07399, 0.034259, -0.067775] },
+      };
+      const grip = authoredSaberGrips[id];
+      const sabers = blades.get('sabers');
+      if (grip && sabers) {
+        sabers.main.position.set(...grip.right);
+        sabers.offhand?.position.set(...grip.left);
       }
       // The procedural hip keeps animating but is hidden under the authored
       // skin. Carry the stowed hilts on the visible pelvis instead.

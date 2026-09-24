@@ -108,7 +108,11 @@ export class WeaponAnchorEditor {
     this.gizmo.visible = enabled && !!this.selected;
   }
 
-  setMode(mode: 'translate' | 'rotate'): void { this.gizmo.setMode(mode); this.onChange(); }
+  setMode(mode: 'translate' | 'rotate'): void {
+    this.gizmo.setMode(mode);
+    this.gizmo.setSpace(mode === 'rotate' ? 'local' : 'world');
+    this.onChange();
+  }
   setSampleFraction(value: number): void { this.sampleFraction = value; }
   get mode(): 'translate' | 'rotate' { return this.gizmo.getMode() as 'translate' | 'rotate'; }
   names(): string[] { return [...this.targets.keys()]; }

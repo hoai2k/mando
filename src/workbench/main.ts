@@ -888,8 +888,8 @@ function renderWeaponPanel(host: HTMLDivElement): void {
           ${names.map((name) => option(name, name, name === selected)).join('')}
         </select></div>
       <div class="field"><label>3D handle</label><div class="seg">
-        <button data-weapon-mode="translate" aria-pressed="${weaponEditor.mode === 'translate'}">Move</button>
-        <button data-weapon-mode="rotate" aria-pressed="${weaponEditor.mode === 'rotate'}">Rotate</button>
+        <button data-weapon-mode="translate" aria-pressed="${weaponEditor.mode === 'translate'}">Move weapon</button>
+        <button data-weapon-mode="rotate" aria-pressed="${weaponEditor.mode === 'rotate'}">Rotate weapon</button>
       </div></div>
       ${current && degrees ? `<div class="field"><label>Position in ${current.parent} coordinates</label>
         <div class="xyz">${current.editedPosition.map((v, i) => `<input data-weapon-position="${i}" type="number" step="0.001" value="${v}">`).join('')}</div>
@@ -898,7 +898,7 @@ function renderWeaponPanel(host: HTMLDivElement): void {
       </div><div class="row"><button id="weaponReset">Reset selected grip</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : names.length ? 'Select an orange grip point on the model.' : 'No held weapon is visible in this pose. Select a weapon stance or aim pose.'}</p>`}
       <div class="row"><button id="weaponExport" class="primary" ${entries.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
-      <p class="hint">Drag the handle to align the visible weapon with the authored palm. Scrub through the pose to check the fit. Changes stay in this workbench session until reload.</p>
+      <p class="hint">Select Rotate weapon and drag its colored rings to set each hand's hilt angle. Scrub the pose to check the fit, then export JSON. Changes reset on reload.</p>
       ${entries.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);

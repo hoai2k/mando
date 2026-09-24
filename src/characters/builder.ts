@@ -314,8 +314,19 @@ export function makeSaber(
     addCyl(g, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
     addSphere(g, mDark, 0.02, 0.05, -0.175, 0, 8, 6);
   }
+  if (tonfa) {
+    // Keep the temporary fallback at the authored hilt's new size while its
+    // GLB loads; it is hidden as soon as the authored mesh arrives.
+    for (const part of g.children) {
+      part.position.multiplyScalar(2);
+      part.scale.multiplyScalar(2);
+    }
+  }
   const blade = new THREE.Group();
-  blade.position.y = 0.06;
+  // Maris' tonfa emitter is on the longer, negative-Y end of its authored
+  // hilt. The previous positive-Y emitter lit the short capped end instead.
+  blade.position.y = tonfa ? -0.26 : 0.06;
+  if (tonfa) blade.rotation.z = Math.PI;
   g.add(blade);
   const BLADE_LEN = tonfa ? 0.78 : 0.92;
   // the trail builder needs the blade's frame and reach to sample tip arcs
@@ -347,7 +358,7 @@ export function makeSaber(
     light.castShadow = false;
     blade.add(light);
   }
-  swapWeapon(g, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : 'saber_curved', 0.26, -Math.PI / 2);
+  swapWeapon(g, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : 'saber_curved', tonfa ? 0.52 : 0.26, -Math.PI / 2);
   return g;
 }
 
