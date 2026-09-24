@@ -236,13 +236,19 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
 };
 
 /**
- * The roster the game offers: everyone in `MANDO_ROSTER` who is not benched.
+ * The roster the game offers, in character-select order: Mandalorians,
+ * bounty hunters, then Force users. Bo-Katan remains benched.
  * Every enumeration in the game — character select, prefetch, the drop screen,
  * the debug handle — goes through this, so benching a character removes them
  * from all of them at once.
  */
+const CHARACTER_ORDER: MandoId[] = [
+  'din', 'paz', 'armorer', 'bokatan',
+  'duelist', 'bossk', 'ig11', 'embo',
+  'jedi', 'maris', 'revan', 'maul', 'ventress',
+];
 export const PLAYABLE_MANDO_IDS: MandoId[] =
-  (Object.keys(MANDO_ROSTER) as MandoId[]).filter((id) => !BENCHED_MANDO_IDS.has(id));
+  CHARACTER_ORDER.filter((id) => !BENCHED_MANDO_IDS.has(id));
 
 /**
  * @param opts.authored  false keeps the procedural build even when an authored

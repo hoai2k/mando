@@ -1,5 +1,5 @@
 import type { CharacterInstance } from '../characters/builder';
-import { buildMandalorian, MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
+import { BENCHED_MANDO_IDS, buildMandalorian, MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from '../characters/mandalorians';
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid,
   buildFlametrooper, buildGunfighter, buildGunslinger, buildImperialOfficer, buildInterceptorDrone,
@@ -68,7 +68,11 @@ const prop = (id: string, name: string, size: number, axis: 'y' | 'longest' = 'l
 export const GROUPS: SubjectGroup[] = [
   {
     label: 'Playable',
-    subjects: (Object.keys(MANDO_ROSTER) as MandoId[]).map(mando),
+    subjects: PLAYABLE_MANDO_IDS.map(mando),
+  },
+  {
+    label: 'Benched',
+    subjects: [...BENCHED_MANDO_IDS].map(mando),
   },
   {
     label: 'Allies',
