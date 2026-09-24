@@ -926,6 +926,11 @@ const worm = await page.evaluate(async () => {
   const idle = [blank(), blank(), blank(), blank()];
   const w = g.addReinforcement('sandworm', p.position.clone().add(new g.players[0].position.constructor(12, 0, 0)), 777);
   if (!w) return null;
+  // This check is about the body becoming hittable as it sinks. A random
+  // stage wall can block the worm's first sightline from the fixed +X spawn,
+  // leaving it underground for all 900 frames and testing no transition.
+  // Give the probe a prey it can track, then require the full surface cycle.
+  w.hunts = true;
   window.__manual = true;
   const states = new Set();
   let outButUntouchable = 0;
