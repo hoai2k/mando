@@ -17,10 +17,10 @@ import type { Proportions } from './skeleton';
  *
  * ARM SPLAY AMOUNT: every authored character was sculpted in an A-pose with
  * the upper arm 16-31° out from vertical (mean ~24° — see the rest-pose
- * audit in docs/ANIMATION_AUDIT.md), and the retargeter pulls that rest to
- * straight-down before the clips pose it. Any "arms hanging" clip therefore
- * needs ~19-22° of Z splay or the deltoid/biceps geometry the artist built
- * around the A-pose presses into the torso and the arms read as pinned.
+ * audit in docs/ANIMATION_AUDIT.md). The retargeter aligns the base arm down,
+ * then adds a small outward clearance for authored hanging arms and fades it
+ * on raised arms. These clip angles are layered on that clearance; keep their
+ * splay sign outward so sleeves do not press into the torso.
  */
 
 const D = Math.PI / 180;

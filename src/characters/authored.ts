@@ -67,6 +67,16 @@ const CANON_PARENT: Partial<Record<BoneName, BoneName>> = {
 /** canonical bones parents-first, so a single pass accumulates world rotations */
 const CANON_ORDER = BONES.filter((b) => b === 'hips' || CANON_PARENT[b]) as BoneName[];
 
+// Authored torsos and sleeves were sculpted around an A-pose. The canonical
+// clips use a vertical neutral arm, which can drive that geometry into the
+// ribs when no upper-body clip is playing. Give hanging arms a small shared
+// outward bias, but fade it for raised arms so aimed weapons keep their fit.
+const ARM_CLEARANCE = THREE.MathUtils.degToRad(10);
+const ARM_AXIS = new THREE.Vector3(0, 0, 1);
+const ARM_DOWN = new THREE.Vector3(0, -1, 0);
+const armDir = new THREE.Vector3();
+const armSpread = new THREE.Quaternion();
+
 /**
  * Where each canonical bone points at rest. Our rig rests with every rotation
  * at identity, so this is just the offset direction of the bone's child.
@@ -605,7 +615,15 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     const bone = source.bones[name];
     const parent = CANON_PARENT[name];
     if (parent) q.copy(src.get(parent)!); else q.identity();
-    if (bone) q.multiply(bone.quaternion);
+    if (bone) {
+      if (name === 'upperArmL' || name === 'upperArmR') {
+        const downward = -armDir.copy(ARM_DOWN).applyQuaternion(bone.quaternion).y;
+        const strength = THREE.MathUtils.smoothstep(downward, 0.35, 0.8);
+        q.multiply(armSpread.setFromAxisAngle(ARM_AXIS,
+          (name === 'upperArmL' ? 1 : -1) * ARM_CLEARANCE * strength));
+      }
+      q.multiply(bone.quaternion);
+    }
   }
 
   for (let i = 0; i < model.nodes.length; i++) {
