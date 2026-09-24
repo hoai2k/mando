@@ -981,7 +981,8 @@ export class CharacterSelect {
       for (const [cid, c] of s.chars) c.root.visible = cid === id && c.modelReady();
       // the handover: they are pixel-aligned by construction, so there is
       // nothing to see in it
-      if (s.poster && current.modelReady()) this.dropPoster(s);
+      const handoff = !!s.poster && current.modelReady();
+      if (handoff) this.dropPoster(s);
       // sized to the plinth once it is the one on show — and again if its
       // authored model arrives and changes what "this fighter" measures
       this.fitToPlinth(current);
@@ -1010,7 +1011,7 @@ export class CharacterSelect {
       // picture froze — the fighter does not change stance as the swap
       // happens — and the idle picks up from there. A model that is already in
       // hand never comes through here, so nothing is delayed for it.
-      if (s.poster) {
+      if (s.poster || handoff) {
         current.animator?.poseAt(POSTER_ANIM_T);
         current.cosmetic?.(0, POSTER_ANIM_T);
       } else {
@@ -1106,7 +1107,7 @@ export class CharacterSelect {
    * the picture actually covers — a bounding box includes a cape's rest pose
    * and every transparent margin around it.
    */
-  posterShot(px = POSTER_PX, aspect = POSTER_ASPECT): PosterShot | null {
+  posterShot(reference: THREE.WebGLRenderer, px = POSTER_PX, aspect = POSTER_ASPECT): PosterShot | null {
     const s = this.slots[0];
     const c = s.chars.get(this.roster[s.choice]);
     // The weapon has to have landed too. `modelReady` answers for the body
@@ -1146,6 +1147,14 @@ export class CharacterSelect {
     gl.setSize(w, h, false);
     gl.setPixelRatio(1);
     gl.setClearAlpha(0);
+    // The picture is handed off to the live renderer on the same plinth.
+    // Match its color and lighting path or the body visibly changes at the
+    // handoff even when the camera and pose are identical.
+    gl.outputColorSpace = reference.outputColorSpace;
+    gl.toneMapping = reference.toneMapping;
+    gl.toneMappingExposure = reference.toneMappingExposure;
+    gl.shadowMap.enabled = reference.shadowMap.enabled;
+    gl.shadowMap.type = reference.shadowMap.type;
 
     // strip the stage back to the one body
     const background = this.scene.background;

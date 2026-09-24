@@ -58,8 +58,10 @@ import { warmImage, warmQueue, type WarmPriority } from '../core/warm';
  * edge is never clipped by the crop.
  */
 export const POSTER_PAD = 1.06;
-/** Reference render height in pixels, and the aspect it is rendered at. */
-export const POSTER_PX = 760;
+/** Reference render height in pixels, and the aspect it is rendered at.
+ * The cropped fighters occupy only part of this frame; 760 left many with
+ * fewer pixels than their displayed size on a high-density screen. */
+export const POSTER_PX = 1520;
 export const POSTER_ASPECT = 16 / 9;
 /**
  * How long a choice must sit still before its real body is built.

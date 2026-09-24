@@ -442,7 +442,7 @@ end.onBack = () => quitToTitle();
     // plinth exactly as a player flipping onto it would see
     for (;;) {
       charSelect.update(1 / 60);
-      const shot = charSelect.posterShot();
+      const shot = charSelect.posterShot(renderer);
       if (shot) return { ...shot, id };
       if (performance.now() - t0 > timeoutMs) return { id, error: 'model never arrived' };
       await new Promise((r) => requestAnimationFrame(r));

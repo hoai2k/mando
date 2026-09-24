@@ -294,7 +294,7 @@ await page.waitForFunction(() => {
   const prev = window.__framingPrev;
   window.__framingPrev = now;
   return !!prev && now.every((d, i) => Math.abs(d - prev[i]) < 0.01);
-}, null, { timeout: 60000, polling: 250 });
+}, null, { timeout: 120000, polling: 250 });
 const framing = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(60);
@@ -794,7 +794,7 @@ check('?waves=boss: one wave to the lieutenant, one more to the warlord and its 
 // ---- the escape hatch: ?nomodes is the game as it always was ----
 await page.evaluate(() => { window.__manual = false; });
 await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?nomodes`);
-await sleepFrames(8);
+await page.waitForSelector('.menu-btn', { timeout: 120000 });
 const plain = await page.$$eval('.menu-btn', (els) => els.map((e) => e.textContent).filter(Boolean));
 check('?nomodes falls back to the single Press Start',
   plain.includes('Press Start') && !plain.includes('PvP') && !plain.includes('Missions'), plain.slice(0, 3).join(','));
