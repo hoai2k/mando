@@ -494,6 +494,9 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
+      // The shaft is local Y on both the fallback and the mounted sculpt.
+      // Slim Din's copy across X/Z while preserving its full reach.
+      if (id === 'din') main.scale.set(0.7, 1, 0.7);
       // makeGaffi's point is local +Y. Turn it toward the extended arm's
       // forward axis; the old quarter-turn left the point nearly vertical
       // during a thrust. This also keeps the butt behind the gripping hand.
