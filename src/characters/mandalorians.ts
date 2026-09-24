@@ -439,7 +439,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       const hilt = makeSaber(silver, dark, { light: false, style: saberStyle });
       (hilt.userData.blade as THREE.Object3D).visible = false;
       hilt.name = hand === 0 ? 'saberHolsterR' : 'saberHolsterL';
-      hilt.position.set(side * 0.23, 0.025, 0.08);
+      hilt.position.set(
+        side * (id === 'ventress' ? 0.21 : 0.23),
+        id === 'ventress' ? 0.07 : 0.025,
+        id === 'ventress' ? 0.025 : 0.08,
+      );
       hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : -side * 0.12;
       b.hips.add(hilt);
       holsters.push(hilt);

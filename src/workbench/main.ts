@@ -136,9 +136,11 @@ scene.add(turntable);
 let figures: Figure[] = [];
 let skeletons: THREE.SkeletonHelper[] = [];
 
-let subject: Subject = findSubject(new URLSearchParams(location.search).get('character') ?? 'din');
-let pose: Pose = findPose('idle');
-let mode: Mode = 'both';
+const initialParams = new URLSearchParams(location.search);
+let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
+let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
+let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
+  ? initialParams.get('mode') as Mode : 'both';
 let spin = false;
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
@@ -150,7 +152,7 @@ let positionAwaiting = false;
 let previewWideShoulders = false;
 let animationSpeed = 1;
 let paused = false;
-let alternateChoice = 'none';
+let alternateChoice = initialParams.get('alternate') ?? 'none';
 function alternatesFor(p: Pose): Alternate[] {
   return (ATTACK_ALTERNATES[p.id] ?? []).filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
@@ -489,6 +491,17 @@ function option(value: string, label: string, selected: boolean): string {
   return `<option value="${value}"${selected ? ' selected' : ''}>${label}</option>`;
 }
 
+/** Keep view selection in the URL; clip edits remain session-only. */
+function syncSelectionUrl(): void {
+  const url = new URL(location.href);
+  url.searchParams.set('character', subject.id);
+  url.searchParams.set('pose', pose.id);
+  url.searchParams.set('mode', mode);
+  if (alternateChoice === 'none') url.searchParams.delete('alternate');
+  else url.searchParams.set('alternate', alternateChoice);
+  history.replaceState(null, '', url);
+}
+
 function renderPanel(): void {
   const characterOptions = GROUPS
     .map((g) => `<optgroup label="${g.label}">`
@@ -496,11 +509,14 @@ function renderPanel(): void {
       + '</optgroup>')
     .join('');
   const list = available();
+  const rest = list.find((p) => p.id === 'rest');
   const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
     option(p.id, `${p.name}${alternatesFor(p).length ? ' •' : ''}`, p.id === pose.id)).join('');
-  const previewOptions = list.filter((p) => p.previewOnly).map((p) =>
+  const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
+  if (alternateChoice !== 'none' && !choices.some((alt) => alt.id === alternateChoice)) alternateChoice = 'none';
+  syncSelectionUrl();
 
   panel.innerHTML = `
     <h1>Model workbench</h1>
@@ -513,7 +529,8 @@ function renderPanel(): void {
 
     <div class="field">
       <label for="pose">Animation</label>
-      <select id="pose"><optgroup label="In game">${gameOptions}</optgroup>
+      <select id="pose">${rest ? option(rest.id, `${rest.name} ◆`, rest.id === pose.id) : ''}
+        <optgroup label="In game">${gameOptions}</optgroup>
         ${previewOptions ? `<optgroup label="──────── Not in game · preview ────────">${previewOptions}</optgroup>` : ''}
       </select>
       <p class="picker-key">• alternates available &nbsp; ◆ not in game</p>
@@ -596,6 +613,7 @@ function renderPanel(): void {
   const alternateSelect = panel.querySelector<HTMLSelectElement>('#attackAlternate');
   if (alternateSelect) alternateSelect.onchange = (e) => {
     alternateChoice = (e.target as HTMLSelectElement).value;
+    syncSelectionUrl();
     applyPose();
     if (editing) freezePose();
     if (editing && editKind === 'position') refreshPositionPose();
