@@ -326,6 +326,7 @@ export const TEXT = {
     armorer: { name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.' },
     ventress: { name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.' },
     jedi: { name: 'Jedi', desc: 'A hooded guardian with twin white blades and a measured hand.' },
+    maris: { name: 'Maris Brood', desc: 'A swift duelist wielding twin green tonfa sabers.' },
     embo: { name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.' },
     bossk: { name: 'Bossk', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.' },
     duelist: { name: 'Cad Bane', desc: 'Two pistols, no creed \u2014 the fastest draw for hire in the outer systems.' },

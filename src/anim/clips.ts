@@ -884,6 +884,19 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 0.29, 0.5], [[-10, 0, 0], [12, 0, 0], [0, 0, 0]]),
   ]);
 
+  // Maris turns the perpendicular grips in her palms. The shaft tracks each
+  // forearm through compact alternating cuts instead of staying in a straight
+  // saber grip; the shared body timing and hit windows remain unchanged.
+  for (const step of [1, 2, 3] as const) {
+    const base = clips[`saber${step}`];
+    const times = step === 3 ? [0, 0.22, 0.29, 0.5] : step === 2 ? [0, 0.15, 0.21, 0.38] : [0, 0.13, 0.19, 0.36];
+    clips[`tonfa${step}`] = new THREE.AnimationClip(`tonfa${step}`, base.duration, [
+      ...base.tracks.map((track) => track.clone()),
+      qt('handR', times, [[0, 0, -65], [0, 0, -82], [0, 0, -35], [0, 0, -65]]),
+      qt('handL', times, [[0, 0, 65], [0, 0, 35], [0, 0, 82], [0, 0, 65]]),
+    ]);
+  }
+
   // ---------- UPPER: throwing a blade, and catching it coming back ----------
   // A thrown saber has to read as thrown. Reusing the first combo swing meant
   // the blade simply left during a slash, which looks like a slash — nothing
@@ -941,6 +954,25 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmR', rt, [[-38, 8, 0], [-32, 8, 0], [-26, 8, 0], [-32, 8, 0], [-38, 8, 0]]),
     qt('upperArmL', rt, [[-16, 12, 34], [-22, 12, 36], [-28, 12, 34], [-22, 12, 36], [-16, 12, 34]]),
     qt('forearmL', rt, [[-52, -10, -14], [-58, -10, -16], [-64, -10, -14], [-58, -10, -16], [-52, -10, -14]]),
+  ]);
+  clips.tonfaIdleUpper = new THREE.AnimationClip('tonfaIdleUpper', 3, [
+    qt('chest', [0, 1.5, 3], [[7, -12, 0], [9, -14, 0], [7, -12, 0]]),
+    qt('head', [0, 1.5, 3], [[1, 10, 0], [1, 8, 0], [1, 10, 0]]),
+    qt('upperArmR', [0, 1.5, 3], [[-56, -12, -18], [-58, -12, -18], [-56, -12, -18]]),
+    qt('forearmR', [0, 1.5, 3], [[-68, 18, 0], [-70, 18, 0], [-68, 18, 0]]),
+    qt('handR', [0, 1.5, 3], [[0, 0, -65], [0, 0, -68], [0, 0, -65]]),
+    qt('upperArmL', [0, 1.5, 3], [[-54, 12, 32], [-56, 12, 33], [-54, 12, 32]]),
+    qt('forearmL', [0, 1.5, 3], [[-70, -18, -14], [-72, -18, -14], [-70, -18, -14]]),
+    qt('handL', [0, 1.5, 3], [[0, 0, 65], [0, 0, 68], [0, 0, 65]]),
+  ]);
+  clips.tonfaRunUpper = new THREE.AnimationClip('tonfaRunUpper', 0.6, [
+    qt('chest', rt, [[8, -6, 0], [8, -3, 0], [8, 0, 0], [8, -3, 0], [8, -6, 0]]),
+    qt('upperArmR', rt, [[-45, -9, -20], [-43, -9, -20], [-41, -9, -20], [-43, -9, -20], [-45, -9, -20]]),
+    qt('forearmR', rt, [[-57, 12, 0], [-55, 12, 0], [-53, 12, 0], [-55, 12, 0], [-57, 12, 0]]),
+    qt('handR', rt, [[0, 0, -65], [0, 0, -65], [0, 0, -65], [0, 0, -65], [0, 0, -65]]),
+    qt('upperArmL', rt, [[-41, 9, 30], [-43, 9, 30], [-45, 9, 30], [-43, 9, 30], [-41, 9, 30]]),
+    qt('forearmL', rt, [[-58, -12, -12], [-60, -12, -12], [-62, -12, -12], [-60, -12, -12], [-58, -12, -12]]),
+    qt('handL', rt, [[0, 0, 65], [0, 0, 65], [0, 0, 65], [0, 0, 65], [0, 0, 65]]),
   ]);
 
   // ---------- UPPER: saber flourish (combo punctuation) ----------

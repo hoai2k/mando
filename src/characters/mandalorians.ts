@@ -18,7 +18,7 @@ import type { VoiceId } from '../core/audio';
 
 export type MandoId =
   | 'din' | 'paz' | 'bokatan' | 'armorer'
-  | 'ventress' | 'jedi' | 'embo' | 'bossk' | 'ig11' | 'duelist';
+  | 'ventress' | 'jedi' | 'maris' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
@@ -56,7 +56,7 @@ export interface PlayerCharacter extends CharacterInstance {
  */
 const MODEL_HEIGHT: Record<MandoId, number> = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
-  ventress: 1.79, jedi: 1.82, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
+  ventress: 1.79, jedi: 1.82, maris: 1.70, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
 interface MandoConfig {
@@ -187,6 +187,13 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     helmet: null, rangefinder: false, bulk: 1,
     melee: 'sabers', ranged: 'none', skin: 0xc9b9a8,
     voice: 'mando_m', acrobat: true, thrusters: 'none',
+  },
+  maris: {
+    ...TEXT.characters.maris,
+    primary: 0x77635c, accent: 0xb89a90, suit: 0x362d30, cape: null,
+    helmet: null, rangefinder: false, bulk: 0.92,
+    melee: 'sabers', ranged: 'none', skin: 0xe7c5b8,
+    voice: 'human_f', acrobat: true, thrusters: 'none',
   },
   embo: {
     ...TEXT.characters.embo,
@@ -406,7 +413,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const polearmAxis = new THREE.Group();
   polearmAxis.rotation.x = Math.PI;
   b.weaponR.add(polearmAxis);
-  const saberStyle = id === 'jedi' ? 'white' : 'red';
+  const saberStyle = id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa' : 'red';
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
     let main: THREE.Group;
@@ -670,6 +677,17 @@ function buildHunterHead(
       addBox(helm, dark, 0.016, 0.005, 0.16, 0.045, 0.145, -0.02, 0.15);
       // high armored collar
       addCyl(helm, prim, 0.1, 0.115, 0.07, 0, -0.13, 0, 0, 0, 0, 10);
+      break;
+    }
+    case 'maris': {
+      const eye = mat(0xc84038, { rough: 0.35, emissive: 0x280808 });
+      addSphere(helm, eye, 0.015, -0.05, 0.06, 0.118, 8, 6);
+      addSphere(helm, eye, 0.015, 0.05, 0.06, 0.118, 8, 6);
+      const hair = mat(0x242025, { rough: 0.9 });
+      for (let i = -4; i <= 4; i++) {
+        const x = i * 0.028;
+        addCyl(helm, hair, 0.012, 0.012, 0.23, x, 0.13, -0.05, 0, 0, x * 0.8, 7);
+      }
       break;
     }
     case 'embo': {

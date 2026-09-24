@@ -5,10 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**No open image generation requests as of 2026-09-24.** The Jedi's approved
-front and matching side/back turnaround are saved under
-`reference/characters/jedi_*.png`, and his separate saber-hilt concept is
-awaiting design review before an authored hilt is made. The Spice Run sky frigate's
+**No open image generation requests as of 2026-09-24.** The Jedi and Maris
+canonical views, the five-hilt collection, and the two candidate Sith enemy
+front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The Guild Gunslinger and Escort Droid
 front, side and back sheets now live in `reference/characters/` and are recorded in
@@ -21,11 +20,9 @@ five canvases including the replacement `sandworm`. The cast, the boards, the sk
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
-`reference/characters/maris_brood_front.png` is a front-only character concept
-for review. `maris_brood_front_left_stylized.png` is an alternate front based
-only on the supplied image's left panel, with red eyes and a cleaner, more
-cartoony look. She is not yet in the playable roster; choose a front design
-before generating matching side and back views for a 3D model.
+`reference/characters/maris_brood_front_left_stylized.png` is the selected
+Maris front; matching side and back sheets and an authored playable model are
+delivered. The earlier `maris_brood_front.png` remains for comparison.
 
 `reference/characters/jedi_saber_options.png` is a four-hilt comparison sheet
 for design review: the current Jedi concept, a slim heroic hilt, a double hilt,
@@ -40,10 +37,16 @@ image-to-3D generation and later segmentation. The art does not guarantee
 that a generator will produce five disconnected mesh components; inspect the
 result before relying on automatic separation. Blades are runtime FX, so no
 blade color or glow is baked into this sheet.
-`reference/characters/saber_hilt_collection_v2.png` revises only that bottom
-hilt: a much slimmer main baton and perpendicular grip closer to its emitter,
-leaving a long rear section to guard the forearm. Use v2 for any shared 3D
-generation experiment; the earlier collection is kept for comparison.
+`reference/characters/saber_hilt_collection_v2.png` and `_v3.png` record
+intermediate tonfa revisions. The canonical generation input is
+`saber_hilt_collection_v4.png`: cleaner surfaces, five separated rows, and a
+tonfa emitter on the long end. Its Tripo model split successfully into five
+individual GLBs, described in [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
+
+`reference/characters/sith_leader_front.png` is the hooded, masked leader
+based on the supplied two references. `sith_soldier_front.png` is the horned,
+red-and-black marked soldier based on the supplied image. Both are candidate
+enemy designs, not yet 3D models or integrated enemies.
 
 What remains below is not a request: the recipe for making
 more character sheets, and

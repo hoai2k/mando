@@ -2284,7 +2284,7 @@ export class Player {
       // is its cycle played backward, a touch slower
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
-      const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
+      const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : 'saberRunUpper') : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2298,7 +2298,7 @@ export class Player {
       }
     } else {
       anim.play('lower', 'idleLower');
-      const idleUpper = this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper';
+      const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : 'saberIdleUpper') : 'idleUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : idleUpper);
     }
   }
@@ -2672,7 +2672,7 @@ export class Player {
     // holds while leaning out too: the peek goes round the corner, not over
     // the top, so there is nothing to stand up for.
     anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : 'saberIdleUpper') : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
@@ -3003,7 +3003,7 @@ export class Player {
     let t = this.thrownSabers[hand];
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
       light: hand === 0,
-      style: this.characterId === 'jedi' ? 'white' : 'red',
+      style: this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa' : 'red',
     });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
@@ -3093,7 +3093,7 @@ export class Player {
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
       // twin blades get their own combo; everyone else swings the staff set
-      const set = this.meleeKind === 'sabers' ? 'saber' : 'melee';
+      const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : 'saber') : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
@@ -3366,7 +3366,7 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.meleeKind === 'sabers' ? 'saber' : 'melee';
+    const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : 'saber') : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');

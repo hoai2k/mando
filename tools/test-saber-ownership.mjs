@@ -4,16 +4,20 @@ import { launch, makeCheck } from './harness.mjs';
 const check = makeCheck();
 const h = await launch();
 try {
-  for (const id of ['ventress', 'jedi']) {
+  for (const id of ['ventress', 'jedi', 'maris']) {
     await h.page.evaluate((character) => {
       window.__manual = false;
       window.__quitToTitle?.();
       window.__startMode('campaign', 1, 'station', [character]);
     }, id);
-    await h.page.waitForFunction((character) =>
-      window.__state === 'playing'
-      && window.__game?.players[0]?.characterId === character
-      && window.__game.players[0].char.modelReady(), id, { timeout: 120000 });
+    await h.page.waitForFunction((character) => {
+      if (window.__state !== 'playing' || window.__game?.players[0]?.characterId !== character) return false;
+      const char = window.__game.players[0].char;
+      if (!char.modelReady()) return false;
+      const hand = char.root.getObjectByName('saberHandR');
+      return hand?.children.some((child) =>
+        child !== hand.userData.blade && child.type === 'Group' && child.children.length > 0);
+    }, id, { timeout: 120000 });
 
     const states = await h.page.evaluate(() => {
       const player = window.__game.players[0];
@@ -33,14 +37,19 @@ try {
       const returned = visible();
       const rightHand = root.getObjectByName('saberHandR');
       const bladeLight = rightHand?.getObjectByProperty('type', 'PointLight');
+      const authoredHilt = rightHand?.children.some((child) =>
+        child !== rightHand.userData.blade
+        && child.type === 'Group'
+        && child.children.length > 0);
       return {
         modelLoaded: char.modelReady(), nozzles: char.nozzles.length,
         stowed, drawn, rightThrown, leftStowedRightThrown, returned,
-        bladeLight: bladeLight?.color?.getHex(),
+        bladeLight: bladeLight?.color?.getHex(), authoredHilt,
       };
     });
     const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check(`${id}: authored body loaded`, states.modelLoaded, states);
+    if (id !== 'ventress') check(`${id}: separated authored hilt loaded`, states.authoredHilt, states);
     check(`${id}: both hilts stow handle-up at the waist`,
       eq(states.stowed, { saberHandR: false, saberHandL: false, saberHolsterR: true, saberHolsterL: true }), states);
     check(`${id}: drawing moves both hilts to the hands`,
@@ -54,6 +63,9 @@ try {
     if (id === 'jedi') {
       check('Jedi has no jetpack nozzles', states.nozzles === 0, states);
       check('Jedi blade light is cool white', states.bladeLight === 0xddefff, states);
+    } else if (id === 'maris') {
+      check('Maris has no jetpack nozzles', states.nozzles === 0, states);
+      check('Maris tonfa blade light is green', states.bladeLight === 0x58ff78, states);
     } else check('Ventress blade light stays red', states.bladeLight === 0xff3a24, states);
   }
   check('browser reported no errors', h.errors.length === 0, h.errors);

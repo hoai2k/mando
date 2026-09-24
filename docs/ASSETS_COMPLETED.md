@@ -9,7 +9,7 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
-## Maris Brood front character concept — delivered 2026-09-24
+## Maris Brood playable character — delivered 2026-09-24
 
 `reference/characters/maris_brood_front.png` is a 1024×1536 orthographic
 full-body front concept based on the supplied image. It preserves her dark
@@ -20,13 +20,13 @@ top, burgundy waist sash, fitted trousers, forearm wraps, and armored boots.
 image. It has red eyes, simpler red-brown clothing, cleaner shapes, and a
 more cartoony game-art finish. Keep both versions for design comparison.
 Both modelling references have empty hands, no sabers or belt-mounted hilts,
-and no jetpack. They are front concepts for review; side/back views, a 3D model, and
-playable integration have not been requested or completed.
-Her revised, slimmer tonfa-style guard-shoto hilt is the fifth, bottom item on
-`reference/characters/saber_hilt_collection_v2.png`; the earlier collection
-remains available for comparison. The
-proposed perpendicular-grip wielding and animation rules are documented in
-[`ASSETS_MODELS.md`](ASSETS_MODELS.md#maris-brood-proposal--tonfa-style-saber-combat).
+and no jetpack. Matching side and rear sheets accompany the selected stylized
+front. The Tripo body model has one face and a clean rear view; it was cleaned,
+Rigify-skinned, weight-repaired, decimated to 15,000 triangles, compressed,
+and integrated as `public/models/maris.glb`. She uses paired green tonfa blades
+with separate authored `maris_tonfa.glb` hilts. Her guarded stance, wrist-led
+combos, and waist/hand/flight ownership are described in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#maris-brood-playable--tonfa-style-saber-combat).
 
 ---
 
@@ -44,23 +44,36 @@ one textured mesh, no rig or collider, and is displayed at roughly 180 m long.
 
 ## Jedi playable character and references — delivered 2026-09-24
 
-`reference/characters/jedi_front.png`, `jedi_side.png`, and `jedi_back.png` are
+`reference/characters/jedi_front.png`, `jedi_side.png`, `jedi_right.png`, and `jedi_back.png` are
 the 1024×1536 canonical turnaround derived from the supplied character image:
 pale hood and tabards, dark layered tunic, fitted trousers and boots. The body
 reference has no jetpack, saber, or waist-mounted hilt. The separate
-`reference/characters/jedi_saber_concept.png` shows a straight weathered
-gunmetal hilt with dark grip bands and an ivory emitter collar; it awaits
-design review and is not yet an approved model reference.
+`reference/characters/jedi_saber_concept.png` records the initial separate
+hilt exploration. The approved shared collection supplied the authored hilt.
 
-The Tripo multiview body model was cleaned, rigged, decimated and compressed
-through the Generations humanoid Blender stages. `public/models/jedi.glb` is
-the integrated 3.3 MB, 14,998-triangle playable LOD with 33 deform bones. He
-uses dual white saber blade FX and a procedural stand-in hilt pending approval
-of the separate concept. Each hilt stows handle-up on its own hip, sits in its
+Two Tripo multiview attempts placed a duplicate face on the rear of the hood.
+A front-only generation corrected the back; its Blender-cleaned, rigged,
+15k-triangle LOD replaced the former `public/models/jedi.glb` and was checked
+from both sides. He uses dual white saber blade FX and the separate
+`saber_jedi.glb` hilt cut from the approved five-hilt collection. Each hilt
+stows handle-up on its own hip, sits in its
 own hand, or appears as a thrown projectile. Ventress uses the same ownership
-rules with her authored curved hilt and red blade FX. The hooded face is less
-defined than the concept, and extreme robe poses have not been exhaustively
-checked.
+rules with her authored curved hilt and red blade FX. Extreme robe poses have
+not been exhaustively checked.
+
+## Shared saber model and Sith enemy concepts — delivered 2026-09-24
+
+`reference/characters/saber_hilt_collection_v4.png` is the clean five-hilt
+input. One Tripo run produced five separate height bands; Blender sliced them
+into `saber_jedi.glb`, `saber_classic.glb`, `saber_double.glb`,
+`saber_dark.glb`, and `maris_tonfa.glb`, all in `public/models/`. Each
+compressed GLB re-imported as one textured mesh with UVs. Jedi and Maris use
+their hilts; the other three are available for later character work.
+
+`reference/characters/sith_leader_front.png` is the masked hooded leader
+based on the supplied two references. `sith_soldier_front.png` is the horned
+red-and-black soldier based on the supplied image. These are canonical front
+concepts for review; no enemy 3D generation is requested yet.
 
 ---
 

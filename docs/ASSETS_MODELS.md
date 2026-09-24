@@ -4,14 +4,14 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. The Jedi and Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
+**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. The Jedi, Maris Brood, and Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
 
 ## Missing-model audit — 2026-09-24
 
 Compared the shipped `public/models/*.glb` files with literal `loadProp`,
 `authoredProp` and vehicle model ids, the dynamic outdoor prop ids in
 `src/world/mission.ts`, and the open briefs in this document. After adding
-`spice_run_frigate.glb` and `jedi.glb`, no required board or playable-character model is
+`spice_run_frigate.glb`, `jedi.glb`, and `maris.glb`, no required board or playable-character model is
 missing. The remaining asset work is:
 
 | Kind | Ids | Status |
@@ -19,9 +19,9 @@ missing. The remaining asset work is:
 | Optional Missions v3 scenery | `boulder_a`, `boulder_b`, `boulder_c`, `cliff_pillar_rock`, `cliff_pillar_ice`, `energy_pylon`, `trail_post` | Seven missing GLBs. The mission builder requests them but each has a procedural stand-in; briefs are [below](#missions-v3--outdoor-set-optional-requested-2026-09-03). |
 
 The two existing spider rigs are complete for current gameplay. Their proposed
-fang re-exports are closed by the 2026-09-24 decision. The Jedi is playable with
-his authored `jedi.glb`; his separate saber-hilt concept awaits review before any
-authored hilt is generated.
+fang re-exports are closed by the 2026-09-24 decision. Jedi and Maris are playable
+with authored bodies and separate authored hilts. The other three shared-sheet
+hilts are delivered as individual props for future characters.
 
 ## Swap contract (applies to every biped)
 
@@ -94,57 +94,51 @@ removed.
 
 ### Jedi playable — delivered 2026-09-24
 
-The approved `reference/characters/jedi_front.png` and matching true left and
-rear views define a hooded 1.82 m fighter in pale robes over a dark layered
-tunic. The body has **no jetpack and no attached saber hilts**. Tripo multiview
-produced `jedi.glb`; Blender cleanup, pose-matched Rigify skinning, a 15k-triangle
-LOD, and gltfpack compression produced the 3.3 MB runtime file at
-`public/models/jedi.glb` (14,998 triangles, 33 deform bones). The character is
+The approved `reference/characters/jedi_front.png` and matching true left,
+right, and rear views define a hooded 1.82 m fighter in pale robes over a dark
+layered tunic. The body has **no jetpack and no attached saber hilts**. Tripo
+multiview twice reconstructed an unwanted second face on the rear, despite a
+correct back sheet. A front-only P1 generation inferred an intact rear hood.
+Blender cleanup, pose-matched Rigify skinning, a 15k-triangle LOD, and gltfpack
+compression produced the replacement runtime file at `public/models/jedi.glb`
+(14,999 triangles, 33 deform bones). The character is
 in the playable roster with no ranged weapon or jetpack, dual white saber FX,
 and the standard superjump movement profile. Modest posed renders and an
 in-game load were checked; extreme robe poses may need further weight polish.
 
 Both sabers are independent objects: a handle-up hilt at the appropriate hip
 when stowed, the matching hand when drawn, or the flying projectile when
-thrown. The proposed separate hilt design is at
-`reference/characters/jedi_saber_concept.png` for review. Until its design is
-approved and an authored hilt is made, the game uses a straight procedural
-hilt. Ventress retains the authored curved hilt with the same state rules.
+thrown. The separate `saber_jedi.glb` was sliced from the shared five-hilt
+generation and now replaces the procedural handle. Ventress retains her
+authored curved hilt with the same state rules.
 
-### Maris Brood proposal — tonfa-style saber combat
+### Maris Brood playable — tonfa-style saber combat
 
-`reference/characters/maris_brood_front.png` and the alternate
-`maris_brood_front_left_stylized.png` are front concepts only; Maris has no
-model or roster entry yet. Her paired weapons are **guard shotos**: a slim
-main baton with a second grip at right angles, as shown in the bottom row of
-`reference/characters/saber_hilt_collection_v2.png`. The grip sits near the
-emitter, leaving a longer rear section alongside the forearm. The 501st costume
-[reference](https://crls.501st.com/tfe/maris-brood) also describes her pair as
-weathered silver tonfa-style hilts with shorter-than-standard blades. The
-supplied image shows both green and red blade treatments, so blade color
-remains a gameplay/art choice; keep blades out of the 3D hilt geometry.
+The selected `reference/characters/maris_brood_front_left_stylized.png` and
+matching `maris_brood_side.png` / `maris_brood_back.png` define her empty-handed
+body. Tripo multiview produced a single face with a clean rear braid silhouette.
+The model was cleaned, rigged, repaired at 93 isolated skin-weight vertices,
+decimated to 15,000 triangles with four influences and no unweighted vertices,
+compressed, and installed at `public/models/maris.glb`. She is playable with
+green shorter-than-standard blade FX, acrobatic movement, and no jetpack.
 
-**Wielding brief for a future playable implementation:** Each hand holds the
-perpendicular grip, with the main shaft running alongside the forearm and the
-emitter beyond the fist. A guarded idle brings both forearms up so the short
-blades frame the body. Blocks turn the forearms into crossed or angled guards;
-the counters rotate around the perpendicular grips and sweep outward into
-close-range cuts. Alternating left/right strikes should stay compact and
-quick, with a distinct wrist-turn or baton-spin flourish rather than the
-straight-saber swing arcs used by Ventress and Jedi. If throws are added, each
-weapon should leave its hand, spin as a single rigid tonfa, and return to that
-same hand. As with the other dual-saber characters, each hilt should have one
-visible location at a time: waist, hand, or flight. These are animation and
-mounting requirements for a proposed character, not implemented gameplay.
+Her weapons are **guard shotos**. Each hand holds a perpendicular grip near the
+short capped end, while the blade emitter is on the **long end** of the main
+baton. The main shaft runs along the forearm and turns out into short, compact
+cuts. The in-game idle and run guards keep the elbows bent and wrists rolled;
+her three combo clips alternate wrist turns around the tonfa grips. Both
+weapons obey the same single-location rule as Ventress and Jedi: waist, hand,
+or in flight. The green blades are runtime FX, not baked into the hilt mesh.
 
-**Shared 3D generation experiment:** The revised five-hilt sheet intentionally leaves
-large gaps so one image-to-3D pass might yield disconnected objects. Check the
-generated mesh before separating it by connected components or Blender's
-“Separate by Loose Parts”; image-to-3D may fuse the hilts or invent a backing
-surface. If that happens, isolate or regenerate individual hilts. Put the
-tonfa's hand mount on its perpendicular grip and its blade FX emitter on the
-short main shaft. This workflow is a cost-saving option, not a runtime
-requirement or an assurance of usable separate models.
+**Shared 3D generation experiment, completed:** The clean five-hilt sheet at
+`reference/characters/saber_hilt_collection_v4.png` produced five distinct
+height bands in one Tripo generation. Blender separated the bands into
+`saber_jedi.glb`, `saber_classic.glb`, `saber_double.glb`, `saber_dark.glb`,
+and `maris_tonfa.glb`; all five reimported as independent textured meshes
+with UVs. The Jedi and tonfa hilts are mounted in-game. The other three are
+available in `public/models/` for later use. This success depends on the
+measured blank bands in this sheet; it is not a general guarantee that any
+multi-object image will separate cleanly.
 
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers
