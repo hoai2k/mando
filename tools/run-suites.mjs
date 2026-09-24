@@ -67,6 +67,7 @@ const SUITES = [
   { name: 'test-missions', weight: 230 },
   { name: 'test-monsters', weight: 154 },
   { name: 'test-coop', weight: 142 },
+  { name: 'test-controller-claims', weight: 64 },
   { name: 'test-loadout', weight: 137 },
   { name: 'test-saber-throws', weight: 90 },
   { name: 'test-arrivals', weight: 127 },

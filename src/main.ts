@@ -113,6 +113,8 @@ app.appendChild(menuLayer);
 
 type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
+/** Input source whose menu confirmation opened the character select. */
+let menuSource = -1;
 let game: Game | null = null;
 let chosenBoard = BOARDS[0];
 let playerCount = 1;
@@ -241,8 +243,8 @@ const charSelect = new CharacterSelect(menuLayer, {
   // filling in behind them on whatever idle time is left
   onBrowse: (focus) => { browsing = focus; warmFor(planContext()); },
   padForPlayer: () => input.padForPlayer,
-  compactPads: () => input.compactPlayerSlots(),
-  seatPad: (padIndex, slot) => input.seatPad(padIndex, slot),
+  alignPads: (sources) => input.alignPlayerPads(sources),
+  padConnected: (index) => input.padConnected(index),
   stickX: (slot) => input.menuStickX(slot),
 });
 
@@ -565,7 +567,7 @@ function setState(s: AppState): void {
       charSelect.configure(mode === 'pvp'
         ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true }
         : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title });
-      charSelect.show();
+      charSelect.show(menuSource);
     }
   } else charSelect.hide();
   if (s === 'planets') planets.show();
@@ -935,7 +937,7 @@ function step(dt: number): void {
   if (state === 'characters') {
     for (const e of events) charSelect.handle(e.action, e.source);
   } else if (state === 'planets') {
-    for (const e of events) planets.handle(e.action);
+    for (const e of events) { menuSource = e.source; planets.handle(e.action); }
   } else if (state === 'vs') {
     for (const e of events) if (e.action === 'confirm') vs.finish();
   } else if (state === 'loading') {
@@ -943,12 +945,13 @@ function step(dt: number): void {
     // fallback, so the worst case is a surface that pops in a second later
     for (const e of events) if (e.action === 'confirm' && built && loadTimer > LOAD_SKIP_AFTER) enterMatch();
   } else if (scr) {
-    for (const e of events) scr.handle(e.action);
+    for (const e of events) { menuSource = e.source; scr.handle(e.action); }
   } else if (state === 'playing' && game) {
     for (const e of events) {
       if (e.action === 'pause' || e.action === 'back') { setState('paused'); input.releasePointerLock(); }
     }
   }
+  menuSource = -1;
 
   if (state === 'loading') updateLoading(dt);
   if (state === 'vs') vs.update(dt);

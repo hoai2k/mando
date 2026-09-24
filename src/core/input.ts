@@ -91,10 +91,13 @@ export class InputManager {
   private wheelDY = 0;
   mouseSensitivity = 0.0023;
   private padStates = new Map<number, PadState>();
+  private padIds = new Map<number, string>();
   private menuQueue: MenuEvent[] = [];
   /** gamepad index assigned to each player slot; -1 = none */
   /** pad index per player slot, -1 for none; one entry per possible player */
   padForPlayer: number[] = Array(MAX_PLAYERS).fill(-1);
+  /** A keyboard-owned slot must not be filled by an idle or newly touched pad. */
+  private reservedForKeyboard: boolean[] = Array(MAX_PLAYERS).fill(false);
   stickSensitivity = 2.6; // rad/s at full deflection
   pointerLocked = false;
   /** set true while in menus so gameplay ignores input & pads emit menu events */
@@ -200,6 +203,24 @@ export class InputManager {
     const pads = this.pads();
     const live = new Set(pads.map((p) => p.index));
     let lost = false;
+    for (const [index] of this.padIds) {
+      if (live.has(index)) continue;
+      this.padIds.delete(index);
+      this.padStates.delete(index);
+      this.edgeSnapshots.delete(index);
+    }
+    for (const pad of pads) {
+      const previous = this.padIds.get(pad.index);
+      if (previous && previous !== pad.id) {
+        // Browsers may recycle an index for a different physical controller.
+        // Treat it as a disconnect before letting the newcomer claim a seat.
+        const oldSeat = this.padForPlayer.indexOf(pad.index);
+        if (oldSeat >= 0) { this.padForPlayer[oldSeat] = -1; lost = true; }
+        this.padStates.delete(pad.index);
+        this.edgeSnapshots.delete(pad.index);
+      }
+      this.padIds.set(pad.index, pad.id);
+    }
     for (let s = 0; s < this.padForPlayer.length; s++) {
       if (this.padForPlayer[s] >= 0 && !live.has(this.padForPlayer[s])) {
         this.padForPlayer[s] = -1;
@@ -209,47 +230,32 @@ export class InputManager {
     for (const p of pads) {
       if (this.padForPlayer.includes(p.index)) continue;
       if (!padInUse(p)) continue;                  // nobody is holding this one
-      const slot = this.padForPlayer.indexOf(-1);
+      const slot = this.padForPlayer.findIndex((index, i) => index < 0 && !this.reservedForKeyboard[i]);
       if (slot < 0) break;
       this.padForPlayer[slot] = p.index;
     }
     if (lost && !this.menuMode) this.menuQueue.push({ action: 'pause', source: -1 });
   }
 
-  /**
-   * Move a controller to a particular slot, trading places with whatever sat
-   * there. The character select uses it so a player who presses A joins at the
-   * first free place rather than wherever their pad happened to be seated —
-   * it only ever swaps seats nobody has joined from, so no player in the line
-   * changes hands.
-   */
-  seatPad(padIndex: number, slot: number): void {
-    if (slot < 0 || slot >= this.padForPlayer.length) return;
-    const from = this.padForPlayer.indexOf(padIndex);
-    if (from === slot) return;
-    if (from >= 0) this.padForPlayer[from] = this.padForPlayer[slot];
-    this.padForPlayer[slot] = padIndex;
+  /** Apply the select screen's actual owners, including a keyboard-owned P1. */
+  alignPlayerPads(sources: readonly number[]): void {
+    const used = new Set<number>();
+    for (let i = 0; i < this.padForPlayer.length; i++) {
+      const source = sources[i] ?? -2; // -2 = nobody joined; -1 = keyboard/mouse
+      this.reservedForKeyboard[i] = source === -1;
+      this.padForPlayer[i] = source >= 0 && !used.has(source) ? source : -1;
+      if (source >= 0) used.add(source);
+    }
   }
 
-  /**
-   * Close gaps in the slot-to-pad assignment, keeping the order of the pads
-   * that are left.
-   *
-   * A slot normally *keeps* its device even when that device dies, because
-   * shuffling mid-fight would hand one player another player's character. In
-   * the character select nobody is driving anything yet, so a hole left by an
-   * unplugged pad should close instead — otherwise player three starts a match
-   * in player two's empty seat and controls nothing.
-   */
-  compactPlayerSlots(): void {
-    const live = this.padForPlayer.filter((p) => p >= 0);
-    for (let i = 0; i < this.padForPlayer.length; i++) this.padForPlayer[i] = live[i] ?? -1;
-  }
+  padConnected(index: number): boolean { return this.pads().some((pad) => pad.index === index); }
 
   /** True if a second controller is available for split-screen join. */
   hasSecondPad(): boolean { return this.pads().length >= 2; }
-  /** How many players could join right now: the keyboard plus every free pad. */
-  joinablePlayers(): number { return Math.min(MAX_PLAYERS, Math.max(1, this.pads().length)); }
+  /** How many human slots the current keyboard/pad setup can actually drive. */
+  joinablePlayers(): number {
+    return Math.min(MAX_PLAYERS, Math.max(1, this.pads().length + (this.reservedForKeyboard[0] ? 1 : 0)));
+  }
   padCount(): number { return this.pads().length; }
   /** Controllers that have been picked up and hold a player slot. */
   seatedPads(): number { return this.padForPlayer.filter((p) => p >= 0).length; }

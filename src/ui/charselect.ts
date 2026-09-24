@@ -201,6 +201,8 @@ export class CharacterSelect {
   private allowBots = false;
   /** the Start button is on screen (everyone joined is locked in) */
   private startShown = false;
+  /** -2 unclaimed, -1 keyboard/mouse, otherwise the exact gamepad index. */
+  private humanSource: number[] = Array(MAX_PLAYERS).fill(-2);
   private titleEl!: HTMLElement;
   private hintEl!: HTMLElement;
   /** in-progress mouse drag: which pedestal it grabbed and where it last was */
@@ -221,10 +223,8 @@ export class CharacterSelect {
       onBrowse: (focus: PlayableId[]) => void;
       /** gamepad index driving each player slot, -1 for none (from InputManager) */
       padForPlayer: () => number[];
-      /** close gaps in the pad-to-slot assignment after a player drops out */
-      compactPads: () => void;
-      /** move a controller to a given player slot, trading places with it */
-      seatPad: (padIndex: number, slot: number) => void;
+      alignPads: (sources: readonly number[]) => void;
+      padConnected: (index: number) => boolean;
       /** right-stick X for a player slot, for free-look on that pedestal */
       stickX: (slot: number) => number;
     },
@@ -308,7 +308,7 @@ export class CharacterSelect {
       this.press = null;
       endDrag();
       if (press && press.moved < 6 && !(e.target as HTMLElement).closest('button')) {
-        this.select(press.slot);
+        this.select(press.slot, -1);
       }
     });
     window.addEventListener('pointercancel', () => { this.press = null; endDrag(); });
@@ -667,9 +667,8 @@ export class CharacterSelect {
     if (source === -1) return 0;
     const slot = pads.indexOf(source);
     if (slot < 0 || slot >= this.slots.length) return -1;
-    // A pad is seated by index as soon as it is plugged in, which can point it
-    // at a place a bot is standing in — and a bot is nobody's seat. That pad is
-    // simply not in the line yet, and pressing A puts it in one.
+    // A pad used on an earlier menu may already have a provisional seat that
+    // points at a bot. The bot is nobody's seat; A claims a human place.
     return this.slots[slot].bot ? -1 : slot;
   }
 
@@ -683,8 +682,12 @@ export class CharacterSelect {
     return s.bot && this.slots[s.owner]?.phase !== 'ready';
   }
 
-  private select(slot: number): void {
+  private select(slot: number, source = -1): void {
     const s = this.slots[slot];
+    if (source === -1 && this.humanSource[slot] === -2 && !s.bot) {
+      this.humanSource[slot] = -1;
+      this.opts.alignPads(this.humanSource);
+    }
     if (this.botLocked(slot)) return;
     if (s.phase === 'empty') { audio.uiConfirm(); this.join(slot); }
     else if (s.phase === 'browsing') this.commit(slot);
@@ -693,8 +696,8 @@ export class CharacterSelect {
 
   /**
    * Where a controller's press to join should land: its own place if it is
-   * already in the line, otherwise the first free one — and the pad is re-seated
-   * to match, so the seat a player takes in the line is the seat their
+   * already in the line, otherwise the first free one — then the actual owners
+   * are aligned with input, so the seat a player takes in the line is the seat their
    * controller drives in the match.
    *
    * Without this, a controller that had already claimed a place by being used
@@ -703,9 +706,22 @@ export class CharacterSelect {
    * that player reading a seat their pad was not in.
    */
   private slotForJoin(source: number): number {
-    const seat = this.drivingSlot(source);
-    // already in the line — either their own place, or the bot they are picking for
-    if (seat >= 0 && this.slots[seat].phase !== 'empty') return seat;
+    if (source === -1) {
+      if (this.humanSource[0] === -2) {
+        this.humanSource[0] = -1;
+        this.opts.alignPads(this.humanSource);
+      }
+      return this.drivingSlot(source);
+    }
+    const owner = this.humanSource.indexOf(source);
+    if (owner >= 0) return this.drivingSlot(source);
+    // The first pad to claim P1 owns it. If keyboard/mouse claimed P1 first,
+    // this pad joins P2 even if menu activity had auto-seated it at index 0.
+    if (this.humanSource[0] === -2) {
+      this.humanSource[0] = source;
+      this.opts.alignPads(this.humanSource);
+      return 0;
+    }
     // A human takes the place after the last human, which is a bot's place if
     // any bots are standing there: they shuffle right to make room, so the
     // people are always the front of the line and the machines the back of it.
@@ -721,7 +737,8 @@ export class CharacterSelect {
       });
       this.arrange(order);
     }
-    if (source !== -1) this.opts.seatPad(source, at);
+    this.humanSource[at] = source;
+    this.opts.alignPads(this.humanSource);
     return at;
   }
 
@@ -749,7 +766,7 @@ export class CharacterSelect {
     switch (action) {
       case 'left': this.flip(slot, -1); break;
       case 'right': this.flip(slot, 1); break;
-      case 'confirm': this.select(slot); break;
+      case 'confirm': this.select(slot, source); break;
       case 'back':
         // a bot backs out of its pick, and out of the line altogether
         if (s.bot) { audio.uiBack(); if (s.phase === 'ready') this.uncommit(slot); else this.leave(slot); }
@@ -774,6 +791,7 @@ export class CharacterSelect {
 
   private leave(slot: number): void {
     this.slots[slot].phase = 'empty';
+    this.humanSource[slot] = -2;
     this.compact();
     this.preloadAround();     // one fewer face on stage: re-rank around the rest
     this.refresh();
@@ -791,8 +809,14 @@ export class CharacterSelect {
    * character yet).
    */
   private compact(): void {
-    this.arrange(this.lineup());
-    this.opts.compactPads();
+    const order = this.lineup();
+    const sources = this.humanSource.slice();
+    this.arrange(order);
+    this.humanSource.fill(-2);
+    order.forEach((entry, to) => {
+      if (!entry.bot) this.humanSource[to] = sources[entry.from];
+    });
+    this.opts.alignPads(this.humanSource);
   }
 
   /**
@@ -1057,10 +1081,17 @@ export class CharacterSelect {
    * open place, exactly as if they had backed out.
    */
   private dropDisconnected(): void {
-    const pads = this.opts.padForPlayer();
+    const primary = this.humanSource[0];
+    if (primary >= 0 && !this.opts.padConnected(primary)) {
+      // P1's place survives, but a replacement pad can claim it instead of
+      // being sent to a new P2 while the original controller is gone.
+      this.humanSource[0] = -2;
+      this.opts.alignPads(this.humanSource);
+    }
     for (let i = 1; i < this.slots.length; i++) {
       if (this.slots[i].bot) continue;   // a bot is nobody's controller to lose
-      if (this.slots[i].phase !== 'empty' && (pads[i] ?? -1) < 0) {
+      const source = this.humanSource[i];
+      if (this.slots[i].phase !== 'empty' && source >= 0 && !this.opts.padConnected(source)) {
         audio.uiBack();
         this.leave(i);
       }
@@ -1340,9 +1371,12 @@ export class CharacterSelect {
       .map((s) => ({ bot: s.bot, phase: s.phase, id: this.roster[s.choice] ?? null, owner: s.owner }));
   }
 
-  show(): void {
+  show(primarySource = -1): void {
     this.root.style.display = '';
     this.drag = null;
+    this.humanSource.fill(-2);
+    this.humanSource[0] = primarySource;
+    this.opts.alignPads(this.humanSource);
     // P1 walks in browsing; P2 waits for a join. Committed picks reset each visit.
     this.slots.forEach((s, i) => {
       s.phase = i === 0 ? 'browsing' : 'empty';
