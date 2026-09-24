@@ -13,6 +13,7 @@ import { BONES } from '../anim/skeleton';
 import './workbench.css';
 import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
+import { PositionEditor } from './positionEdit';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -141,6 +142,8 @@ let framedAt = -1;
 let showSkeleton = false;
 let showGrid = true;
 let editing = false;
+let editKind: 'rotate' | 'position' = 'rotate';
+let positionAwaiting = false;
 
 /**
  * Edits live here, not on the bones: the ledger holds a delta per clip and bone,
@@ -150,11 +153,14 @@ let editing = false;
  */
 const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
+const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 /** the skinning review: fix toggles, weight paint, and the pose that exercises every chain */
 const skinHost = document.createElement('div');
 const skin = new SkinPanel(skinHost, () => { if (skin.holding) { spin = false; turntable.rotation.y = 0; } });
 
 function disposeFigures(): void {
+  positionEditor.restore();
+  positionEditor.setPose('', '', null);
   for (const f of figures) turntable.remove(f.inst.root);
   for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
@@ -222,6 +228,7 @@ function spawn(): void {
   editor.setTargets(figures
     .filter((f) => f.inst.rig)
     .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
+  if (editing && editKind === 'position') refreshPositionPose();
   skin.setSubject(
     subject.hasModel && !isProp(subject) && mode !== 'procedural' ? (subject.modelFile ?? subject.id) : null,
     figures.filter((f) => f.waitingFor).map((f) => ({
@@ -340,14 +347,33 @@ function enterEdit(): void {
   spin = false;
   turntable.rotation.y = 0;
   freezePose();
-  editor.setEnabled(true);
+  editor.setEnabled(editKind === 'rotate');
+  positionEditor.setEnabled(editKind === 'position');
+  if (editKind === 'position') refreshPositionPose();
 }
 
 function leaveEdit(): void {
   editing = false;
   editor.setEnabled(false);
+  positionEditor.restore();
+  positionEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
+}
+
+/** Capture model bone positions after retargeting the selected frozen frame. */
+function refreshPositionPose(): void {
+  if (!editing || editKind !== 'position') return;
+  positionEditor.restore();
+  const figure = figures.find((f) => f.waitingFor && ready(f));
+  if (!figure) {
+    positionAwaiting = !!figures.find((f) => f.waitingFor);
+    positionEditor.setPose(subject.id, pose.id, null);
+    return;
+  }
+  positionAwaiting = false;
+  figure.inst.cosmetic?.(0, time);
+  positionEditor.setPose(subject.id, pose.id, figure.inst.root);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -471,6 +497,8 @@ function renderPanel(): void {
       into the clips, so leaving edit mode plays the animation back with them, and they
       survive a change of pose or character. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo and
       redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
+      <br><br><b>Position mode</b> moves the authored model's joints with 3D handles.
+      Export position JSON to share the exact shoulder offsets for each pose.
     </p>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
@@ -482,6 +510,7 @@ function renderPanel(): void {
     pose = findPose((e.target as HTMLSelectElement).value);
     applyPose();
     if (editing) freezePose();
+    if (editing && editKind === 'position') refreshPositionPose();
     renderEditPanel();
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
@@ -520,6 +549,7 @@ let editSignature = '';
 function renderEditPanel(): void {
   const host = panel.querySelector<HTMLDivElement>('#edit');
   if (!host) return;
+  if (editing && editKind === 'position') { renderPositionPanel(host); return; }
   if (!editing && !edits.size) {
     host.innerHTML = '';
     editSignature = '';
@@ -573,6 +603,7 @@ function renderEditPanel(): void {
       ` : '<p class="hint">Pick a joint — its rotation rings appear on the figure.</p>'}`;
 
   host.innerHTML = `
+    ${editing ? editModeButtons() : ''}
     <div class="editbox">
       ${editBox}
       <div class="row">
@@ -591,6 +622,7 @@ function renderEditPanel(): void {
         : 'No edits yet. Rotations apply to every figure on the turntable at once.'}</p>
     </div>`;
 
+  bindEditModeButtons(host);
   host.querySelector('#space')?.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { editor.setSpace(btn.dataset.space as GizmoSpace); renderEditPanel(); };
   });
@@ -617,6 +649,84 @@ function renderEditPanel(): void {
       refreshEdits();
     };
   }
+}
+
+function editModeButtons(): string {
+  return `<div class="field edit-modes"><label>Edit joints</label><div class="seg">
+    <button data-edit-kind="rotate" aria-pressed="${editKind === 'rotate'}">Rotate</button>
+    <button data-edit-kind="position" aria-pressed="${editKind === 'position'}">Position</button>
+  </div></div>`;
+}
+
+function bindEditModeButtons(host: HTMLElement): void {
+  host.querySelectorAll<HTMLButtonElement>('[data-edit-kind]').forEach((button) => {
+    button.onclick = () => {
+      const next = button.dataset.editKind as 'rotate' | 'position';
+      if (next === editKind) return;
+      if (editKind === 'position') positionEditor.restore();
+      editKind = next;
+      editor.setEnabled(next === 'rotate');
+      positionEditor.setEnabled(next === 'position');
+      if (next === 'position') refreshPositionPose();
+      else for (const f of figures) f.inst.cosmetic?.(0, time);
+      renderEditPanel();
+    };
+  });
+}
+
+function renderPositionPanel(host: HTMLDivElement): void {
+  const names = positionEditor.names();
+  const selected = positionEditor.selected;
+  const current = positionEditor.current();
+  const entries = positionEditor.entriesAll();
+  editSignature = signature();
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <div class="field"><label for="positionBone">Model joint</label>
+        <select id="positionBone"><option value="">— click a joint in the viewport —</option>
+          ${names.map((name) => option(name, name, name === selected)).join('')}
+        </select></div>
+      ${current ? `<div class="field"><label>Local position — model units, XYZ</label>
+        <div class="xyz">
+          ${current.editedLocal.map((value, i) => `<input type="number" data-position-axis="${i}" step="0.001" value="${value}">`).join('')}
+        </div></div>
+        <p class="hint position-offset">World offset: ${current.deltaWorldMetres.map((v) => v.toFixed(3)).join(', ')} m</p>
+        <div class="row"><button id="positionReset">Reset selected joint</button></div>`
+        : `<p class="hint">${names.length ? 'Click a blue joint, then drag the red, green or blue axis handle.' : 'Waiting for an authored model with editable joints.'}</p>`}
+      <div class="row"><button id="positionExport" class="primary"${entries.length ? '' : ' disabled'}>Export positions JSON</button></div>
+      <p class="hint">Moving a shoulder also moves its upper arm by the same amount. Export includes each pose, joint, starting position and offset.</p>
+      ${entries.length ? `<div class="ledger">${entries.map((entry) => `<div class="edit"><span>${entry.pose}</span><code>${entry.bone}: ${entry.deltaWorldMetres.map((n) => n.toFixed(3)).join(', ')} m</code></div>`).join('')}</div>` : ''}
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector<HTMLSelectElement>('#positionBone')!.onchange = (event) =>
+    positionEditor.select((event.target as HTMLSelectElement).value || null);
+  const inputs = [...host.querySelectorAll<HTMLInputElement>('[data-position-axis]')];
+  for (const input of inputs) {
+    input.oninput = () => {
+      if (inputs.some((field) => !field.value.trim())) return;
+      positionEditor.setLocal(inputs.map((field) => Number(field.value)) as [number, number, number]);
+    };
+    input.onblur = () => renderPositionPanel(host);
+  }
+  host.querySelector<HTMLButtonElement>('#positionReset')?.addEventListener('click', () => positionEditor.resetSelected());
+  host.querySelector<HTMLButtonElement>('#positionExport')!.onclick = exportPositions;
+}
+
+function exportPositions(): void {
+  const entries = positionEditor.entriesAll();
+  if (!entries.length) return;
+  const payload = {
+    format: 'mando-model-joint-positions/1', exportedAt: new Date().toISOString(),
+    units: { local: 'GLB bone parent space (model units)', worldDelta: 'metres in workbench world axes' },
+    note: 'Each entry is the measured translation from the delivered, retargeted model pose. Rotations and skin weights are unchanged.',
+    entries,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'model-joint-positions.json';
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
 }
 
 /** The running list of edits, grouped by the clip they will be pasted into. */
@@ -657,6 +767,19 @@ function syncEditValues(): void {
 }
 
 function onEditorChange(): void {
+  if (editing && editKind === 'position') {
+    const host = panel.querySelector<HTMLDivElement>('#edit');
+    if (host) {
+      if (document.activeElement?.hasAttribute('data-position-axis')) {
+        const current = positionEditor.current();
+        const offset = host.querySelector<HTMLElement>('.position-offset');
+        if (offset && current) offset.textContent = `World offset: ${current.deltaWorldMetres.map((v) => v.toFixed(3)).join(', ')} m`;
+        const exportButton = host.querySelector<HTMLButtonElement>('#positionExport');
+        if (exportButton) exportButton.disabled = positionEditor.entriesAll().length === 0;
+      } else renderPositionPanel(host);
+    }
+    return;
+  }
   if (signature() !== editSignature) renderEditPanel();
   else syncEditValues();
 }
@@ -824,8 +947,11 @@ function frame(now: number): void {
     if (!editing && !skin.holding) f.inst.animator?.update(dt);
   }
   skin.frame();
-  for (const f of figures) f.inst.cosmetic?.(dt, time);
+  if (positionAwaiting && editing && editKind === 'position'
+    && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
+  if (!(editing && editKind === 'position')) for (const f of figures) f.inst.cosmetic?.(dt, time);
   editor.update();
+  positionEditor.update(camera);
   updateLoading();
   controls.update();
   renderer.render(scene, camera);
