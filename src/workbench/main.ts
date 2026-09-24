@@ -16,6 +16,7 @@ import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
+import { WeaponAnchorEditor } from './weaponAnchorEdit';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -147,8 +148,10 @@ let framedAt = -1;
 let showSkeleton = false;
 let showGrid = true;
 let editing = false;
-let editKind: 'rotate' | 'position' = 'rotate';
+let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
 let positionAwaiting = false;
+let weaponAwaiting = false;
+let weaponSample = 0;
 let previewWideShoulders = false;
 let animationSpeed = 1;
 let paused = false;
@@ -170,6 +173,7 @@ function activeClips(): { lower: string | null; upper: string | null } {
 const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
 const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
+const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 /** the skinning review: fix toggles, weight paint, and the pose that exercises every chain */
 const skinHost = document.createElement('div');
 const skin = new SkinPanel(skinHost, () => { if (skin.holding) { spin = false; turntable.rotation.y = 0; } });
@@ -177,6 +181,7 @@ const skin = new SkinPanel(skinHost, () => { if (skin.holding) { spin = false; t
 function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
+  weaponEditor.setPose('', '', null);
   for (const f of figures) turntable.remove(f.inst.root);
   for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
@@ -252,6 +257,7 @@ function spawn(): void {
     .filter((f) => f.inst.rig)
     .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
   if (editing && editKind === 'position') refreshPositionPose();
+  if (editing && editKind === 'weapon') refreshWeaponPose();
   skin.setSubject(
     subject.hasModel && !isProp(subject) && mode !== 'procedural' ? (subject.modelFile ?? subject.id) : null,
     figures.filter((f) => f.waitingFor).map((f) => ({
@@ -327,6 +333,7 @@ function available(): Pose[] {
 
 function applyPose(): void {
   strikeAt = 0;
+  weaponEditor.restore();
   for (const f of figures) {
     // A creature with its own gait has no channels to play, but it does take a
     // speed — so the creature poses hand it one and it picks its own gait.
@@ -388,6 +395,23 @@ function freezePose(): void {
   }
 }
 
+function sampleWeaponPose(): void {
+  weaponEditor.setSampleFraction(weaponSample);
+  for (const f of figures) {
+    const anim = f.inst.animator;
+    if (!anim) continue;
+    const clips = activeClips();
+    for (const name of [clips.lower, clips.upper]) {
+      if (!name) continue;
+      const clip = anim.clips[name];
+      const action = clip && anim.mixer.existingAction(clip);
+      if (action) action.time = Math.min(clip.duration * weaponSample, Math.max(0, clip.duration - 0.001));
+    }
+    anim.update(0);
+    f.inst.cosmetic?.(0, time);
+  }
+}
+
 function enterEdit(): void {
   editing = true;
   spin = false;
@@ -395,7 +419,9 @@ function enterEdit(): void {
   freezePose();
   editor.setEnabled(editKind === 'rotate');
   positionEditor.setEnabled(editKind === 'position');
+  weaponEditor.setEnabled(editKind === 'weapon');
   if (editKind === 'position') refreshPositionPose();
+  if (editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
 }
 
 function leaveEdit(): void {
@@ -403,6 +429,8 @@ function leaveEdit(): void {
   editor.setEnabled(false);
   positionEditor.restore();
   positionEditor.setEnabled(false);
+  weaponEditor.restore();
+  weaponEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
@@ -421,6 +449,20 @@ function refreshPositionPose(): void {
   positionAwaiting = false;
   figure.inst.cosmetic?.(0, time);
   positionEditor.setPose(subject.id, poseKey, figure.inst.root);
+}
+
+function refreshWeaponPose(): void {
+  if (!editing || editKind !== 'weapon') return;
+  const poseKey = alternateChoice === 'none' ? pose.id : `${pose.id}:${alternateChoice}`;
+  const figure = figures.find((f) => f.waitingFor && ready(f));
+  if (!figure) {
+    weaponAwaiting = !!figures.find((f) => f.waitingFor);
+    weaponEditor.setPose(subject.id, poseKey, null);
+    return;
+  }
+  weaponAwaiting = false;
+  figure.inst.cosmetic?.(0, time);
+  weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -591,6 +633,8 @@ function renderPanel(): void {
       redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
       <br><br><b>Position mode</b> moves the authored model's joints with 3D handles.
       Export position JSON to share the exact shoulder offsets for each pose.
+      <br><br><b>Weapon grips</b> moves and rotates held weapons against authored hands.
+      Scrub the animation to check alignment, then export the local grip transforms as JSON.
       <br><br><b>Wider shoulders</b> previews the averaged rest spacing from your JSON
       on all authored models. It fades as each arm opens sideways. Leave Position
       mode before comparing, so its manual joint offsets do not cover the preview.
@@ -608,6 +652,7 @@ function renderPanel(): void {
     applyPose();
     if (editing) freezePose();
     if (editing && editKind === 'position') refreshPositionPose();
+    if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
     renderPanel();
   };
   const alternateSelect = panel.querySelector<HTMLSelectElement>('#attackAlternate');
@@ -617,6 +662,7 @@ function renderPanel(): void {
     applyPose();
     if (editing) freezePose();
     if (editing && editKind === 'position') refreshPositionPose();
+    if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
     renderEditPanel();
   };
   panel.querySelector<HTMLInputElement>('#animationSpeed')!.oninput = (e) => {
@@ -671,6 +717,7 @@ function renderEditPanel(): void {
   const host = panel.querySelector<HTMLDivElement>('#edit');
   if (!host) return;
   if (editing && editKind === 'position') { renderPositionPanel(host); return; }
+  if (editing && editKind === 'weapon') { renderWeaponPanel(host); return; }
   if (!editing && !edits.size) {
     host.innerHTML = '';
     editSignature = '';
@@ -773,27 +820,98 @@ function renderEditPanel(): void {
 }
 
 function editModeButtons(): string {
-  return `<div class="field edit-modes"><label>Edit joints</label><div class="seg">
+  return `<div class="field edit-modes"><label>Edit</label><div class="seg">
     <button data-edit-kind="rotate" aria-pressed="${editKind === 'rotate'}">Rotate</button>
     <button data-edit-kind="position" aria-pressed="${editKind === 'position'}">Position</button>
+    <button data-edit-kind="weapon" aria-pressed="${editKind === 'weapon'}">Weapon grips</button>
   </div></div>`;
 }
 
 function bindEditModeButtons(host: HTMLElement): void {
   host.querySelectorAll<HTMLButtonElement>('[data-edit-kind]').forEach((button) => {
     button.onclick = () => {
-      const next = button.dataset.editKind as 'rotate' | 'position';
+      const next = button.dataset.editKind as 'rotate' | 'position' | 'weapon';
       if (next === editKind) return;
       if (editKind === 'position') positionEditor.restore();
+      if (editKind === 'weapon') weaponEditor.restore();
       editKind = next;
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
+      weaponEditor.setEnabled(next === 'weapon');
       panel.querySelector<HTMLInputElement>('#previewShoulders')!.disabled = next === 'position';
       if (next === 'position') refreshPositionPose();
+      else if (next === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
       else for (const f of figures) f.inst.cosmetic?.(0, time);
       renderEditPanel();
     };
   });
+}
+
+function renderWeaponPanel(host: HTMLDivElement): void {
+  const names = weaponEditor.names();
+  const selected = weaponEditor.selected;
+  const current = weaponEditor.current();
+  const degrees = weaponEditor.currentDegrees();
+  const entries = weaponEditor.entriesAll();
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <div class="field"><label for="weaponSample">Animation frame: ${Math.round(weaponSample * 100)}%</label>
+        <input id="weaponSample" type="range" min="0" max="100" step="1" value="${Math.round(weaponSample * 100)}">
+      </div>
+      <div class="field"><label for="weaponTarget">Weapon on authored hand</label>
+        <select id="weaponTarget"><option value="">— select weapon —</option>
+          ${names.map((name) => option(name, name, name === selected)).join('')}
+        </select></div>
+      <div class="field"><label>3D handle</label><div class="seg">
+        <button data-weapon-mode="translate" aria-pressed="${weaponEditor.mode === 'translate'}">Move</button>
+        <button data-weapon-mode="rotate" aria-pressed="${weaponEditor.mode === 'rotate'}">Rotate</button>
+      </div></div>
+      ${current && degrees ? `<div class="field"><label>Position in ${current.parent} coordinates</label>
+        <div class="xyz">${current.editedPosition.map((v, i) => `<input data-weapon-position="${i}" type="number" step="0.001" value="${v}">`).join('')}</div>
+      </div><div class="field"><label>Rotation in degrees, XYZ</label>
+        <div class="xyz">${degrees.map((v, i) => `<input data-weapon-rotation="${i}" type="number" step="1" value="${v.toFixed(2)}">`).join('')}</div>
+      </div><div class="row"><button id="weaponReset">Reset selected grip</button></div>`
+    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : names.length ? 'Select an orange grip point on the model.' : 'No held weapon is visible in this pose. Select a weapon stance or aim pose.'}</p>`}
+      <div class="row"><button id="weaponExport" class="primary" ${entries.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
+      <p class="hint">Drag the handle to align the visible weapon with the authored palm. Scrub through the pose to check the fit. Changes stay in this workbench session until reload.</p>
+      ${entries.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon}</code></div>`).join('')}</div>` : ''}
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector<HTMLInputElement>('#weaponSample')!.oninput = (event) => {
+    weaponSample = Number((event.target as HTMLInputElement).value) / 100;
+    sampleWeaponPose();
+    host.querySelector<HTMLLabelElement>('label[for="weaponSample"]')!.textContent = `Animation frame: ${Math.round(weaponSample * 100)}%`;
+  };
+  host.querySelector<HTMLSelectElement>('#weaponTarget')!.onchange = (event) =>
+    weaponEditor.select((event.target as HTMLSelectElement).value || null);
+  host.querySelectorAll<HTMLButtonElement>('[data-weapon-mode]').forEach((button) => {
+    button.onclick = () => weaponEditor.setMode(button.dataset.weaponMode as 'translate' | 'rotate');
+  });
+  for (const attribute of ['data-weapon-position', 'data-weapon-rotation'] as const) {
+    const inputs = [...host.querySelectorAll<HTMLInputElement>(`[${attribute}]`)];
+    for (const input of inputs) {
+      input.onchange = () => {
+        if (inputs.some((field) => !field.value.trim())) return;
+        const values = inputs.map((field) => Number(field.value)) as [number, number, number];
+        if (attribute === 'data-weapon-position') weaponEditor.setPosition(values);
+        else weaponEditor.setRotation(values);
+      };
+    }
+  }
+  host.querySelector<HTMLButtonElement>('#weaponReset')?.addEventListener('click', () => weaponEditor.resetSelected());
+  host.querySelector<HTMLButtonElement>('#weaponExport')!.onclick = () => {
+    const payload = {
+      format: 'mando-authored-weapon-grips/1', exportedAt: new Date().toISOString(),
+      units: 'local coordinates of authored hand weapon mount; position in model units, rotation as quaternion',
+      note: 'Each transform is relative to the authored hand mount. The displayed procedural model was not used for placement.',
+      entries: weaponEditor.entriesAll(),
+    };
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    anchor.download = 'authored-weapon-grips.json';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  };
 }
 
 function renderPositionPanel(host: HTMLDivElement): void {
@@ -889,6 +1007,11 @@ function syncEditValues(): void {
 }
 
 function onEditorChange(): void {
+  if (editing && editKind === 'weapon') {
+    const host = panel.querySelector<HTMLDivElement>('#edit');
+    if (host) renderWeaponPanel(host);
+    return;
+  }
   if (editing && editKind === 'position') {
     const host = panel.querySelector<HTMLDivElement>('#edit');
     if (host) {
@@ -1077,10 +1200,13 @@ function frame(now: number): void {
   skin.frame();
   if (positionAwaiting && editing && editKind === 'position'
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
+  if (weaponAwaiting && editing && editKind === 'weapon'
+    && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
   if (!paused && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   editor.update();
   positionEditor.update(camera);
+  weaponEditor.update(camera);
   updateLoading();
   controls.update();
   renderer.render(scene, camera);
