@@ -17,16 +17,16 @@ const REAR_GRIPS = [-0.64, -0.58, -0.52, -0.46, -0.4, -0.34];
  * when a strike extends, without asking an arm shorter than the reach to bend
  * through the torso. Call after the animator and before authored retargeting.
  */
-export function holdPolearm(rig: Rig, mount: THREE.Object3D): void {
+export function holdPolearm(rig: Rig, mount: THREE.Object3D, grips = REAR_GRIPS): void {
   rig.root.updateMatrixWorld(true);
   rig.bones.upperArmL.getWorldPosition(shoulder);
   let best = Infinity;
-  for (const y of REAR_GRIPS) {
+  for (const y of grips) {
     local.set(0, y, 0);
     mount.localToWorld(candidate.copy(local));
     const overreach = Math.max(0, shoulder.distanceTo(candidate)
       - rig.proportions.upperArmLen - rig.proportions.forearmLen + 0.015);
-    const score = overreach * 4 + Math.abs(y + 0.52) * 0.04;
+    const score = overreach * 4 + Math.abs(y - grips[(grips.length / 2) | 0]) * 0.04;
     if (score < best) { best = score; target.copy(candidate); }
   }
   // An outward, slightly trailing elbow avoids an inverted forearm while the

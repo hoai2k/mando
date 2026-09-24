@@ -49,7 +49,7 @@ export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
 export type CombatStyle = 'measured' | 'heavy' | 'agile' | 'mechanical' | 'hunter';
 const STYLE: Record<string, CombatStyle> = {
   din: 'measured', paz: 'heavy', bokatan: 'agile', armorer: 'heavy',
-  ventress: 'agile', jedi: 'measured', embo: 'agile', bossk: 'hunter', duelist: 'measured', ig11: 'mechanical',
+  ventress: 'agile', jedi: 'measured', maul: 'agile', revan: 'measured', embo: 'agile', bossk: 'hunter', duelist: 'measured', ig11: 'mechanical',
   tusken: 'hunter', pirateMelee: 'heavy', alamite: 'hunter', officer: 'measured', enforcer: 'heavy',
   droid: 'mechanical', darktrooper: 'mechanical', escortDroid: 'mechanical',
   fennec: 'agile', marshal: 'measured', gunslinger: 'measured',

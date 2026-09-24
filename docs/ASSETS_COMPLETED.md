@@ -9,6 +9,25 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
+## Darth Revan and Darth Maul playable models — delivered 2026-09-24
+
+The approved `sith_leader_front.png` and `sith_soldier_front.png` sheets were
+generated as front-only Tripo P1 bodies. The Lord becomes playable **Darth
+Revan** (`public/models/revan.glb`); the horned Warrior becomes playable
+**Darth Maul** (`public/models/maul.glb`). Both have clean rear geometry with no
+duplicate face. Their separate saber hilts are `saber_dark.glb` for Revan and
+`saber_double.glb` for Maul; red blades are runtime effects. Each character
+carries one hilt that moves between waist, right hand, and flight. Neither
+wears a jetpack. Ringworld's existing boss lineup is unchanged.
+
+The source and editable stages are preserved under ignored `model-work/`:
+cleanup, facing correction, fitted Rigify skinning, isolated weight repair,
+posed validation, 14,999-triangle game LODs with four influences and zero
+unweighted vertices, and Meshopt compression. The final glTF material factors
+reduce Tripo's overbright costumes while leaving the original textures intact.
+
+---
+
 ## Maris Brood playable character — delivered 2026-09-24
 
 `reference/characters/maris_brood_front.png` is a 1024×1536 orthographic
@@ -23,7 +42,7 @@ Both modelling references have empty hands, no sabers or belt-mounted hilts,
 and no jetpack. Matching side and rear sheets accompany the selected stylized
 front. The Tripo body model has one face and a clean rear view; it was cleaned,
 Rigify-skinned, weight-repaired, decimated to 15,000 triangles, compressed,
-and integrated as `public/models/maris.glb`. She uses paired green tonfa blades
+and integrated as `public/models/maris.glb`. She uses paired white tonfa blades
 with separate authored `maris_tonfa.glb` hilts. Her guarded stance, wrist-led
 combos, and waist/hand/flight ownership are described in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md#maris-brood-playable--tonfa-style-saber-combat).
@@ -68,12 +87,13 @@ input. One Tripo run produced five separate height bands; Blender sliced them
 into `saber_jedi.glb`, `saber_classic.glb`, `saber_double.glb`,
 `saber_dark.glb`, and `maris_tonfa.glb`, all in `public/models/`. Each
 compressed GLB re-imported as one textured mesh with UVs. Jedi and Maris use
-their hilts; the other three are available for later character work.
+their hilts; Revan and Maul now use the dark and double hilts. The classic
+hilt remains available for later character work.
 
 `reference/characters/sith_leader_front.png` is the masked hooded leader
 based on the supplied two references. `sith_soldier_front.png` is the horned
 red-and-black soldier based on the supplied image. These are canonical front
-concepts for review; no enemy 3D generation is requested yet.
+concepts that produced the playable Revan and Maul models above.
 
 ---
 

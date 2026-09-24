@@ -288,11 +288,12 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
 export function makeSaber(
   mHilt: THREE.Material,
   mDark: THREE.Material,
-  opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' } = {},
+  opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'dark' | 'double' } = {},
 ): THREE.Group {
   const g = new THREE.Group();
   const white = opts.style === 'white';
   const tonfa = opts.style === 'tonfa';
+  const double = opts.style === 'double';
   if (tonfa) {
     // The emitter is on the long end; the short end is capped. The grip
     // branches across the palm, as a tonfa does, instead of sitting in-line.
@@ -300,10 +301,10 @@ export function makeSaber(
     addCyl(g, mDark, 0.019, 0.019, 0.075, 0, -0.15, 0, 0, 0, 0, 10);
     addCyl(g, mHilt, 0.024, 0.018, 0.04, 0, 0.095, 0, 0, 0, 0, 10);
     addCyl(g, mDark, 0.016, 0.016, 0.12, -0.065, -0.085, 0, 0, 0, Math.PI / 2, 10);
-  } else if (white) {
+  } else if (white || opts.style === 'dark' || double) {
     // The Jedi's separate hilt is a procedural stand-in until its concept is
     // approved and modelled. Keep the same mount and length as the final prop.
-    addCyl(g, mHilt, 0.021, 0.021, 0.21, 0, -0.06, 0, 0, 0, 0, 10);
+    addCyl(g, mHilt, 0.021, 0.021, double ? 0.4 : 0.21, 0, double ? 0 : -0.06, 0, 0, 0, 0, 10);
     for (const y of [-0.12, -0.065, -0.01]) addCyl(g, mDark, 0.023, 0.023, 0.018, 0, y, 0, 0, 0, 0, 10);
     addCyl(g, mHilt, 0.028, 0.022, 0.055, 0, 0.055, 0, 0, 0, 0, 10);
     addSphere(g, mDark, 0.023, 0, -0.18, 0, 10, 8);
@@ -325,18 +326,18 @@ export function makeSaber(
   const blade = new THREE.Group();
   // Maris' tonfa emitter is on the longer, negative-Y end of its authored
   // hilt. The previous positive-Y emitter lit the short capped end instead.
-  blade.position.y = tonfa ? -0.26 : 0.06;
+  blade.position.y = tonfa ? -0.26 : double ? 0.24 : 0.06;
   if (tonfa) blade.rotation.z = Math.PI;
   g.add(blade);
   const BLADE_LEN = tonfa ? 0.78 : 0.92;
   // the trail builder needs the blade's frame and reach to sample tip arcs
   g.userData.blade = blade;
   g.userData.bladeLen = BLADE_LEN;
-  g.userData.trailColor = tonfa ? [0.34, 1.0, 0.46] : white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
+  g.userData.trailColor = tonfa || white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
   for (const [r, color, opacity] of [
-    [0.011, tonfa ? 0xf5fff5 : white ? 0xffffff : 0xfff0f0, 0.95],
-    [0.026, tonfa ? 0x53ff70 : white ? 0xe8f5ff : 0xff2a1e, 0.42],
-    [0.045, tonfa ? 0x34d65b : white ? 0xc9e8ff : 0xff2a1e, 0.14],
+    [0.011, tonfa || white ? 0xffffff : 0xfff0f0, 0.95],
+    [0.026, tonfa || white ? 0xe8f5ff : 0xff2a1e, 0.42],
+    [0.045, tonfa || white ? 0xc9e8ff : 0xff2a1e, 0.14],
   ] as const) {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, BLADE_LEN, 8), glowMat(color, opacity));
     m.position.y = BLADE_LEN / 2;
@@ -347,18 +348,26 @@ export function makeSaber(
     tip.castShadow = false;
     blade.add(tip);
   }
+  if (double) {
+    // One hilt, two opposed emitters. Both ends follow the same hand and swing.
+    const opposite = blade.clone();
+    opposite.position.y = -0.24;
+    opposite.rotation.z = Math.PI;
+    g.add(opposite);
+    g.userData.oppositeBlade = opposite;
+  }
   // A blade that lights nothing reads as a painted stick. One point light per
   // wielder — on the main hand only, since two would double the cost for a
   // glow the eye reads as one — parented to the blade so it travels with the
   // swing and, because the renderer skips invisible subtrees, costs nothing
   // while the weapon is stowed.
   if (opts.light !== false) {
-    const light = new THREE.PointLight(tonfa ? 0x58ff78 : white ? 0xddefff : 0xff3a24, 3.2, 5, 2);
+    const light = new THREE.PointLight(tonfa || white ? 0xddefff : 0xff3a24, 3.2, 5, 2);
     light.position.y = BLADE_LEN * 0.45;
     light.castShadow = false;
     blade.add(light);
   }
-  swapWeapon(g, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : 'saber_curved', tonfa ? 0.52 : 0.26, -Math.PI / 2);
+  swapWeapon(g, tonfa ? 'maris_tonfa' : white ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2);
   return g;
 }
 
@@ -371,8 +380,8 @@ export function makeSaber(
  *
  * Cost: one mesh, ≤ (N-1)*2 triangles, rebuilt only while swinging.
  */
-export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group): (dt: number, active: boolean) => void {
-  const blade = saber.userData.blade as THREE.Object3D | undefined;
+export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group, opposite = false): (dt: number, active: boolean) => void {
+  const blade = (opposite ? saber.userData.oppositeBlade : saber.userData.blade) as THREE.Object3D | undefined;
   const len = (saber.userData.bladeLen as number) ?? 0.9;
   const trailColor = (saber.userData.trailColor as [number, number, number] | undefined) ?? [1, 0.22, 0.16];
   if (!blade) return () => {};

@@ -51,7 +51,7 @@ export class ThrownSaber {
    *   hand's throw carries it, the off-hand's flies unlit (same rule as the
    *   blades in hand)
    */
-  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' } = {}) {
+  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' } = {}) {
     const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
     const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
     this.saber = makeSaber(silver, dark, { light: opts.light, style: opts.style });
@@ -59,7 +59,7 @@ export class ThrownSaber {
     // wheels about its middle rather than swinging around the hilt
     const len = (this.saber.userData.bladeLen as number) ?? 0.9;
     this.saber.rotation.z = Math.PI / 2;   // blade +Y now points along -X
-    this.saber.position.x = len * 0.5;
+    this.saber.position.x = opts.style === 'double' ? 0 : len * 0.5;
     this.spinner.add(this.saber);
     this.spinner.visible = false;
     host.add(this.spinner);

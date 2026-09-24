@@ -18,7 +18,7 @@ import type { VoiceId } from '../core/audio';
 
 export type MandoId =
   | 'din' | 'paz' | 'bokatan' | 'armorer'
-  | 'ventress' | 'jedi' | 'maris' | 'embo' | 'bossk' | 'ig11' | 'duelist';
+  | 'ventress' | 'jedi' | 'maris' | 'maul' | 'revan' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
@@ -56,7 +56,7 @@ export interface PlayerCharacter extends CharacterInstance {
  */
 const MODEL_HEIGHT: Record<MandoId, number> = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
-  ventress: 1.79, jedi: 1.82, maris: 1.70, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
+  ventress: 1.79, jedi: 1.82, maris: 1.70, maul: 1.88, revan: 1.95, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
 interface MandoConfig {
@@ -195,6 +195,20 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     melee: 'sabers', ranged: 'none', skin: 0xe7c5b8,
     voice: 'human_f', acrobat: true, thrusters: 'none',
   },
+  maul: {
+    ...TEXT.characters.maul,
+    primary: 0x25212a, accent: 0x7b292b, suit: 0x202027, cape: null,
+    helmet: null, rangefinder: false, bulk: 1,
+    melee: 'sabers', ranged: 'none', skin: 0xb33b39,
+    voice: 'mando_m', acrobat: true, thrusters: 'none',
+  },
+  revan: {
+    ...TEXT.characters.revan,
+    primary: 0x292933, accent: 0x54282f, suit: 0x1b1a21, cape: 0x18171e,
+    helmet: null, rangefinder: false, bulk: 1.04,
+    melee: 'sabers', ranged: 'none', skin: 0x24242b,
+    voice: 'masked', acrobat: true, thrusters: 'none',
+  },
   embo: {
     ...TEXT.characters.embo,
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
@@ -263,7 +277,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   addBox(b.upperLegR, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
   addSphere(b.lowerLegL, accent, 0.06, 0, -0.02, 0.04, 8, 6);
   addSphere(b.lowerLegR, accent, 0.06, 0, -0.02, 0.04, 8, 6);
-  if (id === 'jedi') {
+  if (id === 'jedi' || id === 'revan') {
     // Cloth tabards over the generic fallback torso; the authored model has
     // the layered fabric and replaces every procedural body mesh.
     for (const side of [-1, 1]) {
@@ -413,7 +427,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const polearmAxis = new THREE.Group();
   polearmAxis.rotation.x = Math.PI;
   b.weaponR.add(polearmAxis);
-  const saberStyle = id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa' : 'red';
+  const saberStyle = id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa'
+    : id === 'maul' ? 'double' : id === 'revan' ? 'dark' : 'red';
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
     let main: THREE.Group;
@@ -423,8 +438,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       main.name = 'saberHandR';
       // One blade light per wielder: the off-hand saber skips it, since two
       // point lights buy a glow the eye already reads from one.
-      offhand = pairOn(() => makeSaber(silver, dark, { light: false, style: saberStyle }));
-      offhand.name = 'saberHandL';
+      if (id !== 'maul' && id !== 'revan') {
+        offhand = pairOn(() => makeSaber(silver, dark, { light: false, style: saberStyle }));
+        offhand.name = 'saberHandL';
+      }
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
       // makeGaffi's point is local +Y. Turn it toward the extended arm's
@@ -445,16 +462,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // slot hides its hip copy, so that saber has one visible location at a time.
   const holsters: THREE.Group[] = [];
   if (cfg.ranged === 'none' && blades.has('sabers')) {
-    for (const [hand, side] of [[0, -1], [1, 1]] as const) {
+    for (const [hand, side] of (id === 'maul' || id === 'revan' ? [[0, -1]] : [[0, -1], [1, 1]]) as Array<readonly [0 | 1, number]>) {
       const hilt = makeSaber(silver, dark, { light: false, style: saberStyle });
       (hilt.userData.blade as THREE.Object3D).visible = false;
+      if (hilt.userData.oppositeBlade) (hilt.userData.oppositeBlade as THREE.Object3D).visible = false;
       hilt.name = hand === 0 ? 'saberHolsterR' : 'saberHolsterL';
       hilt.position.set(
-        side * (id === 'ventress' ? 0.21 : 0.23),
+        side * (id === 'maul' || id === 'revan' ? 0.22 : id === 'ventress' ? 0.21 : 0.23),
         id === 'ventress' ? 0.07 : 0.025,
         id === 'ventress' ? 0.025 : 0.08,
       );
-      hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : -side * 0.12;
+      hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : id === 'maul' ? -0.16 : -side * 0.12;
       b.hips.add(hilt);
       holsters.push(hilt);
     }
@@ -479,6 +497,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const sabers = blades.get('sabers');
   if (sabers) {
     trailUpdates.push(makeBladeTrail(rig.root, sabers.main));
+    if (sabers.main.userData.oppositeBlade) trailUpdates.push(makeBladeTrail(rig.root, sabers.main, true));
     if (sabers.offhand) trailUpdates.push(makeBladeTrail(rig.root, sabers.offhand));
   }
   let trailActive = false;
@@ -636,6 +655,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       shield.update(dt, time);
       if (!shieldUp && weapon === 'gaffi' && blade === blades.get('gaffi'))
         holdPolearm(rig, polearmAxis);
+      if (id === 'maul' && !shieldUp && weapon === 'gaffi' && blade === blades.get('sabers') && saberHeld[0])
+        holdPolearm(rig, blade.main, [-0.17, -0.15, -0.13, -0.11]);
       swap.update();
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);
@@ -694,6 +715,20 @@ function buildHunterHead(
         const x = i * 0.028;
         addCyl(helm, hair, 0.012, 0.012, 0.23, x, 0.13, -0.05, 0, 0, x * 0.8, 7);
       }
+      break;
+    }
+    case 'maul': {
+      const black = mat(0x241d22, { rough: 0.85 });
+      for (const x of [-0.085, 0, 0.085]) addCyl(helm, black, 0.006, 0.028, 0.095, x, 0.17, 0, 0, 0, x * 2, 8);
+      addBox(helm, black, 0.034, 0.015, 0.012, -0.05, 0.06, 0.122);
+      addBox(helm, black, 0.034, 0.015, 0.012, 0.05, 0.06, 0.122);
+      addBox(helm, black, 0.1, 0.026, 0.012, 0, -0.035, 0.119);
+      break;
+    }
+    case 'revan': {
+      addCyl(helm, prim, 0.17, 0.14, 0.2, 0, 0.11, -0.035, 0, 0, 0, 12);
+      addBox(helm, accent, 0.16, 0.16, 0.025, 0, 0.0, 0.125);
+      addBox(helm, dark, 0.03, 0.12, 0.028, 0, -0.01, 0.143);
       break;
     }
     case 'embo': {

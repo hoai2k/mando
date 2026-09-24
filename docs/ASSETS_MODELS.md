@@ -4,14 +4,14 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. The Jedi, Maris Brood, and Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
+**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. Galen Marek, Maris Brood, Darth Revan, Darth Maul, and the Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
 
 ## Missing-model audit — 2026-09-24
 
 Compared the shipped `public/models/*.glb` files with literal `loadProp`,
 `authoredProp` and vehicle model ids, the dynamic outdoor prop ids in
 `src/world/mission.ts`, and the open briefs in this document. After adding
-`spice_run_frigate.glb`, `jedi.glb`, and `maris.glb`, no required board or playable-character model is
+`spice_run_frigate.glb`, `jedi.glb`, `maris.glb`, `revan.glb`, and `maul.glb`, no required board or playable-character model is
 missing. The remaining asset work is:
 
 | Kind | Ids | Status |
@@ -19,9 +19,9 @@ missing. The remaining asset work is:
 | Optional Missions v3 scenery | `boulder_a`, `boulder_b`, `boulder_c`, `cliff_pillar_rock`, `cliff_pillar_ice`, `energy_pylon`, `trail_post` | Seven missing GLBs. The mission builder requests them but each has a procedural stand-in; briefs are [below](#missions-v3--outdoor-set-optional-requested-2026-09-03). |
 
 The two existing spider rigs are complete for current gameplay. Their proposed
-fang re-exports are closed by the 2026-09-24 decision. Jedi and Maris are playable
-with authored bodies and separate authored hilts. The other three shared-sheet
-hilts are delivered as individual props for future characters.
+fang re-exports are closed by the 2026-09-24 decision. Galen, Maris, Revan,
+and Maul are playable with authored bodies and separate authored hilts. The
+classic hilt remains available as an individual prop for a future character.
 
 ## Swap contract (applies to every biped)
 
@@ -120,7 +120,7 @@ body. Tripo multiview produced a single face with a clean rear braid silhouette.
 The model was cleaned, rigged, repaired at 93 isolated skin-weight vertices,
 decimated to 15,000 triangles with four influences and no unweighted vertices,
 compressed, and installed at `public/models/maris.glb`. She is playable with
-green shorter-than-standard blade FX, acrobatic movement, and no jetpack.
+white shorter-than-standard blade FX, acrobatic movement, and no jetpack.
 
 Her weapons are **guard shotos**. Each hand holds a perpendicular grip near the
 short capped end, while the blade emitter is on the **long end** of the main
@@ -128,17 +128,39 @@ baton. The main shaft runs along the forearm and turns out into short, compact
 cuts. The in-game idle and run guards keep the elbows bent and wrists rolled;
 her three combo clips alternate wrist turns around the tonfa grips. Both
 weapons obey the same single-location rule as Ventress and Jedi: waist, hand,
-or in flight. The green blades are runtime FX, not baked into the hilt mesh.
+or in flight. The white blades are runtime FX, not baked into the hilt mesh.
 
 **Shared 3D generation experiment, completed:** The clean five-hilt sheet at
 `reference/characters/saber_hilt_collection_v4.png` produced five distinct
 height bands in one Tripo generation. Blender separated the bands into
 `saber_jedi.glb`, `saber_classic.glb`, `saber_double.glb`, `saber_dark.glb`,
 and `maris_tonfa.glb`; all five reimported as independent textured meshes
-with UVs. The Jedi and tonfa hilts are mounted in-game. The other three are
-available in `public/models/` for later use. This success depends on the
+with UVs. The Jedi, tonfa, double, and dark hilts are mounted in-game; the
+classic hilt is available in `public/models/` for later use. This success depends on the
 measured blank bands in this sheet; it is not a general guarantee that any
 multi-object image will separate cleanly.
+
+### Darth Revan and Darth Maul playable — delivered 2026-09-24
+
+`reference/characters/sith_leader_front.png` and `sith_soldier_front.png`
+define their separate hooded and horned looks. Each front-only Tripo body has
+a clean back, with no duplicate face. Blender cleanup, facing correction,
+pose-matched Rigify skinning, isolated weight repair, decimation to 14,999
+triangles with four influences and no unweighted vertices, posed checks, and
+gltfpack compression produced `public/models/revan.glb` and
+`public/models/maul.glb`. Both are playable without jetpacks. Revan holds one
+red `saber_dark.glb` hilt; Maul holds one red `saber_double.glb` hilt with two
+opposed runtime blades. Each hilt moves between waist, right hand, and flight.
+The Ringworld boss lineup remains unchanged.
+
+Maul's distinct animation set keeps the double hilt near the body in a
+two-handed guard, carries it low while running, then uses alternating sweeps,
+a returning second-end strike, a forward pivot, and a short finishing
+flourish. The left hand follows the rear half of the grip. These game poses
+are our interpretation of his agile, double-bladed presentation in the
+[official Maul databank](https://www.starwars.com/databank/Maul),
+[lightsaber databank](https://www.starwars.com/databank/darth-mauls-lightsaber),
+and [Ray Park technique demonstration](https://www.starwars.com/video/ray-park-lightsaber-lesson-star-wars-celebration-anaheim).
 
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers

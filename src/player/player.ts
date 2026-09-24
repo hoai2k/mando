@@ -827,7 +827,7 @@ export class Player {
     const melee = this.meleeIdx === 0 ? this.profile.meleeName : MELEE_NAMES[this.meleeKind];
     if (this.weapon === 'none') return `${melee} · stowed`;
     if (this.weapon === 'gaffi') {
-      if (this.meleeKind === 'sabers' && this.sabersHeld < 2) return `${melee} · thrown`;
+      if (this.meleeKind === 'sabers' && this.sabersHeld < this.saberCapacity) return `${melee} · thrown`;
       return melee;
     }
     const gun = this.rangedKind;
@@ -1295,10 +1295,17 @@ export class Player {
     return this.alive && this.weapon === 'gaffi' && this.meleeKind === 'sabers';
   }
 
+  private get saberCapacity(): number {
+    return this.characterId === 'maul' || this.characterId === 'revan' ? 1 : 2;
+  }
+
   /** blades physically in hand — thrown ones are out in the world */
   get sabersHeld(): number {
-    let held = 2;
-    for (const t of this.thrownSabers) if (t && t.state !== 'held') held--;
+    let held = this.saberCapacity;
+    for (let hand = 0; hand < this.saberCapacity; hand++) {
+      const t = this.thrownSabers[hand];
+      if (t && t.state !== 'held') held--;
+    }
     return held;
   }
 
@@ -2284,7 +2291,7 @@ export class Player {
       // is its cycle played backward, a touch slower
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
-      const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : 'saberRunUpper') : 'runUpper';
+      const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2298,7 +2305,7 @@ export class Player {
       }
     } else {
       anim.play('lower', 'idleLower');
-      const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : 'saberIdleUpper') : 'idleUpper';
+      const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : idleUpper);
     }
   }
@@ -2672,7 +2679,7 @@ export class Player {
     // holds while leaning out too: the peek goes round the corner, not over
     // the top, so there is nothing to stand up for.
     anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : 'saberIdleUpper') : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
@@ -2892,7 +2899,7 @@ export class Player {
     // a blade still in flight keeps the set out — stowing a hand that is
     // about to catch a returning saber would hide the catch
     const busy = this.meleeTimer > 0 || this.meleeComboWindow > 0 || input.meleePressed
-      || this.blocking || this.sabersHeld < 2;
+      || this.blocking || this.sabersHeld < this.saberCapacity;
     this.saberIdle = busy ? 0 : this.saberIdle + dt;
     if (this.saberIdle >= SABER_STOW_DELAY) {
       this.weapon = 'none';
@@ -2938,7 +2945,8 @@ export class Player {
           this.throwHold = -1;
           const t0 = this.thrownSabers[0];
           const t1 = this.thrownSabers[1];
-          const hand = (!t0 || t0.state === 'held') ? 0 : (!t1 || t1.state === 'held') ? 1 : -1;
+          const hand = (!t0 || t0.state === 'held') ? 0
+            : this.saberCapacity > 1 && (!t1 || t1.state === 'held') ? 1 : -1;
           if (hand >= 0) this.beginThrow(hand as 0 | 1);
         }
       }
@@ -3003,7 +3011,8 @@ export class Player {
     let t = this.thrownSabers[hand];
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
       light: hand === 0,
-      style: this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa' : 'red',
+      style: this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
+        : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
     });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
@@ -3092,8 +3101,8 @@ export class Player {
       const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
-      // twin blades get their own combo; everyone else swings the staff set
-      const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : 'saber') : 'melee';
+      // The double-ended hilt needs two-handed sweeps and a returning end.
+      const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
       const clip = `${set}${this.meleeStep === 1 ? 1 : this.meleeStep === 2 ? 2 : 3}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
@@ -3122,7 +3131,7 @@ export class Player {
       } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
         // no lunge to carry the body, so the legs join the swing: weight
         // drop, step, pivot — one-shots matched to each upper's duration
-        this.char.animator!.playOnce('lower', `meleeLower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
     }
@@ -3135,7 +3144,7 @@ export class Player {
       && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
     ) {
       this.flourished = true;
-      this.char.animator!.playOnce('upper', 'saberFlourish', 0.12);
+      this.char.animator!.playOnce('upper', this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish', 0.12);
       this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
@@ -3366,7 +3375,7 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : 'saber') : 'melee';
+    const set = this.meleeKind === 'sabers' ? (this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');

@@ -45,8 +45,9 @@ individual GLBs, described in [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
 
 `reference/characters/sith_leader_front.png` is the hooded, masked leader
 based on the supplied two references. `sith_soldier_front.png` is the horned,
-red-and-black marked soldier based on the supplied image. Both are candidate
-enemy designs, not yet 3D models or integrated enemies.
+red-and-black marked warrior based on the supplied image. Their 3D models are
+integrated as playable Darth Revan and Darth Maul, respectively. Neither is
+currently an enemy.
 
 What remains below is not a request: the recipe for making
 more character sheets, and

@@ -884,6 +884,39 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 0.29, 0.5], [[-10, 0, 0], [12, 0, 0], [0, 0, 0]]),
   ]);
 
+  // Maul's connected double blade is a staff, not two independent swords.
+  // The left hand is solved onto the rear half of the hilt each frame; these
+  // tracks lead it with the right wrist and torso. Two quick opposing sweeps
+  // feed a planted pivot and thrust. Contact crosses 45% of each clip, the
+  // controller's shared hit frame. Reference: the official Maul databank and
+  // Ray Park's StarWars.com technique demonstration (docs/ASSETS_MODELS.md).
+  clips.staff1 = new THREE.AnimationClip('staff1', 0.4, [
+    qt('chest', [0, 0.14, 0.2, 0.4], [[4, -28, 0], [4, -36, 0], [7, 34, 0], [4, -8, 0]]),
+    qt('upperArmR', [0, 0.14, 0.2, 0.4], [[-64, -28, -12], [-78, -40, -16], [-58, 45, 12], [-52, 0, -8]]),
+    qt('forearmR', [0, 0.14, 0.2, 0.4], [[-72, 10, 0], [-83, 12, 0], [-52, -12, 0], [-66, 0, 0]]),
+    qt('handR', [0, 0.14, 0.2, 0.4], [[0, -35, -20], [0, -50, -35], [0, 54, 24], [0, 0, 0]]),
+    qt('head', [0, 0.2, 0.4], [[0, 18, 0], [0, -14, 0], [0, 0, 0]]),
+  ]);
+  clips.staff2 = new THREE.AnimationClip('staff2', 0.42, [
+    qt('chest', [0, 0.15, 0.22, 0.42], [[4, 26, 0], [4, 35, 0], [8, -32, 0], [4, 9, 0]]),
+    qt('upperArmR', [0, 0.15, 0.22, 0.42], [[-62, 38, -4], [-72, 52, -10], [-66, -48, 18], [-52, 0, -8]]),
+    qt('forearmR', [0, 0.15, 0.22, 0.42], [[-58, -8, 0], [-74, -12, 0], [-48, 15, 0], [-66, 0, 0]]),
+    qt('handR', [0, 0.15, 0.22, 0.42], [[0, 42, 20], [0, 58, 30], [0, -50, -20], [0, 0, 0]]),
+    qt('head', [0, 0.22, 0.42], [[0, -15, 0], [0, 16, 0], [0, 0, 0]]),
+  ]);
+  clips.staff3 = new THREE.AnimationClip('staff3', 0.56, [
+    qt('chest', [0, 0.17, 0.27, 0.56], [[-3, -30, 0], [-8, -56, 0], [12, 62, 0], [4, -8, 0]]),
+    qt('upperArmR', [0, 0.17, 0.27, 0.56], [[-80, -20, 8], [-102, -42, 12], [-40, 48, 14], [-52, 0, -8]]),
+    qt('forearmR', [0, 0.17, 0.27, 0.56], [[-78, 0, 0], [-94, 0, 0], [-16, 0, 0], [-66, 0, 0]]),
+    qt('handR', [0, 0.17, 0.27, 0.56], [[0, -30, -18], [0, -70, -42], [0, 74, 34], [0, 0, 0]]),
+    qt('head', [0, 0.27, 0.56], [[-4, 20, 0], [5, -22, 0], [0, 0, 0]]),
+  ]);
+  for (const step of [1, 2, 3] as const) {
+    const source = clips[`meleeLower${step}`];
+    clips[`staffLower${step}`] = new THREE.AnimationClip(`staffLower${step}`, source.duration,
+      source.tracks.map((track) => track.clone()));
+  }
+
   // Maris turns the perpendicular grips in her palms. The shaft tracks each
   // forearm through compact alternating cuts instead of staying in a straight
   // saber grip; the shared body timing and hit windows remain unchanged.
@@ -955,6 +988,23 @@ function makeClips(p: Proportions): ClipSet {
     qt('upperArmL', rt, [[-16, 12, 34], [-22, 12, 36], [-28, 12, 34], [-22, 12, 36], [-16, 12, 34]]),
     qt('forearmL', rt, [[-52, -10, -14], [-58, -10, -16], [-64, -10, -14], [-58, -10, -16], [-52, -10, -14]]),
   ]);
+  // Across-body staff guard: hilt held near the sternum, one red end to each
+  // side. The left palm is anchored to the opposite half of the hilt by the
+  // grip solver, so a ready Maul never appears to carry two separate blades.
+  clips.staffIdleUpper = new THREE.AnimationClip('staffIdleUpper', 3, [
+    qt('chest', [0, 1.5, 3], [[5, -12, 0], [6, -15, 0], [5, -12, 0]]),
+    qt('head', [0, 1.5, 3], [[0, 12, 0], [0, 10, 0], [0, 12, 0]]),
+    qt('upperArmR', [0, 1.5, 3], [[-62, -8, -10], [-64, -8, -10], [-62, -8, -10]]),
+    qt('forearmR', [0, 1.5, 3], [[-72, 8, 0], [-74, 8, 0], [-72, 8, 0]]),
+    qt('handR', [0, 1.5, 3], [[0, 70, 0], [0, 74, 0], [0, 70, 0]]),
+  ]);
+  clips.staffRunUpper = new THREE.AnimationClip('staffRunUpper', 0.6, [
+    qt('chest', rt, [[8, -7, 0], [8, -4, 0], [8, 0, 0], [8, -4, 0], [8, -7, 0]]),
+    qt('head', rt, [[-3, 5, 0], [-3, 4, 0], [-3, 3, 0], [-3, 4, 0], [-3, 5, 0]]),
+    qt('upperArmR', rt, [[-56, -6, -12], [-54, -6, -12], [-52, -6, -12], [-54, -6, -12], [-56, -6, -12]]),
+    qt('forearmR', rt, [[-62, 5, 0], [-60, 5, 0], [-58, 5, 0], [-60, 5, 0], [-62, 5, 0]]),
+    qt('handR', rt, [[0, 60, 0], [0, 60, 0], [0, 60, 0], [0, 60, 0], [0, 60, 0]]),
+  ]);
   clips.tonfaIdleUpper = new THREE.AnimationClip('tonfaIdleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[7, -12, 0], [9, -14, 0], [7, -12, 0]]),
     qt('head', [0, 1.5, 3], [[1, 10, 0], [1, 8, 0], [1, 10, 0]]),
@@ -988,6 +1038,13 @@ function makeClips(p: Proportions): ClipSet {
     qt('forearmL', [0, 0.18, 0.32, 0.46, 0.55], [[-30, -18, -22], [-56, 48, -18], [-48, -58, -20], [-62, -14, -17], [-64, -12, -16]]),
     qt('handL', [0, 0.18, 0.32, 0.46, 0.55], [[0, 0, 0], [-26, 0, 28], [26, 0, -28], [-5, 0, 6], [0, 0, 0]]),
     qt('head', [0, 0.28, 0.55], [[0, 0, 0], [1, 8, 0], [2, 15, 0]]),
+  ]);
+  clips.staffFlourish = new THREE.AnimationClip('staffFlourish', 0.56, [
+    qt('chest', [0, 0.18, 0.37, 0.56], [[5, -8, 0], [6, -25, 0], [6, 24, 0], [5, -12, 0]]),
+    qt('upperArmR', [0, 0.18, 0.37, 0.56], [[-52, 0, -8], [-72, -18, -10], [-66, 22, -10], [-62, -8, -10]]),
+    qt('forearmR', [0, 0.18, 0.37, 0.56], [[-66, 0, 0], [-82, 0, 0], [-58, 0, 0], [-72, 8, 0]]),
+    qt('handR', [0, 0.14, 0.28, 0.42, 0.56], [[0, 0, 0], [0, 85, 0], [0, 170, 0], [0, 265, 0], [0, 360, 0]]),
+    qt('head', [0, 0.56], [[0, 10, 0], [0, 12, 0]]),
   ]);
 
   // ---------- UPPER: block (shield up, braced behind it) ----------

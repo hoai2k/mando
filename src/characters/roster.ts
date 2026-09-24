@@ -140,7 +140,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // null names a fighter with no gun — Ventress, whose ranged weapon is the
     // blade she throws; the HUD then reads off the melee slot
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
-    meleeName: MELEE_NAMES[melee[0]],
+    meleeName: id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
@@ -323,7 +323,7 @@ const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
   DEFS.set(id, {
     id,
-    modelIds: [id],
+    modelIds: id === 'maul' ? [id, 'saber_double'] : id === 'revan' ? [id, 'saber_dark'] : [id],
     build: () => buildMandalorian(id),
     profile: mandoProfile(id),
   });

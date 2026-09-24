@@ -4,7 +4,7 @@ import { launch, makeCheck } from './harness.mjs';
 const check = makeCheck();
 const h = await launch();
 try {
-  for (const id of ['ventress', 'jedi', 'maris']) {
+  for (const id of ['ventress', 'jedi', 'maris', 'maul', 'revan']) {
     await h.page.evaluate((character) => {
       window.__manual = false;
       window.__quitToTitle?.();
@@ -45,11 +45,26 @@ try {
         modelLoaded: char.modelReady(), nozzles: char.nozzles.length,
         stowed, drawn, rightThrown, leftStowedRightThrown, returned,
         bladeLight: bladeLight?.color?.getHex(), authoredHilt,
+        oppositeBlade: !!rightHand?.userData.oppositeBlade,
       };
     });
     const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check(`${id}: authored body loaded`, states.modelLoaded, states);
     if (id !== 'ventress') check(`${id}: separated authored hilt loaded`, states.authoredHilt, states);
+    if (id === 'maul' || id === 'revan') {
+      check(`${id}: correct blade count`, states.oppositeBlade === (id === 'maul'), states);
+      check(`${id}: stows one hilt at the waist`,
+        eq(states.stowed, { saberHandR: false, saberHolsterR: true }), states);
+      check(`${id}: draws that hilt into his right hand`,
+        eq(states.drawn, { saberHandR: true, saberHolsterR: false }), states);
+      check(`${id}: has no duplicate hilt after a throw`,
+        eq(states.rightThrown, { saberHandR: false, saberHolsterR: false }), states);
+      check(`${id}: catches and stows the same hilt`,
+        eq(states.returned, { saberHandR: false, saberHolsterR: true }), states);
+      check(`${id}: has no jetpack nozzles`, states.nozzles === 0, states);
+      check(`${id}: blade light is red`, states.bladeLight === 0xff3a24, states);
+      continue;
+    }
     check(`${id}: both hilts stow handle-up at the waist`,
       eq(states.stowed, { saberHandR: false, saberHandL: false, saberHolsterR: true, saberHolsterL: true }), states);
     check(`${id}: drawing moves both hilts to the hands`,
@@ -65,7 +80,7 @@ try {
       check('Jedi blade light is cool white', states.bladeLight === 0xddefff, states);
     } else if (id === 'maris') {
       check('Maris has no jetpack nozzles', states.nozzles === 0, states);
-      check('Maris tonfa blade light is green', states.bladeLight === 0x58ff78, states);
+      check('Maris tonfa blade light is white', states.bladeLight === 0xddefff, states);
     } else check('Ventress blade light stays red', states.bladeLight === 0xff3a24, states);
   }
   check('browser reported no errors', h.errors.length === 0, h.errors);
