@@ -59,6 +59,23 @@ const MODEL_HEIGHT: Record<MandoId, number> = {
   ventress: 1.79, jedi: 1.82, maris: 1.70, maul: 1.88, revan: 1.95, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
+type StowedGrip = { position: [number, number, number]; quaternion: [number, number, number, number] };
+/** Workbench-authored hip-local transforms; the stowed hilts keep these in every pose. */
+const AUTHORED_STOWED_SABER_GRIPS: Partial<Record<MandoId, Record<'left' | 'right', StowedGrip>>> = {
+  jedi: {
+    left: { position: [0.156087, 0.202822, 0.054357], quaternion: [0.0012752, 0.0008093, 0.0053235, 0.9999847] },
+    right: { position: [-0.162017, 0.205732, 0.044764], quaternion: [-0.0141541, -0.0038531, -0.0124992, 0.9998143] },
+  },
+  maris: {
+    left: { position: [0.069071, 0.23511, -0.098459], quaternion: [0.0549825, 0.8816258, 0.2257428, -0.4107957] },
+    right: { position: [-0.042171, 0.236488, -0.079782], quaternion: [0.0051619, 0.6981478, 0.2753743, 0.660857] },
+  },
+  ventress: {
+    left: { position: [0.175019, 0.182303, 0.025], quaternion: [-0.0143593, -0.1079298, 0.9891353, -0.0987742] },
+    right: { position: [-0.167219, 0.188361, 0.007152], quaternion: [-0.0081515, -0.0903281, 0.9918481, 0.0895081] },
+  },
+};
+
 interface MandoConfig {
   name: string;
   desc: string;
@@ -597,7 +614,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
       // The procedural hip keeps animating but is hidden under the authored
       // skin. Carry the stowed hilts on the visible pelvis instead.
-      if (model.holsterMount) for (const hilt of holsters) model.holsterMount.add(hilt);
+      if (model.holsterMount) for (const hilt of holsters) {
+        model.holsterMount.add(hilt);
+        const side = hilt.name.endsWith('L') ? 'left' : 'right';
+        const grip = AUTHORED_STOWED_SABER_GRIPS[id]?.[side];
+        if (grip) {
+          hilt.position.set(...grip.position);
+          hilt.quaternion.set(...grip.quaternion).normalize();
+        }
+      }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
       if (!feetThrusters) flameRoot.position.y = -0.02;
