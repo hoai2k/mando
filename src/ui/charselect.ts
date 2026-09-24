@@ -447,10 +447,22 @@ export class CharacterSelect {
       a.addEventListener('click', () => this.flip(i, dir));
       return a;
     };
-    const name = document.createElement('div');
-    name.className = 'charsel-name';
+    const nameBox = document.createElement('div');
+    nameBox.className = 'charsel-name';
+    // Invisible names share the same grid cell as the visible one, so the
+    // arrows stay outside the widest name in this mode while browsing.
+    for (const id of this.roster) {
+      const measure = document.createElement('span');
+      measure.className = 'charsel-name-measure';
+      measure.setAttribute('aria-hidden', 'true');
+      measure.textContent = playableDef(id).profile.name;
+      nameBox.appendChild(measure);
+    }
+    const name = document.createElement('span');
+    name.className = 'charsel-name-current';
+    nameBox.appendChild(name);
     const arrows = [mkArrow(-1), mkArrow(1)];
-    base.append(arrows[0], name, arrows[1]);
+    base.append(arrows[0], nameBox, arrows[1]);
     // what the fighter brings: one line under the name, so a thirty-body
     // PvP roster is a choice and not a guess
     const kit = document.createElement('div');

@@ -322,10 +322,12 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 .charsel-panel.empty { transform: translate(-50%, -50%); }
 .charsel-base { display: flex; align-items: center; gap: 8px; }
 .charsel-name {
-  min-width: 130px; text-align: center; font-size: clamp(13px, 1.35vw, 22px);
+  min-width: 130px; display: grid; text-align: center; font-size: clamp(13px, 1.35vw, 22px);
   letter-spacing: 0.14em; text-transform: uppercase; color: #d8b25a; font-weight: 700;
   text-shadow: 0 2px 12px rgba(0,0,0,0.8);
 }
+.charsel-name-current, .charsel-name-measure { grid-area: 1 / 1; white-space: nowrap; }
+.charsel-name-measure { visibility: hidden; }
 .charsel-panel.ready .charsel-name { color: #f0d492; text-shadow: 0 0 18px rgba(216,178,90,0.8); }
 .charsel-arrow {
   background: none; border: 1px solid rgba(216,178,90,0.5); border-radius: 6px;

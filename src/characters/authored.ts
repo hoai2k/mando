@@ -729,9 +729,9 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     }
   }
 
-  // Keep the widened rest shoulder placement for forward reaches and arms
-  // near the torso. Fade only when the arm opens beyond its model's A-pose
-  // angle AND points mostly sideways rather than forward.
+  // Keep the widened rest shoulder placement for forward reaches. A sideways
+  // A-pose returns to the sculpt's own shoulder width; the same arm rotated
+  // forward keeps the extra clearance even at the same elevation.
   const spacing = shoulderSpacingFor(model.id);
   for (const slide of model.shoulderSlides) {
     const upper = source.bones[slide.side === 1 ? 'upperArmL' : 'upperArmR'];
@@ -739,11 +739,13 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     const outward = THREE.MathUtils.clamp(slide.side * armDir.x, 0, 1);
     const forward = Math.abs(armDir.z);
     const sideFraction = outward / Math.max(0.0001, outward + forward);
-    const start = Math.max(0.35, slide.aPoseSplay);
-    const reach = THREE.MathUtils.smoothstep(outward, start, Math.max(0.9, start + 0.1));
-    const sideBias = THREE.MathUtils.smoothstep(sideFraction, 0.7, 0.95);
+    const reach = THREE.MathUtils.smoothstep(outward, 0.12, Math.max(0.2, slide.aPoseSplay));
+    const beyond = THREE.MathUtils.smoothstep(outward, slide.aPoseSplay, 1);
+    // Idle's slight forward tilt still counts as a sideways A-pose. A real
+    // forward reach has at least as much forward as outward travel.
+    const sideBias = THREE.MathUtils.smoothstep(sideFraction, 0.55, 0.7);
     const fade = reach * sideBias;
-    const widthChange = 1 - 2 * fade;
+    const widthChange = 1 - sideBias * (reach + beyond);
     const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
     const extra = slide.restWidthOffset * (
       spacing.rest * (1 - fade) + spacing.aPose * fade);
