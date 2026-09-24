@@ -454,7 +454,7 @@ The sky frigate reference was added on 2026-09-24 at
 
 | Id | Board | Size | Role / constraints |
 |---|---|---|---|
-| `spice_run_frigate` ◇ | Spice Run sky traffic | ~90 m long | Replace the distant procedural liner silhouette. Model the side, front and top views in `reference/props/spice_run_frigate_ref.png`: tapered armored prow, stepped bridge, swept midship stabilizers, recessed ventral cargo spine, twin aft engines and sparse docking lights. Background only: no collider, rig or interior. Preserve a readable silhouette at 250–400 m. |
+| `spice_run_frigate` ◇ | Spice Run sky traffic | ~180 m long | Replace the distant procedural liner silhouette. Model the side, front and top views in `reference/props/spice_run_frigate_ref.png`: broad faceted prow, terraced command tower, paired fighter hangars and launch apertures, recessed turrets, and a dense aft engine bank. Keep the carrier silhouette and hangar openings readable at 250–400 m. Background only: no collider, rig or playable interior. |
 
 The four other ambient props are:
 

@@ -12,11 +12,11 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 ## Spice Run sky frigate reference — delivered 2026-09-24
 
 `reference/props/spice_run_frigate_ref.png` is the canonical side, front and top
-reference for an original long-range shipping-lane frigate. It has a tapered
-armored prow, stepped bridge, swept stabilizers, ventral cargo spine, twin aft
-engines and sparse docking lights. The sheet is a production input only; the
-ship visible in Spice Run sky traffic remains a procedural silhouette until an
-authored model is made and integrated.
+reference for an original shipping-lane frigate/carrier. Revised on 2026-09-24,
+it has a broad faceted armored prow, terraced command tower, paired fighter
+hangars with launch apertures, recessed turrets, and a dense aft engine bank.
+The sheet is a production input only; the ship visible in Spice Run sky traffic
+remains a procedural silhouette until an authored model is made and integrated.
 
 ---
 
