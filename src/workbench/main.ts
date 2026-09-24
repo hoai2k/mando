@@ -395,6 +395,7 @@ function freezePose(): void {
 }
 
 function sampleWeaponPose(): void {
+  if (pose.id === 'rest') weaponSample = 0;
   weaponEditor.setSampleFraction(weaponSample);
   for (const f of figures) {
     const anim = f.inst.animator;
@@ -645,8 +646,8 @@ function renderPanel(): void {
       redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
       <br><br><b>Position mode</b> moves the authored model's joints with 3D handles.
       Export position JSON to share the exact shoulder offsets for each pose.
-      <br><br><b>Weapon grips</b> moves and rotates held weapons against authored hands.
-      Scrub the animation to check alignment, then export the local grip transforms as JSON.
+      <br><br><b>Weapon grips</b> moves and rotates held weapons against authored hands,
+      or stowed hilts against authored hips in rest and idle. Export the local transforms as JSON.
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
@@ -881,9 +882,9 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   host.innerHTML = `${editModeButtons()}
     <div class="editbox">
       <div class="field"><label for="weaponSample">Animation frame: ${Math.round(weaponSample * 100)}%</label>
-        <input id="weaponSample" type="range" min="0" max="100" step="1" value="${Math.round(weaponSample * 100)}">
+        <input id="weaponSample" type="range" min="0" max="100" step="1" value="${Math.round(weaponSample * 100)}" ${pose.id === 'rest' ? 'disabled' : ''}>
       </div>
-      <div class="field"><label for="weaponTarget">Weapon on authored hand</label>
+      <div class="field"><label for="weaponTarget">Weapon on authored hand or hip</label>
         <select id="weaponTarget"><option value="">— select weapon —</option>
           ${names.map((name) => option(name, name, name === selected)).join('')}
         </select></div>
@@ -895,10 +896,10 @@ function renderWeaponPanel(host: HTMLDivElement): void {
         <div class="xyz">${current.editedPosition.map((v, i) => `<input data-weapon-position="${i}" type="number" step="0.001" value="${v}">`).join('')}</div>
       </div><div class="field"><label>Rotation in degrees, XYZ</label>
         <div class="xyz">${degrees.map((v, i) => `<input data-weapon-rotation="${i}" type="number" step="1" value="${v.toFixed(2)}">`).join('')}</div>
-      </div><div class="row"><button id="weaponReset">Reset selected grip</button></div>`
-    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : names.length ? 'Select an orange grip point on the model.' : 'No held weapon is visible in this pose. Select a weapon stance or aim pose.'}</p>`}
+      </div><div class="row"><button id="weaponReset">Reset selected weapon</button></div>`
+    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : names.length ? 'Select an orange weapon point on the model.' : 'No held weapon or stowed hilt is visible in this pose.'}</p>`}
       <div class="row"><button id="weaponExport" class="primary" ${entries.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
-      <p class="hint">Select Rotate weapon and drag its colored rings to set each hand's hilt angle. Scrub the pose to check the fit, then export JSON. Changes reset on reload.</p>
+      <p class="hint">Move or rotate each visible weapon with the 3D handle. Hip edits carry between rest and idle. Export JSON when aligned; changes reset on reload.</p>
       ${entries.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
@@ -926,9 +927,9 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   host.querySelector<HTMLButtonElement>('#weaponReset')?.addEventListener('click', () => weaponEditor.resetSelected());
   host.querySelector<HTMLButtonElement>('#weaponExport')!.onclick = () => {
     const payload = {
-      format: 'mando-authored-weapon-grips/1', exportedAt: new Date().toISOString(),
-      units: 'local coordinates of authored hand weapon mount; position in model units, rotation as quaternion',
-      note: 'Each transform is relative to the authored hand mount. The displayed procedural model was not used for placement.',
+      format: 'mando-authored-weapon-grips/2', exportedAt: new Date().toISOString(),
+      units: 'local coordinates of the named authored hand or hip mount; position in model units, rotation as quaternion',
+      note: 'attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body.',
       entries: weaponEditor.entriesAll(),
     };
     const anchor = document.createElement('a');

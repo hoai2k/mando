@@ -11,7 +11,8 @@ export interface WeaponAnchorEntry {
   character: string;
   pose: string;
   weapon: string;
-  hand: 'right' | 'left';
+  attachment: 'hand' | 'hip';
+  side: 'right' | 'left';
   parent: string;
   sampleFraction: number;
   basePosition: V3;
@@ -24,11 +25,12 @@ interface Target {
   object: THREE.Object3D;
   basePosition: THREE.Vector3;
   baseQuaternion: THREE.Quaternion;
+  attachment: 'hand' | 'hip';
   hand: 'right' | 'left';
   marker: THREE.Mesh;
 }
 
-/** Export-only adjustments to visible props parented under authored hand mounts. */
+/** Export-only adjustments to visible props on authored hand and hip mounts. */
 export class WeaponAnchorEditor {
   enabled = false;
   selected: string | null = null;
@@ -68,21 +70,28 @@ export class WeaponAnchorEditor {
     this.character = character;
     this.pose = pose;
     root?.traverse((mount) => {
-      if (mount.name !== 'weaponMount' && mount.name !== 'weaponMountL') return;
-      const hand = mount.name === 'weaponMount' ? 'right' : 'left';
+      if (mount.name !== 'weaponMount' && mount.name !== 'weaponMountL' && mount.name !== 'holsterMount') return;
+      const attachment = mount.name === 'holsterMount' ? 'hip' : 'hand';
       for (const object of mount.children) {
+        // The pelvis mount may carry other accessories in the future. Only
+        // named stowed weapons belong in the weapon grip editor.
+        if (attachment === 'hip' && !object.name.startsWith('saberHolster')) continue;
         if (!object.visible || !this.hasVisibleMesh(object)) continue;
-        const name = `${hand}: ${object.name || `weapon ${mount.children.indexOf(object) + 1}`}`;
+        const hand = attachment === 'hip'
+          ? object.name.endsWith('L') ? 'left' : 'right'
+          : mount.name === 'weaponMount' ? 'right' : 'left';
+        const label = `${hand}: ${object.name || `weapon ${mount.children.indexOf(object) + 1}`}`;
+        const name = attachment === 'hip' ? `hip ${label}` : label;
         const marker = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8),
           new THREE.MeshBasicMaterial({ color: 0xffc86b, depthTest: false, depthWrite: false }));
         marker.renderOrder = 999;
         this.overlay.add(marker);
         const target: Target = {
-          object, hand, marker,
+          object, hand, attachment, marker,
           basePosition: object.position.clone(), baseQuaternion: object.quaternion.clone(),
         };
         this.targets.set(name, target);
-        const saved = this.entries.get(this.key(name));
+        const saved = this.entries.get(this.key(name, attachment));
         if (saved) {
           object.position.set(...saved.editedPosition);
           object.quaternion.set(...saved.editedQuaternion);
@@ -151,7 +160,7 @@ export class WeaponAnchorEditor {
     const target = this.targets.get(this.selected)!;
     target.object.position.copy(target.basePosition);
     target.object.quaternion.copy(target.baseQuaternion);
-    this.entries.delete(this.key(this.selected));
+    this.entries.delete(this.key(this.selected, target.attachment));
     this.onChange();
   }
 
@@ -173,12 +182,17 @@ export class WeaponAnchorEditor {
     }
   }
 
-  private key(name: string): string { return `${this.character}|${this.pose}|${name}`; }
+  private key(name: string, attachment: 'hand' | 'hip'): string {
+    // The same hip-local transform serves rest, idle, and every other pose
+    // where the weapon is stowed. Keep its edit when the preview pose changes.
+    return `${this.character}|${attachment === 'hip' ? 'stowed' : this.pose}|${name}`;
+  }
   private measure(name: string): WeaponAnchorEntry | null {
     const target = this.targets.get(name);
     if (!target) return null;
     return {
-      character: this.character, pose: this.pose, weapon: name, hand: target.hand,
+      character: this.character, pose: this.pose, weapon: name,
+      attachment: target.attachment, side: target.hand,
       parent: target.object.parent?.name ?? '',
       sampleFraction: this.sampleFraction,
       basePosition: vec(target.basePosition), baseQuaternion: quat(target.baseQuaternion),
@@ -191,8 +205,9 @@ export class WeaponAnchorEditor {
     const entry = this.measure(this.selected)!;
     const target = this.targets.get(this.selected)!;
     if (target.object.position.distanceToSquared(target.basePosition) < 1e-12
-      && target.object.quaternion.angleTo(target.baseQuaternion) < 1e-6) this.entries.delete(this.key(this.selected));
-    else this.entries.set(this.key(this.selected), entry);
+      && target.object.quaternion.angleTo(target.baseQuaternion) < 1e-6)
+      this.entries.delete(this.key(this.selected, target.attachment));
+    else this.entries.set(this.key(this.selected, target.attachment), entry);
     this.onChange();
   }
 
