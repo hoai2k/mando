@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { loadSkinFix, setSkinFixes, type SkinFix, type SkinFixDoc } from '../characters/skinfix';
+import { rigidifyDinJetpack } from '../characters/rigidpack';
 
 /**
  * Skinning review — the workbench's second job.
@@ -134,6 +135,9 @@ export class SkinPanel {
   private applyFixes(): void {
     if (!this.model || !this.doc) return;
     setSkinFixes(this.model, this.doc.fixes.filter((f) => this.enabled.has(f.id)));
+    // Skin-review toggles reset the source weights. Preserve the rigid pack
+    // while previewing Din's other weight fixes in the workbench.
+    if (this.modelId === 'din') rigidifyDinJetpack(this.model);
   }
 
   // ---------- heat ----------

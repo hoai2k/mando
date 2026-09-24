@@ -13,6 +13,7 @@ import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
+import { rigidifyDinJetpack } from './rigidpack';
 
 /**
  * Authored glTF characters.
@@ -265,6 +266,9 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           const doc = await fixes;
           // on the file's own geometry, which every clone shares: one pass
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
+          // Din's welded jetpack is metal: shoulder and arm weights from the
+          // automatic skinning must not bend it when he raises his blaster.
+          if (id === 'din') rigidifyDinJetpack(gltf.scene);
           // After the fixes, not before: a jaw is an addition to the weights
           // the fixes have finished settling, and it folds itself into their
           // baseline so toggling one in the workbench cannot undo it.
