@@ -3001,7 +3001,10 @@ export class Player {
     if (!this.throwFx) this.throwFx = new THREE.Group();
     if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
     let t = this.thrownSabers[hand];
-    if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, { light: hand === 0 });
+    if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
+      light: hand === 0,
+      style: this.characterId === 'jedi' ? 'white' : 'red',
+    });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
 

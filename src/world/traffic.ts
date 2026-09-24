@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { loadProp } from '../characters/authored';
 import { audio } from '../core/audio';
 import type { Game } from '../game/game';
+import { propsUsed } from './props';
 
 /**
  * Sky traffic (PLAN.md §16.1): a few ships on long looping paths far outside
@@ -10,10 +12,9 @@ import type { Game } from '../game/game';
  * contacts, and the one gameplay-adjacent output is a distant engine wash
  * (`ship_pass`) when the low ship makes its close approach.
  *
- * The ships are procedural silhouettes while the distant frigate has no
- * authored model. The blocky liner is visible enough to warrant a proper
- * sculpt; its canonical reference is in reference/props. (The close-up
- * freighter on the live pad already has an authored model.)
+ * Most ships remain small procedural silhouettes. Spice Run's far lane uses
+ * the authored frigate/carrier, with its liner silhouette kept as a fallback
+ * while the model loads. The close-up freighter on the pad is a separate prop.
  */
 
 export interface SkyLane {
@@ -27,6 +28,8 @@ export interface SkyLane {
   phase: number;
   /** overall scale — a bigger liner for the far lanes so they still read */
   scale: number;
+  /** use the authored Spice Run carrier on this lane */
+  frigate?: boolean;
   /**
    * The close-pass lane: when this ship crosses its nearest point to the
    * arena centre it carries a doppler-washed rumble. At most one lane should
@@ -45,26 +48,28 @@ interface Ship {
 }
 
 /** a distant liner: fuselage, engine block, swept fins — silhouette only */
-function makeLiner(scale: number): { node: THREE.Group; lights: THREE.Mesh[] } {
+function makeLiner(scale: number): { node: THREE.Group; fallback: THREE.Group; lights: THREE.Mesh[] } {
   const hullMat = new THREE.MeshBasicMaterial({ color: 0x2c3038 });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0x7ac8ff });
   const node = new THREE.Group();
+  const fallback = new THREE.Group();
+  node.add(fallback);
   const body = new THREE.Mesh(new THREE.BoxGeometry(3, 2.2, 14), hullMat);
-  node.add(body);
+  fallback.add(body);
   const bridge = new THREE.Mesh(new THREE.BoxGeometry(2, 1.4, 3.5), hullMat);
   bridge.position.set(0, 1.6, -3.5);
-  node.add(bridge);
+  fallback.add(bridge);
   for (const s of [-1, 1]) {
     const fin = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.4, 4), hullMat);
     fin.position.set(s * 3.2, 0, 2);
-    node.add(fin);
+    fallback.add(fin);
   }
   // engines: a warm glow astern, plus port/starboard running lights that blink
   const engine = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.4), new THREE.MeshBasicMaterial({
     color: 0xffb060, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
   }));
   engine.position.set(0, 0, 7.1);
-  node.add(engine);
+  fallback.add(engine);
   const lights: THREE.Mesh[] = [];
   const lightGeo = new THREE.SphereGeometry(0.35, 6, 5);
   for (const s of [-1, 1]) {
@@ -75,7 +80,7 @@ function makeLiner(scale: number): { node: THREE.Group; lights: THREE.Mesh[] } {
   }
   node.scale.setScalar(scale);
   node.userData.decor = true;
-  return { node, lights };
+  return { node, fallback, lights };
 }
 
 /**
@@ -84,7 +89,24 @@ function makeLiner(scale: number): { node: THREE.Group; lights: THREE.Mesh[] } {
  */
 export function addSkyTraffic(group: THREE.Group, lanes: SkyLane[]): (time: number, game?: Game) => void {
   const ships: Ship[] = lanes.map((lane) => {
-    const { node, lights } = makeLiner(lane.scale);
+    const { node, fallback, lights } = makeLiner(lane.scale);
+    if (lane.frigate) {
+      propsUsed.add('spice_run_frigate');
+      node.userData.skyTraffic = 'spice_run_frigate';
+      // The carrier is 180 m long in the far Spice Run lane. Its nose is +Z;
+      // traffic's heading was built for the procedural liner's -Z nose.
+      const model = loadProp('spice_run_frigate', 180 / lane.scale, {
+        axis: 'z',
+        onLoad: (root) => {
+          fallback.visible = false;
+          // Far-off sky art does not need shadow-map passes.
+          root.traverse((part) => { if (part instanceof THREE.Mesh) part.castShadow = false; });
+        },
+      });
+      model.name = 'spice_run_frigate';
+      model.rotation.y = Math.PI;
+      node.add(model);
+    }
     group.add(node);
     return { node, lane, angle: lane.phase, lights, rumbled: false };
   });

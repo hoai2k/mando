@@ -4,7 +4,24 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: the two spider [mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02) and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The two replacement NPCs were generated, processed, and integrated on 2026-09-23. The second monster batch was delivered on 2026-09-02 and is in the game — every one of the four shipped the node list its brief asked for, verbatim. Everything else this document asks for has been delivered and integrated — the first six monster bosses on 2026-08-29 and the two troop carriers on 2026-08-30, each the same day it was requested. What follows is the standing brief — the swap contract, the design of each character, and the budgets — kept so a model can be re-exported or replaced on-style, and so the next request has a shape to follow. An authored glTF (.glb) replaces any character **without touching gameplay code** via the swap contract; where a file is absent the procedural stand-in still stands.
+**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. The Jedi and Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
+
+## Missing-model audit — 2026-09-24
+
+Compared the shipped `public/models/*.glb` files with literal `loadProp`,
+`authoredProp` and vehicle model ids, the dynamic outdoor prop ids in
+`src/world/mission.ts`, and the open briefs in this document. After adding
+`spice_run_frigate.glb` and `jedi.glb`, no required board or playable-character model is
+missing. The remaining asset work is:
+
+| Kind | Ids | Status |
+|---|---|---|
+| Optional Missions v3 scenery | `boulder_a`, `boulder_b`, `boulder_c`, `cliff_pillar_rock`, `cliff_pillar_ice`, `energy_pylon`, `trail_post` | Seven missing GLBs. The mission builder requests them but each has a procedural stand-in; briefs are [below](#missions-v3--outdoor-set-optional-requested-2026-09-03). |
+
+The two existing spider rigs are complete for current gameplay. Their proposed
+fang re-exports are closed by the 2026-09-24 decision. The Jedi is playable with
+his authored `jedi.glb`; his separate saber-hilt concept awaits review before any
+authored hilt is generated.
 
 ## Swap contract (applies to every biped)
 
@@ -16,6 +33,10 @@ opened by the 2026-08-29 territory audit.
 - Budgets: ≤ 15k tris playable characters, ≤ 8k tris grunts, ≤ 4k tris critters/props; one 1024² (playables) or 512² (grunts) PBR texture set (baseColor/metal-rough/normal).
 - Non-biped characters (marked ◆) use their own free-form rig — animation is procedural code, so any node layout is fine; keep the listed named nodes if possible.
 - Style target: stylized-realistic, weathered and used; silhouettes must read at 30 m. Original fan interpretations — no scans/rips of commercial assets.
+
+Consider the Generations Blender cleanup, rigging, decimation, export and
+compression stages when the input model needs them. The game depends on the
+resulting usable `.glb`, not on a specific production pipeline.
 
 ## Playable Mandalorians (4) — priority 1
 
@@ -66,10 +87,29 @@ removed.
 | Character | Id / reference sheets | Height | Reference look |
 |---|---|---|---|
 | **Cad Bane** | `duelist` — `duelist_front/side/back.png` | 1.90 m | Gaunt blue-skinned alien gunfighter: red eyes, breathing tubes to the temples, wide-brimmed hat, long coat, twin pistols — one in each hand, on both weapon mounts. |
-| **Asajj Ventress** | `ventress` — `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel, two curved sword hilts crossed at the back of the belt (hilts only — blades are FX meshes, like the dark saber). |
+| **Asajj Ventress** | `ventress` — `ventress_front/side/back.png` | 1.79 m | Bald ash-grey female assassin, dark scalp markings, sleeveless grey-black bodysuit with split skirt panel. Her separate curved hilts stow handle-up at either hip, move to the matching hand, or fly as thrown sabers; blades are runtime FX. |
 | **Embo** | `embo` — `embo_front/side/back.png` | 1.78 m | Olive-green alien behind a slatted rebreather mask, very wide flat woven-metal hat (model it as a distinct mesh under the `head` bone — it may become a gameplay prop later), fur-trimmed poncho over banded armor. |
 | **Bossk** | `bossk` — `bossk_front/side/back.png` | 1.90 m | Hulking yellow-green scaled reptilian, wedge snout and needle teeth, clawed hands and feet, rolled-sleeve tan flight suit with chest rig and bandoliers. Bulkiest of the set (scale ~1.08). |
 | **IG-11** | `ig11` — `ig11_front/side/back.png` | 2.20 m | The ally assassin droid, playable: cylindrical red-ringed head, exposed piston limbs. Wears no jetpack — flight flames mount under the foot bones instead (`thrusters: 'feet'` in the roster config), so a re-export must not add a pack. |
+
+### Jedi playable — delivered 2026-09-24
+
+The approved `reference/characters/jedi_front.png` and matching true left and
+rear views define a hooded 1.82 m fighter in pale robes over a dark layered
+tunic. The body has **no jetpack and no attached saber hilts**. Tripo multiview
+produced `jedi.glb`; Blender cleanup, pose-matched Rigify skinning, a 15k-triangle
+LOD, and gltfpack compression produced the 3.3 MB runtime file at
+`public/models/jedi.glb` (14,998 triangles, 33 deform bones). The character is
+in the playable roster with no ranged weapon or jetpack, dual white saber FX,
+and the standard superjump movement profile. Modest posed renders and an
+in-game load were checked; extreme robe poses may need further weight polish.
+
+Both sabers are independent objects: a handle-up hilt at the appropriate hip
+when stowed, the matching hand when drawn, or the flying projectile when
+thrown. The proposed separate hilt design is at
+`reference/characters/jedi_saber_concept.png` for review. Until its design is
+approved and an authored hilt is made, the game uses a straight procedural
+hilt. Ventress retains the authored curved hilt with the same state rules.
 
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers
@@ -129,7 +169,7 @@ blended by gait speed); clips shipped in a re-exported .glb would win over these
 | **Quarren netcaster** (`quarren`) ✅ | Trask | canonical rig, `attachAuthored` | Squid-faced dock hand: domed head, four face tentacles, heavy oilskin coat, rolled net on the back, stubby net-launcher tube (separate prop on `weaponR`). |
 | **Alamite** (`alamite`) ✅ | Great Forge | canonical rig, `attachAuthored` | Pale hunched cave-dweller, heavy brow, tusked underbite, bony dorsal ridge, stone club (prop on `weaponR`). |
 | **Ringworld enforcer** (`ring_enforcer`) ✅ | Ringworld | canonical rig, `attachAuthored` | Oxblood-and-gunmetal heavy plate, visored helm; **model the tower shield as a separate mesh parented to `forearmL`** — the glowing pane is an FX mesh the game manages, and the block itself is a gameplay collider, not geometry. |
-| **Krykna** (`krykna`) ◆ ✅ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. A re-export is wanted to add `fangL/R` so the mouthparts open ([the mouth re-exports](#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02)). |
+| **Krykna** (`krykna`) ◆ ✅ | Crevasse | own rig, `loadCreature` | Person-sized bone-white cave spider: abdomen + head section, six black eyes, eight jointed legs. Keep named nodes `body`, `head`, `legL1..L4`, `legR1..R4` — the gait is code-driven per leg. A proposed `fangL/R` re-export was closed on 2026-09-24. |
 | **Krykna broodmother** (`krykna_brood`) ◆ ✅ | Crevasse (wave-10 boss) | own rig, `loadCreature` | The krykna half again the bulk, mottled shell, three egg sacs on the abdomen (own nodes `sac1..3` — they matter to the fight). Same leg node names. |
 | **Interceptor drone** (`interceptor_drone`) ◆ ✅ | Great Forge | own rig, `loadCreature` | Black probe-style drone: sphere head, one red photoreceptor, amber sensor ring, five dangling manipulator arms (`arm1..5`), top thruster node `thruster` (its dive trail emits there). |
 
@@ -330,10 +370,10 @@ that was sculpted with its mouth shut, so the mouth opens by stretching the skin
 than parting modelled lips. It reads as a dark cavity — the same way the monster
 sculpts do — but a re-export with a real jaw would read better.
 
-**The two spiders are still a request.** They want spreading chelicerae rather than a
-hinged jaw, and their mouthparts are a few centimetres across on a body you fight at
-running speed, so the same trick is much harder to aim and buys much less. They stay
-here:
+**The two spider re-exports are closed.** Their spreading chelicerae are only a
+few centimetres across on a body fought at running speed. The 2026-09-24
+decision was to keep the shipped models. This table preserves the old rig brief
+for reference only:
 
 | Id | What is missing | The ask |
 |---|---|---|
@@ -446,15 +486,28 @@ fan designs only.
 Assets for the seven planned features in `PLAN.md` §16 (sky traffic, the working
 landing pad, banthas, the horizon sandcrawler, refinery pipes & steam, quay dressing,
 the ringworld skyline). The landing freighter uses the authored `freighter`
-model above. The distant sky traffic currently uses a box-built procedural
+model above. Most distant sky traffic still uses a box-built procedural
 liner in `src/world/traffic.ts`; it does **not** load the freighter model.
 The skyline and quay nets are textures (see `ASSETS_IMAGES.md`), not models.
 The sky frigate reference was added on 2026-09-24 at
-`reference/props/spice_run_frigate_ref.png` for an eventual replacement:
+`reference/props/spice_run_frigate_ref.png`, then used to generate the carrier:
 
 | Id | Board | Size | Role / constraints |
 |---|---|---|---|
-| `spice_run_frigate` ◇ | Spice Run sky traffic | ~180 m long | Replace the distant procedural liner silhouette. Model the side, front and top views in `reference/props/spice_run_frigate_ref.png`: broad faceted prow, terraced command tower, paired fighter hangars and launch apertures, recessed turrets, and a dense aft engine bank. Keep the carrier silhouette and hangar openings readable at 250–400 m. Background only: no collider, rig or playable interior. |
+| `spice_run_frigate` ✅ | Spice Run far sky lane | ~180 m long | Authored carrier from the canonical side view: broad faceted prow, terraced command tower, side hangars, and aft engine bank. Background only: no collider, rig or playable interior. `src/world/traffic.ts` swaps it over the procedural liner when loaded. |
+
+**Static-model pipeline, 2026-09-24.** The Tripo source is preserved locally at
+`model-work/source/spice_run_frigate_orig.glb` (ignored working archive). The
+Generations pipeline's Blender `cleanup_mesh.py` welded duplicate vertices and
+removed no faces (16,814 triangles); four turnaround renders were inspected.
+`create_static_lod.py` decimated it to 8,000 triangles, preserving the prow,
+bridge, hangars and engines. `gltfpack -cc` produced the 4.5 MB published
+`public/models/spice_run_frigate.glb` at 7,997 triangles (three degenerate
+triangles removed). Blender's `verify_static_carrier_glb.py` reimport confirmed
+one textured static mesh, UVs, no armature, centered bounds and glTF Z long axis.
+The runtime scales that axis to 180 m and rotates its +Z nose to match the
+traffic path. These Blender stages were useful for this asset; future assets
+should use them when needed. The loader requires a valid oriented `.glb`.
 
 The four other ambient props are:
 
@@ -495,8 +548,9 @@ integrated** — the last batch (`ring_enforcer`, `krykna`, `krykna_brood`,
 2026-08-28; the fourth hunter, the blue gunslinger, reuses the delivered `duelist.glb`,
 and the fifth, IG-11, reuses `ig11.glb`. **The environment batch above is delivered and
 wired too**, along with the weapon props `saber_curved`, `crossbow`, `longrifle` and
-`pistol`, and the game-mode props `blast_door` and `corridor_crate`. **The second monster
-batch and the mouth re-exports (above) are what is open on the model side.**
+`pistol`, and the game-mode props `blast_door` and `corridor_crate`. The Jedi
+`jedi.glb` and Spice Run carrier `spice_run_frigate.glb` arrived on 2026-09-24.
+Only the optional Missions v3 outdoor set remains on the model side.
 
 ### Three intake paths
 

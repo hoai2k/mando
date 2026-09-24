@@ -314,7 +314,7 @@ export function buildWaystation(): Board {
   // ---- sky traffic (PLAN.md §16.1) ----
   const trafficUpdate = addSkyTraffic(group, [
     { center: new THREE.Vector3(0, 90, 0), rx: 300, rz: 260, speed: 0.016, phase: 0.4, scale: 4 },
-    { center: new THREE.Vector3(40, 140, -60), rx: 380, rz: 340, speed: 0.011, phase: 2.6, scale: 6 },
+    { center: new THREE.Vector3(40, 140, -60), rx: 380, rz: 340, speed: 0.011, phase: 2.6, scale: 6, frigate: true },
     { center: new THREE.Vector3(-30, 55, 30), rx: 240, rz: 200, speed: 0.02, phase: 4.5, scale: 3, rumble: true },
   ]);
 

@@ -288,14 +288,24 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
 export function makeSaber(
   mHilt: THREE.Material,
   mDark: THREE.Material,
-  opts: { light?: boolean } = {},
+  opts: { light?: boolean; style?: 'red' | 'white' } = {},
 ): THREE.Group {
   const g = new THREE.Group();
-  // hilt: main grip with a curved hook at the pommel
-  addCyl(g, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
-  addCyl(g, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);   // emitter shroud
-  addCyl(g, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
-  addSphere(g, mDark, 0.02, 0.05, -0.175, 0, 8, 6);                  // pommel cap
+  const white = opts.style === 'white';
+  if (white) {
+    // The Jedi's separate hilt is a procedural stand-in until its concept is
+    // approved and modelled. Keep the same mount and length as the final prop.
+    addCyl(g, mHilt, 0.021, 0.021, 0.21, 0, -0.06, 0, 0, 0, 0, 10);
+    for (const y of [-0.12, -0.065, -0.01]) addCyl(g, mDark, 0.023, 0.023, 0.018, 0, y, 0, 0, 0, 0, 10);
+    addCyl(g, mHilt, 0.028, 0.022, 0.055, 0, 0.055, 0, 0, 0, 0, 10);
+    addSphere(g, mDark, 0.023, 0, -0.18, 0, 10, 8);
+  } else {
+    // Ventress's curved hilt: main grip with a hook at the pommel.
+    addCyl(g, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
+    addCyl(g, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);
+    addCyl(g, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
+    addSphere(g, mDark, 0.02, 0.05, -0.175, 0, 8, 6);
+  }
   const blade = new THREE.Group();
   blade.position.y = 0.06;
   g.add(blade);
@@ -303,8 +313,11 @@ export function makeSaber(
   // the trail builder needs the blade's frame and reach to sample tip arcs
   g.userData.blade = blade;
   g.userData.bladeLen = BLADE_LEN;
+  g.userData.trailColor = white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
   for (const [r, color, opacity] of [
-    [0.011, 0xfff0f0, 0.95], [0.026, 0xff2a1e, 0.42], [0.045, 0xff2a1e, 0.14],
+    [0.011, white ? 0xffffff : 0xfff0f0, 0.95],
+    [0.026, white ? 0xe8f5ff : 0xff2a1e, 0.42],
+    [0.045, white ? 0xc9e8ff : 0xff2a1e, 0.14],
   ] as const) {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, BLADE_LEN, 8), glowMat(color, opacity));
     m.position.y = BLADE_LEN / 2;
@@ -321,12 +334,12 @@ export function makeSaber(
   // swing and, because the renderer skips invisible subtrees, costs nothing
   // while the weapon is stowed.
   if (opts.light !== false) {
-    const light = new THREE.PointLight(0xff3a24, 3.2, 5, 2);
+    const light = new THREE.PointLight(white ? 0xddefff : 0xff3a24, 3.2, 5, 2);
     light.position.y = BLADE_LEN * 0.45;
     light.castShadow = false;
     blade.add(light);
   }
-  swapWeapon(g, 'saber_curved', 0.26, -Math.PI / 2);
+  if (!white) swapWeapon(g, 'saber_curved', 0.26, -Math.PI / 2);
   return g;
 }
 
@@ -342,6 +355,7 @@ export function makeSaber(
 export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group): (dt: number, active: boolean) => void {
   const blade = saber.userData.blade as THREE.Object3D | undefined;
   const len = (saber.userData.bladeLen as number) ?? 0.9;
+  const trailColor = (saber.userData.trailColor as [number, number, number] | undefined) ?? [1, 0.22, 0.16];
   if (!blade) return () => {};
   const N = 10;            // samples kept
   const TTL = 0.13;        // seconds a sample lives
@@ -389,7 +403,7 @@ export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group): (dt: n
         host.worldToLocal(local);
         positions.set([local.x, local.y, local.z], (i * 2 + j) * 3);
         // additive: darker is more transparent, so the fade lives in the color
-        colors.set([1.0 * fade, 0.22 * fade, 0.16 * fade], (i * 2 + j) * 3);
+        colors.set(trailColor.map((c) => c * fade), (i * 2 + j) * 3);
       }
     }
     geo.attributes.position.needsUpdate = true;

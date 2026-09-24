@@ -5,7 +5,10 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**No open image requests as of 2026-09-24.** The Spice Run sky frigate's
+**No open image generation requests as of 2026-09-24.** The Jedi's approved
+front and matching side/back turnaround are saved under
+`reference/characters/jedi_*.png`, and his separate saber-hilt concept is
+awaiting design review before an authored hilt is made. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The Guild Gunslinger and Escort Droid
 front, side and back sheets now live in `reference/characters/` and are recorded in
@@ -23,9 +26,9 @@ more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
 future request would otherwise have to rediscover.
 
-The model side ([`ASSETS_MODELS.md`](ASSETS_MODELS.md)) carries the mouth re-exports
-for the older creature rigs and a small optional outdoor set for the same Missions
-design.
+The model side ([`ASSETS_MODELS.md`](ASSETS_MODELS.md)) carries a small optional
+outdoor set for Missions v3. The older spider mouth re-exports were closed by
+decision on 2026-09-24.
 
 **Global specs unless noted:** sRGB, no baked lighting or shadows (lighting is dynamic), no
 text or watermarks, no logos, and no reproductions of copyrighted designs — describe the
@@ -74,9 +77,9 @@ same rule as the audio prompts — which keeps output original and on-style.
 
 ## Not wanted — reference sheets for the mouth re-exports (2026-09-02)
 
-The re-export request in
+The now-closed re-export brief in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md#re-exports--openable-mouths-on-the-older-creature-rigs-2026-09-02)
-asks for a jaw on the massiff, the krykna and the broodmother. **No new art is needed
+describes a jaw on the massiff and fang bones for the krykna and broodmother. **No new art is needed
 for it**: nothing about the creatures' design changes, and the ask is purely a rig
 addition. The existing `massiff_front/side/back.png` and `krykna_ref.png` stay the
 reference. The mouth audit behind that request, and what it means for future prompts,

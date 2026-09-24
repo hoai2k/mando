@@ -94,7 +94,7 @@ function bossKinds(board: BoardId): EnemyKind[] {
 export const BOARD_PROPS: Record<BoardId, string[]> = {
   desert: ['cargo_crate', 'sail_barge', 'vaporator', 'tusken_tent', 'homestead_dome',
     'sandcrawler', 'bantha', 'nikto_swoop', 'landspeeder', 'skiff'],
-  station: ['cargo_crate', 'fuel_barrel', 'cargo_crane', 'freighter'],
+  station: ['cargo_crate', 'fuel_barrel', 'cargo_crane', 'freighter', 'spice_run_frigate'],
   nevarro: ['adobe_tower', 'adobe_gate', 'speeder_bike'],
   crevasse: ['cargo_crate', 'survey_crawler'],
   trask: ['cargo_crate', 'trawler', 'dock_shed', 'fish_rack', 'skiff'],

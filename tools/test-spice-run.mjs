@@ -15,6 +15,13 @@ try {
     window.__game.board.group.traverse((o) => { if (o.userData?.prop === 'freighter') ship = o; });
     return !!ship && ship.children.length > 0;
   }, null, { timeout: 30000 });
+  await h.page.waitForFunction(() => {
+    let frigate = null;
+    window.__game.board.group.traverse((o) => {
+      if (o.userData?.skyTraffic === 'spice_run_frigate') frigate = o;
+    });
+    return !!frigate && frigate.getObjectByName('spice_run_frigate')?.children.length > 0;
+  }, null, { timeout: 30000 });
 
   const result = await h.page.evaluate(() => {
     const g = window.__game;
@@ -29,6 +36,10 @@ try {
       x >= b.min.x && x <= b.max.x && y >= b.min.y && y <= b.max.y && z >= b.min.z && z <= b.max.z);
     let ship = null;
     g.board.group.traverse((o) => { if (o.userData?.prop === 'freighter') ship = o; });
+    let frigate = null;
+    g.board.group.traverse((o) => {
+      if (o.userData?.skyTraffic === 'spice_run_frigate') frigate = o;
+    });
     const shipBoxes = ship ? g.board.physics.boxes.filter((b) =>
       b.max.x >= ship.position.x - 7 && b.min.x <= ship.position.x + 7
       && b.max.z >= ship.position.z - 7 && b.min.z <= ship.position.z + 7
@@ -55,6 +66,10 @@ try {
       shipColliderCount: shipBoxes.length,
       standInCylinders: standInCylinders.length,
       lowGaps,
+      frigateLoaded: !!frigate?.getObjectByName('spice_run_frigate')?.children.length,
+      frigateFallbackHidden: frigate?.children[0]?.visible === false,
+      frigatePrefetched: window.__propsUsed().includes('spice_run_frigate')
+        && window.__boardProps().station.includes('spice_run_frigate'),
     };
   });
   check('a broad station hull closes both sides of the door', result.wall, result);
@@ -66,6 +81,8 @@ try {
     result.shipLoaded && result.shipColliderCount > 3 && result.shipColliderCount < 220
       && result.standInCylinders === 0, result);
   check('the freighter retains duckable space beneath its fitted hull', result.lowGaps > 20, result);
+  check('the authored frigate replaces the distant traffic silhouette',
+    result.frigateLoaded && result.frigateFallbackHidden && result.frigatePrefetched, result);
 } finally {
   await h.close();
 }

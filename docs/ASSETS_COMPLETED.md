@@ -9,14 +9,37 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
-## Spice Run sky frigate reference — delivered 2026-09-24
+## Spice Run sky frigate reference and model — delivered 2026-09-24
 
 `reference/props/spice_run_frigate_ref.png` is the canonical side, front and top
 reference for an original shipping-lane frigate/carrier. Revised on 2026-09-24,
 it has a broad faceted armored prow, terraced command tower, paired fighter
 hangars with launch apertures, recessed turrets, and a dense aft engine bank.
-The sheet is a production input only; the ship visible in Spice Run sky traffic
-remains a procedural silhouette until an authored model is made and integrated.
+The sheet is a production input only. The Tripo-generated carrier was cleaned,
+decimated and compressed through the Generations static-model Blender pipeline;
+`public/models/spice_run_frigate.glb` now replaces Spice Run's far-lane procedural
+silhouette, which remains as its load fallback. The model has 7,997 triangles,
+one textured mesh, no rig or collider, and is displayed at roughly 180 m long.
+
+## Jedi playable character and references — delivered 2026-09-24
+
+`reference/characters/jedi_front.png`, `jedi_side.png`, and `jedi_back.png` are
+the 1024×1536 canonical turnaround derived from the supplied character image:
+pale hood and tabards, dark layered tunic, fitted trousers and boots. The body
+reference has no jetpack, saber, or waist-mounted hilt. The separate
+`reference/characters/jedi_saber_concept.png` shows a straight weathered
+gunmetal hilt with dark grip bands and an ivory emitter collar; it awaits
+design review and is not yet an approved model reference.
+
+The Tripo multiview body model was cleaned, rigged, decimated and compressed
+through the Generations humanoid Blender stages. `public/models/jedi.glb` is
+the integrated 3.3 MB, 14,998-triangle playable LOD with 33 deform bones. He
+uses dual white saber blade FX and a procedural stand-in hilt pending approval
+of the separate concept. Each hilt stows handle-up on its own hip, sits in its
+own hand, or appears as a thrown projectile. Ventress uses the same ownership
+rules with her authored curved hilt and red blade FX. The hooded face is less
+defined than the concept, and extreme robe poses have not been exhaustively
+checked.
 
 ---
 

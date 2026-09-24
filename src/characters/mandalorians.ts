@@ -17,7 +17,7 @@ import type { VoiceId } from '../core/audio';
 
 export type MandoId =
   | 'din' | 'paz' | 'bokatan' | 'armorer'
-  | 'ventress' | 'embo' | 'bossk' | 'ig11' | 'duelist';
+  | 'ventress' | 'jedi' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
@@ -55,7 +55,7 @@ export interface PlayerCharacter extends CharacterInstance {
  */
 const MODEL_HEIGHT: Record<MandoId, number> = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
-  ventress: 1.79, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
+  ventress: 1.79, jedi: 1.82, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
 interface MandoConfig {
@@ -103,7 +103,7 @@ interface MandoConfig {
    * feet for a character that flies on leg thrusters — no pack is built, and
    * the flames ride the foot bones so they angle with the legs in flight.
    */
-  thrusters?: 'jetpack' | 'feet';
+  thrusters?: 'jetpack' | 'feet' | 'none';
   /**
    * Built for water: a reptilian or amphibious fighter swims faster, turns
    * harder and comes out of a breach higher than a body that has to be
@@ -180,6 +180,13 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,   // her trigger throws a blade
     voice: 'human_f', acrobat: true,
   },
+  jedi: {
+    ...TEXT.characters.jedi,
+    primary: 0xd9d3c3, accent: 0x645e55, suit: 0x302e2a, cape: null,
+    helmet: null, rangefinder: false, bulk: 1,
+    melee: 'sabers', ranged: 'none', skin: 0xc9b9a8,
+    voice: 'mando_m', acrobat: true, thrusters: 'none',
+  },
   embo: {
     ...TEXT.characters.embo,
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
@@ -248,6 +255,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   addBox(b.upperLegR, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
   addSphere(b.lowerLegL, accent, 0.06, 0, -0.02, 0.04, 8, 6);
   addSphere(b.lowerLegR, accent, 0.06, 0, -0.02, 0.04, 8, 6);
+  if (id === 'jedi') {
+    // Cloth tabards over the generic fallback torso; the authored model has
+    // the layered fabric and replaces every procedural body mesh.
+    for (const side of [-1, 1]) {
+      addBox(b.chest, prim, 0.11, 0.34, 0.035, side * 0.15, -0.07, 0.19);
+      addBox(b.hips, prim, 0.14, 0.7, 0.035, side * 0.19, -0.39, 0.13);
+    }
+  }
 
   // ---- heads: Mando helmet variants, or a hunter's own face ----
   const helm = new THREE.Group();
@@ -285,7 +300,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
 
   // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----
   const feetThrusters = cfg.thrusters === 'feet';
-  if (!feetThrusters) {
+  const noThrusters = cfg.thrusters === 'none';
+  if (!feetThrusters && !noThrusters) {
     const jp = new THREE.Group();
     b.jetpack.add(jp);
     addCyl(jp, prim, 0.06, 0.06, 0.34, -0.08, 0, -0.04);
@@ -310,7 +326,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const plumeGeo = new THREE.ConeGeometry(0.05, 0.16, 10, 1, true);
   interface Flame { group: THREE.Group; core: THREE.Mesh; plume: THREE.Mesh; coreMat: THREE.MeshBasicMaterial; plumeMat: THREE.MeshBasicMaterial }
   // Two flame mounts: the pack's twin nozzles, or one sole per foot.
-  const flameMounts: Array<[THREE.Object3D, number, number, number]> = feetThrusters
+  const flameMounts: Array<[THREE.Object3D, number, number, number]> = noThrusters ? [] : feetThrusters
     ? [[b.footL, 0, -0.07, 0.03], [b.footR, 0, -0.07, 0.03]]
     : [[flameRoot, -0.08, NOZZLE_Y, -0.04], [flameRoot, 0.08, NOZZLE_Y, -0.04]];
   const flames: Flame[] = flameMounts.map(([mount, x, y, z]) => {
@@ -383,15 +399,18 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // The melee prop keeps the gaffi's mount and orientation whatever it looks
   // like, so the melee clips swing a saber exactly as they swing the staff.
   const blades = new Map<MeleeKind, Held>();
+  const saberStyle = id === 'jedi' ? 'white' : 'red';
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
     let main: THREE.Group;
     let offhand: THREE.Group | null = null;
     if (kind === 'sabers') {
-      main = makeSaber(silver, dark);
+      main = makeSaber(silver, dark, { style: saberStyle });
+      main.name = 'saberHandR';
       // One blade light per wielder: the off-hand saber skips it, since two
       // point lights buy a glow the eye already reads from one.
-      offhand = pairOn(() => makeSaber(silver, dark, { light: false }));
+      offhand = pairOn(() => makeSaber(silver, dark, { light: false, style: saberStyle }));
+      offhand.name = 'saberHandL';
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver);
     }
@@ -399,6 +418,21 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     main.visible = false;
     b.weaponR.add(main);
     blades.set(kind, { main, offhand });
+  }
+
+  // One hilt per hand, visible handle-up at its hip while stowed. A thrown
+  // slot hides its hip copy, so that saber has one visible location at a time.
+  const holsters: THREE.Group[] = [];
+  if (cfg.ranged === 'none' && blades.has('sabers')) {
+    for (const [hand, side] of [[0, -1], [1, 1]] as const) {
+      const hilt = makeSaber(silver, dark, { light: false, style: saberStyle });
+      (hilt.userData.blade as THREE.Object3D).visible = false;
+      hilt.name = hand === 0 ? 'saberHolsterR' : 'saberHolsterL';
+      hilt.position.set(side * 0.23, 0.025, 0.08);
+      hilt.rotation.z = -side * 0.12;
+      b.hips.add(hilt);
+      holsters.push(hilt);
+    }
   }
 
   // What is in each hand right now; the controller moves these with the D-pad.
@@ -481,7 +515,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
     // weapons, thruster flames and the shield pane belong to the character,
     // not to the body being replaced
-    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot, ...flames.map((f) => f.group)],
+    keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot, ...flames.map((f) => f.group), ...holsters],
     enabled: opts.authored !== false,
     onLoad: (model) => {
       adoptHeroMaterials(model.root);   // the skin arrives after the pass above
@@ -521,6 +555,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       const out = !shieldUp && weapon === 'gaffi' && w === blade;
       w.main.visible = out && saberHeld[0];
       if (w.offhand) w.offhand.visible = out && saberHeld[1];
+      if (w === blades.get('sabers')) {
+        for (const hand of [0, 1] as const) {
+          if (holsters[hand]) holsters[hand].visible = saberHeld[hand] && !out;
+        }
+      }
     }
   };
   // Settle the loadout now rather than waiting for the first weapon switch:
@@ -584,6 +623,14 @@ function buildHunterHead(
 ): void {
   addSphere(helm, skin, 0.13, 0, 0.03, 0, 14, 12, 1.05, 1);   // skull
   switch (id) {
+    case 'jedi': {
+      addBox(helm, dark, 0.032, 0.012, 0.01, -0.05, 0.045, 0.125);
+      addBox(helm, dark, 0.032, 0.012, 0.01, 0.05, 0.045, 0.125);
+      addBox(helm, prim, 0.08, 0.2, 0.12, -0.12, 0.08, 0.02, 0, 0, -0.2);
+      addBox(helm, prim, 0.08, 0.2, 0.12, 0.12, 0.08, 0.02, 0, 0, 0.2);
+      addBox(helm, prim, 0.26, 0.05, 0.13, 0, 0.185, 0);
+      break;
+    }
     case 'ventress': {
       // gaunt pale features: sunken dark eyes, jaw shading, tattoo bands over the crown
       addBox(helm, dark, 0.032, 0.014, 0.01, -0.05, 0.06, 0.125);
