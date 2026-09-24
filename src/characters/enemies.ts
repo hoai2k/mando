@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { holdPolearm } from '../anim/polearmGrip';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
@@ -103,8 +102,7 @@ const AUTHORED_ENEMY: Record<string, number> = {
  * finding it wherever the gun goes; shot direction is computed from the
  * chest, never from the barrel, so aim is untouched.
  */
-function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY,
-  enabled = true, beforeRetarget?: () => void): void {
+function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
@@ -114,7 +112,7 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
     },
   });
   const prev = inst.cosmetic;
-  inst.cosmetic = (dt, time) => { beforeRetarget?.(); swap.update(); prev?.(dt, time); };
+  inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
   // the menus show a spinner rather than the body underneath until this turns
   // true; `settled` covers "no file exists" too, so a kind without a sculpt is
   // presentable immediately
@@ -144,10 +142,7 @@ export function buildTusken(authored = true): CharacterInstance {
   // The +Y spearhead should point with the striking arm, not up from it.
   gaffi.rotation.x = Math.PI;
   b.weaponR.add(gaffi);
-  const polearmAxis = new THREE.Group();
-  polearmAxis.rotation.x = Math.PI;
-  b.weaponR.add(polearmAxis);
-  authoredEnemy(inst, rig, 'tusken', authored, () => holdPolearm(rig, polearmAxis));
+  authoredEnemy(inst, rig, 'tusken', authored);
   return inst;
 }
 

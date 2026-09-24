@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
+import { counterweightTracks } from '../anim/counterweight';
 import { spearTestClips } from './spearTests';
 
 /** Original game clips stay intact. Each study is a separate workbench clip. */
@@ -97,8 +98,12 @@ function addMove(clips: ClipSet, move: Move, p: Proportions, style: CombatStyle)
       ? [v[0] * power, v[1] * power, v[2] * power]
       : [v[0], v[1] * power, v[2] * power];
   });
-  const upper = Object.entries(move.upper).map(([bone, poses]) =>
+  const upper = Object.entries(move.upper)
+    .filter(([bone]) => !move.id.startsWith('staff') || (bone !== 'upperArmL' && bone !== 'forearmL'))
+    .map(([bone, poses]) =>
     qtrack(bone, times, scaled(bone as Bone, poses)));
+  if (move.id.startsWith('staff'))
+    upper.push(...counterweightTracks(`${move.id}Upper`, times));
   clips[`${move.id}Upper`] = new THREE.AnimationClip(`${move.id}Upper`, duration, upper);
 
   const lowerAngles = move.lower ?? lowerStep(move.step ?? 'still', power);

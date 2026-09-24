@@ -1,6 +1,5 @@
 import { TEXT } from '../text';
 import * as THREE from 'three';
-import { holdPolearm } from '../anim/polearmGrip';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
@@ -466,12 +465,6 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
   const blades = new Map<MeleeKind, Held>();
-  // This stays on the canonical right hand when an authored prop moves onto
-  // its visible hand. Both builds therefore solve the base-hand grip from the
-  // same weapon axis before the authored skeleton is updated.
-  const polearmAxis = new THREE.Group();
-  polearmAxis.rotation.x = Math.PI;
-  b.weaponR.add(polearmAxis);
   const saberStyle = id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa'
     : id === 'maul' ? 'double' : id === 'revan' ? 'dark' : 'red';
   for (const kind of meleeKinds(id)) {
@@ -714,10 +707,6 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     },
     cosmetic: (dt, time) => {
       shield.update(dt, time);
-      if (!shieldUp && weapon === 'gaffi' && blade === blades.get('gaffi'))
-        holdPolearm(rig, polearmAxis);
-      if (id === 'maul' && !shieldUp && weapon === 'gaffi' && blade === blades.get('sabers') && saberHeld[0])
-        holdPolearm(rig, blade.main, [-0.17, -0.15, -0.13, -0.11]);
       if (id === 'maris' && sabers) {
         const [right, left] = tonfaTurns(inst.animator?.playing('upper') ?? null,
           inst.animator?.clipProgress('upper') ?? 0);

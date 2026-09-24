@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
+import { counterweightTracks } from '../anim/counterweight';
 
 /** Workbench-only spear studies. The game's melee combo remains untouched. */
 const D = Math.PI / 180;
@@ -18,11 +19,9 @@ const pos = (bone: string, times: number[], poses: Angles[]): THREE.VectorKeyfra
 export function spearTestClips(p: Proportions): ClipSet {
   const y = p.hipHeight;
   // The point is local +Y and the mount turns it toward the extended arm's
-  // forward axis. The base hand follows the rear shaft through polearmGrip.
+  // forward axis. These are one-handed strikes with a keyed free-arm counterweight.
   const guardR: Angles = [-69, -12, -15];
-  const guardL: Angles = [-73, 25, 14];
   const recoverR: Angles = [-68, -10, -14];
-  const recoverL: Angles = [-70, 24, 15];
   const clips: ClipSet = {};
 
   // Test 1: fixed-foot extension. Point and hands lead; torso arrives after.
@@ -32,8 +31,7 @@ export function spearTestClips(p: Proportions): ClipSet {
     rot('upperArmR', a, [guardR, guardR, [-82, -10, -10], [-94, 0, -7], [-90, 0, -7], recoverR]),
     rot('forearmR', a, [[-46, 0, 0], [-46, 0, 0], [-28, 0, 0], [-9, 0, 0], [-11, 0, 0], [-44, 0, 0]]),
     rot('handR', a, [[4, 0, 0], [4, 0, 0], [0, 0, 0], [-2, 0, 0], [-2, 0, 0], [4, 0, 0]]),
-    rot('upperArmL', a, [guardL, guardL, [-79, 18, 12], [-83, 12, 10], [-81, 12, 10], recoverL]),
-    rot('forearmL', a, [[-52, -18, -26], [-52, -18, -26], [-38, -18, -26], [-28, -16, -22], [-30, -16, -22], [-50, -18, -26]]),
+    ...counterweightTracks('spearTest1Upper', a),
     rot('head', a, [[0, 7, 0], [0, 7, 0], [0, 4, 0], [0, -2, 0], [0, -2, 0], [0, 7, 0]]),
   ]);
   clips.spearTest1Lower = new THREE.AnimationClip('spearTest1Lower', 0.9, [
@@ -51,8 +49,7 @@ export function spearTestClips(p: Proportions): ClipSet {
     rot('chest', b, [[2, -22, 0], [2, -22, 0], [2, -14, 0], [7, 13, 0], [7, 13, 0], [2, -22, 0]]),
     rot('upperArmR', b, [guardR, guardR, [-86, -8, -10], [-103, 7, -5], [-100, 7, -5], recoverR]),
     rot('forearmR', b, [[-49, 0, 0], [-49, 0, 0], [-24, 0, 0], [-5, 0, 0], [-7, 0, 0], [-47, 0, 0]]),
-    rot('upperArmL', b, [guardL, guardL, [-80, 19, 12], [-91, 12, 7], [-88, 12, 7], recoverL]),
-    rot('forearmL', b, [[-54, -18, -27], [-54, -18, -27], [-38, -18, -24], [-21, -14, -19], [-23, -14, -19], [-52, -18, -27]]),
+    ...counterweightTracks('spearTest2Upper', b),
     rot('head', b, [[0, 8, 0], [0, 8, 0], [0, 5, 0], [0, -5, 0], [0, -5, 0], [0, 8, 0]]),
   ]);
   clips.spearTest2Lower = new THREE.AnimationClip('spearTest2Lower', 1.08, [
@@ -70,8 +67,7 @@ export function spearTestClips(p: Proportions): ClipSet {
     rot('chest', c, [[2, -17, 0], [2, -12, 0], [1, 9, 0], [1, 4, 0], [3, 16, 0], [3, 16, 0], [2, -17, 0]]),
     rot('upperArmR', c, [guardR, [-72, -34, -10], [-78, 32, -8], [-85, 18, -8], [-98, 4, -5], [-96, 4, -5], recoverR]),
     rot('forearmR', c, [[-46, 0, 0], [-38, 0, 0], [-33, 0, 0], [-24, 0, 0], [-8, 0, 0], [-9, 0, 0], [-45, 0, 0]]),
-    rot('upperArmL', c, [guardL, [-77, 11, 15], [-82, 40, 10], [-82, 27, 10], [-87, 13, 8], [-86, 13, 8], recoverL]),
-    rot('forearmL', c, [[-52, -18, -26], [-49, -20, -24], [-44, -12, -22], [-37, -14, -22], [-26, -14, -19], [-26, -14, -19], [-52, -18, -26]]),
+    ...counterweightTracks('spearTest3Upper', c),
     rot('head', c, [[0, 6, 0], [0, 2, 0], [0, -8, 0], [0, -4, 0], [0, -8, 0], [0, -8, 0], [0, 6, 0]]),
   ]);
   clips.spearTest3Lower = new THREE.AnimationClip('spearTest3Lower', 1.16, [

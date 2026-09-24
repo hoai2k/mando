@@ -14,6 +14,7 @@ import './workbench.css';
 import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
+import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
@@ -154,6 +155,7 @@ let weaponAwaiting = false;
 let weaponSample = 0;
 let animationSpeed = 1;
 let paused = false;
+let offhandStrength = 0.5;
 let alternateChoice = initialParams.get('alternate') ?? 'none';
 function alternatesFor(p: Pose): Alternate[] {
   return (ATTACK_ALTERNATES[p.id] ?? []).filter((alt) => figures.length > 0
@@ -161,15 +163,24 @@ function alternatesFor(p: Pose): Alternate[] {
 }
 function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
-  if (subject.id === 'maris' && alternateChoice === 'none') {
-    const tonfa: Record<string, string> = {
+  let upper = selected.upper;
+  if (alternateChoice === 'none' && (subject.id === 'maris' || subject.id === 'maul')) {
+    const weaponClips: Record<string, string> = subject.id === 'maris' ? {
       saberIdleUpper: 'tonfaIdleUpper', saberRunUpper: 'tonfaRunUpper',
       saber1: 'tonfa1', saber2: 'tonfa2', saber3: 'tonfa3',
       saberFlourish: 'tonfaFlourish',
+    } : {
+      saberIdleUpper: 'staffIdleUpper', saberRunUpper: 'staffRunUpper',
+      saber1: 'staff1', saber2: 'staff2', saber3: 'staff3',
+      saberFlourish: 'staffFlourish',
     };
-    return { lower: selected.lower, upper: selected.upper ? (tonfa[selected.upper] ?? selected.upper) : null };
+    upper = upper ? (weaponClips[upper] ?? upper) : null;
   }
-  return selected;
+  if (hasCounterweight(upper)) {
+    const variant = `${upper}Offhand${Math.round(offhandStrength * 100)}`;
+    if (figures.every((f) => !!f.inst.animator?.clips[variant])) upper = variant;
+  }
+  return { lower: selected.lower, upper };
 }
 
 /**
@@ -222,6 +233,13 @@ function spawn(): void {
       Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, subject.id, {
         staff, sabers: mando.includes('sabers'),
       }));
+      for (const clip of Object.values(inst.animator.clips)) {
+        if (!hasCounterweight(clip.name)) continue;
+        for (const strength of [0, 0.25, 0.5, 0.75, 1, 1.25]) {
+          const variant = counterweightVariant(clip, strength);
+          if (variant) inst.animator.clips[variant.name] = variant;
+        }
+      }
     }
     inst.root.position.x = wants.length > 1 ? (i === 0 ? -0.75 : 0.75) : 0;
     inst.root.traverse((o) => { o.castShadow ||= (o as THREE.Mesh).isMesh; });
@@ -568,6 +586,9 @@ function renderPanel(): void {
   const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
+  const selectedUpper = (choices.find((alt) => alt.id === alternateChoice) ?? pose).upper;
+  const counterweightAvailable = hasCounterweight(selectedUpper)
+    || (subject.id === 'maul' && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
   if (alternateChoice !== 'none' && !choices.some((alt) => alt.id === alternateChoice)) alternateChoice = 'none';
   syncSelectionUrl();
 
@@ -598,6 +619,11 @@ function renderPanel(): void {
       </select>
     </div>` : ''}
     ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed study · weapons hidden · not used in combat yet.</p>` : ''}
+    ${counterweightAvailable ? `<div class="field playback">
+      <label for="offhandStrength">Free arm counterweight <output id="offhandValue">${Math.round(offhandStrength * 100)}%</output></label>
+      <input id="offhandStrength" type="range" min="0" max="1.25" step="0.25" value="${offhandStrength}" aria-label="Free arm counterweight">
+      <p class="hint">Adjust how far the free arm reaches during the windup.</p>
+    </div>` : ''}
 
     <div class="field playback">
       <label for="animationSpeed">Animation speed <output id="speedValue">${animationSpeed.toFixed(2)}×</output></label>
@@ -690,6 +716,13 @@ function renderPanel(): void {
   panel.querySelector<HTMLInputElement>('#animationSpeed')!.oninput = (e) => {
     animationSpeed = Number((e.target as HTMLInputElement).value);
     panel.querySelector<HTMLOutputElement>('#speedValue')!.value = `${animationSpeed.toFixed(2)}×`;
+  };
+  const offhandSlider = panel.querySelector<HTMLInputElement>('#offhandStrength');
+  if (offhandSlider) offhandSlider.oninput = (e) => {
+    offhandStrength = Number((e.target as HTMLInputElement).value);
+    panel.querySelector<HTMLOutputElement>('#offhandValue')!.value = `${Math.round(offhandStrength * 100)}%`;
+    applyPose();
+    if (editing) freezePose();
   };
   panel.querySelector<HTMLButtonElement>('#pauseAnimation')!.onclick = (e) => {
     paused = !paused;

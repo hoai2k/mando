@@ -8,7 +8,7 @@ These are candidates for visual review. The **In game** picker group contains cl
 | --- | --- | --- |
 | Melee 1 | Fixed-foot thrust; long lunge thrust; deflect → thrust | Put the spear point first, then move the body and lead foot. |
 | Melee 2 | Butt-end return; low rising sweep | Give the staff's second end a job and vary the attack level. |
-| Melee 3 | Two-hand descending blow; diagonal step and strike | Carry a heavy finish with the hips and lead leg. |
+| Melee 3 | Descending blow; diagonal step and strike | Carry a heavy finish with the hips and lead leg. |
 | Sabers 1 | Right-point lunge; right draw-cut | Let one blade strike while the other covers. |
 | Sabers 2 | Left parry and return; left oblique cut | Change the lead hand and attack line. |
 | Sabers 3 | Cross then open; twin point finish | Show both blades acting together at a clear finishing beat. |
@@ -22,7 +22,7 @@ Pacing and committed pose vary by style: Paz and the Armorer are heavier and slo
 ## Source decisions
 
 - [Academie Duello, *Attacks of the Spear*](https://www.academieduello.com/blog/attacks-of-the-spear/) informs the fixed-foot and lunge thrusts, especially its point/body/foot order.
-- [Academie Duello, *Polearms*](https://www.academieduello.com/learn/arts/polearms/) describes quarterstaff use of both ends and two-handed leverage. [IWUF's taolu overview](https://www.iwuf.org/en/sport-wushu/competitive-wushu/taolu/) describes staff attacks, whole-body power, and dual-weapon coordination. These inform the return strike, sweep, and dual-saber studies; the blades are not claimed to be a formal wushu style.
+- [Academie Duello, *Polearms*](https://www.academieduello.com/learn/arts/polearms/) describes quarterstaff use of both ends and two-handed leverage. [IWUF's taolu overview](https://www.iwuf.org/en/sport-wushu/competitive-wushu/taolu/) describes staff attacks, whole-body power, and dual-weapon coordination. These inform the return strike, sweep, and dual-saber studies; the current staff previews use one hand until a complete two-arm version is choreographed. The blades are not claimed to be a formal wushu style.
 - [England Boxing's coaching handbook, straight punches](https://www.englandboxing.org/wp-content/uploads/2022/03/EB_Boxing-Coaching-Handbook-Part-1_v8-002.pdf) informs the lead/rear straight guard, hip rotation, extension, and recovery of the unarmed previews.
 - Two suitable public-domain motion sources were found: [Quaternius's CC0 Animated Human](https://opengameart.org/content/animated-human-low-poly) includes a punch, and the [CC0 Universal Animation Library](https://opengameart.org/content/universal-animation-library) includes humanoid combat motions intended for retargeting. The [CC0 Animated Men Pack](https://poly.pizza/bundle/Animated-Men-Pack-DAC9SDgMQT) also supplies a punch in GLB/FBX form. We kept these as retargeting candidates rather than presenting their source-rig motion as if it already fit the game's canonical skeleton. The workbench's unarmed previews are newly keyed for that skeleton and are not imports from these packs.
 - The [Star Wars Databank entries for Din](https://www.starwars.com/databank/the-mandalorian), [Bo-Katan](https://www.starwars.com/databank/bo-katan-kryze), [Ventress](https://www.starwars.com/databank/asajj-ventress), [Embo](https://www.starwars.com/databank/embo), [Bossk](https://www.starwars.com/databank/bossk), [Cad Bane](https://www.starwars.com/databank/cad-bane), and [IG-11](https://www.starwars.com/databank/ig-11) inform character weight, weapon, and temperament choices.
@@ -30,4 +30,4 @@ Pacing and committed pose vary by style: Paz and the Armorer are heavier and slo
 
 ## Review limits
 
-The right hand drives the gaderffii. A support-hand reach solver follows a reachable point on its rear shaft; extreme one-handed swing poses can still leave a small gap. The looped workbench preview is longer than the gameplay one-shot. Study the weapon path, hand contact, foot placement, and return to guard before promoting any candidate. Gameplay hit windows, audio, damage, and reach are unchanged.
+The right hand drives the gaderffii and Maul's connected double blade. Their free arms now have keyed counterweight poses instead of a runtime grip solver. The old solver reached across the chest and made the forearm pass through the torso; that was the cause of the reported regression. The workbench slider previews authored variants from 0% to 125% reach while the game uses the subtle 50% version. The looped workbench preview is longer than the gameplay one-shot. Study the weapon path, hand contact, foot placement, and return to guard before promoting any candidate. Gameplay hit windows, audio, damage, and reach are unchanged.
