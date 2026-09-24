@@ -420,7 +420,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     blades.set(kind, { main, offhand });
   }
 
-  // One hilt per hand, visible handle-up at its hip while stowed. A thrown
+  // One hilt per hand at its hip while stowed. A thrown
   // slot hides its hip copy, so that saber has one visible location at a time.
   const holsters: THREE.Group[] = [];
   if (cfg.ranged === 'none' && blades.has('sabers')) {
@@ -429,7 +429,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       (hilt.userData.blade as THREE.Object3D).visible = false;
       hilt.name = hand === 0 ? 'saberHolsterR' : 'saberHolsterL';
       hilt.position.set(side * 0.23, 0.025, 0.08);
-      hilt.rotation.z = -side * 0.12;
+      hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : -side * 0.12;
       b.hips.add(hilt);
       holsters.push(hilt);
     }
@@ -532,6 +532,19 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
           if (w.offhand) model.weaponMountL.add(w.offhand);
         }
       }
+      if (id === 'ventress') {
+        // Her authored palms sit to the side of the generic Rigify hand
+        // origins. Keep the correction on the saber props so other weapons
+        // and the canonical animation tracks retain their existing mounts.
+        const sabers = blades.get('sabers');
+        if (sabers) {
+          sabers.main.position.set(0.06, 0.02, 0.08);
+          if (sabers.offhand) sabers.offhand.position.set(0.06, 0.1, 0.08);
+        }
+      }
+      // The procedural hip keeps animating but is hidden under the authored
+      // skin. Carry the stowed hilts on the visible pelvis instead.
+      if (model.holsterMount) for (const hilt of holsters) model.holsterMount.add(hilt);
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
       if (!feetThrusters) flameRoot.position.y = -0.02;

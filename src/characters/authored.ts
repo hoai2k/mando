@@ -131,6 +131,8 @@ export interface AuthoredModel {
   weaponMount: THREE.Object3D | null;
   /** the same, in the left hand, for a character who carries a pair */
   weaponMountL: THREE.Object3D | null;
+  /** canonical hip frame for props carried by the authored body */
+  holsterMount: THREE.Object3D | null;
   /** hips bone, driven positionally as well as rotationally */
   hips: THREE.Object3D | null;
   /** metres per model unit, for anything measured in world space */
@@ -610,6 +612,15 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
   const weaponMount = handMount('handR', 'weaponMount');
   const weaponMountL = handMount('handL', 'weaponMountL');
+  const hip = nodes.find((n) => n.canonical === 'hips');
+  const holsterMount = hip ? new THREE.Group() : null;
+  if (hip && holsterMount) {
+    holsterMount.name = 'holsterMount';
+    const hipScale = new THREE.Vector3().setFromMatrixScale(hip.obj.matrixWorld).x || 1;
+    holsterMount.quaternion.copy(hip.rest).invert();
+    holsterMount.scale.setScalar(1 / hipScale);
+    hip.obj.add(holsterMount);
+  }
 
   return {
     root: wrapper,
@@ -617,6 +628,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     shoulderSlides,
     weaponMount,
     weaponMountL,
+    holsterMount,
     hips: nodes.find((n) => n.canonical === 'hips')?.obj ?? null,
     scale,
     scratch: {
