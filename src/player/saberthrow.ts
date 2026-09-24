@@ -47,9 +47,8 @@ export class ThrownSaber {
   /**
    * @param host scene-level container at identity — the trail converts world
    *   samples into the host's space, so the host must not move
-   * @param opts.light one point light per wielder is the budget; the main
-   *   hand's throw carries it, the off-hand's flies unlit (same rule as the
-   *   blades in hand)
+   * @param opts.light Lit blades carry their light into flight; the Darksaber
+   *   explicitly stays unlit.
    */
   constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' | 'darksaber' } = {}) {
     const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });

@@ -36,7 +36,9 @@ try {
       char.setSaberHeld(0, true);
       const returned = visible();
       const rightHand = root.getObjectByName('saberHandR');
+      const leftHand = root.getObjectByName('saberHandL');
       const bladeLight = rightHand?.getObjectByProperty('type', 'PointLight');
+      const offhandLight = leftHand?.getObjectByProperty('type', 'PointLight');
       const authoredHilt = rightHand?.children.some((child) =>
         child !== rightHand.userData.blade
         && child.type === 'Group'
@@ -44,7 +46,7 @@ try {
       return {
         modelLoaded: char.modelReady(), nozzles: char.nozzles.length,
         stowed, drawn, rightThrown, leftStowedRightThrown, returned,
-        bladeLight: bladeLight?.color?.getHex(), authoredHilt,
+        bladeLight: bladeLight?.color?.getHex(), offhandLight: offhandLight?.color?.getHex(), authoredHilt,
         oppositeBlade: !!rightHand?.userData.oppositeBlade,
       };
     });
@@ -52,6 +54,7 @@ try {
     check(`${id}: authored body loaded`, states.modelLoaded, states);
     if (id !== 'ventress') check(`${id}: separated authored hilt loaded`, states.authoredHilt, states);
     if (id === 'maul' || id === 'revan') {
+      check(`${id}: single lit blade`, states.bladeLight === 0xff3a24 && states.offhandLight === undefined, states);
       check(`${id}: correct blade count`, states.oppositeBlade === (id === 'maul'), states);
       check(`${id}: stows one hilt at the waist`,
         eq(states.stowed, { saberHandR: false, saberHolsterR: true }), states);
@@ -69,6 +72,8 @@ try {
       eq(states.stowed, { saberHandR: false, saberHandL: false, saberHolsterR: true, saberHolsterL: true }), states);
     check(`${id}: drawing moves both hilts to the hands`,
       eq(states.drawn, { saberHandR: true, saberHandL: true, saberHolsterR: false, saberHolsterL: false }), states);
+    check(`${id}: both blades can light separate areas`,
+      states.bladeLight !== undefined && states.offhandLight === states.bladeLight, states);
     check(`${id}: thrown right saber is absent from hip and hand`,
       eq(states.rightThrown, { saberHandR: false, saberHandL: true, saberHolsterR: false, saberHolsterL: false }), states);
     check(`${id}: the other hand can stow independently`,

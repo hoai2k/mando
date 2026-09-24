@@ -3033,7 +3033,7 @@ export class Player {
     if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
     let t = this.thrownSabers[hand];
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
-      light: hand === 0,
+      light: this.characterId !== 'din',
       style: this.characterId === 'din' ? 'darksaber' : this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
         : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
     });

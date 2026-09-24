@@ -124,6 +124,9 @@ interface Slot {
   chars: Map<PlayableId, PlayerCharacter>;
   pedestal: THREE.Mesh;           // the plinth itself, moved with the group
   ring: THREE.Mesh;
+  backGlow: THREE.PointLight;       // soft white light behind a loaded body
+  glowRise: number;                 // seconds since this model became visible
+  glowId: PlayableId | null;
   appear: number;                 // 0 = off stage, 1 = fully in the line
   screenX: number;                // last projected x, 0..1 across the window
   // DOM
@@ -340,7 +343,7 @@ export class CharacterSelect {
 
     // The line starts as player one plus one open place; `layoutStage` sizes
     // and spaces it from there, every frame, as players come and go.
-    for (const s of this.slots) this.scene.add(s.pedestal, s.ring, s.group);
+    for (const s of this.slots) this.scene.add(s.pedestal, s.ring, s.group, s.backGlow);
     this.layoutStage(0);
 
     // Fire and forget. No index means no posters, which is the behaviour this
@@ -375,6 +378,7 @@ export class CharacterSelect {
       s.group.position.x = x;
       s.pedestal.position.x = x;
       s.ring.position.x = x;
+      s.backGlow.position.set(x, 1.35, -0.72);
       const shown = s.appear > 0.02;
       s.group.visible = shown;
       s.pedestal.visible = shown;
@@ -467,11 +471,14 @@ export class CharacterSelect {
     ring.position.y = 0.125;
     const group = new THREE.Group();
     group.position.y = 0.12;
+    const backGlow = new THREE.PointLight(0xffffff, 0, 4.4, 2);
+    backGlow.castShadow = false;
 
     return {
       phase: 'empty', bot: false, owner: -1, choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
-      group, chars: new Map(), pedestal, ring, appear: 0, screenX: 0.5,
+      group, chars: new Map(), pedestal, ring, backGlow, glowRise: 0, glowId: null,
+      appear: 0, screenX: 0.5,
       panel, name, status, kit, spinner, arrows, waiting: false, poster: null,
     };
   }
@@ -976,15 +983,22 @@ export class CharacterSelect {
     let anyJoined = false;
     for (let i = 0; i < this.slots.length; i++) {
       const s = this.slots[i];
-      if (s.phase === 'empty') { s.spinner.style.display = 'none'; this.dropPoster(s); continue; }
+      if (s.phase === 'empty') {
+        s.backGlow.intensity = 0;
+        s.glowRise = 0;
+        s.glowId = null;
+        s.spinner.style.display = 'none'; this.dropPoster(s); continue;
+      }
       anyJoined = true;
       if (s.phase !== 'ready') allReady = false;
 
       const id = this.roster[s.choice];
+      if (s.glowId !== id) { s.glowId = id; s.glowRise = 0; s.backGlow.intensity = 0; }
       // FLIPPING: a picture, and nothing built. The real body is created once
       // this choice has sat still for SETTLE_MS, or the moment it is locked
       // in; a fighter already built never comes back here.
       if (s.poster?.id !== id && this.showPoster(s, id)) {
+        s.backGlow.intensity = 0;
         for (const c of s.chars.values()) c.root.visible = false;
         s.spinner.style.display = 'none';
         continue;
@@ -992,6 +1006,7 @@ export class CharacterSelect {
       if (s.poster && !s.poster.promoted) {
         s.poster.settle -= dt;
         if (s.poster.settle > 0) {
+          s.backGlow.intensity = 0;
           for (const c of s.chars.values()) c.root.visible = false;
           continue;
         }
@@ -1007,6 +1022,14 @@ export class CharacterSelect {
       // nothing to see in it
       const handoff = !!s.poster && current.modelReady();
       if (handoff) this.dropPoster(s);
+      if (current.modelReady() && !s.poster) {
+        s.glowRise = Math.min(1.6, s.glowRise + dt);
+        const breathe = 0.8 + 0.2 * Math.sin(this.time * 1.05 + i * 1.3);
+        s.backGlow.intensity = 1.5 * Math.min(1, s.glowRise / 1.3) * breathe * s.appear;
+      } else {
+        s.glowRise = 0;
+        s.backGlow.intensity = 0;
+      }
       // sized to the plinth once it is the one on show — and again if its
       // authored model arrives and changes what "this fighter" measures
       this.fitToPlinth(current);
@@ -1387,6 +1410,9 @@ export class CharacterSelect {
       s.group.rotation.y = s.baseYaw;
       s.loadingFor = 0;
       s.waiting = false;
+      s.glowRise = 0;
+      s.glowId = null;
+      s.backGlow.intensity = 0;
       this.dropPoster(s);
       for (const c of s.chars.values()) { c.root.visible = false; c.setHeroLight(BASE_GLOW); }
     });

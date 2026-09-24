@@ -299,6 +299,9 @@ export class Game {
   constructor(public board: Board, playerCount: number, aspect: number, private events: GameEvents,
     characters: PlayableId[] = ['din', 'paz'], public mode: GameMode = 'wave', bots = 0) {
     this.scene.add(board.group);
+    // A small neutral floor keeps dark materials legible between authored
+    // lamps without flattening the board's directional light and shadows.
+    this.scene.add(new THREE.AmbientLight(0xffffff, board.ambientFill ?? 0.32));
     this.scene.add(this.projectiles.group);
     this.scene.add(this.particles.group);
     this.scene.background = board.background;

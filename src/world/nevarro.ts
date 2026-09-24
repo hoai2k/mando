@@ -238,6 +238,7 @@ export function buildNevarro(): Board {
     music: 'desert',
     background: new THREE.Color(0x8a8078),
     heroLight: 0.12,
+    ambientFill: 0.58,
     skyFile: 'sky_nevarro',
     proceduralSky,
     fog: new THREE.Fog(0x9a8878, 80, 400),

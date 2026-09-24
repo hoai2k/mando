@@ -199,6 +199,8 @@ export interface Board {
    * keep its mood without losing him against it.
    */
   heroLight?: number;
+  /** Neutral ambient fill added to the whole board; dark surfaces stay readable. */
+  ambientFill?: number;
   /** deadly and damaging zones (sarlacc pit, lava pools, open water) */
   hazards?: Hazard[];
   /**

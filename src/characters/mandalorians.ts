@@ -486,10 +486,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     if (kind === 'sabers') {
       main = makeSaber(silver, dark, { style: saberStyle });
       main.name = 'saberHandR';
-      // One blade light per wielder: the off-hand saber skips it, since two
-      // point lights buy a glow the eye already reads from one.
+      // Both blades carry their own soft light so a thrown off-hand saber
+      // illuminates its path while the main hand still lights the wielder.
       if (id !== 'din' && id !== 'maul' && id !== 'revan') {
-        offhand = pairOn(() => makeSaber(silver, dark, { light: false, style: saberStyle }));
+        offhand = pairOn(() => makeSaber(silver, dark, { style: saberStyle }));
         offhand.name = 'saberHandL';
       }
     } else {

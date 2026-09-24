@@ -384,13 +384,12 @@ export function makeSaber(
     body.add(opposite);
     g.userData.oppositeBlade = opposite;
   }
-  // A blade that lights nothing reads as a painted stick. One point light per
-  // wielder — on the main hand only, since two would double the cost for a
-  // glow the eye reads as one — parented to the blade so it travels with the
-  // swing and, because the renderer skips invisible subtrees, costs nothing
-  // while the weapon is stowed.
-  if (opts.light !== false) {
-    const light = new THREE.PointLight(tonfa || white || darksaber ? 0xddefff : 0xff3a24, 3.2, 5, 2);
+  // Each lit blade carries its own soft pool. Paired hilts use less intensity
+  // each so their pools overlap naturally while held, then separate on throw.
+  // The Darksaber is a dark silhouette and emits no light.
+  if (opts.light !== false && !darksaber) {
+    const paired = tonfa || white || opts.style === 'red';
+    const light = new THREE.PointLight(tonfa || white ? 0xddefff : 0xff3a24, paired ? 1.8 : 3.0, 5.5, 2);
     light.position.y = BLADE_LEN * 0.45;
     light.castShadow = false;
     blade.add(light);

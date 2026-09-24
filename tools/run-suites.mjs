@@ -70,6 +70,7 @@ const SUITES = [
   { name: 'test-controller-claims', weight: 64 },
   { name: 'test-loadout', weight: 137 },
   { name: 'test-saber-throws', weight: 90 },
+  { name: 'test-lighting', weight: 42 },
   { name: 'test-arrivals', weight: 127 },
   { name: 'check-creature-gaits', weight: 224 },
   { name: 'test-loading', weight: 92 },
