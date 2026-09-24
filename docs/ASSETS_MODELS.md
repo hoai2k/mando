@@ -56,6 +56,18 @@ when a name does.
 
 Shared weapon props (separate .glb each, gripped at origin): **EE-3-style carbine** (muzzle node at barrel tip named `muzzle`, reference `carbine.png`), **gaffi stick** (two-handed staff: spearhead + club knot + bottom blade, reference `gaffi.png`).
 
+### Polearm collection concept — pending 3D validation
+
+[`reference/characters/polearm_collection_v1.png`](../reference/characters/polearm_collection_v1.png)
+is a seven-weapon side-view sheet, arranged top to bottom: Tusken-style gaffi
+stick, Rey-style scavenger staff, unpowered MagnaGuard-style electrostaff,
+beskar spear, Imperial force pike, Gamorrean poleaxe, and Nightsister ritual
+polearm. Each is fully visible in its own row against a plain background so
+one Tripo image-to-3D generation can be tried and its meshes separated later.
+The sheet is concept art only: it has not yet been generated or validated as a
+single 3D asset. Inspect whether Tripo preserves separate weapon geometry and
+clean up thin wraps and hanging ties before treating any slice as a game prop.
+
 ## Playable bounty hunters (5) — priority 2
 
 A second playable roster: underworld hunters alongside the Mandalorians. (Two more
