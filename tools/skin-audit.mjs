@@ -205,7 +205,7 @@ function geodesic(mesh, seeds) {
 // ---------- the audit ----------
 export async function auditModel(id) {
   const glb = await readGlb(`${MODELS}/${id}.glb`);
-  const { primitives, world } = glb.skinnedPrimitives();
+  const { primitives, world } = await glb.skinnedPrimitives();
   const humanoid = primitives.filter((p) => p.jointNames.some((n) => /hand\.L/.test(n)) && p.jointNames.some((n) => /thigh\.L/.test(n)));
   if (!humanoid.length) return null;
   const height = HEIGHT[id] ?? 1.85;

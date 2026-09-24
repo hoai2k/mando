@@ -86,7 +86,7 @@ function headStats(prim, fromSlots) {
 
 async function build(cfg, inspect) {
   const g = await readGlb(`public/models/${cfg.id}.glb`);
-  const { primitives, world } = g.skinnedPrimitives();
+  const { primitives, world } = await g.skinnedPrimitives();
   const prim = primitives[0];
   if (!prim) throw new Error(`${cfg.id}: no skinned primitive`);
   const fromSlots = cfg.from.map((n) => prim.jointNames.indexOf(n)).filter((i) => i >= 0);

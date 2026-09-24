@@ -16,6 +16,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { MeshoptDecoder } from '../../node_modules/three/examples/jsm/libs/meshopt_decoder.module.js';
+import { Matrix4, Quaternion, Vector3 } from 'three';
 
 const MAGIC = 0x46546c67;      // 'glTF'
 const JSON_CHUNK = 0x4e4f534a; // 'JSON'
@@ -48,7 +49,62 @@ export function readGlb(path) {
     at += 8 + len + ((4 - (len % 4)) % 4);
   }
   if (!json || !bin) throw new Error(`${path}: expected a JSON chunk and a BIN chunk`);
-  return { version, json, bin };
+  const glb = { version, json, bin };
+  glb.skinnedPrimitives = () => skinnedPrimitives(glb);
+  return glb;
+}
+
+/** Decoded skinned primitives in model space, with the original vertex order. */
+export async function skinnedPrimitives(glb) {
+  await decoderReady;
+  const nodes = glb.json.nodes ?? [];
+  const world = nodes.map(() => new Matrix4());
+  const visited = new Set();
+  const visit = (i, parent) => {
+    if (visited.has(i)) return;
+    visited.add(i);
+    const node = nodes[i];
+    const local = node.matrix
+      ? new Matrix4().fromArray(node.matrix)
+      : new Matrix4().compose(
+        new Vector3(...(node.translation ?? [0, 0, 0])),
+        new Quaternion(...(node.rotation ?? [0, 0, 0, 1])),
+        new Vector3(...(node.scale ?? [1, 1, 1])),
+      );
+    world[i].multiplyMatrices(parent, local);
+    for (const child of node.children ?? []) visit(child, world[i]);
+  };
+  const children = new Set(nodes.flatMap((node) => node.children ?? []));
+  for (let i = 0; i < nodes.length; i++) if (!children.has(i)) visit(i, new Matrix4());
+
+  const decoded = [];
+  nodes.forEach((node, nodeIndex) => {
+    if (node.mesh === undefined || node.skin === undefined) return;
+    const skin = glb.json.skins[node.skin];
+    glb.json.meshes[node.mesh].primitives.forEach((spec, primIndex) => {
+      const attrs = spec.attributes;
+      if (attrs.POSITION === undefined || attrs.JOINTS_0 === undefined || attrs.WEIGHTS_0 === undefined) return;
+      const pos = accessor(glb, attrs.POSITION);
+      const ji = accessor(glb, attrs.JOINTS_0);
+      const wt = accessor(glb, attrs.WEIGHTS_0);
+      const idx = spec.indices === undefined ? null : accessor(glb, spec.indices);
+      const positions = new Float32Array(pos.count * 3);
+      const point = new Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        point.fromArray(pos.data, i * 3).applyMatrix4(world[nodeIndex]);
+        point.toArray(positions, i * 3);
+      }
+      const weights = Float32Array.from(wt.data, (value) => wt.acc.normalized
+        ? value / (wt.acc.componentType === 5121 ? 255 : 65535) : value);
+      decoded.push({
+        nodeIndex, meshIndex: node.mesh, primIndex, count: pos.count, positions,
+        indices: idx?.data ?? null, joints: ji.data, weights,
+        skinJoints: skin.joints,
+        jointNames: skin.joints.map((i) => nodes[i].name ?? ''),
+      });
+    });
+  });
+  return { primitives: decoded, world };
 }
 
 /**

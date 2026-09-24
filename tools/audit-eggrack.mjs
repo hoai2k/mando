@@ -51,7 +51,7 @@ function declared() {
 }
 
 const glb = await readGlb(MODEL);
-const { primitives, world } = glb.skinnedPrimitives();
+const { primitives, world } = await glb.skinnedPrimitives();
 const prim = primitives[0];
 if (!prim) throw new Error('no skinned primitive in krykna_brood.glb');
 

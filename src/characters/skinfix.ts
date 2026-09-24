@@ -42,6 +42,8 @@ export interface SkinFix {
   mesh: { node: number; mesh: number; primitive: number; vertexCount: number };
   vertices: number[];
   donors: Record<string, { joints: number[]; weights: number[] }>;
+  /** Explicit replacement weights for garment panels whose original weights are unusable. */
+  replacements?: Record<string, { joints: number[]; weights: number[] }>;
 }
 
 export interface SkinFixDoc {
@@ -121,11 +123,11 @@ function applyOne(mesh: THREE.SkinnedMesh, fix: SkinFix): void {
   const n = idx.itemSize;
   for (const i of fix.vertices) {
     if (i >= idx.count) continue;
-    const donor = fix.donors[i];
-    if (donor) {
+    const replacement = fix.replacements?.[i] ?? fix.donors[i];
+    if (replacement) {
       for (let k = 0; k < n; k++) {
-        idx.setComponent(i, k, donor.joints[k] ?? 0);
-        w.setComponent(i, k, donor.weights[k] ?? 0);
+        idx.setComponent(i, k, replacement.joints[k] ?? 0);
+        w.setComponent(i, k, replacement.weights[k] ?? 0);
       }
       continue;
     }
