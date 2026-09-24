@@ -71,6 +71,16 @@ const CANON_ORDER = BONES.filter((b) => b === 'hips' || CANON_PARENT[b]) as Bone
 // The supplied models' A-pose is their normal shoulder width. Straight-down
 // arms need a little more socket clearance; arms extended sideways need less.
 const SHOULDER_WIDTH_CHANGE = 0.05;
+// Din rest-pose arm roots from the supplied workbench JSON: edited magnitudes
+// 0.12586 and 0.12411, versus 0.095 on each side before that edit.
+// Scale the averaged result to each model's own shoulder span in the preview.
+const PREVIEW_REST_WIDTH_RATIO = ((0.12586 + 0.12411) / 2) / 0.095;
+let previewShoulderSpacing = false;
+
+/** Workbench-only comparison switch. Production keeps the existing retarget. */
+export function setPreviewShoulderSpacing(enabled: boolean): void {
+  previewShoulderSpacing = enabled;
+}
 const ARM_DOWN = new THREE.Vector3(0, -1, 0);
 const armDir = new THREE.Vector3();
 
@@ -118,6 +128,8 @@ interface ShoulderSlide {
   halfWidth: number;
   /** outward arm component in this model's delivered A-pose */
   aPoseSplay: number;
+  /** local-space shift from the current rest pose to the symmetric preview */
+  previewRestOffset: number;
 }
 
 export interface AuthoredModel {
@@ -578,7 +590,24 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
       side * armDir.set(0, 1, 0).applyQuaternion(rest).x, 0.05, 0.95);
     shoulderSlides.push({ side, shoulder, arm,
       shoulderX: shoulder.position.x, armX: arm.position.x,
-      halfWidth: halfWidth || Math.abs(arm.position.x), aPoseSplay });
+      halfWidth: halfWidth || Math.abs(arm.position.x), aPoseSplay,
+      previewRestOffset: 0 });
+  }
+  // Work from the current retargeted rest position, since that is what the
+  // user's exported JSON measured. The Rigify armature's local X is mirrored
+  // relative to the canonical rig, so derive outward from the actual arm
+  // positions rather than the canonical L/R sign.
+  const restX = (slide: ShoulderSlide): number =>
+    slide.armX + slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE;
+  const restCentre = shoulderSlides.length === 2
+    ? (restX(shoulderSlides[0]) + restX(shoulderSlides[1])) / 2 : 0;
+  const restHalfWidth = shoulderSlides.length === 2
+    ? Math.abs(restX(shoulderSlides[0]) - restX(shoulderSlides[1])) / 2 : 0;
+  for (const slide of shoulderSlides) {
+    const current = restX(slide);
+    const outward = Math.sign(current - restCentre);
+    const half = restHalfWidth || Math.abs(current - restCentre);
+    slide.previewRestOffset = restCentre + outward * half * PREVIEW_REST_WIDTH_RATIO - current;
   }
 
   // Pull the mapped bones onto our rest pose, so a clip that means "arms down"
@@ -690,8 +719,15 @@ export function retarget(source: Rig, model: AuthoredModel): void {
       ? 1 - outward / slide.aPoseSplay
       : -(outward - slide.aPoseSplay) / (1 - slide.aPoseSplay);
     const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
-    slide.shoulder.position.x = slide.shoulderX + dx;
-    slide.arm.position.x = slide.armX + dx;
+    // Arms angled forward for aiming can still lie close to the torso. Use
+    // lateral splay rather than total elevation, with a smooth fade back to
+    // the delivered A-pose width as the arm opens to the side.
+    const fadeEnd = Math.max(0.35, slide.aPoseSplay);
+    const u = THREE.MathUtils.clamp((outward - 0.12) / (fadeEnd - 0.12), 0, 1);
+    const closeWeight = 1 - u * u * (3 - 2 * u);
+    const preview = previewShoulderSpacing ? slide.previewRestOffset * closeWeight : 0;
+    slide.shoulder.position.x = slide.shoulderX + dx + preview;
+    slide.arm.position.x = slide.armX + dx + preview;
   }
 
   // the hips also carry the clips' vertical bob — in metres, so back into

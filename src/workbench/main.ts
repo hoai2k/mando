@@ -7,7 +7,7 @@ import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './p
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
-import { modelUrl } from '../characters/authored';
+import { modelUrl, setPreviewShoulderSpacing } from '../characters/authored';
 import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
@@ -147,6 +147,7 @@ let showGrid = true;
 let editing = false;
 let editKind: 'rotate' | 'position' = 'rotate';
 let positionAwaiting = false;
+let previewWideShoulders = false;
 let animationSpeed = 1;
 let paused = false;
 let alternateChoice = 'none';
@@ -548,6 +549,8 @@ function renderPanel(): void {
     <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
     <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
+    <label class="check"><input type="checkbox" id="previewShoulders" ${previewWideShoulders ? 'checked' : ''}
+      ${editing && editKind === 'position' ? 'disabled' : ''}> Wider shoulders · preview</label>
 
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
@@ -571,6 +574,9 @@ function renderPanel(): void {
       redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
       <br><br><b>Position mode</b> moves the authored model's joints with 3D handles.
       Export position JSON to share the exact shoulder offsets for each pose.
+      <br><br><b>Wider shoulders</b> previews the averaged rest spacing from your JSON
+      on all authored models. It fades as each arm opens sideways. Leave Position
+      mode before comparing, so its manual joint offsets do not cover the preview.
     </p>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
@@ -619,6 +625,11 @@ function renderPanel(): void {
   panel.querySelector<HTMLInputElement>('#grid')!.onchange = (e) => {
     showGrid = (e.target as HTMLInputElement).checked;
     grid.visible = ruler.visible = showGrid;
+  };
+  panel.querySelector<HTMLInputElement>('#previewShoulders')!.onchange = (e) => {
+    previewWideShoulders = (e.target as HTMLInputElement).checked;
+    setPreviewShoulderSpacing(previewWideShoulders);
+    for (const f of figures) f.inst.cosmetic?.(0, time);
   };
   panel.querySelector<HTMLButtonElement>('#editToggle')!.onclick = () => {
     if (editing) leaveEdit(); else enterEdit();
@@ -759,6 +770,7 @@ function bindEditModeButtons(host: HTMLElement): void {
       editKind = next;
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
+      panel.querySelector<HTMLInputElement>('#previewShoulders')!.disabled = next === 'position';
       if (next === 'position') refreshPositionPose();
       else for (const f of figures) f.inst.cosmetic?.(0, time);
       renderEditPanel();
