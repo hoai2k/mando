@@ -167,7 +167,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
   color: #f0d08c; text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
 }
 .hud-banner.show { opacity: 1; }
-.hud-banner .bsub { font-size: 12px !important; letter-spacing: 0.09em !important; line-height: 1.35; }
+.hud-banner .bsub { margin-top: 6px; font-size: 12px; letter-spacing: 0.09em; line-height: 1.35; color: #bba97f; }
 /* the intel card under the banner: enemy kinds debuting this wave */
 .hud-contacts {
   position: absolute; top: 185px; left: 26px; width: min(36%, 430px);
@@ -202,14 +202,6 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-viewport.compact .hud-radar { transform: scale(0.6); transform-origin: top right; }
 .hud-viewport.compact .hud-wave { transform: scale(0.72); transform-origin: top left; top: 8px; left: 14px; }
 .hud-viewport.compact .hud-weapon { transform: scale(0.76); transform-origin: bottom right; right: 14px; bottom: 46px; }
-.hud-viewport.compact .hud-banner .btext { font-size: 22px; letter-spacing: 0.16em; }
-.hud-viewport.compact .hud-banner .bsub { font-size: 11px !important; }
-.hud-viewport.compact .hud-contacts { transform: scale(0.72); transform-origin: top left; }
-.hud-viewport.wide .hud-banner, .hud-viewport.wide .hud-contacts { width: min(27%, 390px); }
-.hud-viewport.wide .hud-banner { top: 54px; }
-.hud-viewport.wide .hud-contacts { top: 165px; }
-.hud-viewport.compact .hud-banner { left: 14px; top: 40px; width: 38%; }
-.hud-viewport.compact .hud-contacts { left: 14px; top: 145px; width: 45%; }
 .hud-viewport.compact .hud-cover { left: 14px; bottom: 78px; max-width: 45%; font-size: 10px; }
 .hud-viewport.compact .crosshair { transform: translate(-50%, -50%) scale(0.8); }
 
@@ -715,5 +707,42 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   opacity: 0; transition: opacity 0.25s; pointer-events: none;
 }
 .hud-exited.show { opacity: 1; }
-.hud-viewport.compact .hud-boss { top: 100px; right: 14px; width: 36%; }
 .hud-viewport.compact .hud-exited { right: 14px; bottom: 34%; max-width: 45%; font-size: 10px; white-space: normal; }
+
+/* Match-wide notices are one element over the split, so a boss or wave has
+   one readout for the whole party. Personal scores and directions stay inside
+   each viewport. The shared panel touches the division instead of the aim. */
+.hud-shared { position: absolute; z-index: 3; pointer-events: none; }
+.hud-shared.solo { inset: 0; }
+.hud-shared.solo .shared-wave { display: none; }
+.hud-shared:not(.solo) {
+  width: min(340px, 32vw); padding: 8px 12px;
+  display: none; flex-direction: column; gap: 7px;
+  background: rgba(9, 13, 16, 0.76);
+  border: 1px solid rgba(216, 178, 90, 0.38);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
+}
+.hud-shared:not(.solo).active { display: flex; }
+.hud-shared.split-rows { left: 26px; top: 50%; transform: translateY(-50%); }
+.hud-shared.split-columns { left: 50%; top: 14px; transform: translateX(-50%); }
+.hud-shared.split-grid { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.hud-shared:not(.solo) .hud-wave,
+.hud-shared:not(.solo) .hud-banner,
+.hud-shared:not(.solo) .hud-contacts,
+.hud-shared:not(.solo) .hud-boss {
+  position: static; width: 100%; max-width: none; transform: none;
+  text-align: left; margin: 0;
+}
+.hud-shared:not(.solo) .hud-banner:not(.show),
+.hud-shared:not(.solo) .hud-contacts:not(.show),
+.hud-shared:not(.solo) .hud-boss:not(.show),
+.hud-shared:not(.solo) .shared-wave:not(.show) { display: none; }
+.hud-shared:not(.solo) .hud-wave .wave-num { font-size: 13px; }
+.hud-shared:not(.solo) .hud-banner { font-size: 19px; line-height: 1.2; }
+.hud-shared:not(.solo) .hud-contacts { padding: 6px 8px; }
+.hud-shared:not(.solo) .hud-contacts .nc-names { font-size: 14px; }
+.hud-shared:not(.solo) .hud-boss .bossname { font-size: 12px; }
+@media (max-width: 700px) {
+  .hud-shared:not(.solo) { width: min(260px, 48vw); padding: 6px 8px; }
+  .hud-shared:not(.solo) .hud-banner { font-size: 15px; }
+}

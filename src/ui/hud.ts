@@ -28,23 +28,28 @@ interface PlayerHud {
   rocket: HTMLElement;
   wave: HTMLElement;
   kills: HTMLElement;
+  objective: HTMLElement;
+  objMark: SVGElement;
+  objLabel: HTMLElement;
+  exited: HTMLElement;
+  vignette: HTMLElement;
+  crosshair: SVGElement;
+  radar: Radar;
+  hitTimer: number;
+}
+
+interface SharedHud {
+  root: HTMLElement;
+  wave: HTMLElement;
   banner: HTMLElement;
   bannerSub: HTMLElement;
   contacts: HTMLElement;
   contactNames: HTMLElement;
   boss: HTMLElement;
   bossName: HTMLElement;
-  objective: HTMLElement;
-  objMark: SVGElement;
-  objLabel: HTMLElement;
-  exited: HTMLElement;
   bossFill: HTMLElement;
-  vignette: HTMLElement;
-  crosshair: SVGElement;
-  radar: Radar;
   bannerTimer: number;
   contactsTimer: number;
-  hitTimer: number;
 }
 
 const CROSSHAIR_SVG = `
@@ -71,6 +76,7 @@ const CROSSHAIR_SVG = `
 export class Hud {
   private layer: HTMLElement;
   private huds: PlayerHud[] = [];
+  private shared: SharedHud | null = null;
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement('div');
@@ -81,6 +87,7 @@ export class Hud {
   setLayout(playerCount: number): void {
     this.layer.innerHTML = '';
     this.huds = [];
+    this.shared = null;
     // the same rectangles the renderer sets its viewports from, so a player's
     // bars always sit inside that player's picture — every mode splits the
     // screen the same way now that Missions gives each player their own camera
@@ -94,7 +101,6 @@ export class Hud {
       root.style.width = `${r.w * 100}%`;
       root.style.height = `${r.h * 100}%`;
       root.classList.toggle('compact', r.h < 0.9 && r.w < 0.9);
-      root.classList.toggle('wide', r.w > r.h * 1.35);
       root.innerHTML = `
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
@@ -109,9 +115,6 @@ export class Hud {
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
         <div class="hud-cover"></div>
         <div class="hurt-arc"><svg viewBox="0 0 120 120"><path d="M60 6 A54 54 0 0 1 98 22" fill="none" stroke="#ff4a36" stroke-width="8" stroke-linecap="round" transform="rotate(-22 60 60)"/></svg></div>
-        <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>
-        <div class="hud-banner"><div class="btext"></div><div class="bsub" style="font-size:15px;letter-spacing:0.2em;margin-top:6px;color:#bba97f"></div></div>
-        <div class="hud-contacts"><div class="nc-kicker">${TEXT.hud.newContact}</div><div class="nc-names"></div></div>
         <div class="hud-objective"><svg class="obj-mark" viewBox="0 0 24 24"><path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="#ffcf6a" stroke-width="2.4" stroke-linejoin="round"/><path class="obj-arrow" d="M12 4 L20 16 L12 12 L4 16 Z" fill="#ffcf6a" opacity="0"/></svg><div class="obj-label"></div></div>
         <div class="hud-exited"></div>
       `;
@@ -135,21 +138,12 @@ export class Hud {
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
         kills: root.querySelector('.wave-kills') as HTMLElement,
-        banner: root.querySelector('.btext') as HTMLElement,
-        bannerSub: root.querySelector('.bsub') as HTMLElement,
-        contacts: root.querySelector('.hud-contacts') as HTMLElement,
-        contactNames: root.querySelector('.nc-names') as HTMLElement,
-        boss: root.querySelector('.hud-boss') as HTMLElement,
         objective: root.querySelector('.hud-objective') as HTMLElement,
         objMark: root.querySelector('.obj-mark') as SVGElement,
         objLabel: root.querySelector('.obj-label') as HTMLElement,
         exited: root.querySelector('.hud-exited') as HTMLElement,
-        bossName: root.querySelector('.bossname') as HTMLElement,
-        bossFill: root.querySelector('.bossfill') as HTMLElement,
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
         crosshair: root.querySelector('.crosshair') as SVGElement,
-        bannerTimer: 0,
-        contactsTimer: 0,
         hitTimer: 0,
       });
       // A rule along each internal edge of this viewport, so neighbours read
@@ -165,6 +159,30 @@ export class Hud {
       if (r.y > 0) rule('hud-divider', { top: `${r.y * 100}%`, left: `${r.x * 100}%`, width: `${r.w * 100}%` });
       if (r.x > 0) rule('hud-divider-v', { left: `${r.x * 100}%`, top: `${r.y * 100}%`, height: `${r.h * 100}%` });
     }
+    const shared = document.createElement('div');
+    const layout = playerCount === 1 ? 'solo' : playerCount === 2
+      ? rects[0].w > rects[0].h ? 'split-rows' : 'split-columns'
+      : 'split-grid';
+    shared.className = `hud-shared ${layout}`;
+    shared.innerHTML = `
+      <div class="hud-wave shared-wave"><div class="wave-num"></div></div>
+      <div class="hud-banner"><div class="btext"></div><div class="bsub"></div></div>
+      <div class="hud-contacts"><div class="nc-kicker">${TEXT.hud.newContact}</div><div class="nc-names"></div></div>
+      <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>`;
+    this.layer.appendChild(shared);
+    this.shared = {
+      root: shared,
+      wave: shared.querySelector('.wave-num') as HTMLElement,
+      banner: shared.querySelector('.btext') as HTMLElement,
+      bannerSub: shared.querySelector('.bsub') as HTMLElement,
+      contacts: shared.querySelector('.hud-contacts') as HTMLElement,
+      contactNames: shared.querySelector('.nc-names') as HTMLElement,
+      boss: shared.querySelector('.hud-boss') as HTMLElement,
+      bossName: shared.querySelector('.bossname') as HTMLElement,
+      bossFill: shared.querySelector('.bossfill') as HTMLElement,
+      bannerTimer: 0,
+      contactsTimer: 0,
+    };
   }
 
   /**
@@ -191,12 +209,12 @@ export class Hud {
   }
 
   banner(text: string, sub?: string): void {
-    for (const h of this.huds) {
-      h.banner.textContent = text;
-      h.bannerSub.textContent = sub ?? '';
-      h.banner.parentElement!.classList.add('show');
-      h.bannerTimer = 2.1;
-    }
+    const h = this.shared;
+    if (!h) return;
+    h.banner.textContent = text;
+    h.bannerSub.textContent = sub ?? '';
+    h.banner.parentElement!.classList.add('show');
+    h.bannerTimer = 2.1;
   }
 
   /**
@@ -205,13 +223,13 @@ export class Hud {
    * the one piece worth reading twice.
    */
   newContacts(names: string[]): void {
-    for (const h of this.huds) {
-      h.contacts.querySelector('.nc-kicker')!.textContent =
-        names.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
-      h.contactNames.textContent = names.join(' · ');
-      h.contacts.classList.add('show');
-      h.contactsTimer = 4;
-    }
+    const h = this.shared;
+    if (!h) return;
+    h.contacts.querySelector('.nc-kicker')!.textContent =
+      names.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
+    h.contactNames.textContent = names.join(' · ');
+    h.contacts.classList.add('show');
+    h.contactsTimer = 4;
   }
 
   hitMarker(slot: number): void {
@@ -287,6 +305,33 @@ export class Hud {
   }
 
   update(dt: number, game: Game): void {
+    const shared = this.shared;
+    const boss = game.boss;
+    if (shared) {
+      const wave = game.mode === 'wave' && this.huds.length > 1
+        ? game.hudTopLine(game.players[0]) : '';
+      shared.wave.textContent = boss?.alive && wave === boss.bossName ? '' : wave;
+      shared.wave.parentElement!.classList.toggle('show', !!shared.wave.textContent);
+      if (boss?.alive) {
+        shared.boss.classList.add('show');
+        shared.boss.classList.toggle('ph1', game.bossPhaseLevel === 1);
+        shared.boss.classList.toggle('ph2', game.bossPhaseLevel === 2);
+        shared.bossName.textContent = boss.bossName;
+        shared.bossFill.style.transform = `scaleX(${Math.max(0, boss.hp / boss.maxHp)})`;
+      } else shared.boss.classList.remove('show');
+      if (shared.bannerTimer > 0) {
+        shared.bannerTimer -= dt;
+        if (shared.bannerTimer <= 0) shared.banner.parentElement!.classList.remove('show');
+      }
+      if (shared.contactsTimer > 0) {
+        shared.contactsTimer -= dt;
+        if (shared.contactsTimer <= 0) shared.contacts.classList.remove('show');
+      }
+      shared.root.classList.toggle('active', !!shared.wave.textContent ||
+        shared.boss.classList.contains('show') ||
+        shared.banner.parentElement!.classList.contains('show') ||
+        shared.contacts.classList.contains('show'));
+    }
     for (let i = 0; i < this.huds.length; i++) {
       const h = this.huds[i];
       const p = game.players[i];
@@ -353,31 +398,13 @@ export class Hud {
       // the boss bar carries the boss's name; the top line does not need to
       // say it a second time directly above it
       const top = game.hudTopLine(p);
-      h.wave.textContent = game.boss?.alive && top === game.boss.bossName ? '' : top;
+      h.wave.textContent = game.mode === 'wave' && this.huds.length > 1
+        ? '' : boss?.alive && top === boss.bossName ? '' : top;
       h.kills.textContent = game.hudScoreLine(p);
-      // the boss bar rides every viewport while a warlord stands
-      const boss = game.boss;
-      if (boss && boss.alive) {
-        h.boss.classList.add('show');
-        h.boss.classList.toggle('ph1', game.bossPhaseLevel === 1);
-        h.boss.classList.toggle('ph2', game.bossPhaseLevel === 2);
-        h.bossName.textContent = boss.bossName;
-        h.bossFill.style.transform = `scaleX(${Math.max(0, boss.hp / boss.maxHp)})`;
-      } else {
-        h.boss.classList.remove('show');
-      }
       this.updateObjective(h, p, game);
       h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 
-      if (h.bannerTimer > 0) {
-        h.bannerTimer -= dt;
-        if (h.bannerTimer <= 0) h.banner.parentElement!.classList.remove('show');
-      }
-      if (h.contactsTimer > 0) {
-        h.contactsTimer -= dt;
-        if (h.contactsTimer <= 0) h.contacts.classList.remove('show');
-      }
       // the reticle belongs to ADS only — hip fire reads off the muzzle. The
       // hit marker and lock ring stay live either way: they are feedback about
       // the world, not an aiming aid.
