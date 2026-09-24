@@ -8,6 +8,7 @@ import type { Player } from '../player/player';
 
 /** scratch for the objective marker's projection */
 const _v = new THREE.Vector3();
+const _tip = new THREE.Vector3();
 
 /** Per-player DOM HUD, laid out per split-screen viewport. */
 
@@ -93,6 +94,7 @@ export class Hud {
       root.style.width = `${r.w * 100}%`;
       root.style.height = `${r.h * 100}%`;
       root.classList.toggle('compact', r.h < 0.9 && r.w < 0.9);
+      root.classList.toggle('wide', r.w > r.h * 1.35);
       root.innerHTML = `
         <div class="visor-vignette"></div>
         <div class="damage-vignette"></div>
@@ -193,7 +195,7 @@ export class Hud {
       h.banner.textContent = text;
       h.bannerSub.textContent = sub ?? '';
       h.banner.parentElement!.classList.add('show');
-      h.bannerTimer = 2.6;
+      h.bannerTimer = 2.1;
     }
   }
 
@@ -208,7 +210,7 @@ export class Hud {
         names.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
       h.contactNames.textContent = names.join(' · ');
       h.contacts.classList.add('show');
-      h.contactsTimer = 6;
+      h.contactsTimer = 4;
     }
   }
 
@@ -243,6 +245,8 @@ export class Hud {
     h.exited.classList.toggle('show', !!h.exited.textContent);
 
     const obj = campaign.objectivePos;
+    // The name belongs at the head of the light column, not across the
+    // character standing at its foot. Keep the ground point for the bearing.
     _v.copy(obj).project(p.cam.camera);
     const behind = _v.z > 1;
     // NDC to viewport percentage; a point behind the camera projects inverted,
@@ -257,9 +261,15 @@ export class Hud {
       x = 0.5 + dx / scale;
       y = 0.5 + dy / scale;
     }
+    if (!off) {
+      _tip.copy(obj).y += 60;
+      _tip.project(p.cam.camera);
+      y = Math.max(0.09, Math.min(y - 0.06, 0.5 - _tip.y * 0.5));
+    }
     h.objective.style.left = `${(x * 100).toFixed(2)}%`;
     h.objective.style.top = `${(y * 100).toFixed(2)}%`;
-    h.objective.style.opacity = '1';
+    h.objective.classList.toggle('edge-left', x < 0.22);
+    h.objective.classList.toggle('edge-right', x > 0.78);
     const arrow = h.objMark.querySelector('.obj-arrow') as SVGElement;
     const diamond = h.objMark.querySelector('path') as SVGElement;
     arrow.setAttribute('opacity', off ? '1' : '0');
@@ -271,6 +281,7 @@ export class Hud {
       h.objMark.style.transform = '';
     }
     const d = Math.round(Math.hypot(obj.x - p.position.x, obj.z - p.position.z));
+    h.objective.style.opacity = d < 8 ? '0' : '1';
     const name = campaign.objectiveLabel ?? '';
     h.objLabel.textContent = name ? `${name} · ${d} m` : `${d} m`;
   }

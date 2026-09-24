@@ -1152,12 +1152,8 @@ export class Campaign implements MissionController {
       : this.stage.exitPortal?.pos ?? zone.exit;
     this.layArrow(zone.exit, to);
 
-    if (this.idx < this.stage.zones.length) {
-      this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(this.stage.zones[this.idx].spec.label));
-    } else if (this.stage.exitPortal) {
-      this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(TEXT.missions.boarding(
-        MISSION_LAYOUTS[this.game.board.kind].stages[this.stageIdx + 1]?.label ?? '')));
-    }
+    // The chime, fading column and ground arrow carry this checkpoint. The
+    // next destination stays on the beacon and the standing HUD instruction.
   }
 
   /**

@@ -133,7 +133,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .bar.heat.overheated .fill { background: #e8622a; }
 @keyframes heat-vent { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .bar .label { position: absolute; right: 4px; top: -3px; font-size: 10px; letter-spacing: 0.2em; color: rgba(232,220,200,0.75); }
-.hud-wave { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); text-align: center; }
+.hud-wave { position: absolute; top: 16px; left: 26px; max-width: min(42%, 360px); text-align: left; }
 .hud-wave .wave-num { font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #f0d08c; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85); }
 .hud-wave .wave-kills { font-size: 12px; letter-spacing: 0.2em; color: #eee6d6; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
 .hud-radar {
@@ -151,7 +151,7 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 }
 .radar-count.engaged { color: #ff8a72; }
 .hud-cover {
-  position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%);
+  position: absolute; left: 26px; bottom: 132px; max-width: min(36%, 350px);
   font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: #cbbf9f;
   text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8);
 }
@@ -162,18 +162,16 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
 .hud-banner {
-  position: absolute; top: 20%; left: 0; right: 0; text-align: center;
-  font-size: 34px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
+  position: absolute; top: 58px; left: 26px; width: min(36%, 430px); text-align: left;
+  font-size: clamp(17px, 2vw, 27px); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
   color: #f0d08c; text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
 }
 .hud-banner.show { opacity: 1; }
+.hud-banner .bsub { font-size: 12px !important; letter-spacing: 0.09em !important; line-height: 1.35; }
 /* the intel card under the banner: enemy kinds debuting this wave */
 .hud-contacts {
-  /* hung under the banner by its height, not by its own percentage: in a
-     two-player strip (360 px tall) 34% and 47% are 47 px apart, and the
-     banner's subtitle was printed straight across the card */
-  position: absolute; top: calc(20% + 74px); left: 50%; transform: translateX(-50%);
-  padding: 7px 16px 8px; text-align: center;
+  position: absolute; top: 185px; left: 26px; width: min(36%, 430px);
+  padding: 7px 12px 8px; text-align: left;
   border: 1px solid rgba(240, 208, 140, 0.45); border-radius: 3px;
   background: rgba(12, 14, 10, 0.62);
   opacity: 0; transition: opacity 0.35s; pointer-events: none;
@@ -202,11 +200,17 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
    corner, so each scales about that corner and stays where it belongs. */
 .hud-viewport.compact .hud-bars { transform: scale(0.66); transform-origin: bottom left; left: 14px; bottom: 12px; }
 .hud-viewport.compact .hud-radar { transform: scale(0.6); transform-origin: top right; }
-.hud-viewport.compact .hud-wave { transform: translateX(-50%) scale(0.72); transform-origin: top center; top: 8px; }
+.hud-viewport.compact .hud-wave { transform: scale(0.72); transform-origin: top left; top: 8px; left: 14px; }
 .hud-viewport.compact .hud-weapon { transform: scale(0.76); transform-origin: bottom right; right: 14px; bottom: 46px; }
 .hud-viewport.compact .hud-banner .btext { font-size: 22px; letter-spacing: 0.16em; }
 .hud-viewport.compact .hud-banner .bsub { font-size: 11px !important; }
-.hud-viewport.compact .hud-contacts { transform: translateX(-50%) scale(0.72); transform-origin: top center; }
+.hud-viewport.compact .hud-contacts { transform: scale(0.72); transform-origin: top left; }
+.hud-viewport.wide .hud-banner, .hud-viewport.wide .hud-contacts { width: min(27%, 390px); }
+.hud-viewport.wide .hud-banner { top: 54px; }
+.hud-viewport.wide .hud-contacts { top: 165px; }
+.hud-viewport.compact .hud-banner { left: 14px; top: 40px; width: 38%; }
+.hud-viewport.compact .hud-contacts { left: 14px; top: 145px; width: 45%; }
+.hud-viewport.compact .hud-cover { left: 14px; bottom: 78px; max-width: 45%; font-size: 10px; }
 .hud-viewport.compact .crosshair { transform: translate(-50%, -50%) scale(0.8); }
 
 /* ---------- fullscreen button ---------- */
@@ -437,10 +441,10 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 
 /* ---- game modes: boss bar, shared-screen HUD, planet strip ---- */
 
-/* boss health bar: top centre, under the wave line */
+/* boss health stays beside the radar, outside the firing lane */
 .hud-boss {
-  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
-  width: min(46%, 460px); display: none; text-align: center; pointer-events: none;
+  position: absolute; top: 190px; right: 24px;
+  width: min(30%, 350px); display: none; text-align: right; pointer-events: none;
 }
 .hud-boss.show { display: block; }
 .hud-boss .bossname {
@@ -472,7 +476,8 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 @keyframes bi-drop { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes bi-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .boss-intro .bi-plate {
-  align-self: center; text-align: center; padding: 10px 46px;
+  align-self: flex-start; max-width: min(42%, 540px); margin-left: 3vw;
+  text-align: left; padding: 10px 20px;
   background: radial-gradient(ellipse at center, rgba(0,0,0,0.62), rgba(0,0,0,0) 75%);
   animation: bi-in 0.9s ease-out 0.25s backwards;
 }
@@ -485,12 +490,12 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   text-shadow: 0 0 12px rgba(255,80,40,0.5);
 }
 .boss-intro .bi-name {
-  font-size: clamp(34px, 5.4vw, 68px); font-weight: 800; letter-spacing: 0.14em;
+  font-size: clamp(25px, 3vw, 46px); font-weight: 800; letter-spacing: 0.1em;
   text-transform: uppercase; color: #d8b25a; margin-top: 6px;
   text-shadow: 0 0 26px rgba(216,178,90,0.4), 0 2px 0 #5a3c14;
 }
 .boss-intro .bi-rule {
-  width: 220px; height: 1px; margin: 12px auto;
+  width: 220px; max-width: 100%; height: 1px; margin: 12px 0;
   background: linear-gradient(90deg, transparent, #ff6a3a, transparent);
 }
 .boss-intro .bi-sub {
@@ -693,12 +698,16 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   margin-top: 3px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
   color: #ffcf6a; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); white-space: nowrap;
 }
+.hud-objective.edge-left { transform: translate(0, -50%); text-align: left; }
+.hud-objective.edge-right { transform: translate(-100%, -50%); text-align: right; }
+.hud-objective.edge-left .obj-mark { margin-left: 0; }
+.hud-objective.edge-right .obj-mark { margin-right: 0; }
 .hud-viewport.compact .hud-objective .obj-label { font-size: 10px; }
 
 /* the transport door's wait: your own screen says how to change your mind,
    everyone else's says who they are waiting on */
 .hud-exited {
-  position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%);
+  position: absolute; right: 24px; bottom: 28%; max-width: 36%;
   padding: 6px 15px; text-align: center; white-space: nowrap;
   border: 1px solid rgba(160, 210, 255, 0.5); border-radius: 3px;
   background: rgba(10, 16, 22, 0.7);
@@ -706,3 +715,5 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   opacity: 0; transition: opacity 0.25s; pointer-events: none;
 }
 .hud-exited.show { opacity: 1; }
+.hud-viewport.compact .hud-boss { top: 100px; right: 14px; width: 36%; }
+.hud-viewport.compact .hud-exited { right: 14px; bottom: 34%; max-width: 45%; font-size: 10px; white-space: normal; }

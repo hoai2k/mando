@@ -467,9 +467,6 @@ export class LegacyCampaign implements MissionController {
     // walked through still marks the checkpoint, just more quietly
     if (fought) audio.waveClear();
     audio.checkpointChime();
-    if (this.idx < this.level.rooms.length) {
-      this.game.announce(TEXT.banners.checkpoint, TEXT.banners.pushOn(this.level.rooms[this.idx].spec.label));
-    }
   }
 
   /**
