@@ -47,7 +47,7 @@ const SFX = {
   zillo_roar: ['Armored reptilian colossus roaring: deep metallic-edged bellow with a hissing snarl and armor plates grinding, single call, no music', 3],
   zillo_hurt: ['Armored reptilian colossus wounded: hard clanging grunt as bolts skate off plate, dropping into a furious hiss, single call, no music', 1.5],
   zillo_death: ['Armored reptilian colossus dying: falling roar into a long rattling hiss and a heavy armored collapse, no music', 3.5],
-  nexu_roar: ['Huge predatory hunting cat screaming a charge: piercing feline shriek-roar with a throaty rattle underneath, single call, no music', 2],
+  nexu_roar: ['A five-metre alien hunting beast unleashes one powerful roar: deep chest rumble rising into a harsh, sustained, throaty snarl-bellow, then a ragged growling breath. Heavy jaw and enormous lungs, fierce and intimidating. No domestic-cat meow, yowl, purr or high squeak. Isolated dry creature voice, no speech, music or ambience', 3],
   nexu_hurt: ['Huge predatory cat wounded: sharp spitting yowl into a low warning growl, single call, no music', 1.2],
   nexu_death: ['Huge predatory cat dying: high falling yowl breaking into a wet rattling breath, no music', 2.5],
   kwazel_roar: ['Huge amphibian roaring: wide wet croaking bellow with a deep resonant throat sac boom and water sheeting off, single call, no music', 2.5],

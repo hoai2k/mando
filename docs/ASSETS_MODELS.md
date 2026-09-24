@@ -172,8 +172,8 @@ form, undoes the change. Each brief below is written for a *type* rather than a 
 purpose — nothing about these two should ever read as a character you could pick.
 
 Standard swap contract, grunt/elite budget (≤ 8k tris, one 512² PBR set), canonical rig,
-origin at the feet, +Z forward, relaxed A-pose. Reference sheets are requested alongside
-in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md); as everywhere in this document, the sheet wins
+origin at the feet, +Z forward, relaxed A-pose. Reference sheets are delivered in
+`reference/characters/`; as everywhere in this document, the sheet wins
 over the prose where they disagree.
 
 | Character | Id / reference sheets | Height | Reference look |

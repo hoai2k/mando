@@ -8,6 +8,26 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
+## Replacement NPC model references — delivered 2026-09-23
+
+The two NPCs that replaced playable-character sculpts now have canonical
+orthographic front, true left-side, and rear views at 1024×1536 in
+`reference/characters/`. The front view anchors each matching side and rear
+generation. Both are empty-handed modelling references; the shared weapon
+props attach to their rigs separately.
+
+| Character | Files | Visual brief |
+|---|---|---|
+| Guild Gunslinger | `gunslinger_front.png`, `gunslinger_side.png`, `gunslinger_back.png` | Anonymous 1.90 m hunter with sealed plated mask, dark eye-filter slit and chin filter, low hood, weathered brown-grey armored long coat, diagonal shell bandolier, scuffed limb plates. Distinct from the playable blue-skinned duelist. |
+| Escort Droid | `escort_droid_front.png`, `escort_droid_side.png`, `escort_droid_back.png` | Heavy 2.20 m bodyguard with broad wedge skull, boxy muzzle, two blue optics, slab chest and square shoulders, thick enclosed limbs, worn gunmetal shell and scuffed blue stripe. Distinct from the playable cylindrical-headed assassin droid. |
+
+The Ringworld Nexu entrance roar was regenerated on 2026-09-23 from the revised
+`nexu_roar` prompt in `tools/generate-sfx.mjs`: a deep chest rumble into a sustained
+throaty snarl-bellow, explicitly avoiding a domestic-cat meow. It replaces
+`public/assets/audio/nexu_roar.mp3`; the existing monster voice router picks it up.
+
+---
+
 ## Textures & images — 15 files, delivered 2026-08-27
 
 Live in `public/assets/textures/`. Opaque maps were re-encoded to JPEG by
@@ -735,4 +755,3 @@ behind the backdrop row, in the fog's own colour — which is what puts a countr
 the borders. `sea_surface` and its normal dress the local water plane on the harbour and
 rig stages, and `energy_cells` is the fence pane that seals an outdoor mouth (and, at
 `Fence`'s own scale, reads as a field rather than a coloured sheet).
-

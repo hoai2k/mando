@@ -20,3 +20,7 @@ behind every delivered sheet is recorded in
 
 Some sheets outlive their character: `grogu_*` and the `mandalorian_lineup` are from
 earlier passes and are kept as history rather than as briefs.
+
+The Guild Gunslinger (`gunslinger_front/side/back.png`) and Escort Droid
+(`escort_droid_front/side/back.png`) were added on 2026-09-23. Their sculpt briefs are
+in `docs/ASSETS_MODELS.md`; these images are the canonical visual reference.
