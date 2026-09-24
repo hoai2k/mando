@@ -620,6 +620,13 @@ export class CharacterSelect {
       c.root.traverse((o) => { o.castShadow = true; });
       c.animator?.play('lower', 'idleLower');
       c.animator?.play('upper', 'idleUpper');
+      // The Armorer presents her signature forge axe on the select plinth.
+      // Poster generation uses this same build, so the still and live model
+      // agree when the authored body and prop finish loading.
+      if (id === 'armorer') {
+        c.setWeapon('gaffi');
+        c.gaffi.rotation.z = -0.6; // show the axe blade clear of her shoulder
+      }
       c.setHeroLight(BASE_GLOW);
       c.root.visible = false;
       s.group.add(c.root);

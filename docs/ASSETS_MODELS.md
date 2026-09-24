@@ -82,11 +82,21 @@ All seven reimported as single static meshes with UVs and materials.
 | `force_pike.glb` | 1,260 | Available for a future Imperial guard |
 | `nightsister_polearm.glb` | 3,200 | Available for a future Nightsister enemy |
 
-The last four are ready as props but intentionally unassigned: existing
-Ventress, Maul, Revan and Galen keep their signature sabers, and the current
-security droids and Imperial soldiers are built around ranged weapons. A
-scavenger, MagnaGuard, ceremonial guard, or Nightsister would give each of the
-remaining polearms a distinct role without changing those characters' kits.
+The last four are ready as props but intentionally unassigned. These optional
+character proposals give each one a distinct role; none is an approved roster
+addition or a request to replace a current character's signature weapon.
+
+| Proposed character | Weapon | Role and art/animation brief |
+|---|---|---|
+| **Scavenger staff fighter** (Rey-inspired) | `rey_staff.glb` | Agile, mobile staff user; hands spaced far apart for sweeps, vaults and defensive parries. Needs an original character sheet and a two-handed staff combat set. |
+| **MagnaGuard-style elite** | `electrostaff.glb` | Durable droid melee guard that closes distance and uses alternating-end strikes. The shipped prop is unpowered; electric arcs and hit effects would be added in game. Needs its own droid model and staff animation set. |
+| **Imperial ceremonial guard** | `force_pike.glb` | Guard enemy with a long reach and disciplined thrusts, suited to station or palace interiors. Needs a guard body and pike-specific attack telegraphs. |
+| **Nightsister polearm fighter** | `nightsister_polearm.glb` | Fast occult melee enemy with hooked cuts and a distinctive stance. Needs an original character sheet/model and its own combat poses. |
+
+Existing Ventress, Maul, Revan and Galen keep their signature sabers; the
+current security droids and Imperial soldiers retain their ranged kits. The
+optional characters and their weapon props can be developed independently of
+the optional Missions v3 outdoor scenery listed above.
 
 ## Playable bounty hunters (5) — priority 2
 
