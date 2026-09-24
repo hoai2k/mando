@@ -460,6 +460,10 @@ export const TEXT = {
     kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
     sandworm: 'Dune Worm', zillo: 'Zillo Beast', nexu: 'Nexu', kwazelMaw: 'Kwazel Maw',
     spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
+    rivalMaul: 'Darth Maul', rivalRevan: 'Darth Revan', rivalVentress: 'Asajj Ventress',
+    rivalGalen: 'Galen Marek', rivalMaris: 'Maris Brood',
+    rivalCadBane: 'Cad Bane', rivalEmbo: 'Embo', rivalBossk: 'Bossk',
+    rivalBoKatan: 'Bo-Katan Kryze',
   },
 
   // ---------- rides ----------

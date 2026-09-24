@@ -7,6 +7,7 @@ import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave,
 import { enemyModelIds, warmAuthored } from '../../characters/authored';
 import { AllyCrate } from '../allycrate';
 import { BOSS_KIND, INFINITE_LIVES, MID_BOSS, bossRush } from '../modes';
+import { replaceWithRivals, ringworldRivalBoss, rivalsForWave } from '../rivals';
 import { audio } from '../../core/audio';
 import { TEXT } from '../../text';
 
@@ -60,7 +61,9 @@ export class WaveRules implements ModeRules {
     for (const kind of Object.values(ALLY_WAVES)) {
       for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
     }
-    for (const kind of [MID_BOSS[g.board.kind].kind, BOSS_KIND[g.board.kind]]) {
+    const finalKind = g.board.kind === 'ringworld'
+      ? ringworldRivalBoss(g.players.map((p) => p.characterId)) : BOSS_KIND[g.board.kind];
+    for (const kind of [MID_BOSS[g.board.kind].kind, finalKind]) {
       for (const bossId of enemyModelIds(kind)) warmAuthored(bossId, 'soon');
     }
   }
@@ -172,7 +175,9 @@ export class WaveRules implements ModeRules {
     const g = this.g;
     const p = g.players.find((pl) => pl.alive) ?? g.players[0];
     if (!p) return g.farPost();
-    const kind = tier === 'mid' ? MID_BOSS[g.board.kind].kind : BOSS_KIND[g.board.kind];
+    const kind = tier === 'mid' ? MID_BOSS[g.board.kind].kind
+      : g.board.kind === 'ringworld' ? ringworldRivalBoss(g.players.map((pl) => pl.characterId))
+      : BOSS_KIND[g.board.kind];
     return postInView(g.board, p.position, p.cam.yaw, kind) ?? g.farPost();
   }
 
@@ -210,7 +215,12 @@ export class WaveRules implements ModeRules {
       // every later wave is reinforcements, and reinforcements arrive:
       // carriers streak over and drop squads, locals run in over the edge,
       // quarren surface from the sea, fliers cross in at altitude
-      g.stageArrivals(planWave(g.board, g.wave, g.players.length, near));
+      const plan = planWave(g.board, g.wave, g.players.length, near);
+      const ground = plan.filter((p) => !p.air);
+      const kinds = replaceWithRivals(ground.map((p) => p.kind), g.wave,
+        g.players.map((p) => p.characterId));
+      ground.forEach((p, i) => { p.kind = kinds[i]; });
+      g.stageArrivals(plan);
     }
     // the break before the next wave is the lead time for its new arrivals
     this.preloadWave(g.wave + 1);
@@ -260,6 +270,9 @@ export class WaveRules implements ModeRules {
     if (wave > this.finalWave) return;
     for (const entry of waveComposition(g.board.kind, wave, g.players.length)) {
       for (const id of enemyModelIds(entry.kind)) warmAuthored(id, 'now');
+    }
+    for (const kind of rivalsForWave(wave, g.players.map((p) => p.characterId))) {
+      for (const id of enemyModelIds(kind)) warmAuthored(id, 'now');
     }
     // Allies are not part of a wave's composition, so they were downloading
     // cold at the moment they walked in — mid-fight, against a spawn storm.

@@ -18,7 +18,8 @@ Revan** (`public/models/revan.glb`); the horned Warrior becomes playable
 duplicate face. Their separate saber hilts are `saber_dark.glb` for Revan and
 `saber_double.glb` for Maul; red blades are runtime effects. Each character
 carries one hilt that moves between waist, right hand, and flight. Neither
-wears a jetpack. Ringworld's existing boss lineup is unchanged.
+wears a jetpack. The Ringworld final boss now selects Maul, then Revan,
+skipping any selected by players, and falls back to its former gunslinger.
 
 The source and editable stages are preserved under ignored `model-work/`:
 cleanup, facing correction, fitted Rigify skinning, isolated weight repair,

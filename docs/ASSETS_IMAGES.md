@@ -6,7 +6,7 @@ Once a request is filled it moves there, and anything that builds on it (the 3D 
 briefs, say) cites the resulting filename from there.
 
 **No open image generation requests as of 2026-09-24.** The Jedi and Maris
-canonical views, the five-hilt collection, and the two candidate Sith enemy
+canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The Guild Gunslinger and Escort Droid
@@ -46,8 +46,8 @@ individual GLBs, described in [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
 `reference/characters/sith_leader_front.png` is the hooded, masked leader
 based on the supplied two references. `sith_soldier_front.png` is the horned,
 red-and-black marked warrior based on the supplied image. Their 3D models are
-integrated as playable Darth Revan and Darth Maul, respectively. Neither is
-currently an enemy.
+integrated as playable Darth Revan and Darth Maul, respectively. Either may
+also appear as a hostile when nobody in the party selected that identity.
 
 What remains below is not a request: the recipe for making
 more character sheets, and

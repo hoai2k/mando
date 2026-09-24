@@ -71,6 +71,20 @@ the party instead (`game/allycrate.ts`) — one solid hit springs it, the side
 panels blow outward, and a squad of five allies (Marshal / Escort Droid / Fennec by
 wave) walks out to fight for the rest of that wave only. Victory comes when the warlord falls.
 
+**Party-matched rivals (2026-09-24).** Waves 6 and 7 replace one and two
+ordinary soldiers, respectively, with playable-character rivals from the
+party's combat families. Force users can meet unselected Jedi or Sith;
+bounty hunters can meet unselected hunters; Mandalorians can meet Bo-Katan
+when nobody selected her. In a mixed party the two wave-7 slots favor
+different families. The replacement keeps the wave's body count, and no
+rival uses an identity selected by any player in that match. The same rule
+applies to late Missions squads. PvP does not use this system.
+
+The Ringworld's final warlord selects **Darth Maul**, then **Darth Revan**,
+skipping either one selected by the party. When both are selected, the
+existing Guild Gunslinger remains the boss. The selected rival uses the
+normal boss promotion, intro, guard, and subsequent Nexu encounter.
+
 ## 3. PvP — territory duel
 
 **Rules.** 2–4 players (the select refuses to start with one). Free-for-all:

@@ -8,6 +8,7 @@ import { audio } from '../core/audio';
 import { hazardAt } from '../world/board';
 import { AllyCrate } from './allycrate';
 import type { MissionController } from './mission-api';
+import { replaceWithRivals } from './rivals';
 
 /** scratch for the hazard probe in placeNear */
 const _probe = new THREE.Vector3();
@@ -156,7 +157,7 @@ export class LegacyCampaign implements MissionController {
     // the wave's newest kind always makes the room's mix
     out[out.length - 1] = kinds[kinds.length - 1];
     for (let i = 0; i < over; i++) out.push(kinds[kinds.length - 1]);
-    return out;
+    return replaceWithRivals(out, wave, this.game.players.map((p) => p.characterId));
   }
 
   /**

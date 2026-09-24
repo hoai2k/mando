@@ -21,6 +21,7 @@ import type { FrameInput } from '../core/input';
 import type { StaticCylinder } from '../core/physics';
 import { spawnVehicles, type Vehicle } from './vehicles';
 import { BOSS_KIND, BOSS_NAME, BOSS_RETINUE, MID_BOSS, MONSTER_BOSS, type GameMode } from './modes';
+import { ringworldRivalBoss, rivalsForWave } from './rivals';
 import type { AllyCrate } from './allycrate';
 import type { MissionController } from './mission-api';
 import type { ModeRules } from './rules/rules';
@@ -400,8 +401,13 @@ export class Game {
     // wave and campaign both run the lieutenant and end at the territory's
     // warlord: warm both models now
     if (mode !== 'pvp') {
-      for (const kind of [MID_BOSS[board.kind].kind, BOSS_KIND[board.kind]]) {
+      const finalKind = board.kind === 'ringworld'
+        ? ringworldRivalBoss(this.players.map((p) => p.characterId)) : BOSS_KIND[board.kind];
+      for (const kind of [MID_BOSS[board.kind].kind, finalKind]) {
         for (const bossId of enemyModelIds(kind)) warmAuthored(bossId, 'soon');
+      }
+      for (const kind of rivalsForWave(7, this.players.map((p) => p.characterId))) {
+        for (const id of enemyModelIds(kind)) warmAuthored(id, 'soon');
       }
     }
 
@@ -465,13 +471,16 @@ export class Game {
    */
   spawnBoss(pos: THREE.Vector3, tier: 'mid' | 'final' = 'final'): Enemy {
     const mid = MID_BOSS[this.board.kind];
-    const kind = tier === 'mid' ? mid.kind : BOSS_KIND[this.board.kind];
+    const kind = tier === 'mid' ? mid.kind
+      : this.board.kind === 'ringworld' ? ringworldRivalBoss(this.players.map((p) => p.characterId))
+      : BOSS_KIND[this.board.kind];
     const at = this.campaign
       ? this.campaign.placeNear(pos.clone(), kind)
       : standingSpot(this.board, pos.clone(), kind);
     const boss = new Enemy(kind, at);
     if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
-    else boss.promoteBoss(BOSS_NAME[this.board.kind]);
+    else boss.promoteBoss(this.board.kind === 'ringworld' && kind !== BOSS_KIND.ringworld
+      ? TEXT.enemies[kind] : BOSS_NAME[this.board.kind]);
     // On a monster board the warlord is the herald: remember where it made its
     // stand, and the monster comes up there when it falls.
     if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();

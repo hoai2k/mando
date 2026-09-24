@@ -445,6 +445,10 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
   ringEnforcer: 'ring_enforcer',
   gunslinger: 'gunslinger', escortDroid: 'escort_droid',
+  rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
+  rivalGalen: 'jedi', rivalMaris: 'maris',
+  rivalCadBane: 'duelist', rivalEmbo: 'embo', rivalBossk: 'bossk',
+  rivalBoKatan: 'bokatan',
   // the three creatures come through loadCreature, but the file is the same
   // download, so warming it here is what stops a first-spawn hitch
   krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',
@@ -464,6 +468,9 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
   nikto: ['nikto_swoop'],
+  rivalMaul: ['saber_double'], rivalRevan: ['saber_dark'],
+  rivalGalen: ['saber_jedi'], rivalMaris: ['maris_tonfa'],
+  rivalVentress: ['saber_curved'],
 };
 
 /** Every .glb a kind renders as: its own model plus any companion piece. */

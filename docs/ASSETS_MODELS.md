@@ -74,15 +74,13 @@ come later if the 8k boss version reads poorly up close. The fifth of the family
 **IG-11**, rides the delivered ally droid model (`ig11.glb`) on the canonical rig, so it
 needed no new sculpt.
 
-**Both files are now player-only (2026-09-03).** `duelist.glb` was also the `duelist`
-enemy kind on every board's late waves and `ig11.glb` the wave-5 ally — the same sculpt on
-both sides, which had been deliberate and is no longer: a character you can pick off the
-select screen is not also a body you shoot or escort. Those two enemy kinds are deleted,
-and the roles they held are carried by two new NPCs, `gunslinger` and `escortDroid`, whose
-sculpts are [documented below](#replacement-npcs--requested-2026-09-03). **Neither
-replacement may reuse `duelist.glb` or `ig11.glb`** — borrowing either file puts the
-player character straight back on the NPC side, which is the whole thing this change
-removed.
+**Both files were made player-only on 2026-09-03.** `duelist.glb` had also backed
+a late-wave enemy and `ig11.glb` a wave-5 ally. Those unconditional uses were
+replaced by distinct `gunslinger` and `escortDroid` NPCs, whose sculpts are
+[documented below](#replacement-npcs--requested-2026-09-03). As of
+2026-09-24, later waves may use an unselected playable identity as a rival,
+including Cad Bane. The party filter prevents a player from fighting their
+own chosen character; the generic replacement NPCs retain their own models.
 
 | Character | Id / reference sheets | Height | Reference look |
 |---|---|---|---|
@@ -151,7 +149,9 @@ gltfpack compression produced `public/models/revan.glb` and
 `public/models/maul.glb`. Both are playable without jetpacks. Revan holds one
 red `saber_dark.glb` hilt; Maul holds one red `saber_double.glb` hilt with two
 opposed runtime blades. Each hilt moves between waist, right hand, and flight.
-The Ringworld boss lineup remains unchanged.
+The Ringworld final boss now selects Maul, then Revan, skipping either one
+played by the party. The former gunslinger remains the fallback when both
+Sith are selected.
 
 Maul's distinct animation set keeps the double hilt near the body in a
 two-handed guard, carries it low while running, then uses alternating sweeps,

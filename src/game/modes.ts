@@ -107,6 +107,7 @@ export function missionsOutdoor(): boolean {
 export const BOSS_KIND: Record<BoardId, EnemyKind> = {
   desert: 'enforcer', station: 'capo', nevarro: 'officer',
   crevasse: 'broodmother', trask: 'capo', refinery: 'officer',
+  // Ringworld's gunslinger is the fallback when Maul and Revan are both played.
   forge: 'enforcer', ringworld: 'gunslinger', narkina: 'officer',
 };
 

@@ -61,7 +61,12 @@ export function textureUrl(name: string): string { return `${ASSET_ROOT}assets/t
  * halves have to agree on the filename or the warm request misses.
  */
 export function portraitName(id: string): string {
-  return `portrait_${id.replace('npc:', '')}`;
+  const rivalPortrait: Record<string, string> = {
+    rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
+    rivalGalen: 'jedi', rivalMaris: 'maris', rivalCadBane: 'duelist',
+    rivalEmbo: 'embo', rivalBossk: 'bossk', rivalBoKatan: 'bokatan',
+  };
+  return `portrait_${rivalPortrait[id] ?? id.replace('npc:', '')}`;
 }
 
 /**

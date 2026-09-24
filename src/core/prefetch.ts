@@ -2,6 +2,7 @@ import { enemyModelIds, modelUrl, warmAuthored } from '../characters/authored';
 import type { EnemyKind } from '../enemies/enemy';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
+import { ringworldRivalBoss } from '../game/rivals';
 import { ALLY_WAVES, FINAL_WAVE, waveComposition } from '../enemies/spawner';
 import { carrierShipId } from '../enemies/arrival';
 import { BOARDS, type BoardInfo } from '../world/boards';
@@ -459,7 +460,8 @@ export function dropCast(board: BoardId, chars: PlayableId[], mode: GameMode): E
   }
   const opening = waveComposition(board, 1, 1).map((e) => e.kind);
   if (mode === 'campaign') {
-    return [...new Set<EnemyKind>([...opening.slice(0, 2), BOSS_KIND[board]])];
+    const boss = board === 'ringworld' ? ringworldRivalBoss(chars) : BOSS_KIND[board];
+    return [...new Set<EnemyKind>([...opening.slice(0, 2), boss])];
   }
   const last = waveComposition(board, FINAL_WAVE, 1).map((e) => e.kind);
   const picked: EnemyKind[] = [...opening.slice(0, 2), last[last.length - 1]];

@@ -15,6 +15,7 @@ import { ceilingOverride } from './modes';
 import { warmStage } from '../core/prefetch';
 import { tracked } from '../core/warm';
 import type { MissionController } from './mission-api';
+import { replaceWithRivals } from './rivals';
 
 /** scratch for the hazard probe in placeNear */
 const _probe = new THREE.Vector3();
@@ -543,7 +544,8 @@ export class Campaign implements MissionController {
       const fresh = kinds.find((k) => !this.seenKinds.has(k));
       if (fresh) {
         this.seenKinds.add(fresh);
-        return new Array(this.debutSize(fresh, comp, budget)).fill(fresh);
+        return replaceWithRivals(new Array<EnemyKind>(this.debutSize(fresh, comp, budget)).fill(fresh), wave,
+          this.game.players.map((p) => p.characterId));
       }
     }
     for (const k of kinds) this.seenKinds.add(k);
@@ -554,7 +556,7 @@ export class Campaign implements MissionController {
     // the wave's newest kind always makes the zone's mix
     out[out.length - 1] = kinds[kinds.length - 1];
     for (let i = 0; i < over; i++) out.push(kinds[kinds.length - 1]);
-    return out;
+    return replaceWithRivals(out, wave, this.game.players.map((p) => p.characterId));
   }
 
   /**
