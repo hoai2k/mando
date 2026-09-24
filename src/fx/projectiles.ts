@@ -127,6 +127,45 @@ export class ProjectileSystem {
     b.bySlot = bySlot;
   }
 
+  /**
+   * Bearing of a hostile bolt about to cross a blocking player's body from
+   * behind. A frontal threat wins: turning away from one bolt to catch another
+   * would make a raised shield feel unreliable. This reads the live pool and
+   * allocates nothing in the per-frame player update.
+   */
+  rearThreat(center: THREE.Vector3, facingYaw: number, physics: PhysicsWorld, horizon = 0.65): number | null {
+    const fx = Math.sin(facingYaw), fz = Math.cos(facingYaw);
+    let rearYaw: number | null = null;
+    let soonest = horizon;
+    let front = false;
+    for (const b of this.bolts) {
+      if (!b.active || b.team !== 1) continue;
+      const dx = center.x - b.mesh.position.x;
+      const dy = center.y - b.mesh.position.y;
+      const dz = center.z - b.mesh.position.z;
+      const speed2 = b.vel.lengthSq();
+      if (speed2 < 1) continue;
+      const t = (dx * b.vel.x + dy * b.vel.y + dz * b.vel.z) / speed2;
+      if (t < 0 || t > horizon) continue;
+      const missX = dx - b.vel.x * t;
+      const missY = dy - b.vel.y * t;
+      const missZ = dz - b.vel.z * t;
+      if (missX * missX + missY * missY + missZ * missZ > 1.15 * 1.15) continue;
+      const clear = physics.raycast(b.mesh.position,
+        _forecastDir.copy(b.vel).normalize(), Math.max(0, b.vel.length() * t - 1.2));
+      if (clear) continue;
+      const fromX = -dx, fromZ = -dz;
+      const fromLen = Math.hypot(fromX, fromZ);
+      if (fromLen < 0.01) continue;
+      if ((fromX * fx + fromZ * fz) / fromLen > 0.15) { front = true; continue; }
+      if (t < soonest) {
+        soonest = t;
+        rearYaw = Math.atan2(fromX, fromZ);
+      }
+    }
+    return front ? null : rearYaw;
+  }
+
   /** fired when a bolt meets the water's surface (splash FX hook) */
   onWaterHit: ((p: THREE.Vector3) => void) | null = null;
 
@@ -230,6 +269,7 @@ export class ProjectileSystem {
 const FORWARD = new THREE.Vector3(0, 0, 1);
 const tmp = new THREE.Vector3();
 const _dir = new THREE.Vector3();
+const _forecastDir = new THREE.Vector3();
 /**
  * Does the segment from `from` along unit `dir` for `len` metres pass within
  * `radius` of `center`? `len` is the *clear* length of the step — whatever the

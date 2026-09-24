@@ -1,6 +1,6 @@
 /**
  * Pilotable vehicles (PLAN.md §17), end to end in the real build:
- * spawn, the mount prompt, RB mounting, driving, ramming, being shot
+ * spawn, the mount prompt, Y mounting, driving, ramming, being shot
  * down (rider thrown + explosion), dismounting back to a parked solid,
  * and the Trask skiff riding the water.
  *
@@ -31,7 +31,7 @@ const spawned = await h.page.evaluate(() => {
 check('desert spawns 8 vehicles', spawned.n === 8, spawned.kinds);
 check('vehicles sit on real ground', spawned.grounded);
 
-// ---- walk up: prompt, then RB mounts ----
+// ---- walk up: prompt, then Y mounts ----
 await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
@@ -48,7 +48,7 @@ const mounted = await h.page.evaluate(() => {
   const p = g.players[0];
   return { on: !!p.vehicle, rider: g.vehicles[0].rider === p };
 });
-check('RB mounts the swoop', mounted.on && mounted.rider);
+check('Y mounts the swoop', mounted.on && mounted.rider);
 
 // ---- drive: the accelerator, momentum, and the rider stays in the saddle ----
 const start = await h.page.evaluate(() => {
@@ -339,14 +339,14 @@ check('a hit on the rider hurts the rider', redirect.pLost > 15,
 check('and only chips the ride under them', redirect.vLost > 0 && redirect.vLost < redirect.pLost * 0.5,
   `hull -${redirect.vLost.toFixed(1)}`);
 
-// ---- RB again dismounts, and the ride parks solid again ----
+// ---- Y again dismounts, and the ride parks solid again ----
 const boxesBefore = await h.page.evaluate(() => window.__game.board.physics.boxes.length);
 await h.step(1 / 60, { slamPressed: true });
 const dismounted = await h.page.evaluate(() => {
   const g = window.__game;
   return { off: !g.players[0].vehicle, boxes: g.board.physics.boxes.length };
 });
-check('RB dismounts', dismounted.off);
+check('Y dismounts', dismounted.off);
 check('parked ride is solid again', dismounted.boxes === boxesBefore + 1,
   `${boxesBefore} -> ${dismounted.boxes}`);
 
@@ -375,7 +375,7 @@ const onBantha = await h.page.evaluate((i) => {
   p.cam.yaw = v.yaw;
   return { on: p.vehicle === v, x: v.pos.x, z: v.pos.z, seatY: p.position.y - v.pos.y };
 }, banthaAt.i);
-check('RB mounts the bantha', onBantha.on, `seat ${onBantha.seatY.toFixed(2)} m over the keel`);
+check('Y mounts the bantha', onBantha.on, `seat ${onBantha.seatY.toFixed(2)} m over the keel`);
 check('the rider sits above the beast, not inside it', onBantha.seatY > 1.2 && onBantha.seatY < 3.2,
   `${onBantha.seatY.toFixed(2)} m`);
 await h.step(2, { moveY: 1 });
@@ -465,7 +465,7 @@ check('and steers it again once the sights are down', Math.abs(steeredAfter - ai
 // dismount and leave the herd as we found it
 await h.step(1 / 60, { slamPressed: true });
 const offBantha = await h.page.evaluate(() => !window.__game.players[0].vehicle);
-check('RB steps off the bantha', offBantha);
+check('Y steps off the bantha', offBantha);
 
 // ---- the rider dies at speed: the ride rolls on without them ----
 const runaway = await h.page.evaluate(() => {

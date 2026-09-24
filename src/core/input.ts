@@ -386,12 +386,12 @@ export class InputManager {
         // stick gives it, and holding it on rolls that into a sprint.
         inp.dashPressed ||= this.edge(pad, BTN.LB);
         inp.sprintHeld ||= b(BTN.LB);
-        inp.blockHeld ||= b(BTN.B);
-        inp.slamPressed ||= this.edge(pad, BTN.RB);
+        inp.blockHeld ||= b(BTN.RB);
+        inp.slamPressed ||= this.edge(pad, BTN.Y);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);
-        inp.rocketPressed ||= this.edge(pad, BTN.Y);
+        inp.rocketPressed ||= this.edge(pad, BTN.B);
         // Hold the right stick in and its vertical axis dollies the camera
         // instead of pitching it; yaw keeps working so you can still turn.
         if (b(BTN.RS)) {

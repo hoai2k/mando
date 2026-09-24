@@ -417,7 +417,7 @@ export class Hud {
       h.weapon.textContent = p.alive
         ? p.formT > 0 ? TEXT.hud.reforming : p.weaponLabel()
         : p.dissolving ? TEXT.hud.disintegrating : TEXT.hud.down;
-      // Y is the rocket for gun carriers; for a blades-only fighter or a war
+      // B is the special for gun carriers; for a blades-only fighter or a war
       // beast it is the heavy lunge, and the HUD should call it what it is
       const rc = p.rocketCd;
       if (p.profile.special === 'layEgg') {

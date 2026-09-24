@@ -272,11 +272,19 @@ export class LegacyCampaign implements MissionController {
     }
   }
 
-  /** where player `slot` comes back: the checkpoint, fanned out and validated */
+  /** Return a fallen player to the corridor before the active room. */
   respawnSpot(slot: number): THREE.Vector3 {
-    const at = this.checkpoint.clone();
-    at.x += (slot % 2) * 1.6 - 0.8;
-    at.z += Math.floor(slot / 2) * 1.6 - 0.8;
+    const room = this.room;
+    const dx = room.exit.x - room.entry.x;
+    const dz = room.exit.z - room.entry.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const fx = dx / len, fz = dz / len;
+    const at = this.phase === 'fight'
+      ? room.entry.clone().add(new THREE.Vector3(-fx * 3.5, 0, -fz * 3.5))
+      : this.checkpoint.clone();
+    const side = (slot % 2) * 1.6 - 0.8;
+    at.x += fz * side + fx * Math.floor(slot / 2) * 1.6;
+    at.z += -fx * side + fz * Math.floor(slot / 2) * 1.6;
     return this.placeNear(at, 'pyke');
   }
 
@@ -340,7 +348,7 @@ export class LegacyCampaign implements MissionController {
         break;
       }
       case 'assault':
-        room.entryGate?.close();
+        room.entryGate?.closeOneWay();
         room.exitGate?.close();
         this.waveCount = room.spec.waves ?? 2;
         this.waveNum = 0;
@@ -352,7 +360,7 @@ export class LegacyCampaign implements MissionController {
         break;
       default:
         // a boss arena: the gates seal and the battle owns the room
-        room.entryGate?.close();
+        room.entryGate?.closeOneWay();
         room.exitGate?.close();
         this.bossCalled = true;
         this.game.spawnBoss(room.center, room.spec.kind === 'lieutenant' ? 'mid' : 'final');

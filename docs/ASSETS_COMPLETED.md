@@ -1,10 +1,22 @@
 # Asset History — Delivered
 
-Assets that have been produced, integrated and verified in-game. **These are closed — they
-are not open requests.** Open requests live in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md),
+Assets that have been produced and delivered. Runtime assets are integrated and
+verified in-game; production reference sheets remain outside the shipped build.
+**These are closed — they are not open requests.** Open requests live in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md),
 [`ASSETS_AUDIO.md`](ASSETS_AUDIO.md) and [`ASSETS_MODELS.md`](ASSETS_MODELS.md).
 
 Kept for provenance and so anything can be regenerated on-style if it needs replacing.
+
+---
+
+## Spice Run sky frigate reference — delivered 2026-09-24
+
+`reference/props/spice_run_frigate_ref.png` is the canonical side, front and top
+reference for an original long-range shipping-lane frigate. It has a tapered
+armored prow, stepped bridge, swept stabilizers, ventral cargo spine, twin aft
+engines and sparse docking lights. The sheet is a production input only; the
+ship visible in Spice Run sky traffic remains a procedural silhouette until an
+authored model is made and integrated.
 
 ---
 

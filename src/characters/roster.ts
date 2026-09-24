@@ -73,7 +73,7 @@ export interface PlayerProfile {
   voice: VoiceId;
   /** PvP: this character leads a squad of AI teammates of this kind */
   squad?: { kind: EnemyKind; count: number };
-  /** signature Y move replacing the rocket/heavy lunge, when one exists */
+  /** signature B move replacing the rocket/heavy lunge, when one exists */
   special?: 'layEgg';
   /**
    * The collider. A playable NPC's is deliberately clamped (below), so a war
@@ -168,7 +168,7 @@ interface NpcTuning {
   melee?: [number, number];
   meleeOnly?: boolean;
   squad?: { kind: EnemyKind; count: number };
-  /** signature Y move that replaces the rocket/lunge — the broodmother lays eggs */
+  /** signature B move that replaces the rocket/lunge — the broodmother lays eggs */
   special?: 'layEgg';
   voice: VoiceId;
   blaster?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';

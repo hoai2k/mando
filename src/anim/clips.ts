@@ -268,6 +268,25 @@ function makeClips(p: Proportions): ClipSet {
     qt('footR', [0, 3.4], [[-26, 0, 0], [-26, 0, 0]]),
   ]);
 
+  // A compact two-step gait for low ship holds and crawl-height passages.
+  // The hips stay down while alternating feet, so the shortened collider has
+  // a body pose that matches it rather than a standing run through the roof.
+  clips.crouchWalkLower = new THREE.AnimationClip('crouchWalkLower', 0.9, [
+    pt('hips', [0, 0.225, 0.45, 0.675, 0.9], [
+      [0, hipY - 0.31, 0], [0, hipY - 0.35, 0], [0, hipY - 0.31, 0],
+      [0, hipY - 0.35, 0], [0, hipY - 0.31, 0],
+    ]),
+    qt('hips', [0, 0.45, 0.9], [[12, 0, 0], [12, 0, 0], [12, 0, 0]]),
+    qt('upperLegL', [0, 0.225, 0.45, 0.675, 0.9], [
+      [-65, 0, 7], [-48, 0, 7], [-42, 0, 7], [-54, 0, 7], [-65, 0, 7],
+    ]),
+    qt('upperLegR', [0, 0.225, 0.45, 0.675, 0.9], [
+      [-42, 0, -7], [-54, 0, -7], [-65, 0, -7], [-48, 0, -7], [-42, 0, -7],
+    ]),
+    qt('lowerLegL', [0, 0.45, 0.9], [[84, 0, 0], [76, 0, 0], [84, 0, 0]]),
+    qt('lowerLegR', [0, 0.45, 0.9], [[76, 0, 0], [84, 0, 0], [76, 0, 0]]),
+  ]);
+
   // ---------- UPPER: idle ----------
   clips.idleUpper = new THREE.AnimationClip('idleUpper', 3, [
     qt('chest', [0, 1.5, 3], [[1, 0, 0], [2.5, -1, 0], [1, 0, 0]]),

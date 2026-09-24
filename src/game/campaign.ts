@@ -479,6 +479,8 @@ export class Campaign implements MissionController {
       p.spawnAt(at);
     });
     this.checkpoint.copy(stage.zones[Math.min(this.idx, stage.zones.length - 1)].center);
+    const toward = back ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
+    game.players.forEach((p) => p.faceToward(toward));
     // hold behind the veil until this place is dressed (see `settleT`)
     this.settleT = 0;
     audio.checkpointChime();
@@ -811,11 +813,19 @@ export class Campaign implements MissionController {
     return this.stageSettleProgress().pending === 0;
   }
 
-  /** where player `slot` comes back: the checkpoint, fanned out and validated */
+  /** Return a fallen player to the approach, before the active fight's entry. */
   respawnSpot(slot: number): THREE.Vector3 {
-    const at = this.checkpoint.clone();
-    at.x += (slot % 2) * 1.6 - 0.8;
-    at.z += Math.floor(slot / 2) * 1.6 - 0.8;
+    const zone = this.zone;
+    const dx = zone.exit.x - zone.entry.x;
+    const dz = zone.exit.z - zone.entry.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const fx = dx / len, fz = dz / len;
+    const at = this.phase === 'fight'
+      ? zone.entry.clone().add(new THREE.Vector3(-fx * 4, 0, -fz * 4))
+      : this.checkpoint.clone();
+    const side = (slot % 2) * 1.6 - 0.8;
+    at.x += fz * side + fx * Math.floor(slot / 2) * 1.6;
+    at.z += -fx * side + fz * Math.floor(slot / 2) * 1.6;
     return this.placeNear(at, 'pyke');
   }
 
@@ -919,7 +929,7 @@ export class Campaign implements MissionController {
         // Indoors the doors seal behind you; outdoors only the way on is shut,
         // because a cage under an open sky is a lie and retreating into ground
         // you already cleared is its own worse fight.
-        if (zone.spec.shell === 'hall') zone.entryBarrier?.close();
+        if (zone.spec.shell === 'hall') zone.entryBarrier?.closeOneWay();
         zone.exitBarrier?.close();
         // Outdoors the posted force is the whole fight; a supplied zone —
         // a room, a deck, or the one open siege a run is allowed — holds with

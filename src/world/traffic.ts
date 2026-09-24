@@ -10,10 +10,10 @@ import type { Game } from '../game/game';
  * contacts, and the one gameplay-adjacent output is a distant engine wash
  * (`ship_pass`) when the low ship makes its close approach.
  *
- * The ships are procedural silhouettes on purpose. At 250–400 m a hull is a
- * shape and two lights; an authored model would spend a download on detail
- * the eye cannot resolve at lane distance. (The close-up freighter on the
- * waystation's live pad is the authored one — that ship you can stand on.)
+ * The ships are procedural silhouettes while the distant frigate has no
+ * authored model. The blocky liner is visible enough to warrant a proper
+ * sculpt; its canonical reference is in reference/props. (The close-up
+ * freighter on the live pad already has an authored model.)
  */
 
 export interface SkyLane {

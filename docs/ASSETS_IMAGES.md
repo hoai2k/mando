@@ -5,7 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**No open image requests as of 2026-09-23.** The Guild Gunslinger and Escort Droid
+**No open image requests as of 2026-09-24.** The Spice Run sky frigate's
+canonical three-view sheet lives in `reference/props/` and is recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The Guild Gunslinger and Escort Droid
 front, side and back sheets now live in `reference/characters/` and are recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md). The Missions v3 outdoor
 surface set was requested and delivered on 2026-09-03 and is wired into the mission

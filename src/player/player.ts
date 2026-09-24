@@ -62,6 +62,8 @@ const RESPAWN_IFRAMES = 1.6;
 const HIT_KNOCKBACK = 5;
 /** scratch for the block's facing test */
 const _facing = new THREE.Vector3();
+/** shared scratch for forecasting a bolt at shield height */
+const _spinCenter = new THREE.Vector3();
 
 // scratch vectors for the per-frame jetpack emission
 const _jetPos = new THREE.Vector3();
@@ -271,6 +273,9 @@ const COVER_ARC = 0.62;
 const COVER_STAND_OVER = 0.25;
 /** how far the hips drop into the cover crouch, as a fraction of body height */
 const CROUCH_DROP = 0.3;
+/** A low passage a humanoid can duck through without a dedicated button. */
+const PASSAGE_HEIGHT = 0.68;
+const PASSAGE_SPEED = 2.6;
 
 /**
  * Cross-fade between two jetpack poses, seconds.
@@ -322,6 +327,8 @@ const FLY_LEAN: Record<FlightPose, [number, number]> = {
 const LAND_BRACE_FADE = 0.12;
 /** how long the firing arm's recoil kick lasts, seconds */
 const ARM_KICK = 0.06;
+/** Time for the resting firing hand to reach the forward aim pose. */
+const HIP_FIRE_RAISE = 0.18;
 /** the kick's peak, radians — the shoulder rolls the muzzle up and rides it down */
 const ARM_KICK_ANGLE = 0.16;
 /** how much of the camera pitch the chest takes when aiming; the rest is the arms' fixed pose */
@@ -459,12 +466,16 @@ export class Player {
   };
   /** 0..1 raise animation for the shield pane */
   private blockRaise = 0;
+  /** turn to meet a rear bolt first; the chase camera follows after the shield */
+  private spinYaw: number | null = null;
+  private spinTime = 0;
+  private spinCameraWait = 0;
   /**
-   * RB pressed with the stick centred arms a dash instead of a sprint; the
+   * LB pressed with the stick centred arms a dash instead of a sprint; the
    * next direction pushed spends it. See the dash block below.
    */
   private dashArmed = false;
-  /** RB was pressed while already moving, so this hold is a sprint */
+  /** LB was pressed while already moving, so this hold is a sprint */
   private sprintLatched = false;
   /**
    * What is in the hands. `none` is empty-handed, which only a melee-only
@@ -569,6 +580,10 @@ export class Player {
   private flying = false;
   private coyote = 0;
   private fireCd = 0;
+  /** A short trigger tap is kept while the blaster arm comes up. */
+  private queuedHipShot = false;
+  private hipFireRaise = 0;
+  private gunRaised = false;
   private thrusting = 0;
   private dashTimer = 0;
   private dashCd = 0;
@@ -654,6 +669,8 @@ export class Player {
    * curves away from it.
    */
   cover: CoverFace | null = null;
+  /** Shortened capsule while passing beneath a prop's low roof. */
+  autoCrouching = false;
   /** a face is close enough to snap to right now (drives the HUD prompt) */
   nearCover = false;
   /** currently leaning out past the corner to shoot */
@@ -861,6 +878,9 @@ export class Player {
     this.snareTimer = 0;
     this.hurtFlash = 0;
     this.meleeTimer = 0;
+    this.queuedHipShot = false;
+    this.hipFireRaise = 0;
+    this.gunRaised = false;
     this.dashTimer = 0;
     this.freshBody = true;
     this.slamming = false;
@@ -978,6 +998,18 @@ export class Player {
   faceOpenGround(game: Game): void {
     const yaw = game.board.physics.openBearing(
       this.position.x, this.position.y + this.height * 0.55, this.position.z, this.cam.yaw);
+    this.faceYaw(yaw);
+  }
+
+  /** Face a known route marker after placement, with the camera behind the body. */
+  faceToward(target: THREE.Vector3): void {
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    if (dx * dx + dz * dz < 0.01) return;
+    this.faceYaw(Math.atan2(dx, dz));
+  }
+
+  private faceYaw(yaw: number): void {
     this.facingYaw = yaw;
     this.char.root.rotation.y = yaw;
     this.cam.face(yaw);
@@ -1327,11 +1359,11 @@ export class Player {
     // Thrown blades fly on every path — cover, saddle, water, even death
     // (they come home to the body) — so they tick before any early return.
     this.updateSaberThrow(dt, input, game);
-    if (!this.alive) { this.updateDeadBody(dt, game, anim); return; }
+    if (!this.alive) { this.queuedHipShot = false; this.updateDeadBody(dt, game, anim); return; }
 
     // a kill zone has hold of you: no input, no fighting, just the beat it
     // takes to pull you under (see `takenByHazard`)
-    if (this.takenT > 0) { this.updateTaken(dt, game); return; }
+    if (this.takenT > 0) { this.queuedHipShot = false; this.updateTaken(dt, game); return; }
 
     // re-forming after a respawn: motes converge head-to-feet and the figure
     // fades back in where it will stand — watchable, untouchable, and deaf to
@@ -1343,9 +1375,9 @@ export class Player {
     // takes it back. Everything else would be a step out of the door the
     // party is waiting at.
     if (this.exited) {
-      // B is the cancel: it is the game's own "back", and while you are in
-      // the pocket the shield it normally raises has nothing to guard against
-      if (input.blockHeld) this.cancelExit = true;
+      // B is the menu's back button and cancels a pending transport. It is
+      // the special button during play, but no special fires in the pocket.
+      if (input.rocketPressed) this.cancelExit = true;
       input = { ...input, moveX: 0, moveY: 0, jumpHeld: false, jumpPressed: false,
         dashPressed: false, sprintHeld: false, shootHeld: false, meleePressed: false,
         rocketPressed: false, slamPressed: false, blockHeld: false };
@@ -1357,9 +1389,9 @@ export class Player {
     this.updateEggRack(dt);
     this.tickTimers(dt);
     this.updateAim(input, game);
-    if (this.updateVehicle(dt, input, game, realDt)) return;
-    if (this.updateCover(dt, input, game, realDt)) return;
-    if (this.updateWater(dt, input, game, realDt)) return;
+    if (this.updateVehicle(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
+    if (this.updateCover(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
+    if (this.updateWater(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
 
     // ---- movement basis from camera yaw ----
     const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
@@ -1388,6 +1420,7 @@ export class Player {
     this.updateBounds(game);
     this.applyHazards(dt, game);
     this.updateCombatInput(dt, input, game);
+    this.updateSpinDefence(dt, game);
 
     const speed2 = Math.hypot(this.velocity.x, this.velocity.z);
     this.updateFacing(dt, input, speed2);
@@ -1400,6 +1433,7 @@ export class Player {
     // camera stays crisp while the world is in slow motion
     this.cam.update(realDt, this.position, game.board.physics, {
       aiming: input.aimHeld, speed: speed2, dashing: this.dashTimer > 0,
+      crouching: this.autoCrouching,
       // thrust reads as flight even while hovering still; a plain fall gets
       // its width from the climb term instead, so a kerb-step isn't "flying"
       flying: this.thrusting > 0, climb: this.grounded ? 0 : this.velocity.y,
@@ -1527,7 +1561,7 @@ export class Player {
     this.aiming = input.aimHeld && !this.meleeOnly;
   }
 
-  /** RB near a parked ride mounts, and the ride wins the press. True = the ride took the frame */
+  /** Y near a parked ride mounts, and the ride wins the press. True = the ride took the frame */
   private updateVehicle(dt: number, input: FrameInput, game: Game, realDt: number): boolean {
     this.nearVehicle = this.vehicle ? null : this.findVehicle(game);
     if (!this.vehicle && this.nearVehicle && input.slamPressed) {
@@ -1618,7 +1652,7 @@ export class Player {
     return true;
   }
 
-  /** block (hold B / R): the same gauge as sprinting, so a fight is a budget */
+  /** block (hold RB / R): the same gauge as sprinting, so a fight is a budget */
   private updateBlock(dt: number, input: FrameInput): void {
     // The shield is the same gauge as sprinting, so a fight is a budget: run
     // it down blocking and you have nothing left to run with.
@@ -1631,6 +1665,36 @@ export class Player {
     }
     this.blockRaise = damp(this.blockRaise, this.blocking ? 1 : 0, 14, dt);
     this.char.setBlock(this.blockRaise);
+  }
+
+  /**
+   * Meet a rear bolt with the raised pane, then bring the camera around to
+   * show the reflected shot. A frontal bolt keeps the present facing. The
+   * body owns the first fraction of a second so the turn is visible from
+   * behind rather than the camera moving before the shield does.
+   */
+  private updateSpinDefence(dt: number, game: Game): void {
+    if (!this.blocking || this.profile.shield360 || this.cover || this.vehicle) {
+      this.spinYaw = null;
+      this.spinTime = 0;
+      return;
+    }
+    if (this.spinTime <= 0 && this.blockRaise >= 0.6) {
+      _spinCenter.copy(this.position);
+      _spinCenter.y += this.height * 0.58;
+      const bearing = game.projectiles.rearThreat(_spinCenter, this.facingYaw, game.board.physics);
+      if (bearing !== null) {
+        this.spinYaw = bearing;
+        this.spinTime = 0.8;
+        this.spinCameraWait = 0.16;
+      }
+    }
+    if (this.spinTime <= 0 || this.spinYaw === null) return;
+    this.spinTime = Math.max(0, this.spinTime - dt);
+    this.spinCameraWait -= dt;
+    if (this.spinCameraWait <= 0) {
+      this.cam.yaw = dampAngle(this.cam.yaw, this.spinYaw, 11, dt);
+    }
   }
 
   /** LB: a dodge in whatever direction it is given, then a sprint */
@@ -1978,8 +2042,10 @@ export class Player {
     // Standing when the step began means ground that falls away is followed,
     // not left: without it a run down any slope is a stutter of tiny falls
     // (see `STICK_SLOPE`), and the legs flicker between the run and the air.
+    this.updateLowPassage(dt, game);
+    const moveHeight = this.autoCrouching ? this.height * PASSAGE_HEIGHT : this.height;
     const res = game.board.physics.moveCapsule(
-      this.position, this.radius, this.height, this.velocity, dt, this.grounded);
+      this.position, this.radius, moveHeight, this.velocity, dt, this.grounded);
     this.pushOutOfBigBodies(game);
     if (res.grounded && !this.wasGrounded) {
       audio.land(this.slamming || impact > 14);
@@ -2028,6 +2094,30 @@ export class Player {
     this.clampToCeiling(game);
   }
 
+  /** Duck when the obstacle is overhead and the shorter capsule really fits. */
+  private updateLowPassage(dt: number, game: Game): void {
+    if ((!this.grounded && !this.autoCrouching) || this.height > 2.1 || this.vehicle) {
+      this.autoCrouching = false;
+      return;
+    }
+    const physics = game.board.physics;
+    const x = this.position.x, y = this.position.y, z = this.position.z;
+    const nx = x + this.velocity.x * dt;
+    const nz = z + this.velocity.z * dt;
+    const free = (h: number) => physics.capsuleFree(x, y, z, this.radius, h)
+      && physics.capsuleFree(nx, y, nz, this.radius, h);
+    const standingFree = free(this.height);
+    this.autoCrouching = !standingFree && free(this.height * PASSAGE_HEIGHT);
+    if (this.autoCrouching) {
+      const speed = Math.hypot(this.velocity.x, this.velocity.z);
+      if (speed > PASSAGE_SPEED) {
+        this.velocity.x *= PASSAGE_SPEED / speed;
+        this.velocity.z *= PASSAGE_SPEED / speed;
+      }
+      this.sprinting = false;
+    }
+  }
+
   /**
    * The playable sky's lid (docs/MISSIONS_OUTDOOR.md §2).
    *
@@ -2069,6 +2159,11 @@ export class Player {
 
   /** the lock-on flag and the combat pass, with the shield masking what it holds */
   private updateCombatInput(dt: number, input: FrameInput, game: Game): void {
+    if (this.blocking) {
+      this.queuedHipShot = false;
+      this.hipFireRaise = 0;
+      this.gunRaised = false;
+    }
     this.lockedOn = this.weapon === 'blaster' &&
       !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
     // Both hands are on the shield: no firing, no swinging, no weapon swap
@@ -2103,7 +2198,11 @@ export class Player {
    * stopping. Firing from the hip stays square too — guns are unchanged.
    */
   private updateFacing(dt: number, input: FrameInput, speed2: number): void {
-    const squareToCamera = this.blocking || input.aimHeld || input.shootHeld
+    if (this.spinTime > 0 && this.spinYaw !== null) {
+      this.facingYaw = dampAngle(this.facingYaw, this.spinYaw, 27, dt);
+      return;
+    }
+    const squareToCamera = this.blocking || input.aimHeld || input.shootHeld || this.queuedHipShot
       || this.weapon === 'blaster' && this.fireCd > -0.6;
     let targetYaw = this.facingYaw;
     let turn = TURN_RATE;
@@ -2120,6 +2219,8 @@ export class Player {
 
   /** which clips the body plays for what it is doing */
   private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
+    const gunUp = input.aimHeld || input.shootHeld || this.queuedHipShot
+      || (this.gunRaised && this.fireCd > -0.6);
     // ---- animation state ----
     // Cleared here and set again only by the flight branch below, so the lean
     // in `syncVisual` always reflects the pose that actually went on the body
@@ -2137,7 +2238,11 @@ export class Player {
     // is not affected in practice: its recovery holds the speed under this
     // until the clip has all but finished.
     if (this.landTimer > 0 && this.grounded && speed2 > 3) { anim.release('lower'); this.landTimer = 0; }
-    if (this.blocking) {
+    if (this.autoCrouching) {
+      anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+      if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
+      else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : 'idleUpper');
+    } else if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
       anim.play('upper', 'blockUpper', 0.12);
@@ -2158,11 +2263,11 @@ export class Player {
       const fly = flightClips(this.flyPose);
       anim.play('lower', fly.lower, FLY_FADE);
       if (this.meleeTimer <= 0) {
-        anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : fly.upper, FLY_FADE);
+        anim.play('upper', gunUp ? 'aimUpper' : fly.upper, FLY_FADE);
       }
     } else if (!this.grounded) {
       anim.play('lower', 'airLower');
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : 'airUpper');
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : 'airUpper');
     } else if (speed2 > 0.6) {
       // Which way is travel, relative to the body? Combat facing points the
       // chest at the camera while the feet go where the stick says, and the
@@ -2180,7 +2285,7 @@ export class Player {
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? 'saberRunUpper' : 'runUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
       } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
@@ -2194,7 +2299,7 @@ export class Player {
     } else {
       anim.play('lower', 'idleLower');
       const idleUpper = this.sabersDrawn ? 'saberIdleUpper' : 'idleUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', input.aimHeld || input.shootHeld ? 'aimUpper' : idleUpper);
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : idleUpper);
     }
   }
 
@@ -2597,7 +2702,7 @@ export class Player {
    * In the saddle: input drives the vehicle and the rider sits its seat —
    * exposed, since a mounted rider takes what is aimed at them (only a
    * quarter of it bleeds into the ride) unless the ride's own deflector is up
-   * over both of them. RB steps off beside a parked ride and bails out of a
+   * over both of them. Y steps off beside a parked ride and bails out of a
    * moving one; either way a ride left with speed in it rolls on driverless
    * until it stops.
    */
@@ -2635,7 +2740,7 @@ export class Player {
     this.cover = null;
 
     // ---- dismount ----
-    // RB is the only exit now that A is the accelerator, and it reads the
+    // Y is the only exit now that A is the accelerator, and it reads the
     // speedometer: step off a parked ride, bail out of a moving one. Bailing
     // keeps the ride's momentum and pops you up into a jetpack chain, which
     // is both the fun exit and the one you want when the hull is about to go.
@@ -3103,14 +3208,37 @@ export class Player {
       this.meleeComboWindow = 0;
       this.saberIdle = 0;
     }
+    // Hip fire asks for the upper aim pose first. Keep a quick trigger tap
+    // queued while the arm moves, then fire from the raised muzzle. ADS has
+    // already raised the gun and keeps its immediate response.
+    if (this.weapon !== 'blaster' || this.meleeTimer > 0 || this.overheated) {
+      this.queuedHipShot = false;
+      this.hipFireRaise = 0;
+      this.gunRaised = false;
+    } else if (input.aimHeld) {
+      this.queuedHipShot = false;
+      this.hipFireRaise = 0;
+      this.gunRaised = true;
+    } else {
+      if (input.shootHeld && !this.gunRaised && !this.queuedHipShot) {
+        this.queuedHipShot = true;
+        this.hipFireRaise = HIP_FIRE_RAISE;
+      }
+      if (this.queuedHipShot) {
+        this.hipFireRaise -= dt;
+        if (this.hipFireRaise <= 0) this.gunRaised = true;
+      }
+      if (!input.shootHeld && !this.queuedHipShot && this.fireCd <= -0.6) this.gunRaised = false;
+    }
     // the broodmother's trigger: she has no gun — RT lobs a charged egg
     if (input.shootHeld && this.profile.special === 'layEgg'
         && this.fireCd <= 0 && this.meleeTimer <= 0) {
       this.throwEgg(game);
     }
 
-    if (input.shootHeld && this.weapon === 'blaster' && this.fireCd <= 0 && this.meleeTimer <= 0
-        && !this.overheated) {
+    if ((input.shootHeld || this.queuedHipShot) && this.gunRaised && this.weapon === 'blaster'
+        && this.fireCd <= 0 && this.meleeTimer <= 0 && !this.overheated) {
+      this.queuedHipShot = false;
       this.fireCd = this.profile.fireCd;
       this.addHeat();
       const muzzlePos = new THREE.Vector3();

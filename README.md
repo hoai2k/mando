@@ -29,14 +29,14 @@ default — turn on **Keyboard & mouse** in Settings for the left column.
 | Jump → hold to jetpack | `Space` | `A` |
 | Sprint — press while already moving, hold to keep it | hold `Shift` | hold `LB` |
 | Dash — press from a standstill, then push a direction | hold `Shift` | hold `LB` |
-| Block — raise the shield (hold) | hold `R` | hold `B` |
+| Block — raise the shield (hold) | hold `R` | hold `RB` |
 | Fire blaster | Left mouse | `RT` |
 | Aim (zoom) | Right mouse | `LT` |
 | Melee combo (gaffi stick, or the sabers) | `F` | `X` |
-| Wrist rocket | `Q` | `Y` |
+| Special — wrist rocket | `Q` | `B` |
 | Camera distance | Mouse wheel | hold right stick click + up/down |
-| Take cover (on ground, near a box) / ground slam (in air) | `C` / `Ctrl` | `RB` |
-| Switch weapon (draw or stow, for a blades-only fighter) | `E` | D-pad right |
+| Take cover / mount or dismount a ride / ground slam (in air) | `C` / `Ctrl` | `Y` |
+| Next blade / next gun | `1` / `2`, `E` | D-pad left / right |
 | Pause | `Esc` | `Start` |
 | Fullscreen | button, bottom-right | `View` |
 
@@ -105,7 +105,7 @@ worth pushing.
 The gunfights borrow their feel from *Red Dead Redemption 2*: pressing aim snaps
 onto the target nearest your crosshair, then the fine aim is yours; hip fire sprays
 and recoil climbs. You can
-**take cover** like they do: press `C` (or `RB`) near a crate to snap against it —
+**take cover** like they do: press `C` (or `Y`) near a crate to snap against it —
 slide along the face with the stick, hold aim to lean out past the corner and
 shoot (it picks the corner with a clear shot to your target), release to duck
 back; jump, dash or push away to leave. Enemies fight from

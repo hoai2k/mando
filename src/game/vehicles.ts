@@ -19,7 +19,7 @@ import { createShieldField, type ShieldField } from '../fx/shieldfield';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
- * boards. RB near one mounts, the left stick drives it — forward and back on
+ * boards. Y near one mounts, the left stick drives it — forward and back on
  * the throttle, left and right on the nose, the same stick that moves the
  * character on foot — ramming is the weapon, and sooner or later it is shot
  * out from under you or you put it into a wall. Then the rider is thrown, the
@@ -29,7 +29,7 @@ import { createShieldField, type ShieldField } from '../fx/shieldfield';
  *
  * The other two face buttons keep the meaning they have on foot, which is the
  * whole point of the scheme: A hops the ride the way it jumps the character,
- * and B raises a shield — the rider's own field thrown round the hull, over
+ * and RB raises a shield — the rider's own field thrown round the hull, over
  * both of them. It turns attacks and nothing else: a wall is not an attack,
  * and neither is your own repulsor core going up under you.
  *

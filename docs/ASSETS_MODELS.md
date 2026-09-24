@@ -445,9 +445,18 @@ fan designs only.
 
 Assets for the seven planned features in `PLAN.md` §16 (sky traffic, the working
 landing pad, banthas, the horizon sandcrawler, refinery pipes & steam, quay dressing,
-the ringworld skyline). The sky traffic and the landing freighter **reuse the
-`freighter` model above** — no new ship is requested; the skyline and the quay nets
-are textures (see `ASSETS_IMAGES.md`), not models. That leaves four:
+the ringworld skyline). The landing freighter uses the authored `freighter`
+model above. The distant sky traffic currently uses a box-built procedural
+liner in `src/world/traffic.ts`; it does **not** load the freighter model.
+The skyline and quay nets are textures (see `ASSETS_IMAGES.md`), not models.
+The sky frigate reference was added on 2026-09-24 at
+`reference/props/spice_run_frigate_ref.png` for an eventual replacement:
+
+| Id | Board | Size | Role / constraints |
+|---|---|---|---|
+| `spice_run_frigate` ◇ | Spice Run sky traffic | ~90 m long | Replace the distant procedural liner silhouette. Model the side, front and top views in `reference/props/spice_run_frigate_ref.png`: tapered armored prow, stepped bridge, swept midship stabilizers, recessed ventral cargo spine, twin aft engines and sparse docking lights. Background only: no collider, rig or interior. Preserve a readable silhouette at 250–400 m. |
+
+The four other ambient props are:
 
 | Id | Board | Size | Role / constraints |
 |---|---|---|---|

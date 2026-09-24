@@ -247,7 +247,7 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: the clutch charges an egg every 3 s onto a live rack',
   s.clutch === 2 && s.rack, JSON.stringify(s));
-check('pvp: the broodmother lays an egg on Y, spending the clutch',
+check('pvp: the broodmother lays an egg on B, spending the clutch',
   s.eggLaid && s.clutchSpent, JSON.stringify(s));
 check('pvp: the delivered egg leaves from the sac on her back', s.fromBack, JSON.stringify(s));
 check('pvp: the egg hatches into a hatchling escort after 5 s', s.eggGone && s.hatched, JSON.stringify(s));
@@ -443,6 +443,21 @@ await page.evaluate(() => { window.__manual = false; });
 await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=old`);
 await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
+const legacyRoute = await page.evaluate(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const dx = c.objectivePos.x - p.position.x, dz = c.objectivePos.z - p.position.z;
+  const forward = (dx * Math.sin(p.yaw) + dz * Math.cos(p.yaw)) / Math.hypot(dx, dz);
+  const oldIdx = c.idx, oldPhase = c.phase;
+  c.idx = 2; c.phase = 'fight';
+  const room = c.level.rooms[2], at = c.respawnSpot(0);
+  const dirX = room.exit.x - room.entry.x, dirZ = room.exit.z - room.entry.z;
+  const before = (at.x - room.entry.x) * dirX + (at.z - room.entry.z) * dirZ < 0;
+  c.idx = oldIdx; c.phase = oldPhase;
+  return { forward, before, free: g.board.physics.capsuleFree(at.x, at.y, at.z, p.radius, p.height) };
+});
+check('campaign (room chain): spawn faces the route and a fight respawn is before its room',
+  legacyRoute.forward > 0.95 && legacyRoute.before && legacyRoute.free,
+  JSON.stringify(legacyRoute));
 const roomChain = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(120);
@@ -674,6 +689,14 @@ check('campaign: and nothing shoots through it', !doors.aheadBolt, JSON.stringif
 
 // ---- Wave boss ----
 await startMode('wave', 1, 'desert', ['din']);
+const waveFacing = await page.evaluate(() => {
+  const p = window.__game.players[0];
+  const dx = -p.position.x, dz = -p.position.z;
+  return { forward: (dx * Math.sin(p.yaw) + dz * Math.cos(p.yaw)) / Math.hypot(dx, dz),
+    camera: Math.abs(Math.atan2(Math.sin(p.cam.yaw - p.yaw), Math.cos(p.cam.yaw - p.yaw))) };
+});
+check('wave: new board spawn faces the arena with its camera',
+  waveFacing.forward > 0.95 && waveFacing.camera < 0.01, JSON.stringify(waveFacing));
 const wv = await page.evaluate(`(() => {
   const g = window.__game;
   let guard = 0;

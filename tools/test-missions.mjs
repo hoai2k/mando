@@ -98,6 +98,31 @@ check('the stage has a way on to the next one', built.hasExitPortal && !built.ha
 check('the golden path is laid out for the guidance', built.path >= 4, String(built.path));
 check('rides are parked on the stage', built.rides > 0, String(built.rides));
 
+const placed = await page.evaluate(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const dotTo = (from, to, yaw) => {
+    const dx = to.x - from.x, dz = to.z - from.z;
+    return (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / Math.hypot(dx, dz);
+  };
+  const opening = { forward: dotTo(p.position, c.objectivePos, p.yaw),
+    camera: Math.abs(Math.atan2(Math.sin(p.cam.yaw - p.yaw), Math.cos(p.cam.yaw - p.yaw))) };
+  const oldIdx = c.idx, oldPhase = c.phase;
+  c.idx = 1; c.phase = 'fight';
+  const zone = c.stage.zones[1], at = c.respawnSpot(0);
+  const along = dotTo(zone.entry, at,
+    Math.atan2(zone.exit.x - zone.entry.x, zone.exit.z - zone.entry.z));
+  const approach = { behind: along < -0.6, distance: +at.distanceTo(zone.entry).toFixed(2),
+    onStage: c.stage.contains(at.x, at.z),
+    free: g.board.physics.capsuleFree(at.x, at.y, at.z, p.radius, p.height) };
+  c.idx = oldIdx; c.phase = oldPhase;
+  return { opening, approach };
+});
+check('mission spawn faces the next checkpoint with its camera',
+  placed.opening.forward > 0.95 && placed.opening.camera < 0.01, JSON.stringify(placed.opening));
+check('a fight respawn lands on safe ground before the zone entry',
+  placed.approach.behind && placed.approach.onStage && placed.approach.free,
+  JSON.stringify(placed.approach));
+
 // ---- the borders clear the ceiling, and there is a rim at all ----
 const rim = await page.evaluate(() => {
   const g = window.__game;
@@ -372,7 +397,7 @@ const portal = await page.evaluate(async () => {
   out.oneWaits = c.stageIdx === stageNow && c.exited.size === 1;
   out.noticeShown = !!g.exitNotice(g.players[1]);
   // cancelling walks them back out
-  const cancel = [{ ...blank(), blockHeld: true }, blank(), blank(), blank()];
+  const cancel = [{ ...blank(), rocketPressed: true }, blank(), blank(), blank()];
   for (let i = 0; i < 20; i++) g.update(1 / 30, cancel);
   out.cancelled = c.exited.size === 0;
   // everyone aboard, and it goes

@@ -344,10 +344,9 @@ export class Game {
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
-    // The level exists now (a mission raises its own and re-places the party
-    // on it), so this is the first moment anyone can be pointed at open
-    // ground rather than at whatever the default bearing happened to face.
-    for (const p of this.players) p.faceOpenGround(this);
+    // A mission marker, or the wave board's centre, gives the opening a
+    // consistent forward direction. PvP has no shared route to point at.
+    for (const p of this.players) this.facePlacedPlayer(p);
 
     // Parked rides belong to the territory's own ground, so they only make
     // sense in the modes fought on it. A mission level is raised to
@@ -1168,6 +1167,18 @@ export class Game {
     return base.clone().setX(base.x + step * (i - board.playerStarts.length + 1));
   }
 
+  /** Give a fresh body and its camera the same forward bearing. */
+  private facePlacedPlayer(p: Player): void {
+    p.faceOpenGround(this);
+    if (this.campaign) {
+      p.faceToward(this.campaign.objectivePos);
+    } else if (this.mode === 'wave') {
+      const centre = new THREE.Vector3(0, p.position.y, 0);
+      if (centre.distanceToSquared(p.position) > 9) p.faceToward(centre);
+      else if (this.board.groundSpawns.length) p.faceToward(this.board.groundSpawns[0]);
+    }
+  }
+
   /** one hand on the controller per bot, kept for the life of the match */
   private botInput(p: Player, dt: number): FrameInput {
     let brain = this.brains.get(p.slot);
@@ -1330,11 +1341,8 @@ export class Game {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
       if (p.alive || p.respawnTimer > 0 || ended) continue;
       this.rules.respawn(p);
-      // ...facing out of wherever the mode put them. A checkpoint hands out a
-      // spot, not a bearing, and a room's spot is usually against a wall.
-      // Only where a body actually came back: a mode that has run out of
-      // lives to give leaves the player down, and a corpse has no bearing.
-      if (p.alive) p.faceOpenGround(this);
+      // The return point and the route ahead are both known after respawn.
+      if (p.alive) this.facePlacedPlayer(p);
     }
     this.rules.partyWiped?.();
 
@@ -1434,7 +1442,7 @@ export class Game {
       _body.position = p.position;
       _body.yaw = p.yaw;
       _body.team = p.team;
-      _body.hitHeight = p.profile.hitHeight;
+      _body.hitHeight = p.autoCrouching ? p.height * 0.68 : p.profile.hitHeight;
       _body.hitRadius = p.profile.hitRadius;
       _body.parts = p.profile.hitParts;
       _body.shield = p.shieldCollider;

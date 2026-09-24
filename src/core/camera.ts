@@ -118,6 +118,8 @@ export interface CameraMotion {
   flying?: boolean;
   /** vertical speed, m/s; counted alongside `speed`, so a long fall reads wide */
   climb?: number;
+  /** follow a ducking body below a low overhead collider */
+  crouching?: boolean;
 }
 
 /** Third-person orbit camera with collision, aim zoom, and shake. */
@@ -323,7 +325,7 @@ export class ThirdPersonCamera {
     this.camera.updateProjectionMatrix();
 
     const head = this.tmpTarget.copy(feetPos);
-    head.y += this.eye;
+    head.y += this.eye * (opts.crouching ? 0.72 : 1);
     // over-the-right-shoulder offset, matching the right-handed carbine
     const { rightX, rightZ } = yawBasis(this.yaw);
     // A wide body needs the step out to clear its own flank, or the shoulder

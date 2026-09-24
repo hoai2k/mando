@@ -10,7 +10,8 @@
  * the droid ignored it.
  *
  * The test fires single bolts from chosen bearings and asks whether the
- * player's health moved. Nothing here is about damage numbers: a bolt either
+ * player's health moved. A held forward pane now turns toward a forecast rear
+ * hit before impact. Nothing here is about damage numbers: a bolt either
  * reached the body or it did not.
  *
  * Run:  node tools/test-block.mjs
@@ -145,10 +146,10 @@ check('IG-11 has the shield up', ig.guard === true, ig.guard);
 check('IG-11 turns fire from every bearing',
   [...front, ...behind].every((b) => ig.byBearing[b] === false), ig.byBearing);
 
-// ---- and a forward pane is still a forward pane for everyone else
+// ---- the forward pane turns to meet an incoming rear bolt in time
 const din = await probe('din', { block: true, bearings: [0, 180] });
 check('a forward pane covers the front', din.byBearing[0] === false, din.byBearing);
-check('a forward pane leaves the back open', din.byBearing[180] === true, din.byBearing);
+check('the blocker spins to catch a rear bolt', din.byBearing[180] === false, din.byBearing);
 
 await h.close();
 console.log(failures.length ? `\nFAILED: ${failures.join(', ')}` : '\nall block checks passed');

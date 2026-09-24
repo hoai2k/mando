@@ -35,6 +35,14 @@ try {
       && b.max.y > ship.position.y + 0.3 && b.min.y < ship.position.y + 12) : [];
     const standInCylinders = ship ? g.board.physics.cylinders.filter((c) =>
       Math.hypot(c.x - ship.position.x, c.z - ship.position.z) < 1) : [];
+    let lowGaps = 0;
+    if (ship) for (const rise of [0, 0.4, 0.8]) {
+      for (let x = -6; x <= 6; x += 0.4) for (let z = -6; z <= 6; z += 0.4) {
+        const px = ship.position.x + x, py = ship.position.y + rise, pz = ship.position.z + z;
+        if (!g.board.physics.capsuleFree(px, py, pz, 0.42, 1.75)
+          && g.board.physics.capsuleFree(px, py, pz, 0.42, 1.19)) lowGaps++;
+      }
+    }
     return {
       wall: [12, 30, 60].every((side) => inside(point(-1, side, 3)) && inside(point(-1, -side, 3))),
       above: inside(point(-1, 0, 30)),
@@ -46,6 +54,7 @@ try {
       shipLoaded: !!ship && ship.children.length > 0,
       shipColliderCount: shipBoxes.length,
       standInCylinders: standInCylinders.length,
+      lowGaps,
     };
   });
   check('a broad station hull closes both sides of the door', result.wall, result);
@@ -56,6 +65,7 @@ try {
   check('the freighter has fitted colliders in place of its solid stand-in',
     result.shipLoaded && result.shipColliderCount > 3 && result.shipColliderCount < 220
       && result.standInCylinders === 0, result);
+  check('the freighter retains duckable space beneath its fitted hull', result.lowGaps > 20, result);
 } finally {
   await h.close();
 }
