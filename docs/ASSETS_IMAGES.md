@@ -21,6 +21,12 @@ five canvases including the replacement `sandworm`. The cast, the boards, the sk
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
+`reference/characters/jedi_saber_options.png` is a four-hilt comparison sheet
+for design review: the current Jedi concept, a slim heroic hilt, a double hilt,
+and a dark armored hilt. It is exploration art, not four approved canonical
+model references. Generate a clean individual reference for any selected hilt
+before making its 3D prop.
+
 What remains below is not a request: the recipe for making
 more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
