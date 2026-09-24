@@ -67,15 +67,11 @@ const CANON_PARENT: Partial<Record<BoneName, BoneName>> = {
 /** canonical bones parents-first, so a single pass accumulates world rotations */
 const CANON_ORDER = BONES.filter((b) => b === 'hips' || CANON_PARENT[b]) as BoneName[];
 
-// Authored torsos and sleeves were sculpted around an A-pose. The canonical
-// clips use a vertical neutral arm, which can drive that geometry into the
-// ribs when no upper-body clip is playing. Give hanging arms a small shared
-// outward bias, but fade it for raised arms so aimed weapons keep their fit.
-const ARM_CLEARANCE = THREE.MathUtils.degToRad(10);
-const ARM_AXIS = new THREE.Vector3(0, 0, 1);
+// The supplied models' A-pose is their normal shoulder width. Straight-down
+// arms need a little more socket clearance; arms extended sideways need less.
+const SHOULDER_WIDTH_CHANGE = 0.05;
 const ARM_DOWN = new THREE.Vector3(0, -1, 0);
 const armDir = new THREE.Vector3();
-const armSpread = new THREE.Quaternion();
 
 /**
  * Where each canonical bone points at rest. Our rig rests with every rotation
@@ -112,11 +108,24 @@ interface AuthoredNode {
   rest: THREE.Quaternion;      // world rotation to hold when the source is at rest
 }
 
+interface ShoulderSlide {
+  side: 1 | -1;
+  shoulder: THREE.Object3D;
+  arm: THREE.Object3D;
+  shoulderX: number;
+  armX: number;
+  halfWidth: number;
+  /** outward arm component in this model's delivered A-pose */
+  aPoseSplay: number;
+}
+
 export interface AuthoredModel {
   /** scene root, already scaled and sitting on its feet */
   root: THREE.Object3D;
   /** skeleton flattened parents-first */
   nodes: AuthoredNode[];
+  /** rest positions and A-pose angle for each independently sliding shoulder */
+  shoulderSlides: ShoulderSlide[];
   /** hand-space mount whose world transform matches our canonical `weaponR` */
   weaponMount: THREE.Object3D | null;
   /** the same, in the left hand, for a character who carries a pair */
@@ -545,6 +554,27 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
   collect(root, -1);
 
+  // Both bones are reparented under spine.004 above. Move them by the same
+  // amount so the clavicle and arm socket travel together, while the torso
+  // skin between chest and shoulder supplies the small stretch.
+  const leftArm = find('DEF-upper_arm.L');
+  const rightArm = find('DEF-upper_arm.R');
+  const halfWidth = leftArm && rightArm
+    ? Math.abs(leftArm.position.x - rightArm.position.x) * 0.5 : 0;
+  const shoulderSlides: ShoulderSlide[] = [];
+  for (const side of [1, -1] as const) {
+    const suffix = side === 1 ? 'L' : 'R';
+    const shoulder = find(`DEF-shoulder.${suffix}`);
+    const arm = find(`DEF-upper_arm.${suffix}`);
+    const rest = nodes.find((n) => n.obj === arm)?.rest;
+    if (!shoulder || !arm || !rest || shoulder.parent !== arm.parent) continue;
+    const aPoseSplay = THREE.MathUtils.clamp(
+      side * armDir.set(0, 1, 0).applyQuaternion(rest).x, 0.05, 0.95);
+    shoulderSlides.push({ side, shoulder, arm,
+      shoulderX: shoulder.position.x, armX: arm.position.x,
+      halfWidth: halfWidth || Math.abs(arm.position.x), aPoseSplay });
+  }
+
   // Pull the mapped bones onto our rest pose, so a clip that means "arms down"
   // reads the same on a model authored in an A-pose. Only the bone direction is
   // corrected; the twist around it stays as authored.
@@ -580,6 +610,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   return {
     root: wrapper,
     nodes,
+    shoulderSlides,
     weaponMount,
     weaponMountL,
     hips: nodes.find((n) => n.canonical === 'hips')?.obj ?? null,
@@ -615,15 +646,7 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     const bone = source.bones[name];
     const parent = CANON_PARENT[name];
     if (parent) q.copy(src.get(parent)!); else q.identity();
-    if (bone) {
-      if (name === 'upperArmL' || name === 'upperArmR') {
-        const downward = -armDir.copy(ARM_DOWN).applyQuaternion(bone.quaternion).y;
-        const strength = THREE.MathUtils.smoothstep(downward, 0.35, 0.8);
-        q.multiply(armSpread.setFromAxisAngle(ARM_AXIS,
-          (name === 'upperArmL' ? 1 : -1) * ARM_CLEARANCE * strength));
-      }
-      q.multiply(bone.quaternion);
-    }
+    if (bone) q.multiply(bone.quaternion);
   }
 
   for (let i = 0; i < model.nodes.length; i++) {
@@ -637,6 +660,22 @@ export function retarget(source: Rig, model: AuthoredModel): void {
       // unmapped bone (twist segments, toes, spine fillers): hold its rest local
       world[i].copy(parent ?? tmp.identity()).multiply(node.obj.quaternion);
     }
+  }
+
+  // Relative to the model's own A-pose: +5% half-width with the arm down,
+  // unchanged at the delivered angle, and -5% at a full sideways extension.
+  // The signed outward component leaves an arm crossing the torso in the
+  // widest state; forward aiming does not count as a sideways extension.
+  for (const slide of model.shoulderSlides) {
+    const upper = source.bones[slide.side === 1 ? 'upperArmL' : 'upperArmR'];
+    const outward = THREE.MathUtils.clamp(
+      slide.side * armDir.copy(ARM_DOWN).applyQuaternion(upper.quaternion).x, 0, 1);
+    const widthChange = outward <= slide.aPoseSplay
+      ? 1 - outward / slide.aPoseSplay
+      : -(outward - slide.aPoseSplay) / (1 - slide.aPoseSplay);
+    const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
+    slide.shoulder.position.x = slide.shoulderX + dx;
+    slide.arm.position.x = slide.armX + dx;
   }
 
   // the hips also carry the clips' vertical bob — in metres, so back into

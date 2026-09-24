@@ -34,13 +34,20 @@ clip's Z splay is the **absolute** angle the arm hangs at — and the idle/run
 clips only gave back 14°/12°. Net effect: arms held ~10-15° inside the pose
 the deltoid and biceps geometry was sculpted around, pressing into the torso.
 This was the "arms feel tight while running" symptom, and it was adduction,
-not shoulder height — clavicle elevation measured 0° in every file, and the
-retargeter never moves authored bone *positions*.
+not shoulder height — clavicle elevation measured 0° in every file, and at
+the time the retargeter did not move authored bone *positions*.
 
 **Fix:** idle splay 14→21°, run splay 12→19° (`clips.ts`), landing within a
 few degrees of the sculpted A-pose across the roster. Air (45-50°) and flight
 (28-32°) already cleared. The splay-sign and splay-amount conventions are now
 documented at the top of `clips.ts` for future clips.
+
+**2026-09-24 follow-up:** The visual rest pose still hung the authored arms
+straight down at the model's delivered shoulder width. The retargeter now
+slides each shoulder and upper-arm root together: 5% of that model's shoulder
+half-width outward with the arm down, zero at its own delivered A-pose angle,
+and 5% inward with the arm extended sideways. The arm angle itself stays as
+the clip specifies, and each side responds independently.
 
 ### 1.2 Procedural fallback: shoulders buried mid-torso (noted, not changed)
 
@@ -48,11 +55,12 @@ On the stick-figure builds the chest box reaches ear level (top at +0.27 above
 the chest joint) while the shoulder bones hang at +0.048 — the arm pivot sits
 0.22 m below the "shoulders" of the mesh, which is a genuine "shoulder bone
 too low" look. Deliberately left as-is: every character in the roster ships an
-authored model, so the procedural build is only ever a loading-order fallback
-and the retargeter copies rotations, not positions — the bone placement never
-reaches the models players actually see. If it's ever revisited, the recipe is
+authored model, so the procedural build is only ever a loading-order fallback.
+The retargeter uses each authored model's own joint positions rather than
+copying the procedural joint placement. If it's ever revisited, the recipe is
 shoulder joints at `chestLen * 0.5` with the chest slab shortened to top out
-just above them.
+just above them. The authored shoulder slide above is measured from each
+model's own socket and does not use the procedural joint position.
 
 ### 1.3 Enemy melee weapons drifted from the authored fist
 
