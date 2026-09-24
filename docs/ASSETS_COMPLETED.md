@@ -18,6 +18,10 @@ top, burgundy waist sash, fitted trousers, forearm wraps, and armored boots.
 The modelling reference has empty hands, no sabers or belt-mounted hilts, and
 no jetpack. It is a front concept for review; side/back views, a 3D model, and
 playable integration have not been requested or completed.
+Her tonfa-style guard-shoto hilt is the fifth, bottom item on the separate
+`reference/characters/saber_hilt_collection.png` comparison sheet. The
+proposed perpendicular-grip wielding and animation rules are documented in
+[`ASSETS_MODELS.md`](ASSETS_MODELS.md#maris-brood-proposal--tonfa-style-saber-combat).
 
 ---
 

@@ -111,6 +111,39 @@ thrown. The proposed separate hilt design is at
 approved and an authored hilt is made, the game uses a straight procedural
 hilt. Ventress retains the authored curved hilt with the same state rules.
 
+### Maris Brood proposal — tonfa-style saber combat
+
+`reference/characters/maris_brood_front.png` is a front concept only; Maris
+has no model or roster entry yet. Her paired weapons are **guard shotos**: a
+short main hilt with a second grip at right angles, as shown in the bottom row
+of `reference/characters/saber_hilt_collection.png`. The 501st costume
+[reference](https://crls.501st.com/tfe/maris-brood) also describes her pair as
+weathered silver tonfa-style hilts with shorter-than-standard blades. The
+supplied image shows both green and red blade treatments, so blade color
+remains a gameplay/art choice; keep blades out of the 3D hilt geometry.
+
+**Wielding brief for a future playable implementation:** Each hand holds the
+perpendicular grip, with the main shaft running alongside the forearm and the
+emitter beyond the fist. A guarded idle brings both forearms up so the short
+blades frame the body. Blocks turn the forearms into crossed or angled guards;
+the counters rotate around the perpendicular grips and sweep outward into
+close-range cuts. Alternating left/right strikes should stay compact and
+quick, with a distinct wrist-turn or baton-spin flourish rather than the
+straight-saber swing arcs used by Ventress and Jedi. If throws are added, each
+weapon should leave its hand, spin as a single rigid tonfa, and return to that
+same hand. As with the other dual-saber characters, each hilt should have one
+visible location at a time: waist, hand, or flight. These are animation and
+mounting requirements for a proposed character, not implemented gameplay.
+
+**Shared 3D generation experiment:** The five-hilt sheet intentionally leaves
+large gaps so one image-to-3D pass might yield disconnected objects. Check the
+generated mesh before separating it by connected components or Blender's
+“Separate by Loose Parts”; image-to-3D may fuse the hilts or invent a backing
+surface. If that happens, isolate or regenerate individual hilts. Put the
+tonfa's hand mount on its perpendicular grip and its blade FX emitter on the
+short main shaft. This workflow is a cost-saving option, not a runtime
+requirement or an assurance of usable separate models.
+
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers
 (Ventress), laser crossbow (Embo), long rifle (Bossk and IG-11), twin heavy pistols

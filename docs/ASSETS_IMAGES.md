@@ -31,6 +31,14 @@ and a dark armored hilt. It is exploration art, not four approved canonical
 model references. Generate a clean individual reference for any selected hilt
 before making its 3D prop.
 
+`reference/characters/saber_hilt_collection.png` is the five-hilt successor,
+adding Maris Brood's short tonfa-style guard shoto as the bottom row. It is
+laid out with detached silhouettes and generous gaps for a possible shared
+image-to-3D generation and later segmentation. The art does not guarantee
+that a generator will produce five disconnected mesh components; inspect the
+result before relying on automatic separation. Blades are runtime FX, so no
+blade color or glow is baked into this sheet.
+
 What remains below is not a request: the recipe for making
 more character sheets, and
 the record of three sets deliberately **not** wanted, kept because each says something a
