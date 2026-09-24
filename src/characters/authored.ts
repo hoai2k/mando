@@ -73,13 +73,25 @@ const CANON_ORDER = BONES.filter((b) => b === 'hips' || CANON_PARENT[b]) as Bone
 const SHOULDER_WIDTH_CHANGE = 0.05;
 // Din rest-pose arm roots from the supplied workbench JSON: edited magnitudes
 // 0.12586 and 0.12411, versus 0.095 on each side before that edit.
-// Scale the averaged result to each model's own shoulder span in the preview.
-const PREVIEW_REST_WIDTH_RATIO = ((0.12586 + 0.12411) / 2) / 0.095;
-let previewShoulderSpacing = false;
+// Scale the averaged result to each model's own shoulder span.
+const REST_WIDTH_RATIO = ((0.12586 + 0.12411) / 2) / 0.095;
+export interface ShoulderSpacing { rest: number; aPose: number }
+const FULL_SPACING: ShoulderSpacing = { rest: 1, aPose: 0 };
+const HALF_SPACING: ShoulderSpacing = { rest: 0.5, aPose: 0 };
+const workbenchSpacing = new Map<string, ShoulderSpacing>();
 
-/** Workbench-only comparison switch. Production keeps the existing retarget. */
-export function setPreviewShoulderSpacing(enabled: boolean): void {
-  previewShoulderSpacing = enabled;
+/** Multipliers of the Din-derived widening; 1 matches the supplied rest edit. */
+export function shoulderSpacingFor(id: string): ShoulderSpacing {
+  return workbenchSpacing.get(id) ?? (id === 'ventress' || id === 'bossk' ? HALF_SPACING : FULL_SPACING);
+}
+
+/** A workbench adjustment stays in this page; the game's defaults stay above. */
+export function setWorkbenchShoulderSpacing(id: string, value: ShoulderSpacing | null): void {
+  if (value) workbenchSpacing.set(id, {
+    rest: THREE.MathUtils.clamp(value.rest, 0, 2),
+    aPose: THREE.MathUtils.clamp(value.aPose, 0, 2),
+  });
+  else workbenchSpacing.delete(id);
 }
 const ARM_DOWN = new THREE.Vector3(0, -1, 0);
 const armDir = new THREE.Vector3();
@@ -128,11 +140,13 @@ interface ShoulderSlide {
   halfWidth: number;
   /** outward arm component in this model's delivered A-pose */
   aPoseSplay: number;
-  /** local-space shift from the current rest pose to the symmetric preview */
-  previewRestOffset: number;
+  /** local-space shift from the old rest pose to the symmetric full-width pose */
+  restWidthOffset: number;
 }
 
 export interface AuthoredModel {
+  /** asset id, used for per-character shoulder spacing */
+  id: string;
   /** scene root, already scaled and sitting on its feet */
   root: THREE.Object3D;
   /** skeleton flattened parents-first */
@@ -591,7 +605,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     shoulderSlides.push({ side, shoulder, arm,
       shoulderX: shoulder.position.x, armX: arm.position.x,
       halfWidth: halfWidth || Math.abs(arm.position.x), aPoseSplay,
-      previewRestOffset: 0 });
+      restWidthOffset: 0 });
   }
   // Work from the current retargeted rest position, since that is what the
   // user's exported JSON measured. The Rigify armature's local X is mirrored
@@ -607,7 +621,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     const current = restX(slide);
     const outward = Math.sign(current - restCentre);
     const half = restHalfWidth || Math.abs(current - restCentre);
-    slide.previewRestOffset = restCentre + outward * half * PREVIEW_REST_WIDTH_RATIO - current;
+    slide.restWidthOffset = restCentre + outward * half * REST_WIDTH_RATIO - current;
   }
 
   // Pull the mapped bones onto our rest pose, so a clip that means "arms down"
@@ -652,6 +666,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   }
 
   return {
+    id,
     root: wrapper,
     nodes,
     shoulderSlides,
@@ -711,6 +726,7 @@ export function retarget(source: Rig, model: AuthoredModel): void {
   // unchanged at the delivered angle, and -5% at a full sideways extension.
   // The signed outward component leaves an arm crossing the torso in the
   // widest state; forward aiming does not count as a sideways extension.
+  const spacing = shoulderSpacingFor(model.id);
   for (const slide of model.shoulderSlides) {
     const upper = source.bones[slide.side === 1 ? 'upperArmL' : 'upperArmR'];
     const outward = THREE.MathUtils.clamp(
@@ -725,9 +741,10 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     const fadeEnd = Math.max(0.35, slide.aPoseSplay);
     const u = THREE.MathUtils.clamp((outward - 0.12) / (fadeEnd - 0.12), 0, 1);
     const closeWeight = 1 - u * u * (3 - 2 * u);
-    const preview = previewShoulderSpacing ? slide.previewRestOffset * closeWeight : 0;
-    slide.shoulder.position.x = slide.shoulderX + dx + preview;
-    slide.arm.position.x = slide.armX + dx + preview;
+    const extra = slide.restWidthOffset * (
+      spacing.rest * closeWeight + spacing.aPose * (1 - closeWeight));
+    slide.shoulder.position.x = slide.shoulderX + dx + extra;
+    slide.arm.position.x = slide.armX + dx + extra;
   }
 
   // the hips also carry the clips' vertical bob — in metres, so back into

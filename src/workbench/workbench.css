@@ -79,6 +79,10 @@ option { color: var(--text); }
 .playback-row input { flex: 1; min-width: 0; accent-color: var(--accent); }
 .playback-row button { width: 72px; flex: none; cursor: pointer; }
 .playback-row button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #17191d; }
+.shoulder-tuning input[type='range'] { width: 100%; accent-color: var(--accent); }
+.shoulder-tuning input:disabled { opacity: .45; }
+.shoulder-tuning .hint { margin: 3px 0 8px; }
+.shoulder-tuning button { cursor: pointer; }
 
 .seg { display: flex; gap: 4px; }
 .seg button { padding: 6px 4px; font-size: 12px; cursor: pointer; }

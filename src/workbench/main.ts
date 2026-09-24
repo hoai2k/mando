@@ -7,7 +7,7 @@ import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './p
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
-import { modelUrl, setPreviewShoulderSpacing } from '../characters/authored';
+import { modelUrl, shoulderSpacingFor, setWorkbenchShoulderSpacing, type ShoulderSpacing } from '../characters/authored';
 import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
@@ -152,7 +152,6 @@ let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
 let positionAwaiting = false;
 let weaponAwaiting = false;
 let weaponSample = 0;
-let previewWideShoulders = false;
 let animationSpeed = 1;
 let paused = false;
 let alternateChoice = initialParams.get('alternate') ?? 'none';
@@ -545,6 +544,8 @@ function syncSelectionUrl(): void {
 }
 
 function renderPanel(): void {
+  const shoulderAsset = subject.modelFile ?? subject.id;
+  const shoulderSpacing = shoulderSpacingFor(shoulderAsset);
   const characterOptions = GROUPS
     .map((g) => `<optgroup label="${g.label}">`
       + g.subjects.map((s) => option(s.id, s.name, s.id === subject.id)).join('')
@@ -608,8 +609,19 @@ function renderPanel(): void {
     <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
     <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
-    <label class="check"><input type="checkbox" id="previewShoulders" ${previewWideShoulders ? 'checked' : ''}
-      ${editing && editKind === 'position' ? 'disabled' : ''}> Wider shoulders · preview</label>
+    ${subject.hasModel && !isProp(subject) ? `
+    <div class="field playback shoulder-tuning">
+      <label for="restShoulders">Rest shoulder width <output id="restShouldersValue">${Math.round(shoulderSpacing.rest * 100)}%</output></label>
+      <input id="restShoulders" type="range" min="0" max="2" step="0.05" value="${shoulderSpacing.rest}"
+        ${editing && editKind === 'position' ? 'disabled' : ''} aria-label="Rest shoulder width">
+    </div>
+    <div class="field playback shoulder-tuning">
+      <label for="aPoseShoulders">A-pose shoulder width <output id="aPoseShouldersValue">${Math.round(shoulderSpacing.aPose * 100)}%</output></label>
+      <input id="aPoseShoulders" type="range" min="0" max="2" step="0.05" value="${shoulderSpacing.aPose}"
+        ${editing && editKind === 'position' ? 'disabled' : ''} aria-label="A-pose shoulder width">
+      <p class="hint">100% rest matches the measured Din spacing. Ventress and Bossk start at 50%; A-pose starts at 0%.</p>
+      <button id="resetShoulders" type="button" ${editing && editKind === 'position' ? 'disabled' : ''}>Reset shoulder widths</button>
+    </div>` : ''}
 
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
@@ -635,9 +647,9 @@ function renderPanel(): void {
       Export position JSON to share the exact shoulder offsets for each pose.
       <br><br><b>Weapon grips</b> moves and rotates held weapons against authored hands.
       Scrub the animation to check alignment, then export the local grip transforms as JSON.
-      <br><br><b>Wider shoulders</b> previews the averaged rest spacing from your JSON
-      on all authored models. It fades as each arm opens sideways. Leave Position
-      mode before comparing, so its manual joint offsets do not cover the preview.
+      <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
+      authored models in the workbench and game. Each slider controls its own arm
+      angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
     </p>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
@@ -690,11 +702,21 @@ function renderPanel(): void {
     showGrid = (e.target as HTMLInputElement).checked;
     grid.visible = ruler.visible = showGrid;
   };
-  panel.querySelector<HTMLInputElement>('#previewShoulders')!.onchange = (e) => {
-    previewWideShoulders = (e.target as HTMLInputElement).checked;
-    setPreviewShoulderSpacing(previewWideShoulders);
+  const adjustShoulders = (part: keyof ShoulderSpacing, input: HTMLInputElement): void => {
+    const value = Number(input.value);
+    setWorkbenchShoulderSpacing(shoulderAsset, { ...shoulderSpacingFor(shoulderAsset), [part]: value });
+    panel.querySelector<HTMLOutputElement>(`#${input.id}Value`)!.value = `${Math.round(value * 100)}%`;
     for (const f of figures) f.inst.cosmetic?.(0, time);
   };
+  for (const [id, part] of [['restShoulders', 'rest'], ['aPoseShoulders', 'aPose']] as const) {
+    const input = panel.querySelector<HTMLInputElement>(`#${id}`);
+    if (input) input.oninput = () => adjustShoulders(part, input);
+  }
+  panel.querySelector<HTMLButtonElement>('#resetShoulders')?.addEventListener('click', () => {
+    setWorkbenchShoulderSpacing(shoulderAsset, null);
+    for (const f of figures) f.inst.cosmetic?.(0, time);
+    renderPanel();
+  });
   panel.querySelector<HTMLButtonElement>('#editToggle')!.onclick = () => {
     if (editing) leaveEdit(); else enterEdit();
     renderPanel();
@@ -838,7 +860,10 @@ function bindEditModeButtons(host: HTMLElement): void {
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
       weaponEditor.setEnabled(next === 'weapon');
-      panel.querySelector<HTMLInputElement>('#previewShoulders')!.disabled = next === 'position';
+      for (const id of ['restShoulders', 'aPoseShoulders', 'resetShoulders']) {
+        const control = panel.querySelector<HTMLInputElement | HTMLButtonElement>(`#${id}`);
+        if (control) control.disabled = next === 'position';
+      }
       if (next === 'position') refreshPositionPose();
       else if (next === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
       else for (const f of figures) f.inst.cosmetic?.(0, time);
