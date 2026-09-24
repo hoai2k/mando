@@ -325,7 +325,7 @@ export const TEXT = {
     bokatan: { name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.' },
     armorer: { name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.' },
     ventress: { name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.' },
-    jedi: { name: 'Jedi', desc: 'A hooded guardian with twin white blades and a measured hand.' },
+    jedi: { name: 'Galen Marek', desc: 'A hooded guardian with twin white blades and a measured hand.' },
     maris: { name: 'Maris Brood', desc: 'A swift duelist wielding twin green tonfa sabers.' },
     embo: { name: 'Embo', desc: 'The hat, the bow, the silence \u2014 a hunter who never wastes a bolt.' },
     bossk: { name: 'Bossk', desc: 'Cold blood and a long rifle \u2014 he could smell you a board away.' },
