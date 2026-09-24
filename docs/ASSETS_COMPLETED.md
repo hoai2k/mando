@@ -15,11 +15,16 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 full-body front concept based on the supplied image. It preserves her dark
 braided hair, pale face and red forehead markings, wrapped neck, strappy dark
 top, burgundy waist sash, fitted trousers, forearm wraps, and armored boots.
-The modelling reference has empty hands, no sabers or belt-mounted hilts, and
-no jetpack. It is a front concept for review; side/back views, a 3D model, and
+`reference/characters/maris_brood_front_left_stylized.png` is a second
+1024×1536 front concept based specifically on the **left panel** of that
+image. It has red eyes, simpler red-brown clothing, cleaner shapes, and a
+more cartoony game-art finish. Keep both versions for design comparison.
+Both modelling references have empty hands, no sabers or belt-mounted hilts,
+and no jetpack. They are front concepts for review; side/back views, a 3D model, and
 playable integration have not been requested or completed.
-Her tonfa-style guard-shoto hilt is the fifth, bottom item on the separate
-`reference/characters/saber_hilt_collection.png` comparison sheet. The
+Her revised, slimmer tonfa-style guard-shoto hilt is the fifth, bottom item on
+`reference/characters/saber_hilt_collection_v2.png`; the earlier collection
+remains available for comparison. The
 proposed perpendicular-grip wielding and animation rules are documented in
 [`ASSETS_MODELS.md`](ASSETS_MODELS.md#maris-brood-proposal--tonfa-style-saber-combat).
 

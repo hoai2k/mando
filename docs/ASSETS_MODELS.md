@@ -113,10 +113,12 @@ hilt. Ventress retains the authored curved hilt with the same state rules.
 
 ### Maris Brood proposal — tonfa-style saber combat
 
-`reference/characters/maris_brood_front.png` is a front concept only; Maris
-has no model or roster entry yet. Her paired weapons are **guard shotos**: a
-short main hilt with a second grip at right angles, as shown in the bottom row
-of `reference/characters/saber_hilt_collection.png`. The 501st costume
+`reference/characters/maris_brood_front.png` and the alternate
+`maris_brood_front_left_stylized.png` are front concepts only; Maris has no
+model or roster entry yet. Her paired weapons are **guard shotos**: a slim
+main baton with a second grip at right angles, as shown in the bottom row of
+`reference/characters/saber_hilt_collection_v2.png`. The grip sits near the
+emitter, leaving a longer rear section alongside the forearm. The 501st costume
 [reference](https://crls.501st.com/tfe/maris-brood) also describes her pair as
 weathered silver tonfa-style hilts with shorter-than-standard blades. The
 supplied image shows both green and red blade treatments, so blade color
@@ -135,7 +137,7 @@ same hand. As with the other dual-saber characters, each hilt should have one
 visible location at a time: waist, hand, or flight. These are animation and
 mounting requirements for a proposed character, not implemented gameplay.
 
-**Shared 3D generation experiment:** The five-hilt sheet intentionally leaves
+**Shared 3D generation experiment:** The revised five-hilt sheet intentionally leaves
 large gaps so one image-to-3D pass might yield disconnected objects. Check the
 generated mesh before separating it by connected components or Blender's
 “Separate by Loose Parts”; image-to-3D may fuse the hilts or invent a backing

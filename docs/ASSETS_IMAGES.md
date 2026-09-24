@@ -22,8 +22,10 @@ every surface texture, the campaign's planet strip and corridor interiors, the w
 sheets, the logo and the favicon were already in and wired.
 
 `reference/characters/maris_brood_front.png` is a front-only character concept
-for review. She is not yet in the playable roster; generate matching side and
-back views if her design is selected for a 3D model.
+for review. `maris_brood_front_left_stylized.png` is an alternate front based
+only on the supplied image's left panel, with red eyes and a cleaner, more
+cartoony look. She is not yet in the playable roster; choose a front design
+before generating matching side and back views for a 3D model.
 
 `reference/characters/jedi_saber_options.png` is a four-hilt comparison sheet
 for design review: the current Jedi concept, a slim heroic hilt, a double hilt,
@@ -38,6 +40,10 @@ image-to-3D generation and later segmentation. The art does not guarantee
 that a generator will produce five disconnected mesh components; inspect the
 result before relying on automatic separation. Blades are runtime FX, so no
 blade color or glow is baked into this sheet.
+`reference/characters/saber_hilt_collection_v2.png` revises only that bottom
+hilt: a much slimmer main baton and perpendicular grip closer to its emitter,
+leaving a long rear section to guard the forearm. Use v2 for any shared 3D
+generation experiment; the earlier collection is kept for comparison.
 
 What remains below is not a request: the recipe for making
 more character sheets, and
