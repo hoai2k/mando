@@ -70,6 +70,15 @@ select, button {
 select:focus, button:focus { outline: 1px solid var(--accent); }
 optgroup { color: var(--dim); font-style: normal; }
 option { color: var(--text); }
+.study-note { margin: -6px 0 14px; color: var(--dim); font-size: 11px; }
+.picker-key { margin: 5px 0 0; color: var(--dim); font-size: 10px; }
+
+.playback label { display: flex; justify-content: space-between; }
+.playback output { color: var(--text); font-variant-numeric: tabular-nums; }
+.playback-row { display: flex; align-items: center; gap: 8px; }
+.playback-row input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.playback-row button { width: 72px; flex: none; cursor: pointer; }
+.playback-row button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #17191d; }
 
 .seg { display: flex; gap: 4px; }
 .seg button { padding: 6px 4px; font-size: 12px; cursor: pointer; }

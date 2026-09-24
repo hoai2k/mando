@@ -30,10 +30,13 @@ export interface Pose {
   gait?: number;
   /** creature poses: replay the creature's own attack on a loop */
   strike?: boolean;
+  /** shown below the picker divider because no gameplay state requests it */
+  previewOnly?: boolean;
+  /** put hands empty while previewing this attack */
+  unarmed?: boolean;
 }
 
 const HUMANOID: Pose[] = [
-  { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null },
   { rig: 'humanoid', id: 'idle', name: 'Idle', lower: 'idleLower', upper: 'idleUpper' },
   { rig: 'humanoid', id: 'run', name: 'Run', lower: 'runLower', upper: 'runUpper' },
   { rig: 'humanoid', id: 'sprint', name: 'Sprint', lower: 'sprintLower', upper: 'runUpper', rate: 1.35 },
@@ -67,6 +70,10 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'death', name: 'Death', lower: 'deathLower', upper: 'deathUpper' },
   { rig: 'humanoid', id: 'enemyAim', name: 'Enemy aim', lower: 'idleLower', upper: 'enemyAimUpper' },
   { rig: 'humanoid', id: 'enemySwing', name: 'Enemy swing', lower: 'idleLower', upper: 'enemySwing' },
+  { rig: 'humanoid', id: 'unarmedJab', name: 'Unarmed 1 — lead straight', lower: 'unarmedJabLower', upper: 'unarmedJabUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'unarmedCross', name: 'Unarmed 2 — rear straight', lower: 'unarmedCrossLower', upper: 'unarmedCrossUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'unarmedKick', name: 'Unarmed 3 — front kick', lower: 'unarmedKickLower', upper: 'unarmedKickUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null, previewOnly: true },
 ];
 
 /**
@@ -82,7 +89,7 @@ const CREATURE: Pose[] = [
   { rig: 'creature', id: 'creatureAttack', name: 'Attack', lower: null, upper: null, gait: 0, strike: true },
 ];
 
-const REST: Pose = { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null };
+const REST: Pose = { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null, previewOnly: true };
 
 export const POSES: Pose[] = [...HUMANOID, ...CREATURE];
 
@@ -116,4 +123,4 @@ export function posesFor(caps: PoseCapabilities[]): Pose[] {
   return [REST, ...creature];
 }
 
-export const findPose = (id: string): Pose => POSES.find((p) => p.id === id) ?? POSES[1];
+export const findPose = (id: string): Pose => POSES.find((p) => p.id === id) ?? HUMANOID[0];

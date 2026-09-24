@@ -13,6 +13,8 @@ import { BONES } from '../anim/skeleton';
 import './workbench.css';
 import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
+import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
+import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -25,8 +27,8 @@ setClipCaching(false);
  *
  * A turntable for the cast: pick a character, run any clip the game plays on
  * them, and stand the authored model next to the procedural build it replaces.
- * It shares the game's rig, clips and animator wholesale, so what it shows is
- * what the game does; there is no second animation path to drift out of sync.
+ * It shares the game's rig, clips and animator. Attack alternates and unarmed
+ * motions are isolated workbench studies; None shows the exact game attack.
  */
 
 type Mode = 'authored' | 'procedural' | 'both';
@@ -47,7 +49,8 @@ interface Figure {
   /** the character factory hands back extras on the Mandalorians */
   extras: {
     setThrust?: (t: number) => void;
-    setWeapon?: (w: 'blaster' | 'gaffi') => void;
+    setWeapon?: (w: 'blaster' | 'gaffi' | 'none') => void;
+    setMeleeKind?: (kind: MeleeKind) => void;
     setBlock?: (t: number) => void;
     /** creatures on their own rig cross-fade idle against a run by speed */
     setGait?: (speed: number) => void;
@@ -144,6 +147,16 @@ let showGrid = true;
 let editing = false;
 let editKind: 'rotate' | 'position' = 'rotate';
 let positionAwaiting = false;
+let animationSpeed = 1;
+let paused = false;
+let alternateChoice = 'none';
+function alternatesFor(p: Pose): Alternate[] {
+  return (ATTACK_ALTERNATES[p.id] ?? []).filter((alt) => figures.length > 0
+    && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
+}
+function activeClips(): { lower: string | null; upper: string | null } {
+  return alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
+}
 
 /**
  * Edits live here, not on the bones: the ledger holds a delta per clip and bone,
@@ -187,6 +200,13 @@ function spawn(): void {
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
   figures = wants.map(([authored, label], i) => {
     const inst = subject.build(authored) as CharacterInstance & Figure['extras'];
+    if (inst.animator && inst.rig) {
+      const mando = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
+      const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(subject.id);
+      Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, subject.id, {
+        staff, sabers: mando.includes('sabers'),
+      }));
+    }
     inst.root.position.x = wants.length > 1 ? (i === 0 ? -0.75 : 0.75) : 0;
     inst.root.traverse((o) => { o.castShadow ||= (o as THREE.Mesh).isMesh; });
     turntable.add(inst.root);
@@ -289,7 +309,15 @@ function capabilities(): PoseCapabilities[] {
 
 /** The poses this turntable can actually play, with the current pick kept valid. */
 function available(): Pose[] {
-  const list = posesFor(capabilities());
+  const kinds = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
+  const playerAttack = new Set(['melee1', 'melee2', 'melee3']);
+  const saberAttack = new Set(['saber1', 'saber2', 'saber3', 'saberIdle', 'saberRun', 'flourish']);
+  const list = posesFor(capabilities()).filter((p) => {
+    if (playerAttack.has(p.id)) return kinds.includes('gaffi');
+    if (saberAttack.has(p.id)) return kinds.includes('sabers');
+    if (p.id === 'enemySwing') return kinds.length === 0 && !!figures[0]?.inst.animator;
+    return true;
+  });
   if (!list.some((p) => p.id === pose.id)) pose = list.find((p) => p.id === 'idle') ?? list[0];
   return list;
 }
@@ -309,16 +337,30 @@ function applyPose(): void {
     // rotation. Undoing an edit to a bone the clip never animated has nothing
     // else to put it back: dropping the edit drops the track with it.
     for (const r of f.rest) { r.bone.quaternion.copy(r.quaternion); r.bone.position.copy(r.position); }
-    if (pose.lower) anim.play('lower', pose.lower, 0, pose.rate ?? 1);
-    if (pose.upper) anim.play('upper', pose.upper, 0, pose.rate ?? 1);
+    const clips = activeClips();
+    if (clips.lower) anim.play('lower', clips.lower, 0, pose.rate ?? 1);
+    if (clips.upper) anim.play('upper', clips.upper, 0, pose.rate ?? 1);
     // Write the first frame now. The mixer restores every bone it owns to its
     // bind pose as the old actions stop, and without this the figure stands in
     // that neutral pose until the next animation frame lands on it.
     anim.update(0);
     f.extras.setThrust?.(pose.thrust ?? 0);
-    f.extras.setWeapon?.(pose.melee ? 'gaffi' : 'blaster');
+    if (pose.melee && f.extras.setMeleeKind) {
+      f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
+    }
+    f.extras.setWeapon?.(pose.unarmed ? 'none' : pose.melee ? 'gaffi' : 'blaster');
+    setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
   }
+}
+
+/** Enemy props are mounted on weapon bones or the retargeted hand mounts. */
+function setWeaponVisibility(f: Figure, visible: boolean): void {
+  f.inst.root.traverse((o) => {
+    if (o.name === 'weaponR' || o.name === 'weaponL' || o.name === 'weaponMount' || o.name === 'weaponMountL') {
+      o.visible = visible;
+    }
+  });
 }
 
 /**
@@ -332,7 +374,8 @@ function freezePose(): void {
   for (const f of figures) {
     const anim = f.inst.animator;
     if (!anim) continue;
-    for (const name of [pose.lower, pose.upper]) {
+    const clips = activeClips();
+    for (const name of [clips.lower, clips.upper]) {
       if (!name) continue;
       const clip = anim.clips[name];
       const action = clip && anim.mixer.existingAction(clip);
@@ -365,15 +408,16 @@ function leaveEdit(): void {
 function refreshPositionPose(): void {
   if (!editing || editKind !== 'position') return;
   positionEditor.restore();
+  const poseKey = alternateChoice === 'none' ? pose.id : `${pose.id}:${alternateChoice}`;
   const figure = figures.find((f) => f.waitingFor && ready(f));
   if (!figure) {
     positionAwaiting = !!figures.find((f) => f.waitingFor);
-    positionEditor.setPose(subject.id, pose.id, null);
+    positionEditor.setPose(subject.id, poseKey, null);
     return;
   }
   positionAwaiting = false;
   figure.inst.cosmetic?.(0, time);
-  positionEditor.setPose(subject.id, pose.id, figure.inst.root);
+  positionEditor.setPose(subject.id, poseKey, figure.inst.root);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -383,8 +427,9 @@ const LOWER_BONES = new Set([
 
 /** Which of the pose's two clips owns a bone — where an edit to it is stored. */
 function clipFor(bone: string): string | null {
-  const own = LOWER_BONES.has(bone) ? pose.lower : pose.upper;
-  const other = LOWER_BONES.has(bone) ? pose.upper : pose.lower;
+  const clips = activeClips();
+  const own = LOWER_BONES.has(bone) ? clips.lower : clips.upper;
+  const other = LOWER_BONES.has(bone) ? clips.upper : clips.lower;
   const has = (clip: string | null): boolean => {
     if (!clip) return false;
     const set = figures.find((f) => f.inst.animator)?.inst.animator?.clips;
@@ -449,10 +494,16 @@ function renderPanel(): void {
       + g.subjects.map((s) => option(s.id, s.name, s.id === subject.id)).join('')
       + '</optgroup>')
     .join('');
+  const list = available();
+  const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
+    option(p.id, `${p.name}${alternatesFor(p).length ? ' •' : ''}`, p.id === pose.id)).join('');
+  const previewOptions = list.filter((p) => p.previewOnly).map((p) =>
+    option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
+  const choices = alternatesFor(pose);
 
   panel.innerHTML = `
     <h1>Model workbench</h1>
-    <p class="sub">Game rig, game clips — nothing simulated twice.</p>
+    <p class="sub">Game rig and clips, with workbench attack studies.</p>
 
     <div class="field">
       <label for="character">Character</label>
@@ -461,7 +512,28 @@ function renderPanel(): void {
 
     <div class="field">
       <label for="pose">Animation</label>
-      <select id="pose">${available().map((p) => option(p.id, p.name, p.id === pose.id)).join('')}</select>
+      <select id="pose"><optgroup label="In game">${gameOptions}</optgroup>
+        ${previewOptions ? `<optgroup label="──────── Not in game · preview ────────">${previewOptions}</optgroup>` : ''}
+      </select>
+      <p class="picker-key">• alternates available &nbsp; ◆ not in game</p>
+    </div>
+
+    ${choices.length ? `
+    <div class="field">
+      <label for="attackAlternate">Alternates</label>
+      <select id="attackAlternate">
+        ${option('none', 'None — original attack', alternateChoice === 'none')}
+        ${choices.map((alt) => option(alt.id, alt.name, alternateChoice === alt.id)).join('')}
+      </select>
+    </div>` : ''}
+    ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed study · weapons hidden · not used in combat yet.</p>` : ''}
+
+    <div class="field playback">
+      <label for="animationSpeed">Animation speed <output id="speedValue">${animationSpeed.toFixed(2)}×</output></label>
+      <div class="playback-row">
+        <input id="animationSpeed" type="range" min="0.1" max="2" step="0.05" value="${animationSpeed}" aria-label="Animation speed">
+        <button id="pauseAnimation" type="button" aria-pressed="${paused}">${paused ? 'Play' : 'Pause'}</button>
+      </div>
     </div>
 
     <div class="field">
@@ -503,15 +575,35 @@ function renderPanel(): void {
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
     subject = findSubject((e.target as HTMLSelectElement).value);
+    alternateChoice = 'none';
     spawn();
     renderPanel();
   };
   panel.querySelector<HTMLSelectElement>('#pose')!.onchange = (e) => {
     pose = findPose((e.target as HTMLSelectElement).value);
+    alternateChoice = 'none';
+    applyPose();
+    if (editing) freezePose();
+    if (editing && editKind === 'position') refreshPositionPose();
+    renderPanel();
+  };
+  const alternateSelect = panel.querySelector<HTMLSelectElement>('#attackAlternate');
+  if (alternateSelect) alternateSelect.onchange = (e) => {
+    alternateChoice = (e.target as HTMLSelectElement).value;
     applyPose();
     if (editing) freezePose();
     if (editing && editKind === 'position') refreshPositionPose();
     renderEditPanel();
+  };
+  panel.querySelector<HTMLInputElement>('#animationSpeed')!.oninput = (e) => {
+    animationSpeed = Number((e.target as HTMLInputElement).value);
+    panel.querySelector<HTMLOutputElement>('#speedValue')!.value = `${animationSpeed.toFixed(2)}×`;
+  };
+  panel.querySelector<HTMLButtonElement>('#pauseAnimation')!.onclick = (e) => {
+    paused = !paused;
+    const button = e.currentTarget as HTMLButtonElement;
+    button.textContent = paused ? 'Play' : 'Pause';
+    button.setAttribute('aria-pressed', String(paused));
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
@@ -795,7 +887,11 @@ function onEditorChange(): void {
 function exportChanges(): void {
   const list = edits.entries();
   const posesOf = (clip: string): string[] =>
-    POSES.filter((p) => p.lower === clip || p.upper === clip).map((p) => p.name);
+    [
+      ...POSES.filter((p) => p.lower === clip || p.upper === clip).map((p) => p.name),
+      ...Object.values(ATTACK_ALTERNATES).flat()
+        .filter((a) => a.lower === clip || a.upper === clip).map((a) => a.name),
+    ];
 
   const clips: Record<string, unknown> = {};
   for (const entry of list) {
@@ -931,25 +1027,28 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  time += dt;
+  const animationDt = paused ? 0 : dt * animationSpeed;
+  time += animationDt;
   if (spin) turntable.rotation.y += dt * 0.4;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
   // a creature's attack is a one-shot method, not a clip we can loop: replay it
   // with a beat between strikes so it can be watched rather than glimpsed
-  if (pose.strike && !editing && time >= strikeAt) {
+  if (pose.strike && !editing && !paused && time >= strikeAt) {
     let next = 1;
     for (const f of figures) next = Math.max(next, f.inst.attack?.() ?? 0);
     strikeAt = time + next + 0.4;
   }
   for (const f of figures) {
     // edit mode (and the skin-test pose) own the bones; the mixer would write over them every frame
-    if (!editing && !skin.holding) f.inst.animator?.update(dt);
+    if (!editing && !skin.holding && !paused) f.inst.animator?.update(animationDt);
+    if (pose.unarmed) setWeaponVisibility(f, false);
   }
   skin.frame();
   if (positionAwaiting && editing && editKind === 'position'
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
-  if (!(editing && editKind === 'position')) for (const f of figures) f.inst.cosmetic?.(dt, time);
+  if (!paused && !(editing && editKind === 'position'))
+    for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   editor.update();
   positionEditor.update(camera);
   updateLoading();
