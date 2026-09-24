@@ -21,6 +21,14 @@ export type MandoId =
   | 'din' | 'paz' | 'bokatan' | 'armorer'
   | 'ventress' | 'jedi' | 'maris' | 'maul' | 'revan' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
+/** The Armorer's axe is held broadside for her idle presentation on the select plinth and workbench. */
+export const ARMORER_IDLE_AXE_ROLL = -0.6;
+
+/** Set the whole Euler at once: the axe's -90° Y turn is a gimbal singularity. */
+export function setArmorerAxeIdleGrip(axe: THREE.Object3D, idle: boolean): void {
+  axe.rotation.set(Math.PI, -Math.PI / 2, idle ? ARMORER_IDLE_AXE_ROLL : 0, 'XYZ');
+}
+
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
   setWeapon: (w: 'blaster' | 'gaffi' | 'none') => void;
@@ -495,6 +503,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver,
         id === 'din' ? 'beskar_spear' : id === 'armorer' ? 'poleaxe' : 'gaffi');
+      main.name = id === 'din' ? 'beskarSpear' : id === 'armorer' ? 'poleaxe' : 'gaffi';
       // The shaft is local Y on both the fallback and the mounted sculpt.
       // Din's dedicated beskar sculpt is already narrow; preserve its full
       // shaft width and reach when the authored model arrives. Turn the

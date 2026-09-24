@@ -21,10 +21,22 @@ export interface WeaponAnchorEntry {
   editedQuaternion: Q4;
 }
 
+/** One multiplier for this character's weapon, shared by every preview pose. */
+export interface WeaponScaleEntry {
+  character: string;
+  /** Stable identity shared by the held and stowed mounts of one saber. */
+  weapon: string;
+  side: 'right' | 'left';
+  baseScale: V3;
+  scaleMultiplier: number;
+  editedScale: V3;
+}
+
 interface Target {
   object: THREE.Object3D;
   basePosition: THREE.Vector3;
   baseQuaternion: THREE.Quaternion;
+  baseScale: THREE.Vector3;
   attachment: 'hand' | 'hip';
   hand: 'right' | 'left';
   marker: THREE.Mesh;
@@ -39,6 +51,7 @@ export class WeaponAnchorEditor {
   private sampleFraction = 0;
   private targets = new Map<string, Target>();
   private entries = new Map<string, WeaponAnchorEntry>();
+  private scaleEntries = new Map<string, WeaponScaleEntry>();
   private overlay = new THREE.Group();
   private gizmo: TransformControls;
   private ray = new THREE.Raycaster();
@@ -59,7 +72,9 @@ export class WeaponAnchorEditor {
   }
 
   setPose(character: string, pose: string, root: THREE.Object3D | null): void {
-    this.restore();
+    // The workbench restores the old grip before applying a new pose. Doing
+    // it here would overwrite the new pose's weapon placement with the old
+    // pose's baseline (notably the Armorer's choice-screen idle axe roll).
     this.gizmo.detach();
     for (const target of this.targets.values()) {
       this.overlay.remove(target.marker);
@@ -89,6 +104,7 @@ export class WeaponAnchorEditor {
         const target: Target = {
           object, hand, attachment, marker,
           basePosition: object.position.clone(), baseQuaternion: object.quaternion.clone(),
+          baseScale: object.scale.clone(),
         };
         this.targets.set(name, target);
         const saved = this.entries.get(this.key(name, attachment));
@@ -96,6 +112,8 @@ export class WeaponAnchorEditor {
           object.position.set(...saved.editedPosition);
           object.quaternion.set(...saved.editedQuaternion);
         }
+        const scale = this.scaleEntries.get(this.scaleKey(name, target));
+        if (scale) object.scale.copy(target.baseScale).multiplyScalar(scale.scaleMultiplier);
       }
     });
     this.select(this.targets.has(this.selected ?? '') ? this.selected : this.names()[0] ?? null);
@@ -127,6 +145,8 @@ export class WeaponAnchorEditor {
   names(): string[] { return [...this.targets.keys()]; }
   entriesAll(): WeaponAnchorEntry[] { return [...this.entries.values()].sort((a, b) =>
     a.character.localeCompare(b.character) || a.pose.localeCompare(b.pose) || a.weapon.localeCompare(b.weapon)); }
+  scalesAll(): WeaponScaleEntry[] { return [...this.scaleEntries.values()].sort((a, b) =>
+    a.character.localeCompare(b.character) || a.weapon.localeCompare(b.weapon)); }
   current(): WeaponAnchorEntry | null { return this.selected ? this.measure(this.selected) : null; }
 
   select(name: string | null): void {
@@ -149,6 +169,33 @@ export class WeaponAnchorEditor {
     this.record();
   }
 
+  /** Uniform multiplier relative to this weapon's original local scale. */
+  setScale(multiplier: number): void {
+    if (!this.selected || !Number.isFinite(multiplier) || multiplier < 0.1 || multiplier > 4) return;
+    const target = this.targets.get(this.selected)!;
+    const key = this.scaleKey(this.selected, target);
+    for (const [name, other] of this.targets) {
+      if (this.scaleKey(name, other) === key)
+        other.object.scale.copy(other.baseScale).multiplyScalar(multiplier);
+    }
+    if (Math.abs(multiplier - 1) < 1e-6) this.scaleEntries.delete(key);
+    else this.scaleEntries.set(key, {
+      character: this.character, weapon: this.scaleIdentity(this.selected, target),
+      side: target.hand,
+      baseScale: vec(target.baseScale), scaleMultiplier: +multiplier.toFixed(6),
+      editedScale: vec(target.object.scale),
+    });
+    this.onChange();
+  }
+
+  currentScale(): number | null {
+    if (!this.selected) return null;
+    const target = this.targets.get(this.selected)!;
+    const axis = [0, 1, 2].find((i) => Math.abs(target.baseScale.getComponent(i)) > 1e-8);
+    return axis === undefined ? 1
+      : target.object.scale.getComponent(axis) / target.baseScale.getComponent(axis);
+  }
+
   currentDegrees(): V3 | null {
     if (!this.selected) return null;
     const e = new THREE.Euler().setFromQuaternion(this.targets.get(this.selected)!.object.quaternion, 'XYZ');
@@ -160,7 +207,12 @@ export class WeaponAnchorEditor {
     const target = this.targets.get(this.selected)!;
     target.object.position.copy(target.basePosition);
     target.object.quaternion.copy(target.baseQuaternion);
+    const scaleKey = this.scaleKey(this.selected, target);
+    for (const [name, other] of this.targets) {
+      if (this.scaleKey(name, other) === scaleKey) other.object.scale.copy(other.baseScale);
+    }
     this.entries.delete(this.key(this.selected, target.attachment));
+    this.scaleEntries.delete(scaleKey);
     this.onChange();
   }
 
@@ -168,6 +220,7 @@ export class WeaponAnchorEditor {
     for (const target of this.targets.values()) {
       target.object.position.copy(target.basePosition);
       target.object.quaternion.copy(target.baseQuaternion);
+      target.object.scale.copy(target.baseScale);
     }
   }
 
@@ -186,6 +239,15 @@ export class WeaponAnchorEditor {
     // The same hip-local transform serves rest, idle, and every other pose
     // where the weapon is stowed. Keep its edit when the preview pose changes.
     return `${this.character}|${attachment === 'hip' ? 'stowed' : this.pose}|${name}`;
+  }
+  private scaleIdentity(name: string, target: Target): string {
+    // A saber is represented by distinct hand and hip objects. They are one
+    // weapon for sizing: editing either mount must size the other in its pose.
+    const saber = /^saber(?:Hand|Holster)([RL])$/.exec(target.object.name);
+    return saber ? `saber${saber[1]}` : target.object.name || name;
+  }
+  private scaleKey(name: string, target: Target): string {
+    return `${this.character}|${this.scaleIdentity(name, target)}`;
   }
   private measure(name: string): WeaponAnchorEntry | null {
     const target = this.targets.get(name);

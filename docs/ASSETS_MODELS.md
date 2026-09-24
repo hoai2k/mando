@@ -704,6 +704,21 @@ plays the animation back with them, they undo and redo, and one export carries t
 session as JSON in the same units `src/anim/clips.ts` is written in — the way to correct a
 clip against a real model.
 
+For the Armorer's choice-screen axe, open
+`/workbench/?edit=models&character=armorer&pose=idle&mode=authored`, enter
+**Edit mode → Weapon grips**, and select **right: poleaxe**. Idle starts with
+the axe and the same presentation grip as character select. Move or rotate
+the grip, or set its uniform scale with the slider or number field. Scaling
+uses the hand anchor as its centre and is shared by this weapon in every pose;
+position and rotation edits remain pose-specific. **Export weapon grips JSON**
+downloads the grip entries and separate `weaponScales` values to send back for
+integration. The workbench previews these changes but does not rewrite the
+game or the choice-screen poster by itself. Pause playback to reveal an
+animation-time slider that scrubs at 60 frames per second; weapon-grip edit
+mode has its own frame slider for checking attachment across an attack.
+The choice poster uses the same idle clips and loadout, frozen at 1.2 seconds;
+pause and scrub to 1.2 seconds to inspect that exact presentation frame.
+
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
 everything around it, so it goes first. The second monster batch is what is in that

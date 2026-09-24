@@ -31,8 +31,10 @@ try {
       p.weapon = 'gaffi';
       p.char.setWeapon('gaffi');
       const node = root.getObjectByName(asset);
-      let mesh = node?.isMesh ? node : null;
-      node?.traverse((child) => { if (!mesh && child.isMesh) mesh = child; });
+      let mesh = node?.isMesh && node.visible ? node : null;
+      // A named hand group also contains its hidden procedural fallback.
+      // Check the visible authored mesh rather than the first child mesh.
+      node?.traverse((child) => { if (!mesh && child.isMesh && child.visible) mesh = child; });
       let shown = !!mesh;
       for (let current = mesh; current && current !== root; current = current.parent)
         shown &&= current.visible;

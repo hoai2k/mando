@@ -15,7 +15,7 @@ import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
-import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
+import { MANDO_ROSTER, meleeKinds, setArmorerAxeIdleGrip, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
 
@@ -53,6 +53,7 @@ interface Figure {
     setThrust?: (t: number) => void;
     setWeapon?: (w: 'blaster' | 'gaffi' | 'none') => void;
     setMeleeKind?: (kind: MeleeKind) => void;
+    gaffi?: THREE.Group;
     setBlock?: (t: number) => void;
     /** creatures on their own rig cross-fade idle against a run by speed */
     setGait?: (speed: number) => void;
@@ -155,6 +156,7 @@ let weaponAwaiting = false;
 let weaponSample = 0;
 let animationSpeed = 1;
 let paused = false;
+let animationTime = 0;
 let offhandStrength = 0.5;
 let alternateChoice = initialParams.get('alternate') ?? 'none';
 function alternatesFor(p: Pose): Alternate[] {
@@ -366,6 +368,7 @@ function available(): Pose[] {
 
 function applyPose(): void {
   strikeAt = 0;
+  animationTime = 0;
   weaponEditor.restore();
   for (const f of figures) {
     // A creature with its own gait has no channels to play, but it does take a
@@ -386,14 +389,48 @@ function applyPose(): void {
     // Write the first frame now. The mixer restores every bone it owns to its
     // bind pose as the old actions stop, and without this the figure stands in
     // that neutral pose until the next animation frame lands on it.
-    anim.update(0);
+    // Sample the selected clips at their first frame immediately. A zero-dt
+    // mixer update can leave the old authored skin at its last pose while
+    // paused, even though the procedural bones and weapon visibility changed.
+    anim.poseAt(0);
     f.extras.setThrust?.(pose.thrust ?? 0);
     if (pose.melee && f.extras.setMeleeKind) {
       f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
     }
-    f.extras.setWeapon?.(pose.unarmed ? 'none' : pose.melee ? 'gaffi' : 'blaster');
+    const armorerIdle = subject.id === 'armorer' && pose.id === 'idle';
+    f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
+    if (subject.id === 'armorer' && f.extras.gaffi)
+      setArmorerAxeIdleGrip(f.extras.gaffi, armorerIdle);
     setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
+    f.inst.cosmetic?.(0, time);
+  }
+}
+
+/** Seconds in the longest active channel; both channels scrub together. */
+function animationDuration(): number {
+  const anim = figures.find((f) => f.inst.animator)?.inst.animator;
+  if (!anim) return 0;
+  const clips = activeClips();
+  return Math.max(0, ...[clips.lower, clips.upper].map((name) => name ? anim.clips[name]?.duration ?? 0 : 0));
+}
+
+function currentAnimationTime(): number {
+  const anim = figures.find((f) => f.inst.animator)?.inst.animator;
+  if (!anim) return 0;
+  const clips = activeClips();
+  const name = clips.upper ?? clips.lower;
+  return name ? anim.clipProgress(clips.upper ? 'upper' : 'lower') * (anim.clips[name]?.duration ?? 0) : 0;
+}
+
+function seekAnimation(seconds: number): void {
+  // Sampling the exact clip duration wraps looping channels back to frame 0.
+  animationTime = Math.max(0, Math.min(Math.max(0, animationDuration() - 1e-4), seconds));
+  for (const f of figures) {
+    const anim = f.inst.animator;
+    if (!anim) continue;
+    anim.poseAt(animationTime);
+    f.inst.cosmetic?.(0, time);
   }
 }
 
@@ -646,6 +683,12 @@ function renderPanel(): void {
         <button id="pauseAnimation" type="button" aria-pressed="${paused}">${paused ? 'Play' : 'Pause'}</button>
       </div>
     </div>
+    ${paused ? `<div class="field playback">
+      <label for="animationTime">Animation time <output id="animationTimeValue">${animationTime.toFixed(2)} / ${animationDuration().toFixed(2)} s</output></label>
+      <input id="animationTime" type="range" min="0" max="${Math.max(1, Math.ceil(animationDuration() * 60) - 1)}" step="1"
+        value="${Math.round(animationTime * 60)}" ${editing || animationDuration() === 0 ? 'disabled' : ''} aria-label="Animation time in 60 fps frames">
+      ${editing ? '<p class="hint">Leave edit mode to scrub playback; Weapon grips has its own animation-frame slider.</p>' : ''}
+    </div>` : ''}
 
     <div class="field">
       <label>Show</label>
@@ -695,8 +738,9 @@ function renderPanel(): void {
       redo; Export hands you every change in one JSON, in <code>clips.ts</code> units.
       <br><br><b>Position mode</b> moves the authored model's joints with 3D handles.
       Export position JSON to share the exact shoulder offsets for each pose.
-      <br><br><b>Weapon grips</b> moves and rotates held weapons against authored hands,
-      or stowed hilts against authored hips in rest and idle. Export the local transforms as JSON.
+      <br><br><b>Weapon grips</b> moves, rotates and uniformly scales held weapons against
+      authored hands, or stowed hilts against authored hips in rest and idle.
+      Export the local transforms and scale multipliers as JSON.
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
@@ -739,10 +783,15 @@ function renderPanel(): void {
     if (editing) freezePose();
   };
   panel.querySelector<HTMLButtonElement>('#pauseAnimation')!.onclick = (e) => {
+    if (!paused) animationTime = currentAnimationTime();
     paused = !paused;
-    const button = e.currentTarget as HTMLButtonElement;
-    button.textContent = paused ? 'Play' : 'Pause';
-    button.setAttribute('aria-pressed', String(paused));
+    renderPanel();
+  };
+  const timeSlider = panel.querySelector<HTMLInputElement>('#animationTime');
+  if (timeSlider) timeSlider.oninput = () => {
+    seekAnimation(Number(timeSlider.value) / 60);
+    panel.querySelector<HTMLOutputElement>('#animationTimeValue')!.value =
+      `${animationTime.toFixed(2)} / ${animationDuration().toFixed(2)} s`;
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
@@ -934,7 +983,9 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   const selected = weaponEditor.selected;
   const current = weaponEditor.current();
   const degrees = weaponEditor.currentDegrees();
+  const scale = weaponEditor.currentScale();
   const entries = weaponEditor.entriesAll();
+  const scales = weaponEditor.scalesAll();
   host.innerHTML = `${editModeButtons()}
     <div class="editbox">
       <div class="field"><label for="weaponSample">Animation frame: ${Math.round(weaponSample * 100)}%</label>
@@ -952,11 +1003,16 @@ function renderWeaponPanel(host: HTMLDivElement): void {
         <div class="xyz">${current.editedPosition.map((v, i) => `<input data-weapon-position="${i}" type="number" step="0.001" value="${v}">`).join('')}</div>
       </div><div class="field"><label>Rotation in degrees, XYZ</label>
         <div class="xyz">${degrees.map((v, i) => `<input data-weapon-rotation="${i}" type="number" step="1" value="${v.toFixed(2)}">`).join('')}</div>
+      </div><div class="field"><label for="weaponScale">Uniform weapon scale ×</label>
+        <div class="weapon-scale-row">
+          <input id="weaponScale" type="range" min="0.1" max="4" step="0.01" value="${scale ?? 1}" aria-label="Weapon scale slider">
+          <input id="weaponScaleNumber" type="number" min="0.1" max="4" step="0.01" value="${(scale ?? 1).toFixed(2)}" aria-label="Weapon scale multiplier">
+        </div>
       </div><div class="row"><button id="weaponReset">Reset selected weapon</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : names.length ? 'Select an orange weapon point on the model.' : 'No held weapon or stowed hilt is visible in this pose.'}</p>`}
-      <div class="row"><button id="weaponExport" class="primary" ${entries.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
-      <p class="hint">Move or rotate each visible weapon with the 3D handle. Hip edits carry between rest and idle. Export JSON when aligned; changes reset on reload.</p>
-      ${entries.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon}</code></div>`).join('')}</div>` : ''}
+      <div class="row"><button id="weaponExport" class="primary" ${entries.length || scales.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
+      <p class="hint">Move or rotate with the 3D handle. Scale uses the hand or hip anchor as its centre and applies to this weapon in every pose. Hip placement carries between rest and idle. Export JSON when aligned; changes reset on reload.</p>
+      ${entries.length || scales.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon} grip</code></div>`).join('')}${scales.map((e) => `<div class="edit"><span>${e.character} · all poses</span><code>${e.weapon} · ${e.scaleMultiplier.toFixed(2)}×</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLInputElement>('#weaponSample')!.oninput = (event) => {
@@ -980,13 +1036,23 @@ function renderWeaponPanel(host: HTMLDivElement): void {
       };
     }
   }
+  for (const id of ['weaponScale', 'weaponScaleNumber'] as const) {
+    const input = host.querySelector<HTMLInputElement>(`#${id}`);
+    if (!input) continue;
+    input.oninput = () => {
+      if (!input.value.trim()) return;
+      weaponEditor.setScale(Number(input.value));
+    };
+    input.onchange = () => renderWeaponPanel(host);
+  }
   host.querySelector<HTMLButtonElement>('#weaponReset')?.addEventListener('click', () => weaponEditor.resetSelected());
   host.querySelector<HTMLButtonElement>('#weaponExport')!.onclick = () => {
     const payload = {
-      format: 'mando-authored-weapon-grips/2', exportedAt: new Date().toISOString(),
-      units: 'local coordinates of the named authored hand or hip mount; position in model units, rotation as quaternion',
-      note: 'attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body.',
+      format: 'mando-authored-weapon-grips/3', exportedAt: new Date().toISOString(),
+      units: 'grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses',
+      note: 'attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.',
       entries: weaponEditor.entriesAll(),
+      weaponScales: weaponEditor.scalesAll(),
     };
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
@@ -1091,7 +1157,19 @@ function syncEditValues(): void {
 function onEditorChange(): void {
   if (editing && editKind === 'weapon') {
     const host = panel.querySelector<HTMLDivElement>('#edit');
-    if (host) renderWeaponPanel(host);
+    if (host) {
+      const active = document.activeElement as HTMLInputElement | null;
+      if (active?.id === 'weaponScale' || active?.id === 'weaponScaleNumber') {
+        const value = weaponEditor.currentScale();
+        if (value !== null) {
+          const other = host.querySelector<HTMLInputElement>(
+            active.id === 'weaponScale' ? '#weaponScaleNumber' : '#weaponScale');
+          if (other) other.value = active.id === 'weaponScale' ? value.toFixed(2) : String(value);
+        }
+        const exportButton = host.querySelector<HTMLButtonElement>('#weaponExport');
+        if (exportButton) exportButton.disabled = weaponEditor.entriesAll().length + weaponEditor.scalesAll().length === 0;
+      } else renderWeaponPanel(host);
+    }
     return;
   }
   if (editing && editKind === 'position') {

@@ -117,6 +117,15 @@ option { color: var(--text); }
 }
 .xyz input:focus { outline: 1px solid var(--accent); }
 
+.weapon-scale-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px; align-items: center; }
+.weapon-scale-row input[type='range'] { width: 100%; accent-color: var(--accent); }
+.weapon-scale-row input[type='number'] {
+  width: 100%; box-sizing: border-box; font: inherit; color: var(--text); text-align: center;
+  background: #23272f; border: 1px solid var(--line); border-radius: 4px; padding: 5px 2px;
+}
+.weapon-scale-row input[type='number']:focus { outline: 1px solid var(--accent); }
+.playback > input[type='range'] { width: 100%; accent-color: var(--accent); }
+
 .row { display: flex; gap: 4px; margin-bottom: 8px; }
 .row button { cursor: pointer; font-size: 12px; padding: 6px 4px; }
 .row button:disabled { opacity: .4; cursor: default; }
