@@ -4,9 +4,10 @@ import { markShared } from '../core/dispose';
 /** A pointed blade with a straight spine and one edge curving into its tip. */
 export function makeDarksaberBlade(length: number): THREE.Group {
   const blade = new THREE.Group();
-  const spine = -0.047;
-  const edge = (t: number): number => t < 0.7 ? 0.052
-    : 0.052 - 0.099 * Math.pow((t - 0.7) / 0.3, 2);
+  const spine = -0.0235;
+  const width = 0.0495;
+  const edge = (t: number): number => t < 0.7 ? spine + width
+    : spine + width * (1 - Math.pow((t - 0.7) / 0.3, 2));
   const outline = [new THREE.Vector2(spine, 0), new THREE.Vector2(edge(0), 0)];
   for (let i = 1; i <= 24; i++) outline.push(new THREE.Vector2(edge(i / 24), length * i / 24));
   const shape = new THREE.Shape(outline);
@@ -16,7 +17,7 @@ export function makeDarksaberBlade(length: number): THREE.Group {
   // Shape/extrude UVs use world-space XY. Fit the texture across the blade's
   // face so its fine grain and the white marks land on the curved edge.
   const uv = geometry.getAttribute('uv');
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) - spine) / 0.099, uv.getY(i) / length);
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) - spine) / width, uv.getY(i) / length);
   uv.needsUpdate = true;
   const face = new THREE.MeshBasicMaterial({ map: bladeTexture(), side: THREE.DoubleSide });
   const side = new THREE.MeshBasicMaterial({ color: 0x090b0f });
@@ -26,14 +27,18 @@ export function makeDarksaberBlade(length: number): THREE.Group {
 
   // Two fine white rims give the flat black face its silhouette from either
   // side. The broader, faint rim is the reference's soft energy fringe.
-  const path = new THREE.CatmullRomCurve3(outline.map((p) => new THREE.Vector3(p.x, p.y, 0)), true, 'centripetal');
+  const path = new THREE.CurvePath<THREE.Vector3>();
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i], b = outline[(i + 1) % outline.length];
+    path.add(new THREE.LineCurve3(new THREE.Vector3(a.x, a.y, 0), new THREE.Vector3(b.x, b.y, 0)));
+  }
   const halos: THREE.MeshBasicMaterial[] = [];
   for (const z of [-0.01, 0.01]) {
-    for (const [radius, opacity] of [[0.011, 0.2], [0.0034, 0.96]] as const) {
+    for (const [radius, opacity] of [[0.0055, 0.2], [0.0017, 0.96]] as const) {
       const material = new THREE.MeshBasicMaterial({ color: 0xf2f6ff, transparent: true, opacity,
         blending: THREE.AdditiveBlending, depthWrite: false });
-      if (radius > 0.01) halos.push(material);
-      const rim = new THREE.Mesh(new THREE.TubeGeometry(path, 64, radius, 5, true), material);
+      if (radius > 0.005) halos.push(material);
+      const rim = new THREE.Mesh(new THREE.TubeGeometry(path, 256, radius, 5, true), material);
       rim.position.z = z;
       rim.castShadow = false;
       blade.add(rim);
