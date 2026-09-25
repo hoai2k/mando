@@ -1,7 +1,9 @@
 /** The three assigned polearms must replace their procedural stand-ins. */
 import { launch, makeCheck } from './harness.mjs';
+import { readFileSync } from 'node:fs';
 
 const check = makeCheck();
+const armorerGrips = JSON.parse(readFileSync('src/characters/data/armorerWeaponGrips.json', 'utf8'));
 const h = await launch();
 try {
   for (const [character, model] of [
@@ -51,6 +53,29 @@ try {
     check(`${character}: weapon name appears in HUD`,
       loaded.label === (character === 'din' ? 'Beskar Spear'
         : character === 'armorer' ? 'Poleaxe' : 'Gaffi Stick'), loaded);
+    if (character === 'armorer') {
+      const runtimeGrips = await h.page.evaluate(() => {
+        const c = window.__game.players[0].char;
+        return ['idleUpper', 'melee1', 'melee2', 'melee3'].map((clip) => {
+          c.animator.releaseAll();
+          c.animator.play('upper', clip, 0);
+          c.cosmetic(0, 0);
+          return { clip, position: c.gaffi.position.toArray(),
+            quaternion: c.gaffi.quaternion.toArray(), scale: c.gaffi.scale.x };
+        });
+      });
+      const near = (a, b) => a.length === b.length
+        && a.every((value, i) => Math.abs(value - b[i]) < 1e-5);
+      check('armorer: gameplay follows the authored idle and melee grips',
+        runtimeGrips.every((actual) => {
+          const pose = actual.clip === 'idleUpper' ? 'idle' : actual.clip;
+          const expected = armorerGrips.entries.find((entry) => entry.pose === pose);
+          return expected && near(actual.position, expected.editedPosition)
+            && (near(actual.quaternion, expected.editedQuaternion)
+              || near(actual.quaternion, expected.editedQuaternion.map((n) => -n)))
+            && actual.scale === armorerGrips.weaponScales[0].scaleMultiplier;
+        }), runtimeGrips);
+    }
     if (process.env.POLEARM_SCREENSHOT_DIR && character !== 'npc:tusken')
       await h.shot(`${process.env.POLEARM_SCREENSHOT_DIR}/${character}-polearm.png`);
   }

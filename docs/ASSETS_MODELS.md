@@ -719,6 +719,16 @@ mode has its own frame slider for checking attachment across an attack.
 The choice poster uses the same idle clips and loadout, frozen at 1.2 seconds;
 pause and scrub to 1.2 seconds to inspect that exact presentation frame.
 
+The Armorer's exported grips from 2026-09-25 are checked in as
+`src/characters/data/armorerWeaponGrips.json` and applied to idle, the three
+melee hits, and the three matching attack studies. The authored poleaxe's
+heavy head lies at model -Z. After prop mounting this is grip-local -Y, and
+the broad cutting blade projects toward grip-local +Z. These axe-local axes
+define the attack side when adjusting a swing or adding hit trails; the new
+attack grips reverse the old default orientation in several poses. Her 1.24×
+size is applied at the hand anchor across every pose. Regenerate
+`public/posters/armorer.png` after changing her idle grip again.
+
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for
 everything around it, so it goes first. The second monster batch is what is in that

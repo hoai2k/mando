@@ -7,6 +7,7 @@ import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
 import { dinMeleeVariants } from '../workbench/combatStudies';
 import { counterweightTracks } from '../anim/counterweight';
+import { applyArmorerAxeGrip } from './armorerAxeGrips';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -20,14 +21,6 @@ import { counterweightTracks } from '../anim/counterweight';
 export type MandoId =
   | 'din' | 'paz' | 'bokatan' | 'armorer'
   | 'ventress' | 'jedi' | 'maris' | 'maul' | 'revan' | 'embo' | 'bossk' | 'ig11' | 'duelist';
-
-/** The Armorer's axe is held broadside for her idle presentation on the select plinth and workbench. */
-export const ARMORER_IDLE_AXE_ROLL = -0.6;
-
-/** Set the whole Euler at once: the axe's -90° Y turn is a gimbal singularity. */
-export function setArmorerAxeIdleGrip(axe: THREE.Object3D, idle: boolean): void {
-  axe.rotation.set(Math.PI, -Math.PI / 2, idle ? ARMORER_IDLE_AXE_ROLL : 0, 'XYZ');
-}
 
 export interface PlayerCharacter extends CharacterInstance {
   /** 'none' is empty hands — a melee-only fighter with the blades stowed */
@@ -509,8 +502,6 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // shaft width and reach when the authored model arrives. Turn the
       // weapon's +Y head toward the extended arm's forward axis.
       main.rotation.x = Math.PI;
-      // Present the broad face of the Armorer's axe to the chase camera.
-      if (id === 'armorer') main.rotation.y = -Math.PI / 2;
     }
     if (kind === 'sabers') {
       main.rotation.x = id === 'maris' ? -Math.PI / 2 : Math.PI / 2;
@@ -520,6 +511,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     b.weaponR.add(main);
     blades.set(kind, { main, offhand });
   }
+  if (id === 'armorer') applyArmorerAxeGrip(blades.get('gaffi')!.main, 'idleUpper');
 
   // One hilt per hand at its hip while stowed. A thrown
   // slot hides its hip copy, so that saber has one visible location at a time.
@@ -678,6 +670,9 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   });
 
   let thrust = 0;
+  // A grip editor can temporarily change the transform while the clip stays
+  // fixed. Reapply only when the clip changes so the editor retains control.
+  let armorerAxeClip: string | null = null;
   let weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
   let shieldUp = false;
   // per-hand "still in the hand" mask, so a thrown saber vanishes from its
@@ -731,6 +726,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
+      if (id === 'armorer') {
+        const clip = inst.animator?.playing('upper') ?? null;
+        if (clip !== armorerAxeClip) {
+          applyArmorerAxeGrip(blades.get('gaffi')!.main, clip);
+          armorerAxeClip = clip;
+        }
+      }
       shield.update(dt, time);
       if (id === 'maris' && sabers) {
         const [right, left] = tonfaTurns(inst.animator?.playing('upper') ?? null,

@@ -15,7 +15,7 @@ import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
-import { MANDO_ROSTER, meleeKinds, setArmorerAxeIdleGrip, type MandoId, type MeleeKind } from '../characters/mandalorians';
+import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
 
@@ -399,8 +399,6 @@ function applyPose(): void {
     }
     const armorerIdle = subject.id === 'armorer' && pose.id === 'idle';
     f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
-    if (subject.id === 'armorer' && f.extras.gaffi)
-      setArmorerAxeIdleGrip(f.extras.gaffi, armorerIdle);
     setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
     f.inst.cosmetic?.(0, time);

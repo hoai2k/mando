@@ -1,5 +1,8 @@
 /** Grip export, global scale, paused scrubbing, and clean pose changes. */
 import { launch, makeCheck } from './harness.mjs';
+import { readFileSync } from 'node:fs';
+
+const armorerGrips = JSON.parse(readFileSync('src/characters/data/armorerWeaponGrips.json', 'utf8'));
 
 const check = makeCheck();
 const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
@@ -25,7 +28,25 @@ const near = (a, b, tolerance = 1e-5) => a.length === b.length
 try {
   await ready();
   const initial = await state();
-  check('Armorer idle shows the axe', initial.visible && initial.upper === 'idleUpper');
+  check('Armorer idle shows the axe at the exported global scale',
+    initial.visible && initial.upper === 'idleUpper' && initial.scale === 1.24);
+
+  for (const entry of armorerGrips.entries) {
+    const [pose, alternate] = entry.pose.split(':');
+    await page.locator('#pose').selectOption(pose);
+    if (alternate) await page.locator('#attackAlternate').selectOption(alternate);
+    const actual = await page.evaluate(() => {
+      const axe = window.__wb.figures[0].extras.gaffi;
+      return { position: axe.position.toArray(), quaternion: axe.quaternion.toArray(), scale: axe.scale.x,
+        clip: window.__wb.figures[0].inst.animator.playing('upper') };
+    });
+    check(`Armorer ${entry.pose} uses the submitted hand-local grip`,
+      near(actual.position, entry.editedPosition)
+        && (near(actual.quaternion, entry.editedQuaternion)
+          || near(actual.quaternion, entry.editedQuaternion.map((n) => -n)))
+        && actual.scale === armorerGrips.weaponScales[0].scaleMultiplier);
+  }
+  await page.locator('#pose').selectOption('idle');
 
   await page.locator('#pauseAnimation').click();
   check('paused playback exposes the animation-time slider', await page.locator('#animationTime').isVisible());
@@ -61,7 +82,7 @@ try {
   check('scale slider updates the editable number', await page.locator('#weaponScaleNumber').inputValue() === '1.25');
   await page.locator('#weaponScaleNumber').fill('1.50');
   const after = await state();
-  check('scale grows about the hand anchor', after.scale === 1.5 && near(before.anchor, after.anchor)
+  check('scale grows about the hand anchor', Math.abs(after.scale / before.scale - 1.5) < 1e-6 && near(before.anchor, after.anchor)
     && near(before.quaternion, after.quaternion));
 
   await page.locator('#pose').selectOption('melee1');
@@ -69,7 +90,8 @@ try {
   await page.locator('#pose').selectOption('idle');
   const scaledIdle = await state();
   check('weapon scale persists across poses; idle grip returns',
-    scaledMelee.scale === 1.5 && scaledIdle.scale === 1.5
+    Math.abs(scaledMelee.scale / initial.scale - 1.5) < 1e-6
+      && Math.abs(scaledIdle.scale / initial.scale - 1.5) < 1e-6
       && near(initial.quaternion, scaledIdle.quaternion));
 
   await page.evaluate(() => {
@@ -85,7 +107,7 @@ try {
 
   await page.locator('#weaponReset').click();
   check('reset restores the original scale and idle grip',
-    (await state()).scale === 1 && near(initial.quaternion, (await state()).quaternion));
+    (await state()).scale === initial.scale && near(initial.quaternion, (await state()).quaternion));
   const x = page.locator('[data-weapon-position="0"]');
   await x.fill(String(Number(await x.inputValue()) + 0.04));
   await x.blur();

@@ -1,0 +1,243 @@
+{
+  "format": "mando-authored-weapon-grips/3",
+  "exportedAt": "2026-09-25T01:14:48.044Z",
+  "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
+  "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
+  "entries": [
+    {
+      "character": "armorer",
+      "pose": "idle",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.98,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.6755249,
+        0.2089643,
+        -0.6755249,
+        -0.2089643
+      ],
+      "editedPosition": [
+        0.010636,
+        -0.001792,
+        0.051937
+      ],
+      "editedQuaternion": [
+        0.3288039,
+        0.1604289,
+        -0.9191175,
+        0.1461968
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee1",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.52,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.102748,
+        -0.074512,
+        0.24559
+      ],
+      "editedQuaternion": [
+        0.1145112,
+        -0.7970827,
+        0.5819497,
+        0.1134942
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee1:spearTest2",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.54,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.020346,
+        -0.214688,
+        0.058511
+      ],
+      "editedQuaternion": [
+        -0.0273979,
+        0.9869514,
+        -0.1585209,
+        -0.0068905
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee2",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.18,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.019208,
+        -0.099102,
+        0.080423
+      ],
+      "editedQuaternion": [
+        -0.0253327,
+        0.9245392,
+        -0.2803851,
+        -0.2568458
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee2:staffRise",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.029357,
+        -0.204356,
+        0.073187
+      ],
+      "editedQuaternion": [
+        0.068346,
+        -0.9472988,
+        0.2205518,
+        0.2220602
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee3",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.029371,
+        -0.217052,
+        0.281329
+      ],
+      "editedQuaternion": [
+        -0.0237049,
+        0.8829407,
+        -0.4667676,
+        -0.0445172
+      ]
+    },
+    {
+      "character": "armorer",
+      "pose": "melee3:staffDiagonal",
+      "weapon": "right: poleaxe",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.24,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        -0.7071068,
+        0
+      ],
+      "editedPosition": [
+        0.00549,
+        -0.14605,
+        0.000457
+      ],
+      "editedQuaternion": [
+        0.0399881,
+        0.989479,
+        -0.1173845,
+        0.0745193
+      ]
+    }
+  ],
+  "weaponScales": [
+    {
+      "character": "armorer",
+      "weapon": "poleaxe",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.24,
+      "editedScale": [
+        1.24,
+        1.24,
+        1.24
+      ]
+    }
+  ]
+}

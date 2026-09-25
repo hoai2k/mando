@@ -14,7 +14,8 @@ import {
 const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
 import { propsSettled } from '../characters/builder';
-import { setArmorerAxeIdleGrip, type PlayerCharacter } from '../characters/mandalorians';
+import type { PlayerCharacter } from '../characters/mandalorians';
+import { applyArmorerAxeGrip } from '../characters/armorerAxeGrips';
 import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 
 /**
@@ -625,7 +626,7 @@ export class CharacterSelect {
       // agree when the authored body and prop finish loading.
       if (id === 'armorer') {
         c.setWeapon('gaffi');
-        setArmorerAxeIdleGrip(c.gaffi, true); // show the blade clear of her shoulder
+        applyArmorerAxeGrip(c.gaffi, 'idleUpper');
       }
       c.setHeroLight(BASE_GLOW);
       c.root.visible = false;
