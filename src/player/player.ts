@@ -5,6 +5,7 @@ import {
   type MeleeKind, type PlayerCharacter, type RangedKind,
 } from '../characters/mandalorians';
 import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
+import { sharedWeaponScale } from '../characters/sharedWeaponGrips';
 import { ThirdPersonCamera } from '../core/camera';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
@@ -3040,6 +3041,7 @@ export class Player {
       light: this.characterId !== 'din',
       style: this.characterId === 'din' ? 'darksaber' : this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
         : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
+      scale: this.characterId === 'revan' ? sharedWeaponScale('revan') : 1,
     });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);

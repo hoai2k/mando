@@ -9,6 +9,7 @@ import { dinMeleeVariants } from '../workbench/combatStudies';
 import { counterweightTracks } from '../anim/counterweight';
 import { applyArmorerAxeGrip } from './armorerAxeGrips';
 import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
+import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -477,6 +478,9 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   }
   const bosskRifle = id === 'bossk' ? guns.get('longrifle')?.main : undefined;
   if (bosskRifle) bosskRifle.scale.setScalar(BOSSK_RIFLE_SCALE);
+  if (id === 'din' || id === 'embo' || id === 'ig11' || id === 'paz') {
+    guns.get(rangedKinds(id)[0])?.main.scale.setScalar(sharedWeaponScale(id));
+  }
 
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
@@ -515,6 +519,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     blades.set(kind, { main, offhand });
   }
   if (id === 'armorer') applyArmorerAxeGrip(blades.get('gaffi')!.main, 'idleUpper');
+  if (id === 'revan') blades.get('sabers')!.main.scale.setScalar(sharedWeaponScale(id));
 
   // One hilt per hand at its hip while stowed. A thrown
   // slot hides its hip copy, so that saber has one visible location at a time.
@@ -531,6 +536,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         id === 'ventress' ? 0.025 : 0.08,
       );
       hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : id === 'maul' ? -0.16 : -side * 0.12;
+      if (id === 'revan') hilt.scale.setScalar(sharedWeaponScale(id));
       b.hips.add(hilt);
       holsters.push(hilt);
     }
@@ -629,6 +635,14 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // mount reproduces our canonical weaponR frame, so nothing else changes
       if (model.weaponMount) {
         for (const w of [...guns.values(), ...blades.values()]) model.weaponMount.add(w.main);
+      }
+      if (model.weaponMount && ['din', 'embo', 'ig11', 'paz'].includes(id)) {
+        const signature = guns.get(rangedKinds(id)[0]);
+        if (signature) applySharedWeaponGrip(id, signature.main);
+      }
+      if (model.weaponMount && id === 'revan') {
+        const saber = blades.get('sabers');
+        if (saber) applySharedWeaponGrip(id, saber.main);
       }
       // The off-hand has to move too. Our own weaponL bone still animates, but
       // it sits where the hidden procedural arm is, so a pistol left on it

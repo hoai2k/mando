@@ -204,6 +204,14 @@ are our interpretation of his agile, double-bladed presentation in the
 [lightsaber databank](https://www.starwars.com/databank/darth-mauls-lightsaber),
 and [Ray Park technique demonstration](https://www.starwars.com/video/ray-park-lightsaber-lesson-star-wars-celebration-anaheim).
 
+Maul's delivered skin has separate upper-arm and forearm shells whose rigid
+weights open visible elbow gaps during saber poses. Chest details also carry
+arm weights. `tools/fix-maul-arms.mjs` adds two load-time fixes to
+`public/models/skinfix/maul.json`: a shared elbow blend across both shell
+rims and torso-derived weights for those chest details. His source GLB remains
+untouched; `tools/test-maul-skin.mjs` checks the posed elbow gaps and torso
+weights.
+
 Integration note: all five are roster entries in `src/characters/mandalorians.ts`, each
 carrying its authored model and its signature weapon — twin red curved-hilt sabers
 (Ventress), laser crossbow (Embo), long rifle (Bossk and IG-11), twin heavy pistols
@@ -728,6 +736,15 @@ define the attack side when adjusting a swing or adding hit trails; the new
 attack grips reverse the old default orientation in several poses. Her 1.24×
 size is applied at the hand anchor across every pose. Regenerate
 `public/posters/armorer.png` after changing her idle grip again.
+
+The 2026-09-25 shared-grip export is stored at
+`src/characters/data/sharedWeaponGrips.json`. Din, Embo, IG-11, and Paz use
+their submitted idle grips as one attachment transform for their signature
+gun in every pose. Revan likewise uses the submitted flourish grip for his
+held saber in every pose. His 1.4× scale follows the saber at his hand, hip,
+and in flight; Din's 0.85× and IG-11's 0.96× apply to their signature guns.
+The pose names in this file identify calibration views, not clip-specific
+overrides. Re-render the relevant choice posters when these values change.
 
 Order of work for anything new: reference sheets (`ASSETS_IMAGES.md`) → model → loader.
 The sheets are the blocking input, and a playable character sets the art direction for

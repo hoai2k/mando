@@ -50,15 +50,16 @@ export class ThrownSaber {
    * @param opts.light Lit blades carry their light into flight; the Darksaber
    *   explicitly stays unlit.
    */
-  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' | 'darksaber' } = {}) {
+  constructor(host: THREE.Group, opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'double' | 'dark' | 'darksaber'; scale?: number } = {}) {
     const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
     const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
     this.saber = makeSaber(silver, dark, { light: opts.light, style: opts.style });
+    this.saber.scale.setScalar(opts.scale ?? 1);
     // lay the blade flat and centre it on the spin axis, so the whole thing
     // wheels about its middle rather than swinging around the hilt
     const len = (this.saber.userData.bladeLen as number) ?? 0.9;
     this.saber.rotation.z = Math.PI / 2;   // blade +Y now points along -X
-    this.saber.position.x = opts.style === 'double' ? 0 : len * 0.5;
+    this.saber.position.x = opts.style === 'double' ? 0 : len * (opts.scale ?? 1) * 0.5;
     this.spinner.add(this.saber);
     this.spinner.visible = false;
     host.add(this.spinner);

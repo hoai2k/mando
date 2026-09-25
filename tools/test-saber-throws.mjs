@@ -30,6 +30,7 @@ try {
         mainVisible: player.char.root.getObjectByName('saberHandR')?.visible,
         offhandExists: !!player.char.root.getObjectByName('saberHandL'),
         doubleBlade: !!player.thrownSabers[0]?.saber.userData.oppositeBlade,
+        scale: player.thrownSabers[0]?.saber.scale.x,
       };
       if (character === 'din') frame({ rangedSwapPressed: true });
       step(150);
@@ -72,6 +73,8 @@ try {
       check('Maul throws one double-ended saber', result.capacity === 1
         && !result.thrown.offhandExists && result.thrown.doubleBlade, result);
     }
+    if (id === 'revan') check('Revan carries the same 1.4× saber scale into flight',
+      result.thrown.scale === 1.4, result);
   }
   check('browser reported no errors', h.errors.length === 0, h.errors);
 } finally {

@@ -1,0 +1,213 @@
+{
+  "format": "mando-authored-weapon-grips/3",
+  "exportedAt": "2026-09-25T01:41:19.306Z",
+  "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
+  "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
+  "entries": [
+    {
+      "character": "din",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.010274,
+        -0.103053,
+        0.075128
+      ],
+      "editedQuaternion": [
+        0.6600715,
+        -0.0216907,
+        -0.0087572,
+        0.7508385
+      ]
+    },
+    {
+      "character": "embo",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.086074,
+        -0.127099,
+        0.036311
+      ],
+      "editedQuaternion": [
+        0.6603973,
+        -0.0155791,
+        -0.0086913,
+        0.7507044
+      ]
+    },
+    {
+      "character": "ig11",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.0243,
+        -0.274827,
+        -0.028083
+      ],
+      "editedQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ]
+    },
+    {
+      "character": "paz",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.034504,
+        -0.125802,
+        0.106494
+      ],
+      "editedQuaternion": [
+        0.6558051,
+        -0.0282509,
+        -0.0189851,
+        0.7541625
+      ]
+    },
+    {
+      "character": "revan",
+      "pose": "flourish",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.006323,
+        -0.019492,
+        0.161385
+      ],
+      "editedQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ]
+    }
+  ],
+  "weaponScales": [
+    {
+      "character": "din",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 0.85,
+      "editedScale": [
+        0.85,
+        0.85,
+        0.85
+      ]
+    },
+    {
+      "character": "ig11",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 0.96,
+      "editedScale": [
+        0.96,
+        0.96,
+        0.96
+      ]
+    },
+    {
+      "character": "revan",
+      "weapon": "saberR",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.4,
+      "editedScale": [
+        1.4,
+        1.4,
+        1.4
+      ]
+    }
+  ]
+}
