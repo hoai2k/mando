@@ -563,6 +563,37 @@
       ]
     },
     {
+      "character": "pirate",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.052783,
+        0.081466,
+        0.080739
+      ],
+      "editedQuaternion": [
+        0.6273959,
+        0.0367705,
+        0.0299155,
+        0.7772563
+      ]
+    },
+    {
       "character": "pirateMelee",
       "pose": "idle",
       "weapon": "right: weapon 1",
@@ -892,6 +923,22 @@
         0.96,
         0.96,
         0.96
+      ]
+    },
+    {
+      "character": "pirate",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.15,
+      "editedScale": [
+        1.15,
+        1.15,
+        1.15
       ]
     },
     {

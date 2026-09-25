@@ -10,6 +10,7 @@ import { counterweightTracks } from '../anim/counterweight';
 import { applyArmorerAxeGrip } from './armorerAxeGrips';
 import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
 import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
+import { applyDinSpearGrip } from './dinSpearGrips';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -511,6 +512,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // The sculpt's pointed end is model -Z. Its prop mount maps that to
       // grip -Y; the carry half-turn lifts the point above Din's hand.
       main.rotation.x = Math.PI;
+      if (id === 'din') applyDinSpearGrip(main, null);
     }
     if (kind === 'sabers') {
       main.rotation.x = id === 'maris' ? -Math.PI / 2 : Math.PI / 2;
@@ -715,7 +717,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // A grip editor can temporarily change the transform while the clip stays
   // fixed. Reapply only when the clip changes so the editor retains control.
   let armorerAxeClip: string | null = null;
-  let dinSpearAttack: boolean | null = null;
+  let dinSpearClip: string | null = null;
   let weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
   let shieldUp = false;
   // per-hand "still in the hand" mask, so a thrown saber vanishes from its
@@ -770,13 +772,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     },
     cosmetic: (dt, time) => {
       if (id === 'din') {
-        const clip = inst.animator?.playing('upper') ?? '';
-        const attacking = /^(melee[123]|spear|staff)/.test(clip);
-        if (attacking !== dinSpearAttack) {
-          // Attack clips extend grip -Y toward the target only without the
-          // carry half-turn; otherwise the pointed end trails the strike.
-          blades.get('gaffi')!.main.rotation.x = attacking ? 0 : Math.PI;
-          dinSpearAttack = attacking;
+        const clip = inst.animator?.playing('upper') ?? null;
+        if (clip !== dinSpearClip) {
+          applyDinSpearGrip(blades.get('gaffi')!.main, clip);
+          dinSpearClip = clip;
         }
       }
       if (bosskRifle && swap.model) {
