@@ -20,6 +20,12 @@ five canvases including the replacement `sandworm`. The cast, the boards, the sk
 every surface texture, the campaign's planet strip and corridor interiors, the weapon
 sheets, the logo and the favicon were already in and wired.
 
+The 2026-09-25 enemy weapon audit added
+[`enemy_weapon_collection_v1.png`](../reference/characters/enemy_weapon_collection_v1.png):
+five separated rows for an infantry blaster rifle, pirate boarding club,
+flame projector, net launcher, and stone club. The sheet is complete as a
+canonical image; its 3D props are still open in `ASSETS_MODELS.md`.
+
 `reference/characters/maris_brood_front_left_stylized.png` is the selected
 Maris front; matching side and back sheets and an authored playable model are
 delivered. The earlier `maris_brood_front.png` remains for comparison.

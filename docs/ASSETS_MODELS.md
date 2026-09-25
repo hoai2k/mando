@@ -23,6 +23,41 @@ fang re-exports are closed by the 2026-09-24 decision. Galen, Maris, Revan,
 and Maul are playable with authored bodies and separate authored hilts. The
 classic hilt remains available as an individual prop for a future character.
 
+## Enemy weapon sculpts and model defects — 2026-09-25
+
+The workbench's enemy weapons were checked against `public/models/*.glb` and
+their builders in `src/characters/enemies.ts`. Five distinct hand-held weapon
+types still use procedural geometry and have no dedicated authored GLB. The
+canonical [five-weapon sheet](../reference/characters/enemy_weapon_collection_v1.png)
+arranges them in independent, widely spaced rows for a possible single
+image-to-3D generation followed by mesh separation. Top to bottom:
+
+| Row | New prop | Intended users | Current visual |
+|---|---|---|---|
+| 1 | Infantry blaster rifle | Pyke Soldier and Capo, Pirate Gunner, Assassin and Escort Droids, Stormtrooper and Death Trooper, Dark Trooper, Cobb Vanth, Fennec Shand, Ringworld Enforcer | Shared procedural `rifle()` |
+| 2 | Pirate boarding club | Pirate Brawler | Procedural club |
+| 3 | Flame projector | Incinerator Trooper | Procedural gun with pilot light |
+| 4 | Net launcher | Quarren Netcaster | Procedural tube |
+| 5 | Stone club | Alamite Charger | Procedural club |
+
+These five props have **not** been generated or integrated. The existing
+authored `pistol.glb`, `gaffi_collection.glb`, separate saber hilts, and
+polearm models already cover their respective enemy weapons; the Imperial
+Officer's darksaber blade remains a game effect. Row separation is a useful
+input layout, but a generated mesh still needs inspection before assuming its
+five weapons can be sliced cleanly.
+
+Known character model defects and temporary handling:
+
+| Model | Defect | Current handling | Permanent fix |
+|---|---|---|---|
+| `flametrooper.glb` (Incinerator Trooper) | Weapon geometry is built into the waist | Keep the current body and separate procedural hand projector for now | Remove the waist weapon from the source mesh and re-export |
+| `ring_enforcer.glb` (Ringworld Enforcer) | Weapon geometry is built into the waist | Keep the current body and separate procedural hand rifle for now | Remove the waist weapon from the source mesh and re-export |
+| `pirate.glb` (Pirate — blaster) | Faces appear on both the front and back | Both gunner and jetpack Pirate now use the healthy `pirate_melee.glb` body with their own separate blaster | Regenerate or repair the gunner body, validate both sides, then restore its model mapping |
+
+The original `pirate.glb` is retained in the repository as an untouched source
+for diagnosis, but is no longer loaded for those two enemy variants.
+
 ## Swap contract (applies to every biped)
 
 - Skeleton node names must match the canonical rig in `src/anim/skeleton.ts`:

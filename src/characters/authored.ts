@@ -437,8 +437,8 @@ export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void 
  * worst possible moment — the frame a new enemy type joins the fight.
  */
 export const ENEMY_MODEL_ID: Record<string, string> = {
-  tusken: 'tusken', pyke: 'pyke', pirate: 'pirate', pirateMelee: 'pirate_melee',
-  jetpirate: 'pirate', droid: 'droid', nikto: 'nikto', massiff: 'massiff',
+  tusken: 'tusken', pyke: 'pyke', pirate: 'pirate_melee', pirateMelee: 'pirate_melee',
+  jetpirate: 'pirate_melee', droid: 'droid', nikto: 'nikto', massiff: 'massiff',
   stormtrooper: 'stormtrooper', deathtrooper: 'deathtrooper', darktrooper: 'darktrooper',
   officer: 'imperial_officer', capo: 'pyke_capo',
   enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',

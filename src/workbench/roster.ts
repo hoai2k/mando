@@ -87,7 +87,7 @@ export const GROUPS: SubjectGroup[] = [
     subjects: [
       plain('tusken', 'Tusken Raider', (a) => buildTusken(a), true),
       plain('pyke', 'Pyke Soldier', (a) => buildPyke(a), true),
-      plain('pirate', 'Pirate — blaster', (a) => buildPirate(false, a), true),
+      plain('pirate', 'Pirate — blaster (backup body)', (a) => buildPirate(false, a), true, 'pirate_melee'),
       plain('pirateMelee', 'Pirate — melee', (a) => buildPirate(true, a), true, 'pirate_melee'),
       plain('droid', 'Assassin Droid', (a) => buildDroid(a), true),
       plain('nikto', 'Nikto Swoop Rider', (a) => buildNikto(a), true),
