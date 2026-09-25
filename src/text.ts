@@ -324,6 +324,7 @@ export const TEXT = {
     paz: { name: 'Paz Vizsla', desc: 'Heavy infantry of the covert — a walking siege wall.' },
     bokatan: { name: 'Bo-Katan Kryze', desc: 'Nite Owl of Clan Kryze — born to the creed, and to rule it.' },
     armorer: { name: 'The Armorer', desc: 'Keeper of the forge — she shapes the beskar and the creed alike.' },
+    boba_fett: { name: 'Boba Fett', desc: 'The legendary armored bounty hunter, armed for any contract.' },
     ventress: { name: 'Asajj Ventress', desc: 'Twin red blades and a dancer\u2019s patience \u2014 the assassin of the outer dark.' },
     jedi: { name: 'Galen Marek', desc: 'A hooded guardian with twin white blades and a measured hand.' },
     maris: { name: 'Maris Brood', desc: 'A swift duelist wielding twin white tonfa sabers.' },

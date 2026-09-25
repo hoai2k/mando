@@ -44,6 +44,38 @@ const BONE_MAP: Partial<Record<BoneName, string>> = {
   footL: 'DEF-foot.L', footR: 'DEF-foot.R',
 };
 
+/** Boba Fett arrives with the original ValveBiped skin, already weighted. */
+const BOBA_BONE_MAP: Partial<Record<BoneName, string>> = {
+  hips: 'ValveBiped.Bip01_Pelvis_02',
+  spine: 'ValveBiped.Bip01_Spine_031',
+  chest: 'ValveBiped.Bip01_Spine4_034',
+  neck: 'ValveBiped.Bip01_Neck1_035',
+  head: 'ValveBiped.Bip01_Head1_036',
+  shoulderL: 'ValveBiped.Bip01_L_Clavicle_038',
+  upperArmL: 'ValveBiped.Bip01_L_UpperArm_039',
+  forearmL: 'ValveBiped.Bip01_L_Forearm_040',
+  handL: 'ValveBiped.Bip01_L_Hand_041',
+  shoulderR: 'ValveBiped.Bip01_R_Clavicle_071',
+  upperArmR: 'ValveBiped.Bip01_R_UpperArm_072',
+  forearmR: 'ValveBiped.Bip01_R_Forearm_073',
+  handR: 'ValveBiped.Bip01_R_Hand_074',
+  upperLegL: 'ValveBiped.Bip01_L_Thigh_03',
+  lowerLegL: 'ValveBiped.Bip01_L_Calf_04',
+  footL: 'ValveBiped.Bip01_L_Foot_05',
+  upperLegR: 'ValveBiped.Bip01_R_Thigh_017',
+  lowerLegR: 'ValveBiped.Bip01_R_Calf_018',
+  footR: 'ValveBiped.Bip01_R_Foot_019',
+};
+
+/** Endpoint used to infer the actual axis of a ValveBiped bone. */
+const BOBA_BONE_TIP: Partial<Record<BoneName, BoneName>> = {
+  hips: 'spine', spine: 'chest', chest: 'neck',
+  shoulderL: 'upperArmL', upperArmL: 'forearmL', forearmL: 'handL',
+  shoulderR: 'upperArmR', upperArmR: 'forearmR', forearmR: 'handR',
+  upperLegL: 'lowerLegL', lowerLegL: 'footL',
+  upperLegR: 'lowerLegR', lowerLegR: 'footR',
+};
+
 /**
  * Who each flat-rig chain root should hang from. Arms and shoulders go on
  * spine.004 rather than our `chest` (spine.003) because that is where the
@@ -163,6 +195,9 @@ export interface AuthoredModel {
   hips: THREE.Object3D | null;
   /** metres per model unit, for anything measured in world space */
   scale: number;
+  /** source scene rotation, for rigs whose skeleton is nested under an oriented root */
+  boneBasis: THREE.Quaternion;
+  boneBasisInverse: THREE.Quaternion;
   /** scratch, reused every frame */
   scratch: { world: THREE.Quaternion[]; src: Map<BoneName, THREE.Quaternion>; tmp: THREE.Quaternion };
 }
@@ -555,7 +590,13 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   //    geometry boxes by hand.
   root.updateWorldMatrix(true, true);
   const box = new THREE.Box3();
-  root.traverse((o) => {
+  if (id === 'boba_fett') {
+    // The supplied skin's evaluated rest bounds, measured from all 66,584
+    // weighted vertices. Its raw mesh boxes are in the FBX bind frame and
+    // understate the standing height by more than a metre.
+    box.min.set(-0.397645, -0.002333, -0.273017);
+    box.max.set(0.415604, 1.492211, 0.167510);
+  } else root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
@@ -572,7 +613,12 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
 
   // 3. flatten the skeleton, parents first, with each bone's rest pose
   const canonicalOf = new Map<THREE.Object3D, BoneName>();
-  for (const [canonical, authored] of Object.entries(BONE_MAP)) {
+  const boneMap = id === 'boba_fett' ? BOBA_BONE_MAP : BONE_MAP;
+  const boneBasis = id === 'boba_fett'
+    ? find('_rootJoint')!.parent!.getWorldQuaternion(new THREE.Quaternion())
+    : new THREE.Quaternion();
+  const boneBasisInverse = boneBasis.clone().invert();
+  for (const [canonical, authored] of Object.entries(boneMap)) {
     const bone = find(authored);
     if (bone) canonicalOf.set(bone, canonical as BoneName);
   }
@@ -587,7 +633,9 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
         obj,
         parent,
         canonical: canonicalOf.get(obj) ?? null,
-        rest: obj.getWorldQuaternion(new THREE.Quaternion()),
+        // Retarget's hierarchy starts at the top bone. Remove the scene-root
+        // rotation here so it is not applied again as a bone-local rotation.
+        rest: boneBasisInverse.clone().multiply(obj.getWorldQuaternion(new THREE.Quaternion())),
       });
     }
     for (const child of obj.children) collect(child, self);
@@ -636,11 +684,24 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   // reads the same on a model authored in an A-pose. Only the bone direction is
   // corrected; the twist around it stays as authored.
   const bone = new THREE.Vector3();
+  const tip = new THREE.Vector3();
   for (const node of nodes) {
     const want = node.canonical && CANON_DIR[node.canonical];
     if (!want) continue;
-    bone.set(0, 1, 0).applyQuaternion(node.rest);  // Blender bones run along local +Y
-    node.rest.premultiply(new THREE.Quaternion().setFromUnitVectors(bone, want));
+    if (id === 'boba_fett') {
+      // ValveBiped bones run along local X. Use the actual joint positions so
+      // the rest correction works through its rotated Sketchfab scene root.
+      const next = BOBA_BONE_TIP[node.canonical!];
+      const end = next && find(boneMap[next]!);
+      if (!end) continue;
+      node.obj.getWorldPosition(bone);
+      end.getWorldPosition(tip);
+      bone.subVectors(tip, bone).normalize().applyQuaternion(boneBasisInverse);
+    } else {
+      bone.set(0, 1, 0).applyQuaternion(node.rest);  // Blender bones run along local +Y
+    }
+    const target = id === 'boba_fett' ? want.clone().applyQuaternion(boneBasisInverse) : want;
+    node.rest.premultiply(new THREE.Quaternion().setFromUnitVectors(bone, target));
   }
 
   // 4. a weapon mount inside each hand that reproduces our canonical `weaponR`
@@ -655,7 +716,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     const handScale = new THREE.Vector3().setFromMatrixScale(hand.obj.matrixWorld).x || 1;
     const mount = new THREE.Group();
     mount.name = name;
-    mount.quaternion.copy(hand.rest).invert();
+    mount.quaternion.copy(boneBasis).multiply(hand.rest).invert();
     mount.scale.setScalar(1 / handScale);
     mount.position.set(0, -0.05, 0.02).applyQuaternion(mount.quaternion).divideScalar(handScale);
     hand.obj.add(mount);
@@ -668,7 +729,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   if (hip && holsterMount) {
     holsterMount.name = 'holsterMount';
     const hipScale = new THREE.Vector3().setFromMatrixScale(hip.obj.matrixWorld).x || 1;
-    holsterMount.quaternion.copy(hip.rest).invert();
+    holsterMount.quaternion.copy(boneBasis).multiply(hip.rest).invert();
     holsterMount.scale.setScalar(1 / hipScale);
     hip.obj.add(holsterMount);
   }
@@ -683,6 +744,8 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     holsterMount,
     hips: nodes.find((n) => n.canonical === 'hips')?.obj ?? null,
     scale,
+    boneBasis,
+    boneBasisInverse,
     scratch: {
       world: nodes.map(() => new THREE.Quaternion()),
       src: new Map(CANON_ORDER.map((b) => [b, new THREE.Quaternion()])),
@@ -722,7 +785,9 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     const parent = node.parent >= 0 ? world[node.parent] : null;
     const delta = node.canonical ? src.get(node.canonical) : null;
     if (delta) {
-      world[i].copy(delta).multiply(node.rest);
+      // Canonical clip deltas use game-world axes. Convert them into this
+      // model's rotated scene-root frame before applying its rest rotation.
+      world[i].copy(model.boneBasisInverse).multiply(delta).multiply(model.boneBasis).multiply(node.rest);
       node.obj.quaternion.copy(parent ? tmp.copy(parent).invert().multiply(world[i]) : world[i]);
     } else {
       // unmapped bone (twist segments, toes, spine fillers): hold its rest local

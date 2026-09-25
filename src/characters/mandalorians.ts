@@ -21,7 +21,7 @@ import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
  */
 
 export type MandoId =
-  | 'din' | 'paz' | 'bokatan' | 'armorer'
+  | 'din' | 'paz' | 'bokatan' | 'armorer' | 'boba_fett'
   | 'ventress' | 'jedi' | 'maris' | 'maul' | 'revan' | 'embo' | 'bossk' | 'ig11' | 'duelist';
 
 export interface PlayerCharacter extends CharacterInstance {
@@ -59,7 +59,7 @@ export interface PlayerCharacter extends CharacterInstance {
  * than the 2.24 m tower the old 2.0 x 1.12 made of him.
  */
 const MODEL_HEIGHT: Record<MandoId, number> = {
-  din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78,
+  din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78, boba_fett: 1.83,
   ventress: 1.79, jedi: 1.82, maris: 1.70, maul: 1.88, revan: 1.95, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
 
@@ -217,6 +217,12 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
     voice: 'mando_f',
   },
+  boba_fett: {
+    ...TEXT.characters.boba_fett,
+    primary: 0x58744c, accent: 0x913f2c, suit: 0x6a5c40, cape: 0x8c7150,
+    helmet: 'boba_fett', rangefinder: true, bulk: 1,
+    voice: 'masked',
+  },
   ventress: {
     ...TEXT.characters.ventress,
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
@@ -285,7 +291,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
  * from all of them at once.
  */
 const CHARACTER_ORDER: MandoId[] = [
-  'din', 'paz', 'armorer', 'bokatan',
+  'din', 'paz', 'armorer', 'bokatan', 'boba_fett',
   'duelist', 'bossk', 'ig11', 'embo',
   'jedi', 'maris', 'revan', 'maul', 'ventress',
 ];

@@ -322,6 +322,13 @@ function frameSubject(): void {
   const box = new THREE.Box3();
   for (const f of figures) {
     f.inst.root.updateWorldMatrix(true, true);
+    if (subject.id === 'boba_fett') {
+      // The imported FBX mesh boxes are in bind space. Frame its evaluated
+      // standing dimensions rather than sending the camera toward those boxes.
+      box.expandByPoint(f.inst.root.localToWorld(new THREE.Vector3(-0.65, 0, -0.65)));
+      box.expandByPoint(f.inst.root.localToWorld(new THREE.Vector3(0.65, f.inst.height, 0.65)));
+      continue;
+    }
     // `visible` is read per mesh, not inherited, so a figure hidden behind its
     // loading card still measures here — which is what holds its place in the
     // frame, so the camera does not swing when the model finally lands in it.

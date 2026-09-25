@@ -274,3 +274,8 @@ await h.close();
 
 [MIT](LICENSE) for the code and the original assets, with a fan-work notice: this is a
 non-commercial homage, and the names and likenesses it borrows belong to their owners.
+
+The Boba Fett model supplied for `public/models/boba_fett.glb` identifies
+[fred346b on Sketchfab](https://sketchfab.com/3d-models/star-wars-jedi-survivoresb-boba-fett-e00ddf411b394bc7a6db9e4527ca657b)
+as its author and [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) as its license in the source GLB metadata. The
+game copy is a decimated, texture-repacked derivative of that model.
