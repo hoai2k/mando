@@ -8,6 +8,7 @@ import type { VoiceId } from '../core/audio';
 import { dinMeleeVariants } from '../workbench/combatStudies';
 import { counterweightTracks } from '../anim/counterweight';
 import { applyArmorerAxeGrip } from './armorerAxeGrips';
+import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -474,6 +475,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     main.add(muzzle);
     guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(gunmetal, dark)) : null });
   }
+  const bosskRifle = id === 'bossk' ? guns.get('longrifle')?.main : undefined;
+  if (bosskRifle) bosskRifle.scale.setScalar(BOSSK_RIFLE_SCALE);
 
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
@@ -608,6 +611,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   }
   adoptHeroMaterials(rig.root);
 
+  // The authored mount is shared by carry and aim. Change only its rifle-local
+  // transform as the upper-body clip changes; locomotion below it is irrelevant.
+  let bosskRifleAiming: boolean | null = null;
+
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
   // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
@@ -639,6 +646,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         pistols.main.quaternion.set(0.6537136, -0.0671748, 0.0762969, 0.7498832).normalize();
         pistols.offhand.position.set(-0.01701, 0.072469, -0.096437);
         pistols.offhand.quaternion.set(0.6447175, 0.0555208, -0.0388719, 0.7614103).normalize();
+      }
+      if (bosskRifle && model.weaponMount) {
+        applyBosskRifleGrip(bosskRifle, false);
+        bosskRifleAiming = false;
       }
       // Measured in the workbench against the authored palms at saberIdle.
       // The prop remains parented to each authored hand, so these grip-local
@@ -735,6 +746,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
+      if (bosskRifle && swap.model) {
+        const aiming = inst.animator?.playing('upper') === 'aimUpper';
+        if (aiming !== bosskRifleAiming) {
+          applyBosskRifleGrip(bosskRifle, aiming);
+          bosskRifleAiming = aiming;
+        }
+      }
       if (id === 'armorer') {
         const clip = inst.animator?.playing('upper') ?? null;
         if (clip !== armorerAxeClip) {

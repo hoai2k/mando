@@ -90,6 +90,15 @@ const FIT_FOOTPRINT = 1.8;
 
 const _fitBox = new THREE.Box3();
 const _fitSize = new THREE.Vector3();
+const readyFighters = new WeakSet<PlayerCharacter>();
+
+/** Reveal a fighter only after both its body and every attached prop settle. */
+function fighterReady(c: PlayerCharacter): boolean {
+  if (readyFighters.has(c)) return true;
+  const ready = c.modelReady() && propsSettled(c.root);
+  if (ready) readyFighters.add(c);
+  return ready;
+}
 
 type Phase = 'empty' | 'browsing' | 'spinning' | 'ready';
 
@@ -932,7 +941,7 @@ export class CharacterSelect {
     // waiting: build the body now rather than a beat from now.
     if (s.poster && !s.poster.promoted) { s.poster.promoted = true; this.charFor(s, this.roster[s.choice]); }
     const c = s.chars.get(this.roster[s.choice]);
-    if (!c || !c.modelReady()) return;   // nothing to lock in until the model is here
+    if (!c || !fighterReady(c)) return;   // nothing to lock in until the whole fighter is here
     audio.uiConfirm();
     s.phase = 'spinning';
     s.spinT = 0;
@@ -1037,12 +1046,12 @@ export class CharacterSelect {
         s.poster.promoted = true;
       }
       const current = this.charFor(s, id);
-      for (const [cid, c] of s.chars) c.root.visible = cid === id && c.modelReady();
+      for (const [cid, c] of s.chars) c.root.visible = cid === id && fighterReady(c);
       // the handover: they are pixel-aligned by construction, so there is
       // nothing to see in it
-      const handoff = !!s.poster && current.modelReady();
+      const handoff = !!s.poster && fighterReady(current);
       if (handoff) this.dropPoster(s);
-      if (current.modelReady() && !s.poster) {
+      if (fighterReady(current) && !s.poster) {
         s.glowRise = Math.min(1.6, s.glowRise + dt);
         const breathe = 0.8 + 0.2 * Math.sin(this.time * 1.05 + i * 1.3);
         s.backGlow.intensity = 1.5 * Math.min(1, s.glowRise / 1.3) * breathe * s.appear;
@@ -1057,7 +1066,7 @@ export class CharacterSelect {
       // no procedural stand-in: wait it out, spinner after a grace period. A
       // poster covers this whenever there is one — the spinner is what a
       // fighter with no generated picture still falls back to.
-      const waiting = !current.modelReady() && !s.poster;
+      const waiting = !fighterReady(current) && !s.poster;
       if (waiting) {
         s.loadingFor += dt;
         s.spinner.style.display = s.loadingFor > SPINNER_DELAY ? '' : 'none';
@@ -1184,11 +1193,8 @@ export class CharacterSelect {
   posterShot(reference: THREE.WebGLRenderer, px = POSTER_PX, aspect = POSTER_ASPECT): PosterShot | null {
     const s = this.slots[0];
     const c = s.chars.get(this.roster[s.choice]);
-    // The weapon has to have landed too. `modelReady` answers for the body
-    // alone, and a fighter shot in between carried the procedural stand-in —
-    // a thin stick in the picture where the model on the plinth holds a
-    // rifle. Waiting is free here: this runs in the generator, not in play.
-    if (!c || !c.modelReady() || !propsSettled(c.root)) return null;
+    // Capture the same complete fighter that the live plinth will reveal.
+    if (!c || !fighterReady(c)) return null;
 
     // Pin the plinth to the pose the handover happens at.
     //
