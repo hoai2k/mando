@@ -504,10 +504,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver,
         id === 'din' ? 'beskar_spear' : id === 'armorer' ? 'poleaxe' : 'gaffi');
       main.name = id === 'din' ? 'beskarSpear' : id === 'armorer' ? 'poleaxe' : 'gaffi';
-      // The shaft is local Y on both the fallback and the mounted sculpt.
-      // Din's dedicated beskar sculpt is already narrow; preserve its full
-      // shaft width and reach when the authored model arrives. Turn the
-      // weapon's +Y head toward the extended arm's forward axis.
+      // The sculpt's pointed end is model -Z. Its prop mount maps that to
+      // grip -Y; the carry half-turn lifts the point above Din's hand.
       main.rotation.x = Math.PI;
     }
     if (kind === 'sabers') {
@@ -644,6 +642,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         const saber = blades.get('sabers');
         if (saber) applySharedWeaponGrip(id, saber.main);
       }
+      if (model.weaponMount && id === 'din') {
+        // Flourish workbench export: hand-local, so the same anchor follows
+        // every darksaber clip and keeps the broad blade facing outward.
+        blades.get('sabers')?.main.quaternion.set(0.5384779, -0.4583029, -0.4583029, 0.5384779).normalize();
+      }
       // The off-hand has to move too. Our own weaponL bone still animates, but
       // it sits where the hidden procedural arm is, so a pistol left on it
       // floats beside the authored body instead of filling its other hand.
@@ -707,6 +710,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // A grip editor can temporarily change the transform while the clip stays
   // fixed. Reapply only when the clip changes so the editor retains control.
   let armorerAxeClip: string | null = null;
+  let dinSpearAttack: boolean | null = null;
   let weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
   let shieldUp = false;
   // per-hand "still in the hand" mask, so a thrown saber vanishes from its
@@ -760,6 +764,16 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       for (const m of heroMats) m.emissiveIntensity = intensity;
     },
     cosmetic: (dt, time) => {
+      if (id === 'din') {
+        const clip = inst.animator?.playing('upper') ?? '';
+        const attacking = /^(melee[123]|spear|staff)/.test(clip);
+        if (attacking !== dinSpearAttack) {
+          // Attack clips extend grip -Y toward the target only without the
+          // carry half-turn; otherwise the pointed end trails the strike.
+          blades.get('gaffi')!.main.rotation.x = attacking ? 0 : Math.PI;
+          dinSpearAttack = attacking;
+        }
+      }
       if (bosskRifle && swap.model) {
         const aiming = inst.animator?.playing('upper') === 'aimUpper';
         if (aiming !== bosskRifleAiming) {

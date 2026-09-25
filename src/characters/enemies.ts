@@ -4,6 +4,8 @@ import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, type CharacterInstance } from './builder';
+import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
+import { makeDarksaberBlade } from './darksaberBlade';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
 // the clutch's size is the sculpt's, and it is the rack module that counts it
@@ -144,6 +146,16 @@ export function buildTusken(authored = true): CharacterInstance {
   gaffi.rotation.x = Math.PI;
   b.weaponR.add(gaffi);
   authoredEnemy(inst, rig, 'tusken', authored);
+  const previous = inst.cosmetic;
+  let gripClip: string | null = '';
+  inst.cosmetic = (dt, time) => {
+    previous?.(dt, time);
+    const clip = inst.animator?.playing('upper') ?? null;
+    if (gaffi.parent?.name === 'weaponMount' && clip !== gripClip) {
+      applyTuskenWeaponGrip(gaffi, clip);
+      gripClip = clip;
+    }
+  };
   return inst;
 }
 
@@ -193,7 +205,9 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   } else {
     inst.muzzle = rifle(b.weaponR);
   }
-  authoredEnemy(inst, rig, melee ? 'pirate_melee' : 'pirate', authored);
+  // The blaster sculpt has a face on both sides. Use the healthy pirate
+  // brawler body as a temporary skin; the gun stays a separate hand prop.
+  authoredEnemy(inst, rig, 'pirate_melee', authored);
   return inst;
 }
 
@@ -387,24 +401,12 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   addBox(b.hips, coat, 0.4, 0.5, 0.3, 0, -0.18, 0);                         // skirt of the coat
   addBox(b.chest, mat(0x9aa2b0, { rough: 0.4, metal: 0.6 }), 0.07, 0.03, 0.02, 0.13, 0.2, 0.15);  // rank plaque
 
-  // darksaber: black blade, white edge glow
+  // Same pointed, textured darksaber blade as Din's weapon.
   const saber = new THREE.Group();
   addCyl(saber, mat(0x3a3d44, { rough: 0.4, metal: 0.7 }), 0.022, 0.026, 0.2, 0, -0.08, 0);
-  // The blade is opaque and depth-writing, and the glow sits a hair behind it,
-  // so the core stays black and only the rim of the halo shows past its edges —
-  // which is the whole reason a darksaber reads as one.
-  const blade = new THREE.Mesh(
-    new THREE.BoxGeometry(0.085, 0.86, 0.03),
-    new THREE.MeshBasicMaterial({ color: 0x08080c }),
-  );
-  blade.position.y = 0.47;
+  const blade = makeDarksaberBlade(0.86);
+  blade.position.y = 0.04;
   saber.add(blade);
-  const fringe = new THREE.Mesh(
-    new THREE.BoxGeometry(0.125, 0.9, 0.008),
-    new THREE.MeshBasicMaterial({ color: 0xdfe6ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }),
-  );
-  fringe.position.set(0, 0.47, -0.014);
-  saber.add(fringe);
   saber.rotation.x = Math.PI / 2;
   b.weaponR.add(saber);
 
@@ -412,8 +414,8 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     // the blade breathes, so it reads as energy rather than a painted plank
-    const m = fringe.material as THREE.MeshBasicMaterial;
-    m.opacity = 0.42 + Math.sin(time * 9) * 0.08;
+    for (const m of blade.userData.haloMaterials as THREE.MeshBasicMaterial[])
+      m.opacity = 0.18 + Math.sin(time * 9) * 0.035;
     prev?.(dt, time);
   };
   return inst;

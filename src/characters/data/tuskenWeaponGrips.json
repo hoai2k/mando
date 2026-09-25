@@ -1,0 +1,133 @@
+{
+  "format": "mando-authored-weapon-grips/3",
+  "exportedAt": "2026-09-25T14:37:27.508Z",
+  "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
+  "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
+  "entries": [
+    {
+      "character": "tusken",
+      "pose": "enemySwing",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        0.016302,
+        -0.130624,
+        0.069297
+      ],
+      "editedQuaternion": [
+        0.1671842,
+        -0.3460618,
+        0.0866554,
+        -0.91912
+      ]
+    },
+    {
+      "character": "tusken",
+      "pose": "enemySwing:enemyDrive",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.63,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        0.002792,
+        -0.142972,
+        0.023543
+      ],
+      "editedQuaternion": [
+        0.091429,
+        0.0865192,
+        0.0443023,
+        -0.9910562
+      ]
+    },
+    {
+      "character": "tusken",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.69,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        0.007969,
+        0.084032,
+        -0.006975
+      ],
+      "editedQuaternion": [
+        0.9859442,
+        0.1668112,
+        -0.0093757,
+        0.0002298
+      ]
+    },
+    {
+      "character": "tusken",
+      "pose": "run",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.24,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.00315,
+        0.042767,
+        -0.017496
+      ],
+      "editedQuaternion": [
+        0.0812522,
+        0.3038138,
+        0.0636235,
+        -0.9471258
+      ]
+    }
+  ],
+  "weaponScales": []
+}

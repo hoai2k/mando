@@ -4,6 +4,7 @@ import { buildClips } from '../anim/clips';
 import { Animator } from '../anim/animator';
 import { loadProp } from './authored';
 import { markShared } from '../core/dispose';
+import { makeDarksaberBlade } from './darksaberBlade';
 
 /**
  * Procedural character construction: meshes are parented to rig bones so any
@@ -363,17 +364,7 @@ export function makeSaber(
   g.userData.bladeLen = BLADE_LEN;
   g.userData.trailColor = darksaber ? [0.9, 0.95, 1.0] : tonfa || white ? [0.72, 0.87, 1.0] : [1.0, 0.22, 0.16];
   if (darksaber) {
-    // Opaque flat black blade masks the middle of a wider white fringe.
-    // Keeping the fringe behind the core preserves the black silhouette.
-    const fringe = new THREE.Mesh(new THREE.BoxGeometry(0.14, BLADE_LEN, 0.008),
-      new THREE.MeshBasicMaterial({ color: 0xe7eeff, transparent: true, opacity: 0.72,
-        blending: THREE.AdditiveBlending, depthWrite: false }));
-    fringe.position.y = BLADE_LEN / 2;
-    blade.add(fringe);
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.09, BLADE_LEN - 0.03, 0.028),
-      new THREE.MeshBasicMaterial({ color: 0x08080c }));
-    core.position.y = BLADE_LEN / 2 - 0.015;
-    blade.add(core);
+    blade.add(makeDarksaberBlade(BLADE_LEN));
   } else for (const [r, color, opacity] of [
     [0.011, tonfa || white ? 0xffffff : 0xfff0f0, 0.95],
     [0.026, tonfa || white ? 0xe8f5ff : 0xff2a1e, 0.42],
