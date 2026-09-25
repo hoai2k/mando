@@ -1,6 +1,6 @@
 {
   "format": "mando-authored-weapon-grips/3",
-  "exportedAt": "2026-09-25T14:37:27.508Z",
+  "exportedAt": "2026-09-25T16:18:49.274Z",
   "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
   "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
   "entries": [
@@ -73,17 +73,17 @@
       "attachment": "hand",
       "side": "right",
       "parent": "weaponMount",
-      "sampleFraction": 0.69,
+      "sampleFraction": 0,
       "basePosition": [
-        0,
-        0,
-        0
+        0.007969,
+        0.084032,
+        -0.006975
       ],
       "baseQuaternion": [
-        1,
-        0,
-        0,
-        0
+        0.9859443,
+        0.1668112,
+        -0.0093757,
+        0.0002298
       ],
       "editedPosition": [
         0.007969,
@@ -91,10 +91,10 @@
         -0.006975
       ],
       "editedQuaternion": [
-        0.9859442,
-        0.1668112,
-        -0.0093757,
-        0.0002298
+        0.9704373,
+        0.1950959,
+        -0.0404637,
+        -0.1362047
       ]
     },
     {

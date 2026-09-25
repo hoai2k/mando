@@ -1,9 +1,133 @@
 {
   "format": "mando-authored-weapon-grips/3",
-  "exportedAt": "2026-09-25T01:41:19.306Z",
+  "exportedAt": "2026-09-25T16:18:49.274Z",
   "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
   "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
   "entries": [
+    {
+      "character": "boba_fett",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.002967,
+        -0.076004,
+        0.091041
+      ],
+      "editedQuaternion": [
+        0.6257521,
+        -0.0655555,
+        -0.0326912,
+        0.7765746
+      ]
+    },
+    {
+      "character": "bokatan",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.013249,
+        -0.06098,
+        0.075982
+      ],
+      "editedQuaternion": [
+        0.6255924,
+        -0.0346068,
+        -0.0137971,
+        0.77926
+      ]
+    },
+    {
+      "character": "darktrooper",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.039899,
+        0.084105,
+        0.15405
+      ],
+      "editedQuaternion": [
+        0.6266964,
+        -0.0350603,
+        0.0434835,
+        0.777259
+      ]
+    },
+    {
+      "character": "deathtrooper",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.0275,
+        0.049426,
+        0.081623
+      ],
+      "editedQuaternion": [
+        0.638357,
+        -0.043977,
+        0.0406127,
+        0.7674092
+      ]
+    },
     {
       "character": "din",
       "pose": "idle",
@@ -33,6 +157,37 @@
         -0.0216907,
         -0.0087572,
         0.7508385
+      ]
+    },
+    {
+      "character": "droid",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.009918,
+        0.091505,
+        0.034837
+      ],
+      "editedQuaternion": [
+        0.5901675,
+        -0.0859148,
+        0.0053984,
+        0.8026779
       ]
     },
     {
@@ -67,6 +222,130 @@
       ]
     },
     {
+      "character": "escortDroid",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.039212,
+        0.026794,
+        0.000917
+      ],
+      "editedQuaternion": [
+        0.5922589,
+        -0.0811513,
+        0.060411,
+        0.7993713
+      ]
+    },
+    {
+      "character": "fennec",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.004666,
+        0.084735,
+        0.016139
+      ],
+      "editedQuaternion": [
+        0.6269363,
+        -0.0526188,
+        0.0596845,
+        0.7749967
+      ]
+    },
+    {
+      "character": "gunslinger",
+      "pose": "idle",
+      "weapon": "left: weapon 1",
+      "attachment": "hand",
+      "side": "left",
+      "parent": "weaponMountL",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.015106,
+        0.060978,
+        -0.06032
+      ],
+      "editedQuaternion": [
+        0.6025935,
+        0.0348115,
+        0.0309215,
+        0.7966888
+      ]
+    },
+    {
+      "character": "gunslinger",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.015491,
+        0.066531,
+        -0.074171
+      ],
+      "editedQuaternion": [
+        0.5808834,
+        -0.0374934,
+        -0.0263476,
+        0.8126958
+      ]
+    },
+    {
       "character": "ig11",
       "pose": "idle",
       "weapon": "right: weapon 1",
@@ -95,6 +374,37 @@
         0,
         0,
         0.7071068
+      ]
+    },
+    {
+      "character": "marshal",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.009278,
+        0.056669,
+        0.047159
+      ],
+      "editedQuaternion": [
+        0.6170061,
+        -0.002529,
+        0.0100596,
+        0.78689
       ]
     },
     {
@@ -129,6 +439,68 @@
       ]
     },
     {
+      "character": "pirateMelee",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.06684,
+        0.078289,
+        0.050072
+      ],
+      "editedQuaternion": [
+        0.5126411,
+        -0.4992582,
+        -0.4921239,
+        0.4957362
+      ]
+    },
+    {
+      "character": "pyke",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.00069,
+        0.147788,
+        0.027668
+      ],
+      "editedQuaternion": [
+        0.7013982,
+        -0.0417475,
+        -0.0229555,
+        0.7111756
+      ]
+    },
+    {
       "character": "revan",
       "pose": "flourish",
       "weapon": "right: saberHandR",
@@ -158,9 +530,104 @@
         0,
         0.7071068
       ]
+    },
+    {
+      "character": "stormtrooper",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.012595,
+        0.055571,
+        0.106746
+      ],
+      "editedQuaternion": [
+        0.6167837,
+        -0.0757695,
+        0.0329157,
+        0.7827857
+      ]
     }
   ],
   "weaponScales": [
+    {
+      "character": "boba_fett",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 0.75,
+      "editedScale": [
+        0.75,
+        0.75,
+        0.75
+      ]
+    },
+    {
+      "character": "bokatan",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 0.73,
+      "editedScale": [
+        0.73,
+        0.73,
+        0.73
+      ]
+    },
+    {
+      "character": "darktrooper",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.47,
+      "editedScale": [
+        1.47,
+        1.47,
+        1.47
+      ]
+    },
+    {
+      "character": "deathtrooper",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.2,
+      "editedScale": [
+        1.2,
+        1.2,
+        1.2
+      ]
+    },
     {
       "character": "din",
       "weapon": "right: weapon 1",
@@ -175,6 +642,38 @@
         0.85,
         0.85,
         0.85
+      ]
+    },
+    {
+      "character": "droid",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.36,
+      "editedScale": [
+        1.36,
+        1.36,
+        1.36
+      ]
+    },
+    {
+      "character": "escortDroid",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.39,
+      "editedScale": [
+        1.39,
+        1.39,
+        1.39
       ]
     },
     {
@@ -207,6 +706,22 @@
         1.4,
         1.4,
         1.4
+      ]
+    },
+    {
+      "character": "stormtrooper",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.22,
+      "editedScale": [
+        1.22,
+        1.22,
+        1.22
       ]
     }
   ]

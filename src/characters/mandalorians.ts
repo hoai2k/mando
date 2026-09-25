@@ -484,9 +484,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   }
   const bosskRifle = id === 'bossk' ? guns.get('longrifle')?.main : undefined;
   if (bosskRifle) bosskRifle.scale.setScalar(BOSSK_RIFLE_SCALE);
-  if (id === 'din' || id === 'embo' || id === 'ig11' || id === 'paz') {
-    guns.get(rangedKinds(id)[0])?.main.scale.setScalar(sharedWeaponScale(id));
-  }
+  guns.get(rangedKinds(id)[0])?.main.scale.setScalar(sharedWeaponScale(id));
 
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
@@ -640,7 +638,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       if (model.weaponMount) {
         for (const w of [...guns.values(), ...blades.values()]) model.weaponMount.add(w.main);
       }
-      if (model.weaponMount && ['din', 'embo', 'ig11', 'paz'].includes(id)) {
+      if (model.weaponMount) {
         const signature = guns.get(rangedKinds(id)[0]);
         if (signature) applySharedWeaponGrip(id, signature.main);
       }

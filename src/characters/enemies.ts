@@ -5,6 +5,7 @@ import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
+import { applySharedWeaponGrip } from './sharedWeaponGrips';
 import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
@@ -122,13 +123,20 @@ const AUTHORED_ENEMY: Record<string, number> = {
  * finding it wherever the gun goes; shot direction is computed from the
  * chest, never from the barrel, so aim is untouched.
  */
-function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY, enabled = true): void {
+function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY,
+  enabled = true, gripCharacter: string = id): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
     onLoad: (model) => {
-      if (model.weaponMount) for (const w of [...rig.bones.weaponR.children]) model.weaponMount.add(w);
-      if (model.weaponMountL) for (const w of [...rig.bones.weaponL.children]) model.weaponMountL.add(w);
+      if (model.weaponMount) for (const w of [...rig.bones.weaponR.children]) {
+        model.weaponMount.add(w);
+        applySharedWeaponGrip(gripCharacter, w);
+      }
+      if (model.weaponMountL) for (const w of [...rig.bones.weaponL.children]) {
+        model.weaponMountL.add(w);
+        applySharedWeaponGrip(gripCharacter, w, 'left');
+      }
     },
   });
   const prev = inst.cosmetic;
@@ -226,7 +234,7 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   }
   // The blaster sculpt has a face on both sides. Use the healthy pirate
   // brawler body as a temporary skin; the gun stays a separate hand prop.
-  authoredEnemy(inst, rig, 'pirate_melee', authored);
+  authoredEnemy(inst, rig, 'pirate_melee', authored, melee ? 'pirateMelee' : 'pirate');
   return inst;
 }
 
