@@ -631,6 +631,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
           if (w.offhand) model.weaponMountL.add(w.offhand);
         }
       }
+      // Cad Bane's workbench grips are local to the authored hands. Keeping
+      // them on the mounts lets the same placement follow every body pose.
+      const pistols = guns.get('pistols');
+      if (id === 'duelist' && pistols?.offhand) {
+        pistols.main.position.set(0.025752, 0.067437, -0.06784);
+        pistols.main.quaternion.set(0.6537136, -0.0671748, 0.0762969, 0.7498832).normalize();
+        pistols.offhand.position.set(-0.01701, 0.072469, -0.096437);
+        pistols.offhand.quaternion.set(0.6447175, 0.0555208, -0.0388719, 0.7614103).normalize();
+      }
       // Measured in the workbench against the authored palms at saberIdle.
       // The prop remains parented to each authored hand, so these grip-local
       // offsets carry through the other saber clips without per-pose copies.

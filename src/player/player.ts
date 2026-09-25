@@ -2241,6 +2241,10 @@ export class Player {
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, turn, dt);
   }
 
+  private get gunAimClip(): string {
+    return this.characterId === 'duelist' ? 'dualPistolAimUpper' : 'aimUpper';
+  }
+
   /** which clips the body plays for what it is doing */
   private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
     const gunUp = input.aimHeld || input.shootHeld || this.queuedHipShot
@@ -2265,7 +2269,7 @@ export class Player {
     if (this.autoCrouching) {
       anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
-      else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : 'idleUpper');
+      else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
     } else if (this.blocking) {
       // the brace owns both channels: no running, no firing from behind it
       anim.play('lower', speed2 > 0.6 ? 'runLower' : 'blockLower', 0.14, 0.6);
@@ -2287,11 +2291,11 @@ export class Player {
       const fly = flightClips(this.flyPose);
       anim.play('lower', fly.lower, FLY_FADE);
       if (this.meleeTimer <= 0) {
-        anim.play('upper', gunUp ? 'aimUpper' : fly.upper, FLY_FADE);
+        anim.play('upper', gunUp ? this.gunAimClip : fly.upper, FLY_FADE);
       }
     } else if (!this.grounded) {
       anim.play('lower', 'airLower');
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : 'airUpper');
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'airUpper');
     } else if (speed2 > 0.6) {
       // Which way is travel, relative to the body? Combat facing points the
       // chest at the camera while the feet go where the stick says, and the
@@ -2309,7 +2313,7 @@ export class Player {
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : runUpper, 0.15, Math.abs(rate));
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
       } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
@@ -2323,7 +2327,7 @@ export class Player {
     } else {
       anim.play('lower', 'idleLower');
       const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? 'aimUpper' : idleUpper);
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : idleUpper);
     }
   }
 
@@ -2696,7 +2700,7 @@ export class Player {
     // holds while leaning out too: the peek goes round the corner, not over
     // the top, so there is nothing to stand up for.
     anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? 'aimUpper' : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
@@ -2841,7 +2845,7 @@ export class Player {
     const upper = stance === 'stand' ? 'idleUpper' : stance === 'seated' ? 'driveUpper' : 'rideUpper';
     anim.play('lower', lower);
     if (this.meleeTimer <= 0) {
-      anim.play('upper', gunUp ? 'aimUpper' : upper);
+      anim.play('upper', gunUp ? this.gunAimClip : upper);
     }
 
     this.syncVisual(dt, game);
@@ -3622,7 +3626,7 @@ export class Player {
   private syncAimLayer(dt: number): void {
     const anim = this.char.animator;
     if (!anim) return;
-    const aiming = this.alive && anim.playing('upper') === 'aimUpper';
+    const aiming = this.alive && anim.playing('upper') === this.gunAimClip;
     // +pitch looks up; +X on the chest folds it forward and down, so the sign flips
     const want = aiming ? clamp(-this.cam.pitch * AIM_PITCH_SHARE, -AIM_PITCH_MAX, AIM_PITCH_MAX) : 0;
     this.aimPitch = damp(this.aimPitch, want, aiming ? 18 : 10, dt);
@@ -3633,8 +3637,11 @@ export class Player {
       const k = this.armKick / ARM_KICK;
       const shape = k > 0.66 ? (1 - k) / 0.34 : k / 0.66;
       anim.setAdditive('upperArmR', -ARM_KICK_ANGLE * shape, 0, 0);
+      if (this.characterId === 'duelist') anim.setAdditive('upperArmL', -ARM_KICK_ANGLE * shape, 0, 0);
     } else {
-      anim.setAdditive('upperArmR', 0, 0, 0);    }
+      anim.setAdditive('upperArmR', 0, 0, 0);
+      if (this.characterId === 'duelist') anim.setAdditive('upperArmL', 0, 0, 0);
+    }
   }
 
   private syncVisual(dt: number, game: Game): void {

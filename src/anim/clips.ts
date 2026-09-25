@@ -777,6 +777,20 @@ function makeClips(p: Proportions): ClipSet {
     qt('head', [0, 1], [[0, -16, 0], [0, -16, 0]]),
   ]);
 
+  // Cad Bane's pistols are independent hand props. Give each arm the same
+  // forward reach, mirrored across the chest, instead of the carbine's
+  // support-hand pose. The upper clip layers over idle, run and strafe legs.
+  clips.dualPistolAimUpper = new THREE.AnimationClip('dualPistolAimUpper', 1, [
+    qt('chest', [0, 1], [[2, 0, 0], [2, 0, 0]]),
+    qt('shoulderR', [0, 1], [[0, 8, -10], [0, 8, -10]]),
+    qt('shoulderL', [0, 1], [[0, -8, 10], [0, -8, 10]]),
+    qt('upperArmR', [0, 1], [[-82, -8, -12], [-82, -8, -12]]),
+    qt('upperArmL', [0, 1], [[-82, 8, 12], [-82, 8, 12]]),
+    qt('forearmR', [0, 1], [[-12, 0, 0], [-12, 0, 0]]),
+    qt('forearmL', [0, 1], [[-12, 0, 0], [-12, 0, 0]]),
+    qt('head', [0, 1], [[0, 0, 0], [0, 0, 0]]),
+  ]);
+
   // ---------- UPPER: melee combo (gaffi stick in right hand) ----------
   // KEY TIMING: the poses hold their shapes, but the strike key sits close
   // behind a *held* windup — a real hit cocks, hangs a beat, and releases

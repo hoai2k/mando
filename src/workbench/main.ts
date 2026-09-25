@@ -171,6 +171,7 @@ function alternatesFor(p: Pose): Alternate[] {
 function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
   let upper = selected.upper;
+  if (subject.id === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
   if (alternateChoice === 'none' && (subject.id === 'din' || subject.id === 'maris' || subject.id === 'maul')) {
     const weaponClips: Record<string, string> = subject.id === 'din' ? {
       saber1: 'darksaber1', saber2: 'darksaber2', saber3: 'darksaber3',
