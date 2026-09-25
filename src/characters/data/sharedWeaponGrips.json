@@ -1,9 +1,40 @@
 {
   "format": "mando-authored-weapon-grips/3",
-  "exportedAt": "2026-09-25T16:18:49.274Z",
+  "exportedAt": "2026-09-25T16:27:31.253Z",
   "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
   "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
   "entries": [
+    {
+      "character": "alamite",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        0.024766,
+        -0.023527,
+        -0.020509
+      ],
+      "editedQuaternion": [
+        0.4325013,
+        -0.5348967,
+        -0.560035,
+        0.4617239
+      ]
+    },
     {
       "character": "boba_fett",
       "pose": "idle",
@@ -64,6 +95,37 @@
         -0.0346068,
         -0.0137971,
         0.77926
+      ]
+    },
+    {
+      "character": "capo",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.010368,
+        0.180845,
+        0.014613
+      ],
+      "editedQuaternion": [
+        0.6552011,
+        -0.0504746,
+        -0.0262524,
+        0.7533091
       ]
     },
     {
@@ -284,6 +346,37 @@
       ]
     },
     {
+      "character": "flametrooper",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.002352,
+        0.054293,
+        0.025027
+      ],
+      "editedQuaternion": [
+        0.6505473,
+        0.0290811,
+        0.0248541,
+        0.7585017
+      ]
+    },
+    {
       "character": "gunslinger",
       "pose": "idle",
       "weapon": "left: weapon 1",
@@ -408,6 +501,37 @@
       ]
     },
     {
+      "character": "officer",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        -0.2
+      ],
+      "baseQuaternion": [
+        0.6805374,
+        -0.1920127,
+        0.1920127,
+        0.6805374
+      ],
+      "editedPosition": [
+        -0.071228,
+        0.093886,
+        0.108962
+      ],
+      "editedQuaternion": [
+        0.6648043,
+        -0.1682924,
+        0.2868695,
+        0.6688937
+      ]
+    },
+    {
       "character": "paz",
       "pose": "idle",
       "weapon": "right: weapon 1",
@@ -501,6 +625,37 @@
       ]
     },
     {
+      "character": "quarren",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "editedPosition": [
+        0.014081,
+        0.011392,
+        0.067932
+      ],
+      "editedQuaternion": [
+        0.6588968,
+        0.030028,
+        -0.0369567,
+        0.7507247
+      ]
+    },
+    {
       "character": "revan",
       "pose": "flourish",
       "weapon": "right: saberHandR",
@@ -529,6 +684,37 @@
         0,
         0,
         0.7071068
+      ]
+    },
+    {
+      "character": "ringEnforcer",
+      "pose": "idle",
+      "weapon": "right: weapon 1",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.7071068,
+        0,
+        0,
+        0.7071068
+      ],
+      "editedPosition": [
+        -0.160645,
+        -0.06384,
+        0.028439
+      ],
+      "editedQuaternion": [
+        0.6447477,
+        -0.1104668,
+        0.0296922,
+        0.7557883
       ]
     },
     {
@@ -564,6 +750,22 @@
     }
   ],
   "weaponScales": [
+    {
+      "character": "alamite",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.43,
+      "editedScale": [
+        1.43,
+        1.43,
+        1.43
+      ]
+    },
     {
       "character": "boba_fett",
       "weapon": "right: weapon 1",
@@ -706,6 +908,22 @@
         1.4,
         1.4,
         1.4
+      ]
+    },
+    {
+      "character": "ringEnforcer",
+      "weapon": "right: weapon 1",
+      "side": "right",
+      "baseScale": [
+        1,
+        1,
+        1
+      ],
+      "scaleMultiplier": 1.41,
+      "editedScale": [
+        1.41,
+        1.41,
+        1.41
       ]
     },
     {

@@ -432,7 +432,7 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   b.weaponR.add(staff);
   const updateArcs = addElectrostaffArcs(staff);
 
-  authoredEnemy(inst, rig, 'imperial_officer', authored);
+  authoredEnemy(inst, rig, 'imperial_officer', authored, 'officer');
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     updateArcs(time);
@@ -465,7 +465,7 @@ export function buildPykeCapo(authored = true): CharacterInstance {
   );
   bubble.position.y = 1.0;
   inst.root.add(bubble);
-  authoredEnemy(inst, rig, 'pyke_capo', authored);
+  authoredEnemy(inst, rig, 'pyke_capo', authored, 'capo');
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     const m = bubble.material as THREE.MeshBasicMaterial;
