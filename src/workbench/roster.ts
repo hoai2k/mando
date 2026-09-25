@@ -118,6 +118,12 @@ GROUPS.push({
     prop('nikto_swoop', 'Swoop bike', 2.6),
     prop('carbine', 'EE-3 carbine', 0.72),
     prop('gaffi', 'Gaderffii stick', 1.5),
+    prop('enemy_blaster_rifle', 'Infantry blaster rifle', 0.75),
+    prop('pirate_boarding_club', 'Pirate boarding club', 0.7),
+    prop('flame_projector', 'Flame projector', 0.6),
+    prop('net_launcher', 'Net launcher', 0.5),
+    prop('alamite_stone_club', 'Alamite stone club', 0.68),
+    prop('electrostaff', 'Electrostaff', 1.8),
   ],
 });
 

@@ -9,6 +9,24 @@ Kept for provenance and so anything can be regenerated on-style if it needs repl
 
 ---
 
+## Enemy weapon collection — delivered 2026-09-25
+
+`reference/characters/enemy_weapon_collection_v1.png` is a clean five-row
+orthographic sheet: infantry blaster rifle, pirate boarding club, flame
+projector, net launcher, and stone club. The generation prompt requested five
+fully disconnected side-view props, generous white gutters, crisp silhouettes,
+and no labels or characters so the output could be sliced after a single 3D
+generation. Tripo task `b4dfabf2-b933-4603-9404-a3ff46c43916` produced a
+source with five main shells. Blender welded coincident vertices, assigned
+detached details by row, reduced the two heavy slices to 3,200 triangles,
+and exported five textured GLBs. The original source and editable cleaned
+blend remain under ignored `model-work/`; the reproducible slicer is
+`tools/slice-enemy-weapon-collection.py`. All five props are mounted on the
+intended enemies in game. The Imperial Officer also takes the earlier
+`electrostaff.glb` with purple tip arcs generated in code.
+
+---
+
 ## Darth Revan and Darth Maul playable models — delivered 2026-09-24
 
 The approved `sith_leader_front.png` and `sith_soldier_front.png` sheets were

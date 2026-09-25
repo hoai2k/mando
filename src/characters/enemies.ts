@@ -3,9 +3,9 @@ import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
-import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
-import { makeDarksaberBlade } from './darksaberBlade';
+import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
 // the clutch's size is the sculpt's, and it is the rack module that counts it
@@ -64,6 +64,23 @@ function strikeCurve(t: number, dur: number): number {
   return -1 + (ph - 0.55) / 0.45;
 }
 
+function mountEnemyProp(group: THREE.Group, id: string, length: number,
+  orientX = 0, z = 0, y = 0, flip = false): void {
+  group.userData.propPending = true;
+  const prop = loadProp(id, length, {
+    axis: 'longest',
+    onLoad: () => {
+      for (const child of group.children) if ((child as THREE.Mesh).isMesh) child.visible = false;
+    },
+    onSettle: () => { group.userData.propPending = false; },
+  });
+  prop.rotation.x = orientX;
+  if (flip) prop.rotation.y = Math.PI;
+  prop.position.z = z;
+  prop.position.y = y;
+  group.add(prop);
+}
+
 function rifle(parent: THREE.Object3D): THREE.Object3D {
   const dark = mat(0x2a2a2a, { rough: 0.5, metal: 0.5 });
   const g = new THREE.Group();
@@ -71,6 +88,7 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
   addCyl(g, dark, 0.014, 0.014, 0.3, 0, 0.01, 0.36, Math.PI / 2, 0, 0, 6);
   g.rotation.x = Math.PI / 2;
   parent.add(g);
+  mountEnemyProp(g, 'enemy_blaster_rifle', 0.75, 0, 0.14, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.52);
   g.add(muzzle);
@@ -118,7 +136,7 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHO
   // the menus show a spinner rather than the body underneath until this turns
   // true; `settled` covers "no file exists" too, so a kind without a sculpt is
   // presentable immediately
-  inst.modelReady = () => swap.settled;
+  inst.modelReady = () => swap.settled && propsSettled(inst.root);
 }
 
 export function buildTusken(authored = true): CharacterInstance {
@@ -202,6 +220,7 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
     addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
     club.rotation.x = Math.PI / 2;
     b.weaponR.add(club);
+    mountEnemyProp(club, 'pirate_boarding_club', 0.7, Math.PI / 2, 0, 0.14);
   } else {
     inst.muzzle = rifle(b.weaponR);
   }
@@ -383,12 +402,8 @@ export function buildGunslinger(authored = true): CharacterInstance {
 }
 
 /**
- * Moff-class Imperial officer with the darksaber. Listed in ASSETS_MODELS.md
- * among the planned bosses; with a model in hand he enters as a late-wave
- * melee elite — the close-quarters answer to the duelist's rifle.
- *
- * The blade is an FX mesh on the weapon bone: a black core with a white
- * fringe, which is what makes a darksaber read as one and not just a sword.
+ * Moff-class Imperial officer with a double-ended electrostaff. The shaft is
+ * an authored prop, with animated purple discharge on both tips at runtime.
  */
 export function buildImperialOfficer(authored = true): CharacterInstance {
   const coat = mat(0x14161a, { rough: 0.8 });
@@ -401,21 +416,18 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   addBox(b.hips, coat, 0.4, 0.5, 0.3, 0, -0.18, 0);                         // skirt of the coat
   addBox(b.chest, mat(0x9aa2b0, { rough: 0.4, metal: 0.6 }), 0.07, 0.03, 0.02, 0.13, 0.2, 0.15);  // rank plaque
 
-  // Same pointed, textured darksaber blade as Din's weapon.
-  const saber = new THREE.Group();
-  addCyl(saber, mat(0x3a3d44, { rough: 0.4, metal: 0.7 }), 0.022, 0.026, 0.2, 0, -0.08, 0);
-  const blade = makeDarksaberBlade(0.86);
-  blade.position.y = 0.04;
-  saber.add(blade);
-  saber.rotation.x = Math.PI / 2;
-  b.weaponR.add(saber);
+  const staff = makeGaffi(mat(0x25262c, { rough: 0.55, metal: 0.55 }),
+    mat(0x888b98, { rough: 0.4, metal: 0.7 }), 'electrostaff');
+  staff.rotation.x = Math.PI / 2;
+  staff.rotation.z = 0.55;
+  staff.position.z = -0.2;
+  b.weaponR.add(staff);
+  const updateArcs = addElectrostaffArcs(staff);
 
   authoredEnemy(inst, rig, 'imperial_officer', authored);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
-    // the blade breathes, so it reads as energy rather than a painted plank
-    for (const m of blade.userData.haloMaterials as THREE.MeshBasicMaterial[])
-      m.opacity = 0.18 + Math.sin(time * 9) * 0.035;
+    updateArcs(time);
     prev?.(dt, time);
   };
   return inst;
@@ -882,6 +894,7 @@ export function buildFlametrooper(authored = true): CharacterInstance {
   const pilot = addSphere(proj, mat(0xffa030, { emissive: 0xff6a10, rough: 0.3 }), 0.018, 0, 0.05, 0.47, 6, 5);
   proj.rotation.x = Math.PI / 2;
   b.weaponR.add(proj);
+  mountEnemyProp(proj, 'flame_projector', 0.6, 0, 0.2, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.5);
   proj.add(muzzle);
@@ -1277,6 +1290,7 @@ export function buildQuarren(authored = true): CharacterInstance {
   addCyl(launcher, dark, 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
   addCyl(launcher, mat(0x6b6f72, { rough: 0.4, metal: 0.6 }), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
   b.weaponR.add(launcher);
+  mountEnemyProp(launcher, 'net_launcher', 0.5, 0, 0.12, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0, 0.38);
   launcher.add(muzzle);
@@ -1313,6 +1327,7 @@ export function buildAlamite(authored = true): CharacterInstance {
   addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
   club.rotation.x = Math.PI / 2;
   b.weaponR.add(club);
+  mountEnemyProp(club, 'alamite_stone_club', 0.68, Math.PI / 2, 0, 0.14);
   authoredEnemy(inst, rig, 'alamite', authored);
   return inst;
 }

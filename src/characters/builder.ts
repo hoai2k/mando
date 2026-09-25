@@ -258,10 +258,16 @@ export function propsSettled(root: THREE.Object3D): boolean {
 
 export function makeGaffi(
   m1: THREE.Material, m2: THREE.Material,
-  propId: 'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' = 'gaffi',
+  propId: 'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' | 'electrostaff' = 'gaffi',
 ): THREE.Group {
   const g = new THREE.Group();
-  if (propId === 'beskar_spear') {
+  if (propId === 'electrostaff') {
+    addCyl(g, m1, 0.022, 0.022, 1.55, 0, 0, 0, 0, 0, 0, 10);
+    for (const end of [-1, 1]) {
+      addCyl(g, m2, 0.045, 0.032, 0.15, 0, end * 0.78, 0, 0, 0, 0, 10);
+      addCyl(g, m2, 0.015, 0.015, 0.06, 0, end * 0.87, 0, 0, 0, 0, 10);
+    }
+  } else if (propId === 'beskar_spear') {
     addCyl(g, m2, 0.015, 0.015, 1.43, 0, 0, 0, 0, 0, 0, 10);
     addCyl(g, m2, 0.002, 0.048, 0.23, 0, 0.82, 0, 0, 0, 0, 10);
     addCyl(g, m2, 0.022, 0.018, 0.07, 0, -0.73, 0, 0, 0, 0, 10);
@@ -275,7 +281,7 @@ export function makeGaffi(
     addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
     addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
   }
-  swapWeapon(g, propId, propId === 'beskar_spear' ? 1.65 : propId === 'poleaxe' ? 1.45 : 1.5, -Math.PI / 2);
+  swapWeapon(g, propId, propId === 'electrostaff' ? 1.8 : propId === 'beskar_spear' ? 1.65 : propId === 'poleaxe' ? 1.45 : 1.5, -Math.PI / 2);
   return g;
 }
 

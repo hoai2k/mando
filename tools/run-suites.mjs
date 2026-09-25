@@ -72,6 +72,7 @@ const SUITES = [
   { name: 'test-saber-throws', weight: 90 },
   { name: 'test-lighting', weight: 42 },
   { name: 'test-polearm-props', weight: 50 },
+  { name: 'test-enemy-weapon-props', weight: 35 },
   { name: 'test-workbench-weapon-grips', weight: 35 },
   { name: 'test-shared-weapon-grips', weight: 45 },
   { name: 'test-maul-skin', weight: 55 },

@@ -82,7 +82,7 @@ check('...for the hostiles it will name too', await waitForAsset('portrait_tuske
 // ---- 4. the drop screen, and what it is allowed to reveal ----
 // Whoever the select is showing is who the next A press picks; hold onto the
 // name it displayed so the drop screen can be checked against it.
-const picked = await h.page.evaluate(() => document.querySelector('.charsel-name')?.textContent ?? '');
+const picked = await h.page.evaluate(() => document.querySelector('.charsel-name-current')?.textContent ?? '');
 for (let i = 0; i < 8; i++) {
   if (/READY/.test(await h.text())) break;
   await h.pad.tap(BTN.A);

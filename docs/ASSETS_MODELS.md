@@ -26,33 +26,38 @@ classic hilt remains available as an individual prop for a future character.
 ## Enemy weapon sculpts and model defects — 2026-09-25
 
 The workbench's enemy weapons were checked against `public/models/*.glb` and
-their builders in `src/characters/enemies.ts`. Five distinct hand-held weapon
-types still use procedural geometry and have no dedicated authored GLB. The
+their builders in `src/characters/enemies.ts`. Five hand-held types needed
+authored props. The
 canonical [five-weapon sheet](../reference/characters/enemy_weapon_collection_v1.png)
-arranges them in independent, widely spaced rows for a possible single
-image-to-3D generation followed by mesh separation. Top to bottom:
+arranged them in independent rows. One Tripo P1 image-to-3D task
+(`b4dfabf2-b933-4603-9404-a3ff46c43916`, 50 credits) yielded five main
+connected shells. The untouched source is archived locally at
+`model-work/source/enemy_weapon_collection_orig.glb`; Blender cleaned UV
+splits, assigned 33 connected components to the five rows, reduced the two
+heavier slices to 3,200 triangles, and exported 1K-textured individual GLBs
+using `tools/slice-enemy-weapon-collection.py`. Top to bottom:
 
-| Row | New prop | Intended users | Current visual |
-|---|---|---|---|
-| 1 | Infantry blaster rifle | Pyke Soldier and Capo, Pirate Gunner, Assassin and Escort Droids, Stormtrooper and Death Trooper, Dark Trooper, Cobb Vanth, Fennec Shand, Ringworld Enforcer | Shared procedural `rifle()` |
-| 2 | Pirate boarding club | Pirate Brawler | Procedural club |
-| 3 | Flame projector | Incinerator Trooper | Procedural gun with pilot light |
-| 4 | Net launcher | Quarren Netcaster | Procedural tube |
-| 5 | Stone club | Alamite Charger | Procedural club |
+| Row | Game GLB | Triangles | Intended users |
+|---|---|---:|---|
+| 1 | `enemy_blaster_rifle.glb` | 2,929 | Pyke Soldier and Capo, Pirate Gunner, Assassin and Escort Droids, Stormtrooper and Death Trooper, Dark Trooper, Cobb Vanth, Fennec Shand, Ringworld Enforcer |
+| 2 | `pirate_boarding_club.glb` | 3,090 | Pirate Brawler |
+| 3 | `flame_projector.glb` | 3,200 | Incinerator Trooper |
+| 4 | `net_launcher.glb` | 2,813 | Quarren Netcaster |
+| 5 | `alamite_stone_club.glb` | 3,200 | Alamite Charger |
 
-These five props have **not** been generated or integrated. The existing
-authored `pistol.glb`, `gaffi_collection.glb`, separate saber hilts, and
-polearm models already cover their respective enemy weapons; the Imperial
-Officer's darksaber blade remains a game effect. Row separation is a useful
-input layout, but a generated mesh still needs inspection before assuming its
-five weapons can be sliced cleanly.
+The five new props load into the existing enemy hand mounts; their procedural
+forms remain as load fallbacks. The existing authored `pistol.glb`,
+`gaffi_collection.glb`, separate saber hilts, and polearms cover the other
+enemy weapon types. The Imperial Officer now uses `electrostaff.glb` (from the
+earlier polearm collection), with animated purple arcs attached to both tips
+at runtime. The shaft geometry does not bake in electricity.
 
 Known character model defects and temporary handling:
 
 | Model | Defect | Current handling | Permanent fix |
 |---|---|---|---|
-| `flametrooper.glb` (Incinerator Trooper) | Weapon geometry is built into the waist | Keep the current body and separate procedural hand projector for now | Remove the waist weapon from the source mesh and re-export |
-| `ring_enforcer.glb` (Ringworld Enforcer) | Weapon geometry is built into the waist | Keep the current body and separate procedural hand rifle for now | Remove the waist weapon from the source mesh and re-export |
+| `flametrooper.glb` (Incinerator Trooper) | Weapon geometry is built into the waist | Keep the current body and separate authored hand projector for now | Remove the waist weapon from the source mesh and re-export |
+| `ring_enforcer.glb` (Ringworld Enforcer) | Weapon geometry is built into the waist | Keep the current body and separate authored hand rifle for now | Remove the waist weapon from the source mesh and re-export |
 | `pirate.glb` (Pirate — blaster) | Faces appear on both the front and back | Both gunner and jetpack Pirate now use the healthy `pirate_melee.glb` body with their own separate blaster | Regenerate or repair the gunner body, validate both sides, then restore its model mapping |
 
 The original `pirate.glb` is retained in the repository as an untouched source
@@ -113,7 +118,7 @@ All seven reimported as single static meshes with UVs and materials.
 | `gaffi_collection.glb` | 2,441 | Tusken Raiders, including playable Tuskens |
 | `poleaxe.glb` | 2,442 | The Armorer |
 | `rey_staff.glb` | 3,199 | Available for a future scavenger staff user |
-| `electrostaff.glb` | 3,200 | Available for a future MagnaGuard-type elite; electricity remains an FX task |
+| `electrostaff.glb` | 3,200 | Imperial Officer, with purple tip arcs supplied by game FX; reusable for a future MagnaGuard-type elite |
 | `force_pike.glb` | 1,260 | Available for a future Imperial guard |
 | `nightsister_polearm.glb` | 3,200 | Available for a future Nightsister enemy |
 
@@ -124,7 +129,7 @@ addition or a request to replace a current character's signature weapon.
 | Proposed character | Weapon | Role and art/animation brief |
 |---|---|---|
 | **Scavenger staff fighter** (Rey-inspired) | `rey_staff.glb` | Agile, mobile staff user; hands spaced far apart for sweeps, vaults and defensive parries. Needs an original character sheet and a two-handed staff combat set. |
-| **MagnaGuard-style elite** | `electrostaff.glb` | Durable droid melee guard that closes distance and uses alternating-end strikes. The shipped prop is unpowered; electric arcs and hit effects would be added in game. Needs its own droid model and staff animation set. |
+| **MagnaGuard-style elite** | `electrostaff.glb` | Durable droid melee guard that closes distance and uses alternating-end strikes. The shaft remains unpowered as geometry; the Imperial Officer's runtime arcs can be reused. Needs its own droid model and staff animation set. |
 | **Imperial ceremonial guard** | `force_pike.glb` | Guard enemy with a long reach and disciplined thrusts, suited to station or palace interiors. Needs a guard body and pike-specific attack telegraphs. |
 | **Nightsister polearm fighter** | `nightsister_polearm.glb` | Fast occult melee enemy with hooked cuts and a distinctive stance. Needs an original character sheet/model and its own combat poses. |
 
@@ -329,7 +334,7 @@ boss bar — remain future work, and their voice sets are deferred with them
 |---|---|---|
 | **Krrsantan-class Wookiee enforcer** | `wookiee_enforcer_front/side/back.png` | Towering black-furred Wookiee gladiator (~2.6 m), chest bandolier, fighting gauntlets. |
 | **Pyke capo** | `pyke_capo_front/side/back.png` | Ornate Pyke in embroidered robes with personal shield generator effect. |
-| **Moff-class Imperial officer w/ dark saber** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette, glowing black-white blade (blade is an FX mesh). |
+| **Moff-class Imperial officer w/ electrostaff** | `imperial_officer_front/side/back.png` | Black Imperial officer greatcoat, slicked silhouette; separate double-ended staff with purple electric arcs generated in game. |
 | **Cad Bane-class duelist** | `duelist_front/side/back.png` | Blue-skinned gunslinger, wide-brim hat, breathing tubes, twin pistols. **Playable-only since 2026-09-03** — the file stays, as Cad Bane's; it is no longer an enemy. |
 
 ## Replacement NPCs — requested 2026-09-03

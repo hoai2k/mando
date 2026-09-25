@@ -496,12 +496,19 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
 /**
  * Files a kind is made of *besides* its own body, keyed the same way.
  *
- * Only the swoop rider has any: he is two downloads, a rider and the bike
- * under him. Anything that asks "is this fighter's art here yet" has to mean
- * both, or the select stage clears its spinner on an authored rider sitting
- * astride a procedural box.
+ * Props are separate downloads from bodies. Anything that asks "is this
+ * fighter's art here yet" has to account for both before revealing the pose.
  */
 const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
+  pyke: ['enemy_blaster_rifle'], pirate: ['enemy_blaster_rifle'],
+  jetpirate: ['enemy_blaster_rifle'], droid: ['enemy_blaster_rifle'],
+  stormtrooper: ['enemy_blaster_rifle'], deathtrooper: ['enemy_blaster_rifle'],
+  darktrooper: ['enemy_blaster_rifle'], marshal: ['enemy_blaster_rifle'],
+  fennec: ['enemy_blaster_rifle'], capo: ['enemy_blaster_rifle'],
+  ringEnforcer: ['enemy_blaster_rifle'], escortDroid: ['enemy_blaster_rifle'],
+  pirateMelee: ['pirate_boarding_club'], flametrooper: ['flame_projector'],
+  quarren: ['net_launcher'], alamite: ['alamite_stone_club'],
+  officer: ['electrostaff'],
   nikto: ['nikto_swoop'],
   tusken: ['gaffi_collection'],
   rivalMaul: ['saber_double'], rivalRevan: ['saber_dark'],
