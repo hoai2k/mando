@@ -627,6 +627,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // The procedural build above stays as the animation source and the instant
   // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
   const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
+    animator: inst.animator,
     // weapons, thruster flames and the shield pane belong to the character,
     // not to the body being replaced
     keep: [b.weaponR, b.weaponL, flameRoot, shieldRoot, ...flames.map((f) => f.group), ...holsters],

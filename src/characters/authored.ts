@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { BONES, type BoneName, type Rig } from '../anim/skeleton';
+import type { Animator } from '../anim/animator';
 import {
   banthaClips, droneClips, kryknaClips, massiffClips,
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
@@ -114,7 +115,7 @@ const workbenchSpacing = new Map<string, ShoulderSpacing>();
 
 /** Multipliers of the Din-derived widening; 1 matches the supplied rest edit. */
 export function shoulderSpacingFor(id: string): ShoulderSpacing {
-  return workbenchSpacing.get(id) ?? (id === 'ventress' || id === 'bossk' ? HALF_SPACING : FULL_SPACING);
+  return workbenchSpacing.get(id) ?? (id === 'ventress' || id === 'bossk' || id === 'maris' ? HALF_SPACING : FULL_SPACING);
 }
 
 /** A workbench adjustment stays in this page; the game's defaults stay above. */
@@ -174,6 +175,16 @@ interface ShoulderSlide {
   aPoseSplay: number;
   /** local-space shift from the old rest pose to the symmetric full-width pose */
   restWidthOffset: number;
+  /** sign of increasing width in this model's local shoulder coordinates */
+  outwardSign: number;
+}
+
+interface ClipShoulderWidths {
+  clip: THREE.AnimationClip;
+  revision: number;
+  rest: number;
+  aPose: number;
+  offsets: number[];
 }
 
 export interface AuthoredModel {
@@ -185,6 +196,8 @@ export interface AuthoredModel {
   nodes: AuthoredNode[];
   /** rest positions and A-pose angle for each independently sliding shoulder */
   shoulderSlides: ShoulderSlide[];
+  /** sampled widest socket offsets, calculated once per upper-body clip */
+  shoulderClipWidths: Map<string, ClipShoulderWidths>;
   /** hand-space mount whose world transform matches our canonical `weaponR` */
   weaponMount: THREE.Object3D | null;
   /** the same, in the left hand, for a character who carries a pair */
@@ -668,7 +681,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     shoulderSlides.push({ side, shoulder, arm,
       shoulderX: shoulder.position.x, armX: arm.position.x,
       halfWidth: halfWidth || Math.abs(arm.position.x), aPoseSplay,
-      restWidthOffset: 0 });
+      restWidthOffset: 0, outwardSign: side });
   }
   // Work from the current retargeted rest position, since that is what the
   // user's exported JSON measured. The Rigify armature's local X is mirrored
@@ -683,6 +696,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   for (const slide of shoulderSlides) {
     const current = restX(slide);
     const outward = Math.sign(current - restCentre);
+    slide.outwardSign = outward || slide.side;
     const half = restHalfWidth || Math.abs(current - restCentre);
     slide.restWidthOffset = restCentre + outward * half * REST_WIDTH_RATIO - current;
   }
@@ -746,6 +760,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     root: wrapper,
     nodes,
     shoulderSlides,
+    shoulderClipWidths: new Map(),
     weaponMount,
     weaponMountL,
     holsterMount,
@@ -761,6 +776,62 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
 }
 
+/** The socket translation the old per-frame rule would give one arm pose. */
+function shoulderOffset(slide: ShoulderSlide, rotation: THREE.Quaternion,
+  spacing: ShoulderSpacing): number {
+  armDir.copy(ARM_DOWN).applyQuaternion(rotation);
+  const outward = THREE.MathUtils.clamp(slide.side * armDir.x, 0, 1);
+  const forward = Math.abs(armDir.z);
+  const sideFraction = outward / Math.max(0.0001, outward + forward);
+  const reach = THREE.MathUtils.smoothstep(outward, 0.12, Math.max(0.2, slide.aPoseSplay));
+  const beyond = THREE.MathUtils.smoothstep(outward, slide.aPoseSplay, 1);
+  // Idle's slight forward tilt still counts as a sideways A-pose. A real
+  // forward reach has at least as much forward as outward travel.
+  const sideBias = THREE.MathUtils.smoothstep(sideFraction, 0.55, 0.7);
+  const fade = reach * sideBias;
+  const widthChange = 1 - sideBias * (reach + beyond);
+  const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
+  return dx + slide.restWidthOffset * (spacing.rest * (1 - fade) + spacing.aPose * fade);
+}
+
+/** Hold each shoulder at its widest point in the current upper-body clip. */
+function widestClipShoulders(model: AuthoredModel, animator: Animator,
+  spacing: ShoulderSpacing): number[] | null {
+  const name = animator.playing('upper');
+  const clip = name ? animator.clips[name] : null;
+  if (!name || !clip) return null;
+  const cached = model.shoulderClipWidths.get(name);
+  if (cached && cached.clip === clip && cached.revision === animator.clipRevision
+    && cached.rest === spacing.rest && cached.aPose === spacing.aPose) return cached.offsets;
+
+  const offsets = model.shoulderSlides.map((slide) => {
+    const bone = slide.side === 1 ? 'upperArmL' : 'upperArmR';
+    const track = clip.tracks.find((t) => t.name === `${bone}.quaternion`);
+    if (!(track instanceof THREE.QuaternionKeyframeTrack)) {
+      return shoulderOffset(slide, new THREE.Quaternion(), spacing);
+    }
+    const interpolant = track.createInterpolant();
+    const rotation = new THREE.Quaternion();
+    const count = Math.max(1, Math.ceil(clip.duration * 60));
+    const times = Array.from({ length: count + 1 }, (_, i) => clip.duration * i / count);
+    times.push(...track.times);
+    let widest = -Infinity;
+    let chosen = 0;
+    for (const time of times) {
+      const q = interpolant.evaluate(time);
+      rotation.set(q[0], q[1], q[2], q[3]).normalize();
+      const offset = shoulderOffset(slide, rotation, spacing);
+      const width = slide.outwardSign * offset;
+      if (width > widest) { widest = width; chosen = offset; }
+    }
+    return chosen;
+  });
+  model.shoulderClipWidths.set(name, {
+    clip, revision: animator.clipRevision, rest: spacing.rest, aPose: spacing.aPose, offsets,
+  });
+  return offsets;
+}
+
 /**
  * Copy one frame of the procedural rig's pose onto an authored rig.
  *
@@ -772,7 +843,7 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
  * the two skeletons disagree about hierarchy (our shoulders parent the arms;
  * theirs hang both off the spine) and about rest pose.
  */
-export function retarget(source: Rig, model: AuthoredModel): void {
+export function retarget(source: Rig, model: AuthoredModel, animator: Animator | null = null): void {
   const { world, src, tmp } = model.scratch;
 
   // accumulate the source pose, parents first. Both skeletons put their `L`
@@ -802,28 +873,17 @@ export function retarget(source: Rig, model: AuthoredModel): void {
     }
   }
 
-  // Keep the widened rest shoulder placement for forward reaches. A sideways
-  // A-pose returns to the sculpt's own shoulder width; the same arm rotated
-  // forward keeps the extra clearance even at the same elevation.
+  // Sample the full upper clip once. The old per-frame angle rule made a run's
+  // shoulders expand and contract every stride; the widest safe placement for
+  // that clip stays fixed while the arms continue to animate through it.
   const spacing = shoulderSpacingFor(model.id);
-  for (const slide of model.shoulderSlides) {
+  const clipOffsets = animator && widestClipShoulders(model, animator, spacing);
+  for (let i = 0; i < model.shoulderSlides.length; i++) {
+    const slide = model.shoulderSlides[i];
     const upper = source.bones[slide.side === 1 ? 'upperArmL' : 'upperArmR'];
-    armDir.copy(ARM_DOWN).applyQuaternion(upper.quaternion);
-    const outward = THREE.MathUtils.clamp(slide.side * armDir.x, 0, 1);
-    const forward = Math.abs(armDir.z);
-    const sideFraction = outward / Math.max(0.0001, outward + forward);
-    const reach = THREE.MathUtils.smoothstep(outward, 0.12, Math.max(0.2, slide.aPoseSplay));
-    const beyond = THREE.MathUtils.smoothstep(outward, slide.aPoseSplay, 1);
-    // Idle's slight forward tilt still counts as a sideways A-pose. A real
-    // forward reach has at least as much forward as outward travel.
-    const sideBias = THREE.MathUtils.smoothstep(sideFraction, 0.55, 0.7);
-    const fade = reach * sideBias;
-    const widthChange = 1 - sideBias * (reach + beyond);
-    const dx = slide.side * slide.halfWidth * SHOULDER_WIDTH_CHANGE * widthChange;
-    const extra = slide.restWidthOffset * (
-      spacing.rest * (1 - fade) + spacing.aPose * fade);
-    slide.shoulder.position.x = slide.shoulderX + dx + extra;
-    slide.arm.position.x = slide.armX + dx + extra;
+    const offset = clipOffsets?.[i] ?? shoulderOffset(slide, upper.quaternion, spacing);
+    slide.shoulder.position.x = slide.shoulderX + offset;
+    slide.arm.position.x = slide.armX + offset;
   }
 
   // the hips also carry the clips' vertical bob — in metres, so back into
@@ -1058,7 +1118,8 @@ export function attachAuthored(
   rig: Rig,
   id: string,
   targetHeight: number,
-  opts: { keep?: THREE.Object3D[]; onLoad?: (model: AuthoredModel) => void; enabled?: boolean } = {},
+  opts: { keep?: THREE.Object3D[]; onLoad?: (model: AuthoredModel) => void;
+    animator?: Animator | null; enabled?: boolean } = {},
 ): AuthoredSwap {
   const keep = opts.keep ?? [];
   const procedural: THREE.Object3D[] = [];
@@ -1094,6 +1155,6 @@ export function attachAuthored(
   return {
     get model() { return swap.model; },
     get settled() { return swap.settled; },
-    update: () => { if (swap.model) retarget(rig, swap.model); },
+    update: () => { if (swap.model) retarget(rig, swap.model, opts.animator); },
   };
 }

@@ -126,6 +126,7 @@ const AUTHORED_ENEMY: Record<string, number> = {
 function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY,
   enabled = true, gripCharacter: string = id): void {
   const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
+    animator: inst.animator,
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
     onLoad: (model) => {

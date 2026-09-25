@@ -178,6 +178,8 @@ const _addE = new THREE.Euler();
 export class Animator {
   mixer: THREE.AnimationMixer;
   private actions = new Map<string, THREE.AnimationAction>();
+  /** Changes when the workbench rewrites clip tracks, so derived poses can refresh. */
+  private revision = 0;
   private current: { lower: string | null; upper: string | null } = { lower: null, upper: null };
   private oneShotUntil = { lower: 0, upper: 0 };
   private time = 0;
@@ -320,6 +322,11 @@ export class Animator {
     return this.current[channel];
   }
 
+  get clipRevision(): number { return this.revision; }
+
+  /** Notify derived poses when a workbench edit changes keyframe values in place. */
+  noteClipEdit(): void { this.revision++; }
+
   /** Current normalized clip time, including workbench-sampled looping poses. */
   clipProgress(channel: 'lower' | 'upper'): number {
     const name = this.current[channel];
@@ -368,6 +375,7 @@ export class Animator {
    * workbench's pose editor does this) are re-bound on the next play.
    */
   invalidate(): void {
+    this.revision++;
     this.mixer.stopAllAction();
     for (const a of this.actions.values()) this.mixer.uncacheClip(a.getClip());
     this.actions.clear();

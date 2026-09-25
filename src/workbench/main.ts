@@ -587,6 +587,7 @@ function refreshEdits(): void {
   for (const f of figures) {
     if (!f.inst.animator) continue;
     if (edits.apply(f.inst.animator.clips)) f.inst.animator.invalidate();
+    else f.inst.animator.noteClipEdit();
   }
   applyPose();
   if (editing) freezePose();
