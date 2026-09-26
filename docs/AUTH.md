@@ -300,6 +300,39 @@ invite really works.
 A private window works too, and is the better check of the two, since it also
 proves the code works for somebody who has never been to the site.
 
+## Turning the code off temporarily (public access)
+
+A second, independent way through the door, for a demo, a stream, or handing
+the link to someone before they have a code: **Invites ▸ Make everything
+public, for now…** on the gate spreadsheet. While it is on, no game and no
+library page anywhere asks for a code — every visitor is treated as though
+already admitted. **Invites ▸ Require the code again** turns it back off.
+
+**It never touches anyone's real pass.** A friend who already holds one never
+even asks the question — the check only runs for a visitor with nothing stored
+yet — so nothing about turning the switch on or off changes what a genuinely
+invited friend sees, before, during, or after.
+
+**Nothing is written for a visitor let in this way, either.** The switch is
+re-asked fresh on every visit by anyone without a pass, so turning it back off
+shows the door again on the very next load, with no stored state anywhere to
+clear first — not in that visitor's browser, and not in yours. Their session
+is still logged, under the name `(public access)` rather than a real one, so
+the `Who` tab can tell "the switch was on" apart from "a friend was invited"
+without you having to remember which was which.
+
+It is one switch for everything — every game and the library share the one
+endpoint, so there is no per-game version of this. It can take up to 30 seconds
+to reach a page that already loaded its door before you flipped it; a fresh
+visit sees the change immediately, since nothing about it is cached in the
+browser.
+
+**This is not a way to *tighten* things.** It only ever removes the code
+requirement; there is no equivalent switch to revoke everyone's stored passes
+at once; short of that, it is exactly as much of a doorman as the code itself
+is the rest of the time — a stranger with devtools open was already past a
+"doorman, not a lock" before this existed.
+
 ## Letting your own agents in
 
 Three ways, in the order they are usually wanted:
@@ -336,9 +369,10 @@ why "someone" played at 04:00.
 hook, and everything that knows about *this* game lives in `src/gate/boot.ts`.
 To move it:
 
-1. Copy [`gate.js`](https://github.com/hoai2k/hoai2k.github.io/blob/main/tools/gate/gate.js)
-   from the library's `tools/` directory (the portable copy — this repository's
-   own `src/gate/gate.ts` is the same door for a TypeScript site).
+1. Copy [`gate.js`](https://github.com/hoai2k/hoai2k.github.io/blob/main/gate/gate.js)
+   from the library repository's root (the portable copy, and the library's own
+   live dependency — this repository's `src/gate/gate.ts` is the same door for
+   a TypeScript site).
 2. Write that game's `boot.ts`: a `title`, a `blurb`, a `game` label, an
    optional `warm` hook, and whatever starts the app.
 3. Point the page's `<script type="module">` at it, and give that repository the

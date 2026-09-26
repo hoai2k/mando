@@ -24,6 +24,11 @@
  *  6. THE CODE IS NEVER STORED. What the browser keeps is the id the endpoint
  *     answered with, so a pass read out of localStorage is not a reusable
  *     invite.
+ *  8. PUBLIC ACCESS SKIPS THE DOOR, WITHOUT A PASS. The owner's switch — read
+ *     from a GET, not the POST an invite spends — waves a visitor straight
+ *     through and pings the log with a distinct identity, but writes nothing
+ *     to localStorage. A friend who already holds a real pass never asks the
+ *     question at all, and `publicAccess: false` still requires the code.
  *
  * The suite builds its own gated copy of the site, because being gated is a
  * build-time property and `dist/` is deliberately not. Both copies are served
@@ -120,15 +125,25 @@ async function main() {
       }, { pass });
 
       // The endpoint is never real in a test. It either refuses to answer at
-      // all (the default) or returns a verdict the door has to act on.
-      await page.route(`${ENDPOINT}*`, (route) => endpoint === 'abort'
-        ? route.abort('failed')
-        : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(endpoint) }));
+      // all (the default) or returns a verdict the door has to act on. `endpoint`
+      // is usually one fixture applied to every method, since most checks here
+      // only ever provoke a POST; passing `{ get, post }` answers the two real
+      // endpoints differently, which is what the public-access GET needs.
+      const methods = [];
+      await page.route(`${ENDPOINT}*`, (route) => {
+        const method = route.request().method();
+        methods.push(method);
+        const perMethod = endpoint && typeof endpoint === 'object' && ('get' in endpoint || 'post' in endpoint);
+        const fixture = perMethod ? (method === 'GET' ? endpoint.get : endpoint.post) : endpoint;
+        return fixture === 'abort' || fixture === undefined
+          ? route.abort('failed')
+          : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) });
+      });
 
       const asked = [];
       page.on('request', (r) => asked.push(r.url()));
       await page.goto(`http://localhost:${PORT}${path}`, { waitUntil: 'domcontentloaded' });
-      return { page, beacons, asked };
+      return { page, beacons, asked, methods };
     }
 
     const gateUp = (page) => page.evaluate(() => !!document.querySelector('.gate-veil'));
@@ -178,7 +193,7 @@ async function main() {
     // ---- 3. a stored pass skips it entirely -------------------------------
     {
       const pass = { id: 'A Friend', name: 'A Friend', since: Date.now() };
-      const { page, beacons } = await open('/gated/', { pass });
+      const { page, beacons, methods } = await open('/gated/', { pass });
       await sleep(3500);
       check('a stored pass shows no door', !(await gateUp(page)));
       check('a stored pass reaches the title', await titled(page));
@@ -186,6 +201,9 @@ async function main() {
       const sent = beacons[0] ? JSON.parse(beacons[0].body) : {};
       check('the ping says which friend, and that it is a session',
             sent.kind === 'session' && sent.id === pass.id, JSON.stringify(sent));
+      // A real pass short-circuits before ever asking about public access —
+      // see check 8. If this starts failing, that ordering has been lost.
+      check('a real pass never asks whether public access is on', !methods.includes('GET'), methods.join(','));
       await page.close();
     }
 
@@ -261,6 +279,43 @@ async function main() {
       // shares the key, so one invite admits a friend to all of them.
       const keys = await page.evaluate(() => Object.keys(localStorage));
       check('the pass is shared across the owner\'s games', keys.includes('gate.pass'), keys.join(', '));
+      await page.close();
+    }
+
+    // ---- 8. public access skips the door, without a pass ------------------
+    {
+      const { page, beacons, methods } = await open('/gated/', {
+        endpoint: { get: { ok: true, service: 'invite-gate', publicAccess: true } },
+      });
+      await sleep(3500);
+      check('public access: no door shown', !(await gateUp(page)));
+      check('public access: reaches the title', await titled(page));
+      check('public access: the check itself is a GET', methods.includes('GET'), methods.join(','));
+      check('public access: nothing is written to localStorage',
+            (await page.evaluate(() => localStorage.getItem('gate.pass'))) === null);
+      check('public access: a session is still logged', beacons.length === 1, JSON.stringify(beacons));
+      const sent = beacons[0] ? JSON.parse(beacons[0].body) : {};
+      check('public access: the session carries a distinct identity, not a real one',
+            sent.kind === 'session' && sent.id === '(public access)', JSON.stringify(sent));
+      // Warming does not wait on the check any more than it waits on a real
+      // admission — see check 2's version of this measurement.
+      const bytes = await page.evaluate(() => performance.getEntriesByType('resource')
+        .filter((e) => /\.js$/.test(e.name))
+        .reduce((n, e) => n + (e.decodedBodySize || 0), 0));
+      check('public access: the game still warms while the check is in flight',
+            bytes > 500_000, `${bytes} B of JS`);
+      await page.close();
+    }
+    {
+      // The strict check that matters: anything short of publicAccess === true
+      // — including an explicit false, not just a missing field — still shows
+      // the door. A loose truthiness check here would be the whole feature's
+      // failure mode.
+      const { page } = await open('/gated/', {
+        endpoint: { get: { ok: true, service: 'invite-gate', publicAccess: false } },
+      });
+      await sleep(3000);
+      check('publicAccess: false still requires the code', await gateUp(page));
       await page.close();
     }
 
