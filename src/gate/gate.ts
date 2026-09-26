@@ -61,6 +61,19 @@
  * `GateOptions.warm` is called the moment the door is up and the host starts
  * pulling down what comes next. Warming is dropped the moment a visitor is
  * actually refused.
+ *
+ * THE OWNER HAS A SECOND, INDEPENDENT WAY IN: public access, controlled by
+ * ONE EDITABLE CONSTANT ON GITHUB — `publicAccess` in `/public-access.json`,
+ * at the root of the `hoai2k.github.io` repository. Flip it, commit to
+ * `main`, done: no Apps Script, no Sheet, nothing to redeploy. While it is
+ * `true`, `openGate` treats every visitor without a pass as though already
+ * admitted — no code, no door — WITHOUT writing a pass for any of them. That
+ * is the whole shape of it: a temporary state re-read on every visit by
+ * anyone who does not already hold one, never a stored one, so setting it
+ * back to `false` shows the door again on the very next load, with nothing to
+ * clear first. A friend who already holds a real pass never reaches the
+ * check at all, and the switch never touches theirs — see `publicAccessOn`
+ * and the top of `openGate`.
  */
 
 /** Everything this door needs to know that is not about being let in. */
@@ -122,6 +135,32 @@ const INVITE_PARAM = 'invite';
 /** Forget this browser's pass and show the door again. For testing invites. */
 const RESET_PARAM = 'gatereset';
 
+/**
+ * The identity a session ping carries while public access is on. Distinct
+ * from any real friend's name so it can never collide with one in the Who
+ * tab, and never written to PASS_STORE — the switch never leaves anything
+ * behind for the browser to hold onto.
+ *
+ * The server treats it like any other client-supplied name — `handleSession_`
+ * validates nothing, in `Code.gs` — so this is a client-side convention, not
+ * a contract the endpoint has to know about. Keep it the same as the
+ * identical literal in the library's portable `gate.js` anyway, so a
+ * public-access session pinged by either kind of game reads as the same one
+ * row rather than two.
+ */
+const PUBLIC_ID = '(public access)';
+
+/**
+ * Where the owner's editable constant lives, on the library's own site:
+ * root-relative, so it resolves to the one copy under whichever hostname is
+ * asking — `games.hoai.net` and its pre-redirect twin `hoai2k.github.io` are
+ * the same GitHub Pages deployment, same file, same answer. A game on any
+ * other host would need this as a full URL instead; every game sharing the
+ * gate today is on that one origin, so root-relative is what all of them
+ * resolve correctly.
+ */
+const PUBLIC_ACCESS_URL = '/public-access.json';
+
 let ENDPOINT = import.meta.env.VITE_GATE_ENDPOINT ?? '';
 
 /** Configured means gated. No endpoint leaves the door standing open. */
@@ -177,6 +216,38 @@ async function post(body: unknown): Promise<unknown> {
     body: JSON.stringify(body),
   });
   return await res.json() as unknown;
+}
+
+/**
+ * Ask whether the owner has switched the code off for everyone, temporarily,
+ * by reading `/public-access.json` — see `PUBLIC_ACCESS_URL` and the header.
+ * THIS FILE IS THE OWNER'S EDITABLE CONSTANT: edit it directly on GitHub,
+ * commit to `main`, and every game and the library pick it up on their next
+ * visit from anyone without a pass. Nothing else to touch.
+ *
+ * Same-origin, so unlike the invite/session calls to `ENDPOINT` there is no
+ * CORS to think about at all. The query string is a cache-buster: GitHub
+ * Pages serves this file with `Cache-Control: max-age=600` (measured), and
+ * that caching lives at the CDN edge, upstream of anything a browser's own
+ * `cache` option can reach — a unique query on every request is what actually
+ * forces a fresh copy rather than up to ten minutes of a stale one.
+ * `cache: 'no-store'` additionally skips the browser's own cache, belt and
+ * braces.
+ *
+ * Anything short of a clean `true` — a 404, a network hiccup, invalid JSON
+ * from a slipped hand-edit, the deployment being unreachable — reads as "no".
+ * That is the safe default: the code stays required unless the file plainly
+ * says otherwise, never because a network hiccup did.
+ */
+export async function publicAccessOn(): Promise<boolean> {
+  if (!gateEnabled()) return false;
+  try {
+    const res = await fetch(`${PUBLIC_ACCESS_URL}?t=${Date.now()}`, { cache: 'no-store' });
+    const body = await res.json() as { publicAccess?: boolean };
+    return body?.publicAccess === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -373,72 +444,95 @@ export function openGate(opts: GateOptions): Promise<void> {
     // The whole point: a returning friend never waits on the network, and the
     // session ping goes out behind the game already loading.
     pingSession(pass, opts.game);
-    stripGateParams();   // a friend re-using their old link keeps a clean bar
+    // Both parameters, not the bare `stripGateParams()` this used to call: an
+    // empty name list matches nothing, so a friend re-using an old invite
+    // link never had it cleared from their address bar. `gate.js`, the same
+    // door for the other six games, always passed both; this was the one
+    // place the two had drifted apart.
+    stripGateParams(INVITE_PARAM, RESET_PARAM);
     return Promise.resolve();
   }
 
   return new Promise<void>((resolve) => {
-    const door = buildDoor(opts);
-    let settled = false;
-
-    // The door is up and the connection is idle: start pulling. Refusing a
-    // visitor aborts this; being admitted deliberately does not, because the
-    // whole point is that the files are already coming when the game starts.
+    // Starts the instant there is no pass, before the public-access check
+    // below has even answered: either way the game is coming — behind a door
+    // about to show, or straight through with nothing to wait on — so there
+    // is no reason to make that one round trip hold up the other.
     const warming = new AbortController();
     try { opts.warm?.(warming.signal); } catch (e) { console.warn('[gate] warm hook threw', e); }
 
-    const admit = (p: Pass) => {
-      if (settled) return;
-      settled = true;
-      writePass(p);
-      pingSession(p, opts.game);
-      stripGateParams(INVITE_PARAM, RESET_PARAM);
-      door.close();
-      resolve();
-    };
+    void publicAccessOn().then((isPublic) => {
+      if (isPublic) {
+        // The owner's own switch, not an invite: nothing is written to
+        // PASS_STORE, so a real friend's pass is untouched either way this
+        // goes, and this is asked again on every visit by anyone who does
+        // not hold one — turning the switch back off shows the door on the
+        // very next load, with no stored state to clear first.
+        pingSession({ id: PUBLIC_ID, name: PUBLIC_ID, since: Date.now() }, opts.game);
+        stripGateParams(INVITE_PARAM, RESET_PARAM);
+        resolve();
+        return;
+      }
+      openDoor();
+    });
 
-    // ---- the form, for anyone who arrives without a link ----
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'invite code';
-    input.autocomplete = 'off';
-    input.spellcheck = false;
-    input.setAttribute('aria-label', 'invite code');
-    const go = document.createElement('button');
-    go.textContent = 'Enter';
-    door.slot.append(input, go);
+    function openDoor(): void {
+      const door = buildDoor(opts);
+      let settled = false;
 
-    const submit = () => {
-      const code = input.value.trim();
-      if (code === '') { input.focus(); return; }
-      void redeem(code, { door, opts, admit, warming, input, go });
-    };
-    go.onclick = submit;
-    input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
-
-    if (opts.dismissible) {
-      const back = document.createElement('button');
-      back.textContent = 'Back';
-      back.className = 'gate-back';
-      back.onclick = () => {
+      const admit = (p: Pass) => {
         if (settled) return;
         settled = true;
-        warming.abort();
+        writePass(p);
+        pingSession(p, opts.game);
+        stripGateParams(INVITE_PARAM, RESET_PARAM);
         door.close();
-        resolve();          // resolved WITHOUT a pass — see GateOptions.dismissible
+        resolve();
       };
-      door.slot.append(back);
-    }
 
-    const fromLink = codeFromUrl();
-    if (fromLink) {
-      // An invite link spends itself. Nothing to click, nothing to type — the
-      // form stays in the page underneath so that a bad code lands somewhere
-      // the visitor can correct it.
-      input.value = fromLink;
-      void redeem(fromLink, { door, opts, admit, warming, input, go });
-    } else {
-      input.focus();
+      // ---- the form, for anyone who arrives without a link ----
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'invite code';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.setAttribute('aria-label', 'invite code');
+      const go = document.createElement('button');
+      go.textContent = 'Enter';
+      door.slot.append(input, go);
+
+      const submit = () => {
+        const code = input.value.trim();
+        if (code === '') { input.focus(); return; }
+        void redeem(code, { door, opts, admit, warming, input, go });
+      };
+      go.onclick = submit;
+      input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
+
+      if (opts.dismissible) {
+        const back = document.createElement('button');
+        back.textContent = 'Back';
+        back.className = 'gate-back';
+        back.onclick = () => {
+          if (settled) return;
+          settled = true;
+          warming.abort();
+          door.close();
+          resolve();          // resolved WITHOUT a pass — see GateOptions.dismissible
+        };
+        door.slot.append(back);
+      }
+
+      const fromLink = codeFromUrl();
+      if (fromLink) {
+        // An invite link spends itself. Nothing to click, nothing to type — the
+        // form stays in the page underneath so that a bad code lands somewhere
+        // the visitor can correct it.
+        input.value = fromLink;
+        void redeem(fromLink, { door, opts, admit, warming, input, go });
+      } else {
+        input.focus();
+      }
     }
   });
 }
