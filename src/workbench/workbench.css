@@ -70,6 +70,7 @@ select, button {
 select:focus, button:focus { outline: 1px solid var(--accent); }
 optgroup { color: var(--dim); font-style: normal; }
 option { color: var(--text); }
+option.not-in-game { color: var(--dim); }
 .study-note { margin: -6px 0 14px; color: var(--dim); font-size: 11px; }
 .picker-key { margin: 5px 0 0; color: var(--dim); font-size: 10px; }
 

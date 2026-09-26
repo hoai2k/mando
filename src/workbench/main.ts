@@ -607,8 +607,20 @@ addEventListener('keydown', (e) => {
 // ---------- panel ----------
 const panel = document.getElementById('panel')!;
 
-function option(value: string, label: string, selected: boolean): string {
-  return `<option value="${value}"${selected ? ' selected' : ''}>${label}</option>`;
+function option(value: string, label: string, selected: boolean, dim = false): string {
+  return `<option value="${value}"${selected ? ' selected' : ''}${dim ? ' class="not-in-game"' : ''}>${label}</option>`;
+}
+
+/**
+ * Of every attack alternate on offer, the only ones real combat can actually
+ * roll are Din's three gaderffii variants — one in four hits on that combo
+ * step, per `DIN_STAFF_VARIANTS` in player.ts. Every other alternate here
+ * (every alternate for every other character, and Din's other two per step)
+ * is a workbench study nothing in play will ever show.
+ */
+const DIN_LIVE_ALTERNATE: Record<string, string> = { melee1: 'spearTest2', melee2: 'staffRise', melee3: 'staffDiagonal' };
+function altUsedInGame(alt: Alternate, poseId: string): boolean {
+  return subject.id === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id;
 }
 
 /** Keep view selection in the URL; clip edits remain session-only. */
@@ -671,8 +683,13 @@ function renderPanel(): void {
       <label for="attackAlternate">Alternates</label>
       <select id="attackAlternate">
         ${option('none', 'None — original attack', alternateChoice === 'none')}
-        ${choices.map((alt) => option(alt.id, alt.name, alternateChoice === alt.id)).join('')}
+        ${choices.map((alt) => {
+          const live = altUsedInGame(alt, pose.id);
+          return option(alt.id, `${alt.name}${live ? '' : ' ◆'}`, alternateChoice === alt.id, !live);
+        }).join('')}
       </select>
+      ${choices.some((alt) => !altUsedInGame(alt, pose.id))
+        ? '<p class="picker-key">◆ workbench study only — not rolled in game</p>' : ''}
     </div>` : ''}
     ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed study · weapons hidden · not used in combat yet.</p>` : ''}
     ${subject.id === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
