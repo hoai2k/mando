@@ -58,6 +58,16 @@ const air = await h.page.evaluate(`(() => {
   ${RIG}
   const out = {};
   const countShots = (n, over) => {
+    // Prime the hip-fire raise before measuring. The trigger does not fire
+    // the instant it is pulled from idle — HIP_FIRE_RAISE (0.18s, ~5 frames)
+    // — and once raised the gun stays raised across a short gap rather than
+    // dropping the instant you let go. So two 45-frame windows shot back to
+    // back are not the same test: the second opens already raised and gets
+    // an extra shot the first one paid for out of its own count. That is not
+    // a difference between air and ground, it is a difference between a cold
+    // trigger and a warm one — a dozen primer frames puts every window on
+    // the same footing before the real count starts.
+    step(12, over);
     let shots = 0;
     const fire = g.projectiles.fire.bind(g.projectiles);
     g.projectiles.fire = (...a) => { shots++; return fire(...a); };

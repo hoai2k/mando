@@ -31,12 +31,28 @@ async function startAs(name) {
   // cards sit on screen, so a run of DRIGHTs does not land on a known board
   await h.clickText('The Prison Rig');
   await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
+  // Player one is the keyboard's own seat now ("Fix controller claims for
+  // keyboard and co-op players"): a lone connected gamepad claims player TWO
+  // instead of driving player one directly, the way this used to work. Tapping
+  // the pad here cycled and "locked in" a phantom second player while player
+  // one — the one `swimAndBreach` actually reads as `g.players[0]` — sat on
+  // the roster's default pick the whole time, which is both the wrong fighter
+  // and, since player one never reached `ready`, the reason this hung waiting
+  // for a `READY` that could only ever belong to someone else. Player one has
+  // to be driven the way `test-controller-claims.mjs` drives it: keyboard.
   for (let i = 0; i < 14; i++) {
     if (new RegExp(name, 'i').test(await h.text())) break;
-    await h.pad.tap(BTN.DRIGHT);
+    await h.page.keyboard.press('ArrowRight');
+    await sleep(150);
   }
-  await h.tapUntil(BTN.A, async () => /READY/i.test(await h.text()));
-  await h.pad.tap(BTN.A);
+  let ready = false;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if ((await h.page.evaluate(() => window.__charselLine()[0]?.phase)) === 'ready') { ready = true; break; }
+    await h.page.keyboard.press('Enter');
+    await sleep(500);
+  }
+  if (!ready) throw new Error(`player one never locked in as ${name}`);
+  await h.page.keyboard.press('Enter');
   await h.tapUntil(BTN.A, () => h.page.evaluate(() => !!window.__game), { timeoutMs: 25000 });
   await h.waitForPlaying();
 }

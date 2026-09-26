@@ -483,9 +483,15 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     main.add(muzzle);
     guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(gunmetal, dark)) : null });
   }
+  // The generic shared-grip scale first, then Bossk's own dedicated rifle
+  // scale on top of it. They used to run the other way — this line applied
+  // unconditionally to everyone's first ranged weapon, and Bossk's longrifle
+  // *is* his only ranged weapon, so its 1.23 was set and then immediately
+  // overwritten by `sharedWeaponScale('bossk')`, which has no entry and
+  // silently falls back to 1.
+  guns.get(rangedKinds(id)[0])?.main.scale.setScalar(sharedWeaponScale(id));
   const bosskRifle = id === 'bossk' ? guns.get('longrifle')?.main : undefined;
   if (bosskRifle) bosskRifle.scale.setScalar(BOSSK_RIFLE_SCALE);
-  guns.get(rangedKinds(id)[0])?.main.scale.setScalar(sharedWeaponScale(id));
 
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
