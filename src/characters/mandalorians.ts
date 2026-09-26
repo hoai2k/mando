@@ -11,6 +11,7 @@ import { applyArmorerAxeGrip } from './armorerAxeGrips';
 import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
 import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
 import { applyDinSpearGrip } from './dinSpearGrips';
+import { applyDinSaberGrip } from './dinSaberGrips';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -656,9 +657,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         if (saber) applySharedWeaponGrip(id, saber.main);
       }
       if (model.weaponMount && id === 'din') {
-        // Flourish workbench export: hand-local, so the same anchor follows
-        // every darksaber clip and keeps the broad blade facing outward.
-        blades.get('sabers')?.main.quaternion.set(0.5384779, -0.4583029, -0.4583029, 0.5384779).normalize();
+        const saber = blades.get('sabers');
+        if (saber) applyDinSaberGrip(saber.main, inst.animator?.playing('upper') ?? null);
       }
       // The off-hand has to move too. Our own weaponL bone still animates, but
       // it sits where the hidden procedural arm is, so a pistol left on it
@@ -724,6 +724,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // fixed. Reapply only when the clip changes so the editor retains control.
   let armorerAxeClip: string | null = null;
   let dinSpearClip: string | null = null;
+  let dinSaberClip: string | null = null;
   let weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
   let shieldUp = false;
   // per-hand "still in the hand" mask, so a thrown saber vanishes from its
@@ -782,6 +783,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         if (clip !== dinSpearClip) {
           applyDinSpearGrip(blades.get('gaffi')!.main, clip);
           dinSpearClip = clip;
+        }
+        if (swap.model && clip !== dinSaberClip) {
+          applyDinSaberGrip(blades.get('sabers')!.main, clip);
+          dinSaberClip = clip;
         }
       }
       if (bosskRifle && swap.model) {

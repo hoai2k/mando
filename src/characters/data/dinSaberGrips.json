@@ -1,0 +1,195 @@
+{
+  "format": "mando-authored-weapon-grips/3",
+  "exportedAt": "2026-09-26T19:08:19.958Z",
+  "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
+  "note": "attachment distinguishes held weapons from stowed hip hilts. Placement uses the authored model, not the procedural body. Armorer idle uses the choice-screen axe presentation as its base grip.",
+  "entries": [
+    {
+      "character": "din",
+      "pose": "saber1",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.69,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.6120547,
+        -0.4089786,
+        -0.499735,
+        0.4564981
+      ]
+    },
+    {
+      "character": "din",
+      "pose": "saber1:saberLunge",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.43,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.6969653,
+        -0.128412,
+        -0.6952468,
+        0.1199237
+      ]
+    },
+    {
+      "character": "din",
+      "pose": "saber2",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.31,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.8515371,
+        0.001941,
+        -0.5056707,
+        0.1384843
+      ]
+    },
+    {
+      "character": "din",
+      "pose": "saber2:staffRise",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.85,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.7159155,
+        -0.050994,
+        -0.686291,
+        0.1177678
+      ]
+    },
+    {
+      "character": "din",
+      "pose": "saber3",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.22,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.6417391,
+        -0.3639484,
+        -0.507142,
+        0.4455552
+      ]
+    },
+    {
+      "character": "din",
+      "pose": "saber3:staffDiagonal",
+      "weapon": "right: saberHandR",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.95,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        0.5384779,
+        -0.4583029,
+        -0.4583029,
+        0.5384779
+      ],
+      "editedPosition": [
+        0,
+        0,
+        0
+      ],
+      "editedQuaternion": [
+        0.6275158,
+        -0.3587345,
+        -0.5259604,
+        0.4482178
+      ]
+    }
+  ],
+  "weaponScales": []
+}

@@ -13,20 +13,14 @@ export interface Alternate {
   reference: 'spear' | 'staff' | 'saber' | 'close';
 }
 
-const spear: Alternate[] = [
-  { id: 'spearTest1', name: 'Fixed-foot thrust', lower: 'spearTest1Lower', upper: 'spearTest1Upper', reference: 'spear' },
-  { id: 'spearTest2', name: 'Long lunge thrust', lower: 'spearTest2Lower', upper: 'spearTest2Upper', reference: 'spear' },
-  { id: 'spearTest3', name: 'Deflect → thrust', lower: 'spearTest3Lower', upper: 'spearTest3Upper', reference: 'spear' },
-];
-
 export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
-  melee1: spear,
+  melee1: [
+    { id: 'spearTest2', name: 'Long lunge thrust', lower: 'spearTest2Lower', upper: 'spearTest2Upper', reference: 'spear' },
+  ],
   melee2: [
-    { id: 'staffReturn', name: 'Butt-end return', lower: 'staffReturnLower', upper: 'staffReturnUpper', reference: 'staff' },
     { id: 'staffRise', name: 'Low rising sweep', lower: 'staffRiseLower', upper: 'staffRiseUpper', reference: 'staff' },
   ],
   melee3: [
-    { id: 'staffDrop', name: 'Two-hand descending blow', lower: 'staffDropLower', upper: 'staffDropUpper', reference: 'staff' },
     { id: 'staffDiagonal', name: 'Diagonal step and strike', lower: 'staffDiagonalLower', upper: 'staffDiagonalUpper', reference: 'staff' },
   ],
   saber1: [
@@ -182,26 +176,12 @@ function unarmedMove(move: Move, style: CombatStyle): Move {
 
 const moves: Move[] = [
   // Staff and gaderffii: both ends stay available, with a body step under impact.
-  { id: 'staffReturn', duration: 0.8, step: 'pivot', upper: {
-    chest: [[2, 21, 0], [2, 35, 0], [4, -25, 0], [4, -28, 0], [2, 21, 0]],
-    upperArmR: [[-65, 32, -9], [-68, 48, -9], [-83, -35, 8], [-84, -39, 8], [-65, 32, -9]],
-    forearmR: [[-25, 0, 0], [-30, 0, 0], [-55, 0, 0], [-58, 0, 0], [-25, 0, 0]],
-    upperArmL: [[-65, 20, 15], [-75, 12, 15], [-72, -25, 20], [-72, -25, 20], [-65, 20, 15]],
-    forearmL: [[-48, -15, -20], [-44, -15, -20], [-34, -12, -18], [-34, -12, -18], [-48, -15, -20]],
-  } },
   { id: 'staffRise', duration: 0.86, step: 'low', upper: {
     chest: [[11, -19, 0], [18, -22, 0], [-5, 18, 0], [-8, 20, 0], [11, -19, 0]],
     upperArmR: [[-42, -32, 12], [-30, -40, 12], [-112, 25, -5], [-115, 27, -5], [-42, -32, 12]],
     forearmR: [[-55, 0, 0], [-64, 0, 0], [-22, 0, 0], [-20, 0, 0], [-55, 0, 0]],
     upperArmL: [[-59, 12, 18], [-46, 9, 20], [-86, 17, 12], [-87, 17, 12], [-59, 12, 18]],
     forearmL: [[-48, -16, -20], [-55, -16, -20], [-34, -14, -18], [-34, -14, -18], [-48, -16, -20]],
-  } },
-  { id: 'staffDrop', duration: 0.96, step: 'forward', upper: {
-    chest: [[-13, 0, 0], [-21, 0, 0], [22, 0, 0], [24, 0, 0], [-13, 0, 0]],
-    upperArmR: [[-133, 0, 12], [-156, 0, 12], [-50, 0, 4], [-46, 0, 4], [-133, 0, 12]],
-    forearmR: [[-68, 0, 0], [-78, 0, 0], [-8, 0, 0], [-8, 0, 0], [-68, 0, 0]],
-    upperArmL: [[-122, 0, -15], [-143, 0, -18], [-67, 0, 13], [-63, 0, 13], [-122, 0, -15]],
-    forearmL: [[-59, -10, -12], [-65, -10, -12], [-18, -8, -10], [-18, -8, -10], [-59, -10, -12]],
   } },
   { id: 'staffDiagonal', duration: 0.92, step: 'forward', upper: {
     chest: [[-9, -23, 0], [-16, -35, 0], [19, 25, 0], [18, 28, 0], [-9, -23, 0]],

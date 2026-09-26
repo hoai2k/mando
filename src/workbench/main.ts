@@ -614,8 +614,7 @@ function option(value: string, label: string, selected: boolean, dim = false): s
 /**
  * Of every attack alternate on offer, the only ones real combat can actually
  * roll are Din's three gaderffii variants — one in four hits on that combo
- * step, per `DIN_STAFF_VARIANTS` in player.ts. Every other alternate here
- * (every alternate for every other character, and Din's other two per step)
+ * step, per `DIN_STAFF_VARIANTS` in player.ts. Every remaining alternate here
  * is a workbench study nothing in play will ever show.
  */
 const DIN_LIVE_ALTERNATE: Record<string, string> = { melee1: 'spearTest2', melee2: 'staffRise', melee3: 'staffDiagonal' };
