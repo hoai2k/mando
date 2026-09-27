@@ -17,8 +17,8 @@
  *
  * Original vertices keep their indices (the dropped ones become unreferenced)
  * and the mirrored copies are appended, so vertex-index data written against
- * the old file still names the same points. The output is written without
- * meshopt compression; quantisation is kept.
+ * the old file still names the same points. The output is plain core glTF
+ * (float attributes, no compression or quantisation) so any viewer opens it.
  *
  * The mirror plane is x = centreX (per model; override with MIRROR_CENTRE_X).
  *
@@ -27,6 +27,7 @@
 import { writeFileSync } from 'node:fs';
 import { readGlb, viewBytes, accessor, decoderReady } from './lib/glb.mjs';
 import { planMirror } from './lib/mirror-core.mjs';
+import { Matrix4, Quaternion, Vector3 } from 'three';
 
 const PRESETS = {
   // cutY is in the model's own units (the sculpts are 1 unit tall, centred)
@@ -45,7 +46,7 @@ const cutY = cutArg !== undefined ? Number(cutArg) : preset.cutY;
 const armX = preset.armX;
 const centreX = Number(process.env.MIRROR_CENTRE_X ?? preset.centreX);
 const back = preset.back ?? null;
-const out = outArg ?? `candidates/${model}_mirrored.glb`;
+const out = outArg ?? `public/models/candidates/${model}_mirrored.glb`;
 
 const glb = readGlb(`public/models/${model}.glb`);
 await decoderReady;
@@ -80,84 +81,107 @@ const plan = planMirror({
 const { mirrorJoint } = plan;
 const newVerts = plan.sources;
 if (plan.loose) console.log(`  dropped ${plan.loose} loose island(s) left beside the hand`);
-// mirror plane in the file's own quantised units
-const qCentre = (centreX - t[0]) / s[0];
+// ---- vertex data, written as plain floats in model space ----
+// The delivered files are quantised (integer positions under a scaled mesh
+// node, UVs rescaled by KHR_texture_transform). three.js reads that, but many
+// desktop viewers do not, so the output is core glTF: float positions,
+// normals and UVs, the node scale folded into the inverse bind matrices, and
+// the texture transform folded into the UVs.
 const total = n + newVerts.length;
-
-const grow = (acc, items, map) => {
-  const arr = new acc.data.constructor(total * items);
-  arr.set(acc.data.subarray(0, n * items));
-  newVerts.forEach((v, i) => {
-    const row = Array.from(acc.data.subarray(v * items, v * items + items));
-    arr.set(map(row), (n + i) * items);
-  });
-  return arr;
+const norm = (acc) => {
+  if (!acc.acc.normalized) return (x) => x;
+  const d = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 }[acc.acc.componentType];
+  return (x) => Math.max(x / d, -1);
 };
-const positions = grow(P, 3, ([x, y, z]) => {
-  const mx = Math.round(2 * qCentre - x);
-  if (mx < 0 || mx > 65535) throw new Error('mirrored position out of range');
-  return [mx, y, z];
-});
-const normals = grow(N, 3, ([x, y, z]) => [x === -128 ? 127 : -x, y, z]);
-const uvs = grow(UV, 2, (r) => r);
-const joints = grow(J, 4, (r) => r.map((j) => mirrorJoint[j]));
-const weights = grow(W, 4, (r) => r);
+const nN = norm(N), nUV = norm(UV);
+const infos = [];
+const mat = json.materials?.[prim.material] ?? {};
+for (const info of [mat.pbrMetallicRoughness?.baseColorTexture, mat.pbrMetallicRoughness?.metallicRoughnessTexture,
+  mat.normalTexture, mat.occlusionTexture, mat.emissiveTexture]) if (info) infos.push(info);
+const tt = infos[0]?.extensions?.KHR_texture_transform;
+for (const info of infos) {
+  const x = info.extensions?.KHR_texture_transform;
+  if (JSON.stringify(x) !== JSON.stringify(tt)) throw new Error('textures disagree on KHR_texture_transform');
+  if (x?.rotation || x?.texCoord) throw new Error('rotated texture transform is not handled');
+}
+const uvOffset = tt?.offset ?? [0, 0], uvScale = tt?.scale ?? [1, 1];
+
+const positions = new Float32Array(total * 3), normals = new Float32Array(total * 3), uvs = new Float32Array(total * 2);
+const joints = new Uint8Array(total * 4), weights = new Uint8Array(total * 4);
+if (J.data.BYTES_PER_ELEMENT !== 1 || W.acc.componentType !== 5121) throw new Error('expected 8-bit joints and weights');
+const sourceOf = (d) => (d < n ? d : newVerts[d - n]);
+for (let d = 0; d < total; d++) {
+  const v = sourceOf(d), mirrored = d >= n;
+  for (let a = 0; a < 3; a++) positions[d * 3 + a] = posOf(v, a);
+  if (mirrored) positions[d * 3] = 2 * centreX - positions[d * 3];
+  const nv = [0, 1, 2].map((a) => nN(N.data[v * 3 + a]));
+  if (mirrored) nv[0] = -nv[0];
+  const len = Math.hypot(...nv) || 1;
+  for (let a = 0; a < 3; a++) normals[d * 3 + a] = nv[a] / len;
+  for (let a = 0; a < 2; a++) uvs[d * 2 + a] = uvOffset[a] + uvScale[a] * nUV(UV.data[v * 2 + a]);
+  for (let k = 0; k < 4; k++) {
+    const w = W.data[v * 4 + k], j = J.data[v * 4 + k];
+    weights[d * 4 + k] = w;
+    // a slot with no weight keeps joint 0 (glTF asks unused slots to be zero)
+    joints[d * 4 + k] = w === 0 ? 0 : mirrored ? mirrorJoint[j] : j;
+  }
+}
 const indices = total > 65535 ? Uint32Array.from(plan.indices) : Uint16Array.from(plan.indices);
 
-// ---- rebuild the container: decompressed views, the primitive's views replaced ----
+// the skinned mesh's node transform moves into the inverse bind matrices
+const IBM = read(skin.inverseBindMatrices);
+const nodeMatrix = new Matrix4().compose(new Vector3(...t), new Quaternion(), new Vector3(...s));
+const unbake = nodeMatrix.clone().invert();
+const ibms = new Float32Array(IBM.count * 16);
+for (let i = 0; i < IBM.count; i++) {
+  new Matrix4().fromArray(IBM.data, i * 16).multiply(unbake).toArray(ibms, i * 16);
+}
+delete node.translation;
+delete node.scale;
+
+// ---- rebuild the container with only the data still in use ----
 const chunks = [];
 let binLength = 0;
+const views = [];
 const addView = (bytes, extra = {}) => {
   const pad = (4 - (binLength % 4)) % 4;
   if (pad) { chunks.push(new Uint8Array(pad)); binLength += pad; }
-  const view = { buffer: 0, byteOffset: binLength, byteLength: bytes.byteLength, ...extra };
+  views.push({ buffer: 0, byteOffset: binLength, byteLength: bytes.byteLength, ...extra });
   chunks.push(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
   binLength += bytes.byteLength;
-  return view;
+  return views.length - 1;
 };
-const views = json.bufferViews.map((v, i) => {
-  const bytes = viewBytes(glb, i);
-  const extra = {};
-  const stride = v.extensions?.EXT_meshopt_compression?.byteStride ?? v.byteStride;
-  if (v.byteStride || (v.target === 34962)) extra.byteStride = stride;
-  if (v.target) extra.target = v.target;
-  return addView(bytes, extra);
+const setAccessor = (i, arr, fields) => {
+  const acc = json.accessors[i];
+  delete acc.normalized; delete acc.min; delete acc.max; delete acc.byteOffset;
+  Object.assign(acc, fields, { bufferView: addView(arr, fields.vertex ? { byteStride: fields.stride, target: 34962 } : fields.target ? { target: fields.target } : {}) });
+  delete acc.vertex; delete acc.stride; delete acc.target;
+};
+const minMax = (arr) => [0, 1, 2].reduce((mm, a) => {
+  let lo = Infinity, hi = -Infinity;
+  for (let v = 0; v < total; v++) { lo = Math.min(lo, arr[v * 3 + a]); hi = Math.max(hi, arr[v * 3 + a]); }
+  mm.min.push(lo); mm.max.push(hi); return mm;
+}, { min: [], max: [] });
+setAccessor(prim.attributes.POSITION, positions, { componentType: 5126, count: total, type: 'VEC3', vertex: true, stride: 12, ...minMax(positions) });
+setAccessor(prim.attributes.NORMAL, normals, { componentType: 5126, count: total, type: 'VEC3', vertex: true, stride: 12 });
+setAccessor(prim.attributes.TEXCOORD_0, uvs, { componentType: 5126, count: total, type: 'VEC2', vertex: true, stride: 8 });
+setAccessor(prim.attributes.JOINTS_0, joints, { componentType: 5121, count: total, type: 'VEC4', vertex: true, stride: 4 });
+setAccessor(prim.attributes.WEIGHTS_0, weights, { componentType: 5121, count: total, type: 'VEC4', vertex: true, stride: 4, normalized: true });
+setAccessor(prim.indices, indices, { componentType: indices instanceof Uint32Array ? 5125 : 5123, count: indices.length, type: 'SCALAR', target: 34963 });
+setAccessor(skin.inverseBindMatrices, ibms, { componentType: 5126, count: IBM.count, type: 'MAT4' });
+const rewritten = new Set([...Object.values(prim.attributes), prim.indices, skin.inverseBindMatrices]);
+json.accessors.forEach((acc, i) => {
+  if (rewritten.has(i) || acc.bufferView === undefined) return;
+  throw new Error(`accessor ${i} is not handled`);
 });
-// padded rows so every vertex stride is a multiple of four
-const strided = (arr, items, stride) => {
-  const size = arr.BYTES_PER_ELEMENT;
-  const bytes = new Uint8Array(total * stride);
-  const src = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
-  for (let v = 0; v < total; v++) bytes.set(src.subarray(v * items * size, (v + 1) * items * size), v * stride);
-  return bytes;
-};
-const replaceAttr = (accIndex, arr, items) => {
-  const acc = json.accessors[accIndex];
-  const packed = arr.BYTES_PER_ELEMENT * items;
-  const stride = Math.ceil(packed / 4) * 4;
-  views.push(addView(strided(arr, items, stride), { byteStride: stride, target: 34962 }));
-  acc.bufferView = views.length - 1;
-  acc.byteOffset = 0;
-  acc.count = total;
-};
-replaceAttr(prim.attributes.POSITION, positions, 3);
-replaceAttr(prim.attributes.NORMAL, normals, 3);
-replaceAttr(prim.attributes.TEXCOORD_0, uvs, 2);
-replaceAttr(prim.attributes.JOINTS_0, joints, 4);
-replaceAttr(prim.attributes.WEIGHTS_0, weights, 4);
-const posAcc = json.accessors[prim.attributes.POSITION];
-posAcc.min = [0, 1, 2].map((a) => { let m = Infinity; for (let v = 0; v < total; v++) m = Math.min(m, positions[v * 3 + a]); return m; });
-posAcc.max = [0, 1, 2].map((a) => { let m = -Infinity; for (let v = 0; v < total; v++) m = Math.max(m, positions[v * 3 + a]); return m; });
-views.push(addView(indices, { target: 34963 }));
-Object.assign(json.accessors[prim.indices], {
-  bufferView: views.length - 1, byteOffset: 0, count: indices.length,
-  componentType: indices instanceof Uint32Array ? 5125 : 5123,
-});
+for (const img of json.images ?? []) if (img.bufferView !== undefined) img.bufferView = addView(viewBytes(glb, img.bufferView));
 json.bufferViews = views;
 json.buffers = [{ byteLength: binLength }];
-const strip = (list) => list?.filter((e) => e !== 'EXT_meshopt_compression');
+for (const info of infos) { delete info.extensions.KHR_texture_transform; if (!Object.keys(info.extensions).length) delete info.extensions; }
+const strip = (list) => list?.filter((e) => !['EXT_meshopt_compression', 'KHR_mesh_quantization', 'KHR_texture_transform'].includes(e));
 json.extensionsUsed = strip(json.extensionsUsed);
-if (json.extensionsRequired) json.extensionsRequired = strip(json.extensionsRequired);
+json.extensionsRequired = strip(json.extensionsRequired);
+for (const k of ['extensionsUsed', 'extensionsRequired']) if (!json[k]?.length) delete json[k];
 json.asset = { ...json.asset, extras: { ...(json.asset.extras ?? {}), mirroredLowerBody: { from: `${model}.glb`, cutY, armX, centreX, back } } };
 
 // ---- write ----

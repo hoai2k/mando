@@ -1,7 +1,10 @@
-# Candidate models — not used by the game
+# Candidate models, not used by the game
 
-Review copies only. Nothing in `src/` or `public/` points here, so the game still
-loads `public/models/flametrooper.glb` and `public/models/ring_enforcer.glb` unchanged.
+Review copies only. The candidate GLBs are in `public/models/candidates/` so the review
+bench can load them from the live site (https://hoai2k.github.io/mando/mirror-bench/).
+Nothing in the game loads that folder: it still uses `public/models/flametrooper.glb`
+and `public/models/ring_enforcer.glb` unchanged. The candidates are plain core glTF
+(float attributes, no compression or quantisation), so any glTF viewer opens them.
 
 | file | what changed |
 |---|---|
