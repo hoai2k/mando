@@ -24,7 +24,7 @@ type SampleName =
   | 'amb_desert' | 'amb_station' | 'amb_lava' | 'amb_ice' | 'amb_rain'
   | 'amb_refinery' | 'amb_forge' | 'amb_city' | 'amb_sea'
   | 'crossbow_shot' | 'longrifle_shot' | 'pistol_shot' | 'saber_swing' | 'saber_ignite' | 'saber_hum'
-  | 'saber_deflect' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
+  | 'saber_deflect' | 'weapon_clash' | 'blade_shear' | 'speeder_loop' | 'speeder_ignite' | 'boss_horn'
   | 'door_cycle' | 'checkpoint_chime' | 'bacta_pickup' | 'pvp_round_win'
   | 'amb_krayt_call' | 'droid_servo'
   | 'mudhorn_roar' | 'mudhorn_hurt' | 'mudhorn_death' | 'ravinak_roar' | 'ravinak_hurt' | 'ravinak_death'
@@ -60,7 +60,7 @@ type VoiceSample = `hurt_${VoiceId}_${1 | 2 | 3}` | `death_${VoiceId}`;
  */
 type VariantSample =
   | `footstep_sand_${1 | 2 | 3 | 4}` | `footstep_metal_${1 | 2 | 3 | 4}`
-  | `melee_whoosh_${1 | 2 | 3}`;
+  | `melee_whoosh_${1 | 2 | 3}` | `saber_clash_${1 | 2 | 3}`;
 
 export type BarkName =
   | 'tusken_cry' | 'pyke_chatter' | 'pyke_death' | 'pirate_taunt' | 'pirate_death'
@@ -197,7 +197,7 @@ export class AudioEngine {
       'amb_desert', 'amb_station', 'amb_lava', 'amb_ice', 'amb_rain',
       'amb_refinery', 'amb_forge', 'amb_city', 'amb_sea',
       'crossbow_shot', 'longrifle_shot', 'pistol_shot', 'saber_swing', 'saber_ignite', 'saber_hum',
-      'saber_deflect', 'speeder_loop', 'speeder_ignite', 'boss_horn',
+      'saber_deflect', 'weapon_clash', 'blade_shear', 'speeder_loop', 'speeder_ignite', 'boss_horn',
       'door_cycle', 'checkpoint_chime', 'bacta_pickup', 'pvp_round_win',
       'amb_krayt_call', 'droid_servo',
       'mudhorn_roar', 'mudhorn_hurt', 'mudhorn_death',
@@ -220,6 +220,7 @@ export class AudioEngine {
       'footstep_sand_1', 'footstep_sand_2', 'footstep_sand_3', 'footstep_sand_4',
       'footstep_metal_1', 'footstep_metal_2', 'footstep_metal_3', 'footstep_metal_4',
       'melee_whoosh_1', 'melee_whoosh_2', 'melee_whoosh_3',
+      'saber_clash_1', 'saber_clash_2', 'saber_clash_3',
     ];
     await Promise.all(names.map(async (n) => {
       // mp3 first: that's what tools/generate-sfx.mjs ships, so the common
@@ -424,6 +425,43 @@ export class AudioEngine {
     this.zap(1500, 420, 0.1, 'square', 0.26);
     this.burst(0.06, 0.2, 5200, 0, 1.6);
     this.zap(600, 900, 0.07, 'sawtooth', 0.14, 0.01);
+  }
+  /**
+   * Two strikes met and neither landed (src/game/melee.ts). Energy blades
+   * binding is the famous one: not a ring but an explosive crackle of static
+   * with the hum surging over it and sizzling away as the blades part — three
+   * takes, drawn at random, so a long duel is not one sound on repeat. Metal
+   * on metal is a hard clang with a scrape under it.
+   */
+  clash(kind: 'saber' | 'steel'): void {
+    if (!this.ctx) return;
+    if (kind === 'saber') {
+      const take = `saber_clash_${1 + Math.floor(Math.random() * 3)}` as SampleName;
+      const rate = 0.94 + Math.random() * 0.12;
+      if (this.playSample(take, 0.85, rate)) return;
+      for (const n of [1, 2, 3] as const) if (this.playSample(`saber_clash_${n}`, 0.85, rate)) return;
+      // synth: the crackle is band-passed noise stacked high and low, the
+      // surge two detuned saws climbing a little and falling away
+      this.burst(0.05, 0.5, 4200, 0, 0.8);
+      this.burst(0.28, 0.32, 1800, 0.01, 1.4);
+      this.burst(0.4, 0.14, 6200, 0.03, 2.5);
+      this.zap(118, 150, 0.1, 'sawtooth', 0.34);
+      this.zap(160, 92, 0.42, 'sawtooth', 0.26, 0.08);
+      this.zap(163, 94, 0.42, 'square', 0.1, 0.08);
+      return;
+    }
+    if (this.playSample('weapon_clash', 0.85, 0.92 + Math.random() * 0.16)) return;
+    this.zap(1250, 1180, 0.35, 'triangle', 0.22);
+    this.zap(1870, 1790, 0.25, 'sine', 0.12);
+    this.burst(0.05, 0.35, 3000, 0, 1.2);
+    this.burst(0.18, 0.12, 1400, 0.03, 3);
+  }
+  /** An energy blade (or beskar) went straight through a conventional weapon's guard. */
+  bladeShear(): void {
+    if (!this.ctx || this.playSample('blade_shear', 0.8, 0.95 + Math.random() * 0.1)) return;
+    this.burst(0.2, 0.34, 3600, 0, 1.5);
+    this.zap(900, 140, 0.18, 'sawtooth', 0.26);
+    this.zap(2100, 1600, 0.12, 'triangle', 0.1, 0.05);
   }
   meleeHit(kind: 'gaffi' | 'sabers' = 'gaffi'): void {
     if (!this.ctx) return;

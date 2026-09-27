@@ -770,3 +770,54 @@ broodmother from 14% to 61%; the mamacore, mudhorn and ravinak now sit above 90%
   volume to its own model would make Paz a visibly bigger target than Ventress — correct,
   readable, and a real difficulty change in every mode, so it wants a decision rather
   than a commit.
+
+## 20. Melee contact & parries (2026-09-27)
+
+**Audit: swings reached a metre and a half past their weapons.** `tools/audit-melee-reach.mjs`
+(`npm run audit:melee`) plays every fighter's combo, and every hostile's wind-up, and
+measures the weapon's meshes in world space. From the body's centre the sabers reach
+0.9–1.3 m (Revan's longer blade ~1.9–2.1 m), the staffs and spears 1.3–2.1 m, a Tusken's
+gaffi ~1.4 m and a pirate's club ~1.0 m. The rules they were judged by:
+
+| who | old rule | what the weapon reaches |
+|---|---|---|
+| any player swing | 3 m from centre **to the target's surface** (~3.5 m centre to centre), one frame 45% into the clip, height ignored | 0.9–2.1 m |
+| Tusken / Alamite | 3.1 m centre to centre, no facing check | 1.4 / 1.0 m |
+| pirate brawler | 3.2 m | 1.0 m |
+| officer (electrostaff) | 3.6 m | 1.5 m |
+| blade rivals | 3.6 m | 1.0–2.1 m |
+| Wookiee enforcer (fists) | 4.0 m | ~1.2 m |
+
+And the one contact frame was wrong for several clips: the overhead finishers
+(`melee3`, `saber3`, `darksaber1/3`) are still over the shoulder at 45%, so they "landed"
+before the blade came down.
+
+**Now contact is the weapon** (`src/game/melee.ts`). Every visible mesh on a fighter's
+weapon mounts becomes a capsule down its longest axis; through the swing's contact window
+(half-way to the clip's contact key until a third of the clip past it) those capsules are
+swept, frame to frame, against the same body volumes bolts hit — the capsule plus a long
+creature's extra spheres — with 15 cm of forgiveness. Whatever they meet is struck once;
+nothing they miss is. Bare hands swing forearm-and-fist capsules. The creatures (massiff,
+krykna, broodmother, spiderling), with nothing to measure, still bite by reach. Hostiles
+sweep their weapon through the last 40% of the wind-up and a 0.16 s follow-through, and
+step in to what their weapon reaches before swinging (`attackRange` — Tusken 1.6, pirate
+1.25, Alamite 1.3, officer 1.75, enforcer 1.7, rivals 1.3–1.9). Props are struck out to the
+furthest the weapon actually reached in that swing.
+
+**Parries.** A strike arriving on someone mid-strike, facing it, with a weapon that can
+meet it, does not land. What meets what:
+
+- `energy` — every lightsaber, the darksaber included — and `beskar` (Din's spear) **cut
+  straight through `steel`** (gaffi, clubs, the electrostaff, a rifle butt): the
+  conventional guard fails and the cutting strike lands (`blade_shear`); a steel strike swung
+  into a cutting blade's swing is sheared off and its striker thrown back.
+- Everything else **parries**: saber on saber, saber on beskar (`saber_clash_1..3`, the
+  crackle-and-hum-surge bind), steel on steel (`weapon_clash`).
+- Fists, claws and jaws neither parry nor are parried.
+
+On a parry both strikes are spent, sparks fly where the blades met, both fighters are
+thrown ~7 m/s apart, and the fighter who started their strike **later** plays a parry clip
+when their weapon has one: the twin-saber left-hand parry (`saberParry`, from the combat
+studies) for Ventress and Starkiller, Maris's block-then-flip-out; the blade rivals of the
+same fighters play it too. Everyone else takes the shove and a short hit-stop. Verified by
+`tools/test-parry.mjs`.

@@ -5,7 +5,7 @@ import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, make
 import { attachAuthored } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
-import { dinMeleeVariants } from '../workbench/combatStudies';
+import { dinMeleeVariants, saberParryClips } from '../workbench/combatStudies';
 import { counterweightTracks } from '../anim/counterweight';
 import { applyArmorerAxeGrip } from './armorerAxeGrips';
 import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
@@ -294,6 +294,9 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
 
   const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
   if (inst.animator) Object.assign(inst.animator.clips, styleClips(id, rig.proportions));
+  if ((id === 'ventress' || id === 'jedi') && inst.animator) {
+    Object.assign(inst.animator.clips, saberParryClips(rig.proportions, id));
+  }
   if (id === 'din' && inst.animator) {
     Object.assign(inst.animator.clips, dinMeleeVariants(rig.proportions));
     for (const [name, source] of [['darksaber1', 'saber1'], ['darksaber2', 'melee2'], ['darksaber3', 'melee3']] as const) {

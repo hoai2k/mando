@@ -306,3 +306,15 @@ export function dinMeleeVariants(p: Proportions): ClipSet {
   }
   return out;
 }
+
+/**
+ * The twin-saber parry — the off-hand blade crosses to meet the line, the
+ * body turns behind it and returns — played in the game when a met strike
+ * becomes a parry (src/game/melee.ts). Only for fighters with a blade in the
+ * left hand to parry with.
+ */
+export function saberParryClips(p: Proportions, character: string): ClipSet {
+  const out: ClipSet = {};
+  addMove(out, moves.find((candidate) => candidate.id === 'saberParry')!, p, combatStyle(character));
+  return out;
+}

@@ -25,6 +25,10 @@ import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
 import { reachArm } from '../anim/seating';
 import { TEXT } from '../text';
+import {
+  fistSegments, resolveClash, sweepTouches, weaponSegments, weaponMounts, PARRY_SHOVE,
+  type Blade, type Duelist, type Guard, type Segment,
+} from '../game/melee';
 
 /** Anything that can be targeted and hurt — players, enemies, allies. */
 export interface Combatant {
@@ -63,6 +67,27 @@ const HIT_REACTS = new Set(['hitUpper', 'hitFromL', 'hitFromR']);
  * so a dash sideways beats it; the reach on contact is deliberately tighter
  * than the swing's so a sidestep is enough.
  */
+/**
+ * Melee duels (src/game/melee.ts). What each armed hostile swings — the
+ * gaffi, the boarding club, the stone club and the officer's electrostaff are
+ * steel; every rival's blade is energy — and which of them has a parry to
+ * play when its strike is met second.
+ */
+const ENEMY_BLADES: Partial<Record<EnemyKind, Blade>> = {
+  tusken: 'steel', pirateMelee: 'steel', alamite: 'steel', officer: 'steel',
+  rivalMaul: 'energy', rivalRevan: 'energy', rivalVentress: 'energy', rivalGalen: 'energy', rivalMaris: 'energy',
+};
+const ENEMY_PARRY_CLIPS: Partial<Record<EnemyKind, string>> = {
+  rivalVentress: 'saberParryUpper', rivalGalen: 'saberParryUpper', rivalMaris: 'marisFlipOutUpper',
+};
+/** armed with nothing but their hands: struck with the fists, and no parry */
+const FIST_KINDS: ReadonlySet<EnemyKind> = new Set(['enforcer']);
+/** how long past the wind-up a swing can still connect */
+const STRIKE_FOLLOW = 0.16;
+/** the forgiveness on a hostile's blade, as on the player's */
+const STRIKE_MARGIN = 0.15;
+const _strikeAt = new THREE.Vector3();
+
 const DASH_WINDUP = 0.5;
 const DASH_SPEED = 20;
 const DASH_LENGTH = 7;
@@ -209,11 +234,18 @@ function buildRival(id: MandoId, melee: boolean): CharacterInstance {
   };
 }
 
+/**
+ * How close a blade rival steps in before it swings: its blade's measured
+ * reach from its own centre (tools/audit-melee-reach.mjs) plus a body's
+ * radius, less a little so the blade connects rather than grazes.
+ */
+const RIVAL_REACH: Partial<Record<MandoId, number>> = { maul: 1.7, revan: 1.9, ventress: 1.3, jedi: 1.5, maris: 1.7 };
+
 function rivalDef(id: MandoId, melee: boolean, hp = 180): Def {
   return {
     hp, speed: melee ? 7.1 : 6.2, radius: 0.52, height: 1.9,
     style: melee ? 'melee' : 'ranged', damage: melee ? 23 : 13,
-    attackRange: melee ? 3 : 31, attackCd: melee ? 1.35 : 1.75,
+    attackRange: melee ? RIVAL_REACH[id] ?? 1.6 : 31, attackCd: melee ? 1.35 : 1.75,
     notice: 55, ...(melee ? {} : { boltSpeed: 37, volley: 2 }),
     build: () => buildRival(id, melee),
   };
@@ -247,8 +279,8 @@ const RIDE_STEER_GAIN = 1.6;
  *   - **Bosses and monsters** — unchanged; their numbers are the design's.
  */
 const DEFS: Record<EnemyKind, Def> = {
-  tusken:      { hp: 30, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 2.5, attackCd: 1.5, notice: 32, build: buildTusken },
-  pirateMelee: { hp: 32, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 2.6, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
+  tusken:      { hp: 30, speed: 5.6, radius: 0.5, height: 1.8, style: 'melee', damage: 14, attackRange: 1.6, attackCd: 1.5, notice: 32, build: buildTusken },
+  pirateMelee: { hp: 32, speed: 5.0, radius: 0.5, height: 1.9, style: 'melee', damage: 17, attackRange: 1.25, attackCd: 1.7, notice: 30, build: () => buildPirate(true) },
   // War massiff: an elite beast, not a wave-1 critter. Outruns a jog but not a
   // sprint, so breaking away costs the energy gauge; hits hard enough that
   // letting one close is a real mistake, and it pounces to cover the last gap.
@@ -276,12 +308,12 @@ const DEFS: Record<EnemyKind, Def> = {
   rivalEmbo: rivalDef('embo', false),
   rivalBossk: rivalDef('bossk', false, 220),
   rivalBoKatan: rivalDef('bokatan', false, 190),
-  // Closes to the darksaber's reach and hits like a truck when he gets there.
-  officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 3.0, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
+  // Closes to the electrostaff's reach and hits like a truck when he gets there.
+  officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 1.75, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
   // Shielded shooter: out-range him or flank him, he will not be rushed down.
   capo:         { hp: 260, speed: 4.2, radius: 0.55, height: 2.05, style: 'ranged', damage: 14, attackRange: 30, attackCd: 1.8, notice: 50, boltSpeed: 30, volley: 4, build: buildPykeCapo },
   // Two and a half metres of gladiator; slow to arrive, ruinous once there.
-  enforcer:     { hp: 420, speed: 5.4, radius: 0.68, height: 2.6, style: 'melee', damage: 34, attackRange: 3.4, attackCd: 1.6, notice: 45, build: buildWookieeEnforcer },
+  enforcer:     { hp: 420, speed: 5.4, radius: 0.68, height: 2.6, style: 'melee', damage: 34, attackRange: 1.7, attackCd: 1.6, notice: 45, build: buildWookieeEnforcer },
   darktrooper:  { hp: 136, speed: 5.5, radius: 0.55, height: 2.2, style: 'hover', damage: 12, attackRange: 30, attackCd: 2.3, notice: 48, boltSpeed: 30, volley: 2, build: buildDarkTrooper },
   // ---- the new-board roster ----
   // Flame projector: short reach, but the stream suppresses nothing — it has
@@ -297,7 +329,7 @@ const DEFS: Record<EnemyKind, Def> = {
     spawnOnHurt: { kind: 'krykna', per: 0.22, count: 2, max: 8 }, build: buildBroodmother },
   // The net gun barely hurts; being rooted in front of his friends is the hurt.
   quarren:      { hp: 34, speed: 5.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 5, attackRange: 20, attackCd: 3.4, notice: 40, boltSpeed: 19, volley: 1, boltTag: 'net', burnImmune: true, build: buildQuarren },
-  alamite:      { hp: 30, speed: 6.4, radius: 0.5, height: 1.85, style: 'melee', damage: 13, attackRange: 2.5, attackCd: 1.4, notice: 32, build: buildAlamite },
+  alamite:      { hp: 30, speed: 6.4, radius: 0.5, height: 1.85, style: 'melee', damage: 13, attackRange: 1.3, attackCd: 1.4, notice: 32, build: buildAlamite },
   // The drone *is* the projectile: it stalks, then dives and detonates. The
   // dive is committed like the massiff's pounce — a dash beats it.
   drone:        { hp: 30, speed: 8.0, radius: 0.55, height: 1.7, style: 'hover', damage: 24, attackRange: 30, attackCd: 4.0, notice: 60, kamikaze: true, build: buildInterceptorDrone },
@@ -629,6 +661,14 @@ export class Enemy {
   eggThrown = false;
   private eggHit = false;
   private windupTarget: Combatant | null = null;
+  /** the swing's whole wind-up, and the game time it began — the parry's clock */
+  private windupTotal = 0;
+  private windupStartedAt = 0;
+  /** seconds of follow-through after the wind-up in which the weapon can still connect */
+  private strikeFollow = 0;
+  private strikeSegs: Segment[] = [];
+  private strikePrev: Segment[] = [];
+  private strikePrevN = 0;
   /** the committed second move winding up or in flight, if any (see DASH_* / SLAM_*) */
   private special: 'dash' | 'slam' | null = null;
   /** seconds of the officer's lunge left; `dashDir` is the line, fixed at launch */
@@ -1114,7 +1154,7 @@ export class Enemy {
     this.hitFlash = 0.15;
     // hit out of the wind-up — except the committed second moves, which are
     // telegraphed precisely so that the answer is to move, not to shoot
-    if (this.hp > 0 && this.windup > 0 && !this.special) this.windup = 0;
+    if (this.hp > 0 && (this.windup > 0 || this.strikeFollow > 0) && !this.special) { this.windup = 0; this.strikeFollow = 0; }
 
     // Gut-shot: a hit that leaves a grounded humanoid nearly dead can drop it
     // into a wounded crawl instead of a clean fight-on — it is out of the
@@ -1128,7 +1168,7 @@ export class Enemy {
       this.wounded = true;
       this.bleedOut = 8 + Math.random() * 4;
       this.woundedPosed = false;
-      this.windup = 0;
+      this.windup = 0; this.strikeFollow = 0;
       this.volleyLeft = 0;
       this.special = null;
       this.dashT = 0;
@@ -1249,7 +1289,7 @@ export class Enemy {
     // replay the fall — which snapped the body upright to topple it again
     const wasDown = this.downTimer > 0;
     this.downTimer = Math.max(this.downTimer, secs);
-    this.windup = 0;
+    this.windup = 0; this.strikeFollow = 0;
     this.volleyLeft = 0;
     this.leapT = 0;   // knocked out of the air: the leap (and its slam) is lost
     this.special = null;   // and a lunge or slam winding up is lost with it
@@ -2636,6 +2676,92 @@ export class Enemy {
     this.attackCd = Math.max(this.attackCd, 0.9);
   }
 
+  /** what this one meets a blade with; null for anything that bites or claws */
+  get meleeBlade(): Blade | null { return ENEMY_BLADES[this.kind] ?? null; }
+
+  /** mid-swing at somebody, through the follow-through: a blade arriving now meets it */
+  meleeGuard(): Guard | null {
+    if (!this.alive || this.special || !(this.windup > 0 || this.strikeFollow > 0) || !this.windupTarget) return null;
+    const blade = this.meleeBlade;
+    return blade ? { blade, startedAt: this.windupStartedAt, target: this.windupTarget } : null;
+  }
+
+  /** our swing met a blade (src/game/melee.ts): it is spent, and the clash shoves us back */
+  parried(from: THREE.Vector3, react: boolean): void {
+    this.windup = 0;
+    this.strikeFollow = 0;
+    this.windupTarget = null;
+    this.attackCd = Math.max(this.attackCd, this.def.attackCd * 0.6);
+    this.knockback(from, PARRY_SHOVE, 0.35, 0.05);
+    const clip = react ? ENEMY_PARRY_CLIPS[this.kind] : undefined;
+    const anim = this.char.animator;
+    if (clip && anim?.clips[clip]) anim.playOnce('upper', clip, 0.05);
+    else this.contactStop(0.08);
+  }
+
+  /**
+   * A swing's contact. With a weapon to measure, the blade is swept against
+   * its target through the last third of the wind-up — where the clip brings
+   * it down — and a short follow-through; it lands where it meets the body,
+   * and misses if it never does. A creature, with nothing in its hands, bites
+   * by reach at the end of the wind-up as it always has.
+   */
+  private updateStrike(game: Game, windupEnded: boolean): void {
+    const d = this.def;
+    const t = this.windupTarget!;
+    const n = this.meleeBlade ? weaponSegments(weaponMounts(this.char), this.strikeSegs)
+      : FIST_KINDS.has(this.kind) ? fistSegments(this.char.rig?.bones as Record<string, THREE.Object3D> | undefined, this.strikeSegs)
+      : 0;
+    if (n === 0) {
+      if (!windupEnded) return;
+      const hd = t.position.distanceTo(this.position);
+      if (hd < d.attackRange + 0.6 && t.alive) {
+        t.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
+        this.contactStop();
+      }
+      this.attackCd = d.attackCd;
+      this.windupTarget = null;
+      return;
+    }
+    if (windupEnded) {
+      this.attackCd = d.attackCd;
+      this.strikeFollow = STRIKE_FOLLOW;
+    }
+    const live = this.windup <= this.windupTotal * 0.4;
+    if (live && t.alive) {
+      for (let i = 0; i < n; i++) {
+        const prev = this.strikePrevN === n ? this.strikePrev[i] : undefined;
+        if (!sweepTouches(prev, this.strikeSegs[i], t, STRIKE_MARGIN, _strikeAt)) continue;
+        this.landStrike(game, t, _strikeAt);
+        return;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const src = this.strikeSegs[i];
+      const dst = this.strikePrev[i] ??= { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 };
+      dst.a.copy(src.a); dst.b.copy(src.b); dst.r = src.r;
+    }
+    this.strikePrevN = n;
+    if (this.windup <= 0 && this.strikeFollow <= 0) this.windupTarget = null;   // whiffed
+  }
+
+  /** the weapon reached `t`: a clash, a cut through its guard, or a hit */
+  private landStrike(game: Game, t: Combatant, at: THREE.Vector3): void {
+    const clash = resolveClash(this, this.meleeBlade, t);
+    if (clash.kind === 'parry') {
+      game.meleeClash(this, this.windupStartedAt, t as Duelist, clash.sound, at);
+      return;
+    }
+    this.windup = 0;
+    this.strikeFollow = 0;
+    this.windupTarget = null;
+    this.attackCd = this.def.attackCd;
+    if (clash.kind === 'sheared') { game.meleeShear(this, t, at); return; }
+    if (clash.kind === 'cut') game.bladeCut(at);
+    t.damage(this.def.damage * this.dmgScale, this.position, -1, { heavy: true });
+    this.contactStop();
+  }
+
   private updateMelee(dt: number, game: Game, target: Combatant): void {
     const d = this.def;
     const to = target.position.clone().sub(this.position);
@@ -2643,21 +2769,16 @@ export class Enemy {
     const dist = to.length();
     this.faceToward(dt, target.position.x, target.position.z);
 
-    if (this.windup > 0) {
-      this.windup -= dt;
+    if (this.windup > 0 || this.strikeFollow > 0) {
+      const wasWinding = this.windup > 0;
+      if (wasWinding) this.windup -= dt;
+      else this.strikeFollow -= dt;
       this.velocity.x = damp(this.velocity.x, 0, 10, dt);
       this.velocity.z = damp(this.velocity.z, 0, 10, dt);
       if (this.special) this.telegraphSpecial(dt, game);
       if (this.windup <= 0 && this.special === 'dash') { this.launchDash(target); return; }
       if (this.windup <= 0 && this.special === 'slam') { this.groundShock(game); return; }
-      if (this.windup <= 0 && this.windupTarget) {
-        const hd = this.windupTarget.position.distanceTo(this.position);
-        if (hd < d.attackRange + 0.6 && this.windupTarget.alive) {
-          this.windupTarget.damage(d.damage * this.dmgScale, this.position, -1, { heavy: true });
-          this.contactStop();
-        }
-        this.attackCd = d.attackCd;
-      }
+      if (!this.special && this.windupTarget) this.updateStrike(game, wasWinding && this.windup <= 0);
       return;
     }
 
@@ -2758,6 +2879,9 @@ export class Enemy {
         // so time it near the clip's strike frame (~55% in) rather than its tail.
         if (this.char.attack) this.windup = Math.max(0.4, this.char.attack() * 0.7);
         else if (this.char.animator) this.char.animator.playOnce('upper', 'enemySwing', 0.06);
+        this.windupTotal = this.windup;
+        this.windupStartedAt = game.time;
+        this.strikePrevN = 0;
       }
     }
   }

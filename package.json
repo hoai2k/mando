@@ -14,7 +14,8 @@
     "audit:hitboxes": "node tools/audit-hitboxes.mjs",
     "audit:props": "node tools/audit-props.mjs",
     "audit:strays": "node tools/audit-strays.mjs",
-    "audit:eggrack": "node tools/audit-eggrack.mjs"
+    "audit:eggrack": "node tools/audit-eggrack.mjs",
+    "audit:melee": "node tools/audit-melee-reach.mjs"
   },
   "dependencies": {
     "three": "^0.168.0"

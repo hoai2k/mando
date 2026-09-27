@@ -8,6 +8,7 @@ import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
+import { isDuelist, type Duelist } from './melee';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
@@ -1041,6 +1042,37 @@ export class Game {
       const d = b.center.distanceTo(point);
       if (d < radius + b.radius) this.hurtBreakable(b, dmg * (1 - Math.max(0, d - b.radius) / (radius + 1)));
     }
+  }
+
+  /**
+   * Two strikes met (src/game/melee.ts): neither lands. The blades clash —
+   * the saber crackle or the steel clang — sparks fly where they met, both
+   * fighters are thrown back a step, and whichever of the two started their
+   * strike later turns it into a parry.
+   */
+  meleeClash(a: Duelist, aStartedAt: number, b: Duelist, sound: 'saber' | 'steel', at: THREE.Vector3): void {
+    const bStartedAt = b.meleeGuard()?.startedAt ?? aStartedAt;
+    const aLater = aStartedAt >= bStartedAt;
+    audio.clash(sound);
+    this.particles.impactSparks(at, sound === 'saber' ? 18 : 12);
+    a.parried(b.position, aLater);
+    b.parried(a.position, !aLater);
+  }
+
+  /**
+   * A conventional strike swung into an energy blade (or beskar) coming the
+   * other way: the cutting blade goes straight through it. The striker's blow
+   * is spent and it is thrown back; the cutting strike carries on and lands.
+   */
+  meleeShear(striker: Combatant, cutter: Combatant, at: THREE.Vector3): void {
+    this.bladeCut(at);
+    if (isDuelist(striker)) striker.parried(cutter.position, false);
+  }
+
+  /** a cutting blade went through a conventional weapon's guard */
+  bladeCut(at: THREE.Vector3): void {
+    audio.bladeShear();
+    this.particles.impactSparks(at, 14);
   }
 
   /**

@@ -23,6 +23,33 @@ import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
 import { pickStyleMove } from '../characters/styleClips';
+import {
+  fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
+  weaponMounts, type Blade, type Duelist, type Guard, type Segment,
+} from '../game/melee';
+
+/** fighters whose strike is a fist, a claw or a jaw: no blade to parry with */
+const UNARMED_MELEE: ReadonlySet<string> = new Set([
+  'npc:massiff', 'npc:krykna', 'npc:broodmother', 'npc:spiderling', 'npc:enforcer',
+]);
+/**
+ * The parry clip each fighter turns a met strike into, when there is one for
+ * the blades in hand: the twin-saber left-hand parry (combatStudies.ts), and
+ * Maris' block-then-flip-out, which opens on exactly that block.
+ */
+export const PARRY_CLIPS: Partial<Record<string, string>> = {
+  ventress: 'saberParryUpper', jedi: 'saberParryUpper', maris: 'marisFlipOutUpper',
+};
+/** a blade that visibly grazed a body counts: the forgiveness on every swing (m) */
+const SWING_MARGIN = 0.15;
+/**
+ * Where the lunge stops, past the target's radius: inside every blade's reach
+ * (the shortest, a curved saber, is ~1.0 m from the centre) and outside the
+ * two bodies' touching distance. Fists stop closer.
+ */
+const LUNGE_STANDOFF = 0.9;
+const LUNGE_STANDOFF_BARE = 0.6;
+const _contact = new THREE.Vector3();
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -600,6 +627,33 @@ export class Player {
   private meleeTimer = 0;
   private meleeComboWindow = 0;
   private meleeHitPending = 0;
+  /**
+   * The swing in flight, as contact sees it (src/game/melee.ts): how long it
+   * has run, how long it is, when its clip means to connect, and who it has
+   * already struck. `swingDur` 0 means no swing is resolving.
+   */
+  private swingT = 0;
+  private swingDur = 0;
+  private swingHitAt = 0;
+  private swingStartedAt = 0;
+  /** the blade met another blade, or has run out of window: nothing more lands */
+  private swingDone = false;
+  private swingLanded = false;
+  private swingPropsDone = false;
+  /** furthest the weapon has reached in front this swing — what props are struck at */
+  private swingReach = 0;
+  private swingStruck = new Set<Combatant>();
+  private swingSegs: Segment[] = [];
+  private swingPrev: Segment[] = [];
+  private swingPrevN = 0;
+  /**
+   * What the lunge is carrying the swing onto. Contact is the blade now, so
+   * the lunge has to deliver it: until the contact key it keeps the body
+   * moving at the target and stops at blade's length, rather than one shove
+   * that the ground's grip bled off after a metre.
+   */
+  private lungeTarget: Combatant | null = null;
+  private lungeSpeed = 0;
   /** seconds a swing press is remembered while the current swing plays out */
   private meleeBuffer = 0;
   private meleeDamage = 0;
@@ -885,6 +939,7 @@ export class Player {
     this.snareTimer = 0;
     this.hurtFlash = 0;
     this.meleeTimer = 0;
+    this.swingDur = 0;
     this.queuedHipShot = false;
     this.hipFireRaise = 0;
     this.gunRaised = false;
@@ -2520,6 +2575,208 @@ export class Player {
   }
 
   /**
+   * What this fighter meets a blade with, or null when the swing is a fist, a
+   * claw or a jaw — those neither parry nor are parried. Every saber is energy,
+   * the darksaber included; Din's spear is beskar; the rest is steel.
+   */
+  get meleeBlade(): Blade | null {
+    if (this.meleeBare || UNARMED_MELEE.has(this.characterId)) return null;
+    if (this.meleeKind === 'sabers') return 'energy';
+    return this.characterId === 'din' ? 'beskar' : 'steel';
+  }
+
+  /** mid-strike, anywhere in the swing's contact window: a blade arriving now meets this one */
+  meleeGuard(): Guard | null {
+    if (!this.alive || this.swingDur <= 0 || this.swingDone) return null;
+    if (this.swingT > this.swingClose) return null;
+    const blade = this.meleeBlade;
+    return blade ? { blade, startedAt: this.swingStartedAt, target: null } : null;
+  }
+
+  /**
+   * Our strike met a blade (src/game/melee.ts): it is spent, and the clash
+   * throws us back a step. The later of the two strikers turns theirs into a
+   * parry when they have a parry clip for the weapon in hand.
+   */
+  parried(from: THREE.Vector3, react: boolean): void {
+    this.swingDone = true;
+    this.meleeHitPending = 0;
+    this.meleeBuffer = 0;
+    const anim = this.char.animator;
+    const clip = react && this.meleeKind === 'sabers' ? PARRY_CLIPS[this.characterId] : undefined;
+    if (clip && anim?.clips[clip]) {
+      this.meleeTimer = anim.playOnce('upper', clip, 0.05) * 0.85;
+    } else {
+      this.meleeTimer = Math.min(this.meleeTimer, 0.2);
+    }
+    this.hitStop = 0.07;
+    this.cam.shake(0.12);
+    const dx = this.position.x - from.x, dz = this.position.z - from.z;
+    const len = Math.hypot(dx, dz) || 1;
+    this.velocity.x = (dx / len) * PARRY_SHOVE;
+    this.velocity.z = (dz / len) * PARRY_SHOVE;
+  }
+
+  /** one frame of the lunge: on at the target until the blade is in reach of it */
+  private carryLunge(dt: number): void {
+    const t = this.lungeTarget!;
+    if (!t.alive || this.meleeTimer <= 0 || this.swingDone || this.swingT >= this.swingHitAt) {
+      this.lungeTarget = null;
+      return;
+    }
+    const dx = t.position.x - this.position.x, dz = t.position.z - this.position.z;
+    const d = Math.hypot(dx, dz);
+    const stop = t.radius + (this.meleeBare ? LUNGE_STANDOFF_BARE : LUNGE_STANDOFF);
+    if (d <= stop) { this.lungeTarget = null; return; }
+    const v = Math.min(this.lungeSpeed, (d - stop) / Math.max(dt, 1e-3));
+    this.velocity.x = (dx / d) * v;
+    this.velocity.z = (dz / d) * v;
+    this.facingYaw = Math.atan2(dx, dz);
+  }
+
+  /** where a swing's contact window shuts: a third of the clip past its contact key */
+  private get swingClose(): number {
+    return Math.min(this.swingDur * 0.92, this.swingHitAt + this.swingDur * 0.35);
+  }
+
+  private beginSwingContact(dur: number, hitAt: number, game: Game): void {
+    this.swingT = 0;
+    this.swingDur = dur;
+    this.swingHitAt = hitAt;
+    this.swingStartedAt = game.time;
+    this.swingDone = false;
+    this.swingLanded = false;
+    this.swingPropsDone = false;
+    this.swingReach = 0;
+    this.swingStruck.clear();
+    this.swingPrevN = 0;
+  }
+
+  /**
+   * One frame of a swing's contact. From halfway to the clip's own contact
+   * key until a third of the clip past it, the weapon's meshes are swept
+   * against every hostile body; whatever they meet is struck, once. A body
+   * with no weapon and no hands to measure (the creatures) strikes the old
+   * way, by reach, on the contact key.
+   */
+  private updateSwingContact(dt: number, game: Game): void {
+    const before = this.swingT;
+    this.swingT += dt;
+    const open = this.swingHitAt * 0.5;
+    const close = this.swingClose;
+    const bones = this.char.rig?.bones as Record<string, THREE.Object3D> | undefined;
+    let n = this.meleeBare ? 0 : weaponSegments(weaponMounts(this.char), this.swingSegs);
+    if (n === 0) n = fistSegments(bones, this.swingSegs);
+    if (n === 0) {
+      if (before < this.swingHitAt && this.swingT >= this.swingHitAt) this.strikeByReach(game);
+    } else if (this.swingT >= open && !this.swingDone) {
+      this.swingReach = Math.max(this.swingReach, forwardReach(this.swingSegs, n, this.position, this.facingYaw));
+      for (const e of game.hostilesFor(this)) {
+        if (!e.alive || this.swingStruck.has(e)) continue;
+        for (let i = 0; i < n; i++) {
+          const prev = this.swingPrevN === n ? this.swingPrev[i] : undefined;
+          if (!sweepTouches(prev, this.swingSegs[i], e, SWING_MARGIN, _contact)) continue;
+          this.strike(e, _contact, game);
+          break;
+        }
+        if (this.swingDone) break;
+      }
+    }
+    // keep this frame's blade for next frame's sweep
+    for (let i = 0; i < n; i++) {
+      const src = this.swingSegs[i];
+      const dst = this.swingPrev[i] ??= { a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 };
+      dst.a.copy(src.a); dst.b.copy(src.b); dst.r = src.r;
+    }
+    this.swingPrevN = n;
+    // The scenery: a crate, a barrel, a supply cache or a parked ride is as
+    // breakable with a blade as it is with a bolt — struck out to where the
+    // weapon actually reached, once the swing has been through its arc.
+    if (!this.swingPropsDone && this.swingT >= close) {
+      this.swingPropsDone = true;
+      if (!this.swingDone || this.swingLanded) {
+        const reach = n > 0 ? Math.max(this.swingReach, 0.8) + SWING_MARGIN : this.meleeRange + 1.2;
+        if (game.meleeProps(this.position, this.facingYaw, reach, this.meleeDamage, this.slot)) this.landedFeedback(game);
+      }
+      this.swingDone = true;
+    }
+    if (this.swingT >= this.swingDur) this.swingDur = 0;
+  }
+
+  /** the swing met `e`: a clash, a cut through a guard, or a plain hit */
+  private strike(e: Combatant, at: THREE.Vector3, game: Game): void {
+    this.swingStruck.add(e);
+    const clash = resolveClash(this, this.meleeBlade, e);
+    if (clash.kind === 'parry') {
+      game.meleeClash(this, this.swingStartedAt, e as Duelist, clash.sound, at);
+      return;
+    }
+    if (clash.kind === 'sheared') {
+      game.meleeShear(this, e, at);
+      return;
+    }
+    if (clash.kind === 'cut') game.bladeCut(at);
+    const toward = e.position.clone().sub(this.position).setY(0);
+    if (toward.lengthSq() < 1e-6) toward.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    this.landHit(e, toward.normalize(), game);
+  }
+
+  /** damage and shove one body; the finisher is the haymaker */
+  private landHit(e: Combatant, to: THREE.Vector3, game: Game): void {
+    const wasAlive = e.alive;
+    e.damage(this.meleeDamage, this.position, this.slot);
+    // the finisher is the haymaker: it puts the target flat on the
+    // ground (follow up while they're down and hits land double)
+    const en = e as Partial<Enemy> & typeof e;
+    if (en.knockback && en.knockdown) {
+      if (this.meleeStep === 3) {
+        en.knockback(this.position, 12, 0.35, 0.08);
+        en.knockdown(1.6 + Math.random() * 0.5);
+      } else {
+        en.knockback(this.position, 11, 0.32);
+      }
+    } else {
+      // a rival player has no knockdown state: shove the body instead
+      const push = to.multiplyScalar(this.meleeStep === 3 ? 9 : 6);
+      e.velocity.x += push.x;
+      e.velocity.z += push.z;
+      e.velocity.y += 2;
+    }
+    if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
+    this.landedFeedback(game);
+  }
+
+  /** the first thing a swing lands on sounds, shakes and hangs the swing */
+  private landedFeedback(game: Game): void {
+    if (this.swingLanded) return;
+    this.swingLanded = true;
+    audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
+    this.cam.shake(0.1);
+    game.hitMarker(this.slot);
+    // hit-stop: the attacker's animation hangs for a few frames on
+    // contact (heavier on the finisher), which is most of what makes
+    // a hit feel like it landed on something solid
+    this.hitStop = this.meleeStep === 3 ? 0.09 : 0.055;
+  }
+
+  /**
+   * The creatures' strike: no weapon to measure, so reach it is — out to
+   * `meleeRange` from the centre to the nearest of the target's volumes, in
+   * the arc in front.
+   */
+  private strikeByReach(game: Game): void {
+    const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
+    for (const e of game.hostilesFor(this)) {
+      if (!e.alive) continue;
+      const near = this.meleeNearest(e);
+      if (near.dist > this.meleeRange) continue;
+      if (near.toward.dot(facing) < 0.25) continue;
+      this.swingStruck.add(e);
+      this.landHit(e, near.toward, game);
+    }
+  }
+
+  /**
    * How far a swing has to reach to touch `e`, and which way that is.
    *
    * Distance is to the *surface* of the nearest of the target's hit volumes —
@@ -2761,6 +3018,7 @@ export class Player {
     this.snareTimer -= dt;
     this.meleeTimer = 0;
     this.meleeHitPending = 0;
+    this.swingDur = 0;
     this.slamming = false;
     this.swimming = false;
     this.wading = false;
@@ -3152,6 +3410,7 @@ export class Player {
       this.meleeHitPending = dur * (variant?.hit ?? 0.45);
       this.meleeDamage = (this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage)
         * (bare ? 0.4 : 1);
+      this.beginSwingContact(dur, this.meleeHitPending, game);
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
       // until the idle timer puts them back.
@@ -3168,6 +3427,8 @@ export class Player {
         this.velocity.z = dir.z * (bare ? 10 : 13);
         this.facingYaw = Math.atan2(dir.x, dir.z);
       }
+      this.lungeTarget = target;
+      this.lungeSpeed = bare ? 10 : 13;
       // With no lunge to carry the body, the legs join the swing: weight drop,
       // step, pivot — one-shots matched to each upper's duration. A move that
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
@@ -3194,63 +3455,9 @@ export class Player {
       this.char.setWeapon(stowed);
     }
     this.updateSaberStow(dt, input);
-    if (this.meleeHitPending > 0) {
-      this.meleeHitPending -= dt;
-      if (this.meleeHitPending <= 0) {
-        let hitAny = false;
-        const facing = new THREE.Vector3(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
-        for (const e of game.hostilesFor(this)) {
-          if (!e.alive) continue;
-          // Swing at the body a bolt would hit, not at the point the body is
-          // filed under. A blade used to measure to `position` and `radius`
-          // alone — one sphere on the chest — which is fine for a trooper and
-          // nonsense for anything long: a war massiff is five metres of animal
-          // and the Dune Sea's worm is a head on a neck the height of a house.
-          // Standing under the worm's jaw and swinging did nothing at all,
-          // which is what a playtest found. The extra spheres are already
-          // there; they are what bolts aim at (`Game.addBody`), so the blade
-          // reads the same ones.
-          const near = this.meleeNearest(e);
-          if (near.dist > this.meleeRange) continue;
-          const to = near.toward;
-          if (to.dot(facing) < 0.25) continue;
-          const wasAlive = e.alive;
-          e.damage(this.meleeDamage, this.position, this.slot);
-          // the finisher is the haymaker: it puts the target flat on the
-          // ground (follow up while they're down and hits land double)
-          const en = e as Partial<Enemy> & typeof e;
-          if (en.knockback && en.knockdown) {
-            if (this.meleeStep === 3) {
-              en.knockback(this.position, 12, 0.35, 0.08);
-              en.knockdown(1.6 + Math.random() * 0.5);
-            } else {
-              en.knockback(this.position, 11, 0.32);
-            }
-          } else {
-            // a rival player has no knockdown state: shove the body instead
-            const push = to.multiplyScalar(this.meleeStep === 3 ? 9 : 6);
-            e.velocity.x += push.x;
-            e.velocity.z += push.z;
-            e.velocity.y += 2;
-          }
-          hitAny = true;
-          if (wasAlive && !e.alive) this.fuel = Math.min(1, this.fuel + 0.4); // melee kill refunds fuel
-        }
-        // and the scenery: a crate, a barrel, a supply cache or a parked ride
-        // is as breakable with a blade as it is with a bolt
-        if (game.meleeProps(this.position, this.facingYaw, this.meleeRange + 1.2,
-          this.meleeDamage, this.slot)) hitAny = true;
-        if (hitAny) {
-          audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
-          this.cam.shake(0.1);
-          game.hitMarker(this.slot);
-          // hit-stop: the attacker's animation hangs for a few frames on
-          // contact (heavier on the finisher), which is most of what makes
-          // a hit feel like it landed on something solid
-          this.hitStop = this.meleeStep === 3 ? 0.09 : 0.055;
-        }
-      }
-    }
+    if (this.meleeHitPending > 0) this.meleeHitPending -= dt;
+    if (this.lungeTarget) this.carryLunge(dt);
+    if (this.swingDur > 0) this.updateSwingContact(dt, game);
 
     // Blaster. The trigger is also the draw: a player who just swung comes out
     // of it shooting rather than losing a beat to a swap they never asked for.
@@ -3428,6 +3635,9 @@ export class Player {
     this.meleeComboWindow = dur + 0.55;
     this.meleeHitPending = dur * 0.6;
     this.meleeDamage = this.profile.meleeFinisher * (bare ? 0.4 : 1);
+    this.beginSwingContact(this.meleeTimer, this.meleeHitPending, game);
+    this.lungeTarget = target;
+    this.lungeSpeed = 16;
     this.flourished = false;
     audio.melee(3, bare ? 'gaffi' : this.meleeKind);
     audio.dash();

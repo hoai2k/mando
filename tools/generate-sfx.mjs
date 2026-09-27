@@ -38,6 +38,12 @@ const SFX = {
   saber_swing: ['Energy sword swing: smooth tonal hum sweeping with fast doppler, electric harmonic edge, no air whoosh, single swing, no impact', 0.7],
   saber_ignite: ['Twin energy blades igniting: sharp crackle snap into a fast rising hum that settles into a steady tone, single ignition', 0.8],
   saber_deflect: ['Energy blade parrying a blaster bolt: short bright metallic ping with an electric crackle and a fast sizzling tail, dry, no reverb', 0.5],
+  // melee parries (src/game/melee.ts): two blades meeting, not a blade meeting a body
+  saber_clash_1: ['Two humming laser swords striking each other in a parry, classic space-opera energy blade clash: an explosive crackling electrical zap-crash of high-voltage static arcing, a harsh buzzing distorted hum surge that flares loud as the blades bind and then sizzles away, no metallic ring, no clang, single clash, dry, no reverb', 0.9],
+  saber_clash_2: ['Two humming laser swords striking each other in a parry, classic space-opera energy blade clash: an explosive crackling electrical zap-crash of high-voltage static arcing, a harsh buzzing distorted hum surge that flares loud as the blades bind and then sizzles away, no metallic ring, no clang, single clash, dry, no reverb', 0.9],
+  saber_clash_3: ['Two humming laser swords striking each other in a parry, classic space-opera energy blade clash: an explosive crackling electrical zap-crash of high-voltage static arcing, a harsh buzzing distorted hum surge that flares loud as the blades bind and then sizzles away, no metallic ring, no clang, single clash, dry, no reverb', 0.9],
+  weapon_clash: ['Two heavy metal-shod melee staffs clashing in a parry: hard ringing clang of steel on steel with a wooden knock under it and a short scraping grind, single clash, dry, no reverb', 0.7],
+  blade_shear: ['Energy sword slicing straight through a metal staff: fast hissing crackle cut with a molten metal sizzle and a snapped piece clattering, single cut, dry, no reverb', 0.8],
   boss_horn: ['Massive dark war horn call announcing a boss battle: deep brassy swell rising over two seconds into a huge percussive orchestral hit with a low drum boom, cinematic, dry tail', 3],
   // --- second monster batch (docs/BOSSES.md 2.7-2.10) ---
   sandworm_roar: ['Colossal burrowing desert worm erupting from sand: vast wet shrieking bellow through a ringed toothed gullet, sand blasting outward, no music', 3],
