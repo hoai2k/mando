@@ -22,7 +22,7 @@ import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
-import { pickStyleMove, type StyleMove } from '../characters/styleClips';
+import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -1312,9 +1312,11 @@ export class Player {
   /** blades out and free to work */
   /**
    * The ready a fighter with a stance of their own stands in with blades lit:
-   * rolled once each time the blades come out, between the original guard
-   * (null) and their approved stance (styleClips.ts), and kept until they go
-   * away — a stance that changed from one frame to the next would not be one.
+   * rolled between the original guard (null) and their approved stance
+   * (styleClips.ts) each time the blades come out and again with every
+   * swing, so they may settle into a different one after each attack — but
+   * never mid-stance, since one that changed from frame to frame would not be
+   * a stance at all.
    */
   private bladeStance(): StyleMove | null {
     const drawn = this.sabersDrawn;
@@ -1324,6 +1326,8 @@ export class Player {
   }
   private stance: StyleMove | null = null;
   private stanceDrawn = false;
+  /** the grip the last attack left the blade in */
+  private attackGrip: Grip = 'forward';
 
   get sabersDrawn(): boolean {
     return this.alive && this.weapon === 'gaffi' && this.meleeKind === 'sabers';
@@ -3155,7 +3159,11 @@ export class Player {
       // one-in-four chance to use its faster, individually keyed variation.
       // A fighter with a style of their own draws each hit at random between
       // the original and their approved style moves (styleClips.ts).
-      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3);
+      // The blade is in whatever grip the last attack left it, mid-combo, or
+      // the stance's grip out of a standing ready; a strike that starts in it
+      // is the likelier draw.
+      const inGrip = this.meleeComboWindow > 0 ? this.attackGrip : gripEnd(this.sabersDrawn ? this.stance : null);
+      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
       const variant: { upper: string; lower: string; hit: number; lowerAlways?: boolean } | null =
         this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
           : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
@@ -3193,6 +3201,10 @@ export class Player {
         this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
+      // the fighter comes out of every attack free to settle into either ready,
+      // leaning toward the one that keeps the grip the attack ended in
+      this.attackGrip = gripEnd(style);
+      this.stance = pickStyleMove(this.characterId, 'idle', this.attackGrip);
     }
     // Combo punctuation: when the window lapses with blades still lit, the
     // wrists circle both sabers once and settle into the guard. The window

@@ -20,6 +20,8 @@ import { registerGripSpin } from './gripSpin';
  */
 
 export type StyleSlot = 1 | 2 | 3 | 'flourish' | 'idle';
+/** which way the blade sits in the hand: forward, or reversed below the little finger */
+export type Grip = 'forward' | 'reverse';
 export interface StyleMove {
   id: string;
   name: string;
@@ -29,7 +31,11 @@ export interface StyleMove {
   lower: string;
   /** the move turns the whole body, so its legs play even under a lunge */
   lowerAlways?: boolean;
+  /** the grip it starts and ends in; forward throughout when not given, as every original is */
+  grip?: { start: Grip; end: Grip };
 }
+
+const REVERSE_HELD = { start: 'reverse', end: 'reverse' } as const;
 
 const MOVES: Record<string, StyleMove[]> = {
   maul: [
@@ -39,10 +45,10 @@ const MOVES: Record<string, StyleMove[]> = {
     { id: 'maulFigureEight', name: 'Figure-eight flourish', slot: 'flourish', upper: 'maulFigureEightUpper', lower: 'maulFigureEightLower' },
   ],
   jedi: [
-    { id: 'starkillerSweep', name: 'Reverse-grip sweep', slot: 1, upper: 'starkillerSweepUpper', lower: 'starkillerSweepLower' },
-    { id: 'starkillerFlip', name: 'Flip to reverse and stab', slot: 2, upper: 'starkillerFlipUpper', lower: 'starkillerFlipLower' },
-    { id: 'starkillerWhirl', name: 'Reverse-grip whirlwind', slot: 3, upper: 'starkillerWhirlUpper', lower: 'starkillerWhirlLower', lowerAlways: true },
-    { id: 'starkillerStance', name: 'Reverse-grip stance', slot: 'idle', upper: 'starkillerStanceUpper', lower: 'starkillerStanceLower' },
+    { id: 'starkillerSweep', name: 'Reverse-grip sweep', slot: 1, upper: 'starkillerSweepUpper', lower: 'starkillerSweepLower', grip: REVERSE_HELD },
+    { id: 'starkillerFlip', name: 'Flip to reverse and stab', slot: 2, upper: 'starkillerFlipUpper', lower: 'starkillerFlipLower', grip: { start: 'forward', end: 'reverse' } },
+    { id: 'starkillerWhirl', name: 'Reverse-grip whirlwind', slot: 3, upper: 'starkillerWhirlUpper', lower: 'starkillerWhirlLower', lowerAlways: true, grip: REVERSE_HELD },
+    { id: 'starkillerStance', name: 'Reverse-grip stance', slot: 'idle', upper: 'starkillerStanceUpper', lower: 'starkillerStanceLower', grip: REVERSE_HELD },
   ],
   maris: [
     { id: 'marisJab', name: 'Spinning jab', slot: 1, upper: 'marisJabUpper', lower: 'marisJabLower' },
@@ -358,12 +364,31 @@ export function styleClips(character: string, p: Proportions): ClipSet {
   return clips;
 }
 
-/** An approved style move for this combo step or the flourish, or null for the original. */
-export function pickStyleMove(character: string, slot: StyleSlot): StyleMove | null {
+export const gripStart = (m: StyleMove | null): Grip => m?.grip?.start ?? 'forward';
+export const gripEnd = (m: StyleMove | null): Grip => m?.grip?.end ?? 'forward';
+
+/** how much likelier a move is when it starts in the grip the blade is already in */
+const SAME_GRIP = 3;
+
+/**
+ * An approved style move for this combo step, the flourish or the stance, or
+ * null for the original. Given the grip the blade is in now, a move that
+ * starts in that grip is `SAME_GRIP` times as likely as one that would have to
+ * turn it over first: out of a reverse-grip stance the reversed strikes come
+ * up far more often, out of the forward guard the forward ones do, and a
+ * reversed strike tends to settle into the reversed stance.
+ */
+export function pickStyleMove(character: string, slot: StyleSlot, grip?: Grip): StyleMove | null {
   const moves = styleMoves(character).filter((m) => m.slot === slot);
   // no draw at all when there is nothing to choose: a fighter without a style
   // leaves the dice where they were, so a seeded run replays as it always did
   if (!moves.length) return null;
-  const pick = Math.floor(Math.random() * (moves.length + 1));
-  return pick < moves.length ? moves[pick] : null;
+  const options: Array<StyleMove | null> = [null, ...moves];
+  const weights = options.map((m) => (grip && gripStart(m) === grip ? SAME_GRIP : 1));
+  let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < options.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return options[i];
+  }
+  return options[options.length - 1];
 }
