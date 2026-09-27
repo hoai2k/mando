@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import workbenchExport from './data/armorerWeaponGrips.json';
+import { gripClipKey } from './gripClipKey';
 
 /**
  * Workbench pose names translated to the upper clips used in play. The export
@@ -32,7 +33,7 @@ export const ARMORER_AXE_EDGE_LOCAL = new THREE.Vector3(0, 0, 1);
 export function armorerAxeGripForClip(upperClip: string | null): typeof idleGrip {
   // The workbench can substitute a counterweight variant of the same upper
   // attack. That only changes the free arm, not the right-hand weapon grip.
-  return grips.get((upperClip ?? '').replace(/Offhand\d+$/, '')) ?? idleGrip;
+  return grips.get(gripClipKey(upperClip)) ?? idleGrip;
 }
 
 /** Apply the absolute hand-local pose and the one scale shared by all clips. */

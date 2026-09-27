@@ -39,9 +39,23 @@ try {
     null, { timeout: 120000 });
   const inGame = await h.page.evaluate(() => window.__input.padForPlayer.slice());
   check('match keeps the keyboard gap and P2 pad', inGame[0] === -1 && inGame[1] === 0, inGame);
+  // Count frames, not seconds. The menu path lands on a board that, drawn
+  // twice for split screen under the software renderer, advanced 0.85 s of
+  // match in about three minutes of wall time — so a 20 s wait timed out on a
+  // pad that was working. `__stepFrame` runs the real frame, pad polling and
+  // per-slot `input.read` included, so the routing is still what is tested;
+  // only the clock is ours.
+  await h.manual(true);
   await h.pad.stick('left', 0, -1);
-  await h.page.waitForFunction(() => window.__game.players[1].velocity.length() > 0.5,
-    null, { timeout: 20000 });
+  const frames = await h.page.evaluate(async () => {
+    for (let i = 1; i <= 60; i++) {
+      window.__stepFrame(1 / 30);
+      if (window.__game.players[1].velocity.length() > 0.5) return i;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return null;
+  });
+  check('the pad moves P2 within a few frames', frames !== null, { frames });
   const speed = await h.page.evaluate(() => window.__game.players.map((p) =>
     +(Math.hypot(p.velocity.x, p.velocity.z) > 0.5)));
   check('the first pad drives P2 alone', speed[0] === 0 && speed[1] === 1, speed);

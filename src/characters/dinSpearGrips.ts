@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import workbenchExport from './data/dinSpearGrips.json';
+import { gripClipKey } from './gripClipKey';
 
 /** Workbench pose names for Din's six spear attacks. */
 const UPPER_CLIP: Record<string, string> = {
@@ -15,7 +16,7 @@ const grips = new Map(workbenchExport.entries.map((entry) => [UPPER_CLIP[entry.p
 
 /** Keep the old point-up carry, then use the exported hand-local grip for each strike. */
 export function applyDinSpearGrip(spear: THREE.Object3D, upperClip: string | null): void {
-  const grip = grips.get((upperClip ?? '').replace(/Offhand\d+$/, ''));
+  const grip = grips.get(gripClipKey(upperClip));
   if (grip) {
     spear.position.set(grip.editedPosition[0], grip.editedPosition[1], grip.editedPosition[2]);
     spear.quaternion.set(grip.editedQuaternion[0], grip.editedQuaternion[1],
