@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import workbenchExport from './data/dinSaberGrips.json';
+import { gripClipKey } from './gripClipKey';
 
 /** Workbench pose names translated to the upper clips played by Din. */
 const UPPER_CLIP: Record<string, string> = {
@@ -16,7 +17,7 @@ const base = workbenchExport.entries[0];
 
 /** Keep the authored idle hilt alignment and apply each strike's measured roll. */
 export function applyDinSaberGrip(saber: THREE.Object3D, upperClip: string | null): void {
-  const grip = grips.get((upperClip ?? '').replace(/Offhand\d+$/, ''));
+  const grip = grips.get(gripClipKey(upperClip));
   const position = grip?.editedPosition ?? base.basePosition;
   const quaternion = grip?.editedQuaternion ?? base.baseQuaternion;
   saber.position.set(position[0], position[1], position[2]);

@@ -14,6 +14,7 @@ import './workbench.css';
 import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
+import { wristStudyClips } from './wristStudies';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
@@ -164,7 +165,16 @@ function alternatesFor(p: Pose): Alternate[] {
     saber2: [{ id: 'staffRise', name: 'Rising cut', lower: 'staffRiseLower', upper: 'staffRiseUpper', reference: 'staff' }],
     saber3: [{ id: 'staffDiagonal', name: 'Diagonal finish', lower: 'staffDiagonalLower', upper: 'staffDiagonalUpper', reference: 'staff' }],
   };
-  const choices = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id] : ATTACK_ALTERNATES[p.id] ?? [];
+  const dinWrist: Record<string, Alternate[]> = Object.fromEntries([1, 2, 3].flatMap((n) => [
+    [`melee${n}`, [{ id: `melee${n}Wrist`, name: 'Wrist snap', lower: `meleeLower${n}`, upper: `melee${n}Wrist`, reference: 'spear' as const }]],
+    [`saber${n}`, [
+      { id: `darksaber${n}Wrist`, name: 'Wrist snap', lower: `meleeLower${n}`, upper: `darksaber${n}Wrist`, reference: 'saber' as const },
+      { id: `darksaber${n}WristDrag`, name: 'Heavy blade — wrist drags', lower: `meleeLower${n}`, upper: `darksaber${n}WristDrag`, reference: 'saber' as const },
+    ]],
+  ]));
+  const choices = subject.id === 'din'
+    ? [...(dinSingleSaber[p.id] ?? ATTACK_ALTERNATES[p.id] ?? []), ...(dinWrist[p.id] ?? [])]
+    : ATTACK_ALTERNATES[p.id] ?? [];
   return choices.filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
@@ -243,6 +253,7 @@ function spawn(): void {
       Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, subject.id, {
         staff, sabers: mando.includes('sabers'),
       }));
+      if (subject.id === 'din') Object.assign(inst.animator.clips, wristStudyClips(inst.animator.clips));
       for (const clip of Object.values(inst.animator.clips)) {
         if (!hasCounterweight(clip.name)) continue;
         for (const strength of [0, 0.25, 0.5, 0.75, 1, 1.25]) {
