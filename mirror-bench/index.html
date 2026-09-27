@@ -92,7 +92,7 @@
   <header>
     <div>
       <h1>Leg Mirror Bench</h1>
-      <p class="sub">Weapon removal on the two sculpts with a fused hip weapon. The right half below the belt is replaced with a mirror of the left half. Drag to orbit, scroll or pinch to zoom. Candidates live in <code>models/candidates/</code> and are not used by the game.</p>
+      <p class="sub">Weapon removal on the two sculpts with a fused hip weapon. The right half below the belt is replaced with a mirror of the left half. Drag to orbit, scroll or pinch to zoom. The right-hand view is the model the game loads.</p>
     </div>
   </header>
 
@@ -110,7 +110,7 @@
   <div class="main">
     <div class="stage" id="stage">
       <canvas id="cv"></canvas>
-      <div class="tags" id="tags"><span class="tag" id="tagA">Original</span><span class="tag" id="tagB">Candidate</span></div>
+      <div class="tags" id="tags"><span class="tag" id="tagA">As delivered</span><span class="tag" id="tagB">In game</span></div>
       <div class="views">
         <button data-view="0">Front</button><button data-view="90">Left</button><button data-view="180">Back</button><button data-view="-90">Right</button>
       </div>
@@ -146,7 +146,7 @@
       </div>
       <label class="check"><input type="checkbox" id="ghost"> Ghost of the original model</label>
       <label class="check"><input type="checkbox" id="guides" checked> Show plane and cut guides</label>
-      <div class="row"><button class="btn" id="reset">Reset to candidate values</button></div>
+      <div class="row"><button class="btn" id="reset">Reset to in-game values</button></div>
       <div class="field">
         <span class="label">Settings JSON</span>
         <pre id="json"></pre>

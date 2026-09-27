@@ -56,8 +56,8 @@ Known character model defects and temporary handling:
 
 | Model | Defect | Current handling | Permanent fix |
 |---|---|---|---|
-| `flametrooper.glb` (Incinerator Trooper) | Weapon geometry is built into the waist | Keep the current body and separate authored hand projector for now | Remove the waist weapon from the source mesh and re-export |
-| `ring_enforcer.glb` (Ringworld Enforcer) | Weapon geometry is built into the waist | Keep the current body and separate authored hand rifle for now | Remove the waist weapon from the source mesh and re-export |
+| `flametrooper.glb` (Incinerator Trooper) | ✅ Fixed 2026-09-27: the waist projector and hose are gone. `tools/mirror-lower-body.mjs` replaces the right lower body with a mirror of the left, from the delivered file kept in `models/sources/` | — | — |
+| `ring_enforcer.glb` (Ringworld Enforcer) | ✅ Fixed 2026-09-27: the hip pistol is gone, same tool; this sculpt is mirrored about x = -0.016, where its body is centred | — | — |
 | `pirate.glb` (Pirate — blaster) | Faces appear on both the front and back | Both gunner and jetpack Pirate now use the healthy `pirate_melee.glb` body with their own separate blaster | Regenerate or repair the gunner body, validate both sides, then restore its model mapping |
 
 The original `pirate.glb` is retained in the repository as an untouched source
