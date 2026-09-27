@@ -14,7 +14,8 @@ import './workbench.css';
 import { setClipCaching } from '../anim/clips';
 import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
-import { styleAlternates, styleStudyClips } from './styleStudies';
+import { styleStudyAlternates, styleStudyClips } from './styleStudies';
+import { styleMoves } from '../characters/styleClips';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
@@ -165,10 +166,15 @@ function alternatesFor(p: Pose): Alternate[] {
     saber2: [{ id: 'staffRise', name: 'Rising cut', lower: 'staffRiseLower', upper: 'staffRiseUpper', reference: 'staff' }],
     saber3: [{ id: 'staffDiagonal', name: 'Diagonal finish', lower: 'staffDiagonalLower', upper: 'staffDiagonalUpper', reference: 'staff' }],
   };
-  const choices = [
-    ...(subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id] : ATTACK_ALTERNATES[p.id] ?? []),
-    ...styleAlternates(subject.id, p.id),
-  ];
+  // A fighter with approved moves of their own no longer carries the generic
+  // saber studies; their approved moves are offered in their place.
+  const own = styleMoves(subject.id);
+  const generic = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
+    : own.length && subject.id !== 'ventress' ? [] : ATTACK_ALTERNATES[p.id] ?? [];
+  const approved: Alternate[] = own
+    .filter((m) => (m.slot === 'flourish' ? 'flourish' : `saber${m.slot}`) === p.id)
+    .map((m) => ({ id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'saber' }));
+  const choices = [...generic, ...approved, ...styleStudyAlternates(subject.id, p.id)];
   return choices.filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
@@ -617,15 +623,18 @@ function option(value: string, label: string, selected: boolean, dim = false): s
 }
 
 /**
- * Of every attack alternate on offer, the only ones real combat can actually
- * roll are Din's three gaderffii variants — one in four hits on that combo
- * step, per `DIN_STAFF_VARIANTS` in player.ts. Every remaining alternate here
- * is a workbench study nothing in play will ever show.
+ * The alternates real combat can roll: Din's three gaderffii variants (one in
+ * four hits on that combo step, `DIN_STAFF_VARIANTS` in player.ts) and every
+ * approved style move (`styleClips.ts`). Anything else here is a workbench
+ * study nothing in play will show.
  */
 const DIN_LIVE_ALTERNATE: Record<string, string> = { melee1: 'spearTest2', melee2: 'staffRise', melee3: 'staffDiagonal' };
 function altUsedInGame(alt: Alternate, poseId: string): boolean {
-  return subject.id === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id;
+  return (subject.id === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id)
+    || styleMoves(subject.id).some((m) => m.id === alt.id);
 }
+/** a pose still has alternates waiting on a decision */
+const hasOpenAlternates = (p: Pose): boolean => alternatesFor(p).some((alt) => !altUsedInGame(alt, p.id));
 
 /** Keep view selection in the URL; clip edits remain session-only. */
 function syncSelectionUrl(): void {
@@ -654,7 +663,7 @@ function renderPanel(): void {
     saber2: 'Darksaber 2 — backswing', saber3: 'Darksaber 3 — overhead',
   };
   const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
-    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${alternatesFor(p).length ? ' •' : ''}`, p.id === pose.id)).join('');
+    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
   const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
@@ -679,7 +688,7 @@ function renderPanel(): void {
         <optgroup label="In game">${gameOptions}</optgroup>
         ${previewOptions ? `<optgroup label="──────── Not in game · preview ────────">${previewOptions}</optgroup>` : ''}
       </select>
-      <p class="picker-key">• alternates available &nbsp; ◆ not in game</p>
+      <p class="picker-key">• alternates awaiting a decision &nbsp; ◆ not in game</p>
     </div>
 
     ${choices.length ? `

@@ -22,6 +22,7 @@ import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
+import { pickStyleMove } from '../characters/styleClips';
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -3135,8 +3136,12 @@ export class Player {
       const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
       // The three original staff hits stay in the combo. Each hit has a
       // one-in-four chance to use its faster, individually keyed variation.
-      const variant = this.characterId === 'din' && set === 'melee' && Math.random() < 0.25
-        ? DIN_STAFF_VARIANTS[this.meleeStep - 1] : null;
+      // A fighter with a style of their own draws each hit at random between
+      // the original and their approved style moves (styleClips.ts).
+      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3);
+      const variant: { upper: string; lower: string; hit: number; lowerAlways?: boolean } | null =
+        this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
+          : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
       const clip = variant?.upper ?? `${set}${this.meleeStep}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
@@ -3162,9 +3167,12 @@ export class Player {
         this.velocity.x = dir.x * (bare ? 10 : 13);
         this.velocity.z = dir.z * (bare ? 10 : 13);
         this.facingYaw = Math.atan2(dir.x, dir.z);
-      } else if (this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5) {
-        // no lunge to carry the body, so the legs join the swing: weight
-        // drop, step, pivot — one-shots matched to each upper's duration
+      }
+      // With no lunge to carry the body, the legs join the swing: weight drop,
+      // step, pivot — one-shots matched to each upper's duration. A move that
+      // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
+      if (variant?.lowerAlways
+        || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
         this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
@@ -3178,8 +3186,8 @@ export class Player {
       && this.meleeComboWindow <= 0 && this.meleeComboWindow + dt > 0
     ) {
       this.flourished = true;
-      this.char.animator!.playOnce('upper', this.characterId === 'maris' ? 'tonfaFlourish'
-        : this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish', 0.12);
+      this.char.animator!.playOnce('upper', pickStyleMove(this.characterId, 'flourish')?.upper
+        ?? (this.characterId === 'maris' ? 'tonfaFlourish' : this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish'), 0.12);
       this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {

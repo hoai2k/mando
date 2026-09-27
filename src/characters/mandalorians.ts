@@ -13,6 +13,7 @@ import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
 import { applyDinSpearGrip } from './dinSpearGrips';
 import { applyDinSaberGrip } from './dinSaberGrips';
 import { applyGripSpin, gripSpinFor } from './gripSpin';
+import { styleClips } from './styleClips';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -292,6 +293,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
 
   const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
+  if (inst.animator) Object.assign(inst.animator.clips, styleClips(id, rig.proportions));
   if (id === 'din' && inst.animator) {
     Object.assign(inst.animator.clips, dinMeleeVariants(rig.proportions));
     for (const [name, source] of [['darksaber1', 'saber1'], ['darksaber2', 'melee2'], ['darksaber3', 'melee3']] as const) {
@@ -783,13 +785,16 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         }
       }
       shield.update(dt, time);
-      if (sabers) {
-        const spin = gripSpinFor(inst.animator?.playing('upper') ?? null);
-        const progress = inst.animator?.clipProgress('upper') ?? 0;
-        applyGripSpin(sabers.main, spin?.right, progress);
-        if (sabers.offhand) applyGripSpin(sabers.offhand, spin?.left, progress);
-      }
+      // after the retarget, so a wheel held in body space is solved against
+      // this frame's hand rather than the last one's
       swap.update();
+      if (sabers) {
+        const clip = inst.animator?.playing('upper') ?? null;
+        const spin = gripSpinFor(clip);
+        const progress = inst.animator?.clipProgress('upper') ?? 0;
+        applyGripSpin(sabers.main, 'right', clip, spin, progress, dt, inst.root);
+        if (sabers.offhand) applyGripSpin(sabers.offhand, 'left', clip, spin, progress, dt, inst.root);
+      }
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
