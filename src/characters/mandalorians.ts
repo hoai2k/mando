@@ -1,7 +1,7 @@
 import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance, type StaffPropId } from './builder';
 import { attachAuthored } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
@@ -10,6 +10,7 @@ import { counterweightTracks } from '../anim/counterweight';
 import { applyArmorerAxeGrip } from './armorerAxeGrips';
 import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
 import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
+import { applyHeroStaffGrip } from './heroStaffGrips';
 import { applyDinSpearGrip } from './dinSpearGrips';
 import { applyDinSaberGrip } from './dinSaberGrips';
 import { applyGripSpin, gripSpinFor } from './gripSpin';
@@ -160,6 +161,16 @@ export function rangedKinds(id: MandoId): RangedKind[] {
   const cfg = MANDO_ROSTER[id].ranged;
   return cfg === 'none' ? [] : list(cfg as RangedKind | RangedKind[] | undefined, 'carbine');
 }
+/**
+ * The sculpt carried in the gaffi slot. Most fighters swing the gaffi; these
+ * carry their own staff (Embo's quarterstaff and IG-11's force pike were
+ * picked in the workbench's weapon choice).
+ */
+const STAFF_PROP: Partial<Record<MandoId, StaffPropId>> = {
+  din: 'beskar_spear', armorer: 'poleaxe', embo: 'rey_staff', ig11: 'force_pike',
+};
+export const staffPropFor = (id: MandoId): StaffPropId => STAFF_PROP[id] ?? 'gaffi';
+
 /** Every melee weapon this character carries, signature first. */
 export function meleeKinds(id: MandoId): MeleeKind[] {
   return list(MANDO_ROSTER[id].melee, 'gaffi');
@@ -497,8 +508,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         offhand.name = 'saberHandL';
       }
     } else {
-      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver,
-        id === 'din' ? 'beskar_spear' : id === 'armorer' ? 'poleaxe' : 'gaffi');
+      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver, staffPropFor(id));
       main.name = id === 'din' ? 'beskarSpear' : id === 'armorer' ? 'poleaxe' : 'gaffi';
       // The sculpt's pointed end is model -Z. Its prop mount maps that to
       // grip -Y; the carry half-turn lifts the point above Din's hand.
@@ -635,6 +645,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       if (model.weaponMount) {
         const signature = guns.get(rangedKinds(id)[0]);
         if (signature) applySharedWeaponGrip(id, signature.main);
+      }
+      if (model.weaponMount && (id === 'embo' || id === 'ig11')) {
+        const staff = blades.get('gaffi');
+        if (staff) applyHeroStaffGrip(id, staff.main);
       }
       if (model.weaponMount && id === 'revan') {
         const saber = blades.get('sabers');

@@ -3,7 +3,7 @@ import { loadProp } from '../characters/authored';
 import { addBox, addCyl, addSphere, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, mat, type CharacterInstance } from '../characters/builder';
 import { addElectrostaffArcs } from '../characters/electrostaffFx';
 import { mountEnemyProp } from '../characters/enemies';
-import { MANDO_ROSTER, meleeKinds, rangedKinds, type MandoId } from '../characters/mandalorians';
+import { MANDO_ROSTER, meleeKinds, rangedKinds, staffPropFor, type MandoId } from '../characters/mandalorians';
 import type { Pose } from './poses';
 
 /**
@@ -245,7 +245,7 @@ export function loadoutFor(subjectId: string, inst: CharacterInstance & { gaffi?
     } : null;
     // Din's gaffi slot is his beskar spear, and a saber is its owner's own:
     // neither is offered, and neither is offered a replacement
-    const staffId = id === 'armorer' ? 'poleaxe' : 'gaffi';
+    const staffId = staffPropFor(id);
     const melee: SlotDefault | null = blades[0] === 'gaffi' && id !== 'din' && inst.gaffi ? {
       id: staffId, name: nameOf(staffId),
       held: { main: inst.gaffi, offhand: null, family: 'staff', canon: CANON.staff },

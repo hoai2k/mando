@@ -1,0 +1,71 @@
+{
+  "format": "mando-authored-weapon-grips/3",
+  "exportedAt": "2026-09-27T20:13:47.168Z",
+  "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
+  "note": "Embo and IG-11 staff grips from the workbench weapon choice (Quarterstaff, Force pike), sampled in melee1 and shared by every pose of that staff.",
+  "entries": [
+    {
+      "character": "embo",
+      "pose": "melee1",
+      "weapon": "right: rey_staff",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.024998,
+        0.048215,
+        -0.069738
+      ],
+      "editedQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "character": "ig11",
+      "pose": "melee1",
+      "weapon": "right: force_pike",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.36,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.024744,
+        -0.169163,
+        0.010491
+      ],
+      "editedQuaternion": [
+        0.0861565,
+        -0.4564775,
+        0.065172,
+        -0.8831523
+      ]
+    }
+  ],
+  "weaponScales": []
+}

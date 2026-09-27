@@ -141,6 +141,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // can use their trigger to throw a blade instead.
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
     meleeName: id === 'din' ? 'Beskar Spear' : id === 'armorer' ? 'Poleaxe'
+      : id === 'embo' ? 'Quarterstaff' : id === 'ig11' ? 'Force Pike'
       : id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',

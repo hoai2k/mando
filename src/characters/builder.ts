@@ -256,9 +256,18 @@ export function propsSettled(root: THREE.Object3D): boolean {
   return !waiting;
 }
 
+export type StaffPropId =
+  'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' | 'electrostaff' | 'rey_staff' | 'force_pike';
+/** Each staff sculpt's length in metres, scaled along its longest axis. */
+const STAFF_LENGTH: Partial<Record<StaffPropId, number>> = {
+  electrostaff: 1.8, beskar_spear: 1.65, poleaxe: 1.45,
+  // the workbench's weapon-choice lengths, which the hand grips were set with
+  rey_staff: 1.7, force_pike: 1.9,
+};
+
 export function makeGaffi(
   m1: THREE.Material, m2: THREE.Material,
-  propId: 'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' | 'electrostaff' = 'gaffi',
+  propId: StaffPropId = 'gaffi',
 ): THREE.Group {
   const g = new THREE.Group();
   if (propId === 'electrostaff') {
@@ -281,7 +290,7 @@ export function makeGaffi(
     addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
     addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
   }
-  swapWeapon(g, propId, propId === 'electrostaff' ? 1.8 : propId === 'beskar_spear' ? 1.65 : propId === 'poleaxe' ? 1.45 : 1.5, -Math.PI / 2);
+  swapWeapon(g, propId, STAFF_LENGTH[propId] ?? 1.5, -Math.PI / 2);
   return g;
 }
 
