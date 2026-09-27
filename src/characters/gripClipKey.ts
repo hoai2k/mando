@@ -1,8 +1,6 @@
 /**
- * The shipped clip an exported grip is keyed on. Workbench variants of a
- * strike — a counterweight strength (`…Offhand50`) or a wrist study
- * (`…Wrist`, `…WristDrag`) — hold the weapon with their base strike's grip,
- * so the comparison is the motion and nothing else.
+ * The shipped clip an exported grip or grip spin is keyed on. A workbench
+ * counterweight variant of a strike (`…Offhand50`) holds the weapon exactly as
+ * the strike it was built from.
  */
-export const gripClipKey = (clip: string | null): string =>
-  (clip ?? '').replace(/(?:Offhand\d+|Wrist[A-Za-z]*)$/, '');
+export const gripClipKey = (clip: string | null): string => (clip ?? '').replace(/Offhand\d+$/, '');

@@ -12,6 +12,7 @@ import { applyBosskRifleGrip, BOSSK_RIFLE_SCALE } from './bosskRifleGrip';
 import { applySharedWeaponGrip, sharedWeaponScale } from './sharedWeaponGrips';
 import { applyDinSpearGrip } from './dinSpearGrips';
 import { applyDinSaberGrip } from './dinSaberGrips';
+import { applyGripSpin, gripSpinFor } from './gripSpin';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -81,28 +82,6 @@ const AUTHORED_STOWED_SABER_GRIPS: Partial<Record<MandoId, Record<'left' | 'righ
     right: { position: [-0.167219, 0.188361, 0.007152], quaternion: [-0.0081515, -0.0903281, 0.9918481, 0.0895081] },
   },
 };
-
-/** Spin a tonfa's shaft around its perpendicular grip during Maris' cuts. */
-function tonfaTurns(clip: string | null, progress: number): [number, number] {
-  const turn = (p: number): number => {
-    const keys: Array<[number, number]> = [[0, 0], [0.28, -0.3], [0.55, 2.5], [0.82, Math.PI * 2], [1, Math.PI * 2]];
-    for (let i = 1; i < keys.length; i++) {
-      if (p <= keys[i][0]) {
-        const [t0, a0] = keys[i - 1], [t1, a1] = keys[i];
-        return a0 + (a1 - a0) * (p - t0) / (t1 - t0);
-      }
-    }
-    return Math.PI * 2;
-  };
-  if (clip === 'tonfa1') return [turn(progress), 0];
-  if (clip === 'tonfa2') return [0, -turn(progress)];
-  if (clip === 'tonfa3') return [turn(progress), -turn(progress)];
-  if (clip === 'tonfaFlourish') {
-    const angle = Math.min(1, progress / 0.82) * Math.PI * 2;
-    return [angle, -angle];
-  }
-  return [0, 0];
-}
 
 interface MandoConfig {
   name: string;
@@ -804,13 +783,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         }
       }
       shield.update(dt, time);
-      if (id === 'maris' && sabers) {
-        const [right, left] = tonfaTurns(inst.animator?.playing('upper') ?? null,
-          inst.animator?.clipProgress('upper') ?? 0);
-        const rightSpin = sabers.main.userData.tonfaSpin as THREE.Group | undefined;
-        const leftSpin = sabers.offhand?.userData.tonfaSpin as THREE.Group | undefined;
-        if (rightSpin) rightSpin.rotation.x = right;
-        if (leftSpin) leftSpin.rotation.x = left;
+      if (sabers) {
+        const spin = gripSpinFor(inst.animator?.playing('upper') ?? null);
+        const progress = inst.animator?.clipProgress('upper') ?? 0;
+        applyGripSpin(sabers.main, spin?.right, progress);
+        if (sabers.offhand) applyGripSpin(sabers.offhand, spin?.left, progress);
       }
       swap.update();
       for (const trail of trailUpdates) trail(dt, trailActive);

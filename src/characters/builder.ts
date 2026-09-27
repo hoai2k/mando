@@ -318,17 +318,19 @@ export function makeSaber(
   const darksaber = opts.style === 'darksaber';
   const tonfa = opts.style === 'tonfa';
   const double = opts.style === 'double';
-  // Maris spins the shaft around its cross-grip. Keep the outer group as the
-  // editable hand attachment, and rotate the visible hilt and blade together.
-  const spin = tonfa ? new THREE.Group() : null;
-  const body = spin ? new THREE.Group() : g;
-  if (spin) {
+  // The outer group is the editable hand attachment; hilt and blade hang off a
+  // pivot inside it, so a clip can turn the weapon in the hand (see
+  // `gripSpin.ts`). A tonfa pivots on its cross-grip, a straight hilt at the
+  // grip itself.
+  const spin = new THREE.Group();
+  const body = new THREE.Group();
+  if (tonfa) {
     spin.position.set(0, 0.08, 0.01);
     body.position.copy(spin.position).multiplyScalar(-1);
-    spin.add(body);
-    g.add(spin);
-    g.userData.tonfaSpin = spin;
   }
+  spin.add(body);
+  g.add(spin);
+  g.userData.gripSpin = spin;
   if (tonfa) {
     // The emitter is on the long end; the short end is capped. The grip
     // branches across the palm, as a tonfa does, instead of sitting in-line.
@@ -339,16 +341,16 @@ export function makeSaber(
   } else if (white || darksaber || opts.style === 'dark' || double) {
     // The Jedi's separate hilt is a procedural stand-in until its concept is
     // approved and modelled. Keep the same mount and length as the final prop.
-    addCyl(g, mHilt, 0.021, 0.021, double ? 0.4 : 0.21, 0, double ? 0 : -0.06, 0, 0, 0, 0, 10);
-    for (const y of [-0.12, -0.065, -0.01]) addCyl(g, mDark, 0.023, 0.023, 0.018, 0, y, 0, 0, 0, 0, 10);
-    addCyl(g, mHilt, 0.028, 0.022, 0.055, 0, 0.055, 0, 0, 0, 0, 10);
-    addSphere(g, mDark, 0.023, 0, -0.18, 0, 10, 8);
+    addCyl(body, mHilt, 0.021, 0.021, double ? 0.4 : 0.21, 0, double ? 0 : -0.06, 0, 0, 0, 0, 10);
+    for (const y of [-0.12, -0.065, -0.01]) addCyl(body, mDark, 0.023, 0.023, 0.018, 0, y, 0, 0, 0, 0, 10);
+    addCyl(body, mHilt, 0.028, 0.022, 0.055, 0, 0.055, 0, 0, 0, 0, 10);
+    addSphere(body, mDark, 0.023, 0, -0.18, 0, 10, 8);
   } else {
     // Ventress's curved hilt: main grip with a hook at the pommel.
-    addCyl(g, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
-    addCyl(g, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);
-    addCyl(g, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
-    addSphere(g, mDark, 0.02, 0.05, -0.175, 0, 8, 6);
+    addCyl(body, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
+    addCyl(body, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);
+    addCyl(body, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
+    addSphere(body, mDark, 0.02, 0.05, -0.175, 0, 8, 6);
   }
   if (tonfa) {
     // Keep the temporary fallback at the authored hilt's new size while its
