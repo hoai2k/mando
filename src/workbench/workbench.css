@@ -176,3 +176,16 @@ option.not-in-game { color: var(--dim); }
 .fixhelp { color: var(--dim); font-size: 11px; margin: 0 0 6px; }
 .fix .row { margin-bottom: 0; }
 .fix .row button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #17191d; }
+
+/* weapon choice: a pick that differs from the game's default is tagged */
+.weapon-choices { border-top: 1px solid var(--line); padding-top: 10px; margin-bottom: 14px; }
+.weapon-choices .hint { margin: 0; }
+.weapon-choice.changed select { border-color: var(--accent); }
+.changed-tag {
+  margin-left: 4px; padding: 0 5px; border-radius: 3px;
+  background: var(--accent); color: #17191d; font-size: 9px; letter-spacing: .08em;
+}
+.weapon-choices .ledger { margin: 0 0 8px; }
+.weapon-choices .ledger .edit span { flex-basis: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weapon-choices .ledger .edit span { flex: 0 0 74px; }
+.weapon-choices .ledger .edit code { white-space: normal; min-width: 0; }

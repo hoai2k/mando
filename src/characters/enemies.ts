@@ -65,7 +65,7 @@ function strikeCurve(t: number, dur: number): number {
   return -1 + (ph - 0.55) / 0.45;
 }
 
-function mountEnemyProp(group: THREE.Group, id: string, length: number,
+export function mountEnemyProp(group: THREE.Group, id: string, length: number,
   orientX = 0, z = 0, y = 0, flip = false): void {
   group.userData.propPending = true;
   const prop = loadProp(id, length, {
