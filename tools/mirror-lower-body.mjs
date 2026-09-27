@@ -22,9 +22,13 @@
  *
  * The mirror plane is x = centreX (per model; override with MIRROR_CENTRE_X).
  *
+ * Reads public/models/sources/<model>.glb (as delivered) and writes the
+ * game's public/models/<model>.glb, then updates that model's skin-weight
+ * fixes (public/models/skinfix/<model>.json) to cover the mirrored copies.
+ *
  * Usage: node tools/mirror-lower-body.mjs <model> [cutY] [out.glb]
  */
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { readGlb, viewBytes, accessor, decoderReady } from './lib/glb.mjs';
 import { planMirror } from './lib/mirror-core.mjs';
 import { Matrix4, Quaternion, Vector3 } from 'three';
@@ -46,9 +50,12 @@ const cutY = cutArg !== undefined ? Number(cutArg) : preset.cutY;
 const armX = preset.armX;
 const centreX = Number(process.env.MIRROR_CENTRE_X ?? preset.centreX);
 const back = preset.back ?? null;
-const out = outArg ?? `public/models/candidates/${model}_mirrored.glb`;
+const out = outArg ?? `public/models/${model}.glb`;
 
-const glb = readGlb(`public/models/${model}.glb`);
+// the file as delivered, weapon and all; the game's copy is written from it
+const source = `public/models/sources/${model}.glb`;
+if (!existsSync(source)) throw new Error(`${source} not found: keep the delivered model there`);
+const glb = readGlb(source);
 await decoderReady;
 const { json } = glb;
 const nodeIndex = json.nodes.findIndex((n) => n.mesh !== undefined && n.skin !== undefined);
@@ -182,7 +189,7 @@ const strip = (list) => list?.filter((e) => !['EXT_meshopt_compression', 'KHR_me
 json.extensionsUsed = strip(json.extensionsUsed);
 json.extensionsRequired = strip(json.extensionsRequired);
 for (const k of ['extensionsUsed', 'extensionsRequired']) if (!json[k]?.length) delete json[k];
-json.asset = { ...json.asset, extras: { ...(json.asset.extras ?? {}), mirroredLowerBody: { from: `${model}.glb`, cutY, armX, centreX, back } } };
+json.asset = { ...json.asset, extras: { ...(json.asset.extras ?? {}), mirroredLowerBody: { from: `sources/${model}.glb`, cutY, armX, centreX, back } } };
 
 // ---- write ----
 const bin = Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength)));
@@ -195,3 +202,34 @@ header.writeUInt32LE(12 + 8 + jsonBuf.length + 8 + binPadded.length, 8);
 const chunkHead = (len, type) => { const b = Buffer.alloc(8); b.writeUInt32LE(len, 0); b.writeUInt32LE(type, 4); return b; };
 writeFileSync(out, Buffer.concat([header, chunkHead(jsonBuf.length, 0x4e4f534a), jsonBuf, chunkHead(binPadded.length, 0x004e4942), binPadded]));
 console.log(`${model}: mirror x=${centreX}, cut y<${cutY}, dropped ${plan.dropped} right-side triangles, mirrored ${plan.mirrored} left-side triangles (+${newVerts.length} vertices) -> ${out}`);
+
+// ---- skin-weight fixes: the mirrored copies get the mirror of each fix ----
+// Original vertices keep their indices, so every existing fix still names
+// the same points. A fix touching a mirrored source vertex gets a companion
+// ("<id>/mirrored") on the copies, removing the other side's bones, with the
+// same status. Companions from an earlier run are rebuilt, never stacked.
+const fixPath = `public/models/skinfix/${model}.json`;
+if (!outArg && existsSync(fixPath)) {
+  const doc = JSON.parse(readFileSync(fixPath, 'utf8'));
+  const copiesOf = new Map();
+  newVerts.forEach((v, i) => { if (!copiesOf.has(v)) copiesOf.set(v, []); copiesOf.get(v).push(n + i); });
+  const swapSide = (nm) => nm.replace(/\.L(?=$|\.)/, '.__').replace(/\.R(?=$|\.)/, '.L').replace(/\.__/, '.R');
+  const own = doc.fixes.filter((f) => !f.mirrorOf);
+  const companions = [];
+  for (const fix of own) {
+    fix.mesh.vertexCount = total;
+    const vertices = fix.vertices.flatMap((v) => copiesOf.get(v) ?? []);
+    if (!vertices.length) continue;
+    if (Object.keys(fix.donors ?? {}).length || fix.replacements) throw new Error(`${fix.id}: fixes with donors are not mirrored`);
+    companions.push({
+      ...fix, id: `${fix.id}/mirrored`, mirrorOf: fix.id,
+      title: `${fix.title} (mirrored side)`,
+      removeBones: fix.removeBones.map(swapSide),
+      stats: { ...fix.stats, vertices: vertices.length },
+      vertices, donors: {},
+    });
+  }
+  doc.fixes = [...own, ...companions];
+  writeFileSync(fixPath, JSON.stringify(doc));
+  console.log(`  ${fixPath}: ${companions.length} fix(es) mirrored onto the copies (${companions.filter((f) => f.status === 'applied').length} applied)`);
+}

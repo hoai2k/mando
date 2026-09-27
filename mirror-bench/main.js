@@ -1,8 +1,8 @@
 /**
- * Leg Mirror Bench (/mirror-bench/): compares each weapon-removal candidate
- * with its original, and previews tools/mirror-lower-body.mjs live on the
- * original with an adjustable mirror plane. Review page only: the game never
- * loads models/candidates/.
+ * Leg Mirror Bench (/mirror-bench/): compares each delivered sculpt
+ * (models/sources/) with the weapon-free model the game loads, and previews
+ * tools/mirror-lower-body.mjs live on the delivered file with an adjustable
+ * mirror plane and cut height.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -11,7 +11,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { planMirror } from '../tools/lib/mirror-core.mjs';
 
-// values the committed candidates were built with (tools/mirror-lower-body.mjs)
+// values the game's models were built with (tools/mirror-lower-body.mjs)
 const MODELS = {
   ring_enforcer: {
     name: 'Ringworld Enforcer', heightM: 2.1,
@@ -25,8 +25,8 @@ const MODELS = {
   },
 };
 
-const originalUrl = (m) => `../models/${m}.glb`;
-const candidateUrl = (m) => `../models/candidates/${m}_mirrored.glb`;
+const originalUrl = (m) => `../models/sources/${m}.glb`;
+const gameUrl = (m) => `../models/${m}.glb`;
 const $ = (id) => document.getElementById(id);
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const state = { model: 'ring_enforcer', mode: 'compare', params: {}, ghost: false, guides: true };
@@ -167,7 +167,7 @@ async function showModel() {
   const m = MODELS[state.model];
   setStatus('Loading…');
   if (state.mode === 'compare') {
-    const [a, b] = await Promise.all([load(originalUrl(state.model)), load(candidateUrl(state.model))]);
+    const [a, b] = await Promise.all([load(originalUrl(state.model)), load(gameUrl(state.model))]);
     if (guides) { sceneA.remove(guides); guides = null; }
     place(sceneA, a.scene); place(sceneB, b.scene);
     a.scene.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
@@ -219,7 +219,7 @@ $('cx-up').addEventListener('click', () => setCentre(state.params.centreX + 0.00
 $('cy').addEventListener('input', (e) => { state.params.cutY = +e.target.value; scheduleRebuild(); });
 $('ghost').addEventListener('change', (e) => { state.ghost = e.target.checked; if (toolRoot?.userData.ghost) toolRoot.userData.ghost.visible = state.ghost; });
 $('guides').addEventListener('change', (e) => { state.guides = e.target.checked; if (guides) guides.visible = state.guides; });
-$('reset').addEventListener('click', () => { resetParams(); scheduleRebuild(); note('Back to the candidate values.', 'ok'); });
+$('reset').addEventListener('click', () => { resetParams(); scheduleRebuild(); note('Back to the in-game values.', 'ok'); });
 
 function note(text, kind = '') { const el = $('note'); el.textContent = text; el.className = `note ${kind}`; }
 
