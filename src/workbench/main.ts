@@ -20,6 +20,7 @@ import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -61,6 +62,8 @@ interface Figure {
     setGait?: (speed: number) => void;
   };
   label: string;
+  /** the weapon-choice swap on this figure; null when it holds nothing on offer */
+  weapons: FigureWeapons | null;
 }
 
 // ---------- scene ----------
@@ -161,6 +164,10 @@ let paused = false;
 let animationTime = 0;
 let offhandStrength = 0.5;
 let alternateChoice = initialParams.get('alternate') ?? 'none';
+/** weapon picks per character and slot — see `weaponChoice.ts` */
+const weaponChoices = new WeaponChoices();
+/** which slot an either-pose shows, per character, once the user has said */
+const weaponHand = new Map<string, WeaponSlot>();
 function alternatesFor(p: Pose): Alternate[] {
   const dinSingleSaber: Record<string, Alternate[]> = {
     saber2: [{ id: 'staffRise', name: 'Rising cut', lower: 'staffRiseLower', upper: 'staffRiseUpper', reference: 'staff' }],
@@ -221,6 +228,7 @@ function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
   weaponEditor.setPose('', '', null);
+  for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
   for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
@@ -272,8 +280,10 @@ function spawn(): void {
     const rest = Object.values(inst.rig?.bones ?? {}).map((bone) => ({
       bone, quaternion: bone.quaternion.clone(), position: bone.position.clone(),
     }));
+    const loadout = isProp(subject) ? null : loadoutFor(subject.id, inst);
     return {
       inst, extras: inst, rest,
+      weapons: loadout && inst.rig ? new FigureWeapons(inst.root, inst.rig.bones, loadout) : null,
       waitingFor: authored ? modelUrl(subject.modelFile ?? subject.id) : null,
       card: null,
       label: sides[i] ? `${sides[i]} — ${label}` : label,
@@ -420,8 +430,36 @@ function applyPose(): void {
     f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
     setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
+    // An either-pose the user asked to show the other slot in: draw it the
+    // way the game would, then put the slot's pick (if any) in that hand.
+    const held = heldWeapon();
+    if (held.hand && held.hand !== held.gameHand) f.extras.setWeapon?.(held.hand === 'melee' ? 'gaffi' : 'blaster');
+    f.weapons?.show(held.hand, held.hand ? weaponChoices.get(subject.id, held.hand) : null);
     f.inst.cosmetic?.(0, time);
+    f.weapons?.frame(time);
   }
+}
+
+/**
+ * The weapon slots the current pose offers, and which one is in the hand.
+ * A melee attack offers the melee slot, an aim the gun slot, and a pose that
+ * could carry either offers both, with the game's own choice in hand until
+ * the user picks the other.
+ */
+function heldWeapon(): { loadout: Loadout | null; slots: WeaponSlot[]; hand: WeaponSlot | null; gameHand: WeaponSlot | null } {
+  const loadout = figures.find((f) => f.weapons)?.weapons?.loadout ?? null;
+  const kind = poseWeapon(pose);
+  if (!loadout || kind === 'none') return { loadout, slots: [], hand: null, gameHand: null };
+  const wanted: WeaponSlot[] = kind === 'either' ? ['melee', 'gun'] : [kind];
+  const slots = wanted.filter((s) => loadout[s]);
+  if (!slots.length) return { loadout, slots, hand: null, gameHand: null };
+  // the Armorer shows her axe at idle, as the character-select screen does
+  const gameHand: WeaponSlot = kind !== 'either' ? kind
+    : subject.id === 'armorer' && pose.id === 'idle' ? 'melee' : loadout.hand;
+  const asked = weaponHand.get(subject.id);
+  const hand = kind === 'either' && asked && slots.includes(asked) ? asked
+    : slots.includes(gameHand) ? gameHand : slots[0];
+  return { loadout, slots, hand, gameHand };
 }
 
 /** Seconds in the longest active channel; both channels scrub together. */
@@ -550,6 +588,7 @@ function refreshWeaponPose(): void {
   }
   weaponAwaiting = false;
   figure.inst.cosmetic?.(0, time);
+  figure.weapons?.frame(time);
   weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
 }
 
@@ -712,6 +751,7 @@ function renderPanel(): void {
       <input id="offhandStrength" type="range" min="0" max="1.25" step="0.25" value="${offhandStrength}" aria-label="Free arm counterweight">
       <p class="hint">Adjust how far the free arm reaches during the windup.</p>
     </div>` : ''}
+    ${weaponChoiceHtml()}
 
     <div class="field playback">
       <label for="animationSpeed">Animation speed <output id="speedValue">${animationSpeed.toFixed(2)}×</output></label>
@@ -778,6 +818,10 @@ function renderPanel(): void {
       <br><br><b>Weapon grips</b> moves, rotates and uniformly scales held weapons against
       authored hands, or stowed hilts against authored hips in rest and idle.
       Export the local transforms and scale multipliers as JSON.
+      <br><br><b>Weapon choice</b> swaps the held prop for another from the same class:
+      melee weapons in attacks, guns in aims, both where a pose could carry either.
+      Sabers and the beskar spear belong to their owners and are never offered.
+      The weapon grip editor works on whichever weapon is showing.
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
@@ -808,6 +852,7 @@ function renderPanel(): void {
     if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
     renderEditPanel();
   };
+  bindWeaponChoice();
   panel.querySelector<HTMLInputElement>('#animationSpeed')!.oninput = (e) => {
     animationSpeed = Number((e.target as HTMLInputElement).value);
     panel.querySelector<HTMLOutputElement>('#speedValue')!.value = `${animationSpeed.toFixed(2)}×`;
@@ -867,6 +912,99 @@ function renderPanel(): void {
   // the skinning review keeps its own subtree, so a re-render here never loses it
   panel.querySelector('#skin')!.replaceWith(skinHost);
   renderEditPanel();
+}
+
+// ---------- weapon choice ----------
+const SLOT_LABEL: Record<WeaponSlot, string> = { melee: 'Melee weapon', gun: 'Gun' };
+
+/**
+ * The weapon pickers for this character in this pose: one per slot the pose
+ * offers, each opening on the weapon the game uses today. A pick that differs
+ * from it is tagged here and listed in the ledger underneath, across every
+ * character, so the session's picks can be exported together.
+ */
+function weaponChoiceHtml(): string {
+  const { loadout, slots, hand } = heldWeapon();
+  const picks = weaponChoices.entries();
+  if (!slots.length && !picks.length) return '';
+  const pickers = slots.map((slot) => {
+    const def = loadout![slot]!;
+    const chosen = weaponChoices.get(subject.id, slot);
+    const offered = WEAPON_OPTIONS.filter((o) => o.slot === slot && o.id !== def.id);
+    return `<div class="field weapon-choice${chosen ? ' changed' : ''}">
+      <label for="weaponChoice-${slot}">${SLOT_LABEL[slot]}${chosen ? ' <span class="changed-tag">changed</span>' : ''}</label>
+      <select id="weaponChoice-${slot}" data-weapon-slot="${slot}">
+        ${option('', `Default — ${def.name}`, !chosen)}
+        ${offered.map((o) => option(o.id, o.name, o.id === chosen)).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  const handSeg = slots.length > 1 ? `<div class="field"><label>In hand</label><div class="seg" id="weaponHand">
+      ${slots.map((slot) => `<button data-hand="${slot}" aria-pressed="${hand === slot}">${slot === 'melee' ? 'Melee' : 'Gun'}</button>`).join('')}
+    </div></div>` : '';
+  const why = slots.length ? '' : `<p class="hint">${!loadout
+    ? 'Nothing on offer here — this character keeps its own weapon.'
+    : 'No weapon in hand in this pose.'}</p>`;
+  return `<div class="weapon-choices">
+    <div class="field"><label>Weapon choice</label>${why}</div>
+    ${pickers}${handSeg}
+    <div class="row"><button id="weaponChoiceExport" class="primary"${picks.length ? '' : ' disabled'}>Export weapon choices JSON</button></div>
+    ${picks.length ? `<div class="ledger">${picks.map((e) => `<div class="edit"><span>${e.characterName}</span>
+      <code>${e.slot}: ${findWeaponOption(e.choice)?.name ?? e.choice}</code>
+      <button data-choice-character="${e.character}" data-choice-slot="${e.slot}" title="back to ${e.defaultName}">×</button></div>`).join('')}</div>` : ''}
+    <p class="hint">Workbench only — the game keeps its defaults. Picks stay with each character across poses.</p>
+  </div>`;
+}
+
+function bindWeaponChoice(): void {
+  const refresh = (): void => {
+    applyPose();
+    if (editing) freezePose();
+    if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
+    renderPanel();
+  };
+  const { loadout } = heldWeapon();
+  panel.querySelectorAll<HTMLSelectElement>('[data-weapon-slot]').forEach((select) => {
+    select.onchange = () => {
+      const slot = select.dataset.weaponSlot as WeaponSlot;
+      weaponChoices.set(subject.id, subject.name, slot, loadout![slot]!, select.value || null);
+      // picking for a slot is asking to see it
+      if (poseWeapon(pose) === 'either') weaponHand.set(subject.id, slot);
+      refresh();
+    };
+  });
+  panel.querySelectorAll<HTMLButtonElement>('#weaponHand [data-hand]').forEach((button) => {
+    button.onclick = () => { weaponHand.set(subject.id, button.dataset.hand as WeaponSlot); refresh(); };
+  });
+  panel.querySelectorAll<HTMLButtonElement>('[data-choice-character]').forEach((button) => {
+    button.onclick = () => {
+      const entry = weaponChoices.entries().find((e) =>
+        e.character === button.dataset.choiceCharacter && e.slot === button.dataset.choiceSlot);
+      if (entry) weaponChoices.set(entry.character, entry.characterName, entry.slot, { id: entry.defaultId, name: entry.defaultName, held: null }, null);
+      refresh();
+    };
+  });
+  const exportButton = panel.querySelector<HTMLButtonElement>('#weaponChoiceExport');
+  if (exportButton) exportButton.onclick = exportWeaponChoices;
+}
+
+function exportWeaponChoices(): void {
+  const entries = weaponChoices.entries();
+  if (!entries.length) return;
+  const payload = {
+    format: 'mando-workbench-weapon-choices/1', exportedAt: new Date().toISOString(),
+    note: 'Held-weapon picks made in the model workbench. The game is unchanged: each entry names the weapon a character uses today and the one picked to replace it in that slot. Ids are prop models in public/models/<id>.glb.',
+    entries: entries.map((e) => ({
+      character: e.character, characterName: e.characterName, slot: e.slot,
+      default: { id: e.defaultId, name: e.defaultName },
+      chosen: { id: e.choice, name: findWeaponOption(e.choice)?.name ?? e.choice, model: `public/models/${e.choice === 'pistols' ? 'pistol' : e.choice}.glb` },
+    })),
+  };
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  anchor.download = 'weapon-choices.json';
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
 }
 
 // ---------- edit panel ----------
@@ -1401,6 +1539,7 @@ function frame(now: number): void {
     && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
   if (!paused && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
+  for (const f of figures) f.weapons?.frame(time);
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);
