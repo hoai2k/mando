@@ -1,9 +1,7 @@
 import type * as THREE from 'three';
 import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
-import { aim, aimL, build, hipsAt, legs, LUNGE, mir, SET, WIDE } from '../anim/clipKit';
-import { registerGripSpin } from '../characters/gripSpin';
-import { STARKILLER_STANCE } from '../characters/styleClips';
+import { aim, aimL, build, hipsAt, legs, LUNGE, mir, SET } from '../anim/clipKit';
 import type { Alternate } from './combatStudies';
 
 /**
@@ -13,11 +11,6 @@ import type { Alternate } from './combatStudies';
  */
 
 interface Study { alt: Alternate; pose: string; upper: THREE.AnimationClip; lower: THREE.AnimationClip }
-
-registerGripSpin('starkillerStanceUpper', {
-  right: [{ about: 'forearm', keys: [[0, 180], [1, 180]] }],
-  left: [{ about: 'forearm', keys: [[0, 180], [1, 180]] }],
-});
 
 function ventress(p: Proportions): Study[] {
   const out: Study[] = [];
@@ -70,29 +63,7 @@ function ventress(p: Proportions): Study[] {
   return out;
 }
 
-function starkiller(p: Proportions): Study[] {
-  // Reverse-grip stance: low, turned side-on, the lead blade hanging below a
-  // fist held at the belt — the Force Unleashed ready. Not needed for his
-  // reversed strikes, which roll into and out of the reverse grip on their own.
-  const at = [0, 0.5, 1];
-  const upper = build('starkillerStanceUpper', { dur: 3, at, bones: {
-    chest: [[8, -26, 0], [9, -28, 0], [8, -26, 0]],
-    head: [[-4, 22, 0], [-4, 20, 0], [-4, 22, 0]],
-    upperArmR: [STARKILLER_STANCE.right, aim([-0.15, -0.5, 0.82]), STARKILLER_STANCE.right],
-    forearmR: [[-50, 0, 0], [-53, 0, 0], [-50, 0, 0]],
-    handR: [[10, 0, 0], [12, 0, 0], [10, 0, 0]],
-    upperArmL: [STARKILLER_STANCE.left, aimL([-0.45, -0.72, -0.32]), STARKILLER_STANCE.left],
-    forearmL: [mir([-25, 0, 0]), mir([-28, 0, 0]), mir([-25, 0, 0])],
-  } });
-  const lower = build('starkillerStanceLower', { dur: 3, at, bones: {
-    hips: [[4, -24, 0], [4, -25, 0], [4, -24, 0]],
-    ...legs(WIDE, WIDE, WIDE),
-  }, hips: hipsAt(p, [0.12, 0], [0.13, 0], [0.12, 0]) });
-  return [{ pose: 'saberIdle', upper, lower,
-    alt: { id: 'starkillerStance', name: 'Reverse-grip stance', lower: lower.name, upper: upper.name, reference: 'saber' } }];
-}
-
-const BUILDERS: Record<string, (p: Proportions) => Study[]> = { ventress, jedi: starkiller };
+const BUILDERS: Record<string, (p: Proportions) => Study[]> = { ventress };
 const offered = new Map<string, Study[]>();
 
 /** The character's bench studies, fresh per figure since the workbench edits clips in place. */

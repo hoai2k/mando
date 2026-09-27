@@ -386,6 +386,9 @@ if (process.argv[1] && /skin-audit\.mjs$/.test(process.argv[1])) {
       const d = decided.get(f.id);
       if (d) { f.decision = d.decision; f.status = d.decision === 'approve' ? 'applied' : 'discarded'; }
     }
+    // a fix written by hand (`manual`) is not something the audit can find
+    // again, so it is carried over as it stands
+    for (const f of previous?.fixes ?? []) if (f.manual && !result.fixes.some((r) => r.id === f.id)) result.fixes.push(f);
     const doc = {
       format: 'mando-skinfix/1',
       model: id,

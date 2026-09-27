@@ -22,7 +22,7 @@ import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
-import { pickStyleMove } from '../characters/styleClips';
+import { pickStyleMove, type StyleMove } from '../characters/styleClips';
 
 /** scratch for measuring the body the camera is framing */
 const _bodyBox = new THREE.Box3();
@@ -1310,6 +1310,21 @@ export class Player {
   }
 
   /** blades out and free to work */
+  /**
+   * The ready a fighter with a stance of their own stands in with blades lit:
+   * rolled once each time the blades come out, between the original guard
+   * (null) and their approved stance (styleClips.ts), and kept until they go
+   * away — a stance that changed from one frame to the next would not be one.
+   */
+  private bladeStance(): StyleMove | null {
+    const drawn = this.sabersDrawn;
+    if (drawn && !this.stanceDrawn) this.stance = pickStyleMove(this.characterId, 'idle');
+    this.stanceDrawn = drawn;
+    return drawn ? this.stance : null;
+  }
+  private stance: StyleMove | null = null;
+  private stanceDrawn = false;
+
   get sabersDrawn(): boolean {
     return this.alive && this.weapon === 'gaffi' && this.meleeKind === 'sabers';
   }
@@ -2314,6 +2329,7 @@ export class Player {
       // is its cycle played backward, a touch slower
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
+      this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
       const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
@@ -2327,9 +2343,10 @@ export class Player {
         else audio.footstep(game.board.footstep);
       }
     } else {
-      anim.play('lower', 'idleLower');
+      const stance = gunUp ? null : this.bladeStance();
+      anim.play('lower', stance?.lower ?? 'idleLower');
       const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : idleUpper);
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : stance?.upper ?? idleUpper);
     }
   }
 
