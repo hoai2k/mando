@@ -19,17 +19,23 @@ import { registerGripSpin } from './gripSpin';
  * Strikes put contact at 45% of the clip, the melee controller's hit frame.
  */
 
-export type StyleSlot = 1 | 2 | 3 | 'flourish';
+export type StyleSlot = 1 | 2 | 3 | 'flourish' | 'idle';
+/** which way the blade sits in the hand: forward, or reversed below the little finger */
+export type Grip = 'forward' | 'reverse';
 export interface StyleMove {
   id: string;
   name: string;
-  /** combo step it can stand in for, or the flourish */
+  /** combo step it can stand in for, the flourish, or the stance held with blades drawn */
   slot: StyleSlot;
   upper: string;
   lower: string;
   /** the move turns the whole body, so its legs play even under a lunge */
   lowerAlways?: boolean;
+  /** the grip it starts and ends in; forward throughout when not given, as every original is */
+  grip?: { start: Grip; end: Grip };
 }
+
+const REVERSE_HELD = { start: 'reverse', end: 'reverse' } as const;
 
 const MOVES: Record<string, StyleMove[]> = {
   maul: [
@@ -39,9 +45,10 @@ const MOVES: Record<string, StyleMove[]> = {
     { id: 'maulFigureEight', name: 'Figure-eight flourish', slot: 'flourish', upper: 'maulFigureEightUpper', lower: 'maulFigureEightLower' },
   ],
   jedi: [
-    { id: 'starkillerSweep', name: 'Reverse-grip sweep', slot: 1, upper: 'starkillerSweepUpper', lower: 'starkillerSweepLower' },
-    { id: 'starkillerFlip', name: 'Flip to reverse and stab', slot: 2, upper: 'starkillerFlipUpper', lower: 'starkillerFlipLower' },
-    { id: 'starkillerWhirl', name: 'Reverse-grip whirlwind', slot: 3, upper: 'starkillerWhirlUpper', lower: 'starkillerWhirlLower', lowerAlways: true },
+    { id: 'starkillerSweep', name: 'Reverse-grip sweep', slot: 1, upper: 'starkillerSweepUpper', lower: 'starkillerSweepLower', grip: REVERSE_HELD },
+    { id: 'starkillerFlip', name: 'Flip to reverse and stab', slot: 2, upper: 'starkillerFlipUpper', lower: 'starkillerFlipLower', grip: { start: 'forward', end: 'reverse' } },
+    { id: 'starkillerWhirl', name: 'Reverse-grip whirlwind', slot: 3, upper: 'starkillerWhirlUpper', lower: 'starkillerWhirlLower', lowerAlways: true, grip: REVERSE_HELD },
+    { id: 'starkillerStance', name: 'Reverse-grip stance', slot: 'idle', upper: 'starkillerStanceUpper', lower: 'starkillerStanceLower', grip: REVERSE_HELD },
   ],
   maris: [
     { id: 'marisJab', name: 'Spinning jab', slot: 1, upper: 'marisJabUpper', lower: 'marisJabLower' },
@@ -68,11 +75,14 @@ registerGripSpin('maulFigureEightUpper', { right: [{ about: 'forearm', keys: [[0
 registerGripSpin('starkillerSweepUpper', { right: [REVERSED], left: [REVERSED] });
 registerGripSpin('starkillerFlipUpper', { right: [{ about: 'forearm', keys: [[0, 0], [0.18, 0], [0.32, 180], [1, 180]] }] });
 registerGripSpin('starkillerWhirlUpper', { right: [REVERSED], left: [REVERSED] });
+registerGripSpin('starkillerStanceUpper', { right: [REVERSED], left: [REVERSED] });
 registerGripSpin('marisJabUpper', { right: [{ about: 'crossGrip', keys: [[0, 0], [0.18, -25], [0.45, 540], [0.7, 720], [1, 720]] }] });
 registerGripSpin('marisFlipOutUpper', { left: [{ about: 'crossGrip', keys: [[0, 0], [0.34, 0], [0.45, -180], [0.62, -180], [0.85, -360], [1, -360]] }] });
+// Both tonfas wheel upright beside her, handles in, through the whole turn
+// of her body: the wheel is held in her hips' heading, so it turns with her.
+const CYCLONE: Array<[number, number]> = [[0, 0], [0.12, -30], [0.8, 1080], [1, 1080]];
 registerGripSpin('marisCycloneUpper', {
-  right: [{ about: 'crossGrip', keys: [[0, 0], [0.12, -30], [0.8, 1080], [1, 1080]] }],
-  left: [{ about: 'crossGrip', keys: [[0, 0], [0.12, 30], [0.8, -1080], [1, -1080]] }],
+  right: [{ about: 'sideWheel', keys: CYCLONE }], left: [{ about: 'sideWheel', keys: CYCLONE }],
 });
 // both blades wheel forward in upright discs beside her, clear of the body
 const WHEEL: Array<[number, number]> = [[0, 0], [0.15, 60], [0.8, 720], [1, 720]];
@@ -162,11 +172,30 @@ function maul(p: Proportions): THREE.AnimationClip[] {
 }
 
 /** Starkiller's ready: lead fist at the belt, the off arm low and back */
-export const STARKILLER_STANCE = { right: aim([-0.15, -0.55, 0.8]), left: aimL([-0.45, -0.75, -0.3]) };
+const STARKILLER_STANCE = { right: aim([-0.15, -0.55, 0.8]), left: aimL([-0.45, -0.75, -0.3]) };
 
 function starkiller(p: Proportions): THREE.AnimationClip[] {
   const out: THREE.AnimationClip[] = [];
   const stanceR = STARKILLER_STANCE.right, stanceL = STARKILLER_STANCE.left;
+
+  // Reverse-grip stance: low, turned side-on, the lead blade hanging below a
+  // fist held at the belt — the Force Unleashed ready.
+  {
+    const at = [0, 0.5, 1];
+    out.push(build('starkillerStanceUpper', { dur: 3, at, bones: {
+      chest: [[8, -26, 0], [9, -28, 0], [8, -26, 0]],
+      head: [[-4, 22, 0], [-4, 20, 0], [-4, 22, 0]],
+      upperArmR: [stanceR, aim([-0.15, -0.5, 0.82]), stanceR],
+      forearmR: [[-50, 0, 0], [-53, 0, 0], [-50, 0, 0]],
+      handR: [[10, 0, 0], [12, 0, 0], [10, 0, 0]],
+      upperArmL: [stanceL, aimL([-0.45, -0.72, -0.32]), stanceL],
+      forearmL: [mir([-25, 0, 0]), mir([-28, 0, 0]), mir([-25, 0, 0])],
+    } }));
+    out.push(build('starkillerStanceLower', { dur: 3, at, bones: {
+      hips: [[4, -24, 0], [4, -25, 0], [4, -24, 0]],
+      ...legs(WIDE, WIDE, WIDE),
+    }, hips: hipsAt(p, [0.12, 0], [0.13, 0], [0.12, 0]) }));
+  }
 
   // Reverse sweep: the fist starts at the far shoulder and is thrown out wide;
   // held reversed, the blade trails the hand and sweeps the whole arc behind it.
@@ -277,20 +306,20 @@ function maris(p: Proportions): THREE.AnimationClip[] {
     }, hips: hipsAt(p, [0.04, 0], [0.1, -0.02], [0.1, -0.02], [0.06, 0.03], [0.06, 0.03], [0.04, 0], [0.04, 0]) }));
   }
 
-  // Cyclone: arms out, both tonfas wheeling opposite ways, and a full turn of
-  // the body through them. Elbows bent so the forearms point forward: a blade
-  // turned back along the forearm then passes beside the body rather than
-  // into it. Half again the study's pace.
+  // Cyclone: arms thrown straight out to the sides, both tonfas wheeling
+  // upright beside her, and a full turn of the body through them. Straight
+  // out, each arm crosses its wheel only at the fist, so the blades stay clear
+  // of her arms and body. Half again the study's pace.
   {
     const at = [0, 0.12, 0.28, 0.45, 0.62, 0.8, 1];
     const dur = 0.9 / 1.5;
-    const wideR = aim([-0.85, -0.35, 0.4]), wideL = aimL([-0.85, -0.35, 0.4]);
+    const wideR = aim([-1, 0.02, 0.1]), wideL = aimL([-1, 0.02, 0.1]);
     out.push(build('marisCycloneUpper', { dur, at, bones: {
       chest: [[7, -12, 0], [4, -20, 0], [4, 0, 0], [4, 0, 0], [4, 0, 0], [6, 0, 0], [7, -12, 0]],
       upperArmR: [guardR, wideR, wideR, wideR, wideR, wideR, guardR],
-      forearmR: [guardFR, [-80, 0, 0], [-75, 0, 0], [-75, 0, 0], [-75, 0, 0], [-80, 0, 0], guardFR],
+      forearmR: [guardFR, [-10, 0, 0], [-6, 0, 0], [-6, 0, 0], [-6, 0, 0], [-10, 0, 0], guardFR],
       upperArmL: [mir(guardR), wideL, wideL, wideL, wideL, wideL, mir(guardR)],
-      forearmL: [mir(guardFR), mir([-80, 0, 0]), mir([-75, 0, 0]), mir([-75, 0, 0]), mir([-75, 0, 0]), mir([-80, 0, 0]), mir(guardFR)],
+      forearmL: [mir(guardFR), mir([-10, 0, 0]), mir([-6, 0, 0]), mir([-6, 0, 0]), mir([-6, 0, 0]), mir([-10, 0, 0]), mir(guardFR)],
       head: [[1, 10, 0], [0, 10, 0], [0, 8, 0], [0, 8, 0], [0, 8, 0], [0, 8, 0], [1, 10, 0]],
     } }));
     out.push(build('marisCycloneLower', { dur, at, bones: {
@@ -335,12 +364,31 @@ export function styleClips(character: string, p: Proportions): ClipSet {
   return clips;
 }
 
-/** An approved style move for this combo step or the flourish, or null for the original. */
-export function pickStyleMove(character: string, slot: StyleSlot): StyleMove | null {
+export const gripStart = (m: StyleMove | null): Grip => m?.grip?.start ?? 'forward';
+export const gripEnd = (m: StyleMove | null): Grip => m?.grip?.end ?? 'forward';
+
+/** how much likelier a move is when it starts in the grip the blade is already in */
+const SAME_GRIP = 3;
+
+/**
+ * An approved style move for this combo step, the flourish or the stance, or
+ * null for the original. Given the grip the blade is in now, a move that
+ * starts in that grip is `SAME_GRIP` times as likely as one that would have to
+ * turn it over first: out of a reverse-grip stance the reversed strikes come
+ * up far more often, out of the forward guard the forward ones do, and a
+ * reversed strike tends to settle into the reversed stance.
+ */
+export function pickStyleMove(character: string, slot: StyleSlot, grip?: Grip): StyleMove | null {
   const moves = styleMoves(character).filter((m) => m.slot === slot);
   // no draw at all when there is nothing to choose: a fighter without a style
   // leaves the dice where they were, so a seeded run replays as it always did
   if (!moves.length) return null;
-  const pick = Math.floor(Math.random() * (moves.length + 1));
-  return pick < moves.length ? moves[pick] : null;
+  const options: Array<StyleMove | null> = [null, ...moves];
+  const weights = options.map((m) => (grip && gripStart(m) === grip ? SAME_GRIP : 1));
+  let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < options.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return options[i];
+  }
+  return options[options.length - 1];
 }

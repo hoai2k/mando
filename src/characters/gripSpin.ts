@@ -19,7 +19,9 @@ import { gripClipKey } from './gripClipKey';
  *  - `sideWheel`: an upright wheel beside the body, turning forward about the
  *    body's own left-right axis wherever the hand happens to point — the
  *    shaft or blade outboard, a tonfa's handle toward the body. It sets the
- *    weapon's orientation outright rather than adding to the grip.
+ *    weapon's orientation outright rather than adding to the grip, and it is
+ *    held in the hips' heading, so a move that turns the body turns the
+ *    wheels with it while they stay upright.
  * Keys are progress (0-1) → degrees, linear between keys.
  */
 export type SpinAxis = 'crossGrip' | 'forearm' | 'palm' | 'sideWheel';
@@ -72,8 +74,11 @@ const _world = new THREE.Quaternion();
 const _target = new THREE.Quaternion();
 const _forearm = new THREE.Vector3();
 const _axis = new THREE.Vector3();
+const _heading = new THREE.Quaternion();
+const _fwd = new THREE.Vector3();
 const HILT = new THREE.Vector3(0, 1, 0);
 const LATERAL = new THREE.Vector3(1, 0, 0);
+const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * The axis in the weapon's frame. The hand mount reproduces the canonical
@@ -118,7 +123,7 @@ interface BlendState { clip: string; from: THREE.Quaternion; t: number }
  */
 export function applyGripSpin(
   weapon: THREE.Object3D, side: 'right' | 'left', clip: string | null, spin: GripSpin | undefined,
-  progress: number, dt: number, body: THREE.Object3D,
+  progress: number, dt: number, body: THREE.Object3D, hips: THREE.Object3D,
 ): void {
   const pivot = weapon.userData.gripSpin as THREE.Object3D | undefined;
   if (!pivot) return;
@@ -129,8 +134,12 @@ export function applyGripSpin(
     // world orientation wanted: the body's frame, turned forward about its own
     // left-right axis, from the wheel's rest; expressed under the weapon
     weapon.updateWorldMatrix(true, false);
+    hips.updateWorldMatrix(true, false);
     body.getWorldQuaternion(_world);
-    _world.multiply(_q.setFromAxisAngle(LATERAL, sample(wheel.keys, progress) * Math.PI / 180))
+    // the hips' heading, yaw only, in the body's frame
+    _fwd.set(0, 0, 1).applyQuaternion(hips.getWorldQuaternion(_heading)).applyQuaternion(_inv.copy(_world).invert());
+    _world.multiply(_heading.setFromAxisAngle(UP, Math.atan2(_fwd.x, _fwd.z)))
+      .multiply(_q.setFromAxisAngle(LATERAL, sample(wheel.keys, progress) * Math.PI / 180))
       .multiply(WHEEL_REST[side]);
     weapon.getWorldQuaternion(_inv).invert();
     _target.copy(_inv).multiply(_world);

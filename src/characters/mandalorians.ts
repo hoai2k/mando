@@ -795,8 +795,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         const clip = inst.animator?.playing('upper') ?? null;
         const spin = gripSpinFor(clip);
         const progress = inst.animator?.clipProgress('upper') ?? 0;
-        applyGripSpin(sabers.main, 'right', clip, spin, progress, dt, inst.root);
-        if (sabers.offhand) applyGripSpin(sabers.offhand, 'left', clip, spin, progress, dt, inst.root);
+        applyGripSpin(sabers.main, 'right', clip, spin, progress, dt, inst.root, rig.bones.hips);
+        if (sabers.offhand) applyGripSpin(sabers.offhand, 'left', clip, spin, progress, dt, inst.root, rig.bones.hips);
       }
       for (const trail of trailUpdates) trail(dt, trailActive);
       capeUpdate?.(dt, time);

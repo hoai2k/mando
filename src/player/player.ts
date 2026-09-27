@@ -22,7 +22,7 @@ import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { reachArm } from '../anim/seating';
-import { pickStyleMove } from '../characters/styleClips';
+import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
@@ -1365,6 +1365,25 @@ export class Player {
   }
 
   /** blades out and free to work */
+  /**
+   * The ready a fighter with a stance of their own stands in with blades lit:
+   * rolled between the original guard (null) and their approved stance
+   * (styleClips.ts) each time the blades come out and again with every
+   * swing, so they may settle into a different one after each attack — but
+   * never mid-stance, since one that changed from frame to frame would not be
+   * a stance at all.
+   */
+  private bladeStance(): StyleMove | null {
+    const drawn = this.sabersDrawn;
+    if (drawn && !this.stanceDrawn) this.stance = pickStyleMove(this.characterId, 'idle');
+    this.stanceDrawn = drawn;
+    return drawn ? this.stance : null;
+  }
+  private stance: StyleMove | null = null;
+  private stanceDrawn = false;
+  /** the grip the last attack left the blade in */
+  private attackGrip: Grip = 'forward';
+
   get sabersDrawn(): boolean {
     return this.alive && this.weapon === 'gaffi' && this.meleeKind === 'sabers';
   }
@@ -2369,6 +2388,7 @@ export class Player {
       // is its cycle played backward, a touch slower
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
+      this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
       const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
@@ -2382,9 +2402,10 @@ export class Player {
         else audio.footstep(game.board.footstep);
       }
     } else {
-      anim.play('lower', 'idleLower');
+      const stance = gunUp ? null : this.bladeStance();
+      anim.play('lower', stance?.lower ?? 'idleLower');
       const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : idleUpper);
+      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : stance?.upper ?? idleUpper);
     }
   }
 
@@ -3396,7 +3417,11 @@ export class Player {
       // one-in-four chance to use its faster, individually keyed variation.
       // A fighter with a style of their own draws each hit at random between
       // the original and their approved style moves (styleClips.ts).
-      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3);
+      // The blade is in whatever grip the last attack left it, mid-combo, or
+      // the stance's grip out of a standing ready; a strike that starts in it
+      // is the likelier draw.
+      const inGrip = this.meleeComboWindow > 0 ? this.attackGrip : gripEnd(this.sabersDrawn ? this.stance : null);
+      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
       const variant: { upper: string; lower: string; hit: number; lowerAlways?: boolean } | null =
         this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
           : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
@@ -3437,6 +3462,10 @@ export class Player {
         this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
+      // the fighter comes out of every attack free to settle into either ready,
+      // leaning toward the one that keeps the grip the attack ended in
+      this.attackGrip = gripEnd(style);
+      this.stance = pickStyleMove(this.characterId, 'idle', this.attackGrip);
     }
     // Combo punctuation: when the window lapses with blades still lit, the
     // wrists circle both sabers once and settle into the guard. The window

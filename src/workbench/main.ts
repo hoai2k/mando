@@ -172,7 +172,7 @@ function alternatesFor(p: Pose): Alternate[] {
   const generic = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
     : own.length && subject.id !== 'ventress' ? [] : ATTACK_ALTERNATES[p.id] ?? [];
   const approved: Alternate[] = own
-    .filter((m) => (m.slot === 'flourish' ? 'flourish' : `saber${m.slot}`) === p.id)
+    .filter((m) => (m.slot === 'flourish' ? 'flourish' : m.slot === 'idle' ? 'saberIdle' : `saber${m.slot}`) === p.id)
     .map((m) => ({ id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'saber' }));
   const choices = [...generic, ...approved, ...styleStudyAlternates(subject.id, p.id)];
   return choices.filter((alt) => figures.length > 0

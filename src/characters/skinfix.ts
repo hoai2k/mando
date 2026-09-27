@@ -27,6 +27,8 @@ export interface SkinFix {
   status: 'applied' | 'pending' | 'discarded';
   /** the reviewer's call, once made in the workbench and folded back in */
   decision?: 'approve' | 'discard';
+  /** written by hand rather than found by the audit, which carries it over on a re-run */
+  manual?: boolean;
   region: string;
   foreign: string;
   stats: {
