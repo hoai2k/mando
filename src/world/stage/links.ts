@@ -117,7 +117,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     // walk is a series of angles rather than a shooting gallery, and they
     // stand off the centreline so the golden path stays clear. Anything
     // that lands inside a crate or a wall is dropped by `fits` below.
-    if (len >= PICKET_MIN_LEN && !link.quiet) {
+    // …except under the sea, where the clock is the air, not a picket: a
+    // trooper stood on the seabed was the whole of the sea's garrison
+    if (len >= PICKET_MIN_LEN && !link.quiet && stage.kind !== 'sea') {
       let n = 0;
       for (let d = PICKET_EVERY * 0.6; d < len - 2; d += PICKET_EVERY) {
         const side = n++ % 2 ? 1 : -1;

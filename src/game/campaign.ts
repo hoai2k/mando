@@ -86,6 +86,8 @@ const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
  */
 const supplied = (spec: ZoneSpec): boolean =>
   !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
+/** what running out of air costs a second, under the sea */
+const DROWN_DPS = 9;
 /** encounters fought where they stand: a zone-0 one shuts the way back while it lasts */
 const FIGHT_KINDS = new Set<ZoneSpec['kind']>(['assault', 'lieutenant', 'warlord', 'chase']);
 /**
@@ -156,6 +158,8 @@ export class Campaign implements MissionController {
   private cachesDropped = new Set<number>();
   /** roads whose swoop pack has been sent, by beat */
   private packSent = new Set<number>();
+  /** the low-air warning has been given on this stage */
+  private airNoted = false;
   /** road: the furthest drop mark the lead has actually reached */
   private markReached = -1;
   /** road: which of its drop marks have fired */
@@ -329,6 +333,10 @@ export class Campaign implements MissionController {
       }
     }
     if (stage.waterY !== undefined) board.waterY = stage.waterY;
+
+    // the sea's clock starts full the moment the party goes under
+    for (const p of game.players) p.air = stage.spec.air ? 1 : null;
+    this.airNoted = false;
 
     // The stage has to be the standing one *before* anyone is posted in it:
     // `placeNear` — which every garrison, defender and ride placement goes
@@ -1612,6 +1620,7 @@ export class Campaign implements MissionController {
     }
 
     this.updateCeilingNote();
+    this.updateAir(dt);
     this.updatePortals();
     if (this.transitT > 0) return;
 
@@ -1855,6 +1864,27 @@ export class Campaign implements MissionController {
     toExit.divideScalar(len);
     const along = (p.x - zone.entry.x) * toExit.x + (p.z - zone.entry.z) * toExit.z;
     return along >= len - 1.5;
+  }
+
+  /**
+   * Air, under the sea: it runs down, the wreck's trapped air fills it back
+   * up, and a player who runs out is drowning until they reach some or the
+   * far pool. A fallen player comes back with a full tank.
+   */
+  private updateAir(dt: number): void {
+    const air = this.stage.spec.air;
+    if (!air) return;
+    for (const p of this.game.players) {
+      if (p.air === null) continue;
+      if (!p.alive) { p.air = 1; continue; }
+      const inPocket = air.pockets.some((k) => Math.hypot(p.position.x - k.x, p.position.z - k.z) < k.r);
+      p.air = inPocket ? Math.min(1, p.air + dt / 1.5) : Math.max(0, p.air - dt / air.seconds);
+      if (p.air <= 0) p.damage(DROWN_DPS * dt, p.position, -1, { dot: true });
+      if (!this.airNoted && p.air < 0.3) {
+        this.airNoted = true;
+        this.game.announce(TEXT.banners.airLow.title, TEXT.banners.airLow.sub);
+      }
+    }
   }
 
   /**

@@ -104,7 +104,7 @@ export const TEXT = {
 
   // ---------- heads-up display ----------
   hud: {
-    bars: { health: 'HP', fuel: 'JET', energy: 'ENERGY', heat: 'HEAT' },
+    bars: { health: 'HP', fuel: 'JET', energy: 'ENERGY', heat: 'HEAT', air: 'AIR' },
     newContact: '◢ New contact',
     newContacts: '◢ New contacts',
     /** the kicker over a boss's name card */
@@ -191,6 +191,7 @@ export const TEXT = {
     checkpoint: 'Checkpoint',
     riders: { title: 'Riders', sub: 'drop the rider, take the ride' },
     swoopPack: { title: 'Swoop pack', sub: 'they are coming in over the rim' },
+    airLow: { title: 'Air low', sub: 'the wreck holds air — or make for the pool' },
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },
     offPath: { title: 'Off the path', sub: 'back to the last checkpoint' },

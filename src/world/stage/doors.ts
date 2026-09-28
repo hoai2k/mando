@@ -1,7 +1,7 @@
 import { GATE_W } from '../gate';
 import type { Shell } from '../mission';
 import { PORTAL_POCKET, WALL_T, ROOF_H, RIM_OVER_CEILING, VESTIBULE, DOOR_MAX_H, type Frame } from './common';
-import { Portal } from './barriers';
+import { Portal, type PortalStyle } from './barriers';
 import type { StageBuilder } from './builder';
 import type { StageChain } from './zones';
 
@@ -21,7 +21,7 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
   // A pocket beyond the leaves, whose far end is the threshold: the door is
   // stepped through deliberately, never brushed by in a fight that spilled
   // into it, and on the way back it is where a player stands to wait.
-  const pocket = (f: Frame, u0: number, top: number, back: boolean, doorH: number): void => {
+  const pocket = (f: Frame, u0: number, top: number, back: boolean, doorH: number, walled = true): void => {
     const s0 = back ? u0 - PORTAL_POCKET - 1 : u0;
     const s1 = back ? u0 : u0 + PORTAL_POCKET + 1;
     // The pocket is a threshold, so on rolling ground it is levelled into a
@@ -29,12 +29,14 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     // dune through it — a door you step *up* into reads as a door.
     // a door's pocket is roofed: it takes a roofed floor whatever it opens on
     solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top - 3, top, hallFloorMat);
+    rects.push(f.rect(s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6));
+    // a hatch in the floor or a pool ring on the seabed is a hole, not a room
+    if (!walled) return;
     wallV(f, GATE_W / 2 + 2.6 + WALL_T / 2, s0, s1, [], top, doorH);
     wallV(f, -GATE_W / 2 - 2.6 - WALL_T / 2, s0, s1, [], top, doorH);
     wallU(f, back ? s0 - WALL_T / 2 : s1 + WALL_T / 2,
       -GATE_W / 2 - 2.6 - WALL_T, GATE_W / 2 + 2.6 + WALL_T, [], top, doorH);
     solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top + doorH, top + doorH + 0.8, wallMat);
-    rects.push(f.rect(s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6));
   };
 
   /**
@@ -117,7 +119,13 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
       ? groundAt(f.x(u0 + 2, 0), f.z(u0 + 2, 0))
       : zoneTops[last];
     const doorH = Math.max(6, Math.min(DOOR_MAX_H, stage.zones[last].roofH ?? ROOF_H));
-    pocket(f, u0, top, false, doorH);
+    // Into the sea is a hatch in the floor at the gantry's end — the party
+    // dives — and out of it is a lit pool ring set in the rig's foundation
+    // that they swim up into. Both used to be sheds: a door into the water,
+    // and a door standing on the seabed.
+    const style: PortalStyle = spec.stages[index + 1]?.kind === 'sea' ? 'hatch'
+      : stage.kind === 'sea' ? 'ring' : 'door';
+    pocket(f, u0, top, false, doorH, style !== 'hatch');
     // A gorge's way on is a **door in a wall**, not a shed standing in a
     // ravine. The pocket is only nine metres across; a sixteen-metre slot left
     // two metres of walkable rock down either side of it, and the slot's own
@@ -132,14 +140,22 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     // so there is no gap beside the door and no sky above it.
     // wall to wall: a face that stops short of the border leaves sand either
     // side of the door, which is the walk-round it was built to close
-    if (spec.ridge === 'hull' && index === 0 && stage.zones[last].shell === 'deck') {
+    if (style === 'hatch') {
+      // no face: the way on is down, through the floor
+    } else if (style === 'ring') {
+      // The rig's foundation: a wall across the shaft, far wider than it,
+      // standing from the seabed to the lid, with the lock's opening in it and
+      // the lit pool over the pocket behind. A door set in a wall, never one
+      // standing on open seabed.
+      doorwayFace(f, u0 - WALL_T, Math.max(30, stage.zones[last].w / 2 + 12), top, doorH);
+    } else if (spec.ridge === 'hull' && index === 0 && stage.zones[last].shell === 'deck') {
       hullFace(f, u0, 1, top, doorH, stage.zones[last].w);
     } else if (gorgeHalf) doorwayFace(f, u0 - WALL_T, gorgeHalf + 1.5, top, doorH);
     else if (!bare && facedShell(stage.zones[last].shell)) {
       doorwayFace(f, u0 - WALL_T, stage.zones[last].w / 2 + 1.5, top, doorH);
     }
     exitPortal = new Portal(board, group, f.vec(u0, 0, top),
-      { x: f.dx, z: f.dz }, doorH, PORTAL_POCKET);
+      { x: f.dx, z: f.dz }, doorH, PORTAL_POCKET, style);
     path.push(exitPortal.threshold.clone());
   }
   if (hasPrev) {
@@ -149,8 +165,12 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     const u = -1 - VESTIBULE;
     const top = onGround ? groundAt(f.x(u - 2, 0), f.z(u - 2, 0)) : zoneTops[0];
     const doorH = Math.max(6, Math.min(DOOR_MAX_H, stage.zones[0].roofH ?? ROOF_H));
-    pocket(f, u, top, true, doorH);
-    if (spec.ridge === 'hull' && stage.zones[0].shell === 'deck') {
+    // the way back up out of the sea is the pool ring you came down through
+    const style: PortalStyle = stage.kind === 'sea' ? 'ring' : 'door';
+    pocket(f, u, top, true, doorH, style === 'door');
+    if (style !== 'door') {
+      // a ring on the seabed: nothing to set it into, and nothing needed
+    } else if (spec.ridge === 'hull' && stage.zones[0].shell === 'deck') {
       hullFace(f, u, -1, top, doorH, stage.zones[0].w);
     } else if (!bare && facedShell(stage.zones[0].shell)) {
       // the vestibule's lane is held by cliffs a link's width apart; the face
@@ -158,7 +178,7 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
       doorwayFace(f, u + WALL_T, Math.max(b.corrW, 9) / 2 + 4, top, doorH);
     }
     backPortal = new Portal(board, group, f.vec(u, 0, top),
-      { x: -f.dx, z: -f.dz }, doorH, PORTAL_POCKET);
+      { x: -f.dx, z: -f.dz }, doorH, PORTAL_POCKET, style);
   }
 
   return { exitPortal, backPortal };

@@ -633,11 +633,14 @@ const narkina: StageSpec[] = [
     // and a level raised into the sky could never reach it. So the run goes
     // down: the gantry ends at a dive hatch, and the next map is the sea
     // itself. No rim (the reef holds it), no hazards laid (the sea is the
-    // hazard), and air is the clock.
+    // hazard), and air is the clock: under a minute of it, and more trapped
+    // in the sunken transport off the kelp forest's north edge, with a bacta
+    // canister — worth the detour, and a detour.
     kind: 'sea',
     label: TEXT.missions.stages.narkina[1],
     anchor: { x: -70, z: 26, dx: 1, dz: 0 },
     ceiling: 14,
+    air: { seconds: 55, pockets: [{ x: -52, z: 48, r: 4.5 }] },
     zones: [
       z('narkina', 2, { shell: 'open', kind: 'trek', w: 40, l: 40 }),
       z('narkina', 3, { shell: 'canyon', kind: 'trek', w: 20, l: 26 }),

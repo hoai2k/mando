@@ -146,7 +146,8 @@ Why each goes where it does, and how it joins the stages on either side:
   where the enforcer, the lieutenant, is fought) the mark bolts up a fire
   stair. The plaza's way on is the stair door to the roofs. The chase ends on the
   landing pad above the service spine. The pad's stair down is the way into A3.
-- **One Way Out** (Prison Rig, B ⇒ C). Surfacing from the moon pool shaft comes up
+- **One Way Out** (Prison Rig, B ⇒ C). The moon pool shaft ends at a lit pool
+  ring set in the rig's foundation wall. Surfacing through it comes up
   inside the **cell blocks**, where the riot starts. The stair core is the way up to
   the work floor (C).
 - **The Lift** (Prison Rig, C ⇒ D). The supervisor deck's far door is already *the

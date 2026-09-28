@@ -20,6 +20,8 @@ interface PlayerHud {
   energy: HTMLElement;
   heat: HTMLElement;
   heatBar: HTMLElement;
+  air: HTMLElement;
+  airBar: HTMLElement;
   coverHint: HTMLElement;
   hpNum: HTMLElement;
   healthBar: HTMLElement;
@@ -116,6 +118,7 @@ export class Hud {
           <div class="bar fuel"><div class="fill"></div><div class="label">${TEXT.hud.bars.fuel}</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">${TEXT.hud.bars.energy}</div></div>
           <div class="bar heat"><div class="fill"></div><div class="label">${TEXT.hud.bars.heat}</div></div>
+          <div class="bar air"><div class="fill"></div><div class="label">${TEXT.hud.bars.air}</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
@@ -137,6 +140,8 @@ export class Hud {
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
+        air: root.querySelector('.bar.air .fill') as HTMLElement,
+        airBar: root.querySelector('.bar.air') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
         hpNum: root.querySelector('.bar.health .hpnum') as HTMLElement,
         healthBar: root.querySelector('.bar.health') as HTMLElement,
@@ -432,6 +437,12 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
+      // the air gauge only under the sea, where it is the clock
+      h.airBar.style.display = p.air === null ? 'none' : '';
+      if (p.air !== null) {
+        h.air.style.transform = `scaleX(${p.air})`;
+        h.airBar.classList.toggle('low', p.air < 0.3);
+      }
       if (p.vehicle) {
         const v = p.vehicle;
         const hp = Math.max(0, Math.ceil(v.hp));

@@ -474,6 +474,11 @@ export class Player {
   deathCounted = false;
   fuel = 1;
   /**
+   * Air left, 0..1, while the party is under the sea (a `sea` stage's clock);
+   * null anywhere else, and the HUD shows the gauge only when it is not.
+   */
+  air: number | null = null;
+  /**
    * Seconds left of a heavy landing's recovery: the legs are absorbing the
    * drop and there is no running out of it yet.
    */

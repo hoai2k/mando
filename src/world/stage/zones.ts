@@ -421,6 +421,11 @@ export function layZones(b: StageBuilder) {
     frame = layLink(b, i, f, l, isHall);
   }
 
+  // the air pockets of a sea stage each hold a bacta canister: a wreck cache
+  for (const pk of stage.air?.pockets ?? []) {
+    pickups.push(new THREE.Vector3(pk.x, groundAt(pk.x, pk.z) + 0.6, pk.z));
+  }
+
   // The vestibule: every stage with a door behind it opens outside its first
   // zone rather than inside it. Its point leads the golden path, so every
   // zone's place in the path moves up one.

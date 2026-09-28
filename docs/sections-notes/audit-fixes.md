@@ -285,6 +285,26 @@ The roads stay (the sections are additive).
 - **Left.** No suite walks the Spice Run's jumps with a bot; the plates were
   checked by the build audit and by screenshots.
 
+### 13. The sea: no pickets, a wreck cache, dive and surface portals, an air meter — done
+
+- **No pickets** on a `sea` stage's links.
+- **Air.** `StageSpec.air { seconds, pockets[] }`: the Prison Rig's sea gives 55 s.
+  `Player.air` (0..1, null when not under the sea) runs down, refills in an air
+  pocket, and at 0 drowns the player at 9 hp/s; a fallen player comes back with
+  a full tank. HUD: an AIR gauge, shown only under the sea, pulsing when low;
+  a one-time "Air low" banner at 30 %.
+- **Wreck cache.** The sunken transport off the kelp forest's north edge
+  (-52, 48) is an air pocket (r 4.5) with a bacta canister in it.
+- **Portals.** `PortalStyle`: `door` (as before), `hatch` (the gantry run's way
+  into the sea: a lit pool in the floor with a lid that slides off it as it
+  opens, no pocket walls, no rock face) and `ring` (the sea's way up: a lit
+  pool ring overhead with light coming down; the exit one is set in a wide
+  foundation wall across the moon pool shaft — boundary rule a — and the sea's
+  way back is a bare ring on the seabed). `Gate` gained a `hidden` option (no
+  frame, leaves or blocker) for them.
+- **Tests.** See the end-of-work runs; the sea stage is raised by
+  `audit-mission-build` (starts, spots, doors) and crossed by the sections run.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
@@ -319,4 +339,7 @@ first zone after one gets the vestibule — hold throughout.
 - **Item 11 — Refinery, end of B.** *The reactor floor* moved into the atrium: a
   40×40 hall with a 38 m roof round the core; its north door, the rear airlock,
   is a door in a hall wall. Lights Out note updated.
+- **Item 13 — Prison Rig, end of B.** The moon pool shaft's transport door is a
+  lit pool ring set in a wide foundation wall across the shaft (it used to be a
+  shed standing on the seabed). One Way Out note updated.
 

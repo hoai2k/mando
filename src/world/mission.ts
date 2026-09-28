@@ -231,6 +231,13 @@ export interface StageSpec {
     /** hemisphere fill over the stage */
     fill?: number;
   };
+  /**
+   * `sea` only: air, and where to find more of it. The party carries `seconds`
+   * of it from the moment they go under; `pockets` are air trapped in a wreck
+   * (board coordinates), each with a bacta canister in it, that fill the tank
+   * back up while you are in one. Air is the sea's clock.
+   */
+  air?: { seconds: number; pockets: { x: number; z: number; r: number }[] };
   /** overrides the spec's ceiling for this stage */
   ceiling?: number;
   /**
