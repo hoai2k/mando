@@ -1,6 +1,6 @@
 """Clean and split Tripo's seven-weapon sheet into independent static GLBs.
 
-Blender: blender -b --python tools/slice-polearm-collection.py -- SOURCE OUTDIR
+Blender: blender -b --python tools/asset-pipeline/slice-polearm-collection.py -- SOURCE OUTDIR
 The source is never modified. Connected shells determine the seven main
 weapons; small detached details follow the nearest shell on the row axis.
 """

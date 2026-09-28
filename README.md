@@ -285,4 +285,4 @@ The Boba Fett model supplied for `public/models/boba_fett.glb` identifies
 as its author and [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) as its license in the source GLB metadata. The
 game copy is a decimated, texture-repacked derivative of that model (kept as delivered in
 `public/models/sources/boba_fett.glb`), with its colour maps graded to match the rest of the cast,
-a folded belt fragment removed and its materials tidied by `tools/grade-boba-fett.py`.
+a folded belt fragment removed and its materials tidied by `tools/asset-pipeline/grade-boba-fett.py`.

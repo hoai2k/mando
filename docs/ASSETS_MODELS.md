@@ -35,7 +35,7 @@ connected shells. The untouched source is archived locally at
 `model-work/source/enemy_weapon_collection_orig.glb`; Blender cleaned UV
 splits, assigned 33 connected components to the five rows, reduced the two
 heavier slices to 3,200 triangles, and exported 1K-textured individual GLBs
-using `tools/slice-enemy-weapon-collection.py`. Top to bottom:
+using `tools/asset-pipeline/slice-enemy-weapon-collection.py`. Top to bottom:
 
 | Row | Game GLB | Triangles | Intended users |
 |---|---|---:|---|
@@ -109,7 +109,7 @@ untouched local source at `model-work/source/polearm_collection_orig.glb`.
 Blender welded coincident vertices, found seven main connected shells,
 assigned detached details to their nearest shell, reduced three slices to
 3,200 triangles, and exported independent 1K-textured GLBs with the tracked
-[`tools/slice-polearm-collection.py`](../tools/slice-polearm-collection.py).
+[`tools/asset-pipeline/slice-polearm-collection.py`](../tools/asset-pipeline/slice-polearm-collection.py).
 All seven reimported as single static meshes with UVs and materials.
 
 | Game GLB | Triangles | Assignment |
@@ -246,7 +246,7 @@ and [Ray Park technique demonstration](https://www.starwars.com/video/ray-park-l
 
 Maul's delivered skin has separate upper-arm and forearm shells whose rigid
 weights open visible elbow gaps during saber poses. Chest details also carry
-arm weights. `tools/fix-maul-arms.mjs` adds two load-time fixes to
+arm weights. `tools/asset-pipeline/fix-maul-arms.mjs` adds two load-time fixes to
 `public/models/skinfix/maul.json`: a shared elbow blend across both shell
 rims and torso-derived weights for those chest details. His source GLB remains
 untouched; `tools/test-maul-skin.mjs` checks the posed elbow gaps and torso
