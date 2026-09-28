@@ -17,28 +17,11 @@
  * throws that ball round a circle a quarter-metre across, so the test watches
  * the body's own mass centre and holds it to a line.
  */
-import { launch, BTN } from './harness.mjs';
+import { launch } from './harness.mjs';
 
 const h = await launch();
 let failures = 0;
 const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
-
-/** start a match as the named fighter, whatever their place in the roster is */
-async function startAs(name) {
-  await h.waitForText(/PRESS START|WAVE BATTLE/i);
-  await h.pad.tap(BTN.START);
-  await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
-  await h.pad.tap(BTN.A);
-  await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
-  for (let i = 0; i < 14; i++) {
-    if (new RegExp(name, 'i').test(await h.text())) break;
-    await h.pad.tap(BTN.DRIGHT);
-  }
-  await h.tapUntil(BTN.A, async () => /READY/i.test(await h.text()));
-  await h.pad.tap(BTN.A);
-  await h.tapUntil(BTN.A, () => h.page.evaluate(() => !!window.__game), { timeoutMs: 20000 });
-  await h.waitForPlaying();
-}
 
 /**
  * Lift the player off the ground, then hold jump for `holdFrames` and let go,
@@ -95,7 +78,7 @@ async function tumble(holdFrames) {
 }
 
 // ---- the acrobat ----
-await startAs('ventress');
+await h.startAs('ventress', 'The Dune Sea');
 const v = await tumble(45);
 const turned = Math.max(...v.held) - Math.min(...v.held);
 console.log(`  ${v.name}: airFlip=${v.airFlip}, pitch swept ${turned.toFixed(2)} rad while held, legs ran ${v.clipsHeld.join(',')}`);
@@ -226,7 +209,7 @@ check(drift < 0.06, 'the tumble turns about the body\'s weight, not a point behi
 
 // ---- and a fighter who is not one ----
 await h.page.reload({ waitUntil: 'networkidle' });
-await startAs('din djarin');
+await h.startAs('din djarin', 'The Dune Sea');
 const d = await tumble(45);
 const dinTurn = Math.max(...d.held) - Math.min(...d.held);
 console.log(`  ${d.name}: airFlip=${d.airFlip}, pitch swept ${dinTurn.toFixed(2)} rad, legs ran ${d.clipsHeld.join(',')}`);
