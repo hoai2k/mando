@@ -142,7 +142,9 @@ function build(ctx: SectionContext): SectionInstance {
 
   // ---- materials ----
   const plate = ctx.paint(0x8a8f96, { rough: 0.7, metal: 0.55 });
-  const hullMat = ctx.paint(0x5d626a, { rough: 0.75, metal: 0.6 });
+  // a lathe's flat sectors face down; the hull is only ever seen from above, but say so
+  plate.side = THREE.DoubleSide;
+  const hullMat = ctx.paint(0x8a96a8, { rough: 0.75, metal: 0.6 });
   hullMat.side = THREE.DoubleSide;
   const dark = ctx.paint(0x24272c, { rough: 0.8, metal: 0.5 });
   const trim = ctx.paint(0x3a3f47, { rough: 0.5, metal: 0.8 });
@@ -150,7 +152,7 @@ function build(ctx: SectionContext): SectionInstance {
   const redGlow = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
   const greenGlow = new THREE.MeshBasicMaterial({ color: 0x5ee08a });
   const white = new THREE.MeshBasicMaterial({ color: 0xdfe8ff });
-  for (const m of [amber, redGlow, greenGlow, white]) ctx.own(m);
+  for (const m of [amber, redGlow, greenGlow, white]) { ctx.own(m); m.side = THREE.DoubleSide; }
   // the spine's own plating when it lands, the station's hull plate until then
   let spine = false;
   loadOptionalTexture('ring_hull_spine', (tex) => {
@@ -161,7 +163,7 @@ function build(ctx: SectionContext): SectionInstance {
   loadOptionalTexture('metal_deck', (tex) => {
     if (spine) return;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    plate.map = tex; plate.color.set(0xe4e8ee); plate.needsUpdate = true;
+    plate.map = tex; plate.color.set(0xd0dcec); plate.needsUpdate = true;
   });
   ctx.tile(hullMat, 'hull_plate_large', 1, 1, { normal: true });
 
@@ -267,19 +269,23 @@ function build(ctx: SectionContext): SectionInstance {
   // its inner door the transport door the party just came through.
   const shieldMat = new THREE.MeshBasicMaterial({ color: 0x7fc4ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
   ctx.own(shieldMat);
-  const bulk = (s0: number, s1: number, halfW: number, h: number): void => {
-    // a bulkhead block, square to the world (both ends of the walk are)
-    const a = at(s0, 0), b = at(s1, 0);
-    const cx = (a.x + b.x) / 2, cz = (a.z + b.z) / 2;
-    const alongX = Math.abs(b.x - a.x) > Math.abs(b.z - a.z);
-    const len = Math.abs(s1 - s0);
-    ctx.box(cx, Y0 + h / 2 - 2, cz, alongX ? len : halfW * 2, h + 4, alongX ? halfW * 2 : len, dark);
-  };
   // the gantry's bulkhead behind the cage: the door you came through, shut
-  bulk(CAGE - 22, CAGE, HALF + 4, 16);
-  const inner = new THREE.Mesh(new THREE.PlaneGeometry(4, 4.4), redGlow);
+  // Solid, but drawn as one face toward the ring: the rail camera starts
+  // behind this wall looking through it at the party, as a brawler's camera
+  // looks through the near side of a building.
+  ctx.box(CAGE - 1, Y0 + 6, 0, 2, 20, (HALF + 4) * 2, null);
+  const gantryMat = ctx.paint(0x2c3038, { rough: 0.7, metal: 0.6 });
+  const gantry = new THREE.Mesh(new THREE.PlaneGeometry((HALF + 4) * 2, 18), gantryMat);
+  ctx.own(gantry.geometry);
+  gantry.position.set(CAGE - 0.02, Y0 + 7, 0);
+  gantry.rotation.y = Math.PI / 2;
+  ctx.mesh(gantry);
+  // one-sided like the wall it is set in
+  const innerMat = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
+  ctx.own(innerMat);
+  const inner = new THREE.Mesh(new THREE.PlaneGeometry(4, 4.4), innerMat);
   ctx.own(inner.geometry);
-  inner.position.set(CAGE + 0.02, Y0 + 2.2, 0);
+  inner.position.set(CAGE + 0.03, Y0 + 2.2, 0);
   inner.rotation.y = Math.PI / 2;
   ctx.mesh(inner);
   // the cage's sides: posts and panes, solid
@@ -323,10 +329,15 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.mesh(throatLamp);
   const endDoorBox = ctx.box(endX, Y0 + 2.2, endZ + 0.3, 5.2, 4.4, 0.4, trim);
   const endDoor = { box: endDoorBox.box, mesh: endDoorBox.mesh!, open: 0, want: 0, solid: true };
-  const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(6.4, 5.6, 0.3), redGlow);
-  ctx.own(doorFrame.geometry);
-  doorFrame.position.set(endX, Y0 + 2.8, endZ - 0.12);
-  ctx.mesh(doorFrame);
+  // a lit frame round the door, red while it is held, green once it is the way on
+  const frameMat = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
+  ctx.own(frameMat);
+  for (const [x, y, w, hh] of [[-3, 2.5, 0.4, 5], [3, 2.5, 0.4, 5], [0, 5.1, 6.4, 0.4]] as const) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, hh, 0.3), frameMat);
+    ctx.own(bar.geometry);
+    bar.position.set(endX + x, Y0 + y, endZ - 0.12);
+    ctx.mesh(bar);
+  }
   // A collider that comes and goes (the door, the hatch) is taken out of and
   // put back into the physics list directly: `ctx.unsolid` would also drop it
   // from the context's ledger, and a box put back after that would outlive
@@ -375,23 +386,31 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- cover: cargo pods clamped to the hull (round, so the curve holds) ----
-  const podMat = ctx.paint(0x7a5a3a, { rough: 0.7, metal: 0.4 });
+  const podMat = ctx.paint(0x56606e, { rough: 0.6, metal: 0.6 });
   const pods: [number, number][] = [[18, -3], [31, 3], [44, -3], [58, 3], [66, -3], [140, 3], [152, -3], [186, 3], [206, 3], [236, 3], [262, -3], [276, 3], [286, -3]];
   const POD_R = 1.0;
   for (const [s, lat] of pods) {
     const p = at(s, lat);
     const { mesh } = ctx.cyl(p.x, Y0 + 1.1, p.z, POD_R, 2.2, podMat);
     if (mesh) mesh.rotation.y = s;
+    // a red hazard band round each, so cover reads at a glance from the rail
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(POD_R + 0.03, POD_R + 0.03, 0.22, 16, 1, true), redGlow);
+    ctx.own(band.geometry);
+    band.position.set(p.x, Y0 + 1.7, p.z);
+    ctx.mesh(band);
   }
 
   // ---- the spoke junction ----
   const hub = new THREE.Vector3(C.x, Y0 + 70, C.z);
-  const spokeAt = (s: number): { base: THREE.Vector3 } => ({ base: at(s, APRON.lat + 6, Y0 + 3) });
-  const spoke = (s: number, w: number): void => {
-    const { base } = spokeAt(s);
+  // the station's own steel, untextured: a 150 m beam wears no tile well
+  const steel = ctx.paint(0x9aa4b2, { rough: 0.55, metal: 0.7 });
+  const spoke = (th: number, w: number): void => {
+    // anywhere round the ring, not just on the walked quarter
+    const r = R - (APRON.lat + 6);
+    const base = new THREE.Vector3(r * Math.sin(th), Y0 + 3, R - r * Math.cos(th));
     const dir = hub.clone().sub(base);
     const len = dir.length() - 34;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 9, len), hullMat);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 9, len), steel);
     ctx.own(m.geometry);
     m.position.copy(base).addScaledVector(dir.normalize(), len / 2);
     m.lookAt(hub);
@@ -405,7 +424,7 @@ function build(ctx: SectionContext): SectionInstance {
     ctx.mesh(lights);
   };
   // the junction's own spoke, and three more round the ring
-  for (let k = 0; k < 4; k++) spoke(SPOKE_S + k * (R * Math.PI / 2), 20);
+  for (let k = 0; k < 4; k++) spoke(SPOKE_S / R + k * (Math.PI / 2), 20);
   // its base on the apron's inner edge: solid, with the door the first wave uses
   const baseP = at(SPOKE_S, APRON.lat + 5);
   ctx.cyl(baseP.x, Y0 + 6, baseP.z, 6, 16, hullMat);
@@ -416,11 +435,11 @@ function build(ctx: SectionContext): SectionInstance {
   spokeDoor.lookAt(at(SPOKE_S, 0, Y0 + 2));
   ctx.mesh(spokeDoor);
   // the hub: the postcard over everything
-  const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(36, 42, 46, 48), hullMat);
+  const hubMesh = new THREE.Mesh(new THREE.CylinderGeometry(36, 42, 46, 48), steel);
   ctx.own(hubMesh.geometry);
   hubMesh.position.copy(hub);
   ctx.mesh(hubMesh);
-  const spire = new THREE.Mesh(new THREE.CylinderGeometry(6, 16, 120, 24), hullMat);
+  const spire = new THREE.Mesh(new THREE.CylinderGeometry(6, 16, 120, 24), steel);
   ctx.own(spire.geometry);
   spire.position.copy(hub).add(new THREE.Vector3(0, 80, 0));
   ctx.mesh(spire);
@@ -510,7 +529,7 @@ function build(ctx: SectionContext): SectionInstance {
       hatch.box ??= ctx.box(hatchP.x, Y0 + 0.9, hatchP.z, 1.8, 1.8, 1.8, null);
       solid(hatch.box.box, true);
       if (!hatch.breakable) {
-        hatch.breakable = addBreakable(ctx.board, eye, hatch.box.box, 150 + 40 * party, {
+        hatch.breakable = addBreakable(ctx.board, eye, hatch.box.box, 240 + 60 * party, {
           radius: 1.3,
           onBreak: () => {
             hatch.alive = false;
@@ -583,7 +602,7 @@ function build(ctx: SectionContext): SectionInstance {
     gates: GATES.map((g) => g - L0),
     // off the ring's outer side, up, and a little behind: looking along the
     // curve with the hub over the far edge of the hull
-    eye: { back: 6.5, side: -8.5, up: 7.5, lookAhead: 9 },
+    eye: { back: 8, side: -9.5, up: 9, lookAhead: 8 },
     lead: 0.4,
     span: 28,
     maxSpeed: 8,
@@ -607,7 +626,8 @@ function build(ctx: SectionContext): SectionInstance {
   let complete = false;
   let releasing = false;
   const lockBodies: Enemy[] = [];
-  let pendingDrops = 0;
+  let dropHold = 0;
+  let capo: Enemy | null = null;
   let wave = 0;             // the wave inside the standing lock
   let waveT = 0;
   let lastGate = 0;
@@ -621,8 +641,8 @@ function build(ctx: SectionContext): SectionInstance {
 
   const spawnStart = (): void => {
     // the spine: posted behind the pods and the conduit, and a jetpack pair
-    const posts: [number, number][] = [[24, -2.4], [36, 2.2], [48, -2.2], [60, 2.4], [70, -3], [42, 4.6], [54, -4.6]];
-    const n = Math.min(posts.length, 3 + party);
+    const posts: [number, number][] = [[22, -2.4], [30, 4.6], [36, 2.2], [46, -4.6], [48, -2.2], [60, 2.4], [70, -3], [42, 4.6], [54, -4.6]];
+    const n = Math.min(posts.length, 5 + party);
     for (let i = 0; i < n; i++) spawnPosted(i % 3 === 2 ? 'pyke' : 'pirate', posts[i][0], posts[i][1]);
     spawnPosted('jetpirate', 62, -3, 4);
     spawnPosted('jetpirate', 64, 3, 5);
@@ -647,9 +667,13 @@ function build(ctx: SectionContext): SectionInstance {
     }
     return out;
   };
+  // A carrier takes a while to arrive and its squad falls a long way, so a
+  // lock never trusts a drop as landed: it holds for DROP_GRACE seconds after
+  // one is called, and counts every hostile in (or over) its arena as standing.
+  const DROP_GRACE = 11;
   const drop = (kinds: EnemyKind[], spots: THREE.Vector3[]): void => {
-    pendingDrops++;
-    ctx.drop(kinds, spots, (bodies) => { pendingDrops--; lockBodies.push(...bodies); });
+    dropHold = DROP_GRACE;
+    ctx.drop(kinds, spots, (bodies) => { lockBodies.push(...bodies); });
   };
 
   const springLock = (k: number): void => {
@@ -668,49 +692,70 @@ function build(ctx: SectionContext): SectionInstance {
   const runLock = (dt: number): boolean => {
     const l = LOCKS[lockIdx];
     waveT += dt;
-    // a carrier that never released (it cannot land a squad anywhere) must not hold the lock for ever
-    if (pendingDrops > 0 && waveT > 30) pendingDrops = 0;
-    const standing = lockBodies.filter((e) => e.alive).length + pendingDrops;
+    dropHold = Math.max(0, dropHold - dt);
+    const standingNow = (): number => {
+      let n = dropHold > 0 ? 1 : 0;
+      for (const e of game.enemies) {
+        if (!e.alive || e.team !== 1) continue;
+        if (lockBodies.includes(e)) { n++; continue; }
+        const lp = lane(e.position.x, e.position.z);
+        if (lp.s > l.from - 6 && lp.s < l.to + 6 && Math.abs(lp.lat) < 22) n++;
+      }
+      return n;
+    };
+    /** the wave in hand is down to its last one or two, and nothing is still falling */
+    const thin = (): boolean => dropHold <= 0 && standingNow() <= Math.min(2, party);
     const budget = Math.min(8, 2 + party);
     if (lockIdx === 0) {
-      // two dropship passes over the curve, the second while the first still fights
-      if (wave === 0 && waveT > 1.2) { wave = 1; drop(ctx.squadFor(ctx.wave, budget), arenaSpots(l, budget)); }
-      if (wave === 1 && (waveT > 12 || standing <= 1)) {
+      // three dropship passes over the curve: a squad, fliers, then heavier — each
+      // called while the last is still on its feet, so the arena never goes quiet
+      if (wave === 0 && waveT > 1.2) { wave = 1; waveT = 0; drop(ctx.squadFor(ctx.wave, budget), arenaSpots(l, budget)); }
+      if (wave === 1 && (waveT > 22 || thin())) {
         wave = 2; waveT = 0;
         drop(ctx.squadFor(ctx.wave + 1, budget, { air: true }), arenaSpots(l, budget));
       }
-      return wave === 2 && standing === 0;
+      if (wave === 2 && (waveT > 22 || thin())) {
+        wave = 3; waveT = 0;
+        drop(ctx.squadFor(ctx.wave + 2, budget + 1), arenaSpots(l, budget + 1));
+      }
+      return wave === 3 && dropHold <= 0 && standingNow() === 0;
     }
     if (lockIdx === 1) {
       // out of the spoke's door; then fliers off the spoke, and the hatch; then a drop
       if (wave === 0 && waveT > 1) {
         wave = 1; waveT = 0;
-        for (let i = 0; i < budget; i++) lockBodies.push(spawnPosted(i % 3 === 2 ? 'pyke' : 'pirate', SPOKE_S - 4 + i * 2, APRON.lat - 2 - (i % 2) * 3));
+        for (let i = 0; i < budget + 1; i++) lockBodies.push(spawnPosted(i % 3 === 2 ? 'pyke' : 'pirate', SPOKE_S - 5 + i * 2, APRON.lat - 2 - (i % 2) * 3));
       }
-      if (wave === 1 && (standing <= 1 || waveT > 25)) {
+      if (wave === 1 && (waveT > 25 || thin())) {
         wave = 2; waveT = 0;
         hatch.active = true;
         for (let i = 0; i < Math.max(2, Math.ceil(budget / 2)); i++) lockBodies.push(spawnPosted('jetpirate', SPOKE_S - 6 + i * 4, 6 + (i % 2) * 4, 8));
       }
-      if (wave === 2 && (standing <= 1 || waveT > 25)) {
+      if (wave === 2 && (waveT > 25 || thin())) {
         wave = 3; waveT = 0;
-        const kinds = ctx.squadFor(ctx.wave + 2, budget);
-        if (party >= 3) kinds[0] = 'enforcer';
+        const kinds = ctx.squadFor(ctx.wave + 2, budget + 1);
+        if (party >= 2) kinds[0] = 'enforcer';
         drop(kinds, arenaSpots(l, kinds.length));
       }
-      return wave === 3 && standing === 0 && !hatch.alive;
+      return wave === 3 && dropHold <= 0 && standingNow() === 0 && !hatch.alive;
     }
-    // the capo's retinue walks out of the airlock the party wants
+    // the capo's retinue walks out of the airlock the party wants; when the capo
+    // is half down he calls his crew off a carrier
     if (wave === 0 && waveT > 0.8) {
       wave = 1; waveT = 0;
       endDoor.want = 1;
-      lockBodies.push(spawnPosted('capo', S_END - 4, 0));
-      const guards: EnemyKind[] = ['pyke', 'pyke', 'pirate', 'pyke', 'pirate'];
-      for (let i = 0; i < Math.min(guards.length, 1 + party); i++) lockBodies.push(spawnPosted(guards[i], S_END - 6 - (i >> 1) * 2, (i % 2 ? 1 : -1) * 3));
+      capo = spawnPosted('capo', S_END - 4, 0);
+      lockBodies.push(capo);
+      const guards: EnemyKind[] = ['pyke', 'pyke', 'pirate', 'pyke', 'pirate', 'pyke'];
+      for (let i = 0; i < Math.min(guards.length, 2 + party); i++) lockBodies.push(spawnPosted(guards[i], S_END - 6 - (i >> 1) * 2, (i % 2 ? 1 : -1) * 3));
       if (party >= 2) lockBodies.push(spawnPosted('enforcer', S_END - 8, 0));
     }
     if (wave === 1 && waveT > 2.5) endDoor.want = 0;
-    return wave === 1 && standing === 0;
+    if (wave === 1 && capo && (!capo.alive || capo.hp < capo.maxHp * 0.5)) {
+      wave = 2; waveT = 0;
+      drop(ctx.squadFor(ctx.wave + 2, budget), arenaSpots(l, budget));
+    }
+    return wave === 2 && dropHold <= 0 && standingNow() === 0;
   };
 
   const leader = (): number => {
@@ -782,7 +827,7 @@ function build(ctx: SectionContext): SectionInstance {
     // the end door slides into the frame above it
     endDoor.open += Math.sign(endDoor.want - endDoor.open) * Math.min(Math.abs(endDoor.want - endDoor.open), dt / 0.8);
     endDoor.mesh.position.y = Y0 + 2.2 + endDoor.open * 4.2;
-    doorFrame.material = lockDone === LOCKS.length ? greenGlow : redGlow;
+    frameMat.color.setHex(lockDone === LOCKS.length ? 0x5ee08a : 0xff3a24);
     // into the throat: the camera gives the screen back, then the run carries on
     if (lockDone === LOCKS.length) {
       for (const p of game.players) {
@@ -805,7 +850,7 @@ function build(ctx: SectionContext): SectionInstance {
         continue;
       }
       gm.emissive.setRGB(1.2, 0.45, 0.1);
-      sm.opacity = 0.55 + Math.random() * 0.2;
+      sm.opacity = 0.3 + Math.random() * 0.12;
       v.glow.intensity = 70;
       const bodies: Combatant[] = [];
       for (const p of game.players) if (p.alive) bodies.push(p);
@@ -990,7 +1035,7 @@ function build(ctx: SectionContext): SectionInstance {
     return out;
   };
 
-  return {
+  const inst: SectionInstance = {
     starts: [0, 1, 2, 3].map((i) => at(-7 + Math.floor(i / 2) * 2.2, (i % 2 ? 1 : -1) * 2)),
     floorY: Y0,
     ceilingY: Y0 + 60,
@@ -1027,6 +1072,8 @@ function build(ctx: SectionContext): SectionInstance {
       drones, releasing,
     }),
   };
+  // for tools/test-section-railcam.mjs: the rail itself, and where its metres start
+  return Object.assign(inst, { rail, railOffset: L0 });
 }
 
 export const ringWalk: SectionDef = {

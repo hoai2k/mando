@@ -142,6 +142,10 @@ export class RailCamera {
   private readonly aim: { yaw: number; rx: number; ry: number; mouseT: number; stuck: number }[] = [];
   private readonly tmpV = new THREE.Vector3();
   private readonly tmpVel = new THREE.Vector3();
+  /** the mouse's ground reticles, one per slot, drawn only while the mouse steers */
+  private readonly reticles: THREE.Mesh[] = [];
+  private reticleGeo: THREE.RingGeometry | null = null;
+  private reticleMat: THREE.MeshBasicMaterial | null = null;
 
   constructor(readonly opts: RailOpts) {
     if (opts.lane.length < 2) throw new Error('[railcam] a lane needs two points');
@@ -243,6 +247,19 @@ export class RailCamera {
   unlock(): void { this.lockWin = null; }
   get locked(): boolean { return !!this.lockWin; }
 
+  /**
+   * Move the window on to `s` at once (forward only): for a cut the section
+   * makes itself — the party carried through a door, dropped into a tram's
+   * cars — where easing the camera along would drag them back by the leash.
+   */
+  snap(s: number): void {
+    if (s <= this.focus) return;
+    this.focus = s;
+    this.rear = Math.max(this.rear, s - this.lead * this.span);
+    this.front = Math.max(this.front, s + (1 - this.lead) * this.span);
+    this.framed = false;
+  }
+
   /** the last rail gate the leading edge has crossed, metres along the lane */
   get gate(): number { return this.gates[this.gateIdx] ?? 0; }
 
@@ -286,6 +303,16 @@ export class RailCamera {
         this.tmpV.set(p.position.x + b.fwdX * 10, p.position.y + 1.2, p.position.z + b.fwdZ * 10), THREE.Object3D.DEFAULT_UP);
       f.quat.setFromRotationMatrix(m);
       f.fov = 72;
+    }
+    // the mouse's reticle: a ring on the ground where the gun points
+    this.reticleGeo ??= new THREE.RingGeometry(0.45, 0.62, 24);
+    this.reticleMat ??= new THREE.MeshBasicMaterial({ color: 0xffcf6a, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+    for (const p of game.players) {
+      const m = this.reticles[p.slot] ??= new THREE.Mesh(this.reticleGeo, this.reticleMat);
+      m.rotation.x = -Math.PI / 2;
+      m.visible = false;
+      m.renderOrder = 5;
+      game.scene.add(m);
     }
     game.sharedView = {
       camera: this.camera,
@@ -338,6 +365,7 @@ export class RailCamera {
     }
     if (this.released && this.blend <= 0) {
       if (game.sharedView?.camera === this.camera) game.sharedView = null;
+      for (const m of this.reticles) m.visible = false;
       return;
     }
     if (game.sharedView) game.sharedView.blend = this.blend;
@@ -368,7 +396,10 @@ export class RailCamera {
       if (!p.alive || p.exited || p.formT > 0) continue;
       const lp = this.project(p.position);
       const a = this.aim[p.slot];
-      if (!this.released) p.moveYaw = this.yawAt(lp.s) + (this.opts.reverse ? Math.PI : 0);
+      if (!this.released) {
+        p.moveYaw = this.yawAt(lp.s) + (this.opts.reverse ? Math.PI : 0);
+        p.aimCone = TWIN_CONE;
+      }
       if (this.released || Math.abs(lp.lateral) > width) continue;
       const t = this.tangentAt(lp.s, this.tmpV);
       if (lp.s < this.rear) {
@@ -393,6 +424,13 @@ export class RailCamera {
         const into = p.velocity.x * t.x + p.velocity.z * t.z;
         if (into > 0) { p.velocity.x -= t.x * into; p.velocity.z -= t.z * into; }
       }
+    }
+
+    for (let i = 0; i < this.reticles.length; i++) {
+      const m = this.reticles[i];
+      const at = this.reticle(i, this.tmpV);
+      m.visible = !!at;
+      if (at) m.position.copy(at);
     }
 
     this.updatePose(dt);
@@ -567,7 +605,16 @@ export class RailCamera {
       p.aimCone = null;
       if (p.sectionMove === this.move) p.sectionMove = null;
     }
+    for (const m of this.reticles) game.scene.remove(m);
+    this.reticleGeo?.dispose();
+    this.reticleMat?.dispose();
+    this.reticles.length = 0;
+    this.reticleGeo = null;
+    this.reticleMat = null;
     this.engaged = false;
     this.game = null;
   }
 }
+
+/** for tools/test-section-railcam.mjs: the kit itself, to drive a lane of its own */
+(globalThis as unknown as { __RailCamera: unknown }).__RailCamera = RailCamera;

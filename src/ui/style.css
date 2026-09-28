@@ -834,11 +834,14 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 }
 .hud-viewport.merged .hud-section,
 .hud-viewport.merged.compact .hud-section {
-  left: 76px; right: 12px; top: 22px; bottom: auto; width: auto; transform: none; text-align: left;
+  left: 76px; right: 45%; top: 8px; bottom: auto; width: auto; transform: none; text-align: left;
 }
 .hud-viewport.merged .hud-section .sec-title { display: none; }
 .hud-viewport.merged .hud-section .sec-line { margin-top: 0; font-size: 10px; }
 .hud-merged { position: absolute; inset: 0; pointer-events: none; display: none; }
 .hud-merged.show { display: block; }
 .hud-merged .hud-objective { opacity: 0; }
-.hud-divider, .hud-divider-v { transition: opacity 0.1s linear; }
+/* the cover prompt has no room in a strip cell; the rail's lanes have little cover to snap to */
+.hud-viewport.merged .hud-cover:not(.active) { display: none; }
+/* one line across the whole screen has room the corner of a viewport did not */
+.hud-merged .hud-wave { max-width: 60%; }
