@@ -6,6 +6,10 @@ everything else in that file — the Gauntlet lessons, sealed assault waves,
 checkpoints, the pickup economy, per-player cameras, the walkthrough audit —
 carries over unchanged. `docs/MODES.md` §4 stays the mode's rulebook.
 
+`docs/LEVEL_SECTIONS.md` (2026-09-28) proposes eighteen new shells and
+encounters on this grammar, two per territory, each slotted into the runs
+laid out in §3 below.
+
 ## 0. The brief, distilled into rules
 
 The v2 level is a room chain in the sky: walled boxes, 5.5 m walls, roofed

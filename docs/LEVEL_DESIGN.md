@@ -12,6 +12,11 @@ mission levels and per-player cameras.
 > ground bounded by terrain, ravines, an interior hallway beat behind a door,
 > a per-board flight ceiling, and layered guidance. The rules in §1, §5, §6
 > and §7 carry over unchanged. Read that document first.
+>
+> **2026-09-28 — proposed.** Eighteen new kinds of level beat, two per
+> territory (on-rails walks under one shared camera, vehicle combat lanes,
+> turret defence, stealth, pursuit, rising-hazard climbs and more), are
+> designed in `docs/LEVEL_SECTIONS.md` with a diagram each. None is built yet.
 
 ## 1. The research, and what it demanded
 
