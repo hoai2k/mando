@@ -10,9 +10,8 @@
  *
  * Run:  node tools/test-loading.mjs
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, BTN, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail = '') {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? `: ${detail}` : ''}`);

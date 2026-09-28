@@ -25,7 +25,7 @@
  *
  * Run:  node tools/test-station.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 const failures = [];
 const check = (name, ok, detail) => {
@@ -91,7 +91,7 @@ await h.page.evaluate(() => {
 });
 await h.page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
 // the sculpts land seconds after the board is built; the fit follows them
-await new Promise((r) => setTimeout(r, 12000));
+await sleep(12000);
 await h.page.evaluate(() => { window.__manual = true; });
 
 const ride = await h.page.evaluate(`(async () => {

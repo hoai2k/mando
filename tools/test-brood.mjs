@@ -18,7 +18,7 @@
  *
  * Run:  node tools/test-brood.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 const failures = [];
 const check = (name, ok, detail = '') => {
@@ -285,7 +285,7 @@ await page.evaluate(`(() => {
 })()`);
 // real time, not sim ticks: her sculpt arrives on a promise, and stepping the
 // simulation sixty times in one turn never lets that promise resolve
-await new Promise((r) => setTimeout(r, 4000));
+await sleep(4000);
 const boss = await page.evaluate(`(() => {
   (${STEP})(30);
   const e = window.__boss;

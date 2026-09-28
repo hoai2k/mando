@@ -10,7 +10,7 @@
  */
 import { spawn } from 'node:child_process';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { loadPlaywright } from './harness.mjs';
+import { loadPlaywright, sleep } from './harness.mjs';
 
 /** per-fighter framing: see PortraitOpts in tools/portrait/portrait.ts */
 const FRAMING = {
@@ -31,7 +31,7 @@ const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { st
 const url = `http://localhost:${PORT}/tools/portrait/`;
 for (let i = 0; i < 120; i++) {
   try { if ((await fetch(url)).ok) break; } catch { /* not up yet */ }
-  await new Promise((r) => setTimeout(r, 500));
+  await sleep(500);
 }
 
 const { chromium } = loadPlaywright();

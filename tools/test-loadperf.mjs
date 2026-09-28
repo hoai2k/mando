@@ -20,7 +20,7 @@
  *
  *   node tools/test-loadperf.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 const BOARDS = ['desert', 'station', 'nevarro', 'crevasse', 'trask', 'refinery', 'forge', 'ringworld', 'narkina'];
 /** headroom over the worst board's own working set, before we call it a leak */
@@ -37,9 +37,9 @@ const settle = async (board) => {
   await h.page.evaluate((b) => window.__startCoop(1, b), board);
   for (let i = 0; i < 240; i++) {
     if (await h.page.evaluate((b) => window.__game?.board.kind === b && window.__state === 'playing', board)) break;
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
   }
-  await new Promise((r) => setTimeout(r, 7000));   // let the sculpts land
+  await sleep(7000);   // let the sculpts land
 };
 
 const peak = { tex: 0, board: '' };

@@ -19,9 +19,8 @@
  *
  * Run:  node tools/test-arrivals.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);

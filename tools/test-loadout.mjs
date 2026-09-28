@@ -10,7 +10,7 @@
  *
  * Run:  node tools/test-loadout.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 const failures = [];
 const check = (name, ok, detail) => {
@@ -118,9 +118,9 @@ for (let i = 0; i < 400; i++) {
   const there = await h.page.evaluate(() =>
     window.__game?.board.kind === 'desert' && window.__state === 'playing');
   if (there) break;
-  await new Promise((r) => setTimeout(r, 250));
+  await sleep(250);
 }
-await new Promise((r) => setTimeout(r, 9000));
+await sleep(9000);
 const rt = await h.page.evaluate(() => {
   window.__manual = true;
   const blank = () => ({

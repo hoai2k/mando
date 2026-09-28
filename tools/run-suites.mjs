@@ -33,7 +33,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { pickSeed } from './harness.mjs';
+import { pickSeed, sleep } from './harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -114,7 +114,6 @@ const SUITES = [
   // check-landing and test-loading. `node tools/harness.mjs` still runs it.
 ];
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- arguments ----------
 const args = process.argv.slice(2);

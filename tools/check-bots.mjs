@@ -7,9 +7,8 @@
  * so it has to be in `game.players`, out of the split-screen's reckoning, and
  * actually playing rather than standing where it dropped.
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, BTN, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const h = await launch();
 let failures = 0;
 const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };

@@ -11,9 +11,8 @@
  *
  * Run:  node tools/test-menunav.mjs
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, BTN, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, got, want) {
   const ok = JSON.stringify(got) === JSON.stringify(want);

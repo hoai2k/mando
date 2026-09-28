@@ -8,9 +8,8 @@
  * like a jetpack hover. And a body built for water — Bossk — has to be
  * meaningfully quicker through it than one that is not.
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, BTN, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const h = await launch();
 let failures = 0;
 const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };

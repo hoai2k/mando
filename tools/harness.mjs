@@ -74,6 +74,9 @@ export function makeCheck() {
   return check;
 }
 
+/** Wall-clock wait, Node side. Page-side code still needs its own. */
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /** Xbox standard-mapping button indices, matching src/core/input.ts */
 export const BTN = {
   A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
@@ -277,8 +280,6 @@ export function pickSeed() {
   const asked = Number(process.env.HARNESS_SEED);
   return Number.isFinite(asked) && asked > 0 ? asked >>> 0 : (Math.random() * 2 ** 32) >>> 0;
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Pad {
   /** `index` picks which of the four shimmed controllers this drives */
