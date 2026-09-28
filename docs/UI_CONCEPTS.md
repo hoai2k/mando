@@ -379,3 +379,51 @@ This replaces the fly-to camera from the second update.
     3. The new view opens out of that world, up to the viewer.
 
     A single hop takes about 1.5 s.
+
+## In the game — the chosen flow, built (2026-09-28)
+
+The picked designs are now the game's own front end. What changed from the
+mockups, and why:
+
+| Screen | Source | Notes |
+|---|---|---|
+| Title | `src/main.ts` (title block) | Twin Suns letterbox over `board_tatooine.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
+| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title keeps the original. Rows are still `.board-card` focusables, so the harness walks them as before. |
+| Missions | `src/ui/planets.ts` | Systems 3, the galaxy map with a lens. Moving is a target lock: the open lens is **hidden at once** (not shrunk), the map snaps across in ~0.19 s while a bracket slams shut on the new world, then the new lens springs up out of the planet with a slight overshoot. The route only pans sideways and is drawn flatter (×0.6 vertically) so no neighbour hides under the lens or the chapter card. |
+| Character select | `src/ui/charselect.ts` | "Hunters" (PvP: "Fighters"). Portrait strips + one card per place; no ◀ ▶ arrows or "walks the line" text; prompts read **A Confirm · B Cancel**; an open place says **Press Ⓐ to join** on its card and in the prompt bar. The 3D stage still runs underneath, undrawn: locking in still waits on the fighter's model, which keeps the drop short, and the poster tool still shoots from it. |
+| Loading | `src/ui/loading.ts` | Wanted sheet on `ui_bounty_board.jpg`: polaroid, contract with mugshots and known hostiles, a field note, and a tracking fob whose 16 lamps are the progress bar. The transport-door veil uses the same sheet without the cast. |
+
+Shared pieces: `src/ui/stage.ts` lays every screen out on a fixed 1280×720
+stage scaled to the window (`--fe-scale`); `src/ui/fonts.ts` self-hosts the
+six faces from `public/assets/fonts/` (licences in the README there);
+`src/ui/frontend.css` holds the styles.
+
+### Round 5 — end screens (built: `src/ui/endscreen.ts`)
+
+Four designs for what comes after a board, on page "Round 5 · end screens":
+
+1. **Wave Battle won — Territory held.** The contract photo stamped PAID IN
+   FULL, and a payout ledger: each hunter's takedowns and a credit share
+   (takedowns × 150 — flavour, computed from numbers the game already keeps).
+   Next departure / Retry / Quit.
+2. **Mission won — Territory liberated.** Back on the bounty-hunt map: the lens
+   stamped LIBERATED, the world ticked, the lane to the next system plotting.
+   "Ride on to the Spice Run" / Retry / Quit.
+3. **PvP — last fighter standing.** The champion's portrait full height, and
+   the rest of the line ranked in strips with their takedowns and when they
+   fell. Rematch / New fighters / Quit.
+4. **Defeat — contract void.** A scorched, torn Wanted sheet with the hunters
+   crossed out, the wave and clock they fell at. Retry / New hunters / Quit.
+
+In the game the buttons are one menu row, driven like every other menu:
+held offers Next departure (back to the board) / Retry / Quit; liberated
+offers Ride on to the next territory / Retry / Quit; PvP offers Rematch / New
+fighters / Quit; a defeat offers Retry / New hunters / Quit. The mockup's
+"fell at 6:31" per duellist is not built — the game does not record when each
+fighter went out — so the standings say "out".
+
+### Screens not yet redesigned
+
+Pause, Settings, Controls, the PvP VS splash, the in-match banners and boss
+intro, the transport-door veil beyond its reuse of the Wanted sheet, and a
+"campaign complete" screen for all nine liberated (there is none today).

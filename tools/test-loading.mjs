@@ -43,17 +43,18 @@ const state = () => h.page.evaluate(() => window.__state);
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await sleep(3000);
 check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
-check('the title warms the territory art', await waitForAsset('board_tatooine.jpg'));
+check('the title warms its own backdrop', await waitForAsset('board_tatooine.jpg'));
+check('the title warms the territory art', await waitForAsset('board_tatooine_v2.jpg'));
 // the planet discs are the Missions strip two screens on, and they are the
 // whole screen there — warming them is not conditional on picking that mode
 check('the title warms the planet discs', await waitForAsset('planet_desert.png'));
 
-// ---- 2. the territory grid warms the rest of the roster ----
+// ---- 2. the departures board warms the rest of the roster ----
 // Name the mode rather than trusting START's default focus: Missions is the
 // first button on the title now, so a bare START opens the planet strip.
 await h.focusButton(/WAVE BATTLE/i);
 await h.pad.tap(BTN.START);
-await h.waitForText(/CHOOSE TERRITORY/i);
+await h.waitForText(/DEPARTURES/i);
 await sleep(4000);
 // The roster comes from the game rather than a list here: it has gained
 // characters and been renamed wholesale, and a frozen copy silently stops
@@ -61,12 +62,12 @@ await sleep(4000);
 const roster = (await h.page.evaluate(() => window.__roster)).map((c) => `${c.id}.glb`);
 for (const m of roster) await waitForAsset(m);
 const got = await fetched();
-check('the grid warms every playable fighter', roster.every((m) => got.includes(m)),
+check('the departures board warms every playable fighter', roster.every((m) => got.includes(m)),
   roster.filter((m) => !got.includes(m)).join(', ') || `all ${roster.length}`);
 
 // ---- 3. choosing a territory warms that territory ----
 await h.pad.tap(BTN.A);                       // The Dune Sea
-await h.waitForText(/CHOOSE YOUR/i);
+await h.waitForText(/DIN DJARIN/i);
 await sleep(7000);
 check('the character select warms the chosen sky', await waitForAsset('sky_desert.jpg'));
 check('...and its ground textures', await waitForAsset('sand_albedo.jpg'));
