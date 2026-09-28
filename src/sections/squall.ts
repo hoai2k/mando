@@ -127,7 +127,7 @@ type RoguePhase = 'idle' | 'telegraph' | 'sweep' | 'surge' | 'drain';
 type Phase = 'intro' | 'wave' | 'breather' | 'approach' | 'docked';
 
 function build(ctx: SectionContext): SectionInstance {
-  const { game, spec } = ctx;
+  const { game } = ctx;
   const Y0 = ctx.floorY;
   const SEA_Y = Y0 - FREEBOARD;
   const PIVOT_Y = Y0 - PIVOT_DROP;
@@ -141,8 +141,8 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.tile(deckMat, 'metal_deck', 4, 9);
   const plateMat = ctx.paint(0x8f9a94, { rough: 0.6, metal: 0.35 });
   ctx.tile(plateMat, 'metal_hull', 2, 1);
-  const houseMat = ctx.paint(0xa8aea4, { rough: 0.7, metal: 0.25 });
-  ctx.tile(houseMat, 'rust_hull', 2, 1);
+  const houseMat = ctx.paint(0xc4c8bc, { rough: 0.7, metal: 0.25 });
+  ctx.tile(houseMat, 'hull_plate_large', 1.5, 1);
   const darkMat = ctx.paint(0x2a2d31, { rough: 0.5, metal: 0.6 });
   const rustMat = ctx.paint(0x7a3a24, { rough: 0.7, metal: 0.3 });
   const ropeMat = ctx.paint(0x8a7650, { rough: 0.95, metal: 0 });
@@ -151,10 +151,9 @@ function build(ctx: SectionContext): SectionInstance {
   const stoneMat = ctx.paint(0x4f5c60, { rough: 0.95, metal: 0.05 });
   const plankMat = ctx.paint(0x685843, { rough: 0.9, metal: 0.05 });
   ctx.tile(plankMat, 'dock_planks', 2, 8);
-  const shedMat = ctx.paint(spec.palette.wall, { rough: 0.8, metal: 0.3 });
-  ctx.tile(shedMat, 'metal_hull', 6, 2);
+  const shedMat = ctx.paint(0x3e4a52, { rough: 0.8, metal: 0.3 });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd28a });
-  const hazardMat = new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  const hazardMat = new THREE.MeshBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
   const redLamp = new THREE.MeshBasicMaterial({ color: 0xff4a3a });
   const greenLamp = new THREE.MeshBasicMaterial({ color: 0x5aff8a });
   for (const m of [glowMat, hazardMat, redLamp, greenLamp]) ctx.own(m);
@@ -233,7 +232,7 @@ function build(ctx: SectionContext): SectionInstance {
   const gateOut = ctx.box(rx, railY, (GATE_OUT.z0 + GATE_OUT.z1) / 2, RAIL_T, RAIL_H, GATE_OUT.z1 - GATE_OUT.z0, null).box;
   const gateLeaf = new THREE.Group();
   const leafLen = GATE_OUT.z1 - GATE_OUT.z0;
-  const leaf = new THREE.Mesh(unit, plateMat);
+  const leaf = new THREE.Mesh(unit, hullMat);
   leaf.scale.set(RAIL_T, RAIL_H, leafLen);
   leaf.position.set(0, 0, -leafLen / 2);
   gateLeaf.add(leaf);
@@ -287,16 +286,21 @@ function build(ctx: SectionContext): SectionInstance {
   for (let i = 0; i < 6; i++) block(1.8, Y0 + 0.4 + i * 0.45, HOUSE.z0 - 0.12, 0.7, 0.06, 0.06, darkMat);
   for (const s of [-1, 1]) block(1.8 + s * 0.35, Y0 + 1.5, HOUSE.z0 - 0.12, 0.06, 3, 0.06, darkMat);
   // lit windows, all round: the deckhouse is the one warm thing on the sea
+  const winMat = new THREE.MeshStandardMaterial({ color: 0x1a120a, emissive: 0xffa850, emissiveIntensity: 0.9, roughness: 0.2, metalness: 0.1 });
+  ctx.own(winMat);
   const win = (x: number, y: number, z: number, w: number, h: number, alongZ: boolean): void => {
-    const m = new THREE.Mesh(unit, glowMat);
-    m.scale.set(alongZ ? 0.05 : w, h, alongZ ? w : 0.05);
+    const frame = new THREE.Mesh(unit, darkMat);
+    frame.scale.set(alongZ ? 0.06 : w + 0.16, h + 0.16, alongZ ? w + 0.16 : 0.06);
+    onHull(frame, x, y, z);
+    const m = new THREE.Mesh(unit, winMat);
+    m.scale.set(alongZ ? 0.08 : w, h, alongZ ? w : 0.08);
     onHull(m, x, y, z);
   };
   for (const s of [-1, 1]) {
-    for (const z of [-2.8, -0.6, 1.6, 3.4]) win(s * (HOUSE.x + 0.01), Y0 + 1.9, z, 1.1, 0.6, true);
-    for (const z of [1.9, 3.1, 4.1]) win(s * (WHEEL.x + 0.01), Y0 + HOUSE.h + 1.55, z, 0.9, 0.9, true);
+    for (const z of [-2.8, -0.6, 1.6, 3.4]) win(s * (HOUSE.x + 0.01), Y0 + 1.9, z, 0.8, 0.55, true);
+    for (const z of [1.9, 3.3]) win(s * (WHEEL.x + 0.01), Y0 + HOUSE.h + 1.55, z, 1, 0.8, true);
   }
-  for (const x of [-1.4, 0, 1.4]) win(x, Y0 + HOUSE.h + 1.55, WHEEL.z1 + 0.01, 1.1, 0.9, false);
+  for (const x of [-1.4, 0, 1.4]) win(x, Y0 + HOUSE.h + 1.55, WHEEL.z1 + 0.01, 1.1, 0.8, false);
   block(-1.2, Y0 + 1.05, HOUSE.z0 - 0.03, 1, 2.1, 0.06, darkMat);   // the after door
   const houseLight = new THREE.PointLight(0xffc98a, 22, 18, 1.6);
   onHull(houseLight, 0, Y0 + 2.2, HOUSE.z0 - 1.5);
@@ -369,6 +373,13 @@ function build(ctx: SectionContext): SectionInstance {
   arc.rotation.z = -Math.PI / 2 - BOOM_MAX;
   arc.visible = false;
   onHull(arc, KING.x, Y0 + 0.03, KING.z);
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide });
+  ctx.own(rimMat);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(BOOM_LEN - 0.1, BOOM_LEN + 0.3, 40, 1, 0, BOOM_MAX * 2), rimMat);
+  rim.rotation.copy(arc.rotation);
+  arc.add(rim);
+  rim.rotation.set(0, 0, 0);
+  rim.position.z = 0.01;
 
   // ---- deck gear: the trawl drum, the winches, the fish hold, crates ----
   const drum = (x: number, z: number, w: number): void => {
@@ -459,24 +470,44 @@ function build(ctx: SectionContext): SectionInstance {
   const seaPos = seaGeo.attributes.position as THREE.BufferAttribute;
   const seaNorm = seaGeo.attributes.normal as THREE.BufferAttribute;
   // wake: a pale churn astern and a bow wave, both riding the hull line
-  const foamMat = new THREE.MeshBasicMaterial({ color: 0xd8e8e4, transparent: true, opacity: 0.35, depthWrite: false });
+  const foamMat = new THREE.MeshBasicMaterial({ color: 0xd8e8e4, transparent: true, opacity: 0.35, depthWrite: false, vertexColors: true });
   ctx.own(foamMat);
-  const wake = new THREE.Mesh(new THREE.PlaneGeometry(9, 40), foamMat);
+  const wakeGeo = new THREE.PlaneGeometry(9, 40, 6, 10);
+  {
+    // bright under the counter, spreading and fading astern, soft at its edges
+    const pos = wakeGeo.attributes.position as THREE.BufferAttribute;
+    const col: number[] = [];
+    for (let i = 0; i < pos.count; i++) {
+      const along = (pos.getY(i) + 20) / 40;          // 0 at the stern, 1 far astern (local +y is world -z)
+      pos.setX(i, pos.getX(i) * (0.5 + along * 1.4));
+      const edge = 1 - Math.abs(pos.getX(i)) / (4.5 * (0.5 + along * 1.4));
+      const a = Math.max(0, (1 - along) * Math.min(1, edge * 2));
+      col.push(1, 1, 1, a);
+    }
+    wakeGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  }
+  ctx.own(wakeGeo);
+  const wake = new THREE.Mesh(wakeGeo, foamMat);
   wake.rotation.x = -Math.PI / 2;
   wake.position.set(0, SEA_Y + 0.35, STERN - 20);
   ctx.mesh(wake);
 
   // ---- the rogue wave: a wall of water, then green water across the deck ----
-  const wallGeo = new THREE.PlaneGeometry(150, 12, 30, 8);
+  const WALL_H = 20;
+  const wallGeo = new THREE.PlaneGeometry(150, WALL_H, 40, 12);
+  wallGeo.translate(0, WALL_H / 2, 0);
   {
-    // curl the top forward into a lip and fade in foam toward the crest
+    // curl the top forward into a lip, ragged along its length, and fade in
+    // foam toward the crest
     const pos = wallGeo.attributes.position as THREE.BufferAttribute;
     const col: number[] = [];
     for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i);
-      const t = (y + 6) / 12;
-      pos.setZ(i, t * t * t * 5);
-      const c = new THREE.Color(0x1f4a4a).lerp(new THREE.Color(0xe0f0ec), Math.max(0, (t - 0.72) / 0.28));
+      const t = pos.getY(i) / WALL_H;
+      const x = pos.getX(i);
+      const rag = 1 + 0.12 * Math.sin(x * 0.09) + 0.05 * Math.sin(x * 0.23 + 1.3);
+      pos.setY(i, pos.getY(i) * rag);
+      pos.setZ(i, t * t * t * 8 * rag);
+      const c = new THREE.Color(0x163a3c).lerp(new THREE.Color(0x3f7a72), t).lerp(new THREE.Color(0xe8f4f0), Math.max(0, (t - 0.78) / 0.22));
       col.push(c.r, c.g, c.b);
     }
     wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -520,15 +551,33 @@ function build(ctx: SectionContext): SectionInstance {
   const flash = new THREE.PointLight(0xdfe8ff, 0, 140, 1.1);
   flash.position.set(0, Y0 + 30, 0);
   ctx.mesh(flash);
-  const boltMat = new THREE.LineBasicMaterial({ color: 0xf2f6ff, transparent: true, opacity: 1 });
+  // the bolt: a jagged chain of bright rods, and a soft sheath round it
+  const boltMat = new THREE.MeshBasicMaterial({ color: 0xf2f6ff, transparent: true, opacity: 1, depthWrite: false });
+  const sheathMat = new THREE.MeshBasicMaterial({ color: 0x9fb8ff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
   ctx.own(boltMat);
-  const boltGeo = new THREE.BufferGeometry();
-  boltGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(16 * 3).fill(0), 3));
-  ctx.own(boltGeo);
-  const bolt = new THREE.Line(boltGeo, boltMat);
+  ctx.own(sheathMat);
+  const rodGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+  rodGeo.translate(0, 0.5, 0);
+  ctx.own(rodGeo);
+  const BOLT_SEGS = 14;
+  const bolt = new THREE.Group();
   bolt.visible = false;
-  bolt.frustumCulled = false;
+  const boltRods: THREE.Mesh[] = [];
+  for (let i = 0; i < BOLT_SEGS * 2; i++) {
+    const core = i < BOLT_SEGS;
+    const m = new THREE.Mesh(rodGeo, core ? boltMat : sheathMat);
+    m.frustumCulled = false;
+    bolt.add(m);
+    boltRods.push(m);
+  }
   ctx.mesh(bolt);
+  const _up = new THREE.Vector3(0, 1, 0);
+  const layRod = (m: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, r: number): void => {
+    const d = b.clone().sub(a);
+    m.position.copy(a);
+    m.scale.set(r, d.length(), r);
+    m.quaternion.setFromUnitVectors(_up, d.normalize());
+  };
 
   // ---- the quay the trawler leaves: the warehouse rim and its gangway gate ----
   const quay = new THREE.Group();
@@ -536,26 +585,59 @@ function build(ctx: SectionContext): SectionInstance {
   const quayEdge = -HB - 2.2;
   {
     const q = new THREE.Mesh(unit, stoneMat);
-    q.scale.set(60, 8, 140);
-    q.position.set(quayEdge - 30, Y0 + 0.6 - 4, 0);
+    // the quay's planked top, as the dock behind the door was
+    const top = new THREE.Mesh(unit, plankMat);
+    top.scale.set(60, 0.1, 70);
+    top.position.set(quayEdge - 30, Y0 + 0.62, -12);
+    quay.add(top);
+    q.scale.set(60, 8, 70);
+    q.position.set(quayEdge - 30, Y0 + 0.6 - 4, -12);
     quay.add(q);
     // the warehouse rim, and the gangway gate in it the party came out of
     const shed = new THREE.Mesh(unit, shedMat);
-    shed.scale.set(14, 12, 130);
-    shed.position.set(quayEdge - 16, Y0 + 0.6 + 6, 0);
+    shed.scale.set(14, 12, 64);
+    shed.position.set(quayEdge - 16, Y0 + 0.6 + 6, -12);
+    // corrugation: ribs down the face, and the roofline
+    for (let z = -43; z <= 19; z += 2.5) {
+      const rib = new THREE.Mesh(unit, darkMat);
+      rib.scale.set(0.25, 12, 0.3);
+      rib.position.set(quayEdge - 8.9, Y0 + 6.6, z);
+      quay.add(rib);
+    }
+    const eave = new THREE.Mesh(unit, darkMat);
+    eave.scale.set(15, 0.6, 65);
+    eave.position.set(quayEdge - 16, Y0 + 12.9, -12);
+    quay.add(eave);
     quay.add(shed);
-    const gate = new THREE.Mesh(unit, glowMat);
-    gate.scale.set(0.1, 4.2, 4);
-    gate.position.set(quayEdge - 8.96, Y0 + 0.6 + 2.1, (GATE_IN.z0 + GATE_IN.z1) / 2);
-    quay.add(gate);
-    for (const s of [-1, 1]) {
+    // the transport door the party came out of: an open steel doorway in the
+    // rim, its white-blue lamp over it (as the stage behind lit it)
+    const doorZ = (GATE_IN.z0 + GATE_IN.z1) / 2;
+    const doorX = quayEdge - 8.95;
+    const recess = new THREE.Mesh(unit, new THREE.MeshBasicMaterial({ color: 0x06090c }));
+    recess.scale.set(0.2, 4.4, 3.6);
+    recess.position.set(doorX, Y0 + 0.6 + 2.2, doorZ);
+    quay.add(recess);
+    for (const sz of [-1, 1]) {
       const post = new THREE.Mesh(unit, darkMat);
-      post.scale.set(0.5, 5, 0.5);
-      post.position.set(quayEdge - 8.8, Y0 + 3.1, (GATE_IN.z0 + GATE_IN.z1) / 2 + s * 2.3);
+      post.scale.set(0.6, 5, 0.5);
+      post.position.set(doorX + 0.2, Y0 + 0.6 + 2.5, doorZ + sz * 2.05);
       quay.add(post);
     }
+    const lintel = new THREE.Mesh(unit, darkMat);
+    lintel.scale.set(0.6, 0.5, 4.6);
+    lintel.position.set(doorX + 0.2, Y0 + 0.6 + 4.9, doorZ);
+    quay.add(lintel);
+    const doorGlow = new THREE.MeshBasicMaterial({ color: 0xbfe6ff });
+    ctx.own(doorGlow);
+    const strip = new THREE.Mesh(unit, doorGlow);
+    strip.scale.set(0.12, 0.18, 3.4);
+    strip.position.set(doorX + 0.52, Y0 + 0.6 + 4.55, doorZ);
+    quay.add(strip);
+    const doorLamp = new THREE.PointLight(0xbfe6ff, 26, 22, 1.5);
+    doorLamp.position.set(doorX + 1.2, Y0 + 0.6 + 4.2, doorZ);
+    quay.add(doorLamp);
     // bollards and lamps along the edge
-    for (let z = -60; z <= 60; z += 12) {
+    for (let z = -42; z <= 18; z += 12) {
       const b = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8), darkMat);
       b.position.set(quayEdge - 0.8, Y0 + 1, z);
       quay.add(b);
@@ -696,6 +778,8 @@ function build(ctx: SectionContext): SectionInstance {
   let nextSide = rogueSide;
   let rogueEnv = 0;
   let rogueCount = 0;
+  let bigOne = false;       // the climax: wave 3's first rogue wave, the biggest of the crossing
+  let washedOver = 0;
   let wallX = 0;
   // lightning
   let lightningOn = false;
@@ -715,7 +799,7 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.checkpoint.copy(roofSpot(0));
 
   const WAVES: WaveDef[] = (() => {
-    const q = (base: number): number => Math.max(1, base + (party >= 3 ? 1 : 0) + (party >= 4 && base >= 2 ? 1 : 0) - (party === 1 && base > 1 ? 1 : 0));
+    const q = (base: number): number => Math.max(1, base + (party >= 3 ? 1 : 0) + (party >= 4 && base >= 2 ? 1 : 0) - (party === 1 && base > 2 ? 1 : 0));
     const crew = (base: number): number => Math.max(1, base + Math.floor((party - 1) / 2));
     return [
       { min: 36, groups: [
@@ -800,6 +884,8 @@ function build(ctx: SectionContext): SectionInstance {
       arc.visible = true;
     }
     if (k >= 1) lightningOn = true;
+    // the squall's peak: the biggest sea of the crossing comes early in the last wave
+    if (k === 2) { rogueClock = Math.min(rogueClock, 24); bigOne = true; }
     if (k >= 1) {
       // bacta: one on the foredeck, one on the roof where the lightning is
       ctx.pickup(new THREE.Vector3(0, Y0, 6.2));
@@ -834,13 +920,16 @@ function build(ctx: SectionContext): SectionInstance {
     const base = ROGUE_EVERY[Math.min(ROGUE_EVERY.length, party) - 1];
     return waveIdx >= 2 && phase === 'wave' ? base * 0.75 : base;
   };
+  let rogueScale = 1;
   const startRogue = (side: number): void => {
     rogueSide = side;
     roguePhase = 'telegraph';
     rogueT = 0;
     rogueCount++;
-    audio.bossHorn(false);
-    ctx.announce(T.rogue, T.rogueSub(side > 0 ? T.starboard : T.port));
+    rogueScale = bigOne && phase === 'wave' && waveIdx === 2 ? 1.3 : 1;
+    audio.bossHorn(rogueScale > 1);
+    ctx.announce(rogueScale > 1 ? T.bigOne : T.rogue, T.rogueSub(side > 0 ? T.starboard : T.port));
+    if (rogueScale > 1) bigOne = false;
   };
 
   /** is a body sheltered from green water coming from `side`? */
@@ -879,10 +968,15 @@ function build(ctx: SectionContext): SectionInstance {
       const k = rogueT / TELEGRAPH;
       // the sea stands up on the weather side and comes on
       wall.visible = true;
-      wallX = side * THREE.MathUtils.lerp(80, HB + 6, k * k);
-      wall.position.set(wallX, SEA_Y - 6 + 12 * Math.min(1, 0.25 + k), 0);
+      wallX = side * THREE.MathUtils.lerp(90, HB + 5, k * k);
+      wall.position.set(wallX, SEA_Y - 3, 0);
       wall.rotation.set(0, side > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
-      wall.scale.set(1, 0.3 + 0.7 * k, 1);
+      wall.scale.set(1, (0.2 + 0.8 * Math.min(1, k * 1.15)) * rogueScale, 1);
+      // spindrift off the crest as it comes on
+      if (k > 0.45 && Math.random() < dt * 14) {
+        const cy = SEA_Y - 3 + WALL_H * wall.scale.y;
+        game.particles.splash(new THREE.Vector3(wallX + side * 2, cy, (Math.random() - 0.5) * 60), 6);
+      }
       // the horn again at the halfway, and the deck starts to heel
       if (rogueT - dt < TELEGRAPH / 2 && rogueT >= TELEGRAPH / 2) audio.bossHorn(false);
       rogueEnv = Math.max(0, (rogueT - (TELEGRAPH - 1.5)) / 1.5) * 0.45;
@@ -895,8 +989,9 @@ function build(ctx: SectionContext): SectionInstance {
       }
     } else if (roguePhase === 'sweep' || roguePhase === 'surge') {
       rogueEnv = Math.min(1, rogueEnv + dt * 3);
-      wall.scale.y = Math.max(0.05, wall.scale.y - dt * 1.5);
-      wall.position.y -= dt * 6;
+      // the wall breaks over the rail and falls into the sea beyond
+      wall.scale.y = Math.max(0.05, wall.scale.y - dt * 1.2);
+      wall.position.x = damp(wall.position.x, -side * 4, 1.5, dt);
       if (roguePhase === 'sweep' && rogueT >= SWEEP) { roguePhase = 'surge'; rogueT = 0; }
       else if (roguePhase === 'surge' && rogueT >= SURGE) { roguePhase = 'drain'; rogueT = 0; }
       // spray where the front is
@@ -935,7 +1030,7 @@ function build(ctx: SectionContext): SectionInstance {
       if (!p.alive || p.formT > 0 || p.cover || p.vehicle) continue;
       if (!onDeckXZ(p.position.x, p.position.z) || sheltered(p.position, rogueSide) || !wetBy(p.position)) continue;
       if (!washed.has(p)) { washed.add(p); p.damage(4, new THREE.Vector3(rogueSide * HB, Y0, p.position.z)); }
-      if (p.velocity.x * to < WASH) p.velocity.x = to * WASH;
+      if (p.velocity.x * to < WASH * rogueScale) p.velocity.x = to * WASH * rogueScale;
       if (p.position.x * to > farInner - 0.9 && p.position.z < FOC && p.position.z > STERN) overTheSide(p, to);
     }
     for (const e of game.enemies) {
@@ -943,8 +1038,8 @@ function build(ctx: SectionContext): SectionInstance {
       if (e.position.y > Y0 + 3 || !onDeckXZ(e.position.x, e.position.z)) continue;
       if (sheltered(e.position, rogueSide) || !wetBy(e.position)) continue;
       if (!washed.has(e)) { washed.add(e); e.knockdown(1.6); }
-      if (e.velocity.x * to < WASH) e.velocity.x = to * WASH;
-      if (e.position.x * to > farInner - 0.9 && e.position.z < FOC && e.position.z > STERN) overTheSide(e, to);
+      if (e.velocity.x * to < WASH * rogueScale) e.velocity.x = to * WASH * rogueScale;
+      if (e.position.x * to > farInner - 0.9 && e.position.z < FOC && e.position.z > STERN) { overTheSide(e, to); washedOver++; }
     }
     for (const br of barrels) {
       if (br.b.broken || br.lost) continue;
@@ -959,7 +1054,7 @@ function build(ctx: SectionContext): SectionInstance {
     const phys = game.board.physics;
     for (const br of barrels) {
       if (br.b.broken || br.lost) continue;
-      br.vx += tilt.accel * 0.55 * dt;
+      br.vx += tilt.accel * 0.4 * dt;
       br.vx = damp(br.vx, 0, 0.9, dt);
       if (Math.abs(br.vx) < 0.02) continue;
       // slide it with its own box out of the world, so it does not block itself
@@ -984,7 +1079,7 @@ function build(ctx: SectionContext): SectionInstance {
         if (!b.alive) continue;
         if (Math.abs(b.position.y - Y0) > 1.2) continue;
         if (Math.hypot(b.position.x - pos.x, b.position.z - pos.z) > 0.95) continue;
-        if (Math.abs(br.vx) > 3) {
+        if (Math.abs(br.vx) > 3.5) {
           const dmg = Math.abs(br.vx) * 3;
           if (game.players.includes(b as Player)) (b as Player).damage(dmg * 0.6, pos);
           else { (b as Enemy).damage(dmg, pos, -1); (b as Enemy).knockdown(1.2); }
@@ -1076,15 +1171,17 @@ function build(ctx: SectionContext): SectionInstance {
     flashT = 0.35;
     audio.thunder(0.9);
     // a jagged line out of the cloud onto the rod
-    const bp = boltGeo.attributes.position as THREE.BufferAttribute;
-    const top = rodTop.clone().add(new THREE.Vector3((Math.random() - 0.5) * 30, 50, (Math.random() - 0.5) * 20));
-    for (let i = 0; i < 16; i++) {
-      const k = i / 15;
-      const at = top.clone().lerp(rodTop, k);
-      if (i > 0 && i < 15) at.add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3));
-      bp.setXYZ(i, at.x, at.y, at.z);
+    const top = rodTop.clone().add(new THREE.Vector3((Math.random() - 0.5) * 30, 55, (Math.random() - 0.5) * 20));
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= BOLT_SEGS; i++) {
+      const at = top.clone().lerp(rodTop, i / BOLT_SEGS);
+      if (i > 0 && i < BOLT_SEGS) at.add(new THREE.Vector3((Math.random() - 0.5) * 4, 0, (Math.random() - 0.5) * 4));
+      pts.push(at);
     }
-    bp.needsUpdate = true;
+    for (let i = 0; i < BOLT_SEGS; i++) {
+      layRod(boltRods[i], pts[i], pts[i + 1], 0.14);
+      layRod(boltRods[BOLT_SEGS + i], pts[i], pts[i + 1], 0.55);
+    }
     bolt.visible = true;
     game.particles.impactSparks(rodTop, 30);
     const from = rodTop.clone();
@@ -1107,6 +1204,7 @@ function build(ctx: SectionContext): SectionInstance {
     flashT = Math.max(0, flashT - dt);
     flash.intensity = flashT > 0 ? 900 * (flashT / 0.35) * (0.6 + Math.random() * 0.4) : 0;
     boltMat.opacity = Math.min(1, flashT / 0.2);
+    sheathMat.opacity = 0.35 * Math.min(1, flashT / 0.2);
     bolt.visible = flashT > 0;
     if (crackleT >= 0) {
       crackleT += dt;
@@ -1138,12 +1236,12 @@ function build(ctx: SectionContext): SectionInstance {
   const updateVoyage = (dt: number): void => {
     // under way from the first second; slowing to come alongside at the end
     const want = phase === 'approach' ? SPEED * Math.max(0.15, 1 - pierT / APPROACH) : phase === 'docked' ? 0 : SPEED;
-    speed = damp(speed, want, phase === 'intro' ? 0.35 : 0.8, dt);
+    speed = damp(speed, want, 0.6, dt);
     seaScroll += speed * dt;
     // the quay: first the gap opens as she casts off, then it falls astern
     quayT += dt;
-    quay.position.x = -Math.min(14, quayT * quayT * 0.25);
-    quay.position.z = -Math.max(0, quayT - 2) * Math.min(1, quayT / 10) * speed * 0.9;
+    quay.position.x = -Math.min(18, quayT * quayT * 0.3);
+    if (quayT > 1.5) quay.position.z -= speed * dt;
     quay.visible = quay.position.z > -260;
     const plank = quay.getObjectByName('gangway');
     if (plank) plank.rotation.z = -0.35 - Math.min(1.1, quayT * 0.3);
@@ -1292,7 +1390,7 @@ function build(ctx: SectionContext): SectionInstance {
     // the roll: the swell, and a rogue wave's heel on top of it
     const amp = THREE.MathUtils.degToRad(phase === 'docked' || phase === 'approach' ? 3 : SWELL_DEG[waveIdx] ?? 8);
     const swell = amp * Math.sin((time / SWELL_PERIOD) * Math.PI * 2) * (0.85 + 0.15 * Math.sin(time * 0.41));
-    const heel = -rogueSide * THREE.MathUtils.degToRad(ROGUE_DEG) * rogueEnv;
+    const heel = -rogueSide * THREE.MathUtils.degToRad(ROGUE_DEG * rogueScale) * rogueEnv;
     tilt.roll = rollOverride ?? swell * (1 - rogueEnv * 0.7) + heel;
     ship.rotation.z = tilt.hullRotation;
     // the quarren, the pirates and the barrels all feel it
@@ -1339,8 +1437,12 @@ function build(ctx: SectionContext): SectionInstance {
     tilt.poseBodies(game);
   };
 
+  // the party re-forms on the deckhouse roof — unless the mast is crackling,
+  // when the roof is the one place not to be put: then the foredeck
   const respawnSpot = (slot: number): THREE.Vector3 =>
-    ctx.defaultRespawn(slot, roofSpot(0), new THREE.Vector3(0, 0, 1));
+    crackleT >= 0
+      ? ctx.defaultRespawn(slot, new THREE.Vector3(0, Y0, HOUSE.z1 + 1.6), new THREE.Vector3(0, 0, -1))
+      : ctx.defaultRespawn(slot, roofSpot(0), new THREE.Vector3(0, 0, 1));
 
   // ---- guidance ----
   const leeSpot = (slot: number, side: number): THREE.Vector3 =>
@@ -1391,6 +1493,17 @@ function build(ctx: SectionContext): SectionInstance {
     return { title: T.title, bars, line };
   };
 
+  /** the next point on the way from `from` to `to` that does not go through the deckhouse */
+  const around = (from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3 => {
+    const fromSide = Math.sign(from.x) || 1, toSide = Math.sign(to.x) || 1;
+    const alongHouse = (z: number): boolean => z > HOUSE.z0 - 1 && z < HOUSE.z1 + 1;
+    if (fromSide === toSide || Math.abs(from.x) < HOUSE.x - 0.2 || !(alongHouse(from.z) || alongHouse(to.z))) return to;
+    // round the forward end: the after end has the king post and the boom
+    const zEnd = HOUSE.z1 + 1.4;
+    if (from.z < zEnd - 0.6) return new THREE.Vector3(fromSide * (HOUSE.x + 1.1), Y0, zEnd);
+    return new THREE.Vector3(toSide * (HOUSE.x + 1.1), Y0, zEnd);
+  };
+
   // ---- the test autopilot: fight from the deckhouse lee, brace on the horn ----
   const autopilot = (slot: number): AutopilotInput => {
     const p = game.players[slot];
@@ -1422,20 +1535,32 @@ function build(ctx: SectionContext): SectionInstance {
     const spot = leeSpot(slot, side);
     const incoming = roguePhase === 'telegraph' || roguePhase === 'sweep' || roguePhase === 'surge';
     if (incoming) {
-      // brace against the deckhouse wall once in the lee; one press, then hold still
+      // on the horn: brace against whatever is at hand (one press, then hold
+      // still), or get into the lee if there is nothing to hold
       if (p.cover) return { shootHeld: false };
-      const d = Math.hypot(spot.x - p.position.x, spot.z - p.position.z);
-      if (d < 1.2 && p.grounded && p.nearCover && !braceLatch[slot]) {
+      if (p.grounded && p.nearCover && !braceLatch[slot]) {
         braceLatch[slot] = true;
         return { slamPressed: true };
       }
       braceLatch[slot] = false;
-      return steer(spot, 0.3);
+      return steer(around(p.position, spot), 0.3);
     }
     braceLatch[slot] = false;
     // the wave has passed: let go of the wall
     if (p.cover) return { slamPressed: true };
-    return steer(spot, 0.5);
+    const out = steer(around(p.position, spot), 0.5);
+    // in the lee: turn on the nearest boarder and fire
+    if (!out.moveY) {
+      let best: Enemy | null = null;
+      let bestD = 30;
+      for (const e of game.enemies) {
+        if (!e.alive || e.team !== 1 || e.arriving) continue;
+        const d = e.position.distanceTo(p.position);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (best) out.yaw = Math.atan2(best.position.x - p.position.x, best.position.z - p.position.z);
+    }
+    return out;
   };
 
   const dispose = (): void => {
@@ -1465,8 +1590,9 @@ function build(ctx: SectionContext): SectionInstance {
     dispose,
     debug: () => ({
       phase, wave: waveIdx + 1, t: Math.round(phaseT), rogue: roguePhase, rogueCount, nextSide,
-      roll: +THREE.MathUtils.radToDeg(tilt.roll).toFixed(1), boomLoose, boomHits, strikes, overboard,
+      roll: +THREE.MathUtils.radToDeg(tilt.roll).toFixed(1), boomLoose, boomHits, strikes, overboard, washedOver,
       alive: waveBodies.filter((e) => e.alive).length, pendingDrops,
+      barrels: barrels.map((br) => (br.b.broken || br.lost ? null : +br.at.x.toFixed(2))),
     }),
     // for the mechanics suite (tools/test-section-squall.mjs)
     force: {
@@ -1477,6 +1603,7 @@ function build(ctx: SectionContext): SectionInstance {
       boom: () => { boomLoose = true; arc.visible = true; },
       wave: (k = 0) => { startWave(k); },
       noRogue: () => { rogueClock = 1e9; },
+      enemy: (x = 0, z = 0) => { ctx.spawn('quarren', new THREE.Vector3(x, Y0, z), { exact: true }); },
       finish: () => { for (const e of waveBodies) if (e.alive) e.damage(1e7, e.position, -1); waveIdx = WAVES.length - 1; phaseT = 999; launched = 99; phase = 'wave'; },
     },
   };

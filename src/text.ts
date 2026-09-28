@@ -591,6 +591,7 @@ export const TEXT = {
       clearBanner: 'The deck is held',
       clearSub: (w: number) => `wave ${w} of 3 over the side — more coming`,
       rogue: 'Rogue wave',
+      bigOne: 'The big one',
       rogueSub: (side: string) => `off the ${side} side — brace!`,
       rogueBar: 'Rogue wave',
       rogueHint: 'Rogue wave! Brace — Y at a wall',
