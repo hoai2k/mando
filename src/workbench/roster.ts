@@ -7,6 +7,7 @@ import {
   buildEscortDroid, buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
 } from '../characters/enemies';
 import { loadProp } from '../characters/authored';
+import { WEAPON_PROPS } from '../characters/weaponProps';
 
 /**
  * Everything the workbench can put on the turntable, in the order the picker
@@ -116,14 +117,14 @@ GROUPS.push({
     prop('massiff', 'Massiff', 1.15, 'y'),
     prop('massiff_static', 'Massiff — unrigged', 1.15, 'y'),
     prop('nikto_swoop', 'Swoop bike', 2.6),
-    prop('carbine', 'EE-3 carbine', 0.72),
-    prop('gaffi', 'Gaderffii stick', 1.5),
-    prop('enemy_blaster_rifle', 'Infantry blaster rifle', 0.75),
-    prop('pirate_boarding_club', 'Pirate boarding club', 0.7),
-    prop('flame_projector', 'Flame projector', 0.6),
-    prop('net_launcher', 'Net launcher', 0.5),
-    prop('alamite_stone_club', 'Alamite stone club', 0.68),
-    prop('electrostaff', 'Electrostaff', 1.8),
+    prop('carbine', 'EE-3 carbine', WEAPON_PROPS.carbine.length),
+    prop('gaffi', 'Gaderffii stick', WEAPON_PROPS.gaffi.length),
+    prop('enemy_blaster_rifle', 'Infantry blaster rifle', WEAPON_PROPS.enemy_blaster_rifle.length),
+    prop('pirate_boarding_club', 'Pirate boarding club', WEAPON_PROPS.pirate_boarding_club.length),
+    prop('flame_projector', 'Flame projector', WEAPON_PROPS.flame_projector.length),
+    prop('net_launcher', 'Net launcher', WEAPON_PROPS.net_launcher.length),
+    prop('alamite_stone_club', 'Alamite stone club', WEAPON_PROPS.alamite_stone_club.length),
+    prop('electrostaff', 'Electrostaff', WEAPON_PROPS.electrostaff.length),
   ],
 });
 

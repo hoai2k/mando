@@ -13,7 +13,7 @@ import {
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
-import { buildMandalorian, type MandoId } from '../characters/mandalorians';
+import { buildMandalorian, saberClipsFor, type MandoId } from '../characters/mandalorians';
 import { clamp, damp, dampAngle } from '../core/math';
 import { bodyLuma, contrastNeed, haloPeak, haloStrength, makeHalo, skylineTone, type HaloTone } from '../fx/skyline';
 import { Ragdoll, RigidRagdoll } from '../anim/ragdoll';
@@ -232,8 +232,7 @@ function buildRival(id: MandoId, melee: boolean): CharacterInstance {
     ...fighter,
     attack: () => {
       step = (step % 3) + 1;
-      const family = id === 'maul' ? 'staff' : id === 'maris' ? 'tonfa' : 'saber';
-      return fighter.animator?.playOnce('upper', `${family}${step}`, 0.06) ?? 0.5;
+      return fighter.animator?.playOnce('upper', `${saberClipsFor(id).attack}${step}`, 0.06) ?? 0.5;
     },
   };
 }

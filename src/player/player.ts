@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
-  MELEE_NAMES, RANGED_NAMES,
+  MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
   type MeleeKind, type PlayerCharacter, type RangedKind,
 } from '../characters/mandalorians';
 import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
-import { sharedWeaponScale } from '../characters/sharedWeaponGrips';
+import { SABER_STYLES, weaponProp } from '../characters/weaponProps';
 import { ThirdPersonCamera } from '../core/camera';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
@@ -1389,7 +1389,7 @@ export class Player {
   }
 
   private get saberCapacity(): number {
-    return this.characterId === 'din' || this.characterId === 'maul' || this.characterId === 'revan' ? 1 : 2;
+    return SABER_STYLES[saberStyleFor(this.characterId)].pair ? 2 : 1;
   }
 
   /** blades physically in hand — thrown ones are out in the world */
@@ -2389,7 +2389,7 @@ export class Player {
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
-      const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
+      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper` : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2404,7 +2404,7 @@ export class Player {
     } else {
       const stance = gunUp ? null : this.bladeStance();
       anim.play('lower', stance?.lower ?? 'idleLower');
-      const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
+      const idleUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}IdleUpper` : 'idleUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : stance?.upper ?? idleUpper);
     }
   }
@@ -2603,7 +2603,7 @@ export class Player {
   get meleeBlade(): Blade | null {
     if (this.meleeBare || UNARMED_MELEE.has(this.characterId)) return null;
     if (this.meleeKind === 'sabers') return 'energy';
-    return this.characterId === 'din' ? 'beskar' : 'steel';
+    return weaponProp(staffPropFor(this.characterId)).blade ?? 'steel';
   }
 
   /** mid-strike, anywhere in the swing's contact window: a blade arriving now meets this one */
@@ -2980,7 +2980,7 @@ export class Player {
     // holds while leaning out too: the peek goes round the corner, not over
     // the top, so there is nothing to stand up for.
     anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
+    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}IdleUpper` : 'idleUpper');
 
     this.syncVisual(dt, game);
     anim.update(dt);
@@ -3317,11 +3317,11 @@ export class Player {
     if (!this.throwFx) this.throwFx = new THREE.Group();
     if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
     let t = this.thrownSabers[hand];
+    const style = saberStyleFor(this.characterId);
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
-      light: this.characterId !== 'din',
-      style: this.characterId === 'din' ? 'darksaber' : this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
-        : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
-      scale: this.characterId === 'revan' ? sharedWeaponScale('revan') : 1,
+      light: style !== 'darksaber',
+      style,
+      scale: saberScaleFor(this.characterId),
     });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
@@ -3412,7 +3412,7 @@ export class Player {
       this.meleeRange = bare ? 1.8 : 3;
       // Use the weapon's keyed attack family; Din's single Darksaber keeps
       // the striking blade in his right hand across all three hits.
-      const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+      const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
       // The three original staff hits stay in the combo. Each hit has a
       // one-in-four chance to use its faster, individually keyed variation.
       // A fighter with a style of their own draws each hit at random between
@@ -3459,7 +3459,7 @@ export class Player {
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
       if (variant?.lowerAlways
         || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
-        this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
       // the fighter comes out of every attack free to settle into either ready,
@@ -3477,7 +3477,7 @@ export class Player {
     ) {
       this.flourished = true;
       this.char.animator!.playOnce('upper', pickStyleMove(this.characterId, 'flourish')?.upper
-        ?? (this.characterId === 'maris' ? 'tonfaFlourish' : this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish'), 0.12);
+        ?? `${saberClipsFor(this.characterId).stance}Flourish`, 0.12);
       this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
@@ -3654,7 +3654,7 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+    const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');

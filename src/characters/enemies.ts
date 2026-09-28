@@ -6,6 +6,7 @@ import { attachAuthored, loadCreature, loadProp, type CreatureId } from './autho
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
 import { applySharedWeaponGrip } from './sharedWeaponGrips';
+import { WEAPON_PROPS } from './weaponProps';
 import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
@@ -89,7 +90,7 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
   addCyl(g, dark, 0.014, 0.014, 0.3, 0, 0.01, 0.36, Math.PI / 2, 0, 0, 6);
   g.rotation.x = Math.PI / 2;
   parent.add(g);
-  mountEnemyProp(g, 'enemy_blaster_rifle', 0.75, 0, 0.14, 0, true);
+  mountEnemyProp(g, 'enemy_blaster_rifle', WEAPON_PROPS.enemy_blaster_rifle.length, 0, 0.14, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.52);
   g.add(muzzle);
@@ -229,7 +230,7 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
     addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
     club.rotation.x = Math.PI / 2;
     b.weaponR.add(club);
-    mountEnemyProp(club, 'pirate_boarding_club', 0.7, Math.PI / 2, 0, 0.14);
+    mountEnemyProp(club, 'pirate_boarding_club', WEAPON_PROPS.pirate_boarding_club.length, Math.PI / 2, 0, 0.14);
   } else {
     inst.muzzle = rifle(b.weaponR);
   }
@@ -903,7 +904,7 @@ export function buildFlametrooper(authored = true): CharacterInstance {
   const pilot = addSphere(proj, mat(0xffa030, { emissive: 0xff6a10, rough: 0.3 }), 0.018, 0, 0.05, 0.47, 6, 5);
   proj.rotation.x = Math.PI / 2;
   b.weaponR.add(proj);
-  mountEnemyProp(proj, 'flame_projector', 0.6, 0, 0.2, 0, true);
+  mountEnemyProp(proj, 'flame_projector', WEAPON_PROPS.flame_projector.length, 0, 0.2, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.5);
   proj.add(muzzle);
@@ -1299,7 +1300,7 @@ export function buildQuarren(authored = true): CharacterInstance {
   addCyl(launcher, dark, 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
   addCyl(launcher, mat(0x6b6f72, { rough: 0.4, metal: 0.6 }), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
   b.weaponR.add(launcher);
-  mountEnemyProp(launcher, 'net_launcher', 0.5, 0, 0.12, 0, true);
+  mountEnemyProp(launcher, 'net_launcher', WEAPON_PROPS.net_launcher.length, 0, 0.12, 0, true);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0, 0.38);
   launcher.add(muzzle);
@@ -1336,7 +1337,7 @@ export function buildAlamite(authored = true): CharacterInstance {
   addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
   club.rotation.x = Math.PI / 2;
   b.weaponR.add(club);
-  mountEnemyProp(club, 'alamite_stone_club', 0.68, Math.PI / 2, 0, 0.14);
+  mountEnemyProp(club, 'alamite_stone_club', WEAPON_PROPS.alamite_stone_club.length, Math.PI / 2, 0, 0.14);
   authoredEnemy(inst, rig, 'alamite', authored);
   return inst;
 }

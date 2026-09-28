@@ -373,6 +373,14 @@ export const TEXT = {
       carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
     },
     melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' },
+    /**
+     * A signature weapon the HUD names for itself rather than by its slot:
+     * a staff other than the gaffi, or a single saber rather than a pair.
+     */
+    props: {
+      beskarSpear: 'Beskar Spear', poleaxe: 'Poleaxe', quarterstaff: 'Quarterstaff', forcePike: 'Force Pike',
+      doubleSaber: 'Double Saber', redSaber: 'Red Saber',
+    },
     /** what a playable NPC's slots are called, built from its own name */
     npcRifle: (name: string) => `${name} Rifle`,
     npcBlaster: (name: string) => `${name} Blaster`,
