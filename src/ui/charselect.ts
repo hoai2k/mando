@@ -441,8 +441,8 @@ export class CharacterSelect {
         <div class="body">
           <div class="charsel-status"></div>
           <div class="charsel-name"><span class="charsel-name-current"></span></div>
-          <div class="epithet"></div>
           <div class="charsel-kit"></div>
+          <div class="epithet"></div>
         </div>
         <div class="stamp">${TEXT.charSelect.ready}</div>
         <div class="charsel-spinner" style="display:none"></div>

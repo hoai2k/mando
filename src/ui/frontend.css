@@ -43,6 +43,12 @@
   display: inline-flex; align-items: center; justify-content: center; flex: none;
   width: 24px; height: 24px; border-radius: 50%;
   font: 700 14px/1 var(--fe-cond); color: #140e09; background: #bfa888;
+  /* A glyph sits inside prompt text that is letter-spaced and upper-cased;
+     inheriting the spacing pushed its letter off centre to the left. And
+     Barlow's capitals ride a pixel low in a line-height-1 box, so the content
+     box is lifted by that pixel. */
+  letter-spacing: 0; text-indent: 0; text-transform: none; padding: 0 0 2px;
+  box-sizing: border-box;
 }
 .fe-glyph.a { background: #6bbf59; }
 .fe-glyph.b { background: #d9534f; }
@@ -262,14 +268,13 @@
   box-shadow: 0 0 0 3px #0b0806, 0 0 0 6px #8a6a3a, 0 0 0 8px #2a1f14, 0 20px 40px rgba(0,0,0,0.7);
   background: #07050a;
 }
-.fe-lens.open { animation: fe-lens-open 0.26s cubic-bezier(0.2, 1.25, 0.35, 1) both; }
+/* a touch longer than the map's pan, so the two read as one motion */
+.fe-lens.open { animation: fe-lens-open 0.3s cubic-bezier(0.2, 1.25, 0.35, 1) both; }
 @keyframes fe-lens-open {
   0% { transform: translateY(var(--drop, 258px)) scale(0.06); opacity: 0; }
   25% { opacity: 1; }
   100% { transform: none; opacity: 1; }
 }
-/* between targets there is no lens at all — gone, not shrinking */
-.fe-hunt.shut .fe-lens, .fe-hunt.shut .fe-leader { visibility: hidden; opacity: 0; transition: none; }
 .fe-vista { position: absolute; inset: 0; background-size: cover, cover; background-position: center; opacity: 0; }
 .fe-vista.on { opacity: 1; }
 .fe-lens-label {
@@ -374,18 +379,22 @@
 .charsel-status { font: 700 15px/1.2 var(--fe-cond); letter-spacing: 3px; color: var(--pc, #e0452c); text-transform: uppercase; }
 .charsel-status b { font-weight: 700; }
 .charsel-name { font: 400 28px/1 var(--fe-display); color: #fff; text-transform: uppercase; }
+/* the fighter's line sits at the foot of the card, off the portrait's face */
 .charsel-panel .epithet {
-  font: italic 600 14px/1.25 var(--fe-script); color: #f1dcb8; margin-bottom: 6px;
+  font: italic 600 14px/1.25 var(--fe-script); color: #f1dcb8; margin-top: auto;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.charsel-kit { display: flex; flex-wrap: wrap; gap: 4px; }
+/* the chips keep the height they had under a two-line subtitle; the gap they
+   leave under the name is where the READY stamp lands */
+.charsel-kit { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 44px; }
 .charsel-kit span {
   padding: 1px 6px; border: 1px solid rgba(244,163,64,0.8); background: rgba(244,163,64,0.12);
   font: 500 13px/1.3 var(--fe-cond); color: #f4c890; white-space: nowrap;
 }
 .charsel-kit b { font-weight: 700; }
 .charsel-panel .stamp {
-  display: none; position: absolute; right: 30px; bottom: 16px; padding: 4px 12px;
+  display: none; position: absolute; left: 44px; top: 72px; padding: 4px 12px;
   font: 400 22px/1.1 var(--fe-display); letter-spacing: 3px; color: #fff; transform: rotate(-8deg);
   background: var(--pc, #e0452c); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
@@ -399,7 +408,8 @@
 @keyframes charsel-spin { to { transform: rotate(360deg); } }
 /* an open place: no portrait, just the invitation, breathing */
 .charsel-panel.empty { background: rgba(26,18,12,0.45); box-shadow: inset 0 0 0 2px rgba(191,168,136,0.18); border-top-style: dashed; }
-.charsel-panel.empty .art, .charsel-panel.empty .fade { display: none; }
+.charsel-panel.empty .art, .charsel-panel.empty .fade,
+.charsel-panel.empty .charsel-kit, .charsel-panel.empty .epithet { display: none; }
 .charsel-panel.empty .body { left: 20px; right: 20px; width: auto; top: 0; bottom: 0; justify-content: center; align-items: center; text-align: center; }
 .charsel-panel.empty .charsel-status { font-size: 17px; line-height: 1.5; color: #bfa888; animation: fe-pulse 1.8s infinite; }
 .charsel-panel.empty .charsel-status b { font: 400 34px/1 var(--fe-display); color: var(--pc); }
@@ -407,6 +417,7 @@
 .charsel-panel.empty .fe-glyph { margin: 0 4px; vertical-align: -5px; letter-spacing: 0; }
 /* a line of more than four (PvP with bots): narrower cards, the essentials only */
 .charsel-panels.crowded .charsel-panel .epithet, .charsel-panels.crowded .charsel-kit { display: none; }
+.charsel-panels.crowded .charsel-panel .stamp { left: 30px; top: auto; bottom: 16px; }
 .charsel-panels.crowded .charsel-name { font-size: 20px; }
 
 .charsel-posters { display: none; }
