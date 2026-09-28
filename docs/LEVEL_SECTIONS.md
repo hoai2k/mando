@@ -19,8 +19,10 @@ not to replace them — the outdoor-and-interior rhythm is still the spine.
 
 Diagrams for each section live in [`sections/`](sections/). They are schematic
 (top-down or side-on plans with the flow, hazards and spawns marked), drawn to
-the dimensions in the text. Painted keyframes for all eighteen are requested in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--keyframe-concepts-2026-09-28).
+the dimensions in the text. Painted keyframes for all eighteen are in `reference/sections/` (recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#gameplay-sections--18-keyframe-concepts-delivered-2026-09-28));
+the supporting images are open in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--supporting-images-2026-09-28).
 
 ## 0. At a glance
 
