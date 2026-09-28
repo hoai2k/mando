@@ -1053,7 +1053,7 @@ function build(ctx: SectionContext): SectionInstance {
     return out;
   };
 
-  return {
+  const inst: SectionInstance & { test: object } = {
     starts: [0, 1, 2, 3].map((i) => new THREE.Vector3(2.5 + (i % 2) * 2, Y0, -4.5 - Math.floor(i / 2) * 1.8)),
     floorY: Y0,
     ceilingY: Y0 + ROOF - 0.5,
@@ -1078,12 +1078,15 @@ function build(ctx: SectionContext): SectionInstance {
         if (i >= 0) ctx.board.physics.boxes.splice(i, 1);
       }
     },
+    // handles for the mechanics suite (tools/test-section-refinery.mjs)
+    test: { presses, crates, arms, switches, holdLeft, beltSpeed, BELT_X, BELT_TOP, FRAMES, FRAME_D },
     debug: () => ({
       reached, surging, releasing, doorOpen: +doorOpen.toFixed(2),
       held: { ...holdLeft },
       presses: presses.map((q) => q.phase[0]).join(''),
     }),
   };
+  return inst;
 }
 
 export const theLine: SectionDef = {

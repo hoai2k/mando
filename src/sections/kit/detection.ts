@@ -147,6 +147,7 @@ interface Watch {
 
 const _to = new THREE.Vector3();
 const _chest = new THREE.Vector3();
+const _from = new THREE.Vector3();
 
 export class DetectionField {
   /** each player's meter, by slot */
@@ -332,14 +333,20 @@ export class DetectionField {
     if (w) w.quiet = 0;
   }
 
-  /** a clear line from `a` to `b`: no solid in the way and no mask blowing across it */
+  /**
+   * A clear line from `a` to `b`: no solid in the way and no mask blowing
+   * across it. The first metre is skipped — a lamp sits on its own mast, a
+   * sensor on its own post, and neither blinds itself.
+   */
   clearLine(a: THREE.Vector3, b: THREE.Vector3): boolean {
     _to.subVectors(b, a);
     const len = _to.length();
     if (len < 1e-3) return true;
     _to.multiplyScalar(1 / len);
-    const hit = this.game.board.physics.raycastSolids(a, _to, len);
-    if (hit && hit.dist < len - 0.6) return false;
+    const skip = Math.min(1, len * 0.5);
+    _from.copy(a).addScaledVector(_to, skip);
+    const hit = this.game.board.physics.raycastSolids(_from, _to, len - skip);
+    if (hit && hit.dist < len - skip - 0.6) return false;
     for (const m of this.masks) {
       if (!m.on) continue;
       // distance from the mask's centre to the segment
@@ -377,6 +384,8 @@ export class Takedowns {
   /** when each enemy was last seen go from calm to engaged, by game time */
   private turned = new WeakMap<Enemy, number>();
   private calm = new WeakMap<Enemy, boolean>();
+  /** the way each enemy faced the last time it was calm: a guard who turns as the blow comes was still caught from behind */
+  private calmYaw = new WeakMap<Enemy, number>();
   /** how many have been taken, for HUD lines and tests */
   count = 0;
   /** called with each one taken */
@@ -391,6 +400,7 @@ export class Takedowns {
       const calm = e.awareness !== 'engaged';
       if (this.calm.get(e) === true && !calm) this.turned.set(e, t);
       this.calm.set(e, calm);
+      if (calm) this.calmYaw.set(e, e.yaw);
     }
   }
 
@@ -399,11 +409,12 @@ export class Takedowns {
     if (!e.alive || e.team !== 1 || e.boss) return false;
     const grace = this.opts.grace ?? 0.6;
     const since = this.turned.has(e) ? this.game.time - this.turned.get(e)! : Infinity;
-    const unaware = e.awareness !== 'engaged' || since < grace;
-    if (!unaware) return false;
+    const calmNow = e.awareness !== 'engaged';
+    if (!calmNow && since >= grace) return false;
+    const yaw = calmNow ? e.yaw : (this.calmYaw.get(e) ?? e.yaw);
     const dx = from.x - e.position.x, dz = from.z - e.position.z;
     const d = Math.hypot(dx, dz) || 1;
-    const facing = (dx / d) * Math.sin(e.yaw) + (dz / d) * Math.cos(e.yaw);
+    const facing = (dx / d) * Math.sin(yaw) + (dz / d) * Math.cos(yaw);
     // cos of half the front arc: in front of that is "seen coming"
     return facing < Math.cos((this.opts.arc ?? (110 * Math.PI / 180)) / 2);
   }
