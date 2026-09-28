@@ -457,7 +457,7 @@ export class Vehicle {
     this.hands = handsFor(this.def, this.anchor);
     this.seatY = this.anchor ? this.anchor.seat[1] - STANCE_RISE[this.def.stance] : this.def.seat.y;
     this.group.add(this.body);
-    buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
+    buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root), undefined, (root) => this.seatToStandIn(root));
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.yaw;
     this.park();
@@ -842,6 +842,24 @@ export class Vehicle {
    * the surface it finds: feet on it for a rider who stands, hips just over it
    * for one who straddles.
    */
+  /**
+   * Until the sculpt lands, its low-LOD stand-in is what the ride looks like:
+   * sit the saddle and the rider on that rather than on the def's guess, which
+   * was tuned to the hand-built stand-ins these replaced. For this instance
+   * only — `seatToModel` measures the sculpt itself once it is in, and only
+   * that is remembered for the kind.
+   */
+  private seatToStandIn(root: THREE.Object3D): void {
+    let surface = this.anchor ? undefined : seatByKind.get(this.spec.kind);
+    if (!this.anchor && surface === undefined) {
+      const measured = measureSeatSurface(this.spec.kind, root, this.group, { x: this.seatX, z: this.seatZ });
+      if (measured === null) return;
+      surface = measured;
+    }
+    const sit = sitOnModel(this.body, surface, this.anchor);
+    this.seatY = sit - STANCE_RISE[this.def.stance];
+  }
+
   private seatToModel(root: THREE.Object3D): void {
     // A seat placed by hand in the workbench is the seat: nothing to measure
     let surface = this.anchor ? undefined : seatByKind.get(this.spec.kind);
@@ -1590,7 +1608,7 @@ export const riderRise = (stance: VehicleDef['stance'], hips = CANONICAL_HIPS): 
  * until the file lands — the same swap the enemy swoop bike does.
  */
 export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void,
-  onSettle?: () => void): void {
+  onSettle?: () => void, onStandIn?: (root: THREE.Object3D) => void): void {
   const def = VEHICLE_DEFS[kind];
   if (kind === 'bantha') {
     // The saddle is the ride's own dressing, not the sculpt's: it stays on
@@ -1620,5 +1638,10 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     // a grounded sculpt stands on the keel; the rest hang off their own origin
     model.position.y = def.modelGround ? 0 : def.body * 0.35;
     group.add(model);
+    // Still loading: the stand-in is what shows, and it is only now in the
+    // ride's frame, so only now can anything be measured off it. (A sculpt
+    // already in the cache has landed by here and taken the stand-in away.)
+    const standIn = model.getObjectByName('lodProp');
+    if (standIn) onStandIn?.(standIn);
   } else onSettle?.();
 }

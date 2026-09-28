@@ -37,10 +37,10 @@ off its centre line — or the joint outside the mesh outright. The rest are lea
 
 | model | height m | likely misplaced | other flags |
 |---|---|---|---|
-| din | 1.85 | elbow.L (6.3), elbow.R (6.5), ankle.L (6.3), ankle.R (6.3) | spine, chest, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, knee.L, hip.R, knee.R |
-| paz | 1.67 | wrist.L (4.3), wrist.R (4.2), knee.L (9.3), knee.R (9.3) | chest, neck, head, shoulder.L, shoulder.R, hip.L, ankle.L, hip.R, ankle.R |
-| bokatan | 1.75 | elbow.L (5.9), elbow.R (6.0), wrist.R (4.2), ankle.L (6.8), ankle.R (6.9) | chest, neck, head, shoulder.L, wrist.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
-| armorer | 1.78 | ankle.L (6.6), ankle.R (6.7) | pelvis, spine, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, knee.L, hip.R, knee.R |
+| din | 1.85 | elbow.L (7.1), elbow.R (7.1), knee.L (5.2), ankle.L (6.5), knee.R (5.4), ankle.R (6.6) | spine, chest, neck, head, shoulder.L, shoulder.R, wrist.R, hip.L, hip.R |
+| paz | 1.67 | wrist.L (4.2), knee.L (9.1), knee.R (9.3) | pelvis, chest, neck, head, shoulder.L, elbow.L, shoulder.R, wrist.R, hip.L, hip.R, ankle.R |
+| bokatan | 1.75 | elbow.L (5.6), elbow.R (6.1), wrist.R (4.1), ankle.L (6.6), ankle.R (6.9) | chest, neck, head, shoulder.L, wrist.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
+| armorer | 1.78 | ankle.L (7.3), ankle.R (5.9) | pelvis, spine, neck, head, shoulder.L, elbow.L, wrist.L, shoulder.R, elbow.R, wrist.R, hip.L, knee.L, hip.R, knee.R |
 | boba_fett | 1.83 | wrist.L (5.5), elbow.R (6.6), knee.L (5.7), ankle.L (5.3), knee.R (6.2), ankle.R (5.7) | pelvis, spine, chest, neck, shoulder.L, elbow.L, shoulder.R, hip.L, hip.R |
 | ventress | 1.79 | elbow.L (10.2), wrist.L (9.0), elbow.R (9.9), wrist.R (9.0), ankle.L (8.7), ankle.R (8.8) | pelvis, neck, head, shoulder.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
 | jedi | 1.82 | elbow.L (5.1), wrist.L (8.5), elbow.R (5.3), wrist.R (8.7), knee.L (7.1), knee.R (6.7) | chest, neck, head, shoulder.L, shoulder.R, hip.L, ankle.L, hip.R, ankle.R |
@@ -49,21 +49,21 @@ off its centre line — or the joint outside the mesh outright. The rest are lea
 | revan | 1.95 | elbow.L (12.2), wrist.L (18.4), elbow.R (12.0), wrist.R (19.8), knee.L (11.0), ankle.L (20.9), knee.R (13.8), ankle.R (22.2) | pelvis, spine, chest, neck, head, shoulder.L, shoulder.R, hip.L, hip.R |
 | embo | 1.78 | elbow.L (10.3), wrist.L (9.9), elbow.R (10.2), wrist.R (10.6), ankle.L (8.6), ankle.R (8.4) | pelvis, spine, chest, neck, head, shoulder.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
 | bossk | 1.9 | elbow.L (7.4), wrist.L (6.6), elbow.R (7.7), wrist.R (6.9), ankle.L (8.5), ankle.R (8.6) | neck, head, shoulder.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
-| ig11 | 2.2 | elbow.L (9.7), wrist.L (5.8), elbow.R (10.3), wrist.R (6.0), knee.L (5.2), ankle.L (9.9), knee.R (4.9), ankle.R (9.6) | chest, neck, head, shoulder.L, shoulder.R, hip.L, hip.R |
-| duelist | 1.9 | elbow.L (7.4), elbow.R (7.4) | pelvis, neck, head, shoulder.L, shoulder.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
-| tusken | 1.8 | elbow.L (7.1), elbow.R (7.1), ankle.L (7.4), ankle.R (7.5) | neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R, knee.R |
-| pyke | 2 | wrist.L (3.1), wrist.R (3.1) | chest, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
-| pirate_melee | 1.9 | wrist.L (6.6), elbow.R (6.3), wrist.R (6.9), ankle.L (10.3), ankle.R (10.5) | pelvis, spine, neck, shoulder.L, elbow.L, shoulder.R, hip.L, knee.L, hip.R, knee.R |
-| droid | 2.1 | elbow.L (6.1), elbow.R (6.2), knee.L (6.2), ankle.L (8.3), knee.R (6.3), ankle.R (8.0) | neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R |
-| nikto | 1.76 | elbow.L (8.2), elbow.R (8.1), knee.L (5.6), ankle.L (7.5), knee.R (5.5), ankle.R (7.8) | neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R |
-| stormtrooper | 1.9 | wrist.L (8.9), wrist.R (8.6) | pelvis, spine, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, ankle.L, hip.R, ankle.R |
-| deathtrooper | 2 | wrist.L (4.9), elbow.R (4.4), wrist.R (5.1), ankle.L (7.1), ankle.R (6.8) | chest, neck, head, shoulder.L, elbow.L, shoulder.R, hip.L, knee.L, hip.R |
-| darktrooper | 2.2 | wrist.L (11.7), wrist.R (11.6), ankle.L (9.3), ankle.R (9.1) | spine, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, knee.L, hip.R, knee.R |
-| imperial_officer | 1.88 | elbow.L (7.3), elbow.R (7.5) | pelvis, spine, neck, head, shoulder.L, wrist.L, shoulder.R, hip.L, ankle.L, hip.R, ankle.R |
-| pyke_capo | 2.05 | elbow.L (5.8), wrist.L (4.2), elbow.R (5.2), wrist.R (4.6) | neck, head, shoulder.L, shoulder.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
-| wookiee_enforcer | 2.6 | elbow.L (17.9), wrist.L (12.9), elbow.R (17.6), wrist.R (13.1), ankle.L (13.1), ankle.R (13.3) | pelvis, chest, neck, head, shoulder.L, shoulder.R, hip.L, hip.R, knee.R |
-| marshal | 1.85 | elbow.L (7.4), elbow.R (7.6), ankle.L (6.8), ankle.R (6.7) | spine, chest, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R, knee.R |
-| fennec | 1.8 | elbow.L (5.3), elbow.R (5.0), knee.L (5.6), ankle.L (7.7), knee.R (5.6), ankle.R (7.6) | neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R |
+| ig11 | 2.2 | elbow.L (9.7), wrist.L (5.6), elbow.R (10.7), wrist.R (6.2), knee.L (4.9), ankle.L (10.5), knee.R (5.2), ankle.R (10.2) | chest, neck, head, shoulder.L, shoulder.R, hip.L, hip.R |
+| duelist | 1.9 | elbow.L (7.4), elbow.R (7.0) | pelvis, neck, head, shoulder.L, shoulder.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
+| tusken | 1.8 | elbow.L (7.3), elbow.R (7.0), wrist.R (4.6), ankle.L (8.0), knee.R (5.8), ankle.R (8.6) | chest, neck, head, shoulder.L, wrist.L, shoulder.R, knee.L, hip.R |
+| pyke | 2 | wrist.L (3.2), wrist.R (3.0), ankle.R (5.9) | chest, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, knee.L, ankle.L, hip.R, knee.R |
+| pirate_melee | 1.9 | elbow.R (7.7), wrist.R (7.1), knee.L (7.4), ankle.L (9.8), ankle.R (10.4) | pelvis, spine, neck, shoulder.L, elbow.L, wrist.L, shoulder.R, hip.L, hip.R, knee.R |
+| droid | 2.1 | elbow.L (6.0), elbow.R (6.0), knee.L (7.0), ankle.L (8.3), knee.R (6.6), ankle.R (7.7) | pelvis, spine, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R |
+| nikto | 1.76 | elbow.L (9.5), elbow.R (8.5), knee.L (5.9), ankle.L (7.3), knee.R (5.8), ankle.R (8.4) | spine, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, hip.R |
+| stormtrooper | 1.9 | wrist.L (8.9), wrist.R (8.2) | pelvis, spine, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
+| deathtrooper | 2 | wrist.L (4.5), wrist.R (4.8), ankle.L (7.7), ankle.R (6.7) | spine, chest, neck, head, shoulder.L, elbow.L, shoulder.R, elbow.R, hip.L, knee.L, hip.R |
+| darktrooper | 2.2 | elbow.L (6.0), wrist.L (12.1), wrist.R (11.7), ankle.L (9.0), knee.R (7.3), ankle.R (9.0) | pelvis, spine, neck, head, shoulder.L, shoulder.R, elbow.R, hip.L, knee.L, hip.R |
+| imperial_officer | 1.88 | elbow.L (7.3), elbow.R (7.7) | spine, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, knee.L, ankle.L, hip.R, ankle.R |
+| pyke_capo | 2.05 | elbow.L (5.5), elbow.R (5.8), knee.L (9.4) | spine, neck, head, shoulder.L, wrist.L, shoulder.R, wrist.R, hip.L, ankle.L, hip.R, knee.R, ankle.R |
+| wookiee_enforcer | 2.6 | elbow.L (17.5), wrist.L (12.1), elbow.R (17.0), wrist.R (13.5) | pelvis, spine, chest, neck, shoulder.L, shoulder.R, hip.L, knee.L, ankle.L, hip.R, knee.R, ankle.R |
+| marshal | 1.85 | elbow.L (6.4), elbow.R (7.9), ankle.L (6.6), knee.R (7.3), ankle.R (6.4) | spine, chest, neck, head, shoulder.L, wrist.L, shoulder.R, hip.L, hip.R |
+| fennec | 1.8 | elbow.L (4.9), elbow.R (5.0), wrist.R (2.7), knee.L (6.0), ankle.L (8.0), ankle.R (8.0) | pelvis, spine, chest, neck, head, shoulder.L, wrist.L, shoulder.R, hip.L, hip.R, knee.R |
 | flametrooper | 1.9 | elbow.L (5.2), elbow.R (6.5), knee.L (4.4) | pelvis, spine, neck, head, shoulder.L, shoulder.R, hip.L, ankle.L, hip.R, knee.R, ankle.R |
 | quarren | 1.9 | elbow.L (6.5), knee.R (5.9), ankle.R (9.3) | chest, neck, head, shoulder.L, wrist.L, shoulder.R, elbow.R, wrist.R, hip.L, knee.L, ankle.L, hip.R |
 | alamite | 1.85 | elbow.L (13.5), wrist.L (8.4), elbow.R (13.8), wrist.R (7.9), knee.L (11.2), ankle.L (11.9), knee.R (11.5), ankle.R (11.3) | spine, chest, neck, head, shoulder.L, shoulder.R, hip.L, hip.R |
@@ -75,89 +75,89 @@ off its centre line — or the joint outside the mesh outright. The rest are lea
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 369 | 0.3 | 0.0 | 0.3 | 0.2 | 0.0 | 0.2 | 0.3 | 13.2 |  |
-| spine | slice | 1368 | 4.6 | 0.0 | 4.6 | 3.4 | 0.0 | -3.1 | 4.6 | 16.5 | off 4.6 cm |
-| chest | slice | 951 | 3.2 | 0.0 | 3.2 | -0.6 | 0.0 | 3.1 | 3.2 | 15.6 | off 3.2 cm |
-| neck | seam | 95 | 5.6 | 0.0 | 5.6 | -0.3 | 0.5 | -5.6 | 7.4 | 4.0 | off 5.6 cm; **outside the mesh** |
-| head | seam | 2214 | 4.6 | -1.1 | 4.5 | -0.7 | -1.5 | 4.3 | 2.4 | 6.9 | off 4.6 cm |
-| shoulder.L | seam | 1509 | 7.2 | -2.2 | 6.9 | 0.5 | 2.4 | 6.8 | 8.0 | 7.9 | off 7.2 cm; **outside the mesh** |
-| elbow.L | seam | 480 | 6.3 | 0.8 | 6.3 | -0.1 | -0.5 | 6.3 | 4.5 | 6.4 | **likely misplaced**; off 6.3 cm; off centre line |
-| wrist.L | seam | 260 | 2.0 | 0.2 | 2.0 | 0.4 | -0.3 | -1.9 | 2.1 | 5.0 | off centre line |
-| shoulder.R | seam | 3140 | 9.8 | 2.4 | 9.5 | 0.2 | -2.8 | 9.4 | 9.1 | 7.1 | off 9.8 cm; **outside the mesh** |
-| elbow.R | seam | 527 | 6.5 | 0.9 | 6.4 | -0.1 | -0.5 | 6.5 | 4.8 | 6.4 | **likely misplaced**; off 6.5 cm; off centre line |
-| wrist.R | seam | 264 | 1.9 | 0.3 | 1.8 | -0.5 | -0.4 | -1.8 | 2.0 | 5.0 | off centre line |
-| hip.L | seam | 3128 | 7.0 | 4.3 | 5.5 | -2.5 | -4.8 | -4.4 | 6.7 | 10.6 | off 7.0 cm; off centre line |
-| knee.L | seam | 3838 | 5.2 | -4.6 | 2.3 | -2.2 | 4.6 | -1.1 | 3.1 | 10.1 | off 5.2 cm |
-| ankle.L | seam | 542 | 5.4 | -0.4 | 5.3 | -5.3 | 0.3 | -0.3 | 6.3 | 6.2 | **likely misplaced**; off 5.4 cm; **outside the mesh** |
-| hip.R | seam | 3911 | 7.5 | 4.9 | 5.7 | 2.9 | -5.5 | -4.2 | 6.2 | 10.7 | off 7.5 cm; off centre line |
-| knee.R | seam | 3444 | 5.5 | -4.4 | 3.3 | 3.1 | 4.3 | 1.2 | 2.9 | 10.1 | off 5.5 cm |
-| ankle.R | seam | 537 | 5.2 | -0.2 | 5.2 | 5.2 | 0.0 | -0.5 | 6.3 | 6.2 | **likely misplaced**; off 5.2 cm; **outside the mesh** |
+| pelvis | slice | 60 | 2.2 | 0.0 | 2.2 | 0.3 | 0.0 | 2.2 | 2.2 | 12.6 |  |
+| spine | slice | 234 | 6.7 | 0.0 | 6.7 | 5.6 | 0.0 | -3.8 | 6.7 | 15.7 | off 6.7 cm; off centre line |
+| chest | slice | 180 | 5.9 | 0.0 | 5.9 | -0.6 | 0.0 | 5.8 | 5.9 | 14.5 | off 5.9 cm; off centre line |
+| neck | seam | 104 | 16.4 | 1.9 | 16.3 | -0.4 | 0.3 | 16.4 | 1.1 | 13.5 | off 16.4 cm |
+| head | seam | 321 | 5.6 | -1.2 | 5.5 | -1.1 | -1.7 | 5.2 | 2.4 | 7.0 | off 5.6 cm |
+| shoulder.L | seam | 250 | 9.9 | -4.4 | 8.9 | 2.1 | 5.3 | 8.1 | 10.2 | 6.1 | off 9.9 cm; **outside the mesh** |
+| elbow.L | seam | 71 | 7.1 | 1.0 | 7.1 | -0.3 | -0.6 | 7.1 | 5.9 | 6.2 | **likely misplaced**; off 7.1 cm; off centre line |
+| wrist.L | seam | 25 | 1.0 | 0.1 | 1.0 | 0.1 | -0.1 | -1.0 | 1.2 | 5.1 |  |
+| shoulder.R | seam | 395 | 7.6 | 0.3 | 7.6 | 0.1 | -0.5 | 7.5 | 10.0 | 5.9 | off 7.6 cm; **outside the mesh** |
+| elbow.R | seam | 73 | 7.1 | 0.8 | 7.0 | 0.0 | -0.4 | 7.1 | 7.0 | 5.4 | **likely misplaced**; off 7.1 cm; **outside the mesh** |
+| wrist.R | seam | 30 | 1.7 | 0.1 | 1.7 | -0.2 | -0.1 | -1.7 | 2.1 | 5.1 | off centre line |
+| hip.L | seam | 577 | 5.7 | 3.6 | 4.5 | -1.8 | -4.0 | -3.7 | 6.1 | 12.1 | off 5.7 cm; off centre line |
+| knee.L | seam | 699 | 5.0 | -4.0 | 3.1 | -2.9 | 3.9 | -1.4 | 5.2 | 9.9 | **likely misplaced**; off 5.0 cm; off centre line |
+| ankle.L | seam | 72 | 5.5 | -0.3 | 5.5 | -5.5 | 0.2 | -0.4 | 6.5 | 6.3 | **likely misplaced**; off 5.5 cm; **outside the mesh** |
+| hip.R | seam | 774 | 7.0 | 4.6 | 5.3 | 2.7 | -5.1 | -4.0 | 6.3 | 11.9 | off 7.0 cm; off centre line |
+| knee.R | seam | 565 | 5.1 | -4.0 | 3.2 | 3.1 | 3.9 | 0.9 | 5.4 | 10.1 | **likely misplaced**; off 5.1 cm; off centre line |
+| ankle.R | seam | 67 | 5.0 | -0.2 | 5.0 | 5.0 | 0.1 | -0.6 | 6.6 | 6.0 | **likely misplaced**; off 5.0 cm; **outside the mesh** |
 
 ## paz
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 330 | 1.0 | 0.0 | 1.0 | 0.3 | 0.0 | -0.9 | 1.0 | 6.0 |  |
-| spine | slice | 436 | 2.6 | 0.0 | 2.6 | 0.2 | 0.0 | 2.6 | 2.6 | 11.6 |  |
-| chest | slice | 982 | 3.8 | 0.0 | 3.8 | -0.8 | 0.0 | 3.7 | 3.8 | 13.7 | off 3.8 cm |
-| neck | seam | 440 | 15.9 | -2.1 | 15.7 | 0.2 | -0.6 | -15.9 | – | – | off 15.9 cm |
-| head | seam | 3878 | 7.1 | -2.3 | 6.8 | 0.1 | -2.9 | 6.5 | 0.7 | 11.1 | off 7.1 cm |
-| shoulder.L | seam | 5264 | 8.7 | 0.0 | 8.7 | 0.5 | 0.1 | 8.7 | 6.2 | 6.5 | off 8.7 cm; off centre line |
-| elbow.L | seam | 479 | 2.3 | 0.3 | 2.3 | -1.7 | -0.7 | 1.5 | 1.5 | 7.0 |  |
-| wrist.L | seam | 549 | 4.3 | -0.1 | 4.3 | -0.3 | -0.2 | -4.3 | 3.3 | 4.5 | **likely misplaced**; off 4.3 cm; off centre line |
-| shoulder.R | seam | 5081 | 8.8 | 0.4 | 8.8 | -0.7 | -0.4 | 8.8 | 5.4 | 7.2 | off 8.8 cm; off centre line |
-| elbow.R | seam | 451 | 1.8 | 0.3 | 1.7 | 1.3 | -0.6 | 1.1 | 1.6 | 7.0 |  |
-| wrist.R | seam | 540 | 4.2 | -0.1 | 4.2 | 0.0 | -0.2 | -4.2 | 3.2 | 4.6 | **likely misplaced**; off 4.2 cm; off centre line |
-| hip.L | seam | 1760 | 13.0 | 5.5 | 11.7 | -2.1 | -6.4 | -11.1 | 10.7 | 8.8 | off 13.0 cm; **outside the mesh** |
-| knee.L | seam | 1280 | 9.3 | -0.3 | 9.3 | 1.0 | 0.0 | -9.3 | 7.5 | 8.3 | **likely misplaced**; off 9.3 cm; off centre line |
-| ankle.L | seam | 2241 | 1.9 | -1.8 | 0.6 | -0.6 | 1.8 | -0.3 | 3.2 | 8.2 | off centre line |
-| hip.R | seam | 1789 | 13.3 | 5.3 | 12.2 | 1.6 | -6.1 | -11.7 | 10.9 | 8.1 | off 13.3 cm; **outside the mesh** |
-| knee.R | seam | 1312 | 9.3 | -0.5 | 9.3 | -1.4 | 0.3 | -9.2 | 7.5 | 8.3 | **likely misplaced**; off 9.3 cm; off centre line |
-| ankle.R | seam | 2181 | 1.9 | -1.8 | 0.6 | 0.4 | 1.8 | -0.6 | 3.5 | 8.3 | off centre line |
+| pelvis | slice | 57 | 2.1 | 0.0 | 2.1 | 0.8 | 0.0 | -2.0 | 2.1 | 6.0 | off centre line |
+| spine | slice | 77 | 2.5 | 0.0 | 2.5 | 1.2 | 0.0 | 2.2 | 2.5 | 11.6 |  |
+| chest | slice | 222 | 5.0 | 0.0 | 5.0 | -2.1 | 0.0 | 4.6 | 5.0 | 12.6 | off 5.0 cm; off centre line |
+| neck | seam | 68 | 15.1 | -1.7 | 15.0 | 0.1 | -0.3 | -15.1 | – | – | off 15.1 cm |
+| head | seam | 669 | 9.4 | -2.0 | 9.2 | 0.2 | -2.8 | 9.0 | 0.1 | 10.9 | off 9.4 cm |
+| shoulder.L | seam | 971 | 9.1 | -0.6 | 9.0 | 0.9 | 0.8 | 9.0 | 7.0 | 5.5 | off 9.1 cm; **outside the mesh** |
+| elbow.L | seam | 57 | 3.1 | 0.4 | 3.1 | -1.9 | -0.7 | 2.4 | 1.1 | 7.1 | off 3.1 cm |
+| wrist.L | seam | 96 | 4.2 | -0.1 | 4.2 | -0.9 | -0.4 | -4.1 | 3.6 | 4.2 | **likely misplaced**; off 4.2 cm; off centre line |
+| shoulder.R | seam | 911 | 9.8 | 0.5 | 9.8 | -1.4 | -0.2 | 9.7 | 6.0 | 6.6 | off 9.8 cm; off centre line |
+| elbow.R | seam | 45 | 2.9 | 0.3 | 2.9 | 2.5 | -0.8 | 1.1 | 1.9 | 7.0 |  |
+| wrist.R | seam | 88 | 3.8 | -0.1 | 3.8 | 0.3 | -0.2 | -3.8 | 3.1 | 4.2 | off 3.8 cm; off centre line |
+| hip.L | seam | 278 | 12.6 | 6.0 | 11.1 | -2.4 | -7.0 | -10.3 | 12.3 | 6.7 | off 12.6 cm; **outside the mesh** |
+| knee.L | seam | 161 | 9.1 | -0.5 | 9.1 | 0.4 | 0.2 | -9.1 | 7.7 | 8.2 | **likely misplaced**; off 9.1 cm; off centre line |
+| ankle.L | seam | 310 | 1.9 | -1.9 | 0.3 | -0.2 | 1.9 | -0.3 | 2.7 | 8.1 |  |
+| hip.R | seam | 302 | 13.8 | 6.2 | 12.4 | 1.9 | -7.1 | -11.7 | 11.4 | 7.1 | off 13.8 cm; **outside the mesh** |
+| knee.R | seam | 170 | 9.3 | -0.5 | 9.3 | -1.2 | 0.3 | -9.2 | 7.9 | 8.2 | **likely misplaced**; off 9.3 cm; off centre line |
+| ankle.R | seam | 308 | 1.7 | -1.6 | 0.6 | 0.4 | 1.5 | -0.6 | 3.8 | 8.2 | off centre line |
 
 ## bokatan
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 427 | 0.1 | 0.0 | 0.1 | 0.0 | 0.0 | 0.1 | 0.1 | 7.1 |  |
-| spine | slice | 671 | 1.5 | 0.0 | 1.5 | -1.0 | 0.0 | -1.1 | 1.5 | 15.1 |  |
-| chest | slice | 1188 | 5.0 | 0.0 | 5.0 | -0.5 | 0.0 | 5.0 | 5.0 | 12.3 | off 5.0 cm; off centre line |
-| neck | seam | 165 | 5.6 | -1.7 | 5.4 | 0.1 | -1.4 | -5.4 | – | – | off 5.6 cm |
-| head | seam | 1363 | 6.2 | -4.4 | 4.4 | 0.4 | -4.6 | 4.1 | – | – | off 6.2 cm |
-| shoulder.L | seam | 2166 | 10.1 | -4.7 | 9.0 | 2.0 | 5.5 | 8.2 | 6.9 | 6.4 | off 10.1 cm; **outside the mesh** |
-| elbow.L | seam | 478 | 5.9 | -0.1 | 5.9 | 0.0 | 0.4 | 5.9 | 4.2 | 5.5 | **likely misplaced**; off 5.9 cm; off centre line |
-| wrist.L | seam | 576 | 3.9 | -0.6 | 3.9 | 2.1 | 1.0 | -3.1 | 2.9 | 4.1 | off 3.9 cm; off centre line |
-| shoulder.R | seam | 2070 | 10.4 | -5.2 | 8.9 | -2.1 | 6.1 | 8.1 | 6.5 | 5.2 | off 10.4 cm; **outside the mesh** |
-| elbow.R | seam | 494 | 6.0 | -0.1 | 6.0 | 0.1 | 0.4 | 6.0 | 4.1 | 5.5 | **likely misplaced**; off 6.0 cm; off centre line |
-| wrist.R | seam | 564 | 4.2 | -0.7 | 4.1 | -2.2 | 1.1 | -3.4 | 3.0 | 4.1 | **likely misplaced**; off 4.2 cm; off centre line |
-| hip.L | seam | 3078 | 8.6 | 5.9 | 6.2 | -4.4 | -6.3 | -3.8 | 6.5 | 9.8 | off 8.6 cm; off centre line |
-| knee.L | seam | 1114 | 3.8 | 0.9 | 3.7 | -3.6 | -0.9 | 0.5 | 2.2 | 7.1 | off 3.8 cm |
-| ankle.L | seam | 2412 | 6.8 | -3.7 | 5.7 | -5.3 | 3.7 | 2.2 | 5.1 | 7.0 | **likely misplaced**; off 6.8 cm; off centre line |
-| hip.R | seam | 3015 | 8.5 | 6.0 | 6.0 | 4.3 | -6.4 | -3.5 | 6.6 | 9.7 | off 8.5 cm; off centre line |
-| knee.R | seam | 1107 | 3.7 | 0.9 | 3.6 | 3.5 | -0.9 | 0.5 | 2.2 | 7.1 | off 3.7 cm |
-| ankle.R | seam | 2411 | 6.9 | -3.8 | 5.7 | 5.3 | 3.8 | 2.2 | 5.2 | 7.0 | **likely misplaced**; off 6.9 cm; off centre line |
+| pelvis | slice | 52 | 0.5 | 0.0 | 0.5 | -0.5 | 0.0 | 0.1 | 0.5 | 6.3 |  |
+| spine | slice | 80 | 0.7 | 0.0 | 0.7 | -0.1 | 0.0 | -0.7 | 0.7 | 15.2 |  |
+| chest | slice | 213 | 3.3 | 0.0 | 3.3 | -0.4 | 0.0 | 3.3 | 3.3 | 12.4 | off 3.3 cm |
+| neck | seam | 26 | 5.7 | -1.8 | 5.4 | -0.1 | -1.5 | -5.5 | – | – | off 5.7 cm |
+| head | seam | 166 | 5.4 | -4.1 | 3.6 | 1.2 | -4.2 | 3.1 | – | – | off 5.4 cm |
+| shoulder.L | seam | 367 | 10.6 | -4.8 | 9.5 | 2.5 | 5.8 | 8.6 | 5.3 | 6.4 | off 10.6 cm; off centre line |
+| elbow.L | seam | 48 | 5.6 | 0.1 | 5.6 | -0.4 | 0.1 | 5.6 | 3.9 | 5.4 | **likely misplaced**; off 5.6 cm; off centre line |
+| wrist.L | seam | 92 | 3.8 | -0.5 | 3.7 | 2.2 | 0.9 | -2.9 | 2.9 | 3.8 | off 3.8 cm; off centre line |
+| shoulder.R | seam | 371 | 11.8 | -5.9 | 10.1 | -2.9 | 7.1 | 8.9 | 5.2 | 5.5 | off 11.8 cm; off centre line |
+| elbow.R | seam | 54 | 6.1 | -0.3 | 6.1 | 0.5 | 0.4 | 6.1 | 4.1 | 5.3 | **likely misplaced**; off 6.1 cm; off centre line |
+| wrist.R | seam | 80 | 4.1 | -0.5 | 4.1 | -2.0 | 0.9 | -3.5 | 3.0 | 3.8 | **likely misplaced**; off 4.1 cm; off centre line |
+| hip.L | seam | 494 | 9.4 | 6.8 | 6.5 | -4.9 | -7.2 | -3.5 | 6.0 | 9.9 | off 9.4 cm; off centre line |
+| knee.L | seam | 131 | 3.5 | 0.7 | 3.4 | -3.4 | -0.7 | 0.2 | 2.2 | 7.1 | off 3.5 cm |
+| ankle.L | seam | 354 | 6.6 | -3.7 | 5.5 | -5.2 | 3.6 | 2.1 | 5.3 | 6.8 | **likely misplaced**; off 6.6 cm; off centre line |
+| hip.R | seam | 477 | 10.1 | 7.4 | 6.8 | 5.2 | -7.9 | -3.5 | 7.0 | 9.7 | off 10.1 cm; off centre line |
+| knee.R | seam | 132 | 3.6 | 0.6 | 3.5 | 3.5 | -0.6 | 0.2 | 2.3 | 7.0 | off 3.6 cm |
+| ankle.R | seam | 360 | 6.9 | -3.7 | 5.9 | 5.5 | 3.7 | 2.1 | 5.3 | 6.8 | **likely misplaced**; off 6.9 cm; off centre line |
 
 ## armorer
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 162 | 6.0 | 0.0 | 6.0 | 0.1 | 0.0 | 6.0 | 6.0 | 5.8 | off 6.0 cm; **outside the mesh** |
-| spine | slice | 380 | 4.1 | 0.0 | 4.1 | -0.3 | 0.0 | 4.0 | 4.1 | 13.6 | off 4.1 cm |
-| chest | slice | 1323 | 1.0 | 0.0 | 1.0 | 0.1 | 0.0 | -1.0 | 1.0 | 14.5 |  |
-| neck | seam | 417 | 11.7 | -2.4 | 11.4 | 0.4 | -1.8 | -11.5 | – | – | off 11.7 cm |
-| head | seam | 1003 | 4.5 | -4.5 | 0.6 | -0.6 | -4.5 | -0.4 | – | – | off 4.5 cm |
-| shoulder.L | seam | 3012 | 5.6 | -2.9 | 4.8 | 1.9 | 3.9 | 3.7 | 5.7 | 8.4 | off 5.6 cm; off centre line |
-| elbow.L | seam | 438 | 2.6 | -0.9 | 2.4 | 0.9 | 1.4 | 2.0 | 1.8 | 5.9 |  |
-| wrist.L | seam | 320 | 2.3 | -1.0 | 2.1 | -1.7 | 0.4 | -1.6 | 2.1 | 4.3 | off centre line |
-| shoulder.R | seam | 3789 | 7.3 | -1.3 | 7.1 | -2.6 | 2.4 | 6.3 | 6.8 | 8.4 | off 7.3 cm; off centre line |
-| elbow.R | seam | 450 | 2.6 | -0.9 | 2.4 | -1.0 | 1.3 | 2.0 | 1.8 | 5.9 |  |
-| wrist.R | seam | 346 | 2.3 | -1.0 | 2.1 | 1.7 | 0.4 | -1.5 | 2.1 | 4.3 | off centre line |
-| hip.L | seam | 2148 | 9.1 | 5.3 | 7.5 | -2.2 | -5.7 | -6.8 | 8.4 | 11.1 | off 9.1 cm; off centre line |
-| knee.L | seam | 1340 | 6.8 | 0.2 | 6.8 | -1.0 | -0.4 | -6.7 | 3.9 | 10.6 | off 6.8 cm; off centre line |
-| ankle.L | seam | 1187 | 5.4 | -1.7 | 5.1 | -5.0 | 1.6 | -1.3 | 6.6 | 7.6 | **likely misplaced**; off 5.4 cm; off centre line |
-| hip.R | seam | 2018 | 8.6 | 4.9 | 7.0 | 1.9 | -5.3 | -6.5 | 7.4 | 11.3 | off 8.6 cm; off centre line |
-| knee.R | seam | 1339 | 6.4 | 0.2 | 6.4 | 0.6 | -0.3 | -6.4 | 4.0 | 10.4 | off 6.4 cm; off centre line |
-| ankle.R | seam | 1164 | 5.3 | -2.0 | 4.9 | 4.8 | 1.9 | -1.2 | 6.7 | 7.6 | **likely misplaced**; off 5.3 cm; off centre line |
+| pelvis | slice | 38 | 5.8 | 0.0 | 5.8 | -0.2 | 0.0 | 5.8 | 5.8 | 4.1 | off 5.8 cm; **outside the mesh** |
+| spine | slice | 52 | 4.0 | 0.0 | 4.0 | 0.1 | 0.0 | 4.0 | 4.0 | 13.2 | off 4.0 cm |
+| chest | slice | 231 | 2.8 | 0.0 | 2.8 | 1.6 | 0.0 | 2.3 | 2.8 | 13.6 |  |
+| neck | seam | 60 | 11.7 | -2.4 | 11.4 | 1.0 | -1.7 | -11.5 | – | – | off 11.7 cm |
+| head | seam | 150 | 4.4 | -4.4 | 0.1 | -0.1 | -4.3 | -0.3 | – | – | off 4.4 cm |
+| shoulder.L | seam | 469 | 7.2 | -4.0 | 6.0 | 2.7 | 5.3 | 4.0 | 8.6 | 7.6 | off 7.2 cm; **outside the mesh** |
+| elbow.L | seam | 49 | 2.2 | -0.8 | 2.1 | 0.4 | 1.0 | 1.9 | 2.1 | 5.9 | off centre line |
+| wrist.L | seam | 47 | 2.3 | -1.2 | 1.9 | -1.4 | 0.7 | -1.6 | 1.5 | 3.6 | off centre line |
+| shoulder.R | seam | 639 | 8.4 | -2.3 | 8.0 | -3.1 | 3.7 | 6.9 | 8.0 | 8.5 | off 8.4 cm; off centre line |
+| elbow.R | seam | 55 | 2.6 | -0.9 | 2.4 | 0.1 | 1.0 | 2.4 | 2.2 | 5.6 | off centre line |
+| wrist.R | seam | 44 | 2.3 | -1.2 | 1.9 | 1.6 | 0.6 | -1.4 | 2.0 | 3.8 | off centre line |
+| hip.L | seam | 384 | 9.1 | 4.5 | 7.9 | -0.8 | -4.8 | -7.6 | 10.3 | 11.2 | off 9.1 cm; off centre line |
+| knee.L | seam | 191 | 6.1 | 0.0 | 6.1 | -0.3 | -0.1 | -6.1 | 2.9 | 10.9 | off 6.1 cm |
+| ankle.L | seam | 161 | 5.6 | -1.9 | 5.3 | -5.2 | 1.8 | -1.2 | 7.3 | 7.4 | **likely misplaced**; off 5.6 cm; off centre line |
+| hip.R | seam | 367 | 8.1 | 4.3 | 6.9 | 0.8 | -4.6 | -6.7 | 9.8 | 11.7 | off 8.1 cm; off centre line |
+| knee.R | seam | 193 | 5.6 | -0.1 | 5.6 | -0.5 | -0.1 | -5.5 | 3.5 | 10.4 | off 5.6 cm |
+| ankle.R | seam | 158 | 5.0 | -1.8 | 4.6 | 4.6 | 1.7 | -1.0 | 5.9 | 7.6 | **likely misplaced**; off 5.0 cm; off centre line |
 
 ## boba_fett
 
@@ -343,67 +343,67 @@ Bones with no geometry of their own: handL, handR.
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 1042 | 1.6 | 0.0 | 1.6 | -0.5 | 0.0 | 1.5 | 1.6 | 9.2 |  |
-| spine | slice | 1651 | 0.2 | 0.0 | 0.2 | -0.2 | 0.0 | 0.0 | 0.2 | 12.9 |  |
-| chest | slice | 2465 | 5.0 | 0.0 | 5.0 | 0.8 | 0.0 | 5.0 | 5.0 | 13.8 | off 5.0 cm; off centre line |
-| neck | seam | 803 | 2.2 | -0.9 | 2.0 | 0.7 | -0.7 | -1.9 | 9.1 | 1.2 | **outside the mesh** |
-| head | seam | 1533 | 11.3 | -0.1 | 11.3 | 0.0 | -1.0 | 11.3 | 13.6 | 4.1 | off 11.3 cm; **outside the mesh** |
-| shoulder.L | seam | 3733 | 13.8 | -11.0 | 8.2 | 1.7 | 11.4 | 7.6 | 10.3 | 3.4 | off 13.8 cm; **outside the mesh** |
-| elbow.L | seam | 1121 | 9.7 | 0.2 | 9.7 | -2.9 | -0.3 | 9.2 | 7.1 | 7.8 | **likely misplaced**; off 9.7 cm; off centre line |
-| wrist.L | seam | 633 | 5.8 | -1.4 | 5.6 | -3.8 | 1.1 | 4.3 | 5.2 | 3.2 | **likely misplaced**; off 5.8 cm; **outside the mesh** |
-| shoulder.R | seam | 2682 | 10.0 | -4.9 | 8.7 | -0.2 | 4.8 | 8.7 | 10.5 | 3.4 | off 10.0 cm; **outside the mesh** |
-| elbow.R | seam | 999 | 10.1 | -0.1 | 10.1 | 4.2 | -0.2 | 9.2 | 10.3 | 3.2 | **likely misplaced**; off 10.1 cm; **outside the mesh** |
-| wrist.R | seam | 609 | 6.0 | -0.5 | 5.9 | 3.9 | 0.2 | 4.5 | 5.5 | 3.2 | **likely misplaced**; off 6.0 cm; **outside the mesh** |
-| hip.L | seam | 2129 | 3.5 | 1.9 | 3.0 | 1.0 | -1.8 | 2.9 | 4.9 | 6.3 | off 3.5 cm; off centre line |
-| knee.L | seam | 827 | 5.2 | 2.0 | 4.8 | 1.8 | -1.8 | 4.5 | 4.4 | 4.2 | **likely misplaced**; off 5.2 cm; **outside the mesh** |
-| ankle.L | seam | 1973 | 9.9 | -4.8 | 8.7 | 2.7 | 5.1 | 8.1 | 5.0 | 6.8 | **likely misplaced**; off 9.9 cm; off centre line |
-| hip.R | seam | 2316 | 3.0 | 2.2 | 2.1 | -0.9 | -2.1 | 2.0 | 2.7 | 6.7 | off centre line |
-| knee.R | seam | 1079 | 4.9 | 0.0 | 4.9 | -0.6 | 0.2 | 4.9 | 4.7 | 4.2 | **likely misplaced**; off 4.9 cm; **outside the mesh** |
-| ankle.R | seam | 2015 | 9.6 | -4.9 | 8.3 | -2.6 | 5.2 | 7.7 | 4.7 | 6.6 | **likely misplaced**; off 9.6 cm; off centre line |
+| pelvis | slice | 133 | 2.1 | 0.0 | 2.1 | -0.3 | 0.0 | 2.0 | 2.1 | 8.6 |  |
+| spine | slice | 281 | 0.9 | 0.0 | 0.9 | -0.9 | 0.0 | 0.1 | 0.9 | 12.1 |  |
+| chest | slice | 518 | 4.8 | 0.0 | 4.8 | 1.5 | 0.0 | 4.6 | 4.8 | 13.5 | off 4.8 cm; off centre line |
+| neck | seam | 164 | 1.7 | -1.1 | 1.3 | 0.5 | -1.0 | -1.3 | 9.4 | 0.7 | **outside the mesh** |
+| head | seam | 229 | 11.0 | -0.3 | 11.0 | -0.7 | -1.2 | 11.0 | 13.6 | 4.3 | off 11.0 cm; **outside the mesh** |
+| shoulder.L | seam | 678 | 16.6 | -14.0 | 9.0 | 3.2 | 14.6 | 7.2 | 10.2 | 3.4 | off 16.6 cm; **outside the mesh** |
+| elbow.L | seam | 137 | 9.7 | 0.3 | 9.7 | -2.6 | -0.4 | 9.3 | 6.9 | 8.0 | **likely misplaced**; off 9.7 cm; off centre line |
+| wrist.L | seam | 73 | 5.6 | -1.1 | 5.5 | -3.6 | 0.8 | 4.3 | 5.4 | 2.9 | **likely misplaced**; off 5.6 cm; **outside the mesh** |
+| shoulder.R | seam | 496 | 12.3 | -8.4 | 9.0 | -2.2 | 8.7 | 8.4 | 10.3 | 3.3 | off 12.3 cm; **outside the mesh** |
+| elbow.R | seam | 117 | 10.5 | 0.1 | 10.5 | 4.8 | -0.4 | 9.4 | 10.7 | 2.9 | **likely misplaced**; off 10.5 cm; **outside the mesh** |
+| wrist.R | seam | 66 | 6.2 | -0.5 | 6.2 | 4.0 | 0.1 | 4.7 | 6.0 | 2.8 | **likely misplaced**; off 6.2 cm; **outside the mesh** |
+| hip.L | seam | 324 | 3.7 | 1.9 | 3.2 | 0.9 | -1.8 | 3.1 | 2.5 | 7.8 | off 3.7 cm |
+| knee.L | seam | 159 | 4.9 | 1.8 | 4.6 | 1.2 | -1.7 | 4.5 | 4.6 | 3.7 | **likely misplaced**; off 4.9 cm; **outside the mesh** |
+| ankle.L | seam | 320 | 10.5 | -5.6 | 8.9 | 2.4 | 5.8 | 8.4 | 4.8 | 6.6 | **likely misplaced**; off 10.5 cm; off centre line |
+| hip.R | seam | 356 | 3.4 | 2.2 | 2.6 | -1.2 | -2.1 | 2.4 | 2.2 | 6.9 | off 3.4 cm |
+| knee.R | seam | 192 | 5.1 | 0.8 | 5.0 | -0.9 | -0.6 | 4.9 | 5.2 | 3.9 | **likely misplaced**; off 5.1 cm; **outside the mesh** |
+| ankle.R | seam | 303 | 10.2 | -5.7 | 8.4 | -2.5 | 6.0 | 7.8 | 5.2 | 6.4 | **likely misplaced**; off 10.2 cm; off centre line |
 
 ## duelist
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 412 | 3.4 | 0.0 | 3.4 | 0.4 | 0.0 | 3.4 | 3.4 | 10.7 | off 3.4 cm |
-| spine | slice | 848 | 1.1 | 0.0 | 1.1 | -0.9 | 0.0 | -0.5 | 1.1 | 16.3 |  |
-| chest | slice | 569 | 2.6 | 0.0 | 2.6 | 0.0 | 0.0 | -2.6 | 2.6 | 13.4 |  |
-| neck | seam | 77 | 3.8 | -1.3 | 3.6 | 0.3 | -1.1 | -3.7 | – | – | off 3.8 cm |
-| head | seam | 2654 | 5.9 | -0.4 | 5.9 | 0.1 | -0.7 | 5.9 | 2.3 | 14.7 | off 5.9 cm |
-| shoulder.L | seam | 1804 | 11.2 | -2.8 | 10.9 | 0.5 | 3.1 | 10.8 | 14.9 | 1.8 | off 11.2 cm; **outside the mesh** |
-| elbow.L | seam | 487 | 7.4 | 0.1 | 7.4 | 1.2 | 0.7 | 7.3 | 5.2 | 5.4 | **likely misplaced**; off 7.4 cm; off centre line |
-| wrist.L | seam | 489 | 2.3 | -1.5 | 1.8 | -0.8 | 1.4 | 1.7 | 0.2 | 4.4 |  |
-| shoulder.R | seam | 1786 | 11.1 | -2.7 | 10.8 | -0.4 | 3.0 | 10.7 | 14.5 | 2.6 | off 11.1 cm; **outside the mesh** |
-| elbow.R | seam | 476 | 7.4 | -0.1 | 7.4 | -1.0 | 0.8 | 7.3 | 4.8 | 5.2 | **likely misplaced**; off 7.4 cm; off centre line |
-| wrist.R | seam | 509 | 2.2 | -1.4 | 1.7 | 1.0 | 1.3 | 1.5 | 0.4 | 4.4 |  |
-| hip.L | seam | 5064 | 6.7 | 4.0 | 5.4 | -5.1 | -4.4 | 0.0 | 7.7 | 5.6 | off 6.7 cm; **outside the mesh** |
-| knee.L | seam | 2803 | 13.6 | -9.2 | 10.0 | -7.2 | 9.2 | 6.9 | 3.2 | 9.6 | off 13.6 cm |
-| ankle.L | seam | 1356 | 4.3 | -2.5 | 3.5 | -3.0 | 2.5 | 1.8 | 2.0 | 6.8 | off 4.3 cm |
-| hip.R | seam | 4906 | 7.1 | 4.4 | 5.5 | 5.2 | -4.8 | 0.0 | 8.0 | 5.2 | off 7.1 cm; **outside the mesh** |
-| knee.R | seam | 2670 | 14.1 | -10.3 | 9.6 | 7.4 | 10.3 | 6.1 | 2.6 | 9.3 | off 14.1 cm |
-| ankle.R | seam | 1262 | 4.3 | -2.7 | 3.3 | 2.7 | 2.7 | 1.9 | 1.9 | 6.8 | off 4.3 cm |
+| pelvis | slice | 47 | 3.1 | 0.0 | 3.1 | 0.0 | 0.0 | 3.1 | 3.1 | 10.4 | off 3.1 cm |
+| spine | slice | 134 | 2.0 | 0.0 | 2.0 | -1.8 | 0.0 | -0.9 | 2.0 | 16.1 |  |
+| chest | slice | 79 | 2.7 | 0.0 | 2.7 | -0.1 | 0.0 | -2.7 | 2.7 | 13.4 |  |
+| neck | none | 5 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| head | seam | 427 | 5.5 | -0.6 | 5.5 | 0.3 | -0.9 | 5.4 | 1.0 | 13.7 | off 5.5 cm |
+| shoulder.L | seam | 238 | 11.2 | -3.5 | 10.6 | 0.9 | 4.0 | 10.4 | – | – | off 11.2 cm |
+| elbow.L | seam | 60 | 7.4 | -0.6 | 7.4 | 1.1 | 1.3 | 7.2 | 5.4 | 5.3 | **likely misplaced**; off 7.4 cm; **outside the mesh** |
+| wrist.L | seam | 89 | 2.5 | -1.5 | 2.0 | -1.0 | 1.4 | 1.9 | 0.8 | 4.1 |  |
+| shoulder.R | seam | 254 | 11.5 | -3.4 | 11.0 | -1.1 | 3.9 | 10.7 | – | – | off 11.5 cm |
+| elbow.R | seam | 41 | 7.0 | -0.4 | 6.9 | -0.9 | 1.0 | 6.8 | 3.6 | 4.5 | **likely misplaced**; off 7.0 cm; off centre line |
+| wrist.R | seam | 93 | 2.7 | -1.4 | 2.3 | 1.3 | 1.2 | 2.1 | 1.1 | 4.2 |  |
+| hip.L | seam | 1039 | 6.7 | 3.8 | 5.5 | -5.2 | -4.2 | 0.9 | 7.9 | 5.2 | off 6.7 cm; **outside the mesh** |
+| knee.L | seam | 456 | 13.2 | -8.2 | 10.3 | -7.3 | 8.2 | 7.2 | 4.8 | 10.6 | off 13.2 cm; off centre line |
+| ankle.L | seam | 209 | 4.6 | -2.7 | 3.7 | -3.2 | 2.7 | 1.7 | 1.9 | 6.8 | off 4.6 cm |
+| hip.R | seam | 963 | 7.0 | 4.3 | 5.6 | 5.2 | -4.7 | 0.1 | 8.0 | 4.9 | off 7.0 cm; **outside the mesh** |
+| knee.R | seam | 444 | 14.3 | -10.3 | 9.9 | 7.2 | 10.3 | 6.7 | 5.3 | 10.7 | off 14.3 cm; off centre line |
+| ankle.R | seam | 182 | 4.5 | -3.3 | 3.1 | 2.6 | 3.3 | 1.7 | 1.5 | 6.7 | off 4.5 cm |
 
 ## tusken
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 794 | 1.8 | 0.0 | 1.8 | -0.7 | 0.0 | -1.6 | 1.8 | 11.3 |  |
-| spine | slice | 611 | 1.2 | 0.0 | 1.2 | -0.2 | 0.0 | -1.2 | 1.2 | 17.0 |  |
-| chest | slice | 1703 | 2.9 | 0.0 | 2.9 | -2.8 | 0.0 | 0.4 | 2.9 | 15.5 |  |
-| neck | seam | 300 | 6.0 | -1.6 | 5.8 | -2.6 | -1.3 | -5.3 | 5.2 | 1.9 | off 6.0 cm; **outside the mesh** |
-| head | seam | 1811 | 4.3 | 0.6 | 4.3 | -0.9 | 0.4 | 4.2 | 10.0 | 8.4 | off 4.3 cm; **outside the mesh** |
-| shoulder.L | seam | 2037 | 10.9 | -4.5 | 10.0 | 1.5 | 5.5 | 9.4 | 8.8 | 4.7 | off 10.9 cm; **outside the mesh** |
-| elbow.L | seam | 781 | 6.8 | 1.0 | 6.7 | 2.7 | 0.1 | 6.2 | 7.1 | 4.8 | **likely misplaced**; off 6.8 cm; **outside the mesh** |
-| wrist.L | seam | 406 | 4.4 | -1.0 | 4.3 | -1.5 | 0.7 | 4.0 | 1.3 | 4.1 | off 4.4 cm |
-| shoulder.R | seam | 1773 | 11.5 | -5.0 | 10.3 | -2.6 | 6.5 | 9.1 | 9.1 | 2.6 | off 11.5 cm; **outside the mesh** |
-| elbow.R | seam | 731 | 7.0 | 1.4 | 6.8 | -2.8 | -0.2 | 6.4 | 7.1 | 4.7 | **likely misplaced**; off 7.0 cm; **outside the mesh** |
-| wrist.R | seam | 444 | 4.4 | -1.0 | 4.3 | 1.6 | 0.7 | 4.1 | 1.4 | 4.1 | off 4.4 cm |
-| hip.L | seam | 5877 | 1.6 | -0.4 | 1.6 | 1.4 | 0.5 | -0.6 | 4.5 | 10.1 | off centre line |
-| knee.L | seam | 469 | 2.8 | -0.4 | 2.8 | 0.1 | 0.4 | 2.8 | 3.7 | 10.7 |  |
-| ankle.L | seam | 1268 | 7.4 | -3.5 | 6.6 | -2.8 | 3.6 | 5.9 | 4.6 | 6.2 | **likely misplaced**; off 7.4 cm; off centre line |
-| hip.R | seam | 4560 | 2.1 | 1.4 | 1.5 | 1.4 | -1.5 | 0.1 | 3.7 | 8.6 | off centre line |
-| knee.R | seam | 680 | 4.6 | 0.1 | 4.6 | 2.6 | 0.0 | 3.8 | 3.3 | 7.0 | off 4.6 cm; off centre line |
-| ankle.R | seam | 1303 | 7.5 | -3.4 | 6.7 | 3.2 | 3.4 | 5.8 | 5.0 | 6.2 | **likely misplaced**; off 7.5 cm; off centre line |
+| pelvis | slice | 95 | 2.5 | 0.0 | 2.5 | -0.4 | 0.0 | -2.4 | 2.5 | 11.0 |  |
+| spine | slice | 32 | 1.7 | 0.0 | 1.7 | -0.7 | 0.0 | -1.5 | 1.7 | 17.1 |  |
+| chest | slice | 146 | 5.4 | 0.0 | 5.4 | -4.8 | 0.0 | 2.5 | 5.4 | 15.2 | off 5.4 cm; off centre line |
+| neck | seam | 43 | 6.0 | -1.8 | 5.8 | -2.5 | -1.5 | -5.3 | – | – | off 6.0 cm |
+| head | seam | 132 | 4.2 | 1.1 | 4.0 | -0.4 | 0.8 | 4.1 | 8.4 | 9.2 | off 4.2 cm; off centre line |
+| shoulder.L | seam | 204 | 11.4 | -3.9 | 10.8 | 1.4 | 4.8 | 10.3 | 9.3 | 4.9 | off 11.4 cm; **outside the mesh** |
+| elbow.L | seam | 45 | 6.5 | 0.9 | 6.4 | 2.9 | 0.3 | 5.8 | 7.3 | 4.7 | **likely misplaced**; off 6.5 cm; **outside the mesh** |
+| wrist.L | seam | 54 | 3.7 | -0.3 | 3.7 | -1.2 | 0.0 | 3.5 | 1.8 | 3.5 | off 3.7 cm; off centre line |
+| shoulder.R | seam | 204 | 12.3 | -4.6 | 11.4 | -2.8 | 6.1 | 10.3 | – | – | off 12.3 cm |
+| elbow.R | seam | 40 | 6.6 | 1.6 | 6.4 | -2.9 | -0.4 | 5.9 | 7.0 | 4.6 | **likely misplaced**; off 6.6 cm; **outside the mesh** |
+| wrist.R | seam | 59 | 4.6 | -0.7 | 4.5 | 1.6 | 0.4 | 4.2 | 2.9 | 3.3 | **likely misplaced**; off 4.6 cm; off centre line |
+| hip.L | seam | 712 | 2.9 | -1.2 | 2.6 | 2.2 | 1.4 | -1.3 | 2.7 | 11.0 |  |
+| knee.L | seam | 47 | 2.8 | -1.5 | 2.4 | -1.0 | 1.5 | 2.2 | 8.4 | 10.1 | off centre line |
+| ankle.L | seam | 98 | 8.0 | -3.6 | 7.1 | -3.4 | 3.7 | 6.2 | 6.8 | 5.3 | **likely misplaced**; off 8.0 cm; **outside the mesh** |
+| hip.R | seam | 557 | 3.2 | 2.4 | 2.2 | 1.9 | -2.6 | 0.5 | 4.2 | 8.2 | off 3.2 cm; off centre line |
+| knee.R | seam | 65 | 5.8 | -0.3 | 5.8 | 3.6 | 0.3 | 4.6 | 4.1 | 7.0 | **likely misplaced**; off 5.8 cm; off centre line |
+| ankle.R | seam | 108 | 8.6 | -3.5 | 7.8 | 3.9 | 3.6 | 6.7 | 6.8 | 5.7 | **likely misplaced**; off 8.6 cm; **outside the mesh** |
 
 ## pyke
 
@@ -411,177 +411,177 @@ Bones with no geometry of their own: handL, handR.
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 1339 | 0.4 | 0.0 | 0.4 | -0.3 | 0.0 | 0.1 | 0.4 | 13.4 |  |
-| spine | slice | 1562 | 0.6 | 0.0 | 0.6 | -0.5 | 0.0 | -0.3 | 0.6 | 14.4 |  |
-| chest | slice | 798 | 5.1 | 0.0 | 5.1 | -0.1 | 0.0 | -5.1 | 5.1 | 14.3 | off 5.1 cm; off centre line |
-| neck | seam | 673 | 9.9 | -0.6 | 9.9 | 0.0 | 0.0 | -9.9 | 10.2 | 4.3 | off 9.9 cm; **outside the mesh** |
-| head | seam | 2375 | 7.0 | 1.1 | 6.9 | 0.0 | 0.7 | 6.9 | 6.2 | 8.3 | off 7.0 cm; off centre line |
-| shoulder.L | seam | 890 | 8.1 | 0.5 | 8.1 | 2.0 | 0.3 | 7.9 | 8.6 | 4.1 | off 8.1 cm; **outside the mesh** |
-| elbow.L | seam | 321 | 3.9 | -0.1 | 3.9 | -1.0 | 0.0 | 3.8 | 2.4 | 4.1 | off 3.9 cm; off centre line |
-| wrist.L | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 3.1 | 2.6 | **likely misplaced**; **outside the mesh**; no estimate |
-| shoulder.R | seam | 874 | 8.1 | 0.5 | 8.1 | -1.9 | 0.2 | 7.9 | 8.6 | 4.5 | off 8.1 cm; **outside the mesh** |
-| elbow.R | seam | 316 | 4.0 | -0.2 | 4.0 | 1.0 | 0.1 | 3.8 | 2.6 | 4.1 | off 4.0 cm; off centre line |
-| wrist.R | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 3.1 | 2.6 | **likely misplaced**; **outside the mesh**; no estimate |
-| hip.L | seam | 5351 | 6.9 | -6.8 | 1.5 | -1.9 | 6.6 | 0.0 | 6.6 | 5.9 | off 6.9 cm; **outside the mesh** |
-| knee.L | seam | 481 | 3.7 | -0.3 | 3.7 | 3.4 | 0.4 | 1.3 | 4.7 | 9.1 | off 3.7 cm; off centre line |
-| ankle.L | seam | 1184 | 6.1 | -3.6 | 4.9 | 1.9 | 3.8 | 4.3 | 2.1 | 5.1 | off 6.1 cm; off centre line |
-| hip.R | seam | 5296 | 6.6 | -6.5 | 1.4 | 1.8 | 6.3 | -0.3 | 7.1 | 5.3 | off 6.6 cm; **outside the mesh** |
-| knee.R | seam | 446 | 3.5 | -0.2 | 3.5 | -3.2 | 0.4 | 1.3 | 0.7 | 8.2 | off 3.5 cm |
-| ankle.R | seam | 1174 | 6.0 | -3.6 | 4.8 | -1.8 | 3.8 | 4.3 | 2.0 | 5.1 | off 6.0 cm; off centre line |
+| pelvis | slice | 139 | 2.9 | 0.0 | 2.9 | 2.0 | 0.0 | 2.0 | 2.9 | 14.5 |  |
+| spine | slice | 188 | 2.7 | 0.0 | 2.7 | -1.2 | 0.0 | -2.3 | 2.7 | 13.8 |  |
+| chest | slice | 70 | 8.0 | 0.0 | 8.0 | -1.3 | 0.0 | -7.9 | 8.0 | 12.3 | off 8.0 cm; off centre line |
+| neck | seam | 61 | 9.8 | -0.5 | 9.8 | -0.6 | 0.1 | -9.8 | – | – | off 9.8 cm |
+| head | seam | 162 | 6.2 | 1.3 | 6.1 | -0.1 | 0.9 | 6.2 | 4.7 | 8.1 | off 6.2 cm; off centre line |
+| shoulder.L | seam | 76 | 7.8 | -0.5 | 7.8 | 2.7 | 1.8 | 7.1 | – | – | off 7.8 cm |
+| elbow.L | seam | 28 | 3.8 | 0.6 | 3.8 | -1.5 | -0.9 | 3.4 | 2.4 | 3.6 | off 3.8 cm; off centre line |
+| wrist.L | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 3.2 | 2.4 | **likely misplaced**; **outside the mesh**; no estimate |
+| shoulder.R | seam | 74 | 8.1 | -0.4 | 8.1 | -2.6 | 1.5 | 7.5 | 7.5 | 4.9 | off 8.1 cm; **outside the mesh** |
+| elbow.R | seam | 21 | 3.5 | 0.4 | 3.5 | 1.2 | -0.6 | 3.2 | 1.6 | 3.6 | off 3.5 cm; off centre line |
+| wrist.R | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 3.0 | 2.5 | **likely misplaced**; **outside the mesh**; no estimate |
+| hip.L | seam | 658 | 8.5 | -8.2 | 2.4 | -2.9 | 8.0 | 0.6 | 7.3 | 6.0 | off 8.5 cm; **outside the mesh** |
+| knee.L | seam | 36 | 4.0 | 0.0 | 4.0 | 3.7 | 0.1 | 1.5 | 6.0 | 8.9 | off 4.0 cm; off centre line |
+| ankle.L | seam | 93 | 6.1 | -3.9 | 4.7 | 1.7 | 4.1 | 4.1 | 2.4 | 5.2 | off 6.1 cm; off centre line |
+| hip.R | seam | 679 | 7.8 | -7.3 | 2.6 | 3.0 | 7.2 | 0.8 | 6.8 | 5.3 | off 7.8 cm; **outside the mesh** |
+| knee.R | seam | 24 | 3.3 | -0.2 | 3.3 | -2.8 | 0.3 | 1.6 | 1.7 | 8.3 | off 3.3 cm |
+| ankle.R | seam | 92 | 5.9 | -3.9 | 4.4 | -1.8 | 4.1 | 3.8 | 2.7 | 4.9 | **likely misplaced**; off 5.9 cm; off centre line |
 
 ## pirate_melee
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 648 | 3.9 | 0.0 | 3.9 | 1.7 | 0.0 | -3.5 | 3.9 | 14.4 | off 3.9 cm |
-| spine | slice | 591 | 10.9 | 0.0 | 10.9 | 2.5 | 0.0 | -10.6 | 10.9 | 13.1 | off 10.9 cm; off centre line |
-| chest | slice | 682 | 2.0 | 0.0 | 2.0 | -0.4 | 0.0 | 2.0 | 2.0 | 19.1 |  |
-| neck | seam | 94 | 10.8 | -2.1 | 10.6 | 1.1 | -1.5 | -10.7 | – | – | off 10.8 cm |
-| head | seam | 1797 | 1.2 | -0.8 | 0.9 | 0.0 | -0.8 | 0.9 | 2.8 | 8.8 |  |
-| shoulder.L | seam | 3735 | 12.5 | 1.2 | 12.5 | -1.5 | -2.1 | 12.3 | 8.8 | 10.5 | off 12.5 cm; off centre line |
-| elbow.L | seam | 624 | 5.9 | -0.8 | 5.9 | -2.8 | 0.2 | 5.2 | 4.1 | 8.9 | off 5.9 cm; off centre line |
-| wrist.L | seam | 1043 | 6.6 | -3.2 | 5.8 | 3.3 | 4.3 | -3.8 | 3.4 | 5.4 | **likely misplaced**; off 6.6 cm; off centre line |
-| shoulder.R | seam | 2940 | 10.1 | -2.3 | 9.8 | 2.5 | 1.2 | 9.7 | 10.4 | 10.5 | off 10.1 cm; off centre line |
-| elbow.R | seam | 634 | 6.3 | -1.0 | 6.2 | 3.0 | 0.3 | 5.5 | 4.6 | 8.9 | **likely misplaced**; off 6.3 cm; off centre line |
-| wrist.R | seam | 1094 | 6.9 | -3.2 | 6.1 | -3.5 | 4.4 | -4.1 | 3.9 | 5.2 | **likely misplaced**; off 6.9 cm; off centre line |
-| hip.L | seam | 3049 | 7.1 | 5.6 | 4.3 | -3.8 | -6.0 | 0.8 | 6.9 | 12.7 | off 7.1 cm; off centre line |
-| knee.L | seam | 1236 | 5.9 | 1.0 | 5.8 | -5.6 | -1.1 | 1.7 | 5.0 | 10.7 | off 5.9 cm; off centre line |
-| ankle.L | seam | 2352 | 10.3 | -3.8 | 9.6 | -7.7 | 3.7 | 5.7 | 8.0 | 12.0 | **likely misplaced**; off 10.3 cm; off centre line |
-| hip.R | seam | 4403 | 7.3 | 4.4 | 5.8 | 3.2 | -4.5 | 4.7 | 9.6 | 12.6 | off 7.3 cm; off centre line |
-| knee.R | seam | 1161 | 6.1 | 1.1 | 6.0 | 5.4 | -1.1 | 2.6 | 4.6 | 11.5 | off 6.1 cm; off centre line |
-| ankle.R | seam | 2506 | 10.5 | -4.0 | 9.7 | 7.7 | 4.0 | 5.9 | 7.9 | 12.0 | **likely misplaced**; off 10.5 cm; off centre line |
+| pelvis | slice | 81 | 9.2 | 0.0 | 9.2 | 2.0 | 0.0 | -9.0 | 9.2 | 11.4 | off 9.2 cm; off centre line |
+| spine | slice | 66 | 13.7 | 0.0 | 13.7 | 6.4 | 0.0 | -12.1 | 13.7 | 10.0 | off 13.7 cm; **outside the mesh** |
+| chest | slice | 85 | 2.9 | 0.0 | 2.9 | -2.0 | 0.0 | 2.1 | 2.9 | 18.9 |  |
+| neck | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| head | seam | 157 | 1.8 | -1.0 | 1.4 | 0.0 | -1.1 | 1.4 | 2.9 | 8.3 |  |
+| shoulder.L | seam | 325 | 13.4 | 0.1 | 13.4 | -1.0 | -0.7 | 13.4 | 8.7 | 11.8 | off 13.4 cm; off centre line |
+| elbow.L | seam | 30 | 4.8 | -1.0 | 4.6 | -1.8 | 0.7 | 4.4 | 1.6 | 8.3 | off 4.8 cm |
+| wrist.L | seam | 82 | 6.7 | -3.6 | 5.7 | 3.4 | 4.8 | -3.3 | 0.9 | 4.4 | off 6.7 cm |
+| shoulder.R | seam | 283 | 9.7 | -2.5 | 9.4 | 2.2 | 1.7 | 9.3 | 7.6 | 10.9 | off 9.7 cm; off centre line |
+| elbow.R | seam | 44 | 7.7 | -1.3 | 7.6 | 4.4 | 0.2 | 6.3 | 5.4 | 8.5 | **likely misplaced**; off 7.7 cm; off centre line |
+| wrist.R | seam | 100 | 7.1 | -3.5 | 6.2 | -3.6 | 4.7 | -3.8 | 4.3 | 3.5 | **likely misplaced**; off 7.1 cm; **outside the mesh** |
+| hip.L | seam | 315 | 7.2 | 5.4 | 4.8 | -4.2 | -5.7 | 0.7 | 6.6 | 12.9 | off 7.2 cm; off centre line |
+| knee.L | seam | 101 | 5.2 | 0.4 | 5.2 | -5.2 | -0.5 | 0.6 | 7.4 | 9.8 | **likely misplaced**; off 5.2 cm; off centre line |
+| ankle.L | seam | 203 | 9.8 | -3.3 | 9.2 | -7.8 | 3.2 | 5.0 | 8.3 | 11.8 | **likely misplaced**; off 9.8 cm; off centre line |
+| hip.R | seam | 509 | 7.4 | 4.8 | 5.6 | 3.0 | -4.9 | 4.6 | 9.0 | 12.7 | off 7.4 cm; off centre line |
+| knee.R | seam | 74 | 5.4 | 0.5 | 5.4 | 5.1 | -0.6 | 1.5 | 4.3 | 10.8 | off 5.4 cm; off centre line |
+| ankle.R | seam | 235 | 10.4 | -4.5 | 9.4 | 7.1 | 4.5 | 6.1 | 8.4 | 10.9 | **likely misplaced**; off 10.4 cm; off centre line |
 
 ## droid
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 145 | 0.4 | 0.0 | 0.4 | 0.3 | 0.0 | -0.1 | 0.4 | 10.5 |  |
-| spine | slice | 762 | 1.5 | 0.0 | 1.5 | 0.5 | 0.0 | -1.4 | 1.5 | 7.9 |  |
-| chest | slice | 1248 | 0.4 | 0.0 | 0.4 | 0.0 | 0.0 | -0.4 | 0.4 | 6.9 |  |
-| neck | seam | 155 | 9.9 | -2.2 | 9.6 | 0.1 | -1.6 | -9.7 | – | – | off 9.9 cm |
-| head | seam | 1646 | 5.1 | 1.5 | 4.9 | 0.0 | 1.3 | 4.9 | 4.1 | 6.7 | off 5.1 cm; off centre line |
-| shoulder.L | seam | 1669 | 7.4 | 3.1 | 6.8 | 3.3 | -2.0 | 6.4 | 7.1 | 3.2 | off 7.4 cm; **outside the mesh** |
-| elbow.L | seam | 979 | 5.8 | 1.2 | 5.6 | 1.6 | -0.6 | 5.5 | 6.1 | 3.3 | **likely misplaced**; off 5.8 cm; **outside the mesh** |
-| wrist.L | seam | 442 | 3.3 | -0.8 | 3.2 | -2.8 | 0.1 | 1.8 | 1.6 | 3.6 | off 3.3 cm; off centre line |
-| shoulder.R | seam | 1639 | 7.6 | 3.2 | 6.9 | -3.4 | -2.0 | 6.5 | 7.4 | 3.2 | off 7.6 cm; **outside the mesh** |
-| elbow.R | seam | 961 | 5.9 | 1.3 | 5.7 | -1.5 | -0.7 | 5.6 | 6.2 | 3.1 | **likely misplaced**; off 5.9 cm; **outside the mesh** |
-| wrist.R | seam | 419 | 3.2 | -0.8 | 3.2 | 2.8 | 0.1 | 1.7 | 1.6 | 3.5 | off 3.2 cm; off centre line |
-| hip.L | seam | 1806 | 9.6 | 9.1 | 2.9 | 1.6 | -9.1 | -2.6 | 5.3 | 7.1 | off 9.6 cm; off centre line |
-| knee.L | seam | 424 | 6.2 | 0.1 | 6.2 | 3.4 | 0.1 | 5.2 | 4.9 | 5.7 | **likely misplaced**; off 6.2 cm; off centre line |
-| ankle.L | seam | 1597 | 8.3 | -4.5 | 6.9 | 2.5 | 4.7 | 6.3 | 4.9 | 4.4 | **likely misplaced**; off 8.3 cm; **outside the mesh** |
-| hip.R | seam | 1843 | 9.6 | 9.1 | 3.0 | -1.8 | -9.1 | -2.6 | 6.1 | 6.8 | off 9.6 cm; off centre line |
-| knee.R | seam | 424 | 6.3 | 0.0 | 6.3 | -3.2 | 0.2 | 5.4 | 5.2 | 5.6 | **likely misplaced**; off 6.3 cm; off centre line |
-| ankle.R | seam | 1611 | 8.0 | -4.3 | 6.8 | -2.6 | 4.5 | 6.1 | 4.6 | 4.4 | **likely misplaced**; off 8.0 cm; **outside the mesh** |
+| pelvis | slice | 13 | 4.0 | 0.0 | 4.0 | 4.0 | 0.0 | -0.5 | 4.0 | 9.8 | off 4.0 cm; off centre line |
+| spine | slice | 74 | 3.1 | 0.0 | 3.1 | 2.3 | 0.0 | -2.1 | 3.1 | 7.5 | off 3.1 cm; off centre line |
+| chest | slice | 137 | 0.8 | 0.0 | 0.8 | 0.7 | 0.0 | -0.3 | 0.8 | 6.4 |  |
+| neck | seam | 25 | 10.0 | -1.5 | 9.9 | 0.0 | -0.9 | -10.0 | – | – | off 10.0 cm |
+| head | seam | 235 | 5.4 | 2.0 | 5.0 | -0.1 | 1.7 | 5.1 | 4.5 | 6.2 | off 5.4 cm; off centre line |
+| shoulder.L | seam | 137 | 7.4 | 2.8 | 6.8 | 4.8 | -1.0 | 5.5 | 6.6 | 3.3 | off 7.4 cm; **outside the mesh** |
+| elbow.L | seam | 96 | 6.0 | 2.5 | 5.4 | 2.2 | -1.7 | 5.2 | 4.9 | 2.5 | **likely misplaced**; off 6.0 cm; **outside the mesh** |
+| wrist.L | seam | 67 | 3.1 | -0.9 | 2.9 | -2.8 | 0.2 | 1.1 | 2.2 | 2.8 | off 3.1 cm; off centre line |
+| shoulder.R | seam | 150 | 7.6 | 2.8 | 7.1 | -4.5 | -1.1 | 6.0 | 7.7 | 2.8 | off 7.6 cm; **outside the mesh** |
+| elbow.R | seam | 84 | 6.0 | 2.5 | 5.5 | -1.8 | -1.9 | 5.4 | 5.6 | 2.8 | **likely misplaced**; off 6.0 cm; **outside the mesh** |
+| wrist.R | seam | 59 | 3.1 | -1.1 | 2.9 | 2.9 | 0.4 | 1.1 | 1.8 | 2.7 | off 3.1 cm; off centre line |
+| hip.L | seam | 178 | 9.2 | 8.9 | 2.5 | 1.6 | -8.8 | -2.1 | – | – | off 9.2 cm |
+| knee.L | seam | 67 | 7.0 | 0.3 | 7.0 | 3.1 | -0.1 | 6.3 | 6.1 | 5.3 | **likely misplaced**; off 7.0 cm; **outside the mesh** |
+| ankle.L | seam | 128 | 8.3 | -4.4 | 7.0 | 2.4 | 4.6 | 6.4 | 4.2 | 4.4 | **likely misplaced**; off 8.3 cm; off centre line |
+| hip.R | seam | 236 | 9.7 | 9.3 | 2.8 | -2.5 | -9.2 | -1.9 | – | – | off 9.7 cm |
+| knee.R | seam | 63 | 6.6 | 0.3 | 6.6 | -3.2 | 0.0 | 5.8 | 5.9 | 5.4 | **likely misplaced**; off 6.6 cm; **outside the mesh** |
+| ankle.R | seam | 130 | 7.7 | -3.9 | 6.6 | -2.7 | 4.1 | 5.9 | 4.4 | 4.3 | **likely misplaced**; off 7.7 cm; **outside the mesh** |
 
 ## nikto
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 723 | 0.9 | 0.0 | 0.9 | 0.0 | 0.0 | -0.9 | 0.9 | 8.5 |  |
-| spine | slice | 814 | 1.8 | 0.0 | 1.8 | -1.7 | 0.0 | -0.8 | 1.8 | 13.9 |  |
-| chest | slice | 1073 | 3.0 | 0.0 | 3.0 | 0.5 | 0.0 | 3.0 | 3.0 | 12.7 |  |
-| neck | seam | 98 | 1.5 | -0.1 | 1.5 | 0.0 | 0.0 | -1.5 | 1.1 | 0.8 | **outside the mesh** |
-| head | seam | 3599 | 6.2 | -1.9 | 5.8 | -0.4 | -2.2 | 5.7 | 9.7 | 7.1 | off 6.2 cm; **outside the mesh** |
-| shoulder.L | seam | 1763 | 11.5 | -6.4 | 9.5 | 1.5 | 7.4 | 8.7 | – | – | off 11.5 cm |
-| elbow.L | seam | 1048 | 7.8 | 1.3 | 7.7 | 3.0 | -0.1 | 7.2 | 8.2 | 4.6 | **likely misplaced**; off 7.8 cm; **outside the mesh** |
-| wrist.L | seam | 914 | 3.4 | -2.7 | 2.1 | 0.9 | 3.1 | 1.0 | 1.5 | 4.0 | off 3.4 cm; off centre line |
-| shoulder.R | seam | 1807 | 11.5 | -6.5 | 9.6 | -1.8 | 7.6 | 8.5 | – | – | off 11.5 cm |
-| elbow.R | seam | 1040 | 7.8 | 1.0 | 7.7 | -2.9 | 0.2 | 7.2 | 8.1 | 4.6 | **likely misplaced**; off 7.8 cm; **outside the mesh** |
-| wrist.R | seam | 865 | 3.3 | -2.6 | 2.0 | -0.9 | 3.0 | 0.9 | 1.6 | 4.0 | off 3.3 cm; off centre line |
-| hip.L | seam | 1065 | 2.3 | 2.1 | 0.9 | 0.8 | -2.1 | -0.6 | 2.6 | 5.7 | off centre line |
-| knee.L | seam | 817 | 5.6 | 0.3 | 5.6 | 3.0 | -0.1 | 4.7 | 4.1 | 5.9 | **likely misplaced**; off 5.6 cm; off centre line |
-| ankle.L | seam | 1624 | 7.5 | -3.6 | 6.6 | 0.0 | 3.8 | 6.5 | 4.8 | 5.6 | **likely misplaced**; off 7.5 cm; off centre line |
-| hip.R | seam | 1520 | 3.3 | 3.1 | 1.2 | 0.7 | -3.2 | -0.5 | 3.7 | 4.3 | off 3.3 cm; off centre line |
-| knee.R | seam | 756 | 5.5 | 0.0 | 5.5 | -3.0 | 0.1 | 4.6 | 3.9 | 5.9 | **likely misplaced**; off 5.5 cm; off centre line |
-| ankle.R | seam | 1465 | 7.8 | -3.9 | 6.8 | 0.2 | 4.0 | 6.7 | 4.6 | 5.6 | **likely misplaced**; off 7.8 cm; off centre line |
+| pelvis | slice | 65 | 2.4 | 0.0 | 2.4 | -0.7 | 0.0 | -2.3 | 2.4 | 9.3 |  |
+| spine | slice | 67 | 5.1 | 0.0 | 5.1 | -5.0 | 0.0 | -0.9 | 5.1 | 13.0 | off 5.1 cm; off centre line |
+| chest | slice | 82 | 2.3 | 0.0 | 2.3 | 0.6 | 0.0 | 2.2 | 2.3 | 12.9 |  |
+| neck | band | 10 | 1.9 | 0.6 | 1.7 | 0.0 | 0.7 | -1.7 | – | – |  |
+| head | seam | 328 | 6.6 | -2.1 | 6.2 | -0.2 | -2.5 | 6.1 | 10.4 | 6.4 | off 6.6 cm; **outside the mesh** |
+| shoulder.L | seam | 144 | 11.7 | -6.9 | 9.4 | 2.0 | 8.1 | 8.1 | – | – | off 11.7 cm |
+| elbow.L | seam | 65 | 7.9 | 1.3 | 7.8 | 3.1 | 0.0 | 7.2 | 9.5 | 4.1 | **likely misplaced**; off 7.9 cm; **outside the mesh** |
+| wrist.L | seam | 83 | 3.3 | -2.6 | 2.0 | 0.7 | 3.0 | 1.1 | 1.3 | 3.8 | off 3.3 cm |
+| shoulder.R | seam | 138 | 11.7 | -6.5 | 9.7 | -2.1 | 7.7 | 8.5 | – | – | off 11.7 cm |
+| elbow.R | seam | 58 | 7.6 | 0.9 | 7.6 | -2.8 | 0.3 | 7.1 | 8.5 | 4.4 | **likely misplaced**; off 7.6 cm; **outside the mesh** |
+| wrist.R | seam | 74 | 3.2 | -2.5 | 1.9 | -0.8 | 2.9 | 0.9 | 1.5 | 3.9 | off 3.2 cm; off centre line |
+| hip.L | seam | 113 | 3.6 | 3.2 | 1.8 | 0.7 | -3.2 | -1.6 | – | – | off 3.6 cm |
+| knee.L | seam | 72 | 5.9 | -0.3 | 5.8 | 3.1 | 0.4 | 4.9 | 4.8 | 5.7 | **likely misplaced**; off 5.9 cm; off centre line |
+| ankle.L | seam | 144 | 7.3 | -3.3 | 6.5 | -0.1 | 3.5 | 6.4 | 5.2 | 5.6 | **likely misplaced**; off 7.3 cm; off centre line |
+| hip.R | seam | 151 | 3.9 | 3.6 | 1.4 | 0.8 | -3.7 | -0.7 | 2.5 | 5.8 | off 3.9 cm; off centre line |
+| knee.R | seam | 53 | 5.8 | -0.2 | 5.8 | -3.6 | 0.4 | 4.6 | 4.0 | 5.6 | **likely misplaced**; off 5.8 cm; off centre line |
+| ankle.R | seam | 103 | 8.4 | -4.5 | 7.1 | 0.3 | 4.7 | 7.0 | 4.4 | 6.1 | **likely misplaced**; off 8.4 cm; off centre line |
 
 ## stormtrooper
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 655 | 3.7 | 0.0 | 3.7 | -0.2 | 0.0 | -3.7 | 3.7 | 10.6 | off 3.7 cm |
-| spine | slice | 317 | 6.0 | 0.0 | 6.0 | -0.4 | 0.0 | -5.9 | 6.0 | 17.0 | off 6.0 cm; off centre line |
-| chest | slice | 793 | 1.3 | 0.0 | 1.3 | -1.1 | 0.0 | -0.6 | 1.3 | 16.7 |  |
-| neck | seam | 149 | 8.4 | -2.9 | 7.8 | 0.9 | -2.5 | -7.9 | – | – | off 8.4 cm |
-| head | seam | 1427 | 0.5 | -0.1 | 0.5 | 0.2 | -0.1 | -0.5 | 6.5 | 9.5 | off centre line |
-| shoulder.L | seam | 1846 | 7.0 | -2.5 | 6.5 | 3.2 | 4.1 | 4.6 | 5.1 | 8.3 | off 7.0 cm; off centre line |
-| elbow.L | seam | 391 | 2.4 | -0.2 | 2.4 | 2.2 | 1.0 | 0.3 | 3.2 | 6.4 | off centre line |
-| wrist.L | seam | 1015 | 8.9 | -3.2 | 8.3 | -1.4 | 2.5 | -8.4 | 7.1 | 4.8 | **likely misplaced**; off 8.9 cm; **outside the mesh** |
-| shoulder.R | seam | 1965 | 7.7 | -3.3 | 6.9 | -3.0 | 4.9 | 5.1 | 2.9 | 7.2 | off 7.7 cm; off centre line |
-| elbow.R | seam | 380 | 2.3 | -0.1 | 2.3 | -2.1 | 0.9 | 0.1 | 3.2 | 6.3 | off centre line |
-| wrist.R | seam | 1051 | 8.6 | -2.9 | 8.1 | 1.4 | 2.2 | -8.3 | 7.1 | 4.7 | **likely misplaced**; off 8.6 cm; **outside the mesh** |
-| hip.L | seam | 1722 | 7.8 | 4.1 | 6.7 | -0.6 | -4.3 | -6.5 | 7.9 | 10.0 | off 7.8 cm; off centre line |
-| knee.L | seam | 1167 | 1.5 | -0.7 | 1.4 | 0.3 | 0.6 | -1.3 | 0.4 | 8.8 |  |
-| ankle.L | seam | 1888 | 5.4 | -3.3 | 4.3 | -2.4 | 3.3 | 3.6 | 2.1 | 9.4 | off 5.4 cm |
-| hip.R | seam | 2413 | 8.0 | 4.3 | 6.8 | 2.6 | -4.7 | -6.0 | 7.8 | 10.0 | off 8.0 cm; off centre line |
-| knee.R | seam | 1130 | 1.7 | -0.6 | 1.6 | -0.5 | 0.6 | -1.5 | 0.5 | 8.8 |  |
-| ankle.R | seam | 1888 | 5.6 | -3.4 | 4.5 | 2.6 | 3.4 | 3.6 | 2.9 | 9.5 | off 5.6 cm |
+| pelvis | slice | 70 | 6.1 | 0.0 | 6.1 | 0.3 | 0.0 | -6.1 | 6.1 | 9.2 | off 6.1 cm; off centre line |
+| spine | slice | 14 | 5.2 | 0.0 | 5.2 | 0.0 | 0.0 | -5.2 | 5.2 | 17.1 | off 5.2 cm |
+| chest | slice | 74 | 2.2 | 0.0 | 2.2 | -1.7 | 0.0 | 1.3 | 2.2 | 16.3 |  |
+| neck | seam | 13 | 13.2 | -3.0 | 12.8 | 1.6 | -2.3 | -12.9 | – | – | off 13.2 cm |
+| head | seam | 103 | 0.9 | 0.0 | 0.9 | 0.4 | 0.1 | -0.8 | 5.7 | 10.6 | off centre line |
+| shoulder.L | seam | 170 | 7.6 | -2.6 | 7.1 | 3.6 | 4.4 | 5.0 | 5.8 | 8.3 | off 7.6 cm; off centre line |
+| elbow.L | seam | 20 | 2.3 | 0.1 | 2.3 | 2.1 | 0.6 | -0.6 | 3.0 | 6.4 | off centre line |
+| wrist.L | seam | 85 | 8.9 | -2.9 | 8.4 | -1.1 | 2.3 | -8.5 | 7.3 | 4.5 | **likely misplaced**; off 8.9 cm; **outside the mesh** |
+| shoulder.R | seam | 188 | 8.9 | -3.8 | 8.1 | -3.4 | 5.6 | 6.1 | 3.6 | 9.3 | off 8.9 cm; off centre line |
+| elbow.R | seam | 21 | 2.3 | -0.4 | 2.3 | -2.0 | 1.1 | 0.6 | 3.5 | 5.9 | off centre line |
+| wrist.R | seam | 96 | 8.2 | -3.2 | 7.6 | 1.8 | 2.4 | -7.7 | 5.8 | 3.9 | **likely misplaced**; off 8.2 cm; **outside the mesh** |
+| hip.L | seam | 156 | 8.6 | 5.4 | 6.7 | -1.6 | -5.7 | -6.2 | 9.5 | 9.4 | off 8.6 cm; **outside the mesh** |
+| knee.L | seam | 92 | 2.4 | -1.2 | 2.1 | 0.4 | 1.1 | -2.1 | 3.3 | 8.2 | off centre line |
+| ankle.L | seam | 139 | 5.2 | -3.2 | 4.1 | -2.4 | 3.2 | 3.3 | 1.5 | 9.3 | off 5.2 cm |
+| hip.R | seam | 259 | 9.2 | 5.5 | 7.4 | 4.1 | -6.0 | -5.7 | 7.9 | 9.9 | off 9.2 cm; off centre line |
+| knee.R | seam | 99 | 3.2 | -1.3 | 3.0 | -0.8 | 1.3 | -2.9 | 1.6 | 8.3 | off 3.2 cm |
+| ankle.R | seam | 143 | 5.4 | -3.7 | 3.9 | 2.6 | 3.7 | 2.9 | 4.4 | 9.4 | off 5.4 cm; off centre line |
 
 ## deathtrooper
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 539 | 2.7 | 0.0 | 2.7 | 0.0 | 0.0 | -2.7 | 2.7 | 10.8 |  |
-| spine | slice | 346 | 2.0 | 0.0 | 2.0 | 0.4 | 0.0 | -2.0 | 2.0 | 18.1 |  |
-| chest | slice | 850 | 3.1 | 0.0 | 3.1 | 0.0 | 0.0 | -3.1 | 3.1 | 16.6 | off 3.1 cm |
-| neck | seam | 54 | 13.3 | -2.9 | 13.0 | -0.1 | -2.1 | -13.1 | – | – | off 13.3 cm |
-| head | seam | 1720 | 4.2 | 0.6 | 4.2 | -0.1 | 0.4 | 4.2 | 0.9 | 11.4 | off 4.2 cm |
-| shoulder.L | seam | 2612 | 9.3 | -1.3 | 9.2 | 0.7 | 1.6 | 9.1 | 8.3 | 8.7 | off 9.3 cm; off centre line |
-| elbow.L | seam | 334 | 4.3 | -0.4 | 4.3 | -2.0 | -0.1 | 3.8 | 3.3 | 7.3 | off 4.3 cm; off centre line |
-| wrist.L | seam | 488 | 4.9 | -1.3 | 4.7 | -1.9 | 0.5 | -4.5 | 4.5 | 5.4 | **likely misplaced**; off 4.9 cm; off centre line |
-| shoulder.R | seam | 2412 | 9.2 | -1.9 | 9.0 | -0.4 | 2.2 | 9.0 | 8.8 | 7.8 | off 9.2 cm; **outside the mesh** |
-| elbow.R | seam | 297 | 4.4 | -0.5 | 4.3 | 2.0 | 0.1 | 3.8 | 3.6 | 7.1 | **likely misplaced**; off 4.4 cm; off centre line |
-| wrist.R | seam | 478 | 5.1 | -1.3 | 5.0 | 1.5 | 0.7 | -4.9 | 4.7 | 5.3 | **likely misplaced**; off 5.1 cm; off centre line |
-| hip.L | seam | 2948 | 10.1 | 6.1 | 8.0 | -5.1 | -6.7 | -5.6 | 8.9 | 11.1 | off 10.1 cm; off centre line |
-| knee.L | seam | 1091 | 3.2 | 0.2 | 3.2 | -2.2 | -0.3 | -2.3 | 2.9 | 9.2 | off 3.2 cm |
-| ankle.L | seam | 1785 | 7.1 | -3.9 | 5.9 | -5.1 | 3.9 | 3.1 | 5.4 | 7.8 | **likely misplaced**; off 7.1 cm; off centre line |
-| hip.R | seam | 2886 | 9.8 | 6.2 | 7.6 | 4.7 | -6.7 | -5.3 | 8.0 | 11.0 | off 9.8 cm; off centre line |
-| knee.R | seam | 1110 | 2.8 | 0.3 | 2.8 | 1.7 | -0.4 | -2.2 | 2.6 | 9.2 |  |
-| ankle.R | seam | 1792 | 6.8 | -3.9 | 5.6 | 4.6 | 3.9 | 3.2 | 5.1 | 7.9 | **likely misplaced**; off 6.8 cm; off centre line |
+| pelvis | slice | 56 | 0.7 | 0.0 | 0.7 | 0.7 | 0.0 | -0.1 | 0.7 | 9.8 |  |
+| spine | slice | 29 | 4.2 | 0.0 | 4.2 | 3.8 | 0.0 | 1.9 | 4.2 | 17.1 | off 4.2 cm |
+| chest | slice | 70 | 3.1 | 0.0 | 3.1 | -0.4 | 0.0 | -3.1 | 3.1 | 16.7 | off 3.1 cm |
+| neck | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| head | seam | 118 | 4.0 | 0.6 | 4.0 | 0.3 | 0.3 | 4.0 | 3.0 | 10.8 | off 4.0 cm |
+| shoulder.L | seam | 207 | 9.9 | -2.4 | 9.5 | 1.5 | 3.1 | 9.2 | – | – | off 9.9 cm |
+| elbow.L | seam | 16 | 3.9 | -0.5 | 3.8 | -1.8 | 0.1 | 3.4 | 2.6 | 7.1 | off 3.9 cm; off centre line |
+| wrist.L | seam | 51 | 4.5 | -1.3 | 4.3 | -1.7 | 0.6 | -4.1 | 3.2 | 4.8 | **likely misplaced**; off 4.5 cm; off centre line |
+| shoulder.R | seam | 194 | 8.8 | -3.2 | 8.2 | -0.8 | 3.7 | 8.0 | – | – | off 8.8 cm |
+| elbow.R | seam | 12 | 3.6 | -0.4 | 3.6 | 0.8 | 0.4 | 3.5 | 2.1 | 6.9 | off 3.6 cm |
+| wrist.R | seam | 46 | 4.8 | -1.2 | 4.6 | 1.2 | 0.6 | -4.6 | 4.6 | 4.8 | **likely misplaced**; off 4.8 cm; off centre line |
+| hip.L | seam | 303 | 10.7 | 6.8 | 8.3 | -5.4 | -7.4 | -5.6 | 12.5 | 8.1 | off 10.7 cm; **outside the mesh** |
+| knee.L | seam | 87 | 3.8 | -0.1 | 3.8 | -1.5 | 0.0 | -3.4 | 3.6 | 8.6 | off 3.8 cm; off centre line |
+| ankle.L | seam | 155 | 7.7 | -4.9 | 6.0 | -5.1 | 4.9 | 3.2 | 5.7 | 7.0 | **likely misplaced**; off 7.7 cm; off centre line |
+| hip.R | seam | 321 | 11.0 | 7.5 | 8.0 | 5.7 | -8.1 | -4.6 | 7.1 | 11.8 | off 11.0 cm; off centre line |
+| knee.R | seam | 79 | 2.8 | 0.3 | 2.7 | 1.2 | -0.3 | -2.4 | 2.4 | 9.3 |  |
+| ankle.R | seam | 152 | 6.7 | -4.1 | 5.3 | 4.5 | 4.1 | 2.8 | 4.5 | 7.6 | **likely misplaced**; off 6.7 cm; off centre line |
 
 ## darktrooper
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 120 | 2.3 | 0.0 | 2.3 | -0.2 | 0.0 | -2.3 | 2.3 | 9.5 |  |
-| spine | slice | 574 | 5.5 | 0.0 | 5.5 | -0.5 | 0.0 | -5.4 | 5.5 | 12.9 | off 5.5 cm; off centre line |
-| chest | slice | 795 | 1.8 | 0.0 | 1.8 | 1.4 | 0.0 | -1.2 | 1.8 | 17.2 |  |
-| neck | seam | 221 | 24.6 | 1.6 | 24.6 | 0.3 | 3.0 | -24.5 | – | – | off 24.6 cm |
-| head | seam | 1323 | 3.7 | 1.9 | 3.2 | 0.1 | 2.0 | -3.1 | 5.4 | 13.5 | off 3.7 cm; off centre line |
-| shoulder.L | seam | 2063 | 8.6 | 6.4 | 5.8 | -1.3 | -8.0 | 2.9 | 8.0 | 10.7 | off 8.6 cm; off centre line |
-| elbow.L | seam | 368 | 4.7 | 0.0 | 4.7 | -2.0 | -1.1 | -4.1 | 3.9 | 9.3 | off 4.7 cm; off centre line |
-| wrist.L | seam | 1289 | 11.7 | -4.2 | 10.9 | -0.9 | 3.7 | -11.0 | 9.3 | 6.0 | **likely misplaced**; off 11.7 cm; **outside the mesh** |
-| shoulder.R | seam | 1918 | 8.8 | 6.3 | 6.1 | 1.5 | -8.0 | 3.2 | 9.0 | 10.0 | off 8.8 cm; off centre line |
-| elbow.R | seam | 350 | 4.7 | -0.2 | 4.7 | 1.9 | -0.8 | -4.2 | 3.7 | 9.3 | off 4.7 cm; off centre line |
-| wrist.R | seam | 1203 | 11.6 | -4.2 | 10.8 | 0.7 | 3.7 | -11.0 | 9.1 | 6.0 | **likely misplaced**; off 11.6 cm; **outside the mesh** |
-| hip.L | seam | 1699 | 15.8 | 11.8 | 10.6 | -2.7 | -12.4 | -9.5 | 13.4 | 12.6 | off 15.8 cm; **outside the mesh** |
-| knee.L | seam | 1247 | 7.0 | 2.2 | 6.6 | -5.2 | -2.4 | -4.0 | 5.2 | 14.4 | off 7.0 cm; off centre line |
-| ankle.L | seam | 2926 | 9.3 | -2.1 | 9.0 | -8.9 | 1.9 | 1.8 | 7.6 | 12.2 | **likely misplaced**; off 9.3 cm; off centre line |
-| hip.R | seam | 1624 | 15.8 | 11.5 | 10.8 | 2.6 | -12.1 | -9.8 | 13.7 | 12.6 | off 15.8 cm; **outside the mesh** |
-| knee.R | seam | 1192 | 7.2 | 2.0 | 6.9 | 5.0 | -2.2 | -4.6 | 6.2 | 13.8 | off 7.2 cm; off centre line |
-| ankle.R | seam | 2719 | 9.1 | -2.7 | 8.7 | 8.4 | 2.5 | 2.2 | 7.1 | 12.2 | **likely misplaced**; off 9.1 cm; off centre line |
+| pelvis | slice | 7 | 5.8 | 0.0 | 5.8 | -2.5 | 0.0 | -5.3 | 5.8 | 5.3 | off 5.8 cm; **outside the mesh** |
+| spine | slice | 37 | 3.5 | 0.0 | 3.5 | -0.8 | 0.0 | -3.4 | 3.5 | 12.4 | off 3.5 cm |
+| chest | slice | 94 | 2.5 | 0.0 | 2.5 | 1.3 | 0.0 | 2.1 | 2.5 | 15.6 |  |
+| neck | seam | 19 | 24.9 | 1.7 | 24.8 | 0.9 | 3.1 | -24.7 | – | – | off 24.9 cm |
+| head | seam | 79 | 2.6 | 2.3 | 1.2 | 0.6 | 2.3 | -0.9 | 6.5 | 13.6 | off centre line |
+| shoulder.L | seam | 215 | 9.8 | 6.9 | 6.9 | -2.3 | -9.2 | 2.3 | 10.6 | 7.8 | off 9.8 cm; **outside the mesh** |
+| elbow.L | seam | 25 | 5.2 | 0.5 | 5.2 | -2.9 | -2.0 | -3.9 | 6.0 | 8.0 | **likely misplaced**; off 5.2 cm; off centre line |
+| wrist.L | seam | 143 | 12.1 | -4.8 | 11.2 | -1.1 | 4.2 | -11.4 | 9.4 | 5.6 | **likely misplaced**; off 12.1 cm; **outside the mesh** |
+| shoulder.R | seam | 180 | 9.8 | 7.5 | 6.4 | 1.0 | -9.2 | 3.4 | – | – | off 9.8 cm |
+| elbow.R | seam | 19 | 4.4 | -0.1 | 4.4 | 1.9 | -0.9 | -3.9 | 3.8 | 9.4 | off 4.4 cm; off centre line |
+| wrist.R | seam | 118 | 11.7 | -4.6 | 10.8 | 0.9 | 4.0 | -11.0 | 8.8 | 5.7 | **likely misplaced**; off 11.7 cm; **outside the mesh** |
+| hip.L | seam | 156 | 15.4 | 11.7 | 9.9 | -4.2 | -12.4 | -8.0 | – | – | off 15.4 cm |
+| knee.L | seam | 124 | 6.9 | 3.3 | 6.1 | -4.1 | -3.5 | -4.4 | 3.3 | 14.5 | off 6.9 cm |
+| ankle.L | seam | 313 | 9.0 | -1.0 | 8.9 | -9.0 | 0.8 | 0.1 | 7.4 | 11.6 | **likely misplaced**; off 9.0 cm; off centre line |
+| hip.R | seam | 148 | 15.7 | 10.5 | 11.6 | 2.7 | -11.2 | -10.7 | – | – | off 15.7 cm |
+| knee.R | seam | 106 | 7.3 | 2.4 | 6.9 | 5.5 | -2.6 | -4.1 | 7.2 | 13.1 | **likely misplaced**; off 7.3 cm; off centre line |
+| ankle.R | seam | 228 | 9.0 | -2.6 | 8.6 | 8.4 | 2.5 | 2.3 | 7.6 | 11.4 | **likely misplaced**; off 9.0 cm; off centre line |
 
 ## imperial_officer
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 213 | 4.8 | 0.0 | 4.8 | 1.0 | 0.0 | -4.7 | 4.8 | 16.4 | off 4.8 cm |
-| spine | slice | 320 | 3.2 | 0.0 | 3.2 | 1.9 | 0.0 | -2.6 | 3.2 | 17.0 | off 3.2 cm |
-| chest | slice | 651 | 1.0 | 0.0 | 1.0 | -0.5 | 0.0 | -0.9 | 1.0 | 15.0 |  |
-| neck | seam | 36 | 6.6 | -1.3 | 6.5 | 0.0 | -0.9 | -6.5 | – | – | off 6.6 cm |
-| head | seam | 4525 | 7.3 | -0.5 | 7.3 | 0.1 | -0.9 | 7.2 | 1.3 | 8.2 | off 7.3 cm |
-| shoulder.L | seam | 2546 | 9.8 | -1.1 | 9.7 | 0.7 | 1.4 | 9.7 | 12.0 | 3.2 | off 9.8 cm; **outside the mesh** |
-| elbow.L | seam | 861 | 7.3 | 0.8 | 7.3 | 1.8 | 0.1 | 7.1 | 5.2 | 5.3 | **likely misplaced**; off 7.3 cm; off centre line |
-| wrist.L | seam | 952 | 3.3 | -1.6 | 2.9 | -1.8 | 1.3 | 2.5 | 1.2 | 3.4 | off 3.3 cm; off centre line |
-| shoulder.R | seam | 2422 | 10.1 | -1.1 | 10.1 | -1.0 | 1.5 | 10.0 | 9.9 | 4.2 | off 10.1 cm; **outside the mesh** |
-| elbow.R | seam | 863 | 7.5 | 0.5 | 7.5 | -1.8 | 0.5 | 7.3 | 4.9 | 5.1 | **likely misplaced**; off 7.5 cm; off centre line |
-| wrist.R | seam | 894 | 3.0 | -1.4 | 2.7 | 1.5 | 1.1 | 2.4 | 1.1 | 3.4 |  |
-| hip.L | seam | 924 | 4.2 | 3.8 | 1.7 | -1.3 | -4.0 | -0.2 | 5.1 | 10.2 | off 4.2 cm; off centre line |
-| knee.L | seam | 780 | 2.6 | -0.1 | 2.6 | 1.2 | 0.2 | 2.3 | 3.6 | 13.3 |  |
-| ankle.L | seam | 1511 | 7.7 | -5.3 | 5.6 | 0.0 | 5.4 | 5.5 | 2.7 | 6.0 | off 7.7 cm; off centre line |
-| hip.R | seam | 1130 | 4.8 | 3.7 | 3.1 | 1.1 | -3.9 | -2.6 | 6.0 | 9.0 | off 4.8 cm; off centre line |
-| knee.R | seam | 829 | 2.0 | 0.0 | 2.0 | -1.9 | 0.1 | 0.3 | 3.2 | 14.0 |  |
-| ankle.R | seam | 1501 | 7.7 | -5.4 | 5.5 | -0.1 | 5.5 | 5.4 | 2.5 | 6.0 | off 7.7 cm; off centre line |
+| pelvis | slice | 41 | 2.9 | 0.0 | 2.9 | 0.6 | 0.0 | -2.8 | 2.9 | 16.8 |  |
+| spine | slice | 30 | 5.0 | 0.0 | 5.0 | 4.9 | 0.0 | -0.6 | 5.0 | 16.8 | off 5.0 cm |
+| chest | slice | 46 | 1.9 | 0.0 | 1.9 | -1.4 | 0.0 | -1.2 | 1.9 | 14.5 |  |
+| neck | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| head | seam | 364 | 7.5 | -0.3 | 7.5 | 0.4 | -0.7 | 7.4 | 2.2 | 8.5 | off 7.5 cm |
+| shoulder.L | seam | 203 | 9.9 | -2.6 | 9.6 | 1.4 | 3.3 | 9.3 | 13.5 | 2.2 | off 9.9 cm; **outside the mesh** |
+| elbow.L | seam | 38 | 7.3 | 0.1 | 7.3 | 2.2 | 0.9 | 6.9 | 4.2 | 5.0 | **likely misplaced**; off 7.3 cm; off centre line |
+| wrist.L | seam | 91 | 3.6 | -1.8 | 3.2 | -1.8 | 1.4 | 2.8 | 2.0 | 2.7 | off 3.6 cm; off centre line |
+| shoulder.R | seam | 179 | 10.3 | -2.2 | 10.1 | -1.6 | 3.0 | 9.8 | 10.2 | 4.9 | off 10.3 cm; **outside the mesh** |
+| elbow.R | seam | 45 | 7.7 | -0.1 | 7.7 | -2.2 | 1.2 | 7.3 | 4.9 | 5.0 | **likely misplaced**; off 7.7 cm; off centre line |
+| wrist.R | seam | 72 | 3.1 | -1.2 | 2.8 | 1.4 | 1.0 | 2.6 | 0.9 | 3.1 | off 3.1 cm |
+| hip.L | seam | 117 | 4.4 | 4.2 | 1.3 | -1.0 | -4.3 | 0.1 | – | – | off 4.4 cm |
+| knee.L | seam | 137 | 1.6 | -1.1 | 1.1 | 0.4 | 1.1 | 1.0 | 5.0 | 13.3 | off centre line |
+| ankle.L | seam | 98 | 8.1 | -5.9 | 5.6 | -0.2 | 6.0 | 5.5 | 2.4 | 6.3 | off 8.1 cm; off centre line |
+| hip.R | seam | 158 | 4.1 | 3.3 | 2.4 | 0.4 | -3.4 | -2.2 | 5.5 | 9.7 | off 4.1 cm; off centre line |
+| knee.R | seam | 117 | 2.9 | -1.3 | 2.6 | -2.4 | 1.3 | -0.8 | 3.2 | 12.9 |  |
+| ankle.R | seam | 94 | 7.9 | -5.9 | 5.3 | 0.0 | 6.1 | 5.1 | 2.2 | 6.1 | off 7.9 cm; off centre line |
 
 ## pyke_capo
 
@@ -589,89 +589,89 @@ Bones with no geometry of their own: handL, handR.
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 247 | 1.4 | 0.0 | 1.4 | 0.0 | 0.0 | 1.4 | 1.4 | 16.9 |  |
-| spine | slice | 266 | 1.0 | 0.0 | 1.0 | -0.8 | 0.0 | 0.7 | 1.0 | 16.8 |  |
-| chest | slice | 1112 | 0.2 | 0.0 | 0.2 | 0.0 | 0.0 | 0.2 | 0.2 | 15.3 |  |
-| neck | seam | 208 | 7.1 | -0.3 | 7.1 | 0.3 | 0.1 | -7.1 | 7.3 | 1.6 | off 7.1 cm; **outside the mesh** |
-| head | seam | 1573 | 8.2 | 0.8 | 8.2 | 0.3 | 0.3 | 8.2 | 5.2 | 9.0 | off 8.2 cm; off centre line |
-| shoulder.L | seam | 3078 | 13.4 | -1.9 | 13.3 | 2.6 | 3.1 | 12.8 | 13.3 | 4.6 | off 13.4 cm; **outside the mesh** |
-| elbow.L | seam | 248 | 4.9 | 0.2 | 4.9 | -0.7 | -0.2 | 4.8 | 5.8 | 5.7 | **likely misplaced**; off 4.9 cm; **outside the mesh** |
-| wrist.L | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 4.2 | 1.3 | **likely misplaced**; **outside the mesh**; no estimate |
-| shoulder.R | seam | 3178 | 13.0 | -1.5 | 13.0 | -2.4 | 2.5 | 12.6 | 12.9 | 4.9 | off 13.0 cm; **outside the mesh** |
-| elbow.R | seam | 255 | 4.9 | 0.3 | 4.9 | 0.8 | -0.3 | 4.8 | 5.2 | 5.1 | **likely misplaced**; off 4.9 cm; **outside the mesh** |
-| wrist.R | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 4.6 | 1.5 | **likely misplaced**; **outside the mesh**; no estimate |
-| hip.L | seam | 3244 | 10.6 | 8.4 | 6.5 | -4.5 | -8.6 | 4.2 | 8.6 | 10.9 | off 10.6 cm; off centre line |
-| knee.L | seam | 2727 | 11.2 | -5.2 | 9.9 | -2.5 | 5.5 | 9.4 | 5.5 | 12.3 | off 11.2 cm; off centre line |
-| ankle.L | seam | 1063 | 8.0 | -4.9 | 6.3 | 0.7 | 5.2 | 6.1 | 2.0 | 5.8 | off 8.0 cm |
-| hip.R | seam | 3037 | 10.9 | 8.5 | 6.7 | 4.6 | -8.8 | 4.4 | 9.0 | 10.7 | off 10.9 cm; off centre line |
-| knee.R | seam | 2584 | 10.5 | -5.2 | 9.1 | 2.1 | 5.4 | 8.7 | 6.3 | 12.6 | off 10.5 cm; off centre line |
-| ankle.R | seam | 1003 | 8.1 | -4.9 | 6.5 | -0.6 | 5.1 | 6.3 | 2.3 | 6.0 | off 8.1 cm; off centre line |
+| pelvis | slice | 54 | 2.5 | 0.0 | 2.5 | 2.3 | 0.0 | 0.8 | 2.5 | 16.6 |  |
+| spine | slice | 31 | 3.3 | 0.0 | 3.3 | 1.0 | 0.0 | -3.1 | 3.3 | 16.1 | off 3.3 cm |
+| chest | slice | 130 | 1.5 | 0.0 | 1.5 | -1.3 | 0.0 | 0.8 | 1.5 | 14.9 |  |
+| neck | seam | 20 | 7.6 | -0.3 | 7.6 | 0.2 | 0.2 | -7.6 | – | – | off 7.6 cm |
+| head | seam | 109 | 7.9 | 0.7 | 7.8 | 0.6 | 0.2 | 7.8 | 5.7 | 9.0 | off 7.9 cm; off centre line |
+| shoulder.L | seam | 256 | 14.5 | -2.1 | 14.3 | 3.3 | 3.6 | 13.6 | 13.5 | 4.4 | off 14.5 cm; **outside the mesh** |
+| elbow.L | seam | 15 | 5.5 | 0.7 | 5.4 | -1.6 | -0.9 | 5.1 | 4.1 | 3.6 | **likely misplaced**; off 5.5 cm; **outside the mesh** |
+| wrist.L | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| shoulder.R | seam | 260 | 13.4 | -0.8 | 13.4 | -3.3 | 2.1 | 12.9 | – | – | off 13.4 cm |
+| elbow.R | seam | 20 | 5.8 | 0.6 | 5.8 | 1.8 | -0.9 | 5.4 | 4.8 | 2.9 | **likely misplaced**; off 5.8 cm; **outside the mesh** |
+| wrist.R | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| hip.L | seam | 377 | 9.4 | 7.6 | 5.6 | -4.1 | -7.8 | 3.4 | 11.9 | 7.7 | off 9.4 cm; **outside the mesh** |
+| knee.L | seam | 257 | 9.4 | -3.4 | 8.8 | -0.6 | 3.8 | 8.6 | 7.1 | 11.5 | **likely misplaced**; off 9.4 cm; off centre line |
+| ankle.L | seam | 81 | 8.1 | -5.8 | 5.6 | 0.4 | 6.0 | 5.4 | 0.5 | 3.8 | off 8.1 cm |
+| hip.R | seam | 349 | 11.1 | 9.1 | 6.4 | 3.8 | -9.3 | 4.8 | 7.9 | 11.5 | off 11.1 cm; off centre line |
+| knee.R | seam | 217 | 9.7 | -3.6 | 9.0 | 0.8 | 3.9 | 8.9 | 5.0 | 13.2 | off 9.7 cm; off centre line |
+| ankle.R | seam | 73 | 8.4 | -5.6 | 6.2 | -0.6 | 5.8 | 6.0 | 1.0 | 4.5 | off 8.4 cm |
 
 ## wookiee_enforcer
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 178 | 3.3 | 0.0 | 3.3 | -0.1 | 0.0 | -3.3 | 3.3 | 24.3 | off 3.3 cm |
-| spine | slice | 215 | 1.2 | 0.0 | 1.2 | 0.9 | 0.0 | -0.7 | 1.2 | 27.8 |  |
-| chest | slice | 384 | 13.9 | 0.0 | 13.9 | 6.6 | 0.0 | -12.2 | 13.9 | 21.8 | off 13.9 cm; off centre line |
-| neck | seam | 48 | 13.1 | -2.5 | 12.9 | 0.3 | -1.7 | -13.0 | – | – | off 13.1 cm |
-| head | seam | 1491 | 1.2 | -0.9 | 0.9 | -0.6 | -0.9 | -0.7 | 6.4 | 12.3 | off centre line |
-| shoulder.L | seam | 2227 | 15.1 | 2.1 | 15.0 | -0.4 | -2.6 | 14.9 | 13.8 | 9.7 | off 15.1 cm; **outside the mesh** |
-| elbow.L | seam | 1861 | 17.9 | 1.4 | 17.8 | 1.4 | -0.1 | 17.8 | 9.4 | 11.6 | **likely misplaced**; off 17.9 cm; off centre line |
-| wrist.L | seam | 1434 | 12.9 | -2.7 | 12.6 | 5.4 | 5.4 | 10.3 | 12.0 | 11.2 | **likely misplaced**; off 12.9 cm; **outside the mesh** |
-| shoulder.R | seam | 1386 | 16.2 | -2.9 | 16.0 | 0.2 | 2.9 | 16.0 | 15.4 | 9.8 | off 16.2 cm; **outside the mesh** |
-| elbow.R | seam | 1783 | 17.6 | 0.9 | 17.6 | -0.7 | 0.2 | 17.6 | 10.2 | 12.2 | **likely misplaced**; off 17.6 cm; off centre line |
-| wrist.R | seam | 1363 | 13.1 | -2.4 | 12.8 | -5.6 | 5.2 | 10.6 | 12.1 | 11.1 | **likely misplaced**; off 13.1 cm; **outside the mesh** |
-| hip.L | seam | 3993 | 4.7 | 3.4 | 3.2 | 2.7 | -3.2 | -2.1 | 6.2 | 18.9 | off 4.7 cm |
-| knee.L | seam | 1157 | 1.7 | 0.1 | 1.7 | -1.5 | -0.1 | 0.8 | 5.3 | 15.3 |  |
-| ankle.L | seam | 1648 | 13.1 | -6.1 | 11.6 | -3.4 | 6.3 | 10.9 | 7.3 | 12.9 | **likely misplaced**; off 13.1 cm; off centre line |
-| hip.R | seam | 3953 | 4.6 | 3.6 | 2.9 | -2.7 | -3.4 | -1.5 | 6.0 | 18.9 | off 4.6 cm |
-| knee.R | seam | 1078 | 1.8 | 0.2 | 1.8 | 1.3 | -0.2 | 1.3 | 5.6 | 15.2 | off centre line |
-| ankle.R | seam | 1743 | 13.3 | -6.2 | 11.7 | 3.7 | 6.4 | 11.1 | 7.4 | 13.1 | **likely misplaced**; off 13.3 cm; off centre line |
+| pelvis | slice | 30 | 10.5 | 0.0 | 10.5 | 1.9 | 0.0 | -10.4 | 10.5 | 20.3 | off 10.5 cm; off centre line |
+| spine | slice | 22 | 9.6 | 0.0 | 9.6 | 3.9 | 0.0 | -8.8 | 9.6 | 24.4 | off 9.6 cm; off centre line |
+| chest | slice | 64 | 17.9 | 0.0 | 17.9 | 13.3 | 0.0 | -12.0 | 17.9 | 17.3 | off 17.9 cm; **outside the mesh** |
+| neck | none | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | – | – | no estimate |
+| head | seam | 116 | 2.6 | -0.8 | 2.5 | -1.8 | -0.8 | 1.6 | – | – |  |
+| shoulder.L | seam | 192 | 12.2 | -0.1 | 12.2 | 0.3 | 0.2 | 12.2 | – | – | off 12.2 cm |
+| elbow.L | seam | 159 | 17.5 | 2.0 | 17.3 | 2.1 | -0.5 | 17.3 | 8.1 | 9.8 | **likely misplaced**; off 17.5 cm; off centre line |
+| wrist.L | seam | 120 | 12.1 | -2.9 | 11.7 | 5.3 | 5.5 | 9.4 | 11.9 | 10.8 | **likely misplaced**; off 12.1 cm; **outside the mesh** |
+| shoulder.R | seam | 100 | 16.3 | -2.1 | 16.1 | -1.3 | 2.8 | 16.0 | – | – | off 16.3 cm |
+| elbow.R | seam | 125 | 17.0 | -0.1 | 17.0 | -2.3 | 1.8 | 16.7 | 10.7 | 12.1 | **likely misplaced**; off 17.0 cm; off centre line |
+| wrist.R | seam | 113 | 13.5 | -2.4 | 13.3 | -6.6 | 5.5 | 10.4 | 13.4 | 10.5 | **likely misplaced**; off 13.5 cm; **outside the mesh** |
+| hip.L | seam | 447 | 5.0 | 2.6 | 4.2 | 3.3 | -2.4 | -2.9 | 13.5 | 12.8 | off 5.0 cm; **outside the mesh** |
+| knee.L | seam | 119 | 0.9 | -0.8 | 0.4 | -0.4 | 0.8 | 0.1 | 6.3 | 15.4 | off centre line |
+| ankle.L | seam | 124 | 13.1 | -5.8 | 11.7 | -3.9 | 6.0 | 11.0 | 4.6 | 10.8 | off 13.1 cm; off centre line |
+| hip.R | seam | 422 | 5.6 | 5.1 | 2.3 | -2.5 | -4.9 | -1.0 | – | – | off 5.6 cm |
+| knee.R | seam | 114 | 2.5 | -0.4 | 2.5 | 1.9 | 0.4 | 1.6 | 6.8 | 13.9 | off centre line |
+| ankle.R | seam | 146 | 13.2 | -6.6 | 11.5 | 3.9 | 6.8 | 10.7 | 3.7 | 10.5 | off 13.2 cm; off centre line |
 
 ## marshal
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 615 | 2.2 | 0.0 | 2.2 | -0.6 | 0.0 | 2.1 | 2.2 | 9.9 |  |
-| spine | slice | 913 | 3.6 | 0.0 | 3.6 | 3.4 | 0.0 | 1.2 | 3.6 | 16.3 | off 3.6 cm |
-| chest | slice | 696 | 7.6 | 0.0 | 7.6 | 1.5 | 0.0 | -7.4 | 7.6 | 13.6 | off 7.6 cm; off centre line |
-| neck | seam | 359 | 6.5 | 0.3 | 6.5 | 0.6 | 0.7 | -6.4 | 6.7 | 2.1 | off 6.5 cm; **outside the mesh** |
-| head | seam | 3058 | 6.2 | 0.3 | 6.2 | -0.1 | 0.0 | 6.2 | 1.6 | 12.2 | off 6.2 cm |
-| shoulder.L | seam | 2270 | 12.0 | -7.1 | 9.7 | 2.8 | 8.7 | 7.8 | 8.3 | 6.7 | off 12.0 cm; **outside the mesh** |
-| elbow.L | seam | 321 | 7.4 | -0.4 | 7.3 | 0.6 | 1.0 | 7.3 | 5.8 | 6.1 | **likely misplaced**; off 7.4 cm; off centre line |
-| wrist.L | seam | 264 | 1.9 | -0.9 | 1.7 | -1.8 | 0.3 | -0.4 | 2.6 | 4.7 | off centre line |
-| shoulder.R | seam | 1856 | 14.6 | -7.0 | 12.8 | -2.6 | 8.5 | 11.6 | 9.6 | 6.5 | off 14.6 cm; **outside the mesh** |
-| elbow.R | seam | 321 | 7.6 | -0.5 | 7.6 | -0.8 | 1.2 | 7.5 | 5.7 | 6.2 | **likely misplaced**; off 7.6 cm; off centre line |
-| wrist.R | seam | 255 | 1.9 | -0.9 | 1.6 | 1.8 | 0.3 | -0.3 | 2.9 | 4.7 | off centre line |
-| hip.L | seam | 3309 | 7.7 | 0.8 | 7.7 | -7.2 | -1.4 | -2.5 | 8.2 | 7.8 | off 7.7 cm; **outside the mesh** |
-| knee.L | seam | 752 | 0.9 | 0.1 | 0.9 | 0.2 | -0.1 | 0.8 | 0.5 | 7.6 |  |
-| ankle.L | seam | 1963 | 6.8 | -2.7 | 6.2 | -3.3 | 2.8 | 5.2 | 4.6 | 8.0 | **likely misplaced**; off 6.8 cm; off centre line |
-| hip.R | seam | 6589 | 7.0 | 2.8 | 6.4 | 5.7 | -3.3 | -2.4 | 10.6 | 8.2 | off 7.0 cm; **outside the mesh** |
-| knee.R | seam | 2583 | 6.4 | -0.5 | 6.4 | 5.0 | 0.5 | 3.9 | 3.1 | 10.1 | off 6.4 cm |
-| ankle.R | seam | 1976 | 6.7 | -2.6 | 6.1 | 3.3 | 2.6 | 5.1 | 4.7 | 8.1 | **likely misplaced**; off 6.7 cm; off centre line |
+| pelvis | slice | 45 | 0.5 | 0.0 | 0.5 | -0.4 | 0.0 | -0.1 | 0.5 | 7.6 |  |
+| spine | slice | 107 | 7.2 | 0.0 | 7.2 | 3.9 | 0.0 | 6.1 | 7.2 | 14.6 | off 7.2 cm; off centre line |
+| chest | slice | 88 | 9.6 | 0.0 | 9.6 | 4.0 | 0.0 | -8.7 | 9.6 | 12.9 | off 9.6 cm; off centre line |
+| neck | seam | 21 | 6.5 | 0.1 | 6.5 | 0.7 | 0.4 | -6.4 | – | – | off 6.5 cm |
+| head | seam | 244 | 7.0 | 0.4 | 7.0 | -0.2 | 0.0 | 7.0 | 4.2 | 11.8 | off 7.0 cm; off centre line |
+| shoulder.L | seam | 215 | 11.2 | -6.8 | 8.9 | 3.1 | 8.5 | 6.6 | – | – | off 11.2 cm |
+| elbow.L | seam | 22 | 6.4 | -0.4 | 6.4 | 0.5 | 0.9 | 6.3 | 4.1 | 5.6 | **likely misplaced**; off 6.4 cm; off centre line |
+| wrist.L | seam | 23 | 2.0 | -1.0 | 1.7 | -1.5 | 0.6 | -1.1 | 2.4 | 4.8 | off centre line |
+| shoulder.R | seam | 183 | 14.7 | -5.9 | 13.5 | -3.0 | 7.5 | 12.3 | – | – | off 14.7 cm |
+| elbow.R | seam | 16 | 7.9 | -1.4 | 7.8 | -1.0 | 2.2 | 7.5 | 3.3 | 5.3 | **likely misplaced**; off 7.9 cm; off centre line |
+| wrist.R | seam | 28 | 1.7 | -0.8 | 1.5 | 1.7 | 0.3 | 0.0 | 1.2 | 4.7 |  |
+| hip.L | seam | 354 | 9.0 | -1.7 | 8.8 | -8.6 | 0.9 | -2.6 | 9.4 | 7.0 | off 9.0 cm; **outside the mesh** |
+| knee.L | seam | 68 | 1.6 | -0.4 | 1.6 | 1.4 | 0.4 | 0.6 | 0.6 | 7.7 |  |
+| ankle.L | seam | 199 | 6.6 | -2.7 | 6.0 | -3.3 | 2.8 | 5.0 | 4.6 | 7.8 | **likely misplaced**; off 6.6 cm; off centre line |
+| hip.R | seam | 771 | 7.3 | 3.3 | 6.5 | 6.1 | -3.8 | -1.4 | 10.7 | 7.4 | off 7.3 cm; **outside the mesh** |
+| knee.R | seam | 294 | 7.3 | -1.2 | 7.2 | 6.3 | 1.1 | 3.5 | 5.9 | 10.7 | **likely misplaced**; off 7.3 cm; off centre line |
+| ankle.R | seam | 192 | 6.4 | -2.6 | 5.9 | 3.4 | 2.6 | 4.8 | 4.6 | 8.0 | **likely misplaced**; off 6.4 cm; off centre line |
 
 ## fennec
 
 | joint | method | n | offset | along | across | dx | dy | dz | centre | radius | flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| pelvis | slice | 297 | 2.5 | 0.0 | 2.5 | 2.4 | 0.0 | 0.8 | 2.5 | 7.6 |  |
-| spine | slice | 714 | 2.3 | 0.0 | 2.3 | -0.6 | 0.0 | -2.2 | 2.3 | 12.4 |  |
-| chest | slice | 1692 | 2.9 | 0.0 | 2.9 | -0.5 | 0.0 | 2.8 | 2.9 | 12.6 |  |
-| neck | seam | 162 | 7.3 | -1.2 | 7.2 | -1.7 | -0.8 | -7.1 | 6.4 | 1.5 | off 7.3 cm; **outside the mesh** |
-| head | seam | 2134 | 8.2 | 1.7 | 8.0 | -0.1 | 1.2 | 8.1 | 5.2 | 9.8 | off 8.2 cm; off centre line |
-| shoulder.L | seam | 2043 | 7.4 | -0.2 | 7.4 | 0.9 | 0.5 | 7.3 | 8.9 | 3.4 | off 7.4 cm; **outside the mesh** |
-| elbow.L | seam | 471 | 5.2 | 0.7 | 5.2 | -0.3 | -0.5 | 5.2 | 5.3 | 4.1 | **likely misplaced**; off 5.2 cm; **outside the mesh** |
-| wrist.L | seam | 619 | 2.6 | -0.6 | 2.5 | -1.4 | 0.3 | 2.2 | 2.0 | 2.9 | off centre line |
-| shoulder.R | seam | 1934 | 7.0 | -0.6 | 7.0 | -0.5 | 0.8 | 7.0 | 9.7 | 3.1 | off 7.0 cm; **outside the mesh** |
-| elbow.R | seam | 449 | 5.0 | 0.6 | 5.0 | 0.3 | -0.4 | 5.0 | 5.0 | 4.0 | **likely misplaced**; off 5.0 cm; **outside the mesh** |
-| wrist.R | seam | 608 | 2.7 | -0.6 | 2.7 | 1.3 | 0.4 | 2.4 | 1.8 | 2.9 | off centre line |
-| hip.L | seam | 1969 | 9.0 | 6.4 | 6.3 | -5.6 | -6.8 | -1.6 | 5.6 | 8.1 | off 9.0 cm; off centre line |
-| knee.L | seam | 655 | 5.6 | 0.9 | 5.6 | -3.9 | -0.8 | 4.0 | 3.6 | 6.5 | **likely misplaced**; off 5.6 cm; off centre line |
-| ankle.L | seam | 2486 | 7.7 | -3.7 | 6.7 | -6.0 | 3.7 | 3.0 | 6.3 | 6.0 | **likely misplaced**; off 7.7 cm; **outside the mesh** |
-| hip.R | seam | 3465 | 9.4 | 5.9 | 7.3 | 6.6 | -6.4 | -1.7 | 7.4 | 7.2 | off 9.4 cm; **outside the mesh** |
-| knee.R | seam | 599 | 5.6 | 1.1 | 5.5 | 3.9 | -1.1 | 3.9 | 3.6 | 6.5 | **likely misplaced**; off 5.6 cm; off centre line |
-| ankle.R | seam | 2504 | 7.6 | -3.6 | 6.7 | 6.0 | 3.6 | 3.1 | 6.3 | 6.1 | **likely misplaced**; off 7.6 cm; **outside the mesh** |
+| pelvis | slice | 17 | 4.9 | 0.0 | 4.9 | 4.0 | 0.0 | 2.8 | 4.9 | 5.1 | off 4.9 cm; off centre line |
+| spine | slice | 50 | 3.4 | 0.0 | 3.4 | -1.7 | 0.0 | -3.0 | 3.4 | 11.6 | off 3.4 cm |
+| chest | slice | 175 | 3.2 | 0.0 | 3.2 | -1.2 | 0.0 | 3.0 | 3.2 | 12.0 | off 3.2 cm |
+| neck | seam | 13 | 7.8 | -1.1 | 7.7 | -2.6 | -0.7 | -7.3 | – | – | off 7.8 cm |
+| head | seam | 191 | 7.8 | 1.4 | 7.6 | -0.7 | 1.0 | 7.7 | 5.5 | 9.9 | off 7.8 cm; off centre line |
+| shoulder.L | seam | 183 | 7.5 | -0.5 | 7.5 | 1.3 | 1.0 | 7.4 | – | – | off 7.5 cm |
+| elbow.L | seam | 23 | 4.9 | 1.0 | 4.9 | 0.2 | -0.7 | 4.9 | 4.2 | 3.7 | **likely misplaced**; off 4.9 cm; **outside the mesh** |
+| wrist.L | seam | 81 | 2.5 | -0.6 | 2.4 | -1.5 | 0.3 | 1.9 | 1.9 | 2.6 | off centre line |
+| shoulder.R | seam | 162 | 7.3 | -1.3 | 7.2 | -0.9 | 1.6 | 7.1 | 9.4 | 3.1 | off 7.3 cm; **outside the mesh** |
+| elbow.R | seam | 20 | 5.0 | 0.6 | 5.0 | 0.9 | -0.6 | 4.9 | 4.8 | 3.8 | **likely misplaced**; off 5.0 cm; **outside the mesh** |
+| wrist.R | seam | 66 | 2.7 | -0.3 | 2.6 | 1.6 | -0.1 | 2.1 | 2.3 | 2.1 | **likely misplaced**; **outside the mesh** |
+| hip.L | seam | 192 | 9.5 | 6.8 | 6.7 | -5.8 | -7.3 | -1.9 | 6.8 | 7.2 | off 9.5 cm; off centre line |
+| knee.L | seam | 52 | 6.0 | 0.1 | 6.0 | -4.9 | -0.1 | 3.4 | 4.1 | 6.3 | **likely misplaced**; off 6.0 cm; off centre line |
+| ankle.L | seam | 170 | 8.0 | -4.1 | 6.8 | -6.0 | 4.1 | 3.3 | 6.0 | 6.2 | **likely misplaced**; off 8.0 cm; off centre line |
+| hip.R | seam | 308 | 10.4 | 6.8 | 7.8 | 7.1 | -7.4 | -1.7 | 7.5 | 6.8 | off 10.4 cm; **outside the mesh** |
+| knee.R | seam | 31 | 5.1 | 1.2 | 4.9 | 3.8 | -1.2 | 3.2 | 2.6 | 6.1 | off 5.1 cm; off centre line |
+| ankle.R | seam | 182 | 8.0 | -4.1 | 6.9 | 6.1 | 4.0 | 3.2 | 6.2 | 6.4 | **likely misplaced**; off 8.0 cm; off centre line |
 
 ## flametrooper
 
@@ -806,3 +806,64 @@ Bones with no geometry of their own: hips.
 | hip.R | seam | 427 | 21.6 | 19.8 | 8.5 | 5.4 | -20.6 | 3.3 | – | – | off 21.6 cm |
 | knee.R | seam | 71 | 12.6 | -3.7 | 12.0 | 7.3 | 2.9 | 9.8 | 14.1 | 11.4 | **likely misplaced**; off 12.6 cm; **outside the mesh** |
 | ankle.R | seam | 481 | 13.4 | -6.4 | 11.8 | 0.6 | 6.7 | 11.6 | 11.9 | 11.1 | **likely misplaced**; off 13.4 cm; **outside the mesh** |
+
+## Fixing the GLB rigs: feasibility
+
+**Verdict: assisted, yes; fully automatic, no.** A tool can safely *move* the flagged limb joints and re-bind
+the skin to them without touching a single vertex or weight; it should not also re-weight the skin, and a person
+should look at every model it changes before it ships.
+
+**What the audit says.** The pattern is systematic, not random: on nearly every sculpt the elbows, wrists and
+ankles sit 5-10 cm off the limb's centre line (typically behind the elbow, and to one side of the ankle), which is
+what an auto-rigger fitting a template skeleton to an A-pose mesh does. Drawn over the models
+(`show-joints.mjs`) the worst cases are unmistakable: Ventress's elbows and wrists sit in the air beside her
+forearms, the escort droid's, Revan's, the ring enforcer's and the Wookiee's limb joints are 12-22 cm out. The
+measured skeletons also carry a few oddities of their own (see the per-model tables): Boba Fett's spine chain is
+almost all "chest" (spine 5.6 cm, chest 47 cm, neck 6.6 cm, shoulders *below* the chest joint), Din's thigh bone is
+short against his shin (30 cm / 50 cm), several rigs put the hip joints above the pelvis bone (negative hip drop), and
+on Ventress, Embo and both Pykes no vertex is dominated by a hand bone at all.
+
+**What a re-bind involves.** Skinning is `v' = sum_i w_i * J_i * IBM_i * v`, and in the bind pose
+`J_i * IBM_i` is the identity. Moving joint *i* to a better spot means:
+
+1. change that joint node's local translation (bind pose), and give each child the opposite change so the
+   children stay where they are unless they are being moved too;
+2. recompute every affected inverse bind matrix as the inverse of the joint's new bind-pose world matrix
+   (the joint and, because their world matrices did not change, nothing else);
+3. keep every joint's bind *rotation*. `retarget` drives the sculpts by rotation deltas against each bone's
+   rest orientation, so as long as orientations are unchanged no clip, retarget table or shoulder-slide tuning
+   needs re-deriving.
+
+The mesh looks identical in the bind pose after this — only the pivots it bends about move. It is a mechanical
+edit of node translations and one accessor per skin, best done straight on the .glb with glTF-Transform rather
+than a Blender round trip (which would re-export the gltfpack quantisation, texture transforms and the decimated
+topology). It must be made on the originals in `public/models/full/` and the decimation re-run from them
+(`tools/asset-pipeline/decimate.mjs` always decimates from there), keeping the untouched originals aside.
+
+**Which joints to move, and where.** Only the limb joints the audit calls *likely misplaced*, and only
+*across* the limb: to the centre of the limb's cross-section at the joint's current position along it. The
+along-the-limb reading comes from the seam of the existing weights, which the auto-rigger computed *from* the
+misplaced bones, so it is biased toward the old joint and should not drive a move. Shoulders, hips, the neck and
+the spine read too loosely under pauldrons, robes and packs (see the caveats above) to be moved by a tool at all.
+
+**Why not re-weight automatically too.** The current weights were made for the current joints, so after a move
+the bend band stays where it was: good enough for an across-the-limb correction (it mostly removes the
+volume loss and the elbow "hinge behind the arm"), not for a large move along the limb. The obvious next step —
+Blender's automatic (heat) weights on the new skeleton — is where the risk is:
+
+- these sculpts are many-shell, non-manifold meshes (armour plates, belts, pouches, robes, capes), which is where
+  heat weighting fails outright ("failed to find solution for one or more bones") or bleeds between bones;
+- robes and long coats get bridged between the legs, and a pack, holster or pauldron gets smeared across the
+  bones under it — exactly the faults `skinfix`, `rigidpack`, `strays` and `jawrig` were written to
+  repair, and those documents are vertex-indexed and tuned against today's weights, so every one would need
+  re-checking;
+- the workbench grips (shared weapon grips, saber, staff, Boba's rifle, holsters) are stored relative to the hand
+  and hip bones: moving a wrist moves every grip on that hand, and each would need re-placing in the workbench.
+
+**Suggested path.** (1) A script reads `rig-joints.json`, proposes an across-the-limb move per *likely
+misplaced* joint, applies it to a copy of the full-resolution file (translations + IBMs only, weights untouched)
+and re-decimates; (2) a person compares old and new in the workbench on the gait, landing and attack clips and
+the grip views, accepting or rejecting per model; (3) re-run `measure-lod.mjs` so the stand-ins and this audit
+follow; (4) re-weight by hand, in Blender, only the few models where the bend band then visibly sits in the wrong
+place (Ventress, the escort droid, Revan, the ring enforcer and the Wookiee are the candidates). Checks to run
+after each: check-gait, check-landing, test-shared-weapon-grips, test-workbench-weapon-grips, test-parry.

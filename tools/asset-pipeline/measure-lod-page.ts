@@ -713,13 +713,14 @@ function loadHeld(id: string, size: number, opts: { axis?: 'x' | 'y' | 'z' | 'lo
   });
 }
 
-async function measureRigid(id: string, size: number, opts: { axis?: 'x' | 'y' | 'z' | 'longest'; ground?: boolean }, budget: number): Promise<unknown> {
+async function measureRigid(id: string, size: number, opts: { axis?: 'x' | 'y' | 'z' | 'longest'; ground?: boolean }, budget: number,
+  fit: Parameters<typeof fitBoxes>[3] = { accept: 0.95, minFrac: 0.03, trim: 0.004 }): Promise<unknown> {
   const held = await loadHeld(id, size, opts);
   if (!held) return null;
   const cloud = new Cloud();
   eachVertex(held.root, held.holder, (pt, c) => cloud.push(pt, c, 0));
   const ids = cloud.key.map((_, i) => i);
-  const { boxes, q } = fitOriented(cloud, ids, budget, { accept: 0.95, minFrac: 0.03, trim: 0.004 });
+  const { boxes, q } = fitOriented(cloud, ids, budget, fit);
   const turn = q ? q.toArray().map((x) => Math.round(x * 10000) / 10000) : [];
   return { parts: boxes.map((b) => [...b.c.map(mm), ...b.s.map(mm), b.col, ...turn]) };
 }
@@ -892,7 +893,13 @@ async function main(): Promise<void> {
   // the rides, as vehicles.ts fits them
   for (const def of Object.values(VEHICLE_DEFS)) {
     if (!def.modelId || !want(def.modelId) || out.props[def.modelId]) continue;
-    const r = await measureRigid(def.modelId, def.modelSize ?? def.length, { axis: def.modelAxis ?? 'longest', ground: def.modelGround }, 14);
+    // A ride is big, and carries a rider whose seat is found by probing the
+    // body's top (vehicles.ts `seatSurface`), so it gets the full budget: any
+    // cut that trims a little volume is taken, down to small clusters. At a
+    // weapon's settings the swoop came out as six boxes whose top stood a
+    // hand over the real saddle.
+    const r = await measureRigid(def.modelId, def.modelSize ?? def.length, { axis: def.modelAxis ?? 'longest', ground: def.modelGround }, 14,
+      { accept: 0.99, minFrac: 0.01, trim: 0.004 });
     if (r) { out.props[def.modelId] = r; log(`vehicle ${def.modelId}: ${(r as { parts: unknown[] }).parts.length} parts`); }
   }
 
