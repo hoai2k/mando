@@ -459,6 +459,12 @@ export class Player {
    */
   moveYaw: number | null = null;
   /**
+   * The soft-lock cone, as the cosine `aimAssistTarget` needs a target inside,
+   * when a section widens it (K1's twin-stick aim: a stick pointed in the
+   * ground plane is a coarser pointer than a crosshair). Null everywhere else.
+   */
+  aimCone: number | null = null;
+  /**
    * A gameplay section's own way of moving — sliding, flight, a turret seat,
    * a lane-guided bike (§2.3). `adjust` may rewrite the frame's input;
    * `take` may take the whole frame (return true). Null outside a section.
@@ -1028,7 +1034,7 @@ export class Player {
     if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
     this.takenT = TAKEN_TIME;
     this.takenBy.copy(at);
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.cover = null;
     this.velocity.set(0, 0, 0);
     audio.hurt(this.profile.voice);
@@ -1267,7 +1273,7 @@ export class Player {
   }
 
   private die(): void {
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.hp = 0;
     this.alive = false;
     this.deadT = 0;
@@ -2910,7 +2916,8 @@ export class Player {
     for (const v of game.vehicles) {
       // one with a hostile in the saddle is theirs until they are off it;
       // one a hostile is still running for is anyone's — get there first
-      if (!v.alive || v.rider || v.hostile) continue;
+      // K3: a ridden ride with its second seat empty takes a pillion
+      if (!v.alive || v.hostile || (v.rider && !v.pillionOpen)) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
@@ -3487,6 +3494,8 @@ export class Player {
 
   /** Best hostile near the aim direction (dot threshold), for soft-lock. */
   aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+    // a rail section's twin-stick aim widens the cone (see `aimCone`)
+    if (this.aimCone !== null) minDot = Math.min(minDot, this.aimCone);
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();

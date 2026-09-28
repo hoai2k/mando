@@ -111,7 +111,7 @@ reactor itself looming over the tanks as the landmark.
 - **The booth** (SE, on a platform against the plant wall): hold 1 s — every
   searchlight dark for 10 s, 20 s to recharge. The SE patrol stops at its
   steps.
-- **Patrols**: west lane (1), round the middle tank (1), north lane (1, a pair
+- **Patrols**: west lane (1, turning at z 22 so it never sees the party forming at the airlock), round the middle tank (1), north lane (1, a pair
   at 3+), the east lane via the booth (1), a middle-east loop at 2+; two stair
   guards (one watching the lane, one watching the stair with his back to it;
   a deathtrooper at 3+), and a third sentry at 4.
@@ -159,6 +159,19 @@ the yard) and `board.lightAt` while it stands; both are restored on teardown.
 - The behind range: 2.2 m let a guard turn before a lunge from 3 m landed
   (the takedown then read his new facing); 1.8 m plus judging "behind" by his
   calm facing makes it reliable.
+
+## After the merge (2026-09-28)
+
+The radio check in the mechanics suite failed on about three seeds in five on
+the merged branch. The cause was state left over from earlier checks, not the
+other teams' changes: after the takedown the player stood in the stair light
+by the second guard, who spotted him and radioed during the next check, and
+the check's own spot was sometimes swept by a searchlight or a sensor. The
+check now starts from a clean alarm, sends the player back into the dark
+after the takedown, and points the lights away. It also turned up one game
+fix: the west-lane patrol's south turn was about 8 m from the airlock, close
+enough to see the party still forming at the start and trip the alarm, so it
+now turns at z 22.
 
 ## Known issues / left to do
 
