@@ -319,6 +319,28 @@ The roads stay (the sections are additive).
   arena and one hanging back in the vestibule, the arena is still waiting at
   4 s and has re-formed the straggler inside and started by 11 s.
 
+### 15. De-template the pairs — done (the four the item names)
+
+- **Great Forge:** stage A is one glassed valley (`canyon` 70 → 28 m) ending in a
+  16 × 22 m gorge through the dome's broken footing, the vault door at its back;
+  its zones lose their per-zone rims. The Lava Flats keep the rimmed boxes.
+- **Ringworld:** the market arcade is a 16×80 street (`canyon:camp`), kiosks ×6
+  down both sides, the two swoops at the tram stop's end. Rides may now park in
+  a lane at least 60 × 12 m (a street), not only in a 40 m zone or a road.
+- **Lava Flats:** the crust causeway has live lava channels down both edges
+  (`feature: 'lava'` on a road: lengthwise strips laid per 6 m on the ground
+  under them, burning at 26 dps, nothing placed in them).
+- **Crevasse:** every open zone of an interior stage gets a cavern lid at the
+  flight ceiling (mesh and collider) with ice hanging from it (decor); the
+  cracked lake has a 10 m disc of bare ice at its heart (`ZoneSpec.slick`,
+  grip `SLICK_TRACTION` 0.4 through `MissionStage.slickAt` → `board.tractionAt`).
+- **Tests.** Checked by the build audit and screenshots; the Forge canyon and
+  the street are raised by every suite that boots those boards.
+- **Left (per-territory notes the item does not name):** the hatchery's
+  `krykna_brood` sacs, the adobe gate and towers at the Lava Flats' town gate,
+  a street for the cantina row, rises for the ice chimney and the forge steps,
+  and dome-rib props at the Forge's gate (no such model exists).
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in

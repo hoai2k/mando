@@ -24,6 +24,8 @@ export const BACKDROP_H = 2.2;
  * hop at the Spice Run's 0.45 g, not a leap of faith.
  */
 export const DECK_GAP_MAX = 18;
+/** the grip on a zone's slick disc of bare ice (`ZoneSpec.slick`) */
+export const SLICK_TRACTION = 0.4;
 /** how far past an outdoor zone's entry the fight starts */
 export const TRIGGER_IN = 6;
 /** trail posts along any link at least this long, every this many metres */

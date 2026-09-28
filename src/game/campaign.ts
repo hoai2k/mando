@@ -343,6 +343,13 @@ export class Campaign implements MissionController {
         board.tractionAt = (x, z) => (stage.contains(x, z) ? grip : prev ? prev(x, z) : 1);
       }
     }
+    // a stage's own slick ground — the cracked lake's disc of bare ice — goes
+    // over whatever grip the world already has
+    if (stage.slickAt) {
+      const under = board.tractionAt;
+      const slickAt = stage.slickAt;
+      board.tractionAt = (x, z) => slickAt(x, z) ?? (under ? under(x, z) : 1);
+    }
     if (stage.waterY !== undefined) board.waterY = stage.waterY;
 
     // the sea's clock starts full the moment the party goes under

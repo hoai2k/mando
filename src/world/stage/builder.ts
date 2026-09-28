@@ -167,6 +167,8 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
    * treats them as it treats the path; the guidance never sees them.
    */
   const lanes: THREE.Vector3[][] = [];
+  /** the slick discs the zones lay: centre and radius */
+  const slicks: { x: number; z: number; r: number }[] = [];
 
   const removeBoxes = (bs: StaticBox[]): void => {
     const gone = new Set<StaticBox>(bs);
@@ -248,7 +250,7 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
     wallMat, floorMat, hallFloorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
     group,
     boxes, cylinders, hazards, breakables, rects, pickups, defenders, rides, path, blocked,
-    shockStrips, rimGeo, rimAt, backGeo, backAt, lanes,
+    shockStrips, rimGeo, rimAt, backGeo, backAt, lanes, slicks,
     /** a counter for staggering adjacent floor plates (see `EPS`) */
     spaceN: 0,
     /**

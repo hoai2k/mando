@@ -271,8 +271,10 @@ const nevarro: StageSpec[] = [
           { kind: 'speederBike', u: 26, v: -14, yaw: 0 },
         ],
       }),
+      // The crust causeway: a road with live lava down both edges — the one
+      // idea that makes it Nevarro's rather than the Great Forge's highway.
       z('nevarro', 2, {
-        shell: 'road', kind: 'chase', w: 26, l: 72,
+        shell: 'road', kind: 'chase', w: 26, l: 72, feature: 'lava',
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
       // The lieutenant holds the town gate, under the sky. A promoted massiff
@@ -342,7 +344,9 @@ const crevasse: StageSpec[] = [
       z('crevasse', 3, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       // The other one: the ice shelf under the open sky, out of the halls and
       // before the last camp. Two in the game, and this is the second.
-      z('crevasse', 4, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true, siege: true }),
+      // a disc of bare ice at its heart, where the grip goes (and a cavern
+      // roof over it, as over all the deep's open ground)
+      z('crevasse', 4, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true, siege: true, slick: 10 }),
       z('crevasse', 5, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
       z('crevasse', 6, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
     ],
@@ -501,9 +505,17 @@ const forge: StageSpec[] = [
     // and well clear of the Living Waters. Emptiness is this board's whole
     // personality, and fused ground under a ride is the argument for standing
     // the run on it rather than on a plate that only looks like it.
+    //
+    // And it opens in a glassed valley, the way the Dune Sea opens in its
+    // canyon, rather than in the row of rimmed boxes the Lava Flats open in:
+    // two walls of fused ruin a long way off, closing as the run goes, and a
+    // gorge through the dome's broken footing at the far end with the vault
+    // door at the back of it. The two runs were the same beat for beat; this
+    // is the opening that tells them apart (audit item 15).
     kind: 'territory',
     label: TEXT.missions.stages.forge[0],
     anchor: { x: -74, z: -62, dx: 1, dz: 0 },
+    canyon: { from: 70, to: 28, gorge: { w: 16, len: 22 } },
     zones: [
       z('forge', 0, { shell: 'open', kind: 'start', w: 44, l: 50 }),
       // The corral on the glass: the pirates' rides, and the pirates.
@@ -567,18 +579,23 @@ const ringworld: StageSpec[] = [
         shell: 'open', kind: 'start', w: 56, l: 48,
         props: [{ id: 'tram', u: 12, v: 18, size: 12.2, yaw: 0, solid: { r: 1.9, h: 3.4 } }],
       }),
-      // The market arcade is the high street's camp. Two swoops stand outside
-      // the first kiosk with their riders inside it — the tavern steal: the
-      // bikes are at the near edge, the owners are a wall away, and whether
-      // you get one started before they come out is the fight.
+      // The market arcade is a street: sixteen metres between lit facades,
+      // eighty long, kiosks down both sides — the Ringworld's signature shape,
+      // where the Storm Docks' is a pier. Two swoops stand at the tram stop's
+      // end with their riders at the first kiosks — the tavern steal — and a
+      // street is somewhere a swoop has to go. Its far end is the tram
+      // platform.
       z('ringworld', 1, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'crates', alcove: true,
+        shell: 'canyon', kind: 'camp', w: 16, l: 80, feature: 'crates', alcove: true,
         props: [
-          { id: 'street_kiosk', u: 14, v: 10, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 26, v: -9, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 32, v: 8, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 14, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 24, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 36, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 46, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 58, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 68, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
         ],
-        rides: [{ kind: 'swoop', u: 9, v: 12, yaw: 0 }, { kind: 'swoop', u: 10, v: 16, yaw: 0 }],
+        rides: [{ kind: 'swoop', u: 7, v: 2, yaw: 0 }, { kind: 'swoop', u: 7, v: -2, yaw: 0 }],
       }),
       // The night-side row was the run's fifth dead-end canyon assault. It is
       // not folded into the arcade before it, because the Tram Top section is

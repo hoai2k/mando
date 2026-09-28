@@ -1,6 +1,6 @@
 import type { Board } from '../board';
 import type { MissionSpec, MissionStage } from '../mission';
-import { SHOCK_CYCLE, SHOCK_CHARGE_AT, SHOCK_LIVE_AT, SHOCK_DPS } from './common';
+import { SHOCK_CYCLE, SHOCK_CHARGE_AT, SHOCK_LIVE_AT, SHOCK_DPS, SLICK_TRACTION } from './common';
 import { createStageBuilder } from './builder';
 import { layZones } from './zones';
 import { layCanyon } from './canyon';
@@ -17,7 +17,7 @@ import { validateSpots, layWater, stageTeardown } from './finish';
  */
 export function buildStage(board: Board, spec: MissionSpec, index: number, beat0 = 0): MissionStage {
   const b = createStageBuilder(board, spec, index, beat0);
-  const { stage, defenders, pickups, rides, path, rects, shockStrips, floorY, ceilingY, groundAt } = b;
+  const { stage, defenders, pickups, rides, path, rects, shockStrips, floorY, ceilingY, groundAt, slicks } = b;
 
   // The phases run in the order the one function ran them in, and that order
   // is load-bearing: the seeded dice are drawn as each phase goes, and each
@@ -44,6 +44,9 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
     zones, defenders, pickups, starts, rides, path,
     exitPortal, backPortal,
     floorY, ceilingY, waterY, groundAt,
+    slickAt: slicks.length
+      ? (x: number, z: number) => (slicks.some((d) => Math.hypot(x - d.x, z - d.z) < d.r) ? SLICK_TRACTION : undefined)
+      : undefined,
     contains, dispose,
     tick: (time: number) => {
       for (const s of shockStrips) {

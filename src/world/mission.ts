@@ -165,6 +165,11 @@ export interface ZoneSpec {
    * 10); a gap you jet across is its verb.
    */
   plates?: { n: number; gap: number; rise: number[] };
+  /**
+   * A disc of bare ice this wide (radius, metres) at the zone's centre, where
+   * the grip drops to `SLICK_TRACTION` — the cracked lake's traction disc.
+   */
+  slick?: number;
   /** hall: a gallery along the left wall this high, with steps up to it */
   gallery?: number;
   /** trek: posted sentries who raise the alarm rather than hold ground */
@@ -356,6 +361,8 @@ export interface MissionStage {
   groundAt(x: number, z: number): number;
   /** a local water plane, where the stage has one */
   waterY?: number;
+  /** grip at a spot, where the stage lays its own (a slick disc); undefined elsewhere */
+  slickAt?(x: number, z: number): number | undefined;
   /** is this x,z over the stage's walkable footprint? */
   contains(x: number, z: number): boolean;
   /** give the board back everything this stage put in it */
