@@ -105,6 +105,10 @@ const DUEL = `async ({ kind, dist, windup, force = false, playerSwing = true, lu
     T.step();
     const clip = p.char.animator?.playing?.('upper');
     if (clip && /parry|FlipOut/i.test(clip)) out.parryClip = clip;
+    // what the hostile threw, and what the player did
+    const ec = e.char.animator?.playing?.('upper');
+    if (ec && !(out.eClips ??= []).includes(ec)) out.eClips.push(ec);
+    if (clip && !(out.pClips ??= []).includes(clip)) out.pClips.push(clip);
   }
   delete p.nearestEnemy;
   out.enemyHurt = +(hp0 - e.hp).toFixed(1);
@@ -117,8 +121,8 @@ const DUEL = `async ({ kind, dist, windup, force = false, playerSwing = true, lu
 }`;
 const duel = (o) => page.evaluate(`(${DUEL})(${JSON.stringify(o)})`);
 
-// ---- steel on steel: Paz's gaffi into a Tusken's swing ----
-await match(['paz']);
+// ---- steel on steel: IG-11's force pike into a Tusken's swing ----
+await match(['ig11']);
 {
   const r = await duel({ kind: 'tusken', dist: 1.5, windup: true });
   check('steel meets steel: a parry', r.log.includes('clash:steel'), r);
@@ -198,6 +202,26 @@ await match(['din']);
   check('the darksaber cuts through a gaffi\'s parry', kind === 'sabers' && r.log.includes('cut') && r.enemyHurt > 0, { kind, ...r });
   const r2 = await duel({ kind: 'rivalRevan', dist: 1.4, windup: true });
   check('the darksaber meets a saber: a parry', r2.log.includes('clash:saber'), r2);
+}
+
+// ---- bare hands: a brawler's fists and feet, and the gunfighters who brawl ----
+await match(['paz']);
+{
+  const r = await duel({ kind: 'tusken', dist: 1.15, windup: false, frames: 80 });
+  check('a brawler\'s punch lands, with no blade to parry or be parried', r.enemyHurt > 0 && !r.log.length
+    && r.pClips?.some((c) => /^fist/.test(c)), r);
+}
+for (const kind of ['fennec', 'marshal', 'gunslinger']) {
+  // up against the player, a gunfighter throws a punch or a kick
+  const r = await duel({ kind, dist: 1.1, windup: false, playerSwing: false, frames: 150 });
+  check(`a ${kind} walked up on brawls`, r.eClips?.some((c) => /^(fist|kick)/.test(c)) && r.playerHurt > 0, r);
+}
+
+// the pirate brawler, played: no gun, so the heavy button leaps in, landing a kick
+await match(['npc:pirateMelee']);
+{
+  const r = await duel({ kind: 'tusken', dist: 6, windup: false, lunge: true, heavy: true, frames: 100 });
+  check('a bare-handed heavy lunge lands a kick', r.enemyHurt > 0 && r.pClips?.some((c) => /^kick/.test(c)), r);
 }
 
 // ---- the clash sounds decode ----

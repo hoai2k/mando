@@ -38,6 +38,7 @@ export interface Pose {
 
 const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'idle', name: 'Idle', lower: 'idleLower', upper: 'idleUpper' },
+  { rig: 'humanoid', id: 'walk', name: 'Walk', lower: 'walkLower', upper: 'walkUpper' },
   { rig: 'humanoid', id: 'run', name: 'Run', lower: 'runLower', upper: 'runUpper' },
   { rig: 'humanoid', id: 'sprint', name: 'Sprint', lower: 'sprintLower', upper: 'runUpper', rate: 1.35 },
   { rig: 'humanoid', id: 'strafe', name: 'Strafe — right', lower: 'strafeLower', upper: 'aimUpper' },

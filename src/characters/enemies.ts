@@ -196,7 +196,7 @@ export function buildPyke(authored = true): CharacterInstance {
   return inst;
 }
 
-// ---------- Space pirate: rough leathers, pauldron, rifle or fists ----------
+// ---------- Space pirate: rough leathers, pauldron, rifle or bare fists ----------
 export function buildPirate(melee: boolean, authored = true): CharacterInstance {
   const leather = mat(0x5c4632, { rough: 0.95 });
   const shirt = mat(0x6e6250, { rough: 0.95 });
@@ -210,16 +210,8 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   addSphere(b.head, dark, 0.02, -0.05, 0.06, 0.11, 5, 4);
   addSphere(b.head, dark, 0.02, 0.05, 0.06, 0.11, 5, 4);
   for (let i = 0; i < 4; i++) addCyl(b.head, skinM, 0.01, 0.025, 0.09, -0.06 + i * 0.04, 0.16, -0.04, -0.5, 0, 0, 5);
-  if (melee) {
-    const club = new THREE.Group();
-    addCyl(club, dark, 0.025, 0.03, 0.7);
-    addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
-    club.rotation.x = Math.PI / 2;
-    b.weaponR.add(club);
-    mountEnemyProp(club, 'pirate_boarding_club', WEAPON_PROPS.pirate_boarding_club.length, Math.PI / 2, 0, 0.14);
-  } else {
-    inst.muzzle = rifle(b.weaponR);
-  }
+  // the brawler fights with his fists: nothing in his hands
+  if (!melee) inst.muzzle = rifle(b.weaponR);
   // The blaster sculpt has a face on both sides. Use the healthy pirate
   // brawler body as a temporary skin; the gun stays a separate hand prop.
   authoredEnemy(inst, rig, melee ? 'pirateMelee' : 'pirate', authored);

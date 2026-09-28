@@ -3,7 +3,9 @@ import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
 import { counterweightTracks } from '../anim/counterweight';
 import { spearTestClips } from './spearTests';
-import { UNARMED_STUDIES, unarmedStudyClips } from './unarmedStudies';
+import { RUN_ALTERNATES, runStudyClips } from './runStudies';
+import { UNARMED_MOVES, unarmedClips } from '../anim/unarmed';
+import { combatStyle, PACE as pace, WEIGHT as weight, type CombatStyle } from '../characters/combatStyle';
 
 /** Original game clips stay intact. Each study is a separate workbench clip. */
 export interface Alternate {
@@ -11,7 +13,7 @@ export interface Alternate {
   name: string;
   lower: string;
   upper: string;
-  reference: 'spear' | 'staff' | 'saber' | 'close' | 'unarmed';
+  reference: 'spear' | 'staff' | 'saber' | 'close' | 'unarmed' | 'run';
 }
 
 export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
@@ -40,24 +42,15 @@ export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
     { id: 'enemyShort', name: 'Compact counterstrike', lower: 'enemyShortLower', upper: 'enemyShortUpper', reference: 'close' },
     { id: 'enemyDrive', name: 'Committed driving strike', lower: 'enemyDriveLower', upper: 'enemyDriveUpper', reference: 'close' },
   ],
-  // every unarmed study after the first in its slot, which is the pose's own
-  ...Object.fromEntries((['unarmed1', 'unarmed2', 'unarmed3'] as const).map((slot) => [slot,
-    UNARMED_STUDIES.filter((s) => s.slot === slot).slice(1).map((s): Alternate => ({
-      id: s.id, name: s.name, lower: `${s.id}Lower`, upper: `${s.id}Upper`, reference: 'unarmed',
+  run: RUN_ALTERNATES,
+  // every unarmed move after the first in its step, which is the pose's own
+  ...Object.fromEntries(([1, 2, 3] as const).map((slot) => [`unarmed${slot}`,
+    UNARMED_MOVES.filter((m) => m.slot === slot).slice(1).map((m): Alternate => ({
+      id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'unarmed',
     }))])),
 };
 
-export type CombatStyle = 'measured' | 'heavy' | 'agile' | 'mechanical' | 'hunter';
-const STYLE: Record<string, CombatStyle> = {
-  din: 'measured', paz: 'heavy', bokatan: 'agile', armorer: 'heavy',
-  ventress: 'agile', jedi: 'measured', maul: 'agile', revan: 'measured', embo: 'agile', bossk: 'hunter', duelist: 'measured', ig11: 'mechanical',
-  tusken: 'hunter', pirateMelee: 'heavy', alamite: 'hunter', officer: 'measured', enforcer: 'heavy',
-  droid: 'mechanical', darktrooper: 'mechanical', escortDroid: 'mechanical',
-  fennec: 'agile', marshal: 'measured', gunslinger: 'measured',
-};
-export const combatStyle = (id: string): CombatStyle => STYLE[id] ?? 'measured';
-const pace: Record<CombatStyle, number> = { measured: 1, heavy: 1.18, agile: 0.84, mechanical: 1.05, hunter: 1.08 };
-const weight: Record<CombatStyle, number> = { measured: 1, heavy: 1.18, agile: 0.88, mechanical: 1.06, hunter: 1.08 };
+export { combatStyle, type CombatStyle };
 
 type A = [number, number, number];
 type Bone = 'chest' | 'head' | 'upperArmR' | 'forearmR' | 'handR' | 'upperArmL' | 'forearmL' | 'handL'
@@ -251,7 +244,8 @@ export function combatStudyClips(
     if (move.id.startsWith('saber') && !weapons.sabers) continue;
     addMove(out, enemyMove(move, character), p, style);
   }
-  Object.assign(out, unarmedStudyClips(p, pace[style]));
+  Object.assign(out, unarmedClips(p, pace[style]));
+  Object.assign(out, runStudyClips(p));
   return out;
 }
 

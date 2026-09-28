@@ -72,6 +72,8 @@ const SUITES = [
   { name: 'test-airplay', weight: 152 },
   { name: 'test-monsters', weight: 143 },
   { name: 'test-workbench-weapon-grips', weight: 136 },
+  { name: 'test-workbench-moment-edits', weight: 60 },
+  { name: 'test-walk', weight: 50 },
   { name: 'test-loading', weight: 134 },
   { name: 'test-loadout', weight: 131 },
   { name: 'test-saber-ownership', weight: 130 },

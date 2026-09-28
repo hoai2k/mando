@@ -487,7 +487,7 @@ export const TEXT = {
     ranged: {
       carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
     },
-    melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' },
+    melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers', fists: 'Fists' },
     /**
      * A signature weapon the HUD names for itself rather than by its slot:
      * a staff other than the gaffi, or a single saber rather than a pair.

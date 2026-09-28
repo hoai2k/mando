@@ -1,6 +1,6 @@
-import type { ClipSet } from '../anim/clips';
-import type { Proportions } from '../anim/skeleton';
-import { build, hipsAt, legs, LUNGE, reach, SET, WIDE, type Key, type Legs, type Limb, type V3 } from '../anim/clipKit';
+import type { ClipSet } from './clips';
+import type { Proportions } from './skeleton';
+import { build, hipsAt, legs, LUNGE, reach, SET, WIDE, type Key, type Legs, type Limb, type V3 } from './clipKit';
 
 /**
  * Bare-handed strikes, drawn the way fight films stage them: every blow is
@@ -13,27 +13,48 @@ import { build, hipsAt, legs, LUNGE, reach, SET, WIDE, type Key, type Legs, type
  * on the standing foot, and the spinning and jumping forms that turn the whole
  * body through the strike.
  *
- * Every clip is a preview (no fighter throws them yet) and puts contact at
- * 45% of the clip, the melee controller's hit frame, so any of them can drop
- * into a combo step. The stance is orthodox: left foot and fist lead.
+ * Every clip puts contact at 45% of the clip, the melee controller's hit
+ * frame, so any of them drops into a combo step. The stance is orthodox: left
+ * foot and fist lead. Each is built at a standard pace and played faster or
+ * slower for each fighter's cadence (`combatStyle.ts`), so bodies that share
+ * a clip set share these too.
  */
 
-type Slot = 'unarmed1' | 'unarmed2' | 'unarmed3';
+/** the combo step a move is thrown as: two punches, then a kick to finish */
+export type UnarmedSlot = 1 | 2 | 3;
+export interface UnarmedMove {
+  slot: UnarmedSlot;
+  id: string;
+  name: string;
+  upper: string;
+  lower: string;
+  /** struck with a foot: the contact sweeps the legs as well as the hands */
+  kick: boolean;
+}
 
-/** every study by the pose it plays under; the first in each slot is the pose's own */
-export const UNARMED_STUDIES: ReadonlyArray<{ slot: Slot; id: string; name: string }> = [
-  { slot: 'unarmed1', id: 'fistCross', name: 'Wound-up cross' },
-  { slot: 'unarmed1', id: 'fistHaymaker', name: 'Haymaker' },
-  { slot: 'unarmed1', id: 'fistSuperman', name: 'Superman punch' },
-  { slot: 'unarmed1', id: 'fistUppercut', name: 'Rising uppercut' },
-  { slot: 'unarmed2', id: 'fistHook', name: 'Lead hook' },
-  { slot: 'unarmed2', id: 'fistBackfist', name: 'Spinning backfist' },
-  { slot: 'unarmed2', id: 'fistElbow', name: 'Horizontal elbow' },
-  { slot: 'unarmed3', id: 'kickRoundhouse', name: 'Roundhouse kick' },
-  { slot: 'unarmed3', id: 'kickSpinHook', name: 'Spinning hook kick' },
-  { slot: 'unarmed3', id: 'kickPush', name: 'Push kick' },
-  { slot: 'unarmed3', id: 'kickTornado', name: 'Jumping tornado kick' },
+const move = (slot: UnarmedSlot, id: string, name: string): UnarmedMove =>
+  ({ slot, id, name, upper: `${id}Upper`, lower: `${id}Lower`, kick: id.startsWith('kick') });
+
+/** every move by its combo step; the first in each step is the workbench pose's own */
+export const UNARMED_MOVES: readonly UnarmedMove[] = [
+  move(1, 'fistCross', 'Wound-up cross'),
+  move(1, 'fistHaymaker', 'Haymaker'),
+  move(1, 'fistSuperman', 'Superman punch'),
+  move(1, 'fistUppercut', 'Rising uppercut'),
+  move(2, 'fistHook', 'Lead hook'),
+  move(2, 'fistBackfist', 'Spinning backfist'),
+  move(2, 'fistElbow', 'Horizontal elbow'),
+  move(3, 'kickRoundhouse', 'Roundhouse kick'),
+  move(3, 'kickSpinHook', 'Spinning hook kick'),
+  move(3, 'kickPush', 'Push kick'),
+  move(3, 'kickTornado', 'Jumping tornado kick'),
 ];
+
+/** One of a combo step's moves, at random — or of all of them, for a lone strike. */
+export function pickUnarmed(slot?: UnarmedSlot): UnarmedMove {
+  const pool = slot ? UNARMED_MOVES.filter((m) => m.slot === slot) : UNARMED_MOVES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 /**
  * Limbs are placed by where the fist or foot goes, not by joint angles: a fist
@@ -53,8 +74,8 @@ const G_CHEST: V3 = [4, 5, 0], G_HIPS: V3 = [3, -25, 0], G_HEAD: V3 = [-2, 18, 0
 /** the rear knee folded, heel up: weight on the lead foot */
 const LOADED: Legs = { upperLegL: [-18, 0, 5], lowerLegL: [26, 0, 0], upperLegR: [14, 0, -6], lowerLegR: [30, 0, 0] };
 
-/** The unarmed poses' clips, each study's upper and lower, at this fighter's pace. */
-export function unarmedStudyClips(p: Proportions, pace: number): ClipSet {
+/** Every move's upper and lower clip, solved on these proportions, at a pace (1 is standard). */
+export function unarmedClips(p: Proportions, pace = 1): ClipSet {
   const out: ClipSet = {};
   const add = (id: string, dur: number, at: number[],
     upper: Record<string, Key[]>, lower: Record<string, Key[]>, hips: V3[]): void => {
@@ -140,12 +161,12 @@ export function unarmedStudyClips(p: Proportions, pace: number): ClipSet {
       chest: [G_CHEST, [16, -20, -6], [8, 0, 0], [-10, 22, 0], [-12, 24, 0], G_CHEST],
       head: [G_HEAD, [-10, 34, 0], [0, 10, 0], [10, -26, 0], [12, -28, 0], G_HEAD],
       ...arm('R', GUARD_R, [[-0.25, -0.4, 0.1], [-0.3, 0, -1]], [[-0.2, -0.2, 0.3], [-0.3, -1, -0.3]],
-        [[-0.2, 0.12, 0.32], [0, -1, 0.5]], [[-0.15, 0.3, 0.28], [0, -1, 0.5]], GUARD_R),
+        [[-0.18, 0.12, 0.42], [0, -1, 0.5]], [[-0.14, 0.3, 0.36], [0, -1, 0.5]], GUARD_R),
       ...arm('L', GUARD_L, TUCK_L, TUCK_L, TUCK_L, TUCK_L, GUARD_L),
     }, {
       hips: [G_HIPS, [8, -30, 0], [4, -10, 0], [-2, 18, 0], [-2, 20, 0], G_HIPS],
       ...legs(SET, WIDE, SET, SET, SET, SET),
-    }, hipsAt(p, [0.04, 0], [0.16, -0.02], [0.08, 0.04], [-0.02, 0.08], [-0.01, 0.08], [0.04, 0]));
+    }, hipsAt(p, [0.04, 0], [0.16, -0.02], [0.08, 0.08], [-0.02, 0.16], [-0.01, 0.16], [0.04, 0]));
   }
 
   // ---------------------------------------------------------------- slot 2
@@ -198,7 +219,7 @@ export function unarmedStudyClips(p: Proportions, pace: number): ClipSet {
     }, {
       hips: [G_HIPS, [3, -34, 0], [5, -5, 0], [6, 18, 0], [6, 20, 0], G_HIPS],
       ...legs(SET, LOADED, LUNGE, LUNGE, LUNGE, SET),
-    }, hipsAt(p, [0.04, 0], [0.07, -0.03], [0.08, 0.04], [0.09, 0.08], [0.09, 0.08], [0.04, 0]));
+    }, hipsAt(p, [0.04, 0], [0.07, -0.03], [0.08, 0.08], [0.09, 0.16], [0.09, 0.16], [0.04, 0]));
   }
 
   // ---------------------------------------------------------------- slot 3

@@ -219,6 +219,7 @@ export const saberScaleFor = (id: string): number =>
  * when it is the common gaffi or a pair of sabers, which go by their slot.
  */
 export function signatureMeleeProp(id: MandoId): WeaponPropId | null {
+  if (meleeKinds(id)[0] === 'fists') return null;
   if (meleeKinds(id)[0] === 'gaffi') {
     const staff = staffPropFor(id);
     return staff === 'gaffi' ? null : staff;
@@ -234,6 +235,7 @@ export function signatureMeleeProp(id: MandoId): WeaponPropId | null {
  * blade is a single Darksaber and not the slot's "Twin Sabers".
  */
 export function meleeNameFor(id: MandoId, kind: MeleeKind): string {
+  if (kind === 'fists') return MELEE_NAMES.fists;
   const key = kind === 'gaffi'
     ? weaponProp(staffPropFor(id)).name
     : SABER_STYLES[saberStyleFor(id)].name ?? weaponProp(SABER_STYLES[saberStyleFor(id)].prop).name;
@@ -284,14 +286,14 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     ...TEXT.characters.paz,
     group: 'mando',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
-    staffProp: 'force_pike',
+    melee: 'fists',
   },
   bokatan: {
     ...TEXT.characters.bokatan,
     group: 'mando',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
     voice: 'mando_f',
-    staffProp: 'force_pike',
+    melee: 'fists',
   },
   armorer: {
     ...TEXT.characters.armorer,
@@ -361,7 +363,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     group: 'hunter',
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
-    staffProp: 'rey_staff',
+    melee: 'fists',
     voice: 'masked',
   },
   bossk: {
@@ -370,7 +372,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
     voice: 'reptile', amphibious: true,
-    staffProp: 'nightsister_polearm',
+    melee: 'fists',
   },
   duelist: {
     ...TEXT.characters.duelist,
@@ -378,7 +380,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
     voice: 'alien_m', acrobat: true,
-    staffProp: 'rey_staff',
+    melee: 'fists',
   },
   ig11: {
     ...TEXT.characters.ig11,
@@ -612,7 +614,12 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     if (blades.has(kind)) continue;
     let main: THREE.Group;
     let offhand: THREE.Group | null = null;
-    if (kind === 'sabers') {
+    if (kind === 'fists') {
+      // nothing in the hand: an empty mount, so the swing measures the
+      // fists themselves (`fistSegments`) rather than a weapon's meshes
+      main = new THREE.Group();
+      main.name = 'fists';
+    } else if (kind === 'sabers') {
       main = makeSaber(silver, dark, { style: saberStyle });
       main.name = 'saberHandR';
       // Both blades carry their own soft light so a thrown off-hand saber
