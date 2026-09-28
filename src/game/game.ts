@@ -12,6 +12,9 @@ import { isDuelist, type Duelist } from './melee';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
+import { SaberLights } from '../fx/saberLights';
+import { config } from '../config';
+import { litSaberCount } from '../characters/mandalorians';
 import { audio } from '../core/audio';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
@@ -46,7 +49,7 @@ const BLANK_INPUT: FrameInput = {
   dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
   zoomDelta: 0, blockHeld: false, pausePressed: false,
-  meleeSwapPressed: false, rangedSwapPressed: false,
+  meleeSwapPressed: false, rangedSwapPressed: false, interactHeld: false,
 };
 
 export interface GameEvents {
@@ -164,6 +167,9 @@ export const BIG_BODY_R = 1.1;
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
+  /** the lights player sabers borrow; sized once, when the match is made */
+  saberLights!: SaberLights;
+  private litBlades: THREE.Object3D[] = [];
   enemies: Enemy[] = [];
   allies: Enemy[] = [];
   /** rides parked around the board (PLAN.md §17) */
@@ -268,6 +274,13 @@ export class Game {
    */
   ceilingY: number | null = null;
   /**
+   * One camera for the whole party, full screen, in place of the split
+   * (docs/SECTIONS_IMPLEMENTATION.md §3, K1). Only a rail section sets it —
+   * a lane narrow enough that nobody can be walled out of the shot — and the
+   * campaign clears it when the section's stage comes down.
+   */
+  sharedView: { camera: THREE.PerspectiveCamera } | null = null;
+  /**
    * How high a carrier pass flies over its drop. The wave game's 38 m; a
    * mission level raises it clear of the ceiling so the squad falls *through*
    * the cut rather than being clamped on the way in.
@@ -341,6 +354,8 @@ export class Game {
       this.scene.add(p.char.root);
       this.players.push(p);
     }
+    this.saberLights = new SaberLights(this.scene,
+      this.players.reduce((n, p) => n + litSaberCount(p.characterId), 0), config.video.saberLights);
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
@@ -1154,6 +1169,7 @@ export class Game {
    */
   dispose(): void {
     this.disposed = true;
+    this.saberLights.dispose();
     audio.stopAmbient();
     audio.stopMusic();
     audio.stopJetpacks();
@@ -1950,7 +1966,13 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
 
-    const n = this.humans;
+    // the saber lights go where the blades are this frame, before any view is drawn
+    this.litBlades.length = 0;
+    for (const p of this.players) p.litBlades(this.litBlades);
+    this.saberLights.sync(this.litBlades);
+
+    const shared = this.sharedView;
+    const n = shared ? 1 : this.humans;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to
@@ -1958,10 +1980,20 @@ export class Game {
     const surfaceFog = this.scene.fog;
     const surfaceBg = this.scene.background;
     const wY = this.board.waterY;
+    // One shadow pass a frame, however many views. The sun is fixed to the
+    // board, so its shadow map is the same for every player's camera — but
+    // left on `autoUpdate` the renderer redrew it inside every render() call,
+    // and in split-screen that second pass was half of all the triangles the
+    // frame drew (desert, two players: 1.19 M of 2.39 M). The renderer clears
+    // `needsUpdate` itself once it has drawn the maps, so asking once here
+    // draws them for the first view and lets the others reuse them.
+    const autoShadows = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const viewer = this.players[i];
-      const cam = viewer.cam.camera;
+      const cam = shared ? shared.camera : viewer.cam.camera;
       cam.aspect = vw / vh;
       cam.updateProjectionMatrix();
       renderer.setViewport(vx, vy, vw, vh);
@@ -1982,11 +2014,12 @@ export class Game {
       // split-screen shares one scene: done per viewport, each player's own
       // camera steadies their own body without touching anyone else's view.
       const ride = viewer.cam.shakeOffset;
-      const shaking = ride.lengthSq() > 0;
+      const shaking = !shared && ride.lengthSq() > 0;
       if (shaking) viewer.char.root.position.add(ride);
       renderer.render(this.scene, cam);
       if (shaking) viewer.char.root.position.sub(ride);
     }
+    renderer.shadowMap.autoUpdate = autoShadows;
     this.scene.fog = surfaceFog;
     this.scene.background = surfaceBg;
     // Hand the renderer back the whole canvas. The viewport is renderer state,

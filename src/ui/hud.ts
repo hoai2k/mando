@@ -32,6 +32,8 @@ interface PlayerHud {
   objMark: SVGElement;
   objLabel: HTMLElement;
   exited: HTMLElement;
+  /** a gameplay section's meters and status line (docs/SECTIONS_IMPLEMENTATION.md §2.3) */
+  section: HTMLElement;
   vignette: HTMLElement;
   crosshair: SVGElement;
   radar: Radar;
@@ -121,6 +123,7 @@ export class Hud {
         <div class="hurt-arc"><svg viewBox="0 0 120 120"><path d="M60 6 A54 54 0 0 1 98 22" fill="none" stroke="#ff4a36" stroke-width="8" stroke-linecap="round" transform="rotate(-22 60 60)"/></svg></div>
         <div class="hud-objective"><svg class="obj-mark" viewBox="0 0 24 24"><path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="#ffcf6a" stroke-width="2.4" stroke-linejoin="round"/><path class="obj-arrow" d="M12 4 L20 16 L12 12 L4 16 Z" fill="#ffcf6a" opacity="0"/></svg><div class="obj-label"></div></div>
         <div class="hud-exited"></div>
+        <div class="hud-section"></div>
       `;
       this.layer.appendChild(root);
       const radar = new Radar();
@@ -146,6 +149,7 @@ export class Hud {
         objMark: root.querySelector('.obj-mark') as SVGElement,
         objLabel: root.querySelector('.obj-label') as HTMLElement,
         exited: root.querySelector('.hud-exited') as HTMLElement,
+        section: root.querySelector('.hud-section') as HTMLElement,
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
         crosshair: root.querySelector('.crosshair') as SVGElement,
         hitTimer: 0,
@@ -335,6 +339,35 @@ export class Hud {
     h.objLabel.textContent = name ? `${name} · ${d} m` : `${d} m`;
   }
 
+  /**
+   * A gameplay section's panel: a title, up to three bars and a line. Built
+   * as markup only when what it says changes, so a panel that holds still
+   * costs nothing a frame.
+   */
+  private updateSection(h: PlayerHud, slot: number, game: Game): void {
+    const sh = game.campaign?.sectionHud?.(slot) ?? null;
+    if (!sh) {
+      if (h.section.dataset.key) { h.section.innerHTML = ''; h.section.dataset.key = ''; }
+      h.section.classList.remove('show');
+      return;
+    }
+    const bars = sh.bars ?? [];
+    const key = `${sh.title ?? ''}|${sh.line ?? ''}|${bars.map((b) => `${b.label}:${b.tone ?? ''}`).join(',')}`;
+    if (h.section.dataset.key !== key) {
+      h.section.dataset.key = key;
+      const esc = (t: string): string => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+      h.section.innerHTML = (sh.title ? `<div class="sec-title">${esc(sh.title)}</div>` : '')
+        + bars.map((b) => `<div class="sec-bar ${b.tone ?? 'info'}"><div class="sec-label">${esc(b.label)}</div><div class="sec-track"><div class="sec-fill"></div></div></div>`).join('')
+        + (sh.line ? `<div class="sec-line">${esc(sh.line)}</div>` : '');
+    }
+    const fills = h.section.querySelectorAll<HTMLElement>('.sec-fill');
+    bars.forEach((b, k) => {
+      const f = fills[k];
+      if (f) f.style.transform = `scaleX(${Math.max(0, Math.min(1, b.value))})`;
+    });
+    h.section.classList.add('show');
+  }
+
   update(dt: number, game: Game): void {
     if (this.transitionTimer > 0) {
       this.transitionTimer -= dt;
@@ -437,6 +470,7 @@ export class Hud {
         ? '' : boss?.alive && top === boss.bossName ? '' : top;
       h.kills.textContent = game.hudScoreLine(p);
       this.updateObjective(h, p, game);
+      this.updateSection(h, i, game);
       h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 

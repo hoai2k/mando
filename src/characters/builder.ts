@@ -309,6 +309,14 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
  * an FX mesh (white-hot core in two red sheaths), lives in its own subgroup so
  * an authored hilt swap leaves it alone, and casts no shadow.
  */
+/** What a lit blade asks `SaberLights` for (see `makeSaber`). */
+export interface SaberLightSpec {
+  color: number;
+  intensity: number;
+  /** where along the blade the light sits, blade-local Y */
+  y: number;
+}
+
 export function makeSaber(
   mHilt: THREE.Material,
   mDark: THREE.Material,
@@ -397,15 +405,22 @@ export function makeSaber(
     body.add(opposite);
     g.userData.oppositeBlade = opposite;
   }
-  // Each lit blade carries its own soft pool. Paired hilts use less intensity
-  // each so their pools overlap naturally while held, then separate on throw.
-  // The Darksaber is a dark silhouette and emits no light.
+  // A lit blade casts a soft pool of its own colour — but it does not carry a
+  // light. It says what light it would cast, and `SaberLights` (fx) lends it
+  // one from a fixed pool while it is out and in play. A light per blade meant
+  // the scene's light count moved every time a saber was drawn, stowed or
+  // thrown, and every change of count recompiles every material in the
+  // scene: a second-long freeze, measured, each time the count was new.
+  // Paired hilts ask for less each, so their pools overlap naturally while
+  // held and separate on a throw. The Darksaber is a dark silhouette and asks
+  // for nothing.
   if (opts.light !== false && !darksaber) {
     const paired = tonfa || white || opts.style === 'red';
-    const light = new THREE.PointLight(tonfa || white ? 0xddefff : 0xff3a24, paired ? 1.8 : 3.0, 5.5, 2);
-    light.position.y = BLADE_LEN * 0.45;
-    light.castShadow = false;
-    blade.add(light);
+    blade.userData.saberLight = {
+      color: tonfa || white ? 0xddefff : 0xff3a24,
+      intensity: paired ? 1.8 : 3.0,
+      y: BLADE_LEN * 0.45,
+    } satisfies SaberLightSpec;
   }
   // Measured at the generator caps of the fitted authored hilts. Their
   // origins and curved shafts differ; placing every blade at Y=.06 buried

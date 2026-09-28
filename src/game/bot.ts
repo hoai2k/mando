@@ -43,7 +43,7 @@ const blank = (): FrameInput => ({
   jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false,
   shootHeld: false, aimHeld: false, meleePressed: false, rocketPressed: false,
   zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
-  meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false,
+  meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false, interactHeld: false,
 });
 
 /** shortest signed way round from `a` to `b` */

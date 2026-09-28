@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { collectLitBlades } from '../fx/saberLights';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
@@ -24,6 +25,7 @@ import { ThrownSaber } from './saberthrow';
 import { updateInCover } from './cover';
 import { updateRiding } from './riding';
 import { reachArm } from '../anim/seating';
+import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
@@ -450,6 +452,19 @@ export class Player {
   exited = false;
   /** they pressed cancel this frame; the campaign walks them back out */
   cancelExit = false;
+  /**
+   * The heading the stick is read against, when it is not the camera's
+   * (docs/SECTIONS_IMPLEMENTATION.md §2.3). A rail section's camera does not
+   * turn with the player, so "up" on the stick is set to mean along the rail.
+   * Null everywhere else.
+   */
+  moveYaw: number | null = null;
+  /**
+   * A gameplay section's own way of moving — sliding, flight, a turret seat,
+   * a lane-guided bike (§2.3). `adjust` may rewrite the frame's input;
+   * `take` may take the whole frame (return true). Null outside a section.
+   */
+  sectionMove: SectionMove | null = null;
   hp = 100;
   maxHp = 100;
   /** PvP: respawns left; other modes never read it */
@@ -1092,6 +1107,12 @@ export class Player {
    * hatchling → broodmother on growth — and how a respawn walks a morphed
    * player back to the fighter they picked.
    */
+  /** Every blade this player holds or has thrown that asks for a light (see `SaberLights`). */
+  litBlades(out: THREE.Object3D[]): void {
+    collectLitBlades(this.char.root, out);
+    if (this.throwFx) collectLitBlades(this.throwFx, out);
+  }
+
   morph(id: PlayableId, game: Game): void {
     this.restoreMats();   // any dissolve clones belong to the body being shed
     // A thrown saber belongs to the old body and its old hilt style. Retire
@@ -1492,12 +1513,17 @@ export class Player {
     this.updateEggRack(dt);
     this.tickTimers(dt);
     this.updateAim(input, game);
+    const sm = this.sectionMove;
+    if (sm) {
+      if (sm.adjust) input = sm.adjust(this, dt, input, game);
+      if (sm.take?.(this, dt, input, game, realDt)) { this.queuedHipShot = false; return; }
+    }
     if (this.updateVehicle(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
     if (this.updateCover(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
     if (this.updateWater(dt, input, game, realDt)) { this.queuedHipShot = false; return; }
 
-    // ---- movement basis from camera yaw ----
-    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
+    // ---- movement basis from camera yaw (or the section's, see `moveYaw`) ----
+    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.moveYaw ?? this.cam.yaw);
     const wishX = fwdX * input.moveY + rightX * input.moveX;
     const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
     const wishLen = Math.hypot(wishX, wishZ);

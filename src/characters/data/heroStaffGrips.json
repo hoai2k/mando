@@ -1,9 +1,133 @@
 {
   "format": "mando-authored-weapon-grips/3",
-  "exportedAt": "2026-09-27T20:13:47.168Z",
+  "exportedAt": "2026-09-28T18:25:51.621Z",
   "units": "grip position and quaternion are local to the named authored hand or hip mount; weaponScales are uniform multipliers about that attachment origin, shared across poses",
-  "note": "Embo and IG-11 staff grips from the workbench weapon choice (Quarterstaff, Force pike), sampled in melee1 and shared by every pose of that staff.",
+  "note": "Hand grips for the staffs heroes carry in their gaffi slot, picked in the workbench weapon choice and sampled in melee1; each holds for every pose of that staff.",
   "entries": [
+    {
+      "character": "boba_fett",
+      "pose": "melee1",
+      "weapon": "right: gaffi_collection",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        0.021535,
+        -0.197732,
+        0.022454
+      ],
+      "editedQuaternion": [
+        0.0408313,
+        -0.1453994,
+        0.0245868,
+        -0.9882243
+      ]
+    },
+    {
+      "character": "bokatan",
+      "pose": "melee1",
+      "weapon": "right: force_pike",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.009959,
+        -0.312248,
+        0.039923
+      ],
+      "editedQuaternion": [
+        0.0603846,
+        0.1577431,
+        0.0158705,
+        -0.9855044
+      ]
+    },
+    {
+      "character": "bossk",
+      "pose": "melee1",
+      "weapon": "right: nightsister_polearm",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.007458,
+        -0.280036,
+        0.070557
+      ],
+      "editedQuaternion": [
+        -0.0065725,
+        0.9891382,
+        -0.13968,
+        -0.0452977
+      ]
+    },
+    {
+      "character": "duelist",
+      "pose": "melee1",
+      "weapon": "right: rey_staff",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 0.95,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        -0.007618,
+        -0.200638,
+        -0.043673
+      ],
+      "editedQuaternion": [
+        0.9978425,
+        -0.063175,
+        -0.0033811,
+        0.0175448
+      ]
+    },
     {
       "character": "embo",
       "pose": "melee1",
@@ -64,6 +188,37 @@
         -0.4564775,
         0.065172,
         -0.8831523
+      ]
+    },
+    {
+      "character": "paz",
+      "pose": "melee1",
+      "weapon": "right: force_pike",
+      "attachment": "hand",
+      "side": "right",
+      "parent": "weaponMount",
+      "sampleFraction": 1,
+      "basePosition": [
+        0,
+        0,
+        0
+      ],
+      "baseQuaternion": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "editedPosition": [
+        0.028281,
+        -0.452624,
+        0.209504
+      ],
+      "editedQuaternion": [
+        0.2000535,
+        -0.0497826,
+        0.0137487,
+        -0.9784228
       ]
     }
   ],

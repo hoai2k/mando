@@ -1,6 +1,7 @@
 import { TEXT } from '../text';
 import type { BoardId } from './board';
-import type { MissionSpec, ZoneSpec, StageSpec } from './mission';
+import type { MissionSpec, ZoneSpec, StageSpec, SectionId } from './mission';
+import { BUILT_SECTIONS } from '../sections/ids';
 
 /**
  * The nine authored runs (docs/MISSIONS_OUTDOOR.md §3).
@@ -641,6 +642,116 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
 };
 
 /**
+ * Where the gameplay sections go (docs/SECTIONS_IMPLEMENTATION.md §1).
+ *
+ * Each entry puts section stages in front of the territory's stage `before`
+ * (an index into the list as authored above), so the authored runs stay
+ * exactly as they are and the sections are inserted between them. A section's
+ * two ends are built to match the doors either side of it: the stage before
+ * leaves by a transport door, the section begins just inside it, and it ends
+ * in whatever the next stage begins with.
+ *
+ * A section stage has no zones and no links — its module in `src/sections/`
+ * builds and runs the whole of it — and its boundaries are one-way.
+ */
+interface SectionPlace {
+  /** insert the sections in front of this authored stage */
+  before?: number;
+  /**
+   * …or cut authored stage `stage` in two after zone `after` (its transport
+   * door is laid at that zone's far end) and put the sections in the cut. The
+   * second half is labelled `label` on the transition card. A single-stage run
+   * — the Storm Docks, the Ringworld — has nowhere else for a section to go.
+   * The cut is only made when a section that goes in it is built, so with
+   * sections off the run is exactly the authored one.
+   */
+  split?: { stage: number; after: number; label: string };
+  ids: SectionId[];
+}
+
+const SECTION_PLACEMENT: Record<BoardId, SectionPlace[]> = {
+  // the cistern's far airlock → a skiff landing, the barge → grounded in worm country → the pit
+  desert: [{ before: 2, ids: ['barge-run', 'worm-sign'] }],
+  // the outer yard's collar door → the frigate's hull → docks at the vault;
+  // the loading gantry's airlock → the ring's hull → the crew catwalks
+  station: [{ before: 1, ids: ['frigate-guns'] }, { before: 2, ids: ['ring-walk'] }],
+  // the magistrate court → the lava tunnels → the magma chamber → up to the glass fields
+  nevarro: [{ before: 2, ids: ['magma-run', 'chimney'] }],
+  // the nest mouth's door → the chute → the dark at the bottom → the queen tunnel
+  crevasse: [{ before: 1, ids: ['glacier-chute', 'lamplight'] }],
+  // one stage, cut after the trawler deck: the trawler casts off into the
+  // squall, and the far pier is where the mamacore wakes and chases you in
+  trask: [{ split: { stage: 0, after: 5, label: TEXT.missions.stages.trask[1] }, ids: ['squall', 'run-the-pier'] }],
+  // the intake door → the processing line → the plant; the plant's rear airlock → the tank farm
+  refinery: [{ before: 1, ids: ['the-line'] }, { before: 2, ids: ['lights-out'] }],
+  // the armoury vault → the covert forge → up its shaft into the sky → the dome's breach
+  forge: [{ before: 2, ids: ['hold-the-forge', 'covert-sky'] }],
+  // one stage, cut twice: the arcade's far end is a tram platform, and the
+  // plaza's way on is the fire stair the mark bolts up
+  ringworld: [
+    { split: { stage: 0, after: 1, label: TEXT.missions.stages.ringworld[1] }, ids: ['tram-top'] },
+    { split: { stage: 0, after: 5, label: TEXT.missions.stages.ringworld[2] }, ids: ['mark-runs'] },
+  ],
+  // surfacing into the cell blocks → the stair core → the work floor; the lift → the top decks
+  narkina: [{ before: 2, ids: ['one-way-out'] }, { before: 3, ids: ['the-lift'] }],
+};
+
+/** which territory each section is placed in, for the tests and the `?section=` flag */
+export const SECTION_BOARD: Partial<Record<SectionId, BoardId>> = Object.fromEntries(
+  (Object.entries(SECTION_PLACEMENT) as [BoardId, { ids: SectionId[] }[]][])
+    .flatMap(([board, places]) => places.flatMap((pl) => pl.ids.map((id) => [id, board]))));
+
+/** a section stage: no zones, no links — its module builds and runs it */
+function section(id: SectionId): StageSpec {
+  return { kind: 'section', section: id, label: TEXT.sections[id].stage, zones: [], links: [] };
+}
+
+/**
+ * Which section stages a run carries.
+ *
+ * A section stays out of the run until its module is built and registered
+ * (`sections/ids.ts`), so the placement can hold the whole plan while the
+ * work is in progress. `?sections=off` leaves every section out — the runs as
+ * they were before sections, which the older suites test, and the way back if
+ * a section misbehaves in play.
+ */
+function sectionsOff(): boolean {
+  try {
+    // the older test suites set this before the page loads (tools/harness.mjs)
+    if ((window as unknown as { __sectionsOff?: boolean }).__sectionsOff) return true;
+    return new URLSearchParams(window.location.search).get('sections') === 'off';
+  } catch { return false; }
+}
+{
+  const off = sectionsOff();
+  for (const [board, spec] of Object.entries(MISSION_LAYOUTS) as [BoardId, MissionSpec][]) {
+    if (off) continue;
+    const places = SECTION_PLACEMENT[board];
+    const built = (pl: SectionPlace): SectionId[] => pl.ids.filter((id) => BUILT_SECTIONS.has(id));
+    const out: StageSpec[] = [];
+    spec.stages.forEach((stage, i) => {
+      for (const place of places) {
+        if (place.before === i) for (const id of built(place)) out.push(section(id));
+      }
+      // cut the chain wherever a built section goes into it
+      const cuts = places.filter((pl) => pl.split?.stage === i && built(pl).length)
+        .sort((a, b) => a.split!.after - b.split!.after);
+      let from = 0;
+      let label = stage.label;
+      for (const cut of cuts) {
+        const after = cut.split!.after;
+        out.push({ ...stage, label, zones: stage.zones.slice(from, after + 1), links: stage.links.slice(from, after) });
+        for (const id of built(cut)) out.push(section(id));
+        from = after + 1;
+        label = cut.split!.label;
+      }
+      out.push(from === 0 ? stage : { ...stage, label, zones: stage.zones.slice(from), links: stage.links.slice(from) });
+    });
+    spec.stages = out;
+  }
+}
+
+/**
  * Every beat needs a name, and the two lists are written in different files:
  * a beat the layout has and the text does not would be announced to the
  * player as "beat 7". Caught here, at load, by walking both.
@@ -652,6 +763,7 @@ for (const [board, spec] of Object.entries(MISSION_LAYOUTS)) {
     console.warn(`[mission] ${board}: ${beats} beats but ${names} names in TEXT.missions.rooms`);
   }
   for (const stage of spec.stages) {
+    if (stage.kind === 'section') continue;
     if (stage.links.length !== stage.zones.length - 1) {
       console.warn(`[mission] ${board} stage "${stage.label}": ${stage.zones.length} zones want ${stage.zones.length - 1} links, has ${stage.links.length}`);
     }

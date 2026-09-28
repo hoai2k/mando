@@ -58,8 +58,16 @@ export interface CameraConfig {
  */
 export type SplitMode = 'stacked' | 'columns';
 
+/**
+ * Whether player sabers light their surroundings. They are a nicety, not
+ * something play depends on: `auto` keeps them on unless the frame rate says
+ * the machine cannot afford them, and then turns them off for the session.
+ */
+export type SaberLightMode = 'auto' | 'on' | 'off';
+
 export interface VideoConfig {
   split: SplitMode;
+  saberLights: SaberLightMode;
 }
 
 export interface Config {
@@ -72,7 +80,7 @@ export interface Config {
 export const config: Config = {
   input: { keyboardMouse: false, lookSensitivity: 1, invertY: false },
   camera: { dynamic: true },
-  video: { split: 'stacked' },
+  video: { split: 'stacked', saberLights: 'auto' },
   audio: {
     // The buses run at the ceiling: `master` and `music` at unity, with SFX
     // holding the same one-third balance under the score they always had (a
@@ -161,6 +169,9 @@ export function loadSavedConfig(): void {
     const raw = localStorage.getItem(VIDEO_STORE);
     const saved = raw ? JSON.parse(raw) as Partial<VideoConfig> : null;
     if (saved && (saved.split === 'stacked' || saved.split === 'columns')) config.video.split = saved.split;
+    if (saved && (saved.saberLights === 'auto' || saved.saberLights === 'on' || saved.saberLights === 'off')) {
+      config.video.saberLights = saved.saberLights;
+    }
   } catch {
     // same
   }
