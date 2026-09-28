@@ -23,6 +23,6 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
  */
 export const SECTION_ASSETS: Partial<Record<SectionId, string[]>> = {
   chimney: ['valve_wheel'],
-  'the-lift': ['freight_lift_pylon'],
+  'the-lift': ['freight_lift'],
   'one-way-out': ['alarm_console'],
 };

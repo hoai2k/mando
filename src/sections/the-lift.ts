@@ -8,6 +8,7 @@ import { buildStormtrooper } from '../characters/enemies';
 import { Treadmill, type ConveyorItem } from './kit/treadmill';
 import { Interactions } from './kit/interact';
 import { composeMoves } from './kit/moves';
+import { loadOptionalTexture } from '../core/assets';
 
 /**
  * The Lift (docs/LEVEL_SECTIONS.md §2.18) — the Prison Rig, after the work
@@ -93,7 +94,8 @@ function build(ctx: SectionContext): SectionInstance {
   const darkMat = ctx.paint(0x2c3136, { rough: 0.6, metal: 0.5 });
   const panelMat = (rx: number, ry: number): THREE.MeshStandardMaterial => {
     const m = ctx.paint(spec.palette.wall, { rough: 0.7, metal: 0.15 });
-    ctx.tile(m, 'panel_white', rx, ry);
+    // the requested shaft wall (docs/ASSETS_IMAGES.md) when it lands; the rig's white panel until then
+    tilePreferred(ctx, m, 'shaft_wall', 'panel_white', rx, ry);
     return m;
   };
   const landingMat = ctx.paint(0x6a737c, { rough: 0.55, metal: 0.55 });
@@ -120,42 +122,54 @@ function build(ctx: SectionContext): SectionInstance {
     ctx.box(cx, cy, cz, sx, sy, sz, null).box;
 
   // ================================================================ the platform
-  // Static, the whole ride. Deck, the two rails, the pylon, the guide rails.
-  ctx.box(0, Y0 - 0.4, 0, PLAT * 2, 0.8, PLAT * 2, deckMat);
-  // the underside's girders, seen from the landings
-  const under = new THREE.Group();
-  ctx.mesh(under);
-  for (const x of [-4, 0, 4]) slab(under, darkMat, x, Y0 - 1.3, 0, 0.6, 1.2, PLAT * 2);
-  slab(under, darkMat, 0, Y0 - 2.2, 0, 3, 1.2, 3);
-  // the rails: waist-high on the west (−z) and pylon (+x) sides
+  // Static, the whole ride. The colliders are the deck, the two rails and
+  // the pylon; what you see is the `freight_lift` sculpt (docs/ASSETS_MODELS.md:
+  // 12 × 12 m, rails on two sides, the pylon in a corner, origin at the deck's
+  // centre) or, until it lands, this stand-in built to the same spec.
   const railZ = -PLAT + 0.1, railX = PLAT - 0.1;
-  ctx.box(0, Y0 + RAIL_H / 2, railZ, PLAT * 2, RAIL_H, 0.2, railMat);
-  ctx.box(railX, Y0 + RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2, railMat);
-  for (let i = -PLAT; i <= PLAT; i += 3) {
-    ctx.box(i, Y0 + RAIL_H / 2, railZ, 0.14, RAIL_H, 0.14, darkMat);
-    ctx.box(railX, Y0 + RAIL_H / 2, i, 0.14, RAIL_H, 0.14, darkMat);
-  }
-  // hazard striping along the two open edges
+  const pylonAt = new THREE.Vector3(PLAT - 1.1, Y0, -PLAT + 1.1);
+  solid(0, Y0 - 0.4, 0, PLAT * 2, 0.8, PLAT * 2);
+  solid(0, Y0 + RAIL_H / 2, railZ, PLAT * 2, RAIL_H, 0.2);
+  solid(railX, Y0 + RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2);
+  ctx.cyl(pylonAt.x, Y0 + 1.1, pylonAt.z, 0.6, 2.2, null);
   const stripe = ctx.paint(0xe0b030, { rough: 0.6 });
   ctx.tile(stripe, 'hazard_stripe', 12, 1);
-  ctx.box(0, Y0 + 0.02, PLAT - 0.3, PLAT * 2, 0.06, 0.6, stripe);
-  ctx.box(-PLAT + 0.3, Y0 + 0.02, 0, 0.6, 0.06, PLAT * 2, stripe);
-  // the control pylon, in the rails' corner
-  const pylonAt = new THREE.Vector3(PLAT - 1.1, Y0, -PLAT + 1.1);
-  const pylonLight = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.08), accentMat);
-  ctx.prop('freight_lift_pylon', pylonAt, {
-    size: 2.4,
+  ctx.prop('freight_lift', new THREE.Vector3(0, Y0, 0), {
+    size: 12,
     fallback: () => {
       const g = new THREE.Group();
-      slab(g, darkMat, 0, 1.1, 0, 0.9, 2.2, 0.9);
-      slab(g, railMat, 0, 2.3, 0, 1.1, 0.2, 1.1);
-      pylonLight.position.set(-0.35, 1.5, 0.46);
-      pylonLight.rotation.y = -Math.PI / 4;
-      g.add(pylonLight);
+      // stand-in parts are laid out relative to the deck's centre
+      slab(g, deckMat, 0, -0.4, 0, PLAT * 2, 0.8, PLAT * 2);
+      // the underside's girders, seen from the landings
+      for (const x of [-4, 0, 4]) slab(g, darkMat, x, -1.3, 0, 0.6, 1.2, PLAT * 2);
+      slab(g, darkMat, 0, -2.2, 0, 3, 1.2, 3);
+      // the rails: waist-high on the west (−z) and pylon (+x) sides
+      slab(g, railMat, 0, RAIL_H / 2, railZ, PLAT * 2, RAIL_H, 0.2);
+      slab(g, railMat, railX, RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2);
+      for (let i = -PLAT; i <= PLAT; i += 3) {
+        slab(g, darkMat, i, RAIL_H / 2, railZ, 0.14, RAIL_H, 0.14);
+        slab(g, darkMat, railX, RAIL_H / 2, i, 0.14, RAIL_H, 0.14);
+      }
+      // hazard striping along the two open edges
+      slab(g, stripe, 0, 0.02, PLAT - 0.3, PLAT * 2, 0.06, 0.6);
+      slab(g, stripe, -PLAT + 0.3, 0.02, 0, 0.6, 0.06, PLAT * 2);
+      // the control pylon, in the rails' corner
+      const pylon = new THREE.Group();
+      pylon.name = 'pylon';
+      pylon.position.set(pylonAt.x, 0, pylonAt.z);
+      slab(pylon, darkMat, 0, 1.1, 0, 0.9, 2.2, 0.9);
+      slab(pylon, railMat, 0, 2.3, 0, 1.1, 0.2, 1.1);
+      g.add(pylon);
       return g;
     },
   });
-  ctx.cyl(pylonAt.x, Y0 + 1.1, pylonAt.z, 0.6, 2.2, null);
+  // the pylon's state lamp: blue running, red when the power is cut (kept
+  // outside the sculpt, so it lights whichever body is standing)
+  const pylonLight = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.08), accentMat);
+  ctx.own(pylonLight.geometry);
+  pylonLight.position.set(pylonAt.x - 0.35, Y0 + 1.5, pylonAt.z + 0.46);
+  pylonLight.rotation.y = -Math.PI / 4;
+  ctx.mesh(pylonLight);
   // The guide rails: two ribbed columns the platform runs on, in the rails'
   // outer corners, running the height of the shaft. They are the one piece
   // of the shaft that never ends in view, so they are a strip (K2): a static
@@ -313,6 +327,11 @@ function build(ctx: SectionContext): SectionInstance {
   topSlab(0, (mZ0 - TOP_R) / 2, TOP_R * 2, TOP_R + mZ0);
   topSlab((mX1 + TOP_R) / 2, (mZ0 + mZ1) / 2, TOP_R - mX1, mZ1 - mZ0);
   topSlab((mX0 - TOP_R) / 2, (mZ0 + mZ1) / 2, TOP_R + mX0, mZ1 - mZ0);
+  // On the gate side the deck runs in over the shaft to the landings' lip,
+  // like every landing below it: the lift stops level with it and a bridge
+  // plate runs out across the last gap (see `update`).
+  topSlab(0, (PLAT + GAP + mZ1) / 2, PLAT * 2 + 2, mZ1 - (PLAT + GAP));
+  slab(top, accentMat, 0, 0.03, PLAT + GAP + 0.15, PLAT * 2 + 2, 0.05, 0.2);
   // the mouth's lit coaming, so the edge reads from below
   for (const [cx, cz, sx, sz] of [
     [midX, mZ0 + 0.3, mX1 - mX0, 0.6], [midX, mZ1 - 0.3, mX1 - mX0, 0.6],
@@ -370,6 +389,13 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.tile(sea.material as THREE.MeshStandardMaterial, 'sea_surface', 60, 60);
   const topItem = mill.conveyor(top, { behind: TRAVEL + 400, boxes: topBoxes });
   void topItem;
+
+  // the bridge plate's mesh, slid out when the lift stops at the top
+  const bridge = new THREE.Mesh(unit, deckMat);
+  bridge.scale.set(PLAT * 2 - 1, 0.4, 0.01);
+  bridge.position.set(0, Y0 - 0.2, PLAT + GAP);
+  bridge.visible = false;
+  ctx.mesh(bridge);
 
   // light: a lamp on the platform, a cold sky above the shaft
   const lamp = new THREE.PointLight(0xfff0d0, 30, 26, 1.4);
@@ -492,7 +518,7 @@ function build(ctx: SectionContext): SectionInstance {
 
   const postFinale = (): void => {
     finalePosted = true;
-    const kinds = ctx.squadFor(ctx.wave + 3, Math.min(8, 3 + party), { debut: true });
+    const kinds = ctx.squadFor(ctx.wave + 3, Math.min(7, 2 + party), { debut: true });
     const spots = [[-8, 18], [8, 18], [-3, 22], [3, 22], [-14, 14], [14, 14], [0, 24], [-6, 24]];
     kinds.forEach((kind, i) => {
       const [x, z] = spots[i % spots.length];
@@ -556,7 +582,12 @@ function build(ctx: SectionContext): SectionInstance {
         if (restartT <= 0) phase = 'ride';
         break;
       case 'arriving':
-        if (mill.stopped) phase = 'top';
+        if (mill.stopped) {
+          phase = 'top';
+          // the bridge plate runs out from the deck to the platform
+          ctx.box(0, Y0 - 0.2, PLAT + GAP / 2, PLAT * 2 - 1, 0.4, GAP + 0.2, null);
+          bridge.visible = true;
+        }
         break;
       default:
         break;
@@ -638,6 +669,10 @@ function build(ctx: SectionContext): SectionInstance {
       doorL.position.x = Math.max(-4.4, doorL.position.x - dt * 3);
       doorR.position.x = Math.min(4.4, doorR.position.x + dt * 3);
       gateLamp.material = accentMat;
+    }
+    if (bridge.visible && bridge.scale.z < GAP + 0.2) {
+      bridge.scale.z = Math.min(GAP + 0.2, bridge.scale.z + dt * 3);
+      bridge.position.z = PLAT + GAP - bridge.scale.z / 2 + 0.1;
     }
     // the sky opens as the mouth comes down
     const toTop = top.position.y - Y0;
@@ -820,10 +855,32 @@ function build(ctx: SectionContext): SectionInstance {
     },
     debug: () => ({
       phase, travelled: +mill.travelled.toFixed(2), speed: +mill.speed.toFixed(3), stopIdx,
-      breakers: breakerDone, gateOpen, finale: finale.filter((e) => e.alive).length,
+      breakers: [...breakerDone], gateOpen, finale: finale.filter((e) => e.alive).length,
       wallY: +shaft.position.y.toFixed(2), topY: +top.position.y.toFixed(2),
     }),
   };
+}
+
+/**
+ * Dress a material with a requested texture that may not exist yet, and a
+ * stand-in tileable that does: the requested one wins whenever it lands, and
+ * the stand-in is only ever worn until it does (`ctx.tile` twice would race).
+ */
+export function tilePreferred(ctx: SectionContext, m: THREE.MeshStandardMaterial, want: string, fallback: string,
+  rx: number, ry: number): void {
+  let won = false, gone = false, lit = false;
+  ctx.own({ dispose() { gone = true; } });
+  const wear = (mine: boolean) => (tex: THREE.Texture): void => {
+    if (gone || (won && !mine)) return;
+    if (mine) won = true;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(rx, ry);
+    m.map = tex;
+    if (!lit) { lit = true; m.color.lerp(new THREE.Color(0xffffff), 0.7); }
+    m.needsUpdate = true;
+  };
+  loadOptionalTexture(fallback, wear(false), { exts: ['jpg', 'png'] });
+  loadOptionalTexture(want, wear(true), { exts: ['jpg', 'png'] });
 }
 
 /** a ribbed guide-rail texture: dark metal with a bright rib every repeat */

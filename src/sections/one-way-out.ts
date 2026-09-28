@@ -140,9 +140,10 @@ function build(ctx: SectionContext): SectionInstance {
   const floorMat = ctx.paint(0xdfe6ea, { rough: 0.5, metal: 0.2 });
   const gridTex = makeGridTexture();
   ctx.own(gridTex);
-  gridTex.repeat.set(COLS, ROWS);
+  // the grid proper is rows 1..8: one repeat per 4 m tile
+  gridTex.repeat.set(COLS, ROWS - 1);
   floorMat.map = gridTex;
-  ctx.tile(floorMat, 'shock_tile', COLS, ROWS);
+  ctx.tile(floorMat, 'shock_tile', COLS, ROWS - 1);
   const apronMat = ctx.paint(0x9aa6ae, { rough: 0.6, metal: 0.3 });
   ctx.tile(apronMat, 'metal_deck', 6, 1);
   const steelMat = ctx.paint(0x4d565e, { rough: 0.5, metal: 0.6 });
