@@ -15,6 +15,8 @@
 interface ImportMetaEnv {
   /** URL of the guest-list / log endpoint. Empty or absent leaves the door open. */
   readonly VITE_GATE_ENDPOINT?: string;
+  /** Vite's own: true under `npm run dev` (the manual's "Skip section") */
+  readonly DEV: boolean;
 }
 
 interface ImportMeta {

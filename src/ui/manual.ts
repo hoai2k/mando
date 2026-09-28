@@ -4,6 +4,38 @@ import { MenuScreen } from './menus';
 import { makeStage } from './stage';
 
 /**
+ * The job page: what the stage the party stands on wants of them, for a
+ * player who is stuck and cannot tell how it is meant to work.
+ */
+export interface ManualBrief {
+  /** the section's or stage's name */
+  title: string;
+  /** one line: what finishes it */
+  goal: string;
+  steps: string[];
+  tips: string[];
+  /** development only: offer to skip this section (a stuck build, a bug) */
+  onSkip?: () => void;
+}
+
+const esc = (t: string): string => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** the job, set as a field order: the goal, the steps in order, the notes beside */
+function briefPage(b: ManualBrief): string {
+  const list = (xs: string[], tag: 'ol' | 'ul'): string => `<${tag}>${xs.map((x) => `<li>${esc(x)}</li>`).join('')}</${tag}>`;
+  return `
+    <div class="m-brief">
+      <div class="m-brief-title">${esc(b.title)}</div>
+      <div class="m-brief-goal">${esc(b.goal)}</div>
+      <div class="m-brief-cols">
+        <div class="m-brief-steps"><b>${TEXT.controls.briefSteps}</b>${list(b.steps, 'ol')}</div>
+        ${b.tips.length ? `<div class="m-brief-tips"><b>${TEXT.controls.briefTips}</b>${list(b.tips, 'ul')}</div>` : ''}
+      </div>
+    </div>
+    <div class="m-foot">${TEXT.controls.briefFoot}</div>`;
+}
+
+/**
  * The controls sheet as a field manual (docs/UI_CONCEPTS.md, round 6): a page
  * of aged paper with the controller drawn in ink and its buttons called out,
  * and two more pages behind it — riding, and the keyboard. The page tabs are
@@ -67,7 +99,7 @@ function tablePage(rows: Array<[string, string]>, extra: Array<[string, string]>
     <div class="m-foot">${note}</div>`;
 }
 
-export function buildManual(screen: MenuScreen, onBack: () => void): void {
+export function buildManual(screen: MenuScreen, onBack: () => void): { open(b: ManualBrief | null): void } {
   const T = TEXT.controls;
   screen.root.classList.add('fe-screen', 'fe-manual');
   const stage = makeStage(screen.root);
@@ -81,31 +113,53 @@ export function buildManual(screen: MenuScreen, onBack: () => void): void {
     </div>`;
   const sheet = stage.querySelector('.m-sheet') as HTMLElement;
   sheet.style.backgroundImage = tex('ui_paper_aged.jpg');
+  let brief: ManualBrief | null = null;
   const pages = [
-    padPage(),
-    tablePage(T.driving, [], T.saddleNote),
-    tablePage(T.keyboard, T.always, T.keyboardNote),
+    (): string => (brief ? briefPage(brief) : ''),
+    padPage,
+    (): string => tablePage(T.driving, [], T.saddleNote),
+    (): string => tablePage(T.keyboard, T.always, T.keyboardNote),
   ];
   const tabs = stage.querySelector('.m-tabs') as HTMLElement;
   const btns = screen.addButtons(tabs, [
+    { label: T.pages.job, action: () => {} },
     { label: T.pages.foot, action: () => {} },
     { label: T.pages.saddle, action: () => {} },
     { label: T.pages.keyboard, action: () => {} },
+    { label: T.skipSection, action: () => brief?.onSkip?.() },
     { label: T.back, action: onBack },
   ]);
-  btns.forEach((b, i) => b.classList.toggle('m-back', i === 3));
+  const SKIP = 4;
+  btns[SKIP].classList.add('m-skip');
+  btns.forEach((b, i) => b.classList.toggle('m-back', i === SKIP + 1));
   const paper = tex('ui_paper_aged.jpg');
   let shown = -1;
-  // a tab turns to its page the moment it is focused; Back leaves the page open
-  screen.onFocus = (i) => {
-    if (i > 2 || i === shown) return;
+  const turnTo = (i: number): void => {
     shown = i;
     btns.forEach((b, j) => {
       b.classList.toggle('open', j === i);
       b.style.backgroundImage = j === i ? paper : '';
     });
     sheet.className = `m-sheet page-${i}`;
-    sheet.innerHTML = pages[i];
+    sheet.innerHTML = pages[i]();
+  };
+  // a tab turns to its page the moment it is focused; Skip and Back leave the page open
+  screen.onFocus = (i) => {
+    if (i >= SKIP || i === shown) return;
+    turnTo(i);
   };
   screen.onBack = onBack;
+  return {
+    /**
+     * Call after the screen is shown. With a brief (a Missions run in play)
+     * the manual opens on the job; without one that tab is not there.
+     */
+    open(b: ManualBrief | null): void {
+      brief = b;
+      btns[0].style.display = b ? '' : 'none';
+      btns[SKIP].style.display = b?.onSkip ? '' : 'none';
+      shown = -1;
+      screen.setFocus(b ? 0 : 1);
+    },
+  };
 }

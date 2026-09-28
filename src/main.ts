@@ -27,7 +27,8 @@ import { loadFonts } from './ui/fonts';
 import { makeStage } from './ui/stage';
 import { VsScreen } from './ui/vs';
 import { ASSET_ROOT } from './core/assets';
-import { buildManual } from './ui/manual';
+import { buildManual, type ManualBrief } from './ui/manual';
+import { SECTION_GUIDE } from './sections/guide';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { authoredCached, releaseModels } from './characters/authored';
@@ -275,7 +276,7 @@ let overlayReturn: AppState = 'title';
 
 const controls = new MenuScreen(menuLayer);
 // the field manual: the pad in ink, riding, and the keyboard, one page each
-buildManual(controls, () => closeOverlay());
+const manual = buildManual(controls, () => closeOverlay());
 // the manual has a page for every way of playing, so nothing about it hangs on
 // the keyboard setting any more
 const paintControls = (): void => {};
@@ -414,6 +415,43 @@ function updateCursor(dt: number): void {
 function openOverlay(which: 'controls' | 'settings'): void {
   if (state !== 'controls' && state !== 'settings') overlayReturn = state;
   setState(which);
+  if (which === 'controls') manual.open(jobBrief());
+}
+
+/**
+ * Development builds (and `?dev`, or a `?section=` start) get a "Skip section"
+ * button on the manual's job page, for a section a bug has left unwinnable.
+ */
+const DEV_TOOLS = import.meta.env.DEV || /[?&](dev|section)(=|&|$)/.test(location.search);
+
+/**
+ * The manual's job page for the stage in play: a section's own guide, or the
+ * shape of an ordinary Missions stage with its current objective. Only while a
+ * Missions match is running (paused or not); null otherwise, and the manual
+ * opens on its usual first page.
+ */
+function jobBrief(): ManualBrief | null {
+  const c = game?.campaign;
+  if (!game || !c || (overlayReturn !== 'playing' && overlayReturn !== 'paused')) return null;
+  const at = c.stageBrief;
+  if (!at) return null;
+  const id = at.section;
+  if (id) {
+    const g = SECTION_GUIDE[id];
+    return {
+      ...g,
+      onSkip: DEV_TOOLS && c.skipSection ? () => { if (c.skipSection?.()) resumeGame(); } : undefined,
+    };
+  }
+  const S = TEXT.controls.stageBrief;
+  const lead = game.players.find((p) => p.alive) ?? game.players[0];
+  const hint = lead ? c.hint(lead.position) : '';
+  return {
+    title: at.label || chosenBoard.name,
+    goal: S.goal(c.objectiveLabel),
+    steps: hint ? [hint, ...S.steps] : [...S.steps],
+    tips: [...S.tips],
+  };
 }
 function closeOverlay(): void {
   setState(overlayReturn);
