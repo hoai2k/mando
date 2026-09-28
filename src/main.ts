@@ -144,7 +144,7 @@ let browsing: PlayableId[] = [];
 // letterbox like a film's title card (docs/UI_CONCEPTS.md).
 const title = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-title');
 title.root.innerHTML = `
-  <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/board_tatooine.jpg')"></div>
+  <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/title_dune_sea_hd.jpg')"></div>
   <div class="fe-title-shade"></div>`;
 const titleStage = makeStage(title.root, 'fe-bottom');
 {

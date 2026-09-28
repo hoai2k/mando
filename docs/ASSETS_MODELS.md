@@ -881,17 +881,23 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 | `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
 | `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |
 
+Canonical three-view sheets for this optional outdoor set are delivered as
+`reference/props/<id>_ref.png` for each of the seven IDs above. These are
+visual references; the GLB models remain open.
+
 ## Gameplay sections — props and a prisoner, requested 2026-09-28
 
 Opened by [`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md). All eighteen
 sections in [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are being built, and these are
 the sculpts they would like. **Every one ships as a procedural stand-in first**, and
 a section never waits on a file. The stand-in's size, pivot and collider are the spec
-below, so a delivered model drops into place through `loadProp()`. Reference sheets
-for each prop are requested in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--supporting-images-2026-09-28):
-make each model from its sheet. Rigless props on the `loadProp()` path, origin at the
-base, +Z forward. Stylized-realistic, weathered, original. Priority is by how
+below, so a delivered model drops into place through `loadProp()`. Canonical
+three-view sheets for all eleven props are delivered as
+`reference/props/<id>_ref.png`, and the prisoner has
+`reference/characters/prisoner_front.png`, `_side.png` and `_back.png`.
+Make each model from its sheet; the GLB requests remain open. Rigless props
+on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
+weathered, original. Priority is by how
 much players look at the prop.
 
 | Id | Section | Size | Role / constraints | Priority |
