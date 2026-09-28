@@ -34,7 +34,7 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | 1 | barge-run | Dune Sea | B ⇒ · ⇒ worm-sign | merged (working branch) | desert team; deck gun and heavy gun are K3 turrets; verifying |
 | 2 | worm-sign | Dune Sea | barge-run ⇒ · ⇒ C | merged (working branch) | desert team; K6 detection crossing (thumpers, worm); verifying |
 | 3 | ring-walk | Spice Run | B ⇒ · ⇒ C | merged (working branch) | station team; K1; verifying |
-| 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | in progress | `claude/sections-frigate` (session_01Hh1Lchy7jWq4jMuSCYrcAF); K2 + K3 + K5 |
+| 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | built (its branch) | `claude/sections-frigate` (session_01Hh1Lchy7jWq4jMuSCYrcAF); K2 + K3 + K5; tuning, then merge |
 | 5 | magma-run | Lava Flats | B ⇒ · ⇒ chimney | merged (working branch) | lava team; K3; verifying |
 | 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | built | reference section; autopilot finishes at 2 and 4 players in ~55 s (hostiles culled) |
 | 7 | glacier-chute | Crevasse | A ⇒ · ⇒ lamplight | merged (working branch) | crevasse team; K7 slide + K9 darkness |
@@ -43,12 +43,19 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | 10 | run-the-pier | Storm Docks | squall ⇒ · ⇒ A2 | merged (working branch) | trask team; K1 reversed rail camera, rubber-band collapse front; verifying |
 | 11 | lights-out | Refinery | B ⇒ · ⇒ C | merged (working branch) | refinery team; K6 detection, silent takedowns |
 | 12 | the-line | Refinery | A ⇒ · ⇒ B | merged (working branch) | refinery team; K6 detection, silent takedowns |
-| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | merged (working branch) | 1/2/4 players pass, ~73 s; towers' look wants a pass (green stripes read as neon) |
+| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | merged (working branch) | 1/2/4 players pass, ~73 s; tower polish merged |
 | 14 | hold-the-forge | Great Forge | B ⇒ · ⇒ covert-sky | merged (working branch) | 1/2/4 players pass, ~220–275 s; +25 max HP survives stages and deaths |
 | 15 | tram-top | Ringworld | A (split after market arcade) ⇒ · ⇒ A2 | merged (working branch) | ringworld team; K1 + K2 train roof, gantry sweeps; verifying |
 | 16 | mark-runs | Ringworld | A2 (split after plaza) ⇒ · ⇒ A3 | merged (working branch) | ringworld team; K8 pursuit |
 | 17 | one-way-out | Prison Rig | B ⇒ · ⇒ C | merged (working branch) | narkina team; K2 treadmill; prisoner stand-in |
 | 18 | the-lift | Prison Rig | C ⇒ · ⇒ D | merged (working branch) | narkina team; K2 treadmill; prisoner stand-in |
+
+## What is left
+
+Everything unfinished, deferred or suggested-but-not-done — bugs, features,
+tuning passes, audit leftovers, art stand-ins — is gathered in one list:
+[`sections-notes/_followups.md`](sections-notes/_followups.md). Keep it current
+when an item is closed or found.
 
 ## Other
 
