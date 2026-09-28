@@ -1370,6 +1370,11 @@ export class Game {
     this.updateRockets(dt);
 
     this.particles.update(dt);
+
+    // A gameplay section's last word on the frame, after every body has
+    // written its pose (docs/SECTIONS_IMPLEMENTATION.md §2.3): K7's rolling
+    // deck carries the bodies standing on it with the hull it rolls.
+    this.campaign?.sectionAfterFrame?.(dt);
   }
 
   /** Fly the carrier passes, and retire the ones that have left. */

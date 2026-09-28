@@ -93,6 +93,13 @@ export interface SectionInstance {
   hud?(slot: number): SectionHud | null;
   /** the inputs a bot would give this player this frame to make progress */
   autopilot(slot: number): AutopilotInput;
+  /**
+   * Called at the very end of `Game.update`, after every player, enemy and
+   * projectile has moved and written its pose — the place to adjust what is
+   * about to be drawn (K7's deck roll carries the bodies on the deck with it).
+   * Runs every frame the section stands, fighting or not.
+   */
+  afterFrame?(dt: number): void;
   /** anything the context does not already own */
   dispose?(): void;
   /** optional numbers for tests and debugging (`window.__game.campaign.section.debug()`) */

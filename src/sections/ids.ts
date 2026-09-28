@@ -12,6 +12,7 @@ import type { SectionId } from '../world/mission';
  */
 export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'chimney',
+  'squall',
 ]);
 
 /**
@@ -21,4 +22,5 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
  */
 export const SECTION_ASSETS: Partial<Record<SectionId, string[]>> = {
   chimney: ['valve_wheel'],
+  squall: ['cargo_crate', 'fuel_barrel', 'trawler'],
 };
