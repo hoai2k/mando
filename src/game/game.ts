@@ -1980,6 +1980,16 @@ export class Game {
     const surfaceFog = this.scene.fog;
     const surfaceBg = this.scene.background;
     const wY = this.board.waterY;
+    // One shadow pass a frame, however many views. The sun is fixed to the
+    // board, so its shadow map is the same for every player's camera — but
+    // left on `autoUpdate` the renderer redrew it inside every render() call,
+    // and in split-screen that second pass was half of all the triangles the
+    // frame drew (desert, two players: 1.19 M of 2.39 M). The renderer clears
+    // `needsUpdate` itself once it has drawn the maps, so asking once here
+    // draws them for the first view and lets the others reuse them.
+    const autoShadows = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const viewer = this.players[i];
@@ -2009,6 +2019,7 @@ export class Game {
       renderer.render(this.scene, cam);
       if (shaking) viewer.char.root.position.sub(ride);
     }
+    renderer.shadowMap.autoUpdate = autoShadows;
     this.scene.fog = surfaceFog;
     this.scene.background = surfaceBg;
     // Hand the renderer back the whole canvas. The viewport is renderer state,

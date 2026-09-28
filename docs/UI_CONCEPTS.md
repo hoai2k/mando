@@ -388,7 +388,7 @@ mockups, and why:
 | Screen | Source | Notes |
 |---|---|---|
 | Title | `src/main.ts` (title block) | Twin Suns letterbox over the hazy high-resolution `title_dune_sea_hd.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
-| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title keeps the original. Rows are still `.board-card` focusables, so the harness walks them as before. |
+| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title uses the high-resolution Dune Sea variant. Rows are still `.board-card` focusables, so the harness walks them as before. |
 | Missions | `src/ui/planets.ts` | Systems 3, the galaxy map with a lens. Moving is a target lock: the open lens is **hidden at once** (not shrunk), the map snaps across in ~0.19 s while a bracket slams shut on the new world, then the new lens springs up out of the planet with a slight overshoot. The route only pans sideways and is drawn flatter (×0.6 vertically) so no neighbour hides under the lens or the chapter card. |
 | Character select | `src/ui/charselect.ts` | "Hunters" (PvP: "Fighters"). Portrait strips + one card per place; no ◀ ▶ arrows or "walks the line" text; prompts read **A Confirm · B Cancel**; an open place says **Press Ⓐ to join** on its card and in the prompt bar. The 3D stage still runs underneath, undrawn: locking in still waits on the fighter's model, which keeps the drop short, and the poster tool still shoots from it. |
 | Loading | `src/ui/loading.ts` | Wanted sheet on `ui_bounty_board.jpg`: polaroid, contract with mugshots and known hostiles, a field note, and a tracking fob whose 16 lamps are the progress bar. The transport-door veil uses the same sheet without the cast. |
@@ -422,8 +422,32 @@ fighters / Quit; a defeat offers Retry / New hunters / Quit. The mockup's
 "fell at 6:31" per duellist is not built — the game does not record when each
 fighter went out — so the standings say "out".
 
+### Round 6 — the remaining screens (mockups, not built yet)
+
+On the canvas page "Round 6 · the screens not yet done":
+
+- **Pause — Hold fire.** The frozen frame goes sepia behind a big left-hand
+  menu; a pinned card shows the contract so far (wave, clock, takedowns per
+  hunter, what comes next). Restart and Quit say what they cost.
+- **Settings — the gunsmith's bench.** Grouped rows (Sound / Camera & aim /
+  Screen & hands); volumes and sensitivity as lamp gauges, on/off and split
+  screen as two-position levers. The long hint paragraph becomes a field
+  note that explains whichever row is focused.
+- **Controls — the field manual.** An inked pad diagram with callouts, paged
+  with LB / RB: On foot, In the saddle, Keyboard & mouse.
+- **PvP VS — showdown at high noon.** Each fighter a Wanted poster slammed
+  onto the bounty board, a sheriff's-star VS between them.
+- **Boss intro.** Letterbox bars close, a Wanted card with the reward slams
+  in, the warlord's name settles, and the boss bar lights along its fuse.
+  (The reward figure is flavour; the game has none.)
+- **In-match banners.** "Wave cleared" and the like as paper plates stamped
+  over the fight; new contacts as small mugshots; the wave counter gains
+  pips. Health and gauges only change type and colour.
+- **Campaign complete — the Outer Rim is free.** A screen the game does not
+  have yet: all nine worlds ticked along a lit route, the posse's totals,
+  Hunt again / Roll credits / Quit.
+
 ### Screens not yet redesigned
 
-Pause, Settings, Controls, the PvP VS splash, the in-match banners and boss
-intro, the transport-door veil beyond its reuse of the Wanted sheet, and a
-"campaign complete" screen for all nine liberated (there is none today).
+All of them now have a mockup (round 6). The transport-door veil reuses the
+Wanted sheet and has no design of its own.
