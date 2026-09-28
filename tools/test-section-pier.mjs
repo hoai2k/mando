@@ -76,6 +76,7 @@ check('front: faster than the slowest run, slower than its sprint', st.debug.spe
 await force('hold', 999);
 await put(0, -1.6, 60);
 await put(1, 1.6, 30);
+await force('snap', 45);
 await force('front', 34);
 await step(0.3);
 st = await state();
@@ -88,7 +89,9 @@ for (let i = 0; i < 16 && !back; i++) {
 }
 check('caught: back within about three seconds', !!back && back.t <= 4.5, back ? `${back.t} s` : 'never');
 check('caught: at the leading edge, not at the front', !!back && back.z > 50 && back.z < 70, back ? `z ${back.z.toFixed(1)} (leader 60)` : '');
-check('caught: short of hit points', !!back && back.hp <= back.max * 0.65, back ? `${back.hp.toFixed(0)}/${back.max}` : '');
+await step(2);
+const whole = (await state()).players[1];
+check('caught: short of hit points once re-formed', whole.alive && whole.hp <= whole.max * 0.65, `${whole.hp.toFixed(0)}/${whole.max}`);
 
 // ---- the stagger ----
 await force('front', 40);
@@ -103,6 +106,7 @@ check('stagger: fire into the mouth knocks the front back ten metres', st.debug.
 // ---- a gate is breathing room ----
 await put(0, -1.6, 205.5);           // just past gate 2 (z 203): grace starts
 await put(1, 1.6, 207);
+await force('snap', 206);
 await step(0.1);
 await force('front', 206);
 await step(1.2);
@@ -116,6 +120,7 @@ check('gate: but the grace runs out', !st.players[0].alive || st.debug.caught >=
 await step(4);
 await put(0, -1.6, 230);
 await put(1, 1.6, 231);
+await force('snap', 230);
 await step(0.2);
 const resetsBefore = (await state()).debug.resets;
 await force('front', 240);

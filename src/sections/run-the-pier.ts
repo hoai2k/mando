@@ -99,7 +99,6 @@ function build(ctx: SectionContext): SectionInstance {
   const rustMat = ctx.paint(0x7a3a24, { rough: 0.7, metal: 0.3 });
   const crateMat = ctx.paint(0x5a6a3a, { rough: 0.8, metal: 0.3 });
   const crateTints = [crateMat, ctx.paint(0x6a3a26, { rough: 0.8, metal: 0.3 }), ctx.paint(0x3a4a5a, { rough: 0.8, metal: 0.3 })];
-  for (const m of crateTints) ctx.tile(m, 'metal_hull', 1, 1);
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd28a });
   const doorGlow = new THREE.MeshBasicMaterial({ color: 0xbfe6ff });
   const lipMat = new THREE.MeshBasicMaterial({ color: 0xffb040 });
@@ -639,7 +638,9 @@ function build(ctx: SectionContext): SectionInstance {
     for (const p of game.players) {
       if (owed[p.slot] && p.alive && p.formT <= 0) {
         owed[p.slot] = false;
-        p.hp = Math.min(p.hp, p.maxHp * CAUGHT_HP);
+        // taken as a hit (not a set), so the regen waits on it like any other
+        const cost = p.hp - p.maxHp * CAUGHT_HP;
+        if (cost > 0) p.damage(cost, mouthAt, -1, { dot: true });
       }
     }
     // hostiles in the water or behind the front are the mamacore's too
@@ -894,6 +895,8 @@ function build(ctx: SectionContext): SectionInstance {
     force: {
       front: (z: number) => { front.at = z; },
       hold: (secs = 999) => { front.pause(secs); },
+      // move the rail's window on to a party the test has put down further along
+      snap: (z: number) => { rail.snap(rs(z)); },
       stagger: (dmg = 1000) => { mouth.hp -= dmg; },
     },
     rail,

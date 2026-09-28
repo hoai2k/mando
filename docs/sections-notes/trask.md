@@ -7,7 +7,7 @@ Harness port 4218.
 |---|---|
 | **The Squall** (`squall`, LEVEL_SECTIONS §2.9) | built; registered; suites pass at 1, 2 and 4 players |
 | **K7 tilt** (`deckTilt` in `src/sections/kit/locomotion.ts`) | built; used by the Squall |
-| **Run the Pier** (`run-the-pier`, §2.10) | not started: waits on K1's reversed rail camera being merged into the working branch |
+| **Run the Pier** (`run-the-pier`, §2.10) | built on K1 (reversed) and K4 (`PathFront`); registered; suites pass at 1, 2 and 4 players |
 
 ## The Squall — what is built
 
@@ -129,6 +129,93 @@ trawler's speed (7 m/s), a three-sine swell with analytic normals, a wake, a
 bow-wave spray, passing buoys, and driven rain (line streaks). Colours and
 fog are the storm's (`world` in the def).
 
+## Run the Pier — what is built
+
+`src/sections/run-the-pier.ts`, text in `TEXT.sections['run-the-pier']`,
+mechanics suite `tools/test-section-pier.mjs`. The working branch (with K1)
+was merged into this one first. The only shared code used is K1's
+`RailCamera` (with `reverse: true`) and K4's `PathFront`, both unchanged.
+
+**The two ends.** It opens where the Squall ends: on the far pier, beside the
+trawler lying alongside (her starboard gate open, the gangway plank across,
+her deck solid). The party stands just ashore. The mamacore erupts under the
+pier behind them ("the mamacore is out — run for the pier heads!"). It ends at
+the pier heads: a warehouse built across the end of the chain. Its steel door
+(the white-blue transport lamp over it) rises as the leader comes within 60 m.
+Running through it into the throat behind releases the camera, and when the
+split screen is whole again the section completes. The next stage (the pier
+heads camp) begins inside that door, as a stage after a section does.
+
+**The pier chain** (world z is metres along it, x across; 10 m wide):
+- **Section one (0–196 m):** a slalom of crate stacks (hop or go round) and
+  fish racks (go round), and at 132 m a crane whose load swings across the
+  lane every 3.4 s. The load knocks you *back*, toward the mouth, for 14 damage.
+- **Gap (196–201 m).**
+- **Section two (201–398 m):** more stacks, then the **warehouse** (292–332 m),
+  entered and left by 6 m doorways. Its roof and the camera-side wall lift
+  away while the party is inside, and quarren are waiting in it.
+- **Gap (398–404 m).**
+- **Section three (404–604 m):** a clear run-up, then the **collapsed
+  stretch** (472–482 m, 10 m: jetpack or super-jump), then the last stacks and
+  racks to the door.
+- **Gates** at 4, 203 and 406 m (K1 rail gates: checkpoints).
+
+**The camera.** `RailCamera` with `reverse: true`: eye 6 m ahead of the
+window's focus, 7 m to the side away from the trawler and 13 m up, looking
+4 m behind it. Lead 0.66 of a 36 m window, so the mouth is in shot behind
+the runners. The window's front edge is 12 m ahead of the party's middle: a
+leader cannot run away from the others. Ahead of the party is behind the
+lens in this view, so the objective marker sits on the mamacore itself ("the
+mamacore · 13 m"), and the hint line warns of gaps and the crane. The
+flight ceiling is 18 m over the pier, so a long jetpack jump never touches
+the "squall closes overhead" note.
+
+**The front** (`PathFront`): it takes the pier 3 m segment by segment. Each
+segment's collider goes and the planks drop into the sea. Its base speed is
+set from the party's slowest hunter: `run + 0.18 × (sprint − run)`, which is
+10.1 m/s for the Mandalorians (run 9.2, sprint 14.4). A runner loses ~1 m/s
+to it and a sprinter gains ~4 m/s, and the sprint gauge (6 s, 4.5 s to
+refill) is the budget. It runs at 0.8× for the first 7 s, after a 3.2 s
+eruption.
+
+**The rubber band.** More than 20 m behind the party's middle, it surges to
+close (+0.45 m/s per metre over, up to +45% of sprint). So the mouth stays in
+shot and a stall always costs, but the band is off while it reels from a
+stagger, which is what a stagger buys. Without the band the first runs left
+it 80 m behind and out of shot for most of the run.
+
+**Hitting back.** The mouth is a breakable that never breaks: its lost HP is
+read each frame into a stagger meter that decays at 35/s. Reaching
+110 × (0.7 + 0.15 × party) staggers it: it dives, drops back 10 m, pauses
+0.8 s, and has a 5 s cooldown. The HUD shows "Stagger it" as a bar.
+
+**Caught.** Behind the front, or in the water, and a hunter is dragged into
+the mouth. They die there and re-form ~2.5 s later at the party's leading
+edge, on the first safe plank (not in a gap, clear of obstacles, at least
+8 m ahead of the front). Once re-formed they take a hit down to 62% HP (a real
+hit, so regen waits on it). Hostiles behind the front or in the water are
+taken too. **Everyone caught** (and solo, any catch) resets the pier to the
+last gate: the front drops back 24 m behind it after 3 s, the pier past there
+is rebuilt, and the stretch's quarren are cleared. A hunter who has just
+reached a gate is not caught for 2 s, and the planks under them hold.
+
+**Blockers.** Eight packs of quarren (1 + party/2, +1 at four; every third
+pack one more) surface from the sea ahead as the leader comes within 34 m,
+using the `swim` arrival (the warehouse pack is already inside). A dash
+(> 15 m/s) through one knocks it flat and throws it aside (20 damage).
+
+**Autopilot.** It sprints for the window's front edge, dashing every 2.5 s.
+It picks the free side of each obstacle, hops a low stack only when it must,
+passes the crane on the side its load is swinging away from, and jumps at
+each gap's lip, holding the jump across the collapsed stretch. It fires into
+the mouth when it is within 12 m and ready to stagger, and otherwise at the
+nearest quarren. It finishes in ~63–69 s (the design says ~75).
+
+**A fix found in testing:** a crate stack 12 m before the collapsed stretch
+spent a super-jumper's leap and put them down at the lip with nothing left
+(solo Maul reset 48 times). It is at 448 m now, with a clear run-up. A human
+would have hit the same wall.
+
 ## K7 — `deckTilt`
 
 `src/sections/kit/locomotion.ts` (my part is the `deckTilt` block; the slide
@@ -165,9 +252,10 @@ rider pose, a K2 treadmill's parallax) can use the same hook.
 
 ## Registration
 
-`src/sections/index.ts` (`squall`), `src/sections/ids.ts` (`BUILT_SECTIONS`,
-and `SECTION_ASSETS.squall = cargo_crate, fuel_barrel, trawler`),
-`TEXT.sections.squall` in `src/text.ts`. No new assets: every prop has a
+`src/sections/index.ts` (`squall`, `'run-the-pier'`), `src/sections/ids.ts`
+(`BUILT_SECTIONS`, and `SECTION_ASSETS.squall = cargo_crate, fuel_barrel,
+trawler`, `SECTION_ASSETS['run-the-pier'] = mamacore, fish_rack`),
+`TEXT.sections.squall` and `TEXT.sections['run-the-pier']` in `src/text.ts`. No new assets: every prop has a
 procedural stand-in, and the models used (`cargo_crate`, `fuel_barrel`,
 `trawler`) already exist. `rain_streak.png` (requested for this section) is
 not used yet. The rain is line streaks, which read well.
@@ -188,6 +276,19 @@ not used yet. The rain is line streaks, which read well.
     with the party re-formed on the roof.
 - Test hooks: `section.force.{quiet, roll, rogue, lightning, boom, wave,
   noRogue, enemy, finish}` and `section.debug()`.
+- `node tools/test-sections.mjs run-the-pier` passes:
+  - solo as Maul, Jedi, Din and Bo-Katan;
+  - at 2 players (din, maul) and 4 (jedi, bokatan, maul, din);
+  - ~63–69 s simulated, 0–2 catches.
+- `node tools/test-section-pier.mjs` checks:
+  - the shared, reversed camera (ahead of the party, looking back);
+  - the front's pace between the slowest run and sprint;
+  - a catch and the re-form at the leading edge within 3 s at 62% HP;
+  - the stagger (−10 m);
+  - a gate's 2 s grace, and that it runs out;
+  - everyone caught resetting to the last gate.
+- Test hooks: `section.force.{front, hold, snap, stagger}`, `section.rail`,
+  and `section.debug()`.
 
 ## Known issues / notes for tuning
 
@@ -207,6 +308,9 @@ not used yet. The rain is line streaks, which read well.
 
 ## Left to do
 
-- **Run the Pier** (§2.10), once K1's reversed rail camera is merged into
-  the working branch: merge it into `claude/sections-trask`, build it on the
-  pier the Squall ends at, register it.
+- Nothing required. Possible later polish:
+  - Run the Pier's trawler at the start is a simpler block model than the
+    Squall's hull.
+  - The pier could dog-leg at its gaps rather than run dead straight.
+  - `cargo_crane` could replace the procedural crane once its load can be
+    driven.
