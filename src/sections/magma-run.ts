@@ -50,12 +50,12 @@ const LEN = 2000;
 /** lane laid upstream of s = 0, to the vent the river comes out of */
 const BEFORE = 20;
 /** the gates: checkpoints, and where a fresh bike is handed out */
-const GATES = [40, 500, 1000, 1500];
+const GATES = [40, 500, 1000, 1500, 1700];
 const TUNNEL_END = 230;
 const CHAMBER = 1640;
 /** the two terrace lips of the falls, and how far each drops */
 const LIPS = [1130, 1330];
-const DROP = 7;
+const DROP = 9;
 /** the crust ramp beside each lip: lateral band (metres right of the line) */
 const RAMPS: [number, number][] = [[3, 11], [-11, -3]];
 /** the chamber mouth the barge holds with its boom */
@@ -111,8 +111,8 @@ const WAVES: Wave[] = [
 
 /** the barge's flak gun: a quad gun with a pirate on it, slower and lighter */
 const FLAK: GunDef = {
-  ...VEHICLE_DEFS.turret.gun!, rate: 5, heat: 0.07, cool: 0.4, resume: 0.3,
-  damage: 10, speed: 62, cone: 0.035, range: 90,
+  ...VEHICLE_DEFS.turret.gun!, rate: 4, heat: 0.07, cool: 0.4, resume: 0.3,
+  damage: 6, speed: 46, cone: 0, range: 90,
 };
 
 function build(ctx: SectionContext): SectionInstance {
@@ -493,20 +493,21 @@ function build(ctx: SectionContext): SectionInstance {
     ctx.mesh(kerb);
     for (let z = QUAY_S0 + 4; z < QUAY_S1; z += 8) ctx.cyl(-QUAY_EDGE + 0.4, y0 + 1.9, z, 0.25, 1, iron);
     // the camp: crates, drums, an awning over a table, a weapons rack
-    const crates: [number, number, number][] = [[19, -6, 1.2], [20.5, -4.5, 1], [18, 30, 1.3], [20, 34, 1], [21, 22, 1.2]];
+    // the camp keeps to the back of the quay: the bikes' two lines run clear down its front
+    const crates: [number, number, number][] = [[21, -12, 1.2], [22, -10.5, 1], [21.5, 24, 1.3], [21, 38, 1], [20.5, 40.5, 1.2]];
     for (const [x, z, s] of crates) ctx.box(x, y0 + 1.4 + s / 2, z, s, s, s, rust);
     for (const [x, z] of [[16, -12], [17, -11], [21, 3], [21.5, 38]]) ctx.cyl(x, y0 + 1.4 + 0.5, z, 0.4, 1, iron);
     const awning = new THREE.Mesh(new THREE.BoxGeometry(6, 0.12, 8), ctx.paint(0x6a2a1a, { rough: 0.9 }));
-    awning.position.set(19, y0 + 4.6, 12);
+    awning.position.set(19, y0 + 4.6, -4);
     awning.rotation.z = 0.1;
     ctx.mesh(awning);
-    for (const [x, z] of [[16.2, 8.2], [16.2, 15.8], [21.8, 8.2], [21.8, 15.8]]) ctx.cyl(x, y0 + 1.4 + 1.6, z, 0.1, 3.2, iron);
-    ctx.box(19, y0 + 2.0, 12, 2.2, 0.15, 3.5, rust);
+    for (const [x, z] of [[16.2, -7.8], [16.2, -0.2], [21.8, -7.8], [21.8, -0.2]]) ctx.cyl(x, y0 + 1.4 + 1.6, z, 0.1, 3.2, iron);
+    ctx.box(19, y0 + 2.0, -4, 2.2, 0.15, 3.5, rust);
     const lampPost = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), amber);
-    lampPost.position.set(19, y0 + 4.2, 12);
+    lampPost.position.set(19, y0 + 4.2, -4);
     ctx.mesh(lampPost);
     const campLight = new THREE.PointLight(0xffb060, 40, 30, 1.6);
-    campLight.position.set(18, y0 + 5, 12);
+    campLight.position.set(18, y0 + 5, 4);
     ctx.mesh(campLight);
   }
 
@@ -535,6 +536,38 @@ function build(ctx: SectionContext): SectionInstance {
     }
     gateLamps.push(lamps);
   }
+
+  // ---- the falls: a curtain of lava at each lip, and the crust ramp beside it ----
+  const curtainMat = new THREE.MeshBasicMaterial({ color: 0xffa040, side: THREE.DoubleSide });
+  ctx.own(curtainMat);
+  ctx.tile(curtainMat as unknown as THREE.MeshStandardMaterial, 'lava_flow', 1, 3);
+  const curtains: THREE.Mesh[] = [];
+  LIPS.forEach((lip, k) => {
+    const [ra, rb] = RAMPS[k];
+    // the lavafall: the full width but the ramp, a hand's breadth proud of the step
+    for (const [l0, l1] of [[-wallLat(lip, -1) - 2, ra], [rb, wallLat(lip, 1) + 2]] as const) {
+      const c = strip(lip - 0.2, lip + 3.2, 0.85, (s) => {
+        const out: [number, number][] = [];
+        for (let i = 0; i <= 6; i++) out.push([THREE.MathUtils.lerp(l0, l1, i / 6), lavaY(s) + 0.12]);
+        return out;
+      }, curtainMat, 3, false);
+      curtains.push(c);
+    }
+    // the ramp: a slab of cooled crust bouncing down beside the fall
+    strip(lip - 2, lip + 16, 1, (s) => {
+      const out: [number, number][] = [];
+      for (let i = 0; i <= 4; i++) {
+        const lat = THREE.MathUtils.lerp(ra, rb, i / 4);
+        const edge = i === 0 || i === 4 ? -0.25 : 0;
+        out.push([lat, rampY(s, THREE.MathUtils.clamp(lat, ra + 0.01, rb - 0.01)) - 0.3 + edge]);
+      }
+      return out;
+    }, crust, 4);
+    // and the lip's own rock shelf either side of the ramp, so the step reads
+    for (const [l0, l1] of [[-wallLat(lip, -1), ra], [rb, wallLat(lip, 1)]] as const) {
+      strip(lip - 3, lip - 0.2, 1.4, (s) => [[l0, lavaY(s) + 0.3], [l1, lavaY(s) + 0.3]], crust, 4, false);
+    }
+  });
 
   // ---- crust islands, spires ----
   for (const i of ISLANDS) {
@@ -627,7 +660,7 @@ function build(ctx: SectionContext): SectionInstance {
   // ---- the columns ----
   type Column = {
     s: number; side: -1 | 1; state: 'stand' | 'crack' | 'fall' | 'down'; t: number;
-    hinge: THREE.Group; crack: THREE.Mesh; cyls: ReturnType<SectionContext['cyl']>[];
+    hinge: THREE.Group; crack: THREE.Mesh; line: THREE.Mesh; cyls: ReturnType<SectionContext['cyl']>[];
   };
   const colGeo = new THREE.CylinderGeometry(1.5, 1.6, COLUMN_LEN, 6);
   ctx.own(colGeo);
@@ -644,12 +677,28 @@ function build(ctx: SectionContext): SectionInstance {
     col.castShadow = true;
     hinge.add(col);
     // the tell: a seam of light at the foot, brightening as it cracks
-    const crack = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.2, 3.4), hot.clone());
-    ctx.own(crack.material as THREE.Material);
-    crack.position.y = 0.8;
+    const crackMat = hot.clone();
+    crackMat.blending = THREE.AdditiveBlending;
+    ctx.own(crackMat);
+    const crack = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.9, 1.6, 6), crackMat);
+    ctx.own(crack.geometry);
+    crack.position.y = 1.0;
     root.add(crack);
+    // and where it will land: a shadow of heat laid across the river, so the
+    // gap is readable before the column is down
+    const lineMat = new THREE.MeshBasicMaterial({
+      color: 0xff3a10, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    ctx.own(lineMat);
+    // the root is turned to the lane, so its +x is the left bank: a column
+    // on the left wall falls toward -x, one on the right toward +x
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(COLUMN_LEN, 3.2), lineMat);
+    ctx.own(line.geometry);
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(c.side * COLUMN_LEN / 2, 0.5, 0);
+    root.add(line);
     ctx.mesh(root);
-    return { s: c.s, side: c.side, state: 'stand', t: 0, hinge, crack, cyls: [] };
+    return { s: c.s, side: c.side, state: 'stand', t: 0, hinge, crack, line, cyls: [] };
   });
 
   // ---- the geysers ----
@@ -664,12 +713,17 @@ function build(ctx: SectionContext): SectionInstance {
   plumeGeo.translate(0, 7, 0);
   const geysers: Geyser[] = GEYSERS.map(([s, lat], i) => {
     const p = at(s, lat);
-    const disc = new THREE.Mesh(discGeo, hot.clone());
-    ctx.own(disc.material as THREE.Material);
+    const discMat = hot.clone();
+    discMat.blending = THREE.AdditiveBlending;
+    ctx.own(discMat);
+    const disc = new THREE.Mesh(discGeo, discMat);
     disc.rotation.x = -Math.PI / 2;
     disc.position.set(p.x, lavaY(s) + 0.08, p.z);
     ctx.mesh(disc);
-    const plumeMat = new THREE.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const plumeMat = new THREE.MeshBasicMaterial({
+      color: 0xff7a22, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
     ctx.own(plumeMat);
     const plume = new THREE.Mesh(plumeGeo, plumeMat);
     plume.position.set(p.x, lavaY(s), p.z);
@@ -705,6 +759,9 @@ function build(ctx: SectionContext): SectionInstance {
   const lastGood: THREE.Vector3[] = [0, 1, 2, 3].map(() => new THREE.Vector3());
   const lastGoodE = new WeakMap<Enemy, THREE.Vector3>();
   const cursors = [0, 0, 0, 0];
+  /** what happened, for tuning and the tests */
+  const stats = { lavaKills: 0, unseated: 0, playerDeaths: 0, freshBikes: 0, crushed: 0, geysered: 0, rammed: 0 };
+  const riding = new WeakSet<Enemy>();
 
   const followLight = new THREE.PointLight(0xff6a20, 55, 55, 1.4);
   ctx.mesh(followLight);
@@ -718,7 +775,12 @@ function build(ctx: SectionContext): SectionInstance {
     state: 'running' | 'holding' | 'sinking' | 'gone'; sinkT: number;
     boom: THREE.Group; boomDrop: number; rammed: Map<Vehicle, number>;
   }
-  const deckTop = (): number => 0.8;
+  /**
+   * The barge's fighting deck over the keel. Raised on a platform over the
+   * skiff's own low cargo deck: a crew stood on the cargo deck was inside the
+   * hull's hit spheres, so every bolt aimed at them spent itself on the plate.
+   */
+  const deckTop = (): number => 1.75;
   const spawnBarge = (): void => {
     const s = Math.min(MOUTH - 60, leadS + 120);
     const p = at(s, 0);
@@ -728,9 +790,47 @@ function build(ctx: SectionContext): SectionInstance {
     hull.scripted = true;
     const top = hull.pos.y + deckTop();
     // the deck the crew stands on: a moving box the engine carries them on
-    const { box } = ctx.box(p.x, top - 0.6, p.z, 3.0, 1.2, 8.6, null);
+    const { box } = ctx.box(p.x, top - 1.2, p.z, 3.0, 2.4, 8.6, null);
+    // the platform itself: plating on posts over the cargo deck, with a rail
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.22, 8.2), rust);
+    ctx.own(plate.geometry);
+    plate.position.set(0, deckTop() - 0.11, 0);
+    plate.castShadow = plate.receiveShadow = true;
+    hull.group.add(plate);
+    for (const [px, pz] of [[1.3, 3.6], [-1.3, 3.6], [1.3, -3.6], [-1.3, -3.6], [1.3, 0], [-1.3, 0]]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, deckTop(), 0.18), iron);
+      ctx.own(post.geometry);
+      post.position.set(px, deckTop() / 2, pz);
+      hull.group.add(post);
+    }
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 8.0), iron);
+      ctx.own(rail.geometry);
+      rail.position.set(side * 1.45, deckTop() + 0.9, 0);
+      hull.group.add(rail);
+    }
     const deck = new Mover(box, null);
     (ctx.board.movers ??= []).push(deck);
+    // a mast with a red lamp and a light on it: the barge reads across the
+    // chamber, and the party knows which thing on the lava is the fight
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5.5, 6), iron);
+    ctx.own(mast.geometry);
+    mast.position.set(0, deckTop() + 2.75, 2.6);
+    hull.group.add(mast);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3a1a }));
+    ctx.own(lamp.geometry);
+    ctx.own(lamp.material as THREE.Material);
+    lamp.position.set(0, deckTop() + 5.6, 2.6);
+    hull.group.add(lamp);
+    const bargeLight = new THREE.PointLight(0xff5a2a, 45, 38, 1.5);
+    bargeLight.position.set(0, deckTop() + 4.8, 1.2);
+    hull.group.add(bargeLight);
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), ctx.paint(0x7a1a12, { rough: 0.9 }));
+    ctx.own(banner.geometry);
+    (banner.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+    banner.position.set(0, deckTop() + 4.6, 2.6 - 0.85);
+    banner.rotation.y = Math.PI / 2;
+    hull.group.add(banner);
     const helm = ctx.spawn('pirate', hull.localPoint(0, deckTop(), -1.6, new THREE.Vector3()), { exact: true, alert: true });
     rides.seat(hull, helm);
     const gun = rides.add({ kind: 'turret', x: p.x, z: p.z, y: top, yaw: hdg + Math.PI },
@@ -816,7 +916,7 @@ function build(ctx: SectionContext): SectionInstance {
     const bob = Math.sin(game.time * 1.3) * 0.06;
     b.hull.place(p.x, lavaY(b.s) + VEHICLE_DEFS.skiff.hover + bob, p.z, hdg, vx, vz);
     const top = b.hull.pos.y + deckTop();
-    b.deck.moveTo(p.x, top - 0.6, p.z);
+    b.deck.moveTo(p.x, top - 1.2, p.z);
     b.gun.moveMount(...b.hull.localPoint(0, deckTop(), 0.3, new THREE.Vector3()).toArray() as [number, number, number], hdg + Math.PI);
   };
   const boardUpdate = ctx.board.update;
@@ -835,6 +935,7 @@ function build(ctx: SectionContext): SectionInstance {
       const until = b.rammed.get(v) ?? 0;
       if (game.time < until || closing < 9) continue;
       b.rammed.set(v, game.time + 1.2);
+      stats.rammed++;
       b.hull.damage(closing * 5, v.pos, r.slot, 'crash');
       for (const e of bargeCrew(b)) {
         if (e === b.helm || e === b.gunner) continue;
@@ -959,20 +1060,20 @@ function build(ctx: SectionContext): SectionInstance {
     const y0 = lavaY(10) + 1.4;
     // one bike per player at the quay, and the crew's own two further along
     for (let i = 0; i < party; i++) {
-      quayBikes.push(rides.add({ kind: 'speederBike', x: 11.8, z: 4 + i * 5.5, y: y0, yaw: 0 }, bikeOpts));
+      quayBikes.push(rides.add({ kind: 'speederBike', x: 11.8, z: 2 + i * 5, y: y0, yaw: 0 }, bikeOpts));
     }
     for (let i = 0; i < 2; i++) {
-      crewBikes.push(rides.add({ kind: 'speederBike', x: 11.8, z: 28 + i * 5.5, y: y0, yaw: 0 }, hostileBikeOpts));
+      crewBikes.push(rides.add({ kind: 'speederBike', x: 16.5, z: 27 + i * 5.5, y: y0, yaw: 0 }, hostileBikeOpts));
     }
     // the camp: a squad from the board's own table round the awning, and the
     // two riders by their bikes
     const kinds = ctx.squadFor(ctx.wave, Math.min(6, 2 + party));
     kinds.forEach((kind, i) => {
-      const spot = new THREE.Vector3(15 + (i % 3) * 2.8, y0, -6 + Math.floor(i / 3) * 14 + (i % 2) * 4);
+      const spot = new THREE.Vector3(19 + (i % 2) * 2.5, y0, -8 + i * 6);
       campCrew.push(ctx.spawn(kind, spot, { exact: true, squad: 8850 }));
     });
-    crewRiders.push(ctx.spawn('pirateMelee', new THREE.Vector3(15, y0, 29), { exact: true, squad: 8850 }));
-    crewRiders.push(ctx.spawn('pirate', new THREE.Vector3(16, y0, 35), { exact: true, squad: 8850 }));
+    crewRiders.push(ctx.spawn('pirateMelee', new THREE.Vector3(19, y0, 28), { exact: true, squad: 8850 }));
+    crewRiders.push(ctx.spawn('pirate', new THREE.Vector3(19.5, y0, 33.5), { exact: true, squad: 8850 }));
     // bacta on the islands, for whoever steers over it
     for (const i of [ISLANDS[1], ISLANDS[3], ISLANDS[5]]) ctx.pickup(at(i.s, i.lat, 0.95));
     ctx.pickup(new THREE.Vector3(19, y0 + 0.2, 20));
@@ -996,8 +1097,10 @@ function build(ctx: SectionContext): SectionInstance {
       }
       c.t += dt;
       const cm = c.crack.material as THREE.MeshBasicMaterial;
+      const lm = c.line.material as THREE.MeshBasicMaterial;
       if (c.state === 'crack') {
-        cm.opacity = Math.min(0.9, c.t / 1.2) * (0.7 + 0.3 * Math.sin(game.time * 30));
+        cm.opacity = Math.min(0.95, c.t / 0.9) * (0.7 + 0.3 * Math.sin(game.time * 30));
+        lm.opacity = Math.min(0.55, c.t / 1.2) * (0.75 + 0.25 * Math.sin(game.time * 12));
         c.hinge.rotation.z = -c.side * Math.sin(game.time * 40) * 0.01 * c.t;
         if (Math.random() < dt * 20) game.particles.impactSparks(c.crack.getWorldPosition(new THREE.Vector3()), 3);
         if (c.t >= 1.6) { c.state = 'fall'; c.t = 0; }
@@ -1007,6 +1110,7 @@ function build(ctx: SectionContext): SectionInstance {
       const k = Math.min(1, c.t / 0.95);
       c.hinge.rotation.z = -c.side * k * k * 1.52;
       cm.opacity = 0.9 * (1 - k);
+      lm.opacity = 0.6 * (1 - k * k);
       if (k >= 1) {
         c.state = 'down';
         const base = c.side * (halfWidth(c.s) + 1.2);
@@ -1025,7 +1129,7 @@ function build(ctx: SectionContext): SectionInstance {
         for (const v of game.vehicles) {
           if (!v.alive || v.scripted) continue;
           const on = lane.project(v.pos.x, v.pos.z, v.laneS);
-          if (Math.abs(on.s - c.s) < 2.2 && on.lat > lo && on.lat < hi) v.damage(80, mid, -1, 'crash');
+          if (Math.abs(on.s - c.s) < 2.2 && on.lat > lo && on.lat < hi) { v.damage(80, mid, -1, 'crash'); stats.crushed++; }
         }
         for (const p of game.players) {
           if (!p.alive) continue;
@@ -1063,7 +1167,11 @@ function build(ctx: SectionContext): SectionInstance {
       }
       // erupting: a column of fire, and whatever is in it is thrown up
       const k = g.t / 1.1;
-      g.plume.scale.set(1, Math.min(1, g.t * 5) * (1 - Math.max(0, k - 0.75) * 4), 1);
+      g.plume.scale.set(1 + Math.sin(game.time * 31) * 0.08, Math.min(1, g.t * 5) * (1 - Math.max(0, k - 0.75) * 4), 1);
+      g.plume.rotation.y += dt * 3;
+      if (Math.random() < dt * 30) {
+        game.particles.impactSparks(g.plume.position.clone().setY(g.plume.position.y + 2 + Math.random() * 10), 5);
+      }
       (g.plume.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - Math.max(0, k - 0.6) * 2.5);
       dm.opacity = 1;
       const c = g.disc.position;
@@ -1072,6 +1180,7 @@ function build(ctx: SectionContext): SectionInstance {
         if (Math.hypot(v.pos.x - c.x, v.pos.z - c.z) > 3.4 || v.pos.y > c.y + 12) continue;
         g.hit.add(v);
         v.damage(38, c, -1);
+        if (v.rider) stats.geysered++;
         v.vel.y = Math.max(v.vel.y, 9);
         if (v.rider) { v.rider.damage(8, c, -1); v.rider.cam.shake(0.2); }
       }
@@ -1108,13 +1217,17 @@ function build(ctx: SectionContext): SectionInstance {
       p.takenByHazard(p.position.clone().setY(lavaY(on.s) - 1));
     }
     for (const e of game.enemies) {
-      if (!e.alive || e.ride || e.kind === 'nikto') continue;
+      if (!e.alive) continue;
+      if (e.ride) { riding.add(e); continue; }
+      if (riding.has(e)) { riding.delete(e); stats.unseated++; }
+      if (e.kind === 'nikto') continue;
       const on = lane.project(e.position.x, e.position.z);
       if (solid(on.s, on.lat)) continue;
       if (e.position.y - lavaY(on.s) > 0.35) continue;
       game.particles.impactSparks(e.position.clone().setY(lavaY(on.s) + 0.2), 26);
       game.particles.dustPuff(e.position.clone().setY(lavaY(on.s) + 0.3), 8);
       e.damage(99999, e.position, -1);
+      stats.lavaKills++;
     }
   };
 
@@ -1127,12 +1240,14 @@ function build(ctx: SectionContext): SectionInstance {
     for (const p of game.players) {
       const i = p.slot;
       const back = p.alive && !wasAlive[i];
+      if (!p.alive && wasAlive[i]) stats.playerDeaths++;
       wasAlive[i] = p.alive;
       if (!p.alive) { onFoot[i] = 0; continue; }
       if (p.vehicle) { onFoot[i] = 0; continue; }
       if (back && leadS > GATES[0] - 5) {
         const gs = GATES[reached] + 6;
         giveBike(p, gs, clearLat(gs, (i - 1.5) * 4), CRUISE * 0.7);
+        stats.freshBikes++;
         ctx.announce(T.freshBike, T.freshBikeSub);
         continue;
       }
@@ -1152,7 +1267,7 @@ function build(ctx: SectionContext): SectionInstance {
       if (!v || v.alive || v.rider) return;
       const p = game.players[i];
       if (!p || p.vehicle) return;
-      quayBikes[i] = rides.add({ kind: 'speederBike', x: 11.8, z: 4 + i * 5.5, y: lavaY(10) + 1.4, yaw: 0 }, bikeOpts);
+      quayBikes[i] = rides.add({ kind: 'speederBike', x: 11.8, z: 2 + i * 5, y: lavaY(10) + 1.4, yaw: 0 }, bikeOpts);
     });
   };
 
@@ -1258,6 +1373,13 @@ function build(ctx: SectionContext): SectionInstance {
 
     // the lava's flow, and its light on whoever is leading
     for (const m of [lava.map, lava.emissiveMap]) if (m) m.offset.y = -game.time * 0.09;
+    if (curtainMat.map) curtainMat.map.offset.y = -game.time * 0.9;
+    // spray off the lips while the party is near them
+    for (const lip of LIPS) {
+      if (Math.abs(lip - leadS) < 90 && Math.random() < dt * 12) {
+        game.particles.impactSparks(at(lip + 3.5, (Math.random() - 0.5) * 24, 0.4), 6);
+      }
+    }
     const lp = at(clamp(leadS + 6, -BEFORE, LEN), 0);
     followLight.position.set(lp.x, lavaY(leadS) + 5, lp.z);
     for (const [k, lamps] of gateLamps.entries()) {
@@ -1389,9 +1511,13 @@ function build(ctx: SectionContext): SectionInstance {
     out.moveY = 0.35;
     // at the barge's boom: hold back and shoot it out
     const b = barge;
-    if (b && b.state === 'holding' && s > b.s - 40) {
-      out.moveY = s > b.s - 26 ? -1 : 0;
-      out.moveX = clamp((b.lat - v.laneLat) * 0.3, -1, 1);
+    if (b && (b.state === 'holding' || b.state === 'running') && Math.abs(b.s - s) < 70) {
+      // under the flak: keep moving across the lane, and put the shield up
+      // in the bursts while the gauge lasts
+      if (b.state === 'holding' && s > b.s - 40) out.moveY = s > b.s - 24 ? -1 : 0;
+      const weave = Math.sin(game.time * 0.9 + slot * 1.7) * Math.min(7, halfWidth(s) - 3);
+      out.moveX = clamp((weave - v.laneLat) * 0.35, -1, 1);
+      out.blockHeld = v.hp < v.maxHp * 0.7 && game.time % 3 < 1.2;
     }
     // the gun: whenever something is ahead in the cone, and it is not venting
     let ahead = false, beside: -1 | 1 | 0 = 0;
@@ -1437,6 +1563,7 @@ function build(ctx: SectionContext): SectionInstance {
       leadS: Math.round(leadS), tailS: Math.round(tailS), reached,
       barge: barge ? barge.state : 'none', riders: rides.list.filter((v) => v.hostile).length,
       onBikes: game.players.filter((p) => p.vehicle).length,
+      ...stats,
     }),
   };
 }

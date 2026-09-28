@@ -318,7 +318,9 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     seat: { x: 0, y: 0.05, z: -1.0 }, stance: 'seated',
     modelId: 'quad_turret', modelSize: 4, modelAxis: 'longest', modelGround: true,
     gun: {
-      rate: 9, heat: 0.045, cool: 0.45, resume: 0.3, damage: 22, speed: 95,
+      // heat vents all the time and a shot adds it: 9 × 0.078 against 0.45 a
+      // second locks a held trigger in about four seconds
+      rate: 9, heat: 0.078, cool: 0.45, resume: 0.3, damage: 22, speed: 95,
       cone: 0.05, range: 140, voice: 'longrifle',
       muzzles: [
         { x: 0.32, y: 1.72, z: 1.9 }, { x: -0.32, y: 1.72, z: 1.9 },
@@ -339,7 +341,8 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
  * it up, and a second and a half to come back.
  */
 export const BIKE_CANNON: GunDef = {
-  rate: 8, heat: 0.065, cool: 0.55, resume: 0.35, damage: 16, speed: 80,
+  // 8 × 0.13 a second in, 0.55 out: a held trigger locks in two seconds
+  rate: 8, heat: 0.13, cool: 0.55, resume: 0.35, damage: 16, speed: 80,
   cone: 12 * Math.PI / 180, range: 70, voice: 'carbine',
   muzzles: [{ x: 0.22, y: 0.55, z: 1.45 }, { x: -0.22, y: 0.55, z: 1.45 }],
 };
@@ -2158,13 +2161,18 @@ export class Vehicle {
     this.slewTo(this.baseYaw + clamp(wrapAngle(wantYaw - this.baseYaw), -t.yawArc, t.yawArc),
       clamp(wantPitch, t.pitchMin, t.pitchMax), dt);
     const onIt = Math.abs(wrapAngle(wantYaw - this.yaw)) < 0.07 && Math.abs(wantPitch - this.aimPitch) < 0.08;
-    // bursts: six rounds, then a breath — long enough to be read and dodged
+    // bursts: five rounds, then a breath — long enough to be read and dodged
     this.burstRest -= dt;
     if (this.burstRest > 0 || !onIt) return;
-    if (this.burstLeft <= 0) this.burstLeft = 6;
+    if (this.burstLeft <= 0) this.burstLeft = 5;
+    // a gun nobody is aiming by eye throws its rounds about a little
+    const miss = dist * 0.035;
+    _aimPt.x += (Math.random() - 0.5) * miss;
+    _aimPt.y += (Math.random() - 0.5) * miss * 0.5;
+    _aimPt.z += (Math.random() - 0.5) * miss;
     if (this.fireGun(_aimPt, team, -1, game, null, rate)) {
       this.burstLeft--;
-      if (this.burstLeft <= 0) this.burstRest = 1.1;
+      if (this.burstLeft <= 0) this.burstRest = 1.5;
     }
   }
 
@@ -2420,6 +2428,10 @@ export class Vehicle {
       for (const e of marks) {
         if (!e.alive) continue;
         if (Math.abs(e.position.y - this.pos.y) > 2.4) continue;
+        // K3 lane: two rides running side by side meet hull to hull (the mass
+        // rule in `collideVehicles`), not hull to rider — a biker alongside is
+        // for swinging at, not for bowling out of the saddle by brushing past
+        if (this.lane && ('characterId' in e ? !!e.vehicle : !!e.ride)) continue;
         // nearest point on the hull's axis, so a long skiff hits with its bow
         const relX = e.position.x - this.pos.x, relZ = e.position.z - this.pos.z;
         const along = Math.max(-half, Math.min(half, relX * sin + relZ * cos));
