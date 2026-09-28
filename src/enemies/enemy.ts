@@ -23,7 +23,7 @@ import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from
 import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
-import { reachArm, spreadKnees } from '../anim/seating';
+import { reachArm } from '../anim/seating';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
@@ -1580,7 +1580,7 @@ export class Enemy {
     v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
     this.velocity.copy(v.vel);
     this.grounded = true;
-    this.facingYaw = v.yaw;
+    this.facingYaw = v.yaw + v.seatYaw;
     // a kill zone ends the rider, hull or no hull
     if (this.boardHazards(game, dt)) return;
     const anim = this.char.animator;
@@ -1591,7 +1591,7 @@ export class Enemy {
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
-    if (v.legSpread !== null && this.char.rig) spreadKnees(this.char.rig, v.legSpread);
+    if (this.char.rig) v.poseLegs(this.char.rig);
     this.handsToGrips(v);
   }
 

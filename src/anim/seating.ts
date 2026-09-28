@@ -128,9 +128,30 @@ const _basis = new THREE.Matrix4();
 export function reachArm(rig: Rig, side: 'L' | 'R',
   target: THREE.Vector3, elbowHint: THREE.Vector3): void {
   const b = rig.bones;
-  const upper = side === 'L' ? b.upperArmL : b.upperArmR;
-  const fore = side === 'L' ? b.forearmL : b.forearmR;
-  const hand = side === 'L' ? b.handL : b.handR;
+  reachLimb(side === 'L' ? b.upperArmL : b.upperArmR, side === 'L' ? b.forearmL : b.forearmR,
+    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone());
+}
+
+/**
+ * Put a foot on something — a footrest, a peg, a stirrup: the same solve down
+ * one leg (`upperLeg → lowerLeg → foot`), the target being the ankle. Which way
+ * the knee bends comes from the hint, as the elbow's does: put it ahead of the
+ * hip and out to the side, where a rider's knee goes.
+ */
+export function reachLeg(rig: Rig, side: 'L' | 'R',
+  ankle: THREE.Vector3, kneeHint: THREE.Vector3): void {
+  const b = rig.bones;
+  reachLimb(side === 'L' ? b.upperLegL : b.upperLegR, side === 'L' ? b.lowerLegL : b.lowerLegR,
+    side === 'L' ? b.footL : b.footR, ankle, kneeHint, new THREE.Vector3(0, 0, 1));
+}
+
+/**
+ * The two-bone solve itself, for any limb hanging along its parents' -Y.
+ * `fallback` is the direction (in the limb root's space) to bow the middle
+ * joint when the hint lies on the root-to-target line.
+ */
+function reachLimb(upper: THREE.Object3D, fore: THREE.Object3D, hand: THREE.Object3D,
+  target: THREE.Vector3, elbowHint: THREE.Vector3, fallback: THREE.Vector3): void {
   const parent = upper.parent;
   if (!parent) return;
   const l1 = fore.position.length();
@@ -152,9 +173,8 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   _elbow.subVectors(_hint, upper.position);
   _elbow.addScaledVector(_dir, -_elbow.dot(_dir));
   if (_elbow.lengthSq() < 1e-8) {
-    // hint on the line: fall back to "elbow away from the body, and down"
-    _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize();
-    _elbow.copy(_up).addScaledVector(_dir, -_up.dot(_dir));
+    // hint on the line: fall back to the limb's own default bow
+    _elbow.copy(fallback).addScaledVector(_dir, -fallback.dot(_dir));
     if (_elbow.lengthSq() < 1e-8) return;
   }
   _elbow.normalize();

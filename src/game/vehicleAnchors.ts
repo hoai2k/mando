@@ -19,12 +19,22 @@ import type { VehicleSpec } from '../world/board';
  *    in metres, so the thighs clear the saddle or the cowl. A width rather
  *    than an angle, so every rider's own hips and thighs work out how far to
  *    open (`spreadKnees`); left out, the riding clip's own legs stand.
+ *  - `foot`, optional: where the left foot rests — a footrest, a peg — with
+ *    the right mirrored across the seat as the hands are. The leg reaches it
+ *    (`reachLeg`), its knee bowed forward and out by `legSpread`.
+ *  - `yaw`, optional: the rider turned on the seat, in degrees, for a ride
+ *    whose helm is not dead ahead of where its pilot stands.
+ *  - `modelYaw`, optional: the ride's sculpt turned on its keel, in degrees,
+ *    for one delivered a little off square. Anchors are placed after it.
  *
  * A ride with no entry keeps the defaults in `VEHICLE_DEFS` and the measured
  * seat, which is how every ride worked before these existed.
  */
 export type V3 = [number, number, number];
-export interface VehicleAnchor { seat: V3; grip: V3; legSpread?: number }
+export interface VehicleAnchor { seat: V3; grip: V3; legSpread?: number; foot?: V3; yaw?: number; modelYaw?: number }
+
+/** a foot anchor is the sole on the rest; the ankle the leg reaches for stands this far over it (m) */
+export const ANKLE_OVER_SOLE = 0.08;
 
 /**
  * The Nikto's swoop is not a pilotable ride but its own build (the bike and

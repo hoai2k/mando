@@ -311,6 +311,8 @@ function spawn(): void {
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
   figures = wants.map(([authored, label, from], i) => {
     const inst = (from ?? subject).build(authored) as CharacterInstance & Figure['extras'];
+    // anchors placed this session go on a ride (or the Nikto) the moment it is built
+    vehicleEditor.restore(inst.root);
     if (inst.animator && inst.rig) {
       const mando = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
       const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(cid());
@@ -1413,7 +1415,8 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   const cur = ed.current();
   const nikto = ed.kind === 'nikto';
   const label: Record<string, string> = {
-    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)', rider: 'Rider — on the swoop',
+    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)',
+    foot: 'Foot — left footrest (the right mirrors it)', rider: 'Rider — on the swoop',
   };
   const edited = ed.edited();
   host.innerHTML = `${editModeButtons()}
@@ -1430,6 +1433,13 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
       <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      ${ed.turns ? `<div class="field"><label>Turns, in degrees about the vertical</label>
+        <div class="weapon-scale-row"><span class="hint">Rider on the seat</span>
+          <input id="riderYaw" type="number" step="0.5" value="${ed.turns.yaw}"></div>
+        <div class="weapon-scale-row"><span class="hint">Model on its keel</span>
+          <input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
+        <p class="hint">Turn the rider to face the helm, or the ride's model to line up with the way it drives (then re-place its anchors).</p>
+      </div>` : ''}
       <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
         <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
         <div class="weapon-scale-row">
@@ -1442,15 +1452,22 @@ function renderVehiclePanel(host: HTMLDivElement): void {
       <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
       <p class="hint">${nikto
         ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
-        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
+        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. Green is the left footrest: once moved, both feet reach for it (the right mirrored), the knees bowed out to the leg spread. '}
         The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
       ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
         'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
-        e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}</code></div>`).join('')}</div>` : ''}
+        e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
+        'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
+        'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
+        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
-    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'rider');
+    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'foot' | 'rider');
+  for (const which of ['riderYaw', 'modelYaw'] as const) {
+    const input = host.querySelector<HTMLInputElement>(`#${which}`);
+    if (input) input.onchange = () => { ed.setTurn(which === 'riderYaw' ? 'yaw' : 'modelYaw', Number(input.value)); input.blur(); renderVehiclePanel(host); };
+  }
   host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
     button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
   });
