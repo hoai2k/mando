@@ -10,6 +10,7 @@ import { audio } from '../core/audio';
 import { flightMove } from './kit/locomotion';
 import { Interactions, type Interactable } from './kit/interact';
 import { composeMoves } from './kit/moves';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * Covert Sky (docs/LEVEL_SECTIONS.md §2.13) — the Great Forge, after Hold
@@ -70,6 +71,24 @@ const FLAK_FLIGHT = 1.4;
 /** a flak screen stands this far past its tower */
 const SCREEN_AHEAD = 45;
 
+/**
+ * A box's geometry in world space with its UVs in metres over `scale`, so a
+ * texture keeps one density across a four-metre crown and a hundred-metre
+ * spire once they are merged into one mesh.
+ */
+function worldBox(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, scale: number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(sx, sy, sz);
+  g.translate(cx, cy, cz);
+  const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    if (Math.abs(nor.getX(i)) > 0.5) uv.setXY(i, z / scale, y / scale);
+    else if (Math.abs(nor.getY(i)) > 0.5) uv.setXY(i, x / scale, z / scale);
+    else uv.setXY(i, x / scale, y / scale);
+  }
+  return g;
+}
+
 /** a small seeded random, so the city is the same city every time */
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -108,12 +127,12 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.tile(relief, 'forge_relief', 8, 3, { normal: true });
   relief.side = THREE.DoubleSide;
   const ruin = ctx.paint(0x5d6660, { rough: 0.92, metal: 0.05 });
-  ctx.tile(ruin, 'cliff_ruin', 2, 5, { normal: true });
-  ctx.tile(ruin, 'ruin_tower', 1, 3, { normal: true });
+  ctx.tile(ruin, 'cliff_ruin', 1, 1, { normal: true });
+  ctx.tile(ruin, 'ruin_tower', 1, 1, { normal: true });
   const ridgeMat = ctx.paint(spec.palette.rock, { rough: 0.95 });
-  ctx.tile(ridgeMat, 'cliff_ruin', 2, 6, { normal: true });
+  ctx.tile(ridgeMat, 'cliff_ruin', 1, 1, { normal: true });
   const roofMat = ctx.paint(spec.palette.floor, { rough: 0.85 });
-  ctx.tile(roofMat, 'glass_plain', 2, 2);
+  ctx.tile(roofMat, 'glass_plain', 1, 1);
   const iron = ctx.paint(0x3a3632, { rough: 0.55, metal: 0.75 });
   const glass = new THREE.MeshStandardMaterial({
     color: 0x1c6a4a, emissive: 0x2aff9a, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.6,
@@ -200,10 +219,17 @@ function build(ctx: SectionContext): SectionInstance {
     }
     return Math.hypot(x, z) > SR + half + 8;
   };
-  const addTower = (t: Tower, mat: THREE.Material): void => {
+  // The city is hundreds of boxes: each stands its own collider, and what is
+  // seen is merged into one mesh per material at the end (`mergeCity`).
+  const cityParts = { ruin: [] as THREE.BufferGeometry[], roof: [] as THREE.BufferGeometry[], ridge: [] as THREE.BufferGeometry[] };
+  const solid = (kind: keyof typeof cityParts, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, collide = true): void => {
+    if (collide) ctx.box(cx, cy, cz, sx, sy, sz, null);
+    cityParts[kind].push(worldBox(cx, cy, cz, sx, sy, sz, kind === 'roof' ? 6 : 14));
+  };
+  const addTower = (t: Tower): void => {
     const base = G - 30;
-    ctx.box(t.x, (base + t.top) / 2, t.z, t.w, t.top - base, t.d, mat);
-    ctx.box(t.x, t.top + 0.25, t.z, t.w - 0.6, 0.5, t.d - 0.6, roofMat);
+    solid('ruin', t.x, (base + t.top) / 2, t.z, t.w, t.top - base, t.d);
+    solid('roof', t.x, t.top + 0.25, t.z, t.w - 0.6, 0.5, t.d - 0.6);
     towers.push(t);
   };
   for (let z = 70; z < 1130; z += 38) {
@@ -215,7 +241,7 @@ function build(ctx: SectionContext): SectionInstance {
       if (!clearOfLine(x, zz, Math.max(w, d) / 2, top)) continue;
       if (flakSpec.some((f) => Math.hypot(f.x - x, f.z - zz) < 22)) continue;
       if (towers.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.z - zz) < (o.d + d) / 2 + 3)) continue;
-      addTower({ x, z: zz, w, d, top }, ruin);
+      addTower({ x, z: zz, w, d, top });
       // a fused-glass face toward the approach on some of them
       if (rand() < 0.4) {
         const pane = new THREE.Mesh(geo(new THREE.PlaneGeometry(w * 0.7, (top - G) * 0.6)), glass);
@@ -233,7 +259,7 @@ function build(ctx: SectionContext): SectionInstance {
       const y = Math.min(a.top, b.top) - 6;
       const mid = new THREE.Vector3((a.x + b.x) / 2, y, (a.z + b.z) / 2);
       if (!clearOfLine(mid.x, mid.z, Math.abs(a.x - b.x) / 2, y)) continue;
-      ctx.box(mid.x, y, mid.z, Math.abs(a.x - b.x), 1.6, 3, ruin);
+      solid('ruin', mid.x, y, mid.z, Math.abs(a.x - b.x), 1.6, 3);
       break;
     }
   }
@@ -242,9 +268,9 @@ function build(ctx: SectionContext): SectionInstance {
   // the lid, so the edge is a broken skyline and never a sheet of wall.
   const ridgeRand = rng(0x5eed);
   const spire = (cx: number, cz: number, sx: number, sz: number, top: number): void => {
-    ctx.box(cx, (G - 30 + top) / 2, cz, sx, top - (G - 30), sz, ridgeMat);
-    // a stepped crown, so the tops are not one flat line
-    ctx.box(cx, top + 4, cz, sx * 0.6, 8, sz * 0.6, ridgeMat);
+    solid('ridge', cx, (G - 30 + top) / 2, cz, sx, top - (G - 30), sz);
+    // a stepped crown, so the tops are not one flat line (over the lid: seen, never met)
+    solid('ridge', cx, top + 4, cz, sx * 0.6, 8, sz * 0.6, false);
     if (ridgeRand() < 0.35) {
       const pane = new THREE.Mesh(geo(new THREE.PlaneGeometry(sz * 0.6, (top - G) * 0.5)), glass);
       pane.position.set(cx - Math.sign(cx) * (sx / 2 + 0.05), G + (top - G) * 0.55, cz);
@@ -337,7 +363,7 @@ function build(ctx: SectionContext): SectionInstance {
   };
   const flaks: Flak[] = flakSpec.map((f, i) => {
     const top = G + f.top;
-    addTower({ x: f.x, z: f.z, w: 16, d: 16, top }, ruin);
+    addTower({ x: f.x, z: f.z, w: 16, d: 16, top });
     const at = new THREE.Vector3(f.x, top + 0.5, f.z);
     // the gun: a rubble ring, a turning mount, twin barrels
     const gun = new THREE.Group();
@@ -387,6 +413,18 @@ function build(ctx: SectionContext): SectionInstance {
     });
     return flak;
   });
+
+  // ---- the city, drawn: one mesh per material ----
+  for (const [kind, mat, shadow] of [['ruin', ruin, true], ['roof', roofMat, false], ['ridge', ridgeMat, false]] as const) {
+    const parts = cityParts[kind];
+    if (!parts.length) continue;
+    const merged = geo(mergeGeometries(parts, false));
+    for (const g of parts) g.dispose();
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = shadow;
+    mesh.receiveShadow = true;
+    ctx.mesh(mesh);
+  }
 
   // ---- flak shells: a tracer climbs, a marker swells, the burst ----
   const shellMat = new THREE.MeshBasicMaterial({ color: 0xff4a2a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });

@@ -621,7 +621,7 @@ export const TEXT = {
       boostersSub: 'flight-rated — the shaft is the way out',
       shaftLabel: 'the shaft',
       shaftHint: 'Gather at the forge',
-      shield: 'Shield raised',
+      shields: (n: number, of: number) => `Beskar shields up · ${n} of ${of}`,
     },
     'covert-sky': {
       stage: 'the sky over the city', title: 'Covert Sky',

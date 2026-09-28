@@ -255,6 +255,26 @@ function build(ctx: SectionContext): SectionInstance {
   hot.position.set(anvilAt.x, DAIS + 0.84, anvilAt.z);
   ctx.mesh(hot);
   const armorerPost = new THREE.Vector3(0, DAIS, -4.3);
+  // The boosters she forges, laid on the anvil when the metal is done: a
+  // flight-rated pair, gold-banded, nozzles glowing — what Covert Sky flies on.
+  const boosters = new THREE.Group();
+  const boosterNozzle = new THREE.MeshBasicMaterial({ color: 0x9ad8ff });
+  ctx.own(boosterNozzle);
+  for (const s of [-0.24, 0.24]) {
+    const can = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.16, 0.16, 0.7, 12)), beskar);
+    can.rotation.z = Math.PI / 2;
+    can.position.set(0, 0, s);
+    const band = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.17, 0.17, 0.08, 12)), gold);
+    band.rotation.z = Math.PI / 2;
+    band.position.set(0.1, 0, s);
+    const mouth = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.1, 0.13, 0.06, 12)), boosterNozzle);
+    mouth.rotation.z = Math.PI / 2;
+    mouth.position.set(-0.37, 0, s);
+    boosters.add(can, band, mouth);
+  }
+  boosters.position.set(anvilAt.x, DAIS + 0.98, anvilAt.z);
+  boosters.visible = false;
+  ctx.mesh(boosters);
 
   // ---- the bellows, one each side of the fire ----
   const interactions = new Interactions();
@@ -584,6 +604,8 @@ function build(ctx: SectionContext): SectionInstance {
       if (giftT >= 3.5) {
         phase = 'gather';
         giftT = 0;
+        boosters.visible = true;
+        game.particles.impactSparks(boosters.position, 30);
         ctx.announce(T.boosters, T.boostersSub);
       }
     }
@@ -629,7 +651,7 @@ function build(ctx: SectionContext): SectionInstance {
     if (!line) {
       if (phase === 'prep') line = T.prep;
       else if (bellows.some((b) => b.broken)) line = T.bellowsBroken;
-      else line = `${T.shield} ${raisedOrder.length}/${SHIELDS}`;
+      else line = T.shields(raisedOrder.length, SHIELDS);
     }
     return { title: T.title, bars, line };
   };
