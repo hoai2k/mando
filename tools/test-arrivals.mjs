@@ -406,9 +406,29 @@ const siege = await h.page.evaluate(`(async () => {
   const posted = (c.garrison.get(zone) ?? []).filter((e) => e.alive).length;
   hold(zone, si);
   const waveCount = c.waveCount;
+  const pass = { post: !!zone.runnerPost, seen: 0, landed: 0, inZone: 0 };
+  const isRunner = (e) => e.squad >= 9600 && e.squad < 9700;
   const supplied = nextWave(si);
+  // The pass: a siege's beasts and locals come down the gully and in through
+  // the notch on foot (audit item 3). Watched across the waves the zone still
+  // owes, since which wave draws a runner kind is the board's table's business.
+  for (let w = 0; w < 4 && c.idx === si; w++) {
+    const run = g.enemies.filter((e) => e.alive && isRunner(e));
+    pass.seen += run.length;
+    // an arrival gives up after thirty seconds wherever it has got to, so
+    // wait past that: a runner still in the gully then is one that was stuck
+    for (let n = 0; n < 110 && run.some((e) => e.alive && e.arriving); n++) step(10);
+    for (const e of run) {
+      if (!e.alive) continue;
+      pass.landed++;
+      const r = zone.rect;
+      if (e.position.x >= r.minX && e.position.x <= r.maxX && e.position.z >= r.minZ && e.position.z <= r.maxZ) pass.inZone++;
+    }
+    if (pass.seen) break;
+    nextWave(si);
+  }
   return { label: zone.spec.label, shell: zone.spec.shell, waves: zone.spec.waves,
-    posted, waveCount, supplied, ordinary };
+    posted, waveCount, supplied, ordinary, pass };
 })()`);
 check('missions: the run\'s one wave battle holds with what is posted',
   !siege.err && siege.posted > 0 && siege.waveCount === siege.waves,
@@ -418,6 +438,9 @@ check('missions: ordinary open ground is held, never supplied',
   !siege.err && siege.ordinary && siege.ordinary.waveCount === 1
   && siege.ordinary.carriers === 0 && siege.ordinary.arrived === 0
   && siege.ordinary.cleared, siege.ordinary);
+check('missions: a siege\'s runners come in through its pass and into the fight',
+  !siege.err && siege.pass.post && siege.pass.seen > 0 && siege.pass.landed > 0
+  && siege.pass.inZone === siege.pass.landed, siege.pass);
 // "Sealed in" and "wave 1 of 1" were both said of open ground that seals
 // nothing and calls no waves (audit item 2)
 check('missions: open ground is not told it is sealed in or counted in waves',

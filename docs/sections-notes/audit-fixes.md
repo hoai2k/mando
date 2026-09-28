@@ -77,3 +77,30 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   `waves`.
 - **Left.** Nothing.
 
+### 3. The runner pass: fixed on the sieges, dropped elsewhere — done
+
+- **What.** A `pass` is now a way in that works: a 6 m notch in the far rim
+  (`PASS_W`), clear of the exit's own gap, with a 12 m gully behind it
+  (`PASS_DEPTH`) walled on three sides and floored on a plate stage. The runner
+  post stands in the gully and `runnerIn` just inside the notch; a siege's
+  runner kinds (Tuskens, massiffs, alamites, krykna, melee pirates) run from one
+  to the other and then join the fight, instead of being aimed at a far vent and
+  running into the rim. The gully's line is registered as a *lane*
+  (`StageBuilder.lanes`), which the border merge keeps clear exactly as it does
+  the golden path, without the guidance ever pointing down it. A pass whose
+  spots do not validate is warned about at build.
+- `pass` is dropped from the three non-siege zones that carried it (the dune
+  gate, the glassed court, the plaza): nothing but a siege calls runners. The
+  dune gate is also shortened from 60 to 40 m, as the audit suggested for it
+  without the pass.
+- **Tests.** `test-arrivals`: on the Lava Flats' siege, runners are seen, land,
+  and end inside the zone. `test-missions` (per board) and
+  `audit-mission-build` (every stage of every board): a zone with `pass` must
+  have validated runner spots, and a `pass` is only allowed on a siege.
+  `audit-mission-build` also now checks every stage's starts stand outside zone
+  0 and are free (item 1), and reloads the page per board (it ran the renderer
+  out of memory raising nine boards in one page).
+- **Left.** Nothing. (Making the dune gate or the glassed court a siege was the
+  audit's other option; left alone so sieges stay the rare beat test-arrivals
+  holds them to.)
+

@@ -27,7 +27,11 @@ export function validateSpots(b: StageBuilder, zones: MissionZone[],
     if (!zone.vents.length) zone.vents.push(zone.center.clone());
     zone.posts = zone.posts.filter(fits);
     if (!zone.posts.length) zone.posts.push(zone.center.clone());
-    if (zone.runnerPost && !fits(zone.runnerPost)) zone.runnerPost = null;
+    if (zone.runnerPost && (!fits(zone.runnerPost) || !zone.runnerIn || !fits(zone.runnerIn))) {
+      console.warn(`[mission] ${zone.spec.label}: its runner pass has nowhere to stand — no runners will come through it`);
+      zone.runnerPost = null;
+      zone.runnerIn = null;
+    }
     for (const h of zone.hatches) if (!fits(h.post)) h.post.copy(zone.center);
   }
   for (let i = 0; i < defenders.length; i++) defenders[i] = defenders[i].filter((d) => fits(d.pos));

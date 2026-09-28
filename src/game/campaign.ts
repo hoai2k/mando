@@ -1107,15 +1107,20 @@ export class Campaign implements MissionController {
     const vents = pool.length ? pool : zone.vents;
     // where a zone has a runner notch in its rim, the beasts and locals come
     // in through it on foot rather than by transport
-    const runners = zone.runnerPost ? kinds.filter((k) => RUNNER_KINDS.has(k)) : [];
+    const runners = zone.runnerPost && zone.runnerIn ? kinds.filter((k) => RUNNER_KINDS.has(k)) : [];
     const dropped = kinds.filter((k) => !runners.includes(k));
     if (runners.length) {
       runners.forEach((kind, i) => {
+        // a little spread, but not enough to start a beast in the gully's wall
         const from = zone.runnerPost!.clone();
-        from.x += (Math.random() - 0.5) * 5;
-        from.z += (Math.random() - 0.5) * 5;
-        const to = vents[i % vents.length];
-        const e = new Enemy(kind, this.placeNear(to.clone(), kind), 1, { silent: true });
+        from.x += (Math.random() - 0.5) * 2;
+        from.z += (Math.random() - 0.5) * 2;
+        // down the gully and in through the notch, then out across the zone:
+        // aimed at a vent they would run straight at the rim beside the notch
+        const to = zone.runnerIn!.clone();
+        to.x += (Math.random() - 0.5) * 2;
+        to.z += (Math.random() - 0.5) * 2;
+        const e = new Enemy(kind, this.placeNear(to, kind), 1, { silent: true });
         e.squad = 9600 + zone.beat * 10 + this.waveNum;
         e.squadSize = runners.length;
         this.game.addEnemy(e);

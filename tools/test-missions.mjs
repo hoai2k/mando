@@ -795,6 +795,9 @@ for (const board of boards) {
       if (fight && z.spec.shell === 'hall' && z.hatches.length < 2) bad.push(`${z.spec.label}: hatches`);
       if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) bad.push(`${z.spec.label}: vents`);
       if (!z.posts.length) bad.push(`${z.spec.label}: posts`);
+      // a pass nobody can come through is a notch that goes nowhere (audit item 3)
+      if (z.spec.pass && !z.runnerPost) bad.push(`${z.spec.label}: its runner pass never validated`);
+      if (z.spec.pass && !z.spec.siege) bad.push(`${z.spec.label}: a pass on a zone that calls no runners`);
     }
     // A ride stands on the ground, not on the furniture. It takes its hover
     // height from the physics — the highest surface under it — so one authored
@@ -1147,7 +1150,8 @@ const vest = await page.evaluate(async () => {
   arrived.backOpen = c.stage.backPortal.open_;
   // walk in: the arena seals and the way back shuts with it
   p.position.copy(z0.center);
-  for (let f = 0; f < 45; f++) g.update(1 / 30, idle);
+  // the door's leaves take a moment to travel; it counts as shut once they have
+  for (let f = 0; f < 90; f++) g.update(1 / 30, idle);
   const fight = { phase: c.phase, backClosed: c.stage.backPortal.closed };
   // ...and standing in its pocket carries nobody anywhere
   const was = c.stageIdx;

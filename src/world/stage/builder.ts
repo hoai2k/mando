@@ -152,6 +152,12 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
    * "decor, said so". So the merge checks the row against the floors too.
    */
   const backAt: { x: number; z: number; r: number }[] = [];
+  /**
+   * Ways through that are not the golden path but must stay just as clear —
+   * a runner pass's gully and the notch it comes through. The border merge
+   * treats them as it treats the path; the guidance never sees them.
+   */
+  const lanes: THREE.Vector3[][] = [];
 
   const removeBoxes = (bs: StaticBox[]): void => {
     const gone = new Set<StaticBox>(bs);
@@ -222,7 +228,7 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
     wallMat, floorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
     group,
     boxes, cylinders, hazards, breakables, rects, pickups, defenders, rides, path, blocked,
-    shockStrips, rimGeo, rimAt, backGeo, backAt,
+    shockStrips, rimGeo, rimAt, backGeo, backAt, lanes,
     /** a counter for staggering adjacent floor plates (see `EPS`) */
     spaceN: 0,
     /**

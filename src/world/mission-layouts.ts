@@ -145,7 +145,10 @@ const desert: StageSpec[] = [
     label: TEXT.missions.stages.desert[2],
     zones: [
       z('desert', 6, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
-      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, garrison: 3, pass: true }),
+      // The gate is a garrison fight in a slot, not the run's third long canyon
+      // assault: forty metres, and no pass — its notch overlapped the way on
+      // and no runner ever came through it.
+      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 40, garrison: 3 }),
       z('desert', 8, {
         // A twenty-six metre barge nine metres off a lane twenty-two metres
         // wide is a barge lying across the lane: the golden path ran through
@@ -476,7 +479,7 @@ const forge: StageSpec[] = [
     label: TEXT.missions.stages.forge[2],
     zones: [
       z('forge', 6, {
-        shell: 'open', kind: 'assault', w: 54, l: 48, garrison: 3, pass: true, air: true, feature: 'pillars',
+        shell: 'open', kind: 'assault', w: 54, l: 48, garrison: 3, air: true, feature: 'pillars',
         // v: 0 is the lane's own centreline, which is where the golden path
         // runs and where the floor arrow points — a brazier there is a thing
         // the guidance sends you into. Off to one side it is a landmark.
@@ -521,7 +524,7 @@ const ringworld: StageSpec[] = [
       z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
       z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('ringworld', 5, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, pass: true, air: true,
+        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, air: true,
         props: [
           { id: 'street_kiosk', u: 16, v: 14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
           { id: 'street_kiosk', u: 30, v: -14, size: 3.2, solid: { r: 1.7, h: 2.4 } },

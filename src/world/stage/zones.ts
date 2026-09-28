@@ -3,7 +3,7 @@ import { Gate, GATE_W, type Barrier } from '../gate';
 import { addBreakable } from '../board';
 import type { MissionZone } from '../mission';
 import {
-  EPS, WALL_T, ROOF_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, Frame,
+  EPS, WALL_T, ROOF_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
 } from './common';
 import { Fence } from './barriers';
 import type { StageBuilder } from './builder';
@@ -23,7 +23,7 @@ export function layZones(b: StageBuilder) {
   const {
     board, spec, stage, index, beat0, pal, baseWallH, ceiling, onGround, bare, wantRim, canyon,
     floorMat, wallMat, rockMat, trimMat, owned, group,
-    boxes, breakables, rects, pickups, path, anchor, floorY, groundAt,
+    boxes, breakables, rects, pickups, path, lanes, anchor, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge, setPieces, placeProps, placeRides,
   } = b;
 
@@ -51,6 +51,7 @@ export function layZones(b: StageBuilder) {
     const roofH = zs.roofH ?? ROOF_H;
     const hatches: { gate: Gate; post: THREE.Vector3 }[] = [];
     let runnerPost: THREE.Vector3 | null = null;
+    let runnerIn: THREE.Vector3 | null = null;
     const marks: THREE.Vector3[] = [];
 
     // ---- the floor ----
@@ -180,9 +181,27 @@ export function layZones(b: StageBuilder) {
       // second door. Either way the rim leaves the gap: the face fills it.
       const doorFace = !!zs.deadEnd && internalExit;
       const frontGaps: [number, number][] = exitOpen ? [[-gapHalf, gapHalf]] : [];
-      if (zs.pass) {
-        frontGaps.push([w / 3 - 2, w / 3 + 2]);
-        runnerPost = surf(f, l + 9, w / 3);
+      if (zs.pass && rimmed) {
+        // The pass is a way *in*, for the siege's runners: a notch in the far
+        // rim, well clear of the exit's own gap, and a short gully behind it
+        // walled on three sides — floored on a plate stage, so a body has
+        // somewhere to stand. It used to be a four-metre notch with a post
+        // nine metres out over nothing, and the post never validated, so no
+        // runner ever came through it (audit finding 5).
+        const pv = Math.max(w / 3, gapHalf + PASS_W / 2 + 4);
+        const ph = PASS_W / 2;
+        frontGaps.push([pv - ph, pv + ph]);
+        const gEnd = front + PASS_DEPTH;
+        if (!onGround) solid(f, l + 1, gEnd + 1, pv - ph - 1, pv + ph + 1, top - 1, top, floorMat);
+        rects.push(f.rect(l + 1, gEnd, pv - ph, pv + ph));
+        const gully = { x: f.x(front + PASS_DEPTH / 2, pv), z: f.z(front + PASS_DEPTH / 2, pv) };
+        const gw = ph + 1.5;
+        ridge([[f.x(front, pv + gw), f.z(front, pv + gw)], [f.x(gEnd, pv + gw), f.z(gEnd, pv + gw)]], top, { inside: gully });
+        ridge([[f.x(front, pv - gw), f.z(front, pv - gw)], [f.x(gEnd, pv - gw), f.z(gEnd, pv - gw)]], top, { inside: gully });
+        ridge([[f.x(gEnd, pv + gw), f.z(gEnd, pv + gw)], [f.x(gEnd, pv - gw), f.z(gEnd, pv - gw)]], top, { inside: gully });
+        runnerPost = surf(f, gEnd - 3.5, pv);
+        runnerIn = surf(f, l - 4, pv);
+        lanes.push([runnerPost.clone(), runnerIn.clone()]);
       }
       frontGaps.sort((a, b) => a[0] - b[0]);
       if (rimmed) {
@@ -313,7 +332,7 @@ export function layZones(b: StageBuilder) {
       sealRect: f.rect(1.2, l - 1.2, -w / 2, w / 2),
       triggerRect: f.rect(Math.min(TRIGGER_IN, l * 0.4), l, -w / 2, w / 2),
       entryBarrier, exitBarrier, hatches,
-      farVents, sideVents, vents: [], posts, runnerPost, marks,
+      farVents, sideVents, vents: [], posts, runnerPost, runnerIn, marks,
       landmark,
     });
     path.push(surf(f, 2.4, 0), surf(f, l - 2.4, 0));

@@ -138,7 +138,11 @@ export interface ZoneSpec {
    * off that rect.)
    */
   deadEnd?: boolean;
-  /** open: a runner notch in the far rim, and a post outside it */
+  /**
+   * Open ground: a runner notch in the far rim with a walled gully behind it,
+   * down which a siege's beasts and locals come on foot rather than by ship.
+   * Only worth having on a siege — nothing else calls runners.
+   */
   pass?: boolean;
   /** trek: posted sentries who raise the alarm rather than hold ground */
   lookouts?: number;
@@ -269,8 +273,10 @@ export interface MissionZone {
   farVents: THREE.Vector3[];
   sideVents: THREE.Vector3[];
   posts: THREE.Vector3[];
-  /** open zones with a `pass`: where runners enter from */
+  /** open zones with a `pass`: where runners enter from, in the gully behind the notch */
   runnerPost: THREE.Vector3 | null;
+  /** ...and the ground just inside the notch they run to before they fan out */
+  runnerIn: THREE.Vector3 | null;
   /** road zones: the drop marks along it, in order */
   marks: THREE.Vector3[];
   /** the pillars that frame the way on — what the guidance points at */

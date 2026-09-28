@@ -94,6 +94,13 @@ export const PATH_CLEAR = 1.2;
 export const CORNER_LAP = 8;
 /** how wide a strip either side of the golden path counts as walkable ground */
 export const PATH_WALKABLE = 2.5;
+/**
+ * A runner pass (`ZoneSpec.pass`): a notch this wide in the far rim, and a
+ * gully this deep behind it, walled on three sides, that the beasts and
+ * locals of a siege come down on foot.
+ */
+export const PASS_W = 6;
+export const PASS_DEPTH = 12;
 /** per crate in a crate-line barricade */
 export const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */

@@ -26,6 +26,11 @@ let bad = 0;
 // a player does and reads back the stage the campaign raised.
 for (const board of boards) {
   const t0 = Date.now();
+  // A fresh page per board, as test-missions does: nine territories raised
+  // back to back in one page run the renderer out of memory around the fifth
+  // (a "Target crashed" that says nothing about any level).
+  await page.goto(page.url());
+  await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
   await page.evaluate(([b]) => {
     window.__manual = false;
     window.__quitToTitle?.();
@@ -63,6 +68,17 @@ for (const board of boards) {
         if (fight && z.spec.shell === 'hall' && z.hatches.length < 2) issues.push(`${z.spec.label}: hatches`);
         if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) issues.push(`${z.spec.label}: ${z.vents.length} vents`);
         if (!z.posts.length) issues.push(`${z.spec.label}: no posts`);
+        // a pass is a way in for runners, or it is a notch that goes nowhere
+        if (z.spec.pass && !(z.runnerPost && z.runnerIn)) issues.push(`${z.spec.label}: its runner pass never validated`);
+      }
+      // A stage with a door behind it opens outside its first zone, never in
+      // it: a sealed room or an arena there would fight on the first frame.
+      if (s.backPortal) {
+        const r = s.zones[0].sealRect;
+        const inside = s.starts.filter((p) => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ);
+        if (inside.length) issues.push(`${s.zones[0].spec.label}: ${inside.length} start(s) inside the first zone`);
+        const blocked = s.starts.filter((p) => !g.board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1));
+        if (blocked.length) issues.push(`${blocked.length} start(s) in the vestibule are blocked`);
       }
       for (const ride of s.rides) if (!s.contains(ride.x, ride.z)) issues.push(`ride ${ride.kind} off the stage`);
 
