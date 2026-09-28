@@ -20,6 +20,7 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'lights-out',
   'the-lift',
   'one-way-out',
+  'mark-runs',
 ]);
 
 /**

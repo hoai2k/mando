@@ -798,6 +798,21 @@ export class Enemy {
   private coverCheck = 0;
   private peekFired = false;
 
+  // ---- a gameplay section's hand on this body (K8 pursuit) ----
+  /**
+   * Null everywhere outside a section. `drive` moves the body itself this
+   * frame and returns the pose to hold ('ground' runs the locomotion cycle,
+   * 'air' the flight pose, 'still' leaves whatever the section played on the
+   * animator) — the AI is skipped, the timers, pose and visuals
+   * still run; returning false hands the frame back to the AI. `hurt` sees
+   * every hit first and returns the damage that lands (0 for a hit it turns
+   * into something else, a stagger or a cost). src/sections/kit/pursuit.ts.
+   */
+  scripted: {
+    drive?: (e: Enemy, dt: number, game: Game) => 'ground' | 'air' | 'still' | false;
+    hurt?: (amount: number, from: THREE.Vector3, bySlot: number) => number;
+  } | null = null;
+
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
   get outOfFight(): boolean { return !this.alive || this.wounded || this.fleeing || this.downed; }
@@ -1127,6 +1142,11 @@ export class Enemy {
 
   damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
+    // a section's scripted body decides what a hit does to it (K8 pursuit)
+    if (this.scripted?.hurt) {
+      amount = this.scripted.hurt(amount, from, bySlot);
+      if (amount <= 0) { this.hitFlash = 0.15; if (bySlot >= 0) this.lastHitBy = bySlot; return; }
+    }
     // under the ground nothing lands — the whole lesson of the burrower is
     // that it has to be hurt while it is up
     if (this.submerged) { this.alert(from, true); return; }
@@ -1454,6 +1474,19 @@ export class Enemy {
 
     if (this.arrival) {
       updateArrival(this, dt, game);
+      return;
+    }
+
+    // a section is driving this body (K8 pursuit): no AI, but the pose and visuals run
+    const scriptPose = this.scripted?.drive?.(this, dt, game);
+    if (scriptPose) {
+      this.tickTimers(dt);
+      if (anim && scriptPose === 'air') {
+        anim.play('lower', 'flyLower', 0.2);
+        anim.play('upper', 'idleUpper', 0.25);
+      } else if (anim && scriptPose === 'ground') this.updateLocomotionAnim(anim);
+      this.syncVisual(dt, game);
+      anim?.update(dt);
       return;
     }
 
