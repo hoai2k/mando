@@ -12,6 +12,9 @@ import { isDuelist, type Duelist } from './melee';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
+import { SaberLights } from '../fx/saberLights';
+import { config } from '../config';
+import { litSaberCount } from '../characters/mandalorians';
 import { audio } from '../core/audio';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
@@ -164,6 +167,9 @@ export const BIG_BODY_R = 1.1;
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
+  /** the lights player sabers borrow; sized once, when the match is made */
+  saberLights!: SaberLights;
+  private litBlades: THREE.Object3D[] = [];
   enemies: Enemy[] = [];
   allies: Enemy[] = [];
   /** rides parked around the board (PLAN.md §17) */
@@ -348,6 +354,8 @@ export class Game {
       this.scene.add(p.char.root);
       this.players.push(p);
     }
+    this.saberLights = new SaberLights(this.scene,
+      this.players.reduce((n, p) => n + litSaberCount(p.characterId), 0), config.video.saberLights);
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
@@ -1161,6 +1169,7 @@ export class Game {
    */
   dispose(): void {
     this.disposed = true;
+    this.saberLights.dispose();
     audio.stopAmbient();
     audio.stopMusic();
     audio.stopJetpacks();
@@ -1956,6 +1965,11 @@ export class Game {
     renderer.getSize(this.tmpSize);
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
+
+    // the saber lights go where the blades are this frame, before any view is drawn
+    this.litBlades.length = 0;
+    for (const p of this.players) p.litBlades(this.litBlades);
+    this.saberLights.sync(this.litBlades);
 
     const shared = this.sharedView;
     const n = shared ? 1 : this.humans;

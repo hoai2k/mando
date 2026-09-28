@@ -287,6 +287,15 @@ settings.addChoice(TEXT.settings.splitScreen, [
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
 });
+settings.addChoice(TEXT.settings.saberLights, [
+  { value: 'auto' as const, label: TEXT.settings.auto },
+  { value: 'on' as const, label: TEXT.settings.on },
+  { value: 'off' as const, label: TEXT.settings.off },
+], () => config.video.saberLights, (v) => {
+  config.video.saberLights = v;
+  saveVideoConfig();
+  game?.saberLights.setMode(v);
+});
 // the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
 const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
 settings.addSlider(TEXT.settings.lookSensitivity,
@@ -958,6 +967,8 @@ function step(dt: number): void {
     if (state === 'playing') {
       const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
+      // `dt` is the real frame, capped at 0.05 s: slow frames still read slow
+      game.saberLights.watch(dt, config.video.saberLights);
       warmQueue.setCombatBusy(game.enemies.some((e) => e.alive && e.isEngaged));
       hud.update(dt, game);
       // A stage that is still arriving gets the same veil the drop gets: the

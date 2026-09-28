@@ -240,6 +240,10 @@ export const TEXT = {
     splitScreen: 'Split screen',
     stacked: 'Stacked',
     sideBySide: 'Side by side',
+    saberLights: 'Saber lights',
+    auto: 'Auto',
+    on: 'On',
+    off: 'Off',
     lookSensitivity: 'Look sensitivity',
     invertY: 'Invert look (Y)',
     keyboardMouse: 'Keyboard & mouse',
@@ -249,6 +253,7 @@ export const TEXT = {
       + 'dash or fly. Off, it holds the one distance the right stick dials in.<br/>'
       + '<b>Split screen</b> — which way co-op divides the window: <b>stacked</b> gives each player a wide strip, '
       + '<b>side by side</b> turns the same layout on its side. Four players get a quadrant either way.<br/>'
+      + '<b>Saber lights</b> — a lit blade glows on what is around it. <b>Auto</b> turns this off for the session if the game runs slowly.<br/>'
       + '<b>Keyboard &amp; mouse</b> — adds WASD and mouse aiming; while it is off the cursor stays free during play.',
   },
 
