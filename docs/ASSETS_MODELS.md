@@ -723,8 +723,8 @@ Name them to match: something matching `/idle|breath|stand/` and something match
 
 The id is the filename, and it is not always the character's internal id — the Imperial
 officer is the enemy kind `officer` but the file `imperial_officer.glb`, and the melee pirate
-is the kind `pirateMelee` but the file `pirate_melee.glb`. The mapping lives in
-`AUTHORED_ENEMY` in `src/characters/enemies.ts`.
+is the kind `pirateMelee` but the file `pirate_melee.glb`. The mapping, with the height
+each humanoid model is fitted to, lives in `ENEMY_MODELS` in `src/characters/authored.ts`.
 
 **The loader is live** (`src/characters/authored.ts`). A model is picked up automatically
 when the file appears; when it is absent the procedural build stands, exactly like the

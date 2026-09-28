@@ -29,7 +29,7 @@ import {
 } from '../game/melee';
 
 /** fighters whose strike is a fist, a claw or a jaw: no blade to parry with */
-const UNARMED_MELEE: ReadonlySet<string> = new Set([
+const UNARMED_MELEE: ReadonlySet<PlayableId> = new Set<PlayableId>([
   'npc:massiff', 'npc:krykna', 'npc:broodmother', 'npc:spiderling', 'npc:enforcer',
 ]);
 /**
@@ -37,7 +37,7 @@ const UNARMED_MELEE: ReadonlySet<string> = new Set([
  * the blades in hand: the twin-saber left-hand parry (combatStudies.ts), and
  * Maris' block-then-flip-out, which opens on exactly that block.
  */
-export const PARRY_CLIPS: Partial<Record<string, string>> = {
+export const PARRY_CLIPS: Partial<Record<PlayableId, string>> = {
   ventress: 'saberParryUpper', jedi: 'saberParryUpper', maris: 'marisFlipOutUpper',
 };
 /** a blade that visibly grazed a body counts: the forgiveness on every swing (m) */

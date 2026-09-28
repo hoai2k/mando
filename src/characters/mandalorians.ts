@@ -211,7 +211,7 @@ export const saberStyleFor = (id: string): SaberStyle => rosterEntry(id)?.saberS
 export const saberClipsFor = (id: string): SaberClips => saberClipSet(saberStyleFor(id));
 /** The scale on this fighter's sabers: the shared grip's, where it was set on them (see `sharedGrip`). */
 export const saberScaleFor = (id: string): number =>
-  (rosterEntry(id)?.sharedGrip === 'sabers' ? sharedWeaponScale(id) : 1);
+  (rosterEntry(id)?.sharedGrip === 'sabers' ? sharedWeaponScale(id as MandoId) : 1);
 
 /**
  * The sculpt in the signature melee slot when it is this fighter's own — a

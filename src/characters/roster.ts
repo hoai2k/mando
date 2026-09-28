@@ -7,7 +7,7 @@ import {
 } from './mandalorians';
 import { weaponProp } from './weaponProps';
 import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { enemyModelIds } from './authored';
+import { enemyModelIds, type ModelId } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
 
@@ -23,7 +23,7 @@ import type { VoiceId } from '../core/audio';
  */
 
 /** A playable id: a Mandalorian/hunter id, or 'npc:<enemyKind>'. */
-export type PlayableId = string;
+export type PlayableId = MandoId | `npc:${EnemyKind}`;
 
 export interface PlayerProfile {
   name: string;
@@ -118,7 +118,7 @@ export interface PlayableDef {
    * to name every file or a plinth clears its spinner on a half-authored
    * fighter.
    */
-  modelIds: string[];
+  modelIds: ModelId[];
 }
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
@@ -358,7 +358,7 @@ const HIDDEN_PLAYABLES = new Set<EnemyKind>(['spiderling']);
 /** PvP: the standard roster plus every playable NPC */
 export const PVP_ROSTER: PlayableId[] = [
   ...STANDARD_ROSTER,
-  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k) => `npc:${k}`),
+  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k): PlayableId => `npc:${k}`),
 ];
 
 export function playableDef(id: PlayableId): PlayableDef {
@@ -366,6 +366,6 @@ export function playableDef(id: PlayableId): PlayableDef {
 }
 
 /** every authored model a playable renders as — a swoop rider is two files */
-export function playableModelIds(id: PlayableId): string[] {
+export function playableModelIds(id: PlayableId): ModelId[] {
   return playableDef(id).modelIds;
 }

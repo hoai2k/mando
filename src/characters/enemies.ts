@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
-import { attachAuthored, loadCreature, loadProp, type CreatureId } from './authored';
+import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
 import { applySharedWeaponGrip } from './sharedWeaponGrips';
@@ -99,22 +99,8 @@ function rifle(parent: THREE.Object3D): THREE.Object3D {
 
 // ---------- Tusken Raider: sand robes, eye-stalk mask, gaderffii ----------
 /**
- * Heights the authored enemy models are normalised to, matching the `height`
- * their DEFS entry uses for hit spheres and camera framing.
- */
-const AUTHORED_ENEMY: Record<string, number> = {
-  droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2,
-  pirate: 1.9, pirate_melee: 1.9, marshal: 1.85, fennec: 1.8, imperial_officer: 1.88,
-  tusken: 1.8, pyke: 2.0, stormtrooper: 1.9, pyke_capo: 2.05, wookiee_enforcer: 2.6,
-  // the swoop rider is measured standing, then posted on the saddle by the pose
-  nikto: 1.76,
-  // the new-board roster (see ASSETS_MODELS.md for the model briefs)
-  flametrooper: 1.9, quarren: 1.9, alamite: 1.85, ring_enforcer: 2.1,
-  gunslinger: 1.9, escort_droid: 2.2,
-};
-
-/**
- * Give an enemy its authored skin, if one exists. On load, everything hanging
+ * Give an enemy its authored skin, if one exists: the model and the height it
+ * is fitted to are the kind's entry in ENEMY_MODELS. On load, everything hanging
  * off the canonical weapon bones re-mounts into the authored hands — exactly
  * as the players' weapons do. The canonical bones ride the *hidden
  * procedural* arms, whose proportions differ from the sculpt's, so a rifle or
@@ -124,20 +110,20 @@ const AUTHORED_ENEMY: Record<string, number> = {
  * finding it wherever the gun goes; shot direction is computed from the
  * chest, never from the barrel, so aim is untouched.
  */
-function authoredEnemy(inst: CharacterInstance, rig: Rig, id: keyof typeof AUTHORED_ENEMY,
-  enabled = true, gripCharacter: string = id): void {
-  const swap = attachAuthored(rig, id, AUTHORED_ENEMY[id], {
+function authoredEnemy(inst: CharacterInstance, rig: Rig, kind: HumanoidKind, enabled = true): void {
+  const { model: id, height } = ENEMY_MODELS[kind];
+  const swap = attachAuthored(rig, id, height, {
     animator: inst.animator,
     keep: [rig.bones.weaponR, rig.bones.weaponL],
     enabled,
     onLoad: (model) => {
       if (model.weaponMount) for (const w of [...rig.bones.weaponR.children]) {
         model.weaponMount.add(w);
-        applySharedWeaponGrip(gripCharacter, w);
+        applySharedWeaponGrip(kind, w);
       }
       if (model.weaponMountL) for (const w of [...rig.bones.weaponL.children]) {
         model.weaponMountL.add(w);
-        applySharedWeaponGrip(gripCharacter, w, 'left');
+        applySharedWeaponGrip(kind, w, 'left');
       }
     },
   });
@@ -236,7 +222,7 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   }
   // The blaster sculpt has a face on both sides. Use the healthy pirate
   // brawler body as a temporary skin; the gun stays a separate hand prop.
-  authoredEnemy(inst, rig, 'pirate_melee', authored, melee ? 'pirateMelee' : 'pirate');
+  authoredEnemy(inst, rig, melee ? 'pirateMelee' : 'pirate', authored);
   return inst;
 }
 
@@ -337,7 +323,7 @@ export function buildEscortDroid(authored = true): CharacterInstance {
   addBox(b.shoulderR, dark, 0.16, 0.13, 0.17, 0.04, 0.04, 0);
   addBox(b.chest, shell, 0.34, 0.38, 0.22, 0, 0.07, 0);
   inst.muzzle = rifle(b.weaponR);
-  authoredEnemy(inst, rig, 'escort_droid', authored);
+  authoredEnemy(inst, rig, 'escortDroid', authored);
   return inst;
 }
 
@@ -434,7 +420,7 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
   b.weaponR.add(staff);
   const updateArcs = addElectrostaffArcs(staff);
 
-  authoredEnemy(inst, rig, 'imperial_officer', authored, 'officer');
+  authoredEnemy(inst, rig, 'officer', authored);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     updateArcs(time);
@@ -467,7 +453,7 @@ export function buildPykeCapo(authored = true): CharacterInstance {
   );
   bubble.position.y = 1.0;
   inst.root.add(bubble);
-  authoredEnemy(inst, rig, 'pyke_capo', authored, 'capo');
+  authoredEnemy(inst, rig, 'capo', authored);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     const m = bubble.material as THREE.MeshBasicMaterial;
@@ -492,7 +478,7 @@ export function buildWookieeEnforcer(authored = true): CharacterInstance {
   const gauntlet = mat(0x6d6a63, { rough: 0.4, metal: 0.6 });
   addCyl(b.forearmL, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
   addCyl(b.forearmR, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
-  authoredEnemy(inst, rig, 'wookiee_enforcer', authored);
+  authoredEnemy(inst, rig, 'enforcer', authored);
   return inst;
 }
 
@@ -795,7 +781,7 @@ export function buildNikto(authored = true): CharacterInstance {
   // The rider is a whole biped on the canonical rig, just held in one pose
   // rather than animated, so the swap works exactly as it does for anyone
   // else — the retarget simply reproduces the same seated pose every frame.
-  const swap = attachAuthored(riderRig, 'nikto', AUTHORED_ENEMY.nikto, {
+  const swap = attachAuthored(riderRig, ENEMY_MODELS.nikto.model, ENEMY_MODELS.nikto.height, {
     keep: [rb.weaponR, rb.weaponL],
     enabled: authored,
     // The seat offset above is tuned to the procedural rider's proportions;
@@ -1429,7 +1415,7 @@ export function buildRingEnforcer(authored = true): CharacterInstance {
   shield.position.set(0, -0.12, 0.1);
   shield.rotation.y = Math.PI;
   b.forearmL.add(shield);
-  authoredEnemy(inst, rig, 'ring_enforcer', authored);
+  authoredEnemy(inst, rig, 'ringEnforcer', authored);
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => {
     (pane.material as THREE.MeshBasicMaterial).opacity = 0.24 + Math.sin(time * 5.5) * 0.06;
