@@ -103,7 +103,17 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     const i = pick(/idle|breath|stand/i), w = pick(/walk|amble|trot/i);
     if (i) { idle = mixer.clipAction(i); idle.play(); }
     if (w) { walk = mixer.clipAction(w); walk.play(); walk.setEffectiveWeight(0); stride = BANTHA_STRIDE / Math.max(w.duration, 0.2); }
-  }, () => { settled = true; });
+  }, () => { settled = true; }, (standIn) => {
+    // until the sculpt lands (or for good, when it never does) the rider sits
+    // on its low-LOD stand-in, measured the same way
+    if (data) return;
+    const surface = measureSeatSurface(kind, standIn, frame);
+    if (surface === null) return;
+    const sit = sitOnModel(body, surface, null);
+    vr.defaults = defaultAnchors(def, sit);
+    vr.seat.set(...vr.defaults.seat);
+    vr.grip.set(...vr.defaults.grip);
+  });
   vr.relayout();
   root.userData.vehicleRig = vr;
 

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { loadProp } from '../characters/authored';
-import { addBox, addCyl, addSphere, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, mat, type CharacterInstance } from '../characters/builder';
+import { makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, type CharacterInstance } from '../characters/builder';
 import { addElectrostaffArcs } from '../characters/electrostaffFx';
 import { mountEnemyProp } from '../characters/enemies';
 import { MANDO_ROSTER, meleeKinds, rangedKinds, staffPropFor, type MandoId } from '../characters/mandalorians';
@@ -55,24 +55,19 @@ export interface WeaponOption {
   make: () => Made;
 }
 
-const wood = (): THREE.Material => mat(0x6b4c2c, { rough: 0.95 });
-const steel = (): THREE.Material => mat(0x8a8f92, { rough: 0.4, metal: 0.6 });
-const gunmetal = (): THREE.Material => mat(0x3d3730, { rough: 0.5, metal: 0.5 });
-const gunDark = (): THREE.Material => mat(0x1d1d1f, { rough: 0.55, metal: 0.4 });
-
 /**
  * A polearm with no builder of its own in the game yet. It follows
- * `makeGaffi`'s layout exactly — a shaft along Y, the sculpt's long Z axis
- * turned onto it — so it sits in the hand the way every other staff does.
+ * `makeGaffi`'s layout exactly — the sculpt's long Z axis turned onto the
+ * mount's Y — so it sits in the hand the way every other staff does, and
+ * stands on its low-LOD build until the sculpt lands.
  */
 function polearm(id: WeaponPropId): Made {
   const { length } = WEAPON_PROPS[id];
   const g = new THREE.Group();
-  addCyl(g, wood(), 0.02, 0.024, length * 0.9, 0, 0, 0, 0, 0, 0, 8);
   g.userData.propPending = true;
   const prop = loadProp(id, length, {
     axis: 'longest',
-    onLoad: () => { for (const c of g.children) if ((c as THREE.Mesh).isMesh) c.visible = false; },
+    lod: true,
     onSettle: () => { g.userData.propPending = false; },
   });
   prop.rotation.x = -Math.PI / 2;
@@ -80,39 +75,24 @@ function polearm(id: WeaponPropId): Made {
   return { main: g };
 }
 
-/** The enemy props, built the way `characters/enemies.ts` builds each of them. */
+/** The enemy props, mounted the way `characters/enemies.ts` mounts each of them. */
 function enemyRifle(): Made {
   const g = new THREE.Group();
-  const dark = mat(0x2a2a2a, { rough: 0.5, metal: 0.5 });
-  addBox(g, dark, 0.045, 0.07, 0.4, 0, 0, 0.08);
-  addCyl(g, dark, 0.014, 0.014, 0.3, 0, 0.01, 0.36, Math.PI / 2, 0, 0, 6);
   mountEnemyProp(g, 'enemy_blaster_rifle', WEAPON_PROPS.enemy_blaster_rifle.length, 0, 0.14, 0, true);
   return { main: g };
 }
 function club(id: 'pirate_boarding_club' | 'alamite_stone_club'): Made {
   const g = new THREE.Group();
-  if (id === 'pirate_boarding_club') {
-    addCyl(g, mat(0x241d16, { rough: 0.8 }), 0.025, 0.03, 0.7);
-    addBox(g, steel(), 0.1, 0.14, 0.1, 0, 0.38, 0);
-    mountEnemyProp(g, id, WEAPON_PROPS[id].length, Math.PI / 2, 0, 0.14);
-  } else {
-    addCyl(g, mat(0x77695a, { rough: 1 }), 0.025, 0.035, 0.62);
-    addSphere(g, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
-    mountEnemyProp(g, id, WEAPON_PROPS[id].length, Math.PI / 2, 0, 0.14);
-  }
+  mountEnemyProp(g, id, WEAPON_PROPS[id].length, Math.PI / 2, 0, 0.14);
   return { main: g };
 }
 function flameProjector(): Made {
   const g = new THREE.Group();
-  addBox(g, gunDark(), 0.06, 0.09, 0.34, 0, 0, 0.05);
-  addCyl(g, steel(), 0.045, 0.045, 0.3, 0, 0.01, 0.3, Math.PI / 2, 0, 0, 8);
   mountEnemyProp(g, 'flame_projector', WEAPON_PROPS.flame_projector.length, 0, 0.2, 0, true);
   return { main: g };
 }
 function netLauncher(): Made {
   const g = new THREE.Group();
-  addCyl(g, gunDark(), 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
-  addCyl(g, steel(), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
   mountEnemyProp(g, 'net_launcher', WEAPON_PROPS.net_launcher.length, 0, 0.12, 0, true);
   return { main: g };
 }
@@ -122,13 +102,13 @@ function netLauncher(): Made {
  * tonfas and the beskar spear are left out on purpose — see the file comment.
  */
 const OPTIONS: Array<Omit<WeaponOption, 'family'> & { id: WeaponPropId | 'pistols' }> = [
-  { id: 'gaffi', name: 'Gaderffii stick', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi') }) },
-  { id: 'gaffi_collection', name: 'Tusken gaderffii', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi_collection') }) },
-  { id: 'poleaxe', name: 'Poleaxe', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'poleaxe') }) },
+  { id: 'gaffi', name: 'Gaderffii stick', slot: 'melee', make: () => ({ main: makeGaffi('gaffi') }) },
+  { id: 'gaffi_collection', name: 'Tusken gaderffii', slot: 'melee', make: () => ({ main: makeGaffi('gaffi_collection') }) },
+  { id: 'poleaxe', name: 'Poleaxe', slot: 'melee', make: () => ({ main: makeGaffi('poleaxe') }) },
   {
     id: 'electrostaff', name: 'Electrostaff', slot: 'melee',
     make: () => {
-      const main = makeGaffi(mat(0x25262c, { rough: 0.55, metal: 0.55 }), mat(0x888b98, { rough: 0.4, metal: 0.7 }), 'electrostaff');
+      const main = makeGaffi('electrostaff');
       return { main, tick: addElectrostaffArcs(main) };
     },
   },
@@ -138,13 +118,13 @@ const OPTIONS: Array<Omit<WeaponOption, 'family'> & { id: WeaponPropId | 'pistol
   { id: 'pirate_boarding_club', name: 'Boarding club', slot: 'melee', make: () => club('pirate_boarding_club') },
   { id: 'alamite_stone_club', name: 'Stone club', slot: 'melee', make: () => club('alamite_stone_club') },
 
-  { id: 'carbine', name: 'EE-3 carbine', slot: 'gun', make: () => ({ main: makeCarbine(gunmetal(), gunDark()) }) },
-  { id: 'longrifle', name: 'Long rifle', slot: 'gun', make: () => ({ main: makeLongRifle(gunmetal(), gunDark()) }) },
-  { id: 'crossbow', name: 'Laser crossbow', slot: 'gun', make: () => ({ main: makeCrossbow(gunmetal(), gunDark()) }) },
-  { id: 'pistol', name: 'Blaster pistol', slot: 'gun', make: () => ({ main: makePistol(gunmetal(), gunDark()) }) },
+  { id: 'carbine', name: 'EE-3 carbine', slot: 'gun', make: () => ({ main: makeCarbine() }) },
+  { id: 'longrifle', name: 'Long rifle', slot: 'gun', make: () => ({ main: makeLongRifle() }) },
+  { id: 'crossbow', name: 'Laser crossbow', slot: 'gun', make: () => ({ main: makeCrossbow() }) },
+  { id: 'pistol', name: 'Blaster pistol', slot: 'gun', make: () => ({ main: makePistol() }) },
   {
     id: 'pistols', name: 'Twin blaster pistols', slot: 'gun',
-    make: () => ({ main: makePistol(gunmetal(), gunDark()), offhand: makePistol(gunmetal(), gunDark()) }),
+    make: () => ({ main: makePistol(), offhand: makePistol() }),
   },
   { id: 'enemy_blaster_rifle', name: 'Infantry blaster rifle', slot: 'gun', make: enemyRifle },
   { id: 'flame_projector', name: 'Flame projector', slot: 'gun', make: flameProjector },

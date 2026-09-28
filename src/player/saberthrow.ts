@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeBladeTrail, makeSaber, mat } from '../characters/builder';
+import { makeBladeTrail, makeSaber } from '../characters/builder';
 import type { SaberStyle } from '../characters/weaponProps';
 import { audio } from '../core/audio';
 import type { Enemy } from '../enemies/enemy';
@@ -52,9 +52,7 @@ export class ThrownSaber {
    *   explicitly stays unlit.
    */
   constructor(host: THREE.Group, opts: { light?: boolean; style?: SaberStyle; scale?: number } = {}) {
-    const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
-    const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
-    this.saber = makeSaber(silver, dark, { light: opts.light, style: opts.style });
+    this.saber = makeSaber({ light: opts.light, style: opts.style });
     this.saber.scale.setScalar(opts.scale ?? 1);
     // lay the blade flat and centre it on the spin axis, so the whole thing
     // wheels about its middle rather than swinging around the hilt

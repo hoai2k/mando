@@ -16,6 +16,7 @@ import { applyFistRig } from './fistRig';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
+import { buildLodBody, buildLodProp } from './lod';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from '../enemies/rivals';
 import type { EnemyKind } from '../enemies/enemy';
 import type { MandoId } from './mandalorians';
@@ -1021,6 +1022,16 @@ const GENERATED_CLIPS: Record<string, (root: THREE.Object3D) => THREE.AnimationC
   kwazel_maw: kwazelMawClips,
 };
 
+/**
+ * The code-built gait clips for a creature id, against the rig it is handed —
+ * or none for an id that ships its own or has no rig. The low-LOD stand-ins
+ * (`lod.ts`) rebuild the sculpt's own skeleton and call this on it, so the
+ * stand-in walks on the very clips the sculpt will.
+ */
+export function generatedClips(id: string, root: THREE.Object3D): THREE.AnimationClip[] {
+  return GENERATED_CLIPS[id]?.(root) ?? [];
+}
+
 export function loadProp(
   id: string,
   targetSize: number,
@@ -1029,6 +1040,14 @@ export function loadProp(
     /** sit the model on y = 0 instead of on its own origin — creatures want this */
     ground?: boolean;
     onLoad?: (root: THREE.Object3D) => void;
+    /**
+     * Stand the prop's low-LOD build (`lod.ts`, measured off this very
+     * sculpt) in the holder until the sculpt lands, and hand it to
+     * `onStandIn` — which gets the same chance to adjust it that `onLoad`
+     * gets with the sculpt, since the two sit in the same frame.
+     */
+    lod?: boolean;
+    onStandIn?: (root: THREE.Object3D) => void;
     /**
      * Called once the question is answered either way — the sculpt is in, or
      * there is no usable file and the stand-in is the final look. `onLoad`
@@ -1039,6 +1058,11 @@ export function loadProp(
   } = {},
 ): THREE.Group {
   const holder = new THREE.Group();
+  const standIn = opts.lod ? buildLodProp(id) : null;
+  if (standIn) {
+    holder.add(standIn);
+    opts.onStandIn?.(standIn);
+  }
   const place = (raw: THREE.Group): void => {
     const root = raw.clone(true);
     root.updateMatrixWorld(true);
@@ -1085,6 +1109,9 @@ export function loadProp(
     root.updateMatrixWorld(true);
     const own = (raw.userData.clips ?? []) as THREE.AnimationClip[];
     root.userData.clips = own.length ? own : (GENERATED_CLIPS[id]?.(root) ?? []);
+    // gone rather than hidden: a raycast against the holder (a seat probe, a
+    // collider fit) must meet the sculpt and nothing else
+    if (standIn) holder.remove(standIn);
     holder.add(root);
     opts.onLoad?.(root);
   };
@@ -1197,6 +1224,10 @@ export function attachAuthored(
     animator?: Animator | null; enabled?: boolean } = {},
 ): AuthoredSwap {
   const keep = opts.keep ?? [];
+  // The stand-in: the model itself at a very low LOD, on a rig with the
+  // model's own joint positions (see lod.ts). Built first, so it is among
+  // the procedural meshes the model hides when it lands.
+  const lod = buildLodBody(rig, id, targetHeight);
   const procedural: THREE.Object3D[] = [];
   rig.root.traverse((o) => {
     if (!(o as THREE.Mesh).isMesh) return;
@@ -1217,6 +1248,7 @@ export function attachAuthored(
         return;
       }
       swap.model = model;
+      lod.release();
       for (const m of procedural) m.visible = false;
       rig.root.add(model.root);
       opts.onLoad?.(model);
@@ -1230,6 +1262,6 @@ export function attachAuthored(
   return {
     get model() { return swap.model; },
     get settled() { return swap.settled; },
-    update: () => { if (swap.model) retarget(rig, swap.model, opts.animator); },
+    update: () => { if (swap.model) retarget(rig, swap.model, opts.animator); else lod.sync(); },
   };
 }

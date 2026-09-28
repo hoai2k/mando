@@ -30,7 +30,11 @@ try {
           && actual.scale === scale && (id !== 'revan' || actual.holsterScale === scale));
     }
   }
-  for (const entry of data.entries.filter((e) => !['din', 'embo', 'ig11', 'paz', 'revan'].includes(e.character))) {
+  // the pirate brawler fights bare-handed now (enemies.ts buildPirate): his club
+  // grip stays in the data, but there is no club in his hand to carry it
+  const EMPTY_HANDED = new Set(['pirateMelee']);
+  for (const entry of data.entries.filter((e) => !['din', 'embo', 'ig11', 'paz', 'revan'].includes(e.character)
+    && !EMPTY_HANDED.has(e.character))) {
     await h.workbench(entry.character, 'idle');
     const actual = await h.page.evaluate((side) => {
       const root = window.__wb.figures[0].inst.root;
