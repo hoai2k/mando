@@ -40,7 +40,9 @@ async function startAs(name) {
   // for a `READY` that could only ever belong to someone else. Player one has
   // to be driven the way `test-controller-claims.mjs` drives it: keyboard.
   for (let i = 0; i < 14; i++) {
-    if (new RegExp(name, 'i').test(await h.text())) break;
+    // player one's card, not the page: the roster strips spell every name
+    const on = await h.page.evaluate(() => document.querySelector('.charsel-panel .charsel-name-current')?.textContent ?? '');
+    if (new RegExp(name, 'i').test(on)) break;
     await h.page.keyboard.press('ArrowRight');
     await sleep(150);
   }

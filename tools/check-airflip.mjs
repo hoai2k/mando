@@ -31,7 +31,9 @@ async function startAs(name) {
   await h.pad.tap(BTN.A);
   await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
   for (let i = 0; i < 14; i++) {
-    if (new RegExp(name, 'i').test(await h.text())) break;
+    // player one's card, not the page: the roster strips spell every name
+    const on = await h.page.evaluate(() => document.querySelector('.charsel-panel .charsel-name-current')?.textContent ?? '');
+    if (new RegExp(name, 'i').test(on)) break;
     await h.pad.tap(BTN.DRIGHT);
   }
   await h.tapUntil(BTN.A, async () => /READY/i.test(await h.text()));
