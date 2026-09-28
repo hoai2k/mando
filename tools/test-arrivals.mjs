@@ -174,12 +174,10 @@ await sleep(500);
 const miss = await h.page.evaluate(`(async () => {
   const g = window.__game;
   const c = g.campaign;
-  // Missions has two level builders behind one controller interface. The
-  // outdoor stage chain (the default since the stage chain landed) raises one
-  // **stage** of the run at a time and calls its fight areas zones; the walled
-  // room chain still reachable at \`?missions=old\` calls them rooms. Either
-  // way what this is after is an assault area — the kind that seals and calls
-  // its wave — and both spell that \`spec.kind === 'assault'\`.
+  // Missions raises one **stage** of the run at a time and calls its fight
+  // areas zones (the retired room chain called them rooms, which is why the
+  // names below still say room). What this is after is an assault area — the
+  // kind that seals and calls its wave — spelled \`spec.kind === 'assault'\`.
   //
   // Only one stage of the run stands at a time, and the trailhead is a walk
   // in rather than a fight: the desert's first stage is start/trek/camp, so
@@ -195,12 +193,12 @@ const miss = await h.page.evaluate(`(async () => {
   // of any shell is what put this on the Dune Sea's canyon and failed the
   // nightly with "called the wave, nobody came" — quite right, nobody was
   // coming.
-  const areas = () => (c.stage ? c.stage.zones : c.level.rooms);
+  const areas = () => c.stage.zones;
   const sealedRoom = (r) => r.spec.kind === 'assault' && r.spec.shell === 'hall';
   const findRoom = () => areas().findIndex(sealedRoom);
   let i = findRoom();
   const kinds = [areas().map((r) => r.spec.shell + ':' + r.spec.kind).join(' ')];
-  for (let s = 1; i < 0 && c.stage && s < c.memory.length; s++) {
+  for (let s = 1; i < 0 && s < c.memory.length; s++) {
     c.enterStage(s, false);
     (${STEP})(30);
     i = findRoom();
@@ -209,13 +207,10 @@ const miss = await h.page.evaluate(`(async () => {
   if (i < 0) return { skipped: true, kinds };
   const rooms = areas();
   const room = rooms[i];
-  // Where the floor is under a body. A walled room has one floor height for
-  // the whole level; an outdoor stage may stand on the territory's own
-  // terrain, where \"the floor\" is not one number — so ask the stage, which
-  // is the question \`floorY\` was standing in for all along.
-  const floorAt = c.stage
-    ? (x, z) => c.stage.groundAt(x, z)
-    : () => c.level.floorY;
+  // Where the floor is under a body. An outdoor stage may stand on the
+  // territory's own terrain, where \"the floor\" is not one number — so ask
+  // the stage, which is the question \`floorY\` was standing in for all along.
+  const floorAt = (x, z) => c.stage.groundAt(x, z);
   const inRoom = (e) => e.position.x >= room.rect.minX - 2 && e.position.x <= room.rect.maxX + 2
     && e.position.z >= room.rect.minZ - 2 && e.position.z <= room.rect.maxZ + 2;
 

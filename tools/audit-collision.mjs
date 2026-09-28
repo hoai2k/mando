@@ -408,8 +408,8 @@ const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
 const BOARDS = results.map((r) => r.board);
 // This sweep used to run on a page that had not asked for the outdoor stages,
 // back when Missions ran the walled room chain unless it was told otherwise —
-// so for as long as it existed it audited `mission-legacy.ts` and reported it
-// as "the mission level". The design actually shipped had never been swept at
+// so for as long as it existed it audited that (since retired) chain and
+// reported it as "the mission level". The design actually shipped had never been swept at
 // all, which is how a run came to have rock walls you could walk through in
 // it. The stage chain is the default now, so the plain page is the right one;
 // what had to change is that the sweep walks *every* stage of a run.

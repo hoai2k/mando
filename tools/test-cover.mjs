@@ -159,12 +159,8 @@ const doors = await page.evaluate(() => {
   /**
    * Every door standing in the map that is up right now.
    *
-   * Missions has two level builders behind one controller interface: the
-   * outdoor stage chain (the default since the stage chain landed) hangs its
-   * doors off the standing stage's zones, and the walled room chain still
-   * reachable at `?missions=old` hangs them off its rooms. Take whichever is
-   * up — this suite is about what a doorway is made of, not about which
-   * builder raised it.
+   * Missions hangs its doors off the standing stage: the transport doors at
+   * either end, and each zone's barriers and wall hatches.
    *
    * A `Barrier` is anything that stands in the way and then gets out of it: a
    * blast door, an energy fence across a canyon mouth, a crate barricade
@@ -173,10 +169,8 @@ const doors = await page.evaluate(() => {
    * needs in order to find them.
    */
   const doorsUp = () => {
-    const barriers = c.stage
-      ? [c.stage.exitPortal, c.stage.backPortal, ...c.stage.zones.flatMap((z) =>
-          [z.entryBarrier, z.exitBarrier, ...z.hatches.map((h) => h.gate)])]
-      : c.level.rooms.flatMap((r) => [r.entryGate, r.exitGate]);
+    const barriers = [c.stage.exitPortal, c.stage.backPortal, ...c.stage.zones.flatMap((z) =>
+      [z.entryBarrier, z.exitBarrier, ...z.hatches.map((h) => h.gate)])];
     return barriers.filter((b) => b && typeof b.yaw === 'number');
   };
   // the frame's own numbers: posts 0.5 m square, 3.6 m tall, 1.6 m out either side

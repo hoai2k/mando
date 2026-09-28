@@ -696,20 +696,21 @@ for (const id of waveBoards) {
 // This used to check that Missions spawned *no* rides at all: every mission
 // level was a plate raised ninety metres over the territory, so the board's
 // own parked rides were unreachable down below and spawning them was waste.
-// That is still the rule for the room chain, and still checked below — it is
-// `?missions=old` now rather than the default.
+// That was the room chain's rule, and it went with the room chain.
 //
 // The stage chain (docs/MISSIONS_OUTDOOR.md) parks rides per zone instead, and
 // a stage may stand on the territory's own ground, so its rule is not "none"
 // but "the stage's own, on the stage" — a ride you cannot walk to is the thing
-// being guarded against either way. Each design has to be *booted* on its own
-// page, because the flag is read at construction: ask the room chain for a
-// `.stage` and you get a wall of `undefined` rather than a measurement, which
-// is what nightly run 217 reported.
+// being guarded against either way.
 //
-// Both navigations drop the blob-texture noise a teardown makes — see the
-// comment on the second one, which is where it was first diagnosed. There are
-// two of them now: the room chain no longer sits on the page this suite opens.
+// It is booted on a fresh page. Navigating away is a teardown, and a teardown
+// revokes the blob URLs that glTF textures are still being decoded from, so
+// THREE logs "Couldn't load texture blob:..." for whatever was in the air.
+// Those are errors of the page we deliberately threw away, not of the page
+// under test, and counting them failed this suite on a run where every one of
+// its checks passed. Drop exactly those, added exactly across the navigation,
+// and keep everything else — including any other error raised in the same
+// window.
 const goTo = async (url) => {
   const n = h.errors.length;
   await h.page.goto(url, { waitUntil: 'networkidle' });
@@ -717,26 +718,6 @@ const goTo = async (url) => {
   const during = h.errors.splice(n, h.errors.length - n);
   h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
 };
-await goTo(`${PAGE}?missions=old`);
-check('missions: the room chain boots', await boot('campaign', 'desert'));
-const legacy = await h.page.evaluate(() => ({
-  rides: window.__game.vehicles.length,
-  declared: (window.__game.board.vehicles ?? []).length,
-}));
-check('missions: the walled level parks no unreachable rides',
-  legacy.rides === 0,
-  `${legacy.rides} spawned, ${legacy.declared} declared by the board`);
-
-// the stage chain, on the plain page — it is the default, and the flag is
-// read at construction.
-//
-// Navigating away is a teardown, and a teardown revokes the blob URLs that
-// glTF textures are still being decoded from, so THREE logs "Couldn't load
-// texture blob:..." for whatever was in the air. Those are errors of the page
-// we deliberately threw away, not of the page under test, and counting them
-// failed this suite on a run where every one of its checks passed. Drop
-// exactly those, added exactly across the navigation, and keep everything
-// else — including any other error raised in the same window.
 await goTo(PAGE);
 check('missions: the stage chain boots', await boot('campaign', 'desert'));
 const mission = await h.page.evaluate(() => {

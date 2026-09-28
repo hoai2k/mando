@@ -634,19 +634,20 @@ export class Game {
   }
 
   /**
-   * Missions: bring a room's wave in by transport instead of standing it up in
-   * the room (src/game/campaign.ts).
+   * Missions: bring a zone's wave in by transport instead of standing it up in
+   * the zone (src/game/campaign.ts).
    *
-   * A mission level is a chain of walled rooms with the open sky for a ceiling,
-   * so the wave game's carrier pass works over it unchanged — which is the
-   * point: a squad that descends into the room reads as reinforcements being
+   * A mission stage's only lid is its flight ceiling, which a body falling in
+   * from above is let through (`dropHeight` flies the pass clear of it), so
+   * the wave game's carrier pass works over it unchanged — which is the
+   * point: a squad that descends into the zone reads as reinforcements being
    * committed, where bodies appearing beside the wall read as a spawn. No
    * parachutes: a canopy takes seven seconds to cover the drop and a sealed
-   * room is not the place to wait it out.
+   * zone is not the place to wait it out.
    *
    * `onRelease` receives the bodies the moment the ship lets them go, which is
-   * the first moment they exist. Until then the room is still owed them.
-   * Returns the seconds until that moment, so the room can telegraph where
+   * the first moment they exist. Until then the zone is still owed them.
+   * Returns the seconds until that moment, so the zone can telegraph where
    * the squad is about to come down.
    */
   dropReinforcements(

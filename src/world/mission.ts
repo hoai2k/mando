@@ -28,8 +28,8 @@ import { disposeSubtree } from '../core/dispose';
  * what keeps map size and resource limits out of the level design.
  *
  * Everything here is geometry + data; `game/campaign.ts` owns the flow. This
- * design is **experimental** and sits behind `?missions=new`; the walled room
- * chain in `world/mission-legacy.ts` is what Missions runs by default.
+ * is the only Missions design: the walled room chain it replaced was retired
+ * once this had been the default for a few weeks (it became so on 2026-09-06).
  */
 
 // ---------------------------------------------------------------- types
