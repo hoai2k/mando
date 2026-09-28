@@ -1,4 +1,5 @@
 import { audio } from '../core/audio';
+import { TEXT } from '../text';
 import { ASSET_ROOT } from '../core/assets';
 import type { MenuAction } from '../core/input';
 
@@ -160,9 +161,10 @@ export class MenuScreen {
     row.append(name, value);
     this.root.appendChild(row);
 
+    // both positions of the lever, the live one lit
     const paint = () => {
       const on = get();
-      value.textContent = on ? 'On' : 'Off';
+      value.innerHTML = `<span${on ? '' : ' class="sel"'}>${TEXT.settings.off}</span><span${on ? ' class="sel"' : ''}>${TEXT.settings.on}</span>`;
       row.classList.toggle('on', on);
     };
     const apply = (v: boolean) => { set(v); paint(); };
@@ -196,9 +198,10 @@ export class MenuScreen {
     row.append(name, value);
     this.root.appendChild(row);
 
+    // every option on show, the live one lit, so the row says what it could be
     const paint = () => {
-      const i = options.findIndex((o) => o.value === get());
-      value.textContent = (options[i] ?? options[0]).label;
+      const i = Math.max(0, options.findIndex((o) => o.value === get()));
+      value.innerHTML = options.map((o, j) => `<span${j === i ? ' class="sel"' : ''}>${o.label}</span>`).join('');
     };
     const step = (dir: -1 | 1) => {
       const i = Math.max(0, options.findIndex((o) => o.value === get()));

@@ -92,6 +92,7 @@ export class PlanetSelect {
   private lens: HTMLElement;
   private lensLabel: HTMLElement;
   private leader: HTMLElement;
+  private headSub!: HTMLElement;
   private vistas: HTMLElement[] = [];
   private cells: HTMLElement[] = [];
   private nodes: Node[];
@@ -188,6 +189,7 @@ export class PlanetSelect {
     head.className = 'fe-hunt-head';
     head.innerHTML = `<span class="h">${TEXT.planets.heading}</span><span class="s">${TEXT.planets.sub}</span>`;
     stage.appendChild(head);
+    this.headSub = head.querySelector('.s') as HTMLElement;
 
     const band = document.createElement('div');
     band.className = 'fe-hunt-band';
@@ -204,6 +206,20 @@ export class PlanetSelect {
     for (const b of band.querySelectorAll<HTMLButtonElement>('.fe-nav')) {
       b.addEventListener('click', () => { b.blur(); this.travel(this.index + Number(b.dataset.dir)); });
     }
+  }
+
+  /**
+   * Tick off the territories the hunt's ledger says are liberated (see
+   * src/core/hunt.ts), and count them in the heading.
+   */
+  setProgress(liberated: readonly string[]): void {
+    const freed = (i: number): boolean => liberated.includes(BOARDS[i].id);
+    this.cells.forEach((c, i) => c.classList.toggle('done', freed(i)));
+    // a lane is lit where both worlds at its ends are free
+    this.lanes.forEach((l, i) => l.classList.toggle('done', freed(i) && freed(i + 1)));
+    this.headSub.textContent = liberated.length
+      ? TEXT.planets.liberatedCount(liberated.length, BOARDS.length)
+      : TEXT.planets.sub;
   }
 
   /** everything that follows the selection at once: the map, the bracket, the card */
