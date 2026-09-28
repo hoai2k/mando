@@ -207,6 +207,7 @@ No change to `vehicles.ts`, `player.ts`, `game.ts` or `campaign.ts`.
 - `RUNS=station node tools/test-sections.mjs --runs-only`: the Spice Run with both of its
   sections, in order, hands over.
 - `node tools/test-section-frigate.mjs`: 27 checks, all pass.
+- For the `hud.ts` change: `tools/test-section-mounts.mjs` (K3) and `tools/test-modes.mjs` pass.
 
 ## Known issues / left
 
