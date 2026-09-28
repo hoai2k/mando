@@ -25,13 +25,9 @@
  *
  * Run:  node tools/test-station.mjs
  */
-import { launch, sleep } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
@@ -183,5 +179,4 @@ check('close over a deck the board\'s own pull still lands you',
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall station checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Station');

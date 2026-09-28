@@ -57,7 +57,10 @@ export function blankInput(over = {}) {
 /**
  * The suites' shared pass/fail line. Returns a `check` function bound to one
  * running tally; call `tally.done(label)` at the end to print the verdict and
- * exit non-zero on any failure — the same shape nine suites each redeclared.
+ * exit non-zero on any failure — the shape the suites each used to redeclare
+ * for themselves, in four slightly different spellings.
+ * `check.failed` is the running count, for a suite that has advice to give
+ * before the verdict when something went red.
  */
 export function makeCheck() {
   let failed = 0;
@@ -67,6 +70,7 @@ export function makeCheck() {
     console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${d}`);
     return ok;
   };
+  Object.defineProperty(check, 'failed', { get: () => failed });
   check.done = (label) => {
     console.log(failed ? `\n${label}: ${failed} check(s) FAILED` : `\n${label}: all checks passed`);
     if (failed) process.exitCode = 1;

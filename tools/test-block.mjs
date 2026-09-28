@@ -16,13 +16,9 @@
  *
  * Run:  node tools/test-block.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 const { page } = h;
@@ -146,5 +142,4 @@ check('a forward pane covers the front', din.byBearing[0] === false, din.byBeari
 check('the blocker spins to catch a rear bolt', din.byBearing[180] === false, din.byBearing);
 
 await h.close();
-console.log(failures.length ? `\nFAILED: ${failures.join(', ')}` : '\nall block checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Block');

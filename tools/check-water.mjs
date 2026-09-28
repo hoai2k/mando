@@ -8,11 +8,10 @@
  * like a jetpack hover. And a body built for water — Bossk — has to be
  * meaningfully quicker through it than one that is not.
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
 const h = await launch();
-let failures = 0;
-const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
+const check = makeCheck();
 
 /**
  * Drop the player in the water, then swim: hold forward for `swimFrames` and
@@ -91,21 +90,20 @@ await h.startAs('embo', 'The Prison Rig');
 const dry = await swimAndBreach(180);
 console.log(`  board: ${dry.board}, water at y=${dry.waterY}`);
 console.log(`  ${dry.name} (${dry.flight}): up to ${dry.fastest.toFixed(1)} m/s through the water, legs ran ${dry.clips.join(',')}, breached at ${dry.breachVel.toFixed(1)} m/s and reached ${dry.above.toFixed(1)} m above the surface`);
-check(dry.swimming === true, 'a fighter out of their depth is swimming');
-check(dry.clips.includes('swimLower'), '...and swims rather than hovering on a jetpack pose');
-check(dry.fastest > 3, 'and gets moving — the spot measured is open water, not a wall');
-check(dry.above > 3, 'holding jump out of the water carries a super jumper clear of the surface');
-check(dry.rising === true, '...on the same held climb a standing leap gives, which is what reaches a deck');
+check('a fighter out of their depth is swimming', dry.swimming === true);
+check('...and swims rather than hovering on a jetpack pose', dry.clips.includes('swimLower'));
+check('and gets moving — the spot measured is open water, not a wall', dry.fastest > 3);
+check('holding jump out of the water carries a super jumper clear of the surface', dry.above > 3);
+check('...on the same held climb a standing leap gives, which is what reaches a deck', dry.rising === true);
 
 // ---- and one that is built for it ----
 await h.page.reload({ waitUntil: 'networkidle' });
 await h.startAs('bossk', 'The Prison Rig');
 const wet = await swimAndBreach(180);
 console.log(`  ${wet.name} (amphibious=${wet.amphibious}): up to ${wet.fastest.toFixed(1)} m/s, breached at ${wet.breachVel.toFixed(1)} m/s`);
-check(wet.amphibious === true, 'Bossk is flagged as amphibious');
-check(wet.fastest > dry.fastest * 1.25, 'and swims meaningfully faster than a fighter who is not');
-check(wet.breachVel > dry.breachVel * 1.25, '...and comes out of the water harder');
+check('Bossk is flagged as amphibious', wet.amphibious === true);
+check('and swims meaningfully faster than a fighter who is not', wet.fastest > dry.fastest * 1.25);
+check('...and comes out of the water harder', wet.breachVel > dry.breachVel * 1.25);
 
 await h.close();
-console.log(failures ? `\n${failures} failure(s)` : '\nthe water reads right from both sides of it');
-process.exit(failures ? 1 : 0);
+check.done('Water');

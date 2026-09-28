@@ -13,13 +13,9 @@
  *
  * Run:  node tools/test-hits.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 const { page } = h;
@@ -123,5 +119,4 @@ check('and stops being untouchable on its own', r.guardAfterAWhile === false, r.
 check('after which shots land again', r.lateHitLands === true, r.lateHitLands);
 
 await h.close();
-console.log(failures.length ? `\nFAILED: ${failures.join(', ')}` : '\nall hit-feedback checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Hit feedback');

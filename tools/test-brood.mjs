@@ -18,13 +18,9 @@
  *
  * Run:  node tools/test-brood.mjs
  */
-import { launch, sleep } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail = '') => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? `: ${detail}` : ''}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
@@ -306,5 +302,4 @@ check('...on the back it was delivered with',
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall brood checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Brood');

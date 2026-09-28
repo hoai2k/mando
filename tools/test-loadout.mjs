@@ -10,13 +10,9 @@
  *
  * Run:  node tools/test-loadout.mjs
  */
-import { launch, sleep } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 const { page } = h;
@@ -171,5 +167,4 @@ check('and leaves no ribbon hanging in the air', rt.ribbonAfter === false, rt);
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall loadout checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Loadout');
