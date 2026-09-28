@@ -948,7 +948,9 @@ function build(ctx: SectionContext): SectionInstance {
     const dx = at.x - p.position.x, dz = at.z - p.position.z;
     const flat = Math.hypot(dx, dz);
     out.yaw = Math.atan2(dx, dz);
-    if (flat > 0.35) out.moveY = Math.min(opts.slow ? 0.6 : 1, flat / 2);
+    // the stick reads as a gait (0.6 and under walks at 1.4 m/s): 0.76 keeps the
+    // careful pace a jog, about 5.5 m/s
+    if (flat > 0.35) out.moveY = Math.min(opts.slow ? 0.76 : 1, flat / 2);
     const dy = at.y - p.position.y;
     if (dy > 0.5 || opts.fly) {
       out.jumpHeld = true;
