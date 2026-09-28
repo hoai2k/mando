@@ -118,8 +118,9 @@ export class EndScreen {
       </div>
 
       <div class="e-face e-champion">
-        <div class="end-hero"><div class="end-face"></div><div class="glint"></div><div class="edge"></div></div>
-        <div class="e-champ-name"><div class="s">${T.lastStanding}</div><div class="n"></div><div class="end-tag"></div></div>
+        <div class="end-hero"><div class="end-face"></div><div class="glint"></div><div class="edge"></div>
+          <div class="e-champ-name"><div class="s">${T.lastStanding}</div><div class="n"></div><div class="end-tag"></div></div>
+        </div>
         <div class="e-ranks"><div class="top"><span class="h where"></span><span class="k">${T.standings}</span></div><div class="rows"></div></div>
       </div>
 
