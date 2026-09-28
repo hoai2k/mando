@@ -976,3 +976,24 @@ limb) and keep the world and its sun in the middle band. No text, no ships, no U
 | `system_forge.jpg` | "a green-grey world of glassed and cracked ruins left of centre, a thin ring of debris circling it, magnetic auroras at the poles, a small dim white sun in the upper right, one tiny distant moon lower right" |
 | `system_ringworld.jpg` | "a ring-shaped megastructure habitat around a deep blue world, right of centre, city lights along the ring's night side, a pale white star at the left, a small red planet low at the right edge" |
 | `system_narkina.jpg` | "a white-clouded blue ocean world filling the lower left as a curved horizon, a small bright pale sun in the upper right, two small grey moons near the sun" |
+
+## Title key art with armored posse — delivered 2026-09-28
+
+The delivered `title_twin_suns.jpg` has the right light and framing, but its hunters
+are generic cowboys in wide-brimmed hats. The stand-in it replaced (`title_bg.jpg`, a
+battered T-visor helmet) at least said *Mandalorian* at a glance. The title needs
+both: the twin-sunset standoff and unmistakable armored Mandalorian-style hunters.
+
+**File:** `public/assets/textures/title_twin_suns_v2.jpg`, 2560×1080 (21:9). It sits
+beside the current file rather than over it, so the two can be compared in the
+mockup before one is dropped. Generated with the built-in image tool and checked
+at the requested dimensions.
+
+**Composition, fixed by the title screen mockup:** the logo and tagline go in the
+empty sky in the **upper right third**. The mode menu sits in a black letterbox
+along the bottom 100 px, and a thin strip runs across the top 70 px. Keep the
+figures in the left half and lower middle, and keep the upper right as calm sky.
+
+| File | Prompt |
+|---|---|
+| `title_twin_suns_v2.jpg` | "Cinematic ultra-wide sci-fi western key art at twin sunset, 21:9. Two suns low over a cracked salt flat, burnt orange and deep red sky, heat haze, long shadows toward the viewer. In the left third, seen from behind and slightly to the side, a posse of four armored bounty hunters stands on a low rock shelf. The lead warrior wears a battered polished-silver helmet with a dark T-shaped visor, silver plate armor and a tattered brown cape, a rifle held low. Beside him is a heavy warrior in dented dark-blue plate armor with a large twin-tank jetpack. A third, slim figure in gold-bronze armor wears a helmet with a raised crest. The fourth hunter in olive-green armor with a T-visor helmet and a rangefinder stalk rises a few meters into the air on a short jetpack flame. Far away on the right horizon, a lone rival silhouette waits. Distant desert spires and the curved ribs of a wrecked starship on the right. Strong negative space in the upper right third for a logo. Gritty film grain, painterly realism, spaghetti-western framing. No text, no logos, no named characters or film frames." |

@@ -304,5 +304,5 @@ next round. They keep A's letterboxed Twin Suns card along the bottom.
     header reads "En route". A single hop takes 1.1 s, plus 0.38 s for each extra
     world.
 - **Title art.** `title_twin_suns.jpg` has no Mandalorians in it, so
-  `title_twin_suns_v2.jpg` is requested in `ASSETS_IMAGES.md`: the same standoff,
-  with a posse of armored, T-visor hunters.
+  `title_twin_suns_v2.jpg` is delivered alongside it: the same standoff,
+  with a posse of armored, T-visor hunters. Compare both in the next mockup round.

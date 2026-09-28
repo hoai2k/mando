@@ -5,12 +5,11 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open as of 2026-09-28:** a [replacement title key art](#open--title-key-art-with-mandalorians-2026-09-28)
-with Mandalorians in it, plus the unchosen UI concept art and optional fighter poses in
+**Open as of 2026-09-28:** the unchosen UI concept art and optional fighter poses in
 [Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below.
 The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
-The chosen Twin Suns title and Wanted loading assets are delivered. Gameplay-section keyframes raised by
+The Twin Suns title, its armored-posse variant, and Wanted loading assets are delivered. Gameplay-section keyframes raised by
 [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered; supporting images are
 conditional on choosing sections for building. Before those batches there were no
 open requests (as of 2026-09-24). The Jedi and Maris
@@ -80,26 +79,6 @@ were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
-
-## Open — title key art with Mandalorians (2026-09-28)
-
-The delivered `title_twin_suns.jpg` has the right light and framing, but its hunters
-are generic cowboys in wide-brimmed hats. The stand-in it replaced (`title_bg.jpg`, a
-battered T-visor helmet) at least said *Mandalorian* at a glance. The title needs
-both: the twin-sunset standoff and unmistakable armored Mandalorian-style hunters.
-
-**File:** `public/assets/textures/title_twin_suns_v2.jpg`, 2560×1080 (21:9). It sits
-beside the current file rather than over it, so the two can be compared in the
-mockup before one is dropped.
-
-**Composition, fixed by the title screen mockup:** the logo and tagline go in the
-empty sky in the **upper right third**. The mode menu sits in a black letterbox
-along the bottom 100 px, and a thin strip runs across the top 70 px. Keep the
-figures in the left half and lower middle, and keep the upper right as calm sky.
-
-| File | Prompt |
-|---|---|
-| `title_twin_suns_v2.jpg` | "Cinematic ultra-wide sci-fi western key art at twin sunset, 21:9. Two suns low over a cracked salt flat, burnt orange and deep red sky, heat haze, long shadows toward the viewer. In the left third, seen from behind and slightly to the side, a posse of four armored bounty hunters stands on a low rock shelf. The lead warrior wears a battered polished-silver helmet with a dark T-shaped visor, silver plate armor and a tattered brown cape, a rifle held low. Beside him is a heavy warrior in dented dark-blue plate armor with a large twin-tank jetpack. A third, slim figure in gold-bronze armor wears a helmet with a raised crest. The fourth hunter in olive-green armor with a T-visor helmet and a rangefinder stalk rises a few meters into the air on a short jetpack flame. Far away on the right horizon, a lone rival silhouette waits. Distant desert spires and the curved ribs of a wrecked starship on the right. Strong negative space in the upper right third for a logo. Gritty film grain, painterly realism, spaghetti-western framing. No text, no logos, no named characters or film frames." |
 
 ## Open — front-end UI concepts (2026-09-28)
 
