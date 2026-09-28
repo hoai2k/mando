@@ -715,6 +715,8 @@ export class Campaign implements MissionController {
     const ok = (x: number, z: number): boolean => {
       const y = yAt(x, z);
       if (!phys.capsuleFree(x, y, z, body.radius, body.height)) return false;
+      // free because there is nothing there at all — a deck's gap — is not a place to stand
+      if (!(phys.groundHeight(x, z, y + 0.3) > y - 1.5)) return false;
       const hz = hazardAt(this.game.board, _probe.set(x, y, z));
       return !hz.kill && hz.dps <= 0;
     };

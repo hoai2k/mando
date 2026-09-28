@@ -180,7 +180,13 @@ const station: StageSpec[] = [
         shell: 'deck', kind: 'start', w: 40, l: 30,
         props: [{ id: 'freighter', u: 8, v: 13, size: 11, yaw: 1.1, solid: { r: 3.4, h: 4 } }],
       }),
-      z('station', 1, { shell: 'deck', kind: 'camp', w: 26, l: 40, feature: 'crates' }),
+      // The cargo gantries are three plates with void between them, the
+      // middle one four metres up: the jetpack's first real verb at 0.45 g.
+      // (One flat plate, as it was, asked nothing of the low gravity at all.)
+      z('station', 1, {
+        shell: 'deck', kind: 'camp', w: 18, l: 72, feature: 'crates',
+        plates: { n: 3, gap: 15, rise: [0, 4, 0] },
+      }),
       z('station', 2, {
         shell: 'deck', kind: 'assault', w: 44, l: 36, waves: 2, air: true, feature: 'crates',
         props: [
@@ -202,7 +208,9 @@ const station: StageSpec[] = [
     world: { fogColor: 0x14181f, fogNear: 12, fogFar: 90, background: 0x0b0d12, roofed: true, gravity: 0.45, fill: 1.5 },
     zones: [
       z('station', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
-      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // The gunslinger's duel wants two levels: a fourteen-metre roof and a
+      // gallery along one wall, with steps up at its far end.
+      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars', roofH: 14, gallery: 6 }),
     ],
     // a quiet corridor between the two rooms: the breath before the duel
     links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
@@ -211,14 +219,26 @@ const station: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.station[2],
     zones: [
-      z('station', 5, { shell: 'deck', kind: 'camp', w: 24, l: 38, alcove: true }),
+      // the crew catwalks: three plates strung off the hull, the middle one
+      // raised, arrived at in front of the hull you left the station by
+      z('station', 5, {
+        shell: 'deck', kind: 'camp', w: 14, l: 60, alcove: true,
+        plates: { n: 3, gap: 12, rise: [0, 4, 0] },
+      }),
       z('station', 6, {
         shell: 'deck', kind: 'assault', w: 40, l: 32, waves: 3, air: true,
         props: [{ id: 'reactor_core', u: 16, v: 11, size: 16, solid: { r: 5.5, h: 16 } }],
       }),
       z('station', 7, {
-        shell: 'deck', kind: 'warlord', w: 60, l: 50,
-        props: [{ id: 'raider_dropship', u: 40, v: 20, size: 14, yaw: 2.4, solid: { r: 3, h: 3 } }],
+        // containers for the mudhorn's charges to have something to hit
+        shell: 'deck', kind: 'warlord', w: 60, l: 50, feature: 'crates',
+        props: [
+          { id: 'raider_dropship', u: 40, v: 20, size: 14, yaw: 2.4, solid: { r: 3, h: 3 } },
+          { id: 'cargo_crate', u: 14, v: -16, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 17, v: -12, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 34, v: -18, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 30, v: 11, size: 2.4, yaw: 0.6, solid: { r: 1.5, h: 2.4 } },
+        ],
       }),
     ],
     links: [{ len: 16, kind: 'trek' }, { len: 18, kind: 'trek' }],

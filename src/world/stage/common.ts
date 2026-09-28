@@ -19,6 +19,11 @@ export const MISSION_Y = 90;
 export const RIM_OVER_CEILING = 6;
 /** the backdrop row's height, as a multiple of the ceiling */
 export const BACKDROP_H = 2.2;
+/**
+ * The widest gap a deck's plates are laid with (`ZoneSpec.plates`): a jetpack
+ * hop at the Spice Run's 0.45 g, not a leap of faith.
+ */
+export const DECK_GAP_MAX = 18;
 /** how far past an outdoor zone's entry the fight starts */
 export const TRIGGER_IN = 6;
 /** trail posts along any link at least this long, every this many metres */

@@ -157,6 +157,16 @@ export interface ZoneSpec {
    * flank is the quiet way through. Defaults to alternating by beat.
    */
   postSide?: 1 | -1;
+  /**
+   * Deck: the zone is `n` plates in a row with void between them, `gap`
+   * metres across (at most `DECK_GAP_MAX`), each raised `rise[k]` over the
+   * stage floor — the first and last at 0, so the links meet them. A single
+   * flat plate gave the Spice Run's low gravity nothing to do (audit finding
+   * 10); a gap you jet across is its verb.
+   */
+  plates?: { n: number; gap: number; rise: number[] };
+  /** hall: a gallery along the left wall this high, with steps up to it */
+  gallery?: number;
   /** trek: posted sentries who raise the alarm rather than hold ground */
   lookouts?: number;
   /** hall: roof height; default ROOF_H */

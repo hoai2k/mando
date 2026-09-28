@@ -199,7 +199,18 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   const aLen = Math.hypot(raw.dx, raw.dz) || 1;
   const anchor = { x: raw.x, z: raw.z, dx: raw.dx / aLen, dz: raw.dz / aLen };
   const floorY = onGround ? terrainAt(anchor.x, anchor.z) : MISSION_Y;
-  const groundAt = (x: number, z: number): number => (onGround ? terrainAt(x, z) : floorY);
+  /**
+   * Floor raised off a plate stage's one height: a deck's upper plate, a
+   * hall's gallery. Filled in as the zones are laid and read live, so every
+   * spot placed afterwards — posts, vents, cover, the party's inside test —
+   * stands on it rather than inside it.
+   */
+  const raised: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = [];
+  const groundAt = (x: number, z: number): number => {
+    if (onGround) return terrainAt(x, z);
+    for (const r of raised) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return r.y;
+    return floorY;
+  };
   let highest = floorY;
   if (onGround) {
     // Sample the ground the chain actually crosses — its zones and the links
@@ -248,7 +259,7 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
      */
     retired: false,
     removeBoxes, addBox, addCyl, addHazard,
-    anchor, floorY, groundAt, ceilingY,
+    anchor, floorY, groundAt, raised, ceilingY,
   };
 }
 

@@ -23,6 +23,12 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
 
   const link = stage.links[i] ?? { len: 14 };
   const nextIsHall = stage.zones[i + 1].shell === 'hall';
+  /**
+   * A gangway between two decks: the void is its border, as it is the decks'.
+   * It used to be walled by hull ridges sixty-six metres tall, which made the
+   * Spice Run's plates in space a corridor between two cliffs.
+   */
+  const gangway = stage.zones[i].shell === 'deck' && stage.zones[i + 1].shell === 'deck';
   const roofed = link.kind ? link.kind === 'corridor' : (isHall || nextIsHall);
   const linkPosts: DefenderPost[] = [];
   let g = new Frame(f.x(l + 1.5, 0), f.z(l + 1.5, 0), f.dx, f.dz);
@@ -39,6 +45,10 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     // were outdoors — two slabs of cliff standing inside the Refinery.
     if (bare) {
       // nothing
+    } else if (gangway && !roofed) {
+      const edge = b.accentGlow;
+      slab(lf, 0, len, laneW / 2 - 0.3, laneW / 2, ltop + 0.02, ltop + 0.2, edge);
+      slab(lf, 0, len, -laneW / 2, -laneW / 2 + 0.3, ltop + 0.02, ltop + 0.2, edge);
     } else if (roofed) {
       solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop + CORR_H, ltop + CORR_H + 1, wallMat);
       // the lane walls sit 5 cm proud and run only their own span: the room
@@ -129,8 +139,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
       ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
     if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, roofed ? hallFloorMat : floorMat);
-    if (bare) {
-      // a bend through a building that is already there lays nothing either
+    if (bare || (gangway && !roofed)) {
+      // a bend through a building that is already there lays nothing either,
+      // and a bend in a gangway is held by the void
     } else if (roofed) {
       solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
       wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);

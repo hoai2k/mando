@@ -17,6 +17,9 @@ export function validateSpots(b: StageBuilder, zones: MissionZone[],
   // ---- validation: keep only spots a body actually fits in ----
   const fits = (p: THREE.Vector3): boolean => {
     if (!board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1)) return false;
+    // and something under it: a spot over a deck's gap is free because
+    // nothing is there at all
+    if (!(board.physics.groundHeight(p.x, p.z, p.y) > p.y - 1.5)) return false;
     const hz = hazardAt(board, p);
     return !hz.kill && hz.dps <= 0;
   };

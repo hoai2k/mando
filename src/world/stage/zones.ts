@@ -3,7 +3,7 @@ import { Gate, GATE_W, type Barrier } from '../gate';
 import { addBreakable } from '../board';
 import type { MissionZone } from '../mission';
 import {
-  EPS, WALL_T, ROOF_H, DOOR_MAX_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
+  EPS, WALL_T, ROOF_H, DOOR_MAX_H, DECK_GAP_MAX, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
 } from './common';
 import { Fence } from './barriers';
 import type { StageBuilder } from './builder';
@@ -23,7 +23,7 @@ export function layZones(b: StageBuilder) {
   const {
     board, spec, stage, index, beat0, pal, baseWallH, ceiling, onGround, bare, wantRim, canyon,
     floorMat, hallFloorMat, wallMat, rockMat, trimMat, owned, group,
-    boxes, breakables, rects, pickups, path, lanes, anchor, floorY, groundAt,
+    boxes, breakables, rects, pickups, path, lanes, anchor, floorY, groundAt, raised, blocked,
     solid, slab, wallU, wallV, surf, crate, ridge, setPieces, placeProps, placeRides,
   } = b;
 
@@ -57,7 +57,26 @@ export function layZones(b: StageBuilder) {
     // ---- the floor ----
     // A ground stage stands on the board's own: no plate, no seam, and the
     // dunes or basalt the territory is *made of* under the fight.
-    if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, isHall ? hallFloorMat : floorMat);
+    /** a deck laid as plates with void between: each plate's [u0, u1, rise] */
+    const plates: [number, number, number][] = [];
+    if (zs.shell === 'deck' && zs.plates && zs.plates.n > 1 && !onGround) {
+      const { n, rise } = zs.plates;
+      const gap = Math.min(zs.plates.gap, DECK_GAP_MAX);
+      const pl = (l - (n - 1) * gap) / n;
+      for (let k = 0; k < n; k++) {
+        const u0 = k * (pl + gap), u1 = u0 + pl;
+        const y = top + (k === 0 || k === n - 1 ? 0 : rise[k] ?? 0);
+        plates.push([u0, u1, y - top]);
+        solid(f, k === 0 ? -1 : u0, k === n - 1 ? l + 1 : u1, -w / 2 - 1, w / 2 + 1, y - 1, y, floorMat);
+        if (y !== top) raised.push({ ...f.rect(u0, u1, -w / 2 - 1, w / 2 + 1), y });
+        if (k > 0) {
+          // the void between two plates: nothing is set down in it
+          for (let v = -w / 2; v <= w / 2; v += 4) {
+            blocked.push({ x: f.x(u0 - gap / 2, v), z: f.z(u0 - gap / 2, v), r: gap / 2 + 1 });
+          }
+        }
+      }
+    } else if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, isHall ? hallFloorMat : floorMat);
     rects.push(f.rect(-0.5, l + 0.5, -w / 2 - 0.5, w / 2 + 0.5));
 
     const dir = { x: f.dx, z: f.dz };
@@ -126,6 +145,19 @@ export function layZones(b: StageBuilder) {
         pickups.push(f.vec(l / 2, p0 + 1.8, top + 0.2));
         rects.push(f.rect(l / 2 - 2.4, l / 2 + 2.4, p0, p0 + 3.4));
       }
+      if (zs.gallery) {
+        // A gallery along the left wall, with steps up at its far end: a
+        // second level for a duel, which one flat floor under a roof is not.
+        const gy = top + zs.gallery, gw = 4, gEnd = l - 6.8;
+        solid(f, 3, gEnd, w / 2 - gw, w / 2, gy - 0.5, gy, wallMat);
+        slab(f, 3, gEnd, w / 2 - gw, w / 2 - gw + 0.2, gy + 0.02, gy + 0.18, trimMat);
+        raised.push({ ...f.rect(3, gEnd, w / 2 - gw, w / 2), y: gy });
+        for (let k = 0; k < 3; k++) {
+          const sy = top + zs.gallery * (0.75 - k * 0.25);
+          solid(f, gEnd + k * 1.4, gEnd + (k + 1) * 1.4, w / 2 - gw, w / 2, top, sy, wallMat);
+          raised.push({ ...f.rect(gEnd + k * 1.4, gEnd + (k + 1) * 1.4, w / 2 - gw, w / 2), y: sy });
+        }
+      }
       // zone 0 of a stage with a door behind it has a vestibule, and the room
       // seals against it like against any other way in
       if (internalEntry || entryOpen) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, doorH, pal.accent);
@@ -142,6 +174,11 @@ export function layZones(b: StageBuilder) {
       if (internalExit) {
         slab(f, l - 0.2, l + 0.6, -w / 2, w / 2, top + 0.02, top + 0.2, edge);
         exitBarrier = new Fence(board, group, f.vec(l + 1, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
+      }
+      // a plated deck lights both edges of every gap, so the jump reads
+      for (const [u0, u1, rise] of plates) {
+        slab(f, u0, u0 + 0.6, -w / 2, w / 2, top + rise + 0.02, top + rise + 0.2, edge);
+        slab(f, u1 - 0.6, u1, -w / 2, w / 2, top + rise + 0.02, top + rise + 0.2, edge);
       }
       landmark = f.vec(l + 6, 0, top + 3);
     } else if (bare) {
@@ -322,17 +359,27 @@ export function layZones(b: StageBuilder) {
     placeRides(f, zs, top);
 
     // ---- spawn geometry ----
+    // On a plated deck a spot that falls in a gap is moved onto the nearest
+    // plate: nobody is posted in the void.
+    const onPlate = (u: number): number => {
+      if (!plates.length || plates.some(([a, b]) => u >= a + 1 && u <= b - 1)) return u;
+      let best = u, d = Infinity;
+      for (const [a, b] of plates) {
+        for (const e of [a + 2, b - 2]) if (Math.abs(e - u) < d) { d = Math.abs(e - u); best = e; }
+      }
+      return best;
+    };
     const farVents: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l - 3.5, w / 2 - 3.5], [l - 3.5, -(w / 2 - 3.5)],
       [l - 3.5, w * 0.17], [l - 3.5, -w * 0.17],
-    ]) farVents.push(surf(f, u, v));
+    ]) farVents.push(surf(f, onPlate(u), v));
     const sideVents: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l * 0.5, w / 2 - 3], [l * 0.5, -(w / 2 - 3)],
       [l * 0.32, w / 2 - 3.5], [l * 0.32, -(w / 2 - 3.5)],
       [l * 0.7, w / 2 - 3.5], [l * 0.7, -(w / 2 - 3.5)],
-    ]) sideVents.push(surf(f, u, v));
+    ]) sideVents.push(surf(f, onPlate(u), v));
     const posts: THREE.Vector3[] = [];
     if (zs.kind === 'camp') {
       // A camp says "clear it, or slip through", so its garrison holds one
@@ -342,12 +389,12 @@ export function layZones(b: StageBuilder) {
       const side = zs.postSide ?? ((beat0 + i) % 2 ? 1 : -1);
       for (const [u, v] of [
         [0.36, 0.3], [0.46, 0.38], [0.52, 0.3], [0.6, 0.4], [0.66, 0.32], [0.42, 0.44],
-      ]) posts.push(surf(f, l * u, side * Math.min(w * v, w / 2 - 2)));
+      ]) posts.push(surf(f, onPlate(l * u), side * Math.min(w * v, w / 2 - 2)));
     } else {
       for (const [u, v] of [
         [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
         [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
-      ]) posts.push(surf(f, u, v));
+      ]) posts.push(surf(f, onPlate(u), v));
     }
 
     zoneFrames.push(f);

@@ -259,6 +259,32 @@ The roads stay (the sections are additive).
   door from the middle of the entry; a player steps aside) — noted in the
   commit.
 
+### 12. The Spice Run's plates, gangways and hull — done
+
+- **Plates.** `ZoneSpec.plates { n, gap, rise[] }` on a deck: `n` floor slabs
+  with void gaps (capped at `DECK_GAP_MAX` 18 m), each raised `rise[k]` (first
+  and last at 0 so the links meet them), both edges of every gap lit.
+  `StageBuilder.raised` makes `groundAt` answer the raised plates (and a hall's
+  gallery), so posts, vents, cover and the inside test stand on them; spots that
+  fall in a gap are moved onto the nearest plate; nothing is set down in the
+  void; and spot validation (`fits`) and `Campaign.placeNear` now also need
+  ground under a spot. The cargo gantries are 3 plates (18×72, 15 m gaps, middle
+  +4 m); the crew catwalks 3 plates (14×60, 12 m gaps, middle +4 m).
+- **Gangways.** A link between two decks lays no hull ridges; its edges are lit
+  and the void is its border.
+- **Hull face on arrival.** The station-hull facade (`hullFace`) now also closes
+  a deck stage's *back* door on a hull board: stage C is arrived at in front of
+  the hull you left by.
+- **The loading gantry** gets a 14 m roof and a gallery 6 m up along one wall
+  with steps (`ZoneSpec.gallery`). **The hold of the prize** gets crates and
+  four cargo containers; its cache comes from item 4.
+- **Tests.** `audit-mission-build` raises every stage (spots validated against
+  the new floor rule); the vestibule start check caught a cache crate dropped on
+  the party's re-form spots (fixed). No separate plate check was added — see
+  "left".
+- **Left.** No suite walks the Spice Run's jumps with a bot; the plates were
+  checked by the build audit and by screenshots.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
