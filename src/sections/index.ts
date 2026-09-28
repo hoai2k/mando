@@ -12,6 +12,7 @@ import { theLift } from './the-lift';
 import { oneWayOut } from './one-way-out';
 import { markRuns } from './mark-runs';
 import { squall } from './squall';
+import { runThePier } from './run-the-pier';
 import { magmaRun } from './magma-run';
 import { ringWalk } from './ring-walk';
 import { BUILT_SECTIONS } from './ids';
@@ -32,6 +33,7 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   'one-way-out': oneWayOut,
   'mark-runs': markRuns,
   squall,
+  'run-the-pier': runThePier,
   'magma-run': magmaRun,
   'ring-walk': ringWalk,
 };
