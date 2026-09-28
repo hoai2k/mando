@@ -82,9 +82,9 @@ const HUMANOID: Pose[] = [
   { rig: 'humanoid', id: 'death', name: 'Death', lower: 'deathLower', upper: 'deathUpper' },
   { rig: 'humanoid', id: 'enemyAim', name: 'Enemy aim', lower: 'idleLower', upper: 'enemyAimUpper' },
   { rig: 'humanoid', id: 'enemySwing', name: 'Enemy swing', lower: 'idleLower', upper: 'enemySwing' },
-  { rig: 'humanoid', id: 'unarmedJab', name: 'Unarmed 1 — lead straight', lower: 'unarmedJabLower', upper: 'unarmedJabUpper', previewOnly: true, unarmed: true },
-  { rig: 'humanoid', id: 'unarmedCross', name: 'Unarmed 2 — rear straight', lower: 'unarmedCrossLower', upper: 'unarmedCrossUpper', previewOnly: true, unarmed: true },
-  { rig: 'humanoid', id: 'unarmedKick', name: 'Unarmed 3 — front kick', lower: 'unarmedKickLower', upper: 'unarmedKickUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'unarmed1', name: 'Unarmed 1 — wound-up cross', lower: 'fistCrossLower', upper: 'fistCrossUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'unarmed2', name: 'Unarmed 2 — lead hook', lower: 'fistHookLower', upper: 'fistHookUpper', previewOnly: true, unarmed: true },
+  { rig: 'humanoid', id: 'unarmed3', name: 'Unarmed 3 — roundhouse kick', lower: 'kickRoundhouseLower', upper: 'kickRoundhouseUpper', previewOnly: true, unarmed: true },
   { rig: 'humanoid', id: 'rest', name: 'Rest pose (no clip)', lower: null, upper: null, previewOnly: true },
 ];
 
