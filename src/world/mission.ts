@@ -43,7 +43,22 @@ export type RidgeStyle = 'rock' | 'ice' | 'basalt' | 'ruin' | 'hull' | 'tank' | 
  * already a building (the Refinery) and adds nothing but the fights, and
  * `sea` lays them on a seabed under water.
  */
-export type StageKind = 'built' | 'interior' | 'territory' | 'plant' | 'sea';
+export type StageKind = 'built' | 'interior' | 'territory' | 'plant' | 'sea' | 'section';
+/**
+ * The gameplay sections (docs/LEVEL_SECTIONS.md, docs/SECTIONS_IMPLEMENTATION.md):
+ * whole stages that play as a different game — a lava bike run, a lift under
+ * siege, a stealth yard — built and run by their own module in `src/sections/`.
+ */
+export type SectionId =
+  | 'barge-run' | 'worm-sign'
+  | 'frigate-guns' | 'ring-walk'
+  | 'magma-run' | 'chimney'
+  | 'glacier-chute' | 'lamplight'
+  | 'squall' | 'run-the-pier'
+  | 'the-line' | 'lights-out'
+  | 'hold-the-forge' | 'covert-sky'
+  | 'tram-top' | 'mark-runs'
+  | 'one-way-out' | 'the-lift';
 export type ZoneFeature = 'pit' | 'lava' | 'shock' | 'barrels' | 'pillars' | 'crates';
 
 /** an authored sculpt placed in zone-local coordinates */
@@ -149,6 +164,12 @@ export interface LinkSpec {
 
 export interface StageSpec {
   kind: StageKind;
+  /**
+   * `kind: 'section'` only: which section this stage is. A section stage has
+   * no zones and no links — its module builds and runs the whole of it — and
+   * its boundaries are one-way (no door back into it, none back out of it).
+   */
+  section?: SectionId;
   /** the transition card's line: "the ravine", "inside the station" */
   label: string;
   /** what this stage does to the world it is raised in */

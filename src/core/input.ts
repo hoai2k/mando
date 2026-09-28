@@ -24,6 +24,12 @@ export interface FrameInput {
   /** hold to raise the block shield — a ride's deflector runs off the same button */
   blockHeld: boolean;
   slamPressed: boolean;
+  /**
+   * The contextual button (Y / C) *held*. Only the gameplay sections read it —
+   * hold at a valve, a brazier, a charge socket, a cell release — where
+   * `slamPressed` is its edge and is still what takes cover and mounts rides.
+   */
+  interactHeld: boolean;
   /** D-pad left: cycle to the next melee weapon carried */
   meleeSwapPressed: boolean;
   /** D-pad right: cycle to the next gun carried */
@@ -56,7 +62,7 @@ function blankInput(): FrameInput {
   return {
     moveX: 0, moveY: 0, lookX: 0, lookY: 0,
     jumpHeld: false, jumpPressed: false, dashPressed: false, sprintHeld: false, shootHeld: false,
-    aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false,
+    aimHeld: false, meleePressed: false, rocketPressed: false, slamPressed: false, interactHeld: false,
     zoomHeld: false, zoomDelta: 0, blockHeld: false, pausePressed: false,
     meleeSwapPressed: false, rangedSwapPressed: false,
   };
@@ -359,6 +365,7 @@ export class InputManager {
       inp.sprintHeld ||= k.has('ShiftLeft') || k.has('ShiftRight');
       inp.blockHeld ||= k.has('KeyR');
       inp.slamPressed ||= this.keysPressed.has('ControlLeft') || this.keysPressed.has('KeyC');
+      inp.interactHeld ||= k.has('ControlLeft') || k.has('KeyC');
       inp.shootHeld ||= this.mouseButtons.has(0);
       inp.aimHeld ||= this.mouseButtons.has(2);
       inp.meleePressed ||= this.keysPressed.has('KeyF') || this.mousePressed.has(1);
@@ -393,6 +400,7 @@ export class InputManager {
         inp.sprintHeld ||= b(BTN.LB);
         inp.blockHeld ||= b(BTN.RB);
         inp.slamPressed ||= this.edge(pad, BTN.Y);
+        inp.interactHeld ||= b(BTN.Y);
         inp.shootHeld ||= (pad.buttons[BTN.RT]?.value ?? 0) > 0.4 || b(BTN.RT);
         inp.aimHeld ||= (pad.buttons[BTN.LT]?.value ?? 0) > 0.4 || b(BTN.LT);
         inp.meleePressed ||= this.edge(pad, BTN.X);

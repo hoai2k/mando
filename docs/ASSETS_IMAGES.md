@@ -11,8 +11,9 @@ The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
 The Twin Suns title, its armored-posse variant, Wanted loading assets, and the
 alternate Dune Sea board image are delivered. Gameplay-section keyframes raised by
-[`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered; supporting images are
-conditional on choosing sections for building. Before those batches there were no
+[`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered, and **their supporting images are
+open** in [Gameplay sections — supporting images](#gameplay-sections--supporting-images-2026-09-28):
+all eighteen sections are being built. Before those batches there were no
 open requests (as of 2026-09-24). The Jedi and Maris
 canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
@@ -139,18 +140,19 @@ The background below is optional for the galaxy-map-with-a-lens layout.
 |---|---|---|
 | `galaxy_arm.jpg` | 2560×1440 | "Top-down view along one spiral arm of a galaxy, a long band of warm gold and pale violet star clouds running left to right across the middle, dark dust lanes, scattered bright stars, deep black above and below the band. No text, no labels." |
 
-## Gameplay sections — supporting images (conditional)
+## Gameplay sections — supporting images (2026-09-28)
 
 The 18 keyframe concepts requested by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are
 delivered in `reference/sections/` and recorded in
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#gameplay-sections--18-keyframe-concepts-delivered-2026-09-28).
-The supporting images below remain conditional on choosing a section for building.
 
-**Supporting images — generate only when a section is picked.** Each is listed under the
-section that needs it. If a section is not chosen for building, its images are never
-made. Global specs above apply. Prop sheets follow the vehicle and prop recipe
+**Supporting images — open now (2026-09-28).** All eighteen sections are being built
+([`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md)), so every one of these is
+wanted. Each ships with a procedural stand-in, so none of them blocks a build. Global
+specs above apply. Prop sheets follow the vehicle and prop recipe
 (orthographic side, front and top on one 1536×1024 canvas, one scale, flat even
-lighting, plain mid-grey background, no people, no text) into `reference/props/`.
+lighting, plain mid-grey background, no people, no text) into `reference/props/`, and
+become models through [`ASSETS_MODELS.md`](ASSETS_MODELS.md#gameplay-sections--props-and-a-prisoner-requested-2026-09-28).
 Textures are 1024×1024 seamless into `public/assets/textures/`.
 
 | Section | File | Prompt |
@@ -169,6 +171,10 @@ Textures are 1024×1024 seamless into `public/assets/textures/`.
 | The Mark Runs | `rooftop.jpg` | "Seamless tileable top-down texture of a sci-fi city rooftop: dark weatherproof membrane panels with seams, small vent grilles, cable runs, puddle stains, faded teal service markings, even lighting, no shadows" |
 | One Way Out | `prisoner_front.png`, `_side.png`, `_back.png` | Use the character preamble above. Subject: "a gaunt adult prison laborer in a plain pale work jumpsuit with numbered chest and shoulder patches, a thin grey padded work vest, soft rubber-soled boots, cropped hair, hands empty, worn and tired" |
 | The Lift | `shaft_wall.jpg` + `shaft_wall_normal.png` | "Seamless tileable texture of the inside wall of a tall industrial lift shaft seen side-on: white composite panels with heavy horizontal ribs every metre, recessed guide rails, small amber marker lights in the rib line, grime streaks running down, even lighting, no shadows" |
+| One Way Out | `shock_tile.jpg` | "Seamless tileable top-down texture of a prison work-floor tile grid: 4 meter square off-white composite floor panels with dark recessed seams, a thin copper electrode strip inset along every seam, small warning chevrons at the corners, scuffed and boot-marked, even lighting, no shadows" |
+| The Squall | `rain_streak.png` (512×1024, alpha) | "Seamless tileable alpha texture of heavy wind-driven rain streaks falling at a slight diagonal, thin white streaks of varied length and brightness on transparent, no colour" |
+| Magma Run, The Chimney | `magma_crust.jpg` + `magma_crust_glow.jpg` | Albedo: "Seamless tileable top-down texture of a slow lava river: black cooling crust plates split by bright cracks, ropy flow folds, ash dusting on the crust, even lighting, no shadows". Glow (emissive, same layout): "matching emissive map, black crust and bright orange-yellow molten cracks only" |
+| Covert Sky | `ruin_tower.jpg` + normal | "Seamless tileable texture of the facade of a tall ruined city tower seen side-on: rows of empty blown-out window bays in carved grey-green stone partly fused to glass, blast scars, exposed rebar, soot streaks running upward, large features readable from 50 meters, even lighting, no shadows" |
 
 ## Making more character reference sheets
 

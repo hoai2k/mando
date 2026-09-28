@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { EnemyKind } from '../enemies/enemy';
+import type { SectionHud } from '../sections/api';
 
 /**
  * What the rest of the game asks of a Missions controller.
@@ -42,4 +43,6 @@ export interface MissionController {
    * victory card would freeze there still carrying its blocker.
    */
   animateGates(dt: number): void;
+  /** a gameplay section's HUD panel for this player, when one is standing */
+  sectionHud?(slot: number): SectionHud | null;
 }

@@ -4,7 +4,7 @@ Characters first (the original scope of this doc), then the
 [environment & hazard models](#environment--hazard-models--priority-by-impact)
 opened by the 2026-08-29 territory audit.
 
-**Open on the model side: a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. Galen Marek, Maris Brood, Darth Revan, Darth Maul, and the Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
+**Open on the model side: the [gameplay-section props and a prisoner](#gameplay-sections--props-and-a-prisoner-requested-2026-09-28) (2026-09-28; each has a stand-in), and a small optional [outdoor set for Missions v3](#missions-v3--outdoor-set-optional-requested-2026-09-03).** The spider fang re-exports were declined on 2026-09-24 because their small mouthparts do not justify new models. Galen Marek, Maris Brood, Darth Revan, Darth Maul, and the Spice Run frigate were generated, processed, and integrated on 2026-09-24. The two replacement NPCs were integrated on 2026-09-23. What follows is the standing brief for replacement and future assets. An authored glTF (.glb) replaces a character through the swap contract; where a file is absent the procedural stand-in remains.
 
 ## Missing-model audit — 2026-09-24
 
@@ -880,6 +880,34 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 | `cliff_pillar_rock`, `cliff_pillar_ice` | 2 | 8 m across at the base, 36 m tall (scaled per level) | The gap framers: the two tall pieces either side of every canyon mouth and rim gap, the thing every zone's guidance points at. A tapering, slightly leaning tower — sandstone strata for the rock one, a glacier serac for the ice one — with a readable silhouette at 80 m. The collider is a cylinder r 4.5 m over the full height; the sculpt may flare past it above 12 m (nothing reaches there). ≤ 3k tris, 1024² with the matching `cliff_*` texture family. |
 | `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
 | `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |
+
+## Gameplay sections — props and a prisoner, requested 2026-09-28
+
+Opened by [`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md). All eighteen
+sections in [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are being built, and these are
+the sculpts they would like. **Every one ships as a procedural stand-in first**, and
+a section never waits on a file. The stand-in's size, pivot and collider are the spec
+below, so a delivered model drops into place through `loadProp()`. Reference sheets
+for each prop are requested in
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--supporting-images-2026-09-28):
+make each model from its sheet. Rigless props on the `loadProp()` path, origin at the
+base, +Z forward. Stylized-realistic, weathered, original. Priority is by how
+much players look at the prop.
+
+| Id | Section | Size | Role / constraints | Priority |
+|---|---|---|---|---|
+| `quad_turret` | Guns of the Frigate, the Barge Run (deck guns) | ~4 m across, 2.4 m tall | A player-crewed turret. Split into **three nodes** so the game can drive them: `base` (static), `yaw` (turns about +Y), `pitch` (the barrel block, pivot at the trunnion). Four barrels with muzzle empties `muzzle_0..3`, a seat empty `seat`, and an open gunner's shield. ≤ 4k tris, one 1024² PBR set. | 1 |
+| `pirate_corvette` | Guns of the Frigate (finale) | ~60 m long | Flies alongside; three shield-generator domes as **separate child meshes** (`gen_0..2`) so each can be destroyed, a spinal gun (`spine_gun`), a bridge block (`bridge`). Seen from 30–80 m. ≤ 12k tris, 2048² set. | 1 |
+| `thumper` | Worm Sign | 2.4 m tall tripod | Carried and planted. The piston head is a separate node (`hammer`) the game animates up and down. ≤ 1.2k tris. | 2 |
+| `searchlight_tower` | Lights Out | 14 m tall | The lamp drum is a separate node (`lamp`, pivot at the yoke) the game sweeps; emissive slot on the lens. The collider is a cylinder r 1.2 m. ≤ 3k tris. | 1 |
+| `hydraulic_press` | The Line | 8 m wide × 7 m tall gantry | The press head is a separate node (`head`) the game drives down onto the belts; hazard striping on the face. ≤ 3k tris. | 2 |
+| `welding_arm` | The Line | 6 m reach | Floor-mounted industrial arm. `base`, `shoulder` and `elbow` nodes rotate about +Y; spark empty `tip`. ≤ 2k tris. | 3 |
+| `flak_tower` | Covert Sky | 6 m across, placed on a tower top | Twin-barrelled flak gun on a rubble ring. `yaw` and `pitch` nodes as for the turret; a charge socket empty `charge`. ≤ 3k tris. | 2 |
+| `beskar_barricade` | Hold the Forge | 3 m wide × 1.2 m tall | Curved forged shield wall; the collider is a box 3 × 1.2 × 0.4 m. ≤ 800 tris. | 3 |
+| `valve_wheel` | The Chimney | 1.4 m wheel on a 1 m stand | The wheel is a separate node (`wheel`, spins about its axle). ≤ 600 tris. | 3 |
+| `boarding_tube` | Guns of the Frigate | 3 m Ø × 8 m | A flexible armoured boarding tube with a clamp collar (`latch` node: the part a player melees off). ≤ 2k tris. | 2 |
+| `freight_lift` | The Lift | 12 × 12 m platform | Heavy lift platform with rails on two sides and a control pylon in one corner (`pylon`). The collider is the deck plus the rails. ≤ 3k tris. | 3 |
+| `prisoner` | One Way Out | 1.78 m biped | **A character, on the canonical rig** per the [swap contract](#swap-contract-applies-to-every-biped): a gaunt prison labourer in a plain pale jumpsuit with numbered patches (sheets requested as `prisoner_front/side/back.png`). The stand-in is the droid or trooper builder re-skinned pale. Several on screen at once, so ≤ 6k tris, 1024² set. | 1 |
 
 ## Stray geometry in a delivered sculpt (2026-09-20)
 

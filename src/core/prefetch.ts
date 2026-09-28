@@ -1,4 +1,5 @@
 import { enemyModelIds, modelUrl, warmAuthored } from '../characters/authored';
+import { SECTION_ASSETS } from '../sections/ids';
 import type { EnemyKind } from '../enemies/enemy';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 import { BOSS_KIND, MID_BOSS, MONSTER_BOSS, type GameMode } from '../game/modes';
@@ -340,6 +341,8 @@ export function stagePropIds(board: BoardId, stageIdx: number): string[] {
   const spec = MISSION_LAYOUTS[board];
   const stage = spec?.stages[stageIdx];
   if (!stage) return [];
+  // a gameplay section names its own art (its module places what it places)
+  if (stage.kind === 'section') return stage.section ? [...(SECTION_ASSETS[stage.section] ?? [])] : [];
   const out = new Set<string>();
   // the builder's own furniture: the spires that frame a way on, the posts
   // down a long lane, the crates in a roofed one, the boulders in an open one

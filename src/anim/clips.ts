@@ -220,6 +220,135 @@ const proportionKey = (p: Proportions): string =>
   `${p.hipHeight},${p.spineLen},${p.chestLen},${p.neckLen},${p.headSize},${p.shoulderWidth},` +
   `${p.upperArmLen},${p.forearmLen},${p.upperLegLen},${p.lowerLegLen},${p.hipWidth}`;
 
+/**
+ * The thigh, knee and foot angles (degrees about X) that keep a foot planted
+ * where it stands while the hips drop `drop` metres, move `fwd` metres forward
+ * and pitch `pitch` degrees. Two-bone IK in the leg's own plane, solved from
+ * the rig's own lengths, so a crouch of any depth leaves every body's feet on
+ * the floor — the hand-keyed landing sank them 8 cm into it at the bottom.
+ * The sole is kept flat to the ground.
+ */
+function plantedLeg(p: Proportions, drop: number, fwd: number, pitch: number): { thigh: number; knee: number; foot: number } {
+  // the ankle sits 3 cm ahead of the shin's line (skeleton.ts), so the shin
+  // is solved as the straight line knee-to-ankle and turned back by that much
+  const L1 = p.upperLegLen, L2 = Math.hypot(p.lowerLegLen, ANKLE_FWD);
+  const lean = -Math.atan2(ANKLE_FWD, p.lowerLegLen);
+  const h = THREE.MathUtils.degToRad(pitch);
+  // the hip joint hangs 2 cm under the hips bone and turns with it
+  const jy = p.hipHeight - drop - 0.02 * Math.cos(h);
+  const jz = fwd - 0.02 * Math.sin(h);
+  // where the ankle stands, straight-legged under the hips
+  const ty = (p.hipHeight - 0.02 - L1 - p.lowerLegLen) - jy;
+  const tz = ANKLE_FWD - jz;
+  const d = THREE.MathUtils.clamp(Math.hypot(ty, tz), Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-4);
+  // a limb at angle a about X points along (0, -cos a, -sin a)
+  const toAnkle = Math.atan2(-tz, -ty);
+  const bend = Math.acos(THREE.MathUtils.clamp((d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2), -1, 1));
+  const thighWorld = toAnkle - Math.atan2(L2 * Math.sin(bend), L1 + L2 * Math.cos(bend));
+  // the shin bone's own angle is its knee-to-ankle line's, less the ankle's lean
+  const shinWorld = thighWorld + bend - lean;
+  const deg = THREE.MathUtils.radToDeg;
+  return { thigh: deg(thighWorld - h), knee: deg(shinWorld - thighWorld), foot: -deg(shinWorld) };
+}
+
+/** how far forward of the shin the ankle joint sits, metres (skeleton.ts `footL`) */
+const ANKLE_FWD = 0.03;
+
+/** one landing key: how far the hips drop and travel, and how far the body folds over them */
+interface LandKey { t: number; drop: number; fwd: number; pitch: number; spine: number }
+
+/**
+ * The key poses eased into one another at 60 samples a second. The IK is only
+ * exact where it is solved, and a leg interpolated between two solved poses
+ * sinks through the floor mid-way — so it is solved on every sample.
+ */
+function denseKeys(keys: LandKey[]): LandKey[] {
+  const out: LandKey[] = [];
+  const end = keys[keys.length - 1].t;
+  for (let i = 0, t = 0; t <= end + 1e-6; t = Math.min(end, (++i) / 60), i > end * 60 + 1 && (t = end + 1)) {
+    let j = 0;
+    while (j < keys.length - 2 && t > keys[j + 1].t) j++;
+    const a = keys[j], b = keys[j + 1];
+    const u = THREE.MathUtils.smoothstep(t, a.t, b.t);
+    const mix = (x: number, y: number): number => x + (y - x) * u;
+    out.push({ t, drop: mix(a.drop, b.drop), fwd: mix(a.fwd, b.fwd), pitch: mix(a.pitch, b.pitch), spine: mix(a.spine, b.spine) });
+    if (t >= end) break;
+  }
+  return out;
+}
+
+function landingLower(p: Proportions, name: string, sparse: LandKey[]): THREE.AnimationClip {
+  const keys = denseKeys(sparse);
+  const t = keys.map((k) => k.t);
+  const legsAt = keys.map((k) => plantedLeg(p, k.drop, k.fwd, k.pitch));
+  // Both legs solved exactly and held at the idle stance's splay: opening the
+  // knees as they fold (as the hand-keyed version did) slides the feet sideways
+  // across the floor, and a thigh nudged off its solution sinks that foot.
+  const splay = (_k: LandKey): number => 2;
+  return new THREE.AnimationClip(name, t[t.length - 1], [
+    pt('hips', t, keys.map((k) => [0, p.hipHeight - k.drop, k.fwd])),
+    qt('hips', t, keys.map((k) => [k.pitch, 0, 0])),
+    qt('spine', t, keys.map((k) => [k.spine, 0, 0])),
+    qt('upperLegL', t, legsAt.map((l, i) => [l.thigh, 0, splay(keys[i])])),
+    qt('lowerLegL', t, legsAt.map((l) => [l.knee, 0, 0])),
+    qt('footL', t, legsAt.map((l) => [l.foot, 0, 0])),
+    qt('upperLegR', t, legsAt.map((l, i) => [l.thigh, 0, -splay(keys[i])])),
+    qt('lowerLegR', t, legsAt.map((l) => [l.knee, 0, 0])),
+    qt('footR', t, legsAt.map((l) => [l.foot, 0, 0])),
+  ]);
+}
+
+/** how deep each landing folds the hips, metres — the workbench's depth slider starts here */
+export const LAND_DEPTH = { soft: 0.26, hard: 0.5 };
+
+/**
+ * The two landings, at any depth.
+ *
+ *  - `landLower`: a hop or a short drop — the knees give and push straight
+ *    back up, the upper body carries on with whatever it was doing.
+ *  - `landHardLower` + `landHardUpper`: a fast fall. The body goes all the way
+ *    down into a deep crouch — hips back, chest over the knees, hands reaching
+ *    down and out for balance — holds there a beat, then springs up.
+ *
+ * Built from a depth rather than keyed by hand, so the workbench can preview
+ * any depth (and the feet stay planted at all of them).
+ */
+export function landingClips(p: Proportions, depth: Partial<typeof LAND_DEPTH> = {}): ClipSet {
+  const soft = depth.soft ?? LAND_DEPTH.soft;
+  const hard = depth.hard ?? LAND_DEPTH.hard;
+  const s = soft / 0.26;
+  const out: ClipSet = {};
+  out.landLower = landingLower(p, 'landLower', [
+    { t: 0, drop: 0.15 * soft, fwd: 0, pitch: 6 * s, spine: 3 * s },
+    { t: 0.1, drop: soft, fwd: -0.04 * s, pitch: 16 * s, spine: 10 * s },
+    { t: 0.24, drop: 0.38 * soft, fwd: -0.015 * s, pitch: 9 * s, spine: 5 * s },
+    { t: 0.38, drop: 0, fwd: 0, pitch: 0, spine: 2 },
+  ]);
+  // how far into the deep crouch the fold goes: the chest comes over the knees
+  const f = Math.min(1.4, hard / 0.5);
+  const hk = [0, 0.09, 0.3, 0.5, 0.72];
+  out.landHardLower = landingLower(p, 'landHardLower', [
+    { t: hk[0], drop: 0.2 * hard, fwd: 0, pitch: 12 * f, spine: 6 * f },
+    { t: hk[1], drop: hard, fwd: -0.14 * f, pitch: 34 * f, spine: 20 * f },
+    // the beat at the bottom: settling, not rising
+    { t: hk[2], drop: 0.94 * hard, fwd: -0.13 * f, pitch: 31 * f, spine: 18 * f },
+    // the spring: most of the height comes back in a fifth of a second
+    { t: hk[3], drop: 0.22 * hard, fwd: -0.03 * f, pitch: 8 * f, spine: 5 * f },
+    { t: hk[4], drop: 0, fwd: 0, pitch: 0, spine: 2 },
+  ]);
+  out.landHardUpper = new THREE.AnimationClip('landHardUpper', hk[4], [
+    qt('chest', hk, [[6 * f, 0, 0], [16 * f, 0, 0], [15 * f, 0, 0], [5 * f, 0, 0], [1, 0, 0]]),
+    // the eyes stay on the fight while the body folds
+    qt('head', hk, [[-6 * f, 0, 0], [-22 * f, 0, 0], [-20 * f, 0, 0], [-6 * f, 0, 0], [0, 0, 0]]),
+    // hands down and out for balance, the lead one nearly to the floor
+    qt('upperArmL', hk, [[-10, 0, 34], [-38 * f, 0, 30], [-36 * f, 0, 30], [-8, 0, 26], [8, 0, 21]]),
+    qt('forearmL', hk, [[-24, 0, 0], [-14, 0, 0], [-16, 0, 0], [-22, 0, 0], [-18, 0, 0]]),
+    qt('upperArmR', hk, [[-4, 0, -40], [-18 * f, 0, -46], [-17 * f, 0, -44], [0, 0, -30], [8, 0, -21]]),
+    qt('forearmR', hk, [[-30, 0, 0], [-34, 0, 0], [-32, 0, 0], [-24, 0, 0], [-18, 0, 0]]),
+  ]);
+  return out;
+}
+
 export function buildClips(p: Proportions): ClipSet {
   if (!clipCaching) return makeClips(p);
   const key = proportionKey(p);
@@ -525,18 +654,8 @@ function makeClips(p: Proportions): ClipSet {
   // light landing than a heavy one, so a hop and a rooftop drop do not read the
   // same. Nothing here moves the character — the crouch is hips-down over feet
   // that stay planted, which is what keeps it from looking like a second fall.
-  clips.landLower = new THREE.AnimationClip('landLower', 0.38, [
-    pt('hips', [0, 0.1, 0.24, 0.38], [[0, hipY - 0.04, 0], [0, hipY - 0.26, 0], [0, hipY - 0.1, 0], [0, hipY, 0]]),
-    qt('hips', [0, 0.1, 0.24, 0.38], [[6, 0, 0], [16, 0, 0], [9, 0, 0], [0, 0, 0]]),
-    qt('spine', [0, 0.1, 0.24, 0.38], [[3, 0, 0], [10, 0, 0], [5, 0, 0], [2, 0, 0]]),
-    qt('upperLegL', [0, 0.1, 0.24, 0.38], [[-18, 0, 5], [-48, 0, 9], [-24, 0, 6], [-3, 0, 2]]),
-    qt('lowerLegL', [0, 0.1, 0.24, 0.38], [[26, 0, 0], [70, 0, 0], [34, 0, 0], [5, 0, 0]]),
-    qt('footL', [0, 0.1, 0.24, 0.38], [[-4, 0, 0], [-18, 0, 0], [-8, 0, 0], [0, 0, 0]]),
-    // a couple of degrees between the legs so the absorb isn't a piston
-    qt('upperLegR', [0, 0.1, 0.24, 0.38], [[-15, 0, -5], [-44, 0, -9], [-21, 0, -6], [-3, 0, -2]]),
-    qt('lowerLegR', [0, 0.1, 0.24, 0.38], [[23, 0, 0], [64, 0, 0], [31, 0, 0], [5, 0, 0]]),
-    qt('footR', [0, 0.1, 0.24, 0.38], [[-3, 0, 0], [-16, 0, 0], [-7, 0, 0], [0, 0, 0]]),
-  ]);
+  // A drop past `LAND_HEAVY` plays the deep version below instead.
+  Object.assign(clips, landingClips(p));
 
   // ---------- LOWER/UPPER: jetpack flight — cruise (legs trail, superman-lite) ----------
   // The forward-and-up pose, and the middle of the four-pose family authored

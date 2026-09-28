@@ -626,10 +626,10 @@ export const TEXT = {
       station: ['the approach', 'inside the station', 'the prize'],
       nevarro: ['the flats', 'the garrison', 'the glass fields'],
       crevasse: ['the surface', 'the deep'],
-      trask: ['the harbour'],
+      trask: ['the harbour', 'the pier heads'],
       refinery: ['the yard', 'the plant', 'the loading field'],
       forge: ['the plain', 'the undercroft', 'the dome'],
-      ringworld: ['the high street'],
+      ringworld: ['the high street', 'the night-side row', 'the service spine'],
       narkina: ['the landing deck', 'the sea', 'the cell block', 'the top decks'],
     },
     /**
@@ -669,6 +669,46 @@ export const TEXT = {
     exited: 'You have exited · B to cancel',
     waitingOn: (name: string, n: number) => `${name} has stepped out — waiting on ${n} more`,
     arrivedAt: (where: string) => `Arrived · ${where}`,
+  },
+  /**
+   * The gameplay sections (docs/LEVEL_SECTIONS.md). `stage` is the transport
+   * card's line for the stage — where the party is going — and `title` the
+   * banner when it arrives. A section's own running lines (its hints and
+   * banners) live beside it here as its module grows them; one block each,
+   * so two sections never edit the same lines.
+   */
+  sections: {
+    'barge-run': { stage: 'the skiff landing', title: 'The Barge Run' },
+    'worm-sign': { stage: 'worm country', title: 'Worm Sign' },
+    'frigate-guns': { stage: 'the frigate', title: 'Guns of the Frigate' },
+    'ring-walk': { stage: 'the outer ring', title: 'The Ring Walk' },
+    'magma-run': { stage: 'the lava tunnels', title: 'The Magma Run' },
+    chimney: {
+      stage: 'the magma chamber', title: 'The Chimney',
+      sub: 'the vent is flooding — climb',
+      lip: 'the chimney lip',
+      climb: (m: number) => `Climb · magma ${m} m below`,
+      valveVerb: 'vent the shutter',
+      valveLabel: 'the valve',
+      valveHint: 'Way up shut · hold Y at the valve',
+      valveHeld: 'Vented · the magma is holding',
+      shutterOpen: 'the shutter above is open — climb',
+      lipOpen: 'the lip is open — the vent is surging, go!',
+      magma: 'Magma',
+      paused: 'Held',
+    },
+    'glacier-chute': { stage: 'the glacier', title: 'The Glacier Chute' },
+    lamplight: { stage: 'the dark', title: 'Lamplight' },
+    squall: { stage: 'the open harbour', title: 'The Squall' },
+    'run-the-pier': { stage: 'the far pier', title: 'Run the Pier' },
+    'the-line': { stage: 'the processing line', title: 'The Line' },
+    'lights-out': { stage: 'the tank farm', title: 'Lights Out' },
+    'hold-the-forge': { stage: 'the covert forge', title: 'Hold the Forge' },
+    'covert-sky': { stage: 'the sky over the city', title: 'Covert Sky' },
+    'tram-top': { stage: 'the tram', title: 'Tram Top' },
+    'mark-runs': { stage: 'the rooftops', title: 'The Mark Runs' },
+    'one-way-out': { stage: 'the cell blocks', title: 'One Way Out' },
+    'the-lift': { stage: 'the lift', title: 'The Lift' },
   },
 } as const;
 
