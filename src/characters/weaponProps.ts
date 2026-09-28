@@ -79,17 +79,22 @@ export const weaponProp = (id: WeaponPropId): WeaponProp => WEAPON_PROPS[id];
  *  - `clips` is the keyed clip family its strikes play: `saber1`…`saber3`,
  *    `tonfa1`…, `staff1`…, `darksaber1`…. A double-bladed saber is swung as a
  *    staff. See `saberClipSet` for the stance and the legs.
+ *  - `name` is what the HUD calls a style whose hilt it borrows from another
+ *    (the Darksaber is built on the Jedi hilt); otherwise the hilt's own name
+ *    applies, and a pair with none is the slot's "Twin Sabers".
  */
 export type SaberStyle = 'red' | 'white' | 'tonfa' | 'dark' | 'double' | 'darksaber';
 export type SaberClipSet = 'saber' | 'tonfa' | 'staff' | 'darksaber';
 
-export const SABER_STYLES: Record<SaberStyle, { prop: PropsOf<'saber'>; pair: boolean; clips: SaberClipSet }> = {
+export const SABER_STYLES: Record<SaberStyle, {
+  prop: PropsOf<'saber'>; pair: boolean; clips: SaberClipSet; name?: keyof GameText['weapons']['props'];
+}> = {
   red: { prop: 'saber_curved', pair: true, clips: 'saber' },
   white: { prop: 'saber_jedi', pair: true, clips: 'saber' },
   tonfa: { prop: 'maris_tonfa', pair: true, clips: 'tonfa' },
   dark: { prop: 'saber_dark', pair: false, clips: 'saber' },
   double: { prop: 'saber_double', pair: false, clips: 'staff' },
-  darksaber: { prop: 'saber_jedi', pair: false, clips: 'darksaber' },
+  darksaber: { prop: 'saber_jedi', pair: false, clips: 'darksaber', name: 'darksaber' },
 };
 
 /** The clip-name prefixes a saber style plays, by use (see `saberClipSet`). */

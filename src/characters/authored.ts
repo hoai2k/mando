@@ -495,10 +495,14 @@ export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void 
  *
  * `height` is what the authored skin is scaled to stand. It is not the DEFS
  * `height` the hit spheres, collider and camera framing use, though the two
- * mostly agree. Where they do not, this is the height the body is drawn at and
- * DEFS the one it is hit and framed by: the swoop rider is measured standing
- * and then posted on the saddle (1.76 m against 1.6), Fennec is drawn at
- * 1.8 m against 1.85, and the officer at 1.88 m against 1.95.
+ * must agree with what is drawn: this is the height the skin is fitted to and
+ * DEFS the one the body is hit and framed by, so a gap between them is a shot
+ * that lands on air or passes through a head. `npm run audit:hitboxes`
+ * measures the drawn body against DEFS. Two numbers here differ from DEFS on
+ * purpose: the swoop rider is measured standing and then posted on the
+ * saddle (1.76 m against 1.6), and the officer is fitted at 1.88 m but draws
+ * at 1.96 m once his cap and staff are on, which DEFS' 1.95 matches.
+ * (Fennec was fitted at 1.8 and hit at 1.85; DEFS now says 1.8.)
  */
 interface EnemyModel { model: string; height?: number }
 

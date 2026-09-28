@@ -102,6 +102,18 @@ const ventress = armed.ventress;
 check('and the one who carries no gun throws a blade instead',
   !!ventress && ventress.ranged === 0 && ventress.throws, ventress);
 
+// ---- a fighter's own weapon arrives with them, and goes by its own name ----
+// Embo's quarterstaff and IG-11's force pike were once left off the list of
+// files a fighter's art waits on, so they came up holding the procedural
+// stand-in; and Din's second blade, a single Darksaber, read "Twin Sabers".
+const kit = await page.evaluate(() => Object.fromEntries(window.__playables()
+  .filter((d) => ['embo', 'ig11', 'din'].includes(d.id))
+  .map((d) => [d.id, { modelIds: d.modelIds, meleeNames: d.profile.meleeNames }])));
+check('a fighter waits for their own staff as well as their body',
+  kit.embo?.modelIds.includes('rey_staff') && kit.ig11?.modelIds.includes('force_pike'), kit);
+check("Din's second blade is named the Darksaber, not a pair",
+  kit.din?.meleeNames?.includes('Darksaber') && !kit.din.meleeNames.includes('Twin Sabers'), kit.din);
+
 // ---- the throw itself: tap swings, hold throws, release brings it home ----
 await h.startStepped('wave', 1, 'desert', ['ventress']);
 await sleep(9000);

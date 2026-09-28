@@ -883,7 +883,8 @@ export class Player {
    * from there is named for what it is.
    */
   weaponLabel(): string {
-    const melee = this.meleeIdx === 0 ? this.profile.meleeName : MELEE_NAMES[this.meleeKind];
+    const melee = this.meleeIdx === 0 ? this.profile.meleeName
+      : this.profile.meleeNames?.[this.meleeIdx] ?? MELEE_NAMES[this.meleeKind];
     if (this.weapon === 'none') return `${melee} · stowed`;
     if (this.weapon === 'gaffi') {
       if (this.meleeKind === 'sabers' && this.sabersHeld < this.saberCapacity) return `${melee} · thrown`;

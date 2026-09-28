@@ -388,7 +388,7 @@ const DEFS: Record<EnemyKind, Def> = {
   // the covert's droid ally, in the slot IG-11 held before he became playable
   escortDroid: { hp: 220, speed: 6.2, radius: 0.5, height: 2.2, style: 'ranged', damage: 12, attackRange: 32, attackCd: 1.3, notice: 70, boltSpeed: 34, volley: 4, build: buildEscortDroid },
   marshal: { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 14, attackRange: 30, attackCd: 2.0, notice: 70, boltSpeed: 34, volley: 2, build: () => buildGunfighter('marshal') },
-  fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.85, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
+  fennec:  { hp: 180, speed: 5.5, radius: 0.5, height: 1.8, style: 'ranged', damage: 40, attackRange: 55, attackCd: 2.8, notice: 90, boltSpeed: 60, volley: 1, build: () => buildGunfighter('fennec') },
 
   // ---- the playable broodmother's brood (docs/MODES.md §3) ----
   // The egg is a target, not a fighter: 5 s on the clock, destroyable the
