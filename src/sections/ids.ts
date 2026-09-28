@@ -12,6 +12,7 @@ import type { SectionId } from '../world/mission';
  */
 export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'chimney',
+  'mark-runs',
 ]);
 
 /**
