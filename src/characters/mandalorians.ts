@@ -240,6 +240,19 @@ export function meleeNameFor(id: MandoId, kind: MeleeKind): string {
   return key ? TEXT.weapons.props[key] : MELEE_NAMES[kind];
 }
 
+/**
+ * How many lit blades this fighter can have out at once: what `SaberLights`
+ * sizes its pool by. A pair is two, a single or double-ended saber one, the
+ * Darksaber none (it is a dark silhouette), and anyone who is not a hero with
+ * sabers — a playable NPC among them — none.
+ */
+export function litSaberCount(id: string): number {
+  if (!rosterEntry(id) || !meleeKinds(id as MandoId).includes('sabers')) return 0;
+  const style = saberStyleFor(id);
+  if (style === 'darksaber') return 0;
+  return SABER_STYLES[style].pair ? 2 : 1;
+}
+
 /** Every melee weapon this character carries, signature first. */
 export function meleeKinds(id: MandoId): MeleeKind[] {
   return list(MANDO_ROSTER[id].melee, 'gaffi');

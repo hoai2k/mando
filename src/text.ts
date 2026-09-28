@@ -41,32 +41,79 @@ export const TEXT = {
     missions: 'Missions',
     /** the one-button title behind `?nomodes` */
     pressStart: 'Press Start',
+    /** bottom right of the title, over the Press Start prompt */
+    players: '1–4 Players',
   },
 
   // ---------- board / territory select ----------
   boardSelect: {
     title: 'Choose Territory',
+    /** the board's heading: a transit departures board */
+    departures: 'Departures',
+    /** the line under it; `mode` is the mode's own name */
+    sub: (mode: string) => `Outer Rim transit · ${mode}`,
+    cols: { gate: 'Gt', dest: 'Destination', held: 'Held by', status: 'Status' },
+    boarding: 'Boarding',
+    onTime: 'On time',
+    clock: 'High noon',
+    ticket: {
+      oneWay: 'One way',
+      gate: (g: string) => `Gate ${g}`,
+      admit: (who: string) => `Admit ${who}`,
+      hunters: '1–4 hunters',
+      fighters: '2–8 fighters',
+      to: (where: string) => `To · ${where}`,
+      waves: '7 waves · a lieutenant · the warlord',
+      pvp: 'Last fighter standing',
+      punch: 'Punch',
+    },
+    /** the prompt bar under the board, each beside its button glyph */
+    prompts: { pick: 'Pick a departure', punch: 'Punch the ticket', back: 'Back' },
   },
 
   // ---------- mission (campaign) select ----------
   planets: {
     title: 'Missions',
+    /** the header of the galaxy map */
+    heading: 'The Bounty Hunt',
     sub: 'Nine territories to liberate, one warlord at a time',
     hint: '<b>◀ ▶</b> travel the sector · <b>A</b>/<b>Enter</b>/<b>click</b> begin the mission · <b>B</b>/<b>Esc</b> back',
+    /** the corner of the lens: which system it is looking at */
+    system: (n: string, where: string) => `System ${n} · ${where}`,
+    chapter: (n: string, where: string) => `Chapter ${n} · ${where}`,
+    rooms: (n: number) => `${n} rooms`,
+    warlord: 'warlord,',
+    rideOut: 'Ride out',
   },
 
   // ---------- character select ----------
   charSelect: {
     /** the standard line-up's heading */
-    title: 'Choose Your Bounty Hunter',
+    title: 'Hunters',
     /** PvP's, where the roster widens to the whole cast */
-    titlePvp: 'Choose Your Fighter',
+    titlePvp: 'Fighters',
+    /** the italic line beside the heading */
+    sub: 'who rides out?',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    /** the prompt bar's invitation while a place is open; `a` is the A glyph */
+    joinPrompt: (a: string) => `Press ${a} to join`,
+    /** never "ready": the tests wait for that word to mean a locked-in plinth */
+    lockedCount: (n: number, of: number) => `${n} of ${of} locked in`,
+    locked: 'Locked in',
+    choosing: 'Choosing',
     start: 'Start Game',
-    hint: '<b>◀ ▶</b> switch · <b>A</b>/<b>Enter</b>/<b>click</b> select · <b>B</b>/<b>Esc</b> back · <b>right stick</b> or <b>drag</b> to turn',
     player: (n: number) => `Player ${n}`,
-    join: 'Press <b>A</b> to join',
+    /** the short tag on a card and on the strip a player is standing on */
+    tag: (n: number) => `P${n}`,
+    cpu: 'CPU',
+    /** the one word a roster strip has room for, where the first name is not it */
+    short: { boba_fett: 'Fett', duelist: 'Bane', ventress: 'Ventress' } as Record<string, string>,
+    noGun: 'No gun',
+    /** an open place's card; `a` and `y` are the button glyphs */
+    join: (a: string) => `Press ${a} to join`,
     /** the second line of the invitation, where the mode has bots */
-    joinBot: 'Press <b>Y</b> for Bot',
+    joinBot: (y: string) => `Press ${y} for Bot`,
     ready: 'READY',
     loading: 'Loading…',
     bot: 'BOT',
@@ -92,7 +139,28 @@ export const TEXT = {
     filesToGo: (n: number) => `${n} file${n === 1 ? '' : 's'} to go`,
     ready: 'Ready',
     preparing: 'Preparing the drop',
-    skip: 'A · drop in now',
+    skip: 'Drop in now',
+    /** the contract's terms line, by mode */
+    terms: (t: string) => `Terms · ${t}`,
+    /** the hostile nobody has a picture of yet */
+    unknownWarlord: 'Warlord',
+    /** the Wanted sheet's furniture */
+    contract: (n: string) => `Guild contract № ${n}`,
+    accepted: 'Accepted',
+    lastSeen: (planet: string, place: string) => `${planet} — last seen: ${place}`,
+    hunters: 'Hunters',
+    fighters: 'Fighters',
+    hostiles: 'Known hostiles',
+    fob: 'Tracking fob',
+    fieldNote: 'Field note',
+    /** one is picked per drop: short, true to the controls, and never a promise */
+    tips: [
+      'Hold jump in the air to thrust — the jetpack runs on a fuel budget. Land to let it refill.',
+      'Hold RB to raise your block shield. It turns bolts from the front.',
+      'Press C / Y near cover to take it — hold aim to peek.',
+      'A covert supply cache drops mid-fight. Crack it open before they do.',
+      'Drop a rider and the ride is yours: C / Y to climb aboard.',
+    ],
   },
 
   // ---------- the VS splash ----------
@@ -219,8 +287,50 @@ export const TEXT = {
     liberated: 'Territory Liberated',
     held: 'Territory Held',
     nextTerritory: 'Next Territory',
-    retry: 'Retry Board',
-    quit: 'Quit to Title',
+    /** the campaign's next stop, by name */
+    rideOn: (name: string) => `Ride on to ${name}`,
+    /** a held territory's way back to the departures board */
+    nextDeparture: 'Next departure',
+    newHunters: 'New hunters',
+    newFighters: 'New fighters',
+    rematch: 'Rematch',
+    retry: 'Retry',
+    quit: 'Quit',
+    confirm: 'Confirm',
+    // ---- Territory held: the contract settled, and the payout ledger ----
+    settled: (n: string) => `Guild contract № ${n} · settled`,
+    paid: 'Paid in full',
+    cleared: (place: string, clock: string) => `${place} — cleared, ${clock}`,
+    heldSummary: (waves: number, warlord: string, clock: string) =>
+      `${waves} waves weathered · ${warlord} put down · ${clock} on the clock.`,
+    ledger: 'Payout ledger',
+    ledgerCols: { hunter: 'Hunter', takedowns: 'Takedowns', credits: 'Credits' },
+    /** flavour: what one takedown is worth on the ledger */
+    creditsPerKill: 150,
+    topGun: 'Top gun',
+    split: (n: number) => (n === 1 ? 'One hunter, one share' : `Split ${n} ways, as agreed`),
+    cr: 'cr',
+    // ---- Territory liberated: back on the bounty-hunt map ----
+    liberatedStamp: 'Liberated',
+    free: (name: string) => `${name} is free`,
+    chapterDone: (n: string, world: string) => `Chapter ${n} complete · ${world}`,
+    liberatedSummary: (rooms: number, warlord: string, clock: string) =>
+      `${rooms} rooms cleared · ${warlord} felled · ${clock}`,
+    nextStop: (n: string, name: string) => `Next · ${n} · ${name}`,
+    routeCount: (n: number, of: number) => `Territory ${n} of ${of} on the route`,
+    huntDone: 'The last territory — the hunt is done',
+    // ---- PvP: last fighter standing ----
+    lastStanding: 'last fighter standing',
+    standings: 'Final standings',
+    stillStanding: 'still standing',
+    out: 'out',
+    takedowns: (n: number) => `${n} takedown${n === 1 ? '' : 's'}`,
+    // ---- defeat: the contract void ----
+    void: 'Contract void',
+    fellAtWave: (wave: number, of: number, clock: string) => `Last seen at wave ${wave} of ${of} · ${clock} on the clock`,
+    fellAt: (clock: string) => `Last seen at ${clock} on the clock`,
+    between: (n: number) => ` · ${n} takedowns between them`,
+    keeps: (warlord: string, place: string) => `"${warlord} keeps ${place}. For now."`,
     championTag: (slot: string, kills: number) => `Champion · ${slot} · ${kills} kills`,
     playerKills: (who: string, kills: number) => `<b>${who}</b> ${kills} kills`,
     /** the wave counter runs one past the last while the warlord is fought */
@@ -240,6 +350,10 @@ export const TEXT = {
     splitScreen: 'Split screen',
     stacked: 'Stacked',
     sideBySide: 'Side by side',
+    saberLights: 'Saber lights',
+    auto: 'Auto',
+    on: 'On',
+    off: 'Off',
     lookSensitivity: 'Look sensitivity',
     invertY: 'Invert look (Y)',
     keyboardMouse: 'Keyboard & mouse',
@@ -249,6 +363,7 @@ export const TEXT = {
       + 'dash or fly. Off, it holds the one distance the right stick dials in.<br/>'
       + '<b>Split screen</b> — which way co-op divides the window: <b>stacked</b> gives each player a wide strip, '
       + '<b>side by side</b> turns the same layout on its side. Four players get a quadrant either way.<br/>'
+      + '<b>Saber lights</b> — a lit blade glows on what is around it. <b>Auto</b> turns this off for the session if the game runs slowly.<br/>'
       + '<b>Keyboard &amp; mouse</b> — adds WASD and mouse aiming; while it is off the cursor stays free during play.',
   },
 
@@ -391,6 +506,14 @@ export const TEXT = {
 
   // ---------- boards, as the territory select and the drop screen name them ----------
   //
+  // the world each territory is on, named on the tickets, the mission map and
+  // the drop screen's photograph
+  worlds: {
+    desert: 'Tatooine', station: 'Deep space', nevarro: 'Nevarro', crevasse: 'Maldo Kreis',
+    trask: 'Trask', refinery: 'Imperial plant', forge: 'Mandalore', ringworld: 'Glavis',
+    narkina: 'Ocean world',
+  } as Record<string, string>,
+
   // `objective` is the line under the board's name on the banner that opens a
   // Wave Battle; the two territories without one fall back to
   // `banners.objective.wave`.

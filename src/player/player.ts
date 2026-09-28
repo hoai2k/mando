@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { collectLitBlades } from '../fx/saberLights';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
@@ -1106,6 +1107,12 @@ export class Player {
    * hatchling → broodmother on growth — and how a respawn walks a morphed
    * player back to the fighter they picked.
    */
+  /** Every blade this player holds or has thrown that asks for a light (see `SaberLights`). */
+  litBlades(out: THREE.Object3D[]): void {
+    collectLitBlades(this.char.root, out);
+    if (this.throwFx) collectLitBlades(this.throwFx, out);
+  }
+
   morph(id: PlayableId, game: Game): void {
     this.restoreMats();   // any dissolve clones belong to the body being shed
     // A thrown saber belongs to the old body and its old hilt style. Retire
