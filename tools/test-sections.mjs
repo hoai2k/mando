@@ -37,8 +37,10 @@ check('every section the layouts think is built is registered, and no other',
   JSON.stringify([...reg.built].sort()) === JSON.stringify([...reg.registered].sort()),
   `built ${reg.built.join(',')} / registered ${reg.registered.join(',')}`);
 
-const want = process.argv.slice(2);
-const ids = want.length ? want : reg.registered;
+const argv = process.argv.slice(2);
+const runsOnly = argv.includes('--runs-only');
+const want = argv.filter((a) => !a.startsWith('--'));
+const ids = runsOnly ? [] : want.length ? want : reg.registered;
 // a jetpack and a super-jumper in every party, so both ways of flying are driven
 const CHARS = (process.env.CHARS ?? 'din,maul,armorer,jedi').split(',');
 
@@ -113,6 +115,78 @@ for (const id of ids) {
   check(`${id}: nobody ends up outside the playable area`, run.outside === 0, String(run.outside));
   check(`${id}: the autopilot ran without errors`, run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
   console.log(`       ${run.seconds.toFixed(0)} s simulated, ${run.deaths} deaths`);
+}
+
+// ---------------------------------------------------------------- whole runs
+//
+// `RUNS=nevarro,desert node tools/test-sections.mjs --runs-only` plays each
+// named territory's stages in order in **one** match: a zone stage is crossed
+// by its own transport path (`enterStage`, what a door does — walking zones is
+// test-missions' job), a section is played by its autopilot until it hands
+// over. It proves the stages either side of each section hand over to it and
+// from it, and that nothing a section put on the engine outlives it.
+const RUNS = (process.env.RUNS ?? '').split(',').filter(Boolean);
+for (const board of RUNS) {
+  console.log(`\n-- full run: ${board}`);
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
+  await h.startStepped('campaign', PLAYERS, board, CHARS.slice(0, PLAYERS));
+  const run = await page.evaluate(async ([blank, maxSeconds]) => {
+    const g = window.__game;
+    const c = g.campaign;
+    const out = { order: [], played: [], stuck: null, leaked: [], errors: [] };
+    const settle = async () => {
+      for (let f = 0; f < 600 && c.settlingStage; f++) {
+        g.update(1 / 30, [0, 1, 2, 3].map(() => blank));
+        if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+    };
+    const total = window.__sections.stageCount?.[g.board.kind] ?? 99;
+    for (let hop = 0; hop < 30; hop++) {
+      await settle();
+      const idx = c.stageIdx;
+      const spec = c.stage.spec;
+      out.order.push(spec.section ?? spec.kind);
+      if (c.section) {
+        let f = 0;
+        for (; f < maxSeconds * 30 && c.stageIdx === idx; f++) {
+          const s = c.section;
+          const inputs = [0, 1, 2, 3].map((slot) => {
+            const p = g.players[slot];
+            if (!p || !s) return blank;
+            let a = {};
+            try { a = s.autopilot(slot) ?? {}; } catch (e) { out.errors.push(String(e)); }
+            if (typeof a.yaw === 'number') p.cam.yaw = a.yaw;
+            const { yaw, ...rest } = a; void yaw;
+            return { ...blank, ...rest };
+          });
+          g.update(1 / 30, inputs);
+          if (f % 30 === 0) for (const e of g.enemies) if (e.alive && e.team === 1) e.damage(9999999, e.position, 0);
+          if (f % 300 === 0) await new Promise((r) => setTimeout(r, 0));
+        }
+        if (c.stageIdx === idx) { out.stuck = spec.section; break; }
+        out.played.push(spec.section);
+        // nothing the section put on the engine outlives it
+        if (!c.section) {
+          if (g.sharedView) out.leaked.push(`${spec.section}: sharedView`);
+          if (g.players.some((p) => p.sectionMove || p.moveYaw !== null)) out.leaked.push(`${spec.section}: player hooks`);
+        }
+      } else {
+        // a zone stage: cross it the way its transport door would
+        const next = idx + 1;
+        if (next >= total) break;
+        c.enterStage(next, false);
+        if (c.stageIdx !== next) { out.stuck = `stage ${idx}`; break; }
+      }
+    }
+    return out;
+  }, [blankInput(), Number(process.env.SECTION_SECONDS ?? 420)]);
+  const want = reg.built.filter((id) => reg.boards[id] === board);
+  check(`${board}: every built section is in the run, in order`, want.every((id) => run.order.includes(id)), run.order.join(' > '));
+  check(`${board}: and each one is played through and hands over`, !run.stuck && want.every((id) => run.played.includes(id)),
+    JSON.stringify({ stuck: run.stuck, played: run.played }));
+  check(`${board}: nothing a section set on the engine outlives it`, run.leaked.length === 0, run.leaked.join(', '));
+  check(`${board}: the autopilots ran without errors`, run.errors.length === 0, run.errors.slice(0, 3).join(' | '));
 }
 
 const errs = h.errors.filter((e) => !/Couldn't load texture blob:/.test(String(e)));

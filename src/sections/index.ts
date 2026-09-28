@@ -1,7 +1,7 @@
 import type { SectionId } from '../world/mission';
 import type { SectionDef } from './api';
 import { chimney } from './chimney';
-import { SECTION_BOARD } from '../world/mission-layouts';
+import { SECTION_BOARD, MISSION_LAYOUTS } from '../world/mission-layouts';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -20,4 +20,5 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   registered: Object.keys(SECTIONS),
   built: [...BUILT_SECTIONS],
   boards: SECTION_BOARD,
+  stageCount: Object.fromEntries(Object.entries(MISSION_LAYOUTS).map(([b, spec]) => [b, spec.stages.length])),
 };
