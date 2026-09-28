@@ -92,14 +92,14 @@ named.
 ### Wanted for any concept — the portrait grid
 
 The existing portraits are 512×614 JPEG, head and shoulders, warm key light from the
-upper left on a near-black background. In a grid, one missing face or one grey
-background stands out, and three do:
+upper left on a near-black background.
 
-| File | Why | Prompt |
-|---|---|---|
-| `portrait_boba_fett.jpg` | The only playable fighter with no portrait. The grids show a placeholder in that slot. | "Head-and-shoulders portrait of an armored bounty hunter, stylized-realistic video-game character art: a battered olive-green helmet with a dark T-shaped visor and a thin rangefinder stalk rising from one side, dented olive chest plate with rust-red accents, a grey flight suit, a tattered sand-coloured cape over one shoulder, a bandolier across the chest. Three-quarter front view, warm key light from the upper left, deep shadow on the right, plain near-black background, 512×614." There is no character sheet for him in `reference/characters/`. If the tool takes an image, use a render of `public/models/boba_fett.glb` as the anchor. |
-| `portrait_din.jpg` (replace) | Painted on a flat grey background; every other portrait is on near-black. | Re-render the current portrait with the same subject, pose and framing, on a plain near-black background with a warm key light from the upper left. |
-| `portrait_maul.jpg` (replace) | Cropped from the grey character sheet (`sith_soldier_front.png`), so it has a flat grey background and flat light. | Same as `din`. If the generator rejects the reference again, cut the figure out of the current file and put it on near-black with a warm gradient. That is a one-off edit, not a generation. |
+**Done (2026-09-28), rendered rather than generated.** `portrait_din.jpg`,
+`portrait_maul.jpg` and the missing `portrait_boba_fett.jpg` are shots of the authored
+models, lit and framed in the painted portraits' style by `tools/portraits.mjs`
+(`node tools/portraits.mjs din maul boba_fett`; per-fighter framing is in its `FRAMING`
+table). The same tool is the fallback for any future fighter the image generator cannot
+be trusted with.
 
 ### Concept A — "Wanted", the Guild bounty board
 
