@@ -27,6 +27,12 @@ export interface Subject {
   hasModel: boolean;
   /** model filename when it differs from the id, e.g. officer -> imperial_officer */
   modelFile?: string;
+  /**
+   * The character this subject plays as, when it is a variant of one — a
+   * re-rigged copy of Din is Din for every pose, weapon and grip, and only its
+   * file differs.
+   */
+  character?: string;
 }
 
 export interface SubjectGroup { label: string; subjects: Subject[]; }
@@ -79,6 +85,18 @@ export const GROUPS: SubjectGroup[] = [
   {
     label: 'Playable',
     subjects: PLAYABLE_MANDO_IDS.map(mando),
+  },
+  {
+    label: 'Re-rigged (joint audit)',
+    subjects: [{
+      // docs/audits/rig-joints.md: the joints the audit calls likely misplaced
+      // moved to where the mesh bends, skin untouched — tools/asset-pipeline/rerig.mjs
+      id: 'din_rerig', name: 'Din Djarin — re-rigged', character: 'din', modelFile: 'din_rerig', hasModel: true,
+      build: (authored) => buildMandalorian('din', { authored, modelFile: 'din_rerig' }),
+    }, {
+      id: 'duelist_rerig', name: 'Cad Bane — re-rigged', character: 'duelist', modelFile: 'duelist_rerig', hasModel: true,
+      build: (authored) => buildMandalorian('duelist', { authored, modelFile: 'duelist_rerig' }),
+    }],
   },
   {
     label: 'Benched',
