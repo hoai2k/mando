@@ -9,6 +9,17 @@ import {
 import type { StageBuilder } from './builder';
 
 /**
+ * The trail post stand-in, lathed to its reference sheet
+ * (`reference/props/trail_post_ref.png`, 1.8 m): a flanged foot, a slim pole,
+ * and the lantern's frame and cap at the top. [radius, height] in metres.
+ */
+const TRAIL_POST_GEO = new THREE.LatheGeometry([
+  [0.01, 0], [0.2, 0], [0.2, 0.05], [0.12, 0.09], [0.08, 0.2], [0.055, 0.26],
+  [0.055, 1.5], [0.08, 1.53], [0.08, 1.55], [0.02, 1.55], [0.02, 1.73], [0.13, 1.73],
+  [0.14, 1.76], [0.04, 1.8], [0.01, 1.8],
+].map(([r, y]) => new THREE.Vector2(r, y)), 8);
+
+/**
  * The link out of zone `i`, which was laid in frame `f` and is `l` long: one
  * leg along the heading and any bends after it, roofed as a corridor or open
  * as a lane, with its crates, trail posts and pickets. Returns the frame the
@@ -64,12 +75,12 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
       for (let d = TRAIL_EVERY; d < len; d += TRAIL_EVERY) {
         const px = lf.x(d, laneW / 2 - 0.9), pz = lf.z(d, laneW / 2 - 0.9);
         const ltop = groundAt(px, pz);
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.8, 6),
-          mat(0x3a3a3a, { rough: 0.8, metal: 0.3 }));
-        post.position.set(px, ltop + 0.9, pz);
+        const post = new THREE.Mesh(TRAIL_POST_GEO, mat(0x3a3a3a, { rough: 0.8, metal: 0.3 }));
+        post.position.set(px, ltop, pz);
         group.add(post);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), accentGlow);
-        head.position.set(px, ltop + 1.9, pz);
+        // the lantern glass, 1.55-1.73 m up under its cap, as on the sheet
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.18, 8), accentGlow);
+        head.position.set(px, ltop + 1.64, pz);
         group.add(head);
         authoredProp(group, [post, head], 'trail_post', 1.8, { x: px, y: ltop, z: pz, axis: 'y' });
       }

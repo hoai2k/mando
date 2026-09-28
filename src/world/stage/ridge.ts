@@ -4,6 +4,22 @@ import { BACKDROP_H, RIM_OVER_CEILING, STAIR_STEP } from './common';
 import type { StageState } from './builder';
 
 /**
+ * Half-width as a fraction of height, at fractions of height, measured from
+ * the cliff pillar reference sheets (rock and ice agree to within a few per
+ * cent). The foot flare is widest just above the base, which sits 1.5 m in
+ * the ground.
+ */
+const PILLAR_PROFILE: Array<[number, number]> = [
+  [0, 0.13], [0.03, 0.145], [0.08, 0.12], [0.15, 0.098], [0.25, 0.084],
+  [0.33, 0.075], [0.5, 0.062], [0.75, 0.05], [0.95, 0.025], [1, 0.004],
+];
+/** stacked collider cylinders: [from, to] as fractions of height, and radius / height */
+const PILLAR_COLLIDERS: Array<[number, number, number]> = [
+  [0, 0.08, 0.145], [0.08, 0.15, 0.12], [0.15, 0.25, 0.098],
+  [0.25, 0.33, 0.084], [0.33, 0.5, 0.075], [0.5, 1, 0.062],
+];
+
+/**
  * Borders: the rock a zone, a lane or a canyon is held in by. `ridge` lays a
  * run of it — one collider slab per run and the drawn rock outside it — and
  * `rimPiece` is one column of that rock, queued for the merge in
@@ -50,6 +66,44 @@ export function stageRidges(b: StageState) {
     geo.computeVertexNormals();
     geo.translate(x, y0 + h / 2, z);
     (backdrop ? backGeo : rimGeo).push(geo);
+  };
+
+  /**
+   * A gap framer: one tall pillar standing on its own, shaped like the
+   * delivered reference sheets (`reference/props/cliff_pillar_*_ref.png`) so
+   * the stand-in and its colliders already match the sculpt that replaces it.
+   * The sheets agree between rock and ice, and between their side and front
+   * views, on this profile: a flared foot, then a steady taper to a narrow
+   * crown. The sculpt is scaled to `h`, so the same fractions hold for it.
+   *
+   * The colliders step in with the profile. One cylinder the width of the
+   * foot all the way up (as before) stopped a jetpack two metres short of the
+   * rock at mid-height once the slender sculpt landed.
+   */
+  const pillarPiece = (x: number, z: number, h: number, y0: number): void => {
+    const pts = PILLAR_PROFILE.map(([f, w]) => new THREE.Vector2(Math.max(w * h, 0.05), f * h));
+    const geo = new THREE.LatheGeometry(pts, look.facets);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    // Exactly as many draws as the rim piece this replaced took, so every
+    // rock laid after a pillar lands where it always did.
+    const draws = new THREE.CylinderGeometry(1, 1, 1, look.facets, 2).attributes.position.count;
+    const wobble = Array.from({ length: draws }, () => rand());
+    for (let i = 0; i < pos.count; i++) {
+      // the same inward-only wobble as a rim piece, sparing the foot ring
+      const grip = pos.getY(i) / h;
+      const n = -Math.abs(wobble[i % draws] - 0.5) * look.noise * (grip < 0.01 ? 0 : 0.35 + grip);
+      pos.setX(i, pos.getX(i) * (1 + n));
+      pos.setZ(i, pos.getZ(i) * (1 + n));
+    }
+    geo.computeVertexNormals();
+    geo.translate(x, y0, z);
+    rimAt.push({ x, z, r: PILLAR_PROFILE[1][1] * h, h });
+    rimGeo.push(geo);
+    // a pillar stands on its own, away from any wall run, so it carries its
+    // own colliders — round on every side, stepping in as the rock does
+    for (const [from, to, w] of PILLAR_COLLIDERS) {
+      addCyl(x, y0 + ((from + to) / 2) * h, z, w * h, (to - from) * h);
+    }
   };
 
   /**
@@ -195,10 +249,7 @@ export function stageRidges(b: StageState) {
       // nominal floor: on rolling dunes those are metres apart, and the
       // difference is a spire hanging in the air or buried to its shoulders
       const py = (onGround ? groundAt(px, pz) : y0) - 1.5;
-      rimPiece(px, pz, 4.6, ph, py, false);
-      // a pillar stands on its own, away from any wall run, so it carries its
-      // own collider — the one shape in a rim that is round on every side
-      addCyl(px, py + ph / 2, pz, 4.4, ph);
+      pillarPiece(px, pz, ph, py);
       authoredProp(group, [], spec.ridge === 'ice' ? 'cliff_pillar_ice' : 'cliff_pillar_rock',
         ph, { x: px, y: py, z: pz, axis: 'y' });
     }
