@@ -398,7 +398,7 @@ stage scaled to the window (`--fe-scale`); `src/ui/fonts.ts` self-hosts the
 six faces from `public/assets/fonts/` (licences in the README there);
 `src/ui/frontend.css` holds the styles.
 
-### Round 5 — end screens (mockups, not built yet)
+### Round 5 — end screens (built: `src/ui/endscreen.ts`)
 
 Four designs for what comes after a board, on page "Round 5 · end screens":
 
@@ -415,9 +415,12 @@ Four designs for what comes after a board, on page "Round 5 · end screens":
 4. **Defeat — contract void.** A scorched, torn Wanted sheet with the hunters
    crossed out, the wave and clock they fell at. Retry / New hunters / Quit.
 
-"When they fell" (PvP) and "Next departure" / "New fighters" are new: the end
-screen today offers Next Territory (campaign), Retry and Quit, and the game
-tracks kills, the clock and the wave, not the time of each elimination.
+In the game the buttons are one menu row, driven like every other menu:
+held offers Next departure (back to the board) / Retry / Quit; liberated
+offers Ride on to the next territory / Retry / Quit; PvP offers Rematch / New
+fighters / Quit; a defeat offers Retry / New hunters / Quit. The mockup's
+"fell at 6:31" per duellist is not built — the game does not record when each
+fighter went out — so the standings say "out".
 
 ### Screens not yet redesigned
 

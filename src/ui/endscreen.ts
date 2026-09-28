@@ -215,7 +215,7 @@ export class EndScreen {
     } else if (face === 'liberated') {
       const rn = ROMAN[i] ?? String(i + 1);
       const rooms = ((TEXT.missions.rooms as Record<string, readonly string[]>)[r.board.id] ?? []).length;
-      q('.chapter').textContent = T.chapterDone(rn, world);
+      q('.chapter').textContent = T.routeCount(i + 1, BOARDS.length);
       q('.vista').style.backgroundImage = `${tex(`system_${r.board.id}.jpg`)}, ${r.board.gradient}`;
       q('.label').textContent = TEXT.planets.system(rn, world);
       q('.here .gl').style.backgroundImage = `${tex(`planet_${r.board.id}.png`)}, ${r.board.gradient}`;
@@ -248,7 +248,6 @@ export class EndScreen {
       q('.e-champ-name .n').textContent = champ.name;
       q('.end-tag').innerHTML = `<span class="chip" style="background:${colour(champ)}"></span>${TEXT.end.championTag(
         champ.bot ? TEXT.vs.bot : TEXT.vs.player(champ.slot + 1), champ.kills)} · ${clock}`;
-      (q('.end-tag .chip') as HTMLElement).textContent = this.tag(champ);
       q('.where').textContent = `${r.board.name} · ${TEXT.title.pvp}`;
       const order = [champ, ...r.fighters.filter((x) => x !== champ).sort((a, b) => b.kills - a.kills)];
       q('.rows').innerHTML = '';

@@ -317,6 +317,7 @@ export const TEXT = {
     liberatedSummary: (rooms: number, warlord: string, clock: string) =>
       `${rooms} rooms cleared · ${warlord} felled · ${clock}`,
     nextStop: (n: string, name: string) => `Next · ${n} · ${name}`,
+    routeCount: (n: number, of: number) => `Territory ${n} of ${of} on the route`,
     huntDone: 'The last territory — the hunt is done',
     // ---- PvP: last fighter standing ----
     lastStanding: 'last fighter standing',

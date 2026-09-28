@@ -540,6 +540,7 @@
 .e-ledger { position: absolute; left: 590px; top: 104px; width: 634px; padding: 30px 30px 20px; color: #1d1510; transform: rotate(1deg); }
 .e-ledger .top { display: flex; justify-content: space-between; align-items: baseline; }
 .e-ledger .top .t { font: 400 28px/1 var(--fe-slab); text-transform: uppercase; }
+.e-ledger .top .k { white-space: nowrap; font-size: 12px; }
 .e-ledger .cols, .e-ledger .row { display: grid; grid-template-columns: 8px 54px 1fr 90px 100px; gap: 12px; align-items: center; }
 .e-ledger .cols { margin-top: 12px; padding-bottom: 6px; border-bottom: 2px solid #1d1510; font-size: 12px; }
 .e-ledger .r { text-align: right; }
@@ -627,7 +628,7 @@
 .e-champ-name .s { font: italic 600 24px/1.2 var(--fe-script); color: var(--fe-amber); }
 .e-champ-name .n { font: 400 88px/0.92 var(--fe-display); color: #fff3de; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 5px 0 #7a1c10, 0 12px 30px rgba(0,0,0,0.9); }
 .end-tag { margin-top: 12px; display: flex; gap: 14px; align-items: center; font: 600 18px/1 var(--fe-cond); letter-spacing: 2px; color: #bfa888; text-transform: uppercase; }
-.end-tag .chip { padding: 3px 10px; color: #0b0806; font-weight: 700; }
+.end-tag .chip { width: 14px; height: 14px; }
 .e-ranks { position: absolute; left: 700px; top: 50px; width: 524px; }
 .e-ranks .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
 .e-ranks .top .h { font: 400 24px/1 var(--fe-display); letter-spacing: 4px; color: var(--fe-amber); text-transform: uppercase; }
@@ -674,7 +675,8 @@
 .e-sheet .x path { stroke: #a3301f; stroke-width: 7; stroke-linecap: round; opacity: 0.85; fill: none; }
 .e-sheet .nm { font: 400 12px/1.2 var(--fe-type); color: #3b2c1f; }
 .e-sheet .line { margin-top: 20px; padding: 10px 0; border-top: 1px dashed #6b5540; border-bottom: 1px dashed #6b5540; font: 400 16px/1.3 var(--fe-type); }
-.e-sheet .e-stamp { right: 26px; top: 112px; --rot: rotate(12deg); transform: var(--rot); border-color: #1d1510; color: #1d1510; opacity: 0.85; font-size: 32px; }
+.e-sheet { padding-bottom: 104px; }
+.e-sheet .e-stamp { left: 50%; bottom: 30px; z-index: 1; --rot: translateX(-50%) rotate(-5deg); transform: var(--rot); border-color: #1d1510; color: #1d1510; opacity: 0.85; font-size: 32px; }
 .e-quip { position: absolute; left: 290px; width: 700px; top: 590px; text-align: center; font: 400 17px/1.3 var(--fe-type); color: #b7a582; }
 
 /* the button row, shared */
