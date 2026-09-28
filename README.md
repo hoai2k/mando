@@ -251,8 +251,13 @@ scenery.
 Two things to know before writing one. **Do not wait on the wall clock for anything
 in-game.** Software rendering paints this page about once a second, so a `sleep` long
 enough to be safe on CI is a suite that mostly sleeps, and one short enough to be quick
-is a suite that fails on a loaded machine. `h.startCoop(...)` / `h.startMode(...)` wait
-for the match rather than guessing at it, and `h.manual()` plus the page-side
+is a suite that fails on a loaded machine. `h.startCoop(...)` / `h.startMode(...)` /
+`h.startStepped(...)` step the drop by hand and hand back a match that is actually
+playing — never boot with `__startMode` and a `waitForFunction` on the live loop, which
+under software GL costs about twice as long, because the live loop draws the whole board
+about once a second while you wait. `h.workbench(character, pose)` does the same for the
+model workbench, switching characters in the page rather than reloading it. `h.manual()`
+plus the page-side
 `__sim(seconds)` / `__simUntil(pred)` advance the match itself — seconds of play in
 milliseconds, and the same number of steps on every machine. **And ask for the state you
 mean:** `window.__state`, `window.__game`, and the other `__` hooks in

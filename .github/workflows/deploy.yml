@@ -49,7 +49,7 @@ permissions:
 # coverage, and it is far better targeted than re-running everything.
 #
 # `npm test` is `tools/run-suites.mjs`, which serves the build once for all of
-# them and runs several at a time; the nightly splits that four ways again
+# them and runs them one after another; the nightly splits that four ways
 # across runners. See the header of that file for what the old `&&` chain of
 # twenty-four `node tools/<suite>.mjs` calls was costing.
 #
@@ -284,9 +284,10 @@ jobs:
   # They used to be the last two steps of the one nightly job, which meant a
   # failing suite skipped them: on run 199 a single check in test-block failed
   # and neither audit ran at all, so nobody learned anything about the boards
-  # that night. They are quick — nine seconds for both — and they answer a
-  # different question from the suites, so they should not be able to lose
-  # their turn to one. `if: always()` on the second does the same for the two
+  # that night. They answer a different question from the suites, so they
+  # should not be able to lose their turn to one. (They were nine seconds for
+  # both once; audit:boards now builds and walks every board with its sculpts
+  # and takes eight to ten minutes, still well inside the slowest shard.) `if: always()` on the second does the same for the two
   # of them between themselves.
   #
   # `audit:hitboxes` and `audit:props` are deliberately NOT here. They exist as

@@ -377,6 +377,12 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
   });
   const page = await browser.newPage({ viewport: { width, height } });
+  // Playwright's own default is 30 s. A reload is usually well under a second,
+  // but one issued while a heavy match is still running under software GL has
+  // been measured past 30 s on a 4-core box: test-modes died there with a
+  // TimeoutError, which reads as a failure of a game that was working.
+  // Explicit timeouts at call sites still win.
+  page.setDefaultNavigationTimeout(120000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   // Some 404s are expected and mean nothing is wrong. Optional assets are
@@ -497,12 +503,27 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
    * The same probe was 4-of-5 before `__beforeBuild` and 0-of-2 before any of
    * this.
    */
-  async function startStepped(mode, players, board, chars, { maxBootFrames = 1500 } = {}) {
-    await page.evaluate(([m, n, b, c]) => {
+  async function startStepped(mode, players, board, chars, opts = {}) {
+    return bootStepped(([m, n, b, c]) => window.__startMode(m, n, b, c), [mode, players, board, chars], opts);
+  }
+
+  /**
+   * The stepped drop itself, for whichever debug hook asks for the match:
+   * `kick` runs page-side with `args` once the live loop is off and the title
+   * is up, and the drop is then stepped by hand until the match is playing.
+   */
+  async function bootStepped(kick, args, opts) {
+    await page.evaluate(() => {
       window.__manual = true;              // nothing runs that we did not ask for
       window.__quitToTitle?.();
-      window.__startMode(m, n, b, c);
-    }, [mode, players, board, chars]);
+    });
+    await page.evaluate(kick, args);
+    return finishDrop(opts);
+  }
+
+  /** Step whatever drop is under way until the match is playing, live loop off. */
+  async function finishDrop({ maxBootFrames = 1500 } = {}) {
+    await manual(true);
     const booted = await page.evaluate(async (maxFrames) => {
       let frames = 0;
       for (; frames < maxFrames && window.__state !== 'playing'; frames++) {
@@ -514,7 +535,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
       return { frames, state: window.__state, load: window.__loadState?.() };
     }, maxBootFrames);
     if (booted.state !== 'playing') {
-      throw new Error(`startStepped: still ${booted.state} after ${booted.frames} frames`
+      throw new Error(`stepped drop: still ${booted.state} after ${booted.frames} frames`
         + ` (${JSON.stringify(booted.load)})`);
     }
     // Anchor the dice to the start of the match, not to the end of the drop.
@@ -596,31 +617,25 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
    * a "passes locally, fails on CI" waiting for a slow enough machine.
    *
    * `__state` flips to 'playing' the moment the drop finishes, so ask.
+   *
+   * Both this and `startMode` boot stepped (see `startStepped`) and then hand
+   * the match back to the live loop, which is where a suite calling them has
+   * always found it. Booting live cost far more than the drop itself: once the
+   * board is up, the live loop draws a full frame of it about once a second
+   * under software GL, and the wait for `playing` was being polled between
+   * those frames. Measured on a cold page, a desert campaign boot went from
+   * 90 s live to 47 s stepped. A suite that takes the clock straight after
+   * (`h.manual()`) never pays for a drawn frame at all.
    */
-  async function startCoop(players = 1, board, timeoutMs = 90000) {
-    await toTitle();
-    await page.evaluate(([n, b]) => window.__startCoop(n, b), [players, board]);
-    await waitForPlaying(timeoutMs);
+  async function startCoop(players = 1, board) {
+    await bootStepped(([n, b]) => window.__startCoop(n, b), [players, board]);
+    await manual(false);
   }
 
   /** As `startCoop`, for the modes that need one: `pvp`, `missions`, `wave`. */
-  async function startMode(mode, players = 1, board, chars, timeoutMs = 120000) {
-    await toTitle();
-    await page.evaluate(([m, n, b, c]) => window.__startMode(m, n, b, c), [mode, players, board, chars]);
-    await waitForPlaying(timeoutMs);
-  }
-
-  /**
-   * Back to the title, ready to start something. The live loop has to be
-   * running for this: the drop that follows is animated by it, and a suite
-   * that stepped the last match by hand has left it switched off.
-   */
-  async function toTitle() {
+  async function startMode(mode, players = 1, board, chars) {
+    await startStepped(mode, players, board, chars);
     await manual(false);
-    if (await page.evaluate(() => window.__state !== 'title')) {
-      await page.evaluate(() => window.__quitToTitle?.());
-      await waitForTitle();
-    }
   }
 
   /**
@@ -645,8 +660,38 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     }, [seconds, input, blankInput()]);
   }
 
+  /**
+   * Put `character` on the workbench turntable in `pose` and wait for its
+   * sculpt.
+   *
+   * The first call opens the workbench; after that the character is changed
+   * with the workbench's own picker rather than by loading the page again. A
+   * reload costs the bundle, a fresh WebGL context and every model decoded
+   * from scratch, and the grip suites used to pay it once per character —
+   * twenty-six times in one of them. The picker is what a person at the
+   * workbench uses, so the figure it builds is the one being checked.
+   *
+   * `query` is the rest of the workbench URL (`edit=models`, `mode=authored`)
+   * and only matters on the first call.
+   */
+  async function workbench(character, pose, query = 'mode=authored') {
+    const onBench = await page.evaluate(() => !!window.__wb).catch(() => false);
+    if (!onBench) {
+      await page.goto(`${new URL(url).origin}/workbench/?character=${character}&pose=${pose}&${query}`);
+    } else if (await page.evaluate(() => window.__wb.subject.id) !== character) {
+      await page.locator('#character').selectOption(character);
+    }
+    await page.waitForFunction((c) => window.__wb?.subject?.id === c
+      && window.__wb.figures?.[0]?.inst.modelReady?.(), character, { timeout: 120000 });
+    // A pose this character does not have is left alone, which is what the
+    // URL does with one too: the workbench stays on what it can play.
+    const offered = await page.locator(`#pose option[value="${pose}"]`).count();
+    if (offered && await page.locator('#pose').inputValue() !== pose) await page.locator('#pose').selectOption(pose);
+  }
+
   return {
     browser, page, pad, pads, errors,
+    workbench,
     seed,
     text, waitForText, tapUntil, clickText, focusButton, startMatch, startStepped,
     waitForPlaying, waitForTitle,

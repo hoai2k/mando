@@ -14,9 +14,7 @@ const subjects = [
 const h = await launch({ url: `${base}/workbench/?character=pyke&pose=idle&mode=authored` });
 try {
   for (const [id, prop] of subjects) {
-    await h.page.goto(`${base}/workbench/?character=${id}&pose=idle&mode=authored`);
-    await h.page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(),
-      undefined, { timeout: 120000 });
+    await h.workbench(id, 'idle');
     const result = await h.page.evaluate((model) => {
       const root = window.__wb.figures[0].inst.root;
       const fetched = performance.getEntriesByType('resource')

@@ -10,18 +10,14 @@ try {
   for (const [character, model] of [
     ['din', 'beskar_spear'], ['armorer', 'poleaxe'], ['npc:tusken', 'gaffi_collection'],
   ]) {
-    await h.page.evaluate(([id]) => {
-      window.__quitToTitle?.();
-      window.__startMode('wave', 1, 'desert', [id]);
-    }, [character]);
-    await h.page.waitForFunction(([id]) => {
-      const p = window.__game?.players[0];
-      return window.__state === 'playing' && p?.characterId === id;
-    }, [character], { timeout: 120000 });
+    await h.startStepped('wave', 1, 'desert', [character]);
+    // The weapon is its own .glb and lands after the body. Fifteen seconds
+    // was long enough on CI and not on a slower box, where the node was
+    // there by the time the failure message went looking for it.
     await h.page.waitForFunction((asset) => {
       const root = window.__game?.players[0]?.char.root;
       return !!root?.getObjectByName(asset);
-    }, model, { timeout: 15000 }).catch(async () => {
+    }, model, { timeout: 60000 }).catch(async () => {
       const names = await h.page.evaluate(() => {
         const out = [];
         window.__game.players[0].char.root.traverse((o) => { if (o.name) out.push(o.name); });

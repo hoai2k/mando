@@ -4,15 +4,12 @@ import { launch, makeCheck } from './harness.mjs';
 
 const data = JSON.parse(readFileSync('src/characters/data/sharedWeaponGrips.json', 'utf8'));
 const check = makeCheck();
-const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
-const h = await launch({ url: `${base}/workbench/?character=din&pose=idle&mode=authored` });
+const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/workbench/?character=din&pose=idle&mode=authored` });
 const near = (a, b) => a.length === b.length && a.every((n, i) => Math.abs(n - b[i]) < 1e-5);
 
 try {
   for (const id of ['din', 'embo', 'ig11', 'paz', 'revan']) {
-    await h.page.goto(`${base}/workbench/?character=${id}&pose=${id === 'revan' ? 'flourish' : 'idle'}&mode=authored`);
-    await h.page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(),
-      undefined, { timeout: 120000 });
+    await h.workbench(id, id === 'revan' ? 'flourish' : 'idle');
     const expected = data.entries.find((e) => e.character === id);
     const scale = data.weaponScales.find((e) => e.character === id)?.scaleMultiplier ?? 1;
     const poses = id === 'revan' ? ['flourish', 'saberIdle', 'saberRun'] : ['idle', 'aim', 'run'];
@@ -34,9 +31,7 @@ try {
     }
   }
   for (const entry of data.entries.filter((e) => !['din', 'embo', 'ig11', 'paz', 'revan'].includes(e.character))) {
-    await h.page.goto(`${base}/workbench/?character=${entry.character}&pose=idle&mode=authored`);
-    await h.page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(),
-      undefined, { timeout: 120000 });
+    await h.workbench(entry.character, 'idle');
     const actual = await h.page.evaluate((side) => {
       const root = window.__wb.figures[0].inst.root;
       const mount = root.getObjectByName(side === 'left' ? 'weaponMountL' : 'weaponMount');
@@ -52,9 +47,7 @@ try {
         || near(actual.quaternion, entry.editedQuaternion.map((n) => -n)))
       && Math.abs(actual.scale - scale) < 1e-5, actual);
   }
-  await h.page.goto(`${base}/workbench/?character=pirate&pose=idle&mode=authored`);
-  await h.page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(),
-    undefined, { timeout: 120000 });
+  await h.workbench('pirate', 'idle');
   const pirateRifle = await h.page.evaluate(() => {
     const mount = window.__wb.figures[0].inst.root.getObjectByName('weaponMount');
     return mount.children[0].position.toArray();

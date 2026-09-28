@@ -100,12 +100,11 @@ const PROBE = `(spec) => {
 }`;
 
 async function probe(id, spec) {
-  await page.evaluate((who) => {
-    window.__manual = false;
-    window.__quitToTitle?.();
-    window.__startMode('wave', 1, 'desert', [who]);
-  }, id);
-  await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+  // Stepped in, so the match is on its first frame when the probe takes it:
+  // booting live left a different number of frames run before the clock was
+  // taken each time, and on a slow machine that alone was enough to let one
+  // bolt of forty through on a seed that passes when re-run.
+  await h.startStepped('wave', 1, 'desert', [id]);
   // A fighter is born as a procedural stand-in and its authored model arrives
   // on a network round trip, bringing its OWN clip durations with it. The
   // blades' free parry is keyed on `meleeTimer > 0`, so a swing rhythm that
@@ -120,12 +119,7 @@ async function probe(id, spec) {
     g.players[0].char.root.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
     return skinned;
   }, null, { timeout: 60000 });
-  await page.evaluate(() => { window.__manual = true; });
-  const out = await page.evaluate(`(${PROBE})(${JSON.stringify(spec)})`);
-  // leaving manual stepping on wedges the next startMode: it never reaches
-  // 'playing' because nothing is driving the loop
-  await page.evaluate(() => { window.__manual = false; });
-  return out;
+  return page.evaluate(`(${PROBE})(${JSON.stringify(spec)})`);
 }
 
 // ---- the blades: a swing turns fire from anywhere but behind, and never tires

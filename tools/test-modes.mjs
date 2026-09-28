@@ -48,15 +48,12 @@ const STEP = `(n) => {
   for (let i = 0; i < n; i++) g.update(1/30, inputs);
 }`;
 
-const startMode = async (mode, players, board, chars) => {
-  await page.evaluate(([m, n, b, c]) => {
-    window.__manual = false;
-    window.__quitToTitle?.();
-    window.__startMode(m, n, b, c);
-  }, [mode, players, board, chars]);
-  await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-  await page.evaluate(() => { window.__manual = true; });
-};
+/**
+ * Into a match, stepped rather than live: the drop is driven by hand and
+ * nothing is drawn on the way in, which is where most of a boot's time went
+ * under software GL (see `startStepped` in harness.mjs).
+ */
+const startMode = (mode, players, board, chars) => h.startStepped(mode, players, board, chars);
 
 // ---- the flag's title ----
 await sleepFrames(6);
@@ -147,20 +144,20 @@ s = await page.evaluate(`(() => {
 })()`);
 check('pvp: last fighter standing takes the territory, with credit',
   s.state === 'victory' && s.winner === 0 && s.p1kills >= 1, JSON.stringify(s));
-// the celebration: the end-screen transition lives in the real frame loop
-// (endTimer runs 3 s on the wall clock), so un-pause it and give it its beat —
-// then the hero block holds the winner's face art
-await page.evaluate(() => { window.__manual = false; });
-// 280 frames was a guess at "three seconds at sixty a second", and a bad one:
-// this page paints about once a second under software rendering, so it spent
-// nearly five minutes waiting out a three-second transition. Watch for the
-// block instead, on a generous cap — if it never comes up, the check below
-// still reads `shown: false` and fails, which is the point of it.
-const heroUp = () => page.evaluate(() => {
-  const el = document.querySelector('.end-hero');
-  return !!el && el.style.display !== 'none';
+// the celebration: the end-screen transition lives in the frame loop rather
+// than in `Game.update` (endTimer counts 3 s of frames), so step whole frames
+// by hand and give it its beat — then the hero block holds the winner's face
+// art. It used to un-pause the live loop and wait, which under software
+// rendering paints about once a second with dt capped at 0.05: a three-second
+// timer took the better part of a minute. Capped at ten seconds of frames; if
+// the block never comes up, the check below reads `shown: false` and fails.
+await page.evaluate(() => {
+  const up = () => {
+    const el = document.querySelector('.end-hero');
+    return !!el && el.style.display !== 'none';
+  };
+  for (let i = 0; i < 300 && !up(); i++) window.__stepFrame(1 / 30);
 });
-for (let i = 0; i < 90 && !(await heroUp()); i++) await sleepFrames(4);
 const hero = await page.evaluate(() => {
   const el = document.querySelector('.end-hero');
   return {

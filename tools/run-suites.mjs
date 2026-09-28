@@ -41,69 +41,77 @@ const PORT = process.env.HARNESS_PORT ?? '4173';
 const URL_ = `http://localhost:${PORT}/`;
 
 /**
- * The suites, with roughly what each costs in seconds.
- *
- * This began as the same list `npm test` used to chain with `&&`, in the same
- * membership. `test-missions` was held out of it on the grounds that it had no
- * CI history and adding it would quietly change what a green `npm test` means.
- * It is in now (2026-09-05): Missions is a whole game mode, it was the only one
- * with no nightly coverage at all, and the reason for holding it back was a
- * lack of evidence rather than a doubt about the suite. It runs green in 230 s.
+ * The suites, with roughly what each costs in seconds on a CI runner.
  *
  * The weight is only ever used to order the work — longest first, so `--shard`
  * splits the list into piles that take about the same time as each other
- * rather than piles with the same number of suites in them. A stale number
- * costs a little packing efficiency and nothing else, and every run ends with
- * the real ones, so it is cheap to refresh. Measured in September 2026; the
- * two that a CI runner disagrees with a laptop about most — test-modes and
- * check-creature-gaits — carry the runner's number, since the runner is where
- * the packing has to come out even.
+ * rather than piles with the same number of suites in them. Every run ends
+ * with the real numbers, so refresh these from a nightly's "slowest first"
+ * table whenever they drift: they are what decides how long the nightly takes.
+ * They had drifted far enough by late September that test-missions was
+ * weighted 230 s and took 865 s, so one shard ran 27 minutes while another
+ * finished in 10.
+ *
+ * Refreshed 2026-09-28 from nightly run 353 (the four shards' tables). The
+ * suites changed that day — test-missions, test-modes and test-vehicles moved
+ * to stepped boots, the workbench suites to switching character in the page —
+ * carry that number scaled by what the change measured on a 4-core box, and
+ * the six suites added that day (they existed but nothing ran them) carry a
+ * scaled local measurement. Replace both with the next nightly's figures.
  */
 const SUITES = [
-  { name: 'test-modes', weight: 409 },
-  { name: 'test-vehicles', weight: 294 },
-  { name: 'test-airplay', weight: 207 },
-  { name: 'test-loadperf', weight: 190 },
-  { name: 'test-missions', weight: 230 },
-  { name: 'test-monsters', weight: 154 },
-  { name: 'test-coop', weight: 142 },
-  { name: 'test-controller-claims', weight: 64 },
-  { name: 'test-loadout', weight: 137 },
-  { name: 'test-saber-throws', weight: 90 },
-  { name: 'test-lighting', weight: 42 },
-  { name: 'test-polearm-props', weight: 50 },
+  { name: 'test-missions', weight: 470 },
+  { name: 'test-vehicles', weight: 365 },
+  { name: 'test-modes', weight: 290 },
+  { name: 'test-coop', weight: 263 },
+  { name: 'test-shared-weapon-grips', weight: 260 },
+  { name: 'test-workbench-weapon-choice', weight: 250 },
+  { name: 'test-loadperf', weight: 197 },
+  { name: 'test-airplay', weight: 152 },
+  { name: 'test-monsters', weight: 143 },
+  { name: 'test-workbench-weapon-grips', weight: 136 },
+  { name: 'test-loading', weight: 134 },
+  { name: 'test-loadout', weight: 131 },
+  { name: 'test-saber-ownership', weight: 130 },
+  { name: 'check-creature-gaits', weight: 111 },
+  { name: 'check-airflip', weight: 110 },
+  { name: 'check-bots', weight: 93 },
+  { name: 'test-arrivals', weight: 93 },
+  { name: 'test-rivals', weight: 80 },
+  { name: 'test-parry', weight: 75 },
+  { name: 'check-flight-poses', weight: 62 },
+  { name: 'test-controller-claims', weight: 57 },
+  { name: 'test-maul-skin', weight: 52 },
+  // mostly `vite build`: it builds a second, gated copy of the site to test
+  { name: 'test-gate', weight: 51 },
+  { name: 'test-saber-throws', weight: 51 },
+  { name: 'test-cover', weight: 50 },
+  { name: 'test-spice-run', weight: 50 },
+  { name: 'test-lighting', weight: 46 },
+  { name: 'check-block-facing', weight: 45 },
+  { name: 'check-water', weight: 42 },
+  { name: 'check-landing', weight: 40 },
+  { name: 'test-block', weight: 40 },
   { name: 'test-enemy-weapon-props', weight: 35 },
-  { name: 'test-workbench-weapon-grips', weight: 35 },
-  { name: 'test-workbench-weapon-choice', weight: 410 },
-  { name: 'test-shared-weapon-grips', weight: 45 },
-  { name: 'test-shoulder-width', weight: 15 },
-  { name: 'test-maul-skin', weight: 55 },
-  { name: 'test-bossk-grips', weight: 20 },
-  { name: 'test-arrivals', weight: 127 },
-  { name: 'check-creature-gaits', weight: 224 },
-  { name: 'test-loading', weight: 92 },
-  { name: 'check-flight-poses', weight: 85 },
-  { name: 'check-bots', weight: 75 },
-  { name: 'check-water', weight: 70 },
-  { name: 'test-block', weight: 56 },
-  { name: 'check-airflip', weight: 44 },
-  { name: 'check-gait', weight: 60 },
-  { name: 'harness', weight: 43 },
-  { name: 'test-allies', weight: 38 },
-  { name: 'test-rivals', weight: 42 },
-  { name: 'test-parry', weight: 60 },
-  { name: 'test-station', weight: 38 },
-  { name: 'test-brood', weight: 33 },
-  { name: 'check-block-facing', weight: 30 },
-  { name: 'check-landing', weight: 29 },
-  { name: 'test-ragdoll', weight: 29 },
-  { name: 'test-overheat', weight: 26 },
-  { name: 'test-cover', weight: 24 },
-  { name: 'test-hits', weight: 23 },
-  { name: 'test-menunav', weight: 10 },
-  // Builds a second, gated copy of the site as part of its run, so its weight
-  // is mostly `vite build` rather than browser time. Measured September 2026.
-  { name: 'test-gate', weight: 21 },
+  { name: 'test-polearm-props', weight: 35 },
+  { name: 'test-station', weight: 34 },
+  { name: 'check-gait', weight: 32 },
+  { name: 'test-brood', weight: 26 },
+  { name: 'test-bossk-grips', weight: 25 },
+  { name: 'test-controller-bindings', weight: 25 },
+  { name: 'test-first-shot', weight: 25 },
+  { name: 'test-allies', weight: 23 },
+  { name: 'test-low-passage', weight: 22 },
+  { name: 'test-spin-defense', weight: 22 },
+  { name: 'test-hits', weight: 21 },
+  { name: 'test-overheat', weight: 21 },
+  { name: 'test-shoulder-width', weight: 20 },
+  { name: 'test-ragdoll', weight: 17 },
+  { name: 'test-menunav', weight: 9 },
+  // `harness` is not here on purpose: it is the smoke every push to main
+  // already runs (deploy.yml), the nightly only runs when main has moved, and
+  // the menu path it walks is walked again by check-flight-poses,
+  // check-landing and test-loading. `node tools/harness.mjs` still runs it.
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

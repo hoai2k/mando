@@ -58,13 +58,13 @@ const startMode = async (mode, players, board, chars, query = OUTDOOR, reload = 
     await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
     onQuery = query;
   }
-  await page.evaluate(([m, n, b, c]) => {
-    window.__manual = false;
-    window.__quitToTitle?.();
-    window.__startMode(m, n, b, c);
-  }, [mode, players, board, chars]);
-  await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 180000 });
-  await page.evaluate(() => { window.__manual = true; });
+  // Stepped rather than live: the drop is driven by hand and nothing is drawn
+  // on the way in. Under software GL the live loop's first frames of a fresh
+  // board — every shader compiled, every sculpt uploaded — were most of what
+  // a boot cost, and this suite boots fourteen times. Measured on a cold page:
+  // desert 90 s -> 47 s, Trask 117 s -> 53 s. It also leaves the match on the
+  // clock at its first frame, which the live loop never did.
+  await h.startStepped(mode, players, board, chars);
 };
 
 // ---------------------------------------------------------------- the build
@@ -427,7 +427,7 @@ check('to the stage as they left it, cleared', portal.rememberedCleared, JSON.st
 // nothing happened, and the only lesson was that the lights lie. So the rule
 // is that the column is lit only where it is telling you something, and goes
 // out the moment you are on it.
-await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+await startMode('campaign', 1, 'desert', ['din']);
 const guide = await page.evaluate(`(() => {
   const g = window.__game, c = g.campaign;
   window.__simUntil(() => g.state === 'fighting', 30);
@@ -518,7 +518,7 @@ check('and it is over inside a second and a half',
 // The corral's rides are the Tuskens'. Alert the camp and some of them get on:
 // a Tusken to its bantha, and it comes at the party. Drop the rider and the
 // ride rolls to a stop with nobody on it, which is when it is yours.
-await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+await startMode('campaign', 1, 'desert', ['din']);
 const riders = await page.evaluate(`(() => {
   const g = window.__game, c = g.campaign, p = g.players[0];
   window.__simUntil(() => g.state === 'fighting', 30);
@@ -644,7 +644,7 @@ check('and it rolls to a stop where the party can take it',
 // opposite: every hostile dead, the door still shut, and the cure a walk back
 // to a flag they had run past. Clearing the ground clears the zone — except
 // the last one before a transport door, which is a deliberate walk.
-await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+await startMode('campaign', 1, 'desert', ['din']);
 const optional = await page.evaluate(`(() => {
   const g = window.__game, c = g.campaign, p = g.players[0];
   window.__simUntil(() => g.state === 'fighting', 30);
@@ -688,7 +688,7 @@ check('a camp cleared of its garrison advances without the checkpoint',
 check('but the last checkpoint before the door is still a walk',
   optional.heldAtTheDoor && optional.openedOnTheWalk, JSON.stringify(optional));
 
-await startMode('campaign', 2, 'desert', ['din', 'armorer'], OUTDOOR, true);
+await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 const bossEntrance = await page.evaluate(() => {
   const g = window.__game, c = g.campaign;
   c.enterStage(2, false);
@@ -739,7 +739,7 @@ check('the final arena floor has no invisible dune rising through it',
 // has met yet brings *only* the new kinds, and the mixing starts once they are
 // known. Playtest: *"we should have them be a wave themselves instead of
 // mixing with the other waves, at least when first encountered."*
-await startMode('campaign', 1, 'desert', ['din'], OUTDOOR, true);
+await startMode('campaign', 1, 'desert', ['din']);
 const debut = await page.evaluate(`(() => {
   const g = window.__game, c = g.campaign;
   const zone = c.stage.zones.find((z) => z.spec.air) ?? c.stage.zones[1];

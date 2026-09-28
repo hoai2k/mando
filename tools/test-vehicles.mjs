@@ -17,8 +17,7 @@ const check = (name, ok, detail = '') => {
 };
 
 // ---- The Dune Sea: four rides declared ----
-await h.page.evaluate(() => window.__startCoop(1, 'desert'));
-await h.waitForPlaying();
+await h.startCoop(1, 'desert');
 
 const spawned = await h.page.evaluate(() => {
   const g = window.__game;
@@ -593,15 +592,7 @@ check('the herd reforms on the same clock as the machines',
   `back at (${reformed.x.toFixed(1)}, ${reformed.z.toFixed(1)})`);
 
 // ---- Trask: the skiff rides the water ----
-// Restarting from a running match: the old game's 'playing' state satisfies
-// waitForPlaying before the new board exists, so wait for Trask itself.
-await h.page.evaluate(() => window.__startCoop(1, 'trask'));
-for (let i = 0; i < 200; i++) {
-  const there = await h.page.evaluate(() =>
-    window.__game?.board.kind === 'trask' && window.__state === 'playing');
-  if (there) break;
-  await new Promise((r) => setTimeout(r, 250));
-}
+await h.startCoop(1, 'trask');
 const skiff = await h.page.evaluate(() => {
   const g = window.__game;
   const v = g.vehicles[0];
@@ -658,19 +649,24 @@ const REACH = 60;
 const waveBoards = await h.page.evaluate(() =>
   window.__boards.map((b) => b.id));
 
-const settle = async (id) => {
-  for (let i = 0; i < 400; i++) {
-    const ok = await h.page.evaluate((b) =>
-      window.__game?.board.kind === b && window.__state === 'playing', id);
-    if (ok) return true;
-    await new Promise((r) => setTimeout(r, 250));
+/**
+ * Into a match on `board`, stepped (see `startStepped` in harness.mjs): the
+ * checks from here on read where things were parked and never need the live
+ * loop, and this boots every board in the game — thirteen boots in all, most
+ * of the suite's time when each one waited on the live loop drawing frames.
+ */
+const boot = async (mode, board) => {
+  try {
+    await h.startStepped(mode, 1, board);
+    return await h.page.evaluate((b) => window.__game?.board.kind === b, board);
+  } catch (e) {
+    console.log(`  (${mode} on ${board} did not boot: ${String(e.message).split('\n')[0]})`);
+    return false;
   }
-  return false;
 };
 
 for (const id of waveBoards) {
-  await h.page.evaluate((b) => window.__startMode('wave', 1, b), id);
-  if (!await settle(id)) { check(`${id} boots in wave mode`, false); continue; }
+  if (!await boot('wave', id)) { check(`${id} boots in wave mode`, false); continue; }
   const r = await h.page.evaluate(() => {
     const g = window.__game;
     const p = g.players[0];
@@ -722,8 +718,7 @@ const goTo = async (url) => {
   h.errors.push(...during.filter((e) => !/Couldn't load texture blob:/.test(String(e))));
 };
 await goTo(`${PAGE}?missions=old`);
-await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
-await settle('desert');
+check('missions: the room chain boots', await boot('campaign', 'desert'));
 const legacy = await h.page.evaluate(() => ({
   rides: window.__game.vehicles.length,
   declared: (window.__game.board.vehicles ?? []).length,
@@ -743,8 +738,7 @@ check('missions: the walled level parks no unreachable rides',
 // exactly those, added exactly across the navigation, and keep everything
 // else — including any other error raised in the same window.
 await goTo(PAGE);
-await h.page.evaluate(() => window.__startMode('campaign', 1, 'desert'));
-await settle('desert');
+check('missions: the stage chain boots', await boot('campaign', 'desert'));
 const mission = await h.page.evaluate(() => {
   const g = window.__game;
   const stage = g.campaign?.stage;

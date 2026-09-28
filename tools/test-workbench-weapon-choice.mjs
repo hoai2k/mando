@@ -13,9 +13,7 @@ const GUNS = ['carbine', 'longrifle', 'crossbow', 'pistol', 'pistols', 'enemy_bl
   'flame_projector', 'net_launcher'];
 const FORBIDDEN = /saber|beskar|tonfa|dark/i;
 
-const ready = () => page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(),
-  undefined, { timeout: 120000 });
-const open = async (character, pose) => { await page.goto(url(character, pose)); await ready(); };
+const open = (character, pose) => h.workbench(character, pose, 'edit=models&mode=authored');
 /** option values of a slot's picker, without the empty "Default" entry; null when there is no picker */
 const offered = (slot) => page.evaluate((s) => {
   const select = document.querySelector(`#weaponChoice-${s}`);
