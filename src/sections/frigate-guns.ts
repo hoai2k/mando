@@ -101,8 +101,12 @@ const GUNS: { key: Bearing; x: number; z: number; yaw: number }[] = [
 ];
 /** half of each gun's 200° arc */
 const GUN_ARC = (100 * Math.PI) / 180;
-/** the guns cannot depress onto their own deck */
-const GUN_PITCH_MIN = 0.05;
+/**
+ * The guns cannot depress onto their own deck: the barrels stop a little
+ * above level, so a bolt clears a standing boarder's head from five metres
+ * out (the barrels sit 1.4–1.7 m over the deck).
+ */
+const GUN_PITCH_MIN = 0.08;
 
 /** the three boarding points on the deck edge (B1 port aft, B2 starboard, B3 port forward) */
 const BOARD_PTS: { x: number; z: number; bearing: Bearing }[] = [
@@ -403,7 +407,7 @@ interface Gen { i: number; e: Enemy | null; node: THREE.Object3D | null; down: b
 
 type Phase = 'castoff' | 'wave' | 'breather' | 'corvette' | 'broken' | 'docking' | 'docked';
 
-function build(ctx: SectionContext): SectionInstance {
+function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   const { game, spec } = ctx;
   const Y0 = ctx.floorY;
   const T = TEXT.sections['frigate-guns'];
@@ -1358,7 +1362,7 @@ function build(ctx: SectionContext): SectionInstance {
       cv.spinalT -= dt;
       if (cv.spinal === 'idle') {
         if (cv.spinalT < 3.5 && cv.laneZ === cv.slideZ) cv.laneZ = spinalLaneZ();
-        if (cv.spinalT <= 0) {
+        if (cv.spinalT <= 0 && !held) {
           cv.spinal = 'charge';
           cv.spinalT = SPINAL_WARN;
           audio.floorCharge(0.5);
@@ -1520,9 +1524,11 @@ function build(ctx: SectionContext): SectionInstance {
     phaseT = 0;
   }
   let restartAt: 'wave' | 'corvette' | null = null;
+  /** the section's own suite holds the script still and sets up one beat at a time */
+  let held = false;
 
   const updateWaves = (dt: number): void => {
-    if (phase !== 'wave') return;
+    if (phase !== 'wave' || held) return;
     waveT += dt;
     events.forEach((ev, i) => {
       if (fired[i]) return;
@@ -1626,14 +1632,14 @@ function build(ctx: SectionContext): SectionInstance {
     }
 
     updateWaves(dt);
-    if (phase === 'breather' && phaseT > (restartAt ? 4.5 : 6)) {
+    if (phase === 'breather' && !held && phaseT > (restartAt ? 4.5 : 6)) {
       if (restartAt === 'corvette') { restartAt = null; startCorvette(); }
       else if (restartAt === 'wave') { restartAt = null; startWave(waveIdx); }
       else if (waveIdx + 1 < WAVES) startWave(waveIdx + 1);
       else { mill.setSpeed(COMBAT, 5); startCorvette(); }
     }
     if (phase === 'corvette' || phase === 'broken') updateCorvette(dt);
-    if (phase === 'corvette' && cv.arrive >= 1) {
+    if (phase === 'corvette' && cv.arrive >= 1 && !held) {
       // escorts: a swarm now and then, from ahead or the starboard bow
       if (Math.floor((phaseT - dt) / 24) !== Math.floor(phaseT / 24) && phaseT > 20) {
         const b: Bearing = Math.floor(phaseT / 24) % 2 ? 'ahead' : 'port';
@@ -1976,7 +1982,36 @@ function build(ctx: SectionContext): SectionInstance {
     return gun?.alive ? gunPilot(p, slot, gun) : deckPilot(p, slot);
   };
 
+  /** for tools/test-section-frigate.mjs: set up one beat at a time */
+  const probe = {
+    hold: (on: boolean) => { held = on; },
+    guns: () => guns,
+    hull: () => hull.body.hp,
+    setHull: (v: number) => { hull.body.hp = v; if (v <= 0) hull.body.alive = false; },
+    checkpoint: () => hullCheckpoint,
+    phase: () => ({ phase, wave: waveIdx, restartAt }),
+    wave: (k: number) => { clearField(); startWave(k); },
+    corvette: () => { clearField(); startCorvette(); cv.arrive = 1; cv.pos.set(CV_X, Y0 - 4, 0); },
+    swarm: (b: Bearing, n: number) => spawnSwarm(b, n),
+    drones: () => drones.map((d) => d.e),
+    latchAt: (pt: number) => {
+      launchShip('board', BOARD_PTS[pt].bearing, pt);
+      const sh = ships[ships.length - 1];
+      sh.u = 1;
+      sh.pos.copy(sh.p2);
+      sh.state = 'latching';
+      latchTube(sh);
+    },
+    latch: (pt: number) => tubes.find((t) => t.pt === pt && !t.cut)?.latch ?? null,
+    tube: (pt: number) => { const t = tubes.find((x) => x.pt === pt); return t ? { cut: t.cut, bodies: t.bodies.length, state: t.ship.state } : null; },
+    spinal: (z: number) => { cv.laneZ = cv.slideZ = z; cv.pos.z = z; cv.spinal = 'charge'; cv.spinalT = SPINAL_WARN; },
+    gens: () => gens.map((g) => g.e),
+    bridge: () => bridge,
+    spawn: (kind: EnemyKind, x: number, z: number) => ctx.spawn(kind, P(x, 0, z), { exact: true, squad: 8899 }),
+  };
+
   return {
+    probe,
     starts: [0, 1, 2, 3].map((i) => P(AFT_HATCH.x + ((i % 2) * 2 - 1) * 1.6, 0, AFT_HATCH.z + 2.4 + Math.floor(i / 2) * 1.8)),
     floorY: Y0,
     ceilingY: Y0 + 32,
