@@ -2,6 +2,7 @@ import type { FrameInput } from '../../core/input';
 import type { Player } from '../../player/player';
 import type { Game } from '../../game/game';
 import type { SectionMove } from '../api';
+import type { Combatant } from '../../enemies/enemy';
 
 /**
  * `Player.sectionMove` is one slot, and a section often has several things
@@ -28,6 +29,11 @@ export function composeMoves(...moves: (SectionMove | null | undefined)[]): Sect
     },
     crouch(p: Player): boolean {
       return list.some((m) => m.crouch?.(p) ?? false);
+    },
+    meleeHit(p: Player, target: Combatant, amount: number, game: Game): number {
+      let dmg = amount;
+      for (const m of list) if (m.meleeHit) dmg = m.meleeHit(p, target, dmg, game);
+      return dmg;
     },
   };
 }

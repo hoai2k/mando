@@ -6,6 +6,8 @@ import { covertSky } from './covert-sky';
 import { SECTION_BOARD, MISSION_LAYOUTS } from '../world/mission-layouts';
 import { glacierChute } from './glacier-chute';
 import { lamplight } from './lamplight';
+import { theLine } from './the-line';
+import { lightsOut } from './lights-out';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -18,6 +20,8 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   'covert-sky': covertSky,
   'glacier-chute': glacierChute,
   lamplight,
+  'the-line': theLine,
+  'lights-out': lightsOut,
 };
 
 /**

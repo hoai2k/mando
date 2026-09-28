@@ -732,6 +732,15 @@ export class Enemy {
   /** the ride this one is running for, claimed but not yet reached */
   boarding: Vehicle | null = null;
 
+  /**
+   * A stealth section's sight rules (Lights Out, K6 in
+   * sections/kit/detection.ts), set while it stands and cleared on teardown:
+   * `scale` multiplies how far a hostile sees, and `behind` is how close
+   * behind it a body must come to be noticed (the game's usual is 8 m), so a
+   * silent takedown can be walked up to. Null everywhere else.
+   */
+  static stealthSight: { scale: number; behind: number } | null = null;
+
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
   /** the spot this enemy is posted at and drifts back to when it loses interest */
@@ -2055,7 +2064,7 @@ export class Enemy {
     // sight range scales with the light falling on the *target*: on a board
     // with a moving terminator the night side is genuinely safer to cross
     const lit = game.board.lightAt ? 0.45 + 0.55 * game.board.lightAt(foe.position.x, foe.position.z) : 1;
-    let notice = d.notice * lit;
+    let notice = d.notice * lit * (Enemy.stealthSight?.scale ?? 1);
     // a submerged target is a shadow under the chop: near-invisible from
     // above, which is what makes the water a stealth route
     const wY = game.board.waterY;
@@ -2064,7 +2073,8 @@ export class Enemy {
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
     // ahead: full range; peripheral: about half; behind: only right on top of them
-    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : 8;
+    // (a stealth section tightens "on top of them" — see `Enemy.stealthSight`)
+    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : (Enemy.stealthSight?.behind ?? 8);
     if (dist > range) { this.sightMemo = false; return false; }
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.2 + (this.id % 5) * 0.03;
