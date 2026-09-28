@@ -1314,6 +1314,52 @@ const cache = await page.evaluate(async () => {
 check('the Spice Run\'s last stage puts a supply cache down before its warlord',
   cache.crate && cache.onStage, JSON.stringify(cache));
 
+// ---------------------------------------------------------------- the atrium
+//
+// The Refinery's lieutenant fought in an 18 m slot of the plant's south strip
+// while the board's forty-metre reactor atrium — core, three catwalk rings,
+// the one space built for jetpack combat — stood unused 24 m north of it. The
+// plant stage turns in to it now (audit item 11).
+
+await startMode('campaign', 1, 'refinery', ['din']);
+
+const atrium = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  const plant = c.memory.findIndex((_, i) => window.__missionZones().some((z) => z.board === 'refinery' && z.stage === i && z.kind === 'lieutenant'));
+  c.enterStage(plant, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const s = c.stage, i = s.zones.findIndex((z) => z.spec.kind === 'lieutenant'), z = s.zones[i];
+  const inR = (r, x, zz) => x >= r.minX && x <= r.maxX && zz >= r.minZ && zz <= r.maxZ;
+  // every point of the golden path is somewhere a body can stand
+  const blocked = s.path.filter((q) => !g.board.physics.capsuleFree(q.x, q.y + 0.2, q.z, 0.5, 1.8)).length;
+  const out = { plant, centre: [+z.center.x.toFixed(1), +z.center.z.toFixed(1)],
+    catwalks: [[0, -14], [0, 14], [-14, 0], [14, 0]].every(([x, zz]) => inR(z.rect, x, zz)),
+    blocked, path: s.path.length };
+  // walk in: it seals, and the lieutenant stands up inside it
+  c.idx = i; c.phase = 'travel';
+  for (const e of g.enemies) e.removeMe = true;
+  p.position.set(z.center.x + 9, z.center.y + 0.3, z.center.z - 9);
+  for (let f = 0; f < 150 && !g.boss; f++) g.update(1 / 30, idle);
+  out.phase = c.phase;
+  out.boss = !!g.boss && inR(z.rect, g.boss.position.x, g.boss.position.z);
+  window.__manual = false;
+  return out;
+});
+check('the Refinery\'s lieutenant is fought round the reactor core, catwalks and all',
+  atrium.plant > 0 && Math.hypot(...atrium.centre) < 4 && atrium.catwalks, JSON.stringify(atrium));
+check('and the plant\'s path to it is walkable end to end', atrium.blocked === 0, JSON.stringify(atrium));
+check('and walking in seals it and stands the lieutenant up inside',
+  atrium.phase === 'fight' && atrium.boss, JSON.stringify(atrium));
 
 // ---------------------------------------------------------------- the road
 //

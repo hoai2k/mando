@@ -127,7 +127,8 @@ Why each goes where it does, and how it joins the stages on either side:
   at the intake's blast door, set in the rock face; it opens onto the
   intake **processing floor**. Its far door is the plant (B).
 - **Lights Out** (Refinery, B ⇒ C). The plant's rear airlock, the far door of
-  the reactor floor (the lieutenant's room, now the plant's last), opens onto the **tank
+  the reactor floor (the lieutenant's room, now the plant's last, walled round
+  the reactor atrium), opens onto the **tank
   farm behind the plant**, under the plant's smoke, with searchlights up. It ends
   at the stair to the reactor crown (C).
 - **Hold the Forge** (Great Forge, B ⇒ C). The armoury vault's far door is the

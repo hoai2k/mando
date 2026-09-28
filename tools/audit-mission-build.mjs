@@ -119,7 +119,11 @@ for (const board of boards) {
         const from = zone.entry.clone();
         const dir = zone.entry.clone();
         let seen = false;
-        for (const off of [0, spread, -spread]) {
+        // …and in a wide room a player steps further aside than that: a hall
+        // built round the Refinery's reactor core hides its far door from the
+        // middle third of the entry and shows it from either side
+        const wide = zone.spec.w > 30 ? [0.35, -0.35, 0.45, -0.45].map((k) => zone.spec.w * k) : [];
+        for (const off of [0, spread, -spread, ...wide]) {
           from.set(zone.entry.x + px * off, zone.entry.y + eye, zone.entry.z + pz * off);
           for (const t of targets) {
             dir.set(t.x - from.x, (t.y + eye) - from.y, t.z - from.z);

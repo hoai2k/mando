@@ -118,6 +118,12 @@ export const PORTAL_POCKET = 4;
 export const VESTIBULE = 8;
 
 export const WALL_T = 1;
+/**
+ * The tallest a doorway, a hatch or a transport door stands. A hall roofed
+ * higher than this (the Refinery's reactor atrium) keeps its doors this tall
+ * and fills the wall over them, rather than cutting a slot to the roof.
+ */
+export const DOOR_MAX_H = 8;
 export const CORR_H = 3.8;
 export const WALL_H = 5.5;
 export const ROOF_H = 8;

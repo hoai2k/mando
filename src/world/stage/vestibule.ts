@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GATE_W } from '../gate';
 import type { ZoneSpec } from '../mission';
-import { VESTIBULE, WALL_T, ROOF_H, type Frame } from './common';
+import { VESTIBULE, WALL_T, ROOF_H, DOOR_MAX_H, type Frame } from './common';
 import type { StageBuilder } from './builder';
 
 /**
@@ -35,7 +35,7 @@ export function layVestibule(b: StageBuilder, f: Frame, zs: ZoneSpec, zoneTop: n
   // a hall is built wherever it stands, the plant's included (as `layZones` does)
   if (zs.shell === 'hall' || !bare) {
     if (zs.shell === 'hall') {
-      const h = Math.max(6, zs.roofH ?? ROOF_H);
+      const h = Math.max(6, Math.min(DOOR_MAX_H, zs.roofH ?? ROOF_H));
       if (!onGround) solid(f, u0 - 0.5, u1, -half - 1, half + 1, top - 1, top, hallFloorMat);
       wallV(f, half + WALL_T / 2, u0, u1, [], top, h);
       wallV(f, -half - WALL_T / 2, u0, u1, [], top, h);

@@ -237,6 +237,28 @@ The roads stay (the sections are additive).
 - **Left.** The trawler deck's far face still carries its rim so the wheelhouse
   door is set in a wall (boundary rule a).
 
+### 11. The Refinery's lieutenant in the reactor atrium — done
+
+- **What.** The plant stage now starts at x = -35 (so its vestibule and back
+  door stay inside the west wall) and, out of the barrel stores, walks a quiet
+  corridor east, north between the partitions at x = -22 and x = -7, east
+  above the short partition at z = -30 and north into the atrium. *The reactor
+  floor* is a `hall:lieutenant` 40×40 with a 38 m roof laid at the atrium's own
+  edges round the core, the board's three catwalk rings inside it as high
+  ground; its north door is the rear airlock into Lights Out.
+- Supporting changes: a hall roofed higher than `DOOR_MAX_H` (8 m) keeps
+  door-sized doors, hatches and nooks and fills the wall over them (lintels),
+  and transport doors are never taller than 8 m; links on a `plant` or `sea`
+  stage lay no walls or rock (they used to lay 40 m ridge slabs inside the
+  Refinery along trek links).
+- **Tests.** `test-missions` (atrium block): the lieutenant's zone is centred on
+  the core with all four catwalk runs inside it; every golden-path point of the
+  plant is somewhere a body stands; walking in seals it and stands the
+  lieutenant up inside. `audit-mission-build`'s landmark rule now also samples
+  from 0.35 and 0.45 of a wide room's width either side (the core hides the far
+  door from the middle of the entry; a player steps aside) — noted in the
+  commit.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
@@ -268,4 +290,7 @@ first zone after one gets the vestibule — hold throughout.
   its fire-stair door is in its far rim face. Mark Runs note updated.
 - **Item 10 — the trawler deck** is open to the sea on both sides; its far face
   keeps its rim, so the wheelhouse door is still set in a wall.
+- **Item 11 — Refinery, end of B.** *The reactor floor* moved into the atrium: a
+  40×40 hall with a 38 m roof round the core; its north door, the rear airlock,
+  is a door in a hall wall. Lights Out note updated.
 

@@ -423,30 +423,41 @@ const refinery: StageSpec[] = [
     // lit, already audited, with its own barrels and alarm consoles and
     // catwalks. Laying a lesser copy of it over the top would be the one
     // place in this design where a stage argued with its own territory. So
-    // this stage builds nothing — it walks the south side of the ring and
-    // says where the fights are.
+    // this stage builds nothing but its rooms — it walks the south side of the
+    // ring and turns in to the reactor, and says where the fights are.
     kind: 'plant',
     label: TEXT.missions.stages.refinery[1],
-    // The lane runs along z = -46, south of the partition walls: those span
+    // The lane starts along z = -46, south of the partition walls: those span
     // z -42..-18, so passing below them is passing through the doorways the
-    // board left at their ends rather than through the walls themselves.
-    anchor: { x: -40, z: -46, dx: 1, dz: 0 },
+    // board left at their ends rather than through the walls themselves. It
+    // starts at x = -35 so the vestibule and the back door behind it still
+    // stand inside the plant's west wall (x = -49).
+    anchor: { x: -35, z: -46, dx: 1, dz: 0 },
     zones: [
-      // Rooms, and declared as rooms. These three sit *inside* the plant,
-      // between its tanks and partition walls, and they are 18 m on a side:
-      // the borders audit measures five to eleven metres to the nearest wall
-      // all round each of them, which is a hall's number, not open ground's.
-      // Calling them `open` was the muddle a playtest asked about — the fight
-      // reads as a room whatever the layout says, so the layout should say it,
-      // and then the room behaviour that goes with it (the party gathers, the
-      // doors seal, the cover is crates rather than boulders) follows.
+      // Rooms, and declared as rooms. The barrel stores sit *inside* the
+      // plant, between its tanks and partition walls, 18 m on a side: the
+      // borders audit measures five to eleven metres to the nearest wall all
+      // round, which is a hall's number, not open ground's. Calling it `open`
+      // was the muddle a playtest asked about — the fight reads as a room
+      // whatever the layout says, so the layout should say it, and then the
+      // room behaviour that goes with it (the party gathers, the doors seal,
+      // the cover is crates rather than boulders) follows.
       z('refinery', 2, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
-      // the pump hall that used to follow was a third identical slot of the
-      // same strip; the lieutenant's room is the plant's last, and its far
-      // wall is the rear airlock
-      z('refinery', 3, { shell: 'hall', kind: 'lieutenant', w: 18, l: 18 }),
+      // The reactor floor is the reactor floor: the lieutenant is fought in
+      // the board's forty-metre atrium, round the core, with the three catwalk
+      // rings as high ground — the one space in the game built for jetpack
+      // combat, which the run used to walk straight past to fight in a third
+      // 18 m slot of the south strip (audit finding 6). The room is walled
+      // and roofed at the atrium's own edges and just under its roof, so it
+      // seals like any lieutenant's hall; its far door, in the north wall, is
+      // the plant's rear airlock.
+      z('refinery', 3, { shell: 'hall', kind: 'lieutenant', w: 40, l: 40, roofH: 38 }),
     ],
-    links: [{ len: 12, kind: 'trek' }],
+    // East out of the stores, north between the partitions at x = -22 and
+    // x = -7, east again above the short partition at z = -30, and north into
+    // the atrium's south door at x = 0.
+    // (quiet: the walk in to the reactor is the breath between two sealed rooms)
+    links: [{ len: 2, turn: 1, len2: 15.5, legs: [{ turn: -1, len: 6 }, { turn: 1, len: 1.5 }], kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',

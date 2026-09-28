@@ -1,6 +1,6 @@
 import { GATE_W } from '../gate';
 import type { Shell } from '../mission';
-import { PORTAL_POCKET, WALL_T, ROOF_H, RIM_OVER_CEILING, VESTIBULE, type Frame } from './common';
+import { PORTAL_POCKET, WALL_T, ROOF_H, RIM_OVER_CEILING, VESTIBULE, DOOR_MAX_H, type Frame } from './common';
 import { Portal } from './barriers';
 import type { StageBuilder } from './builder';
 import type { StageChain } from './zones';
@@ -71,7 +71,7 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     const top = onGround
       ? groundAt(f.x(u0 + 2, 0), f.z(u0 + 2, 0))
       : zoneTops[last];
-    const doorH = Math.max(6, (stage.zones[last].roofH ?? ROOF_H));
+    const doorH = Math.max(6, Math.min(DOOR_MAX_H, stage.zones[last].roofH ?? ROOF_H));
     pocket(f, u0, top, false, doorH);
     // A gorge's way on is a **door in a wall**, not a shed standing in a
     // ravine. The pocket is only nine metres across; a sixteen-metre slot left
@@ -133,7 +133,7 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     const f = zoneFrames[0];
     const u = -1 - VESTIBULE;
     const top = onGround ? groundAt(f.x(u - 2, 0), f.z(u - 2, 0)) : zoneTops[0];
-    const doorH = Math.max(6, (stage.zones[0].roofH ?? ROOF_H));
+    const doorH = Math.max(6, Math.min(DOOR_MAX_H, stage.zones[0].roofH ?? ROOF_H));
     pocket(f, u, top, true, doorH);
     if (!bare && facedShell(stage.zones[0].shell)) {
       // the vestibule's lane is held by cliffs a link's width apart; the face

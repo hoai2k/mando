@@ -16,7 +16,7 @@ import type { StageBuilder } from './builder';
  */
 export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall: boolean): Frame {
   const {
-    stage, corrW, onGround, canyon, rand, floorMat, hallFloorMat, wallMat, trimMat, accentGlow, group,
+    stage, corrW, onGround, bare, canyon, rand, floorMat, hallFloorMat, wallMat, trimMat, accentGlow, group,
     rects, pickups, defenders, path, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge,
   } = b;
@@ -33,7 +33,13 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
       ? groundAt(lf.x(len / 2, 0), lf.z(len / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
     if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, roofed ? hallFloorMat : floorMat);
-    if (roofed) {
+    // A link through a building that is already there (a `plant`) or a sea is
+    // walked through the board's own halls and water: it lays no walls and
+    // no rock. It used to lay a forty-metre border along a trek link as if it
+    // were outdoors — two slabs of cliff standing inside the Refinery.
+    if (bare) {
+      // nothing
+    } else if (roofed) {
       solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop + CORR_H, ltop + CORR_H + 1, wallMat);
       // the lane walls sit 5 cm proud and run only their own span: the room
       // and junction walls seal the corners, and a wall that overshot into a
@@ -74,7 +80,7 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
         authoredProp(group, [post, head], 'trail_post', 1.8, { x: px, y: ltop, z: pz, axis: 'y' });
       }
     }
-    if (withCrates && roofed && len >= 12) {
+    if (withCrates && roofed && !bare && len >= 12) {
       // a staggered pair butted flush against the walls: tuck, peek, advance.
       // Flush matters — a crate floating off the wall leaves a gap too narrow
       // for a body, and that pocket catches anyone hugging the wall.
@@ -123,7 +129,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
       ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
     if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, roofed ? hallFloorMat : floorMat);
-    if (roofed) {
+    if (bare) {
+      // a bend through a building that is already there lays nothing either
+    } else if (roofed) {
       solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
       wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);
       wallV(jf, -turn * (laneW / 2 + WALL_T / 2), -WALL_T, laneW + WALL_T, [], jtop, CORR_H);

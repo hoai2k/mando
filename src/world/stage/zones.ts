@@ -3,7 +3,7 @@ import { Gate, GATE_W, type Barrier } from '../gate';
 import { addBreakable } from '../board';
 import type { MissionZone } from '../mission';
 import {
-  EPS, WALL_T, ROOF_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
+  EPS, WALL_T, ROOF_H, DOOR_MAX_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
 } from './common';
 import { Fence } from './barriers';
 import type { StageBuilder } from './builder';
@@ -82,6 +82,17 @@ export function layZones(b: StageBuilder) {
       const hatchGaps = [{ c: l * 0.35, w: 2.6 }, { c: l * 0.7, w: 2.6 }];
       wallV(f, w / 2 + WALL_T / 2, -WALL_T, l + WALL_T, [...alcoveGap, hatchGaps[0]], top, roofH);
       wallV(f, -w / 2 - WALL_T / 2, -WALL_T, l + WALL_T, [hatchGaps[1]], top, roofH);
+      /** how tall the room's doors, hatches and nooks stand */
+      const doorH = Math.min(roofH, DOOR_MAX_H);
+      if (roofH > doorH) {
+        // a tall room keeps door-sized doors: the wall is filled over each one
+        for (const [u, gaps] of [[-WALL_T / 2, entryGaps], [l + WALL_T / 2, exitGaps]] as const) {
+          for (const g of gaps) solid(f, u - WALL_T / 2, u + WALL_T / 2, g.c - g.w / 2, g.c + g.w / 2, top + doorH, top + roofH, wallMat);
+        }
+        for (const [v, gaps] of [[w / 2 + WALL_T / 2, [...alcoveGap, hatchGaps[0]]], [-w / 2 - WALL_T / 2, [hatchGaps[1]]]] as const) {
+          for (const g of gaps) solid(f, g.c - g.w / 2, g.c + g.w / 2, v - WALL_T / 2, v + WALL_T / 2, top + doorH, top + roofH, wallMat);
+        }
+      }
       // the roof: the hallway beat is indoors, and the jetpack is a hop in it
       solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top + roofH, top + roofH + 0.8, wallMat);
       slab(f, 1, l - 1, w / 2 - 0.22, w / 2 - 0.02, top + 0.04, top + 0.18, trimMat);
@@ -96,12 +107,12 @@ export function layZones(b: StageBuilder) {
         const p0 = side * (w / 2 + WALL_T);
         const outer = side * (w / 2 + WALL_T + 4.2);
         solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top - 1, top, hallFloorMat);
-        wallU(f, h.c - 2 - WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
-        wallU(f, h.c + 2 + WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
-        wallV(f, outer + side * WALL_T / 2, h.c - 2 - WALL_T, h.c + 2 + WALL_T, [], top, roofH);
-        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top + roofH, top + roofH + 0.8, wallMat);
+        wallU(f, h.c - 2 - WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, doorH);
+        wallU(f, h.c + 2 + WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, doorH);
+        wallV(f, outer + side * WALL_T / 2, h.c - 2 - WALL_T, h.c + 2 + WALL_T, [], top, doorH);
+        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top + doorH, top + doorH + 0.8, wallMat);
         const gate = new Gate(board, group, f.vec(h.c, p0, top),
-          { x: f.px * side, z: f.pz * side }, roofH, pal.accent, { width: 2.6 });
+          { x: f.px * side, z: f.pz * side }, doorH, pal.accent, { width: 2.6 });
         hatches.push({ gate, post: f.vec(h.c, side * (w / 2 + 3.2), top + 0.2) });
         rects.push(f.rect(h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer)));
       });
@@ -109,16 +120,16 @@ export function layZones(b: StageBuilder) {
       if (zs.alcove) {
         const p0 = w / 2 + WALL_T;
         solid(f, l / 2 - 2.4, l / 2 + 2.4, p0 - 0.5, p0 + 3.4, top - 1, top, hallFloorMat);
-        wallU(f, l / 2 - 2.4 - WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
-        wallU(f, l / 2 + 2.4 + WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
-        wallV(f, p0 + 3.4 + WALL_T / 2, l / 2 - 2.4 - WALL_T, l / 2 + 2.4 + WALL_T, [], top, roofH);
+        wallU(f, l / 2 - 2.4 - WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, doorH);
+        wallU(f, l / 2 + 2.4 + WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, doorH);
+        wallV(f, p0 + 3.4 + WALL_T / 2, l / 2 - 2.4 - WALL_T, l / 2 + 2.4 + WALL_T, [], top, doorH);
         pickups.push(f.vec(l / 2, p0 + 1.8, top + 0.2));
         rects.push(f.rect(l / 2 - 2.4, l / 2 + 2.4, p0, p0 + 3.4));
       }
       // zone 0 of a stage with a door behind it has a vestibule, and the room
       // seals against it like against any other way in
-      if (internalEntry || entryOpen) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, roofH, pal.accent);
-      if (internalExit) exitBarrier = new Gate(board, group, f.vec(l, 0, top), dir, roofH, pal.accent);
+      if (internalEntry || entryOpen) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, doorH, pal.accent);
+      if (internalExit) exitBarrier = new Gate(board, group, f.vec(l, 0, top), dir, doorH, pal.accent);
       const lamp = new THREE.PointLight(0xffd9a0, 40 + (w * l) / 8, Math.max(w, l) * 1.7, 1.4);
       lamp.position.set(f.x(l / 2, 0), top + roofH - 0.4, f.z(l / 2, 0));
       group.add(lamp);
