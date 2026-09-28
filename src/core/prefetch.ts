@@ -10,7 +10,7 @@ import { MISSION_LAYOUTS } from '../world/mission-layouts';
 import type { BoardId } from '../world/board';
 import { portraitName, textureUrl, warmTexture } from './assets';
 import { warmPoster } from '../ui/posters';
-import { tracked, type WarmPriority } from './warm';
+import type { WarmPriority } from './warm';
 
 /**
  * What to fetch ahead, and when.
@@ -517,7 +517,3 @@ export function matchAssets(board: BoardId, chars: PlayableId[], mode: GameMode 
   return [...new Set(keys)];
 }
 
-/** True when every file a match needs is already in hand. */
-export function matchReady(board: BoardId, chars: PlayableId[], mode: GameMode = 'wave'): boolean {
-  return tracked.progress(matchAssets(board, chars, mode)).pending === 0;
-}

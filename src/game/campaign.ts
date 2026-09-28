@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Game } from './game';
 import {
   buildStage, MISSION_LAYOUTS, PORTAL_POCKET,
-  type MissionStage, type MissionZone, type Portal, type Shell, type ZoneSpec,
+  type MissionStage, type MissionZone, type Shell, type ZoneSpec,
 } from '../world/mission';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
@@ -30,10 +30,9 @@ const _probe = new THREE.Vector3();
  * come from, the guidance, the checkpoints, the flight ceiling, and the
  * transport doors that swap one stage for the next.
  *
- * **This is what Missions runs by default.** The previous design — one
- * walled room chain per territory — is kept whole in `campaign-legacy.ts`
- * and is one URL away at `?missions=old`, which is the way back if this
- * design does not work out.
+ * **This is what Missions runs.** The previous design — one walled room
+ * chain per territory — was kept behind `?missions=old` as a way back while
+ * this one proved itself, and has since been retired.
  */
 
 /** how close to the exit point counts as "through" a walked zone */

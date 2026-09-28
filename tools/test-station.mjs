@@ -25,13 +25,9 @@
  *
  * Run:  node tools/test-station.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
@@ -84,14 +80,9 @@ const others = Object.entries(out.boards).filter(([id, v]) => id !== 'station' &
 check('no other board gained a gravity field', others.length === 0, others.map(([id]) => id));
 
 // ---- the landing freighter carries whoever is standing on it ----
-await h.page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('wave', 1, 'station', ['din']);
-});
-await h.page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+await h.startMode('wave', 1, 'station', ['din']);
 // the sculpts land seconds after the board is built; the fit follows them
-await new Promise((r) => setTimeout(r, 12000));
+await sleep(12000);
 await h.page.evaluate(() => { window.__manual = true; });
 
 const ride = await h.page.evaluate(`(async () => {
@@ -183,5 +174,4 @@ check('close over a deck the board\'s own pull still lands you',
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall station checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Station');

@@ -19,9 +19,8 @@
  *
  * Run:  node tools/test-arrivals.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const failures = [];
 function check(name, ok, detail) {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
@@ -151,10 +150,7 @@ if (land.landings > 0) {
 // transport version asked. Is the ground held before you get there; is the
 // room refused a clear while it still owes a wave; and does that wave end up
 // on the room's floor rather than wherever it was put.
-await h.page.evaluate(() => {
-  window.__quitToTitle?.();
-  window.__startMode('campaign', 1, 'desert', ['din']);
-});
+await h.startStepped('campaign', 1, 'desert', ['din']);
 // The campaign opens on an intro card and the controller only ticks while the
 // match is fighting — probing before that finds a level nobody is playing yet.
 //
@@ -163,23 +159,18 @@ await h.page.evaluate(() => {
 // at a 0.05 s per-frame clamp, and so the wait needs ~60 s of wall clock on an
 // idle machine and more than the 120 s budget on a loaded one (CI run 179).
 // Step it out instead, which is what the rest of this file already does — the
-// live loop is paused first so the frames are ours and the count is exact.
-await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
-await h.page.evaluate(`(() => {
-  window.__manual = true;
-  (${STEP})(120);          // 4 simulated seconds: past the 2.2 s intro
-})()`);
+// match was booted stepped with the live loop off, so the frames are ours and
+// the count is exact.
+await h.page.evaluate(`(${STEP})(120)`);   // 4 simulated seconds: past the 2.2 s intro
 await h.page.evaluate(() => { window.__manual = false; });
 await sleep(500);
 const miss = await h.page.evaluate(`(async () => {
   const g = window.__game;
   const c = g.campaign;
-  // Missions has two level builders behind one controller interface. The
-  // outdoor stage chain (the default since the stage chain landed) raises one
-  // **stage** of the run at a time and calls its fight areas zones; the walled
-  // room chain still reachable at \`?missions=old\` calls them rooms. Either
-  // way what this is after is an assault area — the kind that seals and calls
-  // its wave — and both spell that \`spec.kind === 'assault'\`.
+  // Missions raises one **stage** of the run at a time and calls its fight
+  // areas zones (the retired room chain called them rooms, which is why the
+  // names below still say room). What this is after is an assault area — the
+  // kind that seals and calls its wave — spelled \`spec.kind === 'assault'\`.
   //
   // Only one stage of the run stands at a time, and the trailhead is a walk
   // in rather than a fight: the desert's first stage is start/trek/camp, so
@@ -195,12 +186,12 @@ const miss = await h.page.evaluate(`(async () => {
   // of any shell is what put this on the Dune Sea's canyon and failed the
   // nightly with "called the wave, nobody came" — quite right, nobody was
   // coming.
-  const areas = () => (c.stage ? c.stage.zones : c.level.rooms);
+  const areas = () => c.stage.zones;
   const sealedRoom = (r) => r.spec.kind === 'assault' && r.spec.shell === 'hall';
   const findRoom = () => areas().findIndex(sealedRoom);
   let i = findRoom();
   const kinds = [areas().map((r) => r.spec.shell + ':' + r.spec.kind).join(' ')];
-  for (let s = 1; i < 0 && c.stage && s < c.memory.length; s++) {
+  for (let s = 1; i < 0 && s < c.memory.length; s++) {
     c.enterStage(s, false);
     (${STEP})(30);
     i = findRoom();
@@ -209,13 +200,10 @@ const miss = await h.page.evaluate(`(async () => {
   if (i < 0) return { skipped: true, kinds };
   const rooms = areas();
   const room = rooms[i];
-  // Where the floor is under a body. A walled room has one floor height for
-  // the whole level; an outdoor stage may stand on the territory's own
-  // terrain, where \"the floor\" is not one number — so ask the stage, which
-  // is the question \`floorY\` was standing in for all along.
-  const floorAt = c.stage
-    ? (x, z) => c.stage.groundAt(x, z)
-    : () => c.level.floorY;
+  // Where the floor is under a body. An outdoor stage may stand on the
+  // territory's own terrain, where \"the floor\" is not one number — so ask
+  // the stage, which is the question \`floorY\` was standing in for all along.
+  const floorAt = (x, z) => c.stage.groundAt(x, z);
   const inRoom = (e) => e.position.x >= room.rect.minX - 2 && e.position.x <= room.rect.maxX + 2
     && e.position.z >= room.rect.minZ - 2 && e.position.z <= room.rect.maxZ + 2;
 
@@ -352,16 +340,8 @@ if (!miss.skipped) {
 // Nevarro, because that is where one of the two is: the Lava Flats' crossing,
 // the big open assault of its last stage. The Dune Sea the section above runs
 // on has none, and should not.
-await h.page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('campaign', 1, 'nevarro', ['din']);
-});
-await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
-await h.page.evaluate(`(() => {
-  window.__manual = true;
-  (${STEP})(120);          // past the intro card, as above
-})()`);
+await h.startStepped('campaign', 1, 'nevarro', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
 const siege = await h.page.evaluate(`(async () => {
   const g = window.__game, c = g.campaign;
   const blank = () => ({ moveX:0,moveY:0,lookX:0,lookY:0,jumpHeld:false,jumpPressed:false,

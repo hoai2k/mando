@@ -4,7 +4,7 @@ import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { BotBrain } from './bot';
 import { TEXT } from '../text';
-import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
+import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
@@ -13,7 +13,6 @@ import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/pro
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
-import { yawBasis } from '../core/math';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
@@ -40,10 +39,6 @@ const MONSTER_QUAKE_LEN = 4;
 const BOSS_INTRO_TIMESCALE = 0.12;
 /** reach of the warlord's shock-slam, and the radius its ember ring is drawn at */
 const BOSS_SLAM_R = 8.5;
-/** a wave this old starts sweeping for the players rather than waiting to be found... */
-const HUNT_AFTER = 45;
-/** ...as does one down to this many bodies, scattered over the board */
-const HUNT_REMNANT = 3;
 
 /** hands-off-the-sticks input, fed to everyone while the boss card is up */
 const BLANK_INPUT: FrameInput = {
@@ -484,7 +479,7 @@ export class Game {
     const boss = new Enemy(kind, at);
     if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
     else boss.promoteBoss(this.board.kind === 'ringworld' && kind !== BOSS_KIND.ringworld
-      ? TEXT.enemies[kind] : BOSS_NAME[this.board.kind]);
+      ? ENEMY_NAME[kind] : BOSS_NAME[this.board.kind]);
     // On a monster board the warlord is the herald: remember where it made its
     // stand, and the monster comes up there when it falls.
     if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();
@@ -634,19 +629,20 @@ export class Game {
   }
 
   /**
-   * Missions: bring a room's wave in by transport instead of standing it up in
-   * the room (src/game/campaign.ts).
+   * Missions: bring a zone's wave in by transport instead of standing it up in
+   * the zone (src/game/campaign.ts).
    *
-   * A mission level is a chain of walled rooms with the open sky for a ceiling,
-   * so the wave game's carrier pass works over it unchanged — which is the
-   * point: a squad that descends into the room reads as reinforcements being
+   * A mission stage's only lid is its flight ceiling, which a body falling in
+   * from above is let through (`dropHeight` flies the pass clear of it), so
+   * the wave game's carrier pass works over it unchanged — which is the
+   * point: a squad that descends into the zone reads as reinforcements being
    * committed, where bodies appearing beside the wall read as a spawn. No
    * parachutes: a canopy takes seven seconds to cover the drop and a sealed
-   * room is not the place to wait it out.
+   * zone is not the place to wait it out.
    *
    * `onRelease` receives the bodies the moment the ship lets them go, which is
-   * the first moment they exist. Until then the room is still owed them.
-   * Returns the seconds until that moment, so the room can telegraph where
+   * the first moment they exist. Until then the zone is still owed them.
+   * Returns the seconds until that moment, so the zone can telegraph where
    * the squad is about to come down.
    */
   dropReinforcements(
@@ -1314,39 +1310,13 @@ export class Game {
     this.board.update?.(dt, this.time, this);
 
     // carrier passes: fly, release their squads over the posts, leave
-    for (let i = this.carriers.length - 1; i >= 0; i--) {
-      if (!this.carriers[i].update(dt)) {
-        const gone = this.carriers.splice(i, 1)[0];
-        this.scene.remove(gone.group);
-        gone.dispose();
-      }
-    }
+    this.updateCarriers(dt);
 
     // ---- moving platforms carry their riders ----
     // The board has already re-placed each mover's box; whoever is standing on
     // the old top rides the frame's displacement, so a heaving deck under your
     // feet is ground, not a treadmill.
-    if (this.board.movers) {
-      for (const m of this.board.movers) {
-        if (m.delta.lengthSq() < 1e-10) continue;
-        // Anything the mover carries counts as ground: a ship whose colliders
-        // were fitted to its hull is several surfaces, and a rider standing on
-        // any of them travels with it.
-        const surfaces = m.surfaces();
-        const carry = (pos: THREE.Vector3, radius: number): void => {
-          for (const b of surfaces) {
-            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
-            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
-            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
-            pos.add(m.delta);
-            return;
-          }
-        };
-        for (const p of this.players) if (p.alive) carry(p.position, p.radius);
-        for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
-        for (const a of this.allies) if (a.alive) carry(a.position, a.radius);
-      }
-    }
+    this.carryMoverRiders();
 
     // ---- the mode's own rules (docs/MODES.md §1) ----
     // The wave clock, PvP's scoring, the campaign's objectives: one call, and
@@ -1368,6 +1338,71 @@ export class Game {
     this.campaign?.animateGates(dt);
 
     // ---- the big bodies, before anything moves against them ----
+    this.gatherBigBodies();
+
+    // ---- players ----
+    this.updatePlayers(dt, inputs);
+
+    // ---- vehicles ----
+    // Ridden ones were driven inside their rider's update; this settles the
+    // parked ones and detonates anything that died this frame.
+    this.updateVehicles(dt);
+
+    // ---- enemies ----
+    this.updateEnemies(dt);
+
+    // ---- allies ----
+    this.updateAllies(dt);
+
+
+    // ---- projectiles ----
+    const targets = this.gatherBoltTargets();
+    this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
+
+    // ---- rockets ----
+    this.updateRockets(dt);
+
+    this.particles.update(dt);
+  }
+
+  /** Fly the carrier passes, and retire the ones that have left. */
+  private updateCarriers(dt: number): void {
+    for (let i = this.carriers.length - 1; i >= 0; i--) {
+      if (!this.carriers[i].update(dt)) {
+        const gone = this.carriers.splice(i, 1)[0];
+        this.scene.remove(gone.group);
+        gone.dispose();
+      }
+    }
+  }
+
+  /** Move everyone standing on a moving platform by the frame's displacement. */
+  private carryMoverRiders(): void {
+    if (this.board.movers) {
+      for (const m of this.board.movers) {
+        if (m.delta.lengthSq() < 1e-10) continue;
+        // Anything the mover carries counts as ground: a ship whose colliders
+        // were fitted to its hull is several surfaces, and a rider standing on
+        // any of them travels with it.
+        const surfaces = m.surfaces();
+        const carry = (pos: THREE.Vector3, radius: number): void => {
+          for (const b of surfaces) {
+            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
+            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
+            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
+            pos.add(m.delta);
+            return;
+          }
+        };
+        for (const p of this.players) if (p.alive) carry(p.position, p.radius);
+        for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
+        for (const a of this.allies) if (a.alive) carry(a.position, a.radius);
+      }
+    }
+  }
+
+  /** Record the large bodies (`BIG_BODY_R` and up) for this frame's movement to collide with. */
+  private gatherBigBodies(): void {
     this.bigBodies.length = 0;
     for (const list of [this.enemies, this.allies]) {
       for (const e of list) {
@@ -1378,8 +1413,10 @@ export class Game {
         });
       }
     }
+  }
 
-    // ---- players ----
+  /** Tick every player, bots on their own input, and bring the fallen back per the mode's rules. */
+  private updatePlayers(dt: number, inputs: FrameInput[]): void {
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
@@ -1389,10 +1426,10 @@ export class Game {
       if (p.alive) this.facePlacedPlayer(p);
     }
     this.rules.partyWiped?.();
+  }
 
-    // ---- vehicles ----
-    // Ridden ones were driven inside their rider's update; this settles the
-    // parked ones and detonates anything that died this frame.
+  /** Tick the rides, and play out whatever blew up, collapsed or re-formed this frame. */
+  private updateVehicles(dt: number): void {
     for (const v of this.vehicles) {
       v.update(dt, this);
       if (v.pendingExplosion) {
@@ -1421,8 +1458,10 @@ export class Game {
         }
       }
     }
+  }
 
-    // ---- enemies ----
+  /** Tick the director and the hostiles, count the kills, and drop the removed. */
+  private updateEnemies(dt: number): void {
     this.director.update(dt, this);
     for (const e of this.enemies) {
       e.update(dt, this);
@@ -1440,8 +1479,10 @@ export class Game {
       if (e.removeMe) this.retire(e.char.root);
     }
     this.enemies = this.enemies.filter((e) => !e.removeMe);
+  }
 
-    // ---- allies ----
+  /** Tick the allies, and drop the removed. */
+  private updateAllies(dt: number): void {
     for (const a of this.allies) {
       a.update(dt, this);
       if (!a.alive && !a.counted) {
@@ -1451,9 +1492,10 @@ export class Game {
       if (a.removeMe) this.retire(a.char.root);
     }
     this.allies = this.allies.filter((a) => !a.removeMe);
+  }
 
-
-    // ---- projectiles ----
+  /** Everything a bolt can hit this frame, laid into the reused `targets` array. */
+  private gatherBoltTargets(): BoltTarget[] {
     const targets = this.targets;
     targets.length = 0;
     let slot = 0;
@@ -1596,9 +1638,11 @@ export class Game {
       _body.slot = undefined;
       slot = this.addBody(slot, _body, a, null);
     }
-    this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
+    return targets;
+  }
 
-    // ---- rockets ----
+  /** Steer, move and detonate the rockets in flight. */
+  private updateRockets(dt: number): void {
     for (const r of this.rockets) {
       r.life -= dt;
       if (r.target && r.target.alive) {
@@ -1643,8 +1687,6 @@ export class Game {
       }
     }
     this.rockets = this.rockets.filter((r) => r.life > 0);
-
-    this.particles.update(dt);
   }
 
   /**

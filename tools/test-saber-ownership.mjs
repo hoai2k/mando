@@ -5,19 +5,15 @@ const check = makeCheck();
 const h = await launch();
 try {
   for (const id of ['ventress', 'jedi', 'maris', 'maul', 'revan']) {
-    await h.page.evaluate((character) => {
-      window.__manual = false;
-      window.__quitToTitle?.();
-      window.__startMode('campaign', 1, 'station', [character]);
-    }, id);
-    await h.page.waitForFunction((character) => {
-      if (window.__state !== 'playing' || window.__game?.players[0]?.characterId !== character) return false;
+    await h.startMode('campaign', 1, 'station', [id]);
+    // the body and its blade's .glb can still be landing once the match is up
+    await h.page.waitForFunction(() => {
       const char = window.__game.players[0].char;
       if (!char.modelReady()) return false;
       const hand = char.root.getObjectByName('saberHandR');
       return hand?.children.some((child) =>
         child !== hand.userData.blade && child.type === 'Group' && child.children.length > 0);
-    }, id, { timeout: 120000 });
+    }, null, { timeout: 120000 });
 
     const states = await h.page.evaluate(() => {
       const player = window.__game.players[0];

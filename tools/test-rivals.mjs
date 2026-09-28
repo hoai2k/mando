@@ -12,11 +12,7 @@ try {
     [['maul'], 'rivalRevan'],
     [['maul', 'revan'], 'gunslinger'],
   ]) {
-    await h.page.evaluate((ids) => {
-      window.__quitToTitle?.();
-      window.__startMode('wave', ids.length, 'ringworld', ids);
-    }, party);
-    await h.page.waitForFunction(() => window.__state === 'playing' && !!window.__game);
+    await h.startMode('wave', party.length, 'ringworld', party);
     const boss = await h.page.evaluate(() => {
       const g = window.__game;
       const at = g.players[0].position.clone();
@@ -37,11 +33,7 @@ try {
     }
   }
 
-  await h.page.evaluate(() => {
-    window.__quitToTitle?.();
-    window.__startMode('wave', 2, 'ringworld', ['jedi', 'duelist']);
-  });
-  await h.page.waitForFunction(() => window.__state === 'playing' && !!window.__game);
+  await h.startMode('wave', 2, 'ringworld', ['jedi', 'duelist']);
   const waves = await h.page.evaluate(() => {
     const g = window.__game;
     const plans = [];
@@ -61,11 +53,7 @@ try {
     waves.every((wave) => !wave.includes('rivalGalen') && !wave.includes('rivalCadBane')),
     waves.map((wave) => wave.filter((kind) => kind.startsWith('rival'))));
 
-  await h.page.evaluate(() => {
-    window.__quitToTitle?.();
-    window.__startMode('campaign', 1, 'station', ['din']);
-  });
-  await h.page.waitForFunction(() => window.__state === 'playing' && !!window.__game?.campaign);
+  await h.startMode('campaign', 1, 'station', ['din']);
   const mission = await h.page.evaluate(() => window.__game.campaign.squadFor(6, 12, null));
   check('late Missions squad gives Din an unselected Mandalorian rival',
     mission.includes('rivalBoKatan'), mission.filter((kind) => kind.startsWith('rival')));

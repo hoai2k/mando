@@ -25,6 +25,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { readGlb } from './lib/glb.mjs';
+import { makeCheck } from './harness.mjs';
 
 const require_ = createRequire(import.meta.url);
 const THREE = require_('three');
@@ -35,11 +36,7 @@ const SOURCE = new URL('../src/characters/eggrack.ts', import.meta.url).pathname
 /** how far a measured egg may sit from the constant, as a fraction of the box */
 const TOLERANCE = 0.004;
 
-const failures = [];
-const check = (name, ok, detail = '') => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? `: ${detail}` : ''}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 /** the EGG_SPHERES literal, read out of the module that uses it */
 function declared() {
@@ -174,9 +171,8 @@ for (let i = 0; i < Math.min(found.length, want.length); i++) {
     `[${found[i].map((v) => v.toFixed(5)).join(', ')}] vs [${want[i].map((v) => v.toFixed(5)).join(', ')}] — off by ${off.toFixed(5)}`);
 }
 
-if (failures.length) {
+if (check.failed) {
   console.log('\nThe sculpt has moved under the rack. Replace EGG_SPHERES in');
   console.log('src/characters/eggrack.ts with the measured values above.');
 }
-console.log(failures.length ? `\n${failures.length} FAILED` : '\nthe clutch is where the rack looks for it');
-process.exit(failures.length ? 1 : 0);
+check.done('Egg rack');

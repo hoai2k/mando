@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
-  MELEE_NAMES, RANGED_NAMES,
+  MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
   type MeleeKind, type PlayerCharacter, type RangedKind,
 } from '../characters/mandalorians';
 import { playableDef, type PlayableId, type PlayerProfile } from '../characters/roster';
-import { sharedWeaponScale } from '../characters/sharedWeaponGrips';
+import { SABER_STYLES, weaponProp } from '../characters/weaponProps';
 import { ThirdPersonCamera } from '../core/camera';
 import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
-import { gravityScale, hazardAt, type Board } from '../world/board';
+import { gravityScale, type Board } from '../world/board';
 import { GRAVITY, applyGravity, applyKnockback, newBurnState, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
 import type { Combatant, Enemy } from '../enemies/enemy';
@@ -21,6 +21,8 @@ import type { Vehicle } from '../game/vehicles';
 import { disposeSubtree, markOwned } from '../core/dispose';
 import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
+import { updateInCover } from './cover';
+import { updateRiding } from './riding';
 import { reachArm } from '../anim/seating';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import {
@@ -29,7 +31,7 @@ import {
 } from '../game/melee';
 
 /** fighters whose strike is a fist, a claw or a jaw: no blade to parry with */
-const UNARMED_MELEE: ReadonlySet<string> = new Set([
+const UNARMED_MELEE: ReadonlySet<PlayableId> = new Set<PlayableId>([
   'npc:massiff', 'npc:krykna', 'npc:broodmother', 'npc:spiderling', 'npc:enforcer',
 ]);
 /**
@@ -37,7 +39,7 @@ const UNARMED_MELEE: ReadonlySet<string> = new Set([
  * the blades in hand: the twin-saber left-hand parry (combatStudies.ts), and
  * Maris' block-then-flip-out, which opens on exactly that block.
  */
-export const PARRY_CLIPS: Partial<Record<string, string>> = {
+export const PARRY_CLIPS: Partial<Record<PlayableId, string>> = {
   ventress: 'saberParryUpper', jedi: 'saberParryUpper', maris: 'marisFlipOutUpper',
 };
 /** a blade that visibly grazed a body counts: the forgiveness on every swing (m) */
@@ -120,14 +122,13 @@ const TAKEN_SINK = 1.5;
 const _grip = new THREE.Vector3();
 const _elbowHint = new THREE.Vector3();
 
-const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
 /** below this much of a g there is nothing to lean on: you drift (waystation.ts) */
 const ZERO_G = 0.02;
-const JUMP_VEL = 10;
+export const JUMP_VEL = 10;
 const JET_ACCEL = 34;
 const JET_MAX_UP = 11.5;
-const FUEL_SECONDS = 3.4;
+export const FUEL_SECONDS = 3.4;
 const DASH_SPEED = 19;
 /**
  * Swimming, and what being built for it is worth.
@@ -156,7 +157,7 @@ const SUPERJUMP_FALL = 5.2;
  * since it is the freshest record the mover keeps of the ground, how long a
  * body still feels what the ground is doing (see `groundShake`).
  */
-const COYOTE_TIME = 0.12;
+export const COYOTE_TIME = 0.12;
 /** a jetpack A-tap released within this many seconds reads as a toggle, not a thrust hold */
 const JET_TAP = 0.22;
 /**
@@ -217,9 +218,8 @@ const FLIP_TUCK_FADE = 18;
 const JET_DESCENT_GRAV = 0.3;
 /** eased jetpack descent: terminal fall speed, m/s */
 const JET_DESCENT_FALL = 4.5;
-const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
-const SPRINT_REFILL = 4.5;      // seconds to refill from empty
+export const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
 /** the forward block pane's radius, and the closed bubble's (IG-11) */
 const SHIELD_PANE_R = 0.78;
@@ -304,9 +304,7 @@ const COVER_ARC = 0.62;
  * crouch. The margin is a head's worth — cover exactly your own height still
  * leaves your helmet over the top of it.
  */
-const COVER_STAND_OVER = 0.25;
-/** how far the hips drop into the cover crouch, as a fraction of body height */
-const CROUCH_DROP = 0.3;
+export const COVER_STAND_OVER = 0.25;
 /** A low passage a humanoid can duck through without a dedicated button. */
 const PASSAGE_HEIGHT = 0.68;
 const PASSAGE_SPEED = 2.6;
@@ -499,7 +497,7 @@ export class Player {
     minDot: 0,
   };
   /** 0..1 raise animation for the shield pane */
-  private blockRaise = 0;
+  blockRaise = 0;
   /** turn to meet a rear bolt first; the chase camera follows after the shield */
   private spinYaw: number | null = null;
   private spinTime = 0;
@@ -508,9 +506,9 @@ export class Player {
    * LB pressed with the stick centred arms a dash instead of a sprint; the
    * next direction pushed spends it. See the dash block below.
    */
-  private dashArmed = false;
+  dashArmed = false;
   /** LB was pressed while already moving, so this hold is a sprint */
-  private sprintLatched = false;
+  sprintLatched = false;
   /**
    * What is in the hands. `none` is empty-handed, which only a melee-only
    * fighter reaches: for everyone else 'blaster' is the stowed-melee state.
@@ -612,28 +610,28 @@ export class Player {
   private flyPose: FlightPose = 'fly';
   /** true while the flight poses own the body, so the lean can be shaped to them */
   private flying = false;
-  private coyote = 0;
-  private fireCd = 0;
+  coyote = 0;
+  fireCd = 0;
   /** A short trigger tap is kept while the blaster arm comes up. */
   private queuedHipShot = false;
   private hipFireRaise = 0;
   private gunRaised = false;
-  private thrusting = 0;
+  thrusting = 0;
   private dashTimer = 0;
   private dashCd = 0;
   private dashDir = new THREE.Vector3();
-  private slamming = false;
+  slamming = false;
   private meleeStep = 0;
-  private meleeTimer = 0;
+  meleeTimer = 0;
   private meleeComboWindow = 0;
-  private meleeHitPending = 0;
+  meleeHitPending = 0;
   /**
    * The swing in flight, as contact sees it (src/game/melee.ts): how long it
    * has run, how long it is, when its clip means to connect, and who it has
    * already struck. `swingDur` 0 means no swing is resolving.
    */
   private swingT = 0;
-  private swingDur = 0;
+  swingDur = 0;
   private swingHitAt = 0;
   private swingStartedAt = 0;
   /** the blade met another blade, or has run out of window: nothing more lands */
@@ -700,7 +698,7 @@ export class Player {
   private hitGuard = 0;
   /** true while that window came from respawning rather than from a hit */
   private freshBody = false;
-  private facingYaw = Math.PI;
+  facingYaw = Math.PI;
   /** which way the body is pointed, for anything outside that needs the arc */
   get yaw(): number { return this.facingYaw; }
   /**
@@ -709,10 +707,10 @@ export class Player {
    * aiming or registering a hit reads this instead. See PlayerProfile.
    */
   get hitHeight(): number { return this.profile.hitHeight; }
-  private wasGrounded = true;
+  wasGrounded = true;
   private footTimer = 0;
-  private sprintRefillDelay = 0;
-  private wasThrusting = false;
+  sprintRefillDelay = 0;
+  wasThrusting = false;
   private wasAiming = false;
   /** true while ADS — the HUD only draws a crosshair when this is set */
   aiming = false;
@@ -742,9 +740,9 @@ export class Player {
   /** a parked ride in mounting range (drives the HUD prompt) */
   nearVehicle: Vehicle | null = null;
   /** which corner this peek leans around: -1/+1 along the face tangent, 0 = unset */
-  private peekSide = 0;
-  private peekRecheck = 0;
-  private pushAwayTime = 0;
+  peekSide = 0;
+  peekRecheck = 0;
+  pushAwayTime = 0;
   /** subtree size the camera framing was last measured against (see frameCamera) */
   private framedNodes = -1;
   /** how long until the body is measured again, seconds */
@@ -789,7 +787,7 @@ export class Player {
    * a procedural stand-in and its authored model swaps in seconds later at its
    * own size — a frame computed once is a frame of the wrong body.
    */
-  private frameCamera(): void {
+  frameCamera(): void {
     // In the saddle the camera frames the *ride*, not the rider: see
     // `Vehicle.camSubject`. Re-measured every frame while mounted, which is
     // two reads and costs nothing, and `framedNodes` is dropped so stepping
@@ -996,7 +994,7 @@ export class Player {
    * on as normal. About a second: long enough to see the mouth close over you,
    * short enough that it is never a wait.
    */
-  private takenByHazard(at: THREE.Vector3): void {
+  takenByHazard(at: THREE.Vector3): void {
     if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
     this.takenT = TAKEN_TIME;
     this.takenBy.copy(at);
@@ -1360,7 +1358,7 @@ export class Player {
   }
 
   /** the character fights with blades and carries nothing to shoot with */
-  private get meleeOnly(): boolean {
+  get meleeOnly(): boolean {
     return this.profile.rangedOptions.length === 0;
   }
 
@@ -1389,7 +1387,7 @@ export class Player {
   }
 
   private get saberCapacity(): number {
-    return this.characterId === 'din' || this.characterId === 'maul' || this.characterId === 'revan' ? 1 : 2;
+    return SABER_STYLES[saberStyleFor(this.characterId)].pair ? 2 : 1;
   }
 
   /** blades physically in hand — thrown ones are out in the world */
@@ -2317,7 +2315,7 @@ export class Player {
     this.facingYaw = dampAngle(this.facingYaw, targetYaw, turn, dt);
   }
 
-  private get gunAimClip(): string {
+  get gunAimClip(): string {
     return this.characterId === 'duelist' ? 'dualPistolAimUpper' : 'aimUpper';
   }
 
@@ -2389,7 +2387,7 @@ export class Player {
       const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
-      const runUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaRunUpper' : this.characterId === 'maul' ? 'staffRunUpper' : 'saberRunUpper') : 'runUpper';
+      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper` : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2404,7 +2402,7 @@ export class Player {
     } else {
       const stance = gunUp ? null : this.bladeStance();
       anim.play('lower', stance?.lower ?? 'idleLower');
-      const idleUpper = this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper';
+      const idleUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}IdleUpper` : 'idleUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : stance?.upper ?? idleUpper);
     }
   }
@@ -2523,7 +2521,7 @@ export class Player {
    * The board's danger zones: kill zones end it, burn zones tick damage in
    * beats so the hurt feedback reads as heat, not a buzzer.
    */
-  private applyHazards(dt: number, game: Game): void {
+  applyHazards(dt: number, game: Game): void {
     if (!this.alive) return;
     tickHazards(this.burn, game.board, this.position, dt, (amount, kill, by) => {
       // no drowning term: the helmet is sealed, and swimming is a mode here
@@ -2603,7 +2601,7 @@ export class Player {
   get meleeBlade(): Blade | null {
     if (this.meleeBare || UNARMED_MELEE.has(this.characterId)) return null;
     if (this.meleeKind === 'sabers') return 'energy';
-    return this.characterId === 'din' ? 'beskar' : 'steel';
+    return weaponProp(staffPropFor(this.characterId)).blade ?? 'steel';
   }
 
   /** mid-strike, anywhere in the swing's contact window: a blade arriving now meets this one */
@@ -2827,166 +2825,9 @@ export class Player {
     return { dist: best, toward: new THREE.Vector3(bestX / len, 0, bestZ / len) };
   }
 
-  /**
-   * Hugging a box, RDR2-style: slide along the face with the stick, hold aim
-   * to lean out past the corner and shoot, release to tuck back in. Jump,
-   * dash, melee, pressing the cover button again, or pushing away all leave.
-   */
+  /** Hugging a box, RDR2-style — the rules are in `cover.ts`. */
   private updateInCover(dt: number, input: FrameInput, game: Game, realDt: number): void {
-    const anim = this.char.animator!;
-    // The gauges the open-field path owns still have to tick here, because this
-    // branch returns before reaching them. Ducking behind a crate used to leave
-    // jetpack fuel and sprint energy frozen exactly where they stood — and,
-    // worse, froze the shield: take cover with block held and `blockRaise`
-    // stayed pinned at 1, so `shieldCollider` kept reflecting bolts for as long
-    // as the player stayed tucked, draining nothing and leaving peek-fire
-    // available. Cover is made of real geometry; it does not also get a shield.
-    this.blocking = false;
-    this.blockRaise = damp(this.blockRaise, 0, 14, dt);
-    this.char.setBlock(this.blockRaise);
-    this.dashArmed = false;
-    this.sprintLatched = false;
-    this.sprinting = false;
-    this.thrusting = 0;
-    this.wasThrusting = false;
-    this.char.setThrust(0);
-    audio.setJetpackThrust(this.slot, 0);
-    this.sprintRefillDelay -= dt;
-    if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
-    // tucked against a box is a grounded state, so fuel comes back at the
-    // grounded rate — catching your breath behind cover is the point of it
-    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
-
-    const c = this.cover!;
-    // Cover has to stand a head over you before it is worth standing behind.
-    // At or below your own height, the body ducks under its line.
-    const crouched = c.top - this.position.y < this.height + COVER_STAND_OVER;
-    // face geometry: n = outward normal, t = tangent along the face
-    const tx = -c.nz, tz = c.nx;
-    const facePlane = c.plane;
-    const hugDist = this.radius + 0.22;
-    const { tMin, tMax } = c;
-    const myT = c.nx !== 0 ? this.position.z : this.position.x;
-
-    // ---- exits ----
-    const { fwdX, fwdZ, rightX, rightZ } = yawBasis(this.cam.yaw);
-    const wishX = fwdX * input.moveY + rightX * input.moveX;
-    const wishZ = fwdZ * input.moveY + rightZ * input.moveX;
-    const away = wishX * c.nx + wishZ * c.nz; // pushing off the wall
-    this.pushAwayTime = away > 0.6 ? this.pushAwayTime + dt : 0;
-    let leave = input.slamPressed || input.dashPressed || input.meleePressed || this.pushAwayTime > 0.18;
-    if (input.jumpPressed) {
-      leave = true;
-      this.velocity.y = JUMP_VEL;
-      this.grounded = false;
-    }
-    if (leave) {
-      this.cover = null;
-      this.peeking = false;
-      // a melee press still swings: fall through to the normal path next frame
-      this.syncVisual(dt, game);
-      anim.update(dt);
-      this.cam.update(realDt, this.position, game.board.physics, { aiming: input.aimHeld, speed: 0, dashing: false });
-      return;
-    }
-
-    // ---- desired spot on the face ----
-    const wasPeeking = this.peeking;
-    this.peeking = input.aimHeld && this.weapon === 'blaster';
-    let targetT: number;
-    if (this.peeking) {
-      // Pick the corner: prefer the side the camera leans toward, but when a
-      // target is locked, take whichever corner has a clear shot to it —
-      // boxes often sit in rows (crate stacks), and leaning out into the
-      // neighbouring crate is a peek wasted. Re-checked a few times a second
-      // while the aim is held, since targets move; the cone is cast from the
-      // chest, not the camera, which can be a frame stale on the first peek.
-      this.peekRecheck -= dt;
-      if (!wasPeeking || this.peekSide === 0 || this.peekRecheck <= 0) {
-        this.peekRecheck = 0.35;
-        const aim = this.cam.aimDir(new THREE.Vector3());
-        const along = aim.x * tx + aim.z * tz;
-        let side = this.peekSide !== 0 ? this.peekSide
-          : Math.abs(along) > 0.25 ? Math.sign(along)
-          : (myT - (tMin + tMax) / 2 >= 0 ? 1 : -1);
-        const chest = this.position.clone();
-        chest.y += 1.4;
-        const lock = this.aimAssistTarget(game, aim, chest, 0.9, 70);
-        if (lock) {
-          const clear = (sd: number): boolean => {
-            const pt = (sd > 0 ? tMax : tMin) + sd * (this.radius + 0.55);
-            const from = c.nx !== 0
-              ? new THREE.Vector3(facePlane + c.nx * hugDist, this.position.y + 1.4, pt)
-              : new THREE.Vector3(pt, this.position.y + 1.4, facePlane + c.nz * hugDist);
-            const to = lock.position.clone();
-            to.y += lock.height * 0.55;
-            const dir = to.sub(from);
-            const dist = dir.length();
-            return !game.board.physics.raycast(from, dir.normalize(), dist);
-          };
-          if (!clear(side) && clear(-side)) side = -side;
-        }
-        this.peekSide = side;
-      }
-      targetT = (this.peekSide > 0 ? tMax : tMin) + this.peekSide * (this.radius + 0.55);
-    } else {
-      this.peekSide = 0;
-      // tucked: slide along the face with the stick, staying behind the box
-      const slide = wishX * tx + wishZ * tz;
-      targetT = clamp(myT + slide * 3.6 * dt * 12, tMin + 0.2, tMax - 0.2);
-    }
-    let dx: number, dz: number;
-    if (c.nx !== 0) {
-      dx = (facePlane + c.nx * hugDist) - this.position.x;
-      dz = targetT - this.position.z;
-    } else {
-      dx = targetT - this.position.x;
-      dz = (facePlane + c.nz * hugDist) - this.position.z;
-    }
-    this.velocity.x = clamp(dx * 12, -6.5, 6.5);
-    this.velocity.z = clamp(dz * 12, -6.5, 6.5);
-    applyGravity(this.velocity, game.board, this.position, dt);
-    const res = game.board.physics.moveCapsule(this.position, this.radius, this.height, this.velocity, dt);
-    this.grounded = res.grounded;
-    this.wasGrounded = res.grounded;
-    if (!res.grounded && this.position.y < (game.board.voidY ?? game.board.physics.killY)) {
-      this.cover = null; // the floor is gone; back to normal rules
-    }
-
-    // out of bounds / hazard (same rules as the open field)
-    if (this.position.y < game.board.physics.killY) this.damage(999, this.position);
-    this.applyHazards(dt, game);
-
-    // ---- combat: shoot only while leaning out ----
-    this.lockedOn = this.peeking &&
-      !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
-    const masked: FrameInput = {
-      ...input,
-      shootHeld: input.shootHeld && this.peeking,
-      rocketPressed: input.rocketPressed && this.peeking,
-      meleePressed: false,
-      // no swinging and no rummaging through the loadout from behind cover
-      meleeSwapPressed: false,
-      rangedSwapPressed: false,
-    };
-    this.updateCombat(dt, masked, game);
-
-    // ---- facing & pose ----
-    const targetYaw = this.peeking ? this.cam.yaw : Math.atan2(c.nx, c.nz);
-    this.facingYaw = dampAngle(this.facingYaw, targetYaw, 14, dt);
-    // Behind cover shorter than you are, get under its line. Standing at full
-    // height behind a crate that comes up to your chest is not cover, it is a
-    // man standing next to a crate — which is what a playtest saw. The crouch
-    // holds while leaning out too: the peek goes round the corner, not over
-    // the top, so there is nothing to stand up for.
-    anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-    if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
-
-    this.syncVisual(dt, game);
-    anim.update(dt);
-    this.cam.update(realDt, this.position, game.board.physics, {
-      aiming: input.aimHeld, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
-    });
+    updateInCover.call(this, dt, input, game, realDt);
   }
 
   /** Nearest parked, riderless vehicle within mounting reach. */
@@ -3006,137 +2847,9 @@ export class Player {
     return best;
   }
 
-  /**
-   * In the saddle: input drives the vehicle and the rider sits its seat —
-   * exposed, since a mounted rider takes what is aimed at them (only a
-   * quarter of it bleeds into the ride) unless the ride's own deflector is up
-   * over both of them. Y steps off beside a parked ride and bails out of a
-   * moving one; either way a ride left with speed in it rolls on driverless
-   * until it stops.
-   */
+  /** In the saddle — the rules are in `riding.ts`. */
   private updateRiding(dt: number, input: FrameInput, game: Game, realDt: number): void {
-    const anim = this.char.animator!;
-    const v = this.vehicle!;
-    // A machine takes both hands — bars, tiller, controls — but an animal
-    // takes one: reins in the off hand, blaster in the other. So a mount is
-    // the one ride you can fight from, and every ride still stows the rocket
-    // rack and the blade (X is the animal's own charge).
-    const armed = !!v.def.living && this.alive && !this.meleeOnly;
-    // gauges keep ticking and the pack stays cold — mirror of the cover branch
-    this.blocking = false;
-    this.blockRaise = damp(this.blockRaise, 0, 14, dt);
-    this.char.setBlock(this.blockRaise);
-    this.dashArmed = false;
-    this.sprintLatched = false;
-    this.sprinting = false;
-    this.thrusting = 0;
-    this.wasThrusting = false;
-    this.char.setThrust(0);
-    audio.setJetpackThrust(this.slot, 0);
-    this.fuel = Math.min(1, this.fuel + dt / (FUEL_SECONDS * 0.55));
-    this.sprintRefillDelay -= dt;
-    if (this.sprintRefillDelay <= 0) this.energy = Math.min(1, this.energy + dt / SPRINT_REFILL);
-    this.snareTimer -= dt;
-    this.meleeTimer = 0;
-    this.meleeHitPending = 0;
-    this.swingDur = 0;
-    this.slamming = false;
-    this.swimming = false;
-    this.wading = false;
-    this.waterTime = 0; // the hull is between you and whatever hunts the water
-    this.aiming = armed && input.aimHeld;
-    this.lockedOn = false;
-    this.cover = null;
-
-    // ---- dismount ----
-    // Y is the only exit now that A is the accelerator, and it reads the
-    // speedometer: step off a parked ride, bail out of a moving one. Bailing
-    // keeps the ride's momentum and pops you up into a jetpack chain, which
-    // is both the fun exit and the one you want when the hull is about to go.
-    if (input.slamPressed || !v.alive) {
-      const carry = v.vel.clone();
-      const hop = Math.hypot(carry.x, carry.z) > 6;
-      v.dropRider();
-      this.velocity.copy(carry);
-      if (hop) {
-        this.velocity.y = JUMP_VEL;
-        game.particles.dustPuff(this.position, 6);
-      } else {
-        // step clear sideways so we don't stand inside the newly parked box
-        this.position.x += Math.cos(v.yaw) * (v.def.radius + 0.75);
-        this.position.z -= Math.sin(v.yaw) * (v.def.radius + 0.75);
-      }
-      this.grounded = false;
-      audio.setEngine(this.slot, 0);
-      this.syncVisual(dt, game);
-      anim.update(dt);
-      this.cam.update(realDt, this.position, game.board.physics, {
-        aiming: false, speed: Math.hypot(carry.x, carry.z), dashing: false,
-      });
-      return;
-    }
-
-    v.drive(dt, input, this, game);
-    // a crash or a ram chip can end the ride inside drive(): destroy() has
-    // already thrown us clear — settle the visuals and let next frame be normal
-    if (!this.vehicle) {
-      this.syncVisual(dt, game);
-      anim.update(dt);
-      this.cam.update(realDt, this.position, game.board.physics, {
-        aiming: false, speed: Math.hypot(this.velocity.x, this.velocity.z), dashing: false,
-      });
-      return;
-    }
-
-    // sit the seat, carry the ride's momentum (the camera paces off velocity)
-    v.seatWorld(this.position);
-    this.velocity.copy(v.vel);
-    this.grounded = true;
-    this.wasGrounded = true;
-    this.coyote = COYOTE_TIME;
-
-    // kill zones still end the rider (the hull is not armour against a sarlacc);
-    // burn zones cook the hull instead
-    const hzd = hazardAt(game.board, this.position);
-    if (hzd.kill) { this.takenByHazard(hzd.by ? hzd.by.center : this.position); return; }
-    if (hzd.dps > 0 && this.vehicle) v.damage(hzd.dps * dt, this.position, -1);
-    if (!this.vehicle) return; // the burn just finished the ride
-
-    // ---- firing from the saddle ----
-    // The same combat path the feet use, with the melee swing masked out (X
-    // charges the animal instead) and the ordnance with it: the free hand
-    // holds a blaster, not a launcher.
-    if (armed) {
-      this.lockedOn = this.weapon === 'blaster' &&
-        !!this.aimAssistTarget(game, this.cam.aimDir(new THREE.Vector3()), this.cam.camera.position);
-      this.updateCombat(dt, {
-        ...input, meleePressed: false, rocketPressed: false, slamPressed: false,
-      }, game);
-    }
-    // The chest turns to the camera while you are working the gun and back to
-    // the animal's nose when you are not — a rider twists in the saddle, and
-    // the bolts have to leave where the crosshair is looking.
-    const gunUp = armed && (input.aimHeld || input.shootHeld
-      || (this.weapon === 'blaster' && this.fireCd > -0.6));
-    this.facingYaw = dampAngle(this.facingYaw, gunUp ? this.cam.yaw : v.yaw, gunUp ? 14 : 10, dt);
-    // three ways to be carried, three poses: on your feet at a tiller, sat in
-    // a seat with the legs forward, or straddling a saddle over the hull
-    const stance = v.def.stance;
-    const lower = stance === 'stand' ? 'idleLower' : stance === 'seated' ? 'driveLower' : 'rideLower';
-    const upper = stance === 'stand' ? 'idleUpper' : stance === 'seated' ? 'driveUpper' : 'rideUpper';
-    anim.play('lower', lower);
-    if (this.meleeTimer <= 0) {
-      anim.play('upper', gunUp ? this.gunAimClip : upper);
-    }
-
-    this.syncVisual(dt, game);
-    anim.update(dt);
-    this.handsToControls(v, gunUp);
-    this.frameCamera();
-    const speed = Math.hypot(v.vel.x, v.vel.z);
-    this.cam.update(realDt, this.position, game.board.physics, {
-      aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,
-    });
+    updateRiding.call(this, dt, input, game, realDt);
   }
 
   /**
@@ -3151,7 +2864,7 @@ export class Player {
    * has. A ride with no declared grip, a hand busy with a gun, and anything
    * not on the canonical rig all keep the clip's arms.
    */
-  private handsToControls(v: Vehicle, gunUp: boolean): void {
+  handsToControls(v: Vehicle, gunUp: boolean): void {
     const rig = this.char.rig;
     const hold = v.def.hands;
     if (!rig || !hold) return;
@@ -3317,11 +3030,11 @@ export class Player {
     if (!this.throwFx) this.throwFx = new THREE.Group();
     if (this.throwFx.parent !== game.scene) game.scene.add(this.throwFx);
     let t = this.thrownSabers[hand];
+    const style = saberStyleFor(this.characterId);
     if (!t) t = this.thrownSabers[hand] = new ThrownSaber(this.throwFx, {
-      light: this.characterId !== 'din',
-      style: this.characterId === 'din' ? 'darksaber' : this.characterId === 'jedi' ? 'white' : this.characterId === 'maris' ? 'tonfa'
-        : this.characterId === 'maul' ? 'double' : this.characterId === 'revan' ? 'dark' : 'red',
-      scale: this.characterId === 'revan' ? sharedWeaponScale('revan') : 1,
+      light: style !== 'darksaber',
+      style,
+      scale: saberScaleFor(this.characterId),
     });
     this.saberIdle = 0;
     this.char.setSaberHeld?.(hand, false);
@@ -3382,7 +3095,7 @@ export class Player {
     audio.uiMove();
   }
 
-  private updateCombat(dt: number, input: FrameInput, game: Game): void {
+  updateCombat(dt: number, input: FrameInput, game: Game): void {
     // Which slot is in hand is never something the player has to arrange: the
     // button that uses a weapon is the button that draws it. All the D-pad
     // does is pick *which* blade or which gun that is, for a fighter carrying
@@ -3412,7 +3125,7 @@ export class Player {
       this.meleeRange = bare ? 1.8 : 3;
       // Use the weapon's keyed attack family; Din's single Darksaber keeps
       // the striking blade in his right hand across all three hits.
-      const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+      const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
       // The three original staff hits stay in the combo. Each hit has a
       // one-in-four chance to use its faster, individually keyed variation.
       // A fighter with a style of their own draws each hit at random between
@@ -3459,7 +3172,7 @@ export class Player {
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
       if (variant?.lowerAlways
         || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
-        this.char.animator!.playOnce('lower', variant?.lower ?? `${this.characterId === 'maul' ? 'staff' : 'melee'}Lower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08);
       }
       this.flourished = false;
       // the fighter comes out of every attack free to settle into either ready,
@@ -3477,7 +3190,7 @@ export class Player {
     ) {
       this.flourished = true;
       this.char.animator!.playOnce('upper', pickStyleMove(this.characterId, 'flourish')?.upper
-        ?? (this.characterId === 'maris' ? 'tonfaFlourish' : this.characterId === 'maul' ? 'staffFlourish' : 'saberFlourish'), 0.12);
+        ?? `${saberClipsFor(this.characterId).stance}Flourish`, 0.12);
       this.trailTimer = 0.55;
     }
     if (this.meleeTimer <= 0 && this.meleeComboWindow < 0 && this.weapon !== 'gaffi' && this.char.gaffi.visible) {
@@ -3654,7 +3367,7 @@ export class Player {
     this.velocity.y = Math.max(this.velocity.y, 6.5);
     this.facingYaw = Math.atan2(dir.x, dir.z);
     this.meleeStep = 3;   // lands as the finisher: knockdown + finisher damage
-    const set = this.meleeKind === 'sabers' ? (this.characterId === 'din' ? 'darksaber' : this.characterId === 'maris' ? 'tonfa' : this.characterId === 'maul' ? 'staff' : 'saber') : 'melee';
+    const set = this.meleeKind === 'sabers' ? saberClipsFor(this.characterId).attack : 'melee';
     if (this.weapon !== 'gaffi' && this.meleeKind === 'sabers') audio.saberIgnite();
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');
@@ -3700,7 +3413,7 @@ export class Player {
   }
 
   /** Best hostile near the aim direction (dot threshold), for soft-lock. */
-  private aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+  aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
@@ -3893,7 +3606,7 @@ export class Player {
     }
   }
 
-  private syncVisual(dt: number, game: Game): void {
+  syncVisual(dt: number, game: Game): void {
     this.char.root.position.copy(this.position);
     // YXZ, not the default XYZ. Three applies an XYZ Euler outermost-X-last,
     // which makes `rotation.x` a pitch about the *world* X axis — so a body

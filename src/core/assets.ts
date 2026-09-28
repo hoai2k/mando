@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { fbm2, makeRng } from './math';
 import { markShared } from './dispose';
 import { RETRY_DELAYS, tracked, warmFetch, warmImage, warmQueue, type WarmPriority } from './warm';
+import { rivalHero } from '../enemies/rivals';
 
 /**
  * Texture pipeline: procedural canvas textures by default; if an authored
@@ -61,12 +62,8 @@ export function textureUrl(name: string): string { return `${ASSET_ROOT}assets/t
  * halves have to agree on the filename or the warm request misses.
  */
 export function portraitName(id: string): string {
-  const rivalPortrait: Record<string, string> = {
-    rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
-    rivalGalen: 'jedi', rivalMaris: 'maris', rivalCadBane: 'duelist',
-    rivalEmbo: 'embo', rivalBossk: 'bossk', rivalBoKatan: 'bokatan',
-  };
-  return `portrait_${rivalPortrait[id] ?? id.replace('npc:', '')}`;
+  // a rival wears its hero's face
+  return `portrait_${rivalHero(id) ?? id.replace('npc:', '')}`;
 }
 
 /**

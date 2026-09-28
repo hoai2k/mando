@@ -441,6 +441,14 @@ export const TEXT = {
       carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
     },
     melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' },
+    /**
+     * A signature weapon the HUD names for itself rather than by its slot:
+     * a staff other than the gaffi, or a single saber rather than a pair.
+     */
+    props: {
+      beskarSpear: 'Beskar Spear', poleaxe: 'Poleaxe', quarterstaff: 'Quarterstaff', forcePike: 'Force Pike',
+      doubleSaber: 'Double Saber', redSaber: 'Red Saber',
+    },
     /** what a playable NPC's slots are called, built from its own name */
     npcRifle: (name: string) => `${name} Rifle`,
     npcBlaster: (name: string) => `${name} Blaster`,
@@ -537,10 +545,7 @@ export const TEXT = {
     kraytDragon: 'Greater Krayt', mythosaur: 'Mythosaur',
     sandworm: 'Dune Worm', zillo: 'Zillo Beast', nexu: 'Nexu', kwazelMaw: 'Kwazel Maw',
     spiderEgg: 'Krykna Egg', spiderling: 'Krykna Hatchling',
-    rivalMaul: 'Darth Maul', rivalRevan: 'Darth Revan', rivalVentress: 'Asajj Ventress',
-    rivalGalen: 'Galen Marek', rivalMaris: 'Maris Brood',
-    rivalCadBane: 'Cad Bane', rivalEmbo: 'Embo', rivalBossk: 'Bossk',
-    rivalBoKatan: 'Bo-Katan Kryze',
+    // a rival goes by its hero's name from `characters` above (src/enemies/rivals.ts)
   },
 
   // ---------- rides ----------

@@ -10,13 +10,9 @@
  *
  * Run:  node tools/test-loadout.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail) => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}: ${JSON.stringify(detail)}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch();
 const { page } = h;
@@ -51,13 +47,7 @@ const STEP = `(spec) => {
 }`;
 
 // Din carries the staff and the blade, so he exercises the D-pad as well
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('wave', 1, 'desert', ['din']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('wave', 1, 'desert', ['din']);
 
 const step = (spec) => page.evaluate(`(${STEP})(${JSON.stringify(spec)})`);
 
@@ -113,14 +103,8 @@ check('and the one who carries no gun throws a blade instead',
   !!ventress && ventress.ranged === 0 && ventress.throws, ventress);
 
 // ---- the throw itself: tap swings, hold throws, release brings it home ----
-await h.page.evaluate(() => window.__startMode('wave', 1, 'desert', ['ventress']));
-for (let i = 0; i < 400; i++) {
-  const there = await h.page.evaluate(() =>
-    window.__game?.board.kind === 'desert' && window.__state === 'playing');
-  if (there) break;
-  await new Promise((r) => setTimeout(r, 250));
-}
-await new Promise((r) => setTimeout(r, 9000));
+await h.startStepped('wave', 1, 'desert', ['ventress']);
+await sleep(9000);
 const rt = await h.page.evaluate(() => {
   window.__manual = true;
   const blank = () => ({
@@ -171,5 +155,4 @@ check('and leaves no ribbon hanging in the air', rt.ribbonAfter === false, rt);
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall loadout checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Loadout');

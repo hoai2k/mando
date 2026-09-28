@@ -31,7 +31,7 @@
  * Exits non-zero on an edge that lies. The shape report is information, not a
  * failure: it is there to be read.
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 function audit(stageName) {
   const g = window.__game;
@@ -399,7 +399,7 @@ async function settleProps(quietPolls = 6, minMs = 4000, timeoutMs = 60000) {
     const waited = Date.now() - t0;
     if (waited >= timeoutMs) return;
     if (quiet >= quietPolls && waited >= minMs) return;
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
   }
 }
 
@@ -439,7 +439,7 @@ for (const board of (only ? [only] : BOARDS)) {
       return c.stageIdx !== was;
     });
     if (!crossed) break;
-    await new Promise((r) => setTimeout(r, 2000));
+    await sleep(2000);
     await settleProps();
   }
 }

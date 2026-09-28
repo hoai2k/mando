@@ -1,8 +1,8 @@
 /**
  * Regression test for the game modes (docs/MODES.md): the three-way title,
  * PvP rules (distinct teams, the playable-NPC adapter, squad followers,
- * last-one-standing), the campaign on both level designs — the default room
- * chain and the experimental `?missions=new` stages, with sealed assault
+ * last-one-standing), the campaign on its outdoor stage chain — per-player
+ * cameras, a body turned off the wall it re-formed against, sealed assault
  * waves, boss arenas and liberation — the wave
  * game's boss wave, and — since the modes became the default — that
  * `?nomodes` still puts the original one-button title back.
@@ -430,81 +430,91 @@ check('select: ...and stands on the plinth once it has, picture retired',
   pendingNpc.ready && pendingNpc.visible && !pendingNpc.spinner && !pendingNpc.poster,
   JSON.stringify(pendingNpc));
 
-// ---- Campaign: the walled room chain ----
-// Missions runs the outdoor stage chain by default as of 2026-09-06; the room
-// chain (docs/LEVEL_DESIGN.md) is what `?missions=old` names. It is still a
-// shipped level design, so it is still checked: per-player cameras, a garrison
-// posted on a level of its own, one readable objective, and a body that comes
-// back off a wall rather than facing it.
+// ---- Campaign: the outdoor stage chain ----
+// `tools/test-missions.mjs` is where its shells, borders, ceiling and
+// transport doors are checked in detail. What is checked here is what makes
+// Missions a *mode*: per-player cameras, a body that comes back off a wall
+// rather than facing it, fights that seal, bosses that turn, and a run that
+// can be won. It starts on a fresh page, clear of the select screen above.
 await page.evaluate(() => { window.__manual = false; });
-await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/?missions=old`);
+await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/`);
 await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
-const legacyRoute = await page.evaluate(() => {
-  const g = window.__game, c = g.campaign, p = g.players[0];
-  const dx = c.objectivePos.x - p.position.x, dz = c.objectivePos.z - p.position.z;
-  const forward = (dx * Math.sin(p.yaw) + dz * Math.cos(p.yaw)) / Math.hypot(dx, dz);
-  const oldIdx = c.idx, oldPhase = c.phase;
-  c.idx = 2; c.phase = 'fight';
-  const room = c.level.rooms[2], at = c.respawnSpot(0);
-  const dirX = room.exit.x - room.entry.x, dirZ = room.exit.z - room.entry.z;
-  const before = (at.x - room.entry.x) * dirX + (at.z - room.entry.z) * dirZ < 0;
-  c.idx = oldIdx; c.phase = oldPhase;
-  return { forward, before, free: g.board.physics.capsuleFree(at.x, at.y, at.z, p.radius, p.height) };
-});
-check('campaign (room chain): spawn faces the route and a fight respawn is before its room',
-  legacyRoute.forward > 0.95 && legacyRoute.before && legacyRoute.free,
-  JSON.stringify(legacyRoute));
-const roomChain = await page.evaluate(`(() => {
+s = await page.evaluate(`(() => {
   const g = window.__game;
   (${STEP})(120);
   const c = g.campaign;
   return {
     shared: !!g.sharedCam, state: g.state,
     camsApart: g.players[0].cam !== g.players[1].cam,
-    rooms: c.level?.rooms?.map((r) => r.spec.kind).join(','),
-    stages: !!c.stage,
-    elevated: g.players.every((p) => p.position.y > 60),
+    zones: c.stage.zones.map((z) => z.spec.shell + ':' + z.spec.kind).join(','),
+    // On the stage's own floor — not at a fixed altitude. A mission stage
+    // used to always be a plate raised ninety metres over the territory, so
+    // "y > 60" meant "on the level"; a stage can stand on the board's real
+    // ground now, and on the Dune Sea's dunes that reads as y ≈ 0. What is
+    // worth checking either way is that the party is standing on the stage
+    // rather than under it or falling past it.
+    onStage: g.players.every((p) =>
+      Math.abs(p.position.y - c.stage.groundAt(p.position.x, p.position.z)) < 3),
     posted: g.enemies.filter((e) => e.alive).length,
     hint: g.hudTopLine(g.players[0]),
+    ceiling: Math.round(g.ceilingY - c.stage.floorY),
   };
 })()`);
-check('campaign: ?missions=old is the room chain, not the outdoor stages',
-  !roomChain.stages && roomChain.rooms?.startsWith('start') && roomChain.rooms?.endsWith('warlord'),
-  `stages=${roomChain.stages}: ${roomChain.rooms}`);
-check('campaign (room chain): every player their own camera, no shared rig',
-  !roomChain.shared && roomChain.camsApart && roomChain.state === 'fighting');
-check('campaign (room chain): the party stands on the mission level, garrison posted',
-  roomChain.elevated && roomChain.posted > 4,
-  `elevated ${roomChain.elevated} · posted ${roomChain.posted}`);
-check('campaign (room chain): the guide reads a bearing and a distance',
-  / \d+ m$/.test(roomChain.hint), roomChain.hint);
+check('campaign (stages): every player their own camera, no shared rig',
+  !s.shared && s.camsApart && s.state === 'fighting');
+check('campaign: the run opens outdoors on a trailhead, not in a box',
+  s.zones.startsWith('open:start') && !s.zones.startsWith('hall'), s.zones);
+check('campaign (stages): the party stands on the stage, garrison posted',
+  s.onStage && s.posted > 4, `on the stage ${s.onStage} · posted ${s.posted}`);
+check('campaign (stages): the guide reads a bearing and a distance',
+  / \d+ m$/.test(s.hint), s.hint);
+check('campaign: the playable sky has a lid over it', s.ceiling > 20, `${s.ceiling} m`);
 
-// ---- a fresh body faces out of the room it re-formed in ----
-// A respawn hands out a spot, not a bearing, and in a room chain the spot is
-// usually against a wall — so the body and its camera used to come back
-// looking at one. `openBearing` is what decides now: the clearest line out of
+// ---- a fresh body faces off the wall it re-formed against ----
+// A respawn hands out a spot, not a bearing, and a checkpoint can put the spot
+// hard against something — so the body and its camera used to come back
+// looking at it. `openBearing` is what decides now: the clearest line out of
 // where you are standing, biased toward the bearing the camera already had so
-// standing in the open never spins the view for nothing. Probed against a
-// real wall of the level, with the camera's old bearing pointed *into* it.
+// standing in the open never spins the view for nothing. Probed against real
+// geometry of the stage, with the camera's old bearing pointed *into* it.
+//
+// This was checked on the walled room chain until that was retired, where a
+// wall was never far off. The trailhead is open ground, so the probe looks
+// for the nearest thing a ray stops on around the party first and, failing
+// that, around each zone further in — a rock, a cliff, a door in the rim.
 const facing = await page.evaluate(`(() => {
-  const g = window.__game, p = g.players[0], phys = g.board.physics;
-  const eye = p.position.y + p.height * 0.55;
+  const g = window.__game, c = g.campaign, p = g.players[0], phys = g.board.physics;
+  const eyeAt = (spot) => c.stage.groundAt(spot.x, spot.z) + p.height * 0.55;
   const dirOf = (yaw) => p.position.clone().set(Math.sin(yaw), 0, Math.cos(yaw));
   const clearFrom = (spot, yaw) => {
-    const from = spot.clone(); from.y = eye;
+    const from = spot.clone(); from.y = eyeAt(spot);
     const h = phys.raycast(from, dirOf(yaw), 20);
     return +(h ? h.dist : 20).toFixed(2);
   };
-  // the nearest wall around the party, and a spot 60 cm off its face
-  let near = null;
-  for (let i = 0; i < 16; i++) {
-    const yaw = (i / 16) * Math.PI * 2;
-    const d = clearFrom(p.position, yaw);
-    if (d < 20 && (!near || d < near.d)) near = { yaw, d };
+  // A wall is something with an upright face. On a stage over the territory's
+  // own terrain a ray can also run into a dune rising ahead, which is ground
+  // to walk up rather than a wall to be turned off, so the search skips hits
+  // whose face points at the sky.
+  const wallFrom = (spot, yaw) => {
+    const from = spot.clone(); from.y = eyeAt(spot);
+    const h = phys.raycast(from, dirOf(yaw), 20);
+    return h && Math.abs(h.normal.y) < 0.5 ? h.dist : 20;
+  };
+  // the nearest wall around the party (or a zone ahead), and a spot 60 cm off its face
+  let near = null, origin = null;
+  for (const o of [p.position, ...c.stage.zones.map((z) => z.center)]) {
+    for (let i = 0; i < 16; i++) {
+      const yaw = (i / 16) * Math.PI * 2;
+      const d = wallFrom(o, yaw);
+      if (d < 20 && (!near || d < near.d)) near = { yaw, d };
+    }
+    if (near) { origin = o; break; }
   }
   if (!near) return null;
-  const spot = p.position.clone().addScaledVector(dirOf(near.yaw), near.d - 0.6);
+  const spot = origin.clone().addScaledVector(dirOf(near.yaw), near.d - 0.6);
+  spot.y = c.stage.groundAt(spot.x, spot.z);
+  const eye = eyeAt(spot);
   const chosen = phys.openBearing(spot.x, eye, spot.z, near.yaw);
   const apart = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
@@ -541,54 +551,13 @@ const facing = await page.evaluate(`(() => {
     atWall, reborn,
   };
 })()`);
-check('campaign (room chain): a body standing at a wall is turned off it',
+check('campaign (stages): a body standing at a wall is turned off it',
   !!facing && facing.chosen > facing.intoWall + 3 && facing.chosen > 4, JSON.stringify(facing));
-check('campaign (room chain): turning a body off a wall turns its camera too',
+check('campaign (stages): turning a body off a wall turns its camera too',
   !!facing && facing.atWall.agree && facing.atWall.offWall, JSON.stringify(facing?.atWall));
-check('campaign (room chain): ...and a body that respawns comes back agreeing',
+check('campaign (stages): ...and a body that respawns comes back agreeing',
   !!facing && facing.reborn.died && facing.reborn.cameBack !== null && facing.reborn.agree,
   JSON.stringify(facing?.reborn));
-
-// ---- Campaign: the outdoor stage chain, which is the default ----
-// `tools/test-missions.mjs` is where its shells, borders, ceiling and
-// transport doors are checked in detail. What is checked here is what makes
-// Missions a *mode* on that design too: fights that seal, bosses that turn,
-// and a run that can be won. The page goes back to the plain URL for it —
-// nothing after this section reads a flag.
-await page.evaluate(() => { window.__manual = false; });
-await page.goto(`http://localhost:${process.env.HARNESS_PORT ?? '4173'}/`);
-await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
-await startMode('campaign', 2, 'desert', ['din', 'armorer']);
-s = await page.evaluate(`(() => {
-  const g = window.__game;
-  (${STEP})(120);
-  const c = g.campaign;
-  return {
-    shared: !!g.sharedCam, state: g.state,
-    camsApart: g.players[0].cam !== g.players[1].cam,
-    zones: c.stage.zones.map((z) => z.spec.shell + ':' + z.spec.kind).join(','),
-    // On the stage's own floor — not at a fixed altitude. A mission stage
-    // used to always be a plate raised ninety metres over the territory, so
-    // "y > 60" meant "on the level"; a stage can stand on the board's real
-    // ground now, and on the Dune Sea's dunes that reads as y ≈ 0. What is
-    // worth checking either way is that the party is standing on the stage
-    // rather than under it or falling past it.
-    onStage: g.players.every((p) =>
-      Math.abs(p.position.y - c.stage.groundAt(p.position.x, p.position.z)) < 3),
-    posted: g.enemies.filter((e) => e.alive).length,
-    hint: g.hudTopLine(g.players[0]),
-    ceiling: Math.round(g.ceilingY - c.stage.floorY),
-  };
-})()`);
-check('campaign (stages): every player their own camera, no shared rig',
-  !s.shared && s.camsApart && s.state === 'fighting');
-check('campaign: the run opens outdoors on a trailhead, not in a box',
-  s.zones.startsWith('open:start') && !s.zones.startsWith('hall'), s.zones);
-check('campaign (stages): the party stands on the stage, garrison posted',
-  s.onStage && s.posted > 4, `on the stage ${s.onStage} · posted ${s.posted}`);
-check('campaign (stages): the guide reads a bearing and a distance',
-  / \d+ m$/.test(s.hint), s.hint);
-check('campaign: the playable sky has a lid over it', s.ceiling > 20, `${s.ceiling} m`);
 
 const walk = await page.evaluate(`(() => {
   const g = window.__game;

@@ -92,7 +92,7 @@ Open `/workbench/`, pick a character, press **Skinning review**:
   vertices the enabled fixes touch; **Highlight** on a fix paints that fix.
 - Tick / untick a fix to see it on and off live. **Approve** / **Discard**
   record a decision (kept in the browser across characters).
-- **Export decisions** downloads one JSON; `node tools/skin-decide.mjs
+- **Export decisions** downloads one JSON; `node tools/asset-pipeline/skin-decide.mjs
   <file>` folds it into the fix files (approve → applied, discard →
   discarded). Commit the JSON files.
 
@@ -198,7 +198,7 @@ plate visibly hinges.
 - `tools/lib/glb.mjs` — Node reader for the models (meshopt, quantised
   attributes, rest-pose matrices, skinned vertices).
 - `tools/skin-audit.mjs` — the audit; writes `public/models/skinfix/*.json`.
-- `tools/skin-decide.mjs` — folds workbench decisions into the fix files.
+- `tools/asset-pipeline/skin-decide.mjs` — folds workbench decisions into the fix files.
 - `src/characters/skinfix.ts` — runtime application; `authored.ts` calls it.
 - `src/workbench/skinPanel.ts` — the review panel.
 - `docs/skinning/` — before / after sheet for every model in the test pose.

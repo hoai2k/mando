@@ -20,26 +20,22 @@
  *
  *   node tools/test-loadperf.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
 const BOARDS = ['desert', 'station', 'nevarro', 'crevasse', 'trask', 'refinery', 'forge', 'ringworld', 'narkina'];
 /** headroom over the worst board's own working set, before we call it a leak */
 const TEXTURE_CEILING = 110;
 
 const h = await launch();
-let failed = 0;
-const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
-  if (!ok) failed++;
-};
+const check = makeCheck();
 
 const settle = async (board) => {
   await h.page.evaluate((b) => window.__startCoop(1, b), board);
   for (let i = 0; i < 240; i++) {
     if (await h.page.evaluate((b) => window.__game?.board.kind === b && window.__state === 'playing', board)) break;
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
   }
-  await new Promise((r) => setTimeout(r, 7000));   // let the sculpts land
+  await sleep(7000);   // let the sculpts land
 };
 
 const peak = { tex: 0, board: '' };
@@ -70,6 +66,6 @@ const allUsed = new Set(drift.flatMap((d) => d.used));
 const stale = Object.entries(warmLists).flatMap(([b, ids]) => ids.filter((id) => !allUsed.has(id)).map((id) => `${b}:${id}`));
 check('no stale entries in the prefetch list', stale.length === 0, stale.join(', '));
 
-console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
+if (h.errors.length) check('no page errors', false, h.errors.slice(0, 3));
 await h.close();
-process.exit(failed || h.errors.length ? 1 : 0);
+check.done('Loading and memory');

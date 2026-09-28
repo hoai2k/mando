@@ -86,7 +86,7 @@ export class PoseEditor {
   private click: { x: number; y: number; handle: Handle | null } | null = null;
 
   constructor(
-    private scene: THREE.Scene,
+    scene: THREE.Scene,
     private camera: THREE.PerspectiveCamera,
     private controls: OrbitControls,
     private dom: HTMLElement,

@@ -1,18 +1,24 @@
-import type { MandoId } from '../characters/mandalorians';
+import { MANDO_ROSTER, type MandoConfig } from '../characters/mandalorians';
 import type { EnemyKind } from '../enemies/enemy';
+import { RIVALS, RIVAL_KINDS, type RivalKind } from '../enemies/rivals';
 
-/** A rival is a playable identity on the hostile side, never a party member. */
-export const RIVAL_CHARACTER = {
-  rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
-  rivalGalen: 'jedi', rivalMaris: 'maris',
-  rivalCadBane: 'duelist', rivalEmbo: 'embo', rivalBossk: 'bossk',
-  rivalBoKatan: 'bokatan',
-} as const satisfies Partial<Record<EnemyKind, MandoId>>;
+/** every playable the roster files under `test`, by id; benched ones included */
+function heroes(test: (cfg: MandoConfig) => boolean): ReadonlySet<string> {
+  return new Set(Object.entries(MANDO_ROSTER).filter(([, cfg]) => test(cfg)).map(([id]) => id));
+}
+/** every rival whose hero `test` accepts, in the rival table's order */
+function rivals(test: (cfg: MandoConfig) => boolean): RivalKind[] {
+  return RIVAL_KINDS.filter((kind) => test(MANDO_ROSTER[RIVALS[kind]]));
+}
 
-const FORCE = new Set<string>(['jedi', 'maris', 'ventress', 'maul', 'revan']);
-const SITH = new Set<string>(['ventress', 'maul', 'revan']);
-const HUNTERS = new Set<string>(['duelist', 'embo', 'bossk', 'ig11']);
-const MANDOS = new Set<string>(['din', 'paz', 'bokatan', 'armorer']);
+const isForce = (cfg: MandoConfig) => cfg.group === 'force';
+const isSith = (cfg: MandoConfig) => !!cfg.sith;
+const isHunter = (cfg: MandoConfig) => cfg.group === 'hunter';
+const isMando = (cfg: MandoConfig) => cfg.group === 'mando';
+const FORCE = heroes(isForce);
+const SITH = heroes(isSith);
+const HUNTERS = heroes(isHunter);
+const MANDOS = heroes(isMando);
 
 export function ringworldRivalBoss(party: readonly string[]): EnemyKind {
   if (!party.includes('maul')) return 'rivalMaul';
@@ -24,19 +30,18 @@ export function ringworldRivalBoss(party: readonly string[]): EnemyKind {
 export function rivalsForWave(wave: number, party: readonly string[]): EnemyKind[] {
   if (wave < 6) return [];
   const chosen = new Set(party);
+  // nobody fights their own double
+  const open = (kinds: RivalKind[]) => kinds.filter((kind) => !chosen.has(RIVALS[kind]));
   const groups: EnemyKind[][] = [];
   if (party.some((id) => FORCE.has(id))) {
+    // a Sith in the party is met by the light side first, anyone else by the dark
+    const light = rivals((cfg) => isForce(cfg) && !isSith(cfg));
+    const dark = rivals((cfg) => isForce(cfg) && isSith(cfg));
     const preferLight = party.some((id) => SITH.has(id));
-    const order: EnemyKind[] = preferLight
-      ? ['rivalGalen', 'rivalMaris', 'rivalMaul', 'rivalRevan', 'rivalVentress']
-      : ['rivalMaul', 'rivalRevan', 'rivalVentress', 'rivalGalen', 'rivalMaris'];
-    groups.push(order.filter((kind) => !chosen.has(RIVAL_CHARACTER[kind as keyof typeof RIVAL_CHARACTER])));
+    groups.push(open(preferLight ? [...light, ...dark] : [...dark, ...light]));
   }
-  if (party.some((id) => HUNTERS.has(id))) {
-    groups.push((['rivalCadBane', 'rivalEmbo', 'rivalBossk'] as const)
-      .filter((kind) => !chosen.has(RIVAL_CHARACTER[kind])));
-  }
-  if (party.some((id) => MANDOS.has(id)) && !chosen.has('bokatan')) groups.push(['rivalBoKatan']);
+  if (party.some((id) => HUNTERS.has(id))) groups.push(open(rivals(isHunter)));
+  if (party.some((id) => MANDOS.has(id))) groups.push(open(rivals(isMando)));
   const picks: EnemyKind[] = [];
   for (let index = 0; picks.length < (wave >= 7 ? 2 : 1); index++) {
     let added = false;

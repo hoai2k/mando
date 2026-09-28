@@ -6,10 +6,10 @@ import { mat } from '../characters/builder';
 import { buildDoorFrame } from './corridor';
 
 /**
- * The blast door, shared by both Missions level designs.
+ * The Missions blast door.
  *
- * It began in the room chain (`world/mission-legacy.ts`) and the outdoor
- * stages (`world/mission.ts`) want exactly the same thing — a doorway that is
+ * It began in the room chain (since retired) and the outdoor stages
+ * (`world/mission.ts`) wanted exactly the same thing — a doorway that is
  * shut until progress opens it, and that is never passable while it still
  * looks shut — so it lives here rather than in either of them. The outdoor
  * builder subclasses it for the wall hatches a hall's waves come out of and

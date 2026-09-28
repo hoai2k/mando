@@ -224,7 +224,6 @@ export function buildTatooine(): Board {
 
   // Tusken camp: cluster of tents + totems
   const tentMat = new THREE.MeshStandardMaterial({ map: clothTexture(), roughness: 1, side: THREE.DoubleSide });
-  const campTentGeo = new THREE.ConeGeometry(2.6, 3.6, 7, 1, true);
   const campC = new THREE.Vector3(-70, 0, -60);
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;

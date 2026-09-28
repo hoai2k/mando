@@ -23,7 +23,7 @@
  *
  * Exits non-zero if anything is flagged, so it can gate a build.
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 // NB: the audit body is stringified into the page, so everything it uses has
 // to live inside it — no closure over module scope.
@@ -61,7 +61,7 @@ function audit(mode) {
    *
    * This is the difference between "unbacked" and "a hole". A mission's border
    * is one merged mesh of rock standing OUTSIDE the slab that colliders it
-   * (`ridge()` in world/mission.ts: the face of the cliff lands on the face of
+   * (`ridge()` in world/stage/ridge.ts: the face of the cliff lands on the face of
    * the wall, so nothing is proud of its collider), and a stage's floor plate
    * runs out past that slab — so probing "is there standable ground beside
    * this vertex" says yes on the dead side of a wall no player is ever on. A
@@ -408,8 +408,8 @@ const results = await h.page.evaluate(`(${audit.toString()})('boards')`);
 const BOARDS = results.map((r) => r.board);
 // This sweep used to run on a page that had not asked for the outdoor stages,
 // back when Missions ran the walled room chain unless it was told otherwise —
-// so for as long as it existed it audited `mission-legacy.ts` and reported it
-// as "the mission level". The design actually shipped had never been swept at
+// so for as long as it existed it audited that (since retired) chain and
+// reported it as "the mission level". The design actually shipped had never been swept at
 // all, which is how a run came to have rock walls you could walk through in
 // it. The stage chain is the default now, so the plain page is the right one;
 // what had to change is that the sweep walks *every* stage of a run.
@@ -512,7 +512,7 @@ for (const board of (only ? [only] : BOARDS)) {
     });
     if (!crossed) break;
     // the next stage's sculpts have to land before it is worth measuring
-    await new Promise((r) => setTimeout(r, 4000));
+    await sleep(4000);
   }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));

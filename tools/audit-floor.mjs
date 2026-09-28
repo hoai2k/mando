@@ -18,7 +18,7 @@
  *
  * Exits non-zero if anything is flagged.
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 function audit(stageName) {
   const g = window.__game;
@@ -307,7 +307,7 @@ for (const board of (only ? [only] : BOARDS)) {
       return c.stageIdx !== was;
     });
     if (!crossed) break;
-    await new Promise((r) => setTimeout(r, 4000));
+    await sleep(4000);
   }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));

@@ -4,6 +4,7 @@ import { addBox, addCyl, addSphere, makeCarbine, makeCrossbow, makeGaffi, makeLo
 import { addElectrostaffArcs } from '../characters/electrostaffFx';
 import { mountEnemyProp } from '../characters/enemies';
 import { MANDO_ROSTER, meleeKinds, rangedKinds, staffPropFor, type MandoId } from '../characters/mandalorians';
+import { WEAPON_PROPS, type PropFamily, type WeaponPropId } from '../characters/weaponProps';
 import type { Pose } from './poses';
 
 /**
@@ -25,9 +26,10 @@ export type WeaponSlot = 'melee' | 'gun';
 /**
  * How a weapon's builder lays it out, which decides how it sits on the hand
  * mount. A staff is built along Y and carried with a half-turn; a club and a
- * gun both take a quarter-turn, one head-up and one barrel-forward.
+ * gun both take a quarter-turn, one head-up and one barrel-forward. Each
+ * prop's family is the game's (WEAPON_PROPS); sabers are never on offer.
  */
-type Family = 'staff' | 'club' | 'gun';
+type Family = Exclude<PropFamily, 'saber'>;
 
 /** Each family's weaponR-local mount, as the game's builders place it. */
 const CANON: Record<Family, THREE.Matrix4> = {
@@ -63,7 +65,8 @@ const gunDark = (): THREE.Material => mat(0x1d1d1f, { rough: 0.55, metal: 0.4 })
  * `makeGaffi`'s layout exactly — a shaft along Y, the sculpt's long Z axis
  * turned onto it — so it sits in the hand the way every other staff does.
  */
-function polearm(id: string, length: number): Made {
+function polearm(id: WeaponPropId): Made {
+  const { length } = WEAPON_PROPS[id];
   const g = new THREE.Group();
   addCyl(g, wood(), 0.02, 0.024, length * 0.9, 0, 0, 0, 0, 0, 0, 8);
   g.userData.propPending = true;
@@ -83,7 +86,7 @@ function enemyRifle(): Made {
   const dark = mat(0x2a2a2a, { rough: 0.5, metal: 0.5 });
   addBox(g, dark, 0.045, 0.07, 0.4, 0, 0, 0.08);
   addCyl(g, dark, 0.014, 0.014, 0.3, 0, 0.01, 0.36, Math.PI / 2, 0, 0, 6);
-  mountEnemyProp(g, 'enemy_blaster_rifle', 0.75, 0, 0.14, 0, true);
+  mountEnemyProp(g, 'enemy_blaster_rifle', WEAPON_PROPS.enemy_blaster_rifle.length, 0, 0.14, 0, true);
   return { main: g };
 }
 function club(id: 'pirate_boarding_club' | 'alamite_stone_club'): Made {
@@ -91,11 +94,11 @@ function club(id: 'pirate_boarding_club' | 'alamite_stone_club'): Made {
   if (id === 'pirate_boarding_club') {
     addCyl(g, mat(0x241d16, { rough: 0.8 }), 0.025, 0.03, 0.7);
     addBox(g, steel(), 0.1, 0.14, 0.1, 0, 0.38, 0);
-    mountEnemyProp(g, id, 0.7, Math.PI / 2, 0, 0.14);
+    mountEnemyProp(g, id, WEAPON_PROPS[id].length, Math.PI / 2, 0, 0.14);
   } else {
     addCyl(g, mat(0x77695a, { rough: 1 }), 0.025, 0.035, 0.62);
     addSphere(g, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
-    mountEnemyProp(g, id, 0.68, Math.PI / 2, 0, 0.14);
+    mountEnemyProp(g, id, WEAPON_PROPS[id].length, Math.PI / 2, 0, 0.14);
   }
   return { main: g };
 }
@@ -103,14 +106,14 @@ function flameProjector(): Made {
   const g = new THREE.Group();
   addBox(g, gunDark(), 0.06, 0.09, 0.34, 0, 0, 0.05);
   addCyl(g, steel(), 0.045, 0.045, 0.3, 0, 0.01, 0.3, Math.PI / 2, 0, 0, 8);
-  mountEnemyProp(g, 'flame_projector', 0.6, 0, 0.2, 0, true);
+  mountEnemyProp(g, 'flame_projector', WEAPON_PROPS.flame_projector.length, 0, 0.2, 0, true);
   return { main: g };
 }
 function netLauncher(): Made {
   const g = new THREE.Group();
   addCyl(g, gunDark(), 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
   addCyl(g, steel(), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
-  mountEnemyProp(g, 'net_launcher', 0.5, 0, 0.12, 0, true);
+  mountEnemyProp(g, 'net_launcher', WEAPON_PROPS.net_launcher.length, 0, 0.12, 0, true);
   return { main: g };
 }
 
@@ -118,35 +121,40 @@ function netLauncher(): Made {
  * Everything a slot can be offered. The lightsabers (`saber_*`), Maris' saber
  * tonfas and the beskar spear are left out on purpose — see the file comment.
  */
-export const WEAPON_OPTIONS: WeaponOption[] = [
-  { id: 'gaffi', name: 'Gaderffii stick', slot: 'melee', family: 'staff', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi') }) },
-  { id: 'gaffi_collection', name: 'Tusken gaderffii', slot: 'melee', family: 'staff', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi_collection') }) },
-  { id: 'poleaxe', name: 'Poleaxe', slot: 'melee', family: 'staff', make: () => ({ main: makeGaffi(wood(), steel(), 'poleaxe') }) },
+const OPTIONS: Array<Omit<WeaponOption, 'family'> & { id: WeaponPropId | 'pistols' }> = [
+  { id: 'gaffi', name: 'Gaderffii stick', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi') }) },
+  { id: 'gaffi_collection', name: 'Tusken gaderffii', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'gaffi_collection') }) },
+  { id: 'poleaxe', name: 'Poleaxe', slot: 'melee', make: () => ({ main: makeGaffi(wood(), steel(), 'poleaxe') }) },
   {
-    id: 'electrostaff', name: 'Electrostaff', slot: 'melee', family: 'staff',
+    id: 'electrostaff', name: 'Electrostaff', slot: 'melee',
     make: () => {
       const main = makeGaffi(mat(0x25262c, { rough: 0.55, metal: 0.55 }), mat(0x888b98, { rough: 0.4, metal: 0.7 }), 'electrostaff');
       return { main, tick: addElectrostaffArcs(main) };
     },
   },
-  { id: 'force_pike', name: 'Force pike', slot: 'melee', family: 'staff', make: () => polearm('force_pike', 1.9) },
-  { id: 'rey_staff', name: 'Quarterstaff', slot: 'melee', family: 'staff', make: () => polearm('rey_staff', 1.7) },
-  { id: 'nightsister_polearm', name: 'Nightsister polearm', slot: 'melee', family: 'staff', make: () => polearm('nightsister_polearm', 1.8) },
-  { id: 'pirate_boarding_club', name: 'Boarding club', slot: 'melee', family: 'club', make: () => club('pirate_boarding_club') },
-  { id: 'alamite_stone_club', name: 'Stone club', slot: 'melee', family: 'club', make: () => club('alamite_stone_club') },
+  { id: 'force_pike', name: 'Force pike', slot: 'melee', make: () => polearm('force_pike') },
+  { id: 'rey_staff', name: 'Quarterstaff', slot: 'melee', make: () => polearm('rey_staff') },
+  { id: 'nightsister_polearm', name: 'Nightsister polearm', slot: 'melee', make: () => polearm('nightsister_polearm') },
+  { id: 'pirate_boarding_club', name: 'Boarding club', slot: 'melee', make: () => club('pirate_boarding_club') },
+  { id: 'alamite_stone_club', name: 'Stone club', slot: 'melee', make: () => club('alamite_stone_club') },
 
-  { id: 'carbine', name: 'EE-3 carbine', slot: 'gun', family: 'gun', make: () => ({ main: makeCarbine(gunmetal(), gunDark()) }) },
-  { id: 'longrifle', name: 'Long rifle', slot: 'gun', family: 'gun', make: () => ({ main: makeLongRifle(gunmetal(), gunDark()) }) },
-  { id: 'crossbow', name: 'Laser crossbow', slot: 'gun', family: 'gun', make: () => ({ main: makeCrossbow(gunmetal(), gunDark()) }) },
-  { id: 'pistol', name: 'Blaster pistol', slot: 'gun', family: 'gun', make: () => ({ main: makePistol(gunmetal(), gunDark()) }) },
+  { id: 'carbine', name: 'EE-3 carbine', slot: 'gun', make: () => ({ main: makeCarbine(gunmetal(), gunDark()) }) },
+  { id: 'longrifle', name: 'Long rifle', slot: 'gun', make: () => ({ main: makeLongRifle(gunmetal(), gunDark()) }) },
+  { id: 'crossbow', name: 'Laser crossbow', slot: 'gun', make: () => ({ main: makeCrossbow(gunmetal(), gunDark()) }) },
+  { id: 'pistol', name: 'Blaster pistol', slot: 'gun', make: () => ({ main: makePistol(gunmetal(), gunDark()) }) },
   {
-    id: 'pistols', name: 'Twin blaster pistols', slot: 'gun', family: 'gun',
+    id: 'pistols', name: 'Twin blaster pistols', slot: 'gun',
     make: () => ({ main: makePistol(gunmetal(), gunDark()), offhand: makePistol(gunmetal(), gunDark()) }),
   },
-  { id: 'enemy_blaster_rifle', name: 'Infantry blaster rifle', slot: 'gun', family: 'gun', make: enemyRifle },
-  { id: 'flame_projector', name: 'Flame projector', slot: 'gun', family: 'gun', make: flameProjector },
-  { id: 'net_launcher', name: 'Net launcher', slot: 'gun', family: 'gun', make: netLauncher },
+  { id: 'enemy_blaster_rifle', name: 'Infantry blaster rifle', slot: 'gun', make: enemyRifle },
+  { id: 'flame_projector', name: 'Flame projector', slot: 'gun', make: flameProjector },
+  { id: 'net_launcher', name: 'Net launcher', slot: 'gun', make: netLauncher },
 ];
+export const WEAPON_OPTIONS: WeaponOption[] = OPTIONS.map((o) => ({
+  ...o,
+  // the twin pistols are two of the one pistol sculpt
+  family: WEAPON_PROPS[o.id === 'pistols' ? 'pistol' : o.id].family as Family,
+}));
 
 export const findWeaponOption = (id: string | null | undefined): WeaponOption | undefined =>
   WEAPON_OPTIONS.find((o) => o.id === id);
@@ -197,26 +205,26 @@ export interface Loadout {
  * stands as the default for both slots. The swoop rider, creatures and props
  * are absent: nothing on them holds a weapon.
  */
-const NPC_WEAPON: Record<string, { id: string | null; family: Family }> = {
-  tusken: { id: 'gaffi_collection', family: 'staff' },
-  pyke: { id: 'enemy_blaster_rifle', family: 'gun' },
-  pirate: { id: 'enemy_blaster_rifle', family: 'gun' },
-  pirateMelee: { id: 'pirate_boarding_club', family: 'club' },
-  droid: { id: 'enemy_blaster_rifle', family: 'gun' },
-  stormtrooper: { id: 'enemy_blaster_rifle', family: 'gun' },
-  deathtrooper: { id: 'enemy_blaster_rifle', family: 'gun' },
-  darktrooper: { id: 'enemy_blaster_rifle', family: 'gun' },
-  escortDroid: { id: 'enemy_blaster_rifle', family: 'gun' },
-  marshal: { id: 'enemy_blaster_rifle', family: 'gun' },
-  fennec: { id: 'enemy_blaster_rifle', family: 'gun' },
-  capo: { id: 'enemy_blaster_rifle', family: 'gun' },
-  ringEnforcer: { id: 'enemy_blaster_rifle', family: 'gun' },
-  gunslinger: { id: 'pistols', family: 'gun' },
-  officer: { id: 'electrostaff', family: 'staff' },
-  flametrooper: { id: 'flame_projector', family: 'gun' },
-  quarren: { id: 'net_launcher', family: 'gun' },
-  alamite: { id: 'alamite_stone_club', family: 'club' },
-  enforcer: { id: null, family: 'club' },
+const NPC_WEAPON: Record<string, string | null> = {
+  tusken: 'gaffi_collection',
+  pyke: 'enemy_blaster_rifle',
+  pirate: 'enemy_blaster_rifle',
+  pirateMelee: 'pirate_boarding_club',
+  droid: 'enemy_blaster_rifle',
+  stormtrooper: 'enemy_blaster_rifle',
+  deathtrooper: 'enemy_blaster_rifle',
+  darktrooper: 'enemy_blaster_rifle',
+  escortDroid: 'enemy_blaster_rifle',
+  marshal: 'enemy_blaster_rifle',
+  fennec: 'enemy_blaster_rifle',
+  capo: 'enemy_blaster_rifle',
+  ringEnforcer: 'enemy_blaster_rifle',
+  gunslinger: 'pistols',
+  officer: 'electrostaff',
+  flametrooper: 'flame_projector',
+  quarren: 'net_launcher',
+  alamite: 'alamite_stone_club',
+  enforcer: null,
 };
 
 const localMatrix = (o: THREE.Object3D): THREE.Matrix4 =>
@@ -254,16 +262,18 @@ export function loadoutFor(subjectId: string, inst: CharacterInstance & { gaffi?
     return { gun, melee, hand: gun ? 'gun' : 'melee' };
   }
   const npc = NPC_WEAPON[subjectId];
-  if (!npc) return null;
+  if (npc === undefined) return null;
+  const option = findWeaponOption(npc);
   const main = rig.bones.weaponR.children[0] ?? null;
   const held: HeldDefault | null = main ? {
-    main, offhand: rig.bones.weaponL.children[0] ?? null, family: npc.family,
+    // bare fists (the Wookiee's) are mounted as a club would be
+    main, offhand: rig.bones.weaponL.children[0] ?? null, family: option?.family ?? 'club',
     // an enemy builder places each weapon by hand, so its own spawn transform
     // is the mount the weapon was designed around
     canon: localMatrix(main),
   } : null;
-  const slot: SlotDefault = { id: npc.id, name: nameOf(npc.id), held };
-  return { melee: slot, gun: slot, hand: findWeaponOption(npc.id)?.slot ?? 'melee' };
+  const slot: SlotDefault = { id: npc, name: nameOf(npc), held };
+  return { melee: slot, gun: slot, hand: option?.slot ?? 'melee' };
 }
 
 // ---------- swapping the prop on a figure ----------

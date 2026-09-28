@@ -5,9 +5,8 @@
  * cameras, sealed fights, bosses, liberation. This is about the level design
  * that replaced the room chain: the shells and their borders, the flight
  * ceiling and the sky it cuts in two, the stages and their transport doors,
- * the guidance, and the rides. That design is what Missions runs, so every
- * check here is on the plain page; the last section checks that
- * `?missions=old` still runs the walled room chain.
+ * the guidance, and the rides. That design is what Missions runs — the room
+ * chain has been retired — so every check here is on the plain page.
  *
  * The headless GPU renders this game at a crawl, so the checks drive the
  * *simulation* directly: `__manual` pauses the live loop and `game.update` is
@@ -43,9 +42,9 @@ const step = (n, over = null) => page.evaluate(STEP, [n, over]);
 
 /**
  * The outdoor stages are what Missions raises with no flag at all (as of
- * 2026-09-06), so the plain page is the one every check in this file wants;
- * `?missions=old` is the room chain, and the last section is what holds that.
- * Pass `reload` where a check wants a fresh page on the query it is already on
+ * 2026-09-06, and the only design since the room chain was retired), so the
+ * plain page is the one every check in this file wants. Pass `reload` where a
+ * check wants a fresh page on the query it is already on
  * (the per-board audit builds nine levels and does not want the last one's
  * geometry still standing).
  */
@@ -872,8 +871,8 @@ for (const board of boards) {
 // The outdoor stage chain is what Missions runs with no flag at all as of
 // 2026-09-06, so the plain URL is the case that matters most here. What is
 // running is told by what it *has*, not by its class name: the bundle is
-// minified, so `constructor.name` is two letters in a build. The room chain
-// has `level.rooms`; the outdoor stages have `stage.zones`.
+// minified, so `constructor.name` is two letters in a build. The retired room
+// chain had `level.rooms`; the outdoor stages have `stage.zones`.
 const chainOf = () => page.evaluate(() => {
   const c = window.__game.campaign;
   return {
@@ -889,16 +888,6 @@ const plain = await chainOf();
 check('with no flag Missions runs the outdoor stages',
   plain.hasStages && !plain.rooms, `stages=${plain.hasStages}: ${plain.zones}`);
 check('and the stages run under a ceiling', typeof plain.ceiling === 'number', String(plain.ceiling));
-
-// both spellings of "give me the old one" name the room chain
-for (const flag of ['?missions=old', '?backup=missions']) {
-  await startMode('campaign', 1, 'desert', ['din'], flag);
-  const legacy = await chainOf();
-  check(`${flag} names the room chain`,
-    !legacy.hasStages && legacy.rooms?.startsWith('start') && legacy.rooms?.endsWith('warlord'),
-    `stages=${legacy.hasStages}: ${legacy.rooms}`);
-  check(`${flag} runs without a ceiling over it`, legacy.ceiling === null, String(legacy.ceiling));
-}
 
 // ---------------------------------------------------------------- what a hit is worth
 //

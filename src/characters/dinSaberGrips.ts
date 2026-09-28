@@ -1,6 +1,6 @@
-import * as THREE from 'three';
+import type * as THREE from 'three';
 import workbenchExport from './data/dinSaberGrips.json';
-import { gripClipKey } from './gripClipKey';
+import { applyGrip, clipGrips } from './grips';
 
 /** Workbench pose names translated to the upper clips played by Din. */
 const UPPER_CLIP: Record<string, string> = {
@@ -12,14 +12,12 @@ const UPPER_CLIP: Record<string, string> = {
   'saber3:staffDiagonal': 'staffDiagonalUpper',
 };
 
-const grips = new Map(workbenchExport.entries.map((entry) => [UPPER_CLIP[entry.pose], entry]));
+const gripFor = clipGrips(workbenchExport.entries, UPPER_CLIP);
 const base = workbenchExport.entries[0];
+/** the hilt as the authored idle holds it, before any strike's edit */
+const idleHilt = { editedPosition: base.basePosition, editedQuaternion: base.baseQuaternion };
 
 /** Keep the authored idle hilt alignment and apply each strike's measured roll. */
 export function applyDinSaberGrip(saber: THREE.Object3D, upperClip: string | null): void {
-  const grip = grips.get(gripClipKey(upperClip));
-  const position = grip?.editedPosition ?? base.basePosition;
-  const quaternion = grip?.editedQuaternion ?? base.baseQuaternion;
-  saber.position.set(position[0], position[1], position[2]);
-  saber.quaternion.set(quaternion[0], quaternion[1], quaternion[2], quaternion[3]).normalize();
+  applyGrip(saber, gripFor(upperClip) ?? idleHilt);
 }

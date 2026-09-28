@@ -24,7 +24,7 @@ import { VsScreen } from './ui/vs';
 import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
-import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
+import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { authoredCached, releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';
@@ -32,6 +32,7 @@ import { fitStats } from './world/collide';
 import { MISSION_LAYOUTS } from './world/mission-layouts';
 import type { StageSpec, ZoneSpec } from './world/mission';
 import { modesEnabled, type GameMode } from './game/modes';
+import { expose } from './debug';
 
 const app = document.getElementById('app')!;
 loadFonts();
@@ -41,7 +42,7 @@ loadSavedConfig();
 // The tunables in src/config.ts are meant to be adjustable while playing:
 //   __config.audio.sfx = 0.2; __audio.applyConfig(); __saveAudio();
 //   __config.camera.dynamic = false; __saveCamera();
-Object.assign(window, {
+expose({
   __config: config, __audio: audio, __saveAudio: saveAudioConfig, __saveCamera: saveCameraConfig,
 });
 
@@ -115,7 +116,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+export type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
 let state: AppState = 'title';
 /** Input source whose menu confirmation opened the character select. */
 let menuSource = -1;
@@ -213,8 +214,7 @@ const departures = buildDepartures(select, (info) => {
 select.onBack = () => setState('title');
 // debug/testing handle: put the territory focus on a known card, so a test can
 // check where a direction press goes from there without walking to it first
-(window as unknown as { __selectFocus?: unknown }).__selectFocus =
-  (i: number): void => select.setFocus(i);
+expose({ __selectFocus: (i) => select.setFocus(i) });
 
 // ----- pvp VS splash (mode select only) -----
 const vs = new VsScreen(menuLayer);
@@ -402,56 +402,56 @@ end.addButtons(null, [
 ]);
 end.onBack = () => quitToTitle();
 
-(window as unknown as { __charsel?: CharacterSelect }).__charsel = charSelect; // debug/testing handle
-(window as unknown as { __vs?: VsScreen }).__vs = vs;                          // debug/testing handle
-(window as unknown as { __input?: InputManager }).__input = input;              // debug/testing handle
-// Board factories, so a test can build any board on its own — the collision
-// audit in tools/audit-collision.mjs walks every board's meshes against its
-// physics world without having to play nine matches to reach them.
-(window as unknown as { __boards?: typeof BOARDS }).__boards = BOARDS;
-(window as unknown as { __voices?: unknown }).__voices = VOICES;   // debug/testing handle
-// debug/testing handle: the .glb loads still in the air. A sculpt's colliders
-// are fitted in loadProp's onLoad, so "the board is up" and "the board is
-// solid" are different moments -- furthest apart on the second board of a
-// session, whose sculpts the previous match's releaseModels() gave back. The
-// collision audit waits on this rather than on a frame count, so a slow runner
-// measures the same world a fast one does.
-(window as unknown as { __loading?: () => string[] }).__loading = () => tracked.inFlight();
-// debug/testing handle: plan a wave's spawn positions without building any of
-// it, so tools/audit-spawns.mjs can check every board's every wave for a body
-// standing inside the scenery.
-(window as unknown as { __planWave?: unknown }).__planWave =
-  (board: Board, wave: number, players: number, nx: number, ny: number, nz: number) =>
+// The bench behind __buildBody / __bodySize below: bodies built outside any
+// match, kept here so each can be measured once its models have landed.
+const bodyBench: THREE.Object3D[] = [];
+/** a roster id builds as a fighter; anything else is a bare hostile kind */
+const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId);
+expose({
+  __charsel: charSelect, // debug/testing handle
+  __vs: vs,              // debug/testing handle
+  __input: input,        // debug/testing handle
+  // Board factories, so a test can build any board on its own — the collision
+  // audit in tools/audit-collision.mjs walks every board's meshes against its
+  // physics world without having to play nine matches to reach them.
+  __boards: BOARDS,
+  __voices: VOICES,   // debug/testing handle
+  // debug/testing handle: the .glb loads still in the air. A sculpt's colliders
+  // are fitted in loadProp's onLoad, so "the board is up" and "the board is
+  // solid" are different moments -- furthest apart on the second board of a
+  // session, whose sculpts the previous match's releaseModels() gave back. The
+  // collision audit waits on this rather than on a frame count, so a slow runner
+  // measures the same world a fast one does.
+  __loading: () => tracked.inFlight(),
+  // debug/testing handle: plan a wave's spawn positions without building any of
+  // it, so tools/audit-spawns.mjs can check every board's every wave for a body
+  // standing inside the scenery.
+  __planWave: (board, wave, players, nx, ny, nz) =>
     planWave(board, wave, players, new THREE.Vector3(nx, ny, nz))
-      .map((p) => ({ kind: p.kind, pos: [p.pos.x, p.pos.y, p.pos.z], body: enemyBody(p.kind) }));
-// debug/testing handle: the playable roster, so a test never has to hardcode a
-// character's name or count — both have changed under it before
-(window as unknown as { __roster?: unknown }).__roster =
-  PLAYABLE_MANDO_IDS.map((id) => ({ id, name: MANDO_ROSTER[id].name }));
-// debug/testing handle: the widened PvP roster, so a test can put a fighter on
-// the select stage without walking the menus to get there
-(window as unknown as { __pvpRoster?: unknown }).__pvpRoster = PVP_ROSTER;
-// debug/testing handles: a bench for building one of anything outside a match
-// and measuring what it actually renders as, for tools/audit-hitboxes.mjs.
-// A Def's declared radius/height cannot answer this on its own — a character
-// is born a procedural stand-in and swaps to its authored .glb seconds later,
-// so the bench is built once and measured after the models have landed.
-(window as unknown as { __enemyKinds?: unknown }).__enemyKinds = enemyKinds();
-// debug/testing handle: has this .glb actually arrived and parsed? The retry
-// path in characters/authored.ts is otherwise invisible from outside — a model
-// that missed on a bad connection and is asked for again while the match runs
-// looks, from the DOM, exactly like one that never existed.
-/**
- * Poster generator hook (tools/posters.mjs).
- *
- * Stands one fighter on the select screen's first plinth, waits for its
- * authored model, and renders the picture through that screen's own camera —
- * see src/ui/posters.ts for why the shot has to come from the screen itself
- * rather than from a camera the tool sets up.
- */
-(window as unknown as { __posterShot?: unknown }).__posterShot =
-  async (id: string, timeoutMs = 60000): Promise<unknown> => {
-    charSelect.configure({ roster: [id], title: 'Poster', minPlayers: 1 });
+      .map((p) => ({ kind: p.kind, pos: [p.pos.x, p.pos.y, p.pos.z], body: enemyBody(p.kind) })),
+  // debug/testing handle: the playable roster, so a test never has to hardcode a
+  // character's name or count — both have changed under it before
+  __roster: PLAYABLE_MANDO_IDS.map((id) => ({ id, name: MANDO_ROSTER[id].name })),
+  // debug/testing handle: the widened PvP roster, so a test can put a fighter on
+  // the select stage without walking the menus to get there
+  __pvpRoster: PVP_ROSTER,
+  // debug/testing handles: a bench for building one of anything outside a match
+  // and measuring what it actually renders as, for tools/audit-hitboxes.mjs.
+  // A Def's declared radius/height cannot answer this on its own — a character
+  // is born a procedural stand-in and swaps to its authored .glb seconds later,
+  // so the bench is built once and measured after the models have landed.
+  __enemyKinds: enemyKinds(),
+  /**
+   * Poster generator hook (tools/posters.mjs).
+   *
+   * Stands one fighter on the select screen's first plinth, waits for its
+   * authored model, and renders the picture through that screen's own camera —
+   * see src/ui/posters.ts for why the shot has to come from the screen itself
+   * rather than from a camera the tool sets up.
+   */
+  __posterShot: async (id, timeoutMs = 60000) => {
+    // tools/posters.mjs names the fighter by its playable id
+    charSelect.configure({ roster: [id as PlayableId], title: 'Poster', minPlayers: 1 });
     charSelect.show();
     const t0 = performance.now();
     // drive the screen's own update, so the body is built and fitted to the
@@ -463,71 +463,72 @@ end.onBack = () => quitToTitle();
       if (performance.now() - t0 > timeoutMs) return { id, error: 'model never arrived' };
       await new Promise((r) => requestAnimationFrame(r));
     }
-  };
-(window as unknown as { __modelCached?: unknown }).__modelCached =
-  (id: string): boolean => authoredCached(id);
-const bodyBench: THREE.Object3D[] = [];
-/** a roster id builds as a fighter; anything else is a bare hostile kind */
-const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId);
-(window as unknown as { __buildBody?: unknown }).__buildBody = (id: string): number => {
-  const inst = isPlayable(id)
-    ? playableDef(id as PlayableId).build()
-    : buildEnemyCharacter(id as EnemyKind);
-  bodyBench.push(inst.root);
-  return bodyBench.length - 1;
-};
-(window as unknown as { __bodySize?: unknown }).__bodySize = (i: number) => {
-  const root = bodyBench[i];
-  const box = new THREE.Box3();
-  visibleBounds(root, box);
-  if (box.isEmpty()) return null;
-  // A downsampled point cloud of the body as it actually renders, in the local
-  // frame the game positions it in (feet at the origin, +z forward). The audit
-  // needs real geometry, not a bounding box: a box says a krayt dragon is five
-  // metres tall, and cannot say which of those metres a bolt would pass
-  // through.
-  const pts: number[] = [];
-  const wts: number[] = [];
-  const v = new THREE.Vector3();
-  const part = new THREE.Box3();
-  const psize = new THREE.Vector3();
-  root.updateWorldMatrix(false, true);
-  root.traverse((o) => {
-    if (!o.visible) return;
-    const geo = (o as THREE.Mesh).geometry;
-    const pos = geo?.attributes?.position;
-    if (!pos) return;
-    // Each mesh contributes a capped number of points so a dense sculpt and a
-    // coarse stand-in are sampled alike — but the points carry the mesh's
-    // *bulk* as their weight, so coverage means "how much of the body can be
-    // hit", not "how many of its parts". Unweighted, a rifle barrel counted
-    // for as much as a torso and read as a third of the fighter.
-    if (!geo.boundingBox) geo.computeBoundingBox();
-    if (!geo.boundingBox) return;
-    part.copy(geo.boundingBox).applyMatrix4(o.matrixWorld);
-    part.getSize(psize);
-    const bulk = Math.max(psize.x * psize.y * psize.z, 1e-6);
-    const step = Math.max(1, Math.floor(pos.count / 120));
-    const taken = Math.ceil(pos.count / step);
-    for (let k = 0; k < pos.count; k += step) {
-      v.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
-      pts.push(+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3));
-      wts.push(bulk / taken);
-    }
-  });
-  return {
-    nodes: nodeCount(root),
-    min: [box.min.x, box.min.y, box.min.z],
-    max: [box.max.x, box.max.y, box.max.z],
-    pts, wts,
-  };
-};
-// the declared collider + stat sheet behind a kind, so the audit compares
-// against the same numbers the game itself fights with
-(window as unknown as { __bodyDecl?: unknown }).__bodyDecl = (id: string) =>
-  isPlayable(id)
-    ? { kind: 'playable', ...playableDef(id as PlayableId).profile }
-    : { kind: 'enemy', ...enemyStats(id as EnemyKind), hitParts: enemyHitParts(id as EnemyKind) };
+  },
+  // debug/testing handle: has this .glb actually arrived and parsed? The retry
+  // path in characters/authored.ts is otherwise invisible from outside — a model
+  // that missed on a bad connection and is asked for again while the match runs
+  // looks, from the DOM, exactly like one that never existed.
+  __modelCached: (id) => authoredCached(id),
+  __buildBody: (id) => {
+    const inst = isPlayable(id)
+      ? playableDef(id as PlayableId).build()
+      : buildEnemyCharacter(id as EnemyKind);
+    bodyBench.push(inst.root);
+    return bodyBench.length - 1;
+  },
+  __bodySize: (i) => {
+    const root = bodyBench[i];
+    const box = new THREE.Box3();
+    visibleBounds(root, box);
+    if (box.isEmpty()) return null;
+    // A downsampled point cloud of the body as it actually renders, in the local
+    // frame the game positions it in (feet at the origin, +z forward). The audit
+    // needs real geometry, not a bounding box: a box says a krayt dragon is five
+    // metres tall, and cannot say which of those metres a bolt would pass
+    // through.
+    const pts: number[] = [];
+    const wts: number[] = [];
+    const v = new THREE.Vector3();
+    const part = new THREE.Box3();
+    const psize = new THREE.Vector3();
+    root.updateWorldMatrix(false, true);
+    root.traverse((o) => {
+      if (!o.visible) return;
+      const geo = (o as THREE.Mesh).geometry;
+      const pos = geo?.attributes?.position;
+      if (!pos) return;
+      // Each mesh contributes a capped number of points so a dense sculpt and a
+      // coarse stand-in are sampled alike — but the points carry the mesh's
+      // *bulk* as their weight, so coverage means "how much of the body can be
+      // hit", not "how many of its parts". Unweighted, a rifle barrel counted
+      // for as much as a torso and read as a third of the fighter.
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      if (!geo.boundingBox) return;
+      part.copy(geo.boundingBox).applyMatrix4(o.matrixWorld);
+      part.getSize(psize);
+      const bulk = Math.max(psize.x * psize.y * psize.z, 1e-6);
+      const step = Math.max(1, Math.floor(pos.count / 120));
+      const taken = Math.ceil(pos.count / step);
+      for (let k = 0; k < pos.count; k += step) {
+        v.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+        pts.push(+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3));
+        wts.push(bulk / taken);
+      }
+    });
+    return {
+      nodes: nodeCount(root),
+      min: [box.min.x, box.min.y, box.min.z],
+      max: [box.max.x, box.max.y, box.max.z],
+      pts, wts,
+    };
+  },
+  // the declared collider + stat sheet behind a kind, so the audit compares
+  // against the same numbers the game itself fights with
+  __bodyDecl: (id) =>
+    isPlayable(id)
+      ? { kind: 'playable', ...playableDef(id as PlayableId).profile }
+      : { kind: 'enemy', ...enemyStats(id as EnemyKind), hitParts: enemyHitParts(id as EnemyKind) },
+});
 
 const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
 
@@ -574,7 +575,7 @@ function planContext(): WarmContext {
 function setState(s: AppState): void {
   state = s;
   if (s !== 'playing') warmQueue.setCombatBusy(false);
-  (window as unknown as { __state?: string }).__state = s;   // debug/testing handle
+  expose({ __state: s });   // debug/testing handle
   for (const key of Object.keys(screens)) screens[key].hide();
   if (s === 'characters') {
     if (!charSelect.visible) {
@@ -650,7 +651,7 @@ function buildMatch(): void {
   // it. That was the last thing keeping two runs on one seed apart; see the
   // seed shim in `tools/harness.mjs`. Unset outside the harness, and one
   // optional call either way.
-  dbg.__beforeBuild?.();
+  window.__beforeBuild?.();
   // the registry describes the board being raised now, not every board this
   // tab has ever seen
   propsUsed.clear();
@@ -672,7 +673,7 @@ function buildMatch(): void {
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars], mode, botCount);
-  (window as unknown as { __game?: Game }).__game = game; // debug/testing handle
+  expose({ __game: game }); // debug/testing handle
   built = true;
 }
 
@@ -730,7 +731,7 @@ function updateLoading(dt: number): void {
   loading.progress(ratio, note, built && p.pending > 0 && loadTimer > LOAD_SKIP_AFTER);
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
-  if (dbg.__holdLoading) return;
+  if (window.__holdLoading) return;
   if (built && p.pending === 0) enterMatch();
 }
 
@@ -794,7 +795,7 @@ function disposeGame(): void {
   game = null;
   // the debug/testing handle must not outlive the match either: a torn-down
   // Game still answers to `.wave`, which makes it look like one is running
-  (window as unknown as { __game?: Game | null }).__game = null;
+  expose({ __game: null });
   // Give the board's own sculpts back. The model cache is deliberately beyond
   // a match's teardown — its clones are what make a model cheap to reuse — but
   // a territory's environment props are wanted on that territory and nowhere
@@ -829,7 +830,7 @@ function quitToTitle(): void {
 // otherwise untestable on one machine, and the layout is the part most likely
 // to break — every slot still reads its own device, so a pad that is there
 // drives its player and a slot without one simply stands still.
-Object.assign(window, {
+expose({
   // back to the title from wherever we are, so a test can run several matches
   __quitToTitle: () => quitToTitle(),
   // the renderer's current viewport rectangle, for tests: split-screen narrows
@@ -894,37 +895,34 @@ renderer.domElement.addEventListener('click', () => {
 
 // ---------- main loop ----------
 let last = performance.now();
-// test/capture hooks: __manual pauses the live loop; __renderOnce renders one frame
-const dbg = window as unknown as {
-  __manual?: boolean; __renderOnce?: (dt?: number) => void; __holdLoading?: boolean;
-  __stepFrame?: (dt?: number) => void;
-  __loadState?: () => { screen: string; built: boolean; pending: number };
-  __beforeBuild?: () => void;
-};
-/**
- * Drive one frame by hand, whatever `__manual` says.
- *
- * The pair to `__manual`: that stops the live loop, this advances it, so a
- * test owns both the size of a frame and how many there are. It covers the
- * menus and the drop as well as the match — `window.__sim` only ever drove
- * `Game.update`, which is why a suite that took the clock while the loading
- * screen was up sat there forever.
- */
-dbg.__stepFrame = (dt = 1 / 30) => { step(dt); };
-/** the drop's state, readable without advancing it (see `loadProgress`) */
-dbg.__loadState = () => {
-  const p = loadProgress();
-  return { screen: state, built, pending: p.pending };
-};
-dbg.__renderOnce = (dt = 1 / 24) => {
-  if (game) {
-    hud.update(dt, game);
-    game.render(renderer);
-  }
-};
+// test/capture hooks: __manual (set by the test) pauses the live loop;
+// __renderOnce renders one frame
+expose({
+  /**
+   * Drive one frame by hand, whatever `__manual` says.
+   *
+   * The pair to `__manual`: that stops the live loop, this advances it, so a
+   * test owns both the size of a frame and how many there are. It covers the
+   * menus and the drop as well as the match — `window.__sim` only ever drove
+   * `Game.update`, which is why a suite that took the clock while the loading
+   * screen was up sat there forever.
+   */
+  __stepFrame: (dt = 1 / 30) => { step(dt); },
+  /** the drop's state, readable without advancing it (see `loadProgress`) */
+  __loadState: () => {
+    const p = loadProgress();
+    return { screen: state, built, pending: p.pending };
+  },
+  __renderOnce: (dt = 1 / 24) => {
+    if (game) {
+      hud.update(dt, game);
+      game.render(renderer);
+    }
+  },
+});
 function frame(now: number): void {
   requestAnimationFrame(frame);
-  if (dbg.__manual) { last = now; return; }
+  if (window.__manual) { last = now; return; }
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   step(dt);

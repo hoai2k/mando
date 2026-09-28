@@ -17,9 +17,10 @@ import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from
 import { styleStudyAlternates, styleStudyClips } from './styleStudies';
 import { styleMoves } from '../characters/styleClips';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
-import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
+import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { expose } from '../debug';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -38,7 +39,7 @@ setClipCaching(false);
 
 type Mode = 'authored' | 'procedural' | 'both';
 
-interface Figure {
+export interface Figure {
   inst: CharacterInstance;
   /** the rig as built, before any clip touched it — see `applyPose` */
   rest: Array<{ bone: THREE.Object3D; quaternion: THREE.Quaternion; position: THREE.Vector3 }>;
@@ -189,17 +190,14 @@ function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
   let upper = selected.upper;
   if (subject.id === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
-  if (alternateChoice === 'none' && (subject.id === 'din' || subject.id === 'maris' || subject.id === 'maul')) {
-    const weaponClips: Record<string, string> = subject.id === 'din' ? {
-      saber1: 'darksaber1', saber2: 'darksaber2', saber3: 'darksaber3',
-    } : subject.id === 'maris' ? {
-      saberIdleUpper: 'tonfaIdleUpper', saberRunUpper: 'tonfaRunUpper',
-      saber1: 'tonfa1', saber2: 'tonfa2', saber3: 'tonfa3',
-      saberFlourish: 'tonfaFlourish',
-    } : {
-      saberIdleUpper: 'staffIdleUpper', saberRunUpper: 'staffRunUpper',
-      saber1: 'staff1', saber2: 'staff2', saber3: 'staff3',
-      saberFlourish: 'staffFlourish',
+  // the saber poses are the generic saber's; a fighter whose blade has clips
+  // of its own (the Darksaber, the tonfas, the double saber) plays those
+  const { attack, stance } = saberClipsFor(subject.id);
+  if (alternateChoice === 'none' && (attack !== 'saber' || stance !== 'saber')) {
+    const weaponClips: Record<string, string> = {
+      saber1: `${attack}1`, saber2: `${attack}2`, saber3: `${attack}3`,
+      saberIdleUpper: `${stance}IdleUpper`, saberRunUpper: `${stance}RunUpper`,
+      saberFlourish: `${stance}Flourish`,
     };
     upper = upper ? (weaponClips[upper] ?? upper) : null;
   }
@@ -324,7 +322,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose, camera, controls };  // debug/testing handle
+  expose({ __wb: { figures, subject, pose, camera, controls } });  // debug/testing handle
 }
 
 /**

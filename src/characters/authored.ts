@@ -15,6 +15,10 @@ import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
+import { RIVALS, RIVAL_KINDS, type RivalKind } from '../enemies/rivals';
+import type { EnemyKind } from '../enemies/enemy';
+import type { MandoId } from './mandalorians';
+import type { WeaponPropId } from './weaponProps';
 
 /**
  * Authored glTF characters.
@@ -480,31 +484,82 @@ export function warmAuthored(id: string, priority: WarmPriority = 'idle'): void 
 }
 
 /**
- * .glb backing each enemy kind, so a wave's models can be warmed before it
- * lands. Loading on first spawn meant a 3-4 MB parse on the main thread at the
- * worst possible moment — the frame a new enemy type joins the fight.
+ * The .glb behind each enemy kind, and — for a humanoid on the canonical rig —
+ * the height that model is fitted to.
+ *
+ * This is the one place a kind's model is named. The enemy builders load
+ * their skin through it, the wave warmer and the drop screen fetch through it
+ * (loading on first spawn meant a 3-4 MB parse on the main thread at the
+ * worst possible moment — the frame a new enemy type joins the fight), and
+ * the workbench lists its cast by it. Several kinds share one sculpt.
+ *
+ * `height` is what the authored skin is scaled to stand. It is not the DEFS
+ * `height` the hit spheres, collider and camera framing use, though the two
+ * mostly agree. Where they do not, this is the height the body is drawn at and
+ * DEFS the one it is hit and framed by: the swoop rider is measured standing
+ * and then posted on the saddle (1.76 m against 1.6), Fennec is drawn at
+ * 1.8 m against 1.85, and the officer at 1.88 m against 1.95.
  */
-export const ENEMY_MODEL_ID: Record<string, string> = {
-  tusken: 'tusken', pyke: 'pyke', pirate: 'pirate_melee', pirateMelee: 'pirate_melee',
-  jetpirate: 'pirate_melee', droid: 'droid', nikto: 'nikto', massiff: 'massiff',
-  stormtrooper: 'stormtrooper', deathtrooper: 'deathtrooper', darktrooper: 'darktrooper',
-  officer: 'imperial_officer', capo: 'pyke_capo',
-  enforcer: 'wookiee_enforcer', marshal: 'marshal', fennec: 'fennec',
-  flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
-  ringEnforcer: 'ring_enforcer',
-  gunslinger: 'gunslinger', escortDroid: 'escort_droid',
-  rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
-  rivalGalen: 'jedi', rivalMaris: 'maris',
-  rivalCadBane: 'duelist', rivalEmbo: 'embo', rivalBossk: 'bossk',
-  rivalBoKatan: 'bokatan',
-  // the three creatures come through loadCreature, but the file is the same
-  // download, so warming it here is what stops a first-spawn hitch
-  krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',
+interface EnemyModel { model: string; height?: number }
+
+const HUMANOID_MODELS = {
+  tusken: { model: 'tusken', height: 1.8 },
+  pyke: { model: 'pyke', height: 2.0 },
+  pirate: { model: 'pirate_melee', height: 1.9 },
+  pirateMelee: { model: 'pirate_melee', height: 1.9 },
+  jetpirate: { model: 'pirate_melee', height: 1.9 },
+  droid: { model: 'droid', height: 2.1 },
+  // the swoop rider is measured standing, then posted on the saddle by the pose
+  nikto: { model: 'nikto', height: 1.76 },
+  stormtrooper: { model: 'stormtrooper', height: 1.9 },
+  deathtrooper: { model: 'deathtrooper', height: 2.0 },
+  darktrooper: { model: 'darktrooper', height: 2.2 },
+  officer: { model: 'imperial_officer', height: 1.88 },
+  capo: { model: 'pyke_capo', height: 2.05 },
+  enforcer: { model: 'wookiee_enforcer', height: 2.6 },
+  marshal: { model: 'marshal', height: 1.85 },
+  fennec: { model: 'fennec', height: 1.8 },
+  // the new-board roster (see ASSETS_MODELS.md for the model briefs)
+  flametrooper: { model: 'flametrooper', height: 1.9 },
+  quarren: { model: 'quarren', height: 1.9 },
+  alamite: { model: 'alamite', height: 1.85 },
+  ringEnforcer: { model: 'ring_enforcer', height: 2.1 },
+  gunslinger: { model: 'gunslinger', height: 1.9 },
+  escortDroid: { model: 'escort_droid', height: 2.2 },
+} as const satisfies Partial<Record<EnemyKind, EnemyModel>>;
+
+/** a rival is its hero's own body, sized as the hero is */
+const RIVAL_MODELS = Object.fromEntries(RIVAL_KINDS.map((kind) => [kind, { model: RIVALS[kind] }])) as
+  { [K in RivalKind]: { model: (typeof RIVALS)[K] } };
+
+export const ENEMY_MODELS = {
+  ...HUMANOID_MODELS,
+  ...RIVAL_MODELS,
+  // The creatures come through loadCreature, which sizes them by
+  // CREATURE_MODELS, but the file is the same download, so warming it here is
+  // what stops a first-spawn hitch.
+  massiff: { model: 'massiff' },
+  krykna: { model: 'krykna' }, broodmother: { model: 'krykna_brood' }, drone: { model: 'interceptor_drone' },
   // the monster bosses, same path
-  mudhorn: 'mudhorn', ravinak: 'ravinak', mamacore: 'mamacore', rancor: 'rancor',
-  kraytDragon: 'krayt_dragon', mythosaur: 'mythosaur',
-  sandworm: 'sandworm', zillo: 'zillo', nexu: 'nexu', kwazelMaw: 'kwazel_maw',
-};
+  mudhorn: { model: 'mudhorn' }, ravinak: { model: 'ravinak' }, mamacore: { model: 'mamacore' },
+  rancor: { model: 'rancor' }, kraytDragon: { model: 'krayt_dragon' }, mythosaur: { model: 'mythosaur' },
+  sandworm: { model: 'sandworm' }, zillo: { model: 'zillo' }, nexu: { model: 'nexu' }, kwazelMaw: { model: 'kwazel_maw' },
+} as const satisfies Partial<Record<EnemyKind, EnemyModel>>;
+
+/** a kind whose authored skin rides the canonical rig, at a fitted height */
+export type HumanoidKind = keyof typeof HUMANOID_MODELS;
+/** the basename of a .glb some enemy kind is made of */
+export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['model'];
+/**
+ * The basename of a character's .glb, or of a piece one carries: what the
+ * prefetcher and the drop screen wait on. (Scenery and ships load by the
+ * same path under names of their own, so the loader itself takes any string.)
+ */
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop';
+
+/** the model entry for any kind, with `height` readable whether or not it has one */
+export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>
+  (ENEMY_MODELS as Partial<Record<EnemyKind, { model: EnemyModelId; height?: number }>>)[kind];
 
 /**
  * Files a kind is made of *besides* its own body, keyed the same way.
@@ -512,7 +567,7 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
  * Props are separate downloads from bodies. Anything that asks "is this
  * fighter's art here yet" has to account for both before revealing the pose.
  */
-const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
+const ENEMY_EXTRA_MODEL_IDS: Partial<Record<EnemyKind, ModelId[]>> = {
   pyke: ['enemy_blaster_rifle'], pirate: ['enemy_blaster_rifle'],
   jetpirate: ['enemy_blaster_rifle'], droid: ['enemy_blaster_rifle'],
   stormtrooper: ['enemy_blaster_rifle'], deathtrooper: ['enemy_blaster_rifle'],
@@ -530,8 +585,8 @@ const ENEMY_EXTRA_MODEL_IDS: Record<string, string[]> = {
 };
 
 /** Every .glb a kind renders as: its own model plus any companion piece. */
-export function enemyModelIds(kind: string): string[] {
-  const id = ENEMY_MODEL_ID[kind];
+export function enemyModelIds(kind: EnemyKind): ModelId[] {
+  const id = enemyModel(kind)?.model;
   return [...(id ? [id] : []), ...(ENEMY_EXTRA_MODEL_IDS[kind] ?? [])];
 }
 
@@ -1121,7 +1176,7 @@ export interface AuthoredSwap {
 
 export function attachAuthored(
   rig: Rig,
-  id: string,
+  id: ModelId,
   targetHeight: number,
   opts: { keep?: THREE.Object3D[]; onLoad?: (model: AuthoredModel) => void;
     animator?: Animator | null; enabled?: boolean } = {},

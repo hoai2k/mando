@@ -5,6 +5,7 @@ import { Animator } from '../anim/animator';
 import { loadProp } from './authored';
 import { markShared } from '../core/dispose';
 import { makeDarksaberBlade } from './darksaberBlade';
+import { SABER_STYLES, WEAPON_PROPS, type SaberStyle, type StaffPropId } from './weaponProps';
 
 /**
  * Procedural character construction: meshes are parented to rig bones so any
@@ -256,15 +257,6 @@ export function propsSettled(root: THREE.Object3D): boolean {
   return !waiting;
 }
 
-export type StaffPropId =
-  'gaffi' | 'gaffi_collection' | 'beskar_spear' | 'poleaxe' | 'electrostaff' | 'rey_staff' | 'force_pike';
-/** Each staff sculpt's length in metres, scaled along its longest axis. */
-const STAFF_LENGTH: Partial<Record<StaffPropId, number>> = {
-  electrostaff: 1.8, beskar_spear: 1.65, poleaxe: 1.45,
-  // the workbench's weapon-choice lengths, which the hand grips were set with
-  rey_staff: 1.7, force_pike: 1.9,
-};
-
 export function makeGaffi(
   m1: THREE.Material, m2: THREE.Material,
   propId: StaffPropId = 'gaffi',
@@ -290,7 +282,7 @@ export function makeGaffi(
     addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
     addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
   }
-  swapWeapon(g, propId, STAFF_LENGTH[propId] ?? 1.5, -Math.PI / 2);
+  swapWeapon(g, propId, WEAPON_PROPS[propId].length, -Math.PI / 2);
   return g;
 }
 
@@ -301,7 +293,7 @@ export function makeCarbine(mBody: THREE.Material, mDark: THREE.Material): THREE
   addCyl(g, mDark, 0.03, 0.03, 0.06, 0, 0.015, 0.6, Math.PI / 2, 0, 0, 8);    // muzzle
   addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.08, 0.02, 0.3);  // grip
   addBox(g, mDark, 0.03, 0.05, 0.2, 0, 0.07, 0.12);         // scope
-  swapWeapon(g, 'carbine', 0.72);
+  swapWeapon(g, 'carbine', WEAPON_PROPS.carbine.length);
   return g;
 }
 
@@ -320,7 +312,7 @@ function glowMat(color: number, opacity: number): THREE.MeshBasicMaterial {
 export function makeSaber(
   mHilt: THREE.Material,
   mDark: THREE.Material,
-  opts: { light?: boolean; style?: 'red' | 'white' | 'tonfa' | 'dark' | 'double' | 'darksaber' } = {},
+  opts: { light?: boolean; style?: SaberStyle } = {},
 ): THREE.Group {
   const g = new THREE.Group();
   const white = opts.style === 'white';
@@ -418,7 +410,8 @@ export function makeSaber(
   // Measured at the generator caps of the fitted authored hilts. Their
   // origins and curved shafts differ; placing every blade at Y=.06 buried
   // most bases inside metal, while Maris' offset emitter missed its shaft.
-  swapWeapon(body, tonfa ? 'maris_tonfa' : white || darksaber ? 'saber_jedi' : double ? 'saber_double' : opts.style === 'dark' ? 'saber_dark' : 'saber_curved', tonfa ? 0.52 : double ? 0.43 : 0.26, -Math.PI / 2, () => {
+  const hilt = SABER_STYLES[opts.style ?? 'red'].prop;
+  swapWeapon(body, hilt, WEAPON_PROPS[hilt].length, -Math.PI / 2, () => {
     if (tonfa) blade.position.set(0.003, -0.255, -0.048);
     else if (double) {
       blade.position.set(-0.001, 0.211, 0);
@@ -515,7 +508,7 @@ export function makeCrossbow(mBody: THREE.Material, mDark: THREE.Material): THRE
   string.rotation.z = Math.PI / 2;
   string.castShadow = false;
   g.add(string);
-  swapWeapon(g, 'crossbow', 0.72);
+  swapWeapon(g, 'crossbow', WEAPON_PROPS.crossbow.length);
   return g;
 }
 
@@ -534,7 +527,7 @@ export function makePistol(mBody: THREE.Material, mDark: THREE.Material): THREE.
   // The authored pistol's muzzle is at local -Z and its grip at +Z, opposite
   // the procedural shape and the shot marker. Turn only the sculpt, then seat
   // its grip in the hand so the barrel reaches the +Z muzzle at 0.3 m.
-  swapWeapon(g, 'pistol', 0.34, 0, (model) => {
+  swapWeapon(g, 'pistol', WEAPON_PROPS.pistol.length, 0, (model) => {
     model.rotation.y = Math.PI;
     model.position.set(0, 0.1, 0.12);
   });
@@ -551,6 +544,6 @@ export function makeLongRifle(mBody: THREE.Material, mDark: THREE.Material): THR
   addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.09, 0.06, 0.3);  // grip
   addCyl(g, mDark, 0.028, 0.028, 0.26, 0, 0.085, 0.1, Math.PI / 2, 0, 0, 8); // long scope
   addBox(g, mDark, 0.04, 0.04, 0.14, 0, -0.045, 0.42);      // fore grip
-  swapWeapon(g, 'longrifle', 1.05);
+  swapWeapon(g, 'longrifle', WEAPON_PROPS.longrifle.length);
   return g;
 }

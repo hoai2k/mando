@@ -1,7 +1,7 @@
 /** Reduce Boba Fett's triangles and compact every surviving weighted attribute. */
 import { writeFileSync } from 'node:fs';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { accessor, readGlb, primitives } from './lib/glb.mjs';
+import { accessor, readGlb, primitives } from '../lib/glb.mjs';
 
 const source = process.argv[2] ?? 'model-work/source/boba_fett_orig.glb';
 const output = process.argv[3] ?? 'model-work/intermediary/boba_fett_game_lod0.glb';

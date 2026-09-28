@@ -6,7 +6,9 @@ import {
   buildKrykna, buildMassiff, buildNikto, buildPirate, buildPyke, buildPykeCapo,
   buildEscortDroid, buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
 } from '../characters/enemies';
-import { loadProp } from '../characters/authored';
+import { enemyModel, loadProp } from '../characters/authored';
+import type { EnemyKind } from '../enemies/enemy';
+import { WEAPON_PROPS } from '../characters/weaponProps';
 
 /**
  * Everything the workbench can put on the turntable, in the order the picker
@@ -33,18 +35,19 @@ const mando = (id: MandoId): Subject => ({
 });
 
 /**
- * A non-playable character. `hasModel` marks the ones with an authored .glb —
- * only those can be compared against their procedural build, and only their
- * factories call the loader, so it has to match `AUTHORED_ENEMY` in
- * `characters/enemies.ts`.
+ * A non-playable character, by its enemy kind. Whether it has an authored .glb
+ * to compare against its procedural build, and under what filename, is the
+ * kind's entry in ENEMY_MODELS (characters/authored.ts) — the same table its
+ * factory loads the skin by.
  */
 const plain = (
-  id: string,
+  kind: EnemyKind,
   name: string,
   build: (authored: boolean) => CharacterInstance,
-  hasModel = false,
-  modelFile?: string,
-): Subject => ({ id, name, build, hasModel, modelFile });
+): Subject => {
+  const model = enemyModel(kind)?.model;
+  return { id: kind, name, build, hasModel: !!model, modelFile: model !== kind ? model : undefined };
+};
 
 /**
  * Props and creatures: models nothing on the canonical rig drives — weapons,
@@ -77,35 +80,35 @@ export const GROUPS: SubjectGroup[] = [
   {
     label: 'Allies',
     subjects: [
-      plain('escortDroid', 'Escort Droid — ally build', (a) => buildEscortDroid(a), true, 'escort_droid'),
-      plain('marshal', 'Cobb Vanth', (a) => buildGunfighter('marshal', a), true),
-      plain('fennec', 'Fennec Shand', (a) => buildGunfighter('fennec', a), true),
+      plain('escortDroid', 'Escort Droid — ally build', (a) => buildEscortDroid(a)),
+      plain('marshal', 'Cobb Vanth', (a) => buildGunfighter('marshal', a)),
+      plain('fennec', 'Fennec Shand', (a) => buildGunfighter('fennec', a)),
     ],
   },
   {
     label: 'Enemies',
     subjects: [
-      plain('tusken', 'Tusken Raider', (a) => buildTusken(a), true),
-      plain('pyke', 'Pyke Soldier', (a) => buildPyke(a), true),
-      plain('pirate', 'Pirate — blaster (backup body)', (a) => buildPirate(false, a), true, 'pirate_melee'),
-      plain('pirateMelee', 'Pirate — melee', (a) => buildPirate(true, a), true, 'pirate_melee'),
-      plain('droid', 'Assassin Droid', (a) => buildDroid(a), true),
-      plain('nikto', 'Nikto Swoop Rider', (a) => buildNikto(a), true),
-      plain('massiff', 'War Massiff', (a) => buildMassiff(a), true),
-      plain('stormtrooper', 'Stormtrooper', (a) => buildStormtrooper(false, a), true),
-      plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a), true),
-      plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a), true),
-      plain('gunslinger', 'Guild Gunslinger', (a) => buildGunslinger(a), true),
-      plain('capo', 'Pyke Capo', (a) => buildPykeCapo(a), true, 'pyke_capo'),
-      plain('enforcer', 'Wookiee Enforcer', (a) => buildWookieeEnforcer(a), true, 'wookiee_enforcer'),
-      plain('officer', 'Imperial Officer', (a) => buildImperialOfficer(a), true, 'imperial_officer'),
-      plain('flametrooper', 'Incinerator Trooper', (a) => buildFlametrooper(a), true),
-      plain('quarren', 'Quarren Netcaster', (a) => buildQuarren(a), true),
-      plain('alamite', 'Alamite Charger', (a) => buildAlamite(a), true),
-      plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a), true, 'ring_enforcer'),
-      plain('krykna', 'Krykna', (a) => buildKrykna(a), true),
-      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a), true, 'krykna_brood'),
-      plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a), true, 'interceptor_drone'),
+      plain('tusken', 'Tusken Raider', (a) => buildTusken(a)),
+      plain('pyke', 'Pyke Soldier', (a) => buildPyke(a)),
+      plain('pirate', 'Pirate — blaster (backup body)', (a) => buildPirate(false, a)),
+      plain('pirateMelee', 'Pirate — melee', (a) => buildPirate(true, a)),
+      plain('droid', 'Assassin Droid', (a) => buildDroid(a)),
+      plain('nikto', 'Nikto Swoop Rider', (a) => buildNikto(a)),
+      plain('massiff', 'War Massiff', (a) => buildMassiff(a)),
+      plain('stormtrooper', 'Stormtrooper', (a) => buildStormtrooper(false, a)),
+      plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a)),
+      plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a)),
+      plain('gunslinger', 'Guild Gunslinger', (a) => buildGunslinger(a)),
+      plain('capo', 'Pyke Capo', (a) => buildPykeCapo(a)),
+      plain('enforcer', 'Wookiee Enforcer', (a) => buildWookieeEnforcer(a)),
+      plain('officer', 'Imperial Officer', (a) => buildImperialOfficer(a)),
+      plain('flametrooper', 'Incinerator Trooper', (a) => buildFlametrooper(a)),
+      plain('quarren', 'Quarren Netcaster', (a) => buildQuarren(a)),
+      plain('alamite', 'Alamite Charger', (a) => buildAlamite(a)),
+      plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a)),
+      plain('krykna', 'Krykna', (a) => buildKrykna(a)),
+      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a)),
+      plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a)),
     ],
   },
 ];
@@ -116,14 +119,14 @@ GROUPS.push({
     prop('massiff', 'Massiff', 1.15, 'y'),
     prop('massiff_static', 'Massiff — unrigged', 1.15, 'y'),
     prop('nikto_swoop', 'Swoop bike', 2.6),
-    prop('carbine', 'EE-3 carbine', 0.72),
-    prop('gaffi', 'Gaderffii stick', 1.5),
-    prop('enemy_blaster_rifle', 'Infantry blaster rifle', 0.75),
-    prop('pirate_boarding_club', 'Pirate boarding club', 0.7),
-    prop('flame_projector', 'Flame projector', 0.6),
-    prop('net_launcher', 'Net launcher', 0.5),
-    prop('alamite_stone_club', 'Alamite stone club', 0.68),
-    prop('electrostaff', 'Electrostaff', 1.8),
+    prop('carbine', 'EE-3 carbine', WEAPON_PROPS.carbine.length),
+    prop('gaffi', 'Gaderffii stick', WEAPON_PROPS.gaffi.length),
+    prop('enemy_blaster_rifle', 'Infantry blaster rifle', WEAPON_PROPS.enemy_blaster_rifle.length),
+    prop('pirate_boarding_club', 'Pirate boarding club', WEAPON_PROPS.pirate_boarding_club.length),
+    prop('flame_projector', 'Flame projector', WEAPON_PROPS.flame_projector.length),
+    prop('net_launcher', 'Net launcher', WEAPON_PROPS.net_launcher.length),
+    prop('alamite_stone_club', 'Alamite stone club', WEAPON_PROPS.alamite_stone_club.length),
+    prop('electrostaff', 'Electrostaff', WEAPON_PROPS.electrostaff.length),
   ],
 });
 

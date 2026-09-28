@@ -143,8 +143,6 @@ export function posterMeta(id: string): PosterBox | null {
   return (index && index[posterName(id)]) || null;
 }
 
-/** Every fighter the index knows a picture for, for warming them. */
-export function posterIds(): string[] { return index ? Object.keys(index) : []; }
 
 /**
  * Pull a fighter's picture down ahead of the screen that flips through them.

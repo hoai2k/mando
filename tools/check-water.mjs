@@ -8,55 +8,10 @@
  * like a jetpack hover. And a body built for water — Bossk — has to be
  * meaningfully quicker through it than one that is not.
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const h = await launch();
-let failures = 0;
-const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
-
-/** start a Wave Battle on the Prison Rig as the named fighter */
-async function startAs(name) {
-  await h.waitForText(/PRESS START|WAVE BATTLE/i);
-  // Name the mode rather than trusting START's default focus. Missions is the
-  // first button on the title now, so a bare START opens the planet strip —
-  // and that strip lists every territory, so the wait below matched it and
-  // this walked on into the wrong screen carrying a passing check with it.
-  await h.focusButton(/WAVE BATTLE/i);
-  await h.pad.tap(BTN.START);
-  // `DEPARTURES` exactly, and nothing the mission map can spell: the map says
-  // DUNE SEA too, which is how the wrong screen slipped through before.
-  await h.waitForText(/DEPARTURES/i);
-  // by name, not by counting presses, so a reordered board still lands here
-  await h.clickText('The Prison Rig');
-  await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
-  // Player one is the keyboard's own seat now ("Fix controller claims for
-  // keyboard and co-op players"): a lone connected gamepad claims player TWO
-  // instead of driving player one directly, the way this used to work. Tapping
-  // the pad here cycled and "locked in" a phantom second player while player
-  // one — the one `swimAndBreach` actually reads as `g.players[0]` — sat on
-  // the roster's default pick the whole time, which is both the wrong fighter
-  // and, since player one never reached `ready`, the reason this hung waiting
-  // for a `READY` that could only ever belong to someone else. Player one has
-  // to be driven the way `test-controller-claims.mjs` drives it: keyboard.
-  for (let i = 0; i < 14; i++) {
-    // player one's card, not the page: the roster strips spell every name
-    const on = await h.page.evaluate(() => document.querySelector('.charsel-panel .charsel-name-current')?.textContent ?? '');
-    if (new RegExp(name, 'i').test(on)) break;
-    await h.page.keyboard.press('ArrowRight');
-    await sleep(150);
-  }
-  let ready = false;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    if ((await h.page.evaluate(() => window.__charselLine()[0]?.phase)) === 'ready') { ready = true; break; }
-    await h.page.keyboard.press('Enter');
-    await sleep(500);
-  }
-  if (!ready) throw new Error(`player one never locked in as ${name}`);
-  await h.page.keyboard.press('Enter');
-  await h.tapUntil(BTN.A, () => h.page.evaluate(() => !!window.__game), { timeoutMs: 25000 });
-  await h.waitForPlaying();
-}
+const check = makeCheck();
 
 /**
  * Drop the player in the water, then swim: hold forward for `swimFrames` and
@@ -131,25 +86,24 @@ async function swimAndBreach(swimFrames) {
 }
 
 // ---- a fighter with no jetpack, and no gift for water ----
-await startAs('embo');
+await h.startAs('embo', 'The Prison Rig');
 const dry = await swimAndBreach(180);
 console.log(`  board: ${dry.board}, water at y=${dry.waterY}`);
 console.log(`  ${dry.name} (${dry.flight}): up to ${dry.fastest.toFixed(1)} m/s through the water, legs ran ${dry.clips.join(',')}, breached at ${dry.breachVel.toFixed(1)} m/s and reached ${dry.above.toFixed(1)} m above the surface`);
-check(dry.swimming === true, 'a fighter out of their depth is swimming');
-check(dry.clips.includes('swimLower'), '...and swims rather than hovering on a jetpack pose');
-check(dry.fastest > 3, 'and gets moving — the spot measured is open water, not a wall');
-check(dry.above > 3, 'holding jump out of the water carries a super jumper clear of the surface');
-check(dry.rising === true, '...on the same held climb a standing leap gives, which is what reaches a deck');
+check('a fighter out of their depth is swimming', dry.swimming === true);
+check('...and swims rather than hovering on a jetpack pose', dry.clips.includes('swimLower'));
+check('and gets moving — the spot measured is open water, not a wall', dry.fastest > 3);
+check('holding jump out of the water carries a super jumper clear of the surface', dry.above > 3);
+check('...on the same held climb a standing leap gives, which is what reaches a deck', dry.rising === true);
 
 // ---- and one that is built for it ----
 await h.page.reload({ waitUntil: 'networkidle' });
-await startAs('bossk');
+await h.startAs('bossk', 'The Prison Rig');
 const wet = await swimAndBreach(180);
 console.log(`  ${wet.name} (amphibious=${wet.amphibious}): up to ${wet.fastest.toFixed(1)} m/s, breached at ${wet.breachVel.toFixed(1)} m/s`);
-check(wet.amphibious === true, 'Bossk is flagged as amphibious');
-check(wet.fastest > dry.fastest * 1.25, 'and swims meaningfully faster than a fighter who is not');
-check(wet.breachVel > dry.breachVel * 1.25, '...and comes out of the water harder');
+check('Bossk is flagged as amphibious', wet.amphibious === true);
+check('and swims meaningfully faster than a fighter who is not', wet.fastest > dry.fastest * 1.25);
+check('...and comes out of the water harder', wet.breachVel > dry.breachVel * 1.25);
 
 await h.close();
-console.log(failures ? `\n${failures} failure(s)` : '\nthe water reads right from both sides of it');
-process.exit(failures ? 1 : 0);
+check.done('Water');

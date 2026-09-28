@@ -2,15 +2,13 @@ import type { Game } from '../game';
 import type { Player } from '../../player/player';
 import { openMatch, type ModeRules } from './rules';
 import { Campaign } from '../campaign';
-import { LegacyCampaign } from '../campaign-legacy';
-import { missionsOutdoor } from '../modes';
 import type { MissionController } from '../mission-api';
 import { audio } from '../../core/audio';
 import { TEXT } from '../../text';
 
 /**
  * Missions — the liberation run (docs/MODES.md §4). The rules themselves are
- * thin: `Campaign` already is a controller, holding the room chain, the
+ * thin: `Campaign` already is a controller, holding the stage chain, the
  * gates, the beacon and the checkpoints. This is the seam that lets `Game`
  * treat it as one mode among three.
  */
@@ -29,13 +27,10 @@ export class CampaignRules implements ModeRules {
   begin(): void {
     // Raises the mission level over the territory and moves the party to its
     // trailhead, so it waits for players to exist; every player keeps their
-    // own camera, split-screen as ever.
-    //
-    // Which level: the walled room chain, or the experimental outdoor stage
-    // chain (docs/MISSIONS_OUTDOOR.md) when `?missions=new` asks for it. The
-    // two are interchangeable behind `MissionController`, which is the whole
-    // point of the flag — either design is one URL away rather than a revert.
-    this.built = missionsOutdoor() ? new Campaign(this.g) : new LegacyCampaign(this.g);
+    // own camera, split-screen as ever. The level is the outdoor stage chain
+    // (docs/MISSIONS_OUTDOOR.md); the walled room chain it replaced has been
+    // retired.
+    this.built = new Campaign(this.g);
     this.g.campaign = this.built;
   }
 
