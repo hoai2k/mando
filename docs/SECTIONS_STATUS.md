@@ -15,12 +15,12 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 
 | Item | State | Branch / notes |
 |---|---|---|
-| Framework (§2): section stage kind, registry, campaign routing, one-way doors, flags, HUD panel, engine hooks | in progress | orchestrator |
-| `tools/test-sections.mjs` | planned | orchestrator |
+| Framework (§2): section stage kind, registry, campaign routing, one-way doors, flags, HUD panel, engine hooks, `interactHeld`, `kit/interact`, `kit/moves` | built | working branch; see §2.6 of the plan |
+| `tools/test-sections.mjs` | built | per-section build + autopilot completion; legacy suites run sections-off |
 | K1 rail camera | planned | Ring Walk agent |
 | K2 treadmill | planned | Prison Rig agent |
 | K3 mounts (vehicle guns, side swing, lane, pillion, turret) | planned | Lava Flats agent |
-| K4 hazard front | planned | Lava Flats agent (Chimney) |
+| K4 hazard front | built | `kit/front.ts` (`RisingPlane`, `PathFront`), by the Chimney |
 | K5 objective bar / defend target | planned | Great Forge agent |
 | K6 detection | planned | Refinery agent |
 | K7 locomotion: slide / flight / tilt | planned | Crevasse / Great Forge / Storm Docks agents |
@@ -36,7 +36,7 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | 3 | ring-walk | Spice Run | B ⇒ · ⇒ C | planned | wave 1 (K1) |
 | 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | planned | wave 2 |
 | 5 | magma-run | Lava Flats | B ⇒ · ⇒ chimney | planned | wave 1 (K3) |
-| 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | planned | wave 1 (K4) |
+| 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | built | reference section; autopilot finishes at 2 and 4 players in ~55 s (hostiles culled) |
 | 7 | glacier-chute | Crevasse | A ⇒ · ⇒ lamplight | planned | wave 1 |
 | 8 | lamplight | Crevasse | chute ⇒ · ⇒ B | planned | wave 1 |
 | 9 | squall | Storm Docks | A (split after trawler deck) ⇒ · ⇒ run-the-pier | planned | wave 2 |
@@ -61,3 +61,4 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 ## Log
 
 - 2026-09-28 — plan written; placement decided (§1 of the plan); assets requested.
+- 2026-09-28 — framework and the Chimney built; the Chimney's holes are shuttered (a valve per floor opens the one above) because every character can fly.
