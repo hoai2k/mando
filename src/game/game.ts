@@ -46,7 +46,7 @@ const BLANK_INPUT: FrameInput = {
   dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
   meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
   zoomDelta: 0, blockHeld: false, pausePressed: false,
-  meleeSwapPressed: false, rangedSwapPressed: false,
+  meleeSwapPressed: false, rangedSwapPressed: false, interactHeld: false,
 };
 
 export interface GameEvents {
@@ -267,6 +267,13 @@ export class Game {
    * reading as reinforcements committed from above.
    */
   ceilingY: number | null = null;
+  /**
+   * One camera for the whole party, full screen, in place of the split
+   * (docs/SECTIONS_IMPLEMENTATION.md §3, K1). Only a rail section sets it —
+   * a lane narrow enough that nobody can be walled out of the shot — and the
+   * campaign clears it when the section's stage comes down.
+   */
+  sharedView: { camera: THREE.PerspectiveCamera } | null = null;
   /**
    * How high a carrier pass flies over its drop. The wave game's 38 m; a
    * mission level raises it clear of the ceiling so the squad falls *through*
@@ -1950,7 +1957,8 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
 
-    const n = this.humans;
+    const shared = this.sharedView;
+    const n = shared ? 1 : this.humans;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to
@@ -1961,7 +1969,7 @@ export class Game {
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const viewer = this.players[i];
-      const cam = viewer.cam.camera;
+      const cam = shared ? shared.camera : viewer.cam.camera;
       cam.aspect = vw / vh;
       cam.updateProjectionMatrix();
       renderer.setViewport(vx, vy, vw, vh);
@@ -1982,7 +1990,7 @@ export class Game {
       // split-screen shares one scene: done per viewport, each player's own
       // camera steadies their own body without touching anyone else's view.
       const ride = viewer.cam.shakeOffset;
-      const shaking = ride.lengthSq() > 0;
+      const shaking = !shared && ride.lengthSq() > 0;
       if (shaking) viewer.char.root.position.add(ride);
       renderer.render(this.scene, cam);
       if (shaking) viewer.char.root.position.sub(ride);

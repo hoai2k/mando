@@ -49,7 +49,7 @@ export function blankInput(over = {}) {
     dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false,
     meleePressed: false, rocketPressed: false, slamPressed: false, zoomHeld: false,
     zoomDelta: 0, blockHeld: false, pausePressed: false,
-    meleeSwapPressed: false, rangedSwapPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, interactHeld: false,
     ...over,
   };
 }
@@ -370,7 +370,7 @@ async function ensureServer(url) {
   throw new Error(`preview server did not come up at ${url} — is dist/ built? (npm run build)`);
 }
 
-export async function launch({ headless = true, width = 1280, height = 720, url = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` } = {}) {
+export async function launch({ headless = true, width = 1280, height = 720, url = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/`, sections = false } = {}) {
   const { chromium } = loadPlaywright();
   const server = await ensureServer(url);
   const browser = await chromium.launch({
@@ -410,6 +410,12 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
   await page.addInitScript(seedShim, seed);
   await page.addInitScript(padShim);
   await page.addInitScript(simShim, blankInput());
+  // The gameplay sections (docs/SECTIONS_IMPLEMENTATION.md) are stages of their
+  // own, with no zones, between a territory's authored stages. Every suite
+  // written before them walks the zone chain and means the runs as they were,
+  // so it gets them without sections (`?sections=off` does the same by hand);
+  // `tools/test-sections.mjs` asks for them with `launch({ sections: true })`.
+  if (!sections) await page.addInitScript(() => { window.__sectionsOff = true; });
   await page.goto(url, { waitUntil: 'networkidle' });
   await sleep(1500);
 

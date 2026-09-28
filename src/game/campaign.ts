@@ -16,6 +16,10 @@ import { warmStage } from '../core/prefetch';
 import { tracked } from '../core/warm';
 import type { MissionController } from './mission-api';
 import { replaceWithRivals } from './rivals';
+import { SECTIONS } from '../sections';
+import { createSectionContext } from '../sections/context';
+import type { SectionInstance, SectionHud } from '../sections/api';
+import type { VehicleSpec } from '../world/board';
 
 /** scratch for the hazard probe in placeNear */
 const _probe = new THREE.Vector3();
@@ -200,11 +204,22 @@ export class Campaign implements MissionController {
     sceneBackground: THREE.Scene['background'];
   } | null = null;
 
+  /**
+   * The gameplay section standing, when the current stage is one
+   * (docs/SECTIONS_IMPLEMENTATION.md §2): its module owns the frame, the
+   * objective and where the fallen come back, and says when it is won.
+   */
+  section: SectionInstance | null = null;
+
   constructor(private game: Game) {
     const spec = MISSION_LAYOUTS[game.board.kind];
     this.memory = spec.stages.map(() => ({ clearedTo: 0, pickupsTaken: [], visited: false }));
-    this.stage = this.raise(0);
-    this.checkpoint = this.stage.zones[0].center.clone();
+    // `?section=<id>` starts the run at that section's stage — for testing,
+    // tuning and showing one off without playing the run up to it
+    const start = sectionStart(spec.stages);
+    this.stageIdx = start;
+    this.stage = this.raise(start);
+    this.checkpoint = (this.stage.zones[0]?.center ?? this.stage.starts[0]).clone();
     game.players.forEach((p, i) => p.spawnAt(this.stage.starts[i % this.stage.starts.length]));
 
     // ---- the guide beacon: one pillar, always the next objective ----
@@ -260,7 +275,9 @@ export class Campaign implements MissionController {
     const board = game.board;
     let beat0 = 0;
     for (let k = 0; k < i; k++) beat0 += spec.stages[k].zones.length;
-    const stage = buildStage(board, spec, i, beat0);
+    const stage = spec.stages[i].kind === 'section'
+      ? this.buildSection(i, beat0)
+      : buildStage(board, spec, i, beat0);
 
     // the ceiling: the cut between the playable sky and the ambient one
     const override = ceilingOverride();
@@ -269,7 +286,7 @@ export class Campaign implements MissionController {
     // a carrier belongs to the ambient band, so it releases above the cut
     game.dropHeight = Math.max(38, ceilingY - stage.floorY + 10);
 
-    const w = stage.spec.world;
+    const w = stage.spec.world ?? (stage.spec.section ? SECTIONS[stage.spec.section]?.world : undefined);
     this.worldSaved = {
       fog: board.fog, background: board.background, gravity: board.gravity,
       waterY: board.waterY, traction: board.tractionAt,
@@ -303,8 +320,72 @@ export class Campaign implements MissionController {
     this.ridersSent.clear();
     this.garrison.clear();
     this.emptyT = 0;
-    this.populate(stage, i);
+    if (this.section) {
+      // a section stands up with nothing but what its module puts in it
+      this.pickups = [];
+      this.swapRides([]);
+    } else this.populate(stage, i);
     return stage;
+  }
+
+  /**
+   * Raise a gameplay section's stage through its module
+   * (docs/SECTIONS_IMPLEMENTATION.md §2.1) and wrap it as a stage, so the
+   * shared parts of the run — the ceiling, the world dressing, the veil, the
+   * off-path catch, the transport onward — treat it like any other.
+   */
+  private buildSection(i: number, beat0: number): MissionStage {
+    const game = this.game;
+    const spec = MISSION_LAYOUTS[game.board.kind];
+    const stageSpec = spec.stages[i];
+    const def = stageSpec.section ? SECTIONS[stageSpec.section] : undefined;
+    if (!def) throw new Error(`[mission] no section module for "${stageSpec.section}"`);
+    const { ctx, teardown } = createSectionContext(game, spec, i, beat0, this.rampWave(beat0), {
+      squadFor: (wave, budget, opts = {}) => this.squadFor(wave, budget,
+        opts.air ? ({ spec: { air: true } } as MissionZone) : null, { debut: opts.debut }),
+      placeNear: (pos, kind) => this.placeNear(pos, kind),
+      pickup: (pos) => this.addPickup(pos, this.pickups.length),
+      rides: (specs) => this.swapRides(specs),
+    });
+    const inst = def.build(ctx);
+    this.section = inst;
+    return {
+      spec: stageSpec, index: i,
+      zones: [], defenders: [], pickups: [], rides: [],
+      starts: inst.starts, path: inst.path,
+      exitPortal: null, backPortal: null,
+      floorY: inst.floorY, ceilingY: inst.ceilingY,
+      groundAt: (x, z) => inst.groundAt(x, z),
+      contains: (x, z) => inst.contains(x, z),
+      dispose: () => { inst.dispose?.(); teardown(); },
+      tick: () => { /* a section ticks in its own update */ },
+    };
+  }
+
+  /**
+   * Retire the last stage's rides and park this one's. A parked ride is solid,
+   * so the old ones have to be properly retired rather than hidden — their
+   * colliders would otherwise stand in the new stage as invisible boxes.
+   */
+  private swapRides(specs: VehicleSpec[]): void {
+    const game = this.game;
+    for (const v of game.vehicles) {
+      v.retire();
+      game.scene.remove(v.group);
+    }
+    game.board.vehicles = specs;
+    game.vehicles = spawnVehicles(game.board, game.scene);
+  }
+
+  /** the section's panel for one player's HUD, when a section is standing */
+  sectionHud(slot: number): SectionHud | null {
+    return this.section?.hud?.(slot) ?? null;
+  }
+
+  /** the stage before this one is a section: its doorway behind the party is shut for good */
+  private get cameFromSection(): boolean {
+    const prev = MISSION_LAYOUTS[this.game.board.kind].stages[this.stageIdx - 1];
+    return prev?.kind === 'section';
   }
 
   /** the garrison, the defenders, the pickups and the rides a stage stands up with */
@@ -387,12 +468,7 @@ export class Campaign implements MissionController {
     // A parked ride is solid, so the old stage's rides have to be properly
     // retired rather than just hidden — their colliders would otherwise stand
     // in the new stage as invisible boxes.
-    for (const v of game.vehicles) {
-      v.retire();
-      game.scene.remove(v.group);
-    }
-    game.board.vehicles = stage.rides;
-    game.vehicles = spawnVehicles(game.board, game.scene);
+    this.swapRides(stage.rides);
   }
 
   /** put the world back the way this stage found it */
@@ -419,6 +495,12 @@ export class Campaign implements MissionController {
     for (const g of this.glyphs) this.game.scene.remove(g.mesh);
     this.glyphs = [];
     this.stage.dispose();
+    if (this.section) {
+      // whatever the section put on the engine comes off with it
+      this.section = null;
+      this.game.sharedView = null;
+      for (const p of this.game.players) { p.moveYaw = null; p.sectionMove = null; }
+    }
   }
 
   /**
@@ -478,8 +560,10 @@ export class Campaign implements MissionController {
       // plays, so a transport reads as arriving somewhere
       p.spawnAt(at);
     });
-    this.checkpoint.copy(stage.zones[Math.min(this.idx, stage.zones.length - 1)].center);
-    const toward = back ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
+    this.checkpoint.copy(stage.zones.length
+      ? stage.zones[Math.min(this.idx, stage.zones.length - 1)].center
+      : stage.starts[0]);
+    const toward = back && stage.zones.length ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
     game.players.forEach((p) => p.faceToward(toward));
     // hold behind the veil until this place is dressed (see `settleT`)
     this.settleT = 0;
@@ -724,6 +808,7 @@ export class Campaign implements MissionController {
 
   /** where the beacon stands and the radar pip points */
   get objectivePos(): THREE.Vector3 {
+    if (this.section) return this.section.objective().pos;
     const zone = this.zone;
     // never the zone you are standing in: on the trailhead that is your feet
     if (this.phase === 'travel' && !this.atTrailhead) return zone.entry;
@@ -744,6 +829,7 @@ export class Campaign implements MissionController {
       const spec = MISSION_LAYOUTS[this.game.board.kind];
       return spec.stages[this.transitTo]?.label ?? '';
     }
+    if (this.section) return this.section.objective().label;
     return this.zone.spec.label;
   }
 
@@ -753,6 +839,7 @@ export class Campaign implements MissionController {
     const obj = this.objectivePos;
     const d = Math.round(Math.hypot(obj.x - from.x, obj.z - from.z));
     if (this.transitT > 0) return TEXT.missions.boarding(this.objectiveLabel);
+    if (this.section) return this.section.objective().hint;
     // Everything is cleared and the way on is a door: say so, and name what is
     // through it. `this.zone` clamps to the last zone once the run is past it,
     // so without this the line read "Make for <the last zone>" — the zone you
@@ -816,6 +903,7 @@ export class Campaign implements MissionController {
 
   /** Return a fallen player to the approach, before the active fight's entry. */
   respawnSpot(slot: number): THREE.Vector3 {
+    if (this.section) return this.section.respawnSpot(slot);
     const zone = this.zone;
     const dx = zone.exit.x - zone.entry.x;
     const dz = zone.exit.z - zone.entry.z;
@@ -1196,8 +1284,12 @@ export class Campaign implements MissionController {
       if (this.idx >= zones.length) portal.open();
       else portal.close();
     }
-    // the way back is always open: it is a safety valve, not a fight
-    this.stage.backPortal?.open();
+    // The way back is always open — it is a safety valve, not a fight —
+    // except onto a section. A section is one-way (you cannot ride back up a
+    // lava river or climb back down a lift shaft), so the door the party
+    // arrived by stands shut behind them for good.
+    if (this.cameFromSection) this.stage.backPortal?.close();
+    else this.stage.backPortal?.open();
   }
 
   /**
@@ -1244,7 +1336,7 @@ export class Campaign implements MissionController {
     }
 
     const back = stage.backPortal;
-    if (!back) return;
+    if (!back || this.cameFromSection) return;
     const living = game.players.filter((p) => p.alive);
     for (const p of game.players) {
       const inPocket = p.alive && back.depthOf(p.position) >= PORTAL_POCKET - 0.6;
@@ -1352,7 +1444,8 @@ export class Campaign implements MissionController {
     if (this.beaconReached && this.beaconDone.distanceToSquared(obj) > BEACON_HIDE * BEACON_HIDE) {
       this.beaconReached = false;      // a new objective: light it again
     }
-    this.beacon.visible = !this.atTrailhead && !near && !this.beaconReached;
+    this.beacon.visible = !this.atTrailhead && !near && !this.beaconReached
+      && (!this.section || this.section.objective().beacon !== false);
     this.beacon.position.set(obj.x, obj.y + 30, obj.z);
     this.beaconMat.opacity = 0.3 + 0.15 * Math.sin(game.time * 2.2);
     this.updateVentGlyphs(dt);
@@ -1386,7 +1479,9 @@ export class Campaign implements MissionController {
     for (const p of game.players) {
       if (!p.alive) continue;
       const ground = this.stage.groundAt(p.position.x, p.position.z);
-      const fell = p.position.y < ground - FALL_DROP;
+      const fell = this.section?.offPath
+        ? this.section.offPath(p.position)
+        : p.position.y < ground - FALL_DROP;
       const wet = drowned !== undefined && p.position.y < this.stage.floorY - WATER_DROP;
       if (!fell && !wet) continue;
       const at = this.respawnSpot(p.slot);
@@ -1405,16 +1500,26 @@ export class Campaign implements MissionController {
     // sky and the kill plane is far below it, so anything that leaves the
     // floor is deleted — and a boss deleted mid-fight is a zone that never
     // clears and a run that cannot be finished. Put it back instead.
-    const here = this.zone;
+    const home = this.section ? this.section.objective().pos : this.zone.center;
     for (const e of game.enemies) {
       if (!e.alive || e.position.y > this.stage.groundAt(e.position.x, e.position.z) - FALL_DROP) continue;
-      e.position.copy(this.placeNear(here.center.clone(), e.kind));
+      e.position.copy(this.placeNear(home.clone(), e.kind));
       e.velocity.set(0, 0, 0);
     }
 
     this.updateCeilingNote();
     this.updatePortals();
     if (this.transitT > 0) return;
+
+    // A section runs itself; the run's part is to carry the party on the
+    // moment it is won. There is no door to walk through at its far end —
+    // the section's own ending (a lift breaking out, a snowbank, a hatch) is
+    // the threshold, and one boarding takes everyone, as at any door.
+    if (this.section) {
+      this.section.update(dt);
+      if (this.section?.complete) this.beginTransit(this.stageIdx + 1);
+      return;
+    }
 
     const zone = this.zone;
     if (this.idx >= this.stage.zones.length) return;   // waiting at the transport
@@ -1591,6 +1696,22 @@ export class Campaign implements MissionController {
       this.game.announce(TEXT.missions.ceiling[this.game.board.kind], TEXT.banners.ceilingSub);
       break;
     }
+  }
+}
+
+/**
+ * `?section=<id>`: the index of that section's stage in this run, or 0.
+ * Starting there is the whole of the flag — the ramp is by place, so the
+ * section's squads are drawn exactly as they would be on a full run.
+ */
+function sectionStart(stages: { kind: string; section?: string }[]): number {
+  try {
+    const want = new URLSearchParams(window.location.search).get('section');
+    if (!want) return 0;
+    const i = stages.findIndex((s) => s.kind === 'section' && s.section === want);
+    return i < 0 ? 0 : i;
+  } catch {
+    return 0;
   }
 }
 

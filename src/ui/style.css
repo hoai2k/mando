@@ -768,3 +768,24 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   .hud-shared:not(.solo) { width: min(260px, 48vw); padding: 6px 8px; }
   .hud-shared:not(.solo) .hud-banner { font-size: 15px; }
 }
+
+/* A gameplay section's panel (docs/SECTIONS_IMPLEMENTATION.md §2.3): its
+   meters — the magma below you, the forging, the gap to the mark — bottom
+   centre, clear of the bars on the left and the weapon on the right. */
+.hud-section {
+  position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+  width: min(46%, 320px); text-align: center; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.8);
+}
+.hud-section.show { opacity: 1; }
+.hud-section .sec-title { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: #f0d08c; margin-bottom: 4px; }
+.hud-section .sec-bar { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.hud-section .sec-label { flex: 0 0 34%; text-align: right; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d8cfb8; }
+.hud-section .sec-track { flex: 1; height: 7px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.18); }
+.hud-section .sec-fill { height: 100%; transform-origin: left center; background: #9fd0ff; }
+.hud-section .sec-bar.good .sec-fill { background: #7bd389; }
+.hud-section .sec-bar.warn .sec-fill { background: #f0c050; }
+.hud-section .sec-bar.danger .sec-fill { background: #ff5a3a; }
+.hud-section .sec-line { margin-top: 4px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #eee6d6; }
+.hud-viewport.compact .hud-section { bottom: 14px; }

@@ -280,6 +280,51 @@ the rest of the game is untouched:
   **with** sections, using the existing path walker for zone stages and the
   autopilot for section stages.
 
+### 2.6 As built (2026-09-28) — read before writing a section
+
+The framework is in, with **The Chimney** (`src/sections/chimney.ts`) as the
+reference section. Copy its shape. What the build settled that the plan above
+did not say:
+
+- **Register in three places:** `src/sections/index.ts` (the def),
+  `src/sections/ids.ts` (`BUILT_SECTIONS`, and `SECTION_ASSETS` for any model
+  ids you `ctx.prop`), and the placement already lists every id in
+  `SECTION_PLACEMENT` (`src/world/mission-layouts.ts`). A section is left out of
+  its run until it is in `BUILT_SECTIONS`, so the layouts can carry the whole plan.
+- **Text:** `TEXT.sections.<id>` in `src/text.ts` has each section's `stage` and
+  `title`. Add your own lines inside your own block only. Keep HUD hints under
+  ~34 characters: the hint line wraps into the kill counter beyond that.
+- **Build vs update:** geometry, colliders, hazards and props in `build`.
+  Hostiles, rides (`ctx.rides(specs)`) and pickups (`ctx.pickup(pos)`) on the
+  **first `update`**, because placement validates against the standing stage.
+- **Height:** `groundAt` is one height per column. On stacked floors or decks,
+  place bodies with `ctx.spawn(kind, at, { exact: true })` / `ctx.placeAt`, and
+  respawn with `ctx.defaultRespawn(slot, at)`, which keeps `at.y`.
+- **Hold to interact:** `FrameInput.interactHeld` (Y held, C on the keyboard) and
+  `kit/interact.ts` (`Interactions`: `add`, `update`, `swallow` inside
+  `sectionMove.adjust` so the press does not also take cover, and `hudFor` for the
+  prompt and bar).
+- **Several input hooks:** `kit/moves.ts` `composeMoves(...)` puts more than
+  one `adjust`/`take` on the single `Player.sectionMove` slot.
+- **Beacon:** return `beacon: false` from `objective()` wherever a sixty-metre
+  column would be wrong (a shaft, under a roof, over a deck). The marker, radar
+  pip and hint still guide.
+- **Flight is universal.** Every playable either jetpacks (~28 m per burn, refills
+  on the ground) or super-jumps (rises as long as A is held, no fuel). Design the
+  vertical with that in mind. The Chimney shutters its holes so the climb is a
+  sequence of held floors rather than a lift.
+- **Tests:** `node tools/test-sections.mjs <id>` (env `PLAYERS`, `CHARS` —
+  default mixes a jetpack and a super-jumper — and `HARNESS_PORT`;
+  `CHROMIUM_PATH=/opt/pw-browsers/chromium` in the cloud sandbox). Every other
+  suite runs with sections off (`tools/harness.mjs` sets `window.__sectionsOff`;
+  `launch({ sections: true })` opts in). To eyeball a section, boot
+  `/?section=<id>` and pick its territory.
+- **Autopilot:** the one in the Chimney shows the pattern: a list of waypoints
+  (`stand` or `air`, and `gate` for "wait here until this opens"), steered by yaw
+  plus stick. Climb *beside* a ledge and step on; rest a jetpack to a full tank
+  before a climb. It must finish the section at 2 and at 4 players with the suite's
+  hostiles culled.
+
 ## 3. The kits
 
 | Kit | File | Owner | API sketch |
