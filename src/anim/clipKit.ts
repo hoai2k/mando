@@ -61,3 +61,33 @@ export const legs = (...poses: Legs[]): Record<string, Key[]> => ({
 /** hips at a drop below standing and a shift forward, in metres */
 export const hipsAt = (p: Proportions, ...drops: Array<[number, number]>): V3[] =>
   drops.map(([down, fwd]) => [0, p.hipHeight - down, fwd]);
+
+/** a two-bone limb's keys: the upper bone's turn and the hinge's bend */
+export interface Limb { upper: THREE.Quaternion; lower: V3 }
+
+/**
+ * Put the end of a two-bone limb at `to`, from the limb's root, in the
+ * parent's frame (the chest's for an arm, the hips' for a leg), with the
+ * middle joint bowed toward `pole`. The hinge is the lower bone's X: an elbow
+ * folds the forearm forward (a negative turn), a knee folds the shin back
+ * (`knee` true, a positive one). Past full reach the limb lies straight at it.
+ */
+export function reach(lenA: number, lenB: number, to: V3, pole: V3, knee = false): Limb {
+  const t = new THREE.Vector3(...to);
+  const d = THREE.MathUtils.clamp(t.length(), Math.abs(lenA - lenB) + 1e-3, lenA + lenB - 1e-4);
+  const dir = t.normalize();
+  const side = new THREE.Vector3(...pole).addScaledVector(dir, -new THREE.Vector3(...pole).dot(dir)).normalize();
+  const cosA = (lenA * lenA + d * d - lenB * lenB) / (2 * lenA * d);
+  const along = dir.clone().multiplyScalar(cosA).addScaledVector(side, Math.sqrt(Math.max(0, 1 - cosA * cosA)));
+  const lower = dir.clone().multiplyScalar(d).addScaledVector(along, -lenA).normalize();
+  const flex = Math.acos(THREE.MathUtils.clamp(along.dot(lower), -1, 1));
+  // the bone's -Y runs down the upper bone; the lower one folds toward +Z for
+  // an elbow, -Z for a knee, so Z follows the lower bone's offset from
+  // straight — away from the pole, the way it folds once bent
+  const y = along.clone().negate();
+  const off = lower.clone().addScaledVector(along, -lower.dot(along));
+  const z = (off.lengthSq() > 1e-6 ? off.normalize() : side.clone().negate()).multiplyScalar(knee ? -1 : 1);
+  const x = new THREE.Vector3().crossVectors(y, z);
+  const upper = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  return { upper, lower: [(knee ? 1 : -1) * flex / D, 0, 0] };
+}

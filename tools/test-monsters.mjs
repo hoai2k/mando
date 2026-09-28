@@ -398,7 +398,9 @@ const jawRig = await h.page.evaluate(async () => {
   const geo = mesh.geometry;
   const idxA = geo.attributes.skinIndex, wA = geo.attributes.skinWeight;
   const picks = [];
-  for (let v = 0; v < geo.attributes.position.count && picks.length < 300; v += 13) {
+  // every vertex, not a stride through them: the massiff ships at its 8k budget
+  // now, and a stride tuned for the 100k sculpt found six jaw vertices on it
+  for (let v = 0; v < geo.attributes.position.count && picks.length < 300; v++) {
     let jw = 0;
     for (const c of ['X', 'Y', 'Z', 'W']) if (idxA['get' + c](v) === ji) jw += wA['get' + c](v);
     if (jw > 0.7) picks.push(v);

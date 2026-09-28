@@ -78,6 +78,33 @@ Consider the Generations Blender cleanup, rigging, decimation, export and
 compression stages when the input model needs them. The game depends on the
 resulting usable `.glb`, not on a specific production pipeline.
 
+### Decimating to budget
+
+A model that arrives over budget is brought down with
+
+    node tools/asset-pipeline/decimate.mjs <id> <triangles>
+
+(add `--dry` to see the result without writing anything). It keeps the
+original byte for byte in `public/models/full/`, with the skinfix / strays /
+jawrig documents written for it, and always decimates from there — so running
+it again at a different budget is safe, and putting an original back is copying
+its files from `full/` over the shipped ones and dropping its entry from
+`src/characters/data/fullResolution.json`. Stray lumps are baked out before
+simplifying; every vertex-numbered fix is renumbered onto the new mesh. The
+simplifier weighs normals, texture coordinates and skin weights, so seams,
+creases and the borders between bones' territories are kept.
+
+The model workbench shows a decimated character's original with **Full-resolution
+original** (or `?res=full`), for checking the two side by side.
+
+Decimated on 2026-09-28, from 120k (60-100k for the props and the massiff):
+the playable heroes `din armorer paz bokatan ig11 duelist` to 15k; the NPCs
+`darktrooper deathtrooper fennec imperial_officer pirate pirate_melee pyke
+pyke_capo stormtrooper tusken droid marshal nikto wookiee_enforcer massiff
+massiff_static` to 8k; `carbine gaffi nikto_swoop` to 4k. They were each drawn
+two to four times a frame (every split-screen view and every shadow pass) at
+eight to fifteen times the budget above.
+
 ## Playable Mandalorians (4) — priority 1
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
@@ -881,17 +908,26 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 | `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
 | `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |
 
+Canonical three-view sheets for this optional outdoor set are delivered as
+`reference/props/<id>_ref.png` for each of the seven IDs above. These are
+visual references; the GLB models remain open. The two cliff pillar sheets
+were replaced with slender 8 × 36 m references (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
+
 ## Gameplay sections — props and a prisoner, requested 2026-09-28
 
 Opened by [`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md). All eighteen
 sections in [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are being built, and these are
 the sculpts they would like. **Every one ships as a procedural stand-in first**, and
 a section never waits on a file. The stand-in's size, pivot and collider are the spec
-below, so a delivered model drops into place through `loadProp()`. Reference sheets
-for each prop are requested in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--supporting-images-2026-09-28):
-make each model from its sheet. Rigless props on the `loadProp()` path, origin at the
-base, +Z forward. Stylized-realistic, weathered, original. Priority is by how
+below, so a delivered model drops into place through `loadProp()`. Canonical
+three-view sheets for all eleven props are delivered as
+`reference/props/<id>_ref.png`, and the prisoner has
+`reference/characters/prisoner_front.png`, `_side.png` and `_back.png`.
+Make each model from its sheet; the GLB requests remain open. The corvette,
+press, flak tower and valve wheel sheets were corrected on review (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)). Rigless props on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
+weathered, original. Priority is by how
 much players look at the prop.
 
 | Id | Section | Size | Role / constraints | Priority |
