@@ -412,23 +412,22 @@ export interface WeaponChoiceEntry {
   defaultName: string;
 }
 
-const STORE = 'workbench.weaponChoices.v1';
+/** where picks used to be kept across reloads; cleared on load (see below) */
+const STALE_STORE = 'workbench.weaponChoices.v1';
 
 /**
- * Picks per character and slot. Held in memory and mirrored to localStorage
- * when it is there, so a reload keeps them; an entry is removed, not stored,
- * when the pick goes back to the default.
+ * Picks per character and slot, held in memory only. A reload starts from
+ * what is deployed, never from last session's experiments: a pick that should
+ * last is exported as JSON and applied to the game, which is where weapon
+ * choices are stored. Anything an older workbench left in localStorage is
+ * dropped on load. An entry is removed, not kept, when the pick goes back to
+ * the default.
  */
 export class WeaponChoices {
   private map = new Map<string, WeaponChoiceEntry>();
 
   constructor() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE) ?? '[]') as WeaponChoiceEntry[];
-      for (const e of Array.isArray(saved) ? saved : []) {
-        if (findWeaponOption(e.choice)?.slot === e.slot) this.map.set(this.key(e.character, e.slot), e);
-      }
-    } catch { /* private mode, or nothing saved */ }
+    try { localStorage.removeItem(STALE_STORE); } catch { /* private mode */ }
   }
 
   get(character: string, slot: WeaponSlot): string | null {
@@ -439,17 +438,13 @@ export class WeaponChoices {
     const key = this.key(character, slot);
     if (!choice || choice === def.id) this.map.delete(key);
     else this.map.set(key, { character, characterName, slot, choice, defaultId: def.id, defaultName: def.name });
-    this.save();
   }
 
-  clear(): void { this.map.clear(); this.save(); }
+  clear(): void { this.map.clear(); }
 
   entries(): WeaponChoiceEntry[] {
     return [...this.map.values()].sort((a, b) => a.character.localeCompare(b.character) || a.slot.localeCompare(b.slot));
   }
 
   private key(character: string, slot: WeaponSlot): string { return `${character}|${slot}`; }
-  private save(): void {
-    try { localStorage.setItem(STORE, JSON.stringify(this.entries())); } catch { /* private mode */ }
-  }
 }

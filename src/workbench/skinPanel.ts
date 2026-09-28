@@ -54,7 +54,10 @@ const KIND_HELP: Record<string, string> = {
   'torso-drives-head': 'Helmet / head vertices carry chest weight and lag behind a head turn.',
 };
 
-const STORE = 'workbench.skinfix.decisions';
+// Decisions are held in memory only, so a reload shows the fixes as deployed;
+// an export is how a decision is kept. What an older workbench stored here is
+// dropped on load.
+const STALE_STORE = 'workbench.skinfix.decisions';
 
 function bandName([lo, hi]: [number, number]): string {
   const at = (f: number) => (f > 0.86 ? 'head' : f > 0.72 ? 'shoulders' : f > 0.58 ? 'chest' : f > 0.46 ? 'hips'
@@ -78,7 +81,7 @@ export class SkinPanel {
   holding = false;
 
   constructor(private host: HTMLElement, private onChange: () => void) {
-    try { this.decisions = JSON.parse(localStorage.getItem(STORE) ?? '{}'); } catch { this.decisions = {}; }
+    try { localStorage.removeItem(STALE_STORE); } catch { /* private mode */ }
   }
 
   /** a new subject is on the turntable; its model may still be loading */
@@ -198,7 +201,6 @@ export class SkinPanel {
   // ---------- decisions ----------
   private decide(id: string, d: 'approve' | 'discard' | null): void {
     if (d) this.decisions[id] = d; else delete this.decisions[id];
-    try { localStorage.setItem(STORE, JSON.stringify(this.decisions)); } catch { /* private mode */ }
     const fix = this.doc?.fixes.find((f) => f.id === id);
     if (fix) {
       if (this.showByDefault(fix)) this.enabled.add(id); else this.enabled.delete(id);
@@ -273,9 +275,9 @@ export class SkinPanel {
         <div class="fixes">${rows}</div>
         <div class="row">
           <button id="skinExport" class="primary"${decided ? '' : ' disabled'}>Export decisions (${decided})</button>
-          <button id="skinForget"${decided ? '' : ' disabled'} title="drop every decision made in this browser">Clear</button>
+          <button id="skinForget"${decided ? '' : ' disabled'} title="drop every decision made since the page loaded">Clear</button>
         </div>
-        <p class="note">Approve / Discard are remembered in this browser across characters. Export hands back one JSON
+        <p class="note">Approve / Discard are kept across characters until the page reloads. Export hands back one JSON
           for every model you looked at; <code>node tools/asset-pipeline/skin-decide.mjs</code> folds it into the fix files.</p>
       </div>`;
 
@@ -314,7 +316,6 @@ export class SkinPanel {
     q<HTMLButtonElement>('#skinExport')!.onclick = () => this.exportDecisions();
     q<HTMLButtonElement>('#skinForget')!.onclick = () => {
       this.decisions = {};
-      try { localStorage.removeItem(STORE); } catch { /* private mode */ }
       this.enabled = new Set(fixes.filter((f) => f.status === 'applied').map((f) => f.id));
       this.applyFixes();
       this.paint();
