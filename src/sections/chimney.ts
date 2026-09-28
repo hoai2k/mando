@@ -220,12 +220,20 @@ function build(ctx: SectionContext): SectionInstance {
     const at = k === 0
       ? new THREE.Vector3(-6, Y0, -HALF + 3)
       : new THREE.Vector3(-HOLE_SIDE[k] * 4, Y0 + FLOORS[k], HALF - 3);
+    // proportioned to the valve wheel's sheet (`reference/props/valve_wheel_ref.png`)
+    // at the 1.6 m the sculpt is scaled to: a bolted flange, a pedestal pipe,
+    // and a 0.82 m handwheel centred 1.19 m up on an axle stub 0.23 m forward
     const wheel = new THREE.Group();
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 8), slab);
-    post.position.y = 0.55;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.08, 6, 16), trim);
-    ring.position.y = 1.2;
-    wheel.add(post, ring);
+    const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.28, 0.08, 12), slab);
+    flange.position.y = 0.04;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 1.19, 8), slab);
+    post.position.y = 0.6;
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.23, 8), slab);
+    axle.rotation.x = Math.PI / 2;
+    axle.position.set(0, 1.19, 0.115);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.04, 6, 20), trim);
+    ring.position.set(0, 1.19, 0.23);
+    wheel.add(flange, post, axle, ring);
     const holder = ctx.prop('valve_wheel', at, { size: 1.6, fallback: () => wheel });
     void holder;
     const it = interactions.add({

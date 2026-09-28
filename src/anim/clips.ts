@@ -384,38 +384,45 @@ function makeClips(p: Proportions): ClipSet {
   // The feet stay where the standing clip leaves them. A crouch that walks the
   // boots inward reads as a curtsey, and behind cover you can see both of them
   // against the crate the whole time.
+  //
+  // Deepened in the workbench (pose-edits, Din): the thighs a quarter-turn's
+  // third further up, the knees folded past a right angle, the feet flexed to
+  // stay flat — and the hips dropped the 17 cm that keeps them planted.
   clips.coverLower = new THREE.AnimationClip('coverLower', 3.4, [
-    pt('hips', [0, 1.7, 3.4], [[0, hipY - 0.3, 0], [0, hipY - 0.325, 0], [0, hipY - 0.3, 0]]),
-    qt('hips', [0, 1.7, 3.4], [[11, 0, 0], [13, 0, -1], [11, 0, 0]]),
+    pt('hips', [0, 1.7, 3.4], [[0, hipY - 0.471, 0], [0, hipY - 0.496, 0], [0, hipY - 0.471, 0]]),
+    qt('hips', [0, 1.7, 3.4], [[9.2, 0.1, -0.3], [11.2, 0.1, -1.3], [9.2, 0.1, -0.3]]),
     qt('spine', [0, 1.7, 3.4], [[7, 0, 0], [9, 0, 0], [7, 0, 0]]),
-    qt('upperLegL', [0, 1.7, 3.4], [[-52, 0, 7], [-55, 0, 7], [-52, 0, 7]]),
-    qt('lowerLegL', [0, 1.7, 3.4], [[76, 0, 0], [80, 0, 0], [76, 0, 0]]),
-    qt('footL', [0, 3.4], [[-22, 0, 0], [-22, 0, 0]]),
+    qt('upperLegL', [0, 1.7, 3.4], [[-74.1, -1.5, 9.1], [-77.1, -1.5, 9.1], [-74.1, -1.5, 9.1]]),
+    qt('lowerLegL', [0, 1.7, 3.4], [[102.3, -2.9, 9], [106.3, -2.9, 9], [102.3, -2.9, 9]]),
+    qt('footL', [0, 3.4], [[-33.2, 3.5, -2.2], [-33.2, 3.5, -2.2]]),
     // the trailing leg is folded a shade deeper, so the stance is a crouch
     // rather than a squat — one knee leads, which is what a body behind a
     // wall actually does when it means to come back up shooting
-    qt('upperLegR', [0, 1.7, 3.4], [[-46, 0, -8], [-49, 0, -8], [-46, 0, -8]]),
-    qt('lowerLegR', [0, 1.7, 3.4], [[84, 0, 0], [88, 0, 0], [84, 0, 0]]),
-    qt('footR', [0, 3.4], [[-26, 0, 0], [-26, 0, 0]]),
+    qt('upperLegR', [0, 1.7, 3.4], [[-75.6, 4, -8.9], [-78.6, 4, -8.9], [-75.6, 4, -8.9]]),
+    qt('lowerLegR', [0, 1.7, 3.4], [[108.4, 1.5, -0.6], [112.4, 1.5, -0.6], [108.4, 1.5, -0.6]]),
+    qt('footR', [0, 3.4], [[-37.9, 1.4, 6.4], [-37.9, 1.4, 6.4]]),
   ]);
 
   // A compact two-step gait for low ship holds and crawl-height passages.
   // The hips stay down while alternating feet, so the shortened collider has
   // a body pose that matches it rather than a standing run through the roof.
+  // As deep as the cover crouch: the same fold added to every key (thighs 26°
+  // further up, knees 25° further closed), the hips dropped to keep the feet
+  // on the ground.
   clips.crouchWalkLower = new THREE.AnimationClip('crouchWalkLower', 0.9, [
     pt('hips', [0, 0.225, 0.45, 0.675, 0.9], [
-      [0, hipY - 0.31, 0], [0, hipY - 0.35, 0], [0, hipY - 0.31, 0],
-      [0, hipY - 0.35, 0], [0, hipY - 0.31, 0],
+      [0, hipY - 0.443, 0], [0, hipY - 0.499, 0], [0, hipY - 0.443, 0],
+      [0, hipY - 0.499, 0], [0, hipY - 0.443, 0],
     ]),
     qt('hips', [0, 0.45, 0.9], [[12, 0, 0], [12, 0, 0], [12, 0, 0]]),
     qt('upperLegL', [0, 0.225, 0.45, 0.675, 0.9], [
-      [-65, 0, 7], [-48, 0, 7], [-42, 0, 7], [-54, 0, 7], [-65, 0, 7],
+      [-91, 0, 7], [-74, 0, 7], [-68, 0, 7], [-80, 0, 7], [-91, 0, 7],
     ]),
     qt('upperLegR', [0, 0.225, 0.45, 0.675, 0.9], [
-      [-42, 0, -7], [-54, 0, -7], [-65, 0, -7], [-48, 0, -7], [-42, 0, -7],
+      [-68, 0, -7], [-80, 0, -7], [-91, 0, -7], [-74, 0, -7], [-68, 0, -7],
     ]),
-    qt('lowerLegL', [0, 0.45, 0.9], [[84, 0, 0], [76, 0, 0], [84, 0, 0]]),
-    qt('lowerLegR', [0, 0.45, 0.9], [[76, 0, 0], [84, 0, 0], [76, 0, 0]]),
+    qt('lowerLegL', [0, 0.45, 0.9], [[109, 0, 0], [101, 0, 0], [109, 0, 0]]),
+    qt('lowerLegR', [0, 0.45, 0.9], [[101, 0, 0], [109, 0, 0], [101, 0, 0]]),
   ]);
 
   // ---------- UPPER: idle ----------
@@ -634,23 +641,25 @@ function makeClips(p: Proportions): ClipSet {
   clips.tuckLower = new THREE.AnimationClip('tuckLower', 0.6, [
     pt('hips', [0, 0.3, 0.6], [[0, hipY - 0.05, 0], [0, hipY - 0.07, 0], [0, hipY - 0.05, 0]]),
     qt('hips', [0, 0.6], [[16, 0, 0], [16, 0, 0]]),
-    qt('spine', [0, 0.3, 0.6], [[26, 0, 0], [29, 0, 0], [26, 0, 0]]),
-    qt('upperLegL', [0, 0.3, 0.6], [[-118, 0, 9], [-124, 0, 10], [-118, 0, 9]]),
-    qt('lowerLegL', [0, 0.3, 0.6], [[126, 0, 0], [131, 0, 0], [126, 0, 0]]),
+    // tightened in the workbench (pose-edits, Din): the back rounder, the
+    // knees drawn in together and the heels folded closer
+    qt('spine', [0, 0.3, 0.6], [[30.3, -0.6, -0.3], [33.3, -0.6, -0.3], [30.3, -0.6, -0.3]]),
+    qt('upperLegL', [0, 0.3, 0.6], [[-118.6, 4.2, 4.9], [-124.6, 4.2, 5.9], [-118.6, 4.2, 4.9]]),
+    qt('lowerLegL', [0, 0.3, 0.6], [[138.9, 0.1, -0.9], [143.9, 0.1, -0.9], [138.9, 0.1, -0.9]]),
     qt('footL', [0, 0.6], [[24, 0, 0], [24, 0, 0]]),
     // the trailing leg tucks a beat tighter, so the ball reads as a body
-    qt('upperLegR', [0, 0.3, 0.6], [[-124, 0, -8], [-118, 0, -7], [-124, 0, -8]]),
-    qt('lowerLegR', [0, 0.3, 0.6], [[131, 0, 0], [126, 0, 0], [131, 0, 0]]),
+    qt('upperLegR', [0, 0.3, 0.6], [[-122.1, -8.5, -1], [-116.1, -8.5, 0], [-122.1, -8.5, -1]]),
+    qt('lowerLegR', [0, 0.3, 0.6], [[142.4, -1.4, 1.7], [137.4, -1.4, 1.7], [142.4, -1.4, 1.7]]),
     qt('footR', [0, 0.6], [[22, 0, 0], [22, 0, 0]]),
   ]);
   clips.tuckUpper = new THREE.AnimationClip('tuckUpper', 0.6, [
-    qt('chest', [0, 0.3, 0.6], [[22, 0, 0], [25, 0, 0], [22, 0, 0]]),
+    qt('chest', [0, 0.3, 0.6], [[26.8, 0.1, 0.9], [29.8, 0.1, 0.9], [26.8, 0.1, 0.9]]),
     qt('head', [0, 0.6], [[18, 0, 0], [18, 0, 0]]),   // chin in, eyes on the knees
     // arms wrapped around the shins rather than hanging: elbows in tight
-    qt('upperArmL', [0, 0.3, 0.6], [[-46, 0, 26], [-50, 0, 28], [-46, 0, 26]]),
-    qt('forearmL', [0, 0.6], [[-112, 0, 0], [-112, 0, 0]]),
-    qt('upperArmR', [0, 0.3, 0.6], [[-46, 0, -26], [-50, 0, -28], [-46, 0, -26]]),
-    qt('forearmR', [0, 0.6], [[-112, 0, 0], [-112, 0, 0]]),
+    qt('upperArmL', [0, 0.3, 0.6], [[-50.7, -7, 12.2], [-54.7, -7, 14.2], [-50.7, -7, 12.2]]),
+    qt('forearmL', [0, 0.6], [[-116.7, 4, -16.5], [-116.7, 4, -16.5]]),
+    qt('upperArmR', [0, 0.3, 0.6], [[-46.2, 7.9, -11.6], [-50.2, 7.9, -13.6], [-46.2, 7.9, -11.6]]),
+    qt('forearmR', [0, 0.6], [[-114.1, 0, 15.7], [-114.1, 0, 15.7]]),
   ]);
 
   // ---------- LOWER/UPPER: swimming (a front crawl) ----------

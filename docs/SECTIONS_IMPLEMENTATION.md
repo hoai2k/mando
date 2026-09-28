@@ -368,6 +368,22 @@ on the skiff. The skiff has HP; if it breaks up, the phase restarts on a fresh
 skiff. Autopilot: the gunner fires the turret at the nearest target, the others
 jump when the gap is under 10 m, then path through the decks.
 
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `quad_turret` — 4.0 × 3.0 × 2.7 m (L × W × H; scale by the 4 m length, barrel
+  tips to shield, so it stands 2.7 m, not the 2.4 m first asked). Drum base
+  about 3.0 m across × 1.0 m tall (`base`, static); the yaw block on it (`yaw`,
+  turns about +Y); four barrels stacked vertically in `pitch`, pivot at the
+  trunnion about 1.9 m up, tips 1.5 m forward of the drum, empties
+  `muzzle_0..3`; `seat` empty behind; a curved shield behind the seat. Used for
+  the skiff's deck gun and the barge's heavy gun (the heavy gun may be placed
+  larger; scale the whole box). Collider: a cylinder r 1.5 m, 1.0 m tall for the
+  drum.
+
 **`worm-sign`** — K6 noise. The field is 180 × 110 m with 17 rock islands on
 three routes. The worm is a burrowed controller that drives the existing
 `sandworm` (erupt, sink). It targets the loudest player on sand once the party's
@@ -378,6 +394,20 @@ islands. The mesa walls on both flanks are the boundary. The fighting pit's rim
 rocks and the grounded barge behind the party frame the axis. Autopilot: hop
 along the winding route, walking on sand, and plant a thumper when hunger passes
 0.6.
+
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `thumper` — 2.0 × 1.8 × 2.4 m (scale by the 2.4 m height). Tripod of three
+  spiked legs, feet about 1.8 m apart; a crank lever across the top with a
+  netted stone counterweight on one end; the `hammer` (a separate node the game
+  drives up and down) hangs from the other end about 0.7 m off the tripod's
+  centre and bottoms out about 0.5 m above the ground. Pivot at the ground under
+  the tripod's centre. Carried, so no solid collider while held; planted, a
+  cylinder r 0.9 m.
 
 ### Spice Run
 
@@ -390,6 +420,33 @@ across the deck, and then its bridge. The hull bar is the fail state:
 checkpoint every wave, restart from the last. Unmanned guns fire on their own at
 half rate. Autopilot: slots 1–3 man guns, slot 0 fights on the deck.
 
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `quad_turret` — 4.0 × 3.0 × 2.7 m (L × W × H; scale by the 4 m length, barrel
+  tips to shield, so it stands 2.7 m, not the 2.4 m first asked). Drum base
+  about 3.0 m across × 1.0 m tall (`base`, static); the yaw block on it (`yaw`,
+  turns about +Y); four barrels stacked vertically in `pitch`, pivot at the
+  trunnion about 1.9 m up, tips 1.5 m forward of the drum, empties
+  `muzzle_0..3`; `seat` empty behind; a curved shield behind the seat. Collider:
+  a cylinder r 1.5 m, 1.0 m tall for the drum. Four of them on the hull.
+- `boarding_tube` — 8.0 × 2.4 × 2.4 m (scale by the 8 m length; the tube is
+  about 2.2 m across, not 3 m). Ribbed tube; a clamp collar about 2.4 m across
+  at the hull end with four jaws as the `latch` node (the part that is meleed or
+  rocketed off); a hoop guard at the dropship end. Origin at the base (under the
+  tube's middle), +Z along it, collar end at +Z; place it so the collar sits on
+  the boarding point.
+- `pirate_corvette` — 60 × 16 × 18 m (scale by the 60 m length; height includes
+  the bridge mast). Box hull about 60 × 12 × 9 m; three shield domes `gen_0..2`
+  in a row on the dorsal centreline over the middle third (separate child
+  meshes, each destroyed on its own); the spinal gun `spine_gun` ahead of them;
+  the `bridge` block near the stern; three engine pods at the rear. Seen from
+  30–80 m, never walked on, so no collider beyond the hit volumes for the three
+  domes and the bridge.
+
 **`ring-walk`** — K1. A torus section, 380 m across, with a 90° arc of hull spine
 12 m wide and a conduit down the middle. It has four segments of about 75 m
 joined by rail gates and three locks. Hazards: plasma vents on a cycle, 6–8 m
@@ -398,6 +455,9 @@ drones. The station hub and spokes are the backdrop, and the ring falling away
 over the curve is the edge. Void falls re-form at the last gate. The camera
 stands ~10 m out and a little along the axis. Autopilot: walk the rail, shoot the
 nearest target, jump the gaps.
+
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
 
 ### Lava Flats
 
@@ -410,6 +470,9 @@ or ramp) and the gun barge (a flak skiff with crew). The fence at the chamber
 landing ends it. Enemy riders use `updateRiding` with a lane brain. Autopilot:
 throttle to cruise, lean away from telegraphed hazards, fire at the nearest rider
 in the cone, swing when a rider is alongside.
+
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
 
 **`chimney`** — K4 rising plane. A 22 m × 120 m shaft with a spiral of ledges,
 some crumbling, and landings at 35, 70 and 100 m, each with a valve (hold 4 s:
@@ -430,6 +493,9 @@ ends in the snowbank. Channel walls rise on both sides throughout (the boundary)
 and the crevasses read as black gaps in lit ice. Autopilot: steer to the channel
 spline, jump at crevasse marks, and shoot.
 
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
+
 **`lamplight`** — K9. Three dark chambers of 32–40 m, joined by crawl tunnels,
 with three braziers per chamber (interact 2 s, a warm pool of light,
 a checkpoint). Krykna avoid lamp cones, and a focused beam for 1.5 s dazzles.
@@ -439,6 +505,9 @@ burns open to the queen tunnel. Egg sacs and brazier glow are the only other
 light, so the lit braziers are the landmarks and the way on is the next unlit
 brazier's ember. Autopilot: go to the nearest unlit brazier, interact, point the
 lamp at the nearest krykna.
+
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
 
 ### Storm Docks
 
@@ -450,12 +519,18 @@ rails and the sea are the boundary, and going over is the harbour beat: re-form
 on the deckhouse roof. Autopilot: fight from the deckhouse lee and brace on the
 wave horn.
 
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
+
 **`run-the-pier`** — K1 reversed plus K4 path front. A 600 m pier chain in three
 sections with gaps, obstacles and the warehouse pass-through. The mamacore is
 under the collapse front. Firing into the mouth staggers it back 10 m. A caught
 player re-forms at the leading edge after 3 s. Only when everyone is caught does
 the section reset to the last gate. The pier edges and the sea are the boundary.
 Autopilot: sprint the path, hop the obstacles, dash the gaps.
+
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
 
 ### Refinery
 
@@ -466,6 +541,26 @@ catwalks at 6 m. Walls and the smelter are the boundary. Riding into the smelter
 counts as off-path and re-forms you at the last station. Autopilot: walk the
 slowest belt, wait on the press cycle, get off the belts at the smelter apron.
 
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `hydraulic_press` — 8.0 × 2.0 × 5.4 m (scale by the 8 m width; the sheet is
+  5.4 m tall and 2 m deep, not the 7 × 3 m first asked). Two columns about 0.8 m
+  square on foot plates, a crossbeam across the top, the `head` about 5 × 1.2 ×
+  1.0 m on four rams hanging slightly forward of the crossbeam (the node the
+  game drives down onto the belt). The opening under it is about 6.4 m wide, so
+  a belt up to ~6 m runs through. Colliders: the two columns (0.8 × 0.8 m boxes,
+  full height); the head's kill volume is its 5 × 1.2 m footprint.
+- `welding_arm` — 6.0 × 1.6 × 5.1 m (scale by the 6 m reach). A square base
+  plate about 1.6 m; the `base` drum; the upper arm rising to the `shoulder`
+  about 3.5 m up; the forearm (`elbow`) reaching out level; the spark empty
+  `tip` about 3 m up at full reach. `base`, `shoulder` and `elbow` rotate about
+  +Y. Pivot at the base plate's centre on the floor. Collider: a 1.6 × 1.6 m box
+  for the base; the swing's kill volume follows `tip`.
+
 **`lights-out`** — K6 light. A 90 × 70 m tank farm under smoke. Three searchlight
 towers on authored sweeps, two sensor posts, steam vents that block sight, and
 trooper patrols. A silent takedown (melee from behind on an unaware enemy) kills
@@ -474,6 +569,19 @@ the refinery's `alarm_console` pattern: fences seal the lanes, turrets rise, a
 drop comes in, and a console resets it. It is never a fail. The tank rows are
 the boundary, and the lit stair at the far corner is the way on. Autopilot:
 follow the patrol-free route, wait out cones, take down whoever is in the way.
+
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `searchlight_tower` — 5.5 × 5.0 × 14 m (scale by the 14 m height). Lattice
+  mast about 1.7 m square on a 2.7 m hazard-striped footing; a platform about
+  4.8 m square at 11 m; the `lamp` drum, about 1.8 m across, on its yoke above
+  the platform (pivot at the yoke, swept by the game; emissive lens); a sensor
+  mast at one corner. Collider: a cylinder r 1.2 m (the mast only; the footing
+  is 2.7 m, so r 1.4 m if you want the footing solid). Three of them.
 
 ### Great Forge
 
@@ -487,6 +595,18 @@ tunnels, and the last comes from all three with the alamite chieftain. Reward:
 shaft to the sky above the dais is the way on after the forging. Autopilot:
 stand on the dais and shoot.
 
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `beskar_barricade` — 3.0 × 1.0 × 0.9 m (scale by the 3 m width; the sheet is
+  0.9 m tall, not 1.2 m). A curved plate bowing about 0.5 m, posts at both ends,
+  braced feet front and back. Pivot at the ground under its centre. Collider: a
+  box 3.0 × 0.9 × 0.5 m following the plate (the 3 × 1.2 × 0.4 m box first asked
+  is taller and shallower than the drawn shape). One per socket, six sockets.
+
 **`covert-sky`** — K7 flight. A 1.2 km × 160 m flying volume up to 110 m, over a
 ruined city. A ring line (each ring a checkpoint plus a boost), three flak towers
 (land and plant a charge for 3 s, or two rockets into the breech), drone pairs
@@ -495,6 +615,20 @@ boundary is the ruin ridge, the ceiling and the city's edge. Anyone who falls
 below the rooftops is caught by the updraft and returned to the last ring. That
 catch is the stage's `offPath`, and it is explained by a banner. Autopilot: fly
 ring to ring, land on each flak tower and plant.
+
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `flak_tower` — 6.7 × 6.0 × 3.3 m (scale by the 6 m slab; length includes the
+  barrels). A stone slab 6 m across and about 0.9 m thick, sandbags and crates
+  round its edge; the turret on a turntable in the middle (`yaw`, `pitch`),
+  barrels level about 2.4 m up and reaching 0.7 m past the slab's edge; the
+  `charge` socket empty on the turret. Pivot at the slab's underside centre,
+  placed on a ruin tower top. The slab is the landing surface: a 6 m box 0.9 m
+  thick. Three of them.
 
 ### Ringworld
 
@@ -506,6 +640,9 @@ cars), and the rival tram (jump across, or shoot the coupling). Swept or knocked
 off: re-form on the rear car roof. Autopilot: stay on the middle car, crouch on
 the gantry horn, drop in for the tunnel.
 
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
+
 **`mark-runs`** — K8. Twelve rooftops over about 500 m with two forks. Pirates are
 posted on four roofs. Crate kicks and a sign dropped across a gap. The HUD
 shows the gap meter and the bounty value. The mark escapes if he is more than
@@ -513,6 +650,9 @@ shows the gap meter and the bounty value. The mark escapes if he is more than
 launcher pickup is on roof 1. The final pad duel ends in capture or a kill. Roof
 edges and the long drop are the boundary; falling re-forms you on the last
 checkpoint roof. Autopilot: follow the mark's path and net him at the pad.
+
+**Props to build:** none new from the model list; it is built from existing
+models and procedural geometry at the sizes above.
 
 ### Prison Rig
 
@@ -523,12 +663,35 @@ AI), and the headcount. The stair core opens at two desks, and 10+ prisoners
 earns a bonus. The hall walls are the boundary. Autopilot: take the nearest desk,
 release the blocks on the way, walk safe tiles to the stair.
 
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `prisoner` — a 1.78 m biped on the canonical rig (swap contract). The sheets
+  are an ordinary adult build in a relaxed A-pose, so the usual biped stand-in
+  (the droid or trooper builder re-skinned pale, plain jumpsuit) is the right
+  proportion. Several on screen at once.
+
 **`the-lift`** — K2. A 12 × 12 m platform; the shaft wall scrolls down at 2 m/s
 with landings every 25 m. Squads fire as landings pass. Jet troopers drop onto
 the platform and debris falls with shadow telegraphs. Two stops: fight onto the
 landing to the breaker (hold 4 s), then 5 s to get back aboard. The top break-out
 is the end. Falling off re-forms you on the platform. Autopilot: hold the
 platform centre, and at a stop go to the breaker.
+
+**Props to build** (stand-in first, then the sculpt swaps in). Sizes are the
+reference sheets' bounding boxes, scaled by the governing dimension
+([`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28));
+build the stand-in and size its colliders to these, since the delivered sculpt
+is scaled by one dimension and keeps the sheet's proportions.
+
+- `freight_lift` — 12 × 12 × 5.4 m (scale by the 12 m square). Deck about 12 ×
+  12 × 2.0 m including the underframe (origin at the underside centre, like
+  every prop, so the floor is 2.0 m above it); rails 1.1 m tall along two
+  opposite sides; the control `pylon` about 1 m square rising to 5.4 m (3.4 m
+  above the deck) at one corner. Colliders: the deck, the two rails, the pylon.
 
 ## 5. Assets
 
@@ -540,7 +703,8 @@ Requested **now**, because all eighteen are being built:
 - **Models** — [`ASSETS_MODELS.md`](ASSETS_MODELS.md#gameplay-sections--props-and-a-prisoner-requested-2026-09-28):
   the props and the one character. Every one ships as a procedural stand-in
   first (rule 7), and the stand-in's size and pivot are the spec the model is
-  made to.
+  made to. Each section's **Props to build** note in §4 gives its props'
+  sheet-measured sizes, nodes, pivots and colliders.
 
 ## 6. How the work is split
 

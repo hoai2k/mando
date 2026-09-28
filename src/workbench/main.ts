@@ -229,23 +229,23 @@ function alternatesFor(p: Pose): Alternate[] {
   };
   // A fighter with approved moves of their own no longer carries the generic
   // saber studies; their approved moves are offered in their place.
-  const own = styleMoves(subject.id);
-  const generic = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
-    : own.length && subject.id !== 'ventress' && p.id.startsWith('saber') ? [] : ATTACK_ALTERNATES[p.id] ?? [];
+  const own = styleMoves(cid());
+  const generic = cid() === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
+    : own.length && cid() !== 'ventress' && p.id.startsWith('saber') ? [] : ATTACK_ALTERNATES[p.id] ?? [];
   const approved: Alternate[] = own
     .filter((m) => (m.slot === 'flourish' ? 'flourish' : m.slot === 'idle' ? 'saberIdle' : `saber${m.slot}`) === p.id)
     .map((m) => ({ id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'saber' }));
-  const choices = [...generic, ...approved, ...styleStudyAlternates(subject.id, p.id)];
+  const choices = [...generic, ...approved, ...styleStudyAlternates(cid(), p.id)];
   return choices.filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
 function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
   let upper = selected.upper;
-  if (subject.id === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
+  if (cid() === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
   // the saber poses are the generic saber's; a fighter whose blade has clips
   // of its own (the Darksaber, the tonfas, the double saber) plays those
-  const { attack, stance } = saberClipsFor(subject.id);
+  const { attack, stance } = saberClipsFor(cid());
   if (alternateChoice === 'none' && (attack !== 'saber' || stance !== 'saber')) {
     const weaponClips: Record<string, string> = {
       saber1: `${attack}1`, saber2: `${attack}2`, saber3: `${attack}3`,
@@ -292,25 +292,32 @@ function disposeFigures(): void {
  * twice would stand the same sculpt beside itself under two different labels.
  */
 const isProp = (s: Subject): boolean => s.build.length === 0;
+/** the character the subject plays as — itself, or the one a variant file stands in for */
+const cid = (): string => subject.character ?? subject.id;
 
 function spawn(): void {
   disposeFigures();
-  const wants: Array<[boolean, string]> = isProp(subject)
+  // A variant (the re-rigged Din) compares against the character it stands in
+  // for — the original file on the left — rather than against the procedural body.
+  const original = subject.character ? findSubject(subject.character) : null;
+  const wants: Array<[boolean, string, Subject?]> = isProp(subject)
     ? [[true, 'Authored model']]
-    : subject.hasModel && mode === 'both'
-      ? [[true, 'Authored model'], [false, 'Procedural']]
-      : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
+    : original && mode === 'both'
+      ? [[true, 'Original rig', original], [true, 'Re-rigged']]
+      : subject.hasModel && mode === 'both'
+        ? [[true, 'Authored model'], [false, 'Procedural']]
+        : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
 
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
-  figures = wants.map(([authored, label], i) => {
-    const inst = subject.build(authored) as CharacterInstance & Figure['extras'];
+  figures = wants.map(([authored, label, from], i) => {
+    const inst = (from ?? subject).build(authored) as CharacterInstance & Figure['extras'];
     if (inst.animator && inst.rig) {
-      const mando = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
-      const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(subject.id);
-      Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, subject.id, {
+      const mando = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
+      const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(cid());
+      Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, cid(), {
         staff, sabers: mando.includes('sabers'),
       }));
-      Object.assign(inst.animator.clips, styleStudyClips(subject.id, inst.rig.proportions));
+      Object.assign(inst.animator.clips, styleStudyClips(cid(), inst.rig.proportions));
       for (const clip of Object.values(inst.animator.clips)) {
         if (!hasCounterweight(clip.name)) continue;
         for (const strength of [0, 0.25, 0.5, 0.75, 1, 1.25]) {
@@ -329,11 +336,11 @@ function spawn(): void {
     const rest = Object.values(inst.rig?.bones ?? {}).map((bone) => ({
       bone, quaternion: bone.quaternion.clone(), position: bone.position.clone(),
     }));
-    const loadout = isProp(subject) ? null : loadoutFor(subject.id, inst);
+    const loadout = isProp(subject) ? null : loadoutFor(cid(), inst);
     return {
       inst, extras: inst, rest,
       weapons: loadout && inst.rig ? new FigureWeapons(inst.root, inst.rig.bones, loadout) : null,
-      waitingFor: authored ? modelUrl(subject.modelFile ?? subject.id) : null,
+      waitingFor: authored ? modelUrl((from ?? subject).modelFile ?? (from ?? subject).id) : null,
       card: null,
       label: sides[i] ? `${sides[i]} — ${label}` : label,
     };
@@ -382,7 +389,7 @@ function frameSubject(): void {
   const box = new THREE.Box3();
   for (const f of figures) {
     f.inst.root.updateWorldMatrix(true, true);
-    if (subject.id === 'boba_fett') {
+    if (cid() === 'boba_fett') {
       // The imported FBX mesh boxes are in bind space. Frame its evaluated
       // standing dimensions rather than sending the camera toward those boxes.
       box.expandByPoint(f.inst.root.localToWorld(new THREE.Vector3(-0.65, 0, -0.65)));
@@ -424,7 +431,7 @@ const TWIN_BLADES: ReadonlySet<string> = new Set(['ventress', 'jedi', 'maris']);
 
 /** The poses this turntable can actually play, with the current pick kept valid. */
 function available(): Pose[] {
-  const kinds = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
+  const kinds = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
   const playerAttack = new Set(['melee1', 'melee2', 'melee3']);
   const saberAttack = new Set(['saber1', 'saber2', 'saber3', 'saberIdle', 'saberRun', 'flourish']);
   const list = posesFor(capabilities()).filter((p) => {
@@ -432,8 +439,8 @@ function available(): Pose[] {
     if (saberAttack.has(p.id)) return kinds.includes('sabers');
     // Only the twin-blade fighters parry with the off hand (player.ts
     // PARRY_CLIPS), and only they have a left-hand blade to throw and catch.
-    if (p.id === 'parry') return subject.id === 'ventress' || subject.id === 'jedi';
-    if (p.id === 'throwL' || p.id === 'catchL') return TWIN_BLADES.has(subject.id);
+    if (p.id === 'parry') return cid() === 'ventress' || cid() === 'jedi';
+    if (p.id === 'throwL' || p.id === 'catchL') return TWIN_BLADES.has(cid());
     if (p.id === 'throwR' || p.id === 'catchR') return kinds.includes('sabers');
     if (p.id === 'enemySwing') return kinds.length === 0 && !!figures[0]?.inst.animator;
     return true;
@@ -488,7 +495,7 @@ function applyPose(): void {
     if (pose.melee && f.extras.setMeleeKind) {
       f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
     }
-    const armorerIdle = subject.id === 'armorer' && pose.id === 'idle';
+    const armorerIdle = cid() === 'armorer' && pose.id === 'idle';
     f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
     setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
@@ -496,7 +503,7 @@ function applyPose(): void {
     // way the game would, then put the slot's pick (if any) in that hand.
     const held = heldWeapon();
     if (held.hand && held.hand !== held.gameHand) f.extras.setWeapon?.(held.hand === 'melee' ? 'gaffi' : 'blaster');
-    f.weapons?.show(held.hand, held.hand ? weaponChoices.get(subject.id, held.hand) : null);
+    f.weapons?.show(held.hand, held.hand ? weaponChoices.get(cid(), held.hand) : null);
     f.inst.cosmetic?.(0, time);
     f.weapons?.frame(time);
   }
@@ -517,8 +524,8 @@ function heldWeapon(): { loadout: Loadout | null; slots: WeaponSlot[]; hand: Wea
   if (!slots.length) return { loadout, slots, hand: null, gameHand: null };
   // the Armorer shows her axe at idle, as the character-select screen does
   const gameHand: WeaponSlot = kind !== 'either' ? kind
-    : subject.id === 'armorer' && pose.id === 'idle' ? 'melee' : loadout.hand;
-  const asked = weaponHand.get(subject.id);
+    : cid() === 'armorer' && pose.id === 'idle' ? 'melee' : loadout.hand;
+  const asked = weaponHand.get(cid());
   const hand = kind === 'either' && asked && slots.includes(asked) ? asked
     : slots.includes(gameHand) ? gameHand : slots[0];
   return { loadout, slots, hand, gameHand };
@@ -753,15 +760,15 @@ function option(value: string, label: string, selected: boolean, dim = false): s
  */
 const DIN_LIVE_ALTERNATE: Record<string, string> = { melee1: 'spearTest2', melee2: 'staffRise', melee3: 'staffDiagonal' };
 function altUsedInGame(alt: Alternate, poseId: string): boolean {
-  return (subject.id === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id)
-    || styleMoves(subject.id).some((m) => m.id === alt.id)
-    || (alt.reference === 'unarmed' && fightsUnarmed(subject.id));
+  return (cid() === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id)
+    || styleMoves(cid()).some((m) => m.id === alt.id)
+    || (alt.reference === 'unarmed' && fightsUnarmed(cid()));
 }
 /** this fighter throws the unarmed moves in play: a hero with fists, or a bare-handed hostile */
 const fightsUnarmed = (id: string): boolean =>
   (id in MANDO_ROSTER && meleeKinds(id as MandoId).includes('fists')) || FIST_ENEMIES.has(id);
 /** a pose the game plays on this fighter, rather than one only previewed here */
-const inGame = (p: Pose): boolean => !p.previewOnly || (!!p.unarmed && fightsUnarmed(subject.id));
+const inGame = (p: Pose): boolean => !p.previewOnly || (!!p.unarmed && fightsUnarmed(cid()));
 /** a pose still has alternates waiting on a decision */
 const hasOpenAlternates = (p: Pose): boolean => alternatesFor(p).some((alt) => !altUsedInGame(alt, p.id));
 
@@ -778,7 +785,7 @@ function syncSelectionUrl(): void {
 }
 
 function renderPanel(): void {
-  const shoulderAsset = subject.modelFile ?? subject.id;
+  const shoulderAsset = subject.character ?? subject.modelFile ?? subject.id;
   const shoulderSpacing = shoulderSpacingFor(shoulderAsset);
   const characterOptions = GROUPS
     .map((g) => `<optgroup label="${g.label}">`
@@ -799,13 +806,13 @@ function renderPanel(): void {
       ? { creatureIdle: 'Parked — rider seated', creatureWalk: 'Moving — slow', creatureRun: 'Moving — full speed' }
       : null;
   const gameOptions = list.filter(inGame).map((p) =>
-    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : rideLabels?.[p.id] ?? p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
+    option(p.id, `${cid() === 'din' ? (dinSaberLabels[p.id] ?? p.name) : rideLabels?.[p.id] ?? p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
   const previewOptions = list.filter((p) => !inGame(p) && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
   const selectedUpper = (choices.find((alt) => alt.id === alternateChoice) ?? pose).upper;
   const counterweightAvailable = hasCounterweight(selectedUpper)
-    || ((subject.id === 'maul' || subject.id === 'din') && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
+    || ((cid() === 'maul' || cid() === 'din') && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
   if (alternateChoice !== 'none' && !choices.some((alt) => alt.id === alternateChoice)) alternateChoice = 'none';
   syncSelectionUrl();
 
@@ -840,9 +847,9 @@ function renderPanel(): void {
       ${choices.some((alt) => !altUsedInGame(alt, pose.id))
         ? '<p class="picker-key">◆ workbench study only — not rolled in game</p>' : ''}
     </div>` : ''}
-    ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed · weapons hidden · ${fightsUnarmed(subject.id)
+    ${pose.unarmed ? `<p class="study-note">${combatStyle(cid())} unarmed · weapons hidden · ${fightsUnarmed(cid())
       ? 'thrown in combat: each hit draws one of this step’s moves at random.' : 'not this fighter’s in combat.'}</p>` : ''}
-    ${subject.id === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
+    ${cid() === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
       ? `<p class="study-note">In game, this combo hit occasionally uses ${pose.id === 'melee1' ? 'Long lunge thrust' : pose.id === 'melee2' ? 'Low rising sweep' : 'Diagonal step and strike'} instead of the original (25% chance).</p>` : ''}
     ${counterweightAvailable ? `<div class="field playback">
       <label for="offhandStrength">Free arm counterweight <output id="offhandValue">${Math.round(offhandStrength * 100)}%</output></label>
@@ -1059,7 +1066,7 @@ function weaponChoiceHtml(): string {
   if (!slots.length && !picks.length) return '';
   const pickers = slots.map((slot) => {
     const def = loadout![slot]!;
-    const chosen = weaponChoices.get(subject.id, slot);
+    const chosen = weaponChoices.get(cid(), slot);
     const offered = WEAPON_OPTIONS.filter((o) => o.slot === slot && o.id !== def.id);
     return `<div class="field weapon-choice${chosen ? ' changed' : ''}">
       <label for="weaponChoice-${slot}">${SLOT_LABEL[slot]}${chosen ? ' <span class="changed-tag">changed</span>' : ''}</label>
@@ -1097,14 +1104,14 @@ function bindWeaponChoice(): void {
   panel.querySelectorAll<HTMLSelectElement>('[data-weapon-slot]').forEach((select) => {
     select.onchange = () => {
       const slot = select.dataset.weaponSlot as WeaponSlot;
-      weaponChoices.set(subject.id, subject.name, slot, loadout![slot]!, select.value || null);
+      weaponChoices.set(cid(), subject.name, slot, loadout![slot]!, select.value || null);
       // picking for a slot is asking to see it
-      if (poseWeapon(pose) === 'either') weaponHand.set(subject.id, slot);
+      if (poseWeapon(pose) === 'either') weaponHand.set(cid(), slot);
       refresh();
     };
   });
   panel.querySelectorAll<HTMLButtonElement>('#weaponHand [data-hand]').forEach((button) => {
-    button.onclick = () => { weaponHand.set(subject.id, button.dataset.hand as WeaponSlot); refresh(); };
+    button.onclick = () => { weaponHand.set(cid(), button.dataset.hand as WeaponSlot); refresh(); };
   });
   panel.querySelectorAll<HTMLButtonElement>('[data-choice-character]').forEach((button) => {
     button.onclick = () => {
@@ -1401,6 +1408,8 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   const ed = vehicleEditor;
   // typing into a field re-renders nothing: the gizmo follows, the field keeps focus
   if ((document.activeElement as HTMLElement | null)?.dataset?.anchorAxis && host.querySelector('[data-anchor-axis]')) return;
+  // ...and a spread being dragged or typed keeps its control until let go
+  if (['legSpread', 'legSpreadNumber'].includes(document.activeElement?.id ?? '') && host.querySelector('#legSpread')) return;
   const cur = ed.current();
   const nikto = ed.kind === 'nikto';
   const label: Record<string, string> = {
@@ -1421,13 +1430,23 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
       <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
+        <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
+        <div class="weapon-scale-row">
+          <input id="legSpread" type="range" min="0.08" max="0.5" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+          <input id="legSpreadNumber" type="number" min="0" max="0.8" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+        </div>
+        <div class="row"><button id="legSpreadClear" ${ed.legSpread === null ? 'disabled' : ''}>Use the pose's own legs</button></div>
+        <p class="hint">In metres, so it carries to every rider: each body's own hips and thighs open to put the knees there.</p>
+      </div>
       <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
       <p class="hint">${nikto
         ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
         : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
         The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
       ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
-        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}</code></div>`).join('')}</div>` : ''}
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
+        e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
@@ -1446,6 +1465,17 @@ function renderVehiclePanel(host: HTMLDivElement): void {
     };
   });
   host.querySelector<HTMLButtonElement>('#anchorReset')?.addEventListener('click', () => ed.resetSelected());
+  const spread = host.querySelector<HTMLInputElement>('#legSpread')!;
+  const spreadNumber = host.querySelector<HTMLInputElement>('#legSpreadNumber')!;
+  // dragging updates in place, so the slider keeps the pointer; letting go redraws
+  spread.oninput = () => {
+    ed.setLegSpread(Number(spread.value));
+    spreadNumber.value = spread.value;
+    host.querySelector<HTMLOutputElement>('#legSpreadValue')!.value = `${Math.round(Number(spread.value) * 100)} cm`;
+  };
+  spread.onchange = () => { spread.blur(); renderVehiclePanel(host); };
+  spreadNumber.onchange = () => { ed.setLegSpread(Number(spreadNumber.value)); spreadNumber.blur(); renderVehiclePanel(host); };
+  host.querySelector<HTMLButtonElement>('#legSpreadClear')!.onclick = () => { ed.setLegSpread(null); renderVehiclePanel(host); };
   host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));

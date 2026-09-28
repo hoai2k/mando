@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
-import { reachArm } from '../anim/seating';
+import { reachArm, spreadKnees } from '../anim/seating';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import { buildVehicleMesh, handsFor, measureSeatSurface, sitOnModel, VEHICLE_DEFS, type VehicleDef } from '../game/vehicles';
 import { hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
@@ -27,6 +27,10 @@ export interface VehicleRig {
   grip: THREE.Vector3;
   /** what the game would use today: the data file's anchors, or the measured seat and the def's hands */
   defaults: VehicleAnchor;
+  /** each knee's distance from the centre line (m), or null for the riding clip's own legs */
+  legSpread: number | null;
+  /** where the clip alone puts the knees (m from the centre line), to start a spread from */
+  kneeWidth(): number;
   /** re-seat the rider and re-reach the hands after the anchors moved */
   relayout(): void;
 }
@@ -58,6 +62,11 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
   const stance = def.stance;
   const lower = stance === 'stand' ? 'idleLower' : stance === 'seated' ? 'driveLower' : 'rideLower';
   const upper = stance === 'stand' ? 'idleUpper' : stance === 'seated' ? 'driveUpper' : 'rideUpper';
+  // in the pose from the first frame: a workbench opened paused never runs the
+  // per-frame update, and would show the rider stood in his bind pose
+  rider.animator?.play('lower', lower, 0);
+  rider.animator?.play('upper', upper, 0);
+  rider.animator?.poseAt(0);
 
   const data = VEHICLE_ANCHORS[kind] ?? null;
   // until the sculpt answers, the def's own guess at the seat
@@ -67,6 +76,13 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     seat: new THREE.Vector3(...(data ?? defaultAnchors(def, sit0)).seat),
     grip: new THREE.Vector3(...(data ?? defaultAnchors(def, sit0)).grip),
     defaults: data ?? defaultAnchors(def, sit0),
+    legSpread: data?.legSpread ?? null,
+    kneeWidth: () => {
+      const rig = rider.rig;
+      if (!rig) return 0.2;
+      const thigh = new THREE.Vector3(0, -1, 0).applyQuaternion(rig.bones.upperLegL.quaternion);
+      return +((rig.proportions.hipWidth + rig.proportions.upperLegLen * thigh.x) * rig.root.scale.x).toFixed(3);
+    },
     relayout: () => {
       const rise = stanceRise(stance, hipsOverFeet(rider));
       rider.root.position.set(vr.seat.x, vr.seat.y - rise, vr.seat.z);
@@ -135,6 +151,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       rider.animator?.play('lower', lower, 0.2);
       rider.animator?.play('upper', upper, 0.2);
       rider.animator?.update(dt);
+      if (vr.legSpread !== null && rider.rig) spreadKnees(rider.rig, vr.legSpread);
       rider.cosmetic?.(dt, time);
       if (mixer) {
         const moving = Math.min(1, speed / 2);

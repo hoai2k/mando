@@ -170,3 +170,40 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   upper.quaternion.setFromRotationMatrix(_basis);
   fore.rotation.set(-(Math.PI - inner), 0, 0);
 }
+
+const _thigh = new THREE.Vector3();
+const _out = new THREE.Vector3();
+const _open = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+
+/**
+ * Open (or close) a rider's knees to `knee` metres either side of the centre
+ * line, over whatever the clip has the legs doing: a saddle is only so narrow,
+ * and a pose that clears one ride's cowl puts the thighs through another's.
+ *
+ * The width is the ride's, not an angle, so one number serves every rider:
+ * each body's own hip width and thigh length decide how far its thighs turn
+ * to put the knees there. Each thigh turns out about the axis square to it
+ * and to the side, so a leg forward in a seat and a leg down a saddle both
+ * swing their knee outward rather than rolling about themselves.
+ *
+ * Call it after the animator has posed the frame; it turns the thighs it owns.
+ */
+export function spreadKnees(rig: Rig, knee: number): void {
+  const p = rig.proportions;
+  const scale = rig.root.scale.x || 1;
+  const reach = (knee / scale - p.hipWidth) / p.upperLegLen;
+  const want = Math.asin(THREE.MathUtils.clamp(reach, -0.95, 0.95));
+  for (const side of ['L', 'R'] as const) {
+    const bone = side === 'L' ? rig.bones.upperLegL : rig.bones.upperLegR;
+    // +X is the rig's left: each thigh opens toward its own side
+    const out = side === 'L' ? 1 : -1;
+    _thigh.set(0, -1, 0).applyQuaternion(bone.quaternion);
+    const now = Math.asin(THREE.MathUtils.clamp(out * _thigh.x, -1, 1));
+    const turn = THREE.MathUtils.clamp(want - now, -Math.PI / 4, Math.PI / 4);
+    _out.set(out, 0, 0);
+    _open.crossVectors(_thigh, _out);
+    if (Math.abs(turn) < 1e-4 || _open.lengthSq() < 1e-6) continue;
+    bone.quaternion.premultiply(_q.setFromAxisAngle(_open.normalize(), turn));
+  }
+}

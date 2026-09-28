@@ -9,6 +9,18 @@ import { Gate, GATE_W, type Barrier } from '../gate';
 // ---------------------------------------------------------------- barriers
 
 /**
+ * The pylon stand-in, lathed to the energy pylon's reference sheet
+ * (`reference/props/energy_pylon_ref.png`, 4.5 m tall): a broad base plate,
+ * a coil drum, the column with its side fins, and a cap whose emitter band
+ * is at 4.25-4.4 m. [radius, height] up the profile, in metres.
+ */
+const PYLON_GEO = new THREE.LatheGeometry([
+  [0.01, 0], [0.87, 0], [0.87, 0.2], [0.62, 0.24], [0.55, 0.3], [0.55, 0.85],
+  [0.42, 0.9], [0.36, 1.0], [0.36, 3.5], [0.42, 3.6], [0.42, 4.2], [0.4, 4.25],
+  [0.4, 4.4], [0.42, 4.42], [0.42, 4.5], [0.01, 4.5],
+].map(([r, y]) => new THREE.Vector2(r, y)), 12);
+
+/**
  * An energy fence across an outdoor mouth: two pylons and a pane between them.
  *
  * Outdoors a slab of metal across a canyon reads as a mistake, but the fight
@@ -41,12 +53,15 @@ export class Fence implements Barrier {
     const steel = mat(0x4a5058, { rough: 0.6, metal: 0.7 });
     const glow = new THREE.MeshBasicMaterial({ color: accent });
     for (const side of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 4.5, 10), steel);
-      post.position.set(side * across, 2.25, 0);
+      const post = new THREE.Mesh(PYLON_GEO, steel);
+      post.position.set(side * across, 0, 0);
       post.castShadow = true;
       hub.add(post);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), glow.clone());
-      cap.position.set(side * across, 4.6, 0);
+      // the glow is a band just under the top cap, where the sculpt has its
+      // emitter ring, so the colour the game drives sits on the model's band
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.16, 16, 1, true), glow.clone());
+      (cap.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide;
+      cap.position.set(side * across, 4.31, 0);
       hub.add(cap);
       this.caps.push(cap);
       this.cylinders.push(board.physics.addCylinder(

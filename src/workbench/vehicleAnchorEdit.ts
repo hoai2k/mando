@@ -13,10 +13,14 @@ import type { VehicleRig } from './vehicleFigure';
  * the seat (where the rider sits) and the grip (where the left hand takes the
  * bars). Dragging either re-seats Din or re-reaches his hand on the spot. On
  * the Nikto swoop rider the handle is the rider himself, moved and turned in
- * the bike's frame, so he can be sat properly on his own bike.
+ * the bike's frame, so he can be sat properly on his own bike. Both carry a
+ * leg spread too: how far each knee sits out from the centre line.
  */
 
-interface NiktoRig { bike: THREE.Object3D; rider: THREE.Object3D; handsToBars: () => void }
+interface NiktoRig {
+  bike: THREE.Object3D; rider: THREE.Object3D; handsToBars: () => void;
+  readonly legSpread: number | null; setLegSpread: (knee: number | null) => void; kneeWidth: () => number;
+}
 
 type Handle = 'seat' | 'grip' | 'rider';
 
@@ -72,7 +76,7 @@ export class VehicleAnchorEditor {
     if (this.vehicle) {
       const vr = this.vehicle;
       const saved = this.vehicles.get(vr.kind);
-      if (saved) { vr.seat.set(...saved.seat); vr.grip.set(...saved.grip); vr.relayout(); }
+      if (saved) { vr.seat.set(...saved.seat); vr.grip.set(...saved.grip); vr.legSpread = saved.legSpread ?? null; vr.relayout(); }
       for (const name of ['seat', 'grip'] as const) {
         const h = new THREE.Object3D();
         h.position.copy(vr[name]);
@@ -85,6 +89,7 @@ export class VehicleAnchorEditor {
       if (this.niktoRider) {
         this.nikto.rider.position.set(...this.niktoRider.position);
         this.nikto.rider.rotation.set(...this.niktoRider.rotation.map(THREE.MathUtils.degToRad) as V3);
+        this.nikto.setLegSpread(this.niktoRider.legSpread ?? this.nikto.legSpread);
         this.nikto.handsToBars();
       }
       this.handles.set('rider', this.nikto.rider);
@@ -130,6 +135,19 @@ export class VehicleAnchorEditor {
     if (notify) this.onChange();
   }
   get mode(): 'translate' | 'rotate' { return this.gizmo.getMode() as 'translate' | 'rotate'; }
+
+  /** each knee's distance from the centre line (m), or null for the pose's own legs */
+  get legSpread(): number | null { return this.vehicle?.legSpread ?? this.nikto?.legSpread ?? null; }
+  /** where the pose alone puts the knees, to start a spread from */
+  kneeWidth(): number { return this.vehicle?.kneeWidth() ?? this.nikto?.kneeWidth() ?? 0.2; }
+
+  setLegSpread(knee: number | null): void {
+    if (knee !== null && !Number.isFinite(knee)) return;
+    const k = knee === null ? null : round(knee);
+    if (this.vehicle) this.vehicle.legSpread = k;
+    else if (this.nikto) this.nikto.setLegSpread(k);
+    this.fromHandle();
+  }
 
   /** the selected handle's position in the ride's (or the bike's) frame */
   current(): { position: V3; rotation: V3 | null } | null {
@@ -177,10 +195,16 @@ export class VehicleAnchorEditor {
       vr.seat.copy(this.handles.get('seat')!.position);
       vr.grip.copy(this.handles.get('grip')!.position);
       vr.relayout();
-      this.vehicles.set(vr.kind, { seat: v3(vr.seat), grip: v3(vr.grip) });
+      this.vehicles.set(vr.kind, {
+        seat: v3(vr.seat), grip: v3(vr.grip), ...(vr.legSpread === null ? {} : { legSpread: vr.legSpread }),
+      });
     } else if (this.nikto) {
       this.nikto.handsToBars();
-      this.niktoRider = { position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation) };
+      const knee = this.nikto.legSpread;
+      this.niktoRider = {
+        position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation),
+        ...(knee === null ? {} : { legSpread: knee }),
+      };
     }
     this.onChange();
   }
@@ -198,7 +222,7 @@ export class VehicleAnchorEditor {
    * already committed, with this session's edits laid over it.
    */
   exportJson(): string {
-    const base = anchorFile as { version: number; vehicles: Record<string, VehicleAnchor>; niktoRider: NiktoRiderAnchor | null };
+    const base = anchorFile as unknown as { version: number; vehicles: Record<string, VehicleAnchor>; niktoRider: NiktoRiderAnchor | null };
     const out = {
       version: 1,
       vehicles: { ...base.vehicles, ...Object.fromEntries(this.vehicles) },
