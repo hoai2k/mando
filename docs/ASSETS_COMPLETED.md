@@ -922,3 +922,15 @@ Same standing rules as every sheet: original designs only, described and never n
 | `16-the-mark-runs.png` | The Mark Runs | "A rooftop chase across a neon sci-fi city at dusk, a fleeing fugitive with a small jetpack leaping a gap between rooftops ahead, two hunters in pursuit mid-jump with jetpack flames, crates tumbling off a roof edge behind the fugitive, water tanks and antenna masts, a long drop to the street" |
 | `17-one-way-out.png` | One Way Out | "A stark white prison work floor laid out in a grid of floor tiles, a row of tiles crackling with blue-white electricity, a crowd of prisoners in plain work jumpsuits surging behind a hunter across the safe tiles, cell shutters open along the walls, armored guards firing from gantries above, hard white light" |
 | `18-the-lift.png` | The Lift | "A square open freight lift platform rising fast up a tall white-paneled shaft, hunters holding the platform as armored jet troopers drop onto it from above, a landing sliding past with guards firing across the gap, a shadow of falling debris on the deck, light from the top of the shaft" |
+
+## Chosen UI backgrounds — 3 files, delivered 2026-09-28
+
+Round 3 of [`UI_CONCEPTS.md`](UI_CONCEPTS.md) chose Twin Suns for the title and
+Wanted for loading. These are generated background assets; screen implementation
+and text overlays remain separate. Files are under `public/assets/textures/`.
+
+| File | Size | Prompt |
+|---|---|---|
+| `title_twin_suns.jpg` | 2560×1080 | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
+| `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
+| `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |

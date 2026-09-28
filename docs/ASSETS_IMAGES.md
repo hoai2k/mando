@@ -5,9 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open as of 2026-09-28:** the concept-specific UI art in
-[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below,
-pending a concept choice. Gameplay-section keyframes raised by
+**Open as of 2026-09-28:** the unchosen UI concept art and optional fighter poses in
+[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below.
+The chosen Twin Suns title and Wanted loading assets are delivered. Gameplay-section keyframes raised by
 [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered; supporting images are
 conditional on choosing sections for building. Before those batches there were no
 open requests (as of 2026-09-24). The Jedi and Maris
@@ -81,9 +81,11 @@ Production-only reference art lives in `reference/` and is **not** shipped.
 ## Open — front-end UI concepts (2026-09-28)
 
 Art for the title, character select and loading screen redesign explored in
-[`UI_CONCEPTS.md`](UI_CONCEPTS.md). Every concept there swaps the 3D pedestals for a
-**portrait grid**, so the first group is wanted whichever direction is picked; the
-rest belong to one concept each and should only be made once that concept is chosen.
+[`UI_CONCEPTS.md`](UI_CONCEPTS.md). Round 3 chose the Twin Suns title and Wanted
+loading screen. Their three background assets are delivered and recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#chosen-ui-backgrounds--3-files-delivered-2026-09-28).
+The other concept assets stay here pending a choice to use them. Every concept
+swaps the 3D pedestals for a portrait grid.
 
 Runtime files land in `public/assets/textures/`. Same global specs as everything else
 in this doc: no text, no logos, no watermarks, original designs described rather than
@@ -101,18 +103,10 @@ models, lit and framed in the painted portraits' style by `tools/portraits.mjs`
 table). The same tool is the fallback for any future fighter the image generator cannot
 be trusted with.
 
-### Concept A — "Wanted", the Guild bounty board
-
-| File | Size | Prompt |
-|---|---|---|
-| `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
-| `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |
-
 ### Concept B — "Twin Suns", the widescreen showdown
 
 | File | Size | Prompt |
 |---|---|---|
-| `title_twin_suns.jpg` | 2560×1080 (21:9) | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
 | `pose_<id>.png` (optional) | 768×1536, transparent | Full-body action-pose cut-outs, one per playable fighter, for the tall lineup strips. Optional: the strips work with the current head-and-shoulders portraits cropped tall, so ask for these only if the portrait crops feel too tight in the build. |
 
 ### Concept C — "Navicomputer", the salvaged gunship console
