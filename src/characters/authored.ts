@@ -15,6 +15,7 @@ import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
+import { RIVALS } from '../enemies/rivals';
 
 /**
  * Authored glTF characters.
@@ -493,10 +494,8 @@ export const ENEMY_MODEL_ID: Record<string, string> = {
   flametrooper: 'flametrooper', quarren: 'quarren', alamite: 'alamite',
   ringEnforcer: 'ring_enforcer',
   gunslinger: 'gunslinger', escortDroid: 'escort_droid',
-  rivalMaul: 'maul', rivalRevan: 'revan', rivalVentress: 'ventress',
-  rivalGalen: 'jedi', rivalMaris: 'maris',
-  rivalCadBane: 'duelist', rivalEmbo: 'embo', rivalBossk: 'bossk',
-  rivalBoKatan: 'bokatan',
+  // a rival is its hero's own body
+  ...RIVALS,
   // the three creatures come through loadCreature, but the file is the same
   // download, so warming it here is what stops a first-spawn hitch
   krykna: 'krykna', broodmother: 'krykna_brood', drone: 'interceptor_drone',

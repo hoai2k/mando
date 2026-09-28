@@ -85,9 +85,17 @@ const AUTHORED_STOWED_SABER_GRIPS: Partial<Record<MandoId, Record<'left' | 'righ
   },
 };
 
-interface MandoConfig {
+export interface MandoConfig {
   name: string;
   desc: string;
+  /**
+   * Which family the fighter belongs to: the helmeted Mandalorians, the
+   * bounty hunters, or the Force users. A party's families decide which rivals
+   * come for it (src/game/rivals.ts).
+   */
+  group: 'mando' | 'hunter' | 'force';
+  /** a Force user of the dark side, whose party is met by the light first */
+  sith?: true;
   primary: number;   // main armor plate color
   accent: number;    // pauldrons / details
   suit: number;      // under-suit
@@ -192,26 +200,31 @@ export const BENCHED_MANDO_IDS: ReadonlySet<MandoId> = new Set<MandoId>(['bokata
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
     ...TEXT.characters.din,
+    group: 'mando',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
     // The spear and the blade he won: D-pad left picks between them.
     melee: ['gaffi', 'sabers'],
   },
   paz: {
     ...TEXT.characters.paz,
+    group: 'mando',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
   },
   bokatan: {
     ...TEXT.characters.bokatan,
+    group: 'mando',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
     voice: 'mando_f',
   },
   armorer: {
     ...TEXT.characters.armorer,
+    group: 'mando',
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
     voice: 'mando_f',
   },
   boba_fett: {
     ...TEXT.characters.boba_fett,
+    group: 'mando',
     // matched to the model: olive plate, rust accents, grey flight suit
     primary: 0x58744c, accent: 0x913f2c, suit: 0x6e6f6a, cape: 0x8c7150,
     helmet: 'boba_fett', rangefinder: true, bulk: 1,
@@ -219,12 +232,14 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   ventress: {
     ...TEXT.characters.ventress,
+    group: 'force', sith: true,
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
     voice: 'human_f', acrobat: true,
   },
   jedi: {
     ...TEXT.characters.jedi,
+    group: 'force',
     primary: 0xd9d3c3, accent: 0x645e55, suit: 0x302e2a, cape: null,
     helmet: null, rangefinder: false, bulk: 1,
     melee: 'sabers', ranged: 'none', skin: 0xc9b9a8,
@@ -232,6 +247,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   maris: {
     ...TEXT.characters.maris,
+    group: 'force',
     primary: 0x77635c, accent: 0xb89a90, suit: 0x362d30, cape: null,
     helmet: null, rangefinder: false, bulk: 0.92,
     melee: 'sabers', ranged: 'none', skin: 0xe7c5b8,
@@ -239,6 +255,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   maul: {
     ...TEXT.characters.maul,
+    group: 'force', sith: true,
     primary: 0x25212a, accent: 0x7b292b, suit: 0x202027, cape: null,
     helmet: null, rangefinder: false, bulk: 1,
     melee: 'sabers', ranged: 'none', skin: 0xb33b39,
@@ -246,6 +263,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   revan: {
     ...TEXT.characters.revan,
+    group: 'force', sith: true,
     primary: 0x292933, accent: 0x54282f, suit: 0x1b1a21, cape: 0x18171e,
     helmet: null, rangefinder: false, bulk: 1.04,
     melee: 'sabers', ranged: 'none', skin: 0x24242b,
@@ -253,24 +271,28 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   embo: {
     ...TEXT.characters.embo,
+    group: 'hunter',
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
     voice: 'masked',
   },
   bossk: {
     ...TEXT.characters.bossk,
+    group: 'hunter',
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
     voice: 'reptile', amphibious: true,
   },
   duelist: {
     ...TEXT.characters.duelist,
+    group: 'hunter',
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
     voice: 'alien_m', acrobat: true,
   },
   ig11: {
     ...TEXT.characters.ig11,
+    group: 'hunter',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
     voice: 'droid', bubbleShield: true,
