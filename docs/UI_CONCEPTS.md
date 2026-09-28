@@ -306,3 +306,24 @@ next round. They keep A's letterboxed Twin Suns card along the bottom.
 - **Title art.** `title_twin_suns.jpg` has no Mandalorians in it, so
   `title_twin_suns_v2.jpg` is requested in `ASSETS_IMAGES.md`: the same standoff,
   with a posse of armored, T-visor hunters.
+
+## Round 4, second update — Systems 4 at true distances (2026-09-28)
+
+- **Systems 1 and 2 were showing only the painting.** Each painted scene carried a
+  `z-index` for the zoom, and that lifted it over the title strip, the star map and
+  the chapter card. The scenes now sit in their own stacking layer beneath the UI.
+- **Systems 4 now keeps the worlds tiny against the gaps between them.** Parked, the
+  camera is right on the chosen world (it fills the middle of the screen), and every
+  other world is millions of kilometres off screen. A chevron on the frame points
+  to the previous and next world, with its name and distance ("53 million km").
+  The suns are usually off screen too, so their light spills in from the edge they
+  sit beyond.
+- **A jump is a fly-to, not a hop.** In well under a second (0.95 s, plus 0.22 s for
+  each extra world), the camera zooms out in log space, 12 to 30× depending on the
+  distance. The worlds shrink to named points of light and the orbits and suns come
+  into view. The camera crosses while pulled back, then punches in on the new world.
+  Star streaks, a stretching engine burn on the ship and the starfield swelling sell
+  the speed, the header reads the distance being covered, and the chapter card fades
+  through the jump.
+- The layout rules from the first update still hold: down is on, up is back, and a
+  bare left or right takes the neighbour that lies further that way.
