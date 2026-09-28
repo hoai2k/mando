@@ -221,6 +221,22 @@ The roads stay (the sections are additive).
   kinds is in. `test-arrivals`: every corral (a camp whose next zone is a road)
   parks at least four rides.
 
+### 10. Water edges — done
+
+- **What.** `ZoneSpec.water: ('left' | 'right')[]`: on a stage with its own
+  water (`world.waterDrop`), those sides of an outdoor zone get no rim; the
+  plate's edge is lit like a deck's, and the water is the catch (the off-path
+  rule already returns whoever goes in). Applied to the Storm Docks' quay
+  (right), fish market (both), trawler deck (both) and pier heads (both), and
+  the Prison Rig's landing deck (both), assembly deck (both) and moon pool deck
+  (left). The fish market is now the pier the design described (10×70, racks
+  down it, no skiff).
+- **Tests.** `test-missions` (every board, stage 0): a side marked as the sea has
+  nothing standing on it — a ray from across the zone toward it at eye height
+  meets nothing within the zone's half width plus 25 m.
+- **Left.** The trawler deck's far face still carries its rim so the wheelhouse
+  door is set in a wall (boundary rule a).
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
@@ -250,4 +266,6 @@ first zone after one gets the vestibule — hold throughout.
   (open ground); its wheelhouse door is in its far rim face. Squall note updated.
 - **Item 7 — Ringworld second cut zone.** *The plaza* is now the lieutenant;
   its fire-stair door is in its far rim face. Mark Runs note updated.
+- **Item 10 — the trawler deck** is open to the sea on both sides; its far face
+  keeps its rim, so the wheelhouse door is still set in a wall.
 

@@ -852,6 +852,25 @@ for (const board of boards) {
       }
     }
 
+    // A side that is the sea is open to it: no rim along it, so from the
+    // middle of the zone the water can be seen, and walked into (audit item 10).
+    for (const zone of spec.zones) {
+      const ex = zone.exit.x - zone.entry.x, ez = zone.exit.z - zone.entry.z;
+      const len = Math.hypot(ex, ez) || 1;
+      const ux = ex / len, uz = ez / len;
+      for (const side of zone.spec.water ?? []) {
+        const sgn = side === 'left' ? 1 : -1;
+        const dir = new zone.center.constructor(-uz * sgn, 0, ux * sgn);
+        let clear = false;
+        for (const t of [0.2, 0.4, 0.6, 0.8]) {
+          const from = zone.entry.clone().lerp(zone.exit, t);
+          from.y += 1.6;
+          if (!phys.raycast(from, dir, zone.spec.w / 2 + 25)) { clear = true; break; }
+        }
+        if (!clear) bad.push(`${zone.spec.label}: its ${side} side is meant to be the sea, and a wall stands on it`);
+      }
+    }
+
     // One barrier per way on, and no orphans. Two code paths used to build a
     // road's far mouth — the generic outdoor exit and the road's own
     // barricade — so a `chase` zone got two fences at one spot, the second

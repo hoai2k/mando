@@ -117,7 +117,7 @@ Why each goes where it does, and how it joins the stages on either side:
   inner caverns. The burning web wall at the far end opens onto the queen tunnel
   (B).
 - **The Squall** (Storm Docks, A ⇒ A2). After the trawler deck fight (since the
-  level audit the Storm Docks' lieutenant) the
+  level audit the Storm Docks' lieutenant, on a deck with the sea both sides) the
   trawler's wheelhouse door is the transport: the trawler casts off. The squall
   is the crossing. It ends when the trawler comes alongside the far pier.
 - **Run the Pier** (after the Squall). It starts on that pier. The mamacore wakes

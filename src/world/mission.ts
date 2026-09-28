@@ -139,6 +139,14 @@ export interface ZoneSpec {
    */
   deadEnd?: boolean;
   /**
+   * Outdoors on a stage with its own water: the sides of the zone that are
+   * the sea instead of a rim — `left` is +v, `right` is -v. The plate's edge
+   * is the border there, lit like a deck's, and the water under it is the
+   * catch (the off-path rule already returns whoever goes in). A harbour or a
+   * rig walled on four sides never shows its water (audit finding 9).
+   */
+  water?: ('left' | 'right')[];
+  /**
    * Open ground: a runner notch in the far rim with a walled gully behind it,
    * down which a siege's beasts and locals come on foot rather than by ship.
    * Only worth having on a siege — nothing else calls runners.

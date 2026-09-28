@@ -170,10 +170,20 @@ export function layZones(b: StageBuilder) {
       const rimmed = (wantRim || !onGround) && !openTrailhead && !canyon;
       /** the playable side of this zone's borders, for the rock to stand clear of */
       const heart = { x: f.x(l / 2, 0), z: f.z(l / 2, 0) };
-      // sides run the full length
+      // sides run the full length — except a side that is the sea, where the
+      // plate's lit edge is the border and the water is what you see
+      const wet = new Set(stage.world?.waterDrop !== undefined && !onGround ? zs.water ?? [] : []);
       if (rimmed) {
-        ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
-        ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top, { inside: heart });
+        if (!wet.has('left')) ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
+        if (!wet.has('right')) ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top, { inside: heart });
+      }
+      if (wet.size) {
+        const edge = new THREE.MeshBasicMaterial({ color: pal.accent, transparent: true, opacity: 0.5 });
+        owned.push(edge);
+        for (const side of wet) {
+          const v = side === 'left' ? w / 2 + 1 : -w / 2 - 1;
+          slab(f, -1, l + 1, Math.min(v, v - Math.sign(v) * 0.3), Math.max(v, v - Math.sign(v) * 0.3), top + 0.02, top + 0.2, edge);
+        }
       }
       // A dead end's way on is a door in the rock rather than an open mouth —
       // except where the stage itself ends here, because then the transport

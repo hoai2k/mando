@@ -342,22 +342,24 @@ const trask: StageSpec[] = [
     world: { waterDrop: 3 },
     zones: [
       z('trask', 0, {
-        shell: 'open', kind: 'start', w: 60, l: 40,
+        shell: 'open', kind: 'start', w: 60, l: 40, water: ['right'],
         props: [{ id: 'dock_shed', u: 12, v: 22, size: 10, yaw: 1.6, solid: { r: 3.4, h: 7 } }],
       }),
-      // The fish market is the harbour's camp, and the skiff is tied up at the
-      // near end of it — the easier steal: the crews are further in among the
-      // racks, and a party that comes in quiet can be aboard before they turn.
-      // It ends at the freighter's cargo door: the net lofts that used to stand
-      // between them were the fifth dead-end canyon fight.
+      // The fish market is a pier: ten metres of planking over the harbour,
+      // racks down both sides, the sea either hand, and the freighter's cargo
+      // door at the far end (the net lofts that used to stand between them
+      // were the fifth dead-end canyon fight). It was built as the standard
+      // 44 x 40 box with a skiff that had nowhere to go; a pier is no place to
+      // park one, so it went.
       z('trask', 1, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, alcove: true, deadEnd: true,
+        shell: 'open', kind: 'camp', w: 10, l: 70, alcove: true, water: ['left', 'right'], deadEnd: true,
         props: [
-          { id: 'fish_rack', u: 22, v: 6, size: 2, solid: { r: 0.9, h: 2 } },
-          { id: 'fish_rack', u: 30, v: -6, size: 2, solid: { r: 0.9, h: 2 } },
-          { id: 'fish_rack', u: 26, v: 13, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 14, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 26, v: -3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 38, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 50, v: -3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 60, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
         ],
-        rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
       z('trask', 2, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
       // a breather between the hold's fight and the deck's: the cold stores
@@ -366,11 +368,13 @@ const trask: StageSpec[] = [
       z('trask', 4, {
         // the officer on the trawler's deck: the Storm Docks' lieutenant,
         // fought under the squall rather than in a second sealed room
-        shell: 'open', kind: 'lieutenant', w: 52, l: 44, air: true, feature: 'crates',
+        // — the sea both sides, and the wheelhouse door in the far wall
+        shell: 'open', kind: 'lieutenant', w: 52, l: 44, air: true, feature: 'crates', water: ['left', 'right'],
         props: [{ id: 'trawler', u: 26, v: 14, size: 16, yaw: 0.2, solid: { r: 3.5, h: 4 } }],
       }),
       z('trask', 5, {
-        shell: 'canyon', kind: 'camp', w: 10, l: 50, alcove: true,
+        // the pier heads are a pier, with water both sides
+        shell: 'canyon', kind: 'camp', w: 10, l: 50, alcove: true, water: ['left', 'right'],
         props: [{ id: 'fish_rack', u: 30, v: 3, size: 2, solid: { r: 0.9, h: 2 } }],
       }),
       z('trask', 6, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'pit' }),
@@ -584,7 +588,8 @@ const narkina: StageSpec[] = [
     world: { waterDrop: 4 },
     zones: [
       z('narkina', 0, {
-        shell: 'open', kind: 'start', w: 56, l: 44,
+        // the rig's landing deck, with the sea on both sides of it
+        shell: 'open', kind: 'start', w: 56, l: 44, water: ['left', 'right'],
         props: [{ id: 'troop_carrier', u: 14, v: 18, size: 14, yaw: 1.2, solid: { r: 3, h: 3 } }],
       }),
       z('narkina', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 60, feature: 'shock', alcove: true }),
@@ -627,14 +632,14 @@ const narkina: StageSpec[] = [
     world: { waterDrop: 4 },
     zones: [
       z('narkina', 6, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, feature: 'shock', air: true,
+        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, feature: 'shock', air: true, water: ['left', 'right'],
         props: [{ id: 'sunken_transport', u: 30, v: 18, size: 15, yaw: 0.4, solid: { r: 4, h: 4 } }],
       }),
       // The discharge gantry that stood here repeated the gantry run minus its
       // shock strips, and existed only to hold Fennec's cache. The cache now
       // comes down in the stage's vestibule (campaign `bossAhead`), so the
       // assembly deck hands straight on to the moon pool.
-      z('narkina', 7, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit' }),
+      z('narkina', 7, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit', water: ['left'] }),
     ],
     links: [{ len: 18, kind: 'trek' }],
   },
