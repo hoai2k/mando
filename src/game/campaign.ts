@@ -142,6 +142,8 @@ export class Campaign implements MissionController {
   /** a wave is called and its transport is still inbound — the zone is owed it */
   private dropping = false;
   private bossCalled = false;
+  /** the bosses (by beat) a supply cache has already been put down for */
+  private cachesDropped = new Set<number>();
   /** road: which of its drop marks have fired */
   private marksFired: boolean[] = [];
   /** camps whose riders have already been sent for their rides */
@@ -568,6 +570,22 @@ export class Campaign implements MissionController {
       : stage.starts[0]);
     const toward = back && stage.zones.length ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
     game.players.forEach((p) => p.faceToward(toward));
+    // A stage that reaches its warlord with no walked beat on the way — a
+    // fight, then the arena — has nowhere else to put Fennec's cache, so it is
+    // down in the vestibule as the party arrives. Only for the warlord: a
+    // lieutenant behind a single hall fight keeps the old rule and gets none.
+    if (!back && stage.zones.length) {
+      const boss = this.bossAhead(0);
+      if (boss?.spec.kind === 'warlord' && !['camp', 'trek', 'start'].includes(stage.zones[0].spec.kind)) {
+        const z0 = stage.zones[0];
+        const side = new THREE.Vector3(z0.exit.z - z0.entry.z, 0, -(z0.exit.x - z0.entry.x)).normalize();
+        // against the vestibule's side wall and toward the zone, clear of the
+        // four spots the party re-forms on
+        const fwd = new THREE.Vector3(z0.exit.x - z0.entry.x, 0, z0.exit.z - z0.entry.z).normalize();
+        const mid = stage.starts.reduce((a, q) => a.add(q), new THREE.Vector3()).divideScalar(stage.starts.length);
+        this.dropCache(boss, mid.addScaledVector(side, 3.2).addScaledVector(fwd, 2), stage.spec.label);
+      }
+    }
     // hold behind the veil until this place is dressed (see `settleT`)
     this.settleT = 0;
     audio.checkpointChime();
@@ -997,19 +1015,16 @@ export class Campaign implements MissionController {
       case 'trek':
       case 'camp': {
         this.game.announce(zone.spec.label, zone.spec.kind === 'trek' ? 'keep moving' : 'clear it, or slip through');
-        // The covert's supply cache, in the beat before each boss arena: the
-        // same crate the wave game drops on its milestone waves, and the same
-        // kinds — the marshal ahead of the champion, Fennec ahead of the
-        // warlord.
-        const next = this.stage.zones[this.idx + 1];
-        const ally = next?.spec.kind === 'lieutenant' ? ALLY_WAVES[MID_BOSS_WAVE - 1]
-          : next?.spec.kind === 'warlord' ? ALLY_WAVES[FINAL_WAVE] : undefined;
-        if (ally && !this.game.allyCrate) {
+        // The covert's supply cache, in the last walked beat before each boss
+        // arena: the same crate the wave game drops on its milestone waves,
+        // and the same kinds — the marshal ahead of the champion, Fennec ahead
+        // of the warlord. See `bossAhead`.
+        const boss = this.bossAhead(this.idx + 1);
+        if (boss) {
           const want = zone.entry.clone().lerp(zone.center, 0.6);
           const side = new THREE.Vector3(zone.exit.z - zone.entry.z, 0, -(zone.exit.x - zone.entry.x)).normalize();
           want.addScaledVector(side, Math.min(9, zone.spec.w * 0.28));
-          this.game.allyCrate = new AllyCrate(this.game, ally, want, want);
-          this.game.announce(zone.spec.label, 'a covert supply cache is down — crack it open');
+          this.dropCache(boss, want, zone.spec.label);
         }
         break;
       }
@@ -1056,6 +1071,36 @@ export class Campaign implements MissionController {
         this.game.spawnBoss(zone.center, zone.spec.kind === 'lieutenant' ? 'mid' : 'final');
         break;
     }
+  }
+
+  /**
+   * The boss a supply cache dropped here would be for, if any.
+   *
+   * The cache used to drop only in a camp or trek *immediately* before a boss,
+   * so a stage that put a fight between its last camp and its warlord — the
+   * Spice Run's catwalks, ring and hold — had no cache at all, and the Prison
+   * Rig kept a whole canyon (the discharge gantry) only to hold one. It looks
+   * further now: from `from` on through this stage, the first boss arena
+   * reached before another walked beat (which would carry the cache itself).
+   */
+  private bossAhead(from: number): MissionZone | null {
+    const zones = this.stage.zones;
+    for (let j = from; j < zones.length; j++) {
+      const k = zones[j].spec.kind;
+      if (k === 'lieutenant' || k === 'warlord') return this.cachesDropped.has(zones[j].beat) ? null : zones[j];
+      if (k === 'camp' || k === 'trek' || k === 'start') return null;
+    }
+    return null;
+  }
+
+  /** put the covert's cache down for `boss`, once per boss per run */
+  private dropCache(boss: MissionZone, at: THREE.Vector3, where: string): void {
+    if (this.game.allyCrate) return;
+    const ally = boss.spec.kind === 'lieutenant' ? ALLY_WAVES[MID_BOSS_WAVE - 1] : ALLY_WAVES[FINAL_WAVE];
+    if (!ally) return;
+    this.cachesDropped.add(boss.beat);
+    this.game.allyCrate = new AllyCrate(this.game, ally, at, at);
+    this.game.announce(where, 'a covert supply cache is down — crack it open');
   }
 
   /**

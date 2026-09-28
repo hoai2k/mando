@@ -104,3 +104,19 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   audit's other option; left alone so sieges stay the rare beat test-arrivals
   holds them to.)
 
+### 4. The cache rule looks back to the last walked beat — done
+
+- **What.** `Campaign.bossAhead(from)`: a camp or trek drops the covert's cache
+  if the first boss arena ahead of it *in its stage* comes before any other
+  walked beat. It used to need the boss immediately next. A stage that reaches
+  its warlord with no walked beat at all (a fight, then the arena) drops
+  Fennec's cache in its vestibule on arrival. Lieutenants keep the old reach
+  (no vestibule cache), so the halls-then-lieutenant stages do not all gain a
+  marshal. One cache per boss per run (`cachesDropped`).
+- **Why.** The Spice Run's last stage is camp → assault → warlord, so it was the
+  one run with no cache; the Prison Rig kept its discharge gantry only to hold
+  one.
+- **Tests.** `test-missions`: the Spice Run's last stage puts a cache down,
+  standing on the stage.
+- **Left.** Nothing.
+

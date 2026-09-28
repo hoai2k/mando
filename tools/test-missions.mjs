@@ -1175,6 +1175,48 @@ check('so a boss arena in zone 0 waits for the party to walk in',
 check('the way back shuts while zone 0 is being fought',
   vest.fight.phase === 'fight' && vest.fight.backClosed && vest.fight.stayed, JSON.stringify(vest.fight));
 check('and opens again once it is cleared', vest.cleared.backOpen, JSON.stringify(vest.cleared));
+// ---------------------------------------------------------------- the cache
+//
+// The covert's supply cache dropped only in a camp or trek *immediately*
+// before a boss arena. The Spice Run's last stage puts a fight between its
+// camp and its warlord, so the one run with no cache at all was the Spice Run
+// (audit item 4). The rule now looks back to the last walked beat before the
+// boss, and a stage with none drops Fennec's cache in its vestibule.
+
+await startMode('campaign', 1, 'station', ['din']);
+
+const cache = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  const last = c.memory.length - 1;
+  c.enterStage(last, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const kinds = c.stage.zones.map((z) => z.spec.kind).join(',');
+  const walked = c.stage.zones.findIndex((z) => z.spec.kind === 'camp' || z.spec.kind === 'trek');
+  if (walked >= 0) {
+    c.idx = walked; c.phase = 'travel';
+    p.position.copy(c.stage.zones[walked].center);
+    for (let f = 0; f < 30; f++) g.update(1 / 30, idle);
+  }
+  const crate = g.allyCrate;
+  const out = { kinds, walked, crate: !!crate,
+    onStage: crate ? c.stage.contains(crate.pos.x, crate.pos.z)
+      && Math.abs(crate.pos.y - c.stage.groundAt(crate.pos.x, crate.pos.z)) < 2 : false };
+  window.__manual = false;
+  return out;
+});
+check('the Spice Run\'s last stage puts a supply cache down before its warlord',
+  cache.crate && cache.onStage, JSON.stringify(cache));
+
 
 // ---------------------------------------------------------------- the road
 //
