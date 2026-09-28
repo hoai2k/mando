@@ -145,6 +145,8 @@ export class EndScreen {
       held: q('.e-held'), liberated: q('.e-liberated'), champion: q('.e-champion'), defeat: q('.e-defeat'),
     };
     this.hero = q('.end-hero');
+    // hidden until a duel ends with a champion to put in it
+    this.hero.style.display = 'none';
     const [next, departures, retry, roster, quit] = this.screen.addButtons(q('.e-btns'), [
       { label: T.nextTerritory, action: actions.next },
       { label: T.nextDeparture, action: actions.departures },
