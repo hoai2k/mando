@@ -78,6 +78,33 @@ Consider the Generations Blender cleanup, rigging, decimation, export and
 compression stages when the input model needs them. The game depends on the
 resulting usable `.glb`, not on a specific production pipeline.
 
+### Decimating to budget
+
+A model that arrives over budget is brought down with
+
+    node tools/asset-pipeline/decimate.mjs <id> <triangles>
+
+(add `--dry` to see the result without writing anything). It keeps the
+original byte for byte in `public/models/full/`, with the skinfix / strays /
+jawrig documents written for it, and always decimates from there — so running
+it again at a different budget is safe, and putting an original back is copying
+its files from `full/` over the shipped ones and dropping its entry from
+`src/characters/data/fullResolution.json`. Stray lumps are baked out before
+simplifying; every vertex-numbered fix is renumbered onto the new mesh. The
+simplifier weighs normals, texture coordinates and skin weights, so seams,
+creases and the borders between bones' territories are kept.
+
+The model workbench shows a decimated character's original with **Full-resolution
+original** (or `?res=full`), for checking the two side by side.
+
+Decimated on 2026-09-28, from 120k (60-100k for the props and the massiff):
+the playable heroes `din armorer paz bokatan ig11 duelist` to 15k; the NPCs
+`darktrooper deathtrooper fennec imperial_officer pirate pirate_melee pyke
+pyke_capo stormtrooper tusken droid marshal nikto wookiee_enforcer massiff
+massiff_static` to 8k; `carbine gaffi nikto_swoop` to 4k. They were each drawn
+two to four times a frame (every split-screen view and every shadow pass) at
+eight to fifteen times the budget above.
+
 ## Playable Mandalorians (4) — priority 1
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
