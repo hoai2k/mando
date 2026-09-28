@@ -10,7 +10,7 @@ Team: Ringworld (branch `claude/sections-ringworld`). Owns **K8 pursuit**
 |---|---|
 | K8 pursuit (`kit/pursuit.ts`) | built; mechanics suite passes |
 | The Mark Runs (`src/sections/mark-runs.ts`) | built, registered; `test-sections` passes at 1, 2 and 4 players; `test-section-mark-runs` passes |
-| Tram Top | **waiting on K1 (rail camera) and K2 (treadmill)**, being built on other branches. Not started. |
+| Tram Top (`src/sections/tram-top.ts`) | built, registered; `test-sections` passes at 1, 2 and 4 players; `test-section-tram-top` passes |
 
 ## The Mark Runs — what is built
 
@@ -117,7 +117,80 @@ checkpoint. Nets refill on every respawn. A wipe holds him; when the party is
 back he restarts from the checkpoint as for an escape. On the pad he cannot
 leave: knocked over the lip, he is put back on the pad.
 
-## Tuning, and why
+## Tram Top — what is built
+
+**Where it goes.** The Ringworld's stage is cut after the market arcade
+(zone 1). The arcade's way on is the tram stop's platform gate: the section
+opens on the tram stop platform (far side of the track from the camera) with
+that gate shut behind the party and the tram waiting, doors open. It ends at
+a **terminus**: the tram stops at a platform whose back wall has a lit, open
+gate; walking into it releases the rail camera and the run carries on. Built
+as a terminus on purpose, so the next stage can begin at the night-side row
+*or*, if the audit merges that row away, at the terminus hall.
+
+**K2 and K1.** The tram never moves: three static cars (14 × 4 m, 2 m
+gangways with a roof plate over each, so the roof is one walk), and a
+`Treadmill` (dir −x, 10 m/s) scrolls everything else — towers (looping),
+pylons, the street strip far below, a slow parallax skyline, the gantries,
+the station and terminus platforms (conveyors with colliders, so whoever
+stands on one is carried off with it) and the tunnel. One `RailCamera`
+frames the train from its flank (+z side), elevated, the track ahead in the
+right of the frame; its `pose` leans back for the wide beats (boarding, the
+station, the pirate tram, the terminus) and drops to window height in the
+tunnel. **The sticks follow the screen**: after `rail.update` the section
+sets every `moveYaw` to the camera's own yaw (stick right = along the train,
+stick up = across it, away from the lens). The kit's rail basis would have
+put "up" on the screen's right. No kit change was needed for this.
+
+**The line** (odometer metres; the tram runs ~4 min with the stops):
+
+| Beat | Where | What |
+|---|---|---|
+| Board | 0 | The tram waits until every living hunter is aboard (roof or inside) for 1.2 s, then shuts its doors and eases out. |
+| Street run | 0–420 | Pirates come over the front car (1 + ⌈n/2⌉), up to two swoops (`nikto`) alongside, jet pirates drop on at 160, climbers up the rear car at 320. |
+| Gantries | 420–1050 | Ten sign gantries 70 m apart, the beam's underside 1.4 m over the roof. Horn and flashing red lamp 3 s out ("Gantry! duck (hold Y) or jump it" on the first). Standing bodies in the beam are swept off the side (12/16 damage); ducking bodies pass under; enemies in the beam die. Jet pirates at 620 and 900. |
+| Station | 1200 | `stopAt(1200)`: stops dead at a platform; doors open; 2 + n boarders appear at the doors inside the cars, 1 + ⌈n/2⌉ snipers on the canopy. 30 s, then doors shut (not on anyone) and it leaves; the snipers go with the platform. |
+| Tunnel | 1480, 160 m | Slows to 6 m/s from 1410. "Tunnel!" at 55 m out. The portal takes anyone on the roof (or over it) and drops them into the car below (10/14 damage): so everyone goes in through the three roof hatches. The camera drops to the windows (the camera-side wall is mostly glass; the tunnel's near wall is cut away). Stowaways (1 + ⌊n/2⌋) in the front car. |
+| Pirate tram | tunnel end + 70 m | Two red cars on the parallel track (far side, 7.2 m off) ride up from behind over 9 s with 1 + n gunners (a Ringworld enforcer at 3–4 players). **Clear it** (every gunner down) or **cut it loose** (shoot out the glowing coupling between its cars, 280 + 140n HP; its bar replaces the HUD line while it is alongside). It peels off; anyone still on it at 2.2 s is put back aboard. |
+| Terminus | peel + 240 m | Stops at the terminus platform; doors open; the gate is the objective. |
+
+**Duck** is the roof crouch: hold Y (C on the keyboard) on a roof — the K7
+`crouch` hook holds the crouched pose, movement drops to 35%, no sprint.
+The cover snap (Y's press) is swallowed on the roof.
+
+**Nothing is left behind.** Fallen or swept: re-formed on the rear car's roof,
+or *inside* the rear car while the tunnel is over it or a gantry is over or
+about to cross the train (it would sweep them again). Off the tram is off the
+path (below the car floor − 5 m). Boarding waits for everyone; the pirate tram
+hands back anyone on it. The station's and the stop's leftovers are removed
+once they are 45 m behind the tram.
+
+**HUD.** In the merged strip a section gets one row over each hunter's bars,
+so the panel is a line ("Gantry in 36 m", "Doors close in 12 s", "Ducking") or,
+while the pirate tram is alongside, its coupling's bar. Hints: "Get aboard the
+tram", "Hold the roof", "Duck! Hold Y", "Hold the doors", "Tunnel! Get
+inside", "Fight through the cars", "Back up top", "Clear it or cut it loose",
+"Off at the terminus".
+
+**Tuning, and why.**
+- 10 m/s and gantries every 70 m: a gantry every 7 s, and the 3 s horn is 30 m
+  — inside the frame, so it is seen coming as well as heard.
+- The tunnel at 6 m/s: at 10 m/s the 160 m tunnel was 16 s, too short to be a
+  fight inside; at 6 it is ~35 s from the first car in to the last car out.
+- Swept damage is small (12/16): the cost of a sweep is the trip back from the
+  rear car, not the health. One sweep per pass (a 1.5 s guard), and the body
+  is thrown over the side rather than along the beam: thrown along it at the
+  beam's own speed, the same gantry hit it every frame.
+- The pirate tram waits for you: the terminus only comes after it is beaten,
+  so the climax cannot be skipped by riding it out.
+
+**Autopilot.** Boards by climbing its car's side onto the roof, holds a spot
+on its car (slot mod 3), ducks when a gantry is between 1.5 m behind and 9 m
+ahead of it, shoots the nearest hostile (or the coupling) twin-stick, drops
+through its car's hatch before the tunnel and rises back through it after,
+and walks to the terminus gate.
+
+## The Mark Runs — tuning, and why
 
 - **Speeds** — built round the player's 9.2 run / 14.4 sprint so that running
   holds the gap and only sprinting closes it; his sprint is a 3 s burst so a
@@ -184,6 +257,19 @@ both ends until it is over the far roof and aims 4 m past his landing (a
 super-jumper takes 2 m more). Grabs the rack first. On the pad it shoots him
 to half, then fires nets; after the capture it walks into the stair.
 
+### Tram Top tests
+
+- `test-sections tram-top` — passes at 1, 2, 4 (mixed characters, and a
+  super-jumper-led 4), ~269 s simulated, 0 deaths, nobody outside.
+- `HARNESS_PORT=4217 node tools/test-section-tram-top.mjs` — 17 checks: the
+  tram waits for everyone at the stop, then leaves; stick right runs along the
+  train; a gantry sweeps a standing hunter once, passes over a ducking one,
+  and kills a hostile on the roof; the station stop is dead on its mark with
+  the doors open and lasts 30 s; nobody is left on the roof under the tunnel
+  and the fallen re-form inside the rear car beneath it; the pirate tram pulls
+  alongside, can be stood on, is cut loose by its coupling, and hands back
+  anyone on it; the tram stops at the terminus and its gate carries the run on.
+
 ## Known issues / notes for others
 
 - Booting straight into a section with `?section=` shows the campaign's guide
@@ -199,9 +285,13 @@ to half, then fires nets; after the capture it walks into the stair.
   the party into the next stage during the transit while the section object
   still stands, and the suite's once-a-second sample could land on that frame.
 
+- Tram Top: every car, platform and the pirate tram are procedural stand-ins
+  (the delivered `tram` sculpt is solid, and these cars need an interior to
+  fight in). No new model requests.
+- Tram Top's bots are perfect shots, so the station and pirate-tram fights
+  need a human playtest for pacing; the levers are the counts in the beat
+  table and the coupling's HP.
+
 ## What is left
 
-- **Tram Top** — needs K1 and K2 merged into
-  `claude/level-design-gameplay-sections-koa6ye`; then merge that branch here
-  and build it (street run, gantries with the roof crouch, the station stop,
-  the tunnel through the car interiors, the rival tram).
+- Nothing assigned. Both Ringworld sections are built.
