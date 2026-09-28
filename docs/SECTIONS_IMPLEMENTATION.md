@@ -98,7 +98,9 @@ Why each goes where it does, and how it joins the stages on either side:
   maintenance airlock onto the habitat ring's **outer hull**. The party walks a
   quarter of the ring and ends at the airlock that opens onto the crew catwalks
   (C).
-- **Magma Run** (Lava Flats, B ⇒ C). The magistrate court's far door leads down
+- **Magma Run** (Lava Flats, B ⇒ C). The magistrate court — since the level
+  audit a hall the party walks through past two lookouts, the lieutenant having
+  moved out to the town gate — has a far door that leads down
   a ramp to the **lava tunnels under the town**, where a pirate crew keeps its
   bikes at a dock on the lava river. The camp at the dock is the
   steal-the-bikes beat. The river runs out of the tunnels into an open canyon and
@@ -114,7 +116,8 @@ Why each goes where it does, and how it joins the stages on either side:
 - **Lamplight** (after the Chute). It starts in that snowbank: the brood's
   inner caverns. The burning web wall at the far end opens onto the queen tunnel
   (B).
-- **The Squall** (Storm Docks, A ⇒ A2). After the trawler deck fight the
+- **The Squall** (Storm Docks, A ⇒ A2). After the trawler deck fight (since the
+  level audit the Storm Docks' lieutenant) the
   trawler's wheelhouse door is the transport: the trawler casts off. The squall
   is the crossing. It ends when the trawler comes alongside the far pier.
 - **Run the Pier** (after the Squall). It starts on that pier. The mamacore wakes
@@ -138,7 +141,8 @@ Why each goes where it does, and how it joins the stages on either side:
   platform**, and the transport door is the platform gate. The tram delivers the
   party to the night-side row (since the level audit a dark street with two
   lookouts in it — the run's breather — rather than a dead-end canyon fight).
-- **The Mark Runs** (Ringworld, A2 ⇒ A3). After the plaza the mark bolts up a fire
+- **The Mark Runs** (Ringworld, A2 ⇒ A3). After the plaza (since the level audit
+  where the enforcer, the lieutenant, is fought) the mark bolts up a fire
   stair. The plaza's way on is the stair door to the roofs. The chase ends on the
   landing pad above the service spine. The pad's stair down is the way into A3.
 - **One Way Out** (Prison Rig, B ⇒ C). Surfacing from the moon pool shaft comes up

@@ -175,6 +175,12 @@ export interface LinkSpec {
    * Defaults to a corridor when either end is indoors, a trek otherwise.
    */
   kind?: 'corridor' | 'trek';
+  /**
+   * A breather: nobody posted in it, and a bacta canister halfway. Every link
+   * long enough is picketed otherwise, which left no quiet stretch anywhere in
+   * a run — two sealed rooms joined by a held corridor are one long fight.
+   */
+  quiet?: boolean;
 }
 
 export interface StageSpec {

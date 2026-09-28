@@ -71,6 +71,15 @@ for (const board of boards) {
         // a pass is a way in for runners, or it is a notch that goes nowhere
         if (z.spec.pass && !(z.runnerPost && z.runnerIn)) issues.push(`${z.spec.label}: its runner pass never validated`);
       }
+      // Two sealed rooms back to back are one long fight: between a hall
+      // assault and a hall lieutenant the corridor is a breather, with nobody
+      // posted in it (audit item 7).
+      for (let i = 0; i + 1 < s.zones.length; i++) {
+        const a = s.zones[i].spec, b = s.zones[i + 1].spec;
+        if (a.shell !== 'hall' || a.kind !== 'assault' || b.shell !== 'hall' || b.kind !== 'lieutenant') continue;
+        if (!s.spec.links[i]?.quiet) issues.push(`${a.label} → ${b.label}: two sealed rooms with no breather between`);
+        else if (s.defenders[i]?.length) issues.push(`${a.label} → ${b.label}: ${s.defenders[i].length} posted in the breather`);
+      }
       // A stage with a door behind it opens outside its first zone, never in
       // it: a sealed room or an arena there would fight on the first frame.
       if (s.backPortal) {

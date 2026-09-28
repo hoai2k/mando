@@ -461,6 +461,16 @@ check('missions: a wave battle is rare, and outdoors',
   sieges.length > 0 && sieges.length <= 3 && sieges.every((z) => z.shell === 'open'),
   { sieges: sieges.map((z) => `${z.board} ${z.label}`), ofOutdoor: outdoor.length });
 
+// Eight of nine lieutenants were a promoted grunt in the same pillared box, a
+// corridor after a hall fight (audit item 7). Three of them are fought under
+// the sky now.
+const lts = zones.filter((z) => z.kind === 'lieutenant');
+const outside = ['nevarro', 'trask', 'ringworld'].map((b) => lts.find((z) => z.board === b));
+check('missions: the Lava Flats, Storm Docks and Ringworld lieutenants fight outdoors',
+  outside.every((z) => z && z.shell === 'open'), outside.map((z) => z && `${z.board} ${z.label} ${z.shell}`));
+check('missions: and no more than half the runs fight theirs indoors',
+  lts.filter((z) => z.shell === 'hall').length <= Math.ceil(lts.length / 2),
+  lts.map((z) => `${z.board}:${z.shell}`));
 // and nothing authored for open ground still asks for waves it will never get
 const idleWaves = outdoor.filter((z) => !z.siege && z.kind === 'assault' && z.waves !== null);
 check('missions: open ground that is not a siege asks for a garrison, not waves',

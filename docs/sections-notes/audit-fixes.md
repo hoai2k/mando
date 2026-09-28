@@ -165,6 +165,28 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   the load-time warning (silent), and every suite that walks or raises the runs
   exercises the new chains.
 
+### 7. Three lieutenants outdoors; breathers between the hall pairs — done
+
+- **Lava Flats:** the lieutenant holds *the town gate* (open 44×40, crates) —
+  stage A's last zone. *The magistrate court* becomes a hall `trek` with two
+  lookouts, the breather after the garrison yard. It still ends stage B in a
+  hall-wall door (the Magma Run boundary). **Boundary zone reshaped.**
+- **Storm Docks:** *the trawler deck* is the lieutenant (open 52×44); *the cold
+  stores* are a hall `trek` breather with two lookouts. The trawler deck is still
+  the zone the Squall cut follows. **Boundary zone reshaped.**
+- **Ringworld:** *the plaza* is the lieutenant (open 50×44, kiosks); *the
+  sentinel walk* is a 12×44 `canyon:camp` (a covered walkway is a lane), joined
+  to the plaza by an open lane. The Ringworld has one hall. The plaza is still
+  the zone the Mark Runs cut follows. **Boundary zone reshaped.**
+- **Breathers:** `LinkSpec.quiet` — a link that posts nobody (not even behind
+  its crates) and always carries a bacta canister. The corridors between the
+  hall assault and the hall lieutenant on the Spice Run, the Crevasse, the Great
+  Forge and the Prison Rig are quiet and a little longer (18 + 14 m); the
+  Refinery's walk into the atrium is quiet too.
+- **Tests.** `test-arrivals`: the three lieutenants are open-shell, and no more
+  than half the runs fight theirs indoors. `audit-mission-build`: every
+  hall-assault → hall-lieutenant pair has a quiet link with nobody posted in it.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
@@ -187,4 +209,11 @@ first zone after one gets the vestibule — hold throughout.
 - **Item 6 — Ringworld, start of A2.** *The night-side row* is kept (not merged
   across the Tram Top cut) and reshaped into a trek breather; both cut indices
   (`after: 1`, `after: 5`) unchanged. Tram Top note updated.
+- **Item 7 — Lava Flats, end of B.** *The magistrate court* is now a hall `trek`
+  breather (the lieutenant moved to the town gate); still a hall, its far door in
+  its wall. Magma Run note updated.
+- **Item 7 — Storm Docks cut zone.** *The trawler deck* is now the lieutenant
+  (open ground); its wheelhouse door is in its far rim face. Squall note updated.
+- **Item 7 — Ringworld second cut zone.** *The plaza* is now the lieutenant;
+  its fire-stair door is in its far rim face. Mark Runs note updated.
 

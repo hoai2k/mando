@@ -89,7 +89,8 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
         const across = per * ch;
         const v = side * (laneW / 2 + 0.03 - across / 2);
         crate(lf.x(len * t, v), ltop, lf.z(len * t, v), ch);
-        linkPosts.push({
+        // a breather keeps its cover and posts nobody behind it
+        if (!link.quiet) linkPosts.push({
           pos: lf.vec(len * t + 1.5, v, ltop + 0.2),
           toward: lf.vec(0, 0, ltop),
         });
@@ -100,7 +101,7 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     // walk is a series of angles rather than a shooting gallery, and they
     // stand off the centreline so the golden path stays clear. Anything
     // that lands inside a crate or a wall is dropped by `fits` below.
-    if (len >= PICKET_MIN_LEN) {
+    if (len >= PICKET_MIN_LEN && !link.quiet) {
       let n = 0;
       for (let d = PICKET_EVERY * 0.6; d < len - 2; d += PICKET_EVERY) {
         const side = n++ % 2 ? 1 : -1;
@@ -149,8 +150,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     g = g2;
     lastLen = len2;
   }
-  // bacta midway down every other link — the attrition beat pays for itself
-  if (i % 2 === 1) pickups.push(surf(g, 6, -1.4));
+  // bacta midway down every other link — the attrition beat pays for itself —
+  // and down every quiet one, which is what a breather is for
+  if (i % 2 === 1 || link.quiet) pickups.push(surf(g, 6, -1.4));
   defenders.push(linkPosts);
   return new Frame(g.x(lastLen + 1.5, 0), g.z(lastLen + 1.5, 0), g.dx, g.dz);
 }

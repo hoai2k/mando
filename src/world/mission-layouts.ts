@@ -204,7 +204,8 @@ const station: StageSpec[] = [
       z('station', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
       z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    // a quiet corridor between the two rooms: the breath before the duel
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
@@ -251,7 +252,11 @@ const nevarro: StageSpec[] = [
         shell: 'road', kind: 'chase', w: 26, l: 72,
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
-      z('nevarro', 3, { shell: 'open', kind: 'assault', w: 36, l: 30, garrison: 2, feature: 'crates' }),
+      // The lieutenant holds the town gate, under the sky. A promoted massiff
+      // is a leaper, and it used to be fought in the pillared 30 x 26 box
+      // that seven other territories fight theirs in; out here the pounce has
+      // room, and the gate is the officer's to hold.
+      z('nevarro', 3, { shell: 'open', kind: 'lieutenant', w: 44, l: 40, feature: 'crates' }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -261,7 +266,10 @@ const nevarro: StageSpec[] = [
     world: { fogColor: 0x1a120e, fogNear: 10, fogFar: 80, background: 0x0d0806, roofed: true, fill: 1.4 },
     zones: [
       z('nevarro', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
-      z('nevarro', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // The court after the yard is a breather, not a second sealed room: the
+      // magistrate is gone, a couple of lookouts are left, and its far door is
+      // the way down to the lava tunnels.
+      z('nevarro', 5, { shell: 'hall', kind: 'trek', w: 30, l: 26, feature: 'pillars', lookouts: 2 }),
     ],
     links: [{ len: 14, turn: 1, len2: 12, kind: 'corridor' }],
   },
@@ -316,7 +324,7 @@ const crevasse: StageSpec[] = [
       z('crevasse', 6, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
     ],
     links: [
-      { len: 14, turn: -1, len2: 12, kind: 'corridor' }, { len: 16, kind: 'corridor' },
+      { len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }, { len: 16, kind: 'corridor' },
       { len: 16, kind: 'trek' }, { len: 18, kind: 'trek' },
     ],
   },
@@ -349,9 +357,13 @@ const trask: StageSpec[] = [
         rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
       z('trask', 2, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
-      z('trask', 3, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // a breather between the hold's fight and the deck's: the cold stores
+      // are walked, past a couple of lookouts, not fought
+      z('trask', 3, { shell: 'hall', kind: 'trek', w: 30, l: 26, feature: 'pillars', lookouts: 2 }),
       z('trask', 4, {
-        shell: 'open', kind: 'assault', w: 52, l: 44, garrison: 3, air: true, feature: 'crates',
+        // the officer on the trawler's deck: the Storm Docks' lieutenant,
+        // fought under the squall rather than in a second sealed room
+        shell: 'open', kind: 'lieutenant', w: 52, l: 44, air: true, feature: 'crates',
         props: [{ id: 'trawler', u: 26, v: 14, size: 16, yaw: 0.2, solid: { r: 3.5, h: 4 } }],
       }),
       z('trask', 5, {
@@ -482,7 +494,7 @@ const forge: StageSpec[] = [
       z('forge', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
       z('forge', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
@@ -538,9 +550,12 @@ const ringworld: StageSpec[] = [
       // raise the terminus rather than hold the row.
       z('ringworld', 2, { shell: 'canyon', kind: 'trek', w: 12, l: 44, lookouts: 2 }),
       z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
-      z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // a covered walkway is a lane, not a room: held, but not sealed
+      z('ringworld', 4, { shell: 'canyon', kind: 'camp', w: 12, l: 44, alcove: true }),
       z('ringworld', 5, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, air: true,
+        // the enforcer is fought in the plaza, among the kiosks, and the
+        // Ringworld has one hall instead of two
+        shell: 'open', kind: 'lieutenant', w: 50, l: 44, air: true,
         props: [
           { id: 'street_kiosk', u: 16, v: 14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
           { id: 'street_kiosk', u: 30, v: -14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
@@ -551,7 +566,7 @@ const ringworld: StageSpec[] = [
     ],
     links: [
       { len: 16, kind: 'trek' }, { len: 16, kind: 'trek' }, { len: 14, kind: 'corridor' },
-      { len: 12, turn: -1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'corridor' },
+      { len: 12, turn: -1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'trek' },
       { len: 16, kind: 'trek' }, { len: 18, kind: 'trek' },
     ],
   },
@@ -601,7 +616,7 @@ const narkina: StageSpec[] = [
       }),
       z('narkina', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, roofH: 7, feature: 'pillars' }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
