@@ -12,6 +12,9 @@ import { isDuelist, type Duelist } from './melee';
 import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/projectiles';
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
+import { SaberLights } from '../fx/saberLights';
+import { config } from '../config';
+import { litSaberCount } from '../characters/mandalorians';
 import { audio } from '../core/audio';
 import { glRect, splitLayout, type Rect } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
@@ -53,10 +56,14 @@ export interface GameEvents {
   banner: (text: string, sub?: string) => void;
   /** brief, centered title for a transport between mission areas */
   transition?: (text: string, sub?: string) => void;
-  /** the boss introduction card: letterbox + name, over the slow-motion reveal */
-  bossIntro?: (title: string, sub: string) => void;
+  /**
+   * The boss introduction card: letterbox + name, over the slow-motion reveal.
+   * `kind` is the body stepping out (its portrait goes on the Wanted card) and
+   * `role` which of a territory's three boss battles this is.
+   */
+  bossIntro?: (title: string, sub: string, kind?: EnemyKind, role?: 'lieutenant' | 'warlord' | 'monster') => void;
   /** the little card naming enemy kinds making their first appearance this wave */
-  newContacts?: (names: string[]) => void;
+  newContacts?: (kinds: EnemyKind[]) => void;
   stateChanged: (s: MatchState) => void;
   hitMarker: (slot: number) => void;
 }
@@ -164,6 +171,9 @@ export const BIG_BODY_R = 1.1;
 export class Game {
   scene = new THREE.Scene();
   players: Player[] = [];
+  /** the lights player sabers borrow; sized once, when the match is made */
+  saberLights!: SaberLights;
+  private litBlades: THREE.Object3D[] = [];
   enemies: Enemy[] = [];
   allies: Enemy[] = [];
   /** rides parked around the board (PLAN.md §17) */
@@ -358,6 +368,8 @@ export class Game {
       this.scene.add(p.char.root);
       this.players.push(p);
     }
+    this.saberLights = new SaberLights(this.scene,
+      this.players.reduce((n, p) => n + litSaberCount(p.characterId), 0), config.video.saberLights);
     // squads, the mission level, the first wave's models: whatever the mode
     // wants doing once there are players standing on the board
     this.rules.begin();
@@ -475,8 +487,8 @@ export class Game {
   }
 
   /** the card naming enemy kinds making their first appearance this wave */
-  announceContacts(names: string[]): void {
-    this.events.newContacts?.(names);
+  announceContacts(kinds: EnemyKind[]): void {
+    this.events.newContacts?.(kinds);
   }
 
   /**
@@ -519,7 +531,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = tier === 'mid' ? TEXT.banners.lieutenantOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
+    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub, kind, tier === 'mid' ? 'lieutenant' : 'warlord');
     else this.events.banner(boss.bossName, TEXT.banners.bringThemDown);
     audio.bossHorn();
     // The warlord brings his own music. The lieutenant does not: the board's
@@ -737,7 +749,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = TEXT.banners.neverEmpty(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub);
+    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub, monster.kind, 'monster');
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
     audio.beastGrowl(0.9);
@@ -1171,6 +1183,7 @@ export class Game {
    */
   dispose(): void {
     this.disposed = true;
+    this.saberLights.dispose();
     audio.stopAmbient();
     audio.stopMusic();
     audio.stopJetpacks();
@@ -1960,6 +1973,73 @@ export class Game {
     pmrem.dispose();
   }
 
+  /**
+   * Make everything in the scene ready to draw, before anyone sees it.
+   *
+   * The loading screen and a transport door's veil already wait for the
+   * files. What they did not wait for is the GPU: three.js compiles a
+   * material's shader and uploads its textures the first frame that material
+   * is drawn, so the first frame of a match — and the first frame after a
+   * door, and the first swing of a weapon that had been stowed — stalled
+   * while it caught up. Measured under software GL: 31 s for a Missions
+   * match's first frame, 1.7 s for a new stage's, 0.16 s for a first melee
+   * draw, against tens of milliseconds for the frame after each.
+   *
+   * So this does that work up front, behind whatever is covering the screen:
+   * every texture is uploaded, every material compiled, and one frame drawn
+   * that nobody sees — hidden things included
+   * (a stowed weapon, a holstered saber), since `compile` only walks what is
+   * visible. Lights are left exactly as they are: a light switched on here
+   * would compile every material for a count of lights the scene does not
+   * have, and the first real frame would compile them all again. A board with
+   * water compiles a second time under the underwater fog, which is a
+   * different shader.
+   */
+  warmGpu(renderer: THREE.WebGLRenderer): void {
+    // The environment first: every material's shader is compiled for the
+    // scene's environment map, which `render` builds on its first call. Warmed
+    // without it, everything compiled here would be compiled again, with it,
+    // on the first frame the player sees — the very stall this is for.
+    if (!this.envBuilt) this.buildEnvironment(renderer);
+    const shown: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible && !(o as THREE.Light).isLight) { o.visible = true; shown.push(o); }
+    });
+    // a light inside something just shown stays as dark as it was
+    const kept: THREE.Light[] = [];
+    this.scene.traverse((o) => {
+      const light = o as THREE.Light;
+      if (!light.isLight || !light.visible) return;
+      for (let p = o.parent; p; p = p.parent) {
+        if (shown.includes(p)) { light.visible = false; kept.push(light); break; }
+      }
+    });
+    const textures = new Set<THREE.Texture>();
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (!m) return;
+      for (const mat of Array.isArray(m) ? m : [m]) {
+        for (const v of Object.values(mat)) if ((v as THREE.Texture)?.isTexture) textures.add(v as THREE.Texture);
+      }
+    });
+    for (const t of textures) renderer.initTexture(t);
+    const cam = this.players[0].cam.camera;
+    renderer.compile(this.scene, cam);
+    if (this.board.waterY !== undefined) {
+      const fog = this.scene.fog;
+      this.scene.fog = this.underFog;
+      renderer.compile(this.scene, cam);
+      this.scene.fog = fog;
+    }
+    // and one real frame, still with everything showing: what `compile`
+    // leaves for the first draw — the shadow pass's own shaders, skinned
+    // geometry and every vertex buffer — happens here instead, onto a canvas
+    // the loading screen or the veil is still covering
+    renderer.render(this.scene, cam);
+    for (const light of kept) light.visible = true;
+    for (const o of shown) o.visible = false;
+  }
+
   /** Split-screen render: one viewport per player (horizontal split). */
   render(renderer: THREE.WebGLRenderer): void {
     if (!this.envBuilt) this.buildEnvironment(renderer);
@@ -1972,6 +2052,11 @@ export class Game {
     const w = this.tmpSize.x;
     const h = this.tmpSize.y;
 
+    // the saber lights go where the blades are this frame, before any view is drawn
+    this.litBlades.length = 0;
+    for (const p of this.players) p.litBlades(this.litBlades);
+    this.saberLights.sync(this.litBlades);
+
     const shared = this.sharedView;
     // K1: mid-blend, the split is still drawn, each piece through its own camera
     const blending = !!shared?.viewFor && shared.blend !== undefined && shared.blend < 1;
@@ -1983,6 +2068,16 @@ export class Game {
     const surfaceFog = this.scene.fog;
     const surfaceBg = this.scene.background;
     const wY = this.board.waterY;
+    // One shadow pass a frame, however many views. The sun is fixed to the
+    // board, so its shadow map is the same for every player's camera — but
+    // left on `autoUpdate` the renderer redrew it inside every render() call,
+    // and in split-screen that second pass was half of all the triangles the
+    // frame drew (desert, two players: 1.19 M of 2.39 M). The renderer clears
+    // `needsUpdate` itself once it has drawn the maps, so asking once here
+    // draws them for the first view and lets the others reuse them.
+    const autoShadows = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const viewer = this.players[i];
@@ -2015,6 +2110,7 @@ export class Game {
       renderer.render(this.scene, cam);
       if (shaking) viewer.char.root.position.sub(ride);
     }
+    renderer.shadowMap.autoUpdate = autoShadows;
     this.scene.fog = surfaceFog;
     this.scene.background = surfaceBg;
     // Hand the renderer back the whole canvas. The viewport is renderer state,

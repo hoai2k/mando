@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, hasFullResolutionDoc, modelDir } from '../core/assets';
 
 /**
  * Stray geometry in the delivered sculpts.
@@ -65,8 +65,10 @@ export function loadStrays(id: string): Promise<StrayDoc | null> {
   let p = docs.get(id);
   if (!p) {
     p = fixedModels().then((set) => {
-      if (!set.has(id)) return null;
-      return fetch(`${ASSET_ROOT}models/strays/${id}.json`)
+      // a full-resolution original keeps its own documents beside it
+      const dir = modelDir(id);
+      if (dir === 'models/' ? !set.has(id) : !hasFullResolutionDoc(id, 'strays')) return null;
+      return fetch(`${ASSET_ROOT}${dir}strays/${id}.json`)
         .then((r) => (r.ok ? (r.json() as Promise<StrayDoc>) : null))
         .catch((err) => { console.warn(`[strays] ${id}: could not load fixes`, err); return null; });
     });

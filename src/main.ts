@@ -7,7 +7,7 @@ import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type War
 import { tracked, warmQueue } from './core/warm';
 import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
-import { FINAL_WAVE, planWave } from './enemies/spawner';
+import { planWave } from './enemies/spawner';
 import { buildEnemyCharacter, enemyBody, enemyHitParts, enemyKinds, enemyStats, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
@@ -17,10 +17,17 @@ import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
+import { buildDepartures } from './ui/departures';
+import { EndScreen } from './ui/endscreen';
+import { PauseScreen } from './ui/pause';
+import { CompleteScreen } from './ui/complete';
+import { CreditsScreen } from './ui/credits';
+import { readHunt, recordLiberation, resetHunt } from './core/hunt';
+import { loadFonts } from './ui/fonts';
+import { makeStage } from './ui/stage';
 import { VsScreen } from './ui/vs';
-import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
-import { controlsMarkup } from './ui/controls-art';
+import { buildManual } from './ui/manual';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { authoredCached, releaseModels } from './characters/authored';
@@ -32,6 +39,7 @@ import { modesEnabled, type GameMode } from './game/modes';
 import { expose } from './debug';
 
 const app = document.getElementById('app')!;
+loadFonts();
 
 // ---------- renderer ----------
 loadSavedConfig();
@@ -112,7 +120,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-export type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+export type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'complete' | 'credits' | 'controls' | 'settings';
 let state: AppState = 'title';
 /** Input source whose menu confirmation opened the character select. */
 let menuSource = -1;
@@ -135,13 +143,33 @@ const chosenChars: PlayableId[] = ['din', 'paz'];
 let browsing: PlayableId[] = [];
 
 // ----- title screen -----
-const title = new MenuScreen(menuLayer);
-// authored key art behind the title, under the existing vignette gradient
-title.root.style.backgroundImage =
-  "radial-gradient(ellipse at 50% 30%, rgba(30,22,12,0.55), rgba(0,0,0,0.92) 75%), url('assets/textures/title_bg.jpg')";
-title.root.style.backgroundSize = 'cover';
-title.root.style.backgroundPosition = 'center';
-title.addTitle(TEXT.game.title, TEXT.game.tagline, 'logo');
+// Twin suns over the Dune Sea: the key art fills the window above a black
+// letterbox, the wordmark sits low on the right, and the modes run along the
+// letterbox like a film's title card (docs/UI_CONCEPTS.md).
+const title = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-title');
+title.root.innerHTML = `
+  <div class="fe-title-sky">
+    <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/title_dune_sea_hd.jpg')"></div>
+    <div class="fe-title-shade"></div>
+  </div>`;
+const titleStage = makeStage(title.root, 'fe-bottom');
+{
+  // The authored wordmark where the file exists, the set type where it does
+  // not — the same contract `MenuScreen.addTitle` keeps.
+  const logo = new Image();
+  logo.className = 'fe-title-logo';
+  logo.alt = TEXT.game.title;
+  const word = document.createElement('div');
+  word.className = 'fe-title-word';
+  word.textContent = TEXT.game.title;
+  logo.onload = () => word.remove();
+  logo.onerror = () => logo.classList.add('missing');
+  logo.src = `${ASSET_ROOT}assets/textures/logo.png`;
+  titleStage.append(word, logo);
+}
+const titleBar = document.createElement('div');
+titleBar.className = 'fe-title-bar';
+titleStage.appendChild(titleBar);
 // One prompt, arcade style: Start (or Enter, or a click) drops straight into
 // territory select and takes the window fullscreen on the way. Browsers only
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
@@ -157,15 +185,23 @@ if (modesEnabled()) {
   };
   // Missions first, then Wave Battle, then PvP. The menu focuses its first
   // button, so this also makes Missions what START opens from a cold title.
-  title.addButtons(null, [
+  title.addButtons(titleBar, [
     { label: TEXT.title.missions, action: () => pickMode('campaign', 'planets') },
     { label: TEXT.title.waveBattle, action: () => pickMode('wave', 'select') },
     { label: TEXT.title.pvp, action: () => pickMode('pvp', 'select') },
   ]);
 } else {
-  title.addButtons(null, [
+  title.addButtons(titleBar, [
     { label: TEXT.title.pressStart, action: () => { mode = 'wave'; enterFullscreen(); setState('select'); } },
   ]);
+}
+{
+  const start = document.createElement('div');
+  start.className = 'fe-title-start';
+  start.innerHTML = `
+    <span class="fe-title-players">${TEXT.title.players}</span>
+    <span class="fe-title-press"><span class="fe-glyph a">A</span>${TEXT.title.pressStart}</span>`;
+  titleBar.appendChild(start);
 }
 function enterFullscreen(): void {
   if (!document.fullscreenElement) {
@@ -173,30 +209,14 @@ function enterFullscreen(): void {
   }
 }
 
-// ----- board select -----
+// ----- board select: the departures board (Wave Battle and PvP) -----
 const select = new MenuScreen(menuLayer);
-select.addTitle(TEXT.boardSelect.title);
-const cards = document.createElement('div');
-cards.className = 'board-cards';
-select.root.appendChild(cards);
-function makeCard(name: string, desc: string, art: string, grad: string): HTMLElement {
-  const c = document.createElement('div');
-  c.className = 'board-card';
-  c.innerHTML = `<div class="art" style="background-image:url('assets/textures/${art}'), ${grad}"></div>
-    <div class="name">${name}</div><div class="desc">${desc}</div>`;
-  cards.appendChild(c);
-  return c;
-}
-select.addButtons(cards, BOARDS.map((info) => ({
-  label: '',
-  action: () => {
-    chosenBoard = info;
-    // the plan re-runs on the transition and now knows the territory, so the
-    // seconds spent picking a fighter buy the drop screen and the match
-    setState('characters');
-  },
-  el: makeCard(info.name, info.desc, info.art, info.gradient),
-})));
+const departures = buildDepartures(select, (info) => {
+  chosenBoard = info;
+  // the plan re-runs on the transition and now knows the territory, so the
+  // seconds spent picking a fighter buy the drop screen and the match
+  setState('characters');
+});
 select.onBack = () => setState('title');
 // debug/testing handle: put the territory focus on a known card, so a test can
 // check where a direction press goes from there without walking to it first
@@ -232,7 +252,7 @@ const charSelect = new CharacterSelect(menuLayer, {
     // PvP gets its VS splash first; the match's files warm behind it, so the
     // showmanship costs the drop nothing
     if (mode === 'pvp') {
-      vs.show(chars, count);
+      vs.show(chars, count, chosenBoard.name);
       setState('vs');
     } else {
       startGame();
@@ -254,30 +274,76 @@ const charSelect = new CharacterSelect(menuLayer, {
 let overlayReturn: AppState = 'title';
 
 const controls = new MenuScreen(menuLayer);
-controls.addTitle(TEXT.controls.title);
-const controlsArt = document.createElement('div');
-const paintControls = (): void => { controlsArt.innerHTML = controlsMarkup(config.input.keyboardMouse); };
-paintControls();
-controls.root.appendChild(controlsArt);
-controls.addButtons(null, [{ label: TEXT.controls.back, action: () => closeOverlay() }]);
-controls.onBack = () => closeOverlay();
+// the field manual: the pad in ink, riding, and the keyboard, one page each
+buildManual(controls, () => closeOverlay());
+// the manual has a page for every way of playing, so nothing about it hangs on
+// the keyboard setting any more
+const paintControls = (): void => {};
 
-const settings = new MenuScreen(menuLayer);
-settings.addTitle(TEXT.settings.title);
+// "The gunsmith's bench": rows grouped under three heads, gauges and levers,
+// and a field note beside the list that explains whichever row is focused
+const settings = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-settings');
+const settingsStage = makeStage(settings.root);
+settingsStage.innerHTML = `
+  <div class="s-head"><span class="h">${TEXT.settings.title}</span><span class="k">${TEXT.settings.kicker}</span></div>
+  <div class="s-panel"></div>
+  <div class="s-note w-paper"><div class="k"></div><div class="t"></div></div>
+  <div class="fe-prompts s-prompts">
+    <span><span class="fe-glyph">◀</span><span class="fe-glyph">▶</span>${TEXT.settings.prompts.adjust}</span>
+    <span><span class="fe-glyph a">A</span>${TEXT.settings.prompts.flip}</span>
+    <span><span class="fe-glyph b">B</span>${TEXT.settings.prompts.back}</span>
+    <span class="saved">${TEXT.settings.saved}</span>
+  </div>`;
+(settingsStage.querySelector('.s-note') as HTMLElement).style.backgroundImage =
+  `url('${ASSET_ROOT}assets/textures/ui_paper_aged.jpg')`;
+const settingsPanel = settingsStage.querySelector('.s-panel') as HTMLElement;
+/** each row's name and field note, in focus order */
+const settingsNotes: Array<[string, string]> = [];
+let settingsSection = settingsPanel;
+const section = (title: string): void => {
+  const head = document.createElement('div');
+  head.className = 's-sec';
+  head.textContent = title;
+  settingsPanel.appendChild(head);
+  settingsSection = document.createElement('div');
+  settingsSection.className = 's-group';
+  settingsPanel.appendChild(settingsSection);
+};
+/** file a freshly made row under the current head, with its note */
+const shelve = (row: HTMLElement, name: string, note: string): void => {
+  settingsSection.appendChild(row);
+  settingsNotes.push([name, note]);
+};
+const N = TEXT.settings.notes;
+section(TEXT.settings.sections.sound);
 const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
-  settings.addSlider(label, () => config.audio[key], (v) => {
+  shelve(settings.addSlider(label, () => config.audio[key], (v) => {
     config.audio[key] = v;
     audio.applyConfig();
     saveAudioConfig();
-  });
+  }), label, N[key]);
 volume(TEXT.settings.master, 'master');
 volume(TEXT.settings.sfx, 'sfx');
 volume(TEXT.settings.music, 'music');
-settings.addToggle(TEXT.settings.dynamicCamera, () => config.camera.dynamic, (on) => {
+section(TEXT.settings.sections.camera);
+shelve(settings.addToggle(TEXT.settings.dynamicCamera, () => config.camera.dynamic, (on) => {
   config.camera.dynamic = on;
   saveCameraConfig();
-});
-settings.addChoice(TEXT.settings.splitScreen, [
+}), TEXT.settings.dynamicCamera, N.dynamicCamera);
+// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
+const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
+shelve(settings.addSlider(TEXT.settings.lookSensitivity,
+  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
+  (v) => {
+    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
+    saveInputConfig();
+  }), TEXT.settings.lookSensitivity, N.lookSensitivity);
+shelve(settings.addToggle(TEXT.settings.invertY, () => config.input.invertY, (on) => {
+  config.input.invertY = on;
+  saveInputConfig();
+}), TEXT.settings.invertY, N.invertY);
+section(TEXT.settings.sections.screen);
+shelve(settings.addChoice(TEXT.settings.splitScreen, [
   { value: 'stacked' as const, label: TEXT.settings.stacked },
   { value: 'columns' as const, label: TEXT.settings.sideBySide },
 ], () => config.video.split, (v) => {
@@ -286,20 +352,17 @@ settings.addChoice(TEXT.settings.splitScreen, [
   // A match in progress re-lays its HUD immediately; the renderer reads the
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
-});
-// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
-const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
-settings.addSlider(TEXT.settings.lookSensitivity,
-  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
-  (v) => {
-    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
-    saveInputConfig();
-  });
-settings.addToggle(TEXT.settings.invertY, () => config.input.invertY, (on) => {
-  config.input.invertY = on;
-  saveInputConfig();
-});
-settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
+}), TEXT.settings.splitScreen, N.splitScreen);
+shelve(settings.addChoice(TEXT.settings.saberLights, [
+  { value: 'auto' as const, label: TEXT.settings.auto },
+  { value: 'on' as const, label: TEXT.settings.on },
+  { value: 'off' as const, label: TEXT.settings.off },
+], () => config.video.saberLights, (v) => {
+  config.video.saberLights = v;
+  saveVideoConfig();
+  game?.saberLights.setMode(v);
+}), TEXT.settings.saberLights, N.saberLights);
+shelve(settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
   paintControls();
@@ -309,10 +372,22 @@ settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse
     if (on) input.requestPointerLock();
     else input.releasePointerLock();
   }
-});
-settings.addButtons(null, [{ label: TEXT.settings.back, action: () => closeOverlay() }]);
-settings.addHint(TEXT.settings.hint);
-
+}), TEXT.settings.keyboardMouse, N.keyboardMouse);
+{
+  const foot = document.createElement('div');
+  foot.className = 's-foot';
+  settingsPanel.appendChild(foot);
+  settings.addButtons(foot, [
+    { label: TEXT.settings.credits, action: () => openCredits() },
+    { label: TEXT.settings.back, action: () => closeOverlay() },
+  ]);
+  settingsNotes.push([TEXT.settings.credits, N.credits], [TEXT.settings.back, N.back]);
+}
+settings.onFocus = (i) => {
+  const [name, note] = settingsNotes[i] ?? ['', ''];
+  (settingsStage.querySelector('.s-note .k') as HTMLElement).textContent = TEXT.settings.noteKicker(name);
+  (settingsStage.querySelector('.s-note .t') as HTMLElement).textContent = note;
+};
 settings.onBack = () => closeOverlay();
 
 /**
@@ -346,47 +421,49 @@ function closeOverlay(): void {
 }
 
 // ----- pause -----
-const pause = new MenuScreen(menuLayer);
-pause.addTitle(TEXT.pause.title);
-pause.addButtons(null, [
-  { label: TEXT.pause.resume, action: () => resumeGame() },
-  { label: TEXT.pause.controls, action: () => openOverlay('controls') },
-  { label: TEXT.pause.settings, action: () => openOverlay('settings') },
-  { label: TEXT.pause.restart, action: () => { startGame(); } },
-  { label: TEXT.pause.quit, action: () => quitToTitle() },
-]);
-pause.onBack = () => resumeGame();
+// "Hold fire": the frozen match behind, the menu, and the contract so far
+const pauseScreen = new PauseScreen(menuLayer, {
+  resume: () => resumeGame(),
+  controls: () => openOverlay('controls'),
+  settings: () => openOverlay('settings'),
+  restart: () => { startGame(); },
+  quit: () => quitToTitle(),
+});
+const pause = pauseScreen.screen;
 
 // ----- end (victory/defeat) -----
-const end = new MenuScreen(menuLayer);
-// the PvP winner's celebration: their portrait held up over the tally —
-// filled in (and shown) only when a duel ends with a champion
-const endHero = document.createElement('div');
-endHero.className = 'end-hero';
-endHero.style.display = 'none';
-end.root.appendChild(endHero);
-const endTitle = document.createElement('div');
-endTitle.className = 'menu-title';
-endTitle.style.fontSize = 'clamp(34px, 5vw, 64px)';
-end.root.appendChild(endTitle);
-const endStats = document.createElement('div');
-endStats.className = 'menu-hint';
-end.root.appendChild(endStats);
-// A liberated territory leads to the next one: the planet strip knows the
-// order, so the end screen can offer it rather than sending the party back to
-// the title to find it. Shown only after a campaign victory with a next stop.
-const [nextBtn] = end.addButtons(null, [
-  { label: TEXT.end.nextTerritory, action: () => {
+// Four faces — held, liberated, champion, defeat — see src/ui/endscreen.ts.
+const endScreen = new EndScreen(menuLayer, {
+  // A liberated territory leads to the next one: the map knows the order, so
+  // the end screen offers it rather than sending the party back to find it.
+  next: () => {
     const i = BOARDS.indexOf(chosenBoard);
     chosenBoard = BOARDS[(i + 1) % BOARDS.length];
     startGame();
-  } },
-]);
-end.addButtons(null, [
-  { label: TEXT.end.retry, action: () => startGame() },
-  { label: TEXT.end.quit, action: () => quitToTitle() },
-]);
-end.onBack = () => quitToTitle();
+  },
+  departures: () => leaveMatchTo('select'),
+  retry: () => startGame(),
+  roster: () => leaveMatchTo('characters'),
+  quit: () => quitToTitle(),
+});
+const end = endScreen.screen;
+
+// ----- the end of the hunt, and the credits -----
+const completeScreen = new CompleteScreen(menuLayer, {
+  // the hunt starts over: every territory back under its warlord
+  again: () => { resetHunt(); leaveMatchTo('planets'); },
+  credits: () => openCredits(),
+  quit: () => quitToTitle(),
+});
+// The credits can be opened from Settings (and so from anywhere), or from the
+// end of the hunt, and go back to whichever it was.
+let creditsReturn: AppState = 'title';
+const creditsScreen = new CreditsScreen(menuLayer, () => setState(creditsReturn));
+function openCredits(): void {
+  if (state !== 'credits') creditsReturn = state;
+  setState('credits');
+  creditsScreen.begin();
+}
 
 // The bench behind __buildBody / __bodySize below: bodies built outside any
 // match, kept here so each can be measured once its models have landed.
@@ -396,6 +473,8 @@ const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId
 expose({
   __charsel: charSelect, // debug/testing handle
   __vs: vs,              // debug/testing handle
+  __openComplete: () => { completeScreen.show(readHunt()); setState('complete'); },
+  __openCredits: () => openCredits(),
   __input: input,        // debug/testing handle
   // Board factories, so a test can build any board on its own — the collision
   // audit in tools/audit-collision.mjs walks every board's meshes against its
@@ -516,13 +595,15 @@ expose({
       : { kind: 'enemy', ...enemyStats(id as EnemyKind), hitParts: enemyHitParts(id as EnemyKind) },
 });
 
-const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
+const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, complete: completeScreen.screen, credits: creditsScreen.screen, controls, settings };
 
 function activeScreen(): MenuScreen | null {
   if (state === 'title') return title;
   if (state === 'select') return select;
   if (state === 'paused') return pause;
   if (state === 'end') return end;
+  if (state === 'complete') return completeScreen.screen;
+  if (state === 'credits') return creditsScreen.screen;
   if (state === 'controls') return controls;
   if (state === 'settings') return settings;
   return null;
@@ -565,16 +646,20 @@ function setState(s: AppState): void {
   for (const key of Object.keys(screens)) screens[key].hide();
   if (s === 'characters') {
     if (!charSelect.visible) {
+      // the heading's right end says where this line is riding out to
+      const context = `${mode === 'pvp' ? TEXT.title.pvp : mode === 'campaign' ? TEXT.title.missions : TEXT.title.waveBattle} · ${chosenBoard.name}`;
       charSelect.configure(mode === 'pvp'
-        ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true }
-        : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title });
+        ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true, context }
+        : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title, context });
       charSelect.show(menuSource);
     }
   } else charSelect.hide();
-  if (s === 'planets') planets.show();
+  if (s === 'planets') { planets.setProgress(readHunt().liberated); planets.show(); }
   else planets.hide();
   if (s !== 'vs') vs.hide();
   if (s !== 'loading') loading.hide();
+  if (s === 'select') departures.setMode(mode === 'pvp' ? 'pvp' : 'wave');
+  if (s === 'paused' && game) pauseScreen.dress(game, chosenBoard);
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
@@ -609,7 +694,7 @@ function startGame(): void {
   audio.init();
   disposeGame();
   const chars = matchCast();
-  loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
+  loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id), mode);
   // setState re-plans with the picks settled, so anything the drop still needs
   // goes to the front of the queue here
   setState('loading');
@@ -651,8 +736,8 @@ function buildMatch(): void {
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     transition: (t, s) => hud.transition(t, s),
-    bossIntro: (t, s) => hud.bossIntro(t, s),
-    newContacts: (names) => hud.newContacts(names),
+    bossIntro: (t, s, kind, role) => hud.bossIntro(t, s, kind, role),
+    newContacts: (kinds) => hud.newContacts(kinds),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars], mode, botCount);
@@ -715,7 +800,21 @@ function updateLoading(dt: number): void {
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
   if (window.__holdLoading) return;
-  if (built && p.pending === 0) enterMatch();
+  if (built && p.pending === 0) {
+    // the files are in; now the GPU, while the loading screen still covers it
+    warmGpu();
+    enterMatch();
+  }
+}
+
+/**
+ * Compile and upload everything the match is made of (see `Game.warmGpu`).
+ * Skipped while a test owns the clock (`__manual`): a suite that steps the
+ * simulation and draws nothing has no first frame to protect, and a full
+ * compile under software GL costs it half a minute a boot.
+ */
+function warmGpu(): void {
+  if (game && !window.__manual) game.warmGpu(renderer);
 }
 
 /**
@@ -752,7 +851,8 @@ function updateStageVeil(): void {
   const c = game?.campaign;
   const want = !!c?.settlingStage;
   if (!want) {
-    if (stageVeil) { stageVeil = false; loading.hide(); }
+    // the stage's files are in: ready it for the GPU before the veil comes off
+    if (stageVeil) { warmGpu(); stageVeil = false; loading.hide(); }
     return;
   }
   const p = c!.stageSettleProgress();
@@ -804,9 +904,14 @@ function resumeGame(): void {
 }
 
 function quitToTitle(): void {
+  leaveMatchTo('title');
+}
+
+/** tear the match down and go back to a menu: the title, the board, or the line-up */
+function leaveMatchTo(s: 'title' | 'select' | 'planets' | 'characters'): void {
   disposeGame();
   hud.hide();
-  setState('title');
+  setState(s);
 }
 
 // Start an N-player match without N controllers plugged in. Split-screen is
@@ -848,7 +953,8 @@ expose({
   __missionZones: () => Object.entries(MISSION_LAYOUTS).flatMap(([board, spec]) =>
     spec.stages.flatMap((st: StageSpec, si: number) => st.zones.map((zn: ZoneSpec) => ({
       board, stage: si, label: zn.label, shell: zn.shell, kind: zn.kind,
-      waves: zn.waves ?? null, siege: !!zn.siege,
+      waves: zn.waves ?? null, garrison: zn.garrison ?? null, siege: !!zn.siege,
+      pass: !!zn.pass, deadEnd: !!zn.deadEnd, w: zn.w, l: zn.l, rides: (zn.rides ?? []).map((r) => r.kind),
     })))),
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));
@@ -958,6 +1064,8 @@ function step(dt: number): void {
     if (state === 'playing') {
       const inputs = Array.from({ length: MAX_PLAYERS }, (_, i) => input.read(i, dt));
       game.update(dt, inputs);
+      // `dt` is the real frame, capped at 0.05 s: slow frames still read slow
+      game.saberLights.watch(dt, config.video.saberLights);
       warmQueue.setCombatBusy(game.enemies.some((e) => e.alive && e.isEngaged));
       hud.update(dt, game);
       // A stage that is still arriving gets the same veil the drop gets: the
@@ -971,44 +1079,29 @@ function step(dt: number): void {
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;
         if (endTimer <= 0) {
-          const winner = game.winnerSlot >= 0 ? game.players[game.winnerSlot] : null;
-          endTitle.textContent = game.state !== 'victory' ? TEXT.end.defeat
-            : game.mode === 'pvp' ? TEXT.end.champion(winner?.profile.name ?? TEXT.end.nobody)
-            : game.mode === 'campaign' ? TEXT.end.liberated
-            : TEXT.end.held;
-          // a duel's end screen celebrates the champion: portrait held high,
-          // authored art taking over the drawn mark when the file exists
-          if (game.mode === 'pvp' && game.state === 'victory' && winner) {
-            endHero.innerHTML = `
-              <div class="end-face">${faceSvg(winner.characterId)}</div>
-              <div class="end-tag">${TEXT.end.championTag(
-                winner.isBot ? TEXT.vs.bot : TEXT.vs.player(winner.slot + 1), winner.kills,
-              )}</div>`;
-            endHero.style.display = '';
-            const face = endHero.querySelector('.end-face') as HTMLElement;
-            const img = new Image();
-            img.onload = () => {
-              face.style.backgroundImage = `url('${img.src}')`;
-              face.classList.add('has-art');
-            };
-            img.src = `${ASSET_ROOT}assets/textures/${portraitName(winner.characterId)}.jpg`;
+          // A liberated territory goes in the hunt's ledger; the one that frees
+          // the last of them ends the hunt, and that gets its own screen.
+          const huntDone = game.mode === 'campaign' && game.state === 'victory'
+            && recordLiberation(chosenBoard.id, game.players.filter((p) => !p.isBot)
+              .map((p) => ({ id: p.characterId, kills: p.kills })), game.elapsed);
+          endScreen.show({
+            mode: game.mode,
+            won: game.state === 'victory',
+            board: chosenBoard,
+            fighters: game.players.map((p, i) => ({
+              id: p.characterId, name: p.profile.name, slot: i, bot: p.isBot, kills: p.kills,
+            })),
+            winner: game.winnerSlot,
+            elapsed: game.elapsed,
+            wave: game.wave,
+          });
+          if (huntDone) {
+            completeScreen.show(readHunt());
+            setState('complete');
           } else {
-            endHero.style.display = 'none';
+            setState('end');
+            endScreen.focusFirst();
           }
-          const mins = Math.floor(game.elapsed / 60);
-          const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
-          const clock = `${mins}:${secs}`;
-          // the wave counter runs one past the last wave while the warlord's
-          // battle is fought, so a held territory used to read "wave 8"
-          const waveNote = game.wave > FINAL_WAVE ? TEXT.end.warlordDown : TEXT.end.waveNote(game.wave);
-          const tail = game.mode === 'wave' ? TEXT.end.noteAndTime(waveNote, clock) : TEXT.end.time(clock);
-          const hasNext = game.mode === 'campaign' && game.state === 'victory'
-            && BOARDS.indexOf(chosenBoard) < BOARDS.length - 1;
-          nextBtn.style.display = hasNext ? '' : 'none';
-          endStats.innerHTML = game.players
-            .map((p, i) => TEXT.end.playerKills(p.isBot ? TEXT.vs.bot : TEXT.vs.player(i + 1), p.kills))
-            .join(' · ') + tail;
-          setState('end');
         }
       }
     }

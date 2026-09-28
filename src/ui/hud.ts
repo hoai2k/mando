@@ -5,8 +5,13 @@ import { splitLayout, type Rect } from '../core/layout';
 import { yawBasis } from '../core/math';
 import * as THREE from 'three';
 import type { Player } from '../player/player';
+import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
+import { FINAL_WAVE } from '../enemies/spawner';
 import { ASSET_ROOT, portraitName } from '../core/assets';
-import { faceSvg } from './faces';
+import { faceSvg, hostileSvg } from './faces';
+
+const paper = (): string => `url('${ASSET_ROOT}assets/textures/ui_paper_aged.jpg')`;
+const portrait = (kind: string): string => `url('${ASSET_ROOT}assets/textures/${portraitName(kind)}.jpg')`;
 
 /** scratch for the objective marker's projection */
 const _v = new THREE.Vector3();
@@ -22,6 +27,8 @@ interface PlayerHud {
   energy: HTMLElement;
   heat: HTMLElement;
   heatBar: HTMLElement;
+  air: HTMLElement;
+  airBar: HTMLElement;
   coverHint: HTMLElement;
   hpNum: HTMLElement;
   healthBar: HTMLElement;
@@ -30,6 +37,8 @@ interface PlayerHud {
   rocket: HTMLElement;
   wave: HTMLElement;
   kills: HTMLElement;
+  /** one lamp per wave of a Wave Battle, lit up to the one being fought */
+  pips: HTMLElement;
   objective: HTMLElement;
   objMark: SVGElement;
   objLabel: HTMLElement;
@@ -142,8 +151,9 @@ export class Hud {
           <div class="bar fuel"><div class="fill"></div><div class="label">${TEXT.hud.bars.fuel}</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">${TEXT.hud.bars.energy}</div></div>
           <div class="bar heat"><div class="fill"></div><div class="label">${TEXT.hud.bars.heat}</div></div>
+          <div class="bar air"><div class="fill"></div><div class="label">${TEXT.hud.bars.air}</div></div>
         </div>
-        <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
+        <div class="hud-wave"><div class="wave-num"></div><div class="wave-pips"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
         <div class="hud-cover"></div>
         <div class="hurt-arc"><svg viewBox="0 0 120 120"><path d="M60 6 A54 54 0 0 1 98 22" fill="none" stroke="#ff4a36" stroke-width="8" stroke-linecap="round" transform="rotate(-22 60 60)"/></svg></div>
@@ -164,6 +174,8 @@ export class Hud {
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
+        air: root.querySelector('.bar.air .fill') as HTMLElement,
+        airBar: root.querySelector('.bar.air') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
         hpNum: root.querySelector('.bar.health .hpnum') as HTMLElement,
         healthBar: root.querySelector('.bar.health') as HTMLElement,
@@ -172,6 +184,7 @@ export class Hud {
         rocket: root.querySelector('.rocket') as HTMLElement,
         wave: root.querySelector('.wave-num') as HTMLElement,
         kills: root.querySelector('.wave-kills') as HTMLElement,
+        pips: root.querySelector('.wave-pips') as HTMLElement,
         objective: root.querySelector('.hud-objective') as HTMLElement,
         objMark: root.querySelector('.obj-mark') as SVGElement,
         objLabel: root.querySelector('.obj-label') as HTMLElement,
@@ -203,15 +216,22 @@ export class Hud {
     shared.className = `hud-shared ${layout}`;
     shared.innerHTML = `
       <div class="hud-wave shared-wave"><div class="wave-num"></div></div>
-      <div class="hud-banner"><div class="btext"></div><div class="bsub"></div></div>
       <div class="hud-contacts"><div class="nc-kicker">${TEXT.hud.newContact}</div><div class="nc-names"></div></div>
-      <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div></div></div>`;
+      <div class="hud-boss"><div class="bossname"></div><div class="bossbar"><div class="bossfill"></div><i></i><i></i></div></div>`;
     this.layer.appendChild(shared);
+    // The banner is a paper plate stamped over the fight: at the top of the
+    // picture for one player, and on the seam in the middle of the window —
+    // over every player's picture at once — when the screen is split.
+    const plate = document.createElement('div');
+    plate.className = `hud-banner hud-plate ${playerCount === 1 ? 'solo' : 'split'}`;
+    plate.style.backgroundImage = paper();
+    plate.innerHTML = '<div class="btext"></div><div class="bsub"></div>';
+    this.layer.appendChild(plate);
     this.shared = {
       root: shared,
       wave: shared.querySelector('.wave-num') as HTMLElement,
-      banner: shared.querySelector('.btext') as HTMLElement,
-      bannerSub: shared.querySelector('.bsub') as HTMLElement,
+      banner: plate.querySelector('.btext') as HTMLElement,
+      bannerSub: plate.querySelector('.bsub') as HTMLElement,
       contacts: shared.querySelector('.hud-contacts') as HTMLElement,
       contactNames: shared.querySelector('.nc-names') as HTMLElement,
       boss: shared.querySelector('.hud-boss') as HTMLElement,
@@ -248,19 +268,34 @@ export class Hud {
    * side). Built fresh per showing and removed after, so it survives layout
    * rebuilds and never leaves a stray node behind.
    */
-  bossIntro(title: string, sub: string): void {
+  bossIntro(title: string, sub: string, kind?: EnemyKind, role: 'lieutenant' | 'warlord' | 'monster' = 'warlord'): void {
     this.clearTransition();
+    // the warlord's entrance has the screen to itself: no plate behind the bars
+    if (this.shared) {
+      this.shared.banner.parentElement!.classList.remove('show');
+      this.shared.bannerTimer = 0;
+    }
     const card = document.createElement('div');
     card.className = 'boss-intro';
+    // the Wanted card: the body stepping out, and the price on its head
+    const wanted = kind ? `
+      <div class="bi-wanted" style="background-image:${paper()}">
+        <div class="bi-w">${TEXT.hud.wanted}</div>
+        <div class="bi-pic">${hostileSvg(kind)}<i style="background-image:${portrait(kind)}"></i></div>
+        <div class="bi-r">${TEXT.hud.reward}</div>
+        <div class="bi-cr">${TEXT.hud.bounty[role]}</div>
+      </div>` : '';
     card.innerHTML = `
       <div class="bi-bar top"></div>
+      ${wanted}
       <div class="bi-plate">
-        <div class="bi-kicker">— ${sub.startsWith(TEXT.hud.lieutenant) ? TEXT.hud.lieutenant : TEXT.hud.warlord} —</div>
-        <div class="bi-name">${title}</div>
-        <div class="bi-rule"></div>
-        <div class="bi-sub">${sub}</div>
+        <div class="bi-kicker"></div>
+        <div class="bi-name"></div>
+        <div class="bi-sub">${TEXT.banners.bringThemDown}</div>
       </div>
       <div class="bi-bar bottom"></div>`;
+    (card.querySelector('.bi-kicker') as HTMLElement).textContent = sub;
+    (card.querySelector('.bi-name') as HTMLElement).textContent = title;
     this.layer.appendChild(card);
     window.setTimeout(() => card.classList.add('out'), 2800);
     window.setTimeout(() => card.remove(), 3500);
@@ -301,12 +336,21 @@ export class Hud {
    * their first appearance this wave. Held longer than the banner — it is
    * the one piece worth reading twice.
    */
-  newContacts(names: string[]): void {
+  newContacts(kinds: EnemyKind[]): void {
     const h = this.shared;
     if (!h) return;
     h.contacts.querySelector('.nc-kicker')!.textContent =
-      names.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
-    h.contactNames.textContent = names.join(' · ');
+      kinds.length > 1 ? TEXT.hud.newContacts : TEXT.hud.newContact;
+    // a mugshot each, on scraps of the same paper the banners are printed on
+    h.contactNames.innerHTML = '';
+    for (const kind of kinds) {
+      const card = document.createElement('div');
+      card.className = 'nc-card';
+      card.style.backgroundImage = paper();
+      card.innerHTML = `<span class="nc-pic">${hostileSvg(kind)}<i style="background-image:${portrait(kind)}"></i></span><span class="nc-name"></span>`;
+      (card.querySelector('.nc-name') as HTMLElement).textContent = ENEMY_NAME[kind] ?? kind;
+      h.contactNames.appendChild(card);
+    }
     h.contacts.classList.add('show');
     h.contactsTimer = 4;
   }
@@ -503,7 +547,6 @@ export class Hud {
       }
       shared.root.classList.toggle('active', !!shared.wave.textContent ||
         shared.boss.classList.contains('show') ||
-        shared.banner.parentElement!.classList.contains('show') ||
         shared.contacts.classList.contains('show'));
     }
     const merged = this.updateMerged(game);
@@ -540,6 +583,12 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
+      // the air gauge only under the sea, where it is the clock
+      h.airBar.style.display = p.air === null ? 'none' : '';
+      if (p.air !== null) {
+        h.air.style.transform = `scaleX(${p.air})`;
+        h.airBar.classList.toggle('low', p.air < 0.3);
+      }
       if (p.vehicle) {
         const v = p.vehicle;
         const hp = Math.max(0, Math.ceil(v.hp));
@@ -579,6 +628,15 @@ export class Hud {
       h.wave.textContent = game.mode === 'wave' && this.huds.length > 1
         ? '' : boss?.alive && top === boss.bossName ? '' : top;
       h.kills.textContent = game.hudScoreLine(p);
+      // a Wave Battle's progress as lamps under the counter, while a wave is
+      // what is being fought (not the warlord after the last of them)
+      // (the counter reads 0 before the first wave is called, and shows as 1)
+      const pips = game.mode === 'wave' && !!h.wave.textContent && game.wave <= FINAL_WAVE
+        ? Math.max(game.wave, 1) : 0;
+      if (h.pips.dataset.n !== String(pips)) {
+        h.pips.dataset.n = String(pips);
+        h.pips.innerHTML = pips ? Array.from({ length: FINAL_WAVE }, (_, w) => `<i${w < pips ? ' class="lit"' : ''}></i>`).join('') : '';
+      }
       if (!merged) this.updateObjective(h, p, game);
       this.updateSection(h, i, game);
       if (!merged) h.radar.update(p, game);

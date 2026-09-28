@@ -33,8 +33,10 @@ try {
       const returned = visible();
       const rightHand = root.getObjectByName('saberHandR');
       const leftHand = root.getObjectByName('saberHandL');
-      const bladeLight = rightHand?.getObjectByProperty('type', 'PointLight');
-      const offhandLight = leftHand?.getObjectByProperty('type', 'PointLight');
+      // a lit blade asks the match's saber-light pool for this colour
+      const asks = (hand) => { let s; hand?.traverse((o) => { s ??= o.userData.saberLight; }); return s; };
+      const bladeLight = asks(rightHand);
+      const offhandLight = asks(leftHand);
       const authoredHilt = rightHand?.children.some((child) =>
         child !== rightHand.userData.blade
         && child.type === 'Group'
@@ -42,7 +44,7 @@ try {
       return {
         modelLoaded: char.modelReady(), nozzles: char.nozzles.length,
         stowed, drawn, rightThrown, leftStowedRightThrown, returned,
-        bladeLight: bladeLight?.color?.getHex(), offhandLight: offhandLight?.color?.getHex(), authoredHilt,
+        bladeLight: bladeLight?.color, offhandLight: offhandLight?.color, authoredHilt,
         oppositeBlade: !!rightHand?.userData.oppositeBlade,
       };
     });

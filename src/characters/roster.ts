@@ -10,6 +10,7 @@ import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyK
 import { enemyModelIds, type ModelId } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
+import { FIST_ENEMIES } from './combatStyle';
 
 /**
  * The playable roster, across every mode (docs/MODES.md).
@@ -281,10 +282,13 @@ function buildPlayableNpc(kind: EnemyKind): PlayerCharacter {
   };
 }
 
+
 function npcDef(kind: EnemyKind): PlayableDef {
   const t = NPC_TUNING[kind]!;
   const s = enemyStats(kind);
   const meleeOnly = t.meleeOnly ?? false;
+  // hostiles who fight with their bare hands are played as they fight
+  const fists = FIST_ENEMIES.has(kind);
   return {
     id: `npc:${kind}`,
     modelIds: enemyModelIds(kind),
@@ -307,11 +311,11 @@ function npcDef(kind: EnemyKind): PlayableDef {
       // with it. The beasts carry no gun at all, which is the one place a
       // fighter is genuinely melee-only.
       rangedOptions: meleeOnly ? [] : [t.blaster ?? 'carbine'],
-      meleeOptions: ['gaffi'],
-      meleeKind: 'gaffi',
+      meleeOptions: [fists ? 'fists' : 'gaffi'],
+      meleeKind: fists ? 'fists' : 'gaffi',
       rangedName: meleeOnly ? null
         : t.blaster === 'longrifle' ? TEXT.weapons.npcRifle(ENEMY_NAME[kind]) : TEXT.weapons.npcBlaster(ENEMY_NAME[kind]),
-      meleeName: kind === 'tusken' ? 'Gaffi Stick'
+      meleeName: kind === 'tusken' ? 'Gaffi Stick' : fists ? TEXT.weapons.melee.fists
         : meleeOnly ? TEXT.weapons.npcClaws : TEXT.weapons.npcRifleButt,
       blasterVoice: t.blaster ?? 'carbine',
       voice: t.voice,

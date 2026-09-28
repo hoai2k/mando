@@ -70,9 +70,9 @@ single-stage chain at a door. Beat labels are the existing ones from
 | Dune Sea | A trailhead → corral → dune road ⇒ B ravine → cistern ⇒ **Barge Run** ⇒ **Worm Sign** ⇒ C fighting pit → … → the Old One's hollow |
 | Spice Run | A docking bay → gantries → outer yard ⇒ **Guns of the Frigate** ⇒ B spice vault → loading gantry ⇒ **Ring Walk** ⇒ C crew catwalks → reactor ring → hold of the prize |
 | Lava Flats | A ash flats → bike pool → causeway → town gate ⇒ B garrison yard → magistrate court ⇒ **Magma Run** ⇒ **The Chimney** ⇒ C crossing → cantina row → rancor pen |
-| Crevasse | A rim shelf → frozen gallery → nest mouth ⇒ **Glacier Chute** ⇒ **Lamplight** ⇒ B queen tunnel → … → breaker deep |
-| Storm Docks | A quay → fish market → net lofts → freighter hold → cold stores → trawler deck ⇒ *split* ⇒ **The Squall** ⇒ **Run the Pier** ⇒ A2 pier heads → mamacore pool |
-| Refinery | A tanker yard → pipe run → intake ramp ⇒ **The Line** ⇒ B the plant (barrel stores → reactor floor → pump hall) ⇒ **Lights Out** ⇒ C reactor crown → loading field |
+| Crevasse | A rim shelf → frozen gallery (ends at the nest mouth's door) ⇒ **Glacier Chute** ⇒ **Lamplight** ⇒ B queen tunnel → … → breaker deep |
+| Storm Docks | A quay → fish market → freighter hold → cold stores → trawler deck ⇒ *split* ⇒ **The Squall** ⇒ **Run the Pier** ⇒ A2 pier heads → mamacore pool |
+| Refinery | A tanker yard → pipe run (ends at the intake door) ⇒ **The Line** ⇒ B the plant (barrel stores → reactor floor) ⇒ **Lights Out** ⇒ C reactor crown → loading field |
 | Great Forge | A glassed plain → glass corral → glass highway → shattered gate ⇒ B undercroft → armoury vault ⇒ **Hold the Forge** ⇒ **Covert Sky** ⇒ C glassed court → forge steps → sleeper's basin |
 | Ringworld | A tram stop → market arcade ⇒ *split* ⇒ **Tram Top** ⇒ A2 night-side row → terminus → sentinel walk → plaza ⇒ *split* ⇒ **The Mark Runs** ⇒ A3 service spine → high street terrace |
 | Prison Rig | A landing deck → gantry run ⇒ B the sea ⇒ **One Way Out** ⇒ C work floor → supervisor deck ⇒ **The Lift** ⇒ D assembly deck → … → moon pool deck |
@@ -98,7 +98,9 @@ Why each goes where it does, and how it joins the stages on either side:
   maintenance airlock onto the habitat ring's **outer hull**. The party walks a
   quarter of the ring and ends at the airlock that opens onto the crew catwalks
   (C).
-- **Magma Run** (Lava Flats, B ⇒ C). The magistrate court's far door leads down
+- **Magma Run** (Lava Flats, B ⇒ C). The magistrate court — since the level
+  audit a hall the party walks through past two lookouts, the lieutenant having
+  moved out to the town gate — has a far door that leads down
   a ramp to the **lava tunnels under the town**, where a pirate crew keeps its
   bikes at a dock on the lava river. The camp at the dock is the
   steal-the-bikes beat. The river runs out of the tunnels into an open canyon and
@@ -107,21 +109,26 @@ Why each goes where it does, and how it joins the stages on either side:
 - **The Chimney** (after the Magma Run). The vent floods as the party arrives.
   They climb out of the chamber, and the lip is the edge of the glass fields,
   where stage C starts.
-- **Glacier Chute** (Crevasse, A ⇒ B). The nest mouth's door in the glacier opens
+- **Glacier Chute** (Crevasse, A ⇒ B). The frozen gallery runs on to the nest
+  mouth, and its far door in the glacier face opens
   onto an ice **tunnel that tips downhill**. A short walk in, the floor gives way
   and the chute begins. It ends in a **snowbank** in the dark at the bottom.
 - **Lamplight** (after the Chute). It starts in that snowbank: the brood's
   inner caverns. The burning web wall at the far end opens onto the queen tunnel
   (B).
-- **The Squall** (Storm Docks, A ⇒ A2). After the trawler deck fight the
+- **The Squall** (Storm Docks, A ⇒ A2). After the trawler deck fight (since the
+  level audit the Storm Docks' lieutenant, on a deck with the sea both sides) the
   trawler's wheelhouse door is the transport: the trawler casts off. The squall
   is the crossing. It ends when the trawler comes alongside the far pier.
 - **Run the Pier** (after the Squall). It starts on that pier. The mamacore wakes
   and chases the party down the whole pier chain, which ends at the pier heads
   (A2).
-- **The Line** (Refinery, A ⇒ B). The intake ramp's blast door opens onto the
+- **The Line** (Refinery, A ⇒ B). The pipe run is a lane between racks that ends
+  at the intake's blast door, set in the rock face; it opens onto the
   intake **processing floor**. Its far door is the plant (B).
-- **Lights Out** (Refinery, B ⇒ C). The plant's rear airlock opens onto the **tank
+- **Lights Out** (Refinery, B ⇒ C). The plant's rear airlock, the far door of
+  the reactor floor (the lieutenant's room, now the plant's last, walled round
+  the reactor atrium), opens onto the **tank
   farm behind the plant**, under the plant's smoke, with searchlights up. It ends
   at the stair to the reactor crown (C).
 - **Hold the Forge** (Great Forge, B ⇒ C). The armoury vault's far door is the
@@ -133,11 +140,14 @@ Why each goes where it does, and how it joins the stages on either side:
   to the dome, and dives through the breach into the glassed court (C).
 - **Tram Top** (Ringworld, A ⇒ A2). The market arcade's far end is a **tram
   platform**, and the transport door is the platform gate. The tram delivers the
-  party to the night-side row.
-- **The Mark Runs** (Ringworld, A2 ⇒ A3). After the plaza the mark bolts up a fire
+  party to the night-side row (since the level audit a dark street with two
+  lookouts in it — the run's breather — rather than a dead-end canyon fight).
+- **The Mark Runs** (Ringworld, A2 ⇒ A3). After the plaza (since the level audit
+  where the enforcer, the lieutenant, is fought) the mark bolts up a fire
   stair. The plaza's way on is the stair door to the roofs. The chase ends on the
   landing pad above the service spine. The pad's stair down is the way into A3.
-- **One Way Out** (Prison Rig, B ⇒ C). Surfacing from the moon pool shaft comes up
+- **One Way Out** (Prison Rig, B ⇒ C). The moon pool shaft ends at a lit pool
+  ring set in the rig's foundation wall. Surfacing through it comes up
   inside the **cell blocks**, where the riot starts. The stair core is the way up to
   the work floor (C).
 - **The Lift** (Prison Rig, C ⇒ D). The supervisor deck's far door is already *the

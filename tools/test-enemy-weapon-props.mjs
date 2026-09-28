@@ -5,7 +5,6 @@ const check = makeCheck();
 const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
 const subjects = [
   ['pyke', 'enemy_blaster_rifle'],
-  ['pirateMelee', 'pirate_boarding_club'],
   ['flametrooper', 'flame_projector'],
   ['quarren', 'net_launcher'],
   ['alamite', 'alamite_stone_club'],

@@ -19,6 +19,13 @@ export const MISSION_Y = 90;
 export const RIM_OVER_CEILING = 6;
 /** the backdrop row's height, as a multiple of the ceiling */
 export const BACKDROP_H = 2.2;
+/**
+ * The widest gap a deck's plates are laid with (`ZoneSpec.plates`): a jetpack
+ * hop at the Spice Run's 0.45 g, not a leap of faith.
+ */
+export const DECK_GAP_MAX = 18;
+/** the grip on a zone's slick disc of bare ice (`ZoneSpec.slick`) */
+export const SLICK_TRACTION = 0.4;
 /** how far past an outdoor zone's entry the fight starts */
 export const TRIGGER_IN = 6;
 /** trail posts along any link at least this long, every this many metres */
@@ -94,12 +101,36 @@ export const PATH_CLEAR = 1.2;
 export const CORNER_LAP = 8;
 /** how wide a strip either side of the golden path counts as walkable ground */
 export const PATH_WALKABLE = 2.5;
+/**
+ * A runner pass (`ZoneSpec.pass`): a notch this wide in the far rim, and a
+ * gully this deep behind it, walled on three sides, that the beasts and
+ * locals of a siege come down on foot.
+ */
+export const PASS_W = 6;
+export const PASS_DEPTH = 12;
 /** per crate in a crate-line barricade */
 export const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
 export const PORTAL_POCKET = 4;
+/**
+ * How long the antechamber between a stage's back door and its first zone is.
+ *
+ * A stage used to re-form the party 2.4 m inside zone 0, so where zone 0 was
+ * a sealed room or a boss arena the fight started on the first frame, with
+ * the posted garrison standing round them as the loading veil lifted and the
+ * door they came in by a step behind. Every stage with a door behind it now
+ * opens in this vestibule instead: the party arrives *outside* the first
+ * zone and walks into it (docs/AUDIT_LEVELS_2026-09.md, item 1).
+ */
+export const VESTIBULE = 8;
 
 export const WALL_T = 1;
+/**
+ * The tallest a doorway, a hatch or a transport door stands. A hall roofed
+ * higher than this (the Refinery's reactor atrium) keeps its doors this tall
+ * and fills the wall over them, rather than cutting a slot to the roof.
+ */
+export const DOOR_MAX_H = 8;
 export const CORR_H = 3.8;
 export const WALL_H = 5.5;
 export const ROOF_H = 8;

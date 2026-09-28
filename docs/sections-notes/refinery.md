@@ -190,3 +190,11 @@ now turns at z 22.
   play times. Played with hostiles (no cull), a solo bot is spotted in the west
   lane and fights through on the alarm; a real player has the booth, the vents
   and the takedowns.
+
+## 2026-09-28 — after main's walk gait (orchestrator)
+
+`main` now reads the left stick as a gait: up to 0.6 tilt walks (at most
+1.4 m/s), 0.6–0.9 climbs to the run. The autopilots' careful paces were
+written against a linear stick, so Lights Out's 0.55 creep became a 1.3 m/s
+walk and the searchlights caught it every pass (the alarm loop never ended).
+Re-set to the old speeds: Lights Out 0.74 / 0.83, The Line's slow 0.76.

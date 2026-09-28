@@ -979,7 +979,9 @@ function build(ctx: SectionContext): SectionInstance {
       const dx = at.x - p.position.x, dz = at.z - p.position.z;
       const d = Math.hypot(dx, dz);
       out.yaw = Math.atan2(dx, dz);
-      if (d > 0.4) out.moveY = Math.min(slow ? 0.55 : 0.8, d / 2);
+      // the stick reads as a gait (a light push walks at 1.4 m/s): 0.74 is a
+      // quick creep of about 5 m/s, fast enough to cross between sweeps
+      if (d > 0.4) out.moveY = Math.min(slow ? 0.74 : 0.83, d / 2);
       if (at.y > p.position.y + 0.6 && d < 3) { out.jumpHeld = true; if (p.grounded) out.jumpPressed = true; }
       return d;
     };

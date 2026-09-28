@@ -1842,7 +1842,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       gz = o.z + sz * (o.r + 1.1) + uz * 0.8;
     }
     out.yaw = Math.atan2(gx - px, gz - pz);
-    out.moveY = Math.min(1, d / 2);
+    // the stick is a gait: under 0.6 is a walk, so never less than a jog
+    out.moveY = d > 3 ? 1 : 0.75;
     return false;
   };
   const airTargets = (): Enemy[] => {

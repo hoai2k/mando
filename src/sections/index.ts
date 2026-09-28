@@ -11,7 +11,11 @@ import { lightsOut } from './lights-out';
 import { theLift } from './the-lift';
 import { oneWayOut } from './one-way-out';
 import { markRuns } from './mark-runs';
+import { tramTop } from './tram-top';
 import { squall } from './squall';
+import { wormSign } from './worm-sign';
+import { bargeRun } from './barge-run';
+import { runThePier } from './run-the-pier';
 import { magmaRun } from './magma-run';
 import { ringWalk } from './ring-walk';
 import { frigateGuns } from './frigate-guns';
@@ -32,7 +36,11 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   'the-lift': theLift,
   'one-way-out': oneWayOut,
   'mark-runs': markRuns,
+  'tram-top': tramTop,
   squall,
+  'worm-sign': wormSign,
+  'barge-run': bargeRun,
+  'run-the-pier': runThePier,
   'magma-run': magmaRun,
   'ring-walk': ringWalk,
   'frigate-guns': frigateGuns,

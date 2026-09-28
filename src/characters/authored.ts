@@ -8,10 +8,11 @@ import {
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
   rancorClips, ravinakClips, zilloClips,
 } from '../anim/quadruped';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, modelDir } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
+import { applyFistRig } from './fistRig';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
@@ -299,7 +300,7 @@ function loader(): GLTFLoader {
 }
 
 /** Where a character or creature model lives, and what the tracker calls it. */
-export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}.glb`; }
+export function modelUrl(id: string): string { return `${ASSET_ROOT}${modelDir(id)}${id}.glb`; }
 
 /**
  * Load and cache a .glb, resolving null when it isn't present.
@@ -354,6 +355,9 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           // baseline so toggling one in the workbench cannot undo it.
           const jawDoc = await jaw;
           if (jawDoc) applyJawRig(gltf.scene, jawDoc);
+          // ...and fingers for the Rigify hands, which shipped as one bone
+          // each: unturned they change nothing, and a fist can close them
+          applyFistRig(gltf.scene);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
@@ -578,7 +582,7 @@ const ENEMY_EXTRA_MODEL_IDS: Partial<Record<EnemyKind, ModelId[]>> = {
   darktrooper: ['enemy_blaster_rifle'], marshal: ['enemy_blaster_rifle'],
   fennec: ['enemy_blaster_rifle'], capo: ['enemy_blaster_rifle'],
   ringEnforcer: ['enemy_blaster_rifle'], escortDroid: ['enemy_blaster_rifle'],
-  pirateMelee: ['pirate_boarding_club'], flametrooper: ['flame_projector'],
+  flametrooper: ['flame_projector'],
   quarren: ['net_launcher'], alamite: ['alamite_stone_club'],
   officer: ['electrostaff'],
   nikto: ['nikto_swoop'],
