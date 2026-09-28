@@ -30,6 +30,14 @@ export interface FrameInput {
    * `slamPressed` is its edge and is still what takes cover and mounts rides.
    */
   interactHeld: boolean;
+  /**
+   * The right stick's raw deflection (after the deadzone, x right, y up),
+   * for the rail sections' twin-stick aim (K1, `sections/kit/railcam.ts`):
+   * there the stick *points* the gun rather than turning a camera, which a
+   * look delta cannot say. Absent without a pad; nothing else reads it.
+   */
+  aimStickX?: number;
+  aimStickY?: number;
   /** D-pad left: cycle to the next melee weapon carried */
   meleeSwapPressed: boolean;
   /** D-pad right: cycle to the next gun carried */
@@ -389,6 +397,9 @@ export class InputManager {
         const inv = config.input.invertY ? -1 : 1;
         inp.lookX += -curve(dz(pad.axes[2] ?? 0)) * this.stickSensitivity * sens * dt;
         inp.lookY += -curve(dz(pad.axes[3] ?? 0)) * this.stickSensitivity * sens * inv * dt * 0.75;
+        // K1 twin-stick: the same stick as a direction, not a rate (see FrameInput)
+        inp.aimStickX = dz(pad.axes[2] ?? 0);
+        inp.aimStickY = -dz(pad.axes[3] ?? 0);
         const b = (i: number) => !!pad.buttons[i]?.pressed;
         // edges were captured in poll(); re-derive pressed via stored prev-of-last-frame is
         // already updated, so track pressed separately here using a shadow set:
