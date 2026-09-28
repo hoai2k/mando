@@ -56,10 +56,12 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 |---|---|---|
 | Image requests (keyframes + supporting) | open | `ASSETS_IMAGES.md`, committed to `main` early for generation |
 | Model requests (props + prisoner) | open | `ASSETS_MODELS.md`; stand-ins ship first |
-| Existing-level audit | done | [`AUDIT_LEVELS_2026-09.md`](AUDIT_LEVELS_2026-09.md): 16 prioritised recommendations; not yet acted on |
+| Existing-level audit | done | [`AUDIT_LEVELS_2026-09.md`](AUDIT_LEVELS_2026-09.md): 16 prioritised recommendations |
+| Audit fixes (all 16) | in progress | `claude/audit-fixes` (session_01KR9UMuPcoNV81fw3ejFfp2); notes in `sections-notes/audit-fixes.md`; must keep section boundaries (it updates §1 of the plan and `SECTION_PLACEMENT` split indices if zones move) |
 
 ## Log
 
 - 2026-09-28 — plan written; placement decided (§1 of the plan); assets requested.
 - 2026-09-28 — framework and the Chimney built; the Chimney's holes are shuttered (a valve per floor opens the one above) because every character can fly.
 - 2026-09-28 — wave 1 started as six cloud sessions (ids above), each on its own branch, briefed by `docs/SECTIONS_AGENT_BRIEF.md`; state per team in `docs/sections-notes/<team>.md`. Stage splits for the Storm Docks and Ringworld built into `SECTION_PLACEMENT`.
+- 2026-09-28 — the user asked for the audit fixes alongside the sections; all 16 handed to a cloud session.
