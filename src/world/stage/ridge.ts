@@ -13,6 +13,8 @@ const PILLAR_PROFILE: Array<[number, number]> = [
   [0, 0.13], [0.03, 0.145], [0.08, 0.12], [0.15, 0.098], [0.25, 0.084],
   [0.33, 0.075], [0.5, 0.062], [0.75, 0.05], [0.95, 0.025], [1, 0.004],
 ];
+/** the footprint the levels lay pillars out for: no collider is wider */
+const PILLAR_FOOT_R = 4.4;
 /** stacked collider cylinders: [from, to] as fractions of height, and radius / height */
 const PILLAR_COLLIDERS: Array<[number, number, number]> = [
   [0, 0.08, 0.145], [0.08, 0.15, 0.12], [0.15, 0.25, 0.098],
@@ -81,7 +83,10 @@ export function stageRidges(b: StageState) {
    * rock at mid-height once the slender sculpt landed.
    */
   const pillarPiece = (x: number, z: number, h: number, y0: number): void => {
-    const pts = PILLAR_PROFILE.map(([f, w]) => new THREE.Vector2(Math.max(w * h, 0.05), f * h));
+    // The levels space their gap framers for a 4.6 m foot (4.4 m collider),
+    // and on the tallest pillars the sheet's flare would run past that and
+    // narrow the way through; the foot keeps the footprint it was laid out for.
+    const pts = PILLAR_PROFILE.map(([f, w]) => new THREE.Vector2(Math.min(Math.max(w * h, 0.05), PILLAR_FOOT_R + 0.2), f * h));
     const geo = new THREE.LatheGeometry(pts, look.facets);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     // Exactly as many draws as the rim piece this replaced took, so every
@@ -97,12 +102,12 @@ export function stageRidges(b: StageState) {
     }
     geo.computeVertexNormals();
     geo.translate(x, y0, z);
-    rimAt.push({ x, z, r: PILLAR_PROFILE[1][1] * h, h });
+    rimAt.push({ x, z, r: Math.min(PILLAR_PROFILE[1][1] * h, PILLAR_FOOT_R + 0.2), h });
     rimGeo.push(geo);
     // a pillar stands on its own, away from any wall run, so it carries its
     // own colliders — round on every side, stepping in as the rock does
     for (const [from, to, w] of PILLAR_COLLIDERS) {
-      addCyl(x, y0 + ((from + to) / 2) * h, z, w * h, (to - from) * h);
+      addCyl(x, y0 + ((from + to) / 2) * h, z, Math.min(w * h, PILLAR_FOOT_R), (to - from) * h);
     }
   };
 

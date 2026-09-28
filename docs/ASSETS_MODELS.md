@@ -976,7 +976,11 @@ sheet departs from the size column, the sheet is what the model will be.
 The outdoor set (`boulder_a/b/c`, `cliff_pillar_rock/ice`, `energy_pylon`, `trail_post`)
 already has stand-ins built to their sheets: see `src/world/stage/primitives.ts`
 (`BOULDER_SHAPE`), `ridge.ts` (`PILLAR_PROFILE`, with stepped colliders),
-`barriers.ts` (`PYLON_GEO`) and `links.ts` (`TRAIL_POST_GEO`).
+`barriers.ts` (`PYLON_GEO`) and `links.ts` (`TRAIL_POST_GEO`). One caveat for the pillar sculpts: at the
+heights the levels ask for (about 1.25× the ceiling, around 32-38 m) the sheets' foot
+flare reaches 4.7-5.2 m radius at the ground, past the 4.4 m footprint the gap framers
+are laid out for. The stand-in and its colliders keep that footprint; a sculpt should
+keep its flare within about 4.5 m of its axis at 4-8 % of its height.
 
 
 ## Stray geometry in a delivered sculpt (2026-09-20)
