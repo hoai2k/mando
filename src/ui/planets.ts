@@ -16,9 +16,9 @@ import { makeStage } from './stage';
  * (`system_<id>.jpg`, with the territory's palette standing in until the
  * painting arrives).
  *
- * Moving is a target lock, not a browse: the open lens is gone at once, the map
- * snaps across to the new world while a bracket closes on it, and the new lens
- * springs up out of the planet itself. Quick enough that walking the whole
+ * Moving is a target lock, not a browse, and one motion: the open lens is gone
+ * at once, and as the map snaps across to the new world and a bracket closes
+ * on it, the new lens is already springing up out of that planet. Quick enough that walking the whole
  * route is a string of clicks rather than a wait.
  *
  * All planets are unlocked for now — the lock-past-your-frontier rule is a
@@ -43,8 +43,6 @@ const LENS_BOTTOM = 346;
 const LENS_CY = LENS_BOTTOM - 142;
 /** the target bracket's reach above a world's centre */
 const LOCK_REACH = 48;
-/** how long the map takes to cross to the new target before the lens opens, ms */
-const PAN_MS = 190;
 
 interface Node { x: number; y: number; }
 
@@ -99,7 +97,6 @@ export class PlanetSelect {
   private nodes: Node[];
   private lanes: SVGPathElement[] = [];
   private index = 0;
-  private openTimer = 0;
   private band: { chapter: HTMLElement; name: HTMLElement; trail: HTMLElement; terms: HTMLElement };
   onPick: ((board: BoardInfo) => void) | null = null;
   onBack: (() => void) | null = null;
@@ -244,20 +241,16 @@ export class PlanetSelect {
     // world's centre, a long way below the lens's own middle
     this.lens.style.setProperty('--drop', `${MAP_Y + this.nodes[this.index].y - LENS_CY}px`);
     this.lensLabel.textContent = TEXT.planets.system(ROMAN[this.index] ?? String(this.index + 1), TEXT.worlds[info.id] ?? '');
-    this.root.classList.remove('shut');
     this.lens.classList.remove('open');
     void this.lens.offsetWidth;
     this.lens.classList.add('open');
   }
 
-  /** lock onto another world: lens gone, map across, bracket in, new lens up */
+  /** lock onto another world: map across, bracket in, and the new lens up with them */
   private travel(i: number): void {
     if (i < 0 || i >= this.cells.length || i === this.index) return;
     this.index = i;
     audio.uiMove();
-    window.clearTimeout(this.openTimer);
-    this.root.classList.add('shut');
-    this.lens.classList.remove('open');
     // restart the bracket's closing snap even when a quick double press lands
     // back on a world it just left
     const lock = this.cells[i].querySelector('.lock') as HTMLElement;
@@ -265,7 +258,11 @@ export class PlanetSelect {
     void lock.offsetWidth;
     lock.style.animation = '';
     this.layout();
-    this.openTimer = window.setTimeout(() => this.openLens(), PAN_MS);
+    // One motion, not two: the old view is gone the instant the new one
+    // starts growing, and it grows out of the new world while the map is
+    // still carrying that world to the centre. The lens's spring is a touch
+    // longer than the pan, so it lands just after the map settles.
+    this.openLens();
   }
 
   private pick(): void {
@@ -295,7 +292,6 @@ export class PlanetSelect {
     this.openLens();
   }
   hide(): void {
-    window.clearTimeout(this.openTimer);
     this.root.style.display = 'none';
   }
   get visible(): boolean { return this.root.style.display !== 'none'; }

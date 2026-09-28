@@ -8,15 +8,16 @@ import { ASSET_ROOT } from '../core/assets';
  * leak across limb chains wherever two body parts rest near each other: a
  * skirt panel beside a hanging hand takes hand weight and lifts with the arm,
  * a gauntlet against a thigh takes thigh weight and jitters with the stride.
- * `tools/skin-audit.mjs` finds those leaks and writes one fix file per model
- * to `public/models/skinfix/<id>.json`; this module applies them to the
- * loaded geometry, so the models on disk stay exactly as delivered.
+ * The fixes that ship live in `public/models/skinfix/<id>.json`, one file per
+ * model; this module applies them to the loaded geometry, so the models on
+ * disk stay exactly as delivered. The audit that proposed them, the
+ * workbench review of its unapplied proposals, and those proposals are
+ * archived in `archive/skinfix-review/`.
  *
  * A fix is a list of vertices and the bones whose weight to take off them.
  * The remaining weights are renormalised; a vertex left with nothing takes
  * the weights of its nearest certain neighbour, listed under `donors`. Fixes
- * compose by being applied in order to the original weights, which is what
- * lets the workbench switch any one of them on and off for review.
+ * compose by being applied in order to the original weights.
  */
 
 export interface SkinFix {

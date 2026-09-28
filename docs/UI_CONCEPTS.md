@@ -422,8 +422,32 @@ fighters / Quit; a defeat offers Retry / New hunters / Quit. The mockup's
 "fell at 6:31" per duellist is not built — the game does not record when each
 fighter went out — so the standings say "out".
 
+### Round 6 — the remaining screens (mockups, not built yet)
+
+On the canvas page "Round 6 · the screens not yet done":
+
+- **Pause — Hold fire.** The frozen frame goes sepia behind a big left-hand
+  menu; a pinned card shows the contract so far (wave, clock, takedowns per
+  hunter, what comes next). Restart and Quit say what they cost.
+- **Settings — the gunsmith's bench.** Grouped rows (Sound / Camera & aim /
+  Screen & hands); volumes and sensitivity as lamp gauges, on/off and split
+  screen as two-position levers. The long hint paragraph becomes a field
+  note that explains whichever row is focused.
+- **Controls — the field manual.** An inked pad diagram with callouts, paged
+  with LB / RB: On foot, In the saddle, Keyboard & mouse.
+- **PvP VS — showdown at high noon.** Each fighter a Wanted poster slammed
+  onto the bounty board, a sheriff's-star VS between them.
+- **Boss intro.** Letterbox bars close, a Wanted card with the reward slams
+  in, the warlord's name settles, and the boss bar lights along its fuse.
+  (The reward figure is flavour; the game has none.)
+- **In-match banners.** "Wave cleared" and the like as paper plates stamped
+  over the fight; new contacts as small mugshots; the wave counter gains
+  pips. Health and gauges only change type and colour.
+- **Campaign complete — the Outer Rim is free.** A screen the game does not
+  have yet: all nine worlds ticked along a lit route, the posse's totals,
+  Hunt again / Roll credits / Quit.
+
 ### Screens not yet redesigned
 
-Pause, Settings, Controls, the PvP VS splash, the in-match banners and boss
-intro, the transport-door veil beyond its reuse of the Wanted sheet, and a
-"campaign complete" screen for all nine liberated (there is none today).
+All of them now have a mockup (round 6). The transport-door veil reuses the
+Wanted sheet and has no design of its own.
