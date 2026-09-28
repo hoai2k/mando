@@ -21,6 +21,7 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'the-lift',
   'one-way-out',
   'mark-runs',
+  'tram-top',
   'squall',
   'magma-run',
   'ring-walk',
