@@ -1040,7 +1040,8 @@ export const TEXT = {
       exit: 'the queen tunnel',
       beam: 'Beam',
       flare: (s: number) => (s > 0 ? `Flare in ${s}s` : 'Q/B · throw a flare'),
-      dark: 'Aim to focus · Q/B for a flare',
+      dark: 'Hold LT · RMB to focus the beam',
+      focus: 'Spider in the lamp · hold LT · RMB',
     },
     squall: {
       stage: 'the open harbour', title: 'The Squall',
