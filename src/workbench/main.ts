@@ -17,6 +17,7 @@ import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from
 import { styleStudyAlternates, styleStudyClips } from './styleStudies';
 import { styleMoves } from '../characters/styleClips';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
+import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
@@ -164,6 +165,12 @@ let animationSpeed = 1;
 let paused = false;
 let animationTime = 0;
 let offhandStrength = 0.5;
+/**
+ * How deep each landing folds, metres of hip drop — the slider on the two
+ * landing poses rebuilds the clip at this depth (feet stay planted at any of
+ * them), so a depth can be tried here before it is baked into LAND_DEPTH.
+ */
+const landDepth = { ...LAND_DEPTH };
 let alternateChoice = initialParams.get('alternate') ?? 'none';
 /** weapon picks per character and slot — see `weaponChoice.ts` */
 const weaponChoices = new WeaponChoices();
@@ -308,6 +315,8 @@ function spawn(): void {
   available();
   renderPanel();
   applyPose();
+  // a new figure gets the game's landings: carry over a depth being tried
+  if (landDepth.soft !== LAND_DEPTH.soft || landDepth.hard !== LAND_DEPTH.hard) rebuildLandings();
   editor.setTargets(figures
     .filter((f) => f.inst.rig)
     .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
@@ -378,6 +387,9 @@ function capabilities(): PoseCapabilities[] {
   }));
 }
 
+/** fighters with a blade in each hand (mandalorians.ts builds the off-hand saber for these) */
+const TWIN_BLADES: ReadonlySet<string> = new Set(['ventress', 'jedi', 'maris']);
+
 /** The poses this turntable can actually play, with the current pick kept valid. */
 function available(): Pose[] {
   const kinds = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
@@ -386,11 +398,31 @@ function available(): Pose[] {
   const list = posesFor(capabilities()).filter((p) => {
     if (playerAttack.has(p.id)) return kinds.includes('gaffi');
     if (saberAttack.has(p.id)) return kinds.includes('sabers');
+    // Only the twin-blade fighters parry with the off hand (player.ts
+    // PARRY_CLIPS), and only they have a left-hand blade to throw and catch.
+    if (p.id === 'parry') return subject.id === 'ventress' || subject.id === 'jedi';
+    if (p.id === 'throwL' || p.id === 'catchL') return TWIN_BLADES.has(subject.id);
+    if (p.id === 'throwR' || p.id === 'catchR') return kinds.includes('sabers');
     if (p.id === 'enemySwing') return kinds.length === 0 && !!figures[0]?.inst.animator;
     return true;
   });
   if (!list.some((p) => p.id === pose.id)) pose = list.find((p) => p.id === 'idle') ?? list[0];
   return list;
+}
+
+/** which landing depth the current pose previews, if it is a landing */
+function landSlot(): 'soft' | 'hard' | null {
+  return pose.id === 'land' ? 'soft' : pose.id === 'landHard' ? 'hard' : null;
+}
+
+/** rebuild every figure's landings at the slider's depths */
+function rebuildLandings(): void {
+  for (const f of figures) {
+    const anim = f.inst.animator;
+    if (!anim || !f.inst.rig) continue;
+    Object.assign(anim.clips, landingClips(f.inst.rig.proportions, landDepth));
+    anim.invalidate();
+  }
 }
 
 function applyPose(): void {
@@ -749,6 +781,11 @@ function renderPanel(): void {
       <input id="offhandStrength" type="range" min="0" max="1.25" step="0.25" value="${offhandStrength}" aria-label="Free arm counterweight">
       <p class="hint">Adjust how far the free arm reaches during the windup.</p>
     </div>` : ''}
+    ${landSlot() ? `<div class="field playback">
+      <label for="landDepth">Crouch depth <output id="landDepthValue">${landDepth[landSlot()!].toFixed(2)} m</output></label>
+      <input id="landDepth" type="range" min="0.08" max="0.65" step="0.01" value="${landDepth[landSlot()!]}" aria-label="Crouch depth">
+      <p class="hint">How far the hips drop at the bottom of the ${landSlot() === 'hard' ? 'fast-fall' : 'hop'} landing. The game uses ${LAND_DEPTH[landSlot()!].toFixed(2)} m; the feet stay planted at any depth.</p>
+    </div>` : ''}
     ${weaponChoiceHtml()}
 
     <div class="field playback">
@@ -854,6 +891,14 @@ function renderPanel(): void {
   panel.querySelector<HTMLInputElement>('#animationSpeed')!.oninput = (e) => {
     animationSpeed = Number((e.target as HTMLInputElement).value);
     panel.querySelector<HTMLOutputElement>('#speedValue')!.value = `${animationSpeed.toFixed(2)}×`;
+  };
+  const depthSlider = panel.querySelector<HTMLInputElement>('#landDepth');
+  if (depthSlider) depthSlider.oninput = () => {
+    landDepth[landSlot()!] = Number(depthSlider.value);
+    panel.querySelector<HTMLOutputElement>('#landDepthValue')!.value = `${landDepth[landSlot()!].toFixed(2)} m`;
+    rebuildLandings();
+    applyPose();
+    if (editing) freezePose();
   };
   const offhandSlider = panel.querySelector<HTMLInputElement>('#offhandStrength');
   if (offhandSlider) offhandSlider.oninput = (e) => {

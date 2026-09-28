@@ -285,6 +285,8 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+/** the deep crouch holds a beat at the bottom before it springs, so it slows you for longer */
+const LAND_RECOVER_DEEP = 0.45;
 
 // ---- cover ----
 /** a face this much above the boots is worth hugging: chest-high or better */
@@ -464,6 +466,8 @@ export class Player {
   private landRecovery = 0;
   /** seconds left of the landing crouch, so leaving the ground can release it */
   private landTimer = 0;
+  /** the deep landing has the arms too, so letting go of it lets go of both */
+  private landArms = false;
   /**
    * Nobody is holding this one's controller: its input comes from a `BotBrain`
    * rather than a pad. It is a player in every other respect — same body, same
@@ -2164,11 +2168,18 @@ export class Player {
       if (impact > LAND_ABSORB || this.slamming || braced) {
         const heavy = impact > LAND_HEAVY || this.slamming;
         const soft = braced && impact <= LAND_ABSORB;
+        // A fast fall goes all the way down into the deep crouch and springs
+        // back out of it (clips.ts `landingClips`); the arms come down with
+        // it for balance unless they are busy with a gun or a blade.
+        const deep = heavy && !!anim.clips.landHardLower;
         this.landTimer = anim.playOnce(
-          'lower', 'landLower', braced ? LAND_BRACE_FADE : 0.05, false,
+          'lower', deep ? 'landHardLower' : 'landLower', braced ? LAND_BRACE_FADE : 0.05, false,
           heavy ? 1 : soft ? 1.9 : 1.5,
         );
-        if (heavy) this.landRecovery = LAND_RECOVER;
+        this.landArms = deep && this.meleeTimer <= 0 && !this.gunRaised && !this.blocking
+          && !!anim.clips.landHardUpper;
+        if (this.landArms) anim.playOnce('upper', 'landHardUpper', 0.05);
+        if (heavy) this.landRecovery = deep ? LAND_RECOVER_DEEP : LAND_RECOVER;
       }
       if (this.slamming) {
         this.slamming = false;
@@ -2320,6 +2331,14 @@ export class Player {
     return this.characterId === 'duelist' ? 'dualPistolAimUpper' : 'aimUpper';
   }
 
+  /** hand the legs (and the arms, if the landing took them) back to the gait */
+  private releaseLanding(anim: Animator): void {
+    anim.release('lower');
+    if (this.landArms) anim.release('upper');
+    this.landArms = false;
+    this.landTimer = 0;
+  }
+
   /** which clips the body plays for what it is doing */
   private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
     const gunUp = input.aimHeld || input.shootHeld || this.queuedHipShot
@@ -2333,14 +2352,16 @@ export class Player {
     // Jumping, dashing or thrusting straight back out of a landing cancels the
     // crouch: a one-shot holds the channel to its end, and the legs would stay
     // folded under a body that is already in the air.
-    if (this.landTimer > 0 && !this.grounded) { anim.release('lower'); this.landTimer = 0; }
+    if (this.landTimer > 0 && !this.grounded) { this.releaseLanding(anim); }
     // The same for running out of one on the ground: a light landing at run
     // speed held the crouch for the whole clip while the body kept going —
     // ~1.9 m of frozen-legged slide after every hop. Once the feet are
     // clearly travelling, hand the channel back to the gait. A heavy landing
     // is not affected in practice: its recovery holds the speed under this
     // until the clip has all but finished.
-    if (this.landTimer > 0 && this.grounded && speed2 > 3) { anim.release('lower'); this.landTimer = 0; }
+    if (this.landTimer > 0 && this.grounded && speed2 > 3) { this.releaseLanding(anim); }
+    // a gun coming up takes the arms straight back from the deep landing
+    if (this.landArms && gunUp) { anim.release('upper'); this.landArms = false; }
     if (this.autoCrouching) {
       anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
