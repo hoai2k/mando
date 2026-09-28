@@ -341,6 +341,15 @@ The roads stay (the sections are additive).
   a street for the cantina row, rises for the ice chimney and the forge steps,
   and dome-rib props at the Forge's gate (no such model exists).
 
+### 16. `MISSIONS_OUTDOOR.md` §3 brought in line — done
+
+- §3 is rewritten from the layouts as they stand: per territory, per stage, per
+  beat, with sizes, what is in each zone, the transport doors and the sections
+  behind them; the shared rules (vestibule, quiet links, camp flanks, garrison
+  vs waves, the cache, roads) stated once at the top; the ceiling table is the
+  code's numbers (38/60/38/38/34/36/40/34/34, sea 14). `RIDE_MIN_SIDE` (40, and
+  the street exemption) and `ROAD_MARK_LEAD` (40 m) corrected in §1.8 and §7.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in
