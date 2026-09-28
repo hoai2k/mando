@@ -58,7 +58,7 @@ solid is a level, static collider. Only the picture rolls.
 - *Alongside.* When wave 3 is clear, the far pier comes in over 14 s while
   she slows and the roll drops to ±3°. Then the gate opens: step ashore.
 
-Autopilot run length: ~176 s with hostiles culled, ~220 s with hostiles left
+Autopilot run length: ~176 s with hostiles culled before the working branch was merged in, ~240 s after it, ~220 s with hostiles left
 alive (two bots, no deaths). Real play with a party that hunts boarders
 should land near the design's ~4 min.
 
@@ -263,7 +263,7 @@ not used yet. The rain is line streaks, which read well.
 ## Tests
 
 - `node tools/test-sections.mjs squall` at `PLAYERS=1` (maul, din), `2` and
-  `4` (jedi, bokatan, maul, din): passes, ~176 s simulated, no deaths.
+  `4` (jedi, bokatan, maul, din): passes, ~237–245 s simulated (hostiles culled), 0–3 deaths.
 - `node tools/test-section-squall.mjs` checks:
   - the drift, both ways, and air > ground;
   - the drawn roll at the rail;
