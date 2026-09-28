@@ -690,6 +690,13 @@ export class Enemy {
   private strafePhase = Math.random() * Math.PI * 2;
   /** public because src/enemies/arrival.ts steers an arriving body by it */
   facingYaw = 0;
+  /**
+   * A gameplay section's own brain for this one body (K9: a krykna shying
+   * from a helmet lamp, docs/SECTIONS_IMPLEMENTATION.md §3). Runs at the top
+   * of the steering; returning true means it set the velocity and facing
+   * itself this frame. Null everywhere outside a section.
+   */
+  sectionSteer: ((e: Enemy, dt: number, game: Game, target: Combatant | null) => boolean) | null = null;
   spawnPos = new THREE.Vector3();
   // ---- ragdoll & corpse ----
   /**
@@ -1759,6 +1766,8 @@ export class Enemy {
   /** the AI proper: what this body does with the frame, by state and by style */
   private steer(dt: number, game: Game, target: Combatant | null): void {
     const d = this.def;
+    // a section's brain for this body (see `sectionSteer`) — never over a stagger
+    if (this.stagger <= 0 && this.sectionSteer?.(this, dt, game, target)) return;
     if (this.stagger > 0) {
       // reeling from a hit: coast on the impulse, just bleed it off slowly
       this.stagger -= dt;
