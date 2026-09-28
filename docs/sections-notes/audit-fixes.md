@@ -132,3 +132,59 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   court and the one under the canyon are different materials.
 - **Left.** The Crevasse's cavern roof and traction disc are item 15.
 
+### 6. Merge the dead-end canyon assaults; cut the refinery pump hall and the discharge gantry — done
+
+- **Desert.** *The cistern approach* folded into *the ravine*: one 14×88
+  `canyon:camp` with a third tent and `deadEnd` (a door in its end face). The
+  S-bend now lives on the link behind that door, as a roofed tunnel down to the
+  court (14 + 12 + 12, two turns).
+- **Crevasse.** *The nest mouth* folded into *the frozen gallery*: one 12×108
+  gallery, the surface stage's last zone, ending at the glacier door (the
+  transport door's rock face). **Boundary zone changed** (see below).
+- **Storm Docks.** *The net lofts* dropped; the fish market is `deadEnd` and its
+  far end is the freighter's cargo door (it becomes a pier in item 10).
+  **`SECTION_PLACEMENT` trask split moved from `after: 5` to `after: 4`** so the
+  cut still falls after the trawler deck.
+- **Refinery.** *The intake ramp* folded into *the pipe run*, which becomes the
+  lane it was designed as: `canyon:camp` 12×60, five pipe racks down alternate
+  walls, barrels, alcove, `deadEnd`; the landspeeder that had nowhere to go is
+  gone. *The pump hall* cut; the plant ends at the reactor floor. **Both
+  refinery boundaries changed** (see below).
+- **Prison Rig.** *The discharge gantry* cut (its only job was the cache; item 4
+  puts the cache in the stage's vestibule). Stage D is the assembly deck then
+  the moon pool deck.
+- **Ringworld — not merged, deliberately.** *The night-side row* sits on the
+  other side of the Tram Top cut from the arcade (`split.after: 1`), so folding
+  it into the arcade would move it across a section boundary; the tram is
+  meant to deliver the party into it. It keeps its name and place and becomes
+  a 12×44 `canyon:trek` with two lookouts — the breather the run lacked — so the
+  dead-end canyon assault is gone all the same.
+- `TEXT.missions.rooms` updated in step (desert, crevasse, trask, refinery,
+  narkina); the load-time count check is silent.
+- **Tests.** No existing check named these zones. The rooms/beat count check is
+  the load-time warning (silent), and every suite that walks or raises the runs
+  exercises the new chains.
+
+## Boundary changes (section entry and exit zones)
+
+Every change to a zone a gameplay section enters from or exits into, mirrored in
+`docs/SECTIONS_IMPLEMENTATION.md` §1. Rule (a) — the last zone before a section
+ends in a transport door set in a wall, rock face or hull — and rule (b) — the
+first zone after one gets the vestibule — hold throughout.
+
+- **Item 6 — Crevasse, end of A.** *The nest mouth* is folded into *the frozen
+  gallery*: the surface stage's last zone is now the 12×108 gallery, and its far
+  door is still the glacier door, set in the rock face. §1 chain and the Glacier
+  Chute note updated.
+- **Item 6 — Storm Docks cut.** `SECTION_PLACEMENT` trask `split.after` 5 → 4
+  (the net lofts went); the cut still falls after the trawler deck.
+- **Item 6 — Refinery, end of A.** *The intake ramp* is folded into *the pipe
+  run*, which ends at the intake's blast door in the rock face. §1 chain and The
+  Line note updated.
+- **Item 6 — Refinery, end of B.** *The pump hall* is cut; the plant ends at *the
+  reactor floor*, whose far door is the rear airlock. §1 chain and Lights Out
+  note updated.
+- **Item 6 — Ringworld, start of A2.** *The night-side row* is kept (not merged
+  across the Tram Top cut) and reshaped into a trek breather; both cut indices
+  (`after: 1`, `after: 5`) unchanged. Tram Top note updated.
+

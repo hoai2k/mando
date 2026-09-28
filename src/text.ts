@@ -490,15 +490,15 @@ export const TEXT = {
      * announced as "undefined", which is the one failure worth catching loudly.
      */
     rooms: {
-    desert: ['the trailhead flats', 'the Tusken corral', 'the dune road', 'the ravine', 'the cistern approach', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
+    desert: ['the trailhead flats', 'the Tusken corral', 'the dune road', 'the ravine', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
     station: ['the docking bay', 'the cargo gantries', 'the outer yard', 'the spice vault', 'the loading gantry', 'the crew catwalks', 'the reactor ring', 'the hold of the prize'],
     nevarro: ['the ash flats', 'the bike pool', 'the crust causeway', 'the town gate', 'the garrison yard', 'the magistrate court', 'the crossing', 'the cantina row', 'the rancor pen'],
-    crevasse: ['the rim shelf', 'the frozen gallery', 'the nest mouth', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
-    trask: ['the quay steps', 'the fish market', 'the net lofts', 'the freighter hold', 'the cold stores', 'the trawler deck', 'the pier heads', 'the mamacore pool'],
-    refinery: ['the tanker yard', 'the pipe run', 'the intake ramp', 'the barrel stores', 'the reactor floor', 'the pump hall', 'the reactor crown', 'the loading field'],
+    crevasse: ['the rim shelf', 'the frozen gallery', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
+    trask: ['the quay steps', 'the fish market', 'the freighter hold', 'the cold stores', 'the trawler deck', 'the pier heads', 'the mamacore pool'],
+    refinery: ['the tanker yard', 'the pipe run', 'the barrel stores', 'the reactor floor', 'the reactor crown', 'the loading field'],
     forge: ['the glassed plain', 'the glass corral', 'the glass highway', 'the shattered gate', 'the dome undercroft', 'the armoury vault', 'the glassed court', 'the forge steps', "the sleeper's basin"],
     ringworld: ['the tram stop', 'the market arcade', 'the night-side row', 'the terminus', 'the sentinel walk', 'the plaza', 'the service spine', 'the high street terrace'],
-    narkina: ['the landing deck', 'the gantry run', 'the kelp forest', 'the moon pool shaft', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the discharge gantry', 'the moon pool deck'],
+    narkina: ['the landing deck', 'the gantry run', 'the kelp forest', 'the moon pool shaft', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the moon pool deck'],
     },
     /**
      * What each **stage** of a run is called: the line on the transition card
