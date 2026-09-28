@@ -238,3 +238,46 @@ Implementation note for the holo table: CSS `perspective` tilts the grid and lan
 but the planets are laid out flat. Their screen positions come from projecting each
 route point through the same perspective, so nothing depends on nested
 `preserve-3d`.
+
+## Round 4 — delivered art, and travelling between systems (2026-09-28)
+
+**Delivered art, now in the mockups.** The canvas's **Round 4** page opens with the
+chosen flow using the images that arrived on `main`:
+
+- `title_twin_suns.jpg` behind the title. The logo and tagline moved into the sky's
+  empty upper right, clear of both hunters.
+- `ui_bounty_board.jpg` behind the Wanted loading screen, with `ui_paper_aged.jpg`
+  as the stock for the photograph and the contract sheet. The field note sits on a
+  dark backing so it reads over the board's paper scraps.
+- `ui_paper_aged.jpg` as the Departures ticket stub.
+- The rendered `portrait_din`, `portrait_maul` and `portrait_boba_fett` in the Lineup
+  and on the loading screen. Boba Fett's strip no longer shows a placeholder.
+
+The Round 3 page's flow boards have the same updates.
+
+**Missions A is kept and renamed "The Bounty Hunt".** It sits in the flow as 2b.
+
+**Missions — travelling between solar systems.** Each territory gets its own solar
+system: its world seen from its own angle, its own sun or twin suns at the edge or
+behind the limb, and a moon, gas giant or ring for depth. Until the requested
+`system_<id>.jpg` vistas arrive, the mockups build these scenes from the
+`planet_<id>.png` discs (see `ASSETS_IMAGES.md`). They keep A's letterboxed Twin
+Suns card along the bottom.
+
+1. **Warp from the stars.** The other eight systems are distant stars strung along
+   the game's own zig-zag route across the top of the sky. Picking one zooms its
+   whole system out of that star to fill the screen, while the old system shrinks
+   back into its own star.
+2. **The next system over.** The route runs left to right through space. The system
+   you're in fills the view; the previous one is a star at the left edge and the
+   next one a star at the right edge, each with its name. Moving on zooms the next
+   system out of the right-hand star, and the old one falls back into the left edge,
+   so travel always has a direction.
+3. **Galaxy map with a lens.** This keeps the current pan-to-centre route map, drawn
+   as stars along a galaxy arm, each star tinted with its own sun's colour. The
+   chosen star opens a bronze-framed lens above it that zooms into that system's
+   scene.
+4. **One system, nine worlds.** Everything is in one system around a pair of suns,
+   one world per orbit, and the route spirals outward along transfer arcs. The
+   camera flies to and closes in on the chosen world. Each world's night side faces
+   away from the suns wherever it sits on its orbit.
