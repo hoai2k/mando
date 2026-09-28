@@ -39,6 +39,15 @@ export interface Proportions {
   upperLegLen: number;
   lowerLegLen: number;
   hipWidth: number;       // half-width
+  /**
+   * Height of the shoulder joints above the chest joint. Unset on the game's
+   * own rigs, which put them 0.4 of the neck up; the low-LOD stand-ins set it
+   * from the authored skeleton they copy (src/characters/lod.ts), whose arm
+   * sockets and chest joint are not tied together that way.
+   */
+  shoulderRise?: number;
+  /** how far the hip joints hang below the hips bone; 0.02 unless set, as above */
+  hipDrop?: number;
 }
 
 export const HUMAN: Proportions = {
@@ -73,23 +82,23 @@ export function buildRig(p: Proportions = HUMAN): Rig {
   const neck = bones.neck = bone('neck', chest, 0, p.neckLen, 0);
   bones.head = bone('head', neck, 0, p.headSize * 0.4, 0);
 
-  bones.shoulderL = bone('shoulderL', chest, p.shoulderWidth, p.neckLen * 0.4, 0);
+  bones.shoulderL = bone('shoulderL', chest, p.shoulderWidth, p.shoulderRise ?? p.neckLen * 0.4, 0);
   bones.upperArmL = bone('upperArmL', bones.shoulderL, 0.06, 0, 0);
   bones.forearmL = bone('forearmL', bones.upperArmL, 0, -p.upperArmLen, 0);
   bones.handL = bone('handL', bones.forearmL, 0, -p.forearmLen, 0);
   bones.weaponL = bone('weaponL', bones.handL, 0, -0.05, 0.02);
 
-  bones.shoulderR = bone('shoulderR', chest, -p.shoulderWidth, p.neckLen * 0.4, 0);
+  bones.shoulderR = bone('shoulderR', chest, -p.shoulderWidth, p.shoulderRise ?? p.neckLen * 0.4, 0);
   bones.upperArmR = bone('upperArmR', bones.shoulderR, -0.06, 0, 0);
   bones.forearmR = bone('forearmR', bones.upperArmR, 0, -p.upperArmLen, 0);
   bones.handR = bone('handR', bones.forearmR, 0, -p.forearmLen, 0);
   bones.weaponR = bone('weaponR', bones.handR, 0, -0.05, 0.02);
 
-  bones.upperLegL = bone('upperLegL', hips, p.hipWidth, -0.02, 0);
+  bones.upperLegL = bone('upperLegL', hips, p.hipWidth, -(p.hipDrop ?? 0.02), 0);
   bones.lowerLegL = bone('lowerLegL', bones.upperLegL, 0, -p.upperLegLen, 0);
   bones.footL = bone('footL', bones.lowerLegL, 0, -p.lowerLegLen, 0.03);
 
-  bones.upperLegR = bone('upperLegR', hips, -p.hipWidth, -0.02, 0);
+  bones.upperLegR = bone('upperLegR', hips, -p.hipWidth, -(p.hipDrop ?? 0.02), 0);
   bones.lowerLegR = bone('lowerLegR', bones.upperLegR, 0, -p.upperLegLen, 0);
   bones.footR = bone('footR', bones.lowerLegR, 0, -p.lowerLegLen, 0.03);
 

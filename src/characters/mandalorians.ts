@@ -1,7 +1,7 @@
 import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
+import { buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
@@ -64,7 +64,7 @@ export interface PlayerCharacter extends CharacterInstance {
  * bulk scale multiplies it — so Paz at 1.67 x 1.16 stands 1.94 m broad rather
  * than the 2.24 m tower the old 2.0 x 1.12 made of him.
  */
-const MODEL_HEIGHT: Record<MandoId, number> = {
+export const MODEL_HEIGHT: Record<MandoId, number> = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78, boba_fett: 1.83,
   ventress: 1.79, jedi: 1.82, maris: 1.70, maul: 1.88, revan: 1.95, embo: 1.78, bossk: 1.9, ig11: 2.2, duelist: 1.9,
 };
@@ -411,13 +411,12 @@ export const PLAYABLE_MANDO_IDS: MandoId[] =
  */
 export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {}): PlayerCharacter {
   const cfg = MANDO_ROSTER[id];
-  const skin = mat(cfg.suit, { rough: 0.9 });
-  const prim = mat(cfg.primary, { rough: 0.45, metal: 0.55 });
-  const accent = mat(cfg.accent, { rough: 0.5, metal: 0.4 });
-  const dark = mat(0x232323, { rough: 0.6, metal: 0.3 });
-  const silver = mat(0x9aa0a2, { rough: 0.35, metal: 0.7 });
 
-  const { inst, rig } = buildBiped({ skin, torso: skin, scale: cfg.bulk });
+  // No body of its own: the authored model is the body, and until it lands
+  // its low-LOD stand-in (see `attachAuthored` below and lod.ts).
+  const { inst, rig } = buildBiped({ scale: cfg.bulk });
+  /** false in the workbench's procedural view: weapons hold their stand-ins too */
+  const sculpt = opts.authored !== false;
   if (inst.animator) Object.assign(inst.animator.clips, styleClips(id, rig.proportions));
   if ((id === 'ventress' || id === 'jedi') && inst.animator) {
     Object.assign(inst.animator.clips, saberParryClips(rig.proportions, id));
@@ -436,86 +435,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   if (cfg.broad) { rig.root.scale.x *= cfg.broad; rig.root.scale.z *= cfg.broad; }
   const b = rig.bones;
 
-  // cuirass
-  addBox(b.chest, prim, 0.17, 0.16, 0.05, -0.1, 0.16, 0.135, 0, 0.12);
-  addBox(b.chest, prim, 0.17, 0.16, 0.05, 0.1, 0.16, 0.135, 0, -0.12);
-  addBox(b.chest, prim, 0.3, 0.12, 0.05, 0, 0.0, 0.135);
-  addBox(b.hips, prim, 0.3, 0.1, 0.04, 0, 0.03, 0.12);
-  addBox(b.hips, dark, 0.36, 0.06, 0.24, 0, 0.06, 0);
-  // pauldrons (Paz gets oversized ones)
-  const ps = cfg.bulk > 1.05 ? 1.5 : 1;
-  addBox(b.shoulderL, accent, 0.16 * ps, 0.07 * ps, 0.18 * ps, -0.05, 0.05, 0, 0, 0, 0.25);
-  addBox(b.shoulderR, accent, 0.16 * ps, 0.07 * ps, 0.18 * ps, 0.05, 0.05, 0, 0, 0, -0.25);
-  // gauntlets, thigh and knee plates
-  addCyl(b.forearmL, accent, 0.062, 0.056, 0.16, 0, -0.14, 0);
-  addCyl(b.forearmR, accent, 0.062, 0.056, 0.16, 0, -0.14, 0);
-  addBox(b.upperLegL, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
-  addBox(b.upperLegR, prim, 0.13, 0.2, 0.05, 0, -0.2, 0.07);
-  addSphere(b.lowerLegL, accent, 0.06, 0, -0.02, 0.04, 8, 6);
-  addSphere(b.lowerLegR, accent, 0.06, 0, -0.02, 0.04, 8, 6);
-  if (id === 'jedi' || id === 'revan') {
-    // Cloth tabards over the generic fallback torso; the authored model has
-    // the layered fabric and replaces every procedural body mesh.
-    for (const side of [-1, 1]) {
-      addBox(b.chest, prim, 0.11, 0.34, 0.035, side * 0.15, -0.07, 0.19);
-      addBox(b.hips, prim, 0.14, 0.7, 0.035, side * 0.19, -0.39, 0.13);
-    }
-  }
-
-  // ---- heads: Mando helmet variants, or a hunter's own face ----
-  const helm = new THREE.Group();
-  b.head.add(helm);
-  helm.position.y = 0.06;
-  const skinMat = cfg.skin !== undefined ? mat(cfg.skin, { rough: 0.85 }) : skin;
-  if (cfg.helmet === null) {
-    buildHunterHead(id, helm, skinMat, prim, accent, dark);
-  } else {
-  addSphere(helm, prim, 0.145, 0, 0.04, 0, 14, 12, 0.95, 1);
-  addCyl(helm, prim, 0.145, 0.15, 0.14, 0, -0.02, 0, 0, 0, 0, 14);
-  addBox(helm, dark, 0.21, 0.035, 0.02, 0, 0.045, 0.135);   // T-visor horizontal
-  addBox(helm, dark, 0.032, 0.1, 0.02, 0, -0.01, 0.142);    // T-visor vertical
-  switch (cfg.helmet) {
-    case 'din':
-      // cheek ridges
-      addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, -0.1, -0.01, 0.08, 0, 0.3);
-      addBox(helm, mat(0x8d9299, { rough: 0.4, metal: 0.6 }), 0.02, 0.08, 0.1, 0.1, -0.01, 0.08, 0, -0.3);
-      break;
-    case 'paz':
-      addBox(helm, accent, 0.06, 0.04, 0.22, 0, 0.15, 0.02); // reinforced crest
-      break;
-    case 'bokatan':
-      // Nite Owl swept wings either side of the crown
-      addBox(helm, accent, 0.02, 0.09, 0.13, -0.13, 0.09, -0.02, 0, 0, 0.45);
-      addBox(helm, accent, 0.02, 0.09, 0.13, 0.13, 0.09, -0.02, 0, 0, -0.45);
-      break;
-    case 'armorer':
-      // horned forge helm
-      addCyl(helm, accent, 0.005, 0.035, 0.22, -0.1, 0.16, 0.02, -0.5, 0, -0.5);
-      addCyl(helm, accent, 0.005, 0.035, 0.22, 0.1, 0.16, 0.02, -0.5, 0, 0.5);
-      break;
-  }
-  }
-
-  // ---- jetpack (shared Z-6 silhouette, accent-tinted) ----
+  // ---- thrusters ----
   const feetThrusters = cfg.thrusters === 'feet';
   const noThrusters = cfg.thrusters === 'none';
-  if (!feetThrusters && !noThrusters) {
-    const jp = new THREE.Group();
-    b.jetpack.add(jp);
-    addCyl(jp, prim, 0.06, 0.06, 0.34, -0.08, 0, -0.04);
-    addCyl(jp, prim, 0.06, 0.06, 0.34, 0.08, 0, -0.04);
-    addSphere(jp, accent, 0.06, -0.08, 0.17, -0.04, 8, 6);
-    addSphere(jp, accent, 0.06, 0.08, 0.17, -0.04, 8, 6);
-    addCyl(jp, silver, 0.035, 0.035, 0.3, 0, 0.1, -0.09);
-    addCyl(jp, accent, 0.001, 0.045, 0.09, 0, 0.29, -0.09);
-    addCyl(jp, dark, 0.03, 0.045, 0.08, -0.08, -0.2, -0.04);
-    addCyl(jp, dark, 0.03, 0.045, 0.08, 0.08, -0.2, -0.04);
-  }
   // Flames live on their own group under the jetpack bone rather than under the
   // nozzle meshes: an authored model hides the procedural body, and a hidden
   // parent would take the flames with it.
   const flameRoot = new THREE.Group();
   b.jetpack.add(flameRoot);
+  // The stand-in's pack is the sculpt's own pack at a low LOD, so the flames
+  // sit where the sculpt's thrusters are from the start (see `flameY`).
+  if (!feetThrusters) flameRoot.position.y = cfg.flameY ?? -0.02;
   // Each nozzle only carries a stubby glow — a white-hot core inside a softer
   // orange sheath, both additive and open-ended so they read as light in the
   // throat of the thruster. The particle jet does the actual flame below it.
@@ -551,19 +481,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     return { group, core, plume, coreMat, plumeMat };
   });
 
-  // ---- cape ----
-  let capeUpdate: ((dt: number, time: number) => void) | null = null;
-  if (cfg.cape !== null) {
-    capeUpdate = attachCape(rig, mat(cfg.cape, { rough: 1 }), 0.26, 4, 0.19);
-    rig.bones.capeRoot.position.x = 0.12;
-  }
-
   // ---- weapons ----
   // Every weapon the character carries is built and mounted at once, and only
   // the pair in hand is visible. Nobody has to holster anything to reach the
   // other slot: a swing draws the blade, a shot draws the gun, and the D-pad
   // picks between several of either where a fighter carries them.
-  const gunmetal = mat(0x3d3730, { rough: 0.5, metal: 0.5 });
   // Either hand's weapon can come in a pair: twin sabers and twin pistols each
   // add a second copy on weaponL that shows and hides with its partner. Shots
   // still leave the right-hand muzzle — the left one is silhouette.
@@ -581,17 +503,17 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   for (const kind of rangedKinds(id)) {
     if (guns.has(kind)) continue;
     const main =
-      kind === 'crossbow' ? makeCrossbow(gunmetal, dark) :
-      kind === 'longrifle' ? makeLongRifle(gunmetal, dark) :
-      kind === 'pistols' ? makePistol(gunmetal, dark) :
-      makeCarbine(gunmetal, dark);
+      kind === 'crossbow' ? makeCrossbow(sculpt) :
+      kind === 'longrifle' ? makeLongRifle(sculpt) :
+      kind === 'pistols' ? makePistol(sculpt) :
+      makeCarbine(sculpt);
     main.rotation.x = Math.PI / 2;
     main.visible = false;
     b.weaponR.add(main);
     const muzzle = new THREE.Group();
     muzzle.position.set(0, 0.015, MUZZLE_Z[kind]);
     main.add(muzzle);
-    guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(gunmetal, dark)) : null });
+    guns.set(kind, { main, muzzle, offhand: kind === 'pistols' ? pairOn(() => makePistol(sculpt)) : null });
   }
   // The generic shared-grip scale first, then Bossk's own dedicated rifle
   // scale on top of it. They used to run the other way — this line applied
@@ -613,16 +535,16 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     let main: THREE.Group;
     let offhand: THREE.Group | null = null;
     if (kind === 'sabers') {
-      main = makeSaber(silver, dark, { style: saberStyle });
+      main = makeSaber({ style: saberStyle, sculpt });
       main.name = 'saberHandR';
       // Both blades carry their own soft light so a thrown off-hand saber
       // illuminates its path while the main hand still lights the wielder.
       if (saberPair) {
-        offhand = pairOn(() => makeSaber(silver, dark, { style: saberStyle }));
+        offhand = pairOn(() => makeSaber({ style: saberStyle, sculpt }));
         offhand.name = 'saberHandL';
       }
     } else {
-      main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver, staffPropFor(id));
+      main = makeGaffi(staffPropFor(id), sculpt);
       main.name = weaponProp(staffPropFor(id)).node ?? 'gaffi';
       // The sculpt's pointed end is model -Z. Its prop mount maps that to
       // grip -Y; the carry half-turn lifts the point above Din's hand.
@@ -645,7 +567,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   const holsters: THREE.Group[] = [];
   if (cfg.ranged === 'none' && blades.has('sabers')) {
     for (const [hand, side] of (saberPair ? [[0, -1], [1, 1]] : [[0, -1]]) as Array<readonly [0 | 1, number]>) {
-      const hilt = makeSaber(silver, dark, { light: false, style: saberStyle });
+      const hilt = makeSaber({ light: false, style: saberStyle, sculpt });
       (hilt.userData.blade as THREE.Object3D).visible = false;
       if (hilt.userData.oppositeBlade) (hilt.userData.oppositeBlade as THREE.Object3D).visible = false;
       hilt.name = hand === 0 ? 'saberHolsterR' : 'saberHolsterL';
@@ -740,6 +662,74 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // transform as the upper-body clip changes; locomotion below it is irrelevant.
   let bosskRifleAiming: boolean | null = null;
 
+  /**
+   * Put every weapon where the workbench grips say it sits in the hand.
+   *
+   * The grips are local to the authored hand mount, which reproduces our
+   * canonical `weaponR` / `weaponL` frame — and until the sculpt lands those
+   * bones ride the low-LOD stand-in's hands, which are the sculpt's hands at a
+   * low LOD. So the same grips hold for both: applied now for the stand-in,
+   * and again once the weapons have moved onto the sculpt's mounts (every one
+   * of them sets an absolute transform, so applying twice changes nothing).
+   */
+  const seatWeapons = (): void => {
+    const signature = guns.get(rangedKinds(id)[0]);
+    if (signature) applySharedWeaponGrip(id, signature.main);
+    // a staff of their own has its grip in data/heroStaffGrips.json, when
+    // one was placed; the rest are left as mounted
+    const staff = blades.get('gaffi');
+    if (staff) applyHeroStaffGrip(id, staffPropFor(id), staff.main);
+    const sabers = blades.get('sabers');
+    if (cfg.sharedGrip === 'sabers' && sabers) applySharedWeaponGrip(id, sabers.main);
+    if (id === 'din' && sabers) applyDinSaberGrip(sabers.main, inst.animator?.playing('upper') ?? null);
+    // Cad Bane's workbench grips are local to the authored hands. Keeping
+    // them on the mounts lets the same placement follow every body pose.
+    const pistols = guns.get('pistols');
+    if (id === 'duelist' && pistols?.offhand) {
+      pistols.main.position.set(0.025752, 0.067437, -0.06784);
+      pistols.main.quaternion.set(0.6537136, -0.0671748, 0.0762969, 0.7498832).normalize();
+      pistols.offhand.position.set(-0.01701, 0.072469, -0.096437);
+      pistols.offhand.quaternion.set(0.6447175, 0.0555208, -0.0388719, 0.7614103).normalize();
+    }
+    if (bosskRifle) {
+      applyBosskRifleGrip(bosskRifle, false);
+      bosskRifleAiming = false;
+    }
+    // Measured in the workbench against the authored palms at saberIdle.
+    // The prop remains parented to each authored hand, so these grip-local
+    // offsets carry through the other saber clips without per-pose copies.
+    const authoredSaberGrips: Partial<Record<MandoId, { right: [number, number, number]; left: [number, number, number] }>> = {
+      jedi: { right: [0.029395, -0.042681, 0.084449], left: [-0.025574, -0.036594, 0.052764] },
+      ventress: { right: [-0.061119, 0.037725, -0.05356], left: [0.07399, 0.034259, -0.067775] },
+    };
+    const grip = authoredSaberGrips[id];
+    if (grip && sabers) {
+      sabers.main.position.set(...grip.right);
+      sabers.offhand?.position.set(...grip.left);
+    }
+    // Maris' cross-grips sit at a different angle from an inline saber.
+    // These hand-local transforms are the paired saberIdle workbench export.
+    if (id === 'maris' && sabers?.offhand) {
+      sabers.main.position.set(0.056147, -0.0761, -0.04007);
+      sabers.main.quaternion.set(-0.1108576, 0.0752094, -0.0055576, 0.9909709).normalize();
+      sabers.offhand.position.set(-0.056131, -0.068665, -0.032891);
+      sabers.offhand.quaternion.set(-0.145249, -0.1509221, -0.0204729, 0.9776022).normalize();
+    }
+  };
+  /** The stowed hilts, hip-local: the sculpt's pelvis, or until then the game rig's. */
+  const seatHolsters = (): void => {
+    for (const hilt of holsters) {
+      const side = hilt.name.endsWith('L') ? 'left' : 'right';
+      const grip = AUTHORED_STOWED_SABER_GRIPS[id]?.[side];
+      if (grip) {
+        hilt.position.set(...grip.position);
+        hilt.quaternion.set(...grip.quaternion).normalize();
+      }
+    }
+  };
+  seatWeapons();
+  seatHolsters();
+
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
   // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
@@ -756,24 +746,6 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       if (model.weaponMount) {
         for (const w of [...guns.values(), ...blades.values()]) model.weaponMount.add(w.main);
       }
-      if (model.weaponMount) {
-        const signature = guns.get(rangedKinds(id)[0]);
-        if (signature) applySharedWeaponGrip(id, signature.main);
-      }
-      // a staff of their own has its grip in data/heroStaffGrips.json, when
-      // one was placed; the rest are left as mounted
-      if (model.weaponMount) {
-        const staff = blades.get('gaffi');
-        if (staff) applyHeroStaffGrip(id, staffPropFor(id), staff.main);
-      }
-      if (model.weaponMount && cfg.sharedGrip === 'sabers') {
-        const saber = blades.get('sabers');
-        if (saber) applySharedWeaponGrip(id, saber.main);
-      }
-      if (model.weaponMount && id === 'din') {
-        const saber = blades.get('sabers');
-        if (saber) applyDinSaberGrip(saber.main, inst.animator?.playing('upper') ?? null);
-      }
       // The off-hand has to move too. Our own weaponL bone still animates, but
       // it sits where the hidden procedural arm is, so a pistol left on it
       // floats beside the authored body instead of filling its other hand.
@@ -782,54 +754,11 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
           if (w.offhand) model.weaponMountL.add(w.offhand);
         }
       }
-      // Cad Bane's workbench grips are local to the authored hands. Keeping
-      // them on the mounts lets the same placement follow every body pose.
-      const pistols = guns.get('pistols');
-      if (id === 'duelist' && pistols?.offhand) {
-        pistols.main.position.set(0.025752, 0.067437, -0.06784);
-        pistols.main.quaternion.set(0.6537136, -0.0671748, 0.0762969, 0.7498832).normalize();
-        pistols.offhand.position.set(-0.01701, 0.072469, -0.096437);
-        pistols.offhand.quaternion.set(0.6447175, 0.0555208, -0.0388719, 0.7614103).normalize();
-      }
-      if (bosskRifle && model.weaponMount) {
-        applyBosskRifleGrip(bosskRifle, false);
-        bosskRifleAiming = false;
-      }
-      // Measured in the workbench against the authored palms at saberIdle.
-      // The prop remains parented to each authored hand, so these grip-local
-      // offsets carry through the other saber clips without per-pose copies.
-      const authoredSaberGrips: Partial<Record<MandoId, { right: [number, number, number]; left: [number, number, number] }>> = {
-        jedi: { right: [0.029395, -0.042681, 0.084449], left: [-0.025574, -0.036594, 0.052764] },
-        ventress: { right: [-0.061119, 0.037725, -0.05356], left: [0.07399, 0.034259, -0.067775] },
-      };
-      const grip = authoredSaberGrips[id];
-      const sabers = blades.get('sabers');
-      if (grip && sabers) {
-        sabers.main.position.set(...grip.right);
-        sabers.offhand?.position.set(...grip.left);
-      }
-      // Maris' cross-grips sit at a different angle from an inline saber.
-      // These hand-local transforms are the paired saberIdle workbench export.
-      if (id === 'maris' && sabers?.offhand) {
-        sabers.main.position.set(0.056147, -0.0761, -0.04007);
-        sabers.main.quaternion.set(-0.1108576, 0.0752094, -0.0055576, 0.9909709).normalize();
-        sabers.offhand.position.set(-0.056131, -0.068665, -0.032891);
-        sabers.offhand.quaternion.set(-0.145249, -0.1509221, -0.0204729, 0.9776022).normalize();
-      }
+      seatWeapons();
       // The procedural hip keeps animating but is hidden under the authored
       // skin. Carry the stowed hilts on the visible pelvis instead.
-      if (model.holsterMount) for (const hilt of holsters) {
-        model.holsterMount.add(hilt);
-        const side = hilt.name.endsWith('L') ? 'left' : 'right';
-        const grip = AUTHORED_STOWED_SABER_GRIPS[id]?.[side];
-        if (grip) {
-          hilt.position.set(...grip.position);
-          hilt.quaternion.set(...grip.quaternion).normalize();
-        }
-      }
-      // the jetpack rides the authored back, so keep the flames with our bone
-      // but sit them where the model's thrusters actually are (see `flameY`)
-      if (!feetThrusters) flameRoot.position.y = cfg.flameY ?? -0.02;
+      if (model.holsterMount) for (const hilt of holsters) model.holsterMount.add(hilt);
+      seatHolsters();
     },
   });
 
@@ -898,12 +827,12 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
           applyDinSpearGrip(blades.get('gaffi')!.main, clip);
           dinSpearClip = clip;
         }
-        if (swap.model && clip !== dinSaberClip) {
+        if (clip !== dinSaberClip) {
           applyDinSaberGrip(blades.get('sabers')!.main, clip);
           dinSaberClip = clip;
         }
       }
-      if (bosskRifle && swap.model) {
+      if (bosskRifle) {
         const aiming = inst.animator?.playing('upper') === 'aimUpper';
         if (aiming !== bosskRifleAiming) {
           applyBosskRifleGrip(bosskRifle, aiming);
@@ -929,7 +858,6 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         if (sabers.offhand) applyGripSpin(sabers.offhand, 'left', clip, spin, progress, dt, inst.root, rig.bones.hips);
       }
       for (const trail of trailUpdates) trail(dt, trailActive);
-      capeUpdate?.(dt, time);
       for (let i = 0; i < flames.length; i++) {
         const f = flames[i];
         f.group.visible = thrust > 0.03;
@@ -945,119 +873,4 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
     },
   };
-}
-
-/**
- * Bare heads for the hunter roster. Same budget philosophy as the helmets:
- * a few primitives that read at 30 m, standing in until the authored model.
- */
-function buildHunterHead(
-  id: MandoId, helm: THREE.Group,
-  skin: THREE.Material, prim: THREE.Material, accent: THREE.Material, dark: THREE.Material,
-): void {
-  addSphere(helm, skin, 0.13, 0, 0.03, 0, 14, 12, 1.05, 1);   // skull
-  switch (id) {
-    case 'jedi': {
-      addBox(helm, dark, 0.032, 0.012, 0.01, -0.05, 0.045, 0.125);
-      addBox(helm, dark, 0.032, 0.012, 0.01, 0.05, 0.045, 0.125);
-      addBox(helm, prim, 0.08, 0.2, 0.12, -0.12, 0.08, 0.02, 0, 0, -0.2);
-      addBox(helm, prim, 0.08, 0.2, 0.12, 0.12, 0.08, 0.02, 0, 0, 0.2);
-      addBox(helm, prim, 0.26, 0.05, 0.13, 0, 0.185, 0);
-      break;
-    }
-    case 'ventress': {
-      // gaunt pale features: sunken dark eyes, jaw shading, tattoo bands over the crown
-      addBox(helm, dark, 0.032, 0.014, 0.01, -0.05, 0.06, 0.125);
-      addBox(helm, dark, 0.032, 0.014, 0.01, 0.05, 0.06, 0.125);
-      addBox(helm, accent, 0.1, 0.05, 0.09, 0, -0.06, 0.05);   // jaw
-      addBox(helm, dark, 0.016, 0.005, 0.16, -0.045, 0.145, -0.02, 0.15);
-      addBox(helm, dark, 0.016, 0.005, 0.16, 0.045, 0.145, -0.02, 0.15);
-      // high armored collar
-      addCyl(helm, prim, 0.1, 0.115, 0.07, 0, -0.13, 0, 0, 0, 0, 10);
-      break;
-    }
-    case 'maris': {
-      const eye = mat(0xc84038, { rough: 0.35, emissive: 0x280808 });
-      addSphere(helm, eye, 0.015, -0.05, 0.06, 0.118, 8, 6);
-      addSphere(helm, eye, 0.015, 0.05, 0.06, 0.118, 8, 6);
-      const hair = mat(0x242025, { rough: 0.9 });
-      for (let i = -4; i <= 4; i++) {
-        const x = i * 0.028;
-        addCyl(helm, hair, 0.012, 0.012, 0.23, x, 0.13, -0.05, 0, 0, x * 0.8, 7);
-      }
-      break;
-    }
-    case 'maul': {
-      const black = mat(0x241d22, { rough: 0.85 });
-      for (const x of [-0.085, 0, 0.085]) addCyl(helm, black, 0.006, 0.028, 0.095, x, 0.17, 0, 0, 0, x * 2, 8);
-      addBox(helm, black, 0.034, 0.015, 0.012, -0.05, 0.06, 0.122);
-      addBox(helm, black, 0.034, 0.015, 0.012, 0.05, 0.06, 0.122);
-      addBox(helm, black, 0.1, 0.026, 0.012, 0, -0.035, 0.119);
-      break;
-    }
-    case 'revan': {
-      addCyl(helm, prim, 0.17, 0.14, 0.2, 0, 0.11, -0.035, 0, 0, 0, 12);
-      addBox(helm, accent, 0.16, 0.16, 0.025, 0, 0.0, 0.125);
-      addBox(helm, dark, 0.03, 0.12, 0.028, 0, -0.01, 0.143);
-      break;
-    }
-    case 'embo': {
-      // slatted rebreather over the lower face, and the hat
-      for (let i = 0; i < 3; i++) addBox(helm, dark, 0.12, 0.016, 0.02, 0, -0.045 + i * 0.028, 0.115);
-      addBox(helm, accent, 0.14, 0.09, 0.03, 0, -0.03, 0.1);   // mask body behind the slats
-      addBox(helm, dark, 0.03, 0.012, 0.01, -0.045, 0.065, 0.12);  // shaded eyes
-      addBox(helm, dark, 0.03, 0.012, 0.01, 0.045, 0.065, 0.12);
-      const hat = new THREE.Group();
-      hat.position.y = 0.13;
-      hat.rotation.x = 0.08;
-      helm.add(hat);
-      addCyl(hat, prim, 0.34, 0.36, 0.022, 0, 0, 0, 0, 0, 0, 18);  // the wide brim
-      addCyl(hat, prim, 0.12, 0.16, 0.06, 0, 0.035, 0, 0, 0, 0, 14); // crown
-      addCyl(hat, accent, 0.125, 0.125, 0.02, 0, 0.012, 0, 0, 0, 0, 14); // band
-      break;
-    }
-    case 'ig11': {
-      // the skull sphere reads as a neck joint under the cylinder head
-      addCyl(helm, skin, 0.075, 0.09, 0.16, 0, 0.09, 0, 0, 0, 0, 12);
-      addCyl(helm, prim, 0.078, 0.078, 0.035, 0, 0.055, 0, 0, 0, 0, 12);  // sensor collar
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2;
-        addSphere(helm, mat(0xc9401e, { rough: 0.3, emissive: 0x401508 }), 0.012,
-          Math.sin(a) * 0.08, 0.055, Math.cos(a) * 0.08, 6, 5);
-      }
-      addCyl(helm, accent, 0.008, 0.008, 0.1, 0.03, 0.22, 0, 0, 0, 0, 6);  // antenna
-      addSphere(helm, accent, 0.014, 0.03, 0.27, 0, 6, 5);
-      break;
-    }
-    case 'duelist': {
-      // gaunt, wide-brimmed, and plumbed: the tubes are the whole silhouette
-      addBox(helm, skin, 0.1, 0.06, 0.09, 0, -0.055, 0.06);          // long jaw
-      const eye = mat(0xc23a2a, { rough: 0.3, emissive: 0x3a0f08 });
-      addSphere(helm, eye, 0.019, -0.05, 0.05, 0.105, 6, 5);
-      addSphere(helm, eye, 0.019, 0.05, 0.05, 0.105, 6, 5);
-      const tube = mat(0x8a8f98, { rough: 0.5, metal: 0.5 });
-      addCyl(helm, tube, 0.013, 0.013, 0.14, -0.058, 0.0, 0.075, 0.5, 0, -0.25);
-      addCyl(helm, tube, 0.013, 0.013, 0.14, 0.058, 0.0, 0.075, 0.5, 0, 0.25);
-      const hat = new THREE.Group();
-      hat.position.y = 0.115;
-      helm.add(hat);
-      addCyl(hat, prim, 0.235, 0.245, 0.018, 0, 0, 0, 0, 0, 0, 16);  // brim
-      addCyl(hat, prim, 0.1, 0.115, 0.1, 0, 0.055, 0, 0, 0, 0, 12);  // crown
-      addCyl(hat, accent, 0.118, 0.118, 0.016, 0, 0.018, 0, 0, 0, 0, 12);
-      break;
-    }
-    case 'bossk': {
-      // wedge snout, needle teeth, slit eyes; the skull sits a little long
-      addBox(helm, skin, 0.1, 0.075, 0.14, 0, -0.015, 0.14, 0.12);   // snout
-      addBox(helm, skin, 0.075, 0.05, 0.05, 0, -0.06, 0.19);         // jaw
-      for (let i = 0; i < 4; i++) {
-        addBox(helm, mat(0xe8e0c8, { rough: 0.5 }), 0.008, 0.02, 0.008, -0.033 + i * 0.022, -0.045, 0.2);
-      }
-      addSphere(helm, mat(0xc9401e, { rough: 0.4, emissive: 0x30160a }), 0.018, -0.055, 0.055, 0.1, 8, 6);
-      addSphere(helm, mat(0xc9401e, { rough: 0.4, emissive: 0x30160a }), 0.018, 0.055, 0.055, 0.1, 8, 6);
-      addBox(helm, accent, 0.02, 0.03, 0.1, -0.09, 0.09, -0.02, 0, 0, -0.3);  // brow ridges
-      addBox(helm, accent, 0.02, 0.03, 0.1, 0.09, 0.09, -0.02, 0, 0, 0.3);
-      break;
-    }
-  }
 }

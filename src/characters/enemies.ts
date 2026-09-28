@@ -3,7 +3,8 @@ import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { reachArm, seatSurface } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
-import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
+import { addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
+import { buildLodCreature, buildLodProp, type LodCreatureModel } from './lod';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
 import { applySharedWeaponGrip } from './sharedWeaponGrips';
 import { WEAPON_PROPS } from './weaponProps';
@@ -67,15 +68,22 @@ function strikeCurve(t: number, dur: number): number {
 }
 
 export function mountEnemyProp(group: THREE.Group, id: string, length: number,
-  orientX = 0, z = 0, y = 0, flip = false): void {
-  group.userData.propPending = true;
-  const prop = loadProp(id, length, {
-    axis: 'longest',
-    onLoad: () => {
-      for (const child of group.children) if ((child as THREE.Mesh).isMesh) child.visible = false;
-    },
-    onSettle: () => { group.userData.propPending = false; },
-  });
+  orientX = 0, z = 0, y = 0, flip = false, sculpt = true): void {
+  // until the sculpt lands the holder carries the prop's own low-LOD build,
+  // in the same frame (lod.ts); `sculpt: false` holds that for good
+  let prop: THREE.Group;
+  if (sculpt) {
+    group.userData.propPending = true;
+    prop = loadProp(id, length, {
+      axis: 'longest',
+      lod: true,
+      onSettle: () => { group.userData.propPending = false; },
+    });
+  } else {
+    prop = new THREE.Group();
+    const standIn = buildLodProp(id);
+    if (standIn) prop.add(standIn);
+  }
   prop.rotation.x = orientX;
   if (flip) prop.rotation.y = Math.PI;
   prop.position.z = z;
@@ -83,32 +91,30 @@ export function mountEnemyProp(group: THREE.Group, id: string, length: number,
   group.add(prop);
 }
 
-function rifle(parent: THREE.Object3D): THREE.Object3D {
-  const dark = mat(0x2a2a2a, { rough: 0.5, metal: 0.5 });
+function rifle(parent: THREE.Object3D, sculpt = true): THREE.Object3D {
   const g = new THREE.Group();
-  addBox(g, dark, 0.045, 0.07, 0.4, 0, 0, 0.08);
-  addCyl(g, dark, 0.014, 0.014, 0.3, 0, 0.01, 0.36, Math.PI / 2, 0, 0, 6);
   g.rotation.x = Math.PI / 2;
   parent.add(g);
-  mountEnemyProp(g, 'enemy_blaster_rifle', WEAPON_PROPS.enemy_blaster_rifle.length, 0, 0.14, 0, true);
+  mountEnemyProp(g, 'enemy_blaster_rifle', WEAPON_PROPS.enemy_blaster_rifle.length, 0, 0.14, 0, true, sculpt);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.52);
   g.add(muzzle);
   return muzzle;
 }
 
-// ---------- Tusken Raider: sand robes, eye-stalk mask, gaderffii ----------
 /**
  * Give an enemy its authored skin, if one exists: the model and the height it
- * is fitted to are the kind's entry in ENEMY_MODELS. On load, everything hanging
- * off the canonical weapon bones re-mounts into the authored hands — exactly
- * as the players' weapons do. The canonical bones ride the *hidden
- * procedural* arms, whose proportions differ from the sculpt's, so a rifle or
- * gaffi left there floats a hand-width off the authored fist (worst at the
- * top of a swing, but visible on every aim pose too). The muzzle group lives
- * inside the weapon group and travels with it, so the firing code keeps
- * finding it wherever the gun goes; shot direction is computed from the
- * chest, never from the barrel, so aim is untouched.
+ * is fitted to are the kind's entry in ENEMY_MODELS. Until it lands — or in a
+ * build that asks for no model — the body is that model's low-LOD stand-in
+ * (lod.ts), which `attachAuthored` hangs on the rig. On load, everything
+ * hanging off the canonical weapon bones re-mounts into the authored hands —
+ * exactly as the players' weapons do. The canonical bones ride the hidden
+ * game rig, whose proportions differ from the sculpt's, so a rifle or gaffi
+ * left there floats a hand-width off the authored fist (worst at the top of a
+ * swing, but visible on every aim pose too). The muzzle group lives inside the
+ * weapon group and travels with it, so the firing code keeps finding it
+ * wherever the gun goes; shot direction is computed from the chest, never
+ * from the barrel, so aim is untouched.
  */
 function authoredEnemy(inst: CharacterInstance, rig: Rig, kind: HumanoidKind, enabled = true): void {
   const { model: id, height } = ENEMY_MODELS[kind];
@@ -127,6 +133,12 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, kind: HumanoidKind, en
       }
     },
   });
+  // The grips are local to the authored hand mount, which reproduces the
+  // canonical weapon bones' frame — and until the sculpt lands those bones ride
+  // its low-LOD stand-in's hands. So the stand-in holds its weapons the way
+  // the sculpt will (applied again on load; every grip is absolute).
+  for (const w of rig.bones.weaponR.children) applySharedWeaponGrip(kind, w);
+  for (const w of rig.bones.weaponL.children) applySharedWeaponGrip(kind, w, 'left');
   const prev = inst.cosmetic;
   inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
   // the menus show a spinner rather than the body underneath until this turns
@@ -135,27 +147,12 @@ function authoredEnemy(inst: CharacterInstance, rig: Rig, kind: HumanoidKind, en
   inst.modelReady = () => swap.settled && propsSettled(inst.root);
 }
 
+// ---------- Tusken Raider: gaderffii ----------
 export function buildTusken(authored = true): CharacterInstance {
-  const robe = mat(0xb8a37e, { rough: 1 });
-  const wrap = mat(0x8f7c58, { rough: 1 });
-  const { inst, rig } = buildBiped({ skin: robe, torso: robe });
+  const { inst, rig } = buildBiped();
   const b = rig.bones;
-  // robe skirt + hood
-  addCyl(b.hips, wrap, 0.24, 0.3, 0.5, 0, -0.22, 0, 0, 0, 0, 10);
-  addCyl(b.chest, wrap, 0.2, 0.24, 0.3, 0, 0.08, 0, 0, 0, 0, 10);
-  // bandolier
-  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.09, 0.4, 0.28, 0, 0.06, 0, 0, 0, -0.6);
-  // head: wrapped mask, low-profile eye stalks, rebreather spikes
-  const head = b.head;
-  addSphere(head, wrap, 0.14, 0, 0.05, 0, 10, 8, 1.05, 1);
-  const dark = mat(0x1e1a14, { rough: 0.7 });
-  addCyl(head, dark, 0.028, 0.032, 0.06, -0.06, 0.07, 0.12, Math.PI / 2, 0, 0, 6);
-  addCyl(head, dark, 0.028, 0.032, 0.06, 0.06, 0.07, 0.12, Math.PI / 2, 0, 0, 6);
-  addCyl(head, dark, 0.012, 0.02, 0.09, 0, -0.01, 0.13, Math.PI / 2, 0, 0, 6);
-  for (const sx of [-0.045, 0.045]) addCyl(head, dark, 0.006, 0.012, 0.06, sx, -0.04, 0.12, Math.PI / 2, 0, 0, 5);
   // gaderffii in right hand
-  const gaffi = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }),
-    mat(0x8a8f92, { rough: 0.4, metal: 0.6 }), 'gaffi_collection');
+  const gaffi = makeGaffi('gaffi_collection', authored);
   // The +Y spearhead should point with the striking arm, not up from it.
   gaffi.rotation.x = Math.PI;
   b.weaponR.add(gaffi);
@@ -165,7 +162,8 @@ export function buildTusken(authored = true): CharacterInstance {
   inst.cosmetic = (dt, time) => {
     previous?.(dt, time);
     const clip = inst.animator?.playing('upper') ?? null;
-    if (gaffi.parent?.name === 'weaponMount' && clip !== gripClip) {
+    // the stand-in's hand holds it the way the sculpt's does (see authoredEnemy)
+    if (clip !== gripClip) {
       applyTuskenWeaponGrip(gaffi, clip);
       gripClip = clip;
     }
@@ -173,52 +171,26 @@ export function buildTusken(authored = true): CharacterInstance {
   return inst;
 }
 
-// ---------- Pyke soldier: tall tapered helmet, slate coat, rifle ----------
+// ---------- Pyke soldier: rifle ----------
 const PYKE_P: Proportions = { ...HUMAN, hipHeight: 0.9, headSize: 0.34, shoulderWidth: 0.22 };
 export function buildPyke(authored = true): CharacterInstance {
-  const coat = mat(0x4e5d63, { rough: 0.85 });
-  const suit = mat(0x39434a, { rough: 0.9 });
-  const { inst, rig } = buildBiped({ skin: suit, torso: coat, proportions: PYKE_P });
-  const b = rig.bones;
-  addCyl(b.hips, coat, 0.23, 0.27, 0.45, 0, -0.2, 0, 0, 0, 0, 10); // long coat
-  // signature tall tapered head/helmet
-  const helm = mat(0x8b9483, { rough: 0.6, metal: 0.2 });
-  const dark = mat(0x14161a, { rough: 0.6 });
-  addCyl(b.head, helm, 0.045, 0.115, 0.34, 0, 0.16, 0, 0, 0, 0, 10);
-  addSphere(b.head, helm, 0.115, 0, 0.0, 0.01, 10, 8, 0.9, 1.05);
-  addSphere(b.head, dark, 0.028, -0.055, 0.02, 0.095, 6, 5);
-  addSphere(b.head, dark, 0.028, 0.055, 0.02, 0.095, 6, 5);
-  // breather tubes to chest
-  addCyl(b.chest, dark, 0.014, 0.014, 0.3, -0.07, 0.16, 0.12, 0.5, 0, 0.2, 5);
-  addCyl(b.chest, dark, 0.014, 0.014, 0.3, 0.07, 0.16, 0.12, 0.5, 0, -0.2, 5);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ proportions: PYKE_P });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, 'pyke', authored);
   return inst;
 }
 
-// ---------- Space pirate: rough leathers, pauldron, rifle or fists ----------
+// ---------- Space pirate: rifle or boarding club ----------
 export function buildPirate(melee: boolean, authored = true): CharacterInstance {
-  const leather = mat(0x5c4632, { rough: 0.95 });
-  const shirt = mat(0x6e6250, { rough: 0.95 });
-  const { inst, rig } = buildBiped({ skin: shirt, torso: leather, scale: 1.05 });
+  const { inst, rig } = buildBiped({ scale: 1.05 });
   const b = rig.bones;
-  addBox(b.shoulderL, mat(0x71716d, { rough: 0.5, metal: 0.5 }), 0.18, 0.08, 0.2, 0.05, 0.05, 0, 0, 0, -0.3);
-  // leathery alien head with head-tail nubs / horns
-  const skinM = mat(0x9c7050, { rough: 0.9 });
-  addSphere(b.head, skinM, 0.13, 0, 0.04, 0, 10, 8, 1.1, 1);
-  const dark = mat(0x241d16, { rough: 0.8 });
-  addSphere(b.head, dark, 0.02, -0.05, 0.06, 0.11, 5, 4);
-  addSphere(b.head, dark, 0.02, 0.05, 0.06, 0.11, 5, 4);
-  for (let i = 0; i < 4; i++) addCyl(b.head, skinM, 0.01, 0.025, 0.09, -0.06 + i * 0.04, 0.16, -0.04, -0.5, 0, 0, 5);
   if (melee) {
     const club = new THREE.Group();
-    addCyl(club, dark, 0.025, 0.03, 0.7);
-    addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
     club.rotation.x = Math.PI / 2;
     b.weaponR.add(club);
-    mountEnemyProp(club, 'pirate_boarding_club', WEAPON_PROPS.pirate_boarding_club.length, Math.PI / 2, 0, 0.14);
+    mountEnemyProp(club, 'pirate_boarding_club', WEAPON_PROPS.pirate_boarding_club.length, Math.PI / 2, 0, 0.14, false, authored);
   } else {
-    inst.muzzle = rifle(b.weaponR);
+    inst.muzzle = rifle(b.weaponR, authored);
   }
   // The blaster sculpt has a face on both sides. Use the healthy pirate
   // brawler body as a temporary skin; the gun stays a separate hand prop.
@@ -226,68 +198,27 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   return inst;
 }
 
-// ---------- Security droid: bone-white skeletal frame ----------
+// ---------- Security droid ----------
 const DROID_P: Proportions = { ...HUMAN, hipHeight: 1.05, headSize: 0.3, shoulderWidth: 0.24, upperLegLen: 0.52, lowerLegLen: 0.52 };
 export function buildDroid(authored = true): CharacterInstance {
-  const bone = mat(0xcfc8b8, { rough: 0.5, metal: 0.35 });
-  const dark = mat(0x2c2c2c, { rough: 0.6, metal: 0.4 });
-  const { inst, rig } = buildBiped({ skin: bone, torso: dark, proportions: DROID_P });
-  const b = rig.bones;
-  addBox(b.chest, bone, 0.34, 0.3, 0.2, 0, 0.08, 0); // boxy chassis
-  addCyl(b.chest, bone, 0.03, 0.03, 0.2, 0, 0.02, 0.14, Math.PI / 2, 0, 0, 6);
-  // elongated droid skull with glowing eyes
-  addCyl(b.head, bone, 0.06, 0.1, 0.28, 0, 0.08, 0.03, 0.35, 0, 0, 8);
-  const eye = mat(0xff3820, { emissive: 0xff3820, rough: 0.4 });
-  addSphere(b.head, eye, 0.022, -0.045, 0.1, 0.1, 6, 5);
-  addSphere(b.head, eye, 0.022, 0.045, 0.1, 0.1, 6, 5);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ proportions: DROID_P });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, 'droid', authored);
   return inst;
 }
 
 // ---------- Imperial remnant: stormtrooper / death trooper ----------
 export function buildStormtrooper(elite: boolean, authored = true): CharacterInstance {
-  const armor = mat(elite ? 0x1c1e22 : 0xe4e2dc, { rough: 0.4, metal: 0.25 });
-  const suitM = mat(elite ? 0x101114 : 0x2a2a2a, { rough: 0.85 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: armor, scale: elite ? 1.08 : 1 });
-  const b = rig.bones;
-  const dark = mat(0x0c0c0e, { rough: 0.5 });
-  // plate details
-  addBox(b.chest, armor, 0.34, 0.3, 0.05, 0, 0.06, 0.12);
-  addBox(b.hips, armor, 0.32, 0.12, 0.05, 0, 0.04, 0.11);
-  addBox(b.shoulderL, armor, 0.15, 0.06, 0.17, -0.05, 0.05, 0, 0, 0, 0.22);
-  addBox(b.shoulderR, armor, 0.15, 0.06, 0.17, 0.05, 0.05, 0, 0, 0, -0.22);
-  addCyl(b.upperLegL, armor, 0.08, 0.07, 0.24, 0, -0.2, 0);
-  addCyl(b.upperLegR, armor, 0.08, 0.07, 0.24, 0, -0.2, 0);
-  // helmet: dome + brow band + grimace vents
-  addSphere(b.head, armor, 0.15, 0, 0.05, 0, 12, 10, 0.98, 1);
-  addBox(b.head, dark, 0.24, 0.035, 0.06, 0, 0.075, 0.1);            // visor band
-  addBox(b.head, dark, 0.1, 0.03, 0.03, 0, -0.05, 0.13);             // mouth vent
-  addSphere(b.head, dark, 0.02, -0.1, -0.02, 0.1, 5, 4);
-  addSphere(b.head, dark, 0.02, 0.1, -0.02, 0.1, 5, 4);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ scale: elite ? 1.08 : 1 });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, elite ? 'deathtrooper' : 'stormtrooper', authored);
   return inst;
 }
 
 // ---------- Dark trooper: heavy flying battle droid ----------
 export function buildDarkTrooper(authored = true): CharacterInstance {
-  const metal = mat(0x24262c, { rough: 0.35, metal: 0.8 });
-  const { inst, rig } = buildBiped({ skin: metal, torso: metal, scale: 1.15 });
-  const b = rig.bones;
-  addBox(b.chest, metal, 0.44, 0.36, 0.26, 0, 0.08, 0);
-  addBox(b.shoulderL, metal, 0.2, 0.12, 0.2, -0.06, 0.06, 0);
-  addBox(b.shoulderR, metal, 0.2, 0.12, 0.2, 0.06, 0.06, 0);
-  // skull-like droid head with red eyes
-  addBox(b.head, metal, 0.2, 0.22, 0.22, 0, 0.06, 0);
-  const eye = mat(0xff2810, { emissive: 0xff2810, rough: 0.3 });
-  addSphere(b.head, eye, 0.025, -0.055, 0.08, 0.11, 6, 5);
-  addSphere(b.head, eye, 0.025, 0.055, 0.08, 0.11, 6, 5);
-  // integrated back thrusters
-  const dark = mat(0x0e0f12, { rough: 0.5, metal: 0.6 });
-  addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, -0.09, -0.1, 0);
-  addCyl(b.jetpack, dark, 0.05, 0.07, 0.2, 0.09, -0.1, 0);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ scale: 1.15 });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, 'darktrooper', authored);
   return inst;
 }
@@ -302,49 +233,19 @@ export function buildDarkTrooper(authored = true): CharacterInstance {
  * behind is what this fills — a tall, durable droid that lays down a long
  * volley — so the ally beat plays the same, from a body that is nobody's
  * player character.
- *
- * Deliberately not IG's silhouette: a broad wedge skull and heavy shoulders
- * rather than a cylinder head on spindly limbs.
  */
 export function buildEscortDroid(authored = true): CharacterInstance {
-  const shell = mat(0x3a3d44, { rough: 0.45, metal: 0.7 });
   const p: Proportions = { ...HUMAN, hipHeight: 1.16, headSize: 0.34, shoulderWidth: 0.3, upperLegLen: 0.55, lowerLegLen: 0.55 };
-  const { inst, rig } = buildBiped({ skin: shell, torso: shell, proportions: p });
-  const b = rig.bones;
-  const dark = mat(0x1c1e22, { rough: 0.6, metal: 0.5 });
-  // wedge skull: long muzzle box under a flat brow, no cylinder anywhere
-  addBox(b.head, shell, 0.19, 0.17, 0.2, 0, 0.09, 0.01);
-  addBox(b.head, dark, 0.15, 0.06, 0.1, 0, 0.03, 0.12);
-  const optic = mat(0x4aa8d8, { emissive: 0x14384e, rough: 0.35 });
-  addSphere(b.head, optic, 0.024, -0.055, 0.11, 0.09, 6, 5);
-  addSphere(b.head, optic, 0.024, 0.055, 0.11, 0.09, 6, 5);
-  // heavy shoulder blocks and a slab chest: a bodyguard's frame
-  addBox(b.shoulderL, dark, 0.16, 0.13, 0.17, -0.04, 0.04, 0);
-  addBox(b.shoulderR, dark, 0.16, 0.13, 0.17, 0.04, 0.04, 0);
-  addBox(b.chest, shell, 0.34, 0.38, 0.22, 0, 0.07, 0);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ proportions: p });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, 'escortDroid', authored);
   return inst;
 }
 
-/** Human gunfighter ally (marshal / sharpshooter flavor via palette). */
+/** Human gunfighter ally (marshal / sharpshooter). */
 export function buildGunfighter(kind: 'marshal' | 'fennec', authored = true): CharacterInstance {
-  const coat = mat(kind === 'marshal' ? 0x7a2e26 : 0x2c2c30, { rough: 0.9 });
-  const suitM = mat(kind === 'marshal' ? 0x4a3a2c : 0x3c3630, { rough: 0.9 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
-  const b = rig.bones;
-  const skinM = mat(0xc09068, { rough: 0.85 });
-  addSphere(b.head, skinM, 0.12, 0, 0.04, 0, 10, 8);
-  if (kind === 'marshal') {
-    // wide-brim hat
-    addCyl(b.head, coat, 0.2, 0.2, 0.02, 0, 0.13, 0, 0, 0, 0, 12);
-    addCyl(b.head, coat, 0.09, 0.1, 0.1, 0, 0.18, 0, 0, 0, 0, 10);
-  } else {
-    // fennec: helmet cap with orange visor band
-    addSphere(b.head, mat(0x3a3a40, { rough: 0.5, metal: 0.3 }), 0.13, 0, 0.07, 0, 10, 8, 0.8, 1);
-    addBox(b.head, mat(0xd07828, { emissive: 0x552f10, rough: 0.4 }), 0.2, 0.03, 0.04, 0, 0.05, 0.1);
-  }
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped();
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, kind, authored);
   return inst;
 }
@@ -356,34 +257,13 @@ export function buildGunfighter(kind: 'marshal' | 'fennec', authored = true): Ch
  * 2026-09-03 when Cad Bane became playable: the same sculpt cannot be a
  * fighter you pick and an elite you shoot. The *role* survives him unchanged —
  * fast, accurate, hits hard, and folds if you can close on him — so the wave
- * tables kept their slot and only the body in it changed.
- *
- * A freelancer out of the hunters' guild rather than a named face: sealed
- * breath mask under a low hood, armoured long coat, bandolier across the
- * chest, and a pistol in each hand.
+ * tables kept their slot and only the body in it changed. A pistol in each hand.
  */
 export function buildGunslinger(authored = true): CharacterInstance {
-  const coat = mat(0x3a3229, { rough: 0.9 });
-  const suitM = mat(0x241f1a, { rough: 0.9 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: coat });
+  const { inst, rig } = buildBiped();
   const b = rig.bones;
-  const plate = mat(0x6a6258, { rough: 0.55, metal: 0.4 });
-  // sealed mask: a plated skull with a dark filter slot, no face showing
-  addSphere(b.head, plate, 0.12, 0, 0.04, 0, 10, 8);
-  addBox(b.head, mat(0x14161a, { rough: 0.4 }), 0.16, 0.05, 0.04, 0, 0.05, 0.1);
-  addCyl(b.head, mat(0x8a8f98, { rough: 0.5, metal: 0.5 }), 0.03, 0.035, 0.05, 0, -0.03, 0.1, Math.PI / 2, 0, 0, 8);
-  // low hood over the plate, and a collar standing off the shoulders
-  addSphere(b.head, coat, 0.135, 0, 0.06, -0.02, 10, 8, 0.75, 1);
-  addCyl(b.chest, coat, 0.17, 0.13, 0.09, 0, 0.26, 0, 0, 0, 0, 10);
-  addBox(b.chest, coat, 0.36, 0.4, 0.24, 0, 0.08, 0);
-  // bandolier: shells across the chest, the one read at a glance
-  for (let i = 0; i < 6; i++) {
-    addBox(b.chest, plate, 0.03, 0.055, 0.03, -0.13 + i * 0.05, 0.19 - i * 0.05, 0.12, 0, 0, 0.6);
-  }
-  const gunmetal = mat(0x57534d, { rough: 0.5, metal: 0.55 });
-  const gunDark = mat(0x242424, { rough: 0.55, metal: 0.5 });
   for (const weaponBone of [b.weaponR, b.weaponL]) {
-    const pistol = makePistol(gunmetal, gunDark);
+    const pistol = makePistol(authored);
     pistol.rotation.x = Math.PI / 2;
     weaponBone.add(pistol);
     if (weaponBone === b.weaponR) {
@@ -402,22 +282,12 @@ export function buildGunslinger(authored = true): CharacterInstance {
  * an authored prop, with animated purple discharge on both tips at runtime.
  */
 export function buildImperialOfficer(authored = true): CharacterInstance {
-  const coat = mat(0x14161a, { rough: 0.8 });
-  const { inst, rig } = buildBiped({ skin: mat(0x1b1d22, { rough: 0.85 }), torso: coat, scale: 1.04 });
-  const b = rig.bones;
-  addSphere(b.head, mat(0xc8a184, { rough: 0.85 }), 0.12, 0, 0.04, 0, 10, 8);
-  addCyl(b.head, coat, 0.135, 0.135, 0.09, 0, 0.12, 0, 0, 0, 0, 12);        // officer cap
-  addCyl(b.head, coat, 0.19, 0.19, 0.015, 0, 0.09, 0.03, 0, 0, 0, 12);      // peak
-  addBox(b.chest, coat, 0.42, 0.46, 0.28, 0, 0.08, 0);                      // greatcoat
-  addBox(b.hips, coat, 0.4, 0.5, 0.3, 0, -0.18, 0);                         // skirt of the coat
-  addBox(b.chest, mat(0x9aa2b0, { rough: 0.4, metal: 0.6 }), 0.07, 0.03, 0.02, 0.13, 0.2, 0.15);  // rank plaque
-
-  const staff = makeGaffi(mat(0x25262c, { rough: 0.55, metal: 0.55 }),
-    mat(0x888b98, { rough: 0.4, metal: 0.7 }), 'electrostaff');
+  const { inst, rig } = buildBiped({ scale: 1.04 });
+  const staff = makeGaffi('electrostaff', authored);
   staff.rotation.x = Math.PI / 2;
   staff.rotation.z = 0.55;
   staff.position.z = -0.2;
-  b.weaponR.add(staff);
+  rig.bones.weaponR.add(staff);
   const updateArcs = addElectrostaffArcs(staff);
 
   authoredEnemy(inst, rig, 'officer', authored);
@@ -435,14 +305,8 @@ export function buildImperialOfficer(authored = true): CharacterInstance {
  * late-wave elite — a shielded shooter you have to flank or out-damage.
  */
 export function buildPykeCapo(authored = true): CharacterInstance {
-  const robe = mat(0x4a3f63, { rough: 0.85 });
-  const { inst, rig } = buildBiped({ skin: mat(0x39434a, { rough: 0.9 }), torso: robe, proportions: PYKE_P });
-  const b = rig.bones;
-  addCyl(b.hips, robe, 0.26, 0.32, 0.5, 0, -0.22, 0, 0, 0, 0, 10);
-  const helm = mat(0xa08c6a, { rough: 0.5, metal: 0.35 });
-  addCyl(b.head, helm, 0.05, 0.12, 0.36, 0, 0.17, 0, 0, 0, 0, 10);
-  addSphere(b.head, helm, 0.12, 0, 0, 0.01, 10, 8, 0.9, 1.05);
-  inst.muzzle = rifle(b.weaponR);
+  const { inst, rig } = buildBiped({ proportions: PYKE_P });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   // personal shield bubble — the thing that makes a capo a capo
   const bubble = new THREE.Mesh(
     new THREE.SphereGeometry(1.05, 20, 14),
@@ -469,15 +333,8 @@ export function buildPykeCapo(authored = true): CharacterInstance {
  * The last of the planned bosses to arrive with a model.
  */
 export function buildWookieeEnforcer(authored = true): CharacterInstance {
-  const fur = mat(0x2b2019, { rough: 1 });
   const WOOKIEE_P: Proportions = { ...HUMAN, hipHeight: 1.3, chestLen: 0.38, shoulderWidth: 0.36, upperArmLen: 0.42, forearmLen: 0.38 };
-  const { inst, rig } = buildBiped({ skin: fur, torso: fur, proportions: WOOKIEE_P, scale: 1.05 });
-  const b = rig.bones;
-  addSphere(b.head, fur, 0.19, 0, 0.06, 0.02, 12, 10);
-  addBox(b.chest, mat(0x5a4632, { rough: 0.9 }), 0.11, 0.5, 0.34, 0, 0.06, 0, 0, 0, -0.5);  // bandolier
-  const gauntlet = mat(0x6d6a63, { rough: 0.4, metal: 0.6 });
-  addCyl(b.forearmL, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
-  addCyl(b.forearmR, gauntlet, 0.09, 0.08, 0.22, 0, -0.18, 0);
+  const { inst, rig } = buildBiped({ proportions: WOOKIEE_P, scale: 1.05 });
   authoredEnemy(inst, rig, 'enforcer', authored);
   return inst;
 }
@@ -487,106 +344,19 @@ export function buildWookieeEnforcer(authored = true): CharacterInstance {
  * War massiff — an armoured quadruped bred well past the size of the pack
  * animals the Tuskens keep. Shoulder height ~1.9 m, ~4 m nose to tail, so it
  * reads as an apex predator next to a 1.8 m trooper rather than a hound
- * underfoot. Free-form rig: the gait, jaw and tail are animated in code by
- * `cosmetic`, since there is no biped skeleton to hang clips on.
+ * underfoot. On a skeleton of its own: the gaits are code-built clips
+ * (anim/quadruped.ts) generated against the sculpt's rig — and against the
+ * stand-in's, which is the same rig at a low LOD (lod.ts).
  */
 export function buildMassiff(authored = true): CharacterInstance {
-  const hide = mat(0x8a6a45, { rough: 0.95 });
-  const plate = mat(0x6f5535, { rough: 0.8 });
-  const dark = mat(0x2e2418, { rough: 0.9 });
-  const tusk = mat(0xd8cdaa, { rough: 0.6 });
   const root = new THREE.Group();
-
-  // Low, slab-sided torso: flattened rather than barrel-round so it reads as
-  // armour over muscle from 30 m, with the shoulders carried higher than the
-  // hips and the skull slung out front below them — a stalking predator line.
-  const BODY_Y = 1.22;
-  const body = new THREE.Group();
-  body.position.y = BODY_Y;
-  root.add(body);
-  addSphere(body, hide, 0.64, 0, 0, 0.05, 12, 9, 1.15, 1.85);        // barrel
-  addSphere(body, hide, 0.52, 0, 0.1, 0.62, 10, 8, 1.12, 0.95);      // shoulder hump
-  addSphere(body, hide, 0.5, 0, -0.06, -0.92, 10, 8, 1.05, 1.15);    // haunches
-  body.scale.y = 0.84;                                                // flatten the whole mass
-
-  // dorsal armour: overlapping plates down the spine, spikes standing off them
-  for (let i = 0; i < 10; i++) {
-    const z = 0.95 - i * 0.25;
-    const hump = Math.max(0, 1 - Math.abs(i - 2.5) / 6);
-    addBox(body, plate, 0.54 - Math.abs(i - 3) * 0.03, 0.11, 0.21, 0, 0.55 + hump * 0.08, z, -0.1, 0, 0);
-    addCyl(body, plate, 0.012, 0.08, 0.34 - i * 0.016, 0, 0.72 + hump * 0.08, z, -0.22, 0, 0, 5);
-  }
-  // flank scutes
-  for (const sx of [-1, 1]) {
-    for (let i = 0; i < 5; i++) {
-      addBox(body, plate, 0.09, 0.2, 0.32, sx * 0.6, 0.14 - i * 0.03, 0.7 - i * 0.36, 0, 0, sx * 0.3);
-    }
-  }
-
-  // neck and heavy skull, carried low and forward
-  const neck = new THREE.Group();
-  neck.position.set(0, -0.02, 1.02);
-  body.add(neck);
-  addCyl(neck, hide, 0.3, 0.34, 0.5, 0, -0.08, 0.18, Math.PI / 2 - 0.28, 0, 0, 8);
-  const head = new THREE.Group();
-  head.position.set(0, -0.2, 0.44);
-  neck.add(head);
-  addBox(head, hide, 0.48, 0.36, 0.46, 0, 0, 0.06);                  // skull
-  addBox(head, plate, 0.44, 0.1, 0.4, 0, 0.19, 0.04);                // crown plate
-  addBox(head, hide, 0.4, 0.24, 0.46, 0, -0.05, 0.42);               // snout
-  const jaw = new THREE.Group();
-  jaw.position.set(0, -0.17, 0.1);
-  head.add(jaw);
-  addBox(jaw, dark, 0.36, 0.13, 0.5, 0, -0.02, 0.26);
-  for (let i = 0; i < 6; i++) {
-    const tx = -0.15 + (i % 2) * 0.3;
-    const tz = 0.12 + ((i / 2) | 0) * 0.22;
-    addCyl(jaw, tusk, 0.005, 0.038, 0.19, tx, 0.1, tz, 0, 0, 0, 5);       // lower fangs
-    addCyl(head, tusk, 0.005, 0.034, 0.16, tx, -0.16, tz + 0.04, Math.PI, 0, 0, 5); // upper
-  }
-  for (const ex of [-1, 1]) {
-    addSphere(head, mat(0xc4761f, { rough: 0.35, emissive: 0x6a2f06 }), 0.055, ex * 0.23, 0.08, 0.2, 7, 6);
-    addCyl(head, plate, 0.01, 0.055, 0.28, ex * 0.19, 0.24, -0.02, -0.55, 0, ex * 0.35, 5); // brow horns
-  }
-
-  // four heavy legs, sized so the feet meet the ground from the flattened body
-  const legs: THREE.Object3D[] = [];
-  for (const [x, z, front] of [[-0.5, 0.6, 1], [0.5, 0.6, 1], [-0.5, -0.88, 0], [0.5, -0.88, 0]] as const) {
-    const leg = new THREE.Group();
-    // the body is scaled 0.84 in y, so undo it here or the legs squash with it
-    leg.position.set(x, -0.26 / 0.84, z);
-    leg.scale.y = 1 / 0.84;
-    addCyl(leg, hide, 0.19, 0.15, 0.5, 0, -0.25, 0, 0, 0, 0, 7);          // upper
-    addCyl(leg, hide, 0.15, 0.16, 0.46, 0, -0.7, front ? 0.04 : -0.04, 0, 0, 0, 7); // lower
-    addBox(leg, dark, 0.36, 0.14, 0.5, 0, -0.98, 0.11);                    // foot
-    for (let c = 0; c < 3; c++) addCyl(leg, tusk, 0.004, 0.024, 0.12, -0.11 + c * 0.11, -1.0, 0.36, 1.35, 0, 0, 4);
-    body.add(leg);
-    legs.push(leg);
-  }
-
-  // thick spiked tail, tapering in segments so it can swing as a chain
-  const tailSegs: THREE.Object3D[] = [];
-  let attach: THREE.Object3D = body;
-  for (let i = 0; i < 5; i++) {
-    const seg = new THREE.Group();
-    seg.position.set(0, i === 0 ? 0.06 : 0, i === 0 ? -1.3 : -0.42);
-    addCyl(seg, hide, 0.21 - i * 0.034, 0.25 - i * 0.034, 0.44, 0, 0, -0.22, Math.PI / 2, 0, 0, 7);
-    addCyl(seg, plate, 0.01, 0.06 - i * 0.007, 0.22, 0, 0.21 - i * 0.026, -0.2, -0.35, 0, 0, 5);
-    attach.add(seg);
-    attach = seg;
-    tailSegs.push(seg);
-  }
 
   // The sculpt is a quadruped on its own skeleton, so no humanoid clip reaches
   // it: it comes in through the creature path, is placed and grounded, and this
-  // enemy's movement carries it. The procedural build stays as the fallback and
-  // hides the moment the model lands.
-  //
-  // If the file ships its own clips — the rigged quadruped is being authored —
-  // they drive it here: a mixer picks a locomotion clip by name and plays it at
-  // a rate tied to how fast the beast is actually moving. Until then the sculpt
-  // rides along statically, which is how the swoop bike works.
-  let posed = true;
+  // enemy's movement carries it. Its gaits play through a mixer that picks a
+  // locomotion clip by name and plays it at a rate tied to how fast the beast
+  // is actually moving. The stand-in is wired the same way, and handed over
+  // when the sculpt lands.
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let walkAction: THREE.AnimationAction | null = null;
@@ -597,54 +367,59 @@ export function buildMassiff(authored = true): CharacterInstance {
   let walkStride = 1.5;
   let gaitSpeed = 0;
   let attackAction: THREE.AnimationAction | null = null;
-  /** seconds into the current strike; < 0 = not striking (drives the fallback pose too) */
-  let attackT = -1;
   const ATTACK_DUR = 0.6;
+  const wire = (body: THREE.Object3D): void => {
+    mixer = null;
+    idleAction = walkAction = moveAction = attackAction = null;
+    const clips = (body.userData.clips ?? []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    const pick = (re: RegExp): THREE.AnimationClip | undefined => clips.find((c) => re.test(c.name));
+    const idle = pick(/idle|breath|stand/i);
+    const walk = pick(/walk|trot|prowl/i);
+    const move = pick(/run|gallop|sprint/i) ?? (walk ? undefined : pick(/move/i));
+    const atk = pick(/attack|bite|strike/i);
+    mixer = new THREE.AnimationMixer(body);
+    if (atk) {
+      attackAction = strikeAction(mixer, atk);
+    }
+    if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
+    if (walk) {
+      walkAction = mixer.clipAction(walk);
+      walkAction.play();
+      walkAction.setEffectiveWeight(0);
+      walkStride = 1.6 / Math.max(walk.duration, 0.2);
+    }
+    if (move) {
+      moveAction = mixer.clipAction(move);
+      moveAction.play();
+      moveAction.setEffectiveWeight(0);
+      // a gallop cycle covers roughly a body length; close enough to keep
+      // the feet from skating until the clip's real stride is known
+      clipStride = 4 / Math.max(move.duration, 0.2);
+    }
+  };
+  const standIn = buildLodCreature('massiff');
   /** false only while a sculpt that exists is still on its way (see CharacterInstance.modelReady) */
   let settled = !authored;
   if (authored) {
     const model = loadCreature('massiff', {
       onSettle: () => { settled = true; },
       onLoad: (loaded) => {
-        body.visible = false;
-        posed = false;
-        const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
-        if (!clips.length) return;
-        const pick = (re: RegExp): THREE.AnimationClip | undefined => clips.find((c) => re.test(c.name));
-        const idle = pick(/idle|breath|stand/i);
-        const walk = pick(/walk|trot|prowl/i);
-        const move = pick(/run|gallop|sprint/i) ?? (walk ? undefined : pick(/move/i));
-        const atk = pick(/attack|bite|strike/i);
-        mixer = new THREE.AnimationMixer(loaded);
-        if (atk) {
-          attackAction = strikeAction(mixer, atk);
-        }
-        if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
-        if (walk) {
-          walkAction = mixer.clipAction(walk);
-          walkAction.play();
-          walkAction.setEffectiveWeight(0);
-          walkStride = 1.6 / Math.max(walk.duration, 0.2);
-        }
-        if (move) {
-          moveAction = mixer.clipAction(move);
-          moveAction.play();
-          moveAction.setEffectiveWeight(0);
-          // a gallop cycle covers roughly a body length; close enough to keep
-          // the feet from skating until the clip's real stride is known
-          clipStride = 4 / Math.max(move.duration, 0.2);
-        }
+        if (standIn) standIn.holder.visible = false;
+        wire(loaded);
       },
     });
     root.add(model);
   }
+  // after the sculpt's holder, so a search of the body by bone name meets the
+  // sculpt's bones before the stand-in's
+  if (standIn) { root.add(standIn.holder); wire(standIn.model); }
 
   return {
     root, rig: null, animator: null, height: 2.0, baseScale: 1,
     modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
-      attackT = 0;
       if (attackAction) {
         attackAction.reset();
         attackAction.setEffectiveWeight(1);
@@ -652,53 +427,26 @@ export function buildMassiff(authored = true): CharacterInstance {
       }
       return ATTACK_DUR;
     },
-    cosmetic: (dt, time) => {
-      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
-      if (mixer) {
-        // Three gaits, blended by ground speed: still → prowling walk →
-        // full gallop, each rate-matched to the metres actually covered so
-        // no gait skates. Below the gallop threshold the old two-way blend
-        // played the gallop at 0.4x, which is slow motion, not stalking.
-        // A strike in flight owns the pose: locomotion ducks under it.
-        const striking = strikeBlend(attackAction);
-        const moving = Math.min(gaitSpeed / 1.2, 1) * (1 - striking);
-        const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
-        if (moveAction) {
-          moveAction.setEffectiveWeight(walkAction ? moving * gallop : moving);
-          moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.4, 2.2);
-        }
-        if (walkAction) {
-          walkAction.setEffectiveWeight(moving * (1 - gallop));
-          walkAction.timeScale = clamp(gaitSpeed / Math.max(walkStride, 0.3), 0.5, 1.8);
-        }
-        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
-        mixer.update(dt);
-        return;
+    cosmetic: (dt) => {
+      if (!mixer) return;
+      // Three gaits, blended by ground speed: still → prowling walk →
+      // full gallop, each rate-matched to the metres actually covered so
+      // no gait skates. Below the gallop threshold the old two-way blend
+      // played the gallop at 0.4x, which is slow motion, not stalking.
+      // A strike in flight owns the pose: locomotion ducks under it.
+      const striking = strikeBlend(attackAction);
+      const moving = Math.min(gaitSpeed / 1.2, 1) * (1 - striking);
+      const gallop = clamp((gaitSpeed - 2.5) / 2, 0, 1);
+      if (moveAction) {
+        moveAction.setEffectiveWeight(walkAction ? moving * gallop : moving);
+        moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.4, 2.2);
       }
-      if (!posed) return;   // a static sculpt has its own shape; leave it be
-      // stalking gait: diagonal pairs, slower and heavier than a hound's
-      const gait = time * 7;
-      for (let i = 0; i < 4; i++) {
-        const phase = gait + ((i === 0 || i === 3) ? 0 : Math.PI);
-        legs[i].rotation.x = Math.sin(phase) * 0.5;
+      if (walkAction) {
+        walkAction.setEffectiveWeight(moving * (1 - gallop));
+        walkAction.timeScale = clamp(gaitSpeed / Math.max(walkStride, 0.3), 0.5, 1.8);
       }
-      body.position.y = BODY_Y + Math.abs(Math.sin(gait)) * 0.07;
-      body.rotation.z = Math.sin(gait) * 0.035;
-      neck.rotation.y = Math.sin(time * 1.7) * 0.1;
-      neck.rotation.x = Math.sin(time * 2.3) * 0.06;
-      jaw.rotation.x = 0.12 + Math.abs(Math.sin(time * 3.1)) * 0.24; // panting
-      for (let i = 0; i < tailSegs.length; i++) {
-        tailSegs[i].rotation.y = Math.sin(time * 3.4 - i * 0.5) * 0.16;
-        tailSegs[i].rotation.x = Math.sin(time * 2.1 - i * 0.4) * 0.05;
-      }
-      // the stand-in's lunge-bite, over the gait: neck coils up and back,
-      // drives down into the bite, jaw thrown open on the way in
-      if (attackT >= 0) {
-        const w = strikeCurve(attackT, ATTACK_DUR);
-        neck.rotation.x += w * -0.45;
-        jaw.rotation.x += Math.max(0, -w) * 0.9;
-        body.position.y += Math.max(0, w) * 0.08;
-      }
+      if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
+      mixer.update(dt);
     },
   };
 }
@@ -728,40 +476,30 @@ let swoopSaddleY: number | null = null;
 
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
-  // swoop bike
-  const bikeBody = mat(0x8a4b2f, { rough: 0.5, metal: 0.5 });
-  const dark = mat(0x2a2a2a, { rough: 0.6, metal: 0.4 });
+  // The swoop bike is a vehicle, not a character — nothing animates it, so it
+  // comes in through the prop path, standing on its own low-LOD build (lod.ts)
+  // until the sculpt lands.
   const bike = new THREE.Group();
-  addBox(bike, bikeBody, 0.34, 0.24, 1.7, 0, 0, 0.1);
-  addCyl(bike, dark, 0.1, 0.14, 0.35, 0, 0, -0.8, Math.PI / 2, 0, 0, 8);   // engine
-  addCyl(bike, bikeBody, 0.05, 0.09, 0.7, 0, -0.02, 1.15, Math.PI / 2, 0, 0, 8); // nose
-  addCyl(bike, dark, 0.02, 0.02, 0.5, 0, 0.18, 0.75, 0.9, 0, 0, 6);        // handlebar stem
-  addBox(bike, dark, 0.5, 0.03, 0.03, 0, 0.38, 0.95);
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.7, 8), new THREE.MeshBasicMaterial({ color: 0x77bbff, transparent: true, opacity: 0.8 }));
-  flame.rotation.x = -Math.PI / 2;
-  flame.position.set(0, 0, -1.35);
-  bike.add(flame);
   bike.position.y = 0.55;
   group.add(bike);
-  // The bike is a vehicle, not a character — nothing animates it, so it comes
-  // in through the prop path and simply replaces the procedural box.
   let bikeSettled = !authored;
-  /** the sculpt, once it lands: what the rider is seated and gripped against */
+  /** what the rider is seated and gripped against: the sculpt, once it lands */
   let swoopModel: THREE.Object3D | null = null;
+  /** only a measurement of the sculpt is worth remembering for every rider */
+  let swoopIsSculpt = false;
   if (authored) {
     const swoop = loadProp('nikto_swoop', 2.6, {
-      onLoad: () => { for (const m of bike.children) if ((m as THREE.Mesh).isMesh) m.visible = false; },
-      onSettle: () => { bikeSettled = true; swoopModel = swoop; },
+      lod: true,
+      onSettle: () => { bikeSettled = true; swoopModel = swoop; swoopIsSculpt = true; },
     });
     bike.add(swoop);
+  } else {
+    const standIn = buildLodProp('nikto_swoop');
+    if (standIn) { bike.add(standIn); swoopModel = standIn; }
   }
   // rider (statically posed on the canonical rig — no clips needed)
-  const leather = mat(0x4a3b28, { rough: 0.95 });
-  const { inst: rider, rig: riderRig } = buildBiped({ skin: leather, torso: mat(0x3a2f22, { rough: 0.9 }) });
+  const { inst: rider, rig: riderRig } = buildBiped();
   const rb = riderRig.bones;
-  const skinM = mat(0xa66a4a, { rough: 0.9 });
-  addSphere(rb.head, skinM, 0.13, 0, 0.04, 0, 10, 8);
-  for (let i = 0; i < 5; i++) addCyl(rb.head, skinM, 0.008, 0.018, 0.06, -0.06 + i * 0.03, 0.13, 0.06, -0.4, 0, 0, 5);
   const D = Math.PI / 180;
   const pose: Array<[THREE.Object3D, number, number, number]> = [
     [rb.upperLegL, -95 * D, 0, -8 * D], [rb.upperLegR, -95 * D, 0, 8 * D],
@@ -774,8 +512,10 @@ export function buildNikto(authored = true): CharacterInstance {
   for (const [o, x, y, z] of pose) o.rotation.set(x, y, z);
   // seat the pelvis just above the bike's saddle (top ~0.67): the rig's origin
   // is at the feet, so the root has to sit below the group origin or the rider
-  // floats a metre over the bike with nothing bridging the gap
-  rider.root.position.set(0, -0.22, -0.1);
+  // floats a metre over the bike with nothing bridging the gap. The body on
+  // the rig — sculpt or its stand-in — has the sculpt's hips, which sit lower
+  // than the game rig's, so the root is raised to meet the saddle with them.
+  rider.root.position.set(0, -0.09, -0.1);
   group.add(rider.root);
 
   // The rider is a whole biped on the canonical rig, just held in one pose
@@ -784,10 +524,6 @@ export function buildNikto(authored = true): CharacterInstance {
   const swap = attachAuthored(riderRig, ENEMY_MODELS.nikto.model, ENEMY_MODELS.nikto.height, {
     keep: [rb.weaponR, rb.weaponL],
     enabled: authored,
-    // The seat offset above is tuned to the procedural rider's proportions;
-    // the authored one sits with its hips lower, so it needs raising to meet
-    // the same saddle.
-    onLoad: () => { rider.root.position.y = -0.09; },
   });
 
   /**
@@ -811,13 +547,14 @@ export function buildNikto(authored = true): CharacterInstance {
     const right = new THREE.Vector3();
     group.getWorldDirection(fwd);
     right.set(fwd.z, 0, -fwd.x);
-    if (swoopSaddleY === null) {
+    let saddleY = swoopIsSculpt ? swoopSaddleY : null;
+    if (saddleY === null) {
       const at = group.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, bike.position.y + 3, SWOOP_SEAT.z));
       const world = seatSurface(swoopModel, at, fwd, right, 5);
       if (world === null) return;
-      swoopSaddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+      saddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+      if (swoopIsSculpt) swoopSaddleY = saddleY;
     }
-    const saddleY = swoopSaddleY;
     // the pose above is tuned to the *stand-in* saddle, so this corrects it by
     // however far the sculpt's own saddle differs — which keeps the tuning for
     // the procedural rider and the retargeted one both
@@ -847,7 +584,6 @@ export function buildNikto(authored = true): CharacterInstance {
       bike.position.y = 0.55 + Math.sin(time * 6) * 0.05;
       bike.rotation.z = Math.sin(time * 3.1) * 0.06;
       bike.rotation.x = 0;
-      flame.scale.y = 0.8 + Math.sin(time * 40) * 0.2;
       if (attackT >= 0) {
         attackT += dt;
         if (attackT > ATTACK_DUR) attackT = -1;
@@ -861,138 +597,84 @@ export function buildNikto(authored = true): CharacterInstance {
   };
 }
 
-// ---------- Incinerator trooper: red-striped white armor, flame projector ----------
+// ---------- Incinerator trooper: flame projector ----------
 export function buildFlametrooper(authored = true): CharacterInstance {
-  const armor = mat(0xe0ddd4, { rough: 0.45, metal: 0.25 });
-  const stripe = mat(0xa8281e, { rough: 0.5 });
-  const suitM = mat(0x2a2a2a, { rough: 0.85 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: armor });
-  const b = rig.bones;
-  const dark = mat(0x0c0c0e, { rough: 0.5 });
-  addBox(b.chest, armor, 0.34, 0.3, 0.05, 0, 0.06, 0.12);
-  addBox(b.chest, stripe, 0.35, 0.06, 0.055, 0, 0.14, 0.12);     // red band
-  addBox(b.hips, armor, 0.32, 0.12, 0.05, 0, 0.04, 0.11);
-  addBox(b.shoulderL, stripe, 0.15, 0.06, 0.17, -0.05, 0.05, 0, 0, 0, 0.22);
-  addBox(b.shoulderR, stripe, 0.15, 0.06, 0.17, 0.05, 0.05, 0, 0, 0, -0.22);
-  // helmet: flat-faced with a wide visor slot and a red crest stripe
-  addSphere(b.head, armor, 0.15, 0, 0.05, 0, 12, 10, 0.95, 0.92);
-  addBox(b.head, armor, 0.22, 0.2, 0.06, 0, 0.04, 0.1);
-  addBox(b.head, dark, 0.18, 0.03, 0.03, 0, 0.075, 0.13);        // visor slit
-  addBox(b.head, stripe, 0.03, 0.16, 0.2, 0, 0.14, -0.01);       // crest
-  // twin fuel tanks on the back
-  addCyl(b.jetpack, mat(0x8f2c20, { rough: 0.5, metal: 0.4 }), 0.07, 0.07, 0.42, -0.09, -0.06, -0.02);
-  addCyl(b.jetpack, mat(0x8f2c20, { rough: 0.5, metal: 0.4 }), 0.07, 0.07, 0.42, 0.09, -0.06, -0.02);
-  // flame projector: fat shrouded barrel, pilot light at the mouth
+  const { inst, rig } = buildBiped();
   const proj = new THREE.Group();
-  addBox(proj, dark, 0.06, 0.09, 0.34, 0, 0, 0.05);
-  addCyl(proj, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.045, 0.045, 0.3, 0, 0.01, 0.3, Math.PI / 2, 0, 0, 8);
-  addCyl(proj, dark, 0.065, 0.05, 0.09, 0, 0.01, 0.47, Math.PI / 2, 0, 0, 8);
-  const pilot = addSphere(proj, mat(0xffa030, { emissive: 0xff6a10, rough: 0.3 }), 0.018, 0, 0.05, 0.47, 6, 5);
   proj.rotation.x = Math.PI / 2;
-  b.weaponR.add(proj);
-  mountEnemyProp(proj, 'flame_projector', WEAPON_PROPS.flame_projector.length, 0, 0.2, 0, true);
+  rig.bones.weaponR.add(proj);
+  mountEnemyProp(proj, 'flame_projector', WEAPON_PROPS.flame_projector.length, 0, 0.2, 0, true, authored);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0.01, 0.5);
   proj.add(muzzle);
   inst.muzzle = muzzle;
   authoredEnemy(inst, rig, 'flametrooper', authored);
-  const prev = inst.cosmetic;
-  inst.cosmetic = (dt, time) => {
-    (pilot.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.8 + Math.sin(time * 13) * 0.4;
-    prev?.(dt, time);
-  };
   return inst;
 }
 
 // ---------- Krykna: pale cave spider on its own free-form rig ----------
 /**
  * Human-scale skitterer (the playtest rule holds: nothing smaller than a
- * person). Free-form rig like the massiff: the gait is code, not clips, so an
- * authored model comes in through `loadCreature` when one lands.
+ * person). On a rig of its own like the massiff: the sculpt comes in through
+ * `loadCreature` and plays the code-built clips from GENERATED_CLIPS (its file
+ * ships none), and until it lands its low-LOD stand-in plays the same clips on
+ * the same skeleton.
  */
 function buildKryknaBase(
-  scale: number, bodyColor: number, authored: boolean, creatureId: CreatureId,
-  decorate?: (body: THREE.Group) => void,
+  scale: number, authored: boolean, creatureId: CreatureId,
+  /** the stand-in, as it is built: the broodmother's stand-in clutch rides on it */
+  decorate?: (standIn: LodCreatureModel) => void,
   /** the sculpt, the moment it lands: the broodmother's clutch rides on it */
   onModel?: (model: THREE.Object3D) => void,
 ): CharacterInstance {
-  const chitin = mat(bodyColor, { rough: 0.75 });
-  const joint = mat(0x8d867a, { rough: 0.85 });
-  const dark = mat(0x22201c, { rough: 0.7 });
   const root = new THREE.Group();
 
-  const BODY_Y = 0.95;
-  const body = new THREE.Group();
-  body.position.y = BODY_Y;
-  root.add(body);
-  addSphere(body, chitin, 0.42, 0, 0.05, -0.25, 12, 9, 0.9, 1.25);   // abdomen
-  addSphere(body, chitin, 0.3, 0, 0, 0.35, 10, 8, 0.85, 1);          // cephalothorax
-  // eye cluster + fangs
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI - Math.PI / 2;
-    addSphere(body, dark, 0.035, Math.sin(a) * 0.16, 0.1 + Math.cos(a) * 0.06, 0.6, 5, 4);
-  }
-  for (const sx of [-1, 1]) addCyl(body, dark, 0.008, 0.035, 0.22, sx * 0.09, -0.14, 0.62, 2.6, 0, 0, 5);
-
-  // eight legs: two joints each, animated as four diagonal pairs
-  const legs: { hip: THREE.Group; knee: THREE.Group; side: number; phase: number }[] = [];
-  for (let i = 0; i < 8; i++) {
-    const side = i < 4 ? -1 : 1;
-    const zi = (i % 4) - 1.5;
-    const hip = new THREE.Group();
-    hip.position.set(side * 0.28, 0.08, zi * 0.28 + 0.1);
-    hip.rotation.z = side * -0.9;
-    hip.rotation.y = zi * 0.28 * side;
-    addCyl(hip, joint, 0.035, 0.05, 0.75, 0, 0.34, 0, 0, 0, 0, 6);   // femur, angled up-out
-    const knee = new THREE.Group();
-    knee.position.set(0, 0.7, 0);
-    knee.rotation.z = side * 2.1;
-    addCyl(knee, chitin, 0.014, 0.034, 0.95, 0, 0.42, 0, 0, 0, 0, 6); // tibia, down to the point
-    hip.add(knee);
-    body.add(hip);
-    legs.push({ hip, knee, side, phase: (i % 2) * Math.PI + zi * 0.7 });
-  }
-
-  decorate?.(body);
-
-  // The authored spider plays the code-built clips from GENERATED_CLIPS (its
-  // file ships none), blended and rate-matched to the gait like the massiff.
-  let posed = true;
+  // blended and rate-matched to the gait like the massiff
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
   let attackAction: THREE.AnimationAction | null = null;
-  let attackT = -1;
   const ATTACK_DUR = 0.55;
   let clipStride = 3;
+  const wire = (body: THREE.Object3D): void => {
+    mixer = null;
+    idleAction = moveAction = attackAction = null;
+    const clips = (body.userData.clips ?? []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    const idle = clips.find((c) => /idle|breath|stand/i.test(c.name));
+    const move = clips.find((c) => /run|gallop|sprint|walk|trot|move/i.test(c.name));
+    const atk = clips.find((c) => /attack|strike|bite/i.test(c.name));
+    mixer = new THREE.AnimationMixer(body);
+    if (atk) {
+      attackAction = strikeAction(mixer, atk);
+    }
+    if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
+    if (move) {
+      moveAction = mixer.clipAction(move);
+      moveAction.play();
+      moveAction.setEffectiveWeight(0);
+      // a skitter cycle covers roughly a body length and a half
+      clipStride = 1.6 / Math.max(move.duration, 0.2);
+    }
+  };
+  const standIn = buildLodCreature(creatureId);
   let settled = !authored;
   if (authored) {
     const model = loadCreature(creatureId, {
       onSettle: () => { settled = true; },
       onLoad: (loaded) => {
-        body.visible = false;
-        posed = false;
+        if (standIn) standIn.holder.visible = false;
         onModel?.(loaded);
-        const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
-        if (!clips.length) return;
-        const idle = clips.find((c) => /idle|breath|stand/i.test(c.name));
-        const move = clips.find((c) => /run|gallop|sprint|walk|trot|move/i.test(c.name));
-        const atk = clips.find((c) => /attack|strike|bite/i.test(c.name));
-        mixer = new THREE.AnimationMixer(loaded);
-        if (atk) {
-          attackAction = strikeAction(mixer, atk);
-        }
-        if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
-        if (move) {
-          moveAction = mixer.clipAction(move);
-          moveAction.play();
-          moveAction.setEffectiveWeight(0);
-          // a skitter cycle covers roughly a body length and a half
-          clipStride = 1.6 / Math.max(move.duration, 0.2);
-        }
+        wire(loaded);
       },
     });
     root.add(model);
+  }
+  // after the sculpt's holder: a search by bone name meets the sculpt first
+  if (standIn) {
+    root.add(standIn.holder);
+    decorate?.(standIn);
+    wire(standIn.model);
   }
   root.scale.setScalar(scale);
 
@@ -1002,7 +684,6 @@ function buildKryknaBase(
     modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
-      attackT = 0;
       if (attackAction) {
         attackAction.reset();
         attackAction.setEffectiveWeight(1);
@@ -1010,50 +691,22 @@ function buildKryknaBase(
       }
       return ATTACK_DUR;
     },
-    cosmetic: (dt, time) => {
-      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
-      if (mixer) {
-        const striking = strikeBlend(attackAction);
-        const moving = Math.min(gaitSpeed / 4, 1) * (1 - striking);
-        if (moveAction) {
-          moveAction.setEffectiveWeight(moving);
-          moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.5, 2.4);
-        }
-        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
-        mixer.update(dt);
-        return;
+    cosmetic: (dt) => {
+      if (!mixer) return;
+      const striking = strikeBlend(attackAction);
+      const moving = Math.min(gaitSpeed / 4, 1) * (1 - striking);
+      if (moveAction) {
+        moveAction.setEffectiveWeight(moving);
+        moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.5, 2.4);
       }
-      if (!posed) return;
-      const rate = 4 + Math.min(gaitSpeed, 8) * 1.4;
-      const lift = Math.min(1, 0.25 + gaitSpeed / 5);
-      for (const leg of legs) {
-        const ph = time * rate + leg.phase;
-        leg.hip.rotation.x = Math.sin(ph) * 0.35 * lift;
-        leg.knee.rotation.z = leg.side * (2.1 + Math.cos(ph) * 0.25 * lift);
-      }
-      body.position.y = BODY_Y + Math.sin(time * rate * 2) * 0.03 * lift;
-      body.rotation.y = Math.sin(time * 1.1) * 0.05;
-      // the stand-in's strike: rear up on the back legs with the front pair
-      // raised, then slam them down as the body drops onto the target
-      if (attackT >= 0) {
-        const w = strikeCurve(attackT, ATTACK_DUR);
-        for (const leg of legs) {
-          // hips sit along ±z; the front row (largest z) leads the strike
-          const front = leg.hip.position.z > 0.5 ? 1 : leg.hip.position.z > 0.2 ? 0.45 : 0;
-          leg.hip.rotation.x += w * -0.9 * front;
-          leg.knee.rotation.z += leg.side * w * -0.4 * front;
-        }
-        body.position.y += Math.max(0, w) * 0.16;
-        body.rotation.x = w * -0.22;
-      } else {
-        body.rotation.x = 0;
-      }
+      if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
+      mixer.update(dt);
     },
   };
 }
 
 export function buildKrykna(authored = true): CharacterInstance {
-  return buildKryknaBase(1, 0xcfc6b4, authored, 'krykna');
+  return buildKryknaBase(1, authored, 'krykna');
 }
 
 /**
@@ -1088,20 +741,21 @@ export function buildSpiderEgg(): CharacterInstance {
 
 /** What hatches from it: a half-size krykna on the same rig and clips. */
 export function buildSpiderling(): CharacterInstance {
-  return buildKryknaBase(0.55, 0xcfc6b4, true, 'krykna');
+  return buildKryknaBase(0.55, true, 'krykna');
 }
 
 /**
- * Where the stand-in's rack sits: `[x, y, z, radius]` on the *procedural*
- * spider, in the character root's frame.
+ * Where the stand-in's rack sits: `[x, y, z, radius]` in the character root's
+ * frame — the sculpt's own six eggs, measured off it with the stand-in
+ * (`buildLodCreature`'s `eggs`). These are only the fallback for a
+ * measurement that has none.
  *
- * Only the stand-in needs these. The authored sculpt carries six real eggs and
- * the game drives those (`characters/eggrack.ts`); this is the same clutch in
- * the same 1–2–2–1 pyramid, sized down onto the stand-in's much smaller
- * abdomen so a queen whose .glb has not landed still has an ammunition readout
- * to look at.
+ * Only the stand-in needs them. The authored sculpt carries six real eggs and
+ * the game drives those (`characters/eggrack.ts`); the stand-in wears spheres
+ * in the same spots so a queen whose .glb has not landed still has an
+ * ammunition readout to look at.
  */
-const RACK_SPOTS: readonly (readonly [number, number, number, number])[] = [
+const RACK_SPOTS: readonly (readonly number[])[] = [
   [0, 1.00, -0.80, 0.16],
   [-0.23, 1.05, -0.72, 0.17],
   [0.23, 1.05, -0.72, 0.17],
@@ -1134,19 +788,21 @@ export function buildBroodmother(authored = true): CharacterInstance {
   // spent one is that same egg darkened and collapsed against her back.
   //
   // Until then — and forever, on a board where the file never arrives — the
-  // stand-in spider wears the six spheres built below instead. They hang off
-  // the procedural `body` group, so the moment the sculpt lands and that group
-  // goes invisible they go with it, and there is never a frame wearing both.
+  // stand-in spider wears the six spheres built below instead, where the
+  // sculpt's own eggs are. They hang off the stand-in, so the moment the
+  // sculpt lands and the stand-in goes invisible they go with it, and there is
+  // never a frame wearing both.
   let rack: SculptRack | null = null;
   const rackMeshes: THREE.Mesh[] = [];
-  const inst = buildKryknaBase(1.65, 0x9d9484, authored, 'krykna_brood', (body) => {
-    for (const [x, y, z, r] of RACK_SPOTS.slice(0, BROOD_EGG_RACK)) {
+  const inst = buildKryknaBase(1.65, authored, 'krykna_brood', (standIn) => {
+    const spots = standIn.eggs.length >= BROOD_EGG_RACK ? standIn.eggs : RACK_SPOTS;
+    for (const [x, y, z, r] of spots.slice(0, BROOD_EGG_RACK)) {
       // a shell, not a bead: rough enough that six of them do not read as one
       // glossy mass when the whole clutch is up
       const m = new THREE.MeshStandardMaterial({ color: 0x0a0c0a, roughness: 0.78 });
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), m);
-      // the spots are in the root's frame; the stand-in's abdomen is not
-      mesh.position.set(x, y - body.position.y, z);
+      // the spots are in the root's frame, which the stand-in's holder shares
+      mesh.position.set(x, y, z);
       mesh.castShadow = true;
       // A readout, not skin: the player's hurt flash clones every material it
       // finds and drives it red, which would both steal these out from under
@@ -1158,7 +814,7 @@ export function buildBroodmother(authored = true): CharacterInstance {
       // otherwise wear six black balls for no reason. The first push of the
       // rack state is what brings it out.
       mesh.visible = false;
-      body.add(mesh);
+      standIn.holder.add(mesh);
       rackMeshes.push(mesh);
     }
   }, (model) => {
@@ -1263,186 +919,87 @@ export function buildBroodmother(authored = true): CharacterInstance {
 
 // ---------- Quarren netcaster: squid-faced dock hand turned hostile ----------
 export function buildQuarren(authored = true): CharacterInstance {
-  const slicker = mat(0x3d4a42, { rough: 0.95 });
-  const suitM = mat(0x4a4438, { rough: 0.9 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: slicker });
-  const b = rig.bones;
-  const skinM = mat(0xb06a4a, { rough: 0.85 });
-  // domed head with side-set eyes and four face tentacles
-  addSphere(b.head, skinM, 0.14, 0, 0.06, 0, 10, 8, 1.15, 1);
-  const dark = mat(0x1c1812, { rough: 0.7 });
-  addSphere(b.head, dark, 0.024, -0.09, 0.08, 0.08, 5, 4);
-  addSphere(b.head, dark, 0.024, 0.09, 0.08, 0.08, 5, 4);
-  const tentacles: THREE.Mesh[] = [];
-  for (let i = 0; i < 4; i++) {
-    const t = addCyl(b.head, skinM, 0.012, 0.028, 0.22, -0.06 + i * 0.04, -0.08, 0.1, 0.35 + (i % 2) * 0.15, 0, 0, 5);
-    tentacles.push(t);
-  }
-  // rolled net slung over the shoulder + hip floats
-  addCyl(b.chest, mat(0x7a6c50, { rough: 1 }), 0.07, 0.09, 0.5, 0, 0.06, -0.02, 0, 0, -0.9, 7);
-  addSphere(b.hips, mat(0xc26a2a, { rough: 0.8 }), 0.06, 0.2, 0.02, 0, 6, 5);
+  const { inst, rig } = buildBiped();
   // net launcher: a stubby wide-mouthed tube
   const launcher = new THREE.Group();
-  addCyl(launcher, dark, 0.05, 0.06, 0.4, 0, 0, 0.1, Math.PI / 2, 0, 0, 8);
-  addCyl(launcher, mat(0x6b6f72, { rough: 0.4, metal: 0.6 }), 0.075, 0.06, 0.1, 0, 0, 0.32, Math.PI / 2, 0, 0, 8);
-  b.weaponR.add(launcher);
-  mountEnemyProp(launcher, 'net_launcher', WEAPON_PROPS.net_launcher.length, 0, 0.12, 0, true);
+  rig.bones.weaponR.add(launcher);
+  mountEnemyProp(launcher, 'net_launcher', WEAPON_PROPS.net_launcher.length, 0, 0.12, 0, true, authored);
   const muzzle = new THREE.Group();
   muzzle.position.set(0, 0, 0.38);
   launcher.add(muzzle);
   inst.muzzle = muzzle;
   authoredEnemy(inst, rig, 'quarren', authored);
-  const prev = inst.cosmetic;
-  inst.cosmetic = (dt, time) => {
-    for (let i = 0; i < tentacles.length; i++) tentacles[i].rotation.x = 0.35 + (i % 2) * 0.15 + Math.sin(time * 2.2 + i) * 0.08;
-    prev?.(dt, time);
-  };
   return inst;
 }
 
 // ---------- Alamite: pale cave-dweller of the Mandalore ruins ----------
 export function buildAlamite(authored = true): CharacterInstance {
-  const hide = mat(0xb9b2a4, { rough: 1 });
   const P: Proportions = { ...HUMAN, hipHeight: 0.92, chestLen: 0.34, shoulderWidth: 0.3, upperArmLen: 0.38, forearmLen: 0.34 };
-  const { inst, rig } = buildBiped({ skin: hide, torso: hide, proportions: P });
-  const b = rig.bones;
-  const dark = mat(0x2a241c, { rough: 0.8 });
-  // heavy brow ridge, sunken eyes, tusked underbite
-  addSphere(b.head, hide, 0.15, 0, 0.05, 0.01, 10, 8, 0.95, 1.05);
-  addBox(b.head, hide, 0.24, 0.06, 0.12, 0, 0.1, 0.08);
-  addSphere(b.head, dark, 0.02, -0.06, 0.05, 0.12, 5, 4);
-  addSphere(b.head, dark, 0.02, 0.06, 0.05, 0.12, 5, 4);
-  for (const sx of [-0.05, 0.05]) addCyl(b.head, mat(0xd8cdaa, { rough: 0.6 }), 0.004, 0.018, 0.08, sx, -0.06, 0.12, Math.PI, 0, 0, 4);
-  // bony dorsal ridge down the spine
-  for (let i = 0; i < 4; i++) addCyl(b.chest, hide, 0.01, 0.045, 0.12, 0, 0.16 - i * 0.09, -0.14, -0.5, 0, 0, 5);
-  // rag loincloth + wrapped fists
-  addCyl(b.hips, mat(0x6a5c44, { rough: 1 }), 0.22, 0.26, 0.3, 0, -0.14, 0, 0, 0, 0, 8);
+  const { inst, rig } = buildBiped({ proportions: P });
   // crude stone club
   const club = new THREE.Group();
-  addCyl(club, mat(0x77695a, { rough: 1 }), 0.025, 0.035, 0.62);
-  addSphere(club, mat(0x8d8272, { rough: 1, flat: true }), 0.11, 0, 0.36, 0, 6, 5, 1.3, 1);
   club.rotation.x = Math.PI / 2;
-  b.weaponR.add(club);
-  mountEnemyProp(club, 'alamite_stone_club', WEAPON_PROPS.alamite_stone_club.length, Math.PI / 2, 0, 0.14);
+  rig.bones.weaponR.add(club);
+  mountEnemyProp(club, 'alamite_stone_club', WEAPON_PROPS.alamite_stone_club.length, Math.PI / 2, 0, 0.14, false, authored);
   authoredEnemy(inst, rig, 'alamite', authored);
   return inst;
 }
 
 // ---------- Imperial interceptor drone: probe-droid-style kamikaze flier ----------
 export function buildInterceptorDrone(authored = true): CharacterInstance {
-  const shell = mat(0x2e3138, { rough: 0.4, metal: 0.7 });
-  const dark = mat(0x14151a, { rough: 0.55, metal: 0.5 });
   const root = new THREE.Group();
-  const core = new THREE.Group();
-  core.position.y = 1.15;
-  root.add(core);
-  addSphere(core, shell, 0.34, 0, 0, 0, 12, 10, 0.85, 1);
-  addCyl(core, dark, 0.36, 0.3, 0.1, 0, -0.16, 0, 0, 0, 0, 10);        // sensor skirt
-  const eye = addSphere(core, mat(0xff2810, { emissive: 0xff2810, rough: 0.3 }), 0.06, 0, 0.02, 0.3, 8, 6);
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    addSphere(core, mat(0xffb060, { emissive: 0x7a3a10, rough: 0.4 }), 0.02, Math.cos(a) * 0.28, 0.12, Math.sin(a) * 0.28, 5, 4);
-  }
-  // dangling manipulator arms — what gives a probe droid its silhouette
-  const arms: THREE.Mesh[] = [];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const arm = addCyl(core, dark, 0.012, 0.022, 0.55, Math.cos(a) * 0.2, -0.42, Math.sin(a) * 0.2, 0.12 * Math.cos(a * 3), 0, 0.12 * Math.sin(a * 2), 5);
-    arms.push(arm);
-  }
-  addCyl(core, dark, 0.05, 0.08, 0.16, 0, 0.3, 0, 0, 0, 0, 8);          // top thruster
-  let posed = true;
   let mixer: THREE.AnimationMixer | null = null;
+  const wire = (body: THREE.Object3D): void => {
+    mixer = null;
+    const clips = (body.userData.clips ?? []) as THREE.AnimationClip[];
+    if (clips.length) {
+      mixer = new THREE.AnimationMixer(body);
+      mixer.clipAction(clips[0]).play();   // one looping hover-idle is the whole performance
+    }
+  };
+  const standIn = buildLodCreature('interceptor_drone');
   let settled = !authored;
   if (authored) {
     const model = loadCreature('interceptor_drone', {
       onSettle: () => { settled = true; },
       onLoad: (loaded) => {
-        core.visible = false;
-        posed = false;
-        const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
-        if (clips.length) {
-          mixer = new THREE.AnimationMixer(loaded);
-          mixer.clipAction(clips[0]).play();   // one looping hover-idle is the whole performance
-        }
+        if (standIn) standIn.holder.visible = false;
+        wire(loaded);
       },
     });
     root.add(model);
   }
+  if (standIn) { root.add(standIn.holder); wire(standIn.model); }
   return {
     root, rig: null, animator: null, height: 1.7, baseScale: 1,
     modelReady: () => settled,
-    cosmetic: (dt, time) => {
-      if (mixer) { mixer.update(dt); return; }
-      if (!posed) return;
-      core.position.y = 1.15 + Math.sin(time * 2.6) * 0.06;
-      core.rotation.y = Math.sin(time * 0.9) * 0.4;
-      for (let i = 0; i < arms.length; i++) arms[i].rotation.x = 0.12 * Math.cos(i * 3) + Math.sin(time * 3 + i * 1.7) * 0.09;
-      (eye.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.9 + Math.sin(time * 7) * 0.35;
-    },
+    cosmetic: (dt) => { mixer?.update(dt); },
   };
 }
 
 // ---------- Ringworld enforcer: shielded heavy — flank him or go around ----------
+/**
+ * The tower shield is the sculpt's own; the real block is the shield collider
+ * the enemy code raises, facing wherever he faces.
+ */
 export function buildRingEnforcer(authored = true): CharacterInstance {
-  const plate = mat(0x5a2e30, { rough: 0.5, metal: 0.4 });
-  const suitM = mat(0x26262c, { rough: 0.85 });
-  const { inst, rig } = buildBiped({ skin: suitM, torso: plate, scale: 1.1 });
-  const b = rig.bones;
-  const dark = mat(0x101014, { rough: 0.5 });
-  addBox(b.chest, plate, 0.42, 0.34, 0.26, 0, 0.08, 0);
-  addBox(b.shoulderL, plate, 0.2, 0.1, 0.2, -0.06, 0.06, 0);
-  addBox(b.shoulderR, plate, 0.2, 0.1, 0.2, 0.06, 0.06, 0);
-  // visored enforcer helm with a squared jaw guard
-  addSphere(b.head, plate, 0.15, 0, 0.05, 0, 10, 8, 0.95, 1);
-  addBox(b.head, dark, 0.22, 0.045, 0.06, 0, 0.06, 0.11);
-  addBox(b.head, plate, 0.2, 0.1, 0.08, 0, -0.05, 0.09);
-  inst.muzzle = rifle(b.weaponR);
-  // tower shield on the left arm: an energy pane framed in metal. The pane is
-  // cosmetic — the real block is the shield collider the enemy code raises,
-  // facing wherever he faces — but the glow is what tells you to flank.
-  const shield = new THREE.Group();
-  addBox(shield, dark, 0.5, 1.1, 0.05, 0, 0, 0);
-  const pane = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.44, 1.0),
-    new THREE.MeshBasicMaterial({
-      color: 0x66c8ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    }),
-  );
-  pane.position.z = 0.04;
-  shield.add(pane);
-  shield.position.set(0, -0.12, 0.1);
-  shield.rotation.y = Math.PI;
-  b.forearmL.add(shield);
+  const { inst, rig } = buildBiped({ scale: 1.1 });
+  inst.muzzle = rifle(rig.bones.weaponR, authored);
   authoredEnemy(inst, rig, 'ringEnforcer', authored);
-  const prev = inst.cosmetic;
-  inst.cosmetic = (dt, time) => {
-    (pane.material as THREE.MeshBasicMaterial).opacity = 0.24 + Math.sin(time * 5.5) * 0.06;
-    prev?.(dt, time);
-  };
   return inst;
 }
 
-// ---------- monster bosses: the four creature sculpts (docs/BOSSES.md) ----------
+// ---------- monster bosses: the creature sculpts (docs/BOSSES.md) ----------
 
 /**
- * The shape a monster boss falls back to.
- *
- * Every other creature in the game is a procedural animal first and a sculpt
- * second, because it shipped before its model did. These four are the other way
- * round — they exist because the models landed — so rather than four bespoke
- * procedural beasts that nobody will ever see, they share one: a blocked-out
- * mass on four or two limbs, at the right size and silhouette to fight against.
- * It is hidden the instant the sculpt lands, which on a warm cache is the same
- * frame it spawns; it stands only if a file fails, and a boss you cannot see is
- * a match you cannot finish.
+ * A monster boss: its sculpt, on the code clips `anim/quadruped.ts` builds
+ * against its rig, and until that lands its low-LOD stand-in (lod.ts) on the
+ * same rig playing the same clips — so a boss whose file is slow, or never
+ * comes, is still that animal, at the right size, moving the way it will.
  */
 function buildMonsterBase(
-  creatureId: CreatureId, height: number, length: number, hide: number,
+  creatureId: CreatureId, height: number, length: number,
   opts: {
-    biped?: boolean;
-    horn?: number;
     /**
      * A colossus that is only half on the surface (docs/BOSSES.md §2.5, §2.6).
      * The sculpt is a whole animal; `sink` drops it into the ground by that
@@ -1452,125 +1009,62 @@ function buildMonsterBase(
      * which is what makes the intersection read when the ground opens.
      */
     buried?: { sink: number; pitch: number };
-    /**
-     * A reared worm rather than an animal on legs: the stand-in is a column
-     * of segments curving up out of the ground to a mandibled head, pivoting
-     * at the sand line, and it has nothing to walk on.
-     */
-    worm?: boolean;
   } = {},
 ): CharacterInstance {
-  const skin = mat(hide, { rough: 0.9 });
-  const dark = mat(0x2a241e, { rough: 0.8 });
   const root = new THREE.Group();
-  const body = new THREE.Group();
-  body.position.y = height * 0.55;
-  root.add(body);
 
-  const legs: THREE.Group[] = [];
-  /** the worm's segments, for the stand-in's writhe */
-  const coils: THREE.Mesh[] = [];
-  if (opts.worm) {
-    // The column stands on the pivot: the base segment is under the surface
-    // (the cut is never seen), the rest rise and lean forward to the head.
-    body.position.y = 0;
-    const plate = mat(0x6b5a3e, { rough: 0.95 });
-    const n = 7;
-    for (let i = 0; i < n; i++) {
-      const f = i / (n - 1);
-      const r = height * 0.21 * (1 - f * 0.25);
-      // a quarter-arc: up from the sand and forward
-      const y = -height * 0.25 + f * height * 0.92;
-      const z = -length * 0.28 + Math.sin(f * Math.PI * 0.5) * length * 0.36;
-      coils.push(addSphere(body, i % 2 ? plate : skin, r, 0, y, z, 12, 9, 0.8, 1.15));
-    }
-    // the head: a blunt dome, and three mandibles spread around the mouth
-    const hy = height * 0.8, hz = length * 0.1;
-    addSphere(body, skin, height * 0.24, 0, hy, hz, 12, 9, 0.9, 1.1);
-    for (let k = 0; k < 3; k++) {
-      const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
-      const m = new THREE.Group();
-      m.position.set(Math.cos(a) * height * 0.16, hy + Math.sin(a) * height * 0.16, hz + height * 0.18);
-      m.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
-      addCyl(m, dark, 0.02, height * 0.055, height * 0.34, 0, 0, height * 0.14, Math.PI / 2, 0, 0, 6);
-      body.add(m);
-    }
-  } else if (opts.biped) {
-    addSphere(body, skin, height * 0.3, 0, 0, 0, 10, 8, 1, 1.25);              // hunched torso
-    addSphere(body, skin, height * 0.17, 0, height * 0.3, length * 0.1, 9, 7); // skull
-    for (const sx of [-1, 1]) {
-      // arms longer than the legs, as the design says
-      const arm = new THREE.Group();
-      arm.position.set(sx * height * 0.26, height * 0.12, 0);
-      addCyl(arm, skin, height * 0.07, height * 0.055, height * 0.55, 0, -height * 0.27, 0, 0.25, 0, sx * 0.2, 7);
-      body.add(arm);
-      legs.push(arm);
-      const leg = new THREE.Group();
-      leg.position.set(sx * height * 0.15, -height * 0.2, 0);
-      addCyl(leg, skin, height * 0.09, height * 0.06, height * 0.35, 0, -height * 0.17, 0, 0, 0, 0, 7);
-      root.add(leg);
-      leg.position.y += body.position.y;
-      legs.push(leg);
-    }
-  } else {
-    addSphere(body, skin, height * 0.42, 0, 0, 0, 12, 9, length / height * 0.42, 1);  // barrel
-    addSphere(body, skin, height * 0.26, 0, height * 0.1, length * 0.42, 10, 8);       // head
-    if (opts.horn) addCyl(body, dark, 0.02, opts.horn, opts.horn * 3, 0, height * 0.3, length * 0.5, -0.5, 0, 0, 7);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const leg = new THREE.Group();
-      leg.position.set(sx * height * 0.25, -height * 0.3, sz * length * 0.28);
-      addCyl(leg, skin, height * 0.1, height * 0.07, height * 0.4, 0, -height * 0.2, 0, 0, 0, 0, 7);
-      body.add(leg);
-      legs.push(leg);
-    }
-  }
-
-  // The sculpt: `loadCreature` scales it to its registered height and stands it
-  // on the ground, and its code clips (anim/quadruped.ts) drive it — blended
-  // and rate-matched to ground speed exactly as the massiff and spiders are.
-  let posed = true;
+  // blended and rate-matched to ground speed exactly as the massiff and
+  // spiders are
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let moveAction: THREE.AnimationAction | null = null;
   let attackAction: THREE.AnimationAction | null = null;
-  let attackT = -1;
   /** matches the 'attack' clip durations in anim/quadruped.ts, close enough */
   const ATTACK_DUR = 0.85;
   let clipStride = 3;
+  const wire = (body: THREE.Object3D): void => {
+    mixer = null;
+    idleAction = moveAction = attackAction = null;
+    const clips = (body.userData.clips ?? []) as THREE.AnimationClip[];
+    if (!clips.length) return;
+    mixer = new THREE.AnimationMixer(body);
+    const idle = clips.find((c) => c.name === 'idle');
+    const move = clips.find((c) => c.name === 'move');
+    const atk = clips.find((c) => c.name === 'attack') ?? clips.find((c) => /attack|strike|bite/i.test(c.name));
+    if (atk) {
+      attackAction = strikeAction(mixer, atk);
+    }
+    if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
+    if (move) {
+      moveAction = mixer.clipAction(move);
+      moveAction.play();
+      moveAction.setEffectiveWeight(0);
+      // one cycle carries the animal about its own length
+      clipStride = length / Math.max(move.duration, 0.2);
+    }
+  };
+  const standIn = buildLodCreature(creatureId);
   let settled = false;
   const sculpt = loadCreature(creatureId, {
     onSettle: () => { settled = true; },
     onLoad: (loaded) => {
-      body.visible = false;
-      for (const l of legs) l.visible = false;
-      posed = false;
-      const clips = (loaded.userData.clips ?? []) as THREE.AnimationClip[];
-      if (!clips.length) return;
-      mixer = new THREE.AnimationMixer(loaded);
-      const idle = clips.find((c) => c.name === 'idle');
-      const move = clips.find((c) => c.name === 'move');
-      const atk = clips.find((c) => c.name === 'attack') ?? clips.find((c) => /attack|strike|bite/i.test(c.name));
-      if (atk) {
-        attackAction = strikeAction(mixer, atk);
-      }
-      if (idle) { idleAction = mixer.clipAction(idle); startIdle(idleAction); }
-      if (move) {
-        moveAction = mixer.clipAction(move);
-        moveAction.play();
-        moveAction.setEffectiveWeight(0);
-        // one cycle carries the animal about its own length
-        clipStride = length / Math.max(move.duration, 0.2);
-      }
+      if (standIn) standIn.holder.visible = false;
+      wire(loaded);
     },
   });
+  const holders = [sculpt, ...(standIn ? [standIn.holder] : [])];
   if (opts.buried) {
     // `loadCreature` stands the sculpt on the ground; this puts it back under.
     // The pitch is applied to the holder rather than the model so the clips,
     // which are authored in the model's own space, are unaffected by it.
-    sculpt.position.y = -opts.buried.sink;
-    sculpt.rotation.x = opts.buried.pitch;
+    for (const h of holders) {
+      h.position.y = -opts.buried.sink;
+      h.rotation.x = opts.buried.pitch;
+    }
   }
-  root.add(sculpt);
+  // the stand-in after the sculpt's holder: a search by bone name meets the sculpt first
+  for (const h of holders) root.add(h);
+  if (standIn) wire(standIn.model);
 
   let gaitSpeed = 0;
   return {
@@ -1578,7 +1072,6 @@ function buildMonsterBase(
     modelReady: () => settled,
     setGait: (speed: number) => { gaitSpeed = speed; },
     attack: () => {
-      attackT = 0;
       if (attackAction) {
         attackAction.reset();
         attackAction.setEffectiveWeight(1);
@@ -1586,63 +1079,38 @@ function buildMonsterBase(
       }
       return ATTACK_DUR;
     },
-    cosmetic: (dt, time) => {
-      if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
-      if (mixer) {
-        const striking = strikeBlend(attackAction);
-        const moving = Math.min(gaitSpeed / 3, 1) * (1 - striking);
-        if (moveAction) {
-          moveAction.setEffectiveWeight(moving);
-          moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.6, 2.2);
-        }
-        if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
-        mixer.update(dt);
-        return;
+    cosmetic: (dt) => {
+      if (!mixer) return;
+      const striking = strikeBlend(attackAction);
+      const moving = Math.min(gaitSpeed / 3, 1) * (1 - striking);
+      if (moveAction) {
+        moveAction.setEffectiveWeight(moving);
+        moveAction.timeScale = clamp(gaitSpeed / Math.max(clipStride, 0.5), 0.6, 2.2);
       }
-      if (!posed) return;
-      if (opts.worm) {
-        // the stand-in's writhe: the column sways and each coil rolls a beat
-        // behind the one under it; the strike rears the whole column back and
-        // drives it down, pivoting at the sand line
-        body.rotation.y = Math.sin(time * 0.7) * 0.12;
-        coils.forEach((c, i) => { c.position.x = Math.sin(time * 1.6 - i * 0.6) * height * 0.02 * i; });
-        body.rotation.x = attackT >= 0 ? strikeCurve(attackT, ATTACK_DUR) * -0.22 : Math.sin(time * 1.1) * 0.03;
-        return;
-      }
-      // the stand-in's own trudge, so a missing file is still a moving animal
-      const rate = 2.4 + Math.min(gaitSpeed, 8) * 0.9;
-      legs.forEach((l, i) => { l.rotation.x = Math.sin(time * rate + i * 1.7) * (0.1 + Math.min(gaitSpeed, 6) * 0.04); });
-      body.position.y = height * 0.55 + Math.sin(time * rate * 2) * height * 0.012;
-      // the stand-in's strike: the whole front rears back, then pitches into it
-      if (attackT >= 0) {
-        const w = strikeCurve(attackT, ATTACK_DUR);
-        body.rotation.x = w * -0.16;
-        body.position.y += Math.max(0, w) * height * 0.05;
-      } else {
-        body.rotation.x = 0;
-      }
+      if (idleAction) idleAction.setEffectiveWeight((1 - moving) * (1 - striking));
+      mixer.update(dt);
     },
   };
 }
 
 /** Waystation's smuggled beast: a one-horned woolly bull, 2.6 m at the shoulder. */
 export function buildMudhorn(): CharacterInstance {
-  return buildMonsterBase('mudhorn', 3.0, 4.5, 0x4a3a2a, { horn: 0.16 });
+  return buildMonsterBase('mudhorn', 3.0, 4.5);
 }
 
 /** The Crevasse ice-breaker: a tusked leviathan on four broad flippers. */
 export function buildRavinak(): CharacterInstance {
-  return buildMonsterBase('ravinak', 3.4, 8, 0x5c6470);
+  return buildMonsterBase('ravinak', 3.4, 8);
 }
 
 /** Trask's harbour monster, finally surfaced. */
 export function buildMamacore(): CharacterInstance {
-  return buildMonsterBase('mamacore', 4.6, 12, 0x5a6360);
+  return buildMonsterBase('mamacore', 4.6, 12);
 }
 
 /** Nevarro's pit monster, loosed on the town square. */
 export function buildRancor(): CharacterInstance {
-  return buildMonsterBase('rancor', 5.0, 4, 0x6b5340, { biped: true });
+  return buildMonsterBase('rancor', 5.0, 4);
 }
 
 /**
@@ -1654,7 +1122,7 @@ export function buildKraytDragon(): CharacterInstance {
   // Sunk 3 m and reared: measured against the rig, that leaves the skull at
   // ~4.8 m, the collar and both burrowing claws clear of the sand, the front of
   // the body breaking the surface, and everything from `body3` back under it.
-  return buildMonsterBase('krayt_dragon', 5.4, 18, 0xcfc0a0, { buried: { sink: 3.0, pitch: -0.34 } });
+  return buildMonsterBase('krayt_dragon', 5.4, 18, { buried: { sink: 3.0, pitch: -0.34 } });
 }
 
 /** The Great Forge's sleeper, rising out of the Living Waters. */
@@ -1662,29 +1130,24 @@ export function buildMythosaur(): CharacterInstance {
   // Same treatment, shallower: the horns, skull, neck and both foreclaws stand
   // out of the water and `back` sits on the surface, which is the cut the model
   // brief asked for.
-  return buildMonsterBase('mythosaur', 8.0, 12, 0x30443c, { buried: { sink: 1.6, pitch: -0.34 } });
+  return buildMonsterBase('mythosaur', 8.0, 12, { buried: { sink: 1.6, pitch: -0.34 } });
 }
 
 // ---------- the second monster batch (docs/BOSSES.md §2.7–2.10) ----------
-//
-// None of these four has a sculpt yet: their briefs are open in
-// ASSETS_MODELS.md, and until a file lands the stand-in from `buildMonsterBase`
-// is the boss. The sizes and node names below are the brief's, so the day a
-// model arrives it drops in with no code change, exactly as the first six did.
 
 /** The Refinery's specimen: an armored crawler, five metres at the shoulder and twelve long. */
 export function buildZillo(): CharacterInstance {
-  return buildMonsterBase('zillo', 5.0, 12, 0x5a5f4a);
+  return buildMonsterBase('zillo', 5.0, 12);
 }
 
 /** The Ringworld's night hunter: a quilled cat, landspeeder-sized and faster than one. */
 export function buildNexu(): CharacterInstance {
-  return buildMonsterBase('nexu', 2.2, 5.0, 0x8a7a5a);
+  return buildMonsterBase('nexu', 2.2, 5.0);
 }
 
 /** The Prison Rig's amphibian, hauled up out of the moon pool onto the decks. */
 export function buildKwazelMaw(): CharacterInstance {
-  return buildMonsterBase('kwazel_maw', 4.2, 9, 0x3a6a5a);
+  return buildMonsterBase('kwazel_maw', 4.2, 9);
 }
 
 /** nose to tail, metres — the sculpt is fitted to this along its long axis */
@@ -1753,75 +1216,55 @@ function noCulling(o: THREE.Object3D): void {
 
 export function buildSandworm(): CharacterInstance {
   const root = new THREE.Group();
-  const skin = mat(0xc9b184, { rough: 0.92 });
-  const plate = mat(0xb9a074, { rough: 0.95 });
-  const dark = mat(0x2a241e, { rough: 0.8 });
 
-  // ---- the stand-in: the same animal in blocked-out segments ----
-  const standIn = new THREE.Group();
-  root.add(standIn);
-  const segLen = WORM_LENGTH / (WORM_SEGMENTS + 1);
-  const standSegs: THREE.Group[] = [];
-  for (let i = 0; i <= WORM_SEGMENTS; i++) {
-    const g = new THREE.Group();
-    const head = i === WORM_SEGMENTS;
-    // the body tapers toward the tail, and the head is the widest thing on it
-    const t = i / WORM_SEGMENTS;
-    const r = head ? 1.5 : 0.55 + t * 0.75;
-    addSphere(g, i % 2 || head ? skin : plate, r, 0, 0, 0, 10, 8, 0.92, segLen / r * 0.62);
-    if (head) {
-      // three of the four mandibles read from any angle; the fourth is behind
-      for (let k = 0; k < 4; k++) {
-        const a = (k / 4) * Math.PI * 2;
-        const m = new THREE.Group();
-        m.position.set(Math.cos(a) * 1.0, Math.sin(a) * 1.0, 1.1);
-        m.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
-        addCyl(m, dark, 0.02, 0.34, 2.1, 0, 0, 0.9, Math.PI / 2, 0, 0, 6);
-        g.add(m);
-      }
-    }
-    standIn.add(g);
-    standSegs.push(g);
-  }
-
-  // ---- the sculpt ----
-  // Fitted by its longest axis rather than its height: the file is a straight
-  // forty-metre worm, so its height says nothing about its size. Not grounded
-  // either — the solver below decides where every part of it sits.
+  // ---- the body: the sculpt, or until it lands its low-LOD stand-in ----
+  // Both are the same spine chain, so the solver below lays either one along
+  // the trail the same way. The stand-in's bones carry a prefix of their own:
+  // anything that looks the worm's head up by name means the sculpt's.
   let settled = false;
   let chain: THREE.Object3D[] | null = null;   // spine1 … spine24, head
   let jaw: THREE.Object3D | null = null;
   let restStep = 1;                            // metres between joints, once fitted
+  /** the holder the chain hangs in, which the solver moves to put the tail in place */
+  let holder: THREE.Object3D = root;
+  const adopt = (loaded: THREE.Object3D, into: THREE.Object3D, prefix = ''): boolean => {
+    const find = (n: string): THREE.Object3D | null => {
+      let hit: THREE.Object3D | null = null;
+      loaded.traverse((o) => { if (!hit && o.name === prefix + n) hit = o; });
+      return hit;
+    };
+    const links: THREE.Object3D[] = [];
+    for (let i = 1; i <= WORM_SEGMENTS; i++) {
+      const b = find(`spine${i}`);
+      if (!b) return false;                    // an unexpected rig: keep what stands
+      links.push(b);
+    }
+    const headBone = find('head');
+    if (!headBone) return false;
+    links.push(headBone);
+    // The rest spacing is what the solver has to sample the path at, or the
+    // mesh stretches between joints. Measured on the fitted model, so it is
+    // already in metres.
+    loaded.updateMatrixWorld(true);
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    links[0].getWorldPosition(a);
+    links[1].getWorldPosition(b);
+    restStep = a.distanceTo(b) || 1;
+    chain = links;
+    jaw = find('jaw');
+    holder = into;
+    noCulling(loaded);
+    return true;
+  };
+  // Fitted by its longest axis rather than its height: the file is a straight
+  // forty-metre worm, so its height says nothing about its size. Not grounded
+  // either — the solver below decides where every part of it sits.
+  const standIn = buildLodCreature('sandworm', { prefix: 'lod_' });
   const sculpt = loadProp('sandworm', WORM_LENGTH, {
     axis: 'longest',
     onSettle: () => { settled = true; },
     onLoad: (loaded) => {
-      const find = (n: string): THREE.Object3D | null => {
-        let hit: THREE.Object3D | null = null;
-        loaded.traverse((o) => { if (!hit && o.name === n) hit = o; });
-        return hit;
-      };
-      const links: THREE.Object3D[] = [];
-      for (let i = 1; i <= WORM_SEGMENTS; i++) {
-        const b = find(`spine${i}`);
-        if (!b) return;                        // an unexpected rig: keep the stand-in
-        links.push(b);
-      }
-      const headBone = find('head');
-      if (!headBone) return;
-      links.push(headBone);
-      // The rest spacing is what the solver has to sample the path at, or the
-      // mesh stretches between joints. Measured on the fitted model, so it is
-      // already in metres.
-      loaded.updateMatrixWorld(true);
-      const a = new THREE.Vector3(), b = new THREE.Vector3();
-      links[0].getWorldPosition(a);
-      links[1].getWorldPosition(b);
-      restStep = a.distanceTo(b) || 1;
-      chain = links;
-      jaw = find('jaw');
-      standIn.visible = false;
-      noCulling(loaded);
+      if (adopt(loaded, sculpt) && standIn) standIn.holder.visible = false;
     },
   });
   root.add(sculpt);
@@ -1832,7 +1275,10 @@ export function buildSandworm(): CharacterInstance {
   // actually is. So the whole worm winked out while humps of it were still on
   // screen and above the sand, which is what a playtest reported. One animal
   // is not worth culling; draw it.
-  noCulling(standIn);
+  if (standIn && !chain) {
+    root.add(standIn.holder);
+    adopt(standIn.model, standIn.holder, 'lod_');
+  }
 
   // ---- the path the body is laid along ----
   // World points of where the root has been, newest last, sampled about every
@@ -1975,8 +1421,7 @@ export function buildSandworm(): CharacterInstance {
     attack: () => { attackT = 0; return ATTACK_DUR; },
     cosmetic: (dt, time) => {
       if (attackT >= 0) { attackT += dt; if (attackT > ATTACK_DUR) attackT = -1; }
-      const step = chain ? restStep : segLen;
-      solve(time, step);
+      solve(time, restStep);
 
       // The whole solve is done in world space, because the trail is a world
       // history; the body is then carried into the root's frame, which the enemy
@@ -1988,7 +1433,6 @@ export function buildSandworm(): CharacterInstance {
         // the sculpt: place the tail, then aim each bone at the next joint
         const first = chain[0];
         _p.copy(targets[0]).applyMatrix4(toLocal);
-        const holder = sculpt;
         // `first` hangs under the rig node inside the holder, so the holder is
         // what carries it to the tail's target
         first.getWorldPosition(_q);
@@ -2020,16 +1464,6 @@ export function buildSandworm(): CharacterInstance {
         return;
       }
 
-      // the stand-in: the segments are placed straight onto the same targets
-      for (let i = 0; i < standSegs.length; i++) {
-        const g = standSegs[i];
-        g.position.copy(targets[i]).applyMatrix4(toLocal);
-        const to = targets[Math.min(i + 1, standSegs.length - 1)];
-        _dir.subVectors(to, targets[i]);
-        if (_dir.lengthSq() > 1e-8) {
-          g.lookAt(g.position.x + _dir.x, g.position.y + _dir.y, g.position.z + _dir.z);
-        }
-      }
       void gaitSpeed;
     },
   };
