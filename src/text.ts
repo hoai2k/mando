@@ -184,6 +184,8 @@ export const TEXT = {
     thisIsTheWay: 'This is the Way',
     // Missions
     sealedIn: 'Sealed in',
+    /** an open assault that is not a siege: nothing seals, nothing is sent */
+    holdGround: { title: (where: string) => `Take ${where}`, sub: 'clear them off it' },
     hold: (where: string) => `hold ${where}`,
     waveOf: (n: number, of: number) => `Wave ${n} of ${of}`,
     checkpoint: 'Checkpoint',
@@ -533,6 +535,7 @@ export const TEXT = {
     /** the HUD's standing instruction, by what the room ahead wants */
     makeFor: (where: string, metres: number) => `Make for ${where} · ${metres} m`,
     holdRoom: (where: string, wave: number, of: number) => `Hold ${where} · wave ${wave} of ${of}`,
+    holdGround: (where: string, left: number) => `Take ${where} · ${left} holding it`,
     bringDownLieutenant: 'Bring down the lieutenant',
     bringDownWarlord: 'Bring down the warlord',
     pushThrough: (where: string, metres: number) => `Push through ${where} · ${metres} m`,

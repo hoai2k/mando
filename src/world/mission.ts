@@ -89,8 +89,19 @@ export interface ZoneSpec {
   /** width across travel and length along it, metres */
   w: number;
   l: number;
-  /** assault rooms: how many sealed waves the zone runs */
+  /**
+   * How many waves a **supplied** assault runs — a hall, a deck, or a siege
+   * (see `siege`). Open ground that is not a siege calls no waves at all, so
+   * `waves` is not read there and the layouts warn at load if it is set.
+   */
   waves?: number;
+  /**
+   * Open ground that is not a siege: how deep the posted force stands. The
+   * whole fight is standing in the zone when you arrive, and each rank past
+   * the first adds two to it. This used to be spelled `waves`, which is why
+   * authors kept expecting waves from zones that never call one.
+   */
+  garrison?: number;
   /**
    * Open ground fought for in waves, supplied from the air.
    *

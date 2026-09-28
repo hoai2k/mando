@@ -392,9 +392,11 @@ const siege = await h.page.evaluate(`(async () => {
     const oz = c.stage.zones[oi];
     hold(oz, oi);
     const held = c.waveCount;
+    // what the player is told: no seal, no wave count — there are no waves
+    const hint = c.hint(g.players[0].position);
     const after = nextWave(oi);
     ordinary = { label: oz.spec.label, shell: oz.spec.shell, waveCount: held,
-      waves: oz.spec.waves ?? 2, ...after };
+      garrison: oz.spec.garrison ?? 2, hint, ...after };
   }
 
   // the siege zone: a holding force, and the rest arrives by air
@@ -416,6 +418,11 @@ check('missions: ordinary open ground is held, never supplied',
   !siege.err && siege.ordinary && siege.ordinary.waveCount === 1
   && siege.ordinary.carriers === 0 && siege.ordinary.arrived === 0
   && siege.ordinary.cleared, siege.ordinary);
+// "Sealed in" and "wave 1 of 1" were both said of open ground that seals
+// nothing and calls no waves (audit item 2)
+check('missions: open ground is not told it is sealed in or counted in waves',
+  !siege.err && siege.ordinary && !/wave/i.test(siege.ordinary.hint)
+  && !/sealed/i.test(siege.ordinary.hint), siege.ordinary?.hint);
 check('missions: ...and the rest of it comes in by ship',
   !siege.err && siege.supplied && siege.supplied.carriers > 0
   && siege.supplied.arrived > 0 && !siege.supplied.cleared, siege.supplied);
@@ -430,6 +437,11 @@ const outdoor = zones.filter((z) => ['open', 'canyon', 'road'].includes(z.shell)
 check('missions: a wave battle is rare, and outdoors',
   sieges.length > 0 && sieges.length <= 3 && sieges.every((z) => z.shell === 'open'),
   { sieges: sieges.map((z) => `${z.board} ${z.label}`), ofOutdoor: outdoor.length });
+
+// and nothing authored for open ground still asks for waves it will never get
+const idleWaves = outdoor.filter((z) => !z.siege && z.kind === 'assault' && z.waves !== null);
+check('missions: open ground that is not a siege asks for a garrison, not waves',
+  idleWaves.length === 0, idleWaves.map((z) => `${z.board} ${z.label}`));
 
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();

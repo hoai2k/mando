@@ -57,3 +57,23 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
 - **Boundaries.** Every stage after a section gets the vestibule (rule b).
 - **Left.** Nothing.
 
+### 2. Open-ground assault messaging; `waves` → `garrison` — done
+
+- **What.** An outdoor assault that is not a siege calls no waves, so it no
+  longer says it does. `enterZone` announces "Sealed in / hold ⟨zone⟩" only for a
+  supplied zone (hall, deck, siege); open ground gets "Take ⟨zone⟩ / clear them
+  off it" (`TEXT.banners.holdGround`). The HUD line is "Hold ⟨zone⟩ · wave n of
+  m" only when supplied, and "Take ⟨zone⟩ · N holding it" otherwise
+  (`TEXT.missions.holdGround`).
+- New `ZoneSpec.garrison`: the depth of a non-siege open assault's posted force
+  (each rank past the first adds two bodies — exactly what `waves` bought
+  there). Every non-siege outdoor assault in `mission-layouts.ts` is re-spelled
+  `garrison: n` with the same n, so the fights are the same size. A load-time
+  warning fires if `waves` is set on open ground that is not a siege.
+- `__missionZones` (debug hook) now reports `garrison`, `pass`, `deadEnd`,
+  `w`, `l` and the rides, for the tests of later items.
+- **Tests.** `test-arrivals`: the ordinary open assault's HUD line mentions
+  neither waves nor a seal; no non-siege open assault in any territory sets
+  `waves`.
+- **Left.** Nothing.
+

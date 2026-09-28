@@ -127,7 +127,7 @@ const desert: StageSpec[] = [
           { id: 'tusken_tent', u: 44, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
         ],
       }),
-      z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
+      z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, garrison: 2, deadEnd: true }),
       // The cistern court is where the run first meets a war massiff, and a
       // war massiff wants room: the hall is sized for a beast to come out of
       // a hatch and be fought round the pit, not for a squad to hold a door.
@@ -145,7 +145,7 @@ const desert: StageSpec[] = [
     label: TEXT.missions.stages.desert[2],
     zones: [
       z('desert', 6, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
-      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, waves: 3, pass: true }),
+      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, garrison: 3, pass: true }),
       z('desert', 8, {
         // A twenty-six metre barge nine metres off a lane twenty-two metres
         // wide is a barge lying across the lane: the golden path ran through
@@ -247,7 +247,7 @@ const nevarro: StageSpec[] = [
         shell: 'road', kind: 'chase', w: 26, l: 72,
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
-      z('nevarro', 3, { shell: 'open', kind: 'assault', w: 36, l: 30, waves: 2, feature: 'crates' }),
+      z('nevarro', 3, { shell: 'open', kind: 'assault', w: 36, l: 30, garrison: 2, feature: 'crates' }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -292,7 +292,7 @@ const crevasse: StageSpec[] = [
         props: [{ id: 'survey_crawler', u: 16, v: 18, size: 10, yaw: 2.1, solid: { r: 2.4, h: 3.4 } }],
       }),
       z('crevasse', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 80, feature: 'pillars', alcove: true }),
-      z('crevasse', 2, { shell: 'canyon', kind: 'assault', w: 10, l: 40, waves: 2, deadEnd: true }),
+      z('crevasse', 2, { shell: 'canyon', kind: 'assault', w: 10, l: 40, garrison: 2, deadEnd: true }),
     ],
     links: [{ len: 20, turn: -1, len2: 16, kind: 'trek' }, { len: 16, turn: 1, len2: 12, kind: 'trek' }],
   },
@@ -340,11 +340,11 @@ const trask: StageSpec[] = [
         ],
         rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
-      z('trask', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 46, waves: 2, deadEnd: true }),
+      z('trask', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 46, garrison: 2, deadEnd: true }),
       z('trask', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
       z('trask', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('trask', 5, {
-        shell: 'open', kind: 'assault', w: 52, l: 44, waves: 3, air: true, feature: 'crates',
+        shell: 'open', kind: 'assault', w: 52, l: 44, garrison: 3, air: true, feature: 'crates',
         props: [{ id: 'trawler', u: 26, v: 14, size: 16, yaw: 0.2, solid: { r: 3.5, h: 4 } }],
       }),
       z('trask', 6, {
@@ -383,7 +383,7 @@ const refinery: StageSpec[] = [
         ],
         rides: [{ kind: 'landspeeder', u: 9, v: -11, yaw: 0 }],
       }),
-      z('refinery', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 40, waves: 2, deadEnd: true }),
+      z('refinery', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 40, garrison: 2, deadEnd: true }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -457,7 +457,7 @@ const forge: StageSpec[] = [
         shell: 'road', kind: 'chase', w: 28, l: 78,
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
-      z('forge', 3, { shell: 'open', kind: 'assault', w: 38, l: 32, waves: 2, feature: 'pillars' }),
+      z('forge', 3, { shell: 'open', kind: 'assault', w: 38, l: 32, garrison: 2, feature: 'pillars' }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -476,7 +476,7 @@ const forge: StageSpec[] = [
     label: TEXT.missions.stages.forge[2],
     zones: [
       z('forge', 6, {
-        shell: 'open', kind: 'assault', w: 54, l: 48, waves: 3, pass: true, air: true, feature: 'pillars',
+        shell: 'open', kind: 'assault', w: 54, l: 48, garrison: 3, pass: true, air: true, feature: 'pillars',
         // v: 0 is the lane's own centreline, which is where the golden path
         // runs and where the floor arrow points — a brazier there is a thing
         // the guidance sends you into. Off to one side it is a landmark.
@@ -517,11 +517,11 @@ const ringworld: StageSpec[] = [
         ],
         rides: [{ kind: 'swoop', u: 9, v: 12, yaw: 0 }, { kind: 'swoop', u: 10, v: 16, yaw: 0 }],
       }),
-      z('ringworld', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
+      z('ringworld', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 50, garrison: 2, deadEnd: true }),
       z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
       z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       z('ringworld', 5, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, pass: true, air: true,
+        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, pass: true, air: true,
         props: [
           { id: 'street_kiosk', u: 16, v: 14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
           { id: 'street_kiosk', u: 30, v: -14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
@@ -590,7 +590,7 @@ const narkina: StageSpec[] = [
     world: { waterDrop: 4 },
     zones: [
       z('narkina', 6, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'shock', air: true,
+        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, feature: 'shock', air: true,
         props: [{ id: 'sunken_transport', u: 30, v: 18, size: 15, yaw: 0.4, solid: { r: 4, h: 4 } }],
       }),
       z('narkina', 7, { shell: 'canyon', kind: 'camp', w: 12, l: 50, alcove: true }),
@@ -764,6 +764,13 @@ for (const [board, spec] of Object.entries(MISSION_LAYOUTS)) {
   }
   for (const stage of spec.stages) {
     if (stage.kind === 'section') continue;
+    for (const zs of stage.zones) {
+      // open ground that is not a siege calls no waves (campaign `supplied`)
+      const open = zs.shell === 'open' || zs.shell === 'canyon' || zs.shell === 'road';
+      if (open && !zs.siege && zs.waves !== undefined) {
+        console.warn(`[mission] ${board} "${zs.label}": \`waves\` on open ground that is not a siege calls nothing — use \`garrison\``);
+      }
+    }
     if (stage.links.length !== stage.zones.length - 1) {
       console.warn(`[mission] ${board} stage "${stage.label}": ${stage.zones.length} zones want ${stage.zones.length - 1} links, has ${stage.links.length}`);
     }

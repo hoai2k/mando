@@ -422,14 +422,13 @@ export class Campaign implements MissionController {
         // rather than delivered. `enterZone` counts them as the first wave,
         // so the fight is the same size it always was; what changed is where
         // it was standing when you walked in.
-        const waves = zone.spec.waves ?? 2;
         const size = !supplied(zone.spec)
           // Under the sky the whole fight is posted at once and nothing is
           // ever flown in. It does not all come at you at once either: a
           // fifty-metre zone holds its back rank out of the fight until you
           // push into it, so what bounded the numbers before — calling the
           // next wave — is now the ground itself.
-          ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + (waves - 1) * 2)
+          ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + ((zone.spec.garrison ?? 2) - 1) * 2)
           // A supplied zone posts a holding force and is sent the rest. A
           // sealed room is small enough that everyone in it is in the fight
           // from the first second, so it keeps its reinforcements — which is
@@ -857,7 +856,11 @@ export class Campaign implements MissionController {
     }
     if (this.phase === 'travel') return TEXT.missions.makeFor(zone.spec.label, d);
     switch (zone.spec.kind) {
-      case 'assault': return TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount);
+      // a wave count only where there are waves: "wave 1 of 1" on open
+      // ground was a count of nothing
+      case 'assault': return supplied(zone.spec)
+        ? TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount)
+        : TEXT.missions.holdGround(zone.spec.label, this.zoneForce.filter((e) => e.alive).length);
       case 'chase': return zone.spec.barricade === 'crates' && d < 30
         ? TEXT.missions.clearTheWay
         : TEXT.missions.ride(zone.spec.label, d);
@@ -1037,7 +1040,11 @@ export class Campaign implements MissionController {
         this.waveNum = held.length ? 1 : 0;
         this.dropping = false;
         this.waveDelay = held.length ? 0 : 0.9;
-        this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(zone.spec.label));
+        // "Sealed in" is only true where something is: a room's doors, a
+        // deck's void, a siege's waves. Open ground keeps its way in open and
+        // calls nothing, so it says what it is — take the ground.
+        if (supplied(zone.spec)) this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(zone.spec.label));
+        else this.game.announce(TEXT.banners.holdGround.title(zone.spec.label), TEXT.banners.holdGround.sub);
         audio.waveStart();
         break;
       default:
