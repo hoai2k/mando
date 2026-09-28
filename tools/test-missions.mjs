@@ -1432,7 +1432,10 @@ const road = await page.evaluate(async () => {
   window.__manual = true;
   c.idx = i;
   c.phase = 'travel';
-  for (const p of g.players) if (p.alive) p.position.copy(z.entry);
+  // just over the road's trigger line (six metres in), where a rider coming
+  // off the corral starts the chase — the entry point itself is short of it
+  const mouth = z.entry.clone().lerp(z.exit, 5 / z.entry.distanceTo(z.exit));
+  for (const p of g.players) if (p.alive) p.position.copy(mouth);
   for (let k = 0; k < 90; k++) g.update(1 / 30, idle);
   // Called ahead (audit item 9): the first mark's drop is already on its way
   // with the party still at the mouth, and a swoop pack is coming in over the
