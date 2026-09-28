@@ -1116,12 +1116,32 @@ tower (orthographic, the emplacement on its slab with no tower), the valve wheel
 top view now shows the wheel edge-on; the wheel is a little small for its stand
 against the 1.4 m spec, which the game can scale on the `wheel` node) and both cliff
 pillars (slender, about 3:1 including the flared foot; the body sits inside the 4.5 m
-collider radius from the foot up). **The hydraulic press is re-requested again**: its
-conveyor now runs along the crossbeam, through both column bases. See
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--hydraulic-press-sheet-second-redo-2026-09-28).
+collider radius from the foot up). The hydraulic press needed a second redo because its conveyor ran along the
+crossbeam, through both column bases. The gantry-only replacement is recorded
+[below](#hydraulic-press-sheet-second-redo--delivered-2026-09-28).
 
 Minor, no redo needed: the welding arm's front view and several other
 secondary views are drawn smaller than their main view (their proportions still
 agree, so the cropped views work); the thumper hangs its hammer off a lever arm
 rather than a vertical piston, which still animates as the requested up-and-down
 `hammer` node.
+
+---
+
+## Hydraulic press sheet, second redo — delivered 2026-09-28
+
+Five of the six corrected sheets came back right (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
+The previous hydraulic press sheet was still wrong: its conveyor ran along the crossbeam,
+straight through both column bases, so the columns stood on the belt (compare
+the front and top views). The level supplies its own conveyor, so the replacement sheet leaves the
+belt out and shows the gantry alone. `reference/props/hydraulic_press_ref.png`
+was replaced under the same name.
+
+Same recipe as every prop sheet: one 1536×1024 canvas, **orthographic** side,
+front and top views of the one object at one shared scale, flat even lighting,
+no cast shadows, plain mid-grey background, no people, no text, no logos.
+
+| File | Prompt |
+|---|---|
+| `hydraulic_press_ref.png` | "Orthographic three-view model reference sheet on one canvas: side view, front view and top view of the same object at the same scale, flat even lighting, plain mid-grey background, no perspective, no text. Subject: a heavy industrial hydraulic press gantry **on its own, with no conveyor belt and nothing under it**, 8 meters wide, 7 meters tall and 3 meters deep: two thick steel columns left and right standing on flat foot plates, a crossbeam across their tops, a massive press head hanging between the columns on four hydraulic rams, a clear empty opening 6 meters wide under the press head for a belt to pass through from front to back, hazard striping on the press face and the columns, hoses and gauges, grimy grey-yellow paint. The front view looks through the opening; the side view looks along the crossbeam and shows one column with the press head edge-on; the top view shows the two column tops joined by the crossbeam." |
