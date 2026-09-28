@@ -388,3 +388,43 @@ first zone after one gets the vestibule — hold throughout.
   lit pool ring set in a wide foundation wall across the shaft (it used to be a
   shed standing on the seabed). One Way Out note updated.
 
+## Verification (2026-09-28, at `9126da3`)
+
+`npm run build` (tsc + vite) clean. Every intermediate commit type-checks on its
+own. With `CHROMIUM_PATH=/opt/pw-browsers/chromium HARNESS_PORT=4221`, one suite
+at a time:
+
+| suite | result |
+|---|---|
+| `audit-mission-build` (all nine boards, every stage) | pass |
+| `test-arrivals` | pass (after `885f562`) |
+| `test-missions` | pass (after `9126da3`) |
+| `test-modes` | pass |
+| `test-cover` | pass |
+| `test-monsters` | pass |
+| `test-sections` | pass |
+| `RUNS=<all nine> test-sections --runs-only` | pass |
+
+Two existing checks measured things the audit changed, and were moved rather
+than loosened: test-arrivals now finds "ordinary open ground" on the Dune Sea
+(the Lava Flats' only one became its lieutenant, item 7), and test-missions'
+road probe now stands just over the chase's trigger line (the entry point it
+used is short of it, so the chase never started there).
+
+Screenshots of every changed place (Forge valley, Ringworld street, Crevasse
+cavern, Nevarro causeway, Spice Run plates, gallery and hull arrival, Storm Docks
+pier and trawler deck, Refinery atrium, Prison Rig hatch and ring) were checked
+by eye; they live in the session scratchpad, not the repo.
+
+## Not done, and why
+
+- Per-territory notes beyond the item list: the hatchery's brood sacs, the
+  adobe gate at the Lava Flats' town gate, a street for the cantina row, rises
+  for the ice chimney and the forge steps, dome-rib props (no model exists), a
+  fountain for the plaza, the Crevasse's mid-zone checkpoints. None is in
+  items 1–16; each is a follow-up.
+- Making the dune gate or the glassed court a siege (item 3's other option):
+  test-arrivals holds sieges to at most three, and Hold the Forge is coming for
+  the court.
+- No bot walks the Spice Run's plate jumps or swims the sea against the air
+  clock; both are covered by the build audit, the sections run and screenshots.
