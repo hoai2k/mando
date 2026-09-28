@@ -43,17 +43,21 @@ const state = () => h.page.evaluate(() => window.__state);
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await sleep(3000);
 check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
-check('the title warms the territory art', await waitForAsset('board_tatooine.jpg'));
+// The title is the Twin Suns key art now, not a board's picture; the Dune Sea
+// board art (the first card of the next screen) is what gets warmed behind it.
+check('the title shows its own key art', await waitForAsset('title_dune_sea_hd.jpg'));
+check('...and warms the first territory\'s picture behind it', await waitForAsset('board_tatooine_v2.jpg'));
+check('the title warms the territory art', await waitForAsset('board_tatooine_v2.jpg'));
 // the planet discs are the Missions strip two screens on, and they are the
 // whole screen there — warming them is not conditional on picking that mode
 check('the title warms the planet discs', await waitForAsset('planet_desert.png'));
 
-// ---- 2. the territory grid warms the rest of the roster ----
+// ---- 2. the departures board warms the rest of the roster ----
 // Name the mode rather than trusting START's default focus: Missions is the
 // first button on the title now, so a bare START opens the planet strip.
 await h.focusButton(/WAVE BATTLE/i);
 await h.pad.tap(BTN.START);
-await h.waitForText(/CHOOSE TERRITORY/i);
+await h.waitForText(/DEPARTURES/i);
 await sleep(4000);
 // The roster comes from the game rather than a list here: it has gained
 // characters and been renamed wholesale, and a frozen copy silently stops
@@ -61,12 +65,12 @@ await sleep(4000);
 const roster = (await h.page.evaluate(() => window.__roster)).map((c) => `${c.id}.glb`);
 for (const m of roster) await waitForAsset(m);
 const got = await fetched();
-check('the grid warms every playable fighter', roster.every((m) => got.includes(m)),
+check('the departures board warms every playable fighter', roster.every((m) => got.includes(m)),
   roster.filter((m) => !got.includes(m)).join(', ') || `all ${roster.length}`);
 
 // ---- 3. choosing a territory warms that territory ----
 await h.pad.tap(BTN.A);                       // The Dune Sea
-await h.waitForText(/CHOOSE YOUR/i);
+await h.waitForText(/DIN DJARIN/i);
 await sleep(7000);
 check('the character select warms the chosen sky', await waitForAsset('sky_desert.jpg'));
 check('...and its ground textures', await waitForAsset('sand_albedo.jpg'));
@@ -110,6 +114,27 @@ await h.waitForPlaying();
 check('nothing the match needed was still loading when it appeared',
   await h.page.evaluate(() => window.__loadPending()) === 0);
 check('the match is running', await state() === 'playing');
+
+// The drop covers the GPU as well as the files: everything in the match, the
+// weapons nobody has drawn yet included, was compiled behind the loading
+// screen (Game.warmGpu), so showing one for the first time compiles no new
+// surface shader. (One shadow-depth variant can still appear: drawing a weapon
+// puts its material in a state the warm frame's shadow pass did not see. It
+// is a small program; the surface shaders are the ones that cost.)
+const warm = await h.page.evaluate(() => {
+  const R = window.__renderer, g = window.__game;
+  const surface = () => R.info.programs.filter((p) => !/^(depth|distance)/.test(p.cacheKey)).map((p) => p.cacheKey);
+  window.__manual = true;
+  window.__renderOnce();
+  const before = new Set(surface());
+  for (const p of g.players) p.char.setWeapon('gaffi');     // Din's spear, never shown yet
+  window.__renderOnce();
+  const added = surface().filter((k) => !before.has(k)).length;
+  for (const p of g.players) p.char.setWeapon('blaster');
+  window.__manual = false;
+  return { surfaceShaders: before.size, added };
+});
+check('a weapon drawn for the first time compiles no new surface shader', warm.added === 0, JSON.stringify(warm));
 
 // ---- 5. a cold drop waits, and a missing model does not strand it ----
 // The Crevasse posts krykna. Its .glb now ships, so the failure this guards
@@ -182,28 +207,32 @@ check('...and the retry lands, so the character is not stuck on its stand-in',
 
 // ---- the geometry a sculpt was delivered with that belongs to nobody ----
 //
-// `din.glb` carries a 1,290-triangle ball welded to nothing, riding behind a
-// shoulder (see src/characters/strays.ts). The fix file says which triangles
-// it is and the loader drops them, which is invisible when it works — so check
-// the body mesh came out the smaller size, and that the model is otherwise all
-// there rather than having been cut down by a fix aimed at the wrong mesh.
-const body = await h.page.evaluate(() => {
+// Din's original sculpt carries a 1,290-triangle ball welded to nothing,
+// riding behind a shoulder. The loader used to drop it at load from a fix file
+// (src/characters/strays.ts). Since he was decimated to his 15k budget
+// (tools/asset-pipeline/decimate.mjs) the ball is cut out of the shipped file
+// itself, before simplifying — so what is checked is that the model he ships
+// with is the budget-sized one, has no strays left to drop, and is all there;
+// and that the original and its fix file are still kept beside it.
+const body = await h.page.evaluate(async () => {
   const p = window.__game?.players?.[0];
   let out = null;
   p?.char.root.traverse((o) => {
     const g = o.geometry;
     if (!o.isMesh || !g?.index) return;
     const from = g.userData.gltf ?? o.userData.gltf;
-    if (from && from.mesh === 0 && from.primitive === 0 && g.attributes.position.count > 10000) {
+    if (from && from.mesh === 0 && from.primitive === 0 && o.isSkinnedMesh) {
       out = { verts: g.attributes.position.count, tris: g.index.count / 3, dropped: !!g.userData.straysDropped };
     }
   });
-  return out;
+  const index = await fetch('models/strays/index.json').then((r) => r.json()).catch(() => null);
+  const kept = await fetch('models/full/strays/din.json').then((r) => r.ok && r.json()).catch(() => null);
+  return { ...out, listed: index?.models?.includes('din'), originalKept: !!kept?.strays?.length };
 });
-check('the stray ball is dropped from the delivered sculpt at load',
-  !!body && body.dropped && body.tris === 118710, JSON.stringify(body));
-check('...and the rest of the model is still there',
-  !!body && body.verts === 69089, JSON.stringify(body));
+check('Din ships at budget with the stray ball already cut out',
+  !!body && body.tris === 14999 && !body.dropped && body.listed === false, JSON.stringify(body));
+check('...and the rest of the model is still there', !!body && body.verts === 10882, JSON.stringify(body));
+check('...while the original and its stray fix are kept in models/full/', !!body?.originalKept, JSON.stringify(body));
 
 // The blocked krykna request above logs a console error in the page. That is
 // this test staging a failure on purpose, so it must not count as one.

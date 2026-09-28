@@ -246,14 +246,14 @@ export class Animator {
    * without it every heavy ran its cycle too fast and skated a little — and
    * with it Paz gets his slower, weightier gait for free.
    */
-  gaitRate(name: string, speed: number, scale = 1): number {
+  gaitRate(name: string, speed: number, scale = 1, floor = 0.35): number {
     const clip = this.clips[name];
     if (!clip) return 1;
     const d = cycleDistance(clip, this.rig.proportions) * Math.max(0.5, scale);
     if (d <= 1e-4) return 1;
     // the cap is set by the sprint: 14.4 m/s over the sprint clip's ~3.25 m
     // stride wants 2.66, and the old 2.4 had the feet skating a tenth short
-    return Math.min(3, Math.max(0.35, (speed * clip.duration) / d));
+    return Math.min(3, Math.max(floor, (speed * clip.duration) / d));
   }
 
   /** Seconds between footfalls at the rate `gaitRate` returned (sign-blind, so a reversed back-pedal still steps). */

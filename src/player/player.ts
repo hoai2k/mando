@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { collectLitBlades } from '../fx/saberLights';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
@@ -26,6 +27,8 @@ import { updateRiding } from './riding';
 import { reachArm } from '../anim/seating';
 import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
+import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
+import { strikePace } from '../characters/combatStyle';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
@@ -247,6 +250,29 @@ const SABER_STOW_DELAY = 4;
 const BLOCK_SECONDS = 5;
 /** you can shuffle behind the shield, but not run */
 const BLOCK_SPEED = 3.2;
+/**
+ * The left stick's travel, read as a gait: a light push walks, the last of
+ * its throw runs. Up to `WALK_TILT` the stick sets a walking pace from a creep
+ * to `WALK_SPEED` — the walk cycle's own pace, so it is never hurried; from
+ * there to `RUN_TILT` the pace climbs to the run, which holds to the rim.
+ * Keys are all-or-nothing, so the keyboard always runs.
+ */
+const WALK_TILT = 0.6;
+const RUN_TILT = 0.9;
+const WALK_SPEED = 1.4;
+/** a walk slows its stride right down with a creeping stick, where a run bottoms out */
+const WALK_RATE_FLOOR = 0.12;
+/** below this the body stands; above it the feet step (m/s) */
+const STEP_SPEED = 0.25;
+/** ground speed the walk cycle plays up to, and the run takes over from (with a margin each way) */
+const WALK_GAIT_MAX = 2.1;
+const WALK_GAIT_MARGIN = 0.25;
+function stickSpeed(tilt: number, top: number): number {
+  if (top <= WALK_SPEED) return Math.min(tilt, 1) * top;
+  if (tilt <= WALK_TILT) return (tilt / WALK_TILT) * WALK_SPEED;
+  if (tilt >= RUN_TILT) return top;
+  return WALK_SPEED + (top - WALK_SPEED) * ((tilt - WALK_TILT) / (RUN_TILT - WALK_TILT));
+}
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 /**
@@ -529,6 +555,8 @@ export class Player {
   /** counts down from the last shot; the barrel sheds nothing until it hits 0 */
   private heatHold = 0;
   sprinting = false;
+  /** on the walk cycle rather than the run: held across a margin, so the gait does not flicker at the seam */
+  private walking = false;
   /** shield up: drains the same gauge sprinting does */
   blocking = false;
   /** scratch for the shield collider handed to the projectile system */
@@ -594,6 +622,8 @@ export class Player {
   private meleeRange = 3;
   /** the current swing is bare-handed (both blades thrown away) */
   private meleeBare = false;
+  /** the swing in hand is a kick: its contact sweeps the legs as well as the fists */
+  private swingKick = false;
   alive = true;
   kills = 0;
   team = 0;
@@ -1128,6 +1158,12 @@ export class Player {
    * hatchling → broodmother on growth — and how a respawn walks a morphed
    * player back to the fighter they picked.
    */
+  /** Every blade this player holds or has thrown that asks for a light (see `SaberLights`). */
+  litBlades(out: THREE.Object3D[]): void {
+    collectLitBlades(this.char.root, out);
+    if (this.throwFx) collectLitBlades(this.throwFx, out);
+  }
+
   morph(id: PlayableId, game: Game): void {
     this.restoreMats();   // any dissolve clones belong to the body being shed
     // A thrown saber belongs to the old body and its old hilt style. Retire
@@ -1912,7 +1948,8 @@ export class Player {
     this.landRecovery = Math.max(0, this.landRecovery - dt);
     this.landTimer = Math.max(0, this.landTimer - dt);
     if (this.landRecovery > 0) topSpeed *= 1 - 0.85 * (this.landRecovery / LAND_RECOVER);
-    const speedTarget = Math.min(wishLen, 1) * topSpeed;
+    // the walk is a thing feet do: in the air the stick steers in proportion
+    const speedTarget = this.sprinting || !this.grounded ? Math.min(wishLen, 1) * topSpeed : stickSpeed(wishLen, topSpeed);
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
@@ -2451,7 +2488,7 @@ export class Player {
     } else if (!this.grounded) {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'airUpper');
-    } else if (speed2 > 0.6) {
+    } else if (speed2 > STEP_SPEED) {
       // Which way is travel, relative to the body? Combat facing points the
       // chest at the camera while the feet go where the stick says, and the
       // forward run played for all of it — legs pumping forward through a
@@ -2462,13 +2499,20 @@ export class Player {
       let lowerClip: string = travel.clip;
       // a sprint is its own longer-reaching cycle, not the run spun faster
       if (lowerClip === 'runLower' && this.sprinting) lowerClip = 'sprintLower';
+      // and a walk its own cycle, not the run slowed down: the stick pushed
+      // lightly sets a walking pace (`stickSpeed`), and under it the feet walk
+      this.walking = lowerClip === 'runLower'
+        && speed2 < WALK_GAIT_MAX + (this.walking ? WALK_GAIT_MARGIN : -WALK_GAIT_MARGIN);
+      if (this.walking) lowerClip = 'walkLower';
       // the gait runs at whatever rate plants the feet at our actual ground
       // speed, so the stride pushes off instead of skating; the back-pedal
       // is its cycle played backward, a touch slower
-      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale, this.walking ? WALK_RATE_FLOOR : undefined)
+        * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
-      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper` : 'runUpper';
+      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper`
+        : this.walking ? 'walkUpper' : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2679,6 +2723,11 @@ export class Player {
    * claw or a jaw — those neither parry nor are parried. Every saber is energy,
    * the darksaber included; Din's spear is beskar; the rest is steel.
    */
+  /** what a swing sounds like: a blade's hum, or the whoosh of anything else */
+  private get swingSound(): 'gaffi' | 'sabers' {
+    return this.meleeKind === 'sabers' && !this.meleeBare ? 'sabers' : 'gaffi';
+  }
+
   get meleeBlade(): Blade | null {
     if (this.meleeBare || UNARMED_MELEE.has(this.characterId)) return null;
     if (this.meleeKind === 'sabers') return 'energy';
@@ -2766,7 +2815,7 @@ export class Player {
     const close = this.swingClose;
     const bones = this.char.rig?.bones as Record<string, THREE.Object3D> | undefined;
     let n = this.meleeBare ? 0 : weaponSegments(weaponMounts(this.char), this.swingSegs);
-    if (n === 0) n = fistSegments(bones, this.swingSegs);
+    if (n === 0) n = fistSegments(bones, this.swingSegs, this.swingKick);
     if (n === 0) {
       if (before < this.swingHitAt && this.swingT >= this.swingHitAt) this.strikeByReach(game);
     } else if (this.swingT >= open && !this.swingDone) {
@@ -2853,7 +2902,7 @@ export class Player {
   private landedFeedback(game: Game): void {
     if (this.swingLanded) return;
     this.swingLanded = true;
-    audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
+    audio.meleeHit(this.swingSound);
     this.cam.shake(0.1);
     game.hitMarker(this.slot);
     // hit-stop: the attacker's animation hangs for a few frames on
@@ -2951,7 +3000,7 @@ export class Player {
    */
   handsToControls(v: Vehicle, gunUp: boolean): void {
     const rig = this.char.rig;
-    const hold = v.def.hands;
+    const hold = v.hands;
     if (!rig || !hold) return;
     // the world matrices the solve reads are the ones `syncVisual` just wrote
     this.char.root.updateMatrixWorld(true);
@@ -3204,8 +3253,10 @@ export class Player {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
-      // sound to sell a blade that isn't there.
-      const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
+      // sound to sell a blade that isn't there. A brawler's fists are their
+      // weapon: the same reach, at full weight.
+      const fists = this.meleeKind === 'fists';
+      const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
       // Use the weapon's keyed attack family; Din's single Darksaber keeps
@@ -3219,20 +3270,27 @@ export class Player {
       // the stance's grip out of a standing ready; a strike that starts in it
       // is the likelier draw.
       const inGrip = this.meleeComboWindow > 0 ? this.attackGrip : gripEnd(this.sabersDrawn ? this.stance : null);
-      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
+      const style = set === 'melee' || fists ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
+      // A brawler draws each hit at random from that step's punches (the
+      // first two) or kicks (the finisher), at their own cadence; every one
+      // is thrown from the hips, so its legs always play.
+      const fist = fists ? pickUnarmed(this.meleeStep as UnarmedSlot) : null;
+      const pace = fist ? strikePace(this.characterId) : 1;
+      this.swingKick = !!fist?.kick;
       const variant: { upper: string; lower: string; hit: number; lowerAlways?: boolean } | null =
-        this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
-          : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
+        fist ? { upper: fist.upper, lower: fist.lower, hit: 0.45, lowerAlways: true }
+          : this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
+            : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
       const clip = variant?.upper ?? `${set}${this.meleeStep}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
       // nothing at all
-      const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
+      const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05, false, 1 / pace) ?? 0.5;
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * (variant?.hit ?? 0.45);
       this.meleeDamage = (this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage)
-        * (bare ? 0.4 : 1);
+        * (bare && !fists ? 0.4 : 1);
       this.beginSwingContact(dur, this.meleeHitPending, game);
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
@@ -3241,7 +3299,7 @@ export class Player {
       this.weapon = 'gaffi';
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep, bare ? 'gaffi' : this.meleeKind);
+      audio.melee(this.meleeStep, this.swingSound);
       // lunge toward nearest enemy in front (fists don't carry as far)
       const target = this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
       if (target) {
@@ -3257,7 +3315,7 @@ export class Player {
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
       if (variant?.lowerAlways
         || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
-        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08, false, 1 / pace);
       }
       this.flourished = false;
       // the fighter comes out of every attack free to settle into either ready,
@@ -3439,8 +3497,9 @@ export class Player {
   private heavyLunge(game: Game): void {
     this.rocketCd = 5;
     // both blades away: the leap still goes, but it lands as a body-check —
-    // bare-hand reach and bare-hand damage
-    const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
+    // bare-hand reach and bare-hand damage. A brawler's leap lands a kick.
+    const fists = this.meleeKind === 'fists';
+    const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
     this.meleeBare = bare;
     this.meleeRange = bare ? 1.8 : 3;
     const target = this.nearestEnemy(game, 14, 0.2);
@@ -3457,16 +3516,21 @@ export class Player {
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');
     this.saberIdle = 0;
-    const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', `${set}3`, 0.05) ?? 0.6;
+    const kick = fists ? pickUnarmed(3) : null;
+    const pace = kick ? strikePace(this.characterId) : 1;
+    this.swingKick = !!kick;
+    const dur = this.char.attack?.()
+      ?? this.char.animator?.playOnce('upper', kick?.upper ?? `${set}3`, 0.05, false, 1 / pace) ?? 0.6;
+    if (kick) this.char.animator?.playOnce('lower', kick.lower, 0.05, false, 1 / pace);
     this.meleeTimer = dur + 0.1;
     this.meleeComboWindow = dur + 0.55;
-    this.meleeHitPending = dur * 0.6;
-    this.meleeDamage = this.profile.meleeFinisher * (bare ? 0.4 : 1);
+    this.meleeHitPending = dur * (kick ? 0.45 : 0.6);
+    this.meleeDamage = this.profile.meleeFinisher * (bare && !fists ? 0.4 : 1);
     this.beginSwingContact(this.meleeTimer, this.meleeHitPending, game);
     this.lungeTarget = target;
     this.lungeSpeed = 16;
     this.flourished = false;
-    audio.melee(3, bare ? 'gaffi' : this.meleeKind);
+    audio.melee(3, this.swingSound);
     audio.dash();
     this.cam.shake(0.12);
     game.particles.dustPuff(this.position, 8);

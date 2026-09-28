@@ -184,20 +184,28 @@ export function weaponMounts(char: {
   return list;
 }
 
-/** a bare-handed fighter swings its forearms and fists */
-export function fistSegments(bones: Record<string, THREE.Object3D> | undefined, out: Segment[]): number {
+/**
+ * A bare-handed fighter swings its forearms and fists — and, throwing a kick,
+ * its shins and feet as well.
+ */
+export function fistSegments(bones: Record<string, THREE.Object3D> | undefined, out: Segment[], kick = false): number {
   if (!bones) return 0;
   let n = 0;
-  for (const side of ['R', 'L'] as const) {
-    const fore = bones[`forearm${side}`], hand = bones[`hand${side}`];
-    if (!fore || !hand) continue;
-    const s = slot(out, n++);
-    fore.getWorldPosition(s.a);
-    hand.getWorldPosition(s.b);
-    // the fist sits past the wrist
-    _axis.subVectors(s.b, s.a).setLength(0.1);
-    s.b.add(_axis);
-    s.r = 0.07;
+  const limbs = kick
+    ? [['forearm', 'hand', 0.1, 0.07], ['lowerLeg', 'foot', 0.12, 0.08]] as const
+    : [['forearm', 'hand', 0.1, 0.07]] as const;
+  for (const [from, to, past, r] of limbs) {
+    for (const side of ['R', 'L'] as const) {
+      const a = bones[`${from}${side}`], b = bones[`${to}${side}`];
+      if (!a || !b) continue;
+      const s = slot(out, n++);
+      a.getWorldPosition(s.a);
+      b.getWorldPosition(s.b);
+      // the fist sits past the wrist, the ball of the foot past the ankle
+      _axis.subVectors(s.b, s.a).setLength(past);
+      s.b.add(_axis);
+      s.r = r;
+    }
   }
   return n;
 }

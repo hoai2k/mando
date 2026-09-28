@@ -15,6 +15,7 @@ import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import { seatSurface } from '../anim/seating';
+import { CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 import { saberClipsFor } from '../characters/mandalorians';
 
@@ -512,7 +513,9 @@ const RIDER_OVER_SEAT = 1.5;
  * and carries the hips a hand's width proud of it; a seat takes it on the
  * backside, so the hips sit almost on the cushion; a deck takes the feet.
  */
-const STANCE_RISE: Record<VehicleDef['stance'], number> = { saddle: 0.85, seated: 0.93, stand: 0 };
+const STANCE_RISE: Record<VehicleDef['stance'], number> = {
+  saddle: stanceRise('saddle', CANONICAL_HIPS), seated: stanceRise('seated', CANONICAL_HIPS), stand: 0,
+};
 /**
  * Our own woven saddle, from `buildVehicleMesh`: how far its seat stands over
  * the group's origin, and how far into the fur the whole thing is pressed.
@@ -635,6 +638,13 @@ export class Vehicle {
    * authored sculpt the moment one lands — see `seatToModel`.
    */
   private seatY: number;
+  /** the workbench's hand-placed seat and grip for this kind, if it has them (vehicleAnchors.ts) */
+  private anchor: VehicleAnchor | null;
+  /** where across and along the ride the seat is — the anchor's, or the def's */
+  private seatX: number;
+  private seatZ: number;
+  /** where the hands go, from the seat — see `VehicleDef.hands` */
+  readonly hands: VehicleDef['hands'];
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -752,7 +762,11 @@ export class Vehicle {
     if (spec.y !== undefined) this.pos.y = spec.y + this.def.hover;
     const ground = spec.y ?? this.groundAt(spec.x, spec.z);
     this.pos.set(spec.x, ground + this.def.hover, spec.z);
-    this.seatY = this.def.seat.y;
+    this.anchor = VEHICLE_ANCHORS[spec.kind] ?? null;
+    this.seatX = this.anchor?.seat[0] ?? this.def.seat.x;
+    this.seatZ = this.anchor?.seat[2] ?? this.def.seat.z;
+    this.hands = handsFor(this.def, this.anchor);
+    this.seatY = this.anchor ? this.anchor.seat[1] - STANCE_RISE[this.def.stance] : this.def.seat.y;
     this.group.add(this.body);
     const parts = buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
     this.yawNode = parts.yaw;
@@ -1157,21 +1171,24 @@ export class Vehicle {
   /** true when the charge is off cooldown and can be asked for */
   get chargeReady(): boolean { return this.chargeCd <= 0 && this.chargeT <= 0; }
 
-  /** World position of the rider's root while mounted. */
-  seatWorld(out: THREE.Vector3, who?: Player | Enemy | null): THREE.Vector3 {
+  /**
+   * World position of the rider's root while mounted. `rise` is how far that
+   * root sits under the seat surface for this rider (`stanceRise` off its own
+   * hips); left out, a rider of the canonical build.
+   */
+  seatWorld(out: THREE.Vector3, rise = STANCE_RISE[this.def.stance], who?: Player | Enemy | null): THREE.Vector3 {
     // K3: the pillion sits behind, at the same height over the saddle line
     if (who && who === this.pillion && this.def.pillion) {
       const q = this.def.pillion;
       this.localPoint(q.x, 0, q.z, out);
-      out.y = this.pos.y + this.seatY + (q.y - this.def.seat.y);
+      out.y = this.pos.y + this.seatTop - rise + (q.y - this.def.seat.y);
       return out;
     }
-    const s = this.def.seat;
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     return out.set(
-      this.pos.x + cos * s.x + sin * s.z,
-      this.pos.y + this.seatY,
-      this.pos.z - sin * s.x + cos * s.z,
+      this.pos.x + cos * this.seatX + sin * this.seatZ,
+      this.pos.y + this.seatTop - rise,
+      this.pos.z - sin * this.seatX + cos * this.seatZ,
     );
   }
 
@@ -1237,46 +1254,19 @@ export class Vehicle {
    * for one who straddles.
    */
   private seatToModel(root: THREE.Object3D): void {
-    // The raycaster works in world space, so the column has to be the seat's
-    // world column — the group carries the vehicle's yaw, and the sculpt hangs
-    // under it.
-    this.group.updateMatrixWorld(true);
-    const s = this.def.seat;
-    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-    _seatFrom.set(
-      this.pos.x + cos * s.x + sin * s.z,
-      this.pos.y + this.def.body + 3,
-      this.pos.z - sin * s.x + cos * s.z,
-    );
-    _fwd.set(sin, 0, cos);
-    _right.set(cos, 0, -sin);
-    // A grid over the seat's footprint, not one ray down its middle. A single
-    // ray takes the *topmost* thing in the column, and on a speeder that is
-    // the headrest — which is how a droid ended up perched on the back of the
-    // seat instead of sitting in it. `seatSurface` takes the surface most of
-    // the footprint lands on instead, which is the cushion. Once per kind:
-    // see `seatByKind`.
-    let surface = seatByKind.get(this.spec.kind);
-    if (surface === undefined) {
-      const world = seatSurface(root, _seatFrom, _fwd, _right, this.def.body + 6);
-      if (world === null) return;           // nothing under the seat: keep the default
-      surface = world - this.pos.y;
+    // A seat placed by hand in the workbench is the seat: nothing to measure
+    let surface = this.anchor ? undefined : seatByKind.get(this.spec.kind);
+    if (!this.anchor && surface === undefined) {
+      const measured = measureSeatSurface(this.spec.kind, root, this.group, { x: this.seatX, z: this.seatZ });
+      if (measured === null) return;           // nothing under the seat: keep the default
+      surface = measured;
       // A sculpt that answers from somewhere the ride does not reach was
       // measured before it was placed (a cached model can land inside the
       // constructor). Use it for this instance, but do not teach it to the
       // rest of the session.
       if (Math.abs(surface) < this.def.body + 4) seatByKind.set(this.spec.kind, surface);
     }
-    // The saddle is ours, not the sculpt's: sit it on the back the model
-    // actually has, so a mount reads as ridden whichever build is showing —
-    // and then the rider sits on the *saddle*, not on the animal under it,
-    // which is a hand's depth of leather the measurement cannot see.
-    const saddle = this.body.getObjectByName('saddle');
-    let sit = surface;
-    if (saddle) {
-      saddle.position.y = surface - SADDLE_SINK;
-      sit = surface - SADDLE_SINK + SADDLE_PAD;
-    }
+    const sit = sitOnModel(this.body, surface, this.anchor);
     this.seatY = sit - STANCE_RISE[this.def.stance];
   }
 
@@ -1342,10 +1332,9 @@ export class Vehicle {
    * the seat was measured from.
    */
   gripWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
-    const g = this.def.hands;
+    const g = this.hands;
     if (!g) return null;
-    const s = this.def.seat;
-    const lx = s.x + side * g.x, lz = s.z + g.z;
+    const lx = this.seatX + side * g.x, lz = this.seatZ + g.z;
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     return out.set(
       this.pos.x + cos * lx + sin * lz,
@@ -2777,8 +2766,69 @@ function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: numbe
  * When the kind's authored .glb exists it loads through `loadProp` and the
  * procedural meshes hide — the same swap the enemy swoop bike already does.
  */
-function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group,
-  onModel?: (root: THREE.Object3D) => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } {
+/**
+ * The hands, from the seat: the def's, or the workbench's grip anchor turned
+ * into the same seat-relative offset (the left hand's; the right mirrors it).
+ */
+export function handsFor(def: VehicleDef, anchor: VehicleAnchor | null): VehicleDef['hands'] {
+  if (!anchor) return def.hands;
+  return {
+    x: anchor.grip[0] - anchor.seat[0], y: anchor.grip[1] - anchor.seat[1], z: anchor.grip[2] - anchor.seat[2],
+    only: def.hands?.only,
+  };
+}
+
+/**
+ * The height of the surface a ride's sculpt offers at its seat, over the keel.
+ *
+ * A grid over the seat's footprint, not one ray down its middle. A single ray
+ * takes the *topmost* thing in the column, and on a speeder that is the
+ * headrest — which is how a droid ended up perched on the back of the seat
+ * instead of sitting in it. `seatSurface` takes the surface most of the
+ * footprint lands on instead, which is the cushion.
+ *
+ * @param frame the ride's own frame — its origin is the keel, its yaw the ride's
+ */
+export function measureSeatSurface(kind: VehicleSpec['kind'], root: THREE.Object3D, frame: THREE.Object3D,
+  seat: { x: number; z: number } = VEHICLE_DEFS[kind].seat): number | null {
+  const def = VEHICLE_DEFS[kind];
+  // the raycaster works in world space, so the column is the seat's world column
+  frame.updateMatrixWorld(true);
+  frame.localToWorld(_seatFrom.set(seat.x, def.body + 3, seat.z));
+  const origin = frame.localToWorld(new THREE.Vector3());
+  frame.localToWorld(_fwd.set(0, 0, 1)).sub(origin).normalize();
+  frame.localToWorld(_right.set(1, 0, 0)).sub(origin).normalize();
+  const world = seatSurface(root, _seatFrom, _fwd, _right, def.body + 6);
+  if (world === null) return null;
+  return frame.worldToLocal(new THREE.Vector3(_seatFrom.x, world, _seatFrom.z)).y;
+}
+
+/**
+ * Where the rider sits, over the keel, given the surface under the seat.
+ *
+ * The saddle is ours, not the sculpt's: sit it on the back the model actually
+ * has, so a mount reads as ridden whichever build is showing — and then the
+ * rider sits on the *saddle*, not on the animal under it, which is a hand's
+ * depth of leather the measurement cannot see. A hand-placed seat anchor is
+ * the sitting point itself, and the saddle is put under it.
+ */
+export function sitOnModel(body: THREE.Object3D, surface: number | undefined, anchor: VehicleAnchor | null): number {
+  const saddle = body.getObjectByName('saddle');
+  if (anchor) {
+    if (saddle) saddle.position.y = anchor.seat[1] - SADDLE_PAD;
+    return anchor.seat[1];
+  }
+  const top = surface ?? 0;
+  if (!saddle) return top;
+  saddle.position.y = top - SADDLE_SINK;
+  return top - SADDLE_SINK + SADDLE_PAD;
+}
+
+/** the stance's rise for a canonical rider: how far its root sits under the seat surface */
+export const riderRise = (stance: VehicleDef['stance'], hips = CANONICAL_HIPS): number => stanceRise(stance, hips);
+
+export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void,
+  onSettle?: () => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } {
   const def = VEHICLE_DEFS[kind];
   const built: THREE.Mesh[] = [];
   const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
@@ -2894,10 +2944,11 @@ function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group,
       axis: def.modelAxis,
       ground: def.modelGround,
       onLoad: (root) => { for (const m of built) m.visible = false; onModel?.(root); },
+      onSettle,
     });
     // a grounded sculpt stands on the keel; the rest hang off their own origin
     model.position.y = def.modelGround ? 0 : def.body * 0.35;
     group.add(model);
-  }
+  } else onSettle?.();
   return parts;
 }

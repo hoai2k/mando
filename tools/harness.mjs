@@ -451,8 +451,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
    */
   async function clickText(label) {
     const c = await page.evaluate((l) => {
-      const el = [...document.querySelectorAll('.menu-btn, .menu-toggle, .board-card, .charsel-arrow')]
-        .find((e) => e.offsetParent !== null && (e.textContent || '').includes(l));
+      // a departures row spells its territory in split-flap tiles ("PRISON
+      // RIG"), so its proper name is on its label rather than in its text
+      const el = [...document.querySelectorAll('.menu-btn, .menu-toggle, .board-card, .fe-strip')]
+        .find((e) => e.offsetParent !== null
+          && ((e.textContent || '').includes(l) || (e.getAttribute('aria-label') || '').includes(l)));
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -603,11 +606,10 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     // and walked on into the wrong screen carrying a passing check with it.
     await focusButton(/WAVE BATTLE/i);
     await pad.tap(BTN.START);
-    // `CHOOSE TERRITORY` exactly, and nothing a mission card can spell: the strip
-    // says DUNE SEA too, which is how the wrong screen slipped through before.
-    await waitForText(/CHOOSE TERRITORY/i);
-    // by name, not by counting presses: the territory grid moves focus by where
-    // cards sit on screen, so a run of DRIGHTs does not land on a known board
+    // `DEPARTURES` exactly, and nothing the mission map can spell: the map says
+    // DUNE SEA too, which is how the wrong screen slipped through before.
+    await waitForText(/DEPARTURES/i);
+    // by name, not by counting presses, so a reordered board still lands here
     await clickText(board);
     await waitForText(/CHOOSE YOUR|DIN DJARIN/i);
     // Player one is the keyboard's own seat now ("Fix controller claims for
@@ -620,7 +622,9 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     // `READY` that could only ever belong to someone else. Player one has to be
     // driven the way `test-controller-claims.mjs` drives it: keyboard.
     for (let i = 0; i < 14; i++) {
-      if (new RegExp(character, 'i').test(await text())) break;
+      // player one's card, not the page: the roster strips spell every name
+      const on = await page.evaluate(() => document.querySelector('.charsel-panel .charsel-name-current')?.textContent ?? '');
+      if (new RegExp(character, 'i').test(on)) break;
       await page.keyboard.press('ArrowRight');
       await sleep(150);
     }

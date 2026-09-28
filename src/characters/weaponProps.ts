@@ -31,14 +31,14 @@ interface WeaponProp {
 export const WEAPON_PROPS = {
   // ---- staffs: built by makeGaffi, the gaffi slot's weapon ----
   gaffi: { family: 'staff', length: 1.5 },
-  gaffi_collection: { family: 'staff', length: 1.5 },
+  gaffi_collection: { family: 'staff', length: 1.5, name: 'tuskenGaffi' },
   beskar_spear: { family: 'staff', length: 1.65, name: 'beskarSpear', node: 'beskarSpear', blade: 'beskar' },
   poleaxe: { family: 'staff', length: 1.45, name: 'poleaxe', node: 'poleaxe' },
   electrostaff: { family: 'staff', length: 1.8 },
   // the workbench's weapon-choice lengths, which the hand grips were set with
   rey_staff: { family: 'staff', length: 1.7, name: 'quarterstaff' },
   force_pike: { family: 'staff', length: 1.9, name: 'forcePike' },
-  nightsister_polearm: { family: 'staff', length: 1.8 },
+  nightsister_polearm: { family: 'staff', length: 1.8, name: 'nightsisterPolearm' },
   // ---- clubs ----
   pirate_boarding_club: { family: 'club', length: 0.7 },
   alamite_stone_club: { family: 'club', length: 0.68 },
