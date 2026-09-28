@@ -462,8 +462,19 @@ export class Player {
    * `take` may take the whole frame (return true). Null outside a section.
    */
   sectionMove: SectionMove | null = null;
+  /**
+   * K7 flight (sections/kit/locomotion.ts): the airborne top speed while a
+   * section's boosters are on. Null everywhere else — the profile's run speed.
+   */
+  flightTopSpeed: number | null = null;
   hp = 100;
   maxHp = 100;
+  /**
+   * Max health earned for the rest of the run (Hold the Forge's beskar,
+   * sections/hold-the-forge.ts). Kept apart from the profile's number so a
+   * body swap (`morph`) keeps it.
+   */
+  maxHpBonus = 0;
   /** PvP: respawns left; other modes never read it */
   lives = 0;
   /** who last hurt this player (their slot), for PvP kill credit */
@@ -1122,7 +1133,7 @@ export class Player {
     this.profile = def.profile;
     this.char = def.build();
     this.char.setHeroLight(game.board.heroLight ?? 0);
-    this.maxHp = this.profile.maxHp;
+    this.maxHp = this.profile.maxHp + this.maxHpBonus;
     this.hp = Math.min(this.hp, this.maxHp);
     this.radius = this.profile.radius;
     this.height = this.profile.height;
@@ -1876,6 +1887,8 @@ export class Player {
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
+    // K7 flight: a section's boosters set the airborne top speed
+    if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;
     // chest-deep: slow, loud, exposed — less so for something built for it
     if (this.wading) topSpeed *= this.profile.amphibious ? 0.75 : 0.45;
@@ -2019,6 +2032,15 @@ export class Player {
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
+  }
+
+  /**
+   * K7 flight (sections/kit/locomotion.ts): a super-jumper wearing a
+   * section's boosters relights the rise in mid-air while A is held, where
+   * normally the climb is spent for good the moment the button lifts.
+   */
+  relightRise(): void {
+    if (this.profile.flight === 'superjump' && !this.grounded) this.riseHold = true;
   }
 
   /** super jump: the non-Mandalorian answer to the jetpack */
