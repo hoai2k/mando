@@ -379,6 +379,7 @@ export const TEXT = {
      */
     props: {
       beskarSpear: 'Beskar Spear', poleaxe: 'Poleaxe', quarterstaff: 'Quarterstaff', forcePike: 'Force Pike',
+      tuskenGaffi: 'Tusken Gaffi', nightsisterPolearm: 'Nightsister Polearm',
       doubleSaber: 'Double Saber', redSaber: 'Red Saber', darksaber: 'Darksaber',
     },
     /** what a playable NPC's slots are called, built from its own name */

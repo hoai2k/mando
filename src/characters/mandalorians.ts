@@ -271,12 +271,14 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     ...TEXT.characters.paz,
     group: 'mando',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
+    staffProp: 'force_pike',
   },
   bokatan: {
     ...TEXT.characters.bokatan,
     group: 'mando',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
     voice: 'mando_f',
+    staffProp: 'force_pike',
   },
   armorer: {
     ...TEXT.characters.armorer,
@@ -296,6 +298,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     // for: its underside is 0.33 m below the bone, so his flames drop to it
     // instead of burning inside the pack
     flameY: -0.09,
+    staffProp: 'gaffi_collection',
   },
   ventress: {
     ...TEXT.characters.ventress,
@@ -354,6 +357,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
     voice: 'reptile', amphibious: true,
+    staffProp: 'nightsister_polearm',
   },
   duelist: {
     ...TEXT.characters.duelist,
@@ -361,6 +365,7 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
     voice: 'alien_m', acrobat: true,
+    staffProp: 'rey_staff',
   },
   ig11: {
     ...TEXT.characters.ig11,
@@ -746,7 +751,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       // one was placed; the rest are left as mounted
       if (model.weaponMount) {
         const staff = blades.get('gaffi');
-        if (staff) applyHeroStaffGrip(id, staff.main);
+        if (staff) applyHeroStaffGrip(id, staffPropFor(id), staff.main);
       }
       if (model.weaponMount && cfg.sharedGrip === 'sabers') {
         const saber = blades.get('sabers');
