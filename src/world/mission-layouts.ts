@@ -654,7 +654,22 @@ export const MISSION_LAYOUTS: Record<BoardId, MissionSpec> = {
  * A section stage has no zones and no links — its module in `src/sections/`
  * builds and runs the whole of it — and its boundaries are one-way.
  */
-const SECTION_PLACEMENT: Record<BoardId, { before: number; ids: SectionId[] }[]> = {
+interface SectionPlace {
+  /** insert the sections in front of this authored stage */
+  before?: number;
+  /**
+   * …or cut authored stage `stage` in two after zone `after` (its transport
+   * door is laid at that zone's far end) and put the sections in the cut. The
+   * second half is labelled `label` on the transition card. A single-stage run
+   * — the Storm Docks, the Ringworld — has nowhere else for a section to go.
+   * The cut is only made when a section that goes in it is built, so with
+   * sections off the run is exactly the authored one.
+   */
+  split?: { stage: number; after: number; label: string };
+  ids: SectionId[];
+}
+
+const SECTION_PLACEMENT: Record<BoardId, SectionPlace[]> = {
   // the cistern's far airlock → a skiff landing, the barge → grounded in worm country → the pit
   desert: [{ before: 2, ids: ['barge-run', 'worm-sign'] }],
   // the outer yard's collar door → the frigate's hull → docks at the vault;
@@ -664,16 +679,19 @@ const SECTION_PLACEMENT: Record<BoardId, { before: number; ids: SectionId[] }[]>
   nevarro: [{ before: 2, ids: ['magma-run', 'chimney'] }],
   // the nest mouth's door → the chute → the dark at the bottom → the queen tunnel
   crevasse: [{ before: 1, ids: ['glacier-chute', 'lamplight'] }],
-  // the Storm Docks is one stage; its chain is split after the trawler deck
-  // when its sections land (the squall, then the pier run)
-  trask: [],
+  // one stage, cut after the trawler deck: the trawler casts off into the
+  // squall, and the far pier is where the mamacore wakes and chases you in
+  trask: [{ split: { stage: 0, after: 5, label: TEXT.missions.stages.trask[1] }, ids: ['squall', 'run-the-pier'] }],
   // the intake door → the processing line → the plant; the plant's rear airlock → the tank farm
   refinery: [{ before: 1, ids: ['the-line'] }, { before: 2, ids: ['lights-out'] }],
   // the armoury vault → the covert forge → up its shaft into the sky → the dome's breach
   forge: [{ before: 2, ids: ['hold-the-forge', 'covert-sky'] }],
-  // the Ringworld is one stage; split after the market arcade (the tram) and
-  // after the plaza (the mark) when its sections land
-  ringworld: [],
+  // one stage, cut twice: the arcade's far end is a tram platform, and the
+  // plaza's way on is the fire stair the mark bolts up
+  ringworld: [
+    { split: { stage: 0, after: 1, label: TEXT.missions.stages.ringworld[1] }, ids: ['tram-top'] },
+    { split: { stage: 0, after: 5, label: TEXT.missions.stages.ringworld[2] }, ids: ['mark-runs'] },
+  ],
   // surfacing into the cell blocks → the stair core → the work floor; the lift → the top decks
   narkina: [{ before: 2, ids: ['one-way-out'] }, { before: 3, ids: ['the-lift'] }],
 };
@@ -708,13 +726,26 @@ function sectionsOff(): boolean {
   const off = sectionsOff();
   for (const [board, spec] of Object.entries(MISSION_LAYOUTS) as [BoardId, MissionSpec][]) {
     if (off) continue;
+    const places = SECTION_PLACEMENT[board];
+    const built = (pl: SectionPlace): SectionId[] => pl.ids.filter((id) => BUILT_SECTIONS.has(id));
     const out: StageSpec[] = [];
     spec.stages.forEach((stage, i) => {
-      for (const place of SECTION_PLACEMENT[board]) {
-        if (place.before !== i) continue;
-        for (const id of place.ids) if (BUILT_SECTIONS.has(id)) out.push(section(id));
+      for (const place of places) {
+        if (place.before === i) for (const id of built(place)) out.push(section(id));
       }
-      out.push(stage);
+      // cut the chain wherever a built section goes into it
+      const cuts = places.filter((pl) => pl.split?.stage === i && built(pl).length)
+        .sort((a, b) => a.split!.after - b.split!.after);
+      let from = 0;
+      let label = stage.label;
+      for (const cut of cuts) {
+        const after = cut.split!.after;
+        out.push({ ...stage, label, zones: stage.zones.slice(from, after + 1), links: stage.links.slice(from, after) });
+        for (const id of built(cut)) out.push(section(id));
+        from = after + 1;
+        label = cut.split!.label;
+      }
+      out.push(from === 0 ? stage : { ...stage, label, zones: stage.zones.slice(from), links: stage.links.slice(from) });
     });
     spec.stages = out;
   }

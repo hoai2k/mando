@@ -508,10 +508,10 @@ export const TEXT = {
       station: ['the approach', 'inside the station', 'the prize'],
       nevarro: ['the flats', 'the garrison', 'the glass fields'],
       crevasse: ['the surface', 'the deep'],
-      trask: ['the harbour'],
+      trask: ['the harbour', 'the pier heads'],
       refinery: ['the yard', 'the plant', 'the loading field'],
       forge: ['the plain', 'the undercroft', 'the dome'],
-      ringworld: ['the high street'],
+      ringworld: ['the high street', 'the night-side row', 'the service spine'],
       narkina: ['the landing deck', 'the sea', 'the cell block', 'the top decks'],
     },
     /**
