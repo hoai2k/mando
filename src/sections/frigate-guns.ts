@@ -260,106 +260,125 @@ function dropshipStandIn(): THREE.Group {
   return g;
 }
 
-/** `boarding_tube`: 3 m Ø × 8 m, the clamp collar (`latch`) at the origin, the tube along +z */
+/**
+ * `boarding_tube`, to its sheet (docs/ASSETS_MODELS.md, stand-in proportions):
+ * 8.0 × 2.4 × 2.4 m. A ribbed tube 2.2 m across; a clamp collar 2.4 m across
+ * with four jaws at the hull end (+Z) — the `latch` node, the part that is
+ * meleed or rocketed off; a hoop guard at the dropship end (−Z). Origin at
+ * the base under the tube's middle, so the axis runs 1.2 m above it.
+ */
 function tubeStandIn(): THREE.Group {
   const g = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({ color: 0x55504a, roughness: 0.85, metalness: 0.35 });
   const rib = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 0.6, metalness: 0.6 });
   const red = new THREE.MeshBasicMaterial({ color: 0xff3a24 });
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.5, 7.6, 14, 1, true), skin);
+  const AX = 1.2;
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 7.2, 14, 1, true), skin);
   tube.rotation.x = Math.PI / 2;
-  tube.position.z = 4.2;
+  tube.position.set(0, AX, -0.2);
   g.add(tube);
-  for (let i = 0; i < 6; i++) {
-    const r = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.14, 6, 16), rib);
-    r.position.z = 1.2 + i * 1.3;
+  for (let i = 0; i < 7; i++) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.08, 6, 16), rib);
+    r.position.set(0, AX, -3.2 + i * 0.95);
     g.add(r);
   }
+  // the hoop guard at the dropship end
+  const hoop = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.12, 6, 18), rib);
+  hoop.position.set(0, AX, -3.9);
+  g.add(hoop);
+  // the clamp collar: a ring and four jaws, at the hull end
   const latch = new THREE.Group();
   latch.name = 'latch';
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.35, 8, 20), rib);
-  latch.add(collar);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.9), rib);
-    tooth.position.set(Math.cos(a) * 1.75, Math.sin(a) * 1.75, -0.2);
-    tooth.rotation.z = a;
-    latch.add(tooth);
+  latch.position.set(0, AX, 3.6);
+  latch.add(new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.2, 8, 20), rib));
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.8), rib);
+    jaw.position.set(Math.cos(a) * 0.98, Math.sin(a) * 0.98, 0.1);
+    jaw.rotation.z = a;
+    latch.add(jaw);
   }
-  for (const s of [-1, 1]) {
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), red);
-    lamp.position.set(s * 1.2, 1.2, -0.3);
+  for (const sx of [-1, 1]) {
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), red);
+    lamp.position.set(sx * 0.85, 0.85, -0.1);
     latch.add(lamp);
   }
   g.add(latch);
   return g;
 }
 
-/** `pirate_corvette`: ~60 m, +z forward, origin at the keel; `gen_0..2`, `spine_gun`, `bridge` */
+/**
+ * `pirate_corvette`, to its sheet: 60 × 16 × 18 m (L × W × H, the height to
+ * the bridge mast). A box hull about 60 × 12 × 9; three shield domes
+ * `gen_0..2` in a row on the dorsal centreline over the middle third; the
+ * spinal gun `spine_gun` ahead of them; the `bridge` near the stern; three
+ * engine pods at the rear. +Z forward, origin at the keel.
+ */
 function corvetteStandIn(): THREE.Group {
   const g = new THREE.Group();
   const rust = new THREE.MeshStandardMaterial({ color: 0x6e4630, roughness: 0.85, metalness: 0.35 });
   const bare = new THREE.MeshStandardMaterial({ color: 0x7d838a, roughness: 0.55, metalness: 0.7 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x2c2f34, roughness: 0.7, metalness: 0.5 });
   const glow = new THREE.MeshBasicMaterial({ color: 0x7fd0ff });
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(10, 7, 46), rust);
-  hull.position.set(0, 3.5, -2);
-  const belly = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 40), dark);
-  belly.position.set(0, 0.5, -1);
-  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 5.6, 12, 4, 1), rust);
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(12, 7, 46), rust);
+  hull.position.set(0, 4.5, -3);
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(9, 2, 44), dark);
+  belly.position.set(0, 1, -3);
+  // the prow: a wedge out to the bow
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 6.4, 10, 4, 1), rust);
   nose.rotation.x = Math.PI / 2;
   nose.rotation.y = Math.PI / 4;
-  nose.position.set(0, 3.5, 27);
-  nose.scale.set(1, 1, 0.8);
+  nose.scale.set(1, 1, 0.65);
+  nose.position.set(0, 4.5, 25);
   g.add(hull, belly, nose);
-  for (const [x, y, z, sx, sy, sz] of [[5.3, 4.5, 6, 0.8, 3, 12], [-5.3, 2.5, -8, 0.8, 3.5, 14], [0, 7.2, 10, 6, 0.6, 9]]) {
+  for (const [x, y, z, sx, sy, sz] of [[6.2, 5.5, 4, 0.8, 3.5, 14], [-6.2, 3.5, -10, 0.8, 4, 16], [0, 8.3, 0, 7, 0.6, 22]]) {
     const slab = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), bare);
     slab.position.set(x, y, z);
     g.add(slab);
   }
-  // the spinal gun: a long barrel under the keel, out past the nose
+  // the spinal gun, on the dorsal line ahead of the domes and out past the bow
   const spine = new THREE.Group();
   spine.name = 'spine_gun';
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 26, 10), dark);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 20, 10), dark);
   barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0, 0, 0);
-  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.9, 1.6, 10), bare);
+  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 0.9, 1.4, 10), bare);
   muzzle.rotation.x = Math.PI / 2;
-  muzzle.position.set(0, 0, 13);
+  muzzle.position.z = 10;
   const bore = new THREE.Mesh(new THREE.CircleGeometry(0.7, 12), new THREE.MeshBasicMaterial({ color: 0xff5a2a }));
-  bore.name = 'bore';
-  bore.position.set(0, 0, 13.85);
+  bore.position.z = 10.75;
   spine.add(barrel, muzzle, bore);
-  spine.position.set(0, -0.6, 20);
+  spine.position.set(0, 9.4, 19.5);
   g.add(spine);
-  // the bridge: a block at the stern, windows lit
+  // the bridge near the stern, its mast to the full 18 m
   const bridge = new THREE.Group();
   bridge.name = 'bridge';
-  const block = new THREE.Mesh(new THREE.BoxGeometry(7, 4, 8), bare);
-  const win = new THREE.Mesh(new THREE.BoxGeometry(7.1, 0.7, 0.3), new THREE.MeshBasicMaterial({ color: 0xffc070 }));
-  win.position.set(0, 0.8, 4.05);
-  bridge.add(block, win);
-  bridge.position.set(0, 9, -18);
+  const block = new THREE.Mesh(new THREE.BoxGeometry(8, 4.5, 8), bare);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(8.1, 0.7, 0.3), new THREE.MeshBasicMaterial({ color: 0xffc070 }));
+  win.position.set(0, 1, 4.05);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4.5, 6), dark);
+  mast.position.y = 4.5;
+  bridge.add(block, win, mast);
+  bridge.position.set(0, 10.25, -21);
   g.add(bridge);
-  // three shield-generator domes on pylons
+  // three shield-generator domes in a row over the middle third
   for (let i = 0; i < 3; i++) {
     const gen = new THREE.Group();
     gen.name = `gen_${i}`;
-    const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.1, 2.4, 10), dark);
-    pylon.position.y = -1.6;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 12),
+    const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.1, 1.6, 10), dark);
+    pylon.position.y = -2.2;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.2, 16, 12),
       new THREE.MeshStandardMaterial({ color: 0x3a6cff, emissive: 0x2a60ff, emissiveIntensity: 1.2, roughness: 0.3, metalness: 0.2 }));
     gen.add(pylon, dome);
-    gen.position.set(0, 9.6, -4 + i * 11);
+    gen.position.set(0, 11.2, -8 + i * 8);
     g.add(gen);
   }
-  // mismatched engine pods astern
-  for (const [x, y, r] of [[-4.5, 4.5, 2.0], [4.5, 4.5, 1.7], [0, 1.5, 1.6], [0, 7.5, 1.3]]) {
+  // three engine pods at the rear, out to the 16 m beam
+  for (const [x, y, r] of [[-6.2, 4.5, 1.8], [6.2, 4.5, 1.8], [0, 6.5, 2.0]]) {
     const pod = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, 7, 12), dark);
     pod.rotation.x = Math.PI / 2;
-    pod.position.set(x, y, -27);
+    pod.position.set(x, y, -26.5);
     const jet = new THREE.Mesh(new THREE.CircleGeometry(r * 0.8, 12), glow);
-    jet.position.set(x, y, -30.55);
+    jet.position.set(x, y, -30.05);
     jet.rotation.y = Math.PI;
     g.add(pod, jet);
   }
@@ -574,12 +593,13 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   const ringMat = new THREE.MeshBasicMaterial({ color: 0x63b4ff, transparent: true, opacity: 0.6 });
   ctx.own(ringMat);
   for (const gn of GUNS) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.45, 32), ringMat);
+    // the swing of the barrels: a 3 m drum and 1.5 m of barrel beyond it
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.85, 3.05, 40), ringMat);
     ctx.own(ring.geometry);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(gn.x, Y0 + 0.03, gn.z);
     ctx.mesh(ring);
-    const bed = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.3, 0.18, 24), dark);
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.85, 0.18, 24), dark);
     ctx.own(bed.geometry);
     bed.position.set(gn.x, Y0 + 0.09, gn.z);
     ctx.mesh(bed);
@@ -866,8 +886,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   ctx.own(shieldMat);
   const shield = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), shieldMat);
   ctx.own(shield.geometry);
-  shield.scale.set(10, 9, 36);
-  shield.position.set(0, 5, 0);
+  shield.scale.set(11, 10, 36);
+  shield.position.set(0, 7, 0);
   corvette.add(shield);
   const beamMat = new THREE.MeshBasicMaterial({ color: 0xff7040, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
   ctx.own(beamMat);
@@ -1193,7 +1213,9 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     s.tube = t;
     tubes.push(t);
     t.holder.visible = true;
+    t.holder.rotation.set(0, 0, 0);
     t.holder.scale.set(1, 1, 0.05);
+    t.holder.traverse((o) => { if (o.name === 'latch') o.visible = true; });
     audio.doorCycle();
   };
   const latchHurt = (t: Tube) => (amount: number): number => {
@@ -1224,14 +1246,29 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       }
       retire(t.latch);
       t.latch = null;
+      // the clamp is off: the collar goes with it (the sculpt's `latch` node, or the stand-in's)
+      t.holder.traverse((o) => { if (o.name === 'latch') o.visible = false; });
     }
     t.queue = [];
     const s = t.ship;
     if (s.state === 'latched' || s.state === 'latching') { s.state = 'leaving'; s.t = 0; s.vel.set(0, 0, 0); }
   };
+  /**
+   * Lay the tube from the ship's door to its collar: the sheet's origin is
+   * under the tube's middle, +Z runs to the collar, the axis 1.2 m up, and it
+   * is scaled along its 8 m length to span the gap.
+   */
+  const layTube = (t: Tube, door: THREE.Vector3, collar: THREE.Vector3): void => {
+    const len = Math.max(0.3, door.distanceTo(collar));
+    t.holder.position.copy(door).add(collar).multiplyScalar(0.5);
+    t.holder.lookAt(collar);
+    t.holder.translateY(-1.2);
+    t.holder.scale.set(1, 1, len / 8);
+  };
   const updateTube = (t: Tube, dt: number): void => {
     const s = t.ship;
-    const at = latchPos(t.pt).setY(Y0 + 1.9);
+    // the collar (2.4 m across) stands on the deck edge
+    const at = latchPos(t.pt).setY(Y0 + 1.2);
     if (t.cut) {
       // torn loose: it flops out and falls away astern
       t.fall += dt;
@@ -1247,16 +1284,13 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     }
     const door = doorOf(s);
     if (s.state === 'latching') {
+      // the tube runs out of the ship's door and its collar comes down on the edge
       t.ext = Math.min(1, t.ext + dt / 1.6);
-      t.holder.position.copy(door).lerp(at, t.ext);
-      t.holder.scale.set(1, 1, Math.max(0.05, t.ext * door.distanceTo(at) / 8));
-      t.holder.lookAt(door);
+      layTube(t, door, _v.copy(door).lerp(at, t.ext));
       if (t.ext >= 1) { s.state = 'latched'; armLatch(t); }
       return;
     }
-    t.holder.position.copy(at);
-    t.holder.scale.set(1, 1, door.distanceTo(at) / 8);
-    t.holder.lookAt(door);
+    layTube(t, door, at);
     // latched: it drains the hull, and pours boarders
     hullHit(TUBE_DRAIN * dt);
     t.nextT -= dt;
@@ -1292,8 +1326,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     if (n) return n.getWorldPosition(new THREE.Vector3());
     return local.clone().applyMatrix4(corvette.matrixWorld);
   };
-  const GEN_LOCAL = [0, 1, 2].map((i) => new THREE.Vector3(0, 9.6, -4 + i * 11));
-  const BRIDGE_LOCAL = new THREE.Vector3(0, 9, -18);
+  const GEN_LOCAL = [0, 1, 2].map((i) => new THREE.Vector3(0, 11.2, -8 + i * 8));
+  const BRIDGE_LOCAL = new THREE.Vector3(0, 10.25, -21);
   // the sculpt's own nodes once it has landed, the stand-in's until then
   const node = (name: string): THREE.Object3D | null =>
     corvetteProp.sculpt.getObjectByName(name) ?? corvette.getObjectByName(name) ?? null;
@@ -1313,20 +1347,20 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     cv.arrive = 0;
     cv.spinal = 'idle';
     cv.spinalT = 9;
-    cv.pos.set(CV_X - 20, Y0 - 6, -260);
+    cv.pos.set(CV_X - 20, Y0 - 4, -260);
     cv.yaw = 0;
     cv.turn = 0;
     cv.slideZ = 0;
     for (const g of gens) {
       g.down = false;
       if (g.node) g.node.visible = true;
-      g.e = proxy(nodeWorld(g.node, GEN_LOCAL[g.i]), genHp, { r: 2.6, h: 5.2 }, (e) => {
-        e.position.copy(nodeWorld(g.node, GEN_LOCAL[g.i])).y -= 2.6;
+      g.e = proxy(nodeWorld(g.node, GEN_LOCAL[g.i]), genHp, { r: 2.3, h: 4.6 }, (e) => {
+        e.position.copy(nodeWorld(g.node, GEN_LOCAL[g.i])).y -= 2.3;
       }, (amount, _from, bySlot) => { shieldMat.opacity = 0.32; return armour(amount, bySlot); });
     }
-    bridge = proxy(nodeWorld(bridgeNode, BRIDGE_LOCAL), bridgeHp, { r: 3.6, h: 5, parts: [{ z: 2.5, y: 2.5, r: 3 }, { z: -2.5, y: 2.5, r: 3 }] },
+    bridge = proxy(nodeWorld(bridgeNode, BRIDGE_LOCAL), bridgeHp, { r: 3.2, h: 4.6, parts: [{ z: 2.5, y: 2.3, r: 2.6 }, { z: -2.5, y: 2.3, r: 2.6 }] },
       (e) => {
-        e.position.copy(nodeWorld(bridgeNode, BRIDGE_LOCAL)).y -= 2.5;
+        e.position.copy(nodeWorld(bridgeNode, BRIDGE_LOCAL)).y -= 2.3;
         e.facingYaw = cv.yaw;
       },
       (amount, _from, bySlot) => {
@@ -1354,7 +1388,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     if (cv.arrive < 1) {
       cv.arrive = Math.min(1, cv.arrive + dt / 12);
       const k = 1 - (1 - cv.arrive) ** 3;
-      cv.pos.set(THREE.MathUtils.lerp(CV_X - 20, CV_X, k), THREE.MathUtils.lerp(Y0 - 6, Y0 - 4, k), THREE.MathUtils.lerp(-260, 0, k));
+      cv.pos.set(THREE.MathUtils.lerp(CV_X - 20, CV_X, k), THREE.MathUtils.lerp(Y0 - 4, Y0 - 2, k), THREE.MathUtils.lerp(-260, 0, k));
     }
     // the spinal gun
     const shooting = cv.arrive >= 1 && phase === 'corvette';
@@ -1383,7 +1417,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     cv.turn += THREE.MathUtils.clamp(turnTo - cv.turn, -dt / 1.1, dt / 1.1);
     if (cv.arrive >= 1) {
       cv.pos.z += THREE.MathUtils.clamp(wantZ - cv.pos.z, -6 * dt, 6 * dt);
-      cv.pos.y = Y0 - 4 + Math.sin(cv.t * 0.5) * 0.6;
+      cv.pos.y = Y0 - 2 + Math.sin(cv.t * 0.5) * 0.6;
     }
     cv.yaw = (Math.PI / 2) * cv.turn * cv.turn * (3 - 2 * cv.turn);
     if (phase === 'broken') {
@@ -1420,12 +1454,13 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     }
     beam.visible = cv.spinal === 'fire';
     if (beam.visible) {
-      const from = nodeWorld(null, new THREE.Vector3(0, -0.6, 34));
-      const to = P(HALF_W + 40, from.y - Y0, cv.laneZ);
+      const from = nodeWorld(null, new THREE.Vector3(0, 9.4, 30.5));
+      // raked down across the deck from the dorsal muzzle
+      const to = P(HALF_W + 6, 0.8, cv.laneZ);
       from.z = to.z = cv.laneZ;
       beam.position.copy(from).lerp(to, 0.5);
       beam.scale.set(1, from.distanceTo(to), 1);
-      beam.rotation.set(0, 0, Math.PI / 2);
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
       beamMat.opacity = Math.min(0.9, cv.spinalT * 2);
     }
     // the domes and the bridge
@@ -1808,7 +1843,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   // tube latches or a boarder is on the deck — the section's question, asked
   // of a bot.
   const obstacles = (): { x: number; z: number; r: number }[] => [
-    ...guns.map((g) => ({ x: g.pos.x, z: g.pos.z, r: 2.0 })),
+    ...guns.map((g) => ({ x: g.pos.x, z: g.pos.z, r: 2.1 })),
     ...COVER.map(([x, z, sx, sz]) => ({ x, z, r: Math.hypot(sx, sz) / 2 + 0.55 })),
   ];
   /**
@@ -1992,7 +2027,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     checkpoint: () => hullCheckpoint,
     phase: () => ({ phase, wave: waveIdx, restartAt }),
     wave: (k: number) => { clearField(); startWave(k); },
-    corvette: () => { clearField(); startCorvette(); cv.arrive = 1; cv.pos.set(CV_X, Y0 - 4, 0); },
+    corvette: () => { clearField(); startCorvette(); cv.arrive = 1; cv.pos.set(CV_X, Y0 - 2, 0); },
     swarm: (b: Bearing, n: number) => spawnSwarm(b, n),
     drones: () => drones.map((d) => d.e),
     latchAt: (pt: number) => {

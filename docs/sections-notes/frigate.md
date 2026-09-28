@@ -157,12 +157,28 @@ around 60%. The corvette fight takes about 40 s either way. The suite (culled) f
 - `raider_dropship` (delivered): the gunships and boarding ships fly it. It has a stand-in for
   when the file is missing.
 - `boarding_tube`, `pirate_corvette`, `quad_turret` (requested, not delivered): procedural
-  stand-ins to the `ASSETS_MODELS.md` spec. **Tube:** 3 m Ø × 8 m, the `latch` collar at the
-  origin, the tube along +z (the section points +z at the ship's door and scales z to fit).
-  **Corvette:** ~60 m, +z forward, origin at the keel, with nodes `gen_0..2`, `spine_gun` and
-  `bridge`. The section looks the named nodes up in the sculpt first and the stand-in second,
-  hides a dome's node when it falls, and hides the bridge node when it breaks. The quad gun is
-  K3's own stand-in.
+  stand-ins built to the sheet-measured sizes in `SECTIONS_IMPLEMENTATION.md` §4 "Props to
+  build" / `ASSETS_MODELS.md` "Stand-in proportions" (so the stand-in is the spec a sculpt is
+  scaled onto by one dimension).
+  - **Tube** 8.0 × 2.4 × 2.4 m: a ribbed tube 2.2 m across, a 2.4 m clamp collar with four jaws
+    at +Z (the `latch` node), a hoop guard at −Z; origin at the base under the middle. The
+    section lays it from the dropship's door to the deck edge (`layTube`: centred between them,
+    +Z toward the collar, dropped 1.2 m so the axis runs through both, scaled along its 8 m),
+    so the collar stands on the boarding point. Cut, the `latch` node is hidden (the sculpt's
+    or the stand-in's) and the tube flops away.
+  - **Corvette** 60 × 16 × 18 m: a box hull ~60 × 12 × 9, three domes `gen_0..2` in a row on
+    the dorsal centreline over the middle third (z −8, 0, 8), `spine_gun` on the dorsal line
+    ahead of them out past the bow, `bridge` near the stern with its mast to 18 m, three
+    engine pods astern. The section looks the named nodes up in the sculpt first and the
+    stand-in second (a loaded sculpt hides the whole stand-in, so nothing doubles up), hides a
+    dome's node when it falls and the bridge's when it breaks. Hit volumes only: domes r 2.3,
+    the bridge r 3.2 with two parts. It holds station with its keel 2 m under the deck so
+    everything on it stays above the guns' +0.08 pitch floor; the spinal beam rakes down
+    from the dorsal muzzle across the deck.
+  - **Quad gun** is K3's stand-in (being rebuilt to 4.0 × 3.0 × 2.7 m, trunnion 1.9 m, by its
+    owner). The hull layout fits the 3 m drum and 1.5 m barrel reach: the deck rings show the
+    3 m swing, the nearest cover is 6.6 m from a gun, and the port/starboard guns' tips stop
+    short of the bulwarks. The sight override (2.7 m) matches K3's new default.
 - `SECTION_ASSETS['frigate-guns']` warms all five ids, plus `interceptor_drone`.
 - Textures: `hull_plate_large` (deck and housings, re-toned after load because it lands bright),
   `metal_hull`, `rust_hull` (flanks, bulwarks), `panel_white` (station faces), `hazard_stripe`
