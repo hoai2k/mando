@@ -24,11 +24,10 @@ async function startAs(name) {
   // this walked on into the wrong screen carrying a passing check with it.
   await h.focusButton(/WAVE BATTLE/i);
   await h.pad.tap(BTN.START);
-  // `CHOOSE TERRITORY` exactly, and nothing a mission card can spell: the strip
-  // says DUNE SEA too, which is how the wrong screen slipped through before.
-  await h.waitForText(/CHOOSE TERRITORY/i);
-  // by name, not by counting presses: the territory grid moves focus by where
-  // cards sit on screen, so a run of DRIGHTs does not land on a known board
+  // `DEPARTURES` exactly, and nothing the mission map can spell: the map says
+  // DUNE SEA too, which is how the wrong screen slipped through before.
+  await h.waitForText(/DEPARTURES/i);
+  // by name, not by counting presses, so a reordered board still lands here
   await h.clickText('The Prison Rig');
   await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
   // Player one is the keyboard's own seat now ("Fix controller claims for

@@ -193,10 +193,10 @@ async function main() {
       check('warming does not boot the game behind the door',
             !(await titled(page)) && await gateUp(page));
       // The title screen's own two files. They are the largest things a player
-      // waits on at the title (1.2 MB and 326 kB) and they are fetched lazily
+      // waits on at the title (the logo is 1.2 MB) and they are fetched lazily
       // by the screen's construction, so behind a door nothing asks for them
       // until it is too late to help — see the `title` case in prefetch.ts.
-      const art = ['logo.png', 'title_bg.jpg']
+      const art = ['logo.png', 'board_tatooine.jpg']
         .filter((f) => !asked.some((u) => u.endsWith(f)));
       check('the title screen\'s own art warms too', art.length === 0, `missing: ${art.join(', ')}`);
       await page.close();

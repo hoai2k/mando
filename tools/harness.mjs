@@ -440,8 +440,11 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
    */
   async function clickText(label) {
     const c = await page.evaluate((l) => {
-      const el = [...document.querySelectorAll('.menu-btn, .menu-toggle, .board-card, .charsel-arrow')]
-        .find((e) => e.offsetParent !== null && (e.textContent || '').includes(l));
+      // a departures row spells its territory in split-flap tiles ("PRISON
+      // RIG"), so its proper name is on its label rather than in its text
+      const el = [...document.querySelectorAll('.menu-btn, .menu-toggle, .board-card, .fe-strip')]
+        .find((e) => e.offsetParent !== null
+          && ((e.textContent || '').includes(l) || (e.getAttribute('aria-label') || '').includes(l)));
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };

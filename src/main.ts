@@ -17,6 +17,9 @@ import { Hud } from './ui/hud';
 import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
+import { buildDepartures } from './ui/departures';
+import { loadFonts } from './ui/fonts';
+import { makeStage } from './ui/stage';
 import { VsScreen } from './ui/vs';
 import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
@@ -31,6 +34,7 @@ import type { StageSpec, ZoneSpec } from './world/mission';
 import { modesEnabled, type GameMode } from './game/modes';
 
 const app = document.getElementById('app')!;
+loadFonts();
 
 // ---------- renderer ----------
 loadSavedConfig();
@@ -134,13 +138,31 @@ const chosenChars: PlayableId[] = ['din', 'paz'];
 let browsing: PlayableId[] = [];
 
 // ----- title screen -----
-const title = new MenuScreen(menuLayer);
-// authored key art behind the title, under the existing vignette gradient
-title.root.style.backgroundImage =
-  "radial-gradient(ellipse at 50% 30%, rgba(30,22,12,0.55), rgba(0,0,0,0.92) 75%), url('assets/textures/title_bg.jpg')";
-title.root.style.backgroundSize = 'cover';
-title.root.style.backgroundPosition = 'center';
-title.addTitle(TEXT.game.title, TEXT.game.tagline, 'logo');
+// Twin suns over the Dune Sea: the key art fills the window above a black
+// letterbox, the wordmark sits low on the right, and the modes run along the
+// letterbox like a film's title card (docs/UI_CONCEPTS.md).
+const title = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-title');
+title.root.innerHTML = `
+  <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/board_tatooine.jpg')"></div>
+  <div class="fe-title-shade"></div>`;
+const titleStage = makeStage(title.root, 'fe-bottom');
+{
+  // The authored wordmark where the file exists, the set type where it does
+  // not — the same contract `MenuScreen.addTitle` keeps.
+  const logo = new Image();
+  logo.className = 'fe-title-logo';
+  logo.alt = TEXT.game.title;
+  const word = document.createElement('div');
+  word.className = 'fe-title-word';
+  word.textContent = TEXT.game.title;
+  logo.onload = () => word.remove();
+  logo.onerror = () => logo.classList.add('missing');
+  logo.src = `${ASSET_ROOT}assets/textures/logo.png`;
+  titleStage.append(word, logo);
+}
+const titleBar = document.createElement('div');
+titleBar.className = 'fe-title-bar';
+titleStage.appendChild(titleBar);
 // One prompt, arcade style: Start (or Enter, or a click) drops straight into
 // territory select and takes the window fullscreen on the way. Browsers only
 // honour requestFullscreen from a real user gesture — a gamepad press isn't
@@ -156,15 +178,23 @@ if (modesEnabled()) {
   };
   // Missions first, then Wave Battle, then PvP. The menu focuses its first
   // button, so this also makes Missions what START opens from a cold title.
-  title.addButtons(null, [
+  title.addButtons(titleBar, [
     { label: TEXT.title.missions, action: () => pickMode('campaign', 'planets') },
     { label: TEXT.title.waveBattle, action: () => pickMode('wave', 'select') },
     { label: TEXT.title.pvp, action: () => pickMode('pvp', 'select') },
   ]);
 } else {
-  title.addButtons(null, [
+  title.addButtons(titleBar, [
     { label: TEXT.title.pressStart, action: () => { mode = 'wave'; enterFullscreen(); setState('select'); } },
   ]);
+}
+{
+  const start = document.createElement('div');
+  start.className = 'fe-title-start';
+  start.innerHTML = `
+    <span class="fe-title-players">${TEXT.title.players}</span>
+    <span class="fe-title-press"><span class="fe-glyph a">A</span>${TEXT.title.pressStart}</span>`;
+  titleBar.appendChild(start);
 }
 function enterFullscreen(): void {
   if (!document.fullscreenElement) {
@@ -172,30 +202,14 @@ function enterFullscreen(): void {
   }
 }
 
-// ----- board select -----
+// ----- board select: the departures board (Wave Battle and PvP) -----
 const select = new MenuScreen(menuLayer);
-select.addTitle(TEXT.boardSelect.title);
-const cards = document.createElement('div');
-cards.className = 'board-cards';
-select.root.appendChild(cards);
-function makeCard(name: string, desc: string, art: string, grad: string): HTMLElement {
-  const c = document.createElement('div');
-  c.className = 'board-card';
-  c.innerHTML = `<div class="art" style="background-image:url('assets/textures/${art}'), ${grad}"></div>
-    <div class="name">${name}</div><div class="desc">${desc}</div>`;
-  cards.appendChild(c);
-  return c;
-}
-select.addButtons(cards, BOARDS.map((info) => ({
-  label: '',
-  action: () => {
-    chosenBoard = info;
-    // the plan re-runs on the transition and now knows the territory, so the
-    // seconds spent picking a fighter buy the drop screen and the match
-    setState('characters');
-  },
-  el: makeCard(info.name, info.desc, info.art, info.gradient),
-})));
+const departures = buildDepartures(select, (info) => {
+  chosenBoard = info;
+  // the plan re-runs on the transition and now knows the territory, so the
+  // seconds spent picking a fighter buy the drop screen and the match
+  setState('characters');
+});
 select.onBack = () => setState('title');
 // debug/testing handle: put the territory focus on a known card, so a test can
 // check where a direction press goes from there without walking to it first
@@ -564,9 +578,11 @@ function setState(s: AppState): void {
   for (const key of Object.keys(screens)) screens[key].hide();
   if (s === 'characters') {
     if (!charSelect.visible) {
+      // the heading's right end says where this line is riding out to
+      const context = `${mode === 'pvp' ? TEXT.title.pvp : mode === 'campaign' ? TEXT.title.missions : TEXT.title.waveBattle} · ${chosenBoard.name}`;
       charSelect.configure(mode === 'pvp'
-        ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true }
-        : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title });
+        ? { roster: PVP_ROSTER, title: TEXT.charSelect.titlePvp, minPlayers: 2, allowBots: true, context }
+        : { roster: STANDARD_ROSTER, title: TEXT.charSelect.title, context });
       charSelect.show(menuSource);
     }
   } else charSelect.hide();
@@ -574,6 +590,7 @@ function setState(s: AppState): void {
   else planets.hide();
   if (s !== 'vs') vs.hide();
   if (s !== 'loading') loading.hide();
+  if (s === 'select') departures.setMode(mode === 'pvp' ? 'pvp' : 'wave');
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
@@ -608,7 +625,7 @@ function startGame(): void {
   audio.init();
   disposeGame();
   const chars = matchCast();
-  loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id));
+  loading.show(chosenBoard, chars, keyEnemies(chosenBoard.id), mode);
   // setState re-plans with the picks settled, so anything the drop still needs
   // goes to the front of the queue here
   setState('loading');

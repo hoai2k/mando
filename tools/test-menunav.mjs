@@ -1,13 +1,15 @@
 /**
  * Menu navigation is spatial.
  *
- * A menu is not always a list. The territory grid is three cards across, and
- * stepping the focus by declaration order through it meant DOWN from the top
- * middle card moved *right* — the order the cards were written in rather than
- * the shape on screen. What this checks is that a direction press lands where
- * the player is looking: DOWN goes down a column, RIGHT goes along a row, both
- * wrap on their own axis, and a plain stack of buttons still behaves like the
- * list it is.
+ * A menu is not always a list, and stepping the focus by declaration order
+ * through a grid once meant DOWN moved *right* — the order the items were
+ * written in rather than the shape on screen. So a direction press is measured
+ * against where things actually are: DOWN goes down, RIGHT goes along a row,
+ * both wrap on their own axis, and a press along an axis a menu does not use
+ * at all steps its order, so a plain stack still behaves like the list it is.
+ *
+ * Two shapes are walked here: the title's modes, a row along the letterbox,
+ * and the territory departures board, a single column of rows.
  *
  * Run:  node tools/test-menunav.mjs
  */
@@ -23,80 +25,70 @@ function check(name, got, want) {
 
 const h = await launch();
 
-/** which card is focused, and the grid's shape as it is actually laid out */
-const grid = () => h.page.evaluate(() => {
-  const cards = [...document.querySelectorAll('.board-card')];
-  const focused = cards.findIndex((c) => c.classList.contains('focused'));
-  // Columns = how many cards share the top row. Grouped by a tolerance rather
-  // than an exact y: the focused card is scaled up a little, which lifts its
-  // rect a few pixels above its neighbours'.
-  const mid = (c) => { const r = c.getBoundingClientRect(); return r.top + r.height / 2; };
-  const first = Math.min(...cards.map(mid));
-  const cols = cards.filter((c) => Math.abs(mid(c) - first) < 40).length;
-  return { focused, cols, n: cards.length };
+/** which departures row is focused, and how many columns the rows stand in */
+const board = () => h.page.evaluate(() => {
+  const rows = [...document.querySelectorAll('.board-card')];
+  const focused = rows.findIndex((c) => c.classList.contains('focused'));
+  const cx = (c) => { const r = c.getBoundingClientRect(); return Math.round(r.left + r.width / 2); };
+  return { focused, cols: new Set(rows.map(cx)).size, n: rows.length };
 });
 
 const press = async (btn) => { await h.pad.tap(btn); await sleep(260); };
 
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
 
-// ---- 1. a stack of buttons is still a list ----
+// ---- 1. the title's modes are a row ----
 const titleFocus = () => h.page.evaluate(() => {
   const btns = [...document.querySelectorAll('.menu-screen:not([style*="none"]) .menu-btn')];
   return btns.findIndex((b) => b.classList.contains('focused'));
 });
 const t0 = await titleFocus();
+await press(BTN.DRIGHT);
+check('RIGHT along the title row steps one', await titleFocus(), t0 + 1);
+await press(BTN.DLEFT);
+check('...and LEFT comes back', await titleFocus(), t0);
+// the row has no height to move in, so DOWN steps the order like a list
 await press(BTN.DDOWN);
-check('a stack of buttons steps down one', await titleFocus(), t0 + 1);
+check('DOWN on a row still steps it, list-fashion', await titleFocus(), t0 + 1);
 await press(BTN.DUP);
-check('...and back up one', await titleFocus(), t0);
+check('...and UP steps back', await titleFocus(), t0);
 
-// ---- 2. the territory grid moves by where the cards are ----
-// The grid belongs to Wave Battle and PvP; Missions opens a planet strip
-// instead, and it is the first button on the title now. Ask for the mode by
-// name rather than relying on which one the menu happens to focus.
+// ---- 2. the departures board is a column ----
+// The board belongs to Wave Battle and PvP; Missions opens the galaxy map
+// instead, and it is the first button on the title. Ask for the mode by name
+// rather than relying on which one the menu happens to focus.
 await h.focusButton(/WAVE BATTLE/i);
 await press(BTN.START);
-await h.waitForText(/CHOOSE|TERRITORY/i);
+await h.waitForText(/DEPARTURES/i);
 await sleep(500);
-const shape = await grid();
-console.log(`  (grid is ${shape.n} cards, ${shape.cols} across)`);
-if (shape.cols < 2) {
-  console.error('the territory grid is a single column here — nothing spatial to test');
-  await h.close();
-  process.exit(1);
-}
-const cols = shape.cols;
+const shape = await board();
+console.log(`  (board is ${shape.n} rows in ${shape.cols} column${shape.cols === 1 ? '' : 's'})`);
+check('the departures stand in one column', shape.cols, 1);
 
-// from the top middle, DOWN belongs in the middle of the next row
 await h.page.evaluate((i) => window.__selectFocus(i), 1);
 await sleep(150);
-check('starts on the top middle card', (await grid()).focused, 1);
+check('starts on the second departure', (await board()).focused, 1);
 await press(BTN.DDOWN);
-check('DOWN from the top middle lands in the middle of the next row',
-  (await grid()).focused, 1 + cols);
+check('DOWN goes to the next departure', (await board()).focused, 2);
 await press(BTN.DUP);
-check('...and UP comes back to it', (await grid()).focused, 1);
-
-// RIGHT walks the row it is on
+check('...and UP comes back', (await board()).focused, 1);
+// the column has no width to move in, so RIGHT steps it — which is what lets
+// the harness walk to a board by pressing RIGHT a counted number of times
 await press(BTN.DRIGHT);
-check('RIGHT moves along the row', (await grid()).focused, 2);
+check('RIGHT steps down the list too', (await board()).focused, 2);
 
-// each axis wraps on itself: DOWN off the bottom returns to the top of the
-// same column, never to the next column along
-const lastRowStart = Math.floor((shape.n - 1) / cols) * cols;
-await h.page.evaluate((i) => window.__selectFocus(i), lastRowStart);
+// the column wraps on itself both ways
+await h.page.evaluate((i) => window.__selectFocus(i), shape.n - 1);
 await sleep(150);
 await press(BTN.DDOWN);
-check('DOWN off the bottom wraps to the top of the same column',
-  (await grid()).focused % cols, lastRowStart % cols);
+check('DOWN off the last departure wraps to the first', (await board()).focused, 0);
+await press(BTN.DUP);
+check('UP off the first wraps to the last', (await board()).focused, shape.n - 1);
 
-await h.page.evaluate((i) => window.__selectFocus(i), 0);
-await sleep(150);
-await press(BTN.DLEFT);
-const wrapped = (await grid()).focused;
-check('LEFT off the near edge wraps within the same row',
-  Math.floor(wrapped / cols), 0);
+// the ticket follows the focus
+const ticket = await h.page.evaluate(() => document.querySelector('.fe-ticket .name')?.textContent ?? '');
+const label = await h.page.evaluate(() => document.querySelector('.board-card.focused')?.getAttribute('aria-label') ?? '');
+check('the ticket is for the focused departure', ticket, label);
 
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();

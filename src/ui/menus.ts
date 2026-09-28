@@ -30,6 +30,8 @@ export class MenuScreen {
   private focusIndex = 0;
   private sliders: Array<() => void> = [];
   onBack: (() => void) | null = null;
+  /** told whenever the focus lands somewhere, so a screen can dress itself for it */
+  onFocus: ((index: number) => void) | null = null;
 
   constructor(parent: HTMLElement, className = 'menu-screen') {
     this.root = document.createElement('div');
@@ -297,6 +299,7 @@ export class MenuScreen {
   setFocus(idx: number): void {
     this.focusables.forEach((f, i) => f.el.classList.toggle('focused', i === idx));
     this.focusIndex = idx;
+    this.onFocus?.(idx);
   }
 
   show(): void {
