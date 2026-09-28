@@ -21,9 +21,9 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | K2 treadmill | in progress | `claude/sections-narkina` (session_016ZcRf4vJc1PBtms2RPxLmv) |
 | K3 mounts (vehicle guns, side swing, lane, pillion, turret) | in progress | `claude/sections-lava` (session_01BPuY7Qem1Lo3SoWhictNCn) |
 | K4 hazard front | built | `kit/front.ts` (`RisingPlane`, `PathFront`), by the Chimney |
-| K5 objective bar / defend target | in progress | `claude/sections-forge` (session_015kBibi2vUexHSCuSiTatrk) |
+| K5 objective bar / defend target | merged | `kit/objective.ts` (`DefendTarget`, `Progress`) |
 | K6 detection | in progress | `claude/sections-refinery` (session_01Syyrg6ofDmLtWpnCPoZDSD) |
-| K7 locomotion: slide / flight / tilt | in progress | slide: crevasse, flight: forge, tilt: Storm Docks (wave 2) |
+| K7 locomotion: slide / flight / tilt | partly merged | flight merged (`flightMove`); slide: crevasse, tilt: Storm Docks in progress |
 | K8 pursuit | in progress | `claude/sections-ringworld` (session_018conmWFBdWi6c6KKjbwXhg) |
 | K9 darkness | in progress | `claude/sections-crevasse` (session_012dcLJ9xNYqd21FWmQZwry9) |
 
@@ -43,8 +43,8 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | 10 | run-the-pier | Storm Docks | squall ⇒ · ⇒ A2 | in progress | `claude/sections-trask` (session_01CrLWAGBmm5uGTtVBqhnR7n); waits on K1 |
 | 11 | lights-out | Refinery | B ⇒ · ⇒ C | in progress | `claude/sections-refinery` (session_01Syyrg6ofDmLtWpnCPoZDSD) |
 | 12 | the-line | Refinery | A ⇒ · ⇒ B | in progress | `claude/sections-refinery` (session_01Syyrg6ofDmLtWpnCPoZDSD) |
-| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | in progress | `claude/sections-forge` (session_015kBibi2vUexHSCuSiTatrk) |
-| 14 | hold-the-forge | Great Forge | B ⇒ · ⇒ covert-sky | in progress | `claude/sections-forge` (session_015kBibi2vUexHSCuSiTatrk) |
+| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | merged (working branch) | 1/2/4 players pass, ~73 s; towers' look wants a pass (green stripes read as neon) |
+| 14 | hold-the-forge | Great Forge | B ⇒ · ⇒ covert-sky | merged (working branch) | 1/2/4 players pass, ~220–275 s; +25 max HP survives stages and deaths |
 | 15 | tram-top | Ringworld | A (split after market arcade) ⇒ · ⇒ A2 | in progress | `claude/sections-ringworld` (session_018conmWFBdWi6c6KKjbwXhg); waits on K1 + K2 |
 | 16 | mark-runs | Ringworld | A2 (split after plaza) ⇒ · ⇒ A3 | in progress | `claude/sections-ringworld` (session_018conmWFBdWi6c6KKjbwXhg); wave 2, started early |
 | 17 | one-way-out | Prison Rig | B ⇒ · ⇒ C | in progress | `claude/sections-narkina` (session_016ZcRf4vJc1PBtms2RPxLmv) |
@@ -65,3 +65,4 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 - 2026-09-28 — framework and the Chimney built; the Chimney's holes are shuttered (a valve per floor opens the one above) because every character can fly.
 - 2026-09-28 — wave 1 started as six cloud sessions (ids above), each on its own branch, briefed by `docs/SECTIONS_AGENT_BRIEF.md`; state per team in `docs/sections-notes/<team>.md`. Stage splits for the Storm Docks and Ringworld built into `SECTION_PLACEMENT`.
 - 2026-09-28 — the user asked for the audit fixes alongside the sections; all 16 handed to a cloud session.
+- 2026-09-28 19:3x — Great Forge merged into the working branch (both sections, K5, K7 flight); whole Forge run hands over through both.
