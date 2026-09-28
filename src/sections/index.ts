@@ -15,6 +15,7 @@ import { tramTop } from './tram-top';
 import { squall } from './squall';
 import { wormSign } from './worm-sign';
 import { bargeRun } from './barge-run';
+import { runThePier } from './run-the-pier';
 import { magmaRun } from './magma-run';
 import { ringWalk } from './ring-walk';
 import { BUILT_SECTIONS } from './ids';
@@ -38,6 +39,7 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   squall,
   'worm-sign': wormSign,
   'barge-run': bargeRun,
+  'run-the-pier': runThePier,
   'magma-run': magmaRun,
   'ring-walk': ringWalk,
 };
