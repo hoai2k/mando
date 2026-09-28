@@ -9,12 +9,11 @@ briefs, say) cites the resulting filename from there.
 [Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below.
 The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
-The Twin Suns title, its armored-posse variant, Wanted loading assets, and the
-alternate Dune Sea board image are delivered. Gameplay-section keyframes raised by
-[`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered, and **their supporting images are
-open** in [Gameplay sections — supporting images](#gameplay-sections--supporting-images-2026-09-28):
-all eighteen sections are being built. Before those batches there were no
-open requests (as of 2026-09-24). The Jedi and Maris
+The Twin Suns title, its armored-posse variant, Wanted loading assets, the
+alternate Dune Sea board image, and the hazy high-resolution title image are
+delivered. The gameplay-section keyframes and supporting images are also
+delivered. All eighteen sections are being built. Before those batches there
+were no open requests (as of 2026-09-24). The Jedi and Maris
 canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
@@ -142,39 +141,8 @@ The background below is optional for the galaxy-map-with-a-lens layout.
 
 ## Gameplay sections — supporting images (2026-09-28)
 
-The 18 keyframe concepts requested by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are
-delivered in `reference/sections/` and recorded in
-[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#gameplay-sections--18-keyframe-concepts-delivered-2026-09-28).
-
-**Supporting images — open now (2026-09-28).** All eighteen sections are being built
-([`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md)), so every one of these is
-wanted. Each ships with a procedural stand-in, so none of them blocks a build. Global
-specs above apply. Prop sheets follow the vehicle and prop recipe
-(orthographic side, front and top on one 1536×1024 canvas, one scale, flat even
-lighting, plain mid-grey background, no people, no text) into `reference/props/`, and
-become models through [`ASSETS_MODELS.md`](ASSETS_MODELS.md#gameplay-sections--props-and-a-prisoner-requested-2026-09-28).
-Textures are 1024×1024 seamless into `public/assets/textures/`.
-
-| Section | File | Prompt |
-|---|---|---|
-| Worm Sign | `thumper_ref.png` | "a desert nomad's sand-thumper: a 2.4 meter tripod of lashed scavenged pipe and bone with a heavy iron piston hammer on a crank, a counterweight of stones in a net, leather straps and prayer ribbons, a spike foot, built to be carried and planted in sand" |
-| Ring Walk | `ring_hull_spine.jpg` | "Seamless tileable top-down texture of a spacecraft hull walkway: large riveted grey armor plates with a raised central conduit trough, anti-slip tread strips, faded yellow edge hazard bands, scorch marks, micrometeor pitting, even lighting, no shadows" |
-| Guns of the Frigate | `quad_turret_ref.png` | "a dorsal ship's quad blaster turret about 4 meters across: a squat armored rotating dome with four long stacked cannon barrels, an open gunner's seat behind a curved armor shield, heat-sink fins, chipped gunmetal-grey paint with rust-brown patches" |
-| Guns of the Frigate | `pirate_corvette_ref.png` | "a scabbed-together outlaw corvette about 60 meters long: an old cargo hull with welded armor slabs, a long spinal cannon along the keel, three bulbous shield generator domes on pylons, mismatched engine pods, rust-brown and bare metal, in level flight" |
-| Glacier Chute | `glacier_chute.jpg` | "Seamless tileable top-down texture of smooth glacier ice worn into a slide channel: pale blue-white ice with long parallel skid grooves and scratches running one direction, frost dust in the grooves, a few dark inclusions, even lighting, no shadows" |
-| Lamplight | `web_sheet.png` (alpha) | "Seamless tileable alpha texture of dense spider silk sheeting: thick irregular pale strands and translucent membranes, a few clumps and dew beads, white on transparent, no colour" |
-| Lights Out | `searchlight_tower_ref.png` | "an industrial security searchlight tower 14 meters tall: a lattice steel mast with a caged ladder, a small platform at the top with a large drum searchlight on a motorised yoke, a sensor mast, a hazard-striped base, oxidised grey-green steel" |
-| The Line | `conveyor_belt.jpg` | "Seamless tileable top-down texture of a heavy industrial conveyor belt: dark rubberised segmented belt with raised transverse cleats, worn to bare metal at the edges, oil stains and grit, even lighting, no shadows" |
-| The Line | `hydraulic_press_ref.png` | "a heavy industrial hydraulic press gantry spanning a conveyor, 8 meters wide and 7 meters tall: two thick steel columns, a massive press head on four hydraulic rams, hazard striping on the press face, hoses and gauges, grimy grey-yellow paint" |
-| Covert Sky | `flak_tower_ref.png` | "an improvised air-defence flak emplacement on a ruined stone tower top: a twin-barrelled rotating flak cannon on a sandbagged ring of rubble, ammunition crates, a sensor dish, scorched stone, all about 6 meters across" |
-| Hold the Forge | `beskar_barricade_ref.png` | "a waist-high curved portable barricade of dark blue-grey forged metal, 3 meters wide and 1.2 meters tall, hammered plate with a riveted rim, a fold-out brace foot behind, a simple engraved crest of a horned skull on the face, battle-dented" |
-| The Mark Runs | `rooftop.jpg` | "Seamless tileable top-down texture of a sci-fi city rooftop: dark weatherproof membrane panels with seams, small vent grilles, cable runs, puddle stains, faded teal service markings, even lighting, no shadows" |
-| One Way Out | `prisoner_front.png`, `_side.png`, `_back.png` | Use the character preamble above. Subject: "a gaunt adult prison laborer in a plain pale work jumpsuit with numbered chest and shoulder patches, a thin grey padded work vest, soft rubber-soled boots, cropped hair, hands empty, worn and tired" |
-| The Lift | `shaft_wall.jpg` + `shaft_wall_normal.png` | "Seamless tileable texture of the inside wall of a tall industrial lift shaft seen side-on: white composite panels with heavy horizontal ribs every metre, recessed guide rails, small amber marker lights in the rib line, grime streaks running down, even lighting, no shadows" |
-| One Way Out | `shock_tile.jpg` | "Seamless tileable top-down texture of a prison work-floor tile grid: 4 meter square off-white composite floor panels with dark recessed seams, a thin copper electrode strip inset along every seam, small warning chevrons at the corners, scuffed and boot-marked, even lighting, no shadows" |
-| The Squall | `rain_streak.png` (512×1024, alpha) | "Seamless tileable alpha texture of heavy wind-driven rain streaks falling at a slight diagonal, thin white streaks of varied length and brightness on transparent, no colour" |
-| Magma Run, The Chimney | `magma_crust.jpg` + `magma_crust_glow.jpg` | Albedo: "Seamless tileable top-down texture of a slow lava river: black cooling crust plates split by bright cracks, ropy flow folds, ash dusting on the crust, even lighting, no shadows". Glow (emissive, same layout): "matching emissive map, black crust and bright orange-yellow molten cracks only" |
-| Covert Sky | `ruin_tower.jpg` + normal | "Seamless tileable texture of the facade of a tall ruined city tower seen side-on: rows of empty blown-out window bays in carved grey-green stone partly fused to glass, blast scars, exposed rebar, soot streaks running upward, large features readable from 50 meters, even lighting, no shadows" |
+All supporting images and canonical model sheets are delivered and recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#gameplay-sections--supporting-images-delivered-2026-09-28).
 
 ## Making more character reference sheets
 

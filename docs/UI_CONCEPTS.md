@@ -387,8 +387,8 @@ mockups, and why:
 
 | Screen | Source | Notes |
 |---|---|---|
-| Title | `src/main.ts` (title block) | Twin Suns letterbox over `board_tatooine.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
-| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title keeps the original. Rows are still `.board-card` focusables, so the harness walks them as before. |
+| Title | `src/main.ts` (title block) | Twin Suns letterbox over the hazy high-resolution `title_dune_sea_hd.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
+| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title uses the high-resolution Dune Sea variant. Rows are still `.board-card` focusables, so the harness walks them as before. |
 | Missions | `src/ui/planets.ts` | Systems 3, the galaxy map with a lens. Moving is a target lock: the open lens is **hidden at once** (not shrunk), the map snaps across in ~0.19 s while a bracket slams shut on the new world, then the new lens springs up out of the planet with a slight overshoot. The route only pans sideways and is drawn flatter (×0.6 vertically) so no neighbour hides under the lens or the chapter card. |
 | Character select | `src/ui/charselect.ts` | "Hunters" (PvP: "Fighters"). Portrait strips + one card per place; no ◀ ▶ arrows or "walks the line" text; prompts read **A Confirm · B Cancel**; an open place says **Press Ⓐ to join** on its card and in the prompt bar. The 3D stage still runs underneath, undrawn: locking in still waits on the fighter's model, which keeps the drop short, and the poster tool still shoots from it. |
 | Loading | `src/ui/loading.ts` | Wanted sheet on `ui_bounty_board.jpg`: polaroid, contract with mugshots and known hostiles, a field note, and a tracking fob whose 16 lamps are the progress bar. The transport-door veil uses the same sheet without the cast. |
