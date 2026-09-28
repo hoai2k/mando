@@ -282,3 +282,27 @@ next round. They keep A's letterboxed Twin Suns card along the bottom.
    one world per orbit, and the route spirals outward along transfer arcs. The
    camera flies to and closes in on the chosen world. Each world's night side faces
    away from the suns wherever it sits on its orbit.
+
+## Round 4, update — the system paintings in, and Systems 4 animated (2026-09-28)
+
+- **The system paintings are in.** Warp, The next system over and the galaxy lens
+  now show the delivered `system_<id>.jpg` vistas. The CSS-built scenes stay in the
+  mockup code as a fallback.
+- **Systems 4 (one system, nine worlds) is reworked:**
+  - The twin suns stay still.
+  - The worlds are laid out so every world sits lower on screen than the one before
+    it. The route sweeps down the near side of the tilted orbital plane, so **down is
+    always on and up is always back** through the list.
+  - A bare **left or right** goes to whichever neighbour (back or on) lies further
+    that way. If neither does, nothing happens. The chosen world shows "▲ previous" and
+    "▼ next" hints, and there's an on-screen d-pad for the mouse.
+  - **The move between worlds is animated.** A small ship flies the transfer arcs,
+    passing through any worlds in between on a longer jump, with the camera following
+    it. The camera pulls back mid-flight so the jump reads against the whole system,
+    then closes in on arrival. A bright trail marks the path flown, the old world
+    shrinks as the new one grows, the chapter card fades through the jump, and the
+    header reads "En route". A single hop takes 1.1 s, plus 0.38 s for each extra
+    world.
+- **Title art.** `title_twin_suns.jpg` has no Mandalorians in it, so
+  `title_twin_suns_v2.jpg` is requested in `ASSETS_IMAGES.md`: the same standoff,
+  with a posse of armored, T-visor hunters.
