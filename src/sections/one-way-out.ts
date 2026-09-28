@@ -4,7 +4,9 @@ import type { SectionDef, SectionInstance, SectionHud, SectionBar, AutopilotInpu
 import type { SectionContext } from './context';
 import { Enemy, type EnemyKind } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
-import { addBox, addSphere, buildBiped, mat, type CharacterInstance } from '../characters/builder';
+import { addBox, mat, type CharacterInstance } from '../characters/builder';
+import { buildGunfighter } from '../characters/enemies';
+import { buildMandalorian } from '../characters/mandalorians';
 import { Interactions, type Interactable } from './kit/interact';
 import { composeMoves } from './kit/moves';
 
@@ -116,7 +118,9 @@ interface Desk {
 }
 
 interface Prisoner {
-  e: Enemy; armed: boolean; going: THREE.Vector3 | null; n: number;
+  e: Enemy; armed: boolean; going: THREE.Vector3 | null;
+  /** put its own gun in its hands (it picked up a guard's rifle) */
+  draw: () => void;
   /** seconds on a hot tile, the reaction before it scrambles, and the scramble's cooldown */
   onHot: number; react: number;
   /** the quiet spot it is scrambling to, if it is */
@@ -455,7 +459,6 @@ function build(ctx: SectionContext): SectionInstance {
   const rifles: { at: THREE.Vector3; mesh: THREE.Object3D; claimed: Prisoner | null }[] = [];
   const cursors: number[] = [0, 0, 0, 0];
   ctx.checkpoint.set(0, Y0, POOL_Z1 + 1.5);
-  let prisonerNo = 1100 + Math.floor(Math.random() * 800);
 
   const aliveCount = (): number => prisoners.filter((p) => p.e.alive).length;
 
@@ -467,9 +470,9 @@ function build(ctx: SectionContext): SectionInstance {
     const n = party <= 2 ? 4 + (Math.random() < 0.5 ? 1 : 0) : 5;
     for (let i = 0; i < n; i++) {
       const at = new THREE.Vector3(b.side * (HX + 1.5 + (i % 3) * 1.3), Y0 + 0.2, b.z - 2 + Math.floor(i / 3) * 2.4 + (i % 2) * 0.4);
-      const e = makePrisoner(at, prisonerNo++);
+      const { e, draw } = makePrisoner(at);
       game.addAlly(e, 6);
-      prisoners.push({ e, armed: false, going: null, n: prisonerNo, onHot: 0, react: 0.35 + Math.random() * 0.8, flee: null, last: new THREE.Vector2(at.x, at.z), lastOk: false });
+      prisoners.push({ e, draw, armed: false, going: null, onHot: 0, react: 0.35 + Math.random() * 0.8, flee: null, last: new THREE.Vector2(at.x, at.z), lastOk: false });
     }
     if (released === 0) pressureT = 14;
     released += n;
@@ -604,16 +607,8 @@ function build(ctx: SectionContext): SectionInstance {
     pr.going = null;
     pr.e.owner = null;
     pr.e.def = { ...pr.e.def, style: 'ranged', damage: 7, attackRange: 26, attackCd: 2.2, boltSpeed: 27, volley: 2 };
-    const rig = pr.e.char.rig;
-    if (rig) {
-      const g = rifleMesh();
-      g.rotation.x = Math.PI / 2;
-      rig.bones.weaponR.add(g);
-      const muzzle = new THREE.Group();
-      muzzle.position.set(0, 0.02, 0.62);
-      g.add(muzzle);
-      pr.e.char.muzzle = muzzle;
-    }
+    // their own gun comes out (its muzzle is where their bolts leave from)
+    pr.draw();
     if (!armedNote) { armedNote = true; ctx.announce(T.armed); }
   };
 
@@ -995,67 +990,40 @@ function groundKind(k: EnemyKind): EnemyKind {
 
 // ================================================================ the prisoner
 // The `prisoner` model is requested (docs/ASSETS_MODELS.md) and not yet
-// delivered. The stand-in is the canonical biped re-skinned pale: a work
-// jumpsuit, a grey padded vest, cropped hair and a numbered patch. It fights
-// on the escort AI as an unarmed brawler — the pirate brawler's numbers with
-// the club taken away and the reach of a fist.
+// delivered. Until it is, the prisoners are a random mix of Maris and Cobb
+// Vanth (the marshal) with their weapons stowed. They fight on the escort AI
+// as unarmed brawlers — the pirate brawler's numbers with the reach of a fist
+// — and draw their own gun once they have picked up a guard's rifle.
 
-const patchCache = new Map<number, THREE.MeshBasicMaterial>();
-function patchMat(n: number): THREE.MeshBasicMaterial {
-  const key = n % 12;
-  let m = patchCache.get(key);
-  if (!m) {
-    const c = document.createElement('canvas');
-    c.width = 64; c.height = 32;
-    const g = c.getContext('2d')!;
-    g.fillStyle = '#e8ecee'; g.fillRect(0, 0, 64, 32);
-    g.strokeStyle = '#2a3a48'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, 61, 29);
-    g.fillStyle = '#1a2630'; g.font = 'bold 20px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(String(1100 + key * 67), 32, 17);
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    m = new THREE.MeshBasicMaterial({ map: tex });
-    patchCache.set(key, m);
+/** a stand-in prisoner body, and how to put its own gun in its hands */
+function buildPrisoner(): { inst: CharacterInstance; draw: () => void } {
+  if (Math.random() < 0.5) {
+    const maris = buildMandalorian('maris');
+    maris.setWeapon('none');
+    return { inst: maris, draw: () => maris.setWeapon('blaster') };
   }
-  return m;
-}
-
-function buildPrisoner(n: number): CharacterInstance {
-  const suit = mat(0xd9d4c4, { rough: 0.95 });
-  const vest = mat(0x8a8f92, { rough: 0.9 });
-  const skinTones = [0xc89a78, 0x8c5f44, 0xe0b898, 0x6b4630, 0xb08060];
-  const skin = mat(skinTones[n % skinTones.length], { rough: 0.8 });
-  const { inst, rig } = buildBiped({ skin: suit, torso: vest, scale: 0.98 });
-  const b = rig.bones;
-  addSphere(b.head, skin, 0.12, 0, 0.05, 0.01, 10, 8, 1.12, 1);
-  addSphere(b.head, mat(0x2a2420, { rough: 0.9 }), 0.118, 0, 0.1, -0.01, 10, 6, 0.6, 1.02);   // cropped hair
-  for (const h of [b.handL, b.handR]) addSphere(h, skin, 0.05, 0, -0.02, 0, 8, 6);
-  // the numbered patches: chest and left shoulder
-  const pm = patchMat(n);
-  const chest = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.08), pm);
-  chest.position.set(0.08, 0.14, 0.135);
-  b.chest.add(chest);
-  const arm = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.045), pm);
-  arm.position.set(-0.058, -0.06, 0);
-  arm.rotation.y = -Math.PI / 2;
-  b.upperArmL.add(arm);
-  addBox(b.hips, mat(0x4a4038, { rough: 0.9 }), 0.36, 0.05, 0.24, 0, 0.1, 0);                 // belt
-  return inst;
+  const marshal = buildGunfighter('marshal');
+  // the rifle hangs off the weapon bones (and moves into the sculpt's hands
+  // when it loads, visibility and all): hidden until he has earned it back
+  const guns = marshal.rig ? [...marshal.rig.bones.weaponR.children, ...marshal.rig.bones.weaponL.children] : [];
+  for (const g of guns) g.visible = false;
+  return { inst: marshal, draw: () => { for (const g of guns) g.visible = true; } };
 }
 
 /**
  * A prisoner: an ally on the escort AI (team 0), built on the pirate
- * brawler's kind and re-dressed. Unarmed, it punches; the section arms it
- * when it picks up a guard's rifle.
+ * brawler's kind and re-dressed. Unarmed, it punches; `draw` arms it when it
+ * picks up a guard's rifle.
  */
-function makePrisoner(at: THREE.Vector3, n: number): Enemy {
+function makePrisoner(at: THREE.Vector3): { e: Enemy; draw: () => void } {
   const e = new Enemy('pirateMelee', at, 0, { silent: true });
   // the brawler's own club and skin never go on: this body is the prisoner
-  e.char = buildPrisoner(n);
+  const body = buildPrisoner();
+  e.char = body.inst;
   e.char.root.position.copy(at);
   e.def = { ...e.def, hp: 110, speed: 5.6, damage: 9, attackRange: 1.2, attackCd: 1.1, notice: 40 };
   e.hp = e.maxHp = 110;
-  return e;
+  return { e, draw: body.draw };
 }
 
 /** a block's number over its door */

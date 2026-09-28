@@ -175,11 +175,14 @@ Respawn: beside a living player who is standing, else at the pool. The
 design says "re-form at the entry"; §0.4 says forward with the party, and the
 hall is small, so the party wins and the pool is the wipe case.
 
-The prisoner stand-in: the canonical biped re-skinned — pale jumpsuit, grey
-vest, cropped hair, five skin tones, belt, numbered patches on chest and left
-shoulder (twelve canvas numbers, shared). It is spawned as a `pirateMelee`
-and re-dressed (its `char` swapped before it is added, its `def` copied with
-110 HP, 5.6 m/s, 9-damage 1.2 m punches), so no shared file changed.
+The prisoner stand-in (temporary, by request): a random mix of **Maris**
+(`buildMandalorian('maris')`, `setWeapon('none')`) and **Cobb Vanth** (the
+`marshal`, `buildGunfighter('marshal')`, his rifle hidden). Each is spawned as a
+`pirateMelee` and re-dressed (its `char` swapped before it is added, its `def`
+copied with 110 HP, 5.6 m/s, 9-damage 1.2 m punches), so no shared file
+changed. Picking up a guard's rifle draws the body's *own* gun (Maris's blaster,
+Cobb's rifle) rather than attaching a prop; a Mandalorian's `muzzle` is a getter,
+so the gun it shows is the one its bolts leave from.
 
 ## Shared-file changes
 
@@ -190,8 +193,8 @@ None. `src/text.ts` changed only inside the two `TEXT.sections` blocks.
 
 - **The `prisoner` model** is not wired: `authored.ts`'s `ModelId` has no
   `'prisoner'` and that file is shared. When the model lands, add the id there
-  and call `attachAuthored(rig, 'prisoner', 1.78, …)` in `buildPrisoner`
-  (`one-way-out.ts`). The prisoner is also built on a `pirateMelee`, whose
+  and build the prisoner from it in `buildPrisoner` (`one-way-out.ts`),
+  replacing the Maris / Cobb Vanth stand-in. The prisoner is also built on a `pirateMelee`, whose
   own sculpt starts loading on an orphaned rig and is thrown away — harmless,
   one cached fetch.
 - **The 10+ bonus** is announced but does not yet reach stage C (the design
