@@ -4,6 +4,7 @@ import type { SectionId, StageSpec } from '../world/mission';
 import type { SectionContext } from './context';
 import type { Player } from '../player/player';
 import type { Game } from '../game/game';
+import type { Combatant } from '../enemies/enemy';
 
 /**
  * The contract every gameplay section is built to
@@ -108,4 +109,10 @@ export interface SectionMove {
   adjust?(p: Player, dt: number, input: FrameInput, game: Game): FrameInput;
   /** take the whole frame — movement, animation, camera — and return true */
   take?(p: Player, dt: number, input: FrameInput, game: Game, realDt: number): boolean;
+  /**
+   * A melee hit is about to land on `target` for `amount`: return the damage
+   * it should do instead (Lights Out's silent takedown, K6). Called from the
+   * player's `landHit`, before the damage is dealt.
+   */
+  meleeHit?(p: Player, target: Combatant, amount: number, game: Game): number;
 }

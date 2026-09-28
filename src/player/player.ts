@@ -2763,7 +2763,10 @@ export class Player {
   /** damage and shove one body; the finisher is the haymaker */
   private landHit(e: Combatant, to: THREE.Vector3, game: Game): void {
     const wasAlive = e.alive;
-    e.damage(this.meleeDamage, this.position, this.slot);
+    // a gameplay section may rewrite the hit (Lights Out's silent takedown;
+    // sections/kit/detection.ts). Null outside a section: the usual damage.
+    const dmg = this.sectionMove?.meleeHit?.(this, e, this.meleeDamage, game) ?? this.meleeDamage;
+    e.damage(dmg, this.position, this.slot);
     // the finisher is the haymaker: it puts the target flat on the
     // ground (follow up while they're down and hits land double)
     const en = e as Partial<Enemy> & typeof e;

@@ -725,6 +725,14 @@ export class Enemy {
   /** the ride this one is running for, claimed but not yet reached */
   boarding: Vehicle | null = null;
 
+  /**
+   * How close behind a hostile a body must come before it is noticed, metres.
+   * Null is the game's usual 8 m. A stealth section (Lights Out, K6 in
+   * sections/kit/detection.ts) sets it while it stands, so a silent takedown
+   * from behind can be walked up to, and clears it on teardown.
+   */
+  static behindSight: number | null = null;
+
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
   /** the spot this enemy is posted at and drifts back to when it loses interest */
@@ -2052,7 +2060,8 @@ export class Enemy {
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
     // ahead: full range; peripheral: about half; behind: only right on top of them
-    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : 8;
+    // (a stealth section tightens "on top of them" — see `Enemy.behindSight`)
+    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : (Enemy.behindSight ?? 8);
     if (dist > range) { this.sightMemo = false; return false; }
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.2 + (this.id % 5) * 0.03;
