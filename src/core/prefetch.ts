@@ -396,7 +396,7 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
      * that costs real seconds: nothing constructs the title screen until the
      * visitor is through, so the two largest files on it — `logo.png` at 1.2
      * MB and the backdrop (then `title_bg.jpg`, now the Dune Sea painting
-     * `board_tatooine.jpg`) — sat untouched for the whole sign-in
+     * `title_dune_sea_hd.jpg`) — sat untouched for the whole sign-in
      * and then began downloading at the moment they were wanted.
      *
      * Declaring them here puts them in the `now` lane of whatever screen the
@@ -409,7 +409,7 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
      * constructor — is not "already coming" just because it is early. If the
      * title screen needs it, name it here.
      */
-    case 'title': return [pic('logo', 'png'), pic('board_tatooine', 'jpg')];
+    case 'title': return [pic('logo', 'png'), pic('title_dune_sea_hd', 'jpg')];
     // the departures board's ticket is printed on aged paper
     case 'select': return [pic('ui_paper_aged'), ...BOARDS.map((info) => pic(artName(info), artExt(info)))];
     // the map's discs, and the painting of each system its lens opens onto
@@ -519,4 +519,3 @@ export function matchAssets(board: BoardId, chars: PlayableId[], mode: GameMode 
   ];
   return [...new Set(keys)];
 }
-

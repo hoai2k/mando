@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { CharacterInstance } from '../characters/builder';
-import { loadOptionalTexture } from '../core/assets';
+import { loadOptionalTexture, showFullResolution } from '../core/assets';
 import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './poses';
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
@@ -22,6 +22,7 @@ import { FIST_ENEMIES } from '../characters/combatStyle';
 import { clench } from '../characters/fistRig';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
@@ -146,17 +147,18 @@ scene.add(ruler);
 const turntable = new THREE.Group();
 scene.add(turntable);
 let figures: Figure[] = [];
-let skeletons: THREE.SkeletonHelper[] = [];
 
 const initialParams = new URLSearchParams(location.search);
+// before anything is built: which files a character is read from
+if (initialParams.get('res') === 'full') showFullResolution();
 let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
 let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
 let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
   ? initialParams.get('mode') as Mode : 'both';
-let spin = false;
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
-let showSkeleton = false;
+/** whether the folded panel sections are open — both start closed */
+const folds = { shoulders: false, details: false };
 let showGrid = true;
 /** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
 let fists = initialParams.get('fists') === '1';
@@ -269,17 +271,18 @@ const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
 const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
+/** seat and hand anchors on the rides, and the Nikto's seat on his swoop — see vehicleAnchorEdit.ts */
+const vehicleEditor = new VehicleAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 
 function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
   weaponEditor.setPose('', '', null);
+  vehicleEditor.setTarget(null);
   for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
-  for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
   figures = [];
-  skeletons = [];
 }
 
 /**
@@ -337,12 +340,6 @@ function spawn(): void {
   });
   showLoading();
 
-  for (const f of figures) {
-    const helper = new THREE.SkeletonHelper(f.inst.root);
-    helper.visible = showSkeleton;
-    skeletons.push(helper);
-    scene.add(helper);
-  }
   // a fresh character arrives with pristine clips: record them, then put the
   // session's edits back so what is on the turntable never loses them
   for (const f of figures) {
@@ -609,12 +606,11 @@ function enterEdit(): void {
   // a pose scrubbed to while paused is where a moment gets edited
   if (!paused) animationTime = 0;
   editing = true;
-  spin = false;
-  turntable.rotation.y = 0;
   freezePose();
   editor.setEnabled(editKind === 'rotate');
   positionEditor.setEnabled(editKind === 'position');
   weaponEditor.setEnabled(editKind === 'weapon');
+  vehicleEditor.setEnabled(editKind === 'weapon');
   if (editKind === 'position') refreshPositionPose();
   if (editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
 }
@@ -626,6 +622,7 @@ function leaveEdit(): void {
   positionEditor.setEnabled(false);
   weaponEditor.restore();
   weaponEditor.setEnabled(false);
+  vehicleEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
@@ -653,12 +650,15 @@ function refreshWeaponPose(): void {
   if (!figure) {
     weaponAwaiting = !!figures.find((f) => f.waitingFor);
     weaponEditor.setPose(subject.id, poseKey, null);
+    vehicleEditor.setTarget(null);
     return;
   }
   weaponAwaiting = false;
   figure.inst.cosmetic?.(0, time);
   figure.weapons?.frame(time);
   weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
+  vehicleEditor.setTarget(VehicleAnchorEditor.handles(figure.inst.root) ? figure.inst.root : null);
+  vehicleEditor.setEnabled(true);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -792,8 +792,14 @@ function renderPanel(): void {
     flourish: 'Darksaber flourish', saber1: 'Darksaber 1 — right cut',
     saber2: 'Darksaber 2 — backswing', saber3: 'Darksaber 3 — overhead',
   };
+  // a ride's "gait" is its speed, and the swoop rider's attack is a ram
+  const rideLabels: Record<string, string> | null = subject.id === 'nikto'
+    ? { creatureIdle: 'Hover', creatureWalk: 'Cruise — slow', creatureRun: 'Cruise — full speed', creatureAttack: 'Ram' }
+    : subject.id.startsWith('vehicle:')
+      ? { creatureIdle: 'Parked — rider seated', creatureWalk: 'Moving — slow', creatureRun: 'Moving — full speed' }
+      : null;
   const gameOptions = list.filter(inGame).map((p) =>
-    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
+    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : rideLabels?.[p.id] ?? p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
   const previewOptions = list.filter((p) => !inGame(p) && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
@@ -874,11 +880,11 @@ function renderPanel(): void {
       </div>
     </div>
 
-    <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
-    <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
+    <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
     <label class="check" title="Curls the model's fingers into a fist on any pose. A preview: the game does not clench yet."><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists</label>
     ${subject.hasModel && !isProp(subject) ? `
+    <details class="fold" data-fold="shoulders" ${folds.shoulders ? 'open' : ''}><summary>Shoulder width</summary>
     <div class="field playback shoulder-tuning">
       <label for="restShoulders">Rest shoulder width <output id="restShouldersValue">${Math.round(shoulderSpacing.rest * 100)}%</output></label>
       <input id="restShoulders" type="range" min="0" max="2" step="0.05" value="${shoulderSpacing.rest}"
@@ -890,13 +896,15 @@ function renderPanel(): void {
         ${editing && editKind === 'position' ? 'disabled' : ''} aria-label="A-pose shoulder width">
       <p class="hint">100% rest matches the measured Din spacing. Ventress and Bossk start at 50%; A-pose starts at 0%.</p>
       <button id="resetShoulders" type="button" ${editing && editKind === 'position' ? 'disabled' : ''}>Reset shoulder widths</button>
-    </div>` : ''}
+    </div>
+    </details>` : ''}
 
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
     </button>
     <div id="edit"></div>
 
+    <details class="fold" data-fold="details" ${folds.details ? 'open' : ''}><summary>Details</summary>
     <p class="note">
       ${!subject.hasModel
         ? 'No authored model for this character yet — procedural build only.'
@@ -923,7 +931,8 @@ function renderPanel(): void {
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
-    </p>`;
+    </p>
+    </details>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
     subject = findSubject((e.target as HTMLSelectElement).value);
@@ -992,15 +1001,19 @@ function renderPanel(): void {
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
+  // A loaded model is cached by its file, so switching resolution is a reload
+  // of the page on the other set of files, keeping everything else in the URL.
+  const fullRes = panel.querySelector<HTMLInputElement>('#fullRes');
+  if (fullRes) fullRes.onchange = () => {
+    const url = new URL(location.href);
+    if (fullRes.checked) url.searchParams.set('res', 'full'); else url.searchParams.delete('res');
+    location.href = url.toString();
+  };
   });
-  panel.querySelector<HTMLInputElement>('#spin')!.onchange = (e) => {
-    spin = (e.target as HTMLInputElement).checked;
-    if (!spin) turntable.rotation.y = 0;
-  };
-  panel.querySelector<HTMLInputElement>('#skeleton')!.onchange = (e) => {
-    showSkeleton = (e.target as HTMLInputElement).checked;
-    for (const s of skeletons) s.visible = showSkeleton;
-  };
+  // the two folded sections remember being opened across the panel's re-renders
+  panel.querySelectorAll<HTMLDetailsElement>('details[data-fold]').forEach((d) => {
+    d.ontoggle = () => { folds[d.dataset.fold as keyof typeof folds] = d.open; };
+  });
   panel.querySelector<HTMLInputElement>('#fists')!.onchange = (e) => {
     fists = (e.target as HTMLInputElement).checked;
     syncSelectionUrl();
@@ -1282,6 +1295,7 @@ function bindEditModeButtons(host: HTMLElement): void {
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
       weaponEditor.setEnabled(next === 'weapon');
+      vehicleEditor.setEnabled(next === 'weapon');
       for (const id of ['restShoulders', 'aPoseShoulders', 'resetShoulders']) {
         const control = panel.querySelector<HTMLInputElement | HTMLButtonElement>(`#${id}`);
         if (control) control.disabled = next === 'position';
@@ -1295,6 +1309,7 @@ function bindEditModeButtons(host: HTMLElement): void {
 }
 
 function renderWeaponPanel(host: HTMLDivElement): void {
+  if (vehicleEditor.kind) { renderVehiclePanel(host); return; }
   const names = weaponEditor.names();
   const selected = weaponEditor.selected;
   const current = weaponEditor.current();
@@ -1373,6 +1388,68 @@ function renderWeaponPanel(host: HTMLDivElement): void {
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
     anchor.download = 'authored-weapon-grips.json';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  };
+}
+
+/**
+ * The rides' anchors: the seat and the left hand's grip on a vehicle, or the
+ * Nikto's own seat on his swoop. Exported as the game's data file itself.
+ */
+function renderVehiclePanel(host: HTMLDivElement): void {
+  const ed = vehicleEditor;
+  // typing into a field re-renders nothing: the gizmo follows, the field keeps focus
+  if ((document.activeElement as HTMLElement | null)?.dataset?.anchorAxis && host.querySelector('[data-anchor-axis]')) return;
+  const cur = ed.current();
+  const nikto = ed.kind === 'nikto';
+  const label: Record<string, string> = {
+    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)', rider: 'Rider — on the swoop',
+  };
+  const edited = ed.edited();
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
+        <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
+      ${nikto ? `<div class="field"><label>3D handle</label><div class="seg">
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move rider</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate rider</button>
+      </div></div>` : ''}
+      ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
+        <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
+      ${cur.rotation ? `<div class="field"><label>Rotation in degrees, XYZ</label>
+        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
+      <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
+    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
+      <p class="hint">${nikto
+        ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
+        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
+        The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
+      ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}</code></div>`).join('')}</div>` : ''}
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
+    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'rider');
+  host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
+    button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
+  });
+  host.querySelectorAll<HTMLInputElement>('[data-anchor-axis]').forEach((input) => {
+    input.onchange = () => {
+      const read = (kind: 'p' | 'r'): [number, number, number] => [0, 1, 2].map((i) =>
+        Number(host.querySelector<HTMLInputElement>(`[data-anchor-axis="${kind}${i}"]`)?.value)) as [number, number, number];
+      if (input.dataset.anchorAxis!.startsWith('p')) ed.setPosition(read('p'));
+      else ed.setRotation(read('r'));
+      input.blur();
+      renderVehiclePanel(host);
+    };
+  });
+  host.querySelector<HTMLButtonElement>('#anchorReset')?.addEventListener('click', () => ed.resetSelected());
+  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));
+    anchor.download = 'vehicleAnchors.json';
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   };
@@ -1662,7 +1739,6 @@ function frame(now: number): void {
   last = now;
   const animationDt = paused ? 0 : dt * animationSpeed;
   time += animationDt;
-  if (spin) turntable.rotation.y += dt * 0.4;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
   // a creature's attack is a one-shot method, not a clip we can loop: replay it
@@ -1688,6 +1764,7 @@ function frame(now: number): void {
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);
+  vehicleEditor.update(camera);
   updateLoading();
   controls.update();
   renderer.render(scene, camera);

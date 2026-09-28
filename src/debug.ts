@@ -115,6 +115,10 @@ export interface DebugHooks {
 
   /** back to the title from wherever the app is */
   __quitToTitle: () => void;
+  /** the end-of-hunt screen from whatever the ledger holds, without nine territories to reach it */
+  __openComplete: () => void;
+  /** the credits roll */
+  __openCredits: () => void;
   /** the renderer's viewport rectangle: x, y, width, height */
   __viewport: () => [number, number, number, number];
   /** how many of this drop's required files are still outstanding */

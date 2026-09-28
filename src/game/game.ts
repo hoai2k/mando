@@ -56,10 +56,14 @@ export interface GameEvents {
   banner: (text: string, sub?: string) => void;
   /** brief, centered title for a transport between mission areas */
   transition?: (text: string, sub?: string) => void;
-  /** the boss introduction card: letterbox + name, over the slow-motion reveal */
-  bossIntro?: (title: string, sub: string) => void;
+  /**
+   * The boss introduction card: letterbox + name, over the slow-motion reveal.
+   * `kind` is the body stepping out (its portrait goes on the Wanted card) and
+   * `role` which of a territory's three boss battles this is.
+   */
+  bossIntro?: (title: string, sub: string, kind?: EnemyKind, role?: 'lieutenant' | 'warlord' | 'monster') => void;
   /** the little card naming enemy kinds making their first appearance this wave */
-  newContacts?: (names: string[]) => void;
+  newContacts?: (kinds: EnemyKind[]) => void;
   stateChanged: (s: MatchState) => void;
   hitMarker: (slot: number) => void;
 }
@@ -473,8 +477,8 @@ export class Game {
   }
 
   /** the card naming enemy kinds making their first appearance this wave */
-  announceContacts(names: string[]): void {
-    this.events.newContacts?.(names);
+  announceContacts(kinds: EnemyKind[]): void {
+    this.events.newContacts?.(kinds);
   }
 
   /**
@@ -517,7 +521,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = tier === 'mid' ? TEXT.banners.lieutenantOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
+    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub, kind, tier === 'mid' ? 'lieutenant' : 'warlord');
     else this.events.banner(boss.bossName, TEXT.banners.bringThemDown);
     audio.bossHorn();
     // The warlord brings his own music. The lieutenant does not: the board's
@@ -735,7 +739,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = TEXT.banners.neverEmpty(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub);
+    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub, monster.kind, 'monster');
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
     audio.beastGrowl(0.9);
@@ -1952,6 +1956,73 @@ export class Game {
     this.scene.environment = rt.texture;
     this.scene.environmentIntensity = 0.6;
     pmrem.dispose();
+  }
+
+  /**
+   * Make everything in the scene ready to draw, before anyone sees it.
+   *
+   * The loading screen and a transport door's veil already wait for the
+   * files. What they did not wait for is the GPU: three.js compiles a
+   * material's shader and uploads its textures the first frame that material
+   * is drawn, so the first frame of a match — and the first frame after a
+   * door, and the first swing of a weapon that had been stowed — stalled
+   * while it caught up. Measured under software GL: 31 s for a Missions
+   * match's first frame, 1.7 s for a new stage's, 0.16 s for a first melee
+   * draw, against tens of milliseconds for the frame after each.
+   *
+   * So this does that work up front, behind whatever is covering the screen:
+   * every texture is uploaded, every material compiled, and one frame drawn
+   * that nobody sees — hidden things included
+   * (a stowed weapon, a holstered saber), since `compile` only walks what is
+   * visible. Lights are left exactly as they are: a light switched on here
+   * would compile every material for a count of lights the scene does not
+   * have, and the first real frame would compile them all again. A board with
+   * water compiles a second time under the underwater fog, which is a
+   * different shader.
+   */
+  warmGpu(renderer: THREE.WebGLRenderer): void {
+    // The environment first: every material's shader is compiled for the
+    // scene's environment map, which `render` builds on its first call. Warmed
+    // without it, everything compiled here would be compiled again, with it,
+    // on the first frame the player sees — the very stall this is for.
+    if (!this.envBuilt) this.buildEnvironment(renderer);
+    const shown: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible && !(o as THREE.Light).isLight) { o.visible = true; shown.push(o); }
+    });
+    // a light inside something just shown stays as dark as it was
+    const kept: THREE.Light[] = [];
+    this.scene.traverse((o) => {
+      const light = o as THREE.Light;
+      if (!light.isLight || !light.visible) return;
+      for (let p = o.parent; p; p = p.parent) {
+        if (shown.includes(p)) { light.visible = false; kept.push(light); break; }
+      }
+    });
+    const textures = new Set<THREE.Texture>();
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (!m) return;
+      for (const mat of Array.isArray(m) ? m : [m]) {
+        for (const v of Object.values(mat)) if ((v as THREE.Texture)?.isTexture) textures.add(v as THREE.Texture);
+      }
+    });
+    for (const t of textures) renderer.initTexture(t);
+    const cam = this.players[0].cam.camera;
+    renderer.compile(this.scene, cam);
+    if (this.board.waterY !== undefined) {
+      const fog = this.scene.fog;
+      this.scene.fog = this.underFog;
+      renderer.compile(this.scene, cam);
+      this.scene.fog = fog;
+    }
+    // and one real frame, still with everything showing: what `compile`
+    // leaves for the first draw — the shadow pass's own shaders, skinned
+    // geometry and every vertex buffer — happens here instead, onto a canvas
+    // the loading screen or the veil is still covering
+    renderer.render(this.scene, cam);
+    for (const light of kept) light.visible = true;
+    for (const o of shown) o.visible = false;
   }
 
   /** Split-screen render: one viewport per player (horizontal split). */

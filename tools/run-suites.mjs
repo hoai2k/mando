@@ -83,6 +83,7 @@ const SUITES = [
   { name: 'test-arrivals', weight: 93 },
   { name: 'test-rivals', weight: 80 },
   { name: 'test-parry', weight: 75 },
+  { name: 'test-vehicle-anchors', weight: 60 },
   { name: 'check-flight-poses', weight: 62 },
   { name: 'test-controller-claims', weight: 57 },
   { name: 'test-maul-skin', weight: 52 },

@@ -19,11 +19,15 @@ import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
 import { buildDepartures } from './ui/departures';
 import { EndScreen } from './ui/endscreen';
+import { PauseScreen } from './ui/pause';
+import { CompleteScreen } from './ui/complete';
+import { CreditsScreen } from './ui/credits';
+import { readHunt, recordLiberation, resetHunt } from './core/hunt';
 import { loadFonts } from './ui/fonts';
 import { makeStage } from './ui/stage';
 import { VsScreen } from './ui/vs';
 import { ASSET_ROOT } from './core/assets';
-import { controlsMarkup } from './ui/controls-art';
+import { buildManual } from './ui/manual';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { authoredCached, releaseModels } from './characters/authored';
@@ -116,7 +120,7 @@ const menuLayer = document.createElement('div');
 menuLayer.className = 'layer interactive';
 app.appendChild(menuLayer);
 
-export type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'controls' | 'settings';
+export type AppState = 'title' | 'select' | 'planets' | 'characters' | 'vs' | 'loading' | 'playing' | 'paused' | 'end' | 'complete' | 'credits' | 'controls' | 'settings';
 let state: AppState = 'title';
 /** Input source whose menu confirmation opened the character select. */
 let menuSource = -1;
@@ -145,7 +149,7 @@ let browsing: PlayableId[] = [];
 const title = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-title');
 title.root.innerHTML = `
   <div class="fe-title-sky">
-    <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/board_tatooine.jpg')"></div>
+    <div class="fe-title-art" style="background-image:url('${ASSET_ROOT}assets/textures/title_dune_sea_hd.jpg')"></div>
     <div class="fe-title-shade"></div>
   </div>`;
 const titleStage = makeStage(title.root, 'fe-bottom');
@@ -248,7 +252,7 @@ const charSelect = new CharacterSelect(menuLayer, {
     // PvP gets its VS splash first; the match's files warm behind it, so the
     // showmanship costs the drop nothing
     if (mode === 'pvp') {
-      vs.show(chars, count);
+      vs.show(chars, count, chosenBoard.name);
       setState('vs');
     } else {
       startGame();
@@ -270,30 +274,76 @@ const charSelect = new CharacterSelect(menuLayer, {
 let overlayReturn: AppState = 'title';
 
 const controls = new MenuScreen(menuLayer);
-controls.addTitle(TEXT.controls.title);
-const controlsArt = document.createElement('div');
-const paintControls = (): void => { controlsArt.innerHTML = controlsMarkup(config.input.keyboardMouse); };
-paintControls();
-controls.root.appendChild(controlsArt);
-controls.addButtons(null, [{ label: TEXT.controls.back, action: () => closeOverlay() }]);
-controls.onBack = () => closeOverlay();
+// the field manual: the pad in ink, riding, and the keyboard, one page each
+buildManual(controls, () => closeOverlay());
+// the manual has a page for every way of playing, so nothing about it hangs on
+// the keyboard setting any more
+const paintControls = (): void => {};
 
-const settings = new MenuScreen(menuLayer);
-settings.addTitle(TEXT.settings.title);
+// "The gunsmith's bench": rows grouped under three heads, gauges and levers,
+// and a field note beside the list that explains whichever row is focused
+const settings = new MenuScreen(menuLayer, 'menu-screen fe-screen fe-settings');
+const settingsStage = makeStage(settings.root);
+settingsStage.innerHTML = `
+  <div class="s-head"><span class="h">${TEXT.settings.title}</span><span class="k">${TEXT.settings.kicker}</span></div>
+  <div class="s-panel"></div>
+  <div class="s-note w-paper"><div class="k"></div><div class="t"></div></div>
+  <div class="fe-prompts s-prompts">
+    <span><span class="fe-glyph">◀</span><span class="fe-glyph">▶</span>${TEXT.settings.prompts.adjust}</span>
+    <span><span class="fe-glyph a">A</span>${TEXT.settings.prompts.flip}</span>
+    <span><span class="fe-glyph b">B</span>${TEXT.settings.prompts.back}</span>
+    <span class="saved">${TEXT.settings.saved}</span>
+  </div>`;
+(settingsStage.querySelector('.s-note') as HTMLElement).style.backgroundImage =
+  `url('${ASSET_ROOT}assets/textures/ui_paper_aged.jpg')`;
+const settingsPanel = settingsStage.querySelector('.s-panel') as HTMLElement;
+/** each row's name and field note, in focus order */
+const settingsNotes: Array<[string, string]> = [];
+let settingsSection = settingsPanel;
+const section = (title: string): void => {
+  const head = document.createElement('div');
+  head.className = 's-sec';
+  head.textContent = title;
+  settingsPanel.appendChild(head);
+  settingsSection = document.createElement('div');
+  settingsSection.className = 's-group';
+  settingsPanel.appendChild(settingsSection);
+};
+/** file a freshly made row under the current head, with its note */
+const shelve = (row: HTMLElement, name: string, note: string): void => {
+  settingsSection.appendChild(row);
+  settingsNotes.push([name, note]);
+};
+const N = TEXT.settings.notes;
+section(TEXT.settings.sections.sound);
 const volume = (label: string, key: 'master' | 'sfx' | 'music') =>
-  settings.addSlider(label, () => config.audio[key], (v) => {
+  shelve(settings.addSlider(label, () => config.audio[key], (v) => {
     config.audio[key] = v;
     audio.applyConfig();
     saveAudioConfig();
-  });
+  }), label, N[key]);
 volume(TEXT.settings.master, 'master');
 volume(TEXT.settings.sfx, 'sfx');
 volume(TEXT.settings.music, 'music');
-settings.addToggle(TEXT.settings.dynamicCamera, () => config.camera.dynamic, (on) => {
+section(TEXT.settings.sections.camera);
+shelve(settings.addToggle(TEXT.settings.dynamicCamera, () => config.camera.dynamic, (on) => {
   config.camera.dynamic = on;
   saveCameraConfig();
-});
-settings.addChoice(TEXT.settings.splitScreen, [
+}), TEXT.settings.dynamicCamera, N.dynamicCamera);
+// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
+const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
+shelve(settings.addSlider(TEXT.settings.lookSensitivity,
+  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
+  (v) => {
+    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
+    saveInputConfig();
+  }), TEXT.settings.lookSensitivity, N.lookSensitivity);
+shelve(settings.addToggle(TEXT.settings.invertY, () => config.input.invertY, (on) => {
+  config.input.invertY = on;
+  saveInputConfig();
+}), TEXT.settings.invertY, N.invertY);
+section(TEXT.settings.sections.screen);
+shelve(settings.addChoice(TEXT.settings.splitScreen, [
   { value: 'stacked' as const, label: TEXT.settings.stacked },
   { value: 'columns' as const, label: TEXT.settings.sideBySide },
 ], () => config.video.split, (v) => {
@@ -302,8 +352,8 @@ settings.addChoice(TEXT.settings.splitScreen, [
   // A match in progress re-lays its HUD immediately; the renderer reads the
   // rectangles fresh every frame, so the viewports follow on their own.
   if (game) hud.setLayout(playerCount);
-});
-settings.addChoice(TEXT.settings.saberLights, [
+}), TEXT.settings.splitScreen, N.splitScreen);
+shelve(settings.addChoice(TEXT.settings.saberLights, [
   { value: 'auto' as const, label: TEXT.settings.auto },
   { value: 'on' as const, label: TEXT.settings.on },
   { value: 'off' as const, label: TEXT.settings.off },
@@ -311,20 +361,8 @@ settings.addChoice(TEXT.settings.saberLights, [
   config.video.saberLights = v;
   saveVideoConfig();
   game?.saberLights.setMode(v);
-});
-// the slider is 0–1; the multiplier it stands for runs 0.4–2 with 1 in the middle
-const SENS_LO = 0.25, SENS_HI = 1.75;   // the default 1 sits at the slider's midpoint
-settings.addSlider(TEXT.settings.lookSensitivity,
-  () => (config.input.lookSensitivity - SENS_LO) / (SENS_HI - SENS_LO),
-  (v) => {
-    config.input.lookSensitivity = +(SENS_LO + v * (SENS_HI - SENS_LO)).toFixed(2);
-    saveInputConfig();
-  });
-settings.addToggle(TEXT.settings.invertY, () => config.input.invertY, (on) => {
-  config.input.invertY = on;
-  saveInputConfig();
-});
-settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
+}), TEXT.settings.saberLights, N.saberLights);
+shelve(settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse, (on) => {
   config.input.keyboardMouse = on;
   saveInputConfig();
   paintControls();
@@ -334,10 +372,22 @@ settings.addToggle(TEXT.settings.keyboardMouse, () => config.input.keyboardMouse
     if (on) input.requestPointerLock();
     else input.releasePointerLock();
   }
-});
-settings.addButtons(null, [{ label: TEXT.settings.back, action: () => closeOverlay() }]);
-settings.addHint(TEXT.settings.hint);
-
+}), TEXT.settings.keyboardMouse, N.keyboardMouse);
+{
+  const foot = document.createElement('div');
+  foot.className = 's-foot';
+  settingsPanel.appendChild(foot);
+  settings.addButtons(foot, [
+    { label: TEXT.settings.credits, action: () => openCredits() },
+    { label: TEXT.settings.back, action: () => closeOverlay() },
+  ]);
+  settingsNotes.push([TEXT.settings.credits, N.credits], [TEXT.settings.back, N.back]);
+}
+settings.onFocus = (i) => {
+  const [name, note] = settingsNotes[i] ?? ['', ''];
+  (settingsStage.querySelector('.s-note .k') as HTMLElement).textContent = TEXT.settings.noteKicker(name);
+  (settingsStage.querySelector('.s-note .t') as HTMLElement).textContent = note;
+};
 settings.onBack = () => closeOverlay();
 
 /**
@@ -371,16 +421,15 @@ function closeOverlay(): void {
 }
 
 // ----- pause -----
-const pause = new MenuScreen(menuLayer);
-pause.addTitle(TEXT.pause.title);
-pause.addButtons(null, [
-  { label: TEXT.pause.resume, action: () => resumeGame() },
-  { label: TEXT.pause.controls, action: () => openOverlay('controls') },
-  { label: TEXT.pause.settings, action: () => openOverlay('settings') },
-  { label: TEXT.pause.restart, action: () => { startGame(); } },
-  { label: TEXT.pause.quit, action: () => quitToTitle() },
-]);
-pause.onBack = () => resumeGame();
+// "Hold fire": the frozen match behind, the menu, and the contract so far
+const pauseScreen = new PauseScreen(menuLayer, {
+  resume: () => resumeGame(),
+  controls: () => openOverlay('controls'),
+  settings: () => openOverlay('settings'),
+  restart: () => { startGame(); },
+  quit: () => quitToTitle(),
+});
+const pause = pauseScreen.screen;
 
 // ----- end (victory/defeat) -----
 // Four faces — held, liberated, champion, defeat — see src/ui/endscreen.ts.
@@ -399,6 +448,23 @@ const endScreen = new EndScreen(menuLayer, {
 });
 const end = endScreen.screen;
 
+// ----- the end of the hunt, and the credits -----
+const completeScreen = new CompleteScreen(menuLayer, {
+  // the hunt starts over: every territory back under its warlord
+  again: () => { resetHunt(); leaveMatchTo('planets'); },
+  credits: () => openCredits(),
+  quit: () => quitToTitle(),
+});
+// The credits can be opened from Settings (and so from anywhere), or from the
+// end of the hunt, and go back to whichever it was.
+let creditsReturn: AppState = 'title';
+const creditsScreen = new CreditsScreen(menuLayer, () => setState(creditsReturn));
+function openCredits(): void {
+  if (state !== 'credits') creditsReturn = state;
+  setState('credits');
+  creditsScreen.begin();
+}
+
 // The bench behind __buildBody / __bodySize below: bodies built outside any
 // match, kept here so each can be measured once its models have landed.
 const bodyBench: THREE.Object3D[] = [];
@@ -407,6 +473,8 @@ const isPlayable = (id: string): boolean => PVP_ROSTER.includes(id as PlayableId
 expose({
   __charsel: charSelect, // debug/testing handle
   __vs: vs,              // debug/testing handle
+  __openComplete: () => { completeScreen.show(readHunt()); setState('complete'); },
+  __openCredits: () => openCredits(),
   __input: input,        // debug/testing handle
   // Board factories, so a test can build any board on its own — the collision
   // audit in tools/audit-collision.mjs walks every board's meshes against its
@@ -527,13 +595,15 @@ expose({
       : { kind: 'enemy', ...enemyStats(id as EnemyKind), hitParts: enemyHitParts(id as EnemyKind) },
 });
 
-const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, controls, settings };
+const screens: Record<string, MenuScreen> = { title, select, paused: pause, end, complete: completeScreen.screen, credits: creditsScreen.screen, controls, settings };
 
 function activeScreen(): MenuScreen | null {
   if (state === 'title') return title;
   if (state === 'select') return select;
   if (state === 'paused') return pause;
   if (state === 'end') return end;
+  if (state === 'complete') return completeScreen.screen;
+  if (state === 'credits') return creditsScreen.screen;
   if (state === 'controls') return controls;
   if (state === 'settings') return settings;
   return null;
@@ -584,11 +654,12 @@ function setState(s: AppState): void {
       charSelect.show(menuSource);
     }
   } else charSelect.hide();
-  if (s === 'planets') planets.show();
+  if (s === 'planets') { planets.setProgress(readHunt().liberated); planets.show(); }
   else planets.hide();
   if (s !== 'vs') vs.hide();
   if (s !== 'loading') loading.hide();
   if (s === 'select') departures.setMode(mode === 'pvp' ? 'pvp' : 'wave');
+  if (s === 'paused' && game) pauseScreen.dress(game, chosenBoard);
   const scr = activeScreen();
   if (scr) scr.show();
   input.menuMode = s !== 'playing';
@@ -665,8 +736,8 @@ function buildMatch(): void {
   game = new Game(board, playerCount, aspect, {
     banner: (t, s) => hud.banner(t, s),
     transition: (t, s) => hud.transition(t, s),
-    bossIntro: (t, s) => hud.bossIntro(t, s),
-    newContacts: (names) => hud.newContacts(names),
+    bossIntro: (t, s, kind, role) => hud.bossIntro(t, s, kind, role),
+    newContacts: (kinds) => hud.newContacts(kinds),
     stateChanged: () => { endTimer = 3; },
     hitMarker: (slot) => hud.hitMarker(slot),
   }, [...chosenChars], mode, botCount);
@@ -729,7 +800,21 @@ function updateLoading(dt: number): void {
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
   if (window.__holdLoading) return;
-  if (built && p.pending === 0) enterMatch();
+  if (built && p.pending === 0) {
+    // the files are in; now the GPU, while the loading screen still covers it
+    warmGpu();
+    enterMatch();
+  }
+}
+
+/**
+ * Compile and upload everything the match is made of (see `Game.warmGpu`).
+ * Skipped while a test owns the clock (`__manual`): a suite that steps the
+ * simulation and draws nothing has no first frame to protect, and a full
+ * compile under software GL costs it half a minute a boot.
+ */
+function warmGpu(): void {
+  if (game && !window.__manual) game.warmGpu(renderer);
 }
 
 /**
@@ -766,7 +851,8 @@ function updateStageVeil(): void {
   const c = game?.campaign;
   const want = !!c?.settlingStage;
   if (!want) {
-    if (stageVeil) { stageVeil = false; loading.hide(); }
+    // the stage's files are in: ready it for the GPU before the veil comes off
+    if (stageVeil) { warmGpu(); stageVeil = false; loading.hide(); }
     return;
   }
   const p = c!.stageSettleProgress();
@@ -822,7 +908,7 @@ function quitToTitle(): void {
 }
 
 /** tear the match down and go back to a menu: the title, the board, or the line-up */
-function leaveMatchTo(s: 'title' | 'select' | 'characters'): void {
+function leaveMatchTo(s: 'title' | 'select' | 'planets' | 'characters'): void {
   disposeGame();
   hud.hide();
   setState(s);
@@ -992,6 +1078,11 @@ function step(dt: number): void {
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;
         if (endTimer <= 0) {
+          // A liberated territory goes in the hunt's ledger; the one that frees
+          // the last of them ends the hunt, and that gets its own screen.
+          const huntDone = game.mode === 'campaign' && game.state === 'victory'
+            && recordLiberation(chosenBoard.id, game.players.filter((p) => !p.isBot)
+              .map((p) => ({ id: p.characterId, kills: p.kills })), game.elapsed);
           endScreen.show({
             mode: game.mode,
             won: game.state === 'victory',
@@ -1003,8 +1094,13 @@ function step(dt: number): void {
             elapsed: game.elapsed,
             wave: game.wave,
           });
-          setState('end');
-          endScreen.focusFirst();
+          if (huntDone) {
+            completeScreen.show(readHunt());
+            setState('complete');
+          } else {
+            setState('end');
+            endScreen.focusFirst();
+          }
         }
       }
     }

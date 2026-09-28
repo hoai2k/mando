@@ -387,8 +387,8 @@ mockups, and why:
 
 | Screen | Source | Notes |
 |---|---|---|
-| Title | `src/main.ts` (title block) | Twin Suns letterbox over `board_tatooine.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
-| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title keeps the original. Rows are still `.board-card` focusables, so the harness walks them as before. |
+| Title | `src/main.ts` (title block) | Twin Suns letterbox over the character-preserving high-resolution `title_dune_sea_hd.jpg`, wordmark lower right, modes along the letterbox. "Press Start", not "Press to ride out". |
+| Wave Battle / PvP territory | `src/ui/departures.ts` | Departures board + ticket. The ticket photo is the board's own art, which for the Dune Sea is now `board_tatooine_v2.jpg`; the title uses the high-resolution Dune Sea variant. Rows are still `.board-card` focusables, so the harness walks them as before. |
 | Missions | `src/ui/planets.ts` | Systems 3, the galaxy map with a lens. Moving is a target lock: the open lens is **hidden at once** (not shrunk), the map snaps across in ~0.19 s while a bracket slams shut on the new world, then the new lens springs up out of the planet with a slight overshoot. The route only pans sideways and is drawn flatter (×0.6 vertically) so no neighbour hides under the lens or the chapter card. |
 | Character select | `src/ui/charselect.ts` | "Hunters" (PvP: "Fighters"). Portrait strips + one card per place; no ◀ ▶ arrows or "walks the line" text; prompts read **A Confirm · B Cancel**; an open place says **Press Ⓐ to join** on its card and in the prompt bar. The 3D stage still runs underneath, undrawn: locking in still waits on the fighter's model, which keeps the drop short, and the poster tool still shoots from it. |
 | Loading | `src/ui/loading.ts` | Wanted sheet on `ui_bounty_board.jpg`: polaroid, contract with mugshots and known hostiles, a field note, and a tracking fob whose 16 lamps are the progress bar. The transport-door veil uses the same sheet without the cast. |
@@ -422,7 +422,7 @@ fighters / Quit; a defeat offers Retry / New hunters / Quit. The mockup's
 "fell at 6:31" per duellist is not built — the game does not record when each
 fighter went out — so the standings say "out".
 
-### Round 6 — the remaining screens (mockups, not built yet)
+### Round 6 — the remaining screens (built)
 
 On the canvas page "Round 6 · the screens not yet done":
 
@@ -446,6 +446,19 @@ On the canvas page "Round 6 · the screens not yet done":
 - **Campaign complete — the Outer Rim is free.** A screen the game does not
   have yet: all nine worlds ticked along a lit route, the posse's totals,
   Hunt again / Roll credits / Quit.
+
+In the game (2026-09-28):
+
+| Screen | Source | Notes |
+|---|---|---|
+| Pause | `src/ui/pause.ts` | The match stays on screen behind a backdrop filter. The card reads the live game: wave, clock, takedowns, each fighter, and what comes next (the lieutenant, the warlord, the campaign's objective, or the boss on the field). |
+| Settings | `main.ts` (settings block) | Rows grouped Sound / Camera & aim / Screen & hands, with the Saber lights setting that arrived with the refactor. Sliders are lamp gauges (a mask over the `--fill` track), toggles and choices are levers showing every position. The field note follows the focused row; **Roll credits** sits beside Back. |
+| Controls | `src/ui/manual.ts` | Three pages turned with left / right (or a click): On foot (the inked pad), In the saddle, Keyboard & mouse. Replaces `controls-art.ts`. |
+| PvP VS | `src/ui/vs.ts` | Wanted posters sized to the line (one row up to four, two rows beyond), a star centred in each gap — so the VS is exactly between its two posters — and one between rows. |
+| Banners, contacts, wave pips, boss bar | `src/ui/hud.ts` | The banner is a paper plate near the top for one player, and on the seam in the middle of the window, over both pictures, when the screen is split. New contacts are mugshots; the wave counter has a lamp per wave. |
+| Boss intro | `src/ui/hud.ts` | Letterbox, a Wanted card with the boss's portrait and a bounty (lieutenant 10,000 / warlord 25,000 / monster 40,000 cr — flavour), the name settling. The event now carries the boss's kind and role. |
+| Campaign complete | `src/ui/complete.ts`, `src/core/hunt.ts` | Missions now keeps a ledger in localStorage: territories liberated, takedowns per fighter, time. The map ticks freed worlds and counts them; freeing the ninth shows this screen (once). Hunt again clears the ledger. |
+| Credits | `src/ui/credits.ts`, `TEXT.credits` | A roll over the twin suns, from Settings or the complete screen. The Boba Fett model is credited per its CC BY 4.0 licence. |
 
 ### Screens not yet redesigned
 
