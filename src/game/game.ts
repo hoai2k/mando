@@ -1315,39 +1315,13 @@ export class Game {
     this.board.update?.(dt, this.time, this);
 
     // carrier passes: fly, release their squads over the posts, leave
-    for (let i = this.carriers.length - 1; i >= 0; i--) {
-      if (!this.carriers[i].update(dt)) {
-        const gone = this.carriers.splice(i, 1)[0];
-        this.scene.remove(gone.group);
-        gone.dispose();
-      }
-    }
+    this.updateCarriers(dt);
 
     // ---- moving platforms carry their riders ----
     // The board has already re-placed each mover's box; whoever is standing on
     // the old top rides the frame's displacement, so a heaving deck under your
     // feet is ground, not a treadmill.
-    if (this.board.movers) {
-      for (const m of this.board.movers) {
-        if (m.delta.lengthSq() < 1e-10) continue;
-        // Anything the mover carries counts as ground: a ship whose colliders
-        // were fitted to its hull is several surfaces, and a rider standing on
-        // any of them travels with it.
-        const surfaces = m.surfaces();
-        const carry = (pos: THREE.Vector3, radius: number): void => {
-          for (const b of surfaces) {
-            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
-            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
-            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
-            pos.add(m.delta);
-            return;
-          }
-        };
-        for (const p of this.players) if (p.alive) carry(p.position, p.radius);
-        for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
-        for (const a of this.allies) if (a.alive) carry(a.position, a.radius);
-      }
-    }
+    this.carryMoverRiders();
 
     // ---- the mode's own rules (docs/MODES.md §1) ----
     // The wave clock, PvP's scoring, the campaign's objectives: one call, and
@@ -1369,6 +1343,71 @@ export class Game {
     this.campaign?.animateGates(dt);
 
     // ---- the big bodies, before anything moves against them ----
+    this.gatherBigBodies();
+
+    // ---- players ----
+    this.updatePlayers(dt, inputs);
+
+    // ---- vehicles ----
+    // Ridden ones were driven inside their rider's update; this settles the
+    // parked ones and detonates anything that died this frame.
+    this.updateVehicles(dt);
+
+    // ---- enemies ----
+    this.updateEnemies(dt);
+
+    // ---- allies ----
+    this.updateAllies(dt);
+
+
+    // ---- projectiles ----
+    const targets = this.gatherBoltTargets();
+    this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
+
+    // ---- rockets ----
+    this.updateRockets(dt);
+
+    this.particles.update(dt);
+  }
+
+  /** Fly the carrier passes, and retire the ones that have left. */
+  private updateCarriers(dt: number): void {
+    for (let i = this.carriers.length - 1; i >= 0; i--) {
+      if (!this.carriers[i].update(dt)) {
+        const gone = this.carriers.splice(i, 1)[0];
+        this.scene.remove(gone.group);
+        gone.dispose();
+      }
+    }
+  }
+
+  /** Move everyone standing on a moving platform by the frame's displacement. */
+  private carryMoverRiders(): void {
+    if (this.board.movers) {
+      for (const m of this.board.movers) {
+        if (m.delta.lengthSq() < 1e-10) continue;
+        // Anything the mover carries counts as ground: a ship whose colliders
+        // were fitted to its hull is several surfaces, and a rider standing on
+        // any of them travels with it.
+        const surfaces = m.surfaces();
+        const carry = (pos: THREE.Vector3, radius: number): void => {
+          for (const b of surfaces) {
+            if (pos.x < b.min.x - radius || pos.x > b.max.x + radius) continue;
+            if (pos.z < b.min.z - radius || pos.z > b.max.z + radius) continue;
+            if (Math.abs(pos.y - (b.max.y - m.delta.y)) > 0.5) continue;
+            pos.add(m.delta);
+            return;
+          }
+        };
+        for (const p of this.players) if (p.alive) carry(p.position, p.radius);
+        for (const e of this.enemies) if (e.alive) carry(e.position, e.radius);
+        for (const a of this.allies) if (a.alive) carry(a.position, a.radius);
+      }
+    }
+  }
+
+  /** Record the large bodies (`BIG_BODY_R` and up) for this frame's movement to collide with. */
+  private gatherBigBodies(): void {
     this.bigBodies.length = 0;
     for (const list of [this.enemies, this.allies]) {
       for (const e of list) {
@@ -1379,8 +1418,10 @@ export class Game {
         });
       }
     }
+  }
 
-    // ---- players ----
+  /** Tick every player, bots on their own input, and bring the fallen back per the mode's rules. */
+  private updatePlayers(dt: number, inputs: FrameInput[]): void {
     const ended = this.state === 'defeat' || this.state === 'victory';
     for (const p of this.players) {
       p.update(dt, p.isBot ? this.botInput(p, dt) : inputs[p.slot], this);
@@ -1390,10 +1431,10 @@ export class Game {
       if (p.alive) this.facePlacedPlayer(p);
     }
     this.rules.partyWiped?.();
+  }
 
-    // ---- vehicles ----
-    // Ridden ones were driven inside their rider's update; this settles the
-    // parked ones and detonates anything that died this frame.
+  /** Tick the rides, and play out whatever blew up, collapsed or re-formed this frame. */
+  private updateVehicles(dt: number): void {
     for (const v of this.vehicles) {
       v.update(dt, this);
       if (v.pendingExplosion) {
@@ -1422,8 +1463,10 @@ export class Game {
         }
       }
     }
+  }
 
-    // ---- enemies ----
+  /** Tick the director and the hostiles, count the kills, and drop the removed. */
+  private updateEnemies(dt: number): void {
     this.director.update(dt, this);
     for (const e of this.enemies) {
       e.update(dt, this);
@@ -1441,8 +1484,10 @@ export class Game {
       if (e.removeMe) this.retire(e.char.root);
     }
     this.enemies = this.enemies.filter((e) => !e.removeMe);
+  }
 
-    // ---- allies ----
+  /** Tick the allies, and drop the removed. */
+  private updateAllies(dt: number): void {
     for (const a of this.allies) {
       a.update(dt, this);
       if (!a.alive && !a.counted) {
@@ -1452,9 +1497,10 @@ export class Game {
       if (a.removeMe) this.retire(a.char.root);
     }
     this.allies = this.allies.filter((a) => !a.removeMe);
+  }
 
-
-    // ---- projectiles ----
+  /** Everything a bolt can hit this frame, laid into the reused `targets` array. */
+  private gatherBoltTargets(): BoltTarget[] {
     const targets = this.targets;
     targets.length = 0;
     let slot = 0;
@@ -1597,9 +1643,11 @@ export class Game {
       _body.slot = undefined;
       slot = this.addBody(slot, _body, a, null);
     }
-    this.projectiles.update(dt, this.board.physics, targets, this.board.waterY);
+    return targets;
+  }
 
-    // ---- rockets ----
+  /** Steer, move and detonate the rockets in flight. */
+  private updateRockets(dt: number): void {
     for (const r of this.rockets) {
       r.life -= dt;
       if (r.target && r.target.alive) {
@@ -1644,8 +1692,6 @@ export class Game {
       }
     }
     this.rockets = this.rockets.filter((r) => r.life > 0);
-
-    this.particles.update(dt);
   }
 
   /**
