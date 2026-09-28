@@ -1066,6 +1066,10 @@ and `trail_post_ref.png`. The prisoner has matching front, side and back sheets
 in `reference/characters/`. These are production references; the 3D models
 remain requested in `ASSETS_MODELS.md`.
 
+Six of these sheets were re-requested on review (corvette, hydraulic press, flak
+tower, valve wheel and both cliff pillars); see
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--six-model-reference-sheets-to-redo-2026-09-28).
+
 ## High-resolution Dune Sea title art — delivered 2026-09-28
 
 `public/assets/textures/title_dune_sea_hd.jpg` is a 2560×1440 title image

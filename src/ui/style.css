@@ -161,30 +161,6 @@ body.cursor-hidden, body.cursor-hidden #app, body.cursor-hidden canvas { cursor:
 .hud-weapon { position: absolute; right: 26px; bottom: 68px; text-align: right; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2d3ac; text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.85); }
 .hud-weapon .rocket { margin-top: 4px; font-size: 11px; color: #8fa; }
 .hud-weapon .rocket.cooling { color: #766; }
-.hud-banner {
-  position: absolute; top: 58px; left: 26px; width: min(36%, 430px); text-align: left;
-  font-size: clamp(17px, 2vw, 27px); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-  color: #f0d08c; text-shadow: 0 2px 6px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.9); opacity: 0; transition: opacity 0.35s;
-}
-.hud-banner.show { opacity: 1; }
-.hud-banner .bsub { margin-top: 6px; font-size: 12px; letter-spacing: 0.09em; line-height: 1.35; color: #bba97f; }
-/* the intel card under the banner: enemy kinds debuting this wave */
-.hud-contacts {
-  position: absolute; top: 185px; left: 26px; width: min(36%, 430px);
-  padding: 7px 12px 8px; text-align: left;
-  border: 1px solid rgba(240, 208, 140, 0.45); border-radius: 3px;
-  background: rgba(12, 14, 10, 0.62);
-  opacity: 0; transition: opacity 0.35s; pointer-events: none;
-}
-.hud-contacts.show { opacity: 1; }
-.hud-contacts .nc-kicker {
-  font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: #bba97f;
-}
-.hud-contacts .nc-names {
-  margin-top: 4px; font-size: 17px; font-weight: 700; letter-spacing: 0.18em;
-  text-transform: uppercase; color: #f0d08c;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.85);
-}
 .damage-vignette {
   position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
   background: radial-gradient(ellipse at center, transparent 55%, rgba(180,20,10,0.55) 100%);
@@ -258,50 +234,6 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   width: 16px; height: 20px; border-radius: 0; background: #f0d492; border: 1px solid #2a2114;
 }
 
-/* ---------- controls page ---------- */
-.controls-page {
-  display: flex; gap: 30px; align-items: flex-start; justify-content: center;
-  width: min(1320px, 94vw); margin-top: 4px;
-}
-.pad-art { flex: 1 1 64%; max-width: 860px; height: auto; }
-.pad-art .cl-body { fill: url(#padBody); stroke: #6d737d; stroke-width: 2; }
-.pad-art .cl-trigger { fill: #2b2f36; stroke: #565c66; stroke-width: 2; }
-.pad-art .cl-bumper { fill: #363b43; stroke: #656b75; stroke-width: 2; }
-.pad-art .cl-well { fill: #23262c; stroke: #575d67; stroke-width: 2; }
-.pad-art .cl-cap { fill: url(#padFace); stroke: #7b828d; stroke-width: 2; }
-.pad-art .cl-dpad path { fill: #d7dbe2; stroke: #8f96a1; stroke-width: 1.5; }
-.pad-art .cl-face circle { fill: #d8b25a; stroke: #f0d492; stroke-width: 2; }
-.pad-art .cl-face text { font: 700 18px 'Segoe UI', system-ui, sans-serif; fill: #1b1710; }
-.pad-art .cl-small circle { fill: #9aa1ac; }
-.pad-art .cl-small .cl-guide { fill: #2b2f36; stroke: #9aa1ac; stroke-width: 2; }
-.pad-art .cl-lead { fill: none; stroke: #5f4d2c; stroke-width: 1.5; }
-.pad-art .cl-dot { fill: #d8b25a; }
-.pad-art .cl-label { font: 15px 'Segoe UI', system-ui, sans-serif; fill: #9a8a6a; }
-.pad-art .cl-key { fill: #f0d492; font-weight: 700; letter-spacing: 0.06em; }
-.pad-art .cl-sep { fill: #5f4d2c; }
-
-.controls-keys { flex: 0 1 320px; text-align: left; }
-.controls-keys-off p { margin: 10px 0 14px; color: #8a7c5c; font-size: 13px; line-height: 1.5; max-width: 34ch; }
-.controls-keys-off b { color: #cbb98e; }
-
-.controls-keys-title {
-  font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #d8b25a;
-  border-bottom: 1px solid #5f4d2c; padding-bottom: 8px; margin-bottom: 10px;
-}
-.controls-keys dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; margin: 0; }
-.controls-keys dt { font-size: 13px; color: #9a8a6a; }
-.controls-keys dd { margin: 0; text-align: right; white-space: nowrap; }
-.controls-keys kbd {
-  font: 12px 'Segoe UI', system-ui, sans-serif; color: #cbb98e;
-  border: 1px solid #5f4d2c; background: rgba(20,16,10,0.7); padding: 2px 7px;
-}
-.controls-keys i { color: #5f4d2c; font-style: normal; padding: 0 4px; }
-
-@media (max-width: 900px) {
-  .controls-page { flex-direction: column; align-items: center; }
-  .controls-keys { flex: none; width: min(560px, 90vw); }
-}
-
 /* ---- game modes: boss bar, shared-screen HUD, planet strip ---- */
 
 /* boss health stays beside the radar, outside the firing lane */
@@ -322,107 +254,10 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   transform-origin: left; transform: scaleX(1); transition: transform 0.15s ease-out;
 }
 
-/* ---- the boss introduction card: letterbox + name plate over slow motion ---- */
-.boss-intro {
-  position: absolute; inset: 0; z-index: 40; pointer-events: none;
-  display: flex; flex-direction: column; justify-content: space-between;
-  transition: opacity 0.6s ease; opacity: 1;
-}
-.boss-intro.out { opacity: 0; }
-.boss-intro .bi-bar {
-  /* flex-basis, not height: a percentage height on these flex items resolved
-     to zero and the letterbox silently vanished */
-  flex: 0 0 13%; background: #000; box-shadow: 0 0 30px rgba(0,0,0,0.9);
-}
-.boss-intro .bi-bar.top { animation: bi-drop 0.4s ease-out; transform-origin: top; }
-.boss-intro .bi-bar.bottom { animation: bi-rise 0.4s ease-out; transform-origin: bottom; }
-@keyframes bi-drop { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-@keyframes bi-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-.boss-intro .bi-plate {
-  align-self: flex-start; max-width: min(42%, 540px); margin-left: 3vw;
-  text-align: left; padding: 10px 20px;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.62), rgba(0,0,0,0) 75%);
-  animation: bi-in 0.9s ease-out 0.25s backwards;
-}
-@keyframes bi-in {
-  from { opacity: 0; letter-spacing: 0.6em; transform: scale(1.06); }
-  to { opacity: 1; transform: scale(1); }
-}
-.boss-intro .bi-kicker {
-  font-size: 15px; letter-spacing: 0.5em; text-transform: uppercase; color: #ff6a3a;
-  text-shadow: 0 0 12px rgba(255,80,40,0.5);
-}
-.boss-intro .bi-name {
-  font-size: clamp(25px, 3vw, 46px); font-weight: 800; letter-spacing: 0.1em;
-  text-transform: uppercase; color: #d8b25a; margin-top: 6px;
-  text-shadow: 0 0 26px rgba(216,178,90,0.4), 0 2px 0 #5a3c14;
-}
-.boss-intro .bi-rule {
-  width: 220px; max-width: 100%; height: 1px; margin: 12px 0;
-  background: linear-gradient(90deg, transparent, #ff6a3a, transparent);
-}
-.boss-intro .bi-sub {
-  font-size: 14px; letter-spacing: 0.32em; text-transform: uppercase; color: #bba97f;
-}
-
 /* the bar deepens to red as the fight turns */
 .hud-boss.ph1 .bossfill { background: linear-gradient(90deg, #b03a2a, #ff9a3a); }
 .hud-boss.ph2 .bossfill { background: linear-gradient(90deg, #d02a1a, #ff3a2a); }
 
-/* ---- PvP VS splash ---- */
-.vs-screen {
-  position: absolute; inset: 0; z-index: 30; overflow: hidden;
-  background: #05060a; cursor: pointer;
-}
-.vs-panel {
-  position: absolute; inset: 0;
-  animation: vs-slam 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.vs-panel.from-left { --vs-from: -60vw; }
-.vs-panel.from-right { --vs-from: 60vw; }
-@keyframes vs-slam {
-  from { transform: translateX(var(--vs-from, -60vw)); }
-  to { transform: translateX(0); }
-}
-.vs-fighter {
-  position: absolute; top: 50%; transform: translate(-50%, -50%);
-  text-align: center; width: 300px; max-width: 24vw;
-}
-.vs-face {
-  width: 170px; height: 200px; margin: 0 auto 18px;
-  background-size: cover; background-position: center top;
-  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.6));
-}
-.vs-face svg { width: 100%; height: 100%; }
-.vs-face.has-art { border-radius: 10px; }
-.vs-face.has-art svg { display: none; }
-.vs-tag {
-  font-size: 13px; letter-spacing: 0.4em; color: rgba(255,255,255,0.75);
-  text-transform: uppercase;
-}
-.vs-name {
-  margin-top: 6px; font-size: clamp(18px, 2.2vw, 30px); letter-spacing: 0.18em;
-  text-transform: uppercase; color: #f4ecdc; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-  white-space: nowrap;
-}
-.vs-kit { margin-top: 6px; font-size: 12px; letter-spacing: 0.22em; color: rgba(255,255,255,0.55); text-transform: uppercase; }
-.vs-emblem {
-  position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(-8deg) scale(1);
-  font-size: 40px; font-style: italic; font-weight: 800; letter-spacing: 0.04em;
-  color: #ffd77a; text-shadow: 0 0 22px rgba(255,170,60,0.55), 0 3px 0 #6b4a12, 0 6px 18px rgba(0,0,0,0.9);
-  animation: vs-pop 0.5s 0.35s cubic-bezier(0.16, 1.6, 0.3, 1) both;
-  pointer-events: none;
-}
-.vs-emblem.main { font-size: clamp(64px, 9vw, 120px); }
-@keyframes vs-pop {
-  from { transform: translate(-50%, -50%) rotate(-8deg) scale(0); opacity: 0; }
-  to { transform: translate(-50%, -50%) rotate(-8deg) scale(1); opacity: 1; }
-}
-/* three- and four-way splits: tighter type so names stay inside their slice */
-.vs-fighter.narrow { max-width: 19vw; }
-.vs-fighter.narrow .vs-name { font-size: clamp(13px, 1.6vw, 21px); white-space: normal; line-height: 1.25; }
-.vs-fighter.narrow .vs-kit { font-size: 10px; }
-.vs-fighter.narrow .vs-face { width: 130px; height: 154px; }
 
 
 
@@ -481,18 +316,15 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 .hud-shared.split-columns { left: 50%; top: 14px; transform: translateX(-50%); }
 .hud-shared.split-grid { left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .hud-shared:not(.solo) .hud-wave,
-.hud-shared:not(.solo) .hud-banner,
 .hud-shared:not(.solo) .hud-contacts,
 .hud-shared:not(.solo) .hud-boss {
   position: static; width: 100%; max-width: none; transform: none;
   text-align: left; margin: 0;
 }
-.hud-shared:not(.solo) .hud-banner:not(.show),
 .hud-shared:not(.solo) .hud-contacts:not(.show),
 .hud-shared:not(.solo) .hud-boss:not(.show),
 .hud-shared:not(.solo) .shared-wave:not(.show) { display: none; }
 .hud-shared:not(.solo) .hud-wave .wave-num { font-size: 13px; }
-.hud-shared:not(.solo) .hud-banner { font-size: 19px; line-height: 1.2; }
 .hud-shared:not(.solo) .hud-contacts { padding: 6px 8px; }
 .hud-shared:not(.solo) .hud-contacts .nc-names { font-size: 14px; }
 .hud-shared:not(.solo) .hud-boss .bossname { font-size: 12px; }
@@ -518,7 +350,6 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
 }
 @media (max-width: 700px) {
   .hud-shared:not(.solo) { width: min(260px, 48vw); padding: 6px 8px; }
-  .hud-shared:not(.solo) .hud-banner { font-size: 15px; }
 }
 
 /* A gameplay section's panel (docs/SECTIONS_IMPLEMENTATION.md §2.3): its

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../game';
 import type { Player } from '../../player/player';
 import type { ModeRules } from './rules';
-import { ENEMY_NAME, type EnemyKind } from '../../enemies/enemy';
+import type { EnemyKind } from '../../enemies/enemy';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, planWave, postInView, spawnWave, waveComposition } from '../../enemies/spawner';
 import { enemyModelIds, warmAuthored } from '../../characters/authored';
 import { AllyCrate } from '../allycrate';
@@ -255,7 +255,7 @@ export class WaveRules implements ModeRules {
     const fresh = [...new Set(
       waveComposition(g.board.kind, g.wave, g.players.length).map((entry) => entry.kind),
     )].filter((k) => !seen.has(k));
-    if (fresh.length) g.announceContacts(fresh.map((k) => ENEMY_NAME[k]));
+    if (fresh.length) g.announceContacts(fresh);
   }
 
   /**
