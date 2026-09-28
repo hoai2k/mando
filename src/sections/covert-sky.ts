@@ -134,10 +134,14 @@ function build(ctx: SectionContext): SectionInstance {
   const roofMat = ctx.paint(spec.palette.floor, { rough: 0.85 });
   ctx.tile(roofMat, 'glass_plain', 1, 1);
   const iron = ctx.paint(0x3a3632, { rough: 0.55, metal: 0.75 });
+  // Glass fused by the heat of the glassing: not a pane, a sheen — a muted
+  // green-grey glaze where the stone slumped and ran, darker than the sky
   const glass = new THREE.MeshStandardMaterial({
-    color: 0x1c6a4a, emissive: 0x2aff9a, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.6,
-    transparent: true, opacity: 0.75,
+    color: 0x55655d, emissive: 0x10241b, emissiveIntensity: 0.6, roughness: 0.14, metalness: 0.85,
   });
+  // the empty window bays: deep shadow, never pitch black
+  const bayMat = new THREE.MeshStandardMaterial({ color: 0x151a18, roughness: 1, metalness: 0 });
+  ctx.own(bayMat);
   const emberMat = new THREE.MeshBasicMaterial({ color: 0xff7a2a });
   const deckMat = new THREE.MeshBasicMaterial({ color: 0xb4bab2, transparent: true, opacity: 0.3, depthWrite: false });
   const domeMat = new THREE.MeshStandardMaterial({
@@ -221,16 +225,80 @@ function build(ctx: SectionContext): SectionInstance {
   };
   // The city is hundreds of boxes: each stands its own collider, and what is
   // seen is merged into one mesh per material at the end (`mergeCity`).
-  const cityParts = { ruin: [] as THREE.BufferGeometry[], roof: [] as THREE.BufferGeometry[], ridge: [] as THREE.BufferGeometry[] };
+  const cityParts = {
+    ruin: [] as THREE.BufferGeometry[], roof: [] as THREE.BufferGeometry[], ridge: [] as THREE.BufferGeometry[],
+    glass: [] as THREE.BufferGeometry[], bay: [] as THREE.BufferGeometry[],
+  };
   const solid = (kind: keyof typeof cityParts, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, collide = true): void => {
     if (collide) ctx.box(cx, cy, cz, sx, sy, sz, null);
-    cityParts[kind].push(worldBox(cx, cy, cz, sx, sy, sz, kind === 'roof' ? 6 : 14));
+    cityParts[kind].push(worldBox(cx, cy, cz, sx, sy, sz, kind === 'roof' ? 6 : kind === 'glass' ? 5 : 14));
   };
-  const addTower = (t: Tower): void => {
+  /**
+   * Window bays in rows up a face: dark recesses, a few missing where the
+   * wall has fallen in. `nx`/`nz` is the face's outward normal (one of ±x, −z).
+   */
+  const bays = (cx: number, cz: number, halfAcross: number, halfOut: number, nx: number, nz: number,
+    from: number, to: number, r: () => number, skip = 0.22): void => {
+    for (let y = from; y + 3.8 < to; y += 6.5) {
+      for (let a = -halfAcross + 2.2; a < halfAcross - 1.6; a += 4.2) {
+        if (r() < skip) continue;
+        const px = cx + nx * (halfOut + 0.05) + (nz !== 0 ? a : 0);
+        const pz = cz + nz * (halfOut + 0.05) + (nx !== 0 ? a : 0);
+        solid('bay', px, y + 1.8, pz, nx !== 0 ? 0.3 : 2.2, 3.6, nz !== 0 ? 0.3 : 2.2, false);
+      }
+    }
+  };
+  /** the slumped foot of a tower: glass run down over the stone just above the cloud */
+  const skirt = (cx: number, cz: number, w: number, d: number, r: () => number): void => {
+    const h = 3 + r() * 6;
+    solid('glass', cx, G + DECK - 2 + h / 2, cz, w + 3.8, h, d + 3.8, false);
+    // and a lip where the run pooled
+    solid('glass', cx, G + DECK - 1.6, cz, w + 5, 0.8, d + 5, false);
+  };
+  const addTower = (t: Tower, opts: { plain?: boolean } = {}, r: () => number = rand): void => {
     const base = G - 30;
-    solid('ruin', t.x, (base + t.top) / 2, t.z, t.w, t.top - base, t.d);
-    solid('roof', t.x, t.top + 0.25, t.z, t.w - 0.6, 0.5, t.d - 0.6);
-    towers.push(t);
+    // a broken crown: a narrower tier on three of four quarters, one fallen
+    const tier = !opts.plain && t.top - G > 34 && r() < 0.75 ? 4 + r() * 4 : 0;
+    const shoulder = t.top - tier;
+    solid('ruin', t.x, (base + shoulder) / 2, t.z, t.w, shoulder - base, t.d);
+    // a broader podium under the shaft, with a set-back ledge: the old
+    // street storeys, which the silhouette steps out to
+    if (!opts.plain && shoulder - G > 30) {
+      const podTop = G + DECK + 6 + r() * 14;
+      solid('ruin', t.x, (base + podTop) / 2, t.z, t.w + 3, podTop - base, t.d + 3);
+      solid('roof', t.x, podTop + 0.2, t.z, t.w + 2.6, 0.4, t.d + 2.6);
+    }
+    solid('roof', t.x, shoulder + 0.25, t.z, t.w - 0.6, 0.5, t.d - 0.6);
+    if (tier) {
+      const qw = t.w * 0.36, qd = t.d * 0.36;
+      const gone = Math.floor(r() * 4);
+      for (let q = 0; q < 4; q++) {
+        const qx = t.x + (q % 2 ? 1 : -1) * qw / 2, qz = t.z + (q < 2 ? -1 : 1) * qd / 2;
+        if (q === gone) {
+          // where it fell, the stone ran: a low glassy mound
+          solid('glass', qx, shoulder + 0.6, qz, qw, 1.2, qd, false);
+          continue;
+        }
+        const h = tier * (q === (gone + 2) % 4 ? 1 : 0.55 + r() * 0.45);
+        solid('ruin', qx, shoulder + h / 2, qz, qw, h, qd);
+        solid('roof', qx, shoulder + h + 0.2, qz, qw - 0.4, 0.4, qd - 0.4);
+      }
+    } else if (!opts.plain) {
+      // stubs of the storey that was: broken piers at the corners
+      const n = 1 + Math.floor(r() * 3);
+      for (let k = 0; k < n; k++) {
+        const sx = (k % 2 ? 1 : -1) * (t.w / 2 - 0.8), sz = (k < 2 ? -1 : 1) * (t.d / 2 - 0.8);
+        const h = 2 + r() * 6;
+        solid('ruin', t.x + sx, t.top + h / 2, t.z + sz, 1.4, h, 1.4);
+      }
+    }
+    // window bays on the faces toward the approach and the middle of the city
+    const from = G + DECK + 6;
+    bays(t.x, t.z, t.w / 2, t.d / 2, 0, -1, from, shoulder - 2, r);
+    const side = t.x > 0 ? -1 : 1;
+    bays(t.x, t.z, t.d / 2, t.w / 2, side, 0, from, shoulder - 2, r);
+    skirt(t.x, t.z, t.w, t.d, r);
+    towers.push({ ...t, top: t.top });
   };
   for (let z = 70; z < 1130; z += 38) {
     for (let k = 0; k < 4; k++) {
@@ -238,28 +306,33 @@ function build(ctx: SectionContext): SectionInstance {
       const x = -HALF_W + 8 + rand() * (HALF_W * 2 - 16);
       const zz = z + (rand() - 0.5) * 30;
       const top = G + 18 + rand() * 58;
-      if (!clearOfLine(x, zz, Math.max(w, d) / 2, top)) continue;
+      // room for the broken piers over the top
+      if (!clearOfLine(x, zz, Math.max(w, d) / 2, top + 8)) continue;
       if (flakSpec.some((f) => Math.hypot(f.x - x, f.z - zz) < 22)) continue;
       if (towers.some((o) => Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.z - zz) < (o.d + d) / 2 + 3)) continue;
       addTower({ x, z: zz, w, d, top });
-      // a fused-glass face toward the approach on some of them
-      if (rand() < 0.4) {
-        const pane = new THREE.Mesh(geo(new THREE.PlaneGeometry(w * 0.7, (top - G) * 0.6)), glass);
-        pane.position.set(x, G + (top - G) * 0.5, zz - d / 2 - 0.05);
-        pane.rotation.y = Math.PI;
-        ctx.mesh(pane);
-      }
     }
   }
-  // rib-bridges between neighbours of a height
+  // rib-bridges between neighbours of a height, each over a broken arch
+  const arches: THREE.Mesh[] = [];
+  const bridged = new Set<number>();
   for (let i = 0; i < towers.length; i++) {
+    if (bridged.has(i)) continue;
     for (let j = i + 1; j < towers.length; j++) {
       const a = towers[i], b = towers[j];
-      if (Math.abs(a.z - b.z) > 6 || Math.abs(a.x - b.x) > 34 || Math.abs(a.x - b.x) < 14) continue;
-      const y = Math.min(a.top, b.top) - 6;
+      const span = Math.abs(a.x - b.x) - (a.w + b.w) / 2;
+      if (Math.abs(a.z - b.z) > 8 || span < 6 || span > 28) continue;
+      const y = Math.min(a.top, b.top) - 9;
+      if (y < G + DECK + 12) continue;
       const mid = new THREE.Vector3((a.x + b.x) / 2, y, (a.z + b.z) / 2);
-      if (!clearOfLine(mid.x, mid.z, Math.abs(a.x - b.x) / 2, y)) continue;
+      if (!clearOfLine(mid.x, mid.z, Math.abs(a.x - b.x) / 2, y + 2)) continue;
       solid('ruin', mid.x, y, mid.z, Math.abs(a.x - b.x), 1.6, 3);
+      const arch = new THREE.Mesh(geo(new THREE.TorusGeometry(span / 2, 0.9, 6, 16, Math.PI)), ruin);
+      arch.position.set(mid.x, y - 0.8, mid.z);
+      arch.rotation.x = Math.PI;
+      ctx.mesh(arch);
+      arches.push(arch);
+      bridged.add(i); bridged.add(j);
       break;
     }
   }
@@ -271,18 +344,20 @@ function build(ctx: SectionContext): SectionInstance {
     solid('ridge', cx, (G - 30 + top) / 2, cz, sx, top - (G - 30), sz);
     // a stepped crown, so the tops are not one flat line (over the lid: seen, never met)
     solid('ridge', cx, top + 4, cz, sx * 0.6, 8, sz * 0.6, false);
-    if (ridgeRand() < 0.35) {
-      const pane = new THREE.Mesh(geo(new THREE.PlaneGeometry(sz * 0.6, (top - G) * 0.5)), glass);
-      pane.position.set(cx - Math.sign(cx) * (sx / 2 + 0.05), G + (top - G) * 0.55, cz);
-      pane.rotation.y = -Math.sign(cx) * Math.PI / 2;
-      ctx.mesh(pane);
-    }
+    // the inner face: bays, and here and there the glassed foot
+    if (Math.abs(cx) > HALF_W) {
+      bays(cx, cz, sz / 2, sx / 2, -Math.sign(cx), 0, G + DECK + 8, G + LID - 6, ridgeRand, 0.6);
+      if (ridgeRand() < 0.4) skirt(cx, cz, sx, sz, ridgeRand);
+    } else bays(cx, cz, sx / 2, sz / 2, 0, 1, G + DECK + 8, G + LID - 6, ridgeRand, 0.6);
   };
   for (const sd of [-1, 1]) {
     for (let z = -30; z < LEN + 60;) {
       const len = 12 + ridgeRand() * 16;
       const depth = 14 + ridgeRand() * 14;
-      spire(sd * (HALF_W + depth / 2), z + len / 2, depth, len + 0.5, G + LID + 2 + ridgeRand() * 34);
+      // staggered back from the edge, so each spire throws its own shadow line
+      const back = ridgeRand() < 0.5 ? 0 : 3 + ridgeRand() * 7;
+      spire(sd * (HALF_W + back + depth / 2), z + len / 2, depth, len + 0.5, G + LID + 2 + ridgeRand() * 34);
+      if (back > 0) solid('ridge', sd * (HALF_W + depth / 2), G + DECK + 6, z + len / 2, depth, 20, len + 0.5);
       z += len;
     }
   }
@@ -363,7 +438,7 @@ function build(ctx: SectionContext): SectionInstance {
   };
   const flaks: Flak[] = flakSpec.map((f, i) => {
     const top = G + f.top;
-    addTower({ x: f.x, z: f.z, w: 16, d: 16, top });
+    addTower({ x: f.x, z: f.z, w: 16, d: 16, top }, { plain: true });
     const at = new THREE.Vector3(f.x, top + 0.5, f.z);
     // the gun: a rubble ring, a turning mount, twin barrels
     const gun = new THREE.Group();
@@ -415,7 +490,8 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- the city, drawn: one mesh per material ----
-  for (const [kind, mat, shadow] of [['ruin', ruin, true], ['roof', roofMat, false], ['ridge', ridgeMat, false]] as const) {
+  for (const [kind, mat, shadow] of [['ruin', ruin, true], ['roof', roofMat, false], ['ridge', ridgeMat, false],
+    ['glass', glass, false], ['bay', bayMat, false]] as const) {
     const parts = cityParts[kind];
     if (!parts.length) continue;
     const merged = geo(mergeGeometries(parts, false));
@@ -808,7 +884,8 @@ function build(ctx: SectionContext): SectionInstance {
       for (const tw of towers) if (Math.abs(x - tw.x) < tw.w / 2 && Math.abs(z - tw.z) < tw.d / 2) return tw.top + 0.5;
       return G + UPDRAFT;
     },
-    contains: (x, z) => (Math.abs(x) < HALF_W && z > -18 && z < LEN) || Math.hypot(x, z) < SR + 1,
+    // (the ridge's staggered notches reach a little past the edge)
+    contains: (x, z) => (Math.abs(x) < HALF_W + 10 && z > -18 && z < LEN) || Math.hypot(x, z) < SR + 1,
     path: line,
     update,
     get complete() { return complete; },
