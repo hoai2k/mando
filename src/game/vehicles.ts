@@ -336,7 +336,9 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     },
     turret: {
       yawArc: Math.PI * 0.75, pitchMin: -0.25, pitchMax: 0.7,
-      sight: { x: 0, y: 2.25, z: -0.35 }, pivot: 1.55,
+      // the sight clears the shield plate (top at 2.3): any lower and aiming
+      // below level looks into the plate's back
+      sight: { x: 0, y: 2.7, z: -0.35 }, pivot: 1.55,
       slew: 2.6, auto: 0.5, autoRange: 90,
     },
   },
