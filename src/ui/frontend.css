@@ -58,18 +58,24 @@
 @keyframes fe-blink { 0% { opacity: 1; } 100% { opacity: 0.35; } }
 
 /* ---------- title: twin suns over the Dune Sea ---------- */
-.fe-title-art {
-  position: absolute; left: 0; right: 0; top: 0;
+.fe-title-sky {
+  /* the art drifts and zooms inside this box and never past it: spilled under
+     the letterbox, the zoomed picture showed as a light seam between the fade
+     and the bar */
+  position: absolute; left: 0; right: 0; top: 0; overflow: hidden;
   bottom: calc(100px * var(--fe-scale, 1));
+}
+.fe-title-art {
+  position: absolute; inset: 0;
   background-size: cover; background-position: 50% 40%;
   animation: fe-drift 22s ease-in-out infinite alternate;
 }
 .fe-title-shade {
-  position: absolute; left: 0; right: 0; top: 0;
-  bottom: calc(100px * var(--fe-scale, 1));
+  position: absolute; inset: 0;
+  /* the fade ends in the letterbox's own colour, so the two meet without a line */
   background:
     linear-gradient(270deg, rgba(20,8,2,0.6) 0%, rgba(20,8,2,0.2) 45%, rgba(20,8,2,0) 65%),
-    linear-gradient(0deg, rgba(20,8,2,0.75) 0%, rgba(20,8,2,0) 50%);
+    linear-gradient(0deg, #0b0806 0%, rgba(11,8,6,0.75) 12%, rgba(20,8,2,0) 50%);
   box-shadow: inset 0 0 160px rgba(0,0,0,0.75);
 }
 @keyframes fe-drift { from { transform: scale(1.02) translateX(0); } to { transform: scale(1.09) translateX(-2%); } }
