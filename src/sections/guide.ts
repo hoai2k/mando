@@ -235,6 +235,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     tips: [
       'It cannot be lost. If the Armorer falls, the forging slips back to its last quarter and she rises.',
       'Raising a fourth shield folds the oldest one. Put them where the tunnels are.',
+      'A raised shield is cover: press Y · C behind it to put your back to it.',
       'Reward: beskar for each of you, +25 max health for the rest of the run.',
       'The fallen re-form on the dais.',
     ],
@@ -247,7 +248,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Hold A · Space to fly. It never runs dry. Let go to glide. LB · Shift boosts, Y · C dives.',
       'Fly through each ring for a checkpoint and a boost. Rings past a live flak gun stay dark.',
       'A flak screen blocks the sky past each gun. Silence the gun on its tower first.',
-      'Land on the flak tower\'s roof and hold Y · C for three seconds to plant a charge, then clear off.',
+      'Land on the gun\'s stone slab and hold Y · C at the glowing mark for three seconds to plant a charge, then clear off.',
       'Once the last gun is down, the breach opens. Dive into the dome through it.',
     ],
     tips: [

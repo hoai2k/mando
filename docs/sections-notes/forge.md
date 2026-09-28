@@ -32,8 +32,9 @@ Covert Sky begins.
 **How it plays.**
 - *Breath* (12 s, 10 solo): "Raise shields · hold Y". Six glowing sockets
   round the dais at 12.5 m, two facing each wave tunnel. Hold Y 1.2 s to raise
-  a 3 × 1.2 m beskar shield (solid; blocks bolts). Three may stand at once for
-  the party; a fourth folds the oldest. Re-placeable at any time.
+  a beskar shield (3.0 × 0.9 m, on the socket's 0.25 m plinth; solid, blocks
+  bolts, takes cover). Three may stand at once for the party; a fourth folds
+  the oldest. Re-placeable at any time.
 - *The forging* (K5 `Progress`): 165 s at 2 players, 180 at 4, 120 solo.
   **Stalls** while any hostile is within 6 m of the Armorer. **Half speed**
   with a bellows broken. Quarter marks announce.
@@ -173,11 +174,51 @@ Suites run for the shared changes: `test-modes`, `test-allies`,
 - Covert Sky lid G + 88 (lowered from 100) so the edge spires can all stand
   over it without swallowing the sky.
 
+## Props to their sheets (round 5)
+
+Both stand-ins are now built to the measured sheets
+(`reference/props/*_ref.png`, `SECTIONS_IMPLEMENTATION.md` §4, `ASSETS_MODELS.md`
+"Stand-in proportions measured from the sheets"), so a delivered sculpt, scaled
+by its governing dimension, lands on the same colliders.
+
+- **`beskar_barricade`** — 3.0 × 1.0 × 0.9 m, scaled by the 3 m width, pivot on
+  the ground under its middle. The plate is an arc of a 2.5 m circle (a 3 m
+  chord bowing 0.5 m toward the tunnel), gold rims, a post at each end, braced
+  feet front and back, a gold horned crest. Collider: three blocks following
+  the plate (each 1 × 0.5 m, turned into its ground box), 0.9 m tall.
+  *Cover check.* The cover system takes a face 1.0 m tall or more
+  (`COVER_MIN_H` in `player.ts`), and bolts aimed at a standing hunter's chest
+  cross a 0.9 m plate. So each **socket is a 0.25 m stone plinth** (with a
+  glowing groove where the shield seats) and the shield stands on it: the
+  combined face is 1.15 m, cover you can snap to with Y, over the chest of
+  anyone crouched in it — what the first tuning (a 1.2 m wall on the floor)
+  assumed. The plinth is the socket's, not the prop's; the prop stays at its
+  sheet size. The mechanics test checks the snap (face ≥ 1.0 m).
+- **`flak_tower`** — 6.7 × 6.0 × 3.3 m, scaled by the 6 m slab, pivot at the
+  slab's underside centre, on the tower roof. A round rubble slab 6 m across
+  and 0.9 m thick with sandbag arcs and two ammunition crates round its rim;
+  a turntable; the turret (`yaw`) with its sensor dish; twin barrels in a
+  `pitch` group, level 2.4 m up, reaching 0.7 m past the slab's edge.
+  Colliders: the slab as a 6 × 0.9 × 6 m box (the landing surface) and the
+  turret as a 1.8 × 2.0 × 1.8 m box (the rocket breech). The charge mark moved
+  onto the slab, at the turret's back (the old spot was off a 6 m slab).
+  *Driven parts*: the gun turns to its target and lifts its barrels toward
+  it; dead, it slumps with the barrels down. Each is driven on the sculpt's
+  own `yaw` / `pitch` nodes once the model has loaded (`getObjectByName`), and
+  on the stand-in's groups until then — the stand-in is hidden on load, so
+  nothing doubles up. The turret's lamp blinks faster as a planted charge's
+  fuse runs down.
+
+Also this round: the working branch merged in (main's stick gait: the forge
+autopilot now runs until 2.5 m out and eases to 0.78 tilt, a jog, rather than
+scaling the tilt by distance, which now walks); `guide.ts` entries updated (the
+shield is cover; the charge mark is on the gun's slab); `_followups.md` rows
+for the two props annotated.
+
 ## Known issues / left to do
 
 - The authored models `beskar_barricade` and `flak_tower` are requested but
-  not delivered; both ship as procedural stand-ins at the specified size and
-  pivot. `ruin_tower.jpg` is requested; the towers fall back to `cliff_ruin`.
+  not delivered; both ship as procedural stand-ins built to their sheets. `ruin_tower.jpg` is requested; the towers fall back to `cliff_ruin`.
 - The Armorer is a `marshal` ally body dressed as the Armorer (her own
   character build, hammer in hand) and re-tuned as a melee fighter. If an
   `armorer` ally kind is ever added to `enemy.ts`, `makeArmorer` should use it.
