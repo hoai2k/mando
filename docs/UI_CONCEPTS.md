@@ -131,3 +131,63 @@ much. D is the one to pick if the game should lean arcade rather than gritty.
   prompt and the "files to go" note map straight onto every concept's progress widget.
 - Fonts come from Google Fonts in the mockups. The game should self-host them in
   `public/assets/fonts/` so it keeps working offline.
+
+## Round 2 — Twin Suns title, Wanted loading (2026-09-28)
+
+Feedback on round 1: keep **B's title screen** and **A's loading screen**. Show how a
+select screen works with four players choosing at once, show more select layouts, and
+explore the stage select for both Wave Battle and Missions. Everything is on the
+canvas's **Round 2** page. The kept loading screen there now lists four hunters.
+
+Every four-player layout uses the same seat colours: P1 red, P2 blue, P3 green,
+P4 yellow. The mock state is always the same: P1 locked on Din, P2 browsing Bossk,
+P3 locked on Maul, and P4 either browsing or sharing a pick, to show what a doubled
+pick looks like.
+
+### Character select — five layouts
+
+1. **The Lineup, 4 players** (B, reworked). The strips stay as the shared roster.
+   Any strip with a cursor on it widens and turns to full colour, and it carries a
+   coloured tag for each player on it. Below the strips are four slanted "posse"
+   cards, one per seat, showing each pick in full. The accordion's single
+   expanded strip couldn't show four picks at once; the cards can.
+2. **Split posse.** Four full-height slanted columns, one per player, each with its
+   own ◀ ▶ ribbon of faces. There's no shared cursor, so players never fight over
+   the grid. This is the closest to today's pedestals, with portraits in place of
+   models.
+3. **Corner dossiers.** A roster grouped by class (Mandalorians, bounty hunters,
+   Force users) in the centre, with a Wanted-style dossier in each corner. Each
+   player's pin sits in the tile corner that matches their dossier corner, so four
+   pins on one tile still read.
+4. **Load the cylinder.** A 2×2 split, one quadrant per player. Each player spins a
+   six-chamber revolver cylinder of portraits; the chamber under the hammer is the
+   pick, and A "cocks the hammer" to lock in. LB/RB jump a whole class.
+5. **Movie poster.** The four picks stand side by side as a film poster over a
+   setting sun, with a billing block of their names. The roster below is round
+   medallions, with one coloured ring per player, nested when players share a pick.
+
+### Stage select — four styles, each drawn for Wave Battle and for Missions
+
+Wave Battle picks any territory; Missions is the same nine as a campaign in order.
+The Missions boards show three territories liberated and the fourth next. That
+needs campaign progress to be saved, which the game doesn't do yet: `planets.ts`
+unlocks everything. Every territory's lieutenant, warlord, monster, stages and
+room count come from `src/text.ts`.
+
+1. **Bounty board.** Each territory is a WANTED poster for its warlord, with a
+   dossier sheet for the focused one. In Missions the posters are numbered and
+   joined by a red string in campaign order; finished ones are stamped COLLECTED,
+   and the dossier lists the route's stages.
+2. **Horizon reel.** The focused territory fills the screen in Twin Suns style,
+   with a billing of its bosses ("first… then… and then…"). The other territories
+   run along a film strip in the bottom letterbox. In Missions the strip becomes a
+   chapter trail (I–IX): liberated chapters are filled, the next one is a glowing
+   sun, and a side card lists the stages.
+3. **Sector chart.** An ink-and-parchment star chart using the planet art, with a
+   hand-drawn red circle on the focused planet and a pinned card. In Missions an
+   inked route joins the planets in order. Liberated planets are crossed out, and
+   "You ride here" flags the next one.
+4. **Departures board.** A split-flap board listing destination, the warlord who
+   holds it, and status, with a paper ticket stub for the pick. In Missions it
+   becomes an itinerary: arrived legs, the leg now boarding, scheduled legs, and a
+   ticket that lists the leg's stops.
