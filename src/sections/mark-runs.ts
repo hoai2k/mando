@@ -160,7 +160,7 @@ const HAND_REACH = 3.6;
 
 type Phase = 'intro' | 'chase' | 'duel' | 'taken' | 'dead';
 
-function build(ctx: SectionContext): SectionInstance {
+function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   const { game, spec } = ctx;
   const Y0 = ctx.floorY;
   const T = TEXT.sections['mark-runs'];
@@ -168,7 +168,7 @@ function build(ctx: SectionContext): SectionInstance {
   const P = (x: number, z: number, y = 0): THREE.Vector3 => new THREE.Vector3(x + OX, Y0 + y, z + OZ);
 
   // ---- materials ----
-  const roofMat = ctx.paint(0x4a4f5a, { rough: 0.92, metal: 0.15 });
+  const roofMat = ctx.paint(0x7a7f8a, { rough: 0.9, metal: 0.1 });
   ctx.tile(roofMat, 'rooftop', 6, 6);
   const facadeMat = ctx.paint(spec.palette.wall, { rough: 0.8, metal: 0.25 });
   ctx.tile(facadeMat, 'city_facade', 4, 10, { glow: 'city_facade_glow' });
@@ -176,7 +176,7 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.tile(metalMat, 'metal_hull', 1, 1);
   const darkMat = ctx.paint(0x23262c, { rough: 0.7, metal: 0.4 });
   const crateMat = ctx.paint(0x8a6a3a, { rough: 0.85, metal: 0.1 });
-  const padMat = ctx.paint(0x3a404c, { rough: 0.7, metal: 0.35 });
+  const padMat = ctx.paint(0x5a606c, { rough: 0.7, metal: 0.35 });
   ctx.tile(padMat, 'metal_deck', 5, 5);
   const trim = new THREE.MeshBasicMaterial({ color: spec.palette.accent });
   ctx.own(trim);
@@ -511,6 +511,8 @@ function build(ctx: SectionContext): SectionInstance {
   let wiped = false;
   let restartT = 0;        // the pause before he runs again after a restart
   let forkNote = 0;
+  /** the full-bounty banner follows the result banner after this long */
+  let fullBountyT = 0;
   const squads: Enemy[][] = POSTS.map(() => []);
   const called = POSTS.map(() => false);
   // the pack on his back: the jetpack pirate's kit on the gunslinger
@@ -658,7 +660,7 @@ function build(ctx: SectionContext): SectionInstance {
     audio.waveClear();
     if (alive && value >= FULL_BOUNTY) {
       for (const p of game.players) p.rocketCd = 0;
-      setTimeout(() => { if (!complete) ctx.announce(T.fullBounty, T.fullBountySub); }, 2200);
+      fullBountyT = 2.2;
     }
   };
 
@@ -869,6 +871,7 @@ function build(ctx: SectionContext): SectionInstance {
     const m = mark!, run = runner!;
     for (let s = 0; s < 4; s++) netCd[s] = Math.max(0, netCd[s] - dt);
     forkNote = Math.max(0, forkNote - dt);
+    if (fullBountyT > 0 && (fullBountyT -= dt) <= 0) ctx.announce(T.fullBounty, T.fullBountySub);
 
     // ---- the start: he waits at the far side of the first roof, then bolts ----
     if (phase === 'intro') {
@@ -1074,7 +1077,7 @@ function build(ctx: SectionContext): SectionInstance {
       return { title: T.his, bars, line: escaping ? T.hintEscaping : netLine };
     }
     if (phase === 'duel') {
-      bars.push({ label: T.his, value: Math.max(0, mark.hp / Math.max(1, duelHp0)), tone: mark.hp <= mark.maxHp * NET_TAKES ? 'good' : 'danger' });
+      bars.push({ label: T.fight, value: Math.max(0, mark.hp / Math.max(1, duelHp0)), tone: mark.hp <= mark.maxHp * NET_TAKES ? 'good' : 'danger' });
       bars.push({ label: T.bounty, value, tone: value >= FULL_BOUNTY ? 'info' : 'warn' });
       return { title: T.his, bars, line: mark.hp <= mark.maxHp * NET_TAKES && nets[slot] > 0 ? T.hintNetNow : netLine };
     }
@@ -1204,7 +1207,26 @@ function build(ctx: SectionContext): SectionInstance {
     return out;
   };
 
+  // for tools/test-section-mark-runs.mjs: the section's own parts, in the page
+  const testKit = {
+    get runner() { return runner; },
+    get mark() { return mark; },
+    get phase() { return phase; },
+    get value() { return value; },
+    set value(v: number) { value = v; },
+    get checkpoint() { return ROOFS[checkpoint].name; },
+    nodes,
+    roofAt,
+    fireNet: (slot: number) => { const p = game.players[slot]; if (p && armed[slot] && nets[slot] > 0) fireNet(p); },
+    arm: (slot: number) => { const p = game.players[slot]; if (p) arm(p, false); },
+    nets: () => nets.slice(),
+    netHit,
+    stackStates: () => stacks.map((s) => s.state),
+    signState: () => sign.state,
+  };
+
   return {
+    testKit,
     starts: [0, 1, 2, 3].map((i) => {
       const s = cpSpot();
       return new THREE.Vector3(s.x - 2 + Math.floor(i / 2) * -1.6, s.y, s.z + ((i % 2) * 2 - 1) * 1.2);
@@ -1216,6 +1238,8 @@ function build(ctx: SectionContext): SectionInstance {
       return r >= 0 ? Y0 + ROOFS[r].y : Y0 + STREET;
     },
     contains: (x, z) => {
+      // won: the run is carrying the party on into the next stage
+      if (complete) return true;
       if (roofAt(x, z) >= 0) return true;
       // the air over each leap is in play: the gaps are crossed, not left
       for (let i = 0; i < nodes.length; i++) {

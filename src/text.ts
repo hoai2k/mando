@@ -595,19 +595,21 @@ export const TEXT = {
       markName: 'The Paymaster',
       stair: 'the stair down',
       rack: 'the net launcher',
-      // hints (the HUD line wraps past ~34 characters)
-      hintRack: 'Grab the net launcher · chase him',
+      // hints: the HUD line is upper-case and wraps past ~20 characters in a
+      // quarter of the screen (the panel's own line says the rest)
+      hintRack: 'Grab the launcher',
       hintChase: 'Keep him in reach',
-      hintFork: 'He takes the emptier way · split',
-      hintEscaping: 'Close in — he is getting away!',
-      hintDuel: 'Wear him down, then net him',
-      hintNetNow: 'Net him now! (B / Q)',
+      hintFork: 'Split up at the fork',
+      hintEscaping: "He's getting away!",
+      hintDuel: 'Wear him down',
+      hintNetNow: 'Net him now!',
       hintStair: 'Take the stair down',
       // the HUD panel
       lead: (m: number) => `Lead ${m} m`,
       escaping: (s: number) => `Escaping · ${s.toFixed(1)} s`,
       bounty: 'Bounty value',
       his: 'The Paymaster',
+      fight: 'Fight in him',
       nets: (n: number) => (n > 0 ? `Nets ×${n} · B / Q fires` : 'No nets · refill at a checkpoint'),
       noLauncher: 'Net launcher on the first roof',
       // banners
