@@ -7,7 +7,7 @@ import { BOARD_PROPS, dropCast, matchAssets, warmFor, type WarmContext, type War
 import { tracked, warmQueue } from './core/warm';
 import { nodeCount, visibleBounds } from './core/bounds';
 import { LoadingScreen } from './ui/loading';
-import { FINAL_WAVE, planWave } from './enemies/spawner';
+import { planWave } from './enemies/spawner';
 import { buildEnemyCharacter, enemyBody, enemyHitParts, enemyKinds, enemyStats, type EnemyKind } from './enemies/enemy';
 import { audio, VOICES } from './core/audio';
 import { Game } from './game/game';
@@ -18,10 +18,10 @@ import { MenuScreen } from './ui/menus';
 import { CharacterSelect } from './ui/charselect';
 import { PlanetSelect } from './ui/planets';
 import { buildDepartures } from './ui/departures';
+import { EndScreen } from './ui/endscreen';
 import { loadFonts } from './ui/fonts';
 import { makeStage } from './ui/stage';
 import { VsScreen } from './ui/vs';
-import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
 import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
@@ -372,35 +372,21 @@ pause.addButtons(null, [
 pause.onBack = () => resumeGame();
 
 // ----- end (victory/defeat) -----
-const end = new MenuScreen(menuLayer);
-// the PvP winner's celebration: their portrait held up over the tally —
-// filled in (and shown) only when a duel ends with a champion
-const endHero = document.createElement('div');
-endHero.className = 'end-hero';
-endHero.style.display = 'none';
-end.root.appendChild(endHero);
-const endTitle = document.createElement('div');
-endTitle.className = 'menu-title';
-endTitle.style.fontSize = 'clamp(34px, 5vw, 64px)';
-end.root.appendChild(endTitle);
-const endStats = document.createElement('div');
-endStats.className = 'menu-hint';
-end.root.appendChild(endStats);
-// A liberated territory leads to the next one: the planet strip knows the
-// order, so the end screen can offer it rather than sending the party back to
-// the title to find it. Shown only after a campaign victory with a next stop.
-const [nextBtn] = end.addButtons(null, [
-  { label: TEXT.end.nextTerritory, action: () => {
+// Four faces — held, liberated, champion, defeat — see src/ui/endscreen.ts.
+const endScreen = new EndScreen(menuLayer, {
+  // A liberated territory leads to the next one: the map knows the order, so
+  // the end screen offers it rather than sending the party back to find it.
+  next: () => {
     const i = BOARDS.indexOf(chosenBoard);
     chosenBoard = BOARDS[(i + 1) % BOARDS.length];
     startGame();
-  } },
-]);
-end.addButtons(null, [
-  { label: TEXT.end.retry, action: () => startGame() },
-  { label: TEXT.end.quit, action: () => quitToTitle() },
-]);
-end.onBack = () => quitToTitle();
+  },
+  departures: () => leaveMatchTo('select'),
+  retry: () => startGame(),
+  roster: () => leaveMatchTo('characters'),
+  quit: () => quitToTitle(),
+});
+const end = endScreen.screen;
 
 // The bench behind __buildBody / __bodySize below: bodies built outside any
 // match, kept here so each can be measured once its models have landed.
@@ -821,9 +807,14 @@ function resumeGame(): void {
 }
 
 function quitToTitle(): void {
+  leaveMatchTo('title');
+}
+
+/** tear the match down and go back to a menu: the title, the board, or the line-up */
+function leaveMatchTo(s: 'title' | 'select' | 'characters'): void {
   disposeGame();
   hud.hide();
-  setState('title');
+  setState(s);
 }
 
 // Start an N-player match without N controllers plugged in. Split-screen is
@@ -988,44 +979,19 @@ function step(dt: number): void {
       if (game.state === 'victory' || game.state === 'defeat') {
         endTimer -= dt;
         if (endTimer <= 0) {
-          const winner = game.winnerSlot >= 0 ? game.players[game.winnerSlot] : null;
-          endTitle.textContent = game.state !== 'victory' ? TEXT.end.defeat
-            : game.mode === 'pvp' ? TEXT.end.champion(winner?.profile.name ?? TEXT.end.nobody)
-            : game.mode === 'campaign' ? TEXT.end.liberated
-            : TEXT.end.held;
-          // a duel's end screen celebrates the champion: portrait held high,
-          // authored art taking over the drawn mark when the file exists
-          if (game.mode === 'pvp' && game.state === 'victory' && winner) {
-            endHero.innerHTML = `
-              <div class="end-face">${faceSvg(winner.characterId)}</div>
-              <div class="end-tag">${TEXT.end.championTag(
-                winner.isBot ? TEXT.vs.bot : TEXT.vs.player(winner.slot + 1), winner.kills,
-              )}</div>`;
-            endHero.style.display = '';
-            const face = endHero.querySelector('.end-face') as HTMLElement;
-            const img = new Image();
-            img.onload = () => {
-              face.style.backgroundImage = `url('${img.src}')`;
-              face.classList.add('has-art');
-            };
-            img.src = `${ASSET_ROOT}assets/textures/${portraitName(winner.characterId)}.jpg`;
-          } else {
-            endHero.style.display = 'none';
-          }
-          const mins = Math.floor(game.elapsed / 60);
-          const secs = Math.floor(game.elapsed % 60).toString().padStart(2, '0');
-          const clock = `${mins}:${secs}`;
-          // the wave counter runs one past the last wave while the warlord's
-          // battle is fought, so a held territory used to read "wave 8"
-          const waveNote = game.wave > FINAL_WAVE ? TEXT.end.warlordDown : TEXT.end.waveNote(game.wave);
-          const tail = game.mode === 'wave' ? TEXT.end.noteAndTime(waveNote, clock) : TEXT.end.time(clock);
-          const hasNext = game.mode === 'campaign' && game.state === 'victory'
-            && BOARDS.indexOf(chosenBoard) < BOARDS.length - 1;
-          nextBtn.style.display = hasNext ? '' : 'none';
-          endStats.innerHTML = game.players
-            .map((p, i) => TEXT.end.playerKills(p.isBot ? TEXT.vs.bot : TEXT.vs.player(i + 1), p.kills))
-            .join(' · ') + tail;
+          endScreen.show({
+            mode: game.mode,
+            won: game.state === 'victory',
+            board: chosenBoard,
+            fighters: game.players.map((p, i) => ({
+              id: p.characterId, name: p.profile.name, slot: i, bot: p.isBot, kills: p.kills,
+            })),
+            winner: game.winnerSlot,
+            elapsed: game.elapsed,
+            wave: game.wave,
+          });
           setState('end');
+          endScreen.focusFirst();
         }
       }
     }

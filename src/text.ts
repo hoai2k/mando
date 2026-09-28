@@ -287,8 +287,49 @@ export const TEXT = {
     liberated: 'Territory Liberated',
     held: 'Territory Held',
     nextTerritory: 'Next Territory',
-    retry: 'Retry Board',
-    quit: 'Quit to Title',
+    /** the campaign's next stop, by name */
+    rideOn: (name: string) => `Ride on to ${name}`,
+    /** a held territory's way back to the departures board */
+    nextDeparture: 'Next departure',
+    newHunters: 'New hunters',
+    newFighters: 'New fighters',
+    rematch: 'Rematch',
+    retry: 'Retry',
+    quit: 'Quit',
+    confirm: 'Confirm',
+    // ---- Territory held: the contract settled, and the payout ledger ----
+    settled: (n: string) => `Guild contract № ${n} · settled`,
+    paid: 'Paid in full',
+    cleared: (place: string, clock: string) => `${place} — cleared, ${clock}`,
+    heldSummary: (waves: number, warlord: string, clock: string) =>
+      `${waves} waves weathered · ${warlord} put down · ${clock} on the clock.`,
+    ledger: 'Payout ledger',
+    ledgerCols: { hunter: 'Hunter', takedowns: 'Takedowns', credits: 'Credits' },
+    /** flavour: what one takedown is worth on the ledger */
+    creditsPerKill: 150,
+    topGun: 'Top gun',
+    split: (n: number) => (n === 1 ? 'One hunter, one share' : `Split ${n} ways, as agreed`),
+    cr: 'cr',
+    // ---- Territory liberated: back on the bounty-hunt map ----
+    liberatedStamp: 'Liberated',
+    free: (name: string) => `${name} is free`,
+    chapterDone: (n: string, world: string) => `Chapter ${n} complete · ${world}`,
+    liberatedSummary: (rooms: number, warlord: string, clock: string) =>
+      `${rooms} rooms cleared · ${warlord} felled · ${clock}`,
+    nextStop: (n: string, name: string) => `Next · ${n} · ${name}`,
+    huntDone: 'The last territory — the hunt is done',
+    // ---- PvP: last fighter standing ----
+    lastStanding: 'last fighter standing',
+    standings: 'Final standings',
+    stillStanding: 'still standing',
+    out: 'out',
+    takedowns: (n: number) => `${n} takedown${n === 1 ? '' : 's'}`,
+    // ---- defeat: the contract void ----
+    void: 'Contract void',
+    fellAtWave: (wave: number, of: number, clock: string) => `Last seen at wave ${wave} of ${of} · ${clock} on the clock`,
+    fellAt: (clock: string) => `Last seen at ${clock} on the clock`,
+    between: (n: number) => ` · ${n} takedowns between them`,
+    keeps: (warlord: string, place: string) => `"${warlord} keeps ${place}. For now."`,
     championTag: (slot: string, kills: number) => `Champion · ${slot} · ${kills} kills`,
     playerKills: (who: string, kills: number) => `<b>${who}</b> ${kills} kills`,
     /** the wave counter runs one past the last while the warlord is fought */
