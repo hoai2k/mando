@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs>
+  <marker id="ag" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/></marker>
+  <marker id="ar" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/></marker>
+  <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/></marker>
+  <marker id="aw" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/></marker>
+  <marker id="dim" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#9aa3ad" stroke-width="1.5"/></marker>
+</defs>
+<rect width="1200" height="720" fill="#15171c"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">14 · Hold the Forge</text>
+<text x="40" y="78" font-size="16" fill="#9aa3ad">Great Forge · point defence · ~4 min</text>
+<text x="40" y="108" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · GLASSED COURT 54 × 48 M</text>
+<rect x="327" y="100" width="72" height="50" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="48" y="330" width="72" height="72" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="606" y="330" width="74" height="72" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="120" y="150" width="486" height="432" fill="#4d5a52"/>
+<path d="M327.0,150 L120,150 L120,330.0" fill="none" stroke="#2a2d33" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M327.0,150 L120,150 L120,330.0" fill="none" stroke="#4a4f58" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M120,402.0 L120,582 L606,582 L606,402.0" fill="none" stroke="#2a2d33" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M120,402.0 L120,582 L606,582 L606,402.0" fill="none" stroke="#4a4f58" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M606,330.0 L606,150 L399.0,150" fill="none" stroke="#2a2d33" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M606,330.0 L606,150 L399.0,150" fill="none" stroke="#4a4f58" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="407" y="118" font-size="13" fill="#d7dbe0" font-weight="700">N pass</text>
+<text x="52" y="322" font-size="13" fill="#d7dbe0" font-weight="700">W pass</text>
+<text x="676" y="322" font-size="13" fill="#d7dbe0" text-anchor="end" font-weight="700">E pass</text>
+<line x1="672" y1="382" x2="628" y2="382" stroke="#e0524a" stroke-width="3" marker-end="url(#ar)"/>
+<line x1="377" y1="132" x2="377" y2="176" stroke="#e0524a" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#ar)"/>
+<line x1="56" y1="382" x2="144" y2="382" stroke="#e0524a" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#ar)"/>
+<polygon points="626,345 632.3,356.9 619.7,356.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="644,357 650.3,368.9 637.7,368.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="662,341 668.3,352.9 655.7,352.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="654,361 660.3,372.9 647.7,372.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="351,113 362,124 351,135 340,124" fill="#e0524a" stroke="#f2efe6" stroke-width="2"/>
+<text x="321" y="128" font-size="12" fill="#e0524a" text-anchor="end">chieftain (final wave)</text>
+<circle cx="363.0" cy="366.0" r="72" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+<circle cx="363.0" cy="360.0" r="15" fill="#2a2d33" stroke="#e8b04a" stroke-width="2"/>
+<circle cx="363.0" cy="360.0" r="6" fill="#ff6a3d" fill-opacity="0.8"/>
+<text x="383" y="364" font-size="11" fill="#9aa3ad">forge</text>
+<circle cx="363.0" cy="386.0" r="54" fill="none" stroke="#8fd0ff" stroke-width="1.5" stroke-dasharray="4 4"/>
+<circle cx="363" cy="386" r="9" fill="#8fd0ff" stroke="#1d4a66" stroke-width="2"/>
+<text x="363" y="410" font-size="12" fill="#8fd0ff" text-anchor="middle">Armorer</text>
+<rect x="293.5" y="359.5" width="13" height="13" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="419.5" y="359.5" width="13" height="13" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="347" y="263" width="32" height="8" rx="2" transform="rotate(0 363.0 267.0)" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="432.737" y="312.5" width="32" height="8" rx="2" transform="rotate(60 448.7 316.5)" fill="none" stroke="#b48cff" stroke-width="1.5" stroke-dasharray="3 3"/>
+<rect x="432.737" y="411.5" width="32" height="8" rx="2" transform="rotate(120 448.7 415.5)" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="347" y="461" width="32" height="8" rx="2" transform="rotate(180 363.0 465.0)" fill="none" stroke="#b48cff" stroke-width="1.5" stroke-dasharray="3 3"/>
+<rect x="261.263" y="411.5" width="32" height="8" rx="2" transform="rotate(240 277.3 415.5)" fill="none" stroke="#b48cff" stroke-width="1.5" stroke-dasharray="3 3"/>
+<rect x="261.263" y="312.5" width="32" height="8" rx="2" transform="rotate(300 277.3 316.5)" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<polygon points="448,339 454.3,350.9 441.7,350.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<path d="M442.0,352.0 L434.0,360.0" fill="none" stroke="#e0524a" stroke-width="2" stroke-dasharray="2 2" stroke-linecap="round" stroke-linejoin="round"/>
+<g><circle cx="385" cy="222" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="385" y="226" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<g><circle cx="481" cy="396" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="481" y="400" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">2</text></g>
+<g><circle cx="182" cy="328" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="182" y="332" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">3</text></g>
+<g><circle cx="302" cy="390" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="302" y="394" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">4</text></g>
+<polygon points="459,426 626,316 626,406" fill="#ffffff" fill-opacity="0.1" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+<g transform="translate(459 426) rotate(-18)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<g><circle cx="393" cy="332" r="10" fill="#e8b04a"/><text x="393" y="336.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<g><circle cx="307" cy="424" r="10" fill="#e8b04a"/><text x="307" y="428.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<g><circle cx="278" cy="350" r="10" fill="#e8b04a"/><text x="278" y="354.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<g><circle cx="323" cy="226" r="10" fill="#e8b04a"/><text x="323" y="230.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<g><circle cx="652" cy="412" r="10" fill="#e8b04a"/><text x="652" y="416.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<g><circle cx="163" cy="124" r="10" fill="#e8b04a"/><text x="163" y="128.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">6</text></g>
+<line x1="120" y1="604" x2="606" y2="604" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="363" y="618" font-size="12" fill="#9aa3ad" text-anchor="middle">54 m</text>
+<line x1="120" y1="640" x2="210" y2="640" stroke="#9aa3ad" stroke-width="2"/>
+<line x1="120" y1="635" x2="120" y2="645" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="210" y1="635" x2="210" y2="645" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="165" y1="637" x2="165" y2="643" stroke="#9aa3ad" stroke-width="1"/>
+<text x="218" y="644.5" font-size="12" fill="#9aa3ad">0 — 10 m</text>
+<text x="700" y="108" font-size="12" letter-spacing="2" fill="#6f7883">FORGING PROGRESS (K5)</text>
+<rect x="700" y="140" width="440" height="22" rx="3" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<rect x="700" y="140" width="272.8" height="22" rx="3" fill="#e8b04a" fill-opacity="0.85"/>
+<line x1="700" y1="135" x2="700" y2="167" stroke="#9aa3ad" stroke-width="1"/>
+<text x="700" y="182" font-size="12" fill="#9aa3ad" text-anchor="middle">0%</text>
+<line x1="810" y1="135" x2="810" y2="167" stroke="#f2efe6" stroke-width="2"/>
+<text x="810" y="182" font-size="12" fill="#9aa3ad" text-anchor="middle">25%</text>
+<line x1="920" y1="135" x2="920" y2="167" stroke="#f2efe6" stroke-width="2"/>
+<text x="920" y="182" font-size="12" fill="#9aa3ad" text-anchor="middle">50%</text>
+<line x1="1030" y1="135" x2="1030" y2="167" stroke="#f2efe6" stroke-width="2"/>
+<text x="1030" y="182" font-size="12" fill="#9aa3ad" text-anchor="middle">75%</text>
+<line x1="1140" y1="135" x2="1140" y2="167" stroke="#9aa3ad" stroke-width="1"/>
+<text x="1140" y="182" font-size="12" fill="#9aa3ad" text-anchor="middle">100%</text>
+<path d="M972.8,136 Q946.4,118 923.0,134" fill="none" stroke="#e0524a" stroke-width="2" marker-end="url(#ar)" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="980.8" y="128" font-size="12" fill="#e0524a">Armorer falls → last quarter mark</text>
+<text x="1140" y="200" font-size="12" fill="#7bd389" text-anchor="end" font-weight="700">→ +25 max HP</text>
+<text x="700" y="204" font-size="13" fill="#d7dbe0">~3 min (solo 2 min) · stalls while an enemy is within</text>
+<text x="700" y="221" font-size="13" fill="#d7dbe0">6 m of her · half speed while a bellows is broken</text>
+<g><circle cx="710" cy="262" r="10" fill="#e8b04a"/><text x="710" y="266.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<text x="726" y="266" font-size="13" fill="#d7dbe0">Forge on the dais; the Armorer works it. She has HP, fights back with</text>
+<text x="726" y="282" font-size="13" fill="#d7dbe0">her hammer, never leaves the dais; re-forms after 10 s</text>
+<g><circle cx="710" cy="303" r="10" fill="#e8b04a"/><text x="710" y="307.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<text x="726" y="307" font-size="13" fill="#d7dbe0">6 m stall radius around her — any enemy inside stops the bar</text>
+<g><circle cx="710" cy="328" r="10" fill="#e8b04a"/><text x="710" y="332.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<text x="726" y="332" font-size="13" fill="#d7dbe0">Two bellows on the dais flanks: enemy targets; repair = hold</text>
+<text x="726" y="348" font-size="13" fill="#d7dbe0">interact 4 s</text>
+<g><circle cx="710" cy="369" r="10" fill="#e8b04a"/><text x="710" y="373.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<text x="726" y="373" font-size="13" fill="#d7dbe0">Six barricade sockets: beskar shields, waist-high, three up at</text>
+<text x="726" y="389" font-size="13" fill="#d7dbe0">once, re-placeable — block bolts, channel the melee kinds</text>
+<g><circle cx="710" cy="410" r="10" fill="#e8b04a"/><text x="710" y="414.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<text x="726" y="414" font-size="13" fill="#d7dbe0">Waves alternate passes (N / E / W); solo: one pass per wave</text>
+<g><circle cx="710" cy="435" r="10" fill="#e8b04a"/><text x="710" y="439.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">6</text></g>
+<text x="726" y="439" font-size="13" fill="#d7dbe0">Final wave: all three passes at once + the alamite chieftain</text>
+<text x="726" y="464" font-size="13" fill="#d7dbe0">At 100% each hunter gets a beskar piece (+25 max HP, whole run).</text>
+<text x="726" y="480" font-size="13" fill="#d7dbe0">Deaths re-form at the dais — slowed, never lost.</text>
+<line x1="30" y1="670" x2="1170" y2="670" stroke="#262a31" stroke-width="1"/>
+<rect x="40" y="686" width="18" height="12" fill="#4d5a52" stroke="#5a616d" stroke-width="1.5"/>
+<text x="64" y="696.5" font-size="13" fill="#9aa3ad">glassed court</text>
+<rect x="166.5" y="686" width="18" height="12" fill="#2a2d33" stroke="#4a4f58" stroke-width="2.5"/>
+<text x="190.5" y="696.5" font-size="13" fill="#9aa3ad">ring wall</text>
+<rect x="267" y="686" width="18" height="12" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<text x="291" y="696.5" font-size="13" fill="#9aa3ad">dais / pass</text>
+<g><circle cx="389.5" cy="692" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="389.5" y="696" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<text x="404.5" y="696.5" font-size="13" fill="#9aa3ad">player</text>
+<circle cx="470.5" cy="692" r="9" fill="#8fd0ff" stroke="#1d4a66" stroke-width="2"/>
+<text x="485.5" y="696.5" font-size="13" fill="#9aa3ad">the Armorer</text>
+<polygon points="584,685 590.3,696.9 577.7,696.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<text x="599" y="696.5" font-size="13" fill="#9aa3ad">alamite</text>
+<polygon points="671.5,683 680.5,692 671.5,701 662.5,692" fill="#e0524a" stroke="#f2efe6" stroke-width="2"/>
+<text x="686.5" y="696.5" font-size="13" fill="#9aa3ad">chieftain</text>
+<line x1="763" y1="692" x2="785" y2="692" stroke="#e0524a" stroke-width="2.5" marker-end="url(#ar)"/>
+<text x="795" y="696.5" font-size="13" fill="#9aa3ad">wave route</text>
+<rect x="881.5" y="686.5" width="11" height="11" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<text x="902" y="696.5" font-size="13" fill="#9aa3ad">bellows / socket</text>
+<g transform="translate(1038 692) rotate(0)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<text x="1050" y="696.5" font-size="13" fill="#9aa3ad">camera</text>
+</svg>

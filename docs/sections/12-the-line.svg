@@ -1,0 +1,305 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <linearGradient id="lava" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#d2451e"/>
+    </linearGradient>
+    <pattern id="grate" width="6" height="6" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="#2a2d33"/>
+      <path d="M0,0 L6,6 M6,0 L0,6" stroke="#5a616d" stroke-width=".8"/>
+    </pattern>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="st" d="M0,-6 L5.5,4.5 L-5.5,4.5 z" fill="#e0524a"/>
+    <path id="chev" d="M-4,-7 L3,0 L-4,7" fill="none" stroke="#b9bec6" stroke-width="2"/>
+    <g id="crate"><rect x="-8" y="-8" width="16" height="16" fill="#7a6446" stroke="#a88a5e"/></g>
+    <g id="brl"><circle r="10" fill="none" stroke="#ff6a3d" stroke-dasharray="3 2"/><circle r="5.5" fill="#c9503a" stroke="#ff8a3d"/></g>
+    <g id="sw"><rect x="-6" y="-6" width="12" height="12" rx="2" fill="#b48cff"/></g>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">12 · The Line</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Refinery · machine-floor gauntlet · ~3 min</text>
+  <text x="560" y="78" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · TO SCALE</text>
+
+  <!-- station brackets -->
+  <g stroke="#6f7883" stroke-width="1.5" fill="none">
+    <path d="M72,132 v-6 h136 v6"/><path d="M212,132 v-6 h246 v6"/><path d="M462,132 v-6 h271 v6"/><path d="M737,132 v-6 h101 v6"/>
+  </g>
+  <g font-size="12" fill="#d7dbe0" text-anchor="middle" letter-spacing="1">
+    <text x="140" y="118">BELTS</text><text x="335" y="118">PRESSES</text><text x="598" y="118">ARMS</text><text x="800" y="118">SMELTER</text>
+  </g>
+  <g font-size="13" font-weight="700" fill="#15171c" text-anchor="middle">
+    <g transform="translate(100,113)"><circle r="10" fill="#e8b04a"/><text y="4.5">1</text></g>
+    <g transform="translate(282,113)"><circle r="10" fill="#e8b04a"/><text y="4.5">2</text></g>
+    <g transform="translate(566,113)"><circle r="10" fill="#e8b04a"/><text y="4.5">3</text></g>
+    <g transform="translate(746,113)"><circle r="10" fill="#e8b04a"/><text y="4.5">4</text></g>
+  </g>
+
+  <!-- ===== hall 110 × 26 m (7 px = 1 m) ===== -->
+  <rect x="64" y="144" width="782" height="194" fill="#2a2d33" stroke="#4a4f58" stroke-width="3"/>
+  <rect x="70" y="150" width="770" height="182" fill="#3a3f48"/>
+  <!-- catwalks along both walls (6 m up) -->
+  <rect x="70" y="150" width="770" height="14" fill="url(#grate)" stroke="#6f7883" stroke-dasharray="4 3"/>
+  <rect x="70" y="318" width="770" height="14" fill="url(#grate)" stroke="#6f7883" stroke-dasharray="4 3"/>
+  <!-- belts -->
+  <g fill="#2e3239" stroke="#5a616d" stroke-width="1.5">
+    <rect x="70" y="164" width="770" height="28"/>
+    <rect x="70" y="206" width="770" height="28"/>
+    <rect x="70" y="248" width="770" height="28"/>
+    <rect x="70" y="290" width="770" height="28"/>
+  </g>
+  <!-- chevrons: flow toward the smelter -->
+  <g>
+    <use href="#chev" x="170" y="178"/><use href="#chev" x="300" y="178"/><use href="#chev" x="440" y="178"/><use href="#chev" x="580" y="178"/><use href="#chev" x="720" y="178"/>
+    <use href="#chev" x="160" y="220"/><use href="#chev" x="250" y="220"/><use href="#chev" x="340" y="220"/><use href="#chev" x="430" y="220"/><use href="#chev" x="570" y="220"/><use href="#chev" x="660" y="220"/><use href="#chev" x="750" y="220"/>
+    <use href="#chev" x="160" y="262"/><use href="#chev" x="250" y="262"/><use href="#chev" x="340" y="262"/><use href="#chev" x="430" y="262"/><use href="#chev" x="520" y="262"/><use href="#chev" x="660" y="262"/><use href="#chev" x="750" y="262"/>
+    <use href="#chev" x="150" y="304"/><use href="#chev" x="156" y="304"/><use href="#chev" x="230" y="304"/><use href="#chev" x="236" y="304"/><use href="#chev" x="310" y="304"/><use href="#chev" x="316" y="304"/><use href="#chev" x="470" y="304"/><use href="#chev" x="476" y="304"/><use href="#chev" x="550" y="304"/><use href="#chev" x="556" y="304"/><use href="#chev" x="630" y="304"/><use href="#chev" x="636" y="304"/><use href="#chev" x="710" y="304"/><use href="#chev" x="716" y="304"/>
+  </g>
+  <g font-size="12" font-weight="700" fill="#f2efe6">
+    <text x="80" y="182">3 m/s</text><text x="80" y="224">5 m/s</text><text x="80" y="266">5 m/s</text><text x="80" y="308">7 m/s</text>
+  </g>
+
+  <!-- last 15 m: the belts deliver you -->
+  <g fill="#ff6a3d" fill-opacity=".3">
+    <rect x="735" y="164" width="105" height="28"/><rect x="735" y="206" width="105" height="28"/>
+    <rect x="735" y="248" width="105" height="28"/><rect x="735" y="290" width="105" height="28"/>
+  </g>
+  <rect x="735" y="164" width="105" height="154" fill="none" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <!-- smelter -->
+  <rect x="840" y="144" width="36" height="194" fill="url(#lava)"/>
+  <text x="862" y="241" font-size="13" font-weight="700" fill="#15171c" text-anchor="middle" transform="rotate(90 862 241)" letter-spacing="2">SMELTER</text>
+
+  <!-- presses (4) across the belts -->
+  <g fill="#ff6a3d" fill-opacity=".14" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3">
+    <rect x="210" y="164" width="28" height="154"/><rect x="280" y="164" width="28" height="154"/>
+    <rect x="420" y="164" width="28" height="154"/>
+  </g>
+  <rect x="350" y="164" width="28" height="154" fill="#ff6a3d" fill-opacity=".45" stroke="#ff6a3d" stroke-width="2"/>
+  <g fill="#2a2d33" stroke="#4a4f58" stroke-width="2">
+    <rect x="206" y="140" width="36" height="12"/><rect x="206" y="330" width="36" height="12"/>
+    <rect x="276" y="140" width="36" height="12"/><rect x="276" y="330" width="36" height="12"/>
+    <rect x="346" y="140" width="36" height="12"/><rect x="346" y="330" width="36" height="12"/>
+    <rect x="416" y="140" width="36" height="12"/><rect x="416" y="330" width="36" height="12"/>
+  </g>
+
+  <!-- welding arms: sweeps -->
+  <path d="M532,164 L599.7,188.6 A72,72 0 0 1 464.3,188.6 Z" fill="#ff6a3d" fill-opacity=".3" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <path d="M616,318 L548.3,293.4 A72,72 0 0 1 683.7,293.4 Z" fill="#ff6a3d" fill-opacity=".3" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <circle cx="700" cy="241" r="38" fill="#ff6a3d" fill-opacity=".3" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <g stroke="#e9ecef" stroke-width="4" stroke-linecap="round">
+    <line x1="532" y1="164" x2="570" y2="224"/>
+    <line x1="616" y1="318" x2="582" y2="256"/>
+    <line x1="700" y1="241" x2="728" y2="216"/>
+  </g>
+  <g fill="#4a4f58" stroke="#e9ecef" stroke-width="1.5">
+    <circle cx="532" cy="164" r="6"/><circle cx="616" cy="318" r="6"/><circle cx="700" cy="241" r="6"/>
+  </g>
+
+  <!-- crates + barrels riding the belts -->
+  <use href="#crate" x="126" y="178"/><use href="#crate" x="396" y="220"/><use href="#crate" x="636" y="262"/><use href="#crate" x="190" y="304"/>
+  <use href="#brl" x="248" y="262"/><use href="#brl" x="760" y="304"/><use href="#brl" x="470" y="178"/>
+
+  <!-- flametroopers on the floor + flame along belt direction -->
+  <path d="M312,241 L366,232 L366,250 Z" fill="#ff6a3d" fill-opacity=".5"/>
+  <g transform="translate(304,241) rotate(90)"><use href="#st"/></g>
+  <path d="M592,283 L646,274 L646,292 Z" fill="#ff6a3d" fill-opacity=".5"/>
+  <g transform="translate(584,283) rotate(90)"><use href="#st"/></g>
+
+  <!-- troopers on the catwalks -->
+  <use href="#st" x="262" y="158"/><use href="#st" x="486" y="158"/><use href="#st" x="780" y="158"/>
+  <use href="#st" x="330" y="326"/><use href="#st" x="560" y="326"/><use href="#st" x="700" y="326"/>
+  <!-- belt switches on the catwalks -->
+  <use href="#sw" x="150" y="157"/><use href="#sw" x="400" y="325"/><use href="#sw" x="640" y="157"/>
+
+  <!-- entry / exit -->
+  <rect x="61" y="234" width="8" height="14" fill="#7bd389"/>
+  <text x="40" y="366" font-size="12" fill="#9aa3ad">from the barrel stores</text>
+  <rect x="784" y="335" width="30" height="6" fill="#7bd389"/>
+  <text x="846" y="366" font-size="12" fill="#9aa3ad" text-anchor="end">exit → reactor floor</text>
+  <!-- station re-form marks -->
+  <g stroke="#7bd389" stroke-width="3"><line x1="210" y1="236" x2="210" y2="246"/><line x1="460" y1="236" x2="460" y2="246"/><line x1="735" y1="236" x2="735" y2="246"/></g>
+
+  <!-- golden path along the gaps -->
+  <path d="M74,241 L200,241 M246,241 L276,241 M456,241 L656,241 M744,241 Q782,244 794,290 L799,328" fill="none" stroke="#e8b04a" stroke-width="3" stroke-dasharray="8 5" marker-end="url(#arr)"/>
+
+  <!-- players -->
+  <path d="M478,220 L560,196 L560,244 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="478" y="220"/>
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(168,157)"><circle r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(500,220)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(772,283)"><circle r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(264,241)"><circle r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- plan labels -->
+  <g font-size="12" fill="#9aa3ad">
+    <text x="364" y="360" text-anchor="middle">red strip 1.0 s</text>
+    <text x="532" y="360" text-anchor="middle">arms: waist height</text>
+    <text x="210" y="360" text-anchor="middle">catwalk (6 m up)</text>
+  </g>
+  <g font-size="13" font-weight="700" fill="#15171c" text-anchor="middle">
+    <g transform="translate(128,157)"><circle r="10" fill="#e8b04a"/><text y="4.5">5</text></g>
+  </g>
+
+  <!-- scale -->
+  <g font-size="12" fill="#6f7883">
+    <line x1="560" y1="384" x2="630" y2="384" stroke="#6f7883" stroke-width="2"/>
+    <line x1="560" y1="378" x2="560" y2="390" stroke="#6f7883" stroke-width="2"/>
+    <line x1="630" y1="378" x2="630" y2="390" stroke="#6f7883" stroke-width="2"/>
+    <text x="638" y="388">0 — 10 m · hall 110 × 26 m</text>
+  </g>
+
+  <!-- ===== INSET: cross-section ===== -->
+  <rect x="40" y="410" width="440" height="240" rx="6" fill="#1b1e24"/>
+  <text x="56" y="432" font-size="12" letter-spacing="2" fill="#6f7883">INSET · CROSS-SECTION (LOOKING TO SMELTER)</text>
+  <!-- walls -->
+  <rect x="92" y="462" width="8" height="150" fill="#2a2d33" stroke="#4a4f58"/>
+  <rect x="412" y="462" width="8" height="150" fill="#2a2d33" stroke="#4a4f58"/>
+  <!-- floor -->
+  <rect x="92" y="610" width="328" height="6" fill="#4a4f58"/>
+  <!-- belts -->
+  <g fill="#2e3239" stroke="#5a616d">
+    <rect x="124" y="598" width="48" height="12"/><rect x="196" y="598" width="48" height="12"/>
+    <rect x="268" y="598" width="48" height="12"/><rect x="340" y="598" width="48" height="12"/>
+  </g>
+  <g font-size="11" fill="#9aa3ad" text-anchor="middle">
+    <text x="148" y="632">3</text><text x="220" y="632">5</text><text x="292" y="632">5</text><text x="364" y="632">7 m/s</text>
+  </g>
+  <!-- catwalks at 6 m -->
+  <rect x="100" y="534" width="28" height="5" fill="#6f7883"/>
+  <rect x="384" y="534" width="28" height="5" fill="#6f7883"/>
+  <g stroke="#6f7883" stroke-width="1.5"><line x1="128" y1="534" x2="128" y2="520"/><line x1="100" y1="520" x2="128" y2="520"/><line x1="384" y1="534" x2="384" y2="520"/><line x1="384" y1="520" x2="412" y2="520"/></g>
+  <use href="#st" x="116" y="527"/>
+  <use href="#sw" x="398" y="528"/>
+  <!-- trooper line of fire -->
+  <line x1="120" y1="530" x2="210" y2="588" stroke="#e0524a" stroke-width="1.2" stroke-dasharray="3 3"/>
+  <!-- player on belt 2 jumping an arm -->
+  <circle cx="220" cy="586" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/>
+  <line x1="100" y1="586" x2="196" y2="586" stroke="#e9ecef" stroke-width="3"/>
+  <circle cx="100" cy="586" r="4" fill="#4a4f58" stroke="#e9ecef"/>
+  <!-- press head above -->
+  <rect x="264" y="470" width="56" height="14" fill="#2a2d33" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+  <line x1="292" y1="462" x2="292" y2="470" stroke="#4a4f58" stroke-width="4"/>
+  <path d="M292,490 L292,590" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrH)"/>
+  <text x="330" y="482" font-size="11" fill="#9aa3ad">press</text>
+  <!-- dimension 6 m -->
+  <g stroke="#9aa3ad" stroke-width="1.2"><line x1="74" y1="536" x2="74" y2="610"/><line x1="70" y1="536" x2="78" y2="536"/><line x1="70" y1="610" x2="78" y2="610"/></g>
+  <text x="66" y="578" font-size="12" fill="#d7dbe0" text-anchor="end">6 m</text>
+  <text x="134" y="514" font-size="11" fill="#9aa3ad">catwalk</text>
+  <text x="378" y="514" font-size="11" fill="#9aa3ad" text-anchor="end">switch</text>
+  <text x="128" y="580" font-size="11" fill="#9aa3ad">arm</text>
+  <g font-size="11" fill="#6f7883">
+    <line x1="340" y1="644" x2="400" y2="644" stroke="#6f7883" stroke-width="2"/>
+    <text x="336" y="648" text-anchor="end">0 — 5 m</text>
+  </g>
+
+  <!-- ===== INSET: press cycle + switch states ===== -->
+  <rect x="500" y="410" width="380" height="240" rx="6" fill="#1b1e24"/>
+  <text x="516" y="432" font-size="12" letter-spacing="2" fill="#6f7883">INSET · PRESS CYCLE</text>
+  <rect x="516" y="452" width="150" height="22" fill="#3a3f48"/>
+  <rect x="666" y="452" width="80" height="22" fill="#ff6a3d" fill-opacity=".45" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+  <rect x="746" y="452" width="30" height="22" fill="#e0524a"/>
+  <rect x="776" y="452" width="88" height="22" fill="#3a3f48"/>
+  <g font-size="12" fill="#d7dbe0">
+    <text x="522" y="467">raised — safe</text>
+    <text x="672" y="467">hiss</text>
+    <text x="782" y="467">rising</text>
+  </g>
+  <g font-size="11" fill="#9aa3ad">
+    <text x="704" y="492" text-anchor="middle">red floor strip · 1.0 s</text>
+    <text x="864" y="510" text-anchor="end">SLAM: heavy damage + knockdown</text>
+  </g>
+  <line x1="761" y1="476" x2="761" y2="498" stroke="#e0524a" stroke-width="1" transform="translate(0,0)"/>
+
+  <text x="516" y="546" font-size="12" letter-spacing="2" fill="#6f7883">BELT SWITCH · 15 s (SOLO 25 s)</text>
+  <g>
+    <rect x="516" y="560" width="104" height="22" fill="#2e3239" stroke="#5a616d"/>
+    <use href="#chev" x="550" y="571"/><use href="#chev" x="580" y="571"/>
+    <rect x="636" y="560" width="104" height="22" fill="#2e3239" stroke="#5a616d"/>
+    <g stroke="#b9bec6" stroke-width="3"><line x1="682" y1="564" x2="682" y2="578"/><line x1="690" y1="564" x2="690" y2="578"/></g>
+    <rect x="756" y="560" width="104" height="22" fill="#2e3239" stroke="#5a616d"/>
+    <g transform="translate(808,571) rotate(180)"><use href="#chev" x="-15"/><use href="#chev" x="15"/></g>
+  </g>
+  <g font-size="12" fill="#9aa3ad" text-anchor="middle">
+    <text x="568" y="600">running</text><text x="688" y="600">stopped</text><text x="808" y="600">reversed</text>
+  </g>
+  <text x="516" y="630" font-size="12" fill="#d7dbe0">thrown from the catwalk — where the troopers are</text>
+
+  <!-- ===== notes column ===== -->
+  <g font-size="13" fill="#d7dbe0">
+    <g transform="translate(922,120)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">1</text></g>
+    <text x="940" y="125">Belts 3 / 5 / 5 / 7 m/s to the</text>
+    <text x="940" y="142">smelter: ride fast, walk against</text>
+    <text x="940" y="159">slow; crates = moving cover</text>
+
+    <g transform="translate(922,190)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">2</text></g>
+    <text x="940" y="195">4 presses across the belts slam</text>
+    <text x="940" y="212">on a cycle; 1.0 s hiss + red strip</text>
+
+    <g transform="translate(922,243)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">3</text></g>
+    <text x="940" y="248">Welding arms sweep two belts</text>
+    <text x="940" y="265">at waist height: jump, or drop</text>
+    <text x="940" y="282">between belts</text>
+
+    <g transform="translate(922,313)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">4</text></g>
+    <text x="940" y="318">Smelter mouth: riding in is</text>
+    <text x="940" y="335">death — last 15 m, get off</text>
+
+    <g transform="translate(922,366)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">5</text></g>
+    <text x="940" y="371">3 belt switches on the catwalks</text>
+    <text x="940" y="388">reverse or stop a belt for 15 s</text>
+
+    <text x="922" y="424">Flametroopers on the floor —</text>
+    <text x="922" y="441">flames push along the belt;</text>
+    <text x="922" y="458">barrels ride the belts and explode</text>
+
+    <text x="922" y="494">Switch player above / floor</text>
+    <text x="922" y="511">players below at 2+</text>
+
+    <use href="#cam" x="922" y="542"/>
+    <text x="940" y="546">Per-player camera</text>
+    <text x="922" y="576" fill="#9aa3ad">Fail: re-form at the last</text>
+    <text x="922" y="593" fill="#9aa3ad">station reached (green ticks)</text>
+  </g>
+
+  <!-- ===== legend ===== -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="681" width="18" height="12" fill="#2e3239" stroke="#5a616d"/>
+    <use href="#chev" x="50" y="687" transform="scale(1)"/>
+    <text x="64" y="692">belt</text>
+    <rect x="104" y="681" width="18" height="12" fill="url(#grate)" stroke="#6f7883"/>
+    <text x="128" y="692">catwalk</text>
+    <rect x="194" y="681" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+    <text x="218" y="692">press / arm / hazard</text>
+    <use href="#sw" x="364" y="687"/>
+    <text x="376" y="692">switch</text>
+    <use href="#st" x="436" y="689"/>
+    <text x="448" y="692">trooper</text>
+    <circle cx="516" cy="687" r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/>
+    <text x="530" y="692">player</text>
+    <use href="#crate" x="590" y="687"/>
+    <text x="604" y="692">crate</text>
+    <use href="#brl" x="660" y="687"/>
+    <text x="676" y="692">barrel</text>
+    <line x1="728" y1="681" x2="728" y2="693" stroke="#7bd389" stroke-width="3"/>
+    <text x="738" y="692">station</text>
+    <line x1="800" y1="687" x2="826" y2="687" stroke="#e8b04a" stroke-width="3" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+    <text x="834" y="692">route</text>
+    <use href="#cam" x="890" y="687"/>
+    <text x="906" y="692">camera</text>
+    <rect x="966" y="681" width="18" height="12" fill="url(#lava)"/>
+    <text x="990" y="692">smelter</text>
+  </g>
+</svg>

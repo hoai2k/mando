@@ -1,0 +1,265 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <marker id="arrR" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="qr" d="M0,-7 L6,0 L0,7 L-6,0 z" fill="#e0524a"/>
+    <circle id="brl" r="6" fill="#8a8f98" stroke="#5a616d" stroke-width="1.5"/>
+    <path id="bolt" d="M3,-12 L-4,1 L1,1 L-3,12 L6,-2 L1,-2 Z" fill="#fff2b0"/>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">09 · The Squall</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Storm Docks · tilting deck holdout · ~4 min</text>
+  <text x="560" y="78" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · TO SCALE</text>
+
+  <!-- ===== PLAN ===== -->
+  <rect x="40" y="96" width="840" height="340" rx="6" fill="#1f3a44"/>
+  <g fill="none" stroke="#2f5663" stroke-width="2">
+    <path d="M60,118 q20,-8 40,0 t40,0 t40,0"/>
+    <path d="M620,116 q20,-8 40,0 t40,0 t40,0"/>
+    <path d="M800,200 q20,-8 40,0 t40,0" transform="translate(-20,0)"/>
+    <path d="M790,330 q20,-8 40,0 t40,0" transform="translate(-10,0)"/>
+    <path d="M56,200 q20,-8 40,0 t40,0" transform="translate(0,0)"/>
+  </g>
+
+  <!-- rogue wave telegraph band (starboard) -->
+  <path d="M190,386 L700,386 Q730,386 730,403 Q730,420 700,420 L190,420 Z" fill="#ff6a3d" fill-opacity=".38" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="200" y="412" font-size="13" fill="#f2efe6">rogue wave · every ~40 s · 5 s telegraph (horizon rises, horn)</text>
+
+  <!-- hull: rails (walls) + deck -->
+  <path d="M170,150 L666,150 Q730,160 746,262 Q730,364 666,374 L170,374 Z" fill="#3a3f48" stroke="#4a4f58" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M170,150 L666,150 Q730,160 746,262 Q730,364 666,374 L170,374 Z" fill="none" stroke="#2a2d33" stroke-width="7" stroke-linejoin="round"/>
+  <!-- stern ramp (gap in the stern rail) -->
+  <rect x="150" y="230" width="26" height="64" fill="#3a3f48"/>
+  <g stroke="#5a616d" stroke-width="1.5" fill="none">
+    <path d="M156,240 l6,6 l-6,6"/><path d="M156,256 l6,6 l-6,6"/><path d="M156,272 l6,6 l-6,6"/>
+  </g>
+
+  <!-- boom sweep (hazard arc) -->
+  <path d="M372,262 L300,137 A144,144 0 0 0 300,387 Z" fill="#ff6a3d" fill-opacity=".3" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <path d="M290,205 A92,92 0 0 0 290,319" fill="none" stroke="#ff6a3d" stroke-width="2" marker-start="url(#arrH)" marker-end="url(#arrH)" transform="translate(-6,0)"/>
+  <line x1="372" y1="262" x2="247" y2="190" stroke="#b9bec6" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="247" cy="190" r="6" fill="none" stroke="#b9bec6" stroke-width="2"/>
+  <circle cx="372" cy="262" r="6" fill="#5a616d" stroke="#b9bec6" stroke-width="2"/>
+
+  <!-- deckhouse -->
+  <rect x="386" y="214" width="144" height="96" fill="#474d57" stroke="#4a4f58" stroke-width="5"/>
+  <rect x="386" y="214" width="144" height="96" fill="none" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="512" y="224" width="12" height="76" fill="#2a2d33"/>
+  <circle cx="496" cy="262" r="5" fill="#b9bec6"/>
+  <use href="#bolt" x="496" y="240"/>
+  <text x="458" y="296" font-size="12" fill="#d7dbe0" text-anchor="middle">deckhouse</text>
+  <text x="458" y="228" font-size="11" fill="#9aa3ad" text-anchor="middle">roof = high ground</text>
+
+  <!-- winches (brace points) -->
+  <g fill="#b48cff">
+    <rect x="596" y="160" width="14" height="14" rx="2"/>
+    <rect x="596" y="350" width="14" height="14" rx="2"/>
+  </g>
+  <text x="616" y="185" font-size="12" fill="#d7dbe0">winch</text>
+  <text x="590" y="362" font-size="12" fill="#d7dbe0" text-anchor="end">winch</text>
+
+  <!-- loose barrels + tilt drift -->
+  <use href="#brl" x="566" y="232"/>
+  <use href="#brl" x="660" y="296"/>
+  <use href="#brl" x="306" y="342"/>
+  <g stroke="#9aa3ad" stroke-width="1.8" fill="none">
+    <line x1="580" y1="220" x2="580" y2="244" marker-start="url(#arrG)" marker-end="url(#arrG)"/>
+    <line x1="674" y1="284" x2="674" y2="308" marker-start="url(#arrG)" marker-end="url(#arrG)"/>
+    <line x1="320" y1="330" x2="320" y2="354" marker-start="url(#arrG)" marker-end="url(#arrG)"/>
+  </g>
+
+  <!-- green water sweep toward the port rail -->
+  <g stroke="#ff6a3d" stroke-width="2.5" stroke-dasharray="7 4" fill="none">
+    <line x1="500" y1="370" x2="500" y2="322" marker-end="url(#arrH)"/>
+    <line x1="700" y1="352" x2="700" y2="182" marker-end="url(#arrH)"/>
+    <line x1="560" y1="212" x2="560" y2="166" marker-end="url(#arrH)"/>
+  </g>
+
+  <!-- quarren boarding -->
+  <use href="#qr" x="160" y="248"/>
+  <use href="#qr" x="160" y="280"/>
+  <use href="#qr" x="254" y="150"/>
+  <use href="#qr" x="352" y="374"/>
+  <use href="#qr" x="630" y="150"/>
+  <use href="#qr" x="206" y="300"/>
+  <g stroke="#e0524a" stroke-width="2" fill="none">
+    <line x1="108" y1="264" x2="140" y2="264" marker-end="url(#arrR)"/>
+    <line x1="254" y1="118" x2="254" y2="138" marker-end="url(#arrR)"/>
+    <line x1="630" y1="118" x2="630" y2="138" marker-end="url(#arrR)"/>
+  </g>
+  <text x="56" y="252" font-size="12" fill="#d7dbe0">swim</text>
+  <text x="56" y="290" font-size="12" fill="#9aa3ad">stern ramp</text>
+
+  <!-- camera: level horizon, behind player 2 -->
+  <path d="M654,344 L548,316 L548,372 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="656" y="344" transform="rotate(180 656 344)"/>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(430,254)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(630,344)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(470,200)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(290,262)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- under way -->
+  <line x1="760" y1="262" x2="830" y2="262" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+  <text x="772" y="250" font-size="12" fill="#d7dbe0">to the</text>
+  <text x="772" y="284" font-size="12" fill="#d7dbe0">pier heads</text>
+  <text x="180" y="138" font-size="12" fill="#9aa3ad">PORT rail</text>
+  <text x="56" y="340" font-size="12" fill="#9aa3ad">STBD ↓</text>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" fill="#15171c" text-anchor="middle">
+    <g transform="translate(686,236)"><circle r="11" fill="#e8b04a"/><text y="4.5">1</text></g>
+    <g transform="translate(176,398)"><circle r="11" fill="#e8b04a"/><text y="4.5">2</text></g>
+    <g transform="translate(630,318)"><circle r="11" fill="#e8b04a"/><text y="4.5">3</text></g>
+    <g transform="translate(96,236)"><circle r="11" fill="#e8b04a"/><text y="4.5">4</text></g>
+    <g transform="translate(236,246)"><circle r="11" fill="#e8b04a"/><text y="4.5">5</text></g>
+    <g transform="translate(516,200)"><circle r="11" fill="#e8b04a"/><text y="4.5">6</text></g>
+  </g>
+
+  <!-- plan scale -->
+  <g font-size="12" fill="#9aa3ad">
+    <line x1="780" y1="422" x2="860" y2="422" stroke="#9aa3ad" stroke-width="2"/>
+    <line x1="780" y1="416" x2="780" y2="428" stroke="#9aa3ad" stroke-width="2"/>
+    <line x1="860" y1="416" x2="860" y2="428" stroke="#9aa3ad" stroke-width="2"/>
+    <text x="780" y="410">0 — 5 m</text>
+  </g>
+  <text x="458" y="168" font-size="12" fill="#9aa3ad" text-anchor="middle">36 × 14 m</text>
+
+  <!-- ===== SIDE SECTION (end-on) ===== -->
+  <text x="40" y="468" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · END-ON, LOOKING FORWARD</text>
+
+  <!-- left: normal roll -->
+  <rect x="40" y="480" width="410" height="170" rx="6" fill="#1b1e24"/>
+  <path d="M40,590 Q100,582 160,590 T280,590 T400,590 L450,590 L450,650 L40,650 Z" fill="#1f3a44"/>
+  <g transform="translate(245,570) rotate(10)" fill="none" stroke="#6f7883" stroke-width="1.5" stroke-dasharray="4 3">
+    <path d="M-70,0 L70,0 L66,30 Q0,48 -66,30 Z"/>
+    <rect x="-30" y="-30" width="60" height="30"/>
+  </g>
+  <g transform="translate(245,570) rotate(-10)">
+    <path d="M-70,0 L70,0 L66,30 Q0,48 -66,30 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+    <line x1="-70" y1="0" x2="70" y2="0" stroke="#5a616d" stroke-width="4"/>
+    <line x1="-70" y1="0" x2="-70" y2="-10" stroke="#4a4f58" stroke-width="3"/>
+    <line x1="70" y1="0" x2="70" y2="-10" stroke="#4a4f58" stroke-width="3"/>
+    <rect x="-30" y="-30" width="60" height="30" fill="#474d57" stroke="#4a4f58" stroke-width="2"/>
+    <line x1="0" y1="-30" x2="0" y2="-66" stroke="#b9bec6" stroke-width="2"/>
+    <circle cx="-48" cy="-8" r="6" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/>
+    <circle cx="44" cy="-6" r="5" fill="#8a8f98"/>
+  </g>
+  <path d="M209,512 A76,76 0 0 1 281,512" fill="none" stroke="#e8b04a" stroke-width="2" marker-start="url(#arr)" marker-end="url(#arr)" transform="translate(0,-8)"/>
+  <text x="245" y="494" font-size="13" fill="#d7dbe0" text-anchor="middle">±10° roll</text>
+  <line x1="178" y1="580" x2="150" y2="590" stroke="#9aa3ad" stroke-width="1.8" marker-end="url(#arrG)"/>
+  <text x="56" y="508" font-size="12" fill="#9aa3ad">drift toward the</text>
+  <text x="56" y="523" font-size="12" fill="#9aa3ad">low side</text>
+  <use href="#cam" x="360" y="520" transform="rotate(180 360 520)"/>
+  <line x1="344" y1="520" x2="432" y2="520" stroke="#e9ecef" stroke-opacity=".5" stroke-dasharray="3 3" transform="translate(-100,0) scale(1)" />
+  <text x="342" y="545" font-size="12" fill="#9aa3ad">camera stays</text>
+  <text x="342" y="560" font-size="12" fill="#9aa3ad">level</text>
+
+  <!-- right: rogue wave -->
+  <rect x="470" y="480" width="410" height="170" rx="6" fill="#1b1e24"/>
+  <path d="M470,592 Q560,588 640,592 Q740,596 772,560 Q792,530 760,524 Q790,512 820,540 Q846,572 880,580 L880,650 L470,650 Z" fill="#1f3a44" stroke="#2f5663" stroke-width="2"/>
+  <g transform="translate(650,572) rotate(-25)">
+    <path d="M-70,0 L70,0 L66,30 Q0,48 -66,30 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+    <line x1="-70" y1="0" x2="70" y2="0" stroke="#5a616d" stroke-width="4"/>
+    <line x1="-70" y1="0" x2="-70" y2="-10" stroke="#4a4f58" stroke-width="3"/>
+    <line x1="70" y1="0" x2="70" y2="-10" stroke="#4a4f58" stroke-width="3"/>
+    <rect x="-30" y="-30" width="60" height="30" fill="#474d57" stroke="#4a4f58" stroke-width="2"/>
+    <line x1="0" y1="-30" x2="0" y2="-66" stroke="#b9bec6" stroke-width="2"/>
+    <path d="M70,-4 L32,-4" stroke="#ff6a3d" stroke-width="7" stroke-opacity=".45"/>
+    <path d="M-30,-4 L-66,-4" stroke="#ff6a3d" stroke-width="7" stroke-opacity=".45"/>
+    <line x1="60" y1="-14" x2="36" y2="-14" stroke="#ff6a3d" stroke-width="2" marker-end="url(#arrH)"/>
+    <line x1="-34" y1="-14" x2="-68" y2="-14" stroke="#ff6a3d" stroke-width="2" marker-end="url(#arrH)"/>
+    <circle cx="37" cy="-7" r="6" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/>
+  </g>
+  <use href="#qr" x="572" y="606"/>
+  <path d="M586,592 Q574,586 572,598" fill="none" stroke="#ff6a3d" stroke-width="2" marker-end="url(#arrH)"/>
+  <text x="675" y="494" font-size="13" fill="#d7dbe0" text-anchor="middle">rogue wave · roll to 25°</text>
+  <text x="484" y="518" font-size="12" fill="#9aa3ad">green water sweeps to</text>
+  <text x="484" y="533" font-size="12" fill="#9aa3ad">the far rail — and over</text>
+  <text x="760" y="630" font-size="12" fill="#d7dbe0">braced at the wall</text>
+  <text x="760" y="645" font-size="12" fill="#d7dbe0">holds</text>
+  <line x1="756" y1="626" x2="700" y2="548" stroke="#9aa3ad" stroke-width="1"/>
+  <text x="486" y="640" font-size="12" fill="#9aa3ad">PORT (low)</text>
+  <text x="820" y="506" font-size="12" fill="#9aa3ad">STBD</text>
+
+  <!-- ===== notes column ===== -->
+  <g font-size="13" fill="#d7dbe0">
+    <g transform="translate(922,120)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">1</text></g>
+    <text x="940" y="125">Tilt (K7): deck rolls ±10°; all</text>
+    <text x="940" y="142">bodies drift to the low side</text>
+    <text x="940" y="159">(stronger when airborne)</text>
+
+    <g transform="translate(922,190)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">2</text></g>
+    <text x="940" y="195">Rogue wave ~40 s: 5 s telegraph,</text>
+    <text x="940" y="212">roll to 25°, green water sweeps</text>
+    <text x="940" y="229">toward the other rail</text>
+
+    <g transform="translate(922,260)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">3</text></g>
+    <text x="940" y="265">Brace (cover at a rail, winch,</text>
+    <text x="940" y="282">deckhouse wall) = hold; the rest</text>
+    <text x="940" y="299">wash over — enemies too</text>
+
+    <g transform="translate(922,330)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">4</text></g>
+    <text x="940" y="335">Quarren climb the rails (swim</text>
+    <text x="940" y="352">arrival), surface at stern ramp</text>
+
+    <g transform="translate(922,383)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">5</text></g>
+    <text x="940" y="388">Net boom swings with the roll:</text>
+    <text x="940" y="405">knockdown arc; cover between</text>
+    <text x="940" y="422">swings</text>
+
+    <g transform="translate(922,453)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">6</text></g>
+    <text x="940" y="458">Lightning hits the mast (crackle</text>
+    <text x="940" y="475">telegraph): roof occupants hit</text>
+
+    <text x="922" y="510" font-weight="700">Holdout: 3 waves → pier heads</text>
+
+    <use href="#cam" x="922" y="540"/>
+    <text x="940" y="544">Per-player cam, horizon level:</text>
+    <text x="940" y="561">the deck rolls, camera doesn’t</text>
+    <text x="922" y="592" fill="#9aa3ad">Fail: washed overboard →</text>
+    <text x="922" y="609" fill="#9aa3ad">re-form on the deckhouse roof</text>
+  </g>
+
+  <!-- ===== legend ===== -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="681" width="18" height="12" fill="#3a3f48" stroke="#4a4f58" stroke-width="3"/>
+    <text x="64" y="692">deck / rails</text>
+    <rect x="154" y="681" width="18" height="12" fill="#1f3a44"/>
+    <text x="178" y="692">sea</text>
+    <circle cx="224" cy="687" r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/>
+    <text x="238" y="692">player</text>
+    <use href="#qr" x="298" y="687"/>
+    <text x="310" y="692">quarren</text>
+    <rect x="374" y="681" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+    <text x="398" y="692">hazard (wave, boom, roof)</text>
+    <rect x="570" y="681" width="12" height="12" rx="2" fill="#b48cff"/>
+    <text x="588" y="692">winch (brace)</text>
+    <use href="#brl" x="690" y="687"/>
+    <text x="702" y="692">barrel</text>
+    <use href="#cam" x="768" y="687"/>
+    <text x="784" y="692">camera</text>
+    <line x1="840" y1="687" x2="866" y2="687" stroke="#9aa3ad" stroke-width="1.8" marker-end="url(#arrG)"/>
+    <text x="874" y="692">drift</text>
+  </g>
+</svg>

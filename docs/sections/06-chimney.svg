@@ -1,0 +1,301 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff8a3d"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-6 L5.5,4.5 L-5.5,4.5 z" fill="#e0524a"/>
+    <path id="beast" d="M-6,0 L0,-5 L6,0 L0,5 Z" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+    <g id="valve">
+      <circle r="6" fill="none" stroke="#b48cff" stroke-width="2.5"/>
+      <path d="M-6,0 L6,0 M0,-6 L0,6" stroke="#b48cff" stroke-width="1.5"/>
+    </g>
+    <g id="flag">
+      <path d="M0,0 L0,-16" stroke="#7bd389" stroke-width="2"/>
+      <path d="M0,-16 L10,-12 L0,-8 Z" fill="#7bd389"/>
+    </g>
+    <linearGradient id="glow" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff6a3d" stop-opacity=".28"/>
+      <stop offset=".45" stop-color="#ff6a3d" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#ff6a3d" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">06 · The Chimney</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Lava Flats · rising-hazard climb · ~3 min</text>
+  <text x="40" y="112" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION</text>
+  <text x="40" y="128" font-size="11" fill="#9aa3ad">shaft 22 m × 120 m · 4.4 px = 1 m</text>
+
+  <!-- ================= SIDE SECTION ================= -->
+  <!-- shaft interior + heat glow -->
+  <rect x="300" y="112" width="97" height="528" fill="#1b1e24"/>
+  <rect x="300" y="300" width="97" height="340" fill="url(#glow)"/>
+  <!-- sky coin of light at the lip -->
+  <rect x="300" y="94" width="97" height="18" fill="#e9ecef" fill-opacity=".18"/>
+  <!-- walls -->
+  <rect x="250" y="112" width="50" height="528" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <rect x="397" y="112" width="50" height="528" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <!-- entry door from the magistrate court -->
+  <rect x="250" y="620" width="50" height="20" fill="#1b1e24" stroke="#7bd389" stroke-width="2"/>
+  <!-- crack (last 20 m) -->
+  <path d="M300,200 L294,188 L300,176 L293,160 L299,146 L293,130 L300,112" fill="none" stroke="#ffb07a" stroke-width="2"/>
+
+  <!-- golden path -->
+  <path d="M322,634 L313,613 L386,591 L308,573 L381,551 L311,530 L386,508 L318,478 L383,463 L311,441 L388,424 L313,402 L386,380 L308,362 L383,345 L372,326 L311,309 L383,287 L311,265 L388,248 L313,226 L386,208 L324,192 L304,120" fill="none" stroke="#e8b04a" stroke-width="2" stroke-opacity=".8" stroke-dasharray="7 4" stroke-linejoin="round" marker-end="url(#arr)"/>
+
+  <!-- spiral ledges (alternate walls in section) -->
+  <g fill="#3a3f48" stroke="#5a616d" stroke-width="1.2">
+    <rect x="300" y="618" width="26.4" height="5"/>
+    <rect x="374.8" y="596" width="22" height="5"/>
+    <rect x="366" y="556.4" width="30.8" height="5"/>
+    <rect x="300" y="534.4" width="22" height="5"/>
+    <rect x="370.4" y="468.4" width="26.4" height="5"/>
+    <rect x="300" y="446.4" width="22" height="5"/>
+    <rect x="300" y="406.8" width="26.4" height="5"/>
+    <rect x="374.8" y="384.8" width="22" height="5"/>
+    <rect x="370.4" y="349.6" width="26.4" height="5"/>
+    <rect x="300" y="314.4" width="22" height="5"/>
+    <rect x="300" y="270.4" width="22" height="5"/>
+    <rect x="379.2" y="252.8" width="17.6" height="5"/>
+    <rect x="374.8" y="213.2" width="22" height="5"/>
+  </g>
+  <!-- crumbling ledges -->
+  <g fill="#ff6a3d" fill-opacity=".38" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2">
+    <rect x="300" y="578.4" width="17.6" height="5"/>
+    <rect x="374.8" y="512.4" width="22" height="5"/>
+    <rect x="379.2" y="428.8" width="17.6" height="5"/>
+    <rect x="300" y="367.2" width="17.6" height="5"/>
+    <rect x="370.4" y="292.4" width="26.4" height="5"/>
+    <rect x="300" y="230.8" width="26.4" height="5"/>
+  </g>
+  <!-- landings (checkpoints) -->
+  <g fill="#4a505a" stroke="#7bd389" stroke-width="1.5">
+    <rect x="300" y="486" width="39.6" height="8"/>
+    <rect x="348.4" y="332" width="48.4" height="8"/>
+    <rect x="300" y="200" width="44" height="8"/>
+  </g>
+  <use href="#flag" x="304" y="486"/>
+  <use href="#flag" x="392" y="332"/>
+  <use href="#flag" x="304" y="200"/>
+  <use href="#valve" x="332" y="478"/>
+  <use href="#valve" x="356" y="324"/>
+  <use href="#valve" x="336" y="192"/>
+
+  <!-- magma (now at ~20 m) + heat band -->
+  <rect x="300" y="525.6" width="97" height="26.4" fill="#ff6a3d" fill-opacity=".22" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="300" y="552" width="97" height="88" fill="#d2451e" fill-opacity=".88"/>
+  <path d="M300,552 q8,-4 16,0 t16,0 t16,0 t16,0 t16,0 t16,0" fill="none" stroke="#ff8a3d" stroke-width="3"/>
+  <path d="M312,580 q10,-4 20,0 t20,0 M340,610 q10,-4 20,0 t20,0" fill="none" stroke="#ff8a3d" stroke-opacity=".6" stroke-width="1.5"/>
+  <path d="M430,600 L430,560" stroke="#ff8a3d" stroke-width="2.5" marker-end="url(#arrH)"/>
+
+  <!-- central basalt column, lower half (0–60 m) -->
+  <rect x="339.6" y="376" width="17.6" height="264" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+
+  <!-- reset line example (wipe after L2) -->
+  <path d="M300,384.8 L456,384.8" stroke="#ff8a3d" stroke-width="1.2" stroke-dasharray="2 4"/>
+
+  <!-- enemies from above -->
+  <use href="#en" x="314" y="194"/><use href="#en" x="324" y="186"/>
+  <use href="#beast" x="364" y="325"/><use href="#beast" x="378" y="325"/>
+  <path d="M362,318 C345,300 325,340 312,362" fill="none" stroke="#e0524a" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrE)"/>
+  <use href="#en" x="372" y="264" transform="rotate(180 372 264)"/>
+  <use href="#en" x="340" y="300" transform="rotate(180 340 300)"/>
+  <g stroke="#e0524a" stroke-width="1.5" fill="none"><path d="M372,272 L372,286" marker-end="url(#arrE)"/><path d="M340,308 L340,322" marker-end="url(#arrE)"/></g>
+  <!-- boulder off the lip + shadow telegraph -->
+  <circle cx="386" cy="124" r="7" fill="#6a717d" stroke="#15171c" stroke-width="1"/>
+  <path d="M386,133 L386,236" stroke="#9aa3ad" stroke-width="1.2" stroke-dasharray="3 4"/>
+  <ellipse cx="388" cy="251" rx="12" ry="4" fill="#ff6a3d" fill-opacity=".45" stroke="#ff6a3d" stroke-dasharray="3 2"/>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(314,476)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(386,502)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(311,524)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(348,366)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+  <!-- per-player camera, upward look bias (player 2) -->
+  <path d="M428,528 L348,420 L408,420 Z" fill="#e9ecef" fill-opacity=".09"/>
+  <use href="#cam" x="428" y="528" transform="rotate(-110 428 528)"/>
+
+  <!-- height axis -->
+  <g stroke="#9aa3ad" stroke-width="1.5">
+    <path d="M244,112 L244,640"/>
+    <path d="M238,112 L244,112 M238,200 L244,200 M238,332 L244,332 M238,486 L244,486 M238,640 L244,640"/>
+  </g>
+  <g font-size="12" fill="#d7dbe0" text-anchor="end">
+    <text x="234" y="116">120 m · lip</text>
+    <text x="234" y="204"><tspan fill="#7bd389">L3</tspan> · 100 m</text>
+    <text x="234" y="336"><tspan fill="#7bd389">L2</tspan> · 70 m</text>
+    <text x="234" y="490"><tspan fill="#7bd389">L1</tspan> · 35 m</text>
+    <text x="234" y="644">0 · floor</text>
+  </g>
+  <text x="234" y="612" font-size="10" fill="#9aa3ad" text-anchor="end">from magistrate</text>
+  <text x="234" y="624" font-size="10" fill="#9aa3ad" text-anchor="end">court (stage B) →</text>
+  <text x="234" y="404" font-size="10" fill="#9aa3ad" text-anchor="end">basalt column 0–60 m:</text>
+  <text x="234" y="417" font-size="10" fill="#9aa3ad" text-anchor="end">jetpack shortcut, costs fuel</text>
+  <path d="M238,410 L338,410" stroke="#9aa3ad" stroke-width="1" stroke-dasharray="2 3"/>
+  <!-- scale -->
+  <g stroke="#9aa3ad" stroke-width="2"><path d="M60,560 L104,560 M60,554 L60,566 M104,554 L104,566"/></g>
+  <text x="60" y="580" font-size="11" fill="#9aa3ad">0</text>
+  <text x="104" y="580" font-size="11" fill="#9aa3ad" text-anchor="middle">10 m</text>
+
+  <!-- right-hand labels -->
+  <g stroke="#9aa3ad" stroke-width="1" stroke-dasharray="2 3">
+    <path d="M300,176 L456,150"/>
+    <path d="M398,251 L456,244"/>
+    <path d="M378,280 L456,290"/>
+    <path d="M397,431 L456,431"/>
+    <path d="M436,556 L456,556"/>
+  </g>
+  <g font-size="11" fill="#d7dbe0">
+    <text x="460" y="112">break the lip → transport door</text>
+    <text x="460" y="125" fill="#9aa3ad">→ glass fields (stage C)</text>
+    <text x="460" y="150">crack: last 20 m, full burn</text>
+    <text x="460" y="163" fill="#9aa3ad">magma surges to 2 m/s</text>
+    <text x="460" y="200">L3 · valve · posted pirates</text>
+    <text x="460" y="240">boulder rolled off the lip</text>
+    <text x="460" y="253" fill="#9aa3ad">telegraph: rattle + shadow</text>
+    <text x="460" y="290">jetpack pirates drop in</text>
+    <text x="460" y="330">L2 · valve · massiff pack</text>
+    <text x="460" y="343" fill="#9aa3ad">leaps between ledges</text>
+    <text x="460" y="382" fill="#ff8a3d">wipe → magma resets</text>
+    <text x="460" y="395" fill="#9aa3ad">12 m below last landing</text>
+    <text x="460" y="428">crumbling ledge</text>
+    <text x="460" y="441" fill="#9aa3ad">falls 2 s after you land</text>
+    <text x="460" y="478">L1 · valve: hold 4 s</text>
+    <text x="460" y="491" fill="#9aa3ad">→ rise pauses 12 s</text>
+    <text x="460" y="530">heat band 6 m:</text>
+    <text x="460" y="543" fill="#9aa3ad">no jetpack fuel regen</text>
+    <text x="460" y="572">magma rises 0.9 m/s</text>
+    <text x="460" y="608" fill="#9aa3ad">cam: per-player, slight</text>
+    <text x="460" y="621" fill="#9aa3ad">upward look bias</text>
+  </g>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(274,560)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(274,478)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(274,300)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+    <g transform="translate(274,150)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">4</text></g>
+  </g>
+
+  <!-- ================= PLAN INSET ================= -->
+  <rect x="640" y="96" width="244" height="262" rx="6" fill="#1b1e24" stroke="#2a2d33"/>
+  <text x="652" y="116" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · 8 px = 1 m</text>
+  <circle cx="762" cy="236" r="95" fill="none" stroke="#2a2d33" stroke-width="14"/>
+  <circle cx="762" cy="236" r="102" fill="none" stroke="#4a4f58" stroke-width="1.5"/>
+  <circle cx="762" cy="236" r="88" fill="#0f1115"/>
+  <!-- spiral ledges as wall-hugging arcs -->
+  <g fill="none" stroke="#3a3f48" stroke-width="36">
+    <path d="M832,236 A70,70 0 0 1 811.5,285.5"/>
+    <path d="M799.5,295.4 A70,70 0 0 1 749.8,305"/>
+    <path d="M735,300.6 A70,70 0 0 1 697.4,262.5"/>
+    <path d="M692.3,242.1 A70,70 0 0 1 710.7,188.4"/>
+    <path d="M724.5,176.9 A70,70 0 0 1 774.2,167.1"/>
+  </g>
+  <path d="M790,171.8 A70,70 0 0 1 829.5,216" fill="none" stroke="#4a505a" stroke-width="52"/>
+  <path d="M790,171.8 A70,70 0 0 1 829.5,216" fill="none" stroke="#7bd389" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <use href="#valve" x="822" y="186"/>
+  <circle cx="762" cy="236" r="16" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <path d="M762,202 A34,34 0 0 1 796,236" fill="none" stroke="#e8b04a" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="762" y="344" font-size="10" fill="#9aa3ad" text-anchor="middle">ledge heights (m) · 4–7 m deep · rises 3–6 m</text>
+  <text x="840" y="146" font-size="10" fill="#7bd389" text-anchor="middle">landing</text>
+  <text x="762" y="239" font-size="8" fill="#9aa3ad" text-anchor="middle">col.</text>
+  <g font-size="10" fill="#d7dbe0" text-anchor="middle">
+    <text x="826.9" y="266">5</text><text x="776.6" y="308">10</text><text x="713.4" y="290">14</text><text x="695.8" y="217">19</text><text x="747.4" y="171">24</text><text x="812" y="211" fill="#7bd389">35</text>
+  </g>
+
+  <!-- ================= RISE INSET ================= -->
+  <rect x="640" y="372" width="244" height="268" rx="6" fill="#1b1e24" stroke="#2a2d33"/>
+  <text x="652" y="392" font-size="12" letter-spacing="2" fill="#6f7883">MAGMA HEIGHT · K4</text>
+  <!-- landing guides -->
+  <g stroke="#7bd389" stroke-opacity=".5" stroke-width="1" stroke-dasharray="3 3">
+    <path d="M684,548.8 L872,548.8"/><path d="M684,487.5 L872,487.5"/><path d="M684,435 L872,435"/>
+  </g>
+  <g font-size="10" fill="#7bd389"><text x="688" y="545">L1</text><text x="688" y="484">L2</text><text x="688" y="431">L3</text></g>
+  <!-- heat band (6 m above the surface) -->
+  <path d="M680,599.5 L711.7,552.3 L724.4,552.3 L759.2,500.3 L771.9,500.3 L812,441.4 L824.7,441.4 L835.2,424.7 L845.8,400" fill="none" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <!-- magma surface -->
+  <path d="M680,610 L711.7,562.8 L724.4,562.8 L759.2,510.8 L771.9,510.8 L812,451.9 L824.7,451.9 L835.2,435.2 L845.8,400" fill="none" stroke="#ff8a3d" stroke-width="3" stroke-linejoin="round"/>
+  <!-- axes -->
+  <path d="M680,404 L680,610 L872,610" fill="none" stroke="#9aa3ad" stroke-width="1.5"/>
+  <g font-size="10" fill="#9aa3ad">
+    <text x="676" y="614" text-anchor="end">0</text>
+    <text x="676" y="509" text-anchor="end">60</text>
+    <text x="676" y="404" text-anchor="end">120</text>
+    <text x="680" y="626" text-anchor="middle">0</text>
+    <text x="743" y="626" text-anchor="middle">60 s</text>
+    <text x="807" y="626" text-anchor="middle">120 s</text>
+    <text x="870" y="626" text-anchor="middle">180</text>
+  </g>
+  <text x="718" y="585" font-size="10" fill="#d7dbe0">0.9 m/s</text>
+  <text x="776" y="530" font-size="10" fill="#b48cff">valve: flat 12 s</text>
+  <text x="852" y="418" font-size="10" fill="#d7dbe0">surge</text>
+  <text x="852" y="430" font-size="10" fill="#d7dbe0">2 m/s</text>
+
+  <!-- ================= NOTES ================= -->
+  <g font-size="12" fill="#d7dbe0">
+    <g transform="translate(912,110)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+    <text x="930" y="115" font-weight="700" fill="#f2efe6" font-size="13">The rise (K4)</text>
+    <text x="930" y="132">Magma climbs 0.9 m/s with its glow</text>
+    <text x="930" y="148">and shimmer. Within 6 m, jetpack</text>
+    <text x="930" y="164">fuel stops regenerating.</text>
+
+    <g transform="translate(912,194)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+    <text x="930" y="199" font-weight="700" fill="#f2efe6" font-size="13">Vent valves</text>
+    <text x="930" y="216">One per landing. Hold interact 4 s</text>
+    <text x="930" y="232">(exposed) → rise pauses 12 s while</text>
+    <text x="930" y="248">the others hold off the squad.</text>
+
+    <g transform="translate(912,278)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+    <text x="930" y="283" font-weight="700" fill="#f2efe6" font-size="13">Enemies from above</text>
+    <text x="930" y="300">Pirates on landings, jetpack pirates</text>
+    <text x="930" y="316">dropping, boulders off the lip, a</text>
+    <text x="930" y="332">massiff pack on the middle landing.</text>
+
+    <g transform="translate(912,362)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+    <text x="930" y="367" font-weight="700" fill="#f2efe6" font-size="13">The top</text>
+    <text x="930" y="384">Last 20 m: straight up a crack on</text>
+    <text x="930" y="400">full burn while the lava surges.</text>
+    <text x="930" y="416">Breaking the lip ends the section.</text>
+  </g>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="902" y="452" font-weight="700" fill="#d7dbe0">Co-op</text>
+    <text x="902" y="469">Death re-forms at the highest landing</text>
+    <text x="902" y="485">reached by any living player — so the</text>
+    <text x="902" y="501">valves beat individual speed.</text>
+    <text x="902" y="517">Solo: rise 20% slower, longer pause.</text>
+    <text x="902" y="545" font-weight="700" fill="#d7dbe0">Failing</text>
+    <text x="902" y="562">Touching magma = death. Party wipe →</text>
+    <text x="902" y="578">magma resets 12 m below the last</text>
+    <text x="902" y="594">landing reached.</text>
+    <text x="902" y="622">Players: 1 on the valve · 4 on the column</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="#3a3f48" stroke="#5a616d"/><text x="64" y="693">ledge</text>
+    <rect x="116" y="682" width="18" height="12" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/><text x="140" y="693">basalt</text>
+    <rect x="200" y="682" width="18" height="12" fill="#d2451e"/><text x="224" y="693">magma</text>
+    <rect x="286" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="310" y="693">crumbling / heat</text>
+    <path d="M422,688 L448,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="456" y="693">climb</text>
+    <circle cx="516" cy="688" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text x="528" y="693">player</text>
+    <use href="#en" x="590" y="690"/><text x="602" y="693">enemy</text>
+    <g transform="translate(670,696)"><path d="M0,0 L0,-16" stroke="#7bd389" stroke-width="2"/><path d="M0,-16 L10,-12 L0,-8 Z" fill="#7bd389"/></g><text x="686" y="693">landing</text>
+    <use href="#valve" x="758" y="688"/><text x="770" y="693">valve</text>
+    <g transform="translate(830,688) scale(.8)"><use href="#cam"/></g><text x="846" y="693">camera</text>
+    <circle cx="916" cy="688" r="8" fill="#e8b04a"/><text x="916" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="930" y="693">beat</text>
+  </g>
+</svg>

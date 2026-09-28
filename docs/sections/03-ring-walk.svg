@@ -1,0 +1,246 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrW" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e9ecef"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-6 L5.5,4.5 L-5.5,4.5 z" fill="#e0524a"/>
+    <clipPath id="panel"><rect x="30" y="90" width="850" height="560"/></clipPath>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- space void panel -->
+  <rect x="30" y="90" width="850" height="560" rx="6" fill="#0b0d12"/>
+  <g fill="#e9ecef">
+    <circle cx="80" cy="130" r="1.2" opacity=".7"/><circle cx="160" cy="210" r="1" opacity=".5"/><circle cx="120" cy="330" r="1.3" opacity=".6"/>
+    <circle cx="70" cy="450" r="1" opacity=".5"/><circle cx="210" cy="140" r="1.1" opacity=".6"/><circle cx="330" cy="120" r="1" opacity=".5"/>
+    <circle cx="760" cy="120" r="1.2" opacity=".6"/><circle cx="840" cy="200" r="1" opacity=".5"/><circle cx="110" cy="610" r="1.2" opacity=".6"/>
+    <circle cx="470" cy="112" r="1" opacity=".5"/><circle cx="60" cy="250" r="1" opacity=".4"/><circle cx="820" cy="600" r="1" opacity=".5"/>
+    <circle cx="520" cy="440" r="1" opacity=".4"/><circle cx="780" cy="470" r="1.1" opacity=".5"/><circle cx="170" cy="560" r="1" opacity=".5"/>
+  </g>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">03 · The Ring Walk</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Spice Run · on-rails, one screen · ~5 min</text>
+  <text x="44" y="112" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · DOWN THE RING'S AXIS</text>
+  <text x="44" y="128" font-size="11" fill="#9aa3ad">ring Ø 380 m · 90° of outer rim ≈ 300 m walk · spine 12 m</text>
+
+  <!-- rest of the ring, spokes, hub (background) -->
+  <g clip-path="url(#panel)">
+    <circle cx="660" cy="580" r="400" fill="none" stroke="#3a3f48" stroke-opacity=".35" stroke-width="25"/>
+    <g stroke="#2a2d33" stroke-width="42" stroke-opacity=".8">
+      <path d="M697.3,554.8 L980.8,363.6"/>
+      <path d="M622.7,605.2 L339.2,796.4"/>
+      <path d="M685.2,617.3 L876.4,900.8"/>
+    </g>
+  </g>
+
+  <!-- the junction spoke (20 m) -->
+  <path d="M634.8,542.7 L443.6,259.2" stroke="#2a2d33" stroke-width="42"/>
+  <path d="M634.8,542.7 L443.6,259.2" stroke="#4a4f58" stroke-width="42" fill="none" stroke-opacity=".35"/>
+  <text x="0" y="0" font-size="11" fill="#9aa3ad" text-anchor="middle" transform="translate(548,405) rotate(56)">spoke · 20 m wide</text>
+
+  <!-- hub -->
+  <circle cx="660" cy="580" r="48" fill="#2a2d33" stroke="#4a4f58" stroke-width="3"/>
+  <circle cx="660" cy="580" r="22" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+  <text x="660" y="643" font-size="12" fill="#d7dbe0" text-anchor="middle">station hub</text>
+
+  <!-- camera rail (outside the arc) -->
+  <path d="M180,580 A480,480 0 0 1 660,100" fill="none" stroke="#e9ecef" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="2 5"/>
+  <text x="104" y="394" font-size="11" fill="#9aa3ad">camera rail</text>
+  <text x="104" y="408" font-size="11" fill="#9aa3ad">(follows the arc)</text>
+
+  <!-- the walked arc: hull spine -->
+  <path d="M260,580 A400,400 0 0 1 660,180" fill="none" stroke="#3a3f48" stroke-width="25"/>
+  <path d="M272.6,580 A387.4,387.4 0 0 1 660,192.6" fill="none" stroke="#5a616d" stroke-width="1.5"/>
+  <path d="M247.4,580 A412.6,412.6 0 0 1 660,167.4" fill="none" stroke="#5a616d" stroke-width="1.5"/>
+  <path d="M260,580 A400,400 0 0 1 660,180" fill="none" stroke="#6a717d" stroke-width="2.5" stroke-dasharray="10 3"/>
+
+  <!-- camera frustum (≈60 m of walk visible) -->
+  <path d="M252.9,325.6 L321.7,524.3 L461.5,300.3 Z" fill="#e9ecef" fill-opacity=".09"/>
+  <use href="#cam" x="252.9" y="325.6" transform="rotate(32 252.9 325.6)"/>
+  <text x="178" y="296" font-size="11" fill="#d7dbe0">rail camera</text>
+  <text x="178" y="310" font-size="10" fill="#9aa3ad">looks across → hub</text>
+
+  <!-- seg 1: pods + pirates -->
+  <g fill="#2a2d33" stroke="#6a717d" stroke-width="1">
+    <rect x="-6" y="-4" width="12" height="8" transform="translate(263,531.3) rotate(97)"/>
+    <rect x="-6" y="-4" width="12" height="8" transform="translate(275.5,469.7) rotate(106)"/>
+  </g>
+  <use href="#en" x="265.5" y="545.5"/><use href="#en" x="261" y="516.8"/><use href="#en" x="275.8" y="484.2"/><use href="#en" x="275.8" y="455.2"/>
+  <use href="#en" x="241.4" y="491"/><use href="#en" x="244.7" y="468.7"/>
+  <text x="200" y="500" font-size="10" fill="#9aa3ad" text-anchor="end">jetpack</text>
+  <text x="200" y="512" font-size="10" fill="#9aa3ad" text-anchor="end">pair</text>
+  <text x="200" y="572" font-size="11" fill="#d7dbe0" text-anchor="end">pirates behind conduit</text>
+  <text x="200" y="585" font-size="11" fill="#d7dbe0" text-anchor="end">bumps + cargo pods</text>
+
+  <!-- seg 2: vents + missing panels -->
+  <g stroke-linecap="butt">
+    <path d="M343.8,358.6 L320.9,342.5 M366.5,329.3 L345.2,311.1" stroke="#0b0d12" stroke-width="14"/>
+    <path d="M343.8,358.6 L320.9,342.5 M366.5,329.3 L345.2,311.1" stroke="#6a717d" stroke-width="15" stroke-opacity=".5" fill="none" stroke-dasharray="2 2"/>
+    <path d="M333.5,376 L308.1,360.1 M356.6,343 L333,324.5 M378.4,317.4 L356.5,297" stroke="#ff6a3d" stroke-opacity=".45" stroke-width="9"/>
+    <path d="M333.5,376 L308.1,360.1 M356.6,343 L333,324.5 M378.4,317.4 L356.5,297" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2"/>
+  </g>
+  <path d="M374,366 L338,370" stroke="#9aa3ad" stroke-width="1"/>
+  <text x="378" y="370" font-size="11" fill="#d7dbe0">plasma vents · 1.2 s glow</text>
+  <path d="M388,342 L360,330" stroke="#9aa3ad" stroke-width="1"/>
+  <text x="392" y="346" font-size="11" fill="#d7dbe0">missing panels 6–8 m</text>
+
+  <!-- rail gates -->
+  <g stroke="#7bd389" stroke-width="4">
+    <path d="M279,580 L241,580"/>
+    <path d="M308,434.2 L272.9,419.7"/>
+    <path d="M390.6,310.6 L363.7,283.7"/>
+    <path d="M514.2,228 L499.7,192.9"/>
+    <path d="M660,199 L660,161"/>
+  </g>
+  <text x="236" y="600" font-size="11" fill="#9aa3ad">cargo door (locked) · start</text>
+
+  <!-- Lock 1: dropship passes -->
+  <g fill="#e0524a" stroke="#15171c" stroke-width="1">
+    <path d="M-12,-6 L10,-6 L16,0 L10,6 L-12,6 Z" transform="translate(329.3,282.2) rotate(-45)"/>
+    <path d="M-12,-6 L10,-6 L16,0 L10,6 L-12,6 Z" transform="translate(366.1,241.9) rotate(-38)"/>
+  </g>
+  <path d="M296,318 L314,298" stroke="#e0524a" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <path d="M340,270 L352,256" stroke="#e0524a" stroke-width="1.5" fill="none" marker-end="url(#arrE)"/>
+  <text x="400" y="296" font-size="11" fill="#e9ecef" font-weight="700">LOCK 1</text>
+  <text x="400" y="309" font-size="10" fill="#9aa3ad">2 dropship passes</text>
+
+  <!-- seg 3: spoke base arena + gun hatch -->
+  <circle cx="460" cy="233.6" r="7" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <circle cx="460" cy="233.6" r="2.5" fill="#15171c"/>
+  <use href="#en" x="410.8" y="272.3"/><use href="#en" x="416.3" y="256.6"/><use href="#en" x="476.6" y="220"/><use href="#en" x="493.1" y="222"/>
+  <text x="480" y="270" font-size="11" fill="#e9ecef" font-weight="700">LOCK 2</text>
+  <text x="480" y="283" font-size="10" fill="#9aa3ad">3 waves + gun hatch</text>
+  <text x="480" y="295" font-size="10" fill="#9aa3ad">(melee shut / shoot eye)</text>
+
+  <!-- seg 4: sensor boom + drones -->
+  <path d="M565.1,168.8 L546.3,219.5 L565.4,214 Z" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <circle cx="565.1" cy="168.8" r="5" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <path d="M540,232 A62,62 0 0 1 590,222" fill="none" stroke="#ff6a3d" stroke-width="1.5" marker-end="url(#arrH)"/>
+  <g fill="#e0524a"><circle cx="524" cy="150" r="3"/><circle cx="534" cy="140" r="3"/><circle cx="546" cy="146" r="3"/><circle cx="514" cy="140" r="3"/><circle cx="540" cy="130" r="3"/></g>
+  <text x="560" y="252" font-size="11" fill="#d7dbe0">sensor boom sweeps</text>
+  <text x="560" y="265" font-size="10" fill="#9aa3ad">beam → drone swarm</text>
+
+  <!-- Lock 3: airlock + capo retinue -->
+  <path d="M632,171 l9,10 l-9,10 l-9,-10 z" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <use href="#en" x="611.9" y="187.9"/><use href="#en" x="649" y="176"/><use href="#en" x="617.4" y="174.2"/>
+  <rect x="664" y="164" width="14" height="30" fill="#2a2d33" stroke="#7bd389" stroke-width="2"/>
+  <text x="686" y="176" font-size="11" fill="#e9ecef" font-weight="700">LOCK 3 · airlock</text>
+  <text x="686" y="189" font-size="10" fill="#9aa3ad">Pyke capo's retinue → stage B</text>
+
+  <!-- players: all four in one frame -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(298.7,422.9)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(292.6,404.8)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(311.4,398.5)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(305.8,379.6)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- golden path along the arc, inside -->
+  <path d="M300,610 M292,586 A370,370 0 0 0 292,586" fill="none"/>
+  <path d="M312,530 A355,355 0 0 1 352,420" fill="none" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+  <path d="M600,208 A380,380 0 0 1 640,202" fill="none" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(224,540)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(236,436)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(420,210)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+    <g transform="translate(504,130)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">4</text></g>
+  </g>
+
+  <!-- scale -->
+  <g stroke="#9aa3ad" stroke-width="2"><path d="M740,630 L845,630 M740,624 L740,636 M792.5,626 L792.5,634 M845,624 L845,636"/></g>
+  <text x="740" y="620" font-size="11" fill="#9aa3ad">0</text>
+  <text x="845" y="620" font-size="11" fill="#9aa3ad" text-anchor="middle">50 m</text>
+
+  <!-- ===== SIDE SECTION inset ===== -->
+  <rect x="590" y="272" width="272" height="160" rx="6" fill="#15171c" stroke="#2a2d33" stroke-width="1.5"/>
+  <text x="600" y="290" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · SPINE</text>
+  <!-- hull under the spine -->
+  <path d="M662,372 L758,372 L770,420 L650,420 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <rect x="662" y="366" width="96" height="6" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+  <rect x="704" y="350" width="12" height="16" fill="#4a505a" stroke="#6a717d" stroke-width="1"/>
+  <text x="710" y="344" font-size="10" fill="#9aa3ad" text-anchor="middle">conduit 2 m</text>
+  <g transform="translate(684,357)"><circle r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/></g>
+  <use href="#en" x="740" y="361"/>
+  <path d="M662,384 L758,384" stroke="#9aa3ad" stroke-width="1" fill="none"/>
+  <text x="710" y="398" font-size="10" fill="#d7dbe0" text-anchor="middle">12 m</text>
+  <!-- void edges -->
+  <path d="M660,372 C652,385 646,398 644,414" fill="none" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrH)"/>
+  <text x="600" y="330" font-size="10" fill="#9aa3ad">void: fall →</text>
+  <text x="600" y="342" font-size="10" fill="#9aa3ad">last rail gate</text>
+  <!-- camera 3/4 elevated off the outer side -->
+  <path d="M830,306 L650,356 L760,392 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="830" y="306" transform="rotate(158 830 306)"/>
+  <text x="852" y="326" font-size="10" fill="#d7dbe0" text-anchor="end">rail cam, ¾ elevated</text>
+  <path d="M800,400 L800,424" stroke="#9aa3ad" stroke-width="1.2" marker-end="url(#arrW)"/>
+  <text x="794" y="412" font-size="10" fill="#9aa3ad" text-anchor="end">hub</text>
+
+  <!-- ================= NOTES ================= -->
+  <g font-size="12" fill="#d7dbe0">
+    <g transform="translate(912,110)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+    <text x="930" y="115" font-weight="700" fill="#f2efe6" font-size="13">The spine</text>
+    <text x="930" y="132">Pirates behind conduit bumps and</text>
+    <text x="930" y="148">pods; first jetpack pair. Teaches</text>
+    <text x="930" y="164">twin-stick aim.</text>
+
+    <g transform="translate(912,194)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+    <text x="930" y="199" font-weight="700" fill="#f2efe6" font-size="13">The vent run</text>
+    <text x="930" y="216">Vents fire across the walk on a</text>
+    <text x="930" y="232">cycle; 6–8 m panel gaps (low-g</text>
+    <text x="930" y="248">jump carries). Lock 1: dropships.</text>
+
+    <g transform="translate(912,278)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+    <text x="930" y="283" font-weight="700" fill="#f2efe6" font-size="13">The spoke junction</text>
+    <text x="930" y="300">Spoke base is the Lock 2 arena:</text>
+    <text x="930" y="316">3 waves + a gun hatch popping</text>
+    <text x="930" y="332">out of the hull.</text>
+
+    <g transform="translate(912,362)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+    <text x="930" y="367" font-weight="700" fill="#f2efe6" font-size="13">The sweep</text>
+    <text x="930" y="384">Boom beam calls drones: jump it</text>
+    <text x="930" y="400">or duck the conduit. Lock 3 at</text>
+    <text x="930" y="416">the airlock: capo's retinue.</text>
+  </g>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="902" y="452" font-weight="700" fill="#d7dbe0">Camera (K1)</text>
+    <text x="902" y="469">One rail camera outside the arc,</text>
+    <text x="902" y="485">¾ elevated, hub + spokes behind.</text>
+    <text x="902" y="501">Sees ~60 m ahead; pulls back at locks.</text>
+    <text x="902" y="529" font-weight="700" fill="#d7dbe0">Co-op</text>
+    <text x="902" y="546">Leash holds all four in one screen;</text>
+    <text x="902" y="562">laggards carried, dead re-form at gate.</text>
+    <text x="902" y="590" font-weight="700" fill="#d7dbe0">Failing</text>
+    <text x="902" y="607">Off-path or death → last rail gate.</text>
+    <text x="902" y="623">Nothing resets.</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="#3a3f48" stroke="#5a616d"/><text x="64" y="693">hull spine</text>
+    <rect x="148" y="682" width="18" height="12" fill="#0b0d12" stroke="#4a4f58"/><text x="172" y="693">void</text>
+    <path d="M222,688 L248,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="256" y="693">flow</text>
+    <circle cx="310" cy="688" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text x="322" y="693">player</text>
+    <use href="#en" x="386" y="690"/><text x="398" y="693">enemy / drone</text>
+    <rect x="502" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="526" y="693">vent / beam</text>
+    <path d="M612,680 L612,696" stroke="#7bd389" stroke-width="4"/><text x="622" y="693">rail gate</text>
+    <g transform="translate(704,688) scale(.8)"><use href="#cam"/></g><text x="720" y="693">rail camera</text>
+    <path d="M806,688 L830,688" stroke="#e9ecef" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="2 4"/><text x="836" y="693">camera rail</text>
+    <circle cx="930" cy="688" r="8" fill="#e8b04a"/><text x="930" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="944" y="693">segment</text>
+  </g>
+</svg>

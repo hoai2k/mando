@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrY" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fff2b0"/>
+    </marker>
+    <marker id="arrR" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="st" d="M0,-7 L6.5,5 L-6.5,5 z" fill="#e0524a"/>
+    <circle id="tank" r="26" fill="#2a2d33" stroke="#4a4f58" stroke-width="3"/>
+    <g id="brl"><circle cx="-5" cy="0" r="5" fill="#8a8f98"/><circle cx="5" cy="0" r="5" fill="#8a8f98"/><circle cx="0" cy="-8" r="5" fill="#8a8f98"/></g>
+    <g id="tower"><rect x="-11" y="-11" width="22" height="22" fill="#4a4f58" stroke="#6f7883" stroke-width="2"/><circle r="5" fill="#fff2b0"/></g>
+    <g id="post"><rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" fill="#e9ecef"/></g>
+    <g id="vent"><circle r="18" fill="#d7dbe0" fill-opacity=".22" stroke="#d7dbe0" stroke-width="1.5" stroke-dasharray="4 3"/><path d="M-6,4 q-4,-6 0,-10 M0,6 q-4,-7 0,-12 M6,4 q-4,-6 0,-10" fill="none" stroke="#d7dbe0" stroke-width="1.5"/></g>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">11 · Lights Out</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Refinery · stealth infiltration · ~3–6 min</text>
+  <text x="560" y="78" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · TO SCALE · NIGHT</text>
+
+  <!-- yard floor 90 × 70 m -->
+  <rect x="110" y="125" width="630" height="490" fill="#30343c" stroke="#4a4f58" stroke-width="2"/>
+
+  <!-- tank rows (borders) -->
+  <g>
+    <use href="#tank" x="136" y="151"/><use href="#tank" x="190" y="151"/><use href="#tank" x="244" y="151"/>
+    <use href="#tank" x="298" y="151"/><use href="#tank" x="352" y="151"/><use href="#tank" x="460" y="151"/>
+    <use href="#tank" x="514" y="151"/><use href="#tank" x="568" y="151"/><use href="#tank" x="714" y="151"/>
+    <use href="#tank" x="136" y="589"/><use href="#tank" x="248" y="589"/><use href="#tank" x="302" y="589"/>
+    <use href="#tank" x="356" y="589"/><use href="#tank" x="410" y="589"/><use href="#tank" x="464" y="589"/>
+    <use href="#tank" x="518" y="589"/><use href="#tank" x="572" y="589"/><use href="#tank" x="626" y="589"/>
+    <use href="#tank" x="680" y="589"/><use href="#tank" x="714" y="589"/>
+    <use href="#tank" x="136" y="205"/><use href="#tank" x="136" y="259"/><use href="#tank" x="136" y="367"/>
+    <use href="#tank" x="136" y="421"/><use href="#tank" x="136" y="475"/><use href="#tank" x="136" y="529"/>
+    <use href="#tank" x="714" y="205"/><use href="#tank" x="714" y="421"/><use href="#tank" x="714" y="529"/>
+  </g>
+
+  <!-- booth platform -->
+  <rect x="660" y="248" width="80" height="128" fill="#474d57" stroke="#4a4f58" stroke-width="4"/>
+  <g stroke="#6f7883" stroke-width="1.5"><line x1="664" y1="352" x2="664" y2="372"/><line x1="670" y1="352" x2="670" y2="372"/><line x1="676" y1="352" x2="676" y2="372"/></g>
+  <rect x="700" y="262" width="26" height="26" rx="3" fill="#b48cff"/>
+
+  <!-- pipe racks (lanes of cover) -->
+  <g fill="#2a2d33" stroke="#4a4f58" stroke-width="2">
+    <rect x="255" y="212" width="24" height="142"/><rect x="255" y="388" width="24" height="142"/>
+    <rect x="395" y="212" width="24" height="142"/><rect x="395" y="388" width="24" height="142"/>
+    <rect x="535" y="212" width="24" height="142"/><rect x="535" y="388" width="24" height="142"/>
+  </g>
+  <g stroke="#6f7883" stroke-width="1"><line x1="267" y1="212" x2="267" y2="354"/><line x1="267" y1="388" x2="267" y2="530"/><line x1="407" y1="212" x2="407" y2="354"/><line x1="407" y1="388" x2="407" y2="530"/><line x1="547" y1="212" x2="547" y2="354"/><line x1="547" y1="388" x2="547" y2="530"/></g>
+  <!-- barrel stacks -->
+  <use href="#brl" x="212" y="424"/><use href="#brl" x="340" y="248"/><use href="#brl" x="468" y="470"/>
+  <use href="#brl" x="612" y="226"/><use href="#brl" x="622" y="522"/><use href="#brl" x="200" y="252"/>
+
+  <!-- steam vents -->
+  <use href="#vent" x="340" y="372"/>
+  <use href="#vent" x="476" y="300"/>
+  <use href="#vent" x="604" y="452"/>
+
+  <!-- searchlight sweeps + current cones -->
+  <g fill="#fff2b0" fill-opacity=".18">
+    <path d="M136,313 L366,317 A230,230 0 0 1 353.5,388 Z"/>
+    <path d="M406,151 L342.6,372.1 A230,230 0 0 1 277.4,341.7 Z"/>
+    <path d="M714,475 L488.2,431.1 A230,230 0 0 1 512.8,363.5 Z"/>
+  </g>
+  <g fill="none" stroke="#fff2b0" stroke-opacity=".7" stroke-width="1.8" stroke-dasharray="5 4">
+    <path d="M332.6,175.3 A240,240 0 0 1 305.7,482.7" marker-start="url(#arrY)" marker-end="url(#arrY)"/>
+    <path d="M526,358.8 A240,240 0 0 1 222.2,305.3" marker-start="url(#arrY)" marker-end="url(#arrY)"/>
+    <path d="M488.5,557.1 A240,240 0 0 1 594,267.2" marker-start="url(#arrY)" marker-end="url(#arrY)"/>
+  </g>
+  <use href="#tower" x="136" y="313"/>
+  <use href="#tower" x="406" y="151"/>
+  <use href="#tower" x="714" y="475"/>
+
+  <!-- sensor posts: fixed cones, rotate slowly -->
+  <g fill="#fff2b0" fill-opacity=".14">
+    <path d="M300,500 L382.8,441.7 A101,101 0 0 0 356,416 Z" transform="translate(0,0)"/>
+    <path d="M620,360 L566,280 A96,96 0 0 0 530,318 Z"/>
+  </g>
+  <path d="M310,478 A26,26 0 0 1 324,486" fill="none" stroke="#fff2b0" stroke-width="1.5" marker-end="url(#arrY)"/>
+  <path d="M606,344 A24,24 0 0 1 598,354" fill="none" stroke="#fff2b0" stroke-width="1.5" marker-end="url(#arrY)"/>
+  <use href="#post" x="300" y="500"/>
+  <use href="#post" x="620" y="360"/>
+
+  <!-- patrol loops -->
+  <g fill="none" stroke="#e0524a" stroke-width="2" stroke-dasharray="7 5" stroke-opacity=".85">
+    <rect x="295" y="226" width="86" height="290" rx="30"/>
+    <rect x="435" y="206" width="84" height="320" rx="30"/>
+    <rect x="576" y="186" width="74" height="220" rx="28"/>
+  </g>
+  <!-- troopers + eye cones -->
+  <g fill="#e0524a" fill-opacity=".16">
+    <path d="M296,300 L276,244 L316,244 Z"/>
+    <path d="M519,440 L490,494 L548,494 Z"/>
+    <path d="M650,330 L706,312 L706,352 Z"/>
+    <path d="M435,260 L412,210 L458,210 Z"/>
+  </g>
+  <use href="#st" x="296" y="300"/>
+  <g transform="translate(519,440) rotate(180)"><use href="#st"/></g>
+  <g transform="translate(650,330) rotate(90)"><use href="#st"/></g>
+  <use href="#st" x="435" y="262"/>
+
+  <!-- alarm console -->
+  <rect x="176" y="508" width="18" height="18" rx="3" fill="#b48cff"/>
+  <text x="202" y="522" font-size="12" fill="#d7dbe0">alarm console</text>
+
+  <!-- intake door (exit) -->
+  <rect x="604" y="122" width="86" height="8" fill="#7bd389"/>
+  <text x="647" y="112" font-size="13" font-weight="700" fill="#d7dbe0" text-anchor="middle">INTAKE DOOR</text>
+  <!-- zone entry -->
+  <text x="192" y="636" font-size="12" fill="#9aa3ad" text-anchor="middle">zone entry</text>
+
+  <!-- golden path -->
+  <path d="M192,610 C195,500 205,400 262,372 L500,372 C560,372 588,300 600,240 L636,146" fill="none" stroke="#e8b04a" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arr)"/>
+
+  <!-- takedown -->
+  <path d="M296,328 L296,316" stroke="#3ec1b0" stroke-width="2.5" marker-end="url(#arr)"/>
+  <!-- camera behind player 3 -->
+  <path d="M296,354 L262,262 L330,262 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="296" y="356" transform="rotate(-90 296 356)"/>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(700,318)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(340,376)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(296,338)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(228,446)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- side labels (outside the yard) -->
+  <g font-size="12" fill="#d7dbe0">
+    <text x="752" y="272">control booth</text>
+    <text x="752" y="287" fill="#9aa3ad">on a platform</text>
+    <text x="752" y="480">searchlight</text>
+    <text x="752" y="495" fill="#9aa3ad">tower 3</text>
+    <text x="60" y="309" text-anchor="start">tower 1</text>
+    <text x="406" y="112" text-anchor="middle">tower 2</text>
+  </g>
+  <g font-size="11" fill="#9aa3ad" text-anchor="middle">
+    <text x="267" y="546">pipe rack</text>
+    <text x="407" y="546">pipe rack</text>
+    <text x="547" y="546">pipe rack</text>
+    <text x="300" y="524">sensor</text>
+    <text x="646" y="382">sensor</text>
+  </g>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" fill="#15171c" text-anchor="middle">
+    <g transform="translate(372,290)"><circle r="11" fill="#e8b04a"/><text y="4.5">1</text></g>
+    <g transform="translate(370,404)"><circle r="11" fill="#e8b04a"/><text y="4.5">2</text></g>
+    <g transform="translate(320,318)"><circle r="11" fill="#e8b04a"/><text y="4.5">3</text></g>
+    <g transform="translate(686,398)"><circle r="11" fill="#e8b04a"/><text y="4.5">4</text></g>
+    <g transform="translate(185,488)"><circle r="11" fill="#e8b04a"/><text y="4.5">5</text></g>
+    <g transform="translate(442,176)"><circle r="11" fill="#e8b04a"/><text y="4.5">6</text></g>
+    <g transform="translate(584,112)"><circle r="11" fill="#e8b04a"/><text y="4.5">7</text></g>
+  </g>
+
+  <!-- scale -->
+  <g font-size="12" fill="#6f7883">
+    <line x1="740" y1="640" x2="810" y2="640" stroke="#6f7883" stroke-width="2"/>
+    <line x1="740" y1="634" x2="740" y2="646" stroke="#6f7883" stroke-width="2"/>
+    <line x1="810" y1="634" x2="810" y2="646" stroke="#6f7883" stroke-width="2"/>
+    <text x="818" y="644">0 — 10 m</text>
+    <text x="740" y="626">yard 90 × 70 m</text>
+  </g>
+
+  <!-- ===== notes column ===== -->
+  <g font-size="13" fill="#d7dbe0">
+    <g transform="translate(922,120)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">1</text></g>
+    <text x="940" y="125">Seen (K6): a cone fills your</text>
+    <text x="940" y="142">meter (1.0 in ~0.6 s in a</text>
+    <text x="940" y="159">searchlight, faster in a patrol’s</text>
+    <text x="940" y="176">eyes up close); full = alarm</text>
+
+    <g transform="translate(922,207)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">2</text></g>
+    <text x="940" y="212">Steam vents on a cycle: block</text>
+    <text x="940" y="229">sight, mask noise while blowing</text>
+
+    <g transform="translate(922,260)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">3</text></g>
+    <text x="940" y="265">Melee from behind on an unaware</text>
+    <text x="940" y="282">enemy = silent takedown; blaster</text>
+    <text x="940" y="299">fire is loud, draws patrols</text>
+
+    <g transform="translate(922,330)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">4</text></g>
+    <text x="940" y="335">Booth: searchlights off 10 s</text>
+    <text x="940" y="352">(cooldown 20 s) — overwatch;</text>
+    <text x="940" y="369">exposed, the patrols check it</text>
+
+    <g transform="translate(922,400)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">5</text></g>
+    <text x="940" y="405">Alarm ≠ fail: lanes seal, tank</text>
+    <text x="940" y="422">turrets pop, a drop lands; kill it,</text>
+    <text x="940" y="439">hold console 3 s → stealth again</text>
+
+    <g transform="translate(922,470)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">6</text></g>
+    <text x="940" y="475">3 searchlight towers sweep</text>
+    <text x="940" y="492">authored patterns; 2 sensor</text>
+    <text x="940" y="509">posts rotate slowly</text>
+
+    <g transform="translate(922,540)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">7</text></g>
+    <text x="940" y="545">Exit: intake door → intake ramp</text>
+
+    <use href="#cam" x="922" y="578"/>
+    <text x="940" y="582">Per-player; cones are additive</text>
+    <text x="940" y="599">meshes, read from any angle</text>
+    <text x="922" y="626" fill="#9aa3ad">No stealth fail; death → zone entry</text>
+  </g>
+
+  <!-- ===== legend ===== -->
+  <g font-size="13" fill="#9aa3ad">
+    <circle cx="48" cy="687" r="8" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+    <text x="62" y="692">tank</text>
+    <rect x="102" y="681" width="18" height="12" fill="#2a2d33" stroke="#4a4f58"/>
+    <text x="126" y="692">pipe rack</text>
+    <path d="M200,687 L224,679 L224,695 Z" fill="#fff2b0" fill-opacity=".35"/>
+    <text x="230" y="692">light cone</text>
+    <use href="#post" x="312" y="687"/>
+    <text x="324" y="692">sensor</text>
+    <use href="#vent" x="394" y="687" transform="translate(394 687) scale(.5) translate(-394 -687)"/>
+    <text x="408" y="692">steam</text>
+    <line x1="460" y1="687" x2="490" y2="687" stroke="#e0524a" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="496" y="692">patrol loop</text>
+    <use href="#st" x="584" y="689"/>
+    <text x="596" y="692">trooper</text>
+    <circle cx="666" cy="687" r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/>
+    <text x="680" y="692">player</text>
+    <rect x="734" y="681" width="12" height="12" rx="2" fill="#b48cff"/>
+    <text x="752" y="692">booth / console</text>
+    <rect x="858" y="683" width="18" height="8" fill="#7bd389"/>
+    <text x="882" y="692">exit</text>
+    <line x1="920" y1="687" x2="946" y2="687" stroke="#e8b04a" stroke-width="3" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+    <text x="954" y="692">route</text>
+    <use href="#cam" x="1012" y="687"/>
+    <text x="1028" y="692">camera</text>
+  </g>
+</svg>
