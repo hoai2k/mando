@@ -1,0 +1,281 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M5,0 L5,10" stroke="#9aa3ad" stroke-width="1.5"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-7 L6.5,5 L-6.5,5 z" fill="#e0524a"/>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">01 · The Barge Run</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Dune Sea · moving-platform boarding · ~4 min</text>
+
+  <!-- ================= PLAN ================= -->
+  <text x="40" y="110" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · 8 px = 1 m</text>
+  <rect x="40" y="120" width="540" height="420" rx="6" fill="#6b5a3e" fill-opacity=".32"/>
+  <!-- dune ripples -->
+  <g fill="none" stroke="#8a7650" stroke-opacity=".45" stroke-width="1.5">
+    <path d="M50,270 q40,-12 80,0 t80,0 t80,0"/>
+    <path d="M60,395 q40,-12 80,0 t80,0"/>
+    <path d="M470,520 q30,-10 60,0 t40,0"/>
+    <path d="M60,515 q30,-10 60,0 t60,0 t60,0"/>
+    <path d="M470,130 q30,-10 60,0 t40,0"/>
+    <path d="M60,140 q30,-10 60,0 t60,0"/>
+  </g>
+
+  <!-- travel direction + ravine -->
+  <path d="M250,138 L380,138" stroke="#e9ecef" stroke-opacity=".7" stroke-width="2" fill="none" marker-end="url(#arrG)"/>
+  <text x="244" y="142" font-size="12" fill="#9aa3ad" text-anchor="end">travel</text>
+  <text x="572" y="142" font-size="12" fill="#9aa3ad" text-anchor="end">barge grounds at ravine mouth →</text>
+
+  <!-- swoop orbit -->
+  <ellipse cx="368" cy="330" rx="205" ry="178" fill="none" stroke="#e0524a" stroke-opacity=".45" stroke-width="1.5" stroke-dasharray="3 6"/>
+  <g fill="#e0524a">
+    <path d="M573,318 l7,10 l-7,10 l-7,-10 z"/>
+    <path d="M178,408 l7,10 l-7,10 l-7,-10 z"/>
+    <path d="M560,258 l7,10 l-7,10 l-7,-10 z"/>
+  </g>
+  <text x="196" y="440" font-size="12" fill="#d7dbe0">Nikto swoops</text>
+  <text x="196" y="454" font-size="10" fill="#9aa3ad">orbit both hulls</text>
+
+  <!-- ===== sail barge ===== -->
+  <path d="M200,160 L510,160 L536,200 L510,240 L200,240 Z" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+  <path d="M200,160 L510,160 L536,200 L510,240 L200,240" fill="none" stroke="#4a4f58" stroke-width="4" stroke-opacity=".9"/>
+  <!-- upper deck (aft) -->
+  <rect x="206" y="166" width="168" height="68" rx="3" fill="#4a505a" stroke="#6a717d" stroke-width="1.5"/>
+  <text x="212" y="180" font-size="11" fill="#d7dbe0">UPPER DECK +10 m</text>
+  <!-- stairs -->
+  <g stroke="#9aa3ad" stroke-width="1.2">
+    <path d="M378,212 L378,232 M383,212 L383,232 M388,212 L388,232 M393,212 L393,232"/>
+  </g>
+    <!-- helm + helmsman -->
+  <path d="M226,196 l10,11 l-10,11 l-10,-11 z" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <text x="226" y="231" font-size="11" fill="#d7dbe0" text-anchor="middle">helmsman</text>
+  <!-- heavy gun -->
+  <circle cx="350" cy="194" r="8" fill="#b48cff" stroke="#15171c" stroke-width="1"/>
+  <path d="M342,194 L322,194" stroke="#b48cff" stroke-width="3"/>
+  <text x="326" y="178" font-size="11" fill="#d7dbe0">heavy gun</text>
+  <!-- cargo deck -->
+  <text x="404" y="176" font-size="11" fill="#d7dbe0">CARGO DECK +4 m</text>
+  <g fill="#2a2d33" stroke="#5a616d" stroke-width="1">
+    <rect x="410" y="184" width="26" height="14"/><rect x="442" y="184" width="26" height="14"/><rect x="474" y="184" width="22" height="14"/>
+    <rect x="410" y="204" width="26" height="14"/><rect x="442" y="204" width="26" height="14"/>
+  </g>
+  <use href="#en" x="486" y="215"/>
+  <use href="#en" x="500" y="198"/>
+  <text x="404" y="232" font-size="10" fill="#9aa3ad">racks · 2 posted waves</text>
+  <!-- rail gunners / snipers -->
+  <use href="#en" x="260" y="164" transform="rotate(180 260 164)"/>
+  <use href="#en" x="300" y="236"/>
+  <use href="#en" x="454" y="164" transform="rotate(180 454 164)"/>
+
+  <!-- boarding planks -->
+  <rect x="358" y="240" width="12" height="72" fill="#5a616d" stroke="#8a919c" stroke-width="1"/>
+  <rect x="420" y="240" width="12" height="72" fill="#5a616d" stroke="#8a919c" stroke-width="1"/>
+  <use href="#en" x="364" y="262" transform="rotate(180 364 262)"/>
+  <use href="#en" x="426" y="286" transform="rotate(180 426 286)"/>
+  <text x="438" y="262" font-size="11" fill="#d7dbe0">2 planks</text>
+  <text x="438" y="275" font-size="10" fill="#9aa3ad">enemies cross too</text>
+
+  <!-- ===== skiff, phase 2 (8–10 m) ===== -->
+  <path d="M330,312 L428,312 L442,332 L428,352 L330,352 Z" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+  <circle cx="420" cy="332" r="7" fill="#b48cff" stroke="#15171c" stroke-width="1"/>
+  <text x="452" y="330" font-size="11" fill="#d7dbe0">deck gun (K3)</text>
+  <text x="452" y="343" font-size="10" fill="#9aa3ad">auto-fires ½ rate if empty</text>
+  <!-- respawn flag on skiff -->
+  <path d="M338,318 L338,346" stroke="#7bd389" stroke-width="2"/>
+  <path d="M338,318 L350,322 L338,326 Z" fill="#7bd389"/>
+
+  <!-- ===== skiff, phase 1 (26 m) ghost ===== -->
+  <path d="M330,448 L428,448 L442,468 L428,488 L330,488 Z" fill="#3a3f48" fill-opacity=".45" stroke="#8a919c" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <circle cx="420" cy="468" r="6" fill="#b48cff" fill-opacity=".6"/>
+  <text x="386" y="508" font-size="12" fill="#d7dbe0" text-anchor="middle">skiff · phase 1 · 14 m deck</text>
+  <!-- telegraphed shell -->
+  <circle cx="372" cy="468" r="20" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="300" y="472" font-size="11" fill="#d7dbe0" text-anchor="end">shell telegraph</text>
+
+  <!-- dimensions -->
+  <g stroke="#9aa3ad" stroke-width="1.2" fill="none">
+    <path d="M318,242 L318,310" marker-start="url(#tick)" marker-end="url(#tick)"/>
+    <path d="M540,242 L540,446" marker-start="url(#tick)" marker-end="url(#tick)"/>
+    <path d="M512,240 L546,240 M446,448 L546,448" stroke-dasharray="2 3" stroke-opacity=".6"/>
+  </g>
+  <text x="312" y="280" font-size="12" fill="#d7dbe0" text-anchor="end">8–10 m</text>
+  <text x="534" y="420" font-size="12" fill="#d7dbe0" text-anchor="end">26 m</text>
+
+  <!-- golden path: close the gap, hop, climb to the helm -->
+  <g fill="none" stroke="#e8b04a" stroke-width="3">
+    <path d="M346,444 L346,360" marker-end="url(#arr)"/>
+    <path d="M394,318 L394,250" stroke-dasharray="7 5" marker-end="url(#arr)"/>
+    <path d="M398,236 C396,220 384,214 360,214 L246,214" marker-end="url(#arr)"/>
+  </g>
+  <text x="340" y="404" font-size="11" fill="#d7dbe0" text-anchor="end">Mover closes gap</text>
+  <text x="340" y="417" font-size="10" fill="#9aa3ad" text-anchor="end">26 m → 8–10 m</text>
+  <text x="400" y="298" font-size="10" fill="#e8b04a">hop</text>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(404,332)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(362,332)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(394,288)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(334,194)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- per-player camera behind player 2 -->
+  <path d="M310,338 L380,300 L380,376 Z" fill="#e9ecef" fill-opacity=".09"/>
+  <use href="#cam" x="304" y="338" transform="rotate(-8 304 338)"/>
+
+  <!-- pursuing Tusken skiffs (final wave, from the rear) -->
+  <g fill="#e0524a" fill-opacity=".85" stroke="#15171c" stroke-width="1">
+    <path d="M62,290 L118,290 L128,300 L118,310 L62,310 Z"/>
+    <path d="M70,346 L126,346 L136,356 L126,366 L70,366 Z"/>
+  </g>
+  <g fill="none" stroke="#e0524a" stroke-width="2">
+    <path d="M132,300 L158,300" marker-end="url(#arrE)"/>
+    <path d="M140,356 L166,356" marker-end="url(#arrE)"/>
+  </g>
+  <text x="54" y="386" font-size="12" fill="#d7dbe0">2 Tusken skiffs</text>
+  <text x="54" y="400" font-size="10" fill="#9aa3ad">from the rear · final wave</text>
+  <path d="M322,194 C260,240 190,270 142,292" fill="none" stroke="#b48cff" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+  <!-- dunes scroll -->
+  <g fill="none" stroke="#9aa3ad" stroke-width="2">
+    <path d="M250,528 L170,528" marker-end="url(#arrG)"/>
+    <path d="M150,528 L70,528" marker-end="url(#arrG)"/>
+  </g>
+  <text x="260" y="532" font-size="12" fill="#d7dbe0">dunes scroll 14 m/s (K2 — hulls stay still)</text>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(466,468)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(474,300)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(186,172)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+  </g>
+
+  <!-- plan scale -->
+  <g stroke="#9aa3ad" stroke-width="2"><path d="M40,560 L200,560 M40,554 L40,566 M120,556 L120,564 M200,554 L200,566"/></g>
+  <text x="40" y="582" font-size="12" fill="#9aa3ad">0</text>
+  <text x="200" y="582" font-size="12" fill="#9aa3ad" text-anchor="middle">20 m</text>
+
+  <!-- ================= SIDE SECTION ================= -->
+  <text x="604" y="110" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · LOOKING FORWARD</text>
+  <rect x="600" y="120" width="286" height="330" rx="6" fill="#1b1e24" stroke="#2a2d33"/>
+  <!-- sand -->
+  <rect x="601" y="380" width="284" height="69" fill="#6b5a3e" fill-opacity=".35"/>
+  <path d="M601,380 L885,380" stroke="#8a7650" stroke-width="1.5"/>
+  <!-- barge cross-section: 10 m wide, cargo deck +4, upper deck +10 -->
+  <path d="M620,356 L680,356 L676,372 L624,372 Z" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+  <rect x="626" y="320" width="48" height="36" fill="#4a505a" stroke="#6a717d" stroke-width="1.5"/>
+  <path d="M650,320 L650,168" stroke="#8a919c" stroke-width="2"/>
+  <path d="M652,176 L700,300 L652,300 Z" fill="#d7dbe0" fill-opacity=".14" stroke="#8a919c" stroke-width="1"/>
+  <path d="M680,346 L680,356" stroke="#4a4f58" stroke-width="3"/>
+  <use href="#en" x="632" y="314"/>
+  <!-- skiff phase 2, 9 m out -->
+  <path d="M734,366 L764,366 L762,374 L736,374 Z" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+  <!-- skiff phase 1, 26 m out -->
+  <path d="M836,366 L866,366 L864,374 L838,374 Z" fill="#3a3f48" fill-opacity=".45" stroke="#8a919c" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <!-- hop arc -->
+  <path d="M744,360 C730,318 700,318 686,346" fill="none" stroke="#e8b04a" stroke-width="3" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+  <!-- fall short -->
+  <path d="M716,334 C712,352 710,362 708,376" fill="none" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrH)"/>
+  <text x="696" y="398" font-size="10" fill="#9aa3ad">short → sand, re-form on skiff</text>
+  <g transform="translate(750,356)" font-size="11" font-weight="700" fill="#fff" text-anchor="middle"><circle r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text y="4" font-size="9">3</text></g>
+  <!-- height labels -->
+  <g stroke="#9aa3ad" stroke-width="1" stroke-dasharray="2 3" stroke-opacity=".7">
+    <path d="M676,320 L790,320"/><path d="M682,356 L770,356"/>
+  </g>
+  <text x="796" y="324" font-size="11" fill="#d7dbe0">+10 m upper</text>
+  <text x="776" y="359" font-size="11" fill="#d7dbe0">+4 m cargo</text>
+    <text x="608" y="396" font-size="10" fill="#9aa3ad">0 sand</text>
+  <!-- gap dims -->
+  <g stroke="#9aa3ad" stroke-width="1.2" fill="none">
+    <path d="M680,414 L734,414" marker-start="url(#tick)" marker-end="url(#tick)"/>
+    <path d="M680,432 L836,432" marker-start="url(#tick)" marker-end="url(#tick)"/>
+  </g>
+  <text x="742" y="418" font-size="11" fill="#d7dbe0">9 m</text>
+  <text x="844" y="436" font-size="11" fill="#d7dbe0">26 m</text>
+  <text x="664" y="190" font-size="10" fill="#9aa3ad">sail</text>
+  <text x="878" y="140" font-size="10" fill="#9aa3ad" text-anchor="end">6 px = 1 m</text>
+
+  <!-- ================= INSET: camera ================= -->
+  <text x="604" y="480" font-size="12" letter-spacing="2" fill="#6f7883">INSET · CAMERA</text>
+  <rect x="600" y="490" width="286" height="150" rx="6" fill="#1b1e24" stroke="#2a2d33"/>
+  <rect x="601" y="600" width="284" height="39" fill="#6b5a3e" fill-opacity=".35"/>
+  <path d="M640,600 L720,600" stroke="#5a616d" stroke-width="6"/>
+  <g transform="translate(700,590)" font-size="11" font-weight="700" fill="#fff" text-anchor="middle"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+  <path d="M640,532 L770,560 L720,640 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="636" y="530" transform="rotate(32 636 530)"/>
+  <path d="M636,530 L700,590" stroke="#e9ecef" stroke-opacity=".35" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="770" y="516" font-size="11" fill="#d7dbe0">per-player chase rig</text>
+  <text x="770" y="530" font-size="10" fill="#9aa3ad">pace-widening built in</text>
+  <text x="770" y="544" font-size="10" fill="#9aa3ad">slightly raised pitch</text>
+  <text x="770" y="558" font-size="10" fill="#9aa3ad">so the scroll reads</text>
+
+  <!-- ================= NOTES ================= -->
+  <g font-size="13" fill="#d7dbe0">
+    <g transform="translate(922,120)"><circle r="11" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+    <text x="940" y="125" font-weight="700" fill="#f2efe6">Broadside · ~60 s</text>
+    <text x="940" y="144">Skiff holds 26 m off. Rail gunners</text>
+    <text x="940" y="161">+ snipers trade fire; swoops strafe.</text>
+    <text x="940" y="178">Deck gun kills swoops; shoot the</text>
+    <text x="940" y="195">heavy gunner to stop the shells.</text>
+
+    <g transform="translate(922,228)"><circle r="11" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+    <text x="940" y="233" font-weight="700" fill="#f2efe6">Close and board</text>
+    <text x="940" y="252">Skiff Mover pulls in to 8–10 m:</text>
+    <text x="940" y="269">jetpack hop. Planks drop, enemies</text>
+    <text x="940" y="286">cross them. Cargo deck = assault,</text>
+    <text x="940" y="303">two waves in the racks.</text>
+
+    <g transform="translate(922,336)"><circle r="11" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+    <text x="940" y="341" font-weight="700" fill="#f2efe6">The upper deck</text>
+    <text x="940" y="360">Stairs or jetpack. Take the heavy</text>
+    <text x="940" y="377">gun, burn the 2 rear skiffs, then</text>
+    <text x="940" y="394">kill the helmsman: barge slews and</text>
+    <text x="940" y="411">grounds → transport door.</text>
+  </g>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="912" y="450" font-weight="700" fill="#d7dbe0">Co-op</text>
+    <text x="912" y="467">1 gunner on the skiff, rest board;</text>
+    <text x="912" y="483">skiff always follows the barge.</text>
+    <text x="912" y="512" font-weight="700" fill="#d7dbe0">Failing</text>
+    <text x="912" y="529">Fall off either hull → re-form on</text>
+    <text x="912" y="545">skiff. Skiff HP (K5) 0 → fresh skiff</text>
+    <text x="912" y="561">at start of the current phase.</text>
+    <text x="912" y="590" font-weight="700" fill="#d7dbe0">Players shown</text>
+    <text x="912" y="607">1 deck gun · 2 on skiff · 3 mid-hop</text>
+    <text x="912" y="623">4 on the barge's heavy gun</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="#3a3f48" stroke="#5a616d"/><text x="64" y="693">deck</text>
+    <rect x="110" y="682" width="18" height="12" fill="#6b5a3e" fill-opacity=".6"/><text x="134" y="693">sand</text>
+    <path d="M186,688 L212,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="220" y="693">golden path</text>
+    <circle cx="318" cy="688" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text x="330" y="693">player</text>
+    <use href="#en" x="394" y="690"/><text x="406" y="693">enemy</text>
+    <rect x="462" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="486" y="693">hazard</text>
+    <path d="M548,680 L548,696" stroke="#7bd389" stroke-width="2"/><path d="M548,680 L558,684 L548,688 Z" fill="#7bd389"/><text x="566" y="693">re-form point</text>
+    <circle cx="670" cy="688" r="6" fill="#b48cff"/><text x="682" y="693">turret (K3)</text>
+    <g transform="translate(768,688) scale(.8)"><use href="#cam"/></g><text x="790" y="693">camera</text>
+    <circle cx="866" cy="688" r="8" fill="#e8b04a"/><text x="866" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="880" y="693">beat</text>
+  </g>
+</svg>

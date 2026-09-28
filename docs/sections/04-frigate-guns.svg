@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/>
+    </marker>
+    <marker id="tick" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M5,0 L5,10" stroke="#9aa3ad" stroke-width="1.5"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-6 L5.5,4.5 L-5.5,4.5 z" fill="#e0524a"/>
+    <g id="quad">
+      <rect x="-8" y="-8" width="16" height="16" rx="2" fill="#b48cff" stroke="#15171c" stroke-width="1"/>
+      <path d="M8,-5 L16,-5 M8,-1.7 L16,-1.7 M8,1.7 L16,1.7 M8,5 L16,5" stroke="#b48cff" stroke-width="1.6"/>
+    </g>
+    <g id="dropship">
+      <path d="M-18,-8 L12,-8 L20,0 L12,8 L-18,8 L-14,0 Z" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+    </g>
+    <clipPath id="panel"><rect x="30" y="90" width="850" height="560"/></clipPath>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+  <rect x="30" y="90" width="850" height="560" rx="6" fill="#0b0d12"/>
+  <g fill="#e9ecef">
+    <circle cx="120" cy="200" r="1.1" opacity=".6"/><circle cx="560" cy="110" r="1" opacity=".5"/><circle cx="820" cy="240" r="1.2" opacity=".6"/>
+    <circle cx="780" cy="560" r="1" opacity=".5"/><circle cx="90" cy="470" r="1.1" opacity=".5"/><circle cx="620" cy="630" r="1" opacity=".5"/>
+    <circle cx="410" cy="210" r="1" opacity=".4"/><circle cx="860" cy="470" r="1.1" opacity=".6"/><circle cx="200" cy="630" r="1" opacity=".4"/>
+    <circle cx="740" cy="170" r="1" opacity=".5"/><circle cx="230" cy="180" r="1.2" opacity=".5"/>
+  </g>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">04 · Guns of the Frigate</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Spice Run · turret defence · ~5 min</text>
+
+  <!-- station receding astern + debris scroll -->
+  <g clip-path="url(#panel)">
+    <circle cx="10" cy="560" r="70" fill="#2a2d33" stroke="#4a4f58" stroke-width="3"/>
+    <circle cx="10" cy="560" r="30" fill="#3a3f48"/>
+  </g>
+  <text x="90" y="600" font-size="11" fill="#9aa3ad">station, receding</text>
+  <g fill="#3a3f48" stroke="#5a616d" stroke-width="1">
+    <path d="M760,210 l14,-6 l10,8 l-4,12 l-14,2 z"/>
+    <path d="M820,530 l10,-4 l8,6 l-3,9 l-11,1 z"/>
+    <path d="M210,220 l9,-4 l7,5 l-3,8 l-10,1 z"/>
+    <path d="M600,560 l8,-3 l6,5 l-2,7 l-9,1 z"/>
+  </g>
+  <g fill="none" stroke="#9aa3ad" stroke-width="2">
+    <path d="M300,628 L220,628" marker-end="url(#arrG)"/>
+    <path d="M430,628 L350,628" marker-end="url(#arrG)"/>
+  </g>
+  <text x="440" y="632" font-size="12" fill="#d7dbe0">debris + station scroll astern (K2 — the deck stays still)</text>
+
+  <text x="44" y="112" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · DORSAL HULL · 9 px = 1 m</text>
+
+  <!-- ===== hull ===== -->
+  <path d="M130,290 L700,290 L760,389 L700,488 L130,488 Z" fill="#3a3f48" stroke="#4a4f58" stroke-width="4"/>
+  <path d="M150,389 L690,389" stroke="#5a616d" stroke-width="1" stroke-dasharray="4 6"/>
+  <text x="142" y="306" font-size="11" fill="#9aa3ad">stern</text>
+  <text x="712" y="393" font-size="11" fill="#9aa3ad">bow</text>
+
+  <!-- dimensions -->
+  <g stroke="#9aa3ad" stroke-width="1.2" fill="none">
+    <path d="M130,272 L760,272" marker-start="url(#tick)" marker-end="url(#tick)"/>
+    <path d="M112,290 L112,488" marker-start="url(#tick)" marker-end="url(#tick)"/>
+  </g>
+  <text x="200" y="266" font-size="12" fill="#d7dbe0" text-anchor="middle">70 m</text>
+  <text x="104" y="393" font-size="12" fill="#d7dbe0" text-anchor="end">22 m</text>
+
+  <!-- turret arcs (200° each) -->
+  <g fill="#b48cff" fill-opacity=".08" stroke="#b48cff" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="4 4">
+    <path d="M652,389 L637.2,305.3 A85,85 0 1 1 637.2,472.7 Z"/>
+    <path d="M238,389 L252.8,472.7 A85,85 0 1 1 252.8,305.3 Z"/>
+    <path d="M445,326 L361.3,340.8 A85,85 0 1 1 528.7,340.8 Z"/>
+    <path d="M445,452 L528.7,437.2 A85,85 0 1 1 361.3,437.2 Z"/>
+  </g>
+  <text x="445" y="262" font-size="11" fill="#b48cff" text-anchor="middle">200° arc</text>
+
+  <!-- spinal gun telegraph line across the deck -->
+  <rect x="567" y="290" width="27" height="258" fill="#ff6a3d" fill-opacity=".38" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="600" y="306" font-size="11" fill="#d7dbe0">spinal gun line</text>
+  <text x="600" y="319" font-size="10" fill="#9aa3ad">2.5 s — clear it</text>
+
+  <!-- turrets (diamond) -->
+  <use href="#quad" x="652" y="389"/>
+  <use href="#quad" x="238" y="389" transform="rotate(180 238 389)"/>
+  <use href="#quad" x="445" y="326" transform="rotate(-90 445 326)"/>
+  <use href="#quad" x="445" y="452" transform="rotate(90 445 452)"/>
+  <text x="445" y="532" font-size="10" fill="#9aa3ad" text-anchor="middle">unmanned: auto, ½ rate</text>
+
+  <!-- hatches -->
+  <g fill="#15171c" stroke="#7bd389" stroke-width="2.5">
+    <rect x="339" y="382" width="14" height="14"/>
+    <rect x="515" y="382" width="14" height="14"/>
+  </g>
+  <text x="346" y="413" font-size="10" fill="#7bd389" text-anchor="middle">hatch</text>
+  <text x="522" y="413" font-size="10" fill="#7bd389" text-anchor="middle">hatch</text>
+  <text x="434" y="428" font-size="10" fill="#9aa3ad" text-anchor="middle">↓ hangar · re-form</text>
+
+  <!-- boarding points -->
+  <g fill="#15171c" stroke="#e0524a" stroke-width="2">
+    <rect x="300" y="284" width="20" height="12"/>
+    <rect x="480" y="482" width="20" height="12"/>
+    <rect x="624" y="284" width="20" height="12"/>
+  </g>
+  <g font-size="11" font-weight="700" fill="#e0524a" text-anchor="middle">
+    <text x="346" y="287">B1</text><text x="516" y="504">B2</text><text x="654" y="282">B3</text>
+  </g>
+
+  <!-- latched dropship at B1 + boarders -->
+  <path d="M310,250 L310,286" stroke="#e0524a" stroke-width="6" stroke-opacity=".6"/>
+  <use href="#dropship" x="310" y="234"/>
+  <text x="336" y="238" font-size="11" fill="#d7dbe0">tube latched: drains hull</text>
+  <circle cx="310" cy="290" r="5" fill="#e0524a" stroke="#f2efe6" stroke-width="1.2"/>
+  <use href="#en" x="296" y="314"/><use href="#en" x="322" y="320"/><use href="#en" x="282" y="330"/>
+  <path d="M300,334 l9,10 l-9,10 l-9,-10 z" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <text x="274" y="362" font-size="10" fill="#9aa3ad" text-anchor="end">Pyke heavy</text>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(634,389)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(445,346)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(258,389)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(348,334)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+  <path d="M358,326 C340,300 330,296 318,294" fill="none" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+  <text x="362" y="360" font-size="10" fill="#d7dbe0">4 left a gun:</text>
+  <text x="362" y="372" font-size="10" fill="#9aa3ad">clear, then cut the latch</text>
+
+  <!-- gun-sight camera for player 1 -->
+  <path d="M612,389 L760,350 L760,428 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="610" y="389"/>
+  <text x="604" y="432" font-size="10" fill="#9aa3ad">sight cam (ADS)</text>
+
+  <!-- threat directions -->
+  <g fill="none" stroke="#e0524a" stroke-width="2.5">
+    <path d="M868,389 L790,389" marker-end="url(#arrE)"/>
+    <path d="M40,440 L108,440" marker-end="url(#arrE)"/>
+    <path d="M700,140 L700,236" marker-end="url(#arrE)"/>
+    <path d="M760,640 L760,520" marker-end="url(#arrE)"/>
+  </g>
+  <text x="866" y="376" font-size="11" fill="#d7dbe0" text-anchor="end">ahead</text>
+  <text x="40" y="430" font-size="11" fill="#d7dbe0">astern</text>
+  <text x="708" y="146" font-size="11" fill="#d7dbe0">port flank</text>
+  <text x="768" y="632" font-size="11" fill="#d7dbe0">stbd flank</text>
+  <g fill="#e0524a"><circle cx="846" cy="360" r="3"/><circle cx="836" cy="350" r="3"/><circle cx="856" cy="346" r="3"/><circle cx="826" cy="362" r="3"/></g>
+  <text x="866" y="332" font-size="10" fill="#9aa3ad" text-anchor="end">drone swarm</text>
+  <use href="#dropship" x="72" y="470" transform="scale(1)"/>
+  <text x="40" y="496" font-size="10" fill="#9aa3ad">gun-dropship</text>
+
+  <!-- corvette (finale), alongside to starboard -->
+  <path d="M230,556 L610,556 L660,580 L610,604 L230,604 Z" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+  <g fill="#e0524a" stroke="#15171c" stroke-width="1">
+    <circle cx="300" cy="580" r="9"/><circle cx="400" cy="580" r="9"/><circle cx="500" cy="580" r="9"/>
+  </g>
+  <g font-size="9" font-weight="700" fill="#15171c" text-anchor="middle"><text x="300" y="583">G</text><text x="400" y="583">G</text><text x="500" y="583">G</text></g>
+  <rect x="570" y="552" width="21" height="12" fill="#e0524a"/>
+  <rect x="612" y="570" width="26" height="20" rx="3" fill="#e0524a" fill-opacity=".7" stroke="#15171c"/>
+  <text x="625" y="620" font-size="10" fill="#9aa3ad" text-anchor="middle">bridge</text>
+  <text x="240" y="620" font-size="11" fill="#e0524a" font-weight="700">PIRATE CORVETTE</text>
+  <text x="358" y="620" font-size="10" fill="#9aa3ad">3 shield generators → then bridge</text>
+
+  <!-- hull bar HUD -->
+  <text x="490" y="112" font-size="12" letter-spacing="2" fill="#6f7883">HUD · HULL BAR (K5)</text>
+  <rect x="490" y="120" width="250" height="12" rx="2" fill="#2a2d33"/>
+  <rect x="490" y="120" width="160" height="12" rx="2" fill="#d7dbe0"/>
+  <rect x="650" y="120" width="22" height="12" fill="#e0524a" fill-opacity=".8"/>
+  <g stroke="#7bd389" stroke-width="2"><path d="M540,136 L540,142 M590,136 L590,142 M640,136 L640,142 M690,136 L690,142"/></g>
+  <text x="490" y="156" font-size="10" fill="#9aa3ad">tube drain · ticks = checkpoint per wave</text>
+  <!-- radar arc -->
+  <path d="M780,146 A40,40 0 0 1 860,146" fill="none" stroke="#9aa3ad" stroke-width="2"/>
+  <path d="M820,146 L820,140" stroke="#9aa3ad" stroke-width="2"/>
+  <circle cx="850" cy="126" r="3" fill="#e0524a"/>
+  <text x="820" y="162" font-size="10" fill="#9aa3ad" text-anchor="middle">radar arc</text>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(470,126)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(800,300)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(270,258)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+    <g transform="translate(208,580)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">4</text></g>
+  </g>
+
+  <!-- scale -->
+  <g stroke="#9aa3ad" stroke-width="2"><path d="M200,120 L380,120 M200,114 L200,126 M290,116 L290,124 M380,114 L380,126"/></g>
+  <text x="200" y="142" font-size="11" fill="#9aa3ad">0</text>
+  <text x="380" y="142" font-size="11" fill="#9aa3ad" text-anchor="middle">20 m</text>
+
+  <!-- ================= NOTES ================= -->
+  <g font-size="12" fill="#d7dbe0">
+    <g transform="translate(912,110)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+    <text x="930" y="115" font-weight="700" fill="#f2efe6" font-size="13">The hull bar</text>
+    <text x="930" y="132">Hull HP = clock + fail state. Drones</text>
+    <text x="930" y="148">and gun-dropships chip it; a latched</text>
+    <text x="930" y="164">tube drains it while attached.</text>
+
+    <g transform="translate(912,194)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+    <text x="930" y="199" font-weight="700" fill="#f2efe6" font-size="13">Waves</text>
+    <text x="930" y="216">From ahead, astern, both flanks,</text>
+    <text x="930" y="232">telegraphed on the radar arc.</text>
+    <text x="930" y="248">Turret players fight the air.</text>
+
+    <g transform="translate(912,278)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+    <text x="930" y="283" font-weight="700" fill="#f2efe6" font-size="13">Boarders (B1–B3)</text>
+    <text x="930" y="300">A surviving dropship latches a tube;</text>
+    <text x="930" y="316">pirates + a Pyke heavy pour on. No</text>
+    <text x="930" y="332">gun aims at its own deck: someone</text>
+    <text x="930" y="348">leaves a gun, clears, kills the latch.</text>
+
+    <g transform="translate(912,378)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+    <text x="930" y="383" font-weight="700" fill="#f2efe6" font-size="13">The corvette</text>
+    <text x="930" y="400">Turrets drop 3 shield generators,</text>
+    <text x="930" y="416">then the bridge. Spinal gun sweeps</text>
+    <text x="930" y="432">a line of light (2.5 s). Then drop</text>
+    <text x="930" y="448">through the hatches to the hangar.</text>
+  </g>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="902" y="486" font-weight="700" fill="#d7dbe0">Co-op</text>
+    <text x="902" y="503">4 guns, or 3 guns + a deck runner.</text>
+    <text x="902" y="519">Solo: empty guns auto-fire (½ rate,</text>
+    <text x="902" y="535">¼ accuracy); one tube at a time.</text>
+    <text x="902" y="563" font-weight="700" fill="#d7dbe0">Failing</text>
+    <text x="902" y="580">Death → nearest hatch. Hull bar</text>
+    <text x="902" y="596">empty → restart from the last wave.</text>
+    <text x="902" y="624">Players: 1 fore · 2 port · 3 aft · 4 deck</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="#3a3f48" stroke="#4a4f58" stroke-width="2"/><text x="64" y="693">hull deck</text>
+    <path d="M140,688 L166,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="174" y="693">deck runner</text>
+    <circle cx="268" cy="688" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text x="280" y="693">player</text>
+    <use href="#en" x="342" y="690"/><text x="354" y="693">enemy</text>
+    <path d="M410,688 L436,688" stroke="#e0524a" stroke-width="2.5" marker-end="url(#arrE)"/><text x="442" y="693">threat</text>
+    <rect x="500" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="524" y="693">telegraph</text>
+    <rect x="602" y="682" width="12" height="12" fill="none" stroke="#7bd389" stroke-width="2.5"/><text x="622" y="693">hatch</text>
+    <rect x="676" y="682" width="12" height="12" rx="2" fill="#b48cff"/><text x="694" y="693">turret + arc</text>
+    <rect x="786" y="682" width="18" height="12" fill="none" stroke="#e0524a" stroke-width="2"/><text x="810" y="693">boarding pt</text>
+    <g transform="translate(904,688) scale(.8)"><use href="#cam"/></g><text x="920" y="693">camera</text>
+    <circle cx="990" cy="688" r="8" fill="#e8b04a"/><text x="990" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="1004" y="693">beat</text>
+  </g>
+</svg>

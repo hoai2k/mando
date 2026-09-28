@@ -1,0 +1,260 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-6 L5.5,4.5 L-5.5,4.5 z" fill="#e0524a"/>
+    <!-- bike seen from above, nose up -->
+    <rect id="bike" x="-4.5" y="-13" width="9" height="26" rx="4" fill="#8a919c" stroke="#15171c" stroke-width="1"/>
+    <rect id="ebike" x="-4.5" y="-13" width="9" height="26" rx="4" fill="#7a3a36" stroke="#15171c" stroke-width="1"/>
+    <pattern id="lavaP" width="40" height="18" patternUnits="userSpaceOnUse">
+      <rect width="40" height="18" fill="#d2451e" fill-opacity=".55"/>
+      <path d="M2,6 q8,-4 16,0 t16,0" fill="none" stroke="#ff8a3d" stroke-opacity=".55" stroke-width="1.2"/>
+      <path d="M-18,15 q8,-4 16,0 t16,0 M22,15 q8,-4 16,0" fill="none" stroke="#ff8a3d" stroke-opacity=".35" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">05 · The Magma Run</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Lava Flats · vehicle combat lane · ~2 min</text>
+  <text x="1160" y="78" font-size="12" letter-spacing="2" fill="#6f7883" text-anchor="end">PLAN · 2.0 KM LANE STRAIGHTENED · LENGTH TO SCALE, WIDTH ×3</text>
+
+  <!-- ================= STRIP ================= -->
+  <!-- stretch titles -->
+  <g font-size="13" fill="#d7dbe0" text-anchor="middle">
+    <text x="180" y="124"><tspan font-weight="700" fill="#f2efe6">1 · The run-in</tspan>  0–500 m</text>
+    <text x="460" y="124"><tspan font-weight="700" fill="#f2efe6">2 · The columns</tspan>  500–1000 m</text>
+    <text x="740" y="124"><tspan font-weight="700" fill="#f2efe6">3 · The falls</tspan>  1000–1500 m</text>
+    <text x="1020" y="124"><tspan font-weight="700" fill="#f2efe6">4 · The gun barge</tspan>  1500–2000 m</text>
+  </g>
+  <!-- basalt walls -->
+  <path d="M40,138 L1160,138 L1160,159.8 L1048,163.2 L880,156.4 L712,161.5 L544,158.1 L376,163.2 L208,156.4 L40,159.8 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <path d="M40,232 L1160,232 L1160,210.2 L1048,206.8 L880,213.6 L712,208.5 L544,211.9 L376,206.8 L208,213.6 L40,210.2 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <!-- lava lane -->
+  <path d="M40,159.8 L208,156.4 L376,163.2 L544,158.1 L712,161.5 L880,156.4 L1048,163.2 L1160,159.8 L1160,210.2 L1048,206.8 L880,213.6 L712,208.5 L544,211.9 L376,206.8 L208,213.6 L40,210.2 Z" fill="url(#lavaP)"/>
+  <!-- bends -->
+  <g font-size="10" fill="#9aa3ad" text-anchor="middle">
+    <text x="208" y="151">↰ bend</text><text x="488" y="151">↱ bend</text><text x="740" y="151">↰ bend</text><text x="992" y="151">↱ bend</text>
+  </g>
+  <!-- flow -->
+  <path d="M46,185 L1146,185" stroke="#e8b04a" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arr)" fill="none"/>
+  <!-- 1: crust islands + bikers -->
+  <g fill="#3a3f48" stroke="#5a616d" stroke-width="1">
+    <ellipse cx="110" cy="174" rx="12" ry="6"/><ellipse cx="190" cy="198" rx="10" ry="5"/><ellipse cx="262" cy="172" rx="12" ry="6"/>
+  </g>
+  <use href="#en" x="150" y="196" transform="rotate(90 150 196)"/><use href="#en" x="232" y="192" transform="rotate(90 232 192)"/><use href="#en" x="290" y="176" transform="rotate(90 290 176)"/>
+  <!-- 2: fallen columns + geysers -->
+  <g stroke="#2a2d33" stroke-width="7" stroke-linecap="round">
+    <path d="M372,166 L398,194"/><path d="M430,206 L452,176"/><path d="M500,160 L520,190"/><path d="M560,208 L580,180"/>
+  </g>
+  <g fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2">
+    <circle cx="470" cy="196" r="7"/><circle cx="540" cy="172" r="7"/><circle cx="410" cy="176" r="6"/>
+  </g>
+  <!-- 3: terraces + swoops -->
+  <g stroke="#ffb07a" stroke-width="3">
+    <path d="M690,162 L690,208"/><path d="M790,162 L790,209"/>
+  </g>
+  <g fill="#3a3f48" stroke="#5a616d"><path d="M676,196 L700,196 L700,206 L676,206 Z"/><path d="M776,166 L800,166 L800,176 L776,176 Z"/></g>
+  <g fill="#e0524a"><path d="M740,170 l6,7 l-6,7 l-6,-7 z"/><path d="M840,194 l6,7 l-6,7 l-6,-7 z"/></g>
+  <!-- 4: gun barge + fence -->
+  <rect x="1000" y="174" width="36" height="22" rx="3" fill="#e0524a" fill-opacity=".8" stroke="#15171c"/>
+  <use href="#en" x="940" y="176" transform="rotate(90 940 176)"/><use href="#en" x="1080" y="196" transform="rotate(90 1080 196)"/>
+  <path d="M1150,157 L1150,213" stroke="#4a4f58" stroke-width="8"/>
+  <!-- gates -->
+  <g stroke="#7bd389" stroke-width="4">
+    <path d="M320,150 L320,220"/><path d="M600,150 L600,220"/><path d="M880,150 L880,220"/>
+  </g>
+  <!-- ticks -->
+  <g stroke="#9aa3ad" stroke-width="1.5"><path d="M40,236 L40,244 M320,236 L320,244 M600,236 L600,244 M880,236 L880,244 M1160,236 L1160,244 M180,236 L180,240 M460,236 L460,240 M740,236 L740,240 M1020,236 L1020,240"/></g>
+  <g font-size="11" fill="#9aa3ad">
+    <text x="40" y="258">0 · bike pool (steal the bikes)</text>
+    <text x="320" y="258" text-anchor="middle">500 m · <tspan fill="#7bd389">gate</tspan></text>
+    <text x="600" y="258" text-anchor="middle">1000 m · <tspan fill="#7bd389">gate</tspan></text>
+    <text x="880" y="258" text-anchor="middle">1500 m · <tspan fill="#7bd389">gate</tspan></text>
+    <text x="1160" y="258" text-anchor="end">2000 m · fence barricade → town gate</text>
+  </g>
+  <text x="600" y="280" font-size="11" fill="#9aa3ad" text-anchor="middle">lane 26–34 m wide · ~23 s per stretch at ~22 m/s cruise · 4 bends · per-player split screen, camera locked behind the bike</text>
+
+  <!-- ================= PANELS ================= -->
+  <g fill="#1b1e24" stroke="#2a2d33" stroke-width="1.5">
+    <rect x="40" y="292" width="268" height="350" rx="6"/>
+    <rect x="324" y="292" width="268" height="350" rx="6"/>
+    <rect x="608" y="292" width="268" height="350" rx="6"/>
+    <rect x="892" y="292" width="268" height="350" rx="6"/>
+  </g>
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(60,312)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(344,312)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(628,312)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+    <g transform="translate(912,312)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">4</text></g>
+  </g>
+  <g font-size="13" font-weight="700" fill="#f2efe6">
+    <text x="78" y="317">The run-in</text>
+    <text x="362" y="317">The columns</text>
+    <text x="646" y="317">The falls</text>
+    <text x="930" y="317">The gun barge</text>
+  </g>
+  <g font-size="10" letter-spacing="1.5" fill="#6f7883" text-anchor="end">
+    <text x="300" y="317">PLAN · 5 px = 1 m</text>
+    <text x="584" y="317">PLAN · 5 px = 1 m</text>
+    <text x="868" y="317">SIDE SECTION</text>
+    <text x="1152" y="317">PLAN · 5 px = 1 m</text>
+  </g>
+
+  <!-- ===== panel 1: run-in ===== -->
+  <rect x="50" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="264" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="84" y="328" width="180" height="228" fill="url(#lavaP)"/>
+  <g fill="#3a3f48" stroke="#5a616d" stroke-width="1"><ellipse cx="206" cy="360" rx="22" ry="12"/><ellipse cx="112" cy="384" rx="14" ry="9"/></g>
+  <!-- cannon cone ±12° -->
+  <path d="M152,486 L128,376 L176,376 Z" fill="#e8b04a" fill-opacity=".13" stroke="#e8b04a" stroke-opacity=".6" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="152" y="370" font-size="10" fill="#e8b04a" text-anchor="middle">±12° cone</text>
+  <use href="#ebike" x="160" y="410"/><use href="#en" x="160" y="410"/>
+  <!-- player 1 + camera -->
+  <use href="#bike" x="152" y="498"/>
+  <path d="M152,540 L108,470 L196,470 Z" fill="#e9ecef" fill-opacity=".08"/>
+  <use href="#cam" x="152" y="540" transform="rotate(-90 152 540)"/>
+  <!-- rider alongside + side swing -->
+  <use href="#bike" x="220" y="452"/>
+  <use href="#ebike" x="246" y="450"/><use href="#en" x="246" y="450"/>
+  <path d="M226,438 Q240,430 244,440" fill="none" stroke="#e8b04a" stroke-width="2.5" marker-end="url(#arr)"/>
+  <text x="258" y="424" font-size="10" fill="#d7dbe0" text-anchor="end">side swing</text>
+  <!-- pillion -->
+  <use href="#bike" x="104" y="452"/>
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(152,498)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(220,452)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(104,444)"><circle r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(104,462)"><circle r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+  <text x="90" y="488" font-size="10" fill="#d7dbe0">pillion</text>
+  <g font-size="11" fill="#d7dbe0">
+    <text x="50" y="574">Lane-guided: stick = where in lane + speed.</text>
+    <text x="50" y="590" fill="#9aa3ad">Throttle 16 → 30 m/s, brake to 16, never stops.</text>
+    <text x="50" y="606" fill="#9aa3ad">Cannons (heat) · side swing · sideswipe.</text>
+    <text x="50" y="622" fill="#9aa3ad">Crust islands, first pirate bikers.</text>
+  </g>
+
+  <!-- ===== panel 2: columns ===== -->
+  <rect x="334" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="548" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="368" y="328" width="180" height="228" fill="url(#lavaP)"/>
+  <!-- fallen columns (single-file gaps) -->
+  <path d="M368,432 L506,446 L504,460 L368,448 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <path d="M548,362 L412,352 L414,366 L548,378 Z" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <!-- column about to fall: crack of light + footprint -->
+  <path d="M548,498 L420,486 L420,500 L548,512 Z" fill="#ff6a3d" fill-opacity=".35" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <path d="M549,494 L549,516" stroke="#fff3b0" stroke-width="3"/>
+  <path d="M566,520 C560,500 548,490 530,484" fill="none" stroke="#ff6a3d" stroke-width="1.5" marker-end="url(#arrH)"/>
+  <text x="452" y="530" font-size="10" fill="#d7dbe0" text-anchor="middle">crack of light → tilt</text>
+  <!-- geysers -->
+  <g fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="3 2">
+    <circle cx="392" cy="400" r="13"/><circle cx="520" cy="412" r="13"/>
+  </g>
+  <text x="520" y="394" font-size="10" fill="#d7dbe0" text-anchor="middle">geyser</text>
+  <!-- single-file path -->
+  <path d="M390,552 C390,520 400,490 404,478 C420,470 520,470 526,454 C530,420 470,400 440,392 C400,382 380,370 384,338" fill="none" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+  <use href="#bike" x="524" y="436"/>
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(524,436)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+  </g>
+  <g font-size="11" fill="#d7dbe0">
+    <text x="334" y="574">Basalt columns fall across the lane:</text>
+    <text x="334" y="590" fill="#9aa3ad">crack of light at the base, then the tilt</text>
+    <text x="334" y="606" fill="#9aa3ad">→ single-file gaps.</text>
+    <text x="334" y="622" fill="#9aa3ad">Lava geysers erupt on a glow telegraph.</text>
+  </g>
+
+  <!-- ===== panel 3: falls (side section) ===== -->
+  <!-- lava river stepping down two terraces, travel → -->
+  <path d="M618,400 L700,400 L700,450 L790,450 L790,500 L866,500 L866,556 L618,556 Z" fill="url(#lavaP)"/>
+  <path d="M618,400 L700,400 L700,450 L790,450 L790,500 L866,500" fill="none" stroke="#ff8a3d" stroke-width="2"/>
+  <path d="M618,556 L866,556" stroke="#4a4f58" stroke-width="3"/>
+  <!-- crust ramp at the second drop -->
+  <path d="M756,450 L790,450 L826,500 L790,500 Z" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+  <text x="824" y="480" font-size="10" fill="#d7dbe0">crust ramp</text>
+  <!-- rider + hop -->
+  <path d="M654,386 L676,386" stroke="#8a919c" stroke-width="5" stroke-linecap="round"/>
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(664,376)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+  </g>
+  <path d="M684,384 C712,350 740,370 752,438" fill="none" stroke="#e8b04a" stroke-width="3" stroke-dasharray="7 5" marker-end="url(#arr)"/>
+  <text x="712" y="358" font-size="10" fill="#e8b04a">hop (A) off the lip</text>
+  <path d="M760,440 C778,446 800,470 818,490" fill="none" stroke="#e8b04a" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- swoops diving -->
+  <g fill="#e0524a"><path d="M800,340 l7,8 l-7,8 l-7,-8 z"/><path d="M850,368 l7,8 l-7,8 l-7,-8 z"/></g>
+  <g fill="none" stroke="#e0524a" stroke-width="1.5">
+    <path d="M794,356 L768,396" marker-end="url(#arrE)"/><path d="M844,384 L826,420" marker-end="url(#arrE)"/>
+  </g>
+  <text x="860" y="340" font-size="10" fill="#d7dbe0" text-anchor="end">swoops dive</text>
+  <text x="626" y="420" font-size="10" fill="#9aa3ad">terrace 1</text>
+  <text x="706" y="470" font-size="10" fill="#9aa3ad">terrace 2</text>
+  <text x="626" y="546" font-size="10" fill="#9aa3ad">travel →</text>
+  <g font-size="11" fill="#d7dbe0">
+    <text x="618" y="574">The river drops two terraces:</text>
+    <text x="618" y="590" fill="#9aa3ad">hop (A) off the lip, or bounce down</text>
+    <text x="618" y="606" fill="#9aa3ad">the crust ramp.</text>
+    <text x="618" y="622" fill="#9aa3ad">Nikto swoops dive from above.</text>
+  </g>
+
+  <!-- ===== panel 4: gun barge ===== -->
+  <rect x="902" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="1116" y="328" width="34" height="228" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+  <rect x="936" y="328" width="180" height="228" fill="url(#lavaP)"/>
+  <!-- fence barricade at the mouth -->
+  <rect x="936" y="334" width="180" height="12" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+  <text x="1026" y="362" font-size="10" fill="#d7dbe0" text-anchor="middle">fence barricade → town gate</text>
+  <!-- lava-skiff -->
+  <path d="M1002,392 L1050,392 L1050,462 L1026,476 L1002,462 Z" fill="#7a3a36" stroke="#e0524a" stroke-width="2"/>
+  <circle cx="1026" cy="420" r="8" fill="#e0524a" stroke="#15171c" stroke-width="1"/>
+  <path d="M1026,420 L1026,440" stroke="#e0524a" stroke-width="3"/>
+  <use href="#en" x="1012" y="448"/><use href="#en" x="1040" y="448"/><use href="#en" x="1040" y="404"/>
+  <text x="1058" y="404" font-size="10" fill="#d7dbe0">flak gun</text>
+  <text x="1058" y="416" font-size="10" fill="#9aa3ad">+ crew</text>
+  <!-- flak bursts -->
+  <g fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.2" stroke-dasharray="3 2">
+    <circle cx="966" cy="498" r="12"/><circle cx="1092" cy="474" r="10"/>
+  </g>
+  <!-- boost ram + gunner shot -->
+  <use href="#bike" x="1026" y="536"/>
+  <path d="M1026,522 L1026,484" stroke="#e8b04a" stroke-width="4" marker-end="url(#arr)"/>
+  <text x="1036" y="508" font-size="10" fill="#e8b04a">boost ram</text>
+  <use href="#bike" x="958" y="530"/>
+  <path d="M960,516 L1018,426" stroke="#e9ecef" stroke-opacity=".5" stroke-width="1.2" stroke-dasharray="3 3"/>
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(1026,536)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(958,530)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+  </g>
+  <g font-size="11" fill="#d7dbe0">
+    <text x="902" y="574">Pirate lava-skiff holds mid-lane.</text>
+    <text x="902" y="590" fill="#9aa3ad">Kill the gunner, knock the crew off,</text>
+    <text x="902" y="606" fill="#9aa3ad">or ram it at boost — a slow bike folds.</text>
+    <text x="902" y="622" fill="#9aa3ad">Wreck on lava → last gate or a pillion.</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="url(#lavaP)"/><text x="64" y="693">lava river</text>
+    <rect x="140" y="682" width="18" height="12" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/><text x="164" y="693">basalt</text>
+    <rect x="222" y="682" width="18" height="12" fill="#3a3f48" stroke="#5a616d"/><text x="246" y="693">crust</text>
+    <path d="M298,688 L324,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="332" y="693">line</text>
+    <g transform="translate(386,688)"><rect x="-4" y="-9" width="8" height="18" rx="3" fill="#8a919c"/><circle r="6" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/></g><text x="398" y="693">player on bike</text>
+    <use href="#en" x="508" y="690"/><text x="520" y="693">pirate</text>
+    <rect x="578" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="602" y="693">hazard</text>
+    <path d="M664,680 L664,696" stroke="#7bd389" stroke-width="4"/><text x="674" y="693">gate (checkpoint)</text>
+    <g transform="translate(800,688) scale(.8)"><use href="#cam"/></g><text x="816" y="693">camera</text>
+    <circle cx="886" cy="688" r="8" fill="#e8b04a"/><text x="886" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="900" y="693">stretch</text>
+  </g>
+</svg>

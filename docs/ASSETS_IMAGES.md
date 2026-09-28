@@ -6,8 +6,11 @@ Once a request is filled it moves there, and anything that builds on it (the 3D 
 briefs, say) cites the resulting filename from there.
 
 **Open as of 2026-09-28:** the UI concept art in
-[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below. Before that
-batch there were no open requests (as of 2026-09-24). The Jedi and Maris
+[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below, and the
+gameplay-section keyframes in
+[Gameplay sections — keyframe concepts](#gameplay-sections--keyframe-concepts-2026-09-28),
+raised by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md). Before those
+batches there were no open requests (as of 2026-09-24). The Jedi and Maris
 canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
@@ -126,6 +129,76 @@ background stands out, and three do:
 | `ui_felt.jpg` | 1024×1024, tileable | "Seamless tileable top-down texture of worn dark teal card-table felt with faint cigarette burns, drink rings and brushed nap. Flat even lighting, no text." |
 | `ui_card_back.png` | 512×720 | "The back of an ornate sci-fi gambling card: deep burgundy field, a fine gold geometric border, a symmetrical original emblem of interlocking diamonds and a stylised crescent in the centre, slight wear on the corners. Flat lighting, no text, no real-world logos." |
 | `title_cantina.jpg` | 1920×1080 | "Interior of a dim frontier cantina at night, seen from a gambling table: blurry patrons in the background, glowing pink and cyan neon tubes, a curved bar, haze and smoke, warm pools of light on a green-felt table in the foreground with scattered chips. Leave the upper centre calm for a logo. No legible text." |
+
+## Gameplay sections — keyframe concepts (2026-09-28)
+
+Raised by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md), which proposes eighteen new kinds of
+level beat, two per territory. None is built yet. These pictures are there to help choose
+which ones to build, and to give the chosen ones something to aim the art at. Each one
+shows the moment the section exists for, from the camera the section will use. The
+schematic plans are already in `docs/sections/*.svg`. These paintings are the mood to go
+with them.
+
+**Location: `reference/sections/` — NOT under `public/`** (production reference, never
+shipped). **Files:** `<nn>-<id>.png`, 1536×864 (16:9), named to match the diagrams.
+
+**Shared preamble — prepend verbatim to every keyframe prompt below:**
+
+> Cinematic concept keyframe for a stylized-realistic third-person sci-fi action video
+> game, 16:9, a single readable gameplay moment seen from the game camera described.
+> A party of four mismatched armored bounty hunters with jetpacks (a T-visor helmeted
+> warrior in battered silver plate, a hooded gunslinger in a long coat, a horned
+> red-and-black warrior with a double-bladed energy staff, a lean hunter in green-grey
+> armor), small in frame so the place reads. Strong silhouettes, clear foreground /
+> midground / background, dramatic but even enough to read shapes. No text, no UI, no
+> logos, no watermark, no named characters or film frames. Scene:
+
+Same standing rules as every sheet: original designs only, described and never named.
+
+| File | Section | Scene prompt |
+|---|---|---|
+| `01-barge-run.png` | The Barge Run | "Chase camera behind and above a small open cargo skiff racing across golden dunes at speed, a huge three-deck desert sail barge with a tattered sail running parallel ten meters away, hunters leaping the gap with jetpack flames, desert raiders firing from the barge rail, swoop bikes banking alongside, dust streaming off both hulls, twin suns low" |
+| `02-worm-sign.png` | Worm Sign | "Over-the-shoulder view across open dunes scattered with flat rock islands, one hunter frozen mid-stride on the sand as a ring of rippling sand opens under a teammate ahead, a pounding metal thumper post planted on the far dune throwing up puffs of sand, desert raiders crouched on a rock with long rifles, the colossal back of something moving under the sand in the distance" |
+| `03-ring-walk.png` | The Ring Walk | "Elevated three-quarter side view from outside a colossal rotating space-station ring, four hunters walking its outer hull spine in one shot, the curved hull dropping away over a close horizon ahead, a docking spoke rising into the starfield, the station hub huge in the background, plasma vents flaring across the walkway in red, pirate dropships cresting the horizon, deep space all round" |
+| `04-frigate-guns.png` | Guns of the Frigate | "Low angle on the dorsal hull of a battered cargo frigate in open space, a hunter in a quad-barrelled gun turret firing tracer streams at incoming pirate interceptor drones, a boarding tube from a rust-brown dropship clamped to the hull edge with pirates climbing out, a second hunter sprinting across the hull to meet them, a space station and asteroid field falling away behind" |
+| `05-magma-run.png` | The Magma Run | "Chase camera behind a hunter on a lean speeder bike flying low over a river of glowing lava in a black basalt canyon, a pirate biker alongside being struck from the saddle by the hunter's swung spear, twin blaster bolts from the bike's nose, a falling basalt column ahead, lava geysers erupting, embers and heat haze" |
+| `06-chimney.png` | The Chimney | "Looking up from inside a vast vertical volcanic shaft, spiral basalt ledges climbing its walls, hunters jetpacking between ledges, one hunter turning a valve wheel on a wide landing while others fire upward at raiders on higher ledges, bright magma surging up from below lighting everything orange, a small disc of daylight at the very top" |
+| `07-glacier-chute.png` | The Glacier Chute | "Chase camera behind hunters sliding at speed down a banked channel of blue glacier ice, crouched like surfers, one jetpacking over a dark crevasse, pale long-legged ice spiders dropping from the channel walls, a white avalanche billowing down behind them, ice walls streaked with speed" |
+| `08-lamplight.png` | Lamplight | "Near-total darkness in an ice cavern hung with webs, four hunters back to back with narrow white helmet lamp beams cutting the dark, a burning brazier making a small warm pool of light, pale spiders recoiling at the edge of a beam, faintly glowing egg sacs on the walls, one hunter throwing a red flare into a nest" |
+| `09-squall.png` | The Squall | "A fishing trawler's deck heeling hard in a storm at sea, a wall of green water breaking over the rail, a hunter braced against a winch while another is washed across the deck, amphibious raiders climbing over the far rail, a loose net boom swinging overhead, lightning on the mast, rain and spray, dark heavy swell" |
+| `10-run-the-pier.png` | Run the Pier | "Camera ahead of the action looking back along a long rain-soaked wooden pier at night, four hunters sprinting straight toward the viewer, the pier planks exploding upward behind them as a colossal round-mouthed sea monster bursts through, one hunter turning to fire into its mouth, warehouse lights and storm sky behind" |
+| `11-lights-out.png` | Lights Out | "Night in an industrial refinery yard between huge storage tanks, searchlight beams sweeping from tall towers through steam, a hunter crouched in shadow behind a pipe rack as a beam passes inches away, another taking down an armored white-helmeted sentry from behind, a lit intake door far ahead, sodium lamps and haze" |
+| `12-the-line.png` | The Line | "A long industrial processing hall, four parallel conveyor belts running toward a glowing smelter mouth, massive hydraulic presses slamming down across the belts, sparking welding arms sweeping, hunters jumping between belts and riding crates, armored troopers firing from catwalks above, a flame trooper on the floor, orange molten light at the far end" |
+| `13-covert-sky.png` | Covert Sky | "Aerial view of armored hunters flying with jetpacks at full burn between the broken towers of a ruined city fused to green glass, glowing flight rings marking a path, air-burst flak blooming, sleek interceptor drones in pursuit, a colossal broken dome on the horizon with a breach in its roof, dusk sky" |
+| `14-hold-the-forge.png` | Hold the Forge | "Inside a ruined circular stone court under a broken dome, a masked armorer in a horned helmet hammering glowing metal at a great brazier on a raised dais, four hunters holding the dais behind waist-high curved metal shields, stone-skinned brutes pouring in through a pass, sparks and forge-fire light" |
+| `15-tram-top.png` | Tram Top | "Side-on view from beside a speeding city tram of three cars, hunters fighting pirates on the roof, one hunter ducking flat under an overhead sign gantry sweeping past, a rival tram on the next track closing in with gunners on its roof, neon city towers and a curved ring-world horizon rising into the sky behind" |
+| `16-the-mark-runs.png` | The Mark Runs | "A rooftop chase across a neon sci-fi city at dusk, a fleeing fugitive with a small jetpack leaping a gap between rooftops ahead, two hunters in pursuit mid-jump with jetpack flames, crates tumbling off a roof edge behind the fugitive, water tanks and antenna masts, a long drop to the street" |
+| `17-one-way-out.png` | One Way Out | "A stark white prison work floor laid out in a grid of floor tiles, a row of tiles crackling with blue-white electricity, a crowd of prisoners in plain work jumpsuits surging behind a hunter across the safe tiles, cell shutters open along the walls, armored guards firing from gantries above, hard white light" |
+| `18-the-lift.png` | The Lift | "A square open freight lift platform rising fast up a tall white-paneled shaft, hunters holding the platform as armored jet troopers drop onto it from above, a landing sliding past with guards firing across the gap, a shadow of falling debris on the deck, light from the top of the shaft" |
+
+**Supporting images — generate only when a section is picked.** Each is listed under the
+section that needs it. If a section is not chosen for building, its images are never
+made. Global specs above apply. Prop sheets follow the vehicle and prop recipe
+(orthographic side, front and top on one 1536×1024 canvas, one scale, flat even
+lighting, plain mid-grey background, no people, no text) into `reference/props/`.
+Textures are 1024×1024 seamless into `public/assets/textures/`.
+
+| Section | File | Prompt |
+|---|---|---|
+| Worm Sign | `thumper_ref.png` | "a desert nomad's sand-thumper: a 2.4 meter tripod of lashed scavenged pipe and bone with a heavy iron piston hammer on a crank, a counterweight of stones in a net, leather straps and prayer ribbons, a spike foot, built to be carried and planted in sand" |
+| Ring Walk | `ring_hull_spine.jpg` | "Seamless tileable top-down texture of a spacecraft hull walkway: large riveted grey armor plates with a raised central conduit trough, anti-slip tread strips, faded yellow edge hazard bands, scorch marks, micrometeor pitting, even lighting, no shadows" |
+| Guns of the Frigate | `quad_turret_ref.png` | "a dorsal ship's quad blaster turret about 4 meters across: a squat armored rotating dome with four long stacked cannon barrels, an open gunner's seat behind a curved armor shield, heat-sink fins, chipped gunmetal-grey paint with rust-brown patches" |
+| Guns of the Frigate | `pirate_corvette_ref.png` | "a scabbed-together outlaw corvette about 60 meters long: an old cargo hull with welded armor slabs, a long spinal cannon along the keel, three bulbous shield generator domes on pylons, mismatched engine pods, rust-brown and bare metal, in level flight" |
+| Glacier Chute | `glacier_chute.jpg` | "Seamless tileable top-down texture of smooth glacier ice worn into a slide channel: pale blue-white ice with long parallel skid grooves and scratches running one direction, frost dust in the grooves, a few dark inclusions, even lighting, no shadows" |
+| Lamplight | `web_sheet.png` (alpha) | "Seamless tileable alpha texture of dense spider silk sheeting: thick irregular pale strands and translucent membranes, a few clumps and dew beads, white on transparent, no colour" |
+| Lights Out | `searchlight_tower_ref.png` | "an industrial security searchlight tower 14 meters tall: a lattice steel mast with a caged ladder, a small platform at the top with a large drum searchlight on a motorised yoke, a sensor mast, a hazard-striped base, oxidised grey-green steel" |
+| The Line | `conveyor_belt.jpg` | "Seamless tileable top-down texture of a heavy industrial conveyor belt: dark rubberised segmented belt with raised transverse cleats, worn to bare metal at the edges, oil stains and grit, even lighting, no shadows" |
+| The Line | `hydraulic_press_ref.png` | "a heavy industrial hydraulic press gantry spanning a conveyor, 8 meters wide and 7 meters tall: two thick steel columns, a massive press head on four hydraulic rams, hazard striping on the press face, hoses and gauges, grimy grey-yellow paint" |
+| Covert Sky | `flak_tower_ref.png` | "an improvised air-defence flak emplacement on a ruined stone tower top: a twin-barrelled rotating flak cannon on a sandbagged ring of rubble, ammunition crates, a sensor dish, scorched stone, all about 6 meters across" |
+| Hold the Forge | `beskar_barricade_ref.png` | "a waist-high curved portable barricade of dark blue-grey forged metal, 3 meters wide and 1.2 meters tall, hammered plate with a riveted rim, a fold-out brace foot behind, a simple engraved crest of a horned skull on the face, battle-dented" |
+| The Mark Runs | `rooftop.jpg` | "Seamless tileable top-down texture of a sci-fi city rooftop: dark weatherproof membrane panels with seams, small vent grilles, cable runs, puddle stains, faded teal service markings, even lighting, no shadows" |
+| One Way Out | `prisoner_front.png`, `_side.png`, `_back.png` | Use the character preamble above. Subject: "a gaunt adult prison laborer in a plain pale work jumpsuit with numbered chest and shoulder patches, a thin grey padded work vest, soft rubber-soled boots, cropped hair, hands empty, worn and tired" |
+| The Lift | `shaft_wall.jpg` + `shaft_wall_normal.png` | "Seamless tileable texture of the inside wall of a tall industrial lift shaft seen side-on: white composite panels with heavy horizontal ribs every metre, recessed guide rails, small amber marker lights in the rib line, grime streaks running down, even lighting, no shadows" |
 
 ## Making more character reference sheets
 

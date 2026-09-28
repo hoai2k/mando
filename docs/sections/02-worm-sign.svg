@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="en" d="M0,-7 L6.5,5 L-6.5,5 z" fill="#e0524a"/>
+    <path id="tent" d="M-8,5 L0,-6 L8,5 z" fill="#8a7650" stroke="#15171c" stroke-width="1"/>
+    <g id="flag">
+      <path d="M0,0 L0,-20" stroke="#7bd389" stroke-width="2"/>
+      <path d="M0,-20 L12,-16 L0,-12 Z" fill="#7bd389"/>
+    </g>
+    <g id="post">
+      <rect x="-5" y="-5" width="10" height="10" fill="#b48cff" stroke="#15171c" stroke-width="1"/>
+      <path d="M0,-5 L0,-12" stroke="#b48cff" stroke-width="2"/>
+    </g>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">02 · Worm Sign</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Dune Sea · detection crossing · ~3 min</text>
+
+  <text x="50" y="108" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · 180 × 110 m OPEN DUNE · 4.5 px = 1 m</text>
+
+  <!-- field -->
+  <rect x="50" y="118" width="810" height="495" fill="#6b5a3e" fill-opacity=".3" stroke="#4a4f58" stroke-width="4"/>
+  <g fill="none" stroke="#8a7650" stroke-opacity=".4" stroke-width="1.5">
+    <path d="M70,160 q40,-12 80,0 t80,0"/>
+    <path d="M560,140 q40,-12 80,0 t80,0 t80,0"/>
+    <path d="M620,320 q30,-10 60,0 t60,0"/>
+    <path d="M150,420 q30,-10 60,0 t60,0"/>
+    <path d="M420,440 q30,-10 60,0 t60,0"/>
+    <path d="M660,590 q30,-10 60,0 t60,0"/>
+    <path d="M70,590 q30,-10 60,0 t60,0 t60,0"/>
+    <path d="M790,200 q20,-8 40,0"/>
+  </g>
+
+  <!-- entry / exit gates -->
+  <path d="M50,340 L50,392" stroke="#7bd389" stroke-width="6"/>
+  <text x="60" y="310" font-size="12" fill="#d7dbe0">from</text>
+  <text x="60" y="324" font-size="12" fill="#d7dbe0">airlock</text>
+  <path d="M860,340 L860,392" stroke="#7bd389" stroke-width="6"/>
+  <text x="850" y="310" font-size="12" fill="#d7dbe0" text-anchor="end">to pit</text>
+  <text x="850" y="324" font-size="12" fill="#d7dbe0" text-anchor="end">fence</text>
+
+  <!-- rock islands (17) -->
+  <g fill="#3a3f48" stroke="#5a616d" stroke-width="2">
+    <!-- straight route -->
+    <ellipse cx="95" cy="366" rx="36" ry="32"/>
+    <ellipse cx="320" cy="366" rx="36" ry="32"/>
+    <ellipse cx="455" cy="366" rx="22" ry="20"/>
+    <ellipse cx="590" cy="366" rx="36" ry="32"/>
+    <ellipse cx="815" cy="366" rx="36" ry="32"/>
+    <!-- north winding route -->
+    <ellipse cx="185" cy="253" rx="22" ry="20"/>
+    <ellipse cx="275" cy="208" rx="27" ry="24"/>
+    <ellipse cx="374" cy="253" rx="27" ry="24"/>
+    <ellipse cx="491" cy="217" rx="36" ry="32"/>
+    <ellipse cx="608" cy="262" rx="22" ry="20"/>
+    <ellipse cx="734" cy="253" rx="27" ry="24"/>
+    <!-- south winding route -->
+    <ellipse cx="176" cy="478" rx="27" ry="24"/>
+    <ellipse cx="275" cy="523" rx="22" ry="20"/>
+    <ellipse cx="383" cy="496" rx="36" ry="32"/>
+    <ellipse cx="500" cy="532" rx="22" ry="20"/>
+    <ellipse cx="608" cy="478" rx="27" ry="24"/>
+    <ellipse cx="734" cy="478" rx="27" ry="24"/>
+  </g>
+
+  <!-- routes -->
+  <g fill="none" stroke="#e8b04a">
+    <path d="M132,366 L776,366" stroke-width="4" marker-end="url(#arr)"/>
+    <path d="M118,340 C150,280 160,262 185,253 C225,240 245,212 275,208 C320,204 340,250 374,253 C420,256 440,220 491,217 C540,214 575,260 608,262 C650,264 690,250 734,253 C770,256 790,300 800,334" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arr)"/>
+    <path d="M118,392 C150,450 160,470 176,478 C215,496 245,520 275,523 C320,526 345,498 383,496 C430,494 455,530 500,532 C545,534 570,480 608,478 C650,476 690,480 734,478 C770,476 790,430 800,398" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arr)"/>
+  </g>
+  <text x="208" y="356" font-size="12" fill="#e8b04a" text-anchor="middle">fast · long sand gaps</text>
+  <text x="208" y="386" font-size="11" fill="#9aa3ad" text-anchor="middle">~34 m</text>
+  <text x="155" y="200" font-size="12" fill="#e8b04a" text-anchor="middle">winding · short gaps</text>
+  <text x="155" y="545" font-size="12" fill="#e8b04a" text-anchor="middle">winding · short gaps</text>
+
+  <!-- checkpoints at the thirds -->
+  <use href="#flag" x="86" y="360"/>
+  <use href="#flag" x="310" y="360"/>
+  <use href="#flag" x="580" y="360"/>
+  <text x="320" y="408" font-size="11" fill="#7bd389" text-anchor="middle">⅓ · 60 m</text>
+  <text x="590" y="408" font-size="11" fill="#7bd389" text-anchor="middle">⅔ · 120 m</text>
+
+  <!-- thumper posts (4) -->
+  <use href="#post" x="275" y="212"/>
+  <use href="#post" x="608" y="266"/>
+  <use href="#post" x="176" y="482"/>
+  <rect x="603" y="477" width="10" height="10" fill="none" stroke="#b48cff" stroke-width="1.5" stroke-dasharray="2 2"/>
+  <text x="640" y="502" font-size="10" fill="#9aa3ad">post pulled</text>
+  <text x="275" y="178" font-size="11" fill="#d7dbe0" text-anchor="middle">thumper post</text>
+
+  <!-- Tusken camps -->
+  <g>
+    <use href="#tent" x="480" y="206"/><use href="#tent" x="500" y="224"/>
+    <use href="#en" x="470" y="226"/><use href="#en" x="512" y="206"/><use href="#en" x="494" y="240"/>
+  </g>
+  <text x="491" y="176" font-size="12" fill="#d7dbe0" text-anchor="middle">Tusken camp</text>
+  <g>
+    <use href="#tent" x="372" y="486"/><use href="#tent" x="394" y="504"/>
+    <use href="#en" x="366" y="508"/><use href="#en" x="398" y="484"/><use href="#en" x="404" y="514"/>
+  </g>
+  <text x="383" y="544" font-size="12" fill="#d7dbe0" text-anchor="middle">Tusken camp</text>
+
+  <!-- player 3 on rock: free fire at the camp -->
+  <path d="M598,358 L506,236" stroke="#e9ecef" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="3 4" fill="none"/>
+  <text x="540" y="296" font-size="11" fill="#d7dbe0" text-anchor="end">on rock:</text>
+  <text x="540" y="309" font-size="11" fill="#d7dbe0" text-anchor="end">fire = 0 noise</text>
+
+  <!-- planted thumper + strike ring on the south flank -->
+  <circle cx="554" cy="572" r="22.5" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="2" stroke-dasharray="5 3"/>
+  <circle cx="554" cy="572" r="31" fill="none" stroke="#b48cff" stroke-opacity=".6" stroke-width="1.2" stroke-dasharray="2 3"/>
+  <circle cx="554" cy="572" r="39" fill="none" stroke="#b48cff" stroke-opacity=".35" stroke-width="1.2" stroke-dasharray="2 3"/>
+  <rect x="548" y="566" width="12" height="12" fill="#b48cff" stroke="#15171c" stroke-width="1"/>
+  <text x="498" y="590" font-size="11" fill="#d7dbe0" text-anchor="end">planted thumper</text>
+  <text x="498" y="603" font-size="10" fill="#9aa3ad" text-anchor="end">pounds 15 s</text>
+  <text x="610" y="560" font-size="11" fill="#d7dbe0">strike ring 10 m</text>
+  <text x="610" y="573" font-size="10" fill="#9aa3ad">2.0 s telegraph</text>
+
+  <!-- sandworm, burrowed, turning onto the thumper -->
+  <path d="M840,600 C800,560 760,610 700,590 C660,578 640,590 600,580" fill="none" stroke="#e0524a" stroke-width="9" stroke-opacity=".35" stroke-linecap="round"/>
+  <path d="M840,600 C800,560 760,610 700,590 C660,578 640,590 604,581" fill="none" stroke="#e0524a" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrE)"/>
+  <text x="846" y="538" font-size="13" font-weight="700" fill="#e0524a" text-anchor="end">SANDWORM</text>
+  <text x="846" y="552" font-size="10" fill="#9aa3ad" text-anchor="end">hunts the loudest thing on sand</text>
+
+  <!-- player 4 back on rock after planting -->
+  <path d="M570,556 C580,530 590,510 598,492" fill="none" stroke="#e8b04a" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arr)"/>
+
+  <!-- noise rings around sprinting players -->
+  <g fill="none" stroke="#e9ecef" stroke-opacity=".45" stroke-width="1.2">
+    <path d="M662,346 a20,20 0 0 1 0,34"/><path d="M656,340 a28,28 0 0 1 0,46"/>
+  </g>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(700,358)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(676,378)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(604,374)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(622,470)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+  <text x="700" y="400" font-size="11" fill="#d7dbe0" text-anchor="middle">1+2 sprint the gap</text>
+  <text x="700" y="413" font-size="10" fill="#9aa3ad" text-anchor="middle">while the worm is busy</text>
+
+  <!-- per-player camera behind player 1 -->
+  <path d="M668,340 L760,318 L760,398 Z" fill="#e9ecef" fill-opacity=".08"/>
+  <use href="#cam" x="664" y="336" transform="rotate(10 664 336)"/>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <g transform="translate(730,334)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">1</text></g>
+    <g transform="translate(596,540)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">2</text></g>
+    <g transform="translate(524,572)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">3</text></g>
+    <g transform="translate(540,190)"><circle r="11" fill="#e8b04a"/><text y="4.5" fill="#15171c">4</text></g>
+  </g>
+
+  <!-- scale -->
+  <g stroke="#9aa3ad" stroke-width="2"><path d="M50,630 L140,630 M50,624 L50,636 M95,626 L95,634 M140,624 L140,636"/></g>
+  <text x="50" y="650" font-size="12" fill="#9aa3ad">0</text>
+  <text x="140" y="650" font-size="12" fill="#9aa3ad" text-anchor="middle">20 m</text>
+  <text x="860" y="632" font-size="11" fill="#9aa3ad" text-anchor="end">17 rock islands · 8–16 m across · 10–20 m apart on the winding routes</text>
+
+  <!-- ================= NOTES ================= -->
+  <text x="890" y="108" font-size="12" letter-spacing="2" fill="#6f7883">NOISE METER · K6</text>
+  <g font-size="12" fill="#d7dbe0">
+    <text x="890" y="132">walk on sand</text>
+    <text x="890" y="152">sprint</text>
+    <text x="890" y="172">fire blaster</text>
+    <text x="890" y="192">jetpack burn</text>
+    <text x="890" y="212">hard landing</text>
+    <text x="890" y="232">anything on rock</text>
+  </g>
+  <g>
+    <rect x="1010" y="123" width="150" height="11" fill="#2a2d33"/><rect x="1010" y="123" width="22" height="11" fill="#e9ecef" fill-opacity=".7"/>
+    <rect x="1010" y="143" width="150" height="11" fill="#2a2d33"/><rect x="1010" y="143" width="78" height="11" fill="#e9ecef" fill-opacity=".7"/>
+    <rect x="1010" y="163" width="150" height="11" fill="#2a2d33"/><rect x="1010" y="163" width="84" height="11" fill="#e9ecef" fill-opacity=".7"/>
+    <rect x="1010" y="183" width="150" height="11" fill="#2a2d33"/><rect x="1010" y="183" width="112" height="11" fill="#e9ecef" fill-opacity=".7"/>
+    <rect x="1010" y="203" width="150" height="11" fill="#2a2d33"/><rect x="1010" y="203" width="150" height="11" fill="#ff6a3d" fill-opacity=".8"/>
+    <rect x="1010" y="223" width="150" height="11" fill="#2a2d33"/>
+    <text x="1016" y="232" font-size="10" fill="#9aa3ad">0</text>
+  </g>
+  <text x="890" y="254" font-size="11" fill="#9aa3ad">decays over ~4 s · party sum = worm hunger</text>
+
+  <g font-size="12" fill="#d7dbe0">
+    <g transform="translate(900,284)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+    <text x="918" y="289" font-weight="700" fill="#f2efe6" font-size="13">Noise → hunger</text>
+    <text x="918" y="306">Past the threshold the worm</text>
+    <text x="918" y="322">surfaces at the loudest player on sand.</text>
+
+    <g transform="translate(900,352)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+    <text x="918" y="357" font-weight="700" fill="#f2efe6" font-size="13">The strike</text>
+    <text x="918" y="374">10 m ring, 2.0 s rumble, eruption:</text>
+    <text x="918" y="390">thrown + heavy damage. Hunger → ½.</text>
+
+    <g transform="translate(900,420)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+    <text x="918" y="425" font-weight="700" fill="#f2efe6" font-size="13">Thumpers (4 posts)</text>
+    <text x="918" y="442">Carry (hands full, no gun), plant on</text>
+    <text x="918" y="458">sand (hold 1 s): loudest thing, 15 s.</text>
+
+    <g transform="translate(900,488)"><circle r="10" fill="#e8b04a"/><text y="4.5" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+    <text x="918" y="493" font-weight="700" fill="#f2efe6" font-size="13">Tusken camps (2)</text>
+    <text x="918" y="510">Blasting from sand feeds hunger;</text>
+    <text x="918" y="526">melee is quiet; rock = free fire.</text>
+  </g>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="890" y="562" font-weight="700" fill="#d7dbe0">Failing</text>
+    <text x="890" y="579">Re-form at the last checkpoint island</text>
+    <text x="890" y="595">a living player stood on. No fail state.</text>
+    <text x="890" y="622" font-weight="700" fill="#d7dbe0">Camera</text>
+    <text x="946" y="622">per-player; ring is a ground decal</text>
+  </g>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="682" width="18" height="12" fill="#3a3f48" stroke="#5a616d"/><text x="64" y="693">rock (0 noise)</text>
+    <rect x="166" y="682" width="18" height="12" fill="#6b5a3e" fill-opacity=".6"/><text x="190" y="693">deep sand</text>
+    <path d="M266,688 L292,688" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/><text x="300" y="693">routes</text>
+    <circle cx="370" cy="688" r="7" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/><text x="382" y="693">player</text>
+    <use href="#en" x="446" y="690"/><text x="458" y="693">Tusken</text>
+    <rect x="516" y="682" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="3 2"/><text x="540" y="693">strike ring</text>
+    <g transform="translate(626,696)"><path d="M0,0 L0,-16" stroke="#7bd389" stroke-width="2"/><path d="M0,-16 L10,-12 L0,-8 Z" fill="#7bd389"/></g><text x="642" y="693">checkpoint</text>
+    <rect x="726" y="683" width="10" height="10" fill="#b48cff"/><text x="744" y="693">thumper</text>
+    <g transform="translate(818,688) scale(.8)"><use href="#cam"/></g><text x="834" y="693">camera</text>
+    <circle cx="904" cy="688" r="8" fill="#e8b04a"/><text x="904" y="692" font-size="10" font-weight="700" fill="#15171c" text-anchor="middle">1</text><text x="918" y="693">beat</text>
+  </g>
+</svg>

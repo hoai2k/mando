@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/>
+    </marker>
+    <marker id="arrH" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/>
+    </marker>
+    <g id="cam">
+      <rect x="-9" y="-6" width="13" height="12" rx="2" fill="#e9ecef"/>
+      <path d="M4,-3 L10,-7 L10,7 L4,3 z" fill="#e9ecef"/>
+    </g>
+    <path id="kr" d="M0,-7 L6.5,5 L-6.5,5 z" fill="#e0524a"/>
+  </defs>
+
+  <rect width="1200" height="720" fill="#15171c"/>
+
+  <!-- header -->
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">07 · The Glacier Chute</text>
+  <text x="40" y="78" font-size="16" fill="#9aa3ad">Crevasse · momentum descent · ~2 min</text>
+  <text x="560" y="78" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · LENGTH TO SCALE, WIDTHS ×3</text>
+
+  <!-- ===== PLAN: the chute ===== -->
+  <!-- rims (walls) -->
+  <g fill="none" stroke-linecap="butt">
+    <path d="M80,190 C130,180 180,200 230,190 C300,140 480,135 540,190 C600,185 650,195 700,190 A170,170 0 0 1 700,530 C620,535 540,525 460,530" stroke="#4a4f58" stroke-width="58"/>
+    <path d="M230,190 C290,320 480,330 540,190" stroke="#4a4f58" stroke-width="62"/>
+    <path d="M700,190 A170,170 0 0 1 700,530" stroke="#4a4f58" stroke-width="72"/>
+    <path d="M80,190 C130,180 180,200 230,190 C300,140 480,135 540,190 C600,185 650,195 700,190 A170,170 0 0 1 700,530 C620,535 540,525 460,530" stroke="#2a2d33" stroke-width="54"/>
+    <path d="M230,190 C290,320 480,330 540,190" stroke="#2a2d33" stroke-width="58"/>
+    <path d="M700,190 A170,170 0 0 1 700,530" stroke="#2a2d33" stroke-width="68"/>
+    <!-- floor -->
+    <path d="M80,190 C130,180 180,200 230,190 C300,140 480,135 540,190 C600,185 650,195 700,190 A170,170 0 0 1 700,530 C620,535 540,525 460,530" stroke="#4f5e6d" stroke-width="44"/>
+    <path d="M230,190 C290,320 480,330 540,190" stroke="#4f5e6d" stroke-width="48"/>
+    <path d="M700,190 A170,170 0 0 1 700,530" stroke="#4f5e6d" stroke-width="58"/>
+  </g>
+
+  <!-- banked turn: ride-up band on outer wall -->
+  <path d="M700,168 A192,192 0 0 1 700,552" fill="none" stroke="#9fc3dc" stroke-opacity=".35" stroke-width="6" stroke-dasharray="3 5"/>
+  <text x="820" y="160" font-size="13" fill="#d7dbe0" text-anchor="middle">banked turn</text>
+
+  <!-- golden path -->
+  <g fill="none" stroke="#e8b04a" stroke-width="3">
+    <path d="M92,189 C130,180 180,200 226,191" marker-end="url(#arr)"/>
+    <path d="M234,187 C300,140 480,135 536,186" marker-end="url(#arr)"/>
+    <path d="M234,194 C290,320 480,330 537,196" marker-end="url(#arr)" stroke-dasharray="8 5"/>
+    <path d="M546,189 C600,185 650,195 700,190 A170,170 0 0 1 700,530 C620,535 540,525 470,530" marker-end="url(#arr)"/>
+  </g>
+
+  <!-- avalanche mass + front (behind the party) -->
+  <path d="M60,160 L160,160 Q170,190 160,222 L60,222 Z" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="2" stroke-dasharray="6 4"/>
+  <path d="M160,160 Q170,190 160,222" fill="none" stroke="#ff6a3d" stroke-width="3"/>
+  <path d="M168,238 L205,238" stroke="#ff6a3d" stroke-width="2.5" marker-end="url(#arrH)"/>
+  <text x="62" y="252" font-size="13" fill="#d7dbe0">avalanche front</text>
+  <text x="62" y="268" font-size="12" fill="#9aa3ad">just under cruise speed</text>
+  <text x="60" y="146" font-size="12" fill="#9aa3ad">START · nest-mouth floor gives way</text>
+
+  <!-- crevasses (dark gaps across the lane) -->
+  <g fill="#0b0d12" stroke="#7fa8c4" stroke-opacity=".6" stroke-width="1.5">
+    <rect x="-9" y="-30" width="18" height="60" transform="translate(283,166) rotate(-17)"/>
+    <rect x="-15" y="-30" width="30" height="60" transform="translate(476,160) rotate(14)"/>
+    <rect x="-12" y="-28" width="24" height="56" transform="translate(620,189)"/>
+    <rect x="-18" y="-28" width="36" height="56" transform="translate(655,531)"/>
+  </g>
+  <g font-size="12" fill="#9aa3ad" text-anchor="middle">
+    <text x="270" y="126">6 m</text>
+    <text x="492" y="122">10 m</text>
+    <text x="620" y="152">8 m</text>
+    <text x="655" y="578">12 m</text>
+  </g>
+
+  <!-- ice tunnel with ceiling -->
+  <rect x="500" y="506" width="92" height="48" fill="#2a2d33" fill-opacity=".6" stroke="#9fc3dc" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <g transform="translate(520,518)"><use href="#kr" transform="rotate(180)"/></g>
+  <g transform="translate(546,542)"><use href="#kr" transform="rotate(180)"/></g>
+  <g transform="translate(572,518)"><use href="#kr" transform="rotate(180)"/></g>
+  <text x="546" y="494" font-size="13" fill="#d7dbe0" text-anchor="middle">ice tunnel · krykna on ceiling</text>
+
+  <!-- snowbank end -->
+  <ellipse cx="428" cy="530" rx="40" ry="32" fill="#e9ecef" fill-opacity=".22" stroke="#e9ecef" stroke-opacity=".5" stroke-width="1.5"/>
+  <text x="428" y="519" font-size="12" fill="#d7dbe0" text-anchor="middle">snowbank</text>
+  <text x="428" y="534" font-size="12" fill="#d7dbe0" text-anchor="middle">regroup</text>
+  <text x="428" y="549" font-size="11" fill="#9aa3ad" text-anchor="middle">1.5 km</text>
+  <path d="M428,564 L428,590" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+  <text x="440" y="596" font-size="12" fill="#9aa3ad">to the queen tunnel entrance</text>
+
+  <!-- flag gates (8) -->
+  <g stroke="#7bd389" stroke-width="3">
+    <line x1="205" y1="170" x2="205" y2="210"/>
+    <line x1="575" y1="168" x2="575" y2="208"/>
+    <line x1="688" y1="170" x2="688" y2="210"/>
+    <line x1="805" y1="225" x2="835" y2="255"/>
+    <line x1="842" y1="360" x2="898" y2="360"/>
+    <line x1="805" y1="495" x2="835" y2="465"/>
+    <line x1="612" y1="510" x2="612" y2="552"/>
+    <line x1="478" y1="510" x2="478" y2="552"/>
+  </g>
+  <g fill="#7bd389">
+    <path d="M205,170 v-16 l11,4 l-11,4z"/>
+    <path d="M575,168 v-16 l11,4 l-11,4z"/>
+    <path d="M688,170 v-16 l11,4 l-11,4z"/>
+    <path d="M835,255 v-16 l11,4 l-11,4z"/>
+    <path d="M898,360 v-16 l11,4 l-11,4z"/>
+    <path d="M835,465 v-16 l11,4 l-11,4z"/>
+    <path d="M612,552 v16 l11,-4 l-11,-4z"/>
+    <path d="M478,552 v16 l11,-4 l-11,-4z"/>
+  </g>
+
+  <!-- right fork: krykna on the walls, drop shadow, web patch -->
+  <g>
+    <use href="#kr" x="262" y="247"/>
+    <use href="#kr" x="330" y="312"/>
+    <use href="#kr" x="360" y="252"/>
+    <use href="#kr" x="430" y="320"/>
+    <use href="#kr" x="452" y="258"/>
+    <use href="#kr" x="505" y="280"/>
+  </g>
+  <ellipse cx="420" cy="296" rx="13" ry="8" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <g transform="translate(470,272)">
+    <circle r="11" fill="#d7dbe0" fill-opacity=".25" stroke="#d7dbe0" stroke-width="1.2"/>
+    <path d="M-8,-8 L8,8 M8,-8 L-8,8 M-11,0 L11,0 M0,-11 L0,11" stroke="#d7dbe0" stroke-width="1"/>
+  </g>
+  <text x="385" y="355" font-size="13" fill="#d7dbe0" text-anchor="middle">RIGHT FORK · longer · krykna</text>
+  <text x="385" y="372" font-size="12" fill="#9aa3ad" text-anchor="middle">drop shadow = telegraph · web patch slows</text>
+  <text x="385" y="108" font-size="13" fill="#d7dbe0" text-anchor="middle">LEFT FORK · shorter · crevasse jumps</text>
+
+  <!-- camera behind player 1, looking down the slope -->
+  <path d="M322,160 L455,128 L455,190 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="322" y="160" transform="rotate(-6 322 160)"/>
+
+  <!-- players -->
+  <g font-size="11" font-weight="700" fill="#fff" text-anchor="middle">
+    <g transform="translate(352,153)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">1</text></g>
+    <g transform="translate(432,152)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">2</text></g>
+    <g transform="translate(312,274)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">3</text></g>
+    <g transform="translate(385,291)"><circle r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text y="4">4</text></g>
+  </g>
+
+  <!-- distance ticks along route -->
+  <g font-size="11" fill="#6f7883">
+    <text x="570" y="240">≈500 m</text>
+    <text x="760" y="400">≈1 km</text>
+  </g>
+
+  <!-- callouts -->
+  <g font-size="13" font-weight="700" fill="#15171c" text-anchor="middle">
+    <g transform="translate(262,176)"><circle r="11" fill="#e8b04a"/><text y="4.5">1</text></g>
+    <g transform="translate(232,228)"><circle r="11" fill="#e8b04a"/><text y="4.5">2</text></g>
+    <g transform="translate(476,200)"><circle r="11" fill="#e8b04a"/><text y="4.5">3</text></g>
+    <g transform="translate(546,470)"><circle r="11" fill="#e8b04a"/><text y="4.5">4</text></g>
+    <g transform="translate(470,300)"><circle r="11" fill="#e8b04a"/><text y="4.5">5</text></g>
+    <g transform="translate(150,280)"><circle r="11" fill="#e8b04a"/><text y="4.5">6</text></g>
+    <g transform="translate(870,300)"><circle r="11" fill="#e8b04a"/><text y="4.5">7</text></g>
+  </g>
+
+  <!-- ===== SIDE SECTION inset ===== -->
+  <rect x="40" y="400" width="340" height="236" rx="6" fill="#1b1e24" stroke="#2f343c"/>
+  <text x="54" y="422" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · TRUE SLOPE</text>
+  <!-- profile: 1.5 km along slope, 12° avg (~310 m drop), steeper pitches -->
+  <path d="M56,450 L100,457 L114,468 L180,480 L196,492 L262,503 L276,515 L360,527 L360,600 L56,600 Z" fill="#7fa8c4" fill-opacity=".25" stroke="none"/>
+  <path d="M56,450 L100,457 L114,468 L180,480 L196,492 L262,503 L276,515 L360,527" fill="none" stroke="#9fc3dc" stroke-width="2"/>
+  <!-- crevasse notches -->
+  <g fill="#0b0d12">
+    <path d="M140,472 l3,14 l3,-14z"/>
+    <path d="M166,477 l3,14 l3,-14z"/>
+    <path d="M230,497 l3,14 l3,-14z"/>
+    <path d="M300,518 l3,14 l3,-14z"/>
+  </g>
+  <!-- tunnel ceiling -->
+  <path d="M320,512 L346,508" stroke="#9fc3dc" stroke-width="3"/>
+  <text x="333" y="500" font-size="11" fill="#9aa3ad" text-anchor="middle">tunnel</text>
+  <!-- avalanche wedge -->
+  <path d="M58,451 L88,455 L88,441 Q74,434 58,441 Z" fill="#ff6a3d" fill-opacity=".45" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+  <!-- player + camera behind/above -->
+  <g transform="translate(128,462)"><circle r="6" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/></g>
+  <path d="M108,436 L200,446 L186,486 Z" fill="#e9ecef" fill-opacity=".1"/>
+  <use href="#cam" x="108" y="436" transform="rotate(18 108 436)"/>
+  <g font-size="12" fill="#9aa3ad">
+    <text x="190" y="560">12° average · ~310 m drop</text>
+    <text x="190" y="576">steeper pitches ~25°</text>
+    <text x="190" y="592">snowbank at the foot</text>
+  </g>
+  <g font-size="11" fill="#6f7883">
+    <line x1="56" y1="620" x2="112" y2="620" stroke="#6f7883" stroke-width="2"/>
+    <line x1="56" y1="615" x2="56" y2="625" stroke="#6f7883" stroke-width="2"/>
+    <line x1="112" y1="615" x2="112" y2="625" stroke="#6f7883" stroke-width="2"/>
+    <text x="120" y="624">0 — 250 m</text>
+  </g>
+
+  <!-- plan scale bar -->
+  <g font-size="12" fill="#6f7883">
+    <line x1="700" y1="632" x2="795" y2="632" stroke="#6f7883" stroke-width="2"/>
+    <line x1="700" y1="626" x2="700" y2="638" stroke="#6f7883" stroke-width="2"/>
+    <line x1="795" y1="626" x2="795" y2="638" stroke="#6f7883" stroke-width="2"/>
+    <text x="802" y="636">0 — 100 m</text>
+  </g>
+
+  <!-- ===== notes column ===== -->
+  <g font-size="13" fill="#d7dbe0">
+    <g transform="translate(922,120)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">1</text></g>
+    <text x="940" y="125">Slide (K7): no traction, to</text>
+    <text x="940" y="142">~22 m/s; stick steers, pull back</text>
+    <text x="940" y="159">digs in; jump + jetpack normal</text>
+
+    <g transform="translate(922,190)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">2</text></g>
+    <text x="940" y="195">Forks: left shorter, crevasse</text>
+    <text x="940" y="212">jumps; right longer, krykna;</text>
+    <text x="940" y="229">they rejoin</text>
+
+    <g transform="translate(922,260)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">3</text></g>
+    <text x="940" y="265">4 crevasses, 6–12 m: jetpack</text>
+    <text x="940" y="282">over; a fall re-forms you at</text>
+    <text x="940" y="299">the next flag gate</text>
+
+    <g transform="translate(922,330)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">4</text></g>
+    <text x="940" y="335">Ice tunnel: krykna hang from</text>
+    <text x="940" y="352">the ceiling and drop into lane</text>
+
+    <g transform="translate(922,383)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">5</text></g>
+    <text x="940" y="388">Hip-fire + slide kick; shadow</text>
+    <text x="940" y="405">telegraphs a drop; web patch</text>
+    <text x="940" y="422">slows hard — shoot it clear</text>
+
+    <g transform="translate(922,453)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">6</text></g>
+    <text x="940" y="458">Avalanche (K4): fixed speed</text>
+    <text x="940" y="475">just under cruise; only a</text>
+    <text x="940" y="492">player who stalls meets it</text>
+
+    <g transform="translate(922,523)"><circle r="10" fill="#e8b04a"/><text y="4.5" text-anchor="middle" font-weight="700" fill="#15171c">7</text></g>
+    <text x="940" y="528">8 flag gates = re-form points;</text>
+    <text x="940" y="545">regroup at the snowbank</text>
+
+    <use href="#cam" x="922" y="580"/>
+    <text x="940" y="584">Per-player cam, behind + above,</text>
+    <text x="940" y="601">strong look-ahead down slope;</text>
+    <text x="940" y="618">FOV rises with speed</text>
+  </g>
+
+  <!-- ===== legend ===== -->
+  <g font-size="13" fill="#9aa3ad">
+    <rect x="40" y="681" width="18" height="12" fill="#4f5e6d" stroke="#4a4f58" stroke-width="2"/>
+    <text x="64" y="692">ice lane / walls</text>
+    <line x1="178" y1="687" x2="204" y2="687" stroke="#e8b04a" stroke-width="3" marker-end="url(#arr)"/>
+    <text x="212" y="692">golden path</text>
+    <circle cx="310" cy="687" r="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/>
+    <text x="324" y="692">player</text>
+    <use href="#kr" x="388" y="689"/>
+    <text x="402" y="692">krykna</text>
+    <rect x="462" y="681" width="18" height="12" fill="#ff6a3d" fill-opacity=".4" stroke="#ff6a3d" stroke-dasharray="4 3"/>
+    <text x="486" y="692">hazard</text>
+    <rect x="546" y="681" width="18" height="12" fill="#0b0d12" stroke="#7fa8c4" stroke-opacity=".6"/>
+    <text x="570" y="692">crevasse</text>
+    <line x1="644" y1="679" x2="644" y2="697" stroke="#7bd389" stroke-width="3"/>
+    <path d="M644,679 l10,4 l-10,4z" fill="#7bd389"/>
+    <text x="660" y="692">flag gate (×8)</text>
+    <use href="#cam" x="770" y="687"/>
+    <text x="786" y="692">camera</text>
+    <circle cx="854" cy="687" r="8" fill="#d7dbe0" fill-opacity=".25" stroke="#d7dbe0"/>
+    <text x="868" y="692">web patch</text>
+    <circle cx="954" cy="687" r="9" fill="#e8b04a"/>
+    <text x="954" y="691.5" font-size="11" font-weight="700" fill="#15171c" text-anchor="middle">n</text>
+    <text x="968" y="692">beat callout</text>
+  </g>
+</svg>
