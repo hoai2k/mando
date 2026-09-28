@@ -10,6 +10,18 @@ import type { StageState } from './builder';
  * colliders, walls with doorways cut in them, a point on the surface, and the
  * two kinds of cover. Everything else in this folder is written in these.
  */
+const BOULDERS = ['boulder_a', 'boulder_b', 'boulder_c'] as const;
+/**
+ * Height and depth as fractions of the longest side, measured from each
+ * boulder's reference sheet (`reference/props/boulder_*_ref.png`): a is a low
+ * wide dome, b a near-round lump, c a tall leaning slab.
+ */
+const BOULDER_SHAPE: Record<(typeof BOULDERS)[number], { h: number; d: number }> = {
+  boulder_a: { h: 0.51, d: 0.79 },
+  boulder_b: { h: 0.85, d: 0.95 },
+  boulder_c: { h: 0.94, d: 0.77 },
+};
+
 export function stagePrimitives(b: StageState) {
   const { group, rand, wallMat, crateMat, rockMat, blocked, groundAt, addBox, addCyl } = b;
 
@@ -102,8 +114,15 @@ export function stagePrimitives(b: StageState) {
    * file lands.
    */
   const coverRock = (x: number, y: number, z: number): void => {
-    const size = 1.6 + rand() * 1.4;
-    const h = size * (0.62 + rand() * 0.3);
+    // The same draws, in the same order, as before the sheets landed (size,
+    // shape, the ring noise, spin, pick, yaw), so every placement after a
+    // boulder is unchanged. What they decide is new: the variant comes first,
+    // and the stand-in takes that variant's proportions from its reference
+    // sheet, so the collider already fits the sculpt that replaces it.
+    const size = 1.6 + rand() * 1.4;                 // the longest side, as the sculpt is scaled
+    const id = BOULDERS[Math.floor(rand() * BOULDERS.length)];
+    const shape = BOULDER_SHAPE[id];
+    const h = size * shape.h;
     const geo = new THREE.CylinderGeometry(size * 0.42, size * 0.5, h, 7, 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -111,17 +130,20 @@ export function stagePrimitives(b: StageState) {
       pos.setX(i, pos.getX(i) * n);
       pos.setZ(i, pos.getZ(i) * n);
     }
+    geo.scale(1, 1, shape.d);                        // shorter across than along
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, rockMat);
+    const yaw = rand() * Math.PI;
     mesh.position.set(x, y + h / 2, z);
-    mesh.rotation.y = rand() * Math.PI;
+    mesh.rotation.y = yaw;
     mesh.castShadow = mesh.receiveShadow = true;
     group.add(mesh);
+    rand();                                          // was the variant pick
+    rand();                                          // was the sculpt's own yaw: it now shares the stand-in's
     // the mesh's base ring is size * 0.5 and the noise pushes it out to 0.6,
     // so a 0.46 disc left a shoulder's worth of rock you walked into
     addCyl(x, y + h / 2, z, size * 0.54, h);
-    const id = ['boulder_a', 'boulder_b', 'boulder_c'][Math.floor(rand() * 3)];
-    authoredProp(group, mesh, id, size, { x, y, z, yaw: rand() * Math.PI, axis: 'longest' });
+    authoredProp(group, mesh, id, size, { x, y, z, yaw, axis: 'longest' });
     blocked.push({ x, z, r: size * 0.6 + 0.8 });
   };
 

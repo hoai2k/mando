@@ -4,6 +4,7 @@ import type { Game } from './game';
 import {
   buildStage, MISSION_LAYOUTS, PORTAL_POCKET,
   type MissionStage, type MissionZone, type Shell, type ZoneSpec,
+  type SectionId,
 } from '../world/mission';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
@@ -646,6 +647,21 @@ export class Campaign implements MissionController {
   }
 
   /** the transport beat, then the swap: called by the portal checks below */
+  /**
+   * Development only (the manual's "Skip section"): play the transport out of
+   * the section in play as though it had been won. False when there is no
+   * section standing or a transport is already under way.
+   */
+  get stageBrief(): { label: string; section: SectionId | null } {
+    return { label: this.stage.spec.label, section: this.section ? this.stage.spec.section ?? null : null };
+  }
+
+  skipSection(): boolean {
+    if (!this.section || this.transitT > 0) return false;
+    this.beginTransit(this.stageIdx + 1);
+    return true;
+  }
+
   private beginTransit(to: number): void {
     if (this.transitT > 0) return;
     this.transitT = PORTAL_BEAT;

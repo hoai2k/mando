@@ -4,6 +4,7 @@ import { damp, dampAngle } from '../core/math';
 import { audio } from '../core/audio';
 import { hazardAt } from '../world/board';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
+import { spreadKnees } from '../anim/seating';
 import type { Game } from '../game/game';
 import { COYOTE_TIME, FUEL_SECONDS, JUMP_VEL, SPRINT_REFILL, type Player } from './player';
 
@@ -141,6 +142,7 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
 
   this.syncVisual(dt, game);
   anim.update(dt);
+  if (v.legSpread !== null && this.char.rig) spreadKnees(this.char.rig, v.legSpread);
   // K3: a swing takes the hands off the bars, and a pillion has none to hold
   if (!v.swinging(this) && v.pillion !== this) this.handsToControls(v, gunUp);
   this.frameCamera();

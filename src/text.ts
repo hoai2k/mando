@@ -513,7 +513,26 @@ export const TEXT = {
     /** the field manual's heading, its line, and its three pages */
     manual: 'Field manual',
     manualSub: 'controls, for hunters new to the guild',
-    pages: { foot: 'On foot', saddle: 'In the saddle', keyboard: 'Keyboard & mouse' },
+    pages: { job: 'The job', foot: 'On foot', saddle: 'In the saddle', keyboard: 'Keyboard & mouse' },
+    /** the job page: what the stage in play wants, for a party that is stuck */
+    briefSteps: 'How it goes',
+    briefTips: 'Good to know',
+    briefFoot: 'Stuck? The marker and the hint line under the objective always point the way on.',
+    /** development builds only: skip the section in play */
+    skipSection: 'Skip section (dev)',
+    /** the job page for an ordinary stage of a Missions run */
+    stageBrief: {
+      goal: (label: string): string => `Make for ${label}.`,
+      steps: [
+        'Follow the marker and the light column to the next objective.',
+        'Clear what stands in the way; a sealed door opens once its zone is cleared.',
+        'Walk through the open transport door at the end to move on to the next stage.',
+      ],
+      tips: [
+        'The hint line under the objective always says what to do next.',
+        'The fallen come back beside the party, a little way forward.',
+      ],
+    },
     turnPage: 'Turn the page',
     padFoot: 'Start pauses · View goes fullscreen · A on a spare pad joins the posse',
     saddleNote: 'Drop a rider and the ride is yours. Stand by it and press Y (C on the keyboard) to climb on.',
