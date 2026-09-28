@@ -13,7 +13,7 @@ import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/pro
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
-import { glRect, splitLayout } from '../core/layout';
+import { glRect, splitLayout, type Rect } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
 import { enemyModelIds, warmAuthored } from '../characters/authored';
@@ -273,7 +273,17 @@ export class Game {
    * a lane narrow enough that nobody can be walled out of the shot — and the
    * campaign clears it when the section's stage comes down.
    */
-  sharedView: { camera: THREE.PerspectiveCamera } | null = null;
+  sharedView: {
+    camera: THREE.PerspectiveCamera;
+    /**
+     * K1's blend between the split and the one screen: 0 is the split, 1 the
+     * merged view (absent means merged). Between, every viewport is still
+     * drawn, each through the camera `viewFor` hands it — flown toward the
+     * shared pose and cropped to its own piece of the full-screen frame.
+     */
+    blend?: number;
+    viewFor?(i: number, rect: Rect, width: number, height: number): THREE.PerspectiveCamera;
+  } | null = null;
   /**
    * How high a carrier pass flies over its drop. The wave game's 38 m; a
    * mission level raises it clear of the ceiling so the squad falls *through*
@@ -1958,7 +1968,9 @@ export class Game {
     const h = this.tmpSize.y;
 
     const shared = this.sharedView;
-    const n = shared ? 1 : this.humans;
+    // K1: mid-blend, the split is still drawn, each piece through its own camera
+    const blending = !!shared?.viewFor && shared.blend !== undefined && shared.blend < 1;
+    const n = shared && !blending ? 1 : this.humans;
     const rects = splitLayout(n);
     renderer.setScissorTest(n > 1);
     // each viewport judges the water for itself: a diver's screen goes to
@@ -1969,9 +1981,12 @@ export class Game {
     for (let i = 0; i < n; i++) {
       const [vx, vy, vw, vh] = glRect(rects[i], w, h);
       const viewer = this.players[i];
-      const cam = shared ? shared.camera : viewer.cam.camera;
-      cam.aspect = vw / vh;
-      cam.updateProjectionMatrix();
+      const cam = blending ? shared!.viewFor!(i, rects[i], w, h) : shared ? shared.camera : viewer.cam.camera;
+      // a blend camera carries its own projection (a crop of the whole frame)
+      if (!blending) {
+        cam.aspect = vw / vh;
+        cam.updateProjectionMatrix();
+      }
       renderer.setViewport(vx, vy, vw, vh);
       renderer.setScissor(vx, vy, vw, vh);
       const under = wY !== undefined && cam.position.y < wY;

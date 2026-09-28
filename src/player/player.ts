@@ -457,6 +457,12 @@ export class Player {
    */
   moveYaw: number | null = null;
   /**
+   * The soft-lock cone, as the cosine `aimAssistTarget` needs a target inside,
+   * when a section widens it (K1's twin-stick aim: a stick pointed in the
+   * ground plane is a coarser pointer than a crosshair). Null everywhere else.
+   */
+  aimCone: number | null = null;
+  /**
    * A gameplay section's own way of moving — sliding, flight, a turret seat,
    * a lane-guided bike (§2.3). `adjust` may rewrite the frame's input;
    * `take` may take the whole frame (return true). Null outside a section.
@@ -3434,6 +3440,8 @@ export class Player {
 
   /** Best hostile near the aim direction (dot threshold), for soft-lock. */
   aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+    // a rail section's twin-stick aim widens the cone (see `aimCone`)
+    if (this.aimCone !== null) minDot = Math.min(minDot, this.aimCone);
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
