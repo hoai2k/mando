@@ -106,6 +106,8 @@ quay, the alcove ramp, the landing); nothing without a bike under it lives on th
   1000, 1500 and 1700 m. The fallen re-form at the party's last gate on a fresh bike, already
   moving. Anyone thrown onto crust gets a fresh bike where they stand after 1.8 s (a teammate's
   pillion is the other way back). A bike shot to pieces at the quay is replaced.
+- **Speed**: embers lift off the lava ahead of every rider (still in the world, so they stream
+  past at the bike's speed), the lava pops near riders, spray comes off the falls' lips.
 - **HUD**: stretch name, speed bar, cannon heat (red and *Venting* when locked), barge hull when
   it is out, `n of 2000 m`. Hints ≤ 26 characters (longer ones wrapped into the kill counter).
 
@@ -145,7 +147,9 @@ barge), which a player with the shield up will not.
   (lane carries and never stops, cruise 22, lean; pillion boards, works the cannon, driver only
   drives, promotion; side swing unseats, the rider dies in the lava, his bike runs on and goes
   under, the blade comes out and goes away). All pass.
-- `tools/test-vehicles.mjs`: passes (the parked rides are unchanged).
+- `tools/test-vehicles.mjs`: passes, 82 checks (the parked rides are unchanged).
+- `tools/test-modes.mjs`: passes (covers the `player.ts` / `riding.ts` hooks).
+- Run the harness suites one at a time: two browsers at once crashed a tab here (`Target crashed`).
 
 ## Known issues / left
 

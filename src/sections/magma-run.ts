@@ -1463,6 +1463,22 @@ function build(ctx: SectionContext): SectionInstance {
     fenceBeams.forEach((b, i) => {
       (b.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(game.time * 23 + i * 1.7);
     });
+    // embers lifting off the lava ahead of every rider — standing still in
+    // the world, they stream past at the bike's speed — and the lava popping
+    for (const p of game.players) {
+      const v = p.vehicle;
+      if (!p.alive || !v?.lane) continue;
+      if (Math.random() < 0.7) {
+        const es = v.laneS + 8 + Math.random() * 26;
+        const el = v.laneLat + (Math.random() - 0.5) * 22;
+        if (Math.abs(el) < halfWidth(es) + 1) game.particles.disintegrate(at(es, el, 0.3 + Math.random() * 3), 1);
+      }
+      if (Math.random() < dt * 3) {
+        const ps = v.laneS + 6 + Math.random() * 20;
+        const pl = (Math.random() - 0.5) * 2 * halfWidth(ps);
+        if (!solid(ps, pl)) game.particles.impactSparks(at(ps, pl, 0.15), 7);
+      }
+    }
     // spray off the lips while the party is near them
     for (const lip of LIPS) {
       if (Math.abs(lip - leadS) < 90 && Math.random() < dt * 12) {
