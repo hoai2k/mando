@@ -1110,6 +1110,16 @@ no perspective, no text. Subject:"
 | `cliff_pillar_rock_ref.png` | About 1.7 times as tall as it is wide; the model is 8 m across at the base and 36 m tall (4.5 to 1). Scaled to 36 m the base would be about 21 m across, far outside the 4.5 m-radius collider that has to hold for the lower 12 m. | "a tall slender sandstone rock pillar, **4.5 times as tall as its base is wide** (8 meters across at the base, 36 meters tall), layered horizontal strata in ochre, rust and cream, a slight lean, a small flare at the foot and a narrow weathered crown, erosion ledges. Whole pillar in frame in every view." |
 | `cliff_pillar_ice_ref.png` | Same proportion problem as the rock pillar. | "a tall slender glacier ice pillar, **4.5 times as tall as its base is wide** (8 meters across at the base, 36 meters tall), a serac of blue-white fractured ice with vertical facets and snow on the ledges, a slight lean, a small flare at the foot and a sharp crown. Whole pillar in frame in every view." |
 
+**Review of the corrected set (2026-09-28).** Accepted: the corvette (the domes now
+sit in one row on the spine and overlap into one silhouette from the front), the flak
+tower (orthographic, the emplacement on its slab with no tower), the valve wheel (the
+top view now shows the wheel edge-on; the wheel is a little small for its stand
+against the 1.4 m spec, which the game can scale on the `wheel` node) and both cliff
+pillars (slender, about 3:1 including the flared foot; the body sits inside the 4.5 m
+collider radius from the foot up). **The hydraulic press is re-requested again**: its
+conveyor now runs along the crossbeam, through both column bases. See
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--hydraulic-press-sheet-second-redo-2026-09-28).
+
 Minor, no redo needed: the welding arm's front view and several other
 secondary views are drawn smaller than their main view (their proportions still
 agree, so the cropped views work); the thumper hangs its hammer off a lever arm
