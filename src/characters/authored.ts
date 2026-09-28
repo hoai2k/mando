@@ -309,6 +309,13 @@ export function modelUrl(id: string): string { return `${ASSET_ROOT}${modelDir(i
  * `scheduleRetry`, which must not reopen the ledger entry a drop screen has
  * already settled.
  */
+/**
+ * Variant files that share another model's mesh, vertex for vertex — a
+ * re-rigged copy (tools/asset-pipeline/rerig.mjs) moves joints and leaves the
+ * skin alone — and so share its fix documents, which are keyed by vertex.
+ */
+const SHARES_DOCS: Record<string, string> = { din_rerig: 'din', duelist_rerig: 'duelist' };
+
 function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | null> {
   let p = cache.get(id);
   if (!p) {
@@ -318,12 +325,12 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     const handle = tracked.start(trackKey);
     // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
     // models without one cost nothing here beyond a shared index lookup
-    const fixes = loadSkinFix(id);
+    const fixes = loadSkinFix(SHARES_DOCS[id] ?? id);
     // ...and the bones it was delivered without (see jawrig.ts)
-    const jaw = loadJawRig(id);
+    const jaw = loadJawRig(SHARES_DOCS[id] ?? id);
     // ...and the geometry it was delivered *with* that belongs to nobody — the
     // ball off Din's shoulder and its like (see strays.ts)
-    const strays = loadStrays(id);
+    const strays = loadStrays(SHARES_DOCS[id] ?? id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
@@ -348,7 +355,7 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
           // Din's welded jetpack is metal: shoulder and arm weights from the
           // automatic skinning must not bend it when he raises his blaster.
-          if (id === 'din') rigidifyDinJetpack(gltf.scene);
+          if ((SHARES_DOCS[id] ?? id) === 'din') rigidifyDinJetpack(gltf.scene);
           // After the fixes, not before: a jaw is an addition to the weights
           // the fixes have finished settling, and it folds itself into their
           // baseline so toggling one in the workbench cannot undo it.
@@ -559,7 +566,7 @@ export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['mod
  * prefetcher and the drop screen wait on. (Scenery and ships load by the
  * same path under names of their own, so the loader itself takes any string.)
  */
-export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop';
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig';
 
 /** the model entry for any kind, with `height` readable whether or not it has one */
 export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>

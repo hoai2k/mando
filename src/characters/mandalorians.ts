@@ -2,7 +2,7 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
 import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
-import { attachAuthored } from './authored';
+import { attachAuthored, type ModelId } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
 import { dinMeleeVariants, saberParryClips } from '../workbench/combatStudies';
@@ -409,7 +409,8 @@ export const PLAYABLE_MANDO_IDS: MandoId[] =
  * @param opts.authored  false keeps the procedural build even when an authored
  *   model exists — the model workbench uses it to show both side by side.
  */
-export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {}): PlayerCharacter {
+export function buildMandalorian(id: MandoId,
+  opts: { authored?: boolean; /** another file for the same character, e.g. a re-rigged copy */ modelFile?: ModelId } = {}): PlayerCharacter {
   const cfg = MANDO_ROSTER[id];
   const skin = mat(cfg.suit, { rough: 0.9 });
   const prim = mat(cfg.primary, { rough: 0.45, metal: 0.55 });
@@ -743,7 +744,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // ---- authored model swap ----
   // The procedural build above stays as the animation source and the instant
   // fallback; if models/<id>.glb loads, its skin rides the same rig instead.
-  const swap = attachAuthored(rig, id, MODEL_HEIGHT[id], {
+  const swap = attachAuthored(rig, opts.modelFile ?? id, MODEL_HEIGHT[id], {
     animator: inst.animator,
     // weapons, thruster flames and the shield pane belong to the character,
     // not to the body being replaced
