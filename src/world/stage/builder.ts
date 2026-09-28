@@ -60,12 +60,20 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   // ---- materials (own copies: mat() caches by colour and shares game-wide) ----
   const wallMat = mat(pal.wall, { rough: 0.75, metal: 0.25 }).clone();
   const floorMat = mat(pal.floor, { rough: 0.85, metal: 0.15 }).clone();
+  /**
+   * The floor of anything roofed — a hall, a corridor, a closet, a door's
+   * pocket. Chosen by the shell rather than by the stage: a hall on a built
+   * stage used to take the stage's sand (the Dune Sea's cistern court read as
+   * a sand-floored steel room), and an open zone on an interior stage took
+   * the corridor plate (the Crevasse's cracked lake was diamond plate).
+   */
+  const hallFloorMat = mat(pal.floor, { rough: 0.85, metal: 0.15 }).clone();
   const rockMat = mat(pal.rock, { rough: 0.92, metal: 0.05 }).clone();
   const backdropMat = mat(pal.backdrop, { rough: 1, metal: 0 }).clone();
   const crateMat = mat(0x4a4436, { rough: 0.8, metal: 0.2 }).clone();
   const trimMat = mat(pal.trim, { rough: 0.5, metal: 0.4, emissive: pal.trim }).clone();
   const accentGlow = new THREE.MeshBasicMaterial({ color: pal.accent });
-  const owned: { dispose(): void }[] = [wallMat, floorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow];
+  const owned: { dispose(): void }[] = [wallMat, floorMat, hallFloorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow];
   /**
    * Dress a material with its tileable, and with the normal and emissive maps
    * that came with it where they exist.
@@ -108,7 +116,8 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   };
   const look = RIDGE_LOOK[spec.ridge];
   tile(wallMat, 'corridor_wall', 6, 2);
-  tile(floorMat, interior ? 'corridor_floor' : stageFloorTexture(spec.ridge), 8, 8);
+  tile(floorMat, stageFloorTexture(spec.ridge), 8, 8);
+  tile(hallFloorMat, 'corridor_floor', 8, 8);
   tile(crateMat, 'corridor_wall', 1, 1);
   tile(rockMat, look.tex, 2, 1, { normal: true, glow: look.glow });
   tile(backdropMat, look.tex, 3, 1);
@@ -225,7 +234,7 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
     board, spec, stage, index, beat0,
     pal, corrW, baseWallH, ceiling, interior, onGround, worldHeightAt, bare, wantRim, canyon,
     terrainAt, rand,
-    wallMat, floorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
+    wallMat, floorMat, hallFloorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
     group,
     boxes, cylinders, hazards, breakables, rects, pickups, defenders, rides, path, blocked,
     shockStrips, rimGeo, rimAt, backGeo, backAt, lanes,

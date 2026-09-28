@@ -12,7 +12,7 @@ import type { StageChain } from './zones';
  */
 export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number, gorgeHalf: number) {
   const {
-    board, spec, stage, index, ceiling, onGround, bare, floorMat, wallMat, rockMat, trimMat, accentGlow,
+    board, spec, stage, index, ceiling, onGround, bare, hallFloorMat, wallMat, rockMat, trimMat, accentGlow,
     group, rects, path, groundAt, solid, slab, wallU, wallV,
   } = b;
   const { zoneFrames, zoneTops, last, hasNext, hasPrev } = chain;
@@ -27,7 +27,8 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     // The pocket is a threshold, so on rolling ground it is levelled into a
     // short platform at the doorway's own height rather than following the
     // dune through it — a door you step *up* into reads as a door.
-    solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top - 3, top, floorMat);
+    // a door's pocket is roofed: it takes a roofed floor whatever it opens on
+    solid(f, s0, s1, -GATE_W / 2 - 2.6, GATE_W / 2 + 2.6, top - 3, top, hallFloorMat);
     wallV(f, GATE_W / 2 + 2.6 + WALL_T / 2, s0, s1, [], top, doorH);
     wallV(f, -GATE_W / 2 - 2.6 - WALL_T / 2, s0, s1, [], top, doorH);
     wallU(f, back ? s0 - WALL_T / 2 : s1 + WALL_T / 2,

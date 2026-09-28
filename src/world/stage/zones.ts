@@ -22,7 +22,7 @@ import { layVestibule } from './vestibule';
 export function layZones(b: StageBuilder) {
   const {
     board, spec, stage, index, beat0, pal, baseWallH, ceiling, onGround, bare, wantRim, canyon,
-    floorMat, wallMat, rockMat, trimMat, owned, group,
+    floorMat, hallFloorMat, wallMat, rockMat, trimMat, owned, group,
     boxes, breakables, rects, pickups, path, lanes, anchor, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge, setPieces, placeProps, placeRides,
   } = b;
@@ -57,7 +57,7 @@ export function layZones(b: StageBuilder) {
     // ---- the floor ----
     // A ground stage stands on the board's own: no plate, no seam, and the
     // dunes or basalt the territory is *made of* under the fight.
-    if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, floorMat);
+    if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, isHall ? hallFloorMat : floorMat);
     rects.push(f.rect(-0.5, l + 0.5, -w / 2 - 0.5, w / 2 + 0.5));
 
     const dir = { x: f.dx, z: f.dz };
@@ -95,7 +95,7 @@ export function layZones(b: StageBuilder) {
         const side = k === 0 ? 1 : -1;
         const p0 = side * (w / 2 + WALL_T);
         const outer = side * (w / 2 + WALL_T + 4.2);
-        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top - 1, top, floorMat);
+        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top - 1, top, hallFloorMat);
         wallU(f, h.c - 2 - WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
         wallU(f, h.c + 2 + WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
         wallV(f, outer + side * WALL_T / 2, h.c - 2 - WALL_T, h.c + 2 + WALL_T, [], top, roofH);
@@ -108,7 +108,7 @@ export function layZones(b: StageBuilder) {
 
       if (zs.alcove) {
         const p0 = w / 2 + WALL_T;
-        solid(f, l / 2 - 2.4, l / 2 + 2.4, p0 - 0.5, p0 + 3.4, top - 1, top, floorMat);
+        solid(f, l / 2 - 2.4, l / 2 + 2.4, p0 - 0.5, p0 + 3.4, top - 1, top, hallFloorMat);
         wallU(f, l / 2 - 2.4 - WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
         wallU(f, l / 2 + 2.4 + WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
         wallV(f, p0 + 3.4 + WALL_T / 2, l / 2 - 2.4 - WALL_T, l / 2 + 2.4 + WALL_T, [], top, roofH);

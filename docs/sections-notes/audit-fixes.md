@@ -120,3 +120,15 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   standing on the stage.
 - **Left.** Nothing.
 
+### 5. Floor texture by shell, not by stage — done
+
+- **What.** A second floor material, `hallFloorMat` (`corridor_floor`), for
+  anything roofed: halls, their closets and alcoves, roofed corridors, door
+  pockets, a hall's vestibule. Everything open takes the stage's ground texture
+  (`stageFloorTexture(ridge)`) whatever the stage kind, so the Crevasse's deep
+  now has snow under its open zones, and the Dune Sea's cistern court a plated
+  floor.
+- **Tests.** `test-missions`: in the ravine, the floor slab under the cistern
+  court and the one under the canyon are different materials.
+- **Left.** The Crevasse's cavern roof and traction disc are item 15.
+

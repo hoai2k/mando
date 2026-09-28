@@ -1175,6 +1175,49 @@ check('so a boss arena in zone 0 waits for the party to walk in',
 check('the way back shuts while zone 0 is being fought',
   vest.fight.phase === 'fight' && vest.fight.backClosed && vest.fight.stayed, JSON.stringify(vest.fight));
 check('and opens again once it is cleared', vest.cleared.backOpen, JSON.stringify(vest.cleared));
+// ---------------------------------------------------------------- the floors
+//
+// A floor is chosen by what it is under, not by the stage it is in: a hall on
+// a built stage took the stage's sand (the Dune Sea's cistern court read as a
+// sand-floored steel room), and open ground on an interior stage took the
+// corridor plate (audit item 5).
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const floors = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  window.__manual = true;
+  c.enterStage(1, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, [blank(), blank(), blank(), blank()]);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const group = g.board.group.children.find((o) => o.name === `mission-stage-${c.stageIdx}`);
+  /** the floor slab under a point: a one-metre-thick box whose top is the floor */
+  const slabUnder = (p) => {
+    let hit = null;
+    group.traverse((o) => {
+      if (hit || !o.isMesh || o.geometry?.type !== 'BoxGeometry') return;
+      const { width, height, depth } = o.geometry.parameters;
+      if (Math.abs(height - 1) > 0.01) return;
+      if (Math.abs(o.position.y + 0.5 - c.stage.groundAt(p.x, p.z)) > 0.1) return;
+      if (Math.abs(p.x - o.position.x) < width / 2 && Math.abs(p.z - o.position.z) < depth / 2) hit = o;
+    });
+    return hit;
+  };
+  const hall = c.stage.zones.find((z) => z.spec.shell === 'hall');
+  const open = c.stage.zones.find((z) => z.spec.shell !== 'hall');
+  const h = hall && slabUnder(hall.center), o = open && slabUnder(open.center);
+  window.__manual = false;
+  return { hall: !!h, open: !!o, differ: !!h && !!o && h.material !== o.material };
+});
+check('a hall takes a roofed floor, open ground the territory\'s own',
+  floors.differ, JSON.stringify(floors));
+
 // ---------------------------------------------------------------- the cache
 //
 // The covert's supply cache dropped only in a camp or trek *immediately*

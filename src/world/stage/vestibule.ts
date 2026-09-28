@@ -22,7 +22,7 @@ import type { StageBuilder } from './builder';
  */
 export function layVestibule(b: StageBuilder, f: Frame, zs: ZoneSpec, zoneTop: number): THREE.Vector3 {
   const {
-    corrW, onGround, bare, canyon, pal, floorMat, wallMat, trimMat, owned, group, rects, path,
+    corrW, onGround, bare, canyon, pal, floorMat, hallFloorMat, wallMat, trimMat, owned, group, rects, path,
     groundAt, solid, slab, wallV, surf, ridge,
   } = b;
   const u0 = -1 - VESTIBULE;
@@ -36,7 +36,7 @@ export function layVestibule(b: StageBuilder, f: Frame, zs: ZoneSpec, zoneTop: n
   if (zs.shell === 'hall' || !bare) {
     if (zs.shell === 'hall') {
       const h = Math.max(6, zs.roofH ?? ROOF_H);
-      if (!onGround) solid(f, u0 - 0.5, u1, -half - 1, half + 1, top - 1, top, floorMat);
+      if (!onGround) solid(f, u0 - 0.5, u1, -half - 1, half + 1, top - 1, top, hallFloorMat);
       wallV(f, half + WALL_T / 2, u0, u1, [], top, h);
       wallV(f, -half - WALL_T / 2, u0, u1, [], top, h);
       solid(f, u0, u1, -half - WALL_T, half + WALL_T, top + h, top + h + 0.8, wallMat);

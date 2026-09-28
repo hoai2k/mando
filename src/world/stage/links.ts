@@ -16,7 +16,7 @@ import type { StageBuilder } from './builder';
  */
 export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall: boolean): Frame {
   const {
-    stage, corrW, onGround, canyon, rand, floorMat, wallMat, trimMat, accentGlow, group,
+    stage, corrW, onGround, canyon, rand, floorMat, hallFloorMat, wallMat, trimMat, accentGlow, group,
     rects, pickups, defenders, path, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge,
   } = b;
@@ -32,7 +32,7 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     const ltop = onGround
       ? groundAt(lf.x(len / 2, 0), lf.z(len / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
-    if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, floorMat);
+    if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, roofed ? hallFloorMat : floorMat);
     if (roofed) {
       solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop + CORR_H, ltop + CORR_H + 1, wallMat);
       // the lane walls sit 5 cm proud and run only their own span: the room
@@ -121,7 +121,7 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     const jtop = onGround
       ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
-    if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, floorMat);
+    if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, roofed ? hallFloorMat : floorMat);
     if (roofed) {
       solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
       wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);
