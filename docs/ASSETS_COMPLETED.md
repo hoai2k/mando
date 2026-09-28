@@ -934,3 +934,45 @@ and text overlays remain separate. Files are under `public/assets/textures/`.
 | `title_twin_suns.jpg` | 2560×1080 | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
 | `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
 | `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |
+
+## Missions system vistas — 9 files, delivered 2026-09-28
+
+Round 4 of [`UI_CONCEPTS.md`](UI_CONCEPTS.md) explores a Missions select where each
+territory is seen inside its own solar system, and the camera warps or flies from
+one system to the next. The mockups build each system in CSS from the existing
+`planet_<id>.png` discs, adding suns, moons, rings and a lit/dark side. These paintings
+replace those builds in the delivered art set. Each one is a single view of the territory's world,
+from its own angle, with its own sun(s) and neighbours in frame.
+
+**Files:** `public/assets/textures/system_<boardId>.jpg`, 1920×1080.
+All nine were generated with the built-in image tool and visually checked against the
+existing `planet_<id>.png` discs. Board ids match
+`src/world/boards.ts`: desert, station, nevarro, crevasse, trask, refinery, forge,
+ringworld, narkina. The world must match its existing `planet_<id>.png` disc
+(same colours and surface) so the two read as one place when the camera zooms
+from the map dot into the vista.
+
+**Composition rule for all nine:** the UI puts a title strip across the top 60 px and
+a chapter card across the bottom 200 px. Keep both bands calm (dark space or a planet
+limb) and keep the world and its sun in the middle band. No text, no ships, no UI.
+
+**Shared preamble — prepend verbatim to every vista prompt below:**
+
+> Cinematic space vista for a stylized-realistic sci-fi western video game, 16:9, seen
+> from high orbit. One world is the subject, lit by its own star(s), with a few
+> smaller neighbours (moons, a distant planet) placed for depth. Deep black space,
+> fine star field, subtle nebula haze, dramatic rim light and a clear day/night
+> terminator on the main world. Calm dark bands along the top edge and the bottom
+> fifth of the frame. No text, no ships, no UI, no logos. Scene:
+
+| File | Scene prompt |
+|---|---|
+| `system_desert.jpg` | "a vast orange desert world filling the lower right as a curved horizon, dune seas and pale salt flats on its day side, lit by two suns high in the upper left (one large and white-gold, one smaller and amber), two tiny cratered moons in the upper right, warm dusty haze along the limb" |
+| `system_station.jpg` | "a round industrial smugglers' waystation of dark plates and glowing docking rings floating right of centre, a small dim red dwarf star at the far right edge casting red rim light, a scatter of tumbling asteroids on the left, a small blue ocean planet far away upper left, violet nebula" |
+| `system_nevarro.jpg` | "a volcanic world of black glass left of centre with glowing orange lava rivers, its night side lit by lava, a large orange sun half out of frame at the right edge, a distant pale ringed gas giant in the upper right" |
+| `system_crevasse.jpg` | "an ice world with blue glacier cracks rising from the bottom centre, a small cold blue-white sun just peeking over its upper rim in a bright eclipse flare, fragments of a shattered moon drifting in the upper left" |
+| `system_trask.jpg` | "a dark green ocean world right of centre wrapped in spiralling storm systems, a hazy yellow sun low at the lower left edge, a large grey cratered moon in the upper left" |
+| `system_refinery.jpg` | "a small rust-orange industrial moon with glowing refinery lights on its night side, lower left, in front of a colossal banded brown gas giant filling the right half, a small white sun peeking over the gas giant's upper limb" |
+| `system_forge.jpg` | "a green-grey world of glassed and cracked ruins left of centre, a thin ring of debris circling it, magnetic auroras at the poles, a small dim white sun in the upper right, one tiny distant moon lower right" |
+| `system_ringworld.jpg` | "a ring-shaped megastructure habitat around a deep blue world, right of centre, city lights along the ring's night side, a pale white star at the left, a small red planet low at the right edge" |
+| `system_narkina.jpg` | "a white-clouded blue ocean world filling the lower left as a curved horizon, a small bright pale sun in the upper right, two small grey moons near the sun" |

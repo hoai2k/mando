@@ -259,10 +259,11 @@ The Round 3 page's flow boards have the same updates.
 
 **Missions — travelling between solar systems.** Each territory gets its own solar
 system: its world seen from its own angle, its own sun or twin suns at the edge or
-behind the limb, and a moon, gas giant or ring for depth. Until the requested
-`system_<id>.jpg` vistas arrive, the mockups build these scenes from the
-`planet_<id>.png` discs (see `ASSETS_IMAGES.md`). They keep A's letterboxed Twin
-Suns card along the bottom.
+behind the limb, and a moon, gas giant or ring for depth. The nine
+`system_<id>.jpg` vistas are delivered under `public/assets/textures/`,
+with the same colours and surfaces as the `planet_<id>.png` discs. The mockups
+currently build these scenes from the discs; the vistas are available for the
+next round. They keep A's letterboxed Twin Suns card along the bottom.
 
 1. **Warp from the stars.** The other eight systems are distant stars strung along
    the game's own zig-zag route across the top of the sky. Picking one zooms its
