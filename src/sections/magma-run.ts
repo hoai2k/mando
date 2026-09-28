@@ -251,8 +251,9 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.own(amber);
   const hot = new THREE.MeshBasicMaterial({ color: 0xff7a2a, transparent: true, opacity: 0.0, depthWrite: false });
   ctx.own(hot);
+  const fenceBeams: THREE.Mesh[] = [];
   const fenceMat = new THREE.MeshBasicMaterial({
-    color: 0xff5a3a, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false,
+    color: 0xff5a3a, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false,
   });
   ctx.own(fenceMat);
 
@@ -350,6 +351,32 @@ function build(ctx: SectionContext): SectionInstance {
       strip(ALCOVE_S1, LEN + 4, 2, face, rock, 8);
     } else strip(-BEFORE, LEN + 4, 2, face, rock, 8);
   }
+  // lava pouring down the canyon faces, as in the keyframe: a glowing tongue
+  // laid on the rock itself, flowing down it
+  const fallMat = new THREE.MeshBasicMaterial({ color: 0xffa050, side: THREE.DoubleSide });
+  ctx.own(fallMat);
+  ctx.tile(fallMat as unknown as THREE.MeshStandardMaterial, 'lava_flow', 1, 1);
+  const WALL_FALLS: [number, -1 | 1][] = [
+    [272, 1], [395, -1], [522, 1], [664, -1], [768, 1], [884, -1], [992, 1],
+    [1186, -1], [1274, 1], [1424, -1], [1546, 1], [1690, -1], [1760, 1], [1840, -1],
+  ];
+  for (const [fs, side] of WALL_FALLS) {
+    const w0 = 1.6 + ((fs * 7) % 3);
+    strip(fs - w0, fs + w0, w0 / 2, (s) => {
+      const w = wallLat(s, side);
+      const h = wallH(s, side);
+      const n = noise(s, side);
+      const t = 1 - Math.abs(s - fs) / w0;        // thicker in the middle of the tongue
+      const off = -0.18 - t * 0.25;
+      return [
+        [side * (w + off), lavaY(s) - 0.5],
+        [side * (w + 0.4 + n * 0.8 + off), lavaY(s) + h * 0.25],
+        [side * (w + 1.2 + n * 1.4 + off), lavaY(s) + h * 0.55],
+        [side * (w + 0.8 + n * 1.6 + off), lavaY(s) + h * 0.85],
+      ];
+    }, fallMat, 6, false);
+  }
+
   // basalt columns stood along the canyon faces — the keyframe's organ pipes
   {
     const geo = new THREE.CylinderGeometry(1, 1, 1, 6);
@@ -622,12 +649,22 @@ function build(ctx: SectionContext): SectionInstance {
     roof.position.set(rp.x, yl + 1.1 + 7, rp.z);
     roof.rotation.y = hdg;
     ctx.mesh(roof);
-    const shaftGlow = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshBasicMaterial({ color: 0xff8a3a }));
+    // the tunnel's floor, and the shaft's glow at its far end: the Chimney's
+    // floor is lit by the magma below it, so the light is low and warm
+    const tfloor = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 15), slab);
+    const tf = at(LEN + 7.5, 0);
+    tfloor.position.set(tf.x, yl + 1.1 - 0.5, tf.z);
+    tfloor.rotation.y = hdg;
+    ctx.mesh(tfloor);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xc8501c });
+    ctx.own(glowMat);
+    const shaftGlow = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), glowMat);
     const sg = at(LEN + 15, 0);
     shaftGlow.position.set(sg.x, yl + 1.1 + 3, sg.z);
     shaftGlow.rotation.y = hdg + Math.PI;
     ctx.mesh(shaftGlow);
-    // the fence: two pylons and the pane between them — the Chimney opens on its far side
+    // the fence: two pylons, a faint pane, and the beams strung between them
+    // — the Chimney opens on its far side, with this same fence behind it
     const pane = new THREE.Mesh(new THREE.PlaneGeometry(6, 5.5), fenceMat);
     pane.position.set(f.x, yl + 1.1 + 2.8, f.z);
     pane.rotation.y = hdg;
@@ -635,6 +672,41 @@ function build(ctx: SectionContext): SectionInstance {
     for (const side of [-1, 1]) {
       const p = at(LEN + 0.6, side * 2.8);
       ctx.cyl(p.x, yl + 1.1 + 3, p.z, 0.35, 6, iron);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff4a2a }));
+      ctx.own(cap.geometry);
+      ctx.own(cap.material as THREE.Material);
+      cap.position.set(p.x, yl + 1.1 + 6.2, p.z);
+      ctx.mesh(cap);
+    }
+    for (let k = 0; k < 7; k++) {
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xff4020, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      ctx.own(beamMat);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.06, 0.06), beamMat);
+      ctx.own(beam.geometry);
+      beam.position.set(f.x, yl + 1.1 + 0.5 + k * 0.75, f.z);
+      beam.rotation.y = hdg;
+      ctx.mesh(beam);
+      fenceBeams.push(beam);
+    }
+    // the landing: mooring bollards along its lip, lamps by the fence, the
+    // crew's gear stacked against the wall
+    for (let lat = -13; lat <= 13; lat += 3.25) {
+      const b = at(LANDING + 0.9, lat);
+      ctx.cyl(b.x, yl + 1.1 + 0.45, b.z, 0.22, 0.9, iron);
+    }
+    for (const side of [-1, 1]) {
+      const lp = at(LEN - 2, side * 6);
+      ctx.cyl(lp.x, yl + 1.1 + 2, lp.z, 0.12, 4, iron);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), amber);
+      ctx.own(bulb.geometry);
+      bulb.position.set(lp.x, yl + 1.1 + 4.1, lp.z);
+      ctx.mesh(bulb);
+    }
+    for (const [ls, lat, sz] of [[LEN - 5, 11, 1.2], [LEN - 4, 12.3, 1], [LEN - 6.5, 12, 0.9], [LEN - 4, -11.5, 1.3]] as const) {
+      const cp = at(ls, lat);
+      ctx.box(cp.x, yl + 1.1 + sz / 2, cp.z, sz, sz, sz, rust);
     }
     const chamberLight = new THREE.PointLight(0xff7a30, 60, 90, 1.4);
     chamberLight.position.copy(at(1880, 0, 18));
@@ -762,8 +834,10 @@ function build(ctx: SectionContext): SectionInstance {
   /** what happened, for tuning and the tests */
   const stats = { lavaKills: 0, unseated: 0, playerDeaths: 0, freshBikes: 0, crushed: 0, geysered: 0, rammed: 0 };
   const riding = new WeakSet<Enemy>();
+  const burning: { e: Enemy; t: number }[] = [];
 
   const followLight = new THREE.PointLight(0xff6a20, 55, 55, 1.4);
+
   ctx.mesh(followLight);
 
   // ------------------------------------------------------------ the barge
@@ -992,7 +1066,7 @@ function build(ctx: SectionContext): SectionInstance {
   };
 
   const spawnRider = (role: Role, from: 'behind' | 'ahead'): void => {
-    const s = from === 'ahead' ? Math.min(LEN - 200, leadS + 85) : Math.max(tailS - 45, -5);
+    const s = from === 'ahead' ? Math.min(LEN - 200, leadS + 60) : Math.max(tailS - 45, -5);
     if (s < 45) return;
     const lat = clearLat(s, (Math.random() - 0.5) * 16);
     const kind: EnemyKind = role === 'swinger' ? 'pirateMelee' : 'pirate';
@@ -1224,10 +1298,21 @@ function build(ctx: SectionContext): SectionInstance {
       const on = lane.project(e.position.x, e.position.z);
       if (solid(on.s, on.lat)) continue;
       if (e.position.y - lavaY(on.s) > 0.35) continue;
-      game.particles.impactSparks(e.position.clone().setY(lavaY(on.s) + 0.2), 26);
-      game.particles.dustPuff(e.position.clone().setY(lavaY(on.s) + 0.3), 8);
-      e.damage(99999, e.position, -1);
+      const where = e.position.clone().setY(lavaY(on.s) + 0.2);
+      game.particles.impactSparks(where, 30);
+      game.particles.explosion(where, 0.35);
+      if (Math.abs(on.s - leadS) < 60) audio.steamHiss(0.5);
+      // the kill is whoever put him in: a swing, a sideswipe, a bolt
+      e.damage(99999, e.position, e.lastHitBy);
+      burning.push({ e, t: 0 });
       stats.lavaKills++;
+    }
+    // what the lava takes it keeps: the body burns away where it went in
+    for (let i = burning.length - 1; i >= 0; i--) {
+      const b = burning[i];
+      b.t += dt;
+      if (Math.random() < dt * 20) game.particles.disintegrate(b.e.position.clone().setY(b.e.position.y + 0.5), 2);
+      if (b.t > 0.8) { b.e.removeMe = true; burning.splice(i, 1); }
     }
   };
 
@@ -1374,6 +1459,10 @@ function build(ctx: SectionContext): SectionInstance {
     // the lava's flow, and its light on whoever is leading
     for (const m of [lava.map, lava.emissiveMap]) if (m) m.offset.y = -game.time * 0.09;
     if (curtainMat.map) curtainMat.map.offset.y = -game.time * 0.9;
+    if (fallMat.map) fallMat.map.offset.x = game.time * 0.35;
+    fenceBeams.forEach((b, i) => {
+      (b.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(game.time * 23 + i * 1.7);
+    });
     // spray off the lips while the party is near them
     for (const lip of LIPS) {
       if (Math.abs(lip - leadS) < 90 && Math.random() < dt * 12) {

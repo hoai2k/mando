@@ -239,6 +239,12 @@ export interface LaneOrder {
   swing?: -1 | 1 | 0;
   /** hold the trigger */
   fire?: boolean;
+  /**
+   * Fire at this point instead of off the nose: the rider's own blaster,
+   * turned in the saddle at someone behind (the gun's rate and heat still
+   * apply). A gunner riding ahead of the party shoots back this way.
+   */
+  aimAt?: THREE.Vector3 | null;
 }
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
@@ -456,8 +462,19 @@ const SWING_OUT_MIN = 0.4;
 const SWING_OUT_MAX = 4.8;
 const SWING_ALONG = 3.2;
 const SWING_COOLDOWN = 0.35;
-/** when in the swing it lands, as a fraction of its length */
-const SWING_HIT_AT = 0.42;
+/**
+ * When in the swing it can land, as fractions of its length: the blade is
+ * live through the middle of the arc, and it lands on the first thing it
+ * meets there. Tested every frame rather than at one instant, because two
+ * rides side by side at twenty metres a second do not hold still for it.
+ */
+const SWING_FROM = 0.28;
+const SWING_TO = 0.75;
+/**
+ * A hostile's club comes round slower than a player's own weapon — long
+ * enough to see it raised — so a rider who swings first wins the exchange.
+ */
+const HOSTILE_SWING = 0.95;
 
 /** seconds of ride deflector on a full rider gauge */
 const SHIELD_SECONDS = 4;
@@ -553,6 +570,7 @@ const _shot = new THREE.Vector3();
 const _lock = new THREE.Vector3();
 const _lockPt = new THREE.Vector3();
 const _tgtPos = new THREE.Vector3();
+const _brainAim = new THREE.Vector3();
 
 /** an angle folded into (-π, π] */
 function wrapAngle(a: number): number {
@@ -1817,6 +1835,32 @@ export class Vehicle {
     return true;
   }
 
+  /**
+   * A hostile rider's own blaster, turned in the saddle at `at` — behind as
+   * readily as ahead. On the gun's clock and heat, from the rider's chest,
+   * and not as sure as a cannon on a mount.
+   */
+  private fireFromSaddle(at: THREE.Vector3, e: Enemy, game: Game): boolean {
+    const g = this.def.gun;
+    if (!g || !this.alive || this.overheated || this.gunCd > 0) return false;
+    this.gunCd = 1 / g.rate;
+    const origin = _muzzle.set(e.position.x, e.position.y + 1.35, e.position.z);
+    const dir = _shot.subVectors(at, origin);
+    const d = dir.length();
+    if (d < 1) return false;
+    dir.divideScalar(d);
+    dir.x += (Math.random() - 0.5) * 0.06;
+    dir.y += (Math.random() - 0.5) * 0.03;
+    dir.z += (Math.random() - 0.5) * 0.06;
+    dir.normalize();
+    game.projectiles.fire(origin, dir, g.speed, g.damage, e.team, -1);
+    game.particles.muzzleFlash(origin, dir);
+    audio.enemyBlaster();
+    this.heat = Math.min(1, this.heat + g.heat);
+    if (this.heat >= 1) this.overheated = true;
+    return true;
+  }
+
   /** a muzzle in the world; a turret's barrels pitch about its trunnion */
   private muzzleWorld(m: { x: number; y: number; z: number }, out: THREE.Vector3): THREE.Vector3 {
     const t = this.def.turret;
@@ -1903,7 +1947,7 @@ export class Vehicle {
       audio.melee(step, sabers ? 'sabers' : 'gaffi');
     } else {
       by.char.animator?.playOnce('upper', 'melee1', 0.05);
-      audio.melee(1, 'gaffi');
+      dur = HOSTILE_SWING;
     }
     this.swing = { side, t: 0, dur, landed: false, by, weapon };
     return true;
@@ -1915,9 +1959,10 @@ export class Vehicle {
     if (!sw) return;
     sw.t += dt;
     if (!sw.by.alive) { this.endSwing(); return; }
-    if (!sw.landed && sw.t >= sw.dur * SWING_HIT_AT) {
-      sw.landed = true;
-      this.landSwing(sw.side, sw.by, game);
+    // a hostile's club whooshes as it comes round, not as it is raised
+    if (!isPlayer(sw.by) && sw.t - dt < sw.dur * SWING_FROM && sw.t >= sw.dur * SWING_FROM) audio.melee(1, 'gaffi');
+    if (!sw.landed && sw.t >= sw.dur * SWING_FROM && sw.t <= sw.dur * SWING_TO) {
+      sw.landed = this.landSwing(sw.side, sw.by, game);
     }
     if (sw.t >= sw.dur) this.endSwing();
   }
@@ -1939,7 +1984,7 @@ export class Vehicle {
    * that runs on without them — which over lava is the end of them; a
    * player hit from a hostile's saddle takes the blow and the shove.
    */
-  private landSwing(side: -1 | 1, by: Player | Enemy, game: Game): void {
+  private landSwing(side: -1 | 1, by: Player | Enemy, game: Game): boolean {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
     const inBox = (pos: THREE.Vector3): boolean => {
@@ -1960,7 +2005,11 @@ export class Vehicle {
           ride.dropHostile();
           ride.latVel += side * 4;
         }
-        e.damage(dmg, this.pos, by.slot);
+        // A rider is knocked *out of the saddle*, not cut down in it: the blow
+        // leaves him alive and flying, and what he lands in does the rest —
+        // over lava that is the end of him, on crust he gets up. A body on
+        // its feet takes the full blow.
+        e.damage(ride ? Math.min(dmg, Math.max(1, e.hp - 1)) : dmg, this.pos, by.slot);
         if (carry) {
           // out of the saddle, sideways, at the speed they were doing
           e.velocity.set(carry.x * 0.7 + rx * side * 8, 6.5, carry.z * 0.7 + rz * side * 8);
@@ -1978,7 +2027,7 @@ export class Vehicle {
         by.cam.shake(0.12);
         game.hitMarker(by.slot);
       }
-      return;
+      return landed;
     }
     for (const p of game.players) {
       if (!p.alive || p.team === by.team || p.exited || !inBox(p.position)) continue;
@@ -1996,6 +2045,7 @@ export class Vehicle {
       landed = true;
     }
     if (landed) audio.meleeHit('gaffi');
+    return landed;
   }
 
   /**
@@ -2034,8 +2084,11 @@ export class Vehicle {
     this.runLane(dt, latWant, order.speed, boost, null, game);
     if (!this.alive || this.hostile !== e) return;
     if (order.fire && this.def.gun) {
-      this.noseAim(_aimPt);
-      this.fireGun(_aimPt, e.team, -1, game, null);
+      if (order.aimAt) this.fireFromSaddle(order.aimAt, e, game);
+      else {
+        this.noseAim(_aimPt);
+        this.fireGun(_aimPt, e.team, -1, game, null);
+      }
     }
     if (order.swing && this.def.sideSwing) this.startSwing(order.swing, e);
     this.updateSwing(dt, game);
@@ -2076,14 +2129,20 @@ export class Vehicle {
     }
     if (b.t <= 0) { b.mode = 'peel'; b.t = 2.5; }
     if (b.role === 'gunner') {
-      const gap = ms - 15 - this.laneS;
-      const lined = Math.abs(ml - this.laneLat) < 2.8 && this.laneS < ms - 4;
-      const weave = Math.sin(game.time * 0.8 + this.bobPhase) * 1.6;
+      // Out in front, weaving across the mark's line, turned in the saddle
+      // and shooting back in bursts — which puts it square in the mark's own
+      // nose cannons. A duel, not a tail that cannot be answered.
+      const gap = ms + 16 - this.laneS;
+      const weave = Math.sin(game.time * 0.7 + this.bobPhase) * 5;
+      const ahead = this.laneS > ms + 4 && this.laneS < ms + 45;
+      const burst = (game.time + this.bobPhase) % 2.4 < 0.9;
+      const mark = markV.rider ?? markV.pillion;
       return {
         lat: clamp(ml + weave, -hw, hw),
         speed: mspd + clamp(gap * 0.9, -9, 12),
         boost: gap > 30,
-        fire: lined && ms - this.laneS < 48,
+        fire: ahead && burst && !!mark,
+        aimAt: mark ? _brainAim.set(mark.position.x, mark.position.y + 1.1, mark.position.z) : null,
       };
     }
     let side = b.side;
