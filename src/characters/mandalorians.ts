@@ -212,7 +212,8 @@ export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   },
   boba_fett: {
     ...TEXT.characters.boba_fett,
-    primary: 0x58744c, accent: 0x913f2c, suit: 0x6a5c40, cape: 0x8c7150,
+    // matched to the model: olive plate, rust accents, grey flight suit
+    primary: 0x58744c, accent: 0x913f2c, suit: 0x6e6f6a, cape: 0x8c7150,
     helmet: 'boba_fett', rangefinder: true, bulk: 1,
     voice: 'masked',
   },
@@ -713,7 +714,10 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       }
       // the jetpack rides the authored back, so keep the flames with our bone
       // but sit them where the model's thrusters actually are
-      if (!feetThrusters) flameRoot.position.y = -0.02;
+      // (Boba's pack is deeper and hangs lower than the Z-6 the flames were
+      // placed for: its underside is 0.33 m below the bone, so his flames drop
+      // to it instead of burning inside the pack)
+      if (!feetThrusters) flameRoot.position.y = id === 'boba_fett' ? -0.09 : -0.02;
     },
   });
 

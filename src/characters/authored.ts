@@ -614,8 +614,13 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
     // The supplied skin's evaluated rest bounds, measured from all 66,584
     // weighted vertices. Its raw mesh boxes are in the FBX bind frame and
     // understate the standing height by more than a metre.
+    //
+    // Height is measured to his helmet crown, like every other hero. The
+    // skin's true top (y 1.492) is the tip of the jetpack missile behind his
+    // head, and sizing to that stood his helmet about 11 cm below Din's; y
+    // 1.420 puts the crown at 1.83 m, a match for Din's 1.85.
     box.min.set(-0.397645, -0.002333, -0.273017);
-    box.max.set(0.415604, 1.492211, 0.167510);
+    box.max.set(0.415604, 1.420230, 0.167510);
   } else root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
