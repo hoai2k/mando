@@ -340,9 +340,11 @@ if (!miss.skipped) {
 // Nevarro, because that is where one of the two is: the Lava Flats' crossing,
 // the big open assault of its last stage. The Dune Sea the section above runs
 // on has none, and should not.
-await h.startStepped('campaign', 1, 'nevarro', ['din']);
-await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
-const siege = await h.page.evaluate(`(async () => {
+//
+// Ordinary open ground is looked for on the Dune Sea: since the level audit
+// (item 7) the Lava Flats' only other open assault, the town gate, is where
+// its lieutenant fights, so its run has the siege and nothing ordinary.
+const PROBE = `(async () => {
   const g = window.__game, c = g.campaign;
   const blank = () => ({ moveX:0,moveY:0,lookX:0,lookY:0,jumpHeld:false,jumpPressed:false,
     dashPressed:false,sprintHeld:false,shootHeld:false,aimHeld:false,meleePressed:false,
@@ -398,6 +400,7 @@ const siege = await h.page.evaluate(`(async () => {
     ordinary = { label: oz.spec.label, shell: oz.spec.shell, waveCount: held,
       garrison: oz.spec.garrison ?? 2, hint, ...after };
   }
+  if ('__MODE__' === 'ordinary') return { ordinary };
 
   // the siege zone: a holding force, and the rest arrives by air
   const si = find((z) => z.spec.siege);
@@ -429,7 +432,14 @@ const siege = await h.page.evaluate(`(async () => {
   }
   return { label: zone.spec.label, shell: zone.spec.shell, waves: zone.spec.waves,
     posted, waveCount, supplied, ordinary, pass };
-})()`);
+})()`;
+await h.startStepped('campaign', 1, 'desert', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
+const { ordinary } = await h.page.evaluate(PROBE.replace('__MODE__', 'ordinary'));
+await h.startStepped('campaign', 1, 'nevarro', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);
+const siege = await h.page.evaluate(PROBE.replace('__MODE__', 'siege'));
+siege.ordinary = ordinary;
 check('missions: the run\'s one wave battle holds with what is posted',
   !siege.err && siege.posted > 0 && siege.waveCount === siege.waves,
   { label: siege.label, shell: siege.shell, posted: siege.posted,
