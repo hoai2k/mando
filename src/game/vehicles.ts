@@ -95,6 +95,8 @@ export interface VehicleDef {
   modelAxis?: 'x' | 'y' | 'z' | 'longest';
   /** stand the sculpt on the keel instead of hanging it off its own origin */
   modelGround?: boolean;
+  /** turn the sculpt about the vertical (radians), for one delivered facing the wrong way */
+  modelYaw?: number;
   /**
    * An animal rather than a machine. A mount has no engine and no ignition, it
    * walks its gait clips instead of hovering, and when it dies it goes down in
@@ -182,11 +184,11 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     // freight plate: a hundred bolts to bring down, a dozen good crashes
     shotResist: 0.28, crashScale: 6, mass: 6,
     radius: 1.7, body: 1.3, hover: 0.9, length: 9,
-    // Astern of the cargo on the flat of the deck (0.13 over the keel on the
-    // sculpt) rather than out on the stern, where the hull falls away and a
-    // tillerman stood on nothing.
-    seat: { x: 0, y: 0.8, z: -1.6 }, stance: 'stand',
-    modelId: 'skiff', modelSize: 9,
+    // The sculpt was delivered with its helm astern: turned half round, the
+    // console end leads, and the pilot stands at it on the flat of the deck
+    // (0.13 over the keel), facing it, with the cargo lashed behind.
+    seat: { x: 0, y: 0.8, z: 2.6 }, stance: 'stand',
+    modelId: 'skiff', modelSize: 9, modelYaw: Math.PI,
   },
 };
 
@@ -410,6 +412,8 @@ export class Vehicle {
   private seatZ: number;
   /** where the hands go, from the seat — see `VehicleDef.hands` */
   readonly hands: VehicleDef['hands'];
+  /** how far the rider's knees open, when the ride sets it — see `VehicleAnchor.legSpread` */
+  get legSpread(): number | null { return this.anchor?.legSpread ?? null; }
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -1541,6 +1545,14 @@ function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: numbe
  * The hands, from the seat: the def's, or the workbench's grip anchor turned
  * into the same seat-relative offset (the left hand's; the right mirrors it).
  */
+/**
+ * How far over the keel a ride's sculpt hangs: a grounded one stands on it,
+ * the rest hang off their own origin a third of the body up. Anything else
+ * that carries the same sculpt in a frame of its own (the Nikto's swoop)
+ * lifts an anchor out of the ride's frame by this.
+ */
+export const sculptLift = (def: VehicleDef): number => (def.modelGround ? 0 : def.body * 0.35);
+
 export function handsFor(def: VehicleDef, anchor: VehicleAnchor | null): VehicleDef['hands'] {
   if (!anchor) return def.hands;
   return {
@@ -1670,16 +1682,17 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     saddle.traverse((o) => { o.castShadow = true; });
     group.add(saddle);
   } else {
-    // skiff: flat working deck, low rails, tiller platform astern, lashed cargo
+    // skiff: flat working deck, low rails, the helm forward (as the sculpt
+    // has it, turned to lead), lashed cargo astern
     const hullMat2 = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0xa08a60, roughness: 0.65, metalness: 0.35 });
     const deck = track(addBox(group, hullMat2, 3, 0.5, 8.6, 0, 0.55, 0));
     deck.receiveShadow = true;
     for (const sx of [-1.45, 1.45]) track(addBox(group, dark, 0.08, 0.35, 8.2, sx, 0.95, 0));
-    track(addBox(group, hullMat2, 1.4, 0.3, 1.2, 0, 0.9, -3.4));     // tiller platform
-    track(addCyl(group, dark, 0.04, 0.04, 1.1, 0.5, 1.5, -3.6, 0.3)); // tiller
+    track(addBox(group, hullMat2, 1.4, 0.3, 1.2, 0, 0.9, 3.4));      // helm platform
+    track(addCyl(group, dark, 0.04, 0.04, 1.1, -0.5, 1.5, 3.6, -0.3)); // tiller
     const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.8 });
-    track(addBox(group, crateMat, 1.1, 1.1, 1.1, -0.6, 1.35, 2.9));
-    track(addBox(group, crateMat, 0.9, 0.9, 0.9, 0.7, 1.25, 3.2));
+    track(addBox(group, crateMat, 1.1, 1.1, 1.1, 0.6, 1.35, -2.9));
+    track(addBox(group, crateMat, 0.9, 0.9, 0.9, -0.7, 1.25, -3.2));
   }
   if (def.modelId) {
     propsUsed.add(def.modelId);   // a parked ride is part of the board's art
@@ -1690,7 +1703,8 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
       onSettle,
     });
     // a grounded sculpt stands on the keel; the rest hang off their own origin
-    model.position.y = def.modelGround ? 0 : def.body * 0.35;
+    model.position.y = sculptLift(def);
+    model.rotation.y = def.modelYaw ?? 0;
     group.add(model);
   } else onSettle?.();
 }

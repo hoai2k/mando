@@ -23,7 +23,7 @@ import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from
 import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
-import { reachArm } from '../anim/seating';
+import { reachArm, spreadKnees } from '../anim/seating';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
@@ -1591,6 +1591,7 @@ export class Enemy {
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
+    if (v.legSpread !== null && this.char.rig) spreadKnees(this.char.rig, v.legSpread);
     this.handsToGrips(v);
   }
 

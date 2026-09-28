@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
-import { reachArm, seatSurface } from '../anim/seating';
+import { reachArm, seatSurface, spreadKnees } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
@@ -8,6 +8,7 @@ import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
 import { applySharedWeaponGrip } from './sharedWeaponGrips';
 import { WEAPON_PROPS } from './weaponProps';
 import { hipsOverFeet, NIKTO_RIDER, stanceRise, VEHICLE_ANCHORS } from '../game/vehicleAnchors';
+import { sculptLift, VEHICLE_DEFS } from '../game/vehicles';
 import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
@@ -720,6 +721,12 @@ const SWOOP_BARS = { x: 0.28, y: 0.29, z: 0.23 };
 let swoopSaddleY: number | null = null;
 /** the swoop's keel over the ground, at rest — its hover height (VEHICLE_DEFS.swoop.hover) */
 const BIKE_REST = 0.55;
+/**
+ * The pilotable swoop hangs its sculpt `sculptLift` over the keel; this bike
+ * carries the same sculpt at the keel. So an anchor placed on the ride — the
+ * seat, the grip — sits that much lower here.
+ */
+const swoopAnchorY = (y: number): number => y - sculptLift(VEHICLE_DEFS.swoop);
 
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
@@ -767,6 +774,19 @@ export function buildNikto(authored = true): CharacterInstance {
     [rb.head, -14 * D, 0, 0],
   ];
   for (const [o, x, y, z] of pose) o.rotation.set(x, y, z);
+  /**
+   * Open his knees to `knee` metres off the centre line (see `spreadKnees`),
+   * from the pose above — or back to it, for null. His own spread when the
+   * workbench has set one, else the swoop's: it is the same bike.
+   */
+  const thighs = [rb.upperLegL.quaternion.clone(), rb.upperLegR.quaternion.clone()];
+  let legSpread = NIKTO_RIDER?.legSpread ?? VEHICLE_ANCHORS.swoop?.legSpread ?? null;
+  const spreadLegs = (): void => {
+    rb.upperLegL.quaternion.copy(thighs[0]);
+    rb.upperLegR.quaternion.copy(thighs[1]);
+    if (legSpread !== null) spreadKnees(riderRig, legSpread);
+  };
+  spreadLegs();
   // The rider rides the bike: parented to it, so the hover bob, the roll and
   // the ram's nose-dip carry the body with them. (It used to hang off the
   // group beside the bike, and sat perfectly still while the bike bobbed
@@ -802,7 +822,7 @@ export function buildNikto(authored = true): CharacterInstance {
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
     for (const side of [-1, 1] as const) {
       const local = anchor
-        ? new THREE.Vector3(side === 1 ? anchor.grip[0] : 2 * anchor.seat[0] - anchor.grip[0], anchor.grip[1], anchor.grip[2])
+        ? new THREE.Vector3(side === 1 ? anchor.grip[0] : 2 * anchor.seat[0] - anchor.grip[0], swoopAnchorY(anchor.grip[1]), anchor.grip[2])
         : new THREE.Vector3(SWOOP_SEAT.x + side * SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z);
       const grip = bike.localToWorld(local);
       const hint = grip.clone().addScaledVector(right, side * 0.5);
@@ -847,7 +867,7 @@ export function buildNikto(authored = true): CharacterInstance {
       rider.root.position.set(...NIKTO_RIDER.position);
       rider.root.rotation.set(...NIKTO_RIDER.rotation.map((d) => d * D) as [number, number, number]);
     } else if (seat) {
-      rider.root.position.set(seat[0], seat[1] - stanceRise('saddle', hipsOverFeet({ rig: riderRig })), seat[2]);
+      rider.root.position.set(seat[0], swoopAnchorY(seat[1]) - stanceRise('saddle', hipsOverFeet({ rig: riderRig })), seat[2]);
     } else {
       // the pose above is tuned to the *stand-in* saddle, so this corrects it
       // by however far the sculpt's own saddle differs — which keeps the
@@ -857,7 +877,15 @@ export function buildNikto(authored = true): CharacterInstance {
     handsToBars(saddle);
   };
   // the workbench moves the rider by hand and asks for the hands again
-  group.userData.niktoRider = { bike, rider: rider.root, handsToBars: () => handsToBars(saddle) };
+  group.userData.niktoRider = {
+    bike, rider: rider.root, handsToBars: () => handsToBars(saddle),
+    get legSpread() { return legSpread; },
+    setLegSpread: (knee: number | null) => { legSpread = knee; spreadLegs(); },
+    kneeWidth: () => {
+      const thigh = new THREE.Vector3(0, -1, 0).applyQuaternion(thighs[0]);
+      return +(riderRig.proportions.hipWidth + riderRig.proportions.upperLegLen * thigh.x).toFixed(3);
+    },
+  };
 
   // the swoop's melee is a ram: nose dipped and driven forward, then pulled up
   let attackT = -1;
