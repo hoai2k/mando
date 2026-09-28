@@ -241,9 +241,9 @@ hunts the crossing is the sandworm the party then fights as the lieutenant, so
 this is its introduction. Between the airlock and the pit's fence.
 
 **Layout.** An `open` shell, 180 × 110 m of deep dune, crossed along its long
-axis. Seventeen **rock islands** (8–16 m across, 10–20 m apart) form three loose
-routes: a fast straight route with long sand gaps, and two winding ones with
-short gaps. Tusken **thumper posts** stand on four islands. Two Tusken camps on
+axis. Seventeen **rock islands** (8–16 m across) form three loose routes that
+share the entry and exit islands: a fast straight route with long sand gaps
+(20–35 m, a sprint or a burn), and two winding ones with short gaps (8–14 m). Tusken **thumper posts** stand on four islands. Two Tusken camps on
 the larger islands.
 
 **How it plays.**
@@ -275,7 +275,8 @@ cross" a play people will find on their own.
 **Camera.** Per-player. The sand ring is a ground decal readable from any angle.
 
 **Failing.** Death re-forms at the last rock island any living player stood on
-that has a checkpoint marker (three of them, at the thirds). No fail state.
+that has a checkpoint marker (three of them: the entry island and the islands
+at the 60 m and 120 m marks). No fail state.
 
 **Built from.** `sandworm` (its eruption and burrow are already its lieutenant
 moves), `tusken`, `tusken_tent`, the camp encounter, boulders. **New:** K6 noise,
@@ -308,8 +309,9 @@ as you advance. The ring's own gravity plating holds you to the hull ("the
 hull's field"): stepping off the spine's edges is a fall into the void and a
 re-form at the last rail gate.
 
-**How it plays.** Four segments separated by three **locks** (K1: the camera
-stops, the frame closes, a wave arrives, clear to advance):
+**How it plays.** Four segments of ~75 m joined by rail gates, with three
+**locks** along the way (K1: the camera stops, the frame closes, a wave
+arrives, clear to advance):
 
 1. **The spine** — pirates posted behind conduit bumps and cargo pods, a first
    jetpack pirate pair. Teaches the twin-stick aim.
@@ -329,8 +331,10 @@ visible, the Gauntlet feel the LEVEL_DESIGN research was chasing. The leash (K1)
 keeps the party within one screen; a lagging player is carried, a dead one
 re-forms at the next gate.
 
-**Camera.** The **rail camera**: set off the ring's outer side, 3/4 elevated,
-looking across the walkway toward the station's hub, following the arc. The
+**Camera.** The **rail camera**: set off the ring's outer side and a little
+along its axis, 3/4 elevated (≈10 m over the hull, which is also what lets it
+see ~60 m over the curve), looking across the walkway toward the station's hub,
+following the arc. The
 station's hub and spokes fill the background — that is the postcard. At locks the
 camera pulls back to frame the whole arena.
 
