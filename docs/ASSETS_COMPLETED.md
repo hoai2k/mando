@@ -1072,6 +1072,8 @@ remain requested in `ASSETS_MODELS.md`.
 replacing the 800×450 `board_tatooine.jpg` only on the title screen. The
 original remains available, while `src/main.ts` and the title prefetch use
 the new image. Its twin suns, traveler and desert town follow the original
-composition. The final revision softens the distinct cloud shapes into
-wind-swept atmospheric layers and carries dusty haze across the dunes for
-a cinematic view.
+composition. The selected version preserves the prominent armored traveler,
+jetpack and cape from the first upscale. The background was made without the
+character, then its cloud banks were softened into broad wind-swept haze and
+the original hunter was composited back in place. The twin suns, distant town
+and rocky overlook remain in the original arrangement.

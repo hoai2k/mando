@@ -10,7 +10,7 @@ briefs, say) cites the resulting filename from there.
 The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
 The Twin Suns title, its armored-posse variant, Wanted loading assets, the
-alternate Dune Sea board image, and the hazy high-resolution title image are
+alternate Dune Sea board image, and the character-preserving high-resolution title image are
 delivered. The gameplay-section keyframes and supporting images are also
 delivered. All eighteen sections are being built. Before those batches there
 were no open requests (as of 2026-09-24). The Jedi and Maris
