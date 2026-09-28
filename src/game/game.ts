@@ -4,7 +4,7 @@ import type { Board, Breakable } from '../world/board';
 import { Player } from '../player/player';
 import { BotBrain } from './bot';
 import { TEXT } from '../text';
-import { Enemy, type Combatant, type EnemyKind } from '../enemies/enemy';
+import { Enemy, ENEMY_NAME, type Combatant, type EnemyKind } from '../enemies/enemy';
 import { ALLY_WAVES, standingSpot, type Placement } from '../enemies/spawner';
 import { Carrier, carrierShipId, landingSite, squadArrival, DROP_HEIGHT } from '../enemies/arrival';
 import { CombatDirector } from '../enemies/director';
@@ -484,7 +484,7 @@ export class Game {
     const boss = new Enemy(kind, at);
     if (tier === 'mid') boss.promoteBoss(mid.name, mid.hp, mid.dmg, mid.bulk);
     else boss.promoteBoss(this.board.kind === 'ringworld' && kind !== BOSS_KIND.ringworld
-      ? TEXT.enemies[kind] : BOSS_NAME[this.board.kind]);
+      ? ENEMY_NAME[kind] : BOSS_NAME[this.board.kind]);
     // On a monster board the warlord is the herald: remember where it made its
     // stand, and the monster comes up there when it falls.
     if (tier === 'final' && MONSTER_BOSS[this.board.kind]) this.monsterAt = at.clone();

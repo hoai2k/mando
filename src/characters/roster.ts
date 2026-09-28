@@ -2,11 +2,12 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import {
   buildMandalorian, MANDO_ROSTER, meleeKinds, MELEE_NAMES, PLAYABLE_MANDO_IDS,
-  rangedKinds, RANGED_NAMES,
+  rangedKinds, RANGED_NAMES, signatureMeleeProp,
   type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
+import { weaponProp } from './weaponProps';
 import { buildEnemyCharacter, enemyHitParts, enemyStats, ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
-import { enemyModelIds } from './authored';
+import { enemyModelIds, type ModelId } from './authored';
 import type { CharacterInstance } from './builder';
 import type { VoiceId } from '../core/audio';
 
@@ -22,7 +23,7 @@ import type { VoiceId } from '../core/audio';
  */
 
 /** A playable id: a Mandalorian/hunter id, or 'npc:<enemyKind>'. */
-export type PlayableId = string;
+export type PlayableId = MandoId | `npc:${EnemyKind}`;
 
 export interface PlayerProfile {
   name: string;
@@ -117,13 +118,16 @@ export interface PlayableDef {
    * to name every file or a plinth clears its spinner on a half-authored
    * fighter.
    */
-  modelIds: string[];
+  modelIds: ModelId[];
 }
 
 const mandoProfile = (id: MandoId): PlayerProfile => {
   const cfg = MANDO_ROSTER[id];
   const melee = meleeKinds(id);
   const ranged = rangedKinds(id);
+  // a weapon of their own is named for itself, the common ones for their slot
+  const own = signatureMeleeProp(id);
+  const ownName = own ? weaponProp(own).name : undefined;
   return {
     name: cfg.name, desc: cfg.desc,
     maxHp: 100, runSpeed: 9.2, sprintSpeed: 14.4,
@@ -140,9 +144,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // Null means no gun; the HUD reads the melee slot, and saber wielders
     // can use their trigger to throw a blade instead.
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
-    meleeName: id === 'din' ? 'Beskar Spear' : id === 'armorer' ? 'Poleaxe'
-      : id === 'embo' ? 'Quarterstaff' : id === 'ig11' ? 'Force Pike'
-      : id === 'maul' ? 'Double Saber' : id === 'revan' ? 'Red Saber' : MELEE_NAMES[melee[0]],
+    meleeName: ownName ? TEXT.weapons.props[ownName] : MELEE_NAMES[melee[0]],
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
@@ -322,12 +324,23 @@ function npcDef(kind: EnemyKind): PlayableDef {
   };
 }
 
+/**
+ * Fighters whose own melee weapon is not waited on with their body.
+ *
+ * Every other signature weapon is part of "this fighter's art has arrived"
+ * (see `modelIds`), but Embo's and IG-11's staffs were given to them after
+ * this list was written and never joined it. Whether they should is a
+ * behaviour change of its own; until then they are named here rather than
+ * silently left out.
+ */
+const PROP_NOT_AWAITED = new Set<MandoId>(['embo', 'ig11']);
+
 const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
+  const prop = PROP_NOT_AWAITED.has(id) ? null : signatureMeleeProp(id);
   DEFS.set(id, {
     id,
-    modelIds: id === 'din' ? [id, 'beskar_spear'] : id === 'armorer' ? [id, 'poleaxe']
-      : id === 'maul' ? [id, 'saber_double'] : id === 'revan' ? [id, 'saber_dark'] : [id],
+    modelIds: prop ? [id, prop] : [id],
     build: () => buildMandalorian(id),
     profile: mandoProfile(id),
   });
@@ -345,7 +358,7 @@ const HIDDEN_PLAYABLES = new Set<EnemyKind>(['spiderling']);
 /** PvP: the standard roster plus every playable NPC */
 export const PVP_ROSTER: PlayableId[] = [
   ...STANDARD_ROSTER,
-  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k) => `npc:${k}`),
+  ...(Object.keys(NPC_TUNING) as EnemyKind[]).filter((k) => !HIDDEN_PLAYABLES.has(k as EnemyKind)).map((k): PlayableId => `npc:${k}`),
 ];
 
 export function playableDef(id: PlayableId): PlayableDef {
@@ -353,6 +366,6 @@ export function playableDef(id: PlayableId): PlayableDef {
 }
 
 /** every authored model a playable renders as — a swoop rider is two files */
-export function playableModelIds(id: PlayableId): string[] {
+export function playableModelIds(id: PlayableId): ModelId[] {
   return playableDef(id).modelIds;
 }

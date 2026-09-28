@@ -3,6 +3,7 @@ import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
 import { applyGravity } from '../core/body';
+import { saberClipsFor } from '../characters/mandalorians';
 import type { Game } from '../game/game';
 import { COVER_STAND_OVER, FUEL_SECONDS, JUMP_VEL, SPRINT_REFILL, type Player } from './player';
 
@@ -164,7 +165,7 @@ export function updateInCover(this: Player, dt: number, input: FrameInput, game:
   // holds while leaning out too: the peek goes round the corner, not over
   // the top, so there is nothing to stand up for.
   anim.play('lower', crouched ? 'coverLower' : 'idleLower');
-  if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? (this.characterId === 'maris' ? 'tonfaIdleUpper' : this.characterId === 'maul' ? 'staffIdleUpper' : 'saberIdleUpper') : 'idleUpper');
+  if (this.meleeTimer <= 0) anim.play('upper', this.peeking ? this.gunAimClip : this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}IdleUpper` : 'idleUpper');
 
   this.syncVisual(dt, game);
   anim.update(dt);

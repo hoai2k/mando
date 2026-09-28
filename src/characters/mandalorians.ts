@@ -1,7 +1,7 @@
 import { TEXT } from '../text';
 import * as THREE from 'three';
 import { markOwned } from '../core/dispose';
-import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance, type StaffPropId } from './builder';
+import { addBox, addCyl, addSphere, attachCape, buildBiped, makeBladeTrail, makeCarbine, makeCrossbow, makeGaffi, makeLongRifle, makePistol, makeSaber, mat, type CharacterInstance } from './builder';
 import { attachAuthored } from './authored';
 import { createShieldField } from '../fx/shieldfield';
 import type { VoiceId } from '../core/audio';
@@ -15,6 +15,7 @@ import { applyDinSpearGrip } from './dinSpearGrips';
 import { applyDinSaberGrip } from './dinSaberGrips';
 import { applyGripSpin, gripSpinFor } from './gripSpin';
 import { styleClips } from './styleClips';
+import { SABER_STYLES, saberClipSet, weaponProp, type SaberClips, type SaberStyle, type StaffPropId, type WeaponPropId } from './weaponProps';
 
 /**
  * Playable characters — one config-driven factory so every fighter shares the
@@ -85,9 +86,17 @@ const AUTHORED_STOWED_SABER_GRIPS: Partial<Record<MandoId, Record<'left' | 'righ
   },
 };
 
-interface MandoConfig {
+export interface MandoConfig {
   name: string;
   desc: string;
+  /**
+   * Which family the fighter belongs to: the helmeted Mandalorians, the
+   * bounty hunters, or the Force users. A party's families decide which rivals
+   * come for it (src/game/rivals.ts).
+   */
+  group: 'mando' | 'hunter' | 'force';
+  /** a Force user of the dark side, whose party is met by the light first */
+  sith?: true;
   primary: number;   // main armor plate color
   accent: number;    // pauldrons / details
   suit: number;      // under-suit
@@ -120,6 +129,25 @@ interface MandoConfig {
    */
   ranged?: RangedKind | RangedKind[] | 'none';
   melee?: MeleeKind | MeleeKind[];
+  /**
+   * The sculpt carried in the gaffi slot. Most fighters swing the gaffi; a few
+   * carry their own staff (Embo's quarterstaff and IG-11's force pike were
+   * picked in the workbench's weapon choice). See WEAPON_PROPS.
+   */
+  staffProp?: StaffPropId;
+  /**
+   * Which blade the sabers slot holds, for anyone who carries one: its hilt,
+   * whether it comes as a pair, and the clips it swings with (SABER_STYLES).
+   * Defaults to Ventress' red pair.
+   */
+  saberStyle?: SaberStyle;
+  /**
+   * The weapon this fighter's entry in data/sharedWeaponGrips.json was
+   * calibrated on: the signature gun unless it says the sabers (Revan's
+   * flourish grip), whose scale then follows the saber into the hand, the
+   * holster and the throw.
+   */
+  sharedGrip?: 'sabers';
   /** exposed skin colour, for anyone without a bucket on their head */
   skin?: number;
   /** whose throat the hurt and death sounds come from; defaults to a helmeted man */
@@ -130,6 +158,12 @@ interface MandoConfig {
    * the flames ride the foot bones so they angle with the legs in flight.
    */
   thrusters?: 'jetpack' | 'feet' | 'none';
+  /**
+   * Where the flight flames sit below the jetpack bone once the authored model
+   * is on, in metres; -0.02 puts them at the mouths of the Z-6 they were
+   * placed for.
+   */
+  flameY?: number;
   /**
    * Built for water: a reptilian or amphibious fighter swims faster, turns
    * harder and comes out of a breach higher than a body that has to be
@@ -162,14 +196,36 @@ export function rangedKinds(id: MandoId): RangedKind[] {
   return cfg === 'none' ? [] : list(cfg as RangedKind | RangedKind[] | undefined, 'carbine');
 }
 /**
- * The sculpt carried in the gaffi slot. Most fighters swing the gaffi; these
- * carry their own staff (Embo's quarterstaff and IG-11's force pike were
- * picked in the workbench's weapon choice).
+ * A playable id's roster entry, or undefined for anyone the factory does not
+ * build — the lookups below take any playable id, a PvP NPC's included, and
+ * answer those with the defaults.
  */
-const STAFF_PROP: Partial<Record<MandoId, StaffPropId>> = {
-  din: 'beskar_spear', armorer: 'poleaxe', embo: 'rey_staff', ig11: 'force_pike',
-};
-export const staffPropFor = (id: MandoId): StaffPropId => STAFF_PROP[id] ?? 'gaffi';
+const rosterEntry = (id: string): MandoConfig | undefined =>
+  (Object.prototype.hasOwnProperty.call(MANDO_ROSTER, id) ? MANDO_ROSTER[id as MandoId] : undefined);
+
+/** The sculpt carried in the gaffi slot (see `staffProp`). */
+export const staffPropFor = (id: string): StaffPropId => rosterEntry(id)?.staffProp ?? 'gaffi';
+/** The blade carried in the sabers slot (see `saberStyle`). */
+export const saberStyleFor = (id: string): SaberStyle => rosterEntry(id)?.saberStyle ?? 'red';
+/** The clip families this fighter's sabers play, by use (see `saberClipSet`). */
+export const saberClipsFor = (id: string): SaberClips => saberClipSet(saberStyleFor(id));
+/** The scale on this fighter's sabers: the shared grip's, where it was set on them (see `sharedGrip`). */
+export const saberScaleFor = (id: string): number =>
+  (rosterEntry(id)?.sharedGrip === 'sabers' ? sharedWeaponScale(id as MandoId) : 1);
+
+/**
+ * The sculpt in the signature melee slot when it is this fighter's own — a
+ * staff other than the gaffi, or a single saber rather than a pair — and null
+ * when it is the common gaffi or a pair of sabers, which go by their slot.
+ */
+export function signatureMeleeProp(id: MandoId): WeaponPropId | null {
+  if (meleeKinds(id)[0] === 'gaffi') {
+    const staff = staffPropFor(id);
+    return staff === 'gaffi' ? null : staff;
+  }
+  const saber = SABER_STYLES[saberStyleFor(id)];
+  return saber.pair ? null : saber.prop;
+}
 
 /** Every melee weapon this character carries, signature first. */
 export function meleeKinds(id: MandoId): MeleeKind[] {
@@ -192,87 +248,113 @@ export const BENCHED_MANDO_IDS: ReadonlySet<MandoId> = new Set<MandoId>(['bokata
 export const MANDO_ROSTER: Record<MandoId, MandoConfig> = {
   din: {
     ...TEXT.characters.din,
+    group: 'mando',
     primary: 0xb4bac2, accent: 0x6d7178, suit: 0x4a4239, cape: 0x5a4632, helmet: 'din', rangefinder: false, bulk: 1,
     // The spear and the blade he won: D-pad left picks between them.
     melee: ['gaffi', 'sabers'],
+    staffProp: 'beskar_spear', saberStyle: 'darksaber',
   },
   paz: {
     ...TEXT.characters.paz,
+    group: 'mando',
     primary: 0x2e4a72, accent: 0x1e2c42, suit: 0x33363c, cape: null, helmet: 'paz', rangefinder: false, bulk: 1.16, broad: 1.08,
   },
   bokatan: {
     ...TEXT.characters.bokatan,
+    group: 'mando',
     primary: 0x2f5c8a, accent: 0xb03a3a, suit: 0x2a2d33, cape: null, helmet: 'bokatan', rangefinder: true, bulk: 0.95,
     voice: 'mando_f',
   },
   armorer: {
     ...TEXT.characters.armorer,
+    group: 'mando',
     primary: 0xb59440, accent: 0x6b5320, suit: 0x2e2a24, cape: 0x4a3b22, helmet: 'armorer', rangefinder: false, bulk: 0.98,
+    staffProp: 'poleaxe',
     voice: 'mando_f',
   },
   boba_fett: {
     ...TEXT.characters.boba_fett,
+    group: 'mando',
     // matched to the model: olive plate, rust accents, grey flight suit
     primary: 0x58744c, accent: 0x913f2c, suit: 0x6e6f6a, cape: 0x8c7150,
     helmet: 'boba_fett', rangefinder: true, bulk: 1,
     voice: 'masked',
+    // his pack is deeper and hangs lower than the Z-6 the flames were placed
+    // for: its underside is 0.33 m below the bone, so his flames drop to it
+    // instead of burning inside the pack
+    flameY: -0.09,
   },
   ventress: {
     ...TEXT.characters.ventress,
+    group: 'force', sith: true,
     primary: 0x33363e, accent: 0x1e2026, suit: 0x2a2c33, cape: null, helmet: null, rangefinder: false, bulk: 0.93,
     melee: 'sabers', ranged: 'none', skin: 0xcdc3ba,
     voice: 'human_f', acrobat: true,
   },
   jedi: {
     ...TEXT.characters.jedi,
+    group: 'force',
     primary: 0xd9d3c3, accent: 0x645e55, suit: 0x302e2a, cape: null,
     helmet: null, rangefinder: false, bulk: 1,
     melee: 'sabers', ranged: 'none', skin: 0xc9b9a8,
+    saberStyle: 'white',
     voice: 'mando_m', acrobat: true, thrusters: 'none',
   },
   maris: {
     ...TEXT.characters.maris,
+    group: 'force',
     primary: 0x77635c, accent: 0xb89a90, suit: 0x362d30, cape: null,
     helmet: null, rangefinder: false, bulk: 0.92,
     melee: 'sabers', ranged: 'none', skin: 0xe7c5b8,
+    saberStyle: 'tonfa',
     voice: 'human_f', acrobat: true, thrusters: 'none',
   },
   maul: {
     ...TEXT.characters.maul,
+    group: 'force', sith: true,
     primary: 0x25212a, accent: 0x7b292b, suit: 0x202027, cape: null,
     helmet: null, rangefinder: false, bulk: 1,
     melee: 'sabers', ranged: 'none', skin: 0xb33b39,
+    saberStyle: 'double',
     voice: 'mando_m', acrobat: true, thrusters: 'none',
   },
   revan: {
     ...TEXT.characters.revan,
+    group: 'force', sith: true,
     primary: 0x292933, accent: 0x54282f, suit: 0x1b1a21, cape: 0x18171e,
     helmet: null, rangefinder: false, bulk: 1.04,
     melee: 'sabers', ranged: 'none', skin: 0x24242b,
+    saberStyle: 'dark', sharedGrip: 'sabers',
     voice: 'masked', acrobat: true, thrusters: 'none',
   },
   embo: {
     ...TEXT.characters.embo,
+    group: 'hunter',
     primary: 0x6d5a3a, accent: 0x59452a, suit: 0x4a3f2e, cape: 0x8a3328, helmet: null, rangefinder: false, bulk: 1.0,
     ranged: 'crossbow', skin: 0x7a8a4f,
+    staffProp: 'rey_staff',
     voice: 'masked',
   },
   bossk: {
     ...TEXT.characters.bossk,
+    group: 'hunter',
     primary: 0xc4b285, accent: 0x8a7a55, suit: 0xb0a077, cape: null, helmet: null, rangefinder: false, bulk: 1.08,
     ranged: 'longrifle', skin: 0x8ba03f,
     voice: 'reptile', amphibious: true,
   },
   duelist: {
     ...TEXT.characters.duelist,
+    group: 'hunter',
     primary: 0x2b2f38, accent: 0x1e2129, suit: 0x23262d, cape: null, helmet: null, rangefinder: false, bulk: 0.98,
     ranged: 'pistols', skin: 0x5a86a8,
     voice: 'alien_m', acrobat: true,
   },
   ig11: {
     ...TEXT.characters.ig11,
+    group: 'hunter',
     primary: 0x8a8578, accent: 0x5f5a4e, suit: 0x736e62, cape: null, helmet: null, rangefinder: false, bulk: 0.94,
     ranged: 'longrifle', skin: 0x8a8578, thrusters: 'feet',
+    staffProp: 'force_pike',
     voice: 'droid', bubbleShield: true,
   },
 };
@@ -493,8 +575,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
   // Staff and saber share the gripping hand, but their local axes need
   // different mount rotations: a spear thrust carries its point forward.
   const blades = new Map<MeleeKind, Held>();
-  const saberStyle = id === 'din' ? 'darksaber' : id === 'jedi' ? 'white' : id === 'maris' ? 'tonfa'
-    : id === 'maul' ? 'double' : id === 'revan' ? 'dark' : 'red';
+  const saberStyle = saberStyleFor(id);
+  const saberPair = SABER_STYLES[saberStyle].pair;
   for (const kind of meleeKinds(id)) {
     if (blades.has(kind)) continue;
     let main: THREE.Group;
@@ -504,13 +586,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
       main.name = 'saberHandR';
       // Both blades carry their own soft light so a thrown off-hand saber
       // illuminates its path while the main hand still lights the wielder.
-      if (id !== 'din' && id !== 'maul' && id !== 'revan') {
+      if (saberPair) {
         offhand = pairOn(() => makeSaber(silver, dark, { style: saberStyle }));
         offhand.name = 'saberHandL';
       }
     } else {
       main = makeGaffi(mat(0x6b4c2c, { rough: 0.95 }), silver, staffPropFor(id));
-      main.name = id === 'din' ? 'beskarSpear' : id === 'armorer' ? 'poleaxe' : 'gaffi';
+      main.name = weaponProp(staffPropFor(id)).node ?? 'gaffi';
       // The sculpt's pointed end is model -Z. Its prop mount maps that to
       // grip -Y; the carry half-turn lifts the point above Din's hand.
       main.rotation.x = Math.PI;
@@ -525,13 +607,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
     blades.set(kind, { main, offhand });
   }
   if (id === 'armorer') applyArmorerAxeGrip(blades.get('gaffi')!.main, 'idleUpper');
-  if (id === 'revan') blades.get('sabers')!.main.scale.setScalar(sharedWeaponScale(id));
+  if (cfg.sharedGrip === 'sabers') blades.get('sabers')!.main.scale.setScalar(sharedWeaponScale(id));
 
   // One hilt per hand at its hip while stowed. A thrown
   // slot hides its hip copy, so that saber has one visible location at a time.
   const holsters: THREE.Group[] = [];
   if (cfg.ranged === 'none' && blades.has('sabers')) {
-    for (const [hand, side] of (id === 'maul' || id === 'revan' ? [[0, -1]] : [[0, -1], [1, 1]]) as Array<readonly [0 | 1, number]>) {
+    for (const [hand, side] of (saberPair ? [[0, -1], [1, 1]] : [[0, -1]]) as Array<readonly [0 | 1, number]>) {
       const hilt = makeSaber(silver, dark, { light: false, style: saberStyle });
       (hilt.userData.blade as THREE.Object3D).visible = false;
       if (hilt.userData.oppositeBlade) (hilt.userData.oppositeBlade as THREE.Object3D).visible = false;
@@ -542,7 +624,7 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         id === 'ventress' ? 0.025 : 0.08,
       );
       hilt.rotation.z = id === 'ventress' ? Math.PI + side * 0.18 : id === 'maul' ? -0.16 : -side * 0.12;
-      if (id === 'revan') hilt.scale.setScalar(sharedWeaponScale(id));
+      if (cfg.sharedGrip === 'sabers') hilt.scale.setScalar(sharedWeaponScale(id));
       b.hips.add(hilt);
       holsters.push(hilt);
     }
@@ -647,11 +729,13 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         const signature = guns.get(rangedKinds(id)[0]);
         if (signature) applySharedWeaponGrip(id, signature.main);
       }
-      if (model.weaponMount && (id === 'embo' || id === 'ig11')) {
+      // a staff of their own has its grip in data/heroStaffGrips.json, when
+      // one was placed; the rest are left as mounted
+      if (model.weaponMount) {
         const staff = blades.get('gaffi');
         if (staff) applyHeroStaffGrip(id, staff.main);
       }
-      if (model.weaponMount && id === 'revan') {
+      if (model.weaponMount && cfg.sharedGrip === 'sabers') {
         const saber = blades.get('sabers');
         if (saber) applySharedWeaponGrip(id, saber.main);
       }
@@ -713,11 +797,8 @@ export function buildMandalorian(id: MandoId, opts: { authored?: boolean } = {})
         }
       }
       // the jetpack rides the authored back, so keep the flames with our bone
-      // but sit them where the model's thrusters actually are
-      // (Boba's pack is deeper and hangs lower than the Z-6 the flames were
-      // placed for: its underside is 0.33 m below the bone, so his flames drop
-      // to it instead of burning inside the pack)
-      if (!feetThrusters) flameRoot.position.y = id === 'boba_fett' ? -0.09 : -0.02;
+      // but sit them where the model's thrusters actually are (see `flameY`)
+      if (!feetThrusters) flameRoot.position.y = cfg.flameY ?? -0.02;
     },
   });
 

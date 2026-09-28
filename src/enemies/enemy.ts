@@ -13,7 +13,7 @@ import {
   buildPirate, buildPyke, buildStormtrooper, buildTusken,
 } from '../characters/enemies';
 import type { CharacterInstance } from '../characters/builder';
-import { buildMandalorian, type MandoId } from '../characters/mandalorians';
+import { buildMandalorian, saberClipsFor, type MandoId } from '../characters/mandalorians';
 import { clamp, damp, dampAngle } from '../core/math';
 import { bodyLuma, contrastNeed, haloPeak, haloStrength, makeHalo, skylineTone, type HaloTone } from '../fx/skyline';
 import { Ragdoll, RigidRagdoll } from '../anim/ragdoll';
@@ -25,6 +25,7 @@ import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
 import { reachArm } from '../anim/seating';
 import { TEXT } from '../text';
+import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
 import {
   fistSegments, resolveClash, sweepTouches, weaponSegments, weaponMounts, PARRY_SHOVE,
   type Blade, type Duelist, type Guard, type Segment,
@@ -118,14 +119,17 @@ export type EnemyKind =
   | 'mudhorn' | 'ravinak' | 'mamacore' | 'rancor' | 'kraytDragon' | 'mythosaur'
   | 'sandworm' | 'zillo' | 'nexu' | 'kwazelMaw'
   | 'spiderEgg' | 'spiderling'
-  | 'rivalMaul' | 'rivalRevan' | 'rivalVentress' | 'rivalGalen' | 'rivalMaris'
-  | 'rivalCadBane' | 'rivalEmbo' | 'rivalBossk' | 'rivalBoKatan';
+  | RivalKind;
 
 /**
  * Display names, for the places the game talks about a kind rather than
  * spawning it — the loading screen names who is waiting on the territory.
+ * A rival goes by its hero's name, so text.ts writes that name once.
  */
-export const ENEMY_NAME: Record<EnemyKind, string> = TEXT.enemies;
+export const ENEMY_NAME: Record<EnemyKind, string> = {
+  ...TEXT.enemies,
+  ...Object.fromEntries(RIVAL_KINDS.map((kind) => [kind, TEXT.characters[RIVALS[kind]].name])) as Record<RivalKind, string>,
+};
 
 interface Def {
   hp: number; speed: number; radius: number; height: number;
@@ -228,8 +232,7 @@ function buildRival(id: MandoId, melee: boolean): CharacterInstance {
     ...fighter,
     attack: () => {
       step = (step % 3) + 1;
-      const family = id === 'maul' ? 'staff' : id === 'maris' ? 'tonfa' : 'saber';
-      return fighter.animator?.playOnce('upper', `${family}${step}`, 0.06) ?? 0.5;
+      return fighter.animator?.playOnce('upper', `${saberClipsFor(id).attack}${step}`, 0.06) ?? 0.5;
     },
   };
 }
@@ -241,7 +244,8 @@ function buildRival(id: MandoId, melee: boolean): CharacterInstance {
  */
 const RIVAL_REACH: Partial<Record<MandoId, number>> = { maul: 1.7, revan: 1.9, ventress: 1.3, jedi: 1.5, maris: 1.7 };
 
-function rivalDef(id: MandoId, melee: boolean, hp = 180): Def {
+function rivalDef(kind: RivalKind, melee: boolean, hp = 180): Def {
+  const id = RIVALS[kind];
   return {
     hp, speed: melee ? 7.1 : 6.2, radius: 0.52, height: 1.9,
     style: melee ? 'melee' : 'ranged', damage: melee ? 23 : 13,
@@ -299,15 +303,15 @@ const DEFS: Record<EnemyKind, Def> = {
   // inherited wholesale from the retired Cad Bane-class duelist, so the wave
   // tables that called for him are balanced exactly as they were.
   gunslinger:   { hp: 190, speed: 7.2, radius: 0.5, height: 1.9, style: 'ranged', damage: 16, attackRange: 34, attackCd: 1.5, notice: 55, boltSpeed: 44, volley: 2, build: buildGunslinger },
-  rivalMaul: rivalDef('maul', true, 230),
-  rivalRevan: rivalDef('revan', true, 250),
-  rivalVentress: rivalDef('ventress', true),
-  rivalGalen: rivalDef('jedi', true),
-  rivalMaris: rivalDef('maris', true),
-  rivalCadBane: rivalDef('duelist', false),
-  rivalEmbo: rivalDef('embo', false),
-  rivalBossk: rivalDef('bossk', false, 220),
-  rivalBoKatan: rivalDef('bokatan', false, 190),
+  rivalMaul: rivalDef('rivalMaul', true, 230),
+  rivalRevan: rivalDef('rivalRevan', true, 250),
+  rivalVentress: rivalDef('rivalVentress', true),
+  rivalGalen: rivalDef('rivalGalen', true),
+  rivalMaris: rivalDef('rivalMaris', true),
+  rivalCadBane: rivalDef('rivalCadBane', false),
+  rivalEmbo: rivalDef('rivalEmbo', false),
+  rivalBossk: rivalDef('rivalBossk', false, 220),
+  rivalBoKatan: rivalDef('rivalBoKatan', false, 190),
   // Closes to the electrostaff's reach and hits like a truck when he gets there.
   officer:      { hp: 240, speed: 6.4, radius: 0.52, height: 1.95, style: 'melee', damage: 26, attackRange: 1.75, attackCd: 1.3, notice: 50, build: buildImperialOfficer },
   // Shielded shooter: out-range him or flank him, he will not be rushed down.

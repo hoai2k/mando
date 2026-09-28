@@ -436,7 +436,8 @@ expose({
    * rather than from a camera the tool sets up.
    */
   __posterShot: async (id, timeoutMs = 60000) => {
-    charSelect.configure({ roster: [id], title: 'Poster', minPlayers: 1 });
+    // tools/posters.mjs names the fighter by its playable id
+    charSelect.configure({ roster: [id as PlayableId], title: 'Poster', minPlayers: 1 });
     charSelect.show();
     const t0 = performance.now();
     // drive the screen's own update, so the body is built and fitted to the

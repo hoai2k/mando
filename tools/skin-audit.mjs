@@ -41,7 +41,7 @@ import { readGlb } from './lib/glb.mjs';
 const MODELS = 'public/models';
 const OUT = `${MODELS}/skinfix`;
 
-/** metres each model stands at in game (MODEL_HEIGHT / AUTHORED_ENEMY) */
+/** metres each model stands at in game (MODEL_HEIGHT / ENEMY_MODELS) */
 const HEIGHT = {
   din: 1.85, paz: 1.67, bokatan: 1.75, armorer: 1.78, ventress: 1.79, embo: 1.78,
   bossk: 1.9, ig11: 2.2, duelist: 1.9, droid: 2.1, deathtrooper: 2.0, darktrooper: 2.2,
