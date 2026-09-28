@@ -14,6 +14,8 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'chimney',
   'hold-the-forge',
   'covert-sky',
+  'glacier-chute',
+  'lamplight',
 ]);
 
 /**
@@ -25,4 +27,6 @@ export const SECTION_ASSETS: Partial<Record<SectionId, string[]>> = {
   chimney: ['valve_wheel'],
   'hold-the-forge': ['forge_brazier', 'beskar_barricade'],
   'covert-sky': ['forge_brazier', 'flak_tower'],
+  'glacier-chute': ['cliff_pillar_ice'],
+  lamplight: ['forge_brazier'],
 };

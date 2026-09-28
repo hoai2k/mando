@@ -4,6 +4,8 @@ import { chimney } from './chimney';
 import { holdTheForge } from './hold-the-forge';
 import { covertSky } from './covert-sky';
 import { SECTION_BOARD, MISSION_LAYOUTS } from '../world/mission-layouts';
+import { glacierChute } from './glacier-chute';
+import { lamplight } from './lamplight';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -14,6 +16,8 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   chimney,
   'hold-the-forge': holdTheForge,
   'covert-sky': covertSky,
+  'glacier-chute': glacierChute,
+  lamplight,
 };
 
 /**

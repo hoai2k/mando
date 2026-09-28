@@ -108,4 +108,13 @@ export interface SectionMove {
   adjust?(p: Player, dt: number, input: FrameInput, game: Game): FrameInput;
   /** take the whole frame — movement, animation, camera — and return true */
   take?(p: Player, dt: number, input: FrameInput, game: Game, realDt: number): boolean;
+  /**
+   * Own the horizontal velocity this frame and return true (K7: the slide's
+   * gravity along the slope, flight's thrust). Everything else of the frame —
+   * the jump, the jetpack, the gun, the animation, the camera — runs as
+   * normal around it, which is what `take` cannot offer.
+   */
+  steer?(p: Player, dt: number, input: FrameInput, game: Game): boolean;
+  /** hold the body in the crouched pose this frame (K7's surf) */
+  crouch?(p: Player): boolean;
 }

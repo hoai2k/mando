@@ -1914,6 +1914,9 @@ export class Player {
       // here there is nothing to push against — a body drifting between
       // platforms that slows to a halt on its own is the one thing space
       // cannot do. Point and burn to change it; otherwise you coast.
+    } else if (this.sectionMove?.steer?.(this, dt, input, game)) {
+      // A gameplay section's own locomotion (K7: the slide, flight) set the
+      // horizontal velocity itself (docs/SECTIONS_IMPLEMENTATION.md §2.3).
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
@@ -2403,8 +2406,12 @@ export class Player {
     if (this.landTimer > 0 && this.grounded && speed2 > 3) { this.releaseLanding(anim); }
     // a gun coming up takes the arms straight back from the deep landing
     if (this.landArms && gunUp) { anim.release('upper'); this.landArms = false; }
-    if (this.autoCrouching) {
-      anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+    // K7's slide holds a crouched surf while it carries the body (§2.3)
+    const surf = this.grounded && !!this.sectionMove?.crouch?.(this);
+    if (this.autoCrouching || surf) {
+      // the surf is the crouched stride held still: knees bent, one foot leading
+      if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
+      else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
       else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
     } else if (this.blocking) {
