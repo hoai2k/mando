@@ -3,6 +3,7 @@ import { fbm2, makeRng } from './math';
 import { markShared } from './dispose';
 import { RETRY_DELAYS, tracked, warmFetch, warmImage, warmQueue, type WarmPriority } from './warm';
 import { rivalHero } from '../enemies/rivals';
+import FULL_RES from '../characters/data/fullResolution.json';
 
 /**
  * Texture pipeline: procedural canvas textures by default; if an authored
@@ -19,6 +20,27 @@ import { rivalHero } from '../enemies/rivals';
  * to reach the same files.
  */
 export const ASSET_ROOT = location.pathname.includes('/workbench') ? '../' : '';
+
+let fullResolution = false;
+/**
+ * Read the decimated characters from their full-resolution originals instead
+ * (public/models/full/). The workbench's `?res=full`, for checking a
+ * budget-sized model against what it was made from; the game never does.
+ */
+export function showFullResolution(): void { fullResolution = true; }
+/**
+ * The folder a model, and the documents that number its vertices (skinfix,
+ * strays, jawrig), are read from. The two always travel together: a fix
+ * written for the original's vertices means nothing on the decimated mesh.
+ */
+export function modelDir(id: string): string {
+  return fullResolution && id in FULL_RES.models ? 'models/full/' : 'models/';
+}
+/** Whether the full-resolution original of `id` has a `kind` document of its own. */
+export function hasFullResolutionDoc(id: string, kind: 'skinfix' | 'strays' | 'jawrig'): boolean {
+  const entry = (FULL_RES.models as Record<string, { docs?: string[] }>)[id];
+  return fullResolution && !!entry?.docs?.includes(kind);
+}
 
 const cache = new Map<string, THREE.Texture>();
 

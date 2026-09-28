@@ -1,0 +1,173 @@
+{
+  "note": "Models decimated to budget by tools/asset-pipeline/decimate.mjs. Each original, and the per-vertex fix documents written for it, is kept byte for byte in public/models/full/; the workbench shows them with ?res=full. Maintained by the tool.",
+  "models": {
+    "armorer": {
+      "triangles": 120000,
+      "shipped": 15000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "bokatan": {
+      "triangles": 120000,
+      "shipped": 14999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "carbine": {
+      "triangles": 60000,
+      "shipped": 3999,
+      "docs": []
+    },
+    "darktrooper": {
+      "triangles": 120000,
+      "shipped": 8000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "deathtrooper": {
+      "triangles": 120000,
+      "shipped": 8000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "din": {
+      "triangles": 118710,
+      "shipped": 14999,
+      "docs": [
+        "skinfix",
+        "strays"
+      ]
+    },
+    "droid": {
+      "triangles": 119999,
+      "shipped": 7995,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "duelist": {
+      "triangles": 120000,
+      "shipped": 15000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "fennec": {
+      "triangles": 120000,
+      "shipped": 8000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "gaffi": {
+      "triangles": 30000,
+      "shipped": 4000,
+      "docs": []
+    },
+    "ig11": {
+      "triangles": 120000,
+      "shipped": 15000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "imperial_officer": {
+      "triangles": 120000,
+      "shipped": 7999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "marshal": {
+      "triangles": 119999,
+      "shipped": 7997,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "massiff": {
+      "triangles": 100000,
+      "shipped": 7998,
+      "docs": [
+        "jawrig"
+      ]
+    },
+    "massiff_static": {
+      "triangles": 100000,
+      "shipped": 7998,
+      "docs": []
+    },
+    "nikto": {
+      "triangles": 119999,
+      "shipped": 7999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "nikto_swoop": {
+      "triangles": 79999,
+      "shipped": 3996,
+      "docs": []
+    },
+    "paz": {
+      "triangles": 120000,
+      "shipped": 15000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "pirate": {
+      "triangles": 120000,
+      "shipped": 8000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "pirate_melee": {
+      "triangles": 120000,
+      "shipped": 7999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "pyke": {
+      "triangles": 120000,
+      "shipped": 7999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "pyke_capo": {
+      "triangles": 120000,
+      "shipped": 8000,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "stormtrooper": {
+      "triangles": 120000,
+      "shipped": 7999,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "tusken": {
+      "triangles": 120000,
+      "shipped": 8287,
+      "docs": [
+        "skinfix"
+      ]
+    },
+    "wookiee_enforcer": {
+      "triangles": 119998,
+      "shipped": 8302,
+      "docs": [
+        "skinfix"
+      ]
+    }
+  }
+}

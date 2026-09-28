@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, hasFullResolutionDoc, modelDir } from '../core/assets';
 
 /**
  * Bones added to a delivered sculpt at load time.
@@ -60,8 +60,10 @@ export function loadJawRig(id: string): Promise<JawRigDoc | null> {
   let p = docs.get(id);
   if (!p) {
     p = riggedModels().then((set) => {
-      if (!set.has(id)) return null;
-      return fetch(`${ASSET_ROOT}models/jawrig/${id}.json`)
+      // a full-resolution original keeps its own documents beside it
+      const dir = modelDir(id);
+      if (dir === 'models/' ? !set.has(id) : !hasFullResolutionDoc(id, 'jawrig')) return null;
+      return fetch(`${ASSET_ROOT}${dir}jawrig/${id}.json`)
         .then((r) => (r.ok ? (r.json() as Promise<JawRigDoc>) : null))
         .catch((err) => { console.warn(`[jawrig] ${id}: could not load`, err); return null; });
     });

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, hasFullResolutionDoc, modelDir } from '../core/assets';
 
 /**
  * Skin-weight fixes for the authored models.
@@ -76,8 +76,10 @@ export function loadSkinFix(id: string): Promise<SkinFixDoc | null> {
   let p = docs.get(id);
   if (!p) {
     p = fixedModels().then((set) => {
-      if (!set.has(id)) return null;
-      return fetch(`${ASSET_ROOT}models/skinfix/${id}.json`)
+      // a full-resolution original keeps its own documents beside it
+      const dir = modelDir(id);
+      if (dir === 'models/' ? !set.has(id) : !hasFullResolutionDoc(id, 'skinfix')) return null;
+      return fetch(`${ASSET_ROOT}${dir}skinfix/${id}.json`)
         .then((r) => (r.ok ? (r.json() as Promise<SkinFixDoc>) : null))
         .catch((err) => { console.warn(`[skinfix] ${id}: could not load fixes`, err); return null; });
     });

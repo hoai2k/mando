@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { CharacterInstance } from '../characters/builder';
-import { loadOptionalTexture } from '../core/assets';
+import { loadOptionalTexture, showFullResolution } from '../core/assets';
 import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './poses';
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
@@ -146,6 +146,8 @@ let figures: Figure[] = [];
 let skeletons: THREE.SkeletonHelper[] = [];
 
 const initialParams = new URLSearchParams(location.search);
+// before anything is built: which files a character is read from
+if (initialParams.get('res') === 'full') showFullResolution();
 let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
 let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
 let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
@@ -801,6 +803,7 @@ function renderPanel(): void {
       </div>
     </div>
 
+    <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
     <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
@@ -909,6 +912,14 @@ function renderPanel(): void {
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
+  // A loaded model is cached by its file, so switching resolution is a reload
+  // of the page on the other set of files, keeping everything else in the URL.
+  const fullRes = panel.querySelector<HTMLInputElement>('#fullRes');
+  if (fullRes) fullRes.onchange = () => {
+    const url = new URL(location.href);
+    if (fullRes.checked) url.searchParams.set('res', 'full'); else url.searchParams.delete('res');
+    location.href = url.toString();
+  };
   });
   panel.querySelector<HTMLInputElement>('#spin')!.onchange = (e) => {
     spin = (e.target as HTMLInputElement).checked;
