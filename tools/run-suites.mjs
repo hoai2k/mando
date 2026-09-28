@@ -63,6 +63,7 @@ const SUITES = [
   { name: 'test-missions', weight: 470 },
   // the gameplay sections: ~60 s a section at 2 players (measured on the chimney)
   { name: 'test-sections', weight: 120 },
+  { name: 'test-job-page', weight: 40 },
   { name: 'test-vehicles', weight: 365 },
   { name: 'test-modes', weight: 290 },
   { name: 'test-coop', weight: 263 },
