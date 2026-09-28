@@ -190,6 +190,7 @@ export const TEXT = {
     waveOf: (n: number, of: number) => `Wave ${n} of ${of}`,
     checkpoint: 'Checkpoint',
     riders: { title: 'Riders', sub: 'drop the rider, take the ride' },
+    swoopPack: { title: 'Swoop pack', sub: 'they are coming in over the rim' },
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },
     offPath: { title: 'Off the path', sub: 'back to the last checkpoint' },

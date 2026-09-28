@@ -88,6 +88,16 @@ const supplied = (spec: ZoneSpec): boolean =>
   !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
 /** encounters fought where they stand: a zone-0 one shuts the way back while it lasts */
 const FIGHT_KINDS = new Set<ZoneSpec['kind']>(['assault', 'lieutenant', 'warlord', 'chase']);
+/**
+ * How far ahead of the lead a road's drop mark is called. A carrier takes a
+ * few seconds to cross and let its squad go, and a ride covers seventy metres
+ * in three: a mark fired as the lead passed it dropped its squad *behind* a
+ * party already at the barricade (audit finding 3). So a mark is called this
+ * far ahead of the lead, and its squad is sent where the lead will be.
+ */
+const ROAD_MARK_LEAD = 40;
+/** the seconds a road drop is expected to take, for aiming it ahead of a ride */
+const ROAD_DROP_ETA = 2.8;
 /** stand this close to the objective and its column goes out — you are there */
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
@@ -144,6 +154,10 @@ export class Campaign implements MissionController {
   private bossCalled = false;
   /** the bosses (by beat) a supply cache has already been put down for */
   private cachesDropped = new Set<number>();
+  /** roads whose swoop pack has been sent, by beat */
+  private packSent = new Set<number>();
+  /** road: the furthest drop mark the lead has actually reached */
+  private markReached = -1;
   /** road: which of its drop marks have fired */
   private marksFired: boolean[] = [];
   /** camps whose riders have already been sent for their rides */
@@ -549,6 +563,7 @@ export class Campaign implements MissionController {
     this.phase = 'travel';
     this.bossCalled = false;
     this.marksFired = [];
+    this.markReached = -1;
 
     // where they stand: the trailhead going forward, the door they came back
     // through going back
@@ -1032,7 +1047,9 @@ export class Campaign implements MissionController {
         // A road is held at its far mouth, never behind: the fight is the
         // length of it, and the barricade is what you are riding at.
         zone.exitBarrier?.close();
-        this.marksFired = (zone.marks ?? []).map(() => false);
+        // (the first mark may already have been called from the ground before)
+        if (this.marksFired.length !== zone.marks.length) this.marksFired = zone.marks.map(() => false);
+        this.swoopPack(zone);
         this.game.announce(zone.spec.label, 'ride it — they will come at you the whole way');
         audio.waveStart();
         break;
@@ -1310,6 +1327,15 @@ export class Campaign implements MissionController {
       ? this.stage.zones[this.idx].entry
       : this.stage.exitPortal?.pos ?? zone.exit;
     this.layArrow(zone.exit, to);
+
+    // The ground before a road clears as the lead reaches its far side: that
+    // is the moment to call the road's first drop, so it is down on the road
+    // ahead of the party rather than behind it.
+    const road = this.stage.zones[this.idx];
+    if (road?.spec.kind === 'chase' && this.marksFired.length === 0) {
+      this.marksFired = road.marks.map(() => false);
+      this.fireMark(road, 0);
+    }
 
     // The chime, fading column and ground arrow carry this checkpoint. The
     // next destination stays on the beacon and the standing HUD instruction.
@@ -1696,29 +1722,21 @@ export class Campaign implements MissionController {
       const leadAlong = along(lead.position);
       zone.marks.forEach((m, i) => {
         if (this.marksFired[i]) return;
-        if (lead.position.distanceToSquared(m) > 18 * 18 && leadAlong < along(m)) return;
-        this.marksFired[i] = true;
-        // A road is a hundred and sixty metres of fight; dying at the far end
-        // and walking the whole of it again is not a cost, it is a punishment.
-        // Each mark you reach is ground earned.
-        this.checkpoint.copy(m);
-        const wave = this.rampWave(zone.beat);
-        const kinds = this.squadFor(wave, 3 + this.game.players.length, zone, { debut: true });
-        const spots = kinds.map((_, k) => {
-          const at = m.clone();
-          at.x += (Math.random() - 0.5) * zone.spec.w * 0.6;
-          at.z += (Math.random() - 0.5) * zone.spec.w * 0.6;
-          void k;
-          return at;
-        });
-        this.dropping = true;
-        this.game.dropReinforcements(kinds, spots, 9700 + zone.beat * 10 + i, (bodies) => {
-          this.dropping = false;
-          this.zoneForce = this.zoneForce.concat(bodies);
-          for (const e of bodies) e.alert(lead.position, true);
-        });
-        audio.waveStart();
+        // Called ahead: once the lead is within ROAD_MARK_LEAD of the mark
+        // (or past it on a wide line), not once they are standing on it.
+        if (leadAlong < along(m) - ROAD_MARK_LEAD) return;
+        const v = lead.vehicle?.vel ?? lead.velocity;
+        this.fireMark(zone, i, lead.position, Math.hypot(v.x, v.z));
       });
+      // A road is a long fight; dying at the far end and riding the whole of
+      // it again is not a cost, it is a punishment. Each mark the lead has
+      // *reached* is ground earned — reached, now that marks are called ahead.
+      for (let k = zone.marks.length - 1; k > this.markReached; k--) {
+        if (along(zone.marks[k]) > leadAlong) continue;
+        this.markReached = k;
+        this.checkpoint.copy(zone.marks[k]);
+        break;
+      }
     }
     // The barricade is the wall: a fence lifts when the road's escort is down,
     // crates are shot or rammed out of the way.
@@ -1752,6 +1770,80 @@ export class Campaign implements MissionController {
     const open = !zone.exitBarrier || zone.exitBarrier.open_;
     const alive = this.game.players.filter((p) => p.alive);
     if (roadRun && open && alive.some((p) => this.pastExit(zone, p.position))) this.clearZone(zone, true);
+  }
+
+  /**
+   * Call a road's drop mark `i`: a squad by transport, sent to where the lead
+   * will be when the ship lets it go — the mark itself, or further down the
+   * road if the lead is riding fast enough to be past it by then — and never
+   * beyond the barricade.
+   */
+  private fireMark(zone: MissionZone, i: number, leadPos?: THREE.Vector3, leadSpeed = 0): void {
+    if (this.marksFired[i]) return;
+    this.marksFired[i] = true;
+    const m = zone.marks[i];
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry);
+    const runLen = dir.length() || 1;
+    dir.divideScalar(runLen);
+    const along = (p: THREE.Vector3): number => (p.x - zone.entry.x) * dir.x + (p.z - zone.entry.z) * dir.z;
+    const lead = leadPos ?? zone.entry;
+    const want = Math.min(runLen - 6, Math.max(along(m), along(lead) + leadSpeed * ROAD_DROP_ETA + 8));
+    const centre = zone.entry.clone().addScaledVector(dir, want);
+    centre.y = m.y;
+    const wave = this.rampWave(zone.beat);
+    const kinds = this.squadFor(wave, 3 + this.game.players.length, zone, { debut: true });
+    const spots = kinds.map(() => {
+      const at = centre.clone();
+      at.x += (Math.random() - 0.5) * zone.spec.w * 0.6;
+      at.z += (Math.random() - 0.5) * zone.spec.w * 0.6;
+      return at;
+    });
+    this.dropping = true;
+    this.game.dropReinforcements(kinds, spots, 9700 + zone.beat * 10 + i, (bodies) => {
+      this.dropping = false;
+      this.zoneForce = this.zoneForce.concat(bodies);
+      const target = this.game.players.find((p) => p.alive)?.position ?? lead;
+      for (const e of bodies) e.alert(target, true);
+    });
+    audio.waveStart();
+  }
+
+  /**
+   * The swoop pack: the road's fliers, come in over the rim as the chase
+   * begins and harrying the column the length of it (MISSIONS_OUTDOOR §1.2).
+   * Drawn from the board's air kinds — the first of its table that has any,
+   * if the road comes before the ramp would have reached them.
+   */
+  private swoopPack(zone: MissionZone): void {
+    const game = this.game;
+    if (this.packSent.has(zone.beat)) return;
+    this.packSent.add(zone.beat);
+    let kinds: EnemyKind[] = [];
+    for (let w = Math.max(1, this.rampWave(zone.beat)); w <= FINAL_WAVE && !kinds.length; w++) {
+      kinds = waveComposition(game.board.kind, w, game.players.length).filter((e) => e.air).map((e) => e.kind);
+    }
+    if (!kinds.length) return;
+    const n = 2 + Math.floor(game.players.length / 2);
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry).setY(0).normalize();
+    const side = new THREE.Vector3(dir.z, 0, -dir.x);
+    for (let i = 0; i < n; i++) {
+      const kind = kinds[i % kinds.length];
+      const flank = i % 2 ? 1 : -1;
+      const at = zone.entry.clone().lerp(zone.exit, 0.3 + 0.4 * (i / Math.max(1, n - 1)))
+        .addScaledVector(side, flank * zone.spec.w * 0.2);
+      const e = new Enemy(kind, this.placeNear(at, kind), 1, { silent: true });
+      e.squad = 9750 + zone.beat;
+      e.squadSize = n;
+      game.addEnemy(e);
+      this.seenKinds.add(kind);
+      // in over the rim on either side, low under the ceiling
+      const from = e.position.clone().addScaledVector(side, flank * (zone.spec.w / 2 + 28));
+      from.y += Math.min(22, (game.ceilingY ?? from.y + 30) - from.y - 4);
+      e.beginArrival('fly', from, e.position.clone());
+      this.zoneForce.push(e);
+    }
+    game.waveSpawned += n;
+    game.announce(TEXT.banners.swoopPack.title, TEXT.banners.swoopPack.sub);
   }
 
   /** past the far mouth of a road: the ride is over and the ground is earned */

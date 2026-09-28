@@ -1327,7 +1327,16 @@ const road = await page.evaluate(async () => {
   c.phase = 'travel';
   for (const p of g.players) if (p.alive) p.position.copy(z.entry);
   for (let k = 0; k < 90; k++) g.update(1 / 30, idle);
-  const atEntry = { open: !!z.exitBarrier?.open_, fired: c.marksFired.filter(Boolean).length, marks: z.marks.length };
+  // Called ahead (audit item 9): the first mark's drop is already on its way
+  // with the party still at the mouth, and a swoop pack is coming in over the
+  // rim to harry them the length of it.
+  const dirX = z.exit.x - z.entry.x, dirZ = z.exit.z - z.entry.z;
+  const runLen = Math.hypot(dirX, dirZ);
+  const along = (q) => ((q.x - z.entry.x) * dirX + (q.z - z.entry.z) * dirZ) / runLen;
+  const pack = g.enemies.filter((e) => e.alive && e.squad === 9750 + z.beat);
+  const atEntry = { open: !!z.exitBarrier?.open_, fired: c.marksFired.filter(Boolean).length, marks: z.marks.length,
+    pack: pack.length, packAir: pack.every((e) => e.def.style === 'hover' || e.def.style === 'swoop'),
+    leadAlong: +along(g.players[0].position).toFixed(1), firstMark: +along(z.marks[0]).toFixed(1) };
   // …and the road does end: ride it to the far mouth, put down whatever the
   // marks send (they arrive by transport, so this has to keep killing across
   // the flight rather than clearing the field once), and the zone clears.
@@ -1347,6 +1356,10 @@ if (road) {
   check('the road holds its barricade until the road has been run',
     !road.atEntry.open,
     `at the mouth: ${road.atEntry.open ? 'open' : 'shut'}, ${road.atEntry.fired}/${road.atEntry.marks} marks fired`);
+  check('the road\'s first drop is called before the party reaches its mark',
+    road.atEntry.fired >= 1 && road.atEntry.leadAlong < road.atEntry.firstMark - 5, JSON.stringify(road.atEntry));
+  check('and a swoop pack comes in to harry the column',
+    road.atEntry.pack >= 2 && road.atEntry.packAir, JSON.stringify(road.atEntry));
   check('and opens the way on once every mark is down',
     road.atEnd.ran, `${road.atEnd.fired} marks fired, ${road.atEnd.ran ? 'through' : 'still held'}`);
 }

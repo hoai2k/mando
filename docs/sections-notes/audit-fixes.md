@@ -201,6 +201,26 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
 - **Left.** A narrow canyon camp (12 m) still has little room to slip by; that
   is the canyon's nature, and the posts are at least off the path.
 
+### 9. Roads: marks called ahead, a swoop pack, a fourth bike — done
+
+The roads stay (the sections are additive).
+- **Marks ahead.** `ROAD_MARK_LEAD` = 40 m: a mark fires once the lead is within
+  40 m of it, and its squad is sent where the lead will be when the ship lets
+  go (lead speed × `ROAD_DROP_ETA` 2.8 s + 8 m, clamped to the road, never
+  beyond the barricade). The first mark is called as the zone before the road
+  clears — the lead at the corral's exit. The checkpoint still only moves to a
+  mark the lead has actually reached.
+- **Swoop pack.** On `enterZone('chase')` the board's first air kinds
+  (`waveComposition` entries flagged `air`, from the road's ramp wave onward)
+  fly in over the rim on either side, 2 + players/2 of them, down the length of
+  the road; they are part of what the road must put down. Banner "Swoop pack".
+- **Nevarro** parks a fourth speeder bike; and (item 14) the riders rule leaves
+  a ride per player unclaimed.
+- **Tests.** `test-missions` (road block): at the mouth the first drop has
+  already been called before the lead reaches its mark, and a pack of ≥ 2 air
+  kinds is in. `test-arrivals`: every corral (a camp whose next zone is a road)
+  parks at least four rides.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in

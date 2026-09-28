@@ -471,6 +471,16 @@ check('missions: the Lava Flats, Storm Docks and Ringworld lieutenants fight out
 check('missions: and no more than half the runs fight theirs indoors',
   lts.filter((z) => z.shell === 'hall').length <= Math.ceil(lts.length / 2),
   lts.map((z) => `${z.board}:${z.shell}`));
+
+// A corral parks a ride for every player the game allows, and one over: the
+// riders rule claims up to half of them for the camp's own crew (audit item 9).
+// (a corral: the camp whose rides are for the road straight after it)
+const corrals = zones.filter((z, i) => z.kind === 'camp' && z.rides.length
+  && zones[i + 1]?.board === z.board && zones[i + 1]?.stage === z.stage && zones[i + 1]?.shell === 'road');
+const shortCorrals = corrals.filter((z) => z.rides.length < 4);
+check('missions: every corral parks a ride for each of four players',
+  corrals.length > 0 && shortCorrals.length === 0, shortCorrals.map((z) => `${z.board} ${z.label}: ${z.rides.length}`));
+
 // and nothing authored for open ground still asks for waves it will never get
 const idleWaves = outdoor.filter((z) => !z.siege && z.kind === 'assault' && z.waves !== null);
 check('missions: open ground that is not a siege asks for a garrison, not waves',

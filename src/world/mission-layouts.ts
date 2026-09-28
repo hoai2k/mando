@@ -246,6 +246,9 @@ const nevarro: StageSpec[] = [
           { kind: 'speederBike', u: 14, v: 8, yaw: 0 },
           { kind: 'speederBike', u: 18, v: 12, yaw: 0 },
           { kind: 'speederBike', u: 22, v: -10, yaw: 0 },
+          // a fourth, so a party of four can all ride the causeway: the
+          // riders rule claims up to half the camp's rides for its own crew
+          { kind: 'speederBike', u: 26, v: -14, yaw: 0 },
         ],
       }),
       z('nevarro', 2, {
