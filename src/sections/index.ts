@@ -14,6 +14,7 @@ import { markRuns } from './mark-runs';
 import { squall } from './squall';
 import { magmaRun } from './magma-run';
 import { ringWalk } from './ring-walk';
+import { frigateGuns } from './frigate-guns';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -34,6 +35,7 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   squall,
   'magma-run': magmaRun,
   'ring-walk': ringWalk,
+  'frigate-guns': frigateGuns,
 };
 
 /**
