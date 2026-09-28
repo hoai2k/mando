@@ -931,10 +931,10 @@ tram leaves the tram stop and delivers the party to the night-side row.
 
 **Layout.** A treadmill arena (K2): the `tram`'s **three cars** (each 14 × 4 m,
 couplers 2 m) stand still; the city scrolls. The line runs **~2.4 km** of street
-(about four minutes at ~10 m/s) through five stretches:
+(about four minutes at ~10 m/s, plus the station stop) through five stretches:
 
 1. **Street run** — pirates on the car roofs, two swoops alongside.
-2. **Gantries** — sign gantries at 1.4 m over the roof every 40 m
+2. **Gantries** — sign gantries at 1.4 m over the roof every ~70 m
    (telegraph: a horn, the gantry in view 3 s ahead). **Duck** (hold the cover
    button on the roof: a crouch) or jump it. A standing body is swept off —
    enemies too.

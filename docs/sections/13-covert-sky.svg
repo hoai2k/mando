@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs>
+  <marker id="ag" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/></marker>
+  <marker id="ar" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/></marker>
+  <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/></marker>
+  <marker id="aw" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/></marker>
+  <marker id="dim" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#9aa3ad" stroke-width="1.5"/></marker>
+</defs>
+<rect width="1200" height="720" fill="#15171c"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">13 · Covert Sky</text>
+<text x="40" y="78" font-size="16" fill="#9aa3ad">Great Forge · free flight · ~3 min</text>
+<text x="60" y="112" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · 1.2 KM FLYING VOLUME</text>
+<rect x="60" y="140" width="900" height="330" fill="#1b2433"/>
+<line x1="52" y1="470" x2="60" y2="470" stroke="#9aa3ad" stroke-width="1"/>
+<text x="48" y="474" font-size="12" fill="#9aa3ad" text-anchor="end">0 m</text>
+<line x1="52" y1="350" x2="60" y2="350" stroke="#9aa3ad" stroke-width="1"/>
+<text x="48" y="354" font-size="12" fill="#9aa3ad" text-anchor="end">40</text>
+<line x1="52" y1="200" x2="60" y2="200" stroke="#9aa3ad" stroke-width="1"/>
+<text x="48" y="204" font-size="12" fill="#9aa3ad" text-anchor="end">90</text>
+<line x1="52" y1="140" x2="60" y2="140" stroke="#9aa3ad" stroke-width="1"/>
+<text x="48" y="144" font-size="12" fill="#9aa3ad" text-anchor="end">110</text>
+<line x1="60" y1="140" x2="960" y2="140" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="8 5"/>
+<text x="956" y="133" font-size="12" fill="#ff6a3d" text-anchor="end">ceiling 110 m (raised for this beat)</text>
+<!-- rib-bridges / arches -->
+<path d="M121.5,380.0 Q146.25,338.0 172.0,380.0" fill="none" stroke="#4a4f58" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M594.0,386.0 Q622.5,350.0 650.0,386.0" fill="none" stroke="#4a4f58" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="622.5" y="410" font-size="11" fill="#9aa3ad" text-anchor="middle">rib-bridge</text>
+<!-- broken towers 40-90 m -->
+<polygon points="102.8,470 102.8,332 108.6,326 113.5,335 118.3,329 122.2,338 122.2,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="171.8,470 171.8,260 176.7,254 180.8,263 184.9,257 188.2,266 188.2,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="337.5,470 337.5,212 342,206 345.8,215 349.5,209 352.5,218 352.5,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="394.5,470 394.5,320 400.8,314 406.1,323 411.3,317 415.5,326 415.5,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="576,470 576,350 581.4,344 585.9,353 590.4,347 594,356 594,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="649.5,470 649.5,248 655.8,242 661,251 666.3,245 670.5,254 670.5,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="816.8,470 816.8,206 821.7,200 825.8,209 830,203 833.2,212 833.2,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="871.5,470 871.5,311 877.4,305 882.2,314 887.1,308 891,317 891,470" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<!-- flak towers -->
+<rect x="255" y="272" width="30" height="198" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<rect x="252" y="269" width="36" height="4" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="272" y="261" width="11" height="8" fill="#e0524a"/>
+<line x1="279" y1="263" x2="289" y2="254" stroke="#e0524a" stroke-width="3"/>
+<text x="270" y="460" font-size="10" fill="#e0524a" text-anchor="middle" font-weight="700">FLAK</text>
+<rect x="495" y="224" width="30" height="246" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<rect x="492" y="221" width="36" height="4" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="512" y="213" width="11" height="8" fill="#e0524a"/>
+<line x1="519" y1="215" x2="529" y2="206" stroke="#e0524a" stroke-width="3"/>
+<text x="510" y="460" font-size="10" fill="#e0524a" text-anchor="middle" font-weight="700">FLAK</text>
+<rect x="735" y="290" width="30" height="180" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<rect x="732" y="287" width="36" height="4" fill="#3a3f48" stroke="#5a616d" stroke-width="1"/>
+<rect x="752" y="279" width="11" height="8" fill="#e0524a"/>
+<line x1="759" y1="281" x2="769" y2="272" stroke="#e0524a" stroke-width="3"/>
+<text x="750" y="460" font-size="10" fill="#e0524a" text-anchor="middle" font-weight="700">FLAK</text>
+<rect x="60" y="470" width="900" height="16" fill="#4d5a52" stroke="#5a616d" stroke-width="1"/>
+<polygon points="905,470 918,420 930,375 937,352 952,332 953,318 953,318 962,280 969,230 974,180 977,140 992,140 992,470" fill="#2a2d33"/>
+<path d="M905,470 L918,420 L930,375 L937,352" fill="none" stroke="#4a4f58" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M953,318 L962,280 L969,230 L974,180 L977,140" fill="none" stroke="#4a4f58" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="965" y="462" font-size="11" fill="#9aa3ad" text-anchor="middle" font-weight="700">DOME</text>
+<path d="M282.0,256.0 Q352.0,202 382,230" fill="none" stroke="#ff6a3d" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="382" cy="212" r="18" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<path d="M522.0,208.0 Q575.0,198.0 588,244" fill="none" stroke="#ff6a3d" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="588" cy="226" r="18" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<path d="M762.0,274.0 Q781.0,206 760,234" fill="none" stroke="#ff6a3d" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="760" cy="216" r="18" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<path d="M72,452 C73.8,424.0 57.0,323.5 82.5,284 C108.0,244.5 187.5,232.0 225,215 C262.5,198.0 270.0,175.5 307.5,182 C345.0,188.5 410.0,255.0 450,254 C490.0,253.0 518.8,171.0 547.5,176 C576.2,181.0 596.2,281.0 622.5,284 C648.8,287.0 676.2,201.0 705,194 C733.8,187.0 770.0,233.5 795,242 C820.0,250.5 830.0,229.5 855,245 C880.0,260.5 923.5,317.2 945,335 C966.5,352.8 977.5,349.2 984,352" fill="none" stroke="#e8b04a" stroke-width="3.5" marker-end="url(#ag)" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="82.5" cy="284" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="225" cy="215" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="307.5" cy="182" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="450" cy="254" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="547.5" cy="176" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="622.5" cy="284" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="705" cy="194" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="795" cy="242" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="855" cy="245" rx="5" ry="15" fill="none" stroke="#7bd389" stroke-width="3"/>
+<ellipse cx="945" cy="335" rx="6" ry="17" fill="none" stroke="#7bd389" stroke-width="3.5"/>
+<circle cx="70" cy="458" r="8" fill="#8fd0ff" stroke="#1d4a66" stroke-width="2"/>
+<polygon points="150,158 156,164 150,170 144,164" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="166,166 172,172 166,178 160,172" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="418,156 424,162 418,168 412,162" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="434,148 440,154 434,160 428,154" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="872,156 878,162 872,168 866,162" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="888,164 894,170 888,176 882,170" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="259,256 264.4,266.2 253.6,266.2" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="656,227 661.4,237.2 650.6,237.2" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="739,274 744.4,284.2 733.6,284.2" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="827,186 832.4,196.2 821.6,196.2" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<rect x="507.5" y="211.5" width="9" height="9" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<g><circle cx="499" cy="212" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="499" y="216" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">2</text></g>
+<g><circle cx="468" cy="176" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="468" y="180" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<path d="M478,190 Q500,200 494,160" fill="none" stroke="#3ec1b0" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#aw)" stroke-linecap="round" stroke-linejoin="round"/>
+<g><circle cx="826" cy="250" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="826" y="254" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">3</text></g>
+<g><circle cx="252" cy="214" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="252" y="218" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">4</text></g>
+<polygon points="200,234 322,160 322,244" fill="#ffffff" fill-opacity="0.1" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+<g transform="translate(200 234) rotate(-12)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<g><circle cx="92" cy="440" r="10" fill="#e8b04a"/><text x="92" y="444.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<g><circle cx="243" cy="246" r="10" fill="#e8b04a"/><text x="243" y="250.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<g><circle cx="540" cy="214" r="10" fill="#e8b04a"/><text x="540" y="218.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<g><circle cx="382" cy="180" r="10" fill="#e8b04a"/><text x="382" y="184.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<g><circle cx="150" cy="192" r="10" fill="#e8b04a"/><text x="150" y="196.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<g><circle cx="678" cy="230" r="10" fill="#e8b04a"/><text x="678" y="234.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">6</text></g>
+<g><circle cx="925" cy="300" r="10" fill="#e8b04a"/><text x="925" y="304.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">7</text></g>
+<g><circle cx="212" cy="262" r="10" fill="#e8b04a"/><text x="212" y="266.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">8</text></g>
+<text x="60" y="522" font-size="12" letter-spacing="2" fill="#6f7883">PLAN · 1.2 KM × 160 M (WIDTH COMPRESSED)</text>
+<rect x="60" y="530" width="900" height="100" fill="#1b2433" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="105.5" y="603" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="173" y="538" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="338" y="605" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="398" y="541" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="578" y="605" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="653" y="541" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="818" y="605" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="874.25" y="541" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="143" y="541" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="473" y="607" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="705.5" y="605" width="14" height="14" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="261" y="603" width="18" height="18" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<rect x="501" y="539" width="18" height="18" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<rect x="741" y="539" width="18" height="18" fill="#2a2d33" stroke="#e0524a" stroke-width="2"/>
+<path d="M72,580 C73.8,579.2 57.0,577.5 82.5,575 C108.0,572.5 187.5,562.5 225,565 C262.5,567.5 270.0,584.8 307.5,590 C345.0,595.2 410.0,599.0 450,596 C490.0,593.0 518.8,574.7 547.5,572 C576.2,569.3 596.2,578.0 622.5,580 C648.8,582.0 676.2,581.3 705,584 C733.8,586.7 770.0,596.7 795,596 C820.0,595.3 830.0,582.7 855,580 C880.0,577.3 930.0,580.0 945,580" fill="none" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="82.5" y1="566" x2="82.5" y2="584" stroke="#7bd389" stroke-width="3"/>
+<line x1="225" y1="556" x2="225" y2="574" stroke="#7bd389" stroke-width="3"/>
+<line x1="307.5" y1="581" x2="307.5" y2="599" stroke="#7bd389" stroke-width="3"/>
+<line x1="450" y1="587" x2="450" y2="605" stroke="#7bd389" stroke-width="3"/>
+<line x1="547.5" y1="563" x2="547.5" y2="581" stroke="#7bd389" stroke-width="3"/>
+<line x1="622.5" y1="571" x2="622.5" y2="589" stroke="#7bd389" stroke-width="3"/>
+<line x1="705" y1="575" x2="705" y2="593" stroke="#7bd389" stroke-width="3"/>
+<line x1="795" y1="587" x2="795" y2="605" stroke="#7bd389" stroke-width="3"/>
+<line x1="855" y1="571" x2="855" y2="589" stroke="#7bd389" stroke-width="3"/>
+<path d="M936,531 Q900,580 936,629" fill="none" stroke="#4a4f58" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="945" y1="571" x2="945" y2="589" stroke="#7bd389" stroke-width="3.5"/>
+<text x="945" y="646" font-size="11" fill="#9aa3ad" text-anchor="middle">breach</text>
+<g><circle cx="1010" cy="120" r="10" fill="#e8b04a"/><text x="1010" y="124.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<text x="1026" y="124" font-size="13" fill="#d7dbe0">Trailhead: the Armorer's</text>
+<text x="1026" y="140" font-size="13" fill="#d7dbe0">boosters — no fuel cost</text>
+<g><circle cx="1010" cy="161" r="10" fill="#e8b04a"/><text x="1010" y="165.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<text x="1026" y="165" font-size="13" fill="#d7dbe0">Flight ring = checkpoint</text>
+<text x="1026" y="181" font-size="13" fill="#d7dbe0">+ speed boost; death</text>
+<text x="1026" y="197" font-size="13" fill="#d7dbe0">re-forms at last ring,</text>
+<text x="1026" y="213" font-size="13" fill="#d7dbe0">already airborne</text>
+<g><circle cx="1010" cy="234" r="10" fill="#e8b04a"/><text x="1010" y="238.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<text x="1026" y="238" font-size="13" fill="#d7dbe0">Flak tower: land, hold</text>
+<text x="1026" y="254" font-size="13" fill="#d7dbe0">interact 3 s (exposed) to</text>
+<text x="1026" y="270" font-size="13" fill="#d7dbe0">plant a charge — or two</text>
+<text x="1026" y="286" font-size="13" fill="#d7dbe0">rockets into the breech</text>
+<g><circle cx="1010" cy="307" r="10" fill="#e8b04a"/><text x="1010" y="311.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<text x="1026" y="311" font-size="13" fill="#d7dbe0">Air-burst shell: red</text>
+<text x="1026" y="327" font-size="13" fill="#d7dbe0">tracer climb, then a</text>
+<text x="1026" y="343" font-size="13" fill="#d7dbe0">burst sphere on the line</text>
+<g><circle cx="1010" cy="364" r="10" fill="#e8b04a"/><text x="1010" y="368.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<text x="1026" y="368" font-size="13" fill="#d7dbe0">Interceptor drones</text>
+<text x="1026" y="384" font-size="13" fill="#d7dbe0">attack in pairs</text>
+<g><circle cx="1010" cy="405" r="10" fill="#e8b04a"/><text x="1010" y="409.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">6</text></g>
+<text x="1026" y="409" font-size="13" fill="#d7dbe0">Alamites hold the tower</text>
+<text x="1026" y="425" font-size="13" fill="#d7dbe0">tops, hurl stones</text>
+<g><circle cx="1010" cy="446" r="10" fill="#e8b04a"/><text x="1010" y="450.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">7</text></g>
+<text x="1026" y="450" font-size="13" fill="#d7dbe0">Last ring = dome breach:</text>
+<text x="1026" y="466" font-size="13" fill="#d7dbe0">transport door to the</text>
+<text x="1026" y="482" font-size="13" fill="#d7dbe0">undercroft</text>
+<g><circle cx="1010" cy="503" r="10" fill="#e8b04a"/><text x="1010" y="507.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">8</text></g>
+<text x="1026" y="507" font-size="13" fill="#d7dbe0">Per-player camera, pulled</text>
+<text x="1026" y="523" font-size="13" fill="#d7dbe0">out, looks ahead to the</text>
+<text x="1026" y="539" font-size="13" fill="#d7dbe0">next ring</text>
+<line x1="1000" y1="560" x2="1075" y2="560" stroke="#9aa3ad" stroke-width="2"/>
+<line x1="1000" y1="555" x2="1000" y2="565" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="1075" y1="555" x2="1075" y2="565" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="1037.5" y1="557" x2="1037.5" y2="563" stroke="#9aa3ad" stroke-width="1"/>
+<text x="1083" y="564.5" font-size="12" fill="#9aa3ad">0 — 100 m</text>
+<text x="1000" y="580" font-size="12" fill="#9aa3ad">heights drawn ×4</text>
+<line x1="30" y1="670" x2="1170" y2="670" stroke="#262a31" stroke-width="1"/>
+<rect x="40" y="686" width="18" height="12" fill="#2a2d33" stroke="#4a4f58" stroke-width="2.5"/>
+<text x="64" y="696.5" font-size="13" fill="#9aa3ad">ruined tower</text>
+<line x1="168.24" y1="692" x2="190.24" y2="692" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<text x="200.24" y="696.5" font-size="13" fill="#9aa3ad">golden path</text>
+<rect x="299.46" y="685" width="14" height="14" rx="7" fill="none" stroke="#7bd389" stroke-width="2.5"/>
+<text x="321.46" y="696.5" font-size="13" fill="#9aa3ad">flight ring</text>
+<g><circle cx="427.68" cy="692" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="427.68" y="696" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<text x="442.68" y="696.5" font-size="13" fill="#9aa3ad">player</text>
+<circle cx="513.8" cy="692" r="9" fill="#8fd0ff" stroke="#1d4a66" stroke-width="2"/>
+<text x="528.8" y="696.5" font-size="13" fill="#9aa3ad">the Armorer</text>
+<polygon points="635,685 641.3,696.9 628.7,696.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<text x="650.02" y="696.5" font-size="13" fill="#9aa3ad">alamite</text>
+<polygon points="728.2,685 735.2,692 728.2,699 721.2,692" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<text x="743.16" y="696.5" font-size="13" fill="#9aa3ad">drone</text>
+<rect x="798.26" y="686" width="18" height="12" rx="0" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="822.26" y="696.5" font-size="13" fill="#9aa3ad">flak burst</text>
+<rect x="915.96" y="686.5" width="11" height="11" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<text x="936.46" y="696.5" font-size="13" fill="#9aa3ad">charge</text>
+<g transform="translate(1012.58 692) rotate(0)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<text x="1024.58" y="696.5" font-size="13" fill="#9aa3ad">camera</text>
+</svg>

@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs>
+  <marker id="ag" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e8b04a"/></marker>
+  <marker id="ar" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e0524a"/></marker>
+  <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff6a3d"/></marker>
+  <marker id="aw" viewBox="0 0 10 10" refX="7" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3ad"/></marker>
+  <marker id="dim" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9" fill="none" stroke="#9aa3ad" stroke-width="1.5"/></marker>
+</defs>
+<rect width="1200" height="720" fill="#15171c"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#f2efe6">18 · The Lift</text>
+<text x="40" y="78" font-size="16" fill="#9aa3ad">Prison Rig · ascending holdout · ~2.5 min</text>
+<text x="40" y="108" font-size="12" letter-spacing="2" fill="#6f7883">SIDE SECTION · SHAFT</text>
+<rect x="236" y="116" width="304" height="504" fill="#1a1d23"/>
+<rect x="186" y="116" width="50" height="356" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+<rect x="186" y="116" width="50" height="356" fill="#c9ced4" fill-opacity="0.12"/>
+<rect x="186" y="520" width="50" height="100" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+<rect x="186" y="520" width="50" height="100" fill="#c9ced4" fill-opacity="0.12"/>
+<rect x="540" y="120" width="50" height="500" fill="#2a2d33" stroke="#4a4f58" stroke-width="2"/>
+<rect x="540" y="120" width="50" height="500" fill="#c9ced4" fill-opacity="0.12"/>
+<line x1="188" y1="136" x2="234" y2="136" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="136" x2="588" y2="136" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="176" x2="234" y2="176" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="176" x2="588" y2="176" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="216" x2="234" y2="216" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="216" x2="588" y2="216" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="256" x2="234" y2="256" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="256" x2="588" y2="256" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="296" x2="234" y2="296" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="296" x2="588" y2="296" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="336" x2="234" y2="336" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="336" x2="588" y2="336" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="376" x2="234" y2="376" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="376" x2="588" y2="376" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="416" x2="234" y2="416" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="416" x2="588" y2="416" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="456" x2="234" y2="456" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="456" x2="588" y2="456" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="496" x2="588" y2="496" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="536" x2="234" y2="536" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="536" x2="588" y2="536" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="576" x2="234" y2="576" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="576" x2="588" y2="576" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="188" y1="616" x2="234" y2="616" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="542" y1="616" x2="588" y2="616" stroke="#c9ced4" stroke-width="1" stroke-opacity="0.35"/>
+<line x1="211" y1="144" x2="211" y2="184" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="565" y1="144" x2="565" y2="184" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="211" y1="274" x2="211" y2="314" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="565" y1="274" x2="565" y2="314" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="211" y1="404" x2="211" y2="444" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="565" y1="404" x2="565" y2="444" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="211" y1="534" x2="211" y2="574" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<line x1="565" y1="534" x2="565" y2="574" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<text x="388" y="122" font-size="13" fill="#e8b04a" text-anchor="middle">shaft wall scrolls ↓ 2 m/s</text>
+<text x="388" y="139" font-size="13" fill="#e8b04a" text-anchor="middle">— the lift reads as rising</text>
+<rect x="84" y="520" width="184" height="12" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<rect x="508" y="120" width="150" height="12" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<text x="88" y="550" font-size="12" fill="#9aa3ad">landing</text>
+<text x="88" y="565" font-size="12" fill="#9aa3ad">(level now)</text>
+<text x="600" y="150" font-size="12" fill="#9aa3ad">next landing</text>
+<rect x="300" y="520" width="192" height="14" fill="#3a3f48" stroke="#5a616d" stroke-width="2"/>
+<polygon points="310,534 482,534 416,570 376,570" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5" stroke-linejoin="round"/>
+<line x1="491" y1="520" x2="491" y2="504" stroke="#8a93a0" stroke-width="3"/>
+<line x1="466" y1="504" x2="492" y2="504" stroke="#8a93a0" stroke-width="3"/>
+<rect x="466" y="454" width="18" height="66" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="469" y="462" width="12" height="10" fill="#b48cff"/>
+<text x="462" y="448" font-size="12" fill="#b48cff" text-anchor="end">control pylon</text>
+<text x="296" y="550" font-size="11" fill="#ff6a3d" text-anchor="end">open edge</text>
+<g><circle cx="318" cy="511" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="318" y="515" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<g><circle cx="402" cy="511" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="402" y="515" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">2</text></g>
+<g><circle cx="432" cy="511" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="432" y="515" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">3</text></g>
+<g><circle cx="456" cy="511" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="456" y="515" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">4</text></g>
+<polygon points="120,503 127.2,516.6 112.8,516.6" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="160,503 167.2,516.6 152.8,516.6" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="200,503 207.2,516.6 192.8,516.6" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<line x1="206" y1="508" x2="310" y2="508" stroke="#e0524a" stroke-width="1.5" stroke-dasharray="5 4"/>
+<line x1="166" y1="506" x2="310" y2="500" stroke="#e0524a" stroke-width="1.5" stroke-dasharray="5 4"/>
+<polygon points="600,103 607.2,116.6 592.8,116.6" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="640,103 647.2,116.6 632.8,116.6" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<path d="M504,110 Q472,180 442,410" fill="none" stroke="#e0524a" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar)" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="350,258 357.2,244.4 342.8,244.4" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="346,242 354,242 350,230" fill="#ff6a3d" fill-opacity="0.8"/>
+<line x1="350" y1="262" x2="350" y2="310" stroke="#e0524a" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+<polygon points="446,348 453.2,334.4 438.8,334.4" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<polygon points="442,332 450,332 446,320" fill="#ff6a3d" fill-opacity="0.8"/>
+<line x1="446" y1="352" x2="446" y2="400" stroke="#e0524a" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+<text x="336" y="236" font-size="12" fill="#e0524a" text-anchor="end">jet troopers</text>
+<polygon points="346,176 370,170 376,188 354,196" fill="#2a2d33" stroke="#4a4f58" stroke-width="2" stroke-linejoin="round"/>
+<line x1="360" y1="200" x2="360" y2="510" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="3 5"/>
+<ellipse cx="360" cy="518" rx="26" ry="5" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="340" y="184" font-size="12" fill="#ff6a3d" text-anchor="end">debris</text>
+<polygon points="262,430 482,490 370,590" fill="#ffffff" fill-opacity="0.1" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1"/>
+<g transform="translate(262 430) rotate(40)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<line x1="236" y1="590" x2="300" y2="590" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="268" y="604" font-size="12" fill="#9aa3ad" text-anchor="middle">4 m</text>
+<line x1="300" y1="612" x2="492" y2="612" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="396" y="626" font-size="12" fill="#9aa3ad" text-anchor="middle">12 m</text>
+<line x1="706" y1="120" x2="706" y2="520" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="700" y="324" font-size="12" fill="#9aa3ad" text-anchor="end">25 m</text>
+<line x1="74" y1="424" x2="74" y2="616" stroke="#9aa3ad" stroke-width="1"/>
+<line x1="70" y1="424" x2="78" y2="424" stroke="#9aa3ad" stroke-width="1"/>
+<line x1="70" y1="616" x2="78" y2="616" stroke="#9aa3ad" stroke-width="1"/>
+<text x="66" y="480" font-size="11" fill="#9aa3ad" text-anchor="end">in</text>
+<text x="66" y="493" font-size="11" fill="#9aa3ad" text-anchor="end">reach</text>
+<text x="66" y="506" font-size="11" fill="#9aa3ad" text-anchor="end">~6 s</text>
+<line x1="600" y1="646" x2="680" y2="646" stroke="#9aa3ad" stroke-width="2"/>
+<line x1="600" y1="641" x2="600" y2="651" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="680" y1="641" x2="680" y2="651" stroke="#9aa3ad" stroke-width="1.5"/>
+<line x1="640" y1="643" x2="640" y2="649" stroke="#9aa3ad" stroke-width="1"/>
+<text x="688" y="650.5" font-size="12" fill="#9aa3ad">0 — 5 m</text>
+<g><circle cx="104" cy="490" r="10" fill="#e8b04a"/><text x="104" y="494.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<g><circle cx="470" cy="290" r="10" fill="#e8b04a"/><text x="470" y="294.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<g><circle cx="390" cy="188" r="10" fill="#e8b04a"/><text x="390" y="192.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<g><circle cx="684" cy="146" r="10" fill="#e8b04a"/><text x="684" y="150.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<text x="724" y="108" font-size="12" letter-spacing="2" fill="#6f7883">200 M</text>
+<rect x="724" y="128" width="32" height="22" fill="#1b2433" stroke="#5a616d" stroke-width="1"/>
+<rect x="724" y="150" width="32" height="460" fill="#2a2d33" stroke="#4a4f58" stroke-width="1.5"/>
+<rect x="724" y="150" width="32" height="460" fill="#c9ced4" fill-opacity="0.1"/>
+<line x1="724" y1="552.5" x2="756" y2="552.5" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="495" x2="756" y2="495" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="437.5" x2="756" y2="437.5" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="380" x2="756" y2="380" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="322.5" x2="756" y2="322.5" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="265" x2="756" y2="265" stroke="#5a616d" stroke-width="2"/>
+<line x1="724" y1="207.5" x2="756" y2="207.5" stroke="#5a616d" stroke-width="2"/>
+<rect x="724" y="434.5" width="32" height="6" fill="#7bd389"/>
+<text x="764" y="441.5" font-size="12" fill="#7bd389" font-weight="700">stop 1</text>
+<rect x="709.5" y="433" width="9" height="9" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="724" y="262" width="32" height="6" fill="#7bd389"/>
+<text x="764" y="269" font-size="12" fill="#7bd389" font-weight="700">stop 2</text>
+<rect x="709.5" y="260.5" width="9" height="9" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<rect x="729" y="479.5" width="22" height="8" fill="#3ec1b0" stroke="#0e3b36" stroke-width="1.5"/>
+<text x="764" y="487.5" font-size="12" fill="#3ec1b0">you</text>
+<line x1="740" y1="475.5" x2="740" y2="458.2" stroke="#3ec1b0" stroke-width="2" marker-end="url(#aw)"/>
+<text x="764" y="144" font-size="12" fill="#f2efe6" font-weight="700">breakout</text>
+<text x="764" y="160" font-size="12" fill="#9aa3ad">open sky</text>
+<text x="764" y="556.5" font-size="11" fill="#9aa3ad">landing / 25 m</text>
+<text x="708" y="459.5" font-size="11" fill="#b48cff" text-anchor="end">breaker</text>
+<text x="764" y="614" font-size="11" fill="#9aa3ad">0 m</text>
+<g><circle cx="824" cy="437.5" r="10" fill="#e8b04a"/><text x="824" y="441.7" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<g><circle cx="824" cy="265" r="10" fill="#e8b04a"/><text x="824" y="269.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<g><circle cx="844" cy="148" r="10" fill="#e8b04a"/><text x="844" y="152.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<text x="900" y="108" font-size="12" letter-spacing="2" fill="#6f7883">INSET · PLATFORM PLAN</text>
+<rect x="945" y="140" width="190" height="190" fill="#1a1d23" stroke="#4a4f58" stroke-width="7"/>
+<rect x="985" y="170" width="120" height="120" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<line x1="985" y1="170" x2="1105" y2="170" stroke="#8a93a0" stroke-width="5"/>
+<line x1="1105" y1="170" x2="1105" y2="290" stroke="#8a93a0" stroke-width="5"/>
+<line x1="985" y1="290" x2="1105" y2="290" stroke="#ff6a3d" stroke-width="2.5" stroke-dasharray="6 4"/>
+<line x1="985" y1="170" x2="985" y2="290" stroke="#ff6a3d" stroke-width="2.5" stroke-dasharray="6 4"/>
+<rect x="1085" y="174" width="16" height="16" fill="#2a2d33" stroke="#b48cff" stroke-width="2"/>
+<text x="1083" y="187" font-size="11" fill="#b48cff" text-anchor="end">pylon</text>
+<text x="1045" y="162" font-size="11" fill="#9aa3ad" text-anchor="middle">rail</text>
+<text x="1113" y="260" font-size="11" fill="#9aa3ad">rail</text>
+<text x="1045" y="312" font-size="11" fill="#ff6a3d" text-anchor="middle">open edge</text>
+<text x="977" y="214" font-size="11" fill="#ff6a3d" text-anchor="end">open</text>
+<text x="977" y="228" font-size="11" fill="#ff6a3d" text-anchor="end">edge</text>
+<line x1="945" y1="334" x2="985" y2="334" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="965" y="348" font-size="12" fill="#9aa3ad" text-anchor="middle">4 m</text>
+<line x1="985" y1="334" x2="1105" y2="334" stroke="#9aa3ad" stroke-width="1" marker-end="url(#dim)" marker-start="url(#dim)"/>
+<text x="1045" y="348" font-size="12" fill="#9aa3ad" text-anchor="middle">12 m</text>
+<g><circle cx="1005" cy="262" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="1005" y="266" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<g><circle cx="1040" cy="215" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="1040" y="219" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">2</text></g>
+<g><circle cx="1060" cy="250" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="1060" y="254" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">3</text></g>
+<g><circle cx="1075" cy="222" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="1075" y="226" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">4</text></g>
+<g><circle cx="910" cy="400" r="10" fill="#e8b04a"/><text x="910" y="404.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">1</text></g>
+<text x="926" y="404" font-size="12" fill="#d7dbe0">Every 25 m a landing slides by, in reach ~6 s:</text>
+<text x="926" y="419" font-size="12" fill="#d7dbe0">squads fire across, some jump on</text>
+<g><circle cx="910" cy="438" r="10" fill="#e8b04a"/><text x="910" y="442.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">2</text></g>
+<text x="926" y="442" font-size="12" fill="#d7dbe0">Jet troopers drop onto the platform</text>
+<g><circle cx="910" cy="461" r="10" fill="#e8b04a"/><text x="910" y="465.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">3</text></g>
+<text x="926" y="465" font-size="12" fill="#d7dbe0">Debris: shadow grows on the deck for 1.5 s</text>
+<g><circle cx="910" cy="484" r="10" fill="#e8b04a"/><text x="910" y="488.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">4</text></g>
+<text x="926" y="488" font-size="12" fill="#d7dbe0">Two power cuts: fight onto the level landing,</text>
+<text x="926" y="503" font-size="12" fill="#d7dbe0">breaker (hold 4 s) while a wave arrives; back</text>
+<text x="926" y="518" font-size="12" fill="#d7dbe0">aboard within 5 s of the restart</text>
+<g><circle cx="910" cy="537" r="10" fill="#e8b04a"/><text x="910" y="541.2" font-size="12" font-weight="700" fill="#15171c" text-anchor="middle">5</text></g>
+<text x="926" y="541" font-size="12" fill="#d7dbe0">Breakout under the top decks' sky: transport door</text>
+<text x="926" y="564" font-size="12" fill="#d7dbe0">~100 s of travel + two stops. Falling off or dying:</text>
+<text x="926" y="579" font-size="12" fill="#d7dbe0">re-form on the platform. Solo: fewer jumpers.</text>
+<line x1="30" y1="670" x2="1170" y2="670" stroke="#262a31" stroke-width="1"/>
+<rect x="40" y="686" width="18" height="12" fill="#c9ced4" fill-opacity="0.3" stroke="#5a616d" stroke-width="1.5"/>
+<text x="64" y="696.5" font-size="13" fill="#9aa3ad">shaft wall (scrolls)</text>
+<rect x="212" y="686" width="18" height="12" fill="#3a3f48" stroke="#5a616d" stroke-width="1.5"/>
+<text x="236" y="696.5" font-size="13" fill="#9aa3ad">platform / landing</text>
+<line x1="371" y1="692" x2="393" y2="692" stroke="#e8b04a" stroke-width="3" marker-end="url(#ag)"/>
+<text x="403" y="696.5" font-size="13" fill="#9aa3ad">wall scroll</text>
+<g><circle cx="501.5" cy="692" r="9" fill="#3ec1b0" stroke="#0e3b36" stroke-width="2"/><text x="501.5" y="696" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">1</text></g>
+<text x="516.5" y="696.5" font-size="13" fill="#9aa3ad">player</text>
+<polygon points="582.5,685 588.8,696.9 576.2,696.9" fill="#e0524a" stroke="#5a1c18" stroke-width="1"/>
+<text x="597.5" y="696.5" font-size="13" fill="#9aa3ad">guard / jet trooper</text>
+<rect x="739" y="686" width="18" height="12" rx="0" fill="#ff6a3d" fill-opacity="0.4" stroke="#ff6a3d" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="763" y="696.5" font-size="13" fill="#9aa3ad">debris shadow</text>
+<rect x="869" y="686.5" width="11" height="11" rx="1.5" fill="#b48cff" stroke="#4b2f7a" stroke-width="1.5"/>
+<text x="889.5" y="696.5" font-size="13" fill="#9aa3ad">pylon / breaker</text>
+<rect x="1005" y="689" width="18" height="6" fill="#7bd389"/>
+<text x="1029" y="696.5" font-size="13" fill="#9aa3ad">stop</text>
+<g transform="translate(1087 692) rotate(0)"><rect x="-15" y="-6" width="12" height="12" rx="2" fill="#e9ecef"/><polygon points="-3,-3 5,-7 5,7 -3,3" fill="#e9ecef"/></g>
+<text x="1099" y="696.5" font-size="13" fill="#9aa3ad">camera</text>
+</svg>
