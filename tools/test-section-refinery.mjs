@@ -84,8 +84,12 @@ await page.evaluate(() => {
     window.__step(3, null, place);
     const aware = e.awareness;
     window.__step(1, { ...window.__blank, meleePressed: true }, place);
-    window.__step(40, null);
-    return { aware, alive: e.alive, takedowns: t.takedowns, alarm: t.alarm };
+    window.__step(20, null);
+    const watchers = g.enemies.filter((o) => o.alive && o.team === 1 && o.awareness === 'engaged')
+      .map((o) => [Math.round(o.position.distanceTo(p.position)), o.kind, Math.round(o.position.x), Math.round(o.position.z), t.patrols.findIndex((q) => q.e === o), t.guards.findIndex((q) => q.e === o)]);
+    // back into the dark by the airlock: the other stair guard is still there
+    p.position.set(-36, s.floorY, 5); p.velocity.set(0, 0, 0);
+    return { aware, alive: e.alive, takedowns: t.takedowns, alarm: t.alarm, watchers };
   });
   check('lights-out: a guard is unaware of someone right behind him', r.aware === 'idle', r);
   check('lights-out: melee from behind is a one-hit silent takedown', !r.alive && r.takedowns >= 1 && !r.alarm, r);
@@ -120,6 +124,9 @@ await page.evaluate(() => {
     window.__alive();
     const g = window.__game, s = g.campaign.section, t = s.test;
     const p = g.players[0];
+    // start clean: whatever an earlier check stirred up is dealt with first
+    if (t.alarm) window.__resetAlarm();
+    const before = { alarm: t.alarm, reason: s.debug().tripReason };
     const pt = t.patrols.find((x) => x.e.alive);
     if (!pt) return { none: true };
     const e = pt.e;
@@ -129,6 +136,9 @@ await page.evaluate(() => {
     const Y0 = s.floorY;
     const spot = e.position.clone().set(-12, Y0, 20);
     pt.route = [spot.clone()]; pt.i = 0; pt.step = 1;
+    // and no beam on the spot: this checks the radio, not the lights
+    for (const sl of t.searchlights) sl.path = [spot.clone().set(44, Y0, 1)];
+    for (const c of t.field.cones) if (c.tag === 'sensor') c.on = false;
     window.__step(3, null, () => {
       e.position.copy(spot); e.velocity.set(0, 0, 0); e.facingYaw = 0; e.awareness = 'idle';
       p.position.set(-12, Y0, 60);
@@ -142,7 +152,8 @@ await page.evaluate(() => {
       p.hp = 100;
       if (tripped < 0 && t.alarm) tripped = f;
     });
-    return { engaged: e.awareness, spotted, tripped, reason: s.debug().tripReason };
+    for (const c of t.field.cones) if (c.tag === 'sensor') c.on = true;
+    return { before, engaged: e.awareness, spotted, tripped, reason: s.debug().tripReason };
   });
   check('lights-out: a trooper who sees you radios it in after about three seconds',
     r.reason === 'radio' && r.spotted >= 0 && r.tripped - r.spotted > 80 && r.tripped - r.spotted < 100, r);

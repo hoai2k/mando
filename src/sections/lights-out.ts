@@ -677,8 +677,10 @@ function build(ctx: SectionContext): SectionInstance {
     guards.push({ e, yaw, swing, ph: guards.length * 2.1 });
   };
   const spawnAll = (): void => {
-    // the west lane: one walker — learn the sweep, learn the takedown
-    spawnPatrol('stormtrooper', [[-39, 12], [-40, 42]]);
+    // the west lane: one walker — learn the sweep, learn the takedown. His
+    // south turn is kept well up the lane: from nearer the airlock he could
+    // see the party still forming there and call it in before anyone moved.
+    spawnPatrol('stormtrooper', [[-39, 22], [-40, 42]]);
     // the middle: round the big tank
     spawnPatrol('stormtrooper', [[-16, 20], [2, 20], [2, 38], [-16, 38]], { loop: true });
     // the north lane: a pair at three or more
