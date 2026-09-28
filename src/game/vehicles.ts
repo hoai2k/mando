@@ -199,6 +199,10 @@ export interface VehicleOpts {
   respawns?: boolean;
   /** a turret's side when nobody is in it (0 = the party's gun) */
   team?: number;
+  /** hit points other than the kind's own (a gun barge is a skiff built lighter) */
+  hp?: number;
+  /** a turret built otherwise than the kind's own: its arc, its auto-fire */
+  turret?: Partial<TurretDef>;
 }
 
 /**
@@ -675,6 +679,12 @@ export class Vehicle {
   private swingStep = 0;
   /** false: a wreck stays gone (a section brings the fresh one) */
   respawns = true;
+  /**
+   * Moved by its section, not by its own physics (K3): a barge on a set
+   * course, a hull in a treadmill arena. Its rider's frame still fights —
+   * swings, the gun — but nothing drives it; `place` puts it where it goes.
+   */
+  scripted = false;
   /** a riderless lane hull's count down to the lava, and going under */
   private sinkIn = -1;
   private sinkT = 0;
@@ -699,12 +709,14 @@ export class Vehicle {
 
   constructor(public spec: VehicleSpec, private board: Board, opts: VehicleOpts = {}) {
     const base = VEHICLE_DEFS[spec.kind];
-    this.def = opts.gun || opts.sideSwing || opts.pillion
+    this.def = opts.gun || opts.sideSwing || opts.pillion || opts.hp || opts.turret
       ? {
         ...base,
         ...(opts.gun ? { gun: opts.gun } : {}),
         ...(opts.sideSwing ? { sideSwing: true } : {}),
         ...(opts.pillion ? { pillion: opts.pillion } : {}),
+        ...(opts.hp ? { hp: opts.hp } : {}),
+        ...(opts.turret && base.turret ? { turret: { ...base.turret, ...opts.turret } } : {}),
       }
       : base;
     this.lane = opts.lane ?? null;
@@ -1112,6 +1124,13 @@ export class Vehicle {
     this.rider?.cam.shake(0.02);
   }
 
+  /**
+   * Send it under where it is (K3): no fireball, the hull goes down into the
+   * lava or the sea and whoever is aboard is thrown clear. For a section's
+   * set piece — a barge whose crew is gone — rather than for a crash.
+   */
+  sink(): void { this.destroy('sink'); }
+
   /** true while the horns are down (drives the HUD's charge cue) */
   get charging(): boolean { return this.chargeT > 0; }
   /** true when the charge is off cooldown and can be asked for */
@@ -1321,6 +1340,7 @@ export class Vehicle {
       this.updateWreck(dt, game);
       return;
     }
+    if (this.scripted) { this.syncMesh(dt, Math.hypot(this.vel.x, this.vel.z), game); return; }
     if (this.rider || this.hostile) return; // driven from the rider's update
     // K3: an empty turret still fights, at half rate, for whoever it belongs to
     if (this.def.turret) { this.autoTurret(dt, game); return; }
@@ -2201,6 +2221,24 @@ export class Vehicle {
   }
 
   /**
+   * Put a scripted ride where its section has it this frame (see `scripted`):
+   * the hull, its heading and the velocity it is carrying — which is what a
+   * bike running into it measures the collision against.
+   */
+  place(x: number, y: number, z: number, yaw: number, vx = 0, vz = 0): void {
+    this.pos.set(x, y, z);
+    this.yaw = yaw;
+    this.vel.set(vx, 0, vz);
+    if (this.lane) {
+      const on = this.lane.project(x, z, this.laneS);
+      this.laneS = on.s;
+      this.laneLat = on.lat;
+    }
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = yaw;
+  }
+
+  /**
    * Stand a turret somewhere else — on a hull that is moving, say. The gun
    * keeps its aim relative to the mount, and its ring goes with it.
    */
@@ -2223,6 +2261,12 @@ export class Vehicle {
     // K3: a turret with a hostile on it, and a lane with one on it, have
     // their own brains; the hostile's own steer and pedal are for free rides
     if (def.turret) { this.hostileTurret(dt, game); return; }
+    if (this.scripted) {
+      this.gunTick(dt);
+      this.swingCd -= dt;
+      this.updateSwing(dt, game);
+      return;
+    }
     if (this.lane) { this.hostileLane(dt, game); return; }
     this.boostCd -= dt;
     this.hopCd -= dt;
