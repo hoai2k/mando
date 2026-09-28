@@ -21,6 +21,7 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'the-lift',
   'one-way-out',
   'mark-runs',
+  'squall',
 ]);
 
 /**
@@ -38,4 +39,5 @@ export const SECTION_ASSETS: Partial<Record<SectionId, string[]>> = {
   'lights-out': ['searchlight_tower', 'pipe_rack', 'alarm_console', 'reactor_core', 'fuel_barrel'],
   'the-lift': ['freight_lift'],
   'one-way-out': ['alarm_console'],
+  squall: ['cargo_crate', 'fuel_barrel', 'trawler'],
 };

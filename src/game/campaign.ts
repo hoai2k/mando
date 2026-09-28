@@ -377,6 +377,11 @@ export class Campaign implements MissionController {
     game.vehicles = spawnVehicles(game.board, game.scene);
   }
 
+  /** the end of the frame, after every body has posed: the section's last word (K7's roll) */
+  sectionAfterFrame(dt: number): void {
+    this.section?.afterFrame?.(dt);
+  }
+
   /** the section's panel for one player's HUD, when a section is standing */
   sectionHud(slot: number): SectionHud | null {
     return this.section?.hud?.(slot) ?? null;

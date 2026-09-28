@@ -45,4 +45,6 @@ export interface MissionController {
   animateGates(dt: number): void;
   /** a gameplay section's HUD panel for this player, when one is standing */
   sectionHud?(slot: number): SectionHud | null;
+  /** the end of the frame, for a standing gameplay section (`SectionInstance.afterFrame`) */
+  sectionAfterFrame?(dt: number): void;
 }
