@@ -2914,7 +2914,7 @@ export class Player {
    */
   handsToControls(v: Vehicle, gunUp: boolean): void {
     const rig = this.char.rig;
-    const hold = v.def.hands;
+    const hold = v.hands;
     if (!rig || !hold) return;
     // the world matrices the solve reads are the ones `syncVisual` just wrote
     this.char.root.updateMatrixWorld(true);

@@ -24,6 +24,7 @@ import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
 import { reachArm } from '../anim/seating';
+import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import { TEXT } from '../text';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
 import {
@@ -1560,7 +1561,7 @@ export class Enemy {
     v.driveHostile(dt, steer, pedal, boost, charge, game);
     if (!this.ride) return;   // thrown clear inside the drive
     // carried: the body sits the seat and moves with the hull
-    v.seatWorld(this.position);
+    v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
     this.velocity.copy(v.vel);
     this.grounded = true;
     this.facingYaw = v.yaw;
@@ -1580,7 +1581,7 @@ export class Enemy {
   /** both hands to the ride's grips, or the rein hand on a mount — the player's own solve */
   private handsToGrips(v: Vehicle): void {
     const rig = this.char.rig;
-    const hold = v.def.hands;
+    const hold = v.hands;
     if (!rig || !hold) return;
     this.char.root.updateMatrixWorld(true);
     const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);

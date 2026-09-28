@@ -20,6 +20,7 @@ import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
@@ -224,11 +225,14 @@ const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
 const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
+/** seat and hand anchors on the rides, and the Nikto's seat on his swoop — see vehicleAnchorEdit.ts */
+const vehicleEditor = new VehicleAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 
 function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
   weaponEditor.setPose('', '', null);
+  vehicleEditor.setTarget(null);
   for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
   for (const s of skeletons) scene.remove(s);
@@ -566,6 +570,7 @@ function enterEdit(): void {
   editor.setEnabled(editKind === 'rotate');
   positionEditor.setEnabled(editKind === 'position');
   weaponEditor.setEnabled(editKind === 'weapon');
+  vehicleEditor.setEnabled(editKind === 'weapon');
   if (editKind === 'position') refreshPositionPose();
   if (editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
 }
@@ -577,6 +582,7 @@ function leaveEdit(): void {
   positionEditor.setEnabled(false);
   weaponEditor.restore();
   weaponEditor.setEnabled(false);
+  vehicleEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
@@ -604,12 +610,15 @@ function refreshWeaponPose(): void {
   if (!figure) {
     weaponAwaiting = !!figures.find((f) => f.waitingFor);
     weaponEditor.setPose(subject.id, poseKey, null);
+    vehicleEditor.setTarget(null);
     return;
   }
   weaponAwaiting = false;
   figure.inst.cosmetic?.(0, time);
   figure.weapons?.frame(time);
   weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
+  vehicleEditor.setTarget(VehicleAnchorEditor.handles(figure.inst.root) ? figure.inst.root : null);
+  vehicleEditor.setEnabled(true);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -721,8 +730,14 @@ function renderPanel(): void {
     flourish: 'Darksaber flourish', saber1: 'Darksaber 1 — right cut',
     saber2: 'Darksaber 2 — backswing', saber3: 'Darksaber 3 — overhead',
   };
+  // a ride's "gait" is its speed, and the swoop rider's attack is a ram
+  const rideLabels: Record<string, string> | null = subject.id === 'nikto'
+    ? { creatureIdle: 'Hover', creatureWalk: 'Cruise — slow', creatureRun: 'Cruise — full speed', creatureAttack: 'Ram' }
+    : subject.id.startsWith('vehicle:')
+      ? { creatureIdle: 'Parked — rider seated', creatureWalk: 'Moving — slow', creatureRun: 'Moving — full speed' }
+      : null;
   const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
-    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
+    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : rideLabels?.[p.id] ?? p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
   const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
@@ -1171,6 +1186,7 @@ function bindEditModeButtons(host: HTMLElement): void {
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
       weaponEditor.setEnabled(next === 'weapon');
+      vehicleEditor.setEnabled(next === 'weapon');
       for (const id of ['restShoulders', 'aPoseShoulders', 'resetShoulders']) {
         const control = panel.querySelector<HTMLInputElement | HTMLButtonElement>(`#${id}`);
         if (control) control.disabled = next === 'position';
@@ -1184,6 +1200,7 @@ function bindEditModeButtons(host: HTMLElement): void {
 }
 
 function renderWeaponPanel(host: HTMLDivElement): void {
+  if (vehicleEditor.kind) { renderVehiclePanel(host); return; }
   const names = weaponEditor.names();
   const selected = weaponEditor.selected;
   const current = weaponEditor.current();
@@ -1262,6 +1279,68 @@ function renderWeaponPanel(host: HTMLDivElement): void {
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
     anchor.download = 'authored-weapon-grips.json';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  };
+}
+
+/**
+ * The rides' anchors: the seat and the left hand's grip on a vehicle, or the
+ * Nikto's own seat on his swoop. Exported as the game's data file itself.
+ */
+function renderVehiclePanel(host: HTMLDivElement): void {
+  const ed = vehicleEditor;
+  // typing into a field re-renders nothing: the gizmo follows, the field keeps focus
+  if ((document.activeElement as HTMLElement | null)?.dataset?.anchorAxis && host.querySelector('[data-anchor-axis]')) return;
+  const cur = ed.current();
+  const nikto = ed.kind === 'nikto';
+  const label: Record<string, string> = {
+    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)', rider: 'Rider — on the swoop',
+  };
+  const edited = ed.edited();
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
+        <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
+      ${nikto ? `<div class="field"><label>3D handle</label><div class="seg">
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move rider</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate rider</button>
+      </div></div>` : ''}
+      ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
+        <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
+      ${cur.rotation ? `<div class="field"><label>Rotation in degrees, XYZ</label>
+        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
+      <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
+    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
+      <p class="hint">${nikto
+        ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
+        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
+        The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
+      ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}</code></div>`).join('')}</div>` : ''}
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
+    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'rider');
+  host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
+    button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
+  });
+  host.querySelectorAll<HTMLInputElement>('[data-anchor-axis]').forEach((input) => {
+    input.onchange = () => {
+      const read = (kind: 'p' | 'r'): [number, number, number] => [0, 1, 2].map((i) =>
+        Number(host.querySelector<HTMLInputElement>(`[data-anchor-axis="${kind}${i}"]`)?.value)) as [number, number, number];
+      if (input.dataset.anchorAxis!.startsWith('p')) ed.setPosition(read('p'));
+      else ed.setRotation(read('r'));
+      input.blur();
+      renderVehiclePanel(host);
+    };
+  });
+  host.querySelector<HTMLButtonElement>('#anchorReset')?.addEventListener('click', () => ed.resetSelected());
+  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));
+    anchor.download = 'vehicleAnchors.json';
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   };
@@ -1572,6 +1651,7 @@ function frame(now: number): void {
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);
+  vehicleEditor.update(camera);
   updateLoading();
   controls.update();
   renderer.render(scene, camera);
