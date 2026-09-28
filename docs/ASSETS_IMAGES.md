@@ -10,7 +10,7 @@ briefs, say) cites the resulting filename from there.
 The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
 The Twin Suns title, its armored-posse variant, Wanted loading assets, the
-alternate Dune Sea board image, and the hazy high-resolution title image are
+alternate Dune Sea board image, and the character-preserving high-resolution title image are
 delivered. The gameplay-section keyframes and supporting images are also
 delivered. All eighteen sections are being built. Before those batches there
 were no open requests (as of 2026-09-24). The Jedi and Maris
@@ -138,6 +138,24 @@ The background below is optional for the galaxy-map-with-a-lens layout.
 | File | Size | Prompt |
 |---|---|---|
 | `galaxy_arm.jpg` | 2560×1440 | "Top-down view along one spiral arm of a galaxy, a long band of warm gold and pale violet star clouds running left to right across the middle, dark dust lanes, scattered bright stars, deep black above and below the band. No text, no labels." |
+
+## Open — hydraulic press sheet, second redo (2026-09-28)
+
+Five of the six corrected sheets came back right (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
+The hydraulic press is still wrong: its conveyor now runs along the crossbeam,
+straight through both column bases, so the columns stand on the belt (compare
+the front and top views). The level supplies its own conveyor, so this time the
+sheet leaves the belt out and shows the gantry alone. Replace
+`reference/props/hydraulic_press_ref.png` under the same name.
+
+Same recipe as every prop sheet: one 1536×1024 canvas, **orthographic** side,
+front and top views of the one object at one shared scale, flat even lighting,
+no cast shadows, plain mid-grey background, no people, no text, no logos.
+
+| File | Prompt |
+|---|---|
+| `hydraulic_press_ref.png` | "Orthographic three-view model reference sheet on one canvas: side view, front view and top view of the same object at the same scale, flat even lighting, plain mid-grey background, no perspective, no text. Subject: a heavy industrial hydraulic press gantry **on its own, with no conveyor belt and nothing under it**, 8 meters wide, 7 meters tall and 3 meters deep: two thick steel columns left and right standing on flat foot plates, a crossbeam across their tops, a massive press head hanging between the columns on four hydraulic rams, a clear empty opening 6 meters wide under the press head for a belt to pass through from front to back, hazard striping on the press face and the columns, hoses and gauges, grimy grey-yellow paint. The front view looks through the opening; the side view looks along the crossbeam and shows one column with the press head edge-on; the top view shows the two column tops joined by the crossbeam." |
 
 ## Gameplay sections — supporting images (2026-09-28)
 

@@ -56,10 +56,14 @@ export interface GameEvents {
   banner: (text: string, sub?: string) => void;
   /** brief, centered title for a transport between mission areas */
   transition?: (text: string, sub?: string) => void;
-  /** the boss introduction card: letterbox + name, over the slow-motion reveal */
-  bossIntro?: (title: string, sub: string) => void;
+  /**
+   * The boss introduction card: letterbox + name, over the slow-motion reveal.
+   * `kind` is the body stepping out (its portrait goes on the Wanted card) and
+   * `role` which of a territory's three boss battles this is.
+   */
+  bossIntro?: (title: string, sub: string, kind?: EnemyKind, role?: 'lieutenant' | 'warlord' | 'monster') => void;
   /** the little card naming enemy kinds making their first appearance this wave */
-  newContacts?: (names: string[]) => void;
+  newContacts?: (kinds: EnemyKind[]) => void;
   stateChanged: (s: MatchState) => void;
   hitMarker: (slot: number) => void;
 }
@@ -473,8 +477,8 @@ export class Game {
   }
 
   /** the card naming enemy kinds making their first appearance this wave */
-  announceContacts(names: string[]): void {
-    this.events.newContacts?.(names);
+  announceContacts(kinds: EnemyKind[]): void {
+    this.events.newContacts?.(kinds);
   }
 
   /**
@@ -517,7 +521,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = tier === 'mid' ? TEXT.banners.lieutenantOf(this.board.name) : TEXT.banners.warlordOf(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub);
+    if (this.events.bossIntro) this.events.bossIntro(boss.bossName, sub, kind, tier === 'mid' ? 'lieutenant' : 'warlord');
     else this.events.banner(boss.bossName, TEXT.banners.bringThemDown);
     audio.bossHorn();
     // The warlord brings his own music. The lieutenant does not: the board's
@@ -735,7 +739,7 @@ export class Game {
     this.bossTelegraph = 0;
     for (const e of this.enemies) if (e.alive) e.suppress(1.2);
     const sub = TEXT.banners.neverEmpty(this.board.name);
-    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub);
+    if (this.events.bossIntro) this.events.bossIntro(monster.name, sub, monster.kind, 'monster');
     else this.events.banner(monster.name, sub);
     audio.bossHorn();
     audio.beastGrowl(0.9);

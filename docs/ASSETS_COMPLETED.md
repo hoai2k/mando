@@ -1066,12 +1066,62 @@ and `trail_post_ref.png`. The prisoner has matching front, side and back sheets
 in `reference/characters/`. These are production references; the 3D models
 remain requested in `ASSETS_MODELS.md`.
 
+Six of these sheets were corrected on review (corvette, hydraulic press, flak
+tower, valve wheel and both cliff pillars); see
+[Six corrected model reference sheets](#six-corrected-model-reference-sheets--delivered-2026-09-28).
+
 ## High-resolution Dune Sea title art — delivered 2026-09-28
 
 `public/assets/textures/title_dune_sea_hd.jpg` is a 2560×1440 title image
 replacing the 800×450 `board_tatooine.jpg` only on the title screen. The
 original remains available, while `src/main.ts` and the title prefetch use
 the new image. Its twin suns, traveler and desert town follow the original
-composition. The final revision softens the distinct cloud shapes into
-wind-swept atmospheric layers and carries dusty haze across the dunes for
-a cinematic view.
+composition. The selected version preserves the prominent armored traveler,
+jetpack and cape from the first upscale. The background was made without the
+character, then its cloud banks were softened into broad wind-swept haze and
+the original hunter was composited back in place. The twin suns, distant town
+and rocky overlook remain in the original arrangement.
+
+---
+
+## Six corrected model reference sheets — delivered 2026-09-28
+
+A review of the new three-view sheets as image-to-3D input (Tripo takes the
+cropped views as a multi-view set, so every view has to show the same object at
+the same pose and proportions) found six that would mislead it. The other
+fifteen new sheets and the prisoner's three views are good input and stay as
+delivered. The six corrected files replace their earlier versions in `reference/props/` under the same names.
+
+**Recipe for all six (same as every prop sheet):** one 1536×1024 canvas,
+**orthographic** side, front and top views of the one object, laid out apart
+from each other, **drawn at one shared scale** so a dimension measures the same
+in every view, flat even lighting, no cast shadows, plain mid-grey background,
+no people, no text, no logos. Prepend to each prompt: "Orthographic three-view
+model reference sheet on one canvas: side view, front view and top view of the
+same object at the same scale, flat even lighting, plain mid-grey background,
+no perspective, no text. Subject:"
+
+| File | Earlier issue | Correction brief |
+|---|---|---|
+| `pirate_corvette_ref.png` | The front view spreads the three shield domes side by side; the side and top views put them in a line along the spine. A multi-view set that disagrees makes a mesh that matches neither. | "a scabbed-together outlaw corvette about 60 meters long: an old cargo hull with welded armor slabs, a long spinal cannon along the top of the keel, **three bulbous shield generator domes in a single row along the dorsal centreline, one behind another**, a raised bridge block near the stern, mismatched engine pods at the rear, rust-brown and bare metal, in level flight. In the front view the three domes overlap into one stacked silhouette on the centreline." |
+| `hydraulic_press_ref.png` | The top-right view is a second, smaller front view, not a side view, so there is no depth information; the top view is drawn at a different scale. | "a heavy industrial hydraulic press gantry 8 meters wide, 7 meters tall and 3 meters deep, **straddling a conveyor belt that runs straight through the opening from front to back**: two thick steel columns left and right, a crossbeam, a massive press head on four hydraulic rams between the columns, hazard striping on the press face, hoses and gauges, grimy grey-yellow paint. The **side view looks along the crossbeam**: one column, the press head edge-on, and the conveyor running across the view." |
+| `flak_tower_ref.png` | The main view is a perspective three-quarter shot, not orthographic, and it includes a tall stone tower cut off at the bottom of the frame. The model is only the emplacement that sits on a tower top; the front view is also at a different scale. | "an improvised air-defence flak emplacement **6 meters across and about 3 meters tall, standing on a flat circular slab of broken stone 1 meter thick (no tower below it)**: a twin-barrelled rotating flak cannon on a turntable, a ring of sandbags and rubble around it, ammunition crates, a small sensor dish on a post, scorched stone. Barrels level, pointing to one side in the side view and toward the viewer in the front view." |
+| `valve_wheel_ref.png` | The third view is another face-on view of the wheel. Seen from above, the wheel should be an edge-on bar over the stand. | "an industrial valve: a 1.4 meter spoked handwheel with a knurled grip rim on a horizontal axle, mounted on a 1 meter pedestal pipe with a bolted flange base, rusty steel with orange paint remnants. Side view shows the wheel edge-on; front view shows it face-on; **top view looks straight down, showing the wheel as a thin edge-on bar across the round base flange**." |
+| `cliff_pillar_rock_ref.png` | About 1.7 times as tall as it is wide; the model is 8 m across at the base and 36 m tall (4.5 to 1). Scaled to 36 m the base would be about 21 m across, far outside the 4.5 m-radius collider that has to hold for the lower 12 m. | "a tall slender sandstone rock pillar, **4.5 times as tall as its base is wide** (8 meters across at the base, 36 meters tall), layered horizontal strata in ochre, rust and cream, a slight lean, a small flare at the foot and a narrow weathered crown, erosion ledges. Whole pillar in frame in every view." |
+| `cliff_pillar_ice_ref.png` | Same proportion problem as the rock pillar. | "a tall slender glacier ice pillar, **4.5 times as tall as its base is wide** (8 meters across at the base, 36 meters tall), a serac of blue-white fractured ice with vertical facets and snow on the ledges, a slight lean, a small flare at the foot and a sharp crown. Whole pillar in frame in every view." |
+
+**Review of the corrected set (2026-09-28).** Accepted: the corvette (the domes now
+sit in one row on the spine and overlap into one silhouette from the front), the flak
+tower (orthographic, the emplacement on its slab with no tower), the valve wheel (the
+top view now shows the wheel edge-on; the wheel is a little small for its stand
+against the 1.4 m spec, which the game can scale on the `wheel` node) and both cliff
+pillars (slender, about 3:1 including the flared foot; the body sits inside the 4.5 m
+collider radius from the foot up). **The hydraulic press is re-requested again**: its
+conveyor now runs along the crossbeam, through both column bases. See
+[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--hydraulic-press-sheet-second-redo-2026-09-28).
+
+Minor, no redo needed: the welding arm's front view and several other
+secondary views are drawn smaller than their main view (their proportions still
+agree, so the cropped views work); the thumper hangs its hammer off a lever arm
+rather than a vertical piston, which still animates as the requested up-and-down
+`hammer` node.

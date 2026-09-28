@@ -3,12 +3,16 @@ import { BENCHED_MANDO_IDS, buildMandalorian, MANDO_ROSTER, PLAYABLE_MANDO_IDS, 
 import {
   buildAlamite, buildBroodmother, buildDarkTrooper, buildDroid,
   buildFlametrooper, buildGunfighter, buildGunslinger, buildImperialOfficer, buildInterceptorDrone,
-  buildKrykna, buildMassiff, buildNikto, buildPirate, buildPyke, buildPykeCapo,
+  buildKrykna, buildKraytDragon, buildKwazelMaw, buildMamacore, buildMassiff, buildMudhorn, buildMythosaur,
+  buildNexu, buildNikto, buildPirate, buildPyke, buildPykeCapo, buildRancor, buildRavinak, buildSandworm,
+  buildSpiderling, buildZillo,
   buildEscortDroid, buildQuarren, buildRingEnforcer, buildStormtrooper, buildTusken, buildWookieeEnforcer,
 } from '../characters/enemies';
-import { enemyModel, loadProp } from '../characters/authored';
+import { enemyModel } from '../characters/authored';
 import type { EnemyKind } from '../enemies/enemy';
-import { WEAPON_PROPS } from '../characters/weaponProps';
+import { VEHICLE_DEFS } from '../game/vehicles';
+import type { VehicleSpec } from '../world/board';
+import { buildVehicleFigure } from './vehicleFigure';
 
 /**
  * Everything the workbench can put on the turntable, in the order the picker
@@ -50,22 +54,25 @@ const plain = (
 };
 
 /**
- * Props and creatures: models nothing on the canonical rig drives — weapons,
- * the swoop bike, the massiff. They have no rig and no clips, so the animation
- * picker does nothing for them; they are here to be looked at and measured.
+ * A creature on a rig of its own: it animates itself from a reported ground
+ * speed and strikes on its own attack hook, so the picker offers it the
+ * creature poses (idle, walk, run, attack) rather than the humanoid clips.
+ * Built authored-only — there is no procedural twin worth comparing.
  */
-const prop = (id: string, name: string, size: number, axis: 'y' | 'longest' = 'longest'): Subject => ({
-  id,
-  name,
+const creature = (id: string, name: string, build: () => CharacterInstance, modelFile?: string): Subject =>
+  ({ id, name, hasModel: true, modelFile, build: () => build() });
+
+/**
+ * A ride, parked on the turntable with Din in the seat — the same sculpt, seat
+ * and grips the game uses, so its seat and hand anchors can be placed by eye
+ * (Weapon grips, in edit mode) and exported to `vehicleAnchors.json`.
+ */
+const vehicle = (kind: VehicleSpec['kind']): Subject => ({
+  id: `vehicle:${kind}`,
+  name: VEHICLE_DEFS[kind].name,
   hasModel: true,
-  build: () => {
-    // A prop has no stand-in at all — the group is empty until the file lands —
-    // so the workbench holds a progress card over its place, and needs the same
-    // "is it here yet" answer every character gives it.
-    let settled = false;
-    const root = loadProp(id, size, { axis, ground: axis === 'y', onSettle: () => { settled = true; } });
-    return { root, rig: null, animator: null, height: size, baseScale: 1, modelReady: () => settled };
-  },
+  modelFile: VEHICLE_DEFS[kind].modelId,
+  build: () => buildVehicleFigure(kind),
 });
 
 export const GROUPS: SubjectGroup[] = [
@@ -94,7 +101,6 @@ export const GROUPS: SubjectGroup[] = [
       plain('pirateMelee', 'Pirate — melee', (a) => buildPirate(true, a)),
       plain('droid', 'Assassin Droid', (a) => buildDroid(a)),
       plain('nikto', 'Nikto Swoop Rider', (a) => buildNikto(a)),
-      plain('massiff', 'War Massiff', (a) => buildMassiff(a)),
       plain('stormtrooper', 'Stormtrooper', (a) => buildStormtrooper(false, a)),
       plain('deathtrooper', 'Death Trooper', (a) => buildStormtrooper(true, a)),
       plain('darktrooper', 'Dark Trooper', (a) => buildDarkTrooper(a)),
@@ -106,27 +112,29 @@ export const GROUPS: SubjectGroup[] = [
       plain('quarren', 'Quarren Netcaster', (a) => buildQuarren(a)),
       plain('alamite', 'Alamite Charger', (a) => buildAlamite(a)),
       plain('ringEnforcer', 'Ringworld Enforcer', (a) => buildRingEnforcer(a)),
-      plain('krykna', 'Krykna', (a) => buildKrykna(a)),
-      plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a)),
       plain('drone', 'Interceptor Drone', (a) => buildInterceptorDrone(a)),
     ],
   },
 ];
 
 GROUPS.push({
-  label: 'Props & creatures',
+  label: 'Creatures & vehicles',
   subjects: [
-    prop('massiff', 'Massiff', 1.15, 'y'),
-    prop('massiff_static', 'Massiff — unrigged', 1.15, 'y'),
-    prop('nikto_swoop', 'Swoop bike', 2.6),
-    prop('carbine', 'EE-3 carbine', WEAPON_PROPS.carbine.length),
-    prop('gaffi', 'Gaderffii stick', WEAPON_PROPS.gaffi.length),
-    prop('enemy_blaster_rifle', 'Infantry blaster rifle', WEAPON_PROPS.enemy_blaster_rifle.length),
-    prop('pirate_boarding_club', 'Pirate boarding club', WEAPON_PROPS.pirate_boarding_club.length),
-    prop('flame_projector', 'Flame projector', WEAPON_PROPS.flame_projector.length),
-    prop('net_launcher', 'Net launcher', WEAPON_PROPS.net_launcher.length),
-    prop('alamite_stone_club', 'Alamite stone club', WEAPON_PROPS.alamite_stone_club.length),
-    prop('electrostaff', 'Electrostaff', WEAPON_PROPS.electrostaff.length),
+    plain('massiff', 'War Massiff', (a) => buildMassiff(a)),
+    plain('krykna', 'Krykna', (a) => buildKrykna(a)),
+    plain('broodmother', 'Krykna Broodmother', (a) => buildBroodmother(a)),
+    creature('spiderling', 'Krykna Hatchling', buildSpiderling, 'krykna'),
+    creature('mudhorn', 'Mudhorn', buildMudhorn),
+    creature('ravinak', 'Ravinak', buildRavinak),
+    creature('mamacore', 'Mamacore', buildMamacore),
+    creature('rancor', 'Rancor', buildRancor),
+    creature('kraytDragon', 'Greater Krayt', buildKraytDragon, 'krayt_dragon'),
+    creature('mythosaur', 'Mythosaur', buildMythosaur),
+    creature('sandworm', 'Dune Worm', buildSandworm),
+    creature('zillo', 'Zillo Beast', buildZillo),
+    creature('nexu', 'Nexu', buildNexu),
+    creature('kwazelMaw', 'Kwazel Maw', buildKwazelMaw, 'kwazel_maw'),
+    ...(Object.keys(VEHICLE_DEFS) as VehicleSpec['kind'][]).map(vehicle),
   ],
 });
 
