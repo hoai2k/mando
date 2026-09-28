@@ -73,7 +73,9 @@
 }
 .fe-title-art {
   position: absolute; inset: 0;
-  background-size: cover; background-position: 50% 40%;
+  /* the hunter stands a fifth of the way in from the art's left edge; a centred
+     crop cut him out of frame on portrait and square screens */
+  background-size: cover; background-position: 15% 40%;
   animation: fe-drift 22s ease-in-out infinite alternate;
 }
 .fe-title-shade {
