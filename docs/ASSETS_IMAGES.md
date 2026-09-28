@@ -5,7 +5,9 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**No open image generation requests as of 2026-09-24.** The Jedi and Maris
+**Open as of 2026-09-28:** the UI concept art in
+[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below. Before that
+batch there were no open requests (as of 2026-09-24). The Jedi and Maris
 canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
@@ -72,6 +74,58 @@ were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
+
+## Open — front-end UI concepts (2026-09-28)
+
+Art for the title, character select and loading screen redesign explored in
+[`UI_CONCEPTS.md`](UI_CONCEPTS.md). Every concept there swaps the 3D pedestals for a
+**portrait grid**, so the first group is wanted whichever direction is picked; the
+rest belong to one concept each and should only be made once that concept is chosen.
+
+Runtime files land in `public/assets/textures/`. Same global specs as everything else
+in this doc: no text, no logos, no watermarks, original designs described rather than
+named.
+
+### Wanted for any concept — the portrait grid
+
+The existing portraits are 512×614 JPEG, head and shoulders, warm key light from the
+upper left on a near-black background. In a grid, one missing face or one grey
+background stands out, and three do:
+
+| File | Why | Prompt |
+|---|---|---|
+| `portrait_boba_fett.jpg` | The only playable fighter with no portrait. The grids show a placeholder in that slot. | "Head-and-shoulders portrait of an armored bounty hunter, stylized-realistic video-game character art: a battered olive-green helmet with a dark T-shaped visor and a thin rangefinder stalk rising from one side, dented olive chest plate with rust-red accents, a grey flight suit, a tattered sand-coloured cape over one shoulder, a bandolier across the chest. Three-quarter front view, warm key light from the upper left, deep shadow on the right, plain near-black background, 512×614." There is no character sheet for him in `reference/characters/`. If the tool takes an image, use a render of `public/models/boba_fett.glb` as the anchor. |
+| `portrait_din.jpg` (replace) | Painted on a flat grey background; every other portrait is on near-black. | Re-render the current portrait with the same subject, pose and framing, on a plain near-black background with a warm key light from the upper left. |
+| `portrait_maul.jpg` (replace) | Cropped from the grey character sheet (`sith_soldier_front.png`), so it has a flat grey background and flat light. | Same as `din`. If the generator rejects the reference again, cut the figure out of the current file and put it on near-black with a warm gradient. That is a one-off edit, not a generation. |
+
+### Concept A — "Wanted", the Guild bounty board
+
+| File | Size | Prompt |
+|---|---|---|
+| `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
+| `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |
+
+### Concept B — "Twin Suns", the widescreen showdown
+
+| File | Size | Prompt |
+|---|---|---|
+| `title_twin_suns.jpg` | 2560×1080 (21:9) | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
+| `pose_<id>.png` (optional) | 768×1536, transparent | Full-body action-pose cut-outs, one per playable fighter, for the tall lineup strips. Optional: the strips work with the current head-and-shoulders portraits cropped tall, so ask for these only if the portrait crops feel too tight in the build. |
+
+### Concept C — "Navicomputer", the salvaged gunship console
+
+| File | Size | Prompt |
+|---|---|---|
+| `ui_cockpit_frame.png` | 1920×1080, transparent centre | "First-person view from the pilot seat of a battered small gunship: heavy gunmetal canopy struts framing the view, a console lip along the bottom edge with worn toggle switches, amber indicator lamps, hazard-striped trim, scuffed paint and rivets. The canopy glass area must be fully transparent (alpha) so a background can show through. No text." |
+| `ui_hyperspace.jpg` | 1920×1080 | "Looking forward into a hyperspace tunnel: pale blue-white star streaks converging to a bright vanishing point slightly right of centre, faint amber haze at the edges, motion blur. No ships, no text." |
+
+### Concept D — "Sabacc", cards on a cantina table
+
+| File | Size | Prompt |
+|---|---|---|
+| `ui_felt.jpg` | 1024×1024, tileable | "Seamless tileable top-down texture of worn dark teal card-table felt with faint cigarette burns, drink rings and brushed nap. Flat even lighting, no text." |
+| `ui_card_back.png` | 512×720 | "The back of an ornate sci-fi gambling card: deep burgundy field, a fine gold geometric border, a symmetrical original emblem of interlocking diamonds and a stylised crescent in the centre, slight wear on the corners. Flat lighting, no text, no real-world logos." |
+| `title_cantina.jpg` | 1920×1080 | "Interior of a dim frontier cantina at night, seen from a gambling table: blurry patrons in the background, glowing pink and cyan neon tubes, a curved bar, haze and smoke, warm pools of light on a green-felt table in the foreground with scattered chips. Leave the upper centre calm for a logo. No legible text." |
 
 ## Making more character reference sheets
 
