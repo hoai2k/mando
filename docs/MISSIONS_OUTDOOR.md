@@ -1498,8 +1498,9 @@ diff the two to find out. Implemented on branch
   may not fire**, it has to descend into the playable band first. Carriers
   release from `ceiling + 10`, so a drop still falls *through* the cut.
   `?ceiling=<m>` overrides it for tuning.
-- **Shells** (§1.1) — `open`, `canyon`, `hall`, `deck`, `road`, in
-  `world/mission.ts`. Outdoor zones are held in by `ridge()` borders; halls
+- **Shells** (§1.1) — `open`, `canyon`, `hall`, `deck`, `road`, typed in
+  `world/mission.ts` and built by `world/stage/` (`buildStage` in `build.ts`
+  runs the phases over a shared `StageBuilder`). Outdoor zones are held in by `ridge()` borders; halls
   are roofed and take their waves from **wall hatches**; decks have open
   edges; roads carry drop marks and a barricade.
 - **Encounters** (§1.2) — `start`, `trek`, `camp`, `assault`, `chase`,

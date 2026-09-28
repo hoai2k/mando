@@ -61,7 +61,7 @@ function audit(mode) {
    *
    * This is the difference between "unbacked" and "a hole". A mission's border
    * is one merged mesh of rock standing OUTSIDE the slab that colliders it
-   * (`ridge()` in world/mission.ts: the face of the cliff lands on the face of
+   * (`ridge()` in world/stage/ridge.ts: the face of the cliff lands on the face of
    * the wall, so nothing is proud of its collider), and a stage's floor plate
    * runs out past that slab — so probing "is there standable ground beside
    * this vertex" says yes on the dead side of a wall no player is ever on. A
