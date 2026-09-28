@@ -184,7 +184,7 @@ function alternatesFor(p: Pose): Alternate[] {
   // saber studies; their approved moves are offered in their place.
   const own = styleMoves(subject.id);
   const generic = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
-    : own.length && subject.id !== 'ventress' ? [] : ATTACK_ALTERNATES[p.id] ?? [];
+    : own.length && subject.id !== 'ventress' && p.id.startsWith('saber') ? [] : ATTACK_ALTERNATES[p.id] ?? [];
   const approved: Alternate[] = own
     .filter((m) => (m.slot === 'flourish' ? 'flourish' : m.slot === 'idle' ? 'saberIdle' : `saber${m.slot}`) === p.id)
     .map((m) => ({ id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'saber' }));
