@@ -953,7 +953,7 @@ function build(ctx: SectionContext): SectionInstance {
     if (at) bars.push(at.bar);
     let line = at ? at.line : alarm ? (dropCleared() ? T.resetHint : T.alarmHint) : '';
     if (!line && r < RADIO) line = T.radioLine;
-    if (!line && field.litBy[slot]) line = field.litBy[slot]!.tag === 'sensor' ? 'In a sensor beam — move' : 'In the light — move';
+    if (!line && field.litBy[slot]) line = field.litBy[slot]!.tag === 'sensor' ? T.inSensor : T.inLight;
     return { title: T.title, bars: bars.slice(0, 3), line: line || T.stairHint };
   };
 
@@ -997,6 +997,15 @@ function build(ctx: SectionContext): SectionInstance {
         go(best.spec.pos);
         return out;
       }
+    }
+    // a trooper who has not clocked us, close and with his back turned: take him
+    for (const e of game.enemies) {
+      if (!e.alive || e.team !== 1 || alarm) continue;
+      const d = e.position.distanceTo(p.position);
+      if (d > 7 || !takedowns.eligible(e, p.position)) continue;
+      go(e.position);
+      if (d < 2.8) { out.meleePressed = true; out.yaw = Math.atan2(e.position.x - p.position.x, e.position.z - p.position.z); }
+      return out;
     }
     let c = Math.min(cursors[slot], route.length - 1);
     const w = route[c];

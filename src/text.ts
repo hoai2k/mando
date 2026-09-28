@@ -637,6 +637,8 @@ export const TEXT = {
       lightsBack: 'Lights',
       boothCharging: 'Booth',
       takedown: 'Silent takedown',
+      inLight: 'In the light — move',
+      inSensor: 'In a sensor beam — move',
     },
     'hold-the-forge': { stage: 'the covert forge', title: 'Hold the Forge' },
     'covert-sky': { stage: 'the sky over the city', title: 'Covert Sky' },
