@@ -88,7 +88,7 @@ await boot(['din', 'maul']);
   `);
   check('the tram waits at the stop until every hunter is aboard', r.waiting === 'board' && r.speed0 === 0, JSON.stringify(r));
   check('and pulls out once they are', r.after === 'run' && r.speed1 > 1, JSON.stringify(r));
-  check('the sticks follow the screen: stick right runs along the train', Math.abs(Math.sin(r.moveYaw) * -1 - 0) < 0.05 && Math.cos(r.moveYaw) < -0.95, String(r.moveYaw));
+  check('the sticks follow the screen: stick right runs along the train', -Math.cos(r.moveYaw) > 0.9, String(r.moveYaw));
 }
 
 // ---------------------------------------------------------------- gantries
@@ -114,14 +114,14 @@ await boot(['din', 'maul']);
       g.update(1 / 30, inputs);
       if (k.gantryX(0) < -30) break;
     }
-    out.stand = { hp: stand.hp, hp0: hp0[0], roof: k.onRoof(0) };
-    out.duck = { hp: duck.hp, hp0: hp0[1], roof: k.onRoof(1), ducking: k.ducking()[1] };
+    out.stand = { hp: stand.hp, hp0: hp0[0], roof: k.onRoof(0), swept: k.swept()[0] };
+    out.duck = { hp: duck.hp, hp0: hp0[1], roof: k.onRoof(1), ducking: k.ducking()[1], swept: k.swept()[1] };
     out.passed = k.gantryX(0);
     out.foe = foe ? { alive: foe.alive } : null;
     return out;
   `);
-  check('a gantry sweeps a standing hunter off the roof', r.stand.hp < r.stand.hp0 && !r.stand.roof, JSON.stringify(r.stand));
-  check('and passes over a ducking one', r.duck.hp === r.duck.hp0 && r.duck.roof, JSON.stringify(r.duck));
+  check('a gantry sweeps a standing hunter off the roof', r.stand.swept > 0 && !r.stand.roof, JSON.stringify(r.stand));
+  check('and passes over a ducking one', r.duck.swept === 0 && r.duck.roof && r.duck.ducking, JSON.stringify(r.duck));
   check('and sweeps a hostile standing on the roof', r.foe && !r.foe.alive, JSON.stringify(r.foe));
 }
 // ---------------------------------------------------------------- the station

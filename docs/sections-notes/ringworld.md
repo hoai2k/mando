@@ -178,7 +178,9 @@ inside", "Fight through the cars", "Back up top", "Clear it or cut it loose",
 - The tunnel at 6 m/s: at 10 m/s the 160 m tunnel was 16 s, too short to be a
   fight inside; at 6 it is ~35 s from the first car in to the last car out.
 - Swept damage is small (12/16): the cost of a sweep is the trip back from the
-  rear car, not the health.
+  rear car, not the health. One sweep per pass (a 1.5 s guard), and the body
+  is thrown over the side rather than along the beam: thrown along it at the
+  beam's own speed, the same gantry hit it every frame.
 - The pirate tram waits for you: the terminus only comes after it is beaten,
   so the climax cannot be skipped by riding it out.
 
@@ -254,6 +256,19 @@ to the roof underfoot after a respawn or fall. Over a gap it holds height over
 both ends until it is over the far roof and aims 4 m past his landing (a
 super-jumper takes 2 m more). Grabs the rack first. On the pad it shoots him
 to half, then fires nets; after the capture it walks into the stair.
+
+### Tram Top tests
+
+- `test-sections tram-top` — passes at 1, 2, 4 (mixed characters, and a
+  super-jumper-led 4), ~269 s simulated, 0 deaths, nobody outside.
+- `HARNESS_PORT=4217 node tools/test-section-tram-top.mjs` — 17 checks: the
+  tram waits for everyone at the stop, then leaves; stick right runs along the
+  train; a gantry sweeps a standing hunter once, passes over a ducking one,
+  and kills a hostile on the roof; the station stop is dead on its mark with
+  the doors open and lasts 30 s; nobody is left on the roof under the tunnel
+  and the fallen re-form inside the rear car beneath it; the pirate tram pulls
+  alongside, can be stood on, is cut loose by its coupling, and hands back
+  anyone on it; the tram stops at the terminus and its gate carries the run on.
 
 ## Known issues / notes for others
 

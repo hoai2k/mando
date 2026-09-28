@@ -500,6 +500,9 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   let sweptNote = 0;
   const ducking = [false, false, false, false];
   const duckHeld = [false, false, false, false];
+  /** sweeps taken, per slot (the tests read it) */
+  const swept = [0, 0, 0, 0];
+  const sweptT = [0, 0, 0, 0];
   const posted: Enemy[] = [];
   const viewDir = new THREE.Vector3();
 
@@ -579,9 +582,14 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
         if (!p.alive || p.formT > 0) continue;
         const h = ducking[p.slot] ? DUCK_H : STAND_H;
         if (p.position.x < lo || p.position.x > hi || !inBeam(p.position, h)) continue;
+        // one sweep per pass: the thrown body must not be met again by the same beam
+        if (sweptT[p.slot] > 0) continue;
+        sweptT[p.slot] = 1.5;
         // swept: knocked off the roof, over the side
         p.damage(party === 1 ? 12 : 16, new THREE.Vector3(x, beamBottom, p.position.z), -1);
-        p.velocity.set(-10, 5, p.position.z >= 0 ? 6 : -6);
+        // thrown over the side, not along the beam's own path
+        p.velocity.set(3, 5, p.position.z >= 0 ? 9 : -9);
+        swept[p.slot]++;
         if (sweptNote <= 0) { sweptNote = 3; ctx.announce(T.swept, T.sweptSub); }
       }
       for (const e of game.enemies) {
@@ -723,6 +731,7 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     mill.update(dt);
     updateDoors(dt);
     sweptNote = Math.max(0, sweptNote - dt);
+    for (let i = 0; i < 4; i++) sweptT[i] = Math.max(0, sweptT[i] - dt);
     // the camera leans in and out of the beats
     const wantWide = phase === 'station' || phase === 'rival' || phase === 'board' || phase === 'terminus' ? 1 : 0;
     wideCam += (wantWide - wideCam) * Math.min(1, dt * 1.2);
@@ -1046,6 +1055,7 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     get rival() { return rival; },
     coupling: couplingB,
     ducking: () => ducking.slice(),
+    swept: () => swept.slice(),
     gantryX: (i: number) => gantryX(gantries[i]),
     tunnelMouth, tunnelEnd,
     onRoof: (slot: number) => onRoof(game.players[slot].position),
