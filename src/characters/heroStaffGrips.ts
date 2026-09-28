@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import workbenchExport from './data/heroStaffGrips.json';
+import { applyGrip } from './grips';
 
 /**
  * Hand grips for the staffs Embo and IG-11 carry in their gaffi slot, as
@@ -11,8 +12,5 @@ const grips = new Map(workbenchExport.entries.map((entry) => [entry.character, e
 
 export function applyHeroStaffGrip(character: string, staff: THREE.Object3D): void {
   const grip = grips.get(character);
-  if (!grip) return;
-  staff.position.set(grip.editedPosition[0], grip.editedPosition[1], grip.editedPosition[2]);
-  staff.quaternion.set(grip.editedQuaternion[0], grip.editedQuaternion[1],
-    grip.editedQuaternion[2], grip.editedQuaternion[3]).normalize();
+  if (grip) applyGrip(staff, grip);
 }

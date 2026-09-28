@@ -1,6 +1,6 @@
-import * as THREE from 'three';
+import type * as THREE from 'three';
 import workbenchExport from './data/tuskenWeaponGrips.json';
-import { gripClipKey } from './gripClipKey';
+import { applyGrip, clipGrips } from './grips';
 
 const CLIP: Record<string, string> = {
   idle: 'idleUpper',
@@ -8,13 +8,10 @@ const CLIP: Record<string, string> = {
   enemySwing: 'enemySwing',
   'enemySwing:enemyDrive': 'enemyDriveUpper',
 };
-const grips = new Map(workbenchExport.entries.map((entry) => [CLIP[entry.pose], entry]));
-const carry = grips.get('idleUpper')!;
+const gripFor = clipGrips(workbenchExport.entries, CLIP);
+const carry = gripFor('idleUpper')!;
 
 /** The hand-local gaffi grip for each upper clip; other states carry it. */
 export function applyTuskenWeaponGrip(gaffi: THREE.Object3D, upperClip: string | null): void {
-  const grip = grips.get(gripClipKey(upperClip)) ?? carry;
-  gaffi.position.set(grip.editedPosition[0], grip.editedPosition[1], grip.editedPosition[2]);
-  gaffi.quaternion.set(grip.editedQuaternion[0], grip.editedQuaternion[1],
-    grip.editedQuaternion[2], grip.editedQuaternion[3]).normalize();
+  applyGrip(gaffi, gripFor(upperClip) ?? carry);
 }

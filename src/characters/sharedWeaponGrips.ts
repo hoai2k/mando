@@ -1,5 +1,6 @@
-import * as THREE from 'three';
+import type * as THREE from 'three';
 import exportData from './data/sharedWeaponGrips.json';
+import { applyGrip } from './grips';
 
 /**
  * These exports were sampled in idle (or Revan's flourish) to calibrate the
@@ -22,9 +23,5 @@ export function sharedWeaponScale(character: string, side: 'left' | 'right' = 'r
 export function applySharedWeaponGrip(character: string, weapon: THREE.Object3D,
   side: 'left' | 'right' = 'right'): void {
   const grip = entries.get(key(character, side));
-  if (!grip) return;
-  weapon.position.set(grip.editedPosition[0], grip.editedPosition[1], grip.editedPosition[2]);
-  weapon.quaternion.set(grip.editedQuaternion[0], grip.editedQuaternion[1],
-    grip.editedQuaternion[2], grip.editedQuaternion[3]).normalize();
-  weapon.scale.setScalar(sharedWeaponScale(character, side));
+  if (grip) applyGrip(weapon, grip, sharedWeaponScale(character, side));
 }
