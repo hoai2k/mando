@@ -16,7 +16,7 @@ the lieutenant) → … Placement was already in `SECTION_PLACEMENT`.
 | Item | State |
 |---|---|
 | Worm Sign (`worm-sign`) | built; registered; `test-sections` passes at 1, 2 and 4 players |
-| The Barge Run (`barge-run`) | built; registered; `test-sections` passes at 1, 2 and 4 players; guns are a local stub until K3 merges (see below) |
+| The Barge Run (`barge-run`) | built; registered; `test-sections` passes at 1, 2 and 4 players; both guns are K3 turrets |
 | `tools/test-section-desert.mjs` | 32 checks (Worm Sign 20, Barge Run 12), all pass |
 | Whole Dune Sea run with sections (`RUNS=desert … --runs-only`) | passes: B → barge-run → worm-sign → C, nothing leaks |
 
@@ -148,39 +148,45 @@ with short ones (6–11 m). They meet on the checkpoint islands at the 66 m and
   numbers), shells cost 8% of the hull instead of 10%, and chip damage is
   scaled by 0.7.
 
-## The guns: a local stub until K3 merges
+## The guns: K3 turrets
 
-K3 (`kit/mounts.ts` and the turret `Vehicle` kind) is on `claude/sections-lava`
-and not in the working branch yet. The Barge Run's two guns are the section's
-own `DeckGun` behind a small `MountedGun` interface (`pos`, `gunner`, `heat`,
-`overheated`, `friendly`, `moveTo`, `seat`, `update`):
+Both guns are K3 `turret` rides (`kit/mounts.ts` `RideLedger`, added on the
+section's first update — rides added in `build` are wiped when the stage
+finishes raising). Y mounts one (the ordinary ride path), the camera is its
+sight, RT fires, heat locks it and it vents, Y steps off; unmanned it fights
+for its `team` at `def.turret.auto` × its rate.
 
-- Hold Y at it to man it; jump or Y to get out. While manned the gunner is
-  pinned to its seat (their own movement and weapons are swallowed in
-  `sectionMove.adjust`) and the camera aims it, soft-locked by **bearing**
-  (12° across, ±34° up and down), which is also what lets the autopilot fire
-  it with only a yaw.
-- Heat per shot, vents at a full bar; unmanned it fires on its own at half
-  rate at the nearest target in range, for whoever's side it is on.
-- The deck gun rides the skiff (`moveTo` each frame). The heavy gun stands on
-  a 2.8 m pedestal so it can fire down over its own ship's rail at the raiders.
-- Stand-in look only (a pedestal, a shield, the barrels); the `quad_turret`
-  sculpt is registered for warming but not loaded by the stub.
+- **Deck gun** (the skiff's stern): the stock quad gun, `yawArc` π, auto 0.5,
+  team 0; `moveMount` every frame, so it rides the skiff's lateral `Mover`.
+- **Heavy gun** (the barge's upper deck): 3.2 shots/s, 55 damage, 90 m/s,
+  two barrels, all round. It stands on a 1.1 m gun ring (a step up on its
+  west side) so its sight clears the barge's own starboard rail when firing
+  down at the raiders. Team 1 with `auto: 0` through the broadside (silent:
+  its gunner's fire is the telegraphed shelling, and a turret hosing the skiff
+  at full rate on top of that was not survivable); a player who jetpacks over
+  and takes it stops the shelling. When the cargo deck is cleared it changes
+  hands (`team = 0`, `auto = 0.5`).
+- K3's auto-aim only looks for bodies, not breakables, so an unmanned heavy
+  gun shoots the raiders' crews, not their hulls; a gunner sinks the hulls.
+  The autopilot's gunner aims with yaw plus `lookY` (pitch), since the sight
+  is the camera.
+- Both have 5000 hull so the fight's own fire never wrecks them (and the
+  ledger would bring a wreck back in any case).
 
-**When K3 lands:** replace `DeckGun` with K3 turrets (parked through the ride
-ledger), keep the `MountedGun` calls, and check the deck gun moves with the
-skiff's `Mover`.
+**For K3's owner:** the stand-in quad gun's shield top (y 2.3) sits right at
+the sight (y 2.25), so any aim below level looks into the shield: from the
+skiff's deck gun the lower half of the view is the shield's back. Seen in
+the Barge Run's screenshots; `vehicles.ts` is not mine to change.
 
 ## Shared-file changes
 
-None. Everything goes through the section hooks (`Enemy.scripted`,
+None (the working branch was merged in for K1–K3; conflicts only in `index.ts`/`ids.ts`, both sides kept). Everything goes through the section hooks (`Enemy.scripted`,
 `Player.sectionMove`, `board.movers`, `board.breakables`). Worm Sign wraps
 `game.projectiles.fire` at runtime for as long as it stands and puts it back
 on dispose.
 
 ## Known issues / left
 
-- K3 wiring (above).
 - **Framework, not mine:** in a stepped boot the campaign's guide column was
   seen standing over a section objective that returns `beacon: false`
   (`campaign.beacon.visible` read true after `update`), in both sections'

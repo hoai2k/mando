@@ -3,15 +3,12 @@ import { TEXT } from '../text';
 import type { SectionDef, SectionInstance, SectionHud, SectionBar, AutopilotInput } from './api';
 import type { SectionContext } from './context';
 import type { Enemy, EnemyKind } from '../enemies/enemy';
-import type { Player } from '../player/player';
-import type { FrameInput } from '../core/input';
 import type { StaticBox } from '../core/physics';
-import type { Game } from '../game/game';
 import { Mover, addBreakable, type Breakable } from '../world/board';
 import { audio } from '../core/audio';
 import { Treadmill, type ConveyorItem } from './kit/treadmill';
-import { Interactions } from './kit/interact';
-import { composeMoves } from './kit/moves';
+import { RideLedger } from './kit/mounts';
+import type { Vehicle } from '../game/vehicles';
 import { BARGE, SKIFF, buildBarge, buildSkiff } from './barge-hull';
 import { worldBox, rockColumn } from './dune-dressing';
 
@@ -56,10 +53,14 @@ import { worldBox, rockColumn } from './dune-dressing';
  * skiff too. If the skiff's hull points run out in the broadside it breaks
  * up and the party re-forms on a fresh one, and the broadside starts again.
  *
- * **K3.** The two guns are the section's own small `DeckGun` for now,
- * behind an interface the real K3 turret (`kit/mounts.ts`, on the Lava
- * Flats branch) will replace: man it with Y, aim with the camera, fire,
- * mind the heat, jump or Y to get out; unmanned it fires at half rate.
+ * **K3.** Both guns are K3 turrets (`Vehicle` kind `turret`, put into the
+ * match by a `RideLedger`): Y to man one, the camera is its sight, RT fires,
+ * heat locks it and it vents, Y again to step off; unmanned it fights for
+ * its side at half rate. The deck gun rides the skiff (`moveMount` every
+ * frame). The heavy gun is the barge's until the cargo deck is taken — a
+ * turret on the enemy's side, silent, because its gunner lobs shells rather
+ * than hosing the skiff — and then it changes hands. It stands on a raised
+ * gun ring so it can fire down over its own rail at the raiders.
  */
 
 /** the world going by, metres a second */
@@ -82,174 +83,6 @@ const BROADSIDE_MAX = 75;
 const STOWED = Math.PI - 0.02;
 
 type Phase = 'landing' | 'castoff' | 'broadside' | 'close' | 'deck' | 'upper' | 'helm' | 'grounding' | 'done';
-
-// ---------------------------------------------------------------- the guns
-
-/**
- * The interface the Barge Run needs from a mounted gun. Kept small so the
- * K3 turret can stand in for `DeckGun` without the section changing shape.
- */
-interface MountedGun {
-  /** the gun's pivot, world space (it rides the skiff: `moveTo`) */
-  readonly pos: THREE.Vector3;
-  /** the slot in the seat, or −1 */
-  gunner: number;
-  /** 0..1, and locked out until it has vented */
-  readonly heat: number;
-  readonly overheated: boolean;
-  /** whose side it is on right now (a captured gun changes hands) */
-  friendly: boolean;
-  moveTo(p: THREE.Vector3): void;
-  /** where a gunner stands */
-  seat(out: THREE.Vector3): THREE.Vector3;
-  update(dt: number, trigger: boolean, targets: THREE.Vector3[]): void;
-}
-
-interface GunOpts { rate: number; damage: number; speed: number; heat: number; range: number; barrels: number; size: number;
-  /** the trunnion's height over the deck */
-  lift: number }
-
-/** the section's own mounted gun until K3 lands (see the file header) */
-class DeckGun implements MountedGun {
-  readonly pos = new THREE.Vector3();
-  gunner = -1;
-  heat = 0;
-  overheated = false;
-  friendly = true;
-  /** shots fired, for tests */
-  shots = 0;
-  private cd = 0;
-  private sinceShot = 9;
-  private yaw = 0;
-  private pitch = 0;
-  private barrel = 0;
-  readonly group = new THREE.Group();
-  private head = new THREE.Group();
-  private tilt = new THREE.Group();
-  private muzzles: THREE.Object3D[] = [];
-
-  constructor(private game: Game, ctx: SectionContext, at: THREE.Vector3, private o: GunOpts, yaw0: number) {
-    this.yaw = yaw0;
-    const metal = ctx.paint(0x4a4a44, { rough: 0.5, metal: 0.7 });
-    const dark = ctx.paint(0x24221e, { rough: 0.6, metal: 0.5 });
-    const s = o.size;
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9 * s, 1.1 * s, 0.7 * s, 10), metal);
-    base.position.y = 0.35 * s;
-    this.group.add(base);
-    // the pedestal: a heavy gun stands its barrels over a gunner's head, so it
-    // can fire down over its own ship's rail
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * s, 0.4 * s, o.lift, 8), dark);
-    post.position.y = o.lift / 2;
-    this.group.add(post);
-    ctx.own(post.geometry);
-    this.head.position.y = Math.max(0.7 * s, o.lift - 0.7 * s);
-    this.group.add(this.head);
-    const shield = new THREE.Mesh(new THREE.BoxGeometry(1.8 * s, 1.0 * s, 0.14 * s), metal);
-    shield.position.set(0, 0.8 * s, 0.55 * s);
-    this.head.add(shield);
-    this.tilt.position.set(0, 0.7 * s, 0.4 * s);
-    this.head.add(this.tilt);
-    for (let k = 0; k < o.barrels; k++) {
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * s, 0.09 * s, 1.9 * s, 6), dark);
-      b.rotation.x = Math.PI / 2;
-      const dx = (k - (o.barrels - 1) / 2) * 0.28 * s;
-      b.position.set(dx, 0, 0.95 * s);
-      this.tilt.add(b);
-      const m = new THREE.Object3D();
-      m.position.set(dx, 0, 1.95 * s);
-      this.tilt.add(m);
-      this.muzzles.push(m);
-    }
-    for (const mesh of [base, shield]) mesh.castShadow = true;
-    ctx.own(base.geometry); ctx.own(shield.geometry);
-    ctx.mesh(this.group);
-    this.moveTo(at);
-  }
-
-  moveTo(p: THREE.Vector3): void {
-    this.pos.copy(p);
-    this.group.position.copy(p);
-  }
-
-  seat(out: THREE.Vector3): THREE.Vector3 {
-    return out.set(this.pos.x - Math.sin(this.yaw) * 1.3 * this.o.size, this.pos.y, this.pos.z - Math.cos(this.yaw) * 1.3 * this.o.size);
-  }
-
-  /** the aim point: the gunner's camera, soft-locked onto whatever it is near */
-  private aim(targets: THREE.Vector3[], muzzle: THREE.Vector3): THREE.Vector3 | null {
-    const game = this.game;
-    if (this.gunner >= 0) {
-      const p = game.players[this.gunner];
-      if (!p) return null;
-      const dir = p.cam.aimDir(new THREE.Vector3());
-      // soft-lock by bearing: the target nearest the aim's heading, within
-      // twelve degrees across and a generous band up and down — a gunner
-      // steers the gun round, and the gun finds the range
-      const aimYaw = Math.atan2(dir.x, dir.z), aimPitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
-      let best: THREE.Vector3 | null = null, bs = Infinity;
-      for (const t of targets) {
-        const to = t.clone().sub(muzzle);
-        const d = to.length();
-        if (d > this.o.range || d < 2) continue;
-        let dy = Math.atan2(to.x, to.z) - aimYaw;
-        dy = Math.abs(Math.atan2(Math.sin(dy), Math.cos(dy)));
-        const dp = Math.abs(Math.atan2(to.y, Math.hypot(to.x, to.z)) - aimPitch);
-        if (dy > 0.21 || dp > 0.6) continue;
-        const score = dy + dp * 0.3;
-        if (score < bs) { bs = score; best = t; }
-      }
-      if (best) return best.clone();
-      return muzzle.clone().addScaledVector(dir, 60);
-    }
-    // on its own: the nearest thing in range
-    let best: THREE.Vector3 | null = null, bd = this.o.range;
-    for (const t of targets) {
-      const d = t.distanceTo(muzzle);
-      if (d < bd) { bd = d; best = t; }
-    }
-    return best ? best.clone() : null;
-  }
-
-  update(dt: number, trigger: boolean, targets: THREE.Vector3[]): void {
-    this.cd -= dt;
-    // it cools once the trigger has been off a moment, not while it is firing
-    this.sinceShot += dt;
-    if (this.sinceShot > 0.5 || this.overheated) this.heat = Math.max(0, this.heat - dt * 0.4);
-    if (this.overheated && this.heat < 0.3) this.overheated = false;
-    const muzzle = new THREE.Vector3(this.pos.x, this.pos.y + Math.max(0.7 * this.o.size, this.o.lift - 0.7 * this.o.size) + 0.7 * this.o.size, this.pos.z);
-    const at = this.friendly ? this.aim(targets, muzzle) : null;
-    if (at) {
-      const to = at.clone().sub(muzzle);
-      const wantYaw = Math.atan2(to.x, to.z);
-      const wantPitch = Math.atan2(to.y, Math.hypot(to.x, to.z));
-      const turn = this.gunner >= 0 ? 12 : 3;
-      let dy = wantYaw - this.yaw;
-      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-      this.yaw += dy * Math.min(1, turn * dt);
-      this.pitch += (THREE.MathUtils.clamp(wantPitch, -0.5, 0.8) - this.pitch) * Math.min(1, turn * dt);
-    }
-    this.head.rotation.y = this.yaw;
-    this.tilt.rotation.x = -this.pitch;
-    const manned = this.gunner >= 0;
-    const firing = this.friendly && !this.overheated && (manned ? trigger : !!at);
-    if (!firing || this.cd > 0 || !at) return;
-    this.cd = 1 / (this.o.rate * (manned ? 1 : 0.5));
-    const m = this.muzzles[this.barrel++ % this.muzzles.length];
-    // (read straight off the node: in a stepped test nothing renders, so no one else refreshes it)
-    m.updateWorldMatrix(true, false);
-    const from = m.getWorldPosition(new THREE.Vector3());
-    const dir = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch));
-    this.game.projectiles.fire(from, dir, this.o.speed, this.o.damage, 0, manned ? this.gunner : -1);
-    this.shots++;
-    this.sinceShot = 0;
-    this.game.particles.muzzleFlash(from, dir);
-    audio.blaster();
-    if (manned) {
-      this.heat = Math.min(1, this.heat + this.o.heat);
-      if (this.heat >= 1) { this.overheated = true; audio.overheat(); }
-    }
-  }
-}
 
 // ---------------------------------------------------------------- the section
 
@@ -450,18 +283,40 @@ function build(ctx: SectionContext): SectionInstance {
     dustLife[i] = 1.4;
   };
 
-  // ---- the guns ----
-  const deckGun = new DeckGun(game, ctx, V(0, 0, 0),
-    { rate: 7, damage: 16, speed: 70, heat: 0.035, range: 75, barrels: 4, size: 0.8, lift: 0.9 }, Math.PI / 2);
-  const heavyGun = new DeckGun(game, ctx, barge.toWorld(BARGE.gun),
-    { rate: 2.6, damage: 60, speed: 60, heat: 0.08, range: 110, barrels: 2, size: 1.2, lift: 2.8 }, -Math.PI / 2);
-  heavyGun.friendly = false;
-  heavyGun.group.position.z = BARGE.gun.z + 110;
-  const guns: DeckGun[] = [deckGun, heavyGun];
+  // ---- the guns: two K3 turrets ----
+  const ledger = new RideLedger(ctx);
   const deckGunAt = (): THREE.Vector3 => V(skiffX(gap) + SKIFF.gun.x, SKIFF.gun.y, SKIFF_Z + SKIFF.gun.z);
-  deckGun.moveTo(deckGunAt());
-  const triggers = [false, false, false, false];
-  const mountedAt = [0, 0, 0, 0];
+  // (put into the match on the first update: a stage's rides are rebuilt as it is raised)
+  let deckGun!: Vehicle;
+  let heavyGun!: Vehicle;
+  const guns: Vehicle[] = [];
+  // the heavy gun's ring: a raised platform on the upper deck, a step up to it
+  const RING_H = 1.1;
+  const gunAt = barge.toWorld(BARGE.gun);
+  ctx.box(gunAt.x, gunAt.y + RING_H / 2, gunAt.z, 3.4, RING_H, 3.4, ctx.paint(0x5a4834, { rough: 0.6, metal: 0.4 }));
+  ctx.box(gunAt.x - 2.3, gunAt.y + RING_H / 4, gunAt.z, 1.2, RING_H / 2, 2.4, ctx.paint(0x8a6a44, { rough: 0.9 }));
+  const heavyRing = gunAt.clone().setY(gunAt.y + RING_H);
+  const makeGuns = (): void => {
+    const dg = deckGunAt();
+    deckGun = ledger.add(
+      { kind: 'turret', x: dg.x, z: dg.z, y: dg.y, yaw: Math.PI / 2 },
+      { team: 0, hp: 5000, turret: { yawArc: Math.PI, auto: 0.5 } });
+    heavyGun = ledger.add(
+      // while the barge's picture is still out ahead, so is its gun
+      { kind: 'turret', x: heavyRing.x, z: heavyRing.z + 110, y: heavyRing.y, yaw: -Math.PI / 2 },
+      {
+        team: 1, hp: 5000,
+        // the barge's own gun: heavier rounds, slower, all the way round
+        gun: { rate: 3.2, heat: 0.12, cool: 0.4, resume: 0.3, damage: 55, speed: 90, cone: 0.06, range: 150, voice: 'longrifle',
+          muzzles: [{ x: 0.32, y: 1.72, z: 1.9 }, { x: -0.32, y: 1.72, z: 1.9 }] },
+        // silent until it is the party's: its crew's fire is the shelling
+        turret: { yawArc: Math.PI, auto: 0, autoRange: 110 },
+      });
+    guns.push(deckGun, heavyGun);
+  };
+  const heavyIsOurs = (): void => { heavyGun.team = 0; heavyGun.def.turret!.auto = 0.5; };
+  /** the turret a player is sitting in, or null */
+  const gunOf = (slot: number): Vehicle | null => guns.find((g) => g.rider === game.players[slot]) ?? null;
 
   // ---- the boarding planks: stepped, walkable, down from the barge's port rail ----
   const plankFrom = -BARGE.halfBeam;
@@ -519,7 +374,6 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- state ----
-  const interactions = new Interactions();
   let phase: Phase = 'landing';
   let phaseT = 0;
   let complete = false;
@@ -649,36 +503,6 @@ function build(ctx: SectionContext): SectionInstance {
     spawnBroadside();
   };
 
-  // ---- the hands on the guns ----
-  for (const gun of guns) {
-    interactions.add({
-      pos: gun.pos, radius: 2.6, hold: 0.35, verb: T.manVerb, once: false,
-      enabled: () => gun.friendly && gun.gunner < 0,
-      onDone: (slot) => {
-        if (guns.some((g) => g.gunner === slot)) return;
-        gun.gunner = slot;
-        mountedAt[slot] = game.time;
-        ctx.announce(T.manned, T.mannedSub);
-      },
-    });
-  }
-  const gunOf = (slot: number): DeckGun | null => guns.find((g) => g.gunner === slot) ?? null;
-  const seatTmp = new THREE.Vector3();
-  const gunnerMove = (p: Player, _dt: number, input: FrameInput): FrameInput => {
-    const gun = gunOf(p.slot);
-    if (!gun) return input;
-    const leave = (input.jumpPressed || input.slamPressed) && game.time - mountedAt[p.slot] > 0.6;
-    if (leave || !p.alive || !gun.friendly) { gun.gunner = -1; return { ...input, slamPressed: false }; }
-    triggers[p.slot] = input.shootHeld;
-    gun.seat(seatTmp);
-    p.position.x = seatTmp.x;
-    p.position.z = seatTmp.z;
-    p.velocity.x = 0;
-    p.velocity.z = 0;
-    return { ...input, moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, dashPressed: false, sprintHeld: false,
-      shootHeld: false, rocketPressed: false, meleePressed: false, slamPressed: false };
-  };
-
   // ---- guidance: the golden path (onto the skiff, across a plank, up the stair, to the gun, to the helm) ----
   const path = [
     V(ledgeX0 + 2, SKIFF.deck, SKIFF_Z), V(skiffX(GAP_NEAR), SKIFF.deck, SKIFF_Z),
@@ -702,24 +526,18 @@ function build(ctx: SectionContext): SectionInstance {
   const update = (dt: number): void => {
     if (!started) {
       started = true;
+      makeGuns();
       ctx.announce(T.title, T.sub);
-      for (const p of game.players) {
-        p.sectionMove = composeMoves({
-          adjust: (pl, d, input) => interactions.swallow(pl.slot, pl.position, gunnerMove(pl, d, input)),
-        });
-      }
       ctx.checkpoint.copy(skiffDeck());
     }
     if (complete) return;
     phaseT += dt;
     mill.update(dt);
-    interactions.update(dt, game);
 
-    // the guns
-    const targets = targetPoints();
-    deckGun.moveTo(deckGunAt());
-    for (const gun of guns) gun.update(dt, gun.gunner >= 0 ? triggers[gun.gunner] : false, targets);
-    for (let s = 0; s < 4; s++) triggers[s] = false;
+    // the deck gun rides the skiff; the ledger takes back anything wrecked
+    const dg = deckGunAt();
+    deckGun.moveMount(dg.x, dg.y, dg.z);
+    ledger.prune(dt);
 
     // the dust
     if (mill.speed > 1) {
@@ -761,7 +579,7 @@ function build(ctx: SectionContext): SectionInstance {
         // the barge's picture closes from far ahead to alongside
         const k = Math.min(1, phaseT / 11);
         barge.group.position.z = bargeStartZ * (1 - k * k * (3 - 2 * k));
-        heavyGun.group.position.z = BARGE.gun.z + barge.group.position.z;
+        heavyGun.moveMount(heavyRing.x, heavyRing.y, heavyRing.z + barge.group.position.z);
         if (k >= 1) {
           setPhase('broadside');
           spawnBroadside();
@@ -771,7 +589,7 @@ function build(ctx: SectionContext): SectionInstance {
       }
       case 'broadside': {
         // the barge's gun, while its gunner lives
-        if (shellGunner?.alive) {
+        if (shellGunner?.alive && !heavyGun.rider) {
           shellT -= dt;
           if (shellT <= 0) {
             shellT = (party === 1 ? 6.5 : 5) + Math.random() * 2;
@@ -816,7 +634,7 @@ function build(ctx: SectionContext): SectionInstance {
         const lowerClear = waveB.length > 0 && alive(waveA) + alive(waveB) + alive(railGunners) === 0;
         if (lowerClear || (waveB.length > 0 && phaseT > 150)) {
           setPhase('upper');
-          heavyGun.friendly = true;
+          heavyIsOurs();
           for (const r of raiders) { r.group.visible = true; r.z = -150; }
           spawnSwoops();
           announcePhase(T.upper, T.upperSub);
@@ -913,7 +731,7 @@ function build(ctx: SectionContext): SectionInstance {
         return { pos: V(0, BARGE.lower + 1, 8), label: T.cargo, hint: T.hintDeck, beacon: false };
       case 'upper': {
         const r = raiders.find((x) => x.arrived && x.b && !x.b.broken);
-        if (heavyGun.gunner < 0) return { pos: heavyGun.pos.clone().add(new THREE.Vector3(0, 2, 0)), label: T.heavyGun, hint: T.hintUpper, beacon: false };
+        if (!heavyGun.rider) return { pos: heavyRing.clone().add(new THREE.Vector3(0, 2, 0)), label: T.heavyGun, hint: T.hintUpper, beacon: false };
         return { pos: (r ? r.group.position.clone() : V(20, 3, -20)).add(new THREE.Vector3(0, 3, 0)), label: T.raiders, hint: T.hintRaiders, beacon: false };
       }
       case 'helm':
@@ -940,12 +758,8 @@ function build(ctx: SectionContext): SectionInstance {
     if (gun) {
       bars.push({ label: gun.overheated ? T.vent : T.heat, value: gun.heat, tone: gun.overheated ? 'danger' : gun.heat > 0.7 ? 'warn' : 'info' });
       line = T.gunLine;
-    } else {
-      const at = interactions.hudFor(p.position);
-      if (at) { bars.push(at.bar); line = at.line; }
-      else if (phase === 'upper' && heavyGun.gunner < 0) line = T.lineHeavy;
-      else if (phase === 'broadside') line = deckGun.gunner < 0 ? T.lineAuto : T.lineBroadside;
-    }
+    } else if (phase === 'upper' && !heavyGun.rider) line = T.lineHeavy;
+    else if (phase === 'broadside') line = deckGun.rider ? T.lineBroadside : T.lineAuto;
     if (phase === 'upper') {
       for (const r of raiders) if (r.b && !r.b.broken) bars.push({ label: T.raider, value: r.b.hp / r.b.maxHp, tone: 'danger' });
     }
@@ -971,23 +785,29 @@ function build(ctx: SectionContext): SectionInstance {
       return t ? { yaw: Math.atan2(t.x - p.position.x, t.z - p.position.z), shootHeld: true } : {};
     };
     const gun = gunOf(slot);
-    // the gunner: aim at the nearest target and hold the trigger (the soft-lock does the rest)
+    // the gunner: turn the sight onto the nearest target and hold the trigger
     if (gun) {
-      const stay = (gun === deckGun && phase === 'broadside') || (gun === heavyGun && phase === 'upper');
-      if (!stay) return { jumpPressed: true };
-      const t = targetPoints().sort((a, b) => a.distanceTo(gun.pos) - b.distanceTo(gun.pos))[0];
-      return t ? { yaw: Math.atan2(t.x - gun.pos.x, t.z - gun.pos.z), shootHeld: !gun.overheated } : {};
+      const stay = (gun === deckGun && phase === 'broadside') || (gun === heavyGun && (phase === 'upper' || phase === 'helm'));
+      if (!stay) return { slamPressed: true };
+      const eye = gun.sightWorld(new THREE.Vector3());
+      const t = targetPoints().sort((a, b) => a.distanceTo(eye) - b.distanceTo(eye))[0];
+      if (!t) return {};
+      const to = t.clone().sub(eye);
+      const pitch = Math.atan2(to.y, Math.hypot(to.x, to.z));
+      return { yaw: Math.atan2(to.x, to.z), lookY: (pitch - p.cam.pitch) * 0.5, shootHeld: !gun.overheated };
     }
+    /** walk up to a turret and press Y once in reach */
+    const man = (g: Vehicle, from: THREE.Vector3): AutopilotInput => {
+      const d = Math.hypot(g.pos.x - p.position.x, g.pos.z - p.position.z) - g.def.radius;
+      if (d < 2.0 && !g.rider) return { slamPressed: true };
+      return steer(from);
+    };
     switch (phase) {
       case 'landing':
       case 'castoff':
         return onSkiff(p.position) && phase === 'castoff' ? fight() : steer(skiffDeck());
       case 'broadside': {
-        if (slot === 0 && deckGun.gunner < 0) {
-          const seat = deckGun.seat(new THREE.Vector3());
-          if (p.position.distanceTo(deckGun.pos) < 2.2) return { interactHeld: true };
-          return steer(seat);
-        }
+        if (slot === 0 && !deckGun.rider) return man(deckGun, V(deckGun.pos.x - 1.8, SKIFF.deck, deckGun.pos.z));
         if (!onSkiff(p.position)) return steer(skiffDeck());
         // keep out of a shell's ring
         for (const s of shells) {
@@ -1026,10 +846,7 @@ function build(ctx: SectionContext): SectionInstance {
           if (!onStair) return steer(V(0, BARGE.lower, BARGE.stairFoot + 1.5));
           return steer(V(0, BARGE.upper, BARGE.upperFore - 2));
         }
-        if (phase === 'upper' && slot === 0 && heavyGun.gunner < 0) {
-          if (p.position.distanceTo(heavyGun.pos) < 2.2) return { interactHeld: true };
-          return steer(heavyGun.seat(new THREE.Vector3()));
-        }
+        if (phase === 'upper' && slot === 0 && !heavyGun.rider) return man(heavyGun, V(heavyRing.x - 2.4, BARGE.upper, heavyRing.z));
         if (phase === 'helm' && helmsman?.alive) {
           const h = helmsman.position;
           if (Math.hypot(h.x - p.position.x, h.z - p.position.z) > 6) return { ...steer(h), shootHeld: true };
@@ -1057,6 +874,7 @@ function build(ctx: SectionContext): SectionInstance {
     hud,
     autopilot,
     dispose: () => {
+      ledger.dispose();
       if (ctx.board.movers) ctx.board.movers = ctx.board.movers.filter((m) => m !== skiffMover);
       for (const p of game.players) p.sectionMove = null;
       if (ctx.board.breakables) {
@@ -1067,10 +885,12 @@ function build(ctx: SectionContext): SectionInstance {
     debug: () => ({
       phase, t: +phaseT.toFixed(1), hull: +hull.toFixed(2), gap: +gap.toFixed(1), breakups,
       speed: +mill.speed.toFixed(1), raiders: raiders.map((r) => (r.b ? Math.round(r.b.hp) : r.arrived ? 'x' : '-')).join(','),
-      gunners: guns.map((g) => g.gunner).join(','), shots: guns.map((g) => g.shots).join(','),
+      gunners: guns.map((g) => (g.rider ? g.rider.slot : -1)).join(','), heat: guns.map((g) => +g.heat.toFixed(2)).join(','),
     }),
     test: {
-      mill, guns, deckGun, heavyGun, raiders, shells, planks,
+      mill, guns, heavyRing, raiders,
+      get deckGun() { return deckGun; },
+      get heavyGun() { return heavyGun; }, shells, planks,
       get phase() { return phase; },
       get hull() { return hull; },
       set hull(v: number) { hull = v; },

@@ -313,25 +313,28 @@ const broadside = await page.evaluate(() => {
   window.__step(50, null, () => { p.position.set(at.x, deck.y + 0.05, at.z); p.velocity.set(0, 0, 0); });
   out.hurt = hp0 - p.hp;
   out.hullCost = hull0 - t.hull;
-  // the deck gun: man it, fire, heat
+  // the deck gun (a K3 turret): Y to man it, fire, heat, Y to step off
   p.hp = p.maxHp;
   const gun = t.deckGun;
-  window.__step(20, (slot) => slot === 0 ? { ...window.__blank, interactHeld: true } : null, () => {
-    p.position.set(gun.pos.x - 1, gun.pos.y + 0.05, gun.pos.z); p.velocity.set(0, 0, 0); p.hp = p.maxHp;
-  });
-  out.manned = gun.gunner === 0;
-  const shots0 = gun.shots;
+  let bolts = 0;
+  const fire0 = g.projectiles.fire;
+  g.projectiles.fire = function (o, d, sp, dmg, team, ...rest) { if (team === 0) bolts++; return fire0.call(this, o, d, sp, dmg, team, ...rest); };
+  p.position.set(gun.pos.x - 2.2, gun.pos.y + 0.05, gun.pos.z); p.velocity.set(0, 0, 0);
+  window.__step(2, (slot, f) => slot === 0 && f === 1 ? { ...window.__blank, slamPressed: true } : null, () => { p.hp = p.maxHp; });
+  out.manned = gun.rider === p;
+  bolts = 0;
   window.__step(45, (slot) => slot === 0 ? { ...window.__blank, shootHeld: true } : null, () => { p.hp = p.maxHp; });
-  out.mannedShots = gun.shots - shots0;
+  out.mannedShots = bolts;
   out.heat = gun.heat;
-  window.__step(30, (slot, f) => slot === 0 && f < 2 ? { ...window.__blank, jumpPressed: true } : null, () => { p.hp = p.maxHp; });
-  out.left = gun.gunner === -1;
+  window.__step(30, (slot, f) => slot === 0 && f === 12 ? { ...window.__blank, slamPressed: true } : null, () => { p.hp = p.maxHp; });
+  out.left = !gun.rider;
   // and on its own, at half rate, when there is something to shoot
-  const shots1 = gun.shots;
-  const e = s.test && g.enemies.find((x) => x.alive && x.team === 1 && x.kind === 'nikto');
-  window.__step(60, null, () => { p.hp = p.maxHp; });
-  out.autoShots = gun.shots - shots1;
+  const e = g.enemies.find((x) => x.alive && x.team === 1 && x.kind === 'nikto');
+  bolts = 0;
+  window.__step(120, null, () => { p.hp = p.maxHp; });
+  out.autoShots = bolts;
   out.swoopUp = !!e;
+  g.projectiles.fire = fire0;
   // off the side: the sand is a fall, and the fall comes back aboard
   p.position.set(deck.x - 8, deck.y - 1.5, deck.z);
   p.velocity.set(0, -5, 0);
@@ -348,8 +351,8 @@ const broadside = await page.evaluate(() => {
 });
 check('barge run: the broadside starts with the gunner on the heavy gun', broadside.phase === 'broadside' && broadside.gunner, broadside);
 check('barge run: a shell lands in its ring — it hurts, and it costs the skiff', broadside.hurt > 10 && broadside.hullCost > 0.05, broadside);
-check('barge run: the deck gun is manned with Y and fires on the trigger', broadside.manned && broadside.mannedShots > 5 && broadside.heat > 0.1, broadside);
-check('barge run: jump leaves the gun', broadside.left, broadside);
+check('barge run: the deck gun (a K3 turret) is manned with Y and fires on the trigger', broadside.manned && broadside.mannedShots > 5 && broadside.heat > 0.1, broadside);
+check('barge run: Y again steps off it', broadside.left, broadside);
 check('barge run: unmanned, it fires on its own', !broadside.swoopUp || broadside.autoShots > 0, broadside);
 check('barge run: falling to the sand re-forms you on the skiff', broadside.backAboard, broadside);
 check('barge run: a broken skiff is replaced and the broadside restarts', broadside.brokeUp === 1 && broadside.freshHull > 0.9 && broadside.phaseAfter === 'broadside', broadside);
@@ -376,7 +379,7 @@ const board = await page.evaluate(() => {
   // clear the decks, burn the raiders, kill the helmsman: she grounds
   for (let f = 0; f < 30 * 120 && t.phase !== 'upper'; f++) window.__step(1, null, () => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
   out.upper = t.phase;
-  out.heavyOurs = t.heavyGun.friendly;
+  out.heavyOurs = t.heavyGun.team === 0 && t.heavyGun.def.turret.auto > 0;
   for (let f = 0; f < 30 * 40 && !t.raiders.every((r) => r.b); f++) window.__step(1, null, () => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
   for (const r of t.raiders) if (r.b) { r.b.hp = 1; }
   window.__step(1, null);
