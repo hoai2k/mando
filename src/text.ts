@@ -84,6 +84,7 @@ export const TEXT = {
     rooms: (n: number) => `${n} rooms`,
     warlord: 'warlord,',
     rideOut: 'Ride out',
+    liberatedCount: (n: number, of: number) => `${n} of ${of} liberated`,
   },
 
   // ---------- character select ----------
@@ -165,6 +166,10 @@ export const TEXT = {
 
   // ---------- the VS splash ----------
   vs: {
+    wanted: 'Wanted',
+    deadOrAlive: 'Dead or alive',
+    highNoon: 'High noon',
+    skip: 'A to skip',
     player: (n: number) => `P${n}`,
     bot: 'BOT',
     squad: (n: number) => ` · squad ×${n}`,
@@ -178,6 +183,11 @@ export const TEXT = {
     /** the kicker over a boss's name card */
     lieutenant: 'Lieutenant',
     warlord: 'Warlord',
+    /** the boss intro's Wanted card */
+    wanted: 'Wanted',
+    reward: 'Reward',
+    /** flavour: the bounty on each of a territory's three boss battles */
+    bounty: { lieutenant: '10,000 cr', warlord: '25,000 cr', monster: '40,000 cr' } as Record<string, string>,
     inCover: 'IN COVER · hold aim to peek',
     firingFromCover: 'FIRING FROM COVER',
     takeCover: 'C / Y — take cover',
@@ -270,6 +280,21 @@ export const TEXT = {
 
   // ---------- pause ----------
   pause: {
+    /** the heading: a small italic word over the big one */
+    kicker: 'paused',
+    heading: 'Hold fire',
+    /** what the costly choices cost */
+    restartNote: (mode: string) => (mode === 'wave' ? 'Wave 1, same hunters' : 'From the start, same hunters'),
+    quitNote: 'The contract is lost',
+    inProgress: 'Contract in progress',
+    statWave: 'Wave',
+    statClock: 'On the clock',
+    statTakedowns: 'Takedowns',
+    upNext: 'Up next:',
+    nextLieutenant: (name: string, wave: number) => `<b>${name}</b> — the lieutenant comes out when wave ${wave} is cleared.`,
+    nextWarlord: (name: string, wave: number) => `<b>${name}</b> — the warlord comes out when wave ${wave} is cleared.`,
+    onTheField: (name: string) => `<b>${name}</b> is on the field.`,
+    select: 'Select',
     title: 'Paused',
     resume: 'Resume',
     controls: 'Controls',
@@ -340,6 +365,92 @@ export const TEXT = {
     time: (time: string) => ` · ${time}`,
   },
 
+  // ---------- the end of the hunt: all nine territories liberated ----------
+  complete: {
+    kicker: 'the bounty hunt is over',
+    heading: 'The Outer Rim is free',
+    tally: (n: number, time: string) => `${n} territories · ${n} warlords · ${time} on the clock`,
+    takedowns: (n: number) => `${n} takedowns`,
+    mostTakedowns: 'most takedowns',
+    huntAgain: 'Hunt again',
+    credits: 'Roll credits',
+    quit: 'Quit',
+  },
+
+  // ---------- the credits ----------
+  //
+  // Everything on the credits roll is here; src/ui/credits.ts only lays it out.
+  // It rolls top to bottom in the order written:
+  //
+  //   - `sections` is a list of { head, lines }. Add a section by adding an
+  //     entry; reorder the roll by reordering them.
+  //   - each line is [role, who]: the role sits right-aligned beside the name,
+  //     as in ['Sound effects', 'Jane Doe'].
+  //   - leave the role empty — ['', '...'] — for a line on its own, centred:
+  //     a name standing alone under its heading, or a sentence.
+  //   - the first section's lone lines are set large, as the lead credit.
+  credits: {
+    title: 'Bounty Hunters',
+    sub: 'a Mandalorian fan game',
+    back: 'Back',
+    sections: [
+      { head: 'Principal Game Designer', lines: [['', 'Hoai Nguyen']] },
+      {
+        head: 'Built with',
+        lines: [
+          ['Code & design assistance', 'Claude Code, by Anthropic'],
+          ['3D engine', 'three.js — Ricardo Cabello (mrdoob) and contributors'],
+          ['Tooling', 'TypeScript · Vite · Playwright'],
+        ],
+      },
+      {
+        head: 'Boba Fett model',
+        lines: [
+          ['', '“STAR WARS – Jedi Survivor (ESB): Boba Fett”'],
+          ['by', 'Zorg_Sinister (fred346b) on Sketchfab'],
+          ['licence', 'Creative Commons Attribution 4.0 — creativecommons.org/licenses/by/4.0'],
+          ['', 'Decimated, retextured and colour-graded for this game.'],
+        ],
+      },
+      {
+        head: 'Other assets',
+        lines: [
+          ['Character, prop and vehicle models', 'generated with Tripo AI, rigged and cleaned in Blender'],
+          ['Sound effects', 'generated with ElevenLabs'],
+          ['Select-screen portraits', 'rendered in the game from its own models'],
+        ],
+      },
+      {
+        head: 'Type',
+        lines: [
+          ['Anton', 'Vernon Adams'],
+          ['Playfair Display', 'Claus Eggers Sørensen'],
+          ['Barlow Condensed', 'Jeremy Tribby'],
+          ['Alfa Slab One', 'JM Solé'],
+          ['IBM Plex Mono', 'IBM'],
+          ['Special Elite', 'Astigmatic'],
+          ['', 'SIL Open Font Licence 1.1 · Special Elite: Apache Licence 2.0'],
+        ],
+      },
+      {
+        head: 'From a galaxy far, far away',
+        lines: [
+          ['Star Wars', 'created by George Lucas'],
+          ['The Mandalorian', 'created by Jon Favreau'],
+          ['', 'With characters, creatures and places from The Book of Boba Fett, Star Wars: The Clone Wars, Star Wars: The Force Unleashed, Star Wars: Knights of the Old Republic and Star Wars Jedi: Survivor.'],
+        ],
+      },
+      {
+        head: 'Fan work',
+        lines: [
+          ['', 'Star Wars and all related names, characters and likenesses are © & ™ Lucasfilm Ltd. and The Walt Disney Company.'],
+          ['', 'Bounty Hunters is a non-commercial fan project, made by fans for fans. It is not affiliated with, endorsed, sponsored or approved by Lucasfilm Ltd. or The Walt Disney Company.'],
+        ],
+      },
+    ] as Array<{ head: string; lines: Array<[string, string]> }>,
+    last: 'This is the Way.',
+  },
+
   // ---------- settings ----------
   settings: {
     title: 'Settings',
@@ -358,17 +469,38 @@ export const TEXT = {
     invertY: 'Invert look (Y)',
     keyboardMouse: 'Keyboard & mouse',
     back: 'Back',
-    hint: 'Saved on this device. Gamepad: <b>left / right</b> to adjust.<br/>'
-      + '<b>Dynamic camera</b> — the chase camera closes in when you are still and opens out when you sprint, '
-      + 'dash or fly. Off, it holds the one distance the right stick dials in.<br/>'
-      + '<b>Split screen</b> — which way co-op divides the window: <b>stacked</b> gives each player a wide strip, '
-      + '<b>side by side</b> turns the same layout on its side. Four players get a quadrant either way.<br/>'
-      + '<b>Saber lights</b> — a lit blade glows on what is around it. <b>Auto</b> turns this off for the session if the game runs slowly.<br/>'
-      + '<b>Keyboard &amp; mouse</b> — adds WASD and mouse aiming; while it is off the cursor stays free during play.',
+    kicker: 'tune the kit',
+    saved: 'Saved on this device',
+    sections: { sound: 'Sound', camera: 'Camera & aim', screen: 'Screen & hands' },
+    credits: 'Roll credits',
+    noteKicker: (row: string) => `Field note · ${row}`,
+    prompts: { adjust: 'Adjust', flip: 'Flip', back: 'Back' },
+    /** the field note beside the list: whichever row is focused explains itself */
+    notes: {
+      master: 'Everything at once — music, effects and voices.',
+      sfx: 'Blasters, blades, jetpacks and the things that growl back.',
+      music: 'The score: each territory has its own, and the warlords bring theirs.',
+      dynamicCamera: 'The chase camera closes in when you stand still and opens out when you sprint, dash or fly. Off, it holds the one distance the right stick dials in.',
+      lookSensitivity: 'How far a push of the right stick — or a move of the mouse — turns you. The middle of the gauge is the default.',
+      invertY: 'Push up to look down, as a flight stick does.',
+      splitScreen: 'Which way co-op divides the window. Stacked gives each player a wide strip; side by side turns the same layout on its side. Four players get a quadrant either way.',
+      saberLights: 'A lit blade glows on what is around it. Auto turns this off for the session if the game runs slowly.',
+      keyboardMouse: 'Adds WASD and mouse aiming. While it is off the cursor stays free during play.',
+      credits: 'Who made this, and whose galaxy it borrows.',
+      back: 'Back to where you came from. Everything here is already saved.',
+    },
   },
 
   // ---------- the corner buttons and the controls sheet ----------
   controls: {
+    /** the field manual's heading, its line, and its three pages */
+    manual: 'Field manual',
+    manualSub: 'controls, for hunters new to the guild',
+    pages: { foot: 'On foot', saddle: 'In the saddle', keyboard: 'Keyboard & mouse' },
+    turnPage: 'Turn the page',
+    padFoot: 'Start pauses · View goes fullscreen · A on a spare pad joins the posse',
+    saddleNote: 'Drop a rider and the ride is yours. Stand by it and press Y (C on the keyboard) to climb on.',
+    keyboardNote: 'Turn on Keyboard & mouse in Settings to play with WASD and mouse aiming.',
     title: 'Controls',
     back: 'Back',
     settingsButton: 'Settings',

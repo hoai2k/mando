@@ -3,6 +3,7 @@ import type { FrameInput } from '../core/input';
 import { damp, dampAngle } from '../core/math';
 import { audio } from '../core/audio';
 import { hazardAt } from '../world/board';
+import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import type { Game } from '../game/game';
 import { COYOTE_TIME, FUEL_SECONDS, JUMP_VEL, SPRINT_REFILL, type Player } from './player';
 
@@ -94,7 +95,7 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   }
 
   // sit the seat, carry the ride's momentum (the camera paces off velocity)
-  v.seatWorld(this.position);
+  v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
   this.velocity.copy(v.vel);
   this.grounded = true;
   this.wasGrounded = true;

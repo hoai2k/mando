@@ -8,7 +8,7 @@ import {
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
   rancorClips, ravinakClips, zilloClips,
 } from '../anim/quadruped';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, modelDir } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
@@ -300,7 +300,7 @@ function loader(): GLTFLoader {
 }
 
 /** Where a character or creature model lives, and what the tracker calls it. */
-export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}.glb`; }
+export function modelUrl(id: string): string { return `${ASSET_ROOT}${modelDir(id)}${id}.glb`; }
 
 /**
  * Load and cache a .glb, resolving null when it isn't present.

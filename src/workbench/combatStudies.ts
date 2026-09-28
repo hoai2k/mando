@@ -3,6 +3,7 @@ import type { ClipSet } from '../anim/clips';
 import type { Proportions } from '../anim/skeleton';
 import { counterweightTracks } from '../anim/counterweight';
 import { spearTestClips } from './spearTests';
+import { UNARMED_STUDIES, unarmedStudyClips } from './unarmedStudies';
 
 /** Original game clips stay intact. Each study is a separate workbench clip. */
 export interface Alternate {
@@ -10,7 +11,7 @@ export interface Alternate {
   name: string;
   lower: string;
   upper: string;
-  reference: 'spear' | 'staff' | 'saber' | 'close';
+  reference: 'spear' | 'staff' | 'saber' | 'close' | 'unarmed';
 }
 
 export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
@@ -39,6 +40,11 @@ export const ATTACK_ALTERNATES: Record<string, Alternate[]> = {
     { id: 'enemyShort', name: 'Compact counterstrike', lower: 'enemyShortLower', upper: 'enemyShortUpper', reference: 'close' },
     { id: 'enemyDrive', name: 'Committed driving strike', lower: 'enemyDriveLower', upper: 'enemyDriveUpper', reference: 'close' },
   ],
+  // every unarmed study after the first in its slot, which is the pose's own
+  ...Object.fromEntries((['unarmed1', 'unarmed2', 'unarmed3'] as const).map((slot) => [slot,
+    UNARMED_STUDIES.filter((s) => s.slot === slot).slice(1).map((s): Alternate => ({
+      id: s.id, name: s.name, lower: `${s.id}Lower`, upper: `${s.id}Upper`, reference: 'unarmed',
+    }))])),
 };
 
 export type CombatStyle = 'measured' | 'heavy' | 'agile' | 'mechanical' | 'hunter';
@@ -63,7 +69,7 @@ interface Move {
   times?: number[];
   upper: Angles;
   lower?: Angles;
-  step?: 'still' | 'forward' | 'pivot' | 'low' | 'kick';
+  step?: 'still' | 'forward' | 'pivot' | 'low';
 }
 
 const qtrack = (bone: string, times: number[], angles: A[]): THREE.QuaternionKeyframeTrack => {
@@ -82,7 +88,7 @@ const vtrack = (bone: string, times: number[], positions: A[]): THREE.VectorKeyf
 const DEFAULT_TIMES = [0, 0.28, 0.53, 0.7, 1];
 
 function addMove(clips: ClipSet, move: Move, p: Proportions, style: CombatStyle): void {
-  const duration = move.duration * pace[style] * (move.id.startsWith('unarmed') ? 1 : 0.5);
+  const duration = move.duration * pace[style] * 0.5;
   const times = (move.times ?? DEFAULT_TIMES).map((t) => t * duration);
   const power = weight[style];
   const scaled = (bone: Bone, poses: A[]): A[] => poses.map((v, i) => {
@@ -103,7 +109,7 @@ function addMove(clips: ClipSet, move: Move, p: Proportions, style: CombatStyle)
   const lowerAngles = move.lower ?? lowerStep(move.step ?? 'still', power);
   const lower = Object.entries(lowerAngles).map(([bone, poses]) =>
     qtrack(bone, times, scaled(bone as Bone, poses)));
-  const z = move.step === 'forward' ? 0.09 : move.step === 'kick' ? 0.025 : 0.035;
+  const z = move.step === 'forward' ? 0.09 : 0.035;
   const dip = move.step === 'low' ? 0.12 : move.step === 'forward' ? 0.09 : 0.055;
   lower.unshift(vtrack('hips', times, [
     [0, p.hipHeight - 0.025, 0], [0, p.hipHeight - 0.045, 0],
@@ -114,7 +120,7 @@ function addMove(clips: ClipSet, move: Move, p: Proportions, style: CombatStyle)
 }
 
 function lowerStep(kind: NonNullable<Move['step']>, power: number): Angles {
-  const lunge = kind === 'forward' ? 38 : kind === 'low' ? 32 : kind === 'kick' ? 24 : 20;
+  const lunge = kind === 'forward' ? 38 : kind === 'low' ? 32 : 20;
   const rear = kind === 'pivot' ? 22 : 12;
   return {
     hips: [[3, -10, 0], [4, -14, 0], [7, kind === 'pivot' ? 20 : 8, 0], [7, 8, 0], [3, -10, 0]],
@@ -155,23 +161,6 @@ function enemyMove(move: Move, character: string): Move {
       forearmL: [[-58, -17, -23], [-59, -17, -23], [-40, -12, -18], [-40, -12, -18], [-58, -17, -23]],
     },
   };
-}
-
-function unarmedMove(move: Move, style: CombatStyle): Move {
-  if (!move.id.startsWith('unarmed')) return move;
-  if (style === 'hunter') return {
-    ...move,
-    upper: {
-      ...move.upper,
-      handR: [[-15, 0, 0], [-24, 0, 0], [-29, 0, 0], [-29, 0, 0], [-15, 0, 0]],
-      handL: [[-15, 0, 0], [-24, 0, 0], [-29, 0, 0], [-29, 0, 0], [-15, 0, 0]],
-    },
-  };
-  if (style === 'mechanical' && move.upper.chest) return {
-    ...move,
-    upper: { ...move.upper, chest: move.upper.chest.map(([x, y, z]) => [x * 0.6, y * 0.45, z]) },
-  };
-  return move;
 }
 
 const moves: Move[] = [
@@ -248,34 +237,6 @@ const moves: Move[] = [
     upperArmL: [[-103, 0, -13], [-127, 0, -17], [-69, 0, 14], [-66, 0, 14], [-103, 0, -13]],
     forearmL: [[-56, -10, -13], [-67, -10, -13], [-19, -10, -13], [-19, -10, -13], [-56, -10, -13]],
   } },
-  // Unarmed previews: drawn with each character's mass and cadence, no weapon.
-  { id: 'unarmedJab', duration: 0.66, step: 'forward', upper: {
-    chest: [[1, -13, 0], [1, -17, 0], [3, 9, 0], [3, 9, 0], [1, -13, 0]],
-    upperArmL: [[-62, 15, 16], [-69, 13, 14], [-97, 1, 6], [-95, 1, 6], [-62, 15, 16]],
-    forearmL: [[-69, -8, -9], [-57, -8, -9], [-9, -8, -9], [-11, -8, -9], [-69, -8, -9]],
-    upperArmR: [[-62, -15, -16], [-65, -14, -15], [-66, -17, -16], [-66, -17, -16], [-62, -15, -16]],
-    forearmR: [[-69, 0, 0], [-69, 0, 0], [-60, 0, 0], [-60, 0, 0], [-69, 0, 0]],
-  } },
-  { id: 'unarmedCross', duration: 0.75, step: 'pivot', upper: {
-    chest: [[1, -24, 0], [2, -37, 0], [5, 24, 0], [5, 27, 0], [1, -24, 0]],
-    upperArmR: [[-63, -19, -15], [-70, -27, -13], [-99, 5, -7], [-100, 5, -7], [-63, -19, -15]],
-    forearmR: [[-68, 0, 0], [-58, 0, 0], [-8, 0, 0], [-8, 0, 0], [-68, 0, 0]],
-    upperArmL: [[-62, 18, 17], [-65, 19, 16], [-65, 22, 16], [-65, 22, 16], [-62, 18, 17]],
-    forearmL: [[-68, -8, -9], [-68, -8, -9], [-62, -8, -9], [-62, -8, -9], [-68, -8, -9]],
-  } },
-  { id: 'unarmedKick', duration: 0.92, step: 'kick', upper: {
-    chest: [[3, -8, 0], [9, -11, 0], [-4, 8, 0], [-5, 8, 0], [3, -8, 0]],
-    upperArmR: [[-63, -17, -14], [-58, -22, -14], [-65, -14, -14], [-65, -14, -14], [-63, -17, -14]],
-    forearmR: [[-68, 0, 0], [-72, 0, 0], [-67, 0, 0], [-67, 0, 0], [-68, 0, 0]],
-    upperArmL: [[-62, 17, 14], [-60, 21, 14], [-66, 14, 14], [-66, 14, 14], [-62, 17, 14]],
-    forearmL: [[-68, -8, -9], [-72, -8, -9], [-67, -8, -9], [-67, -8, -9], [-68, -8, -9]],
-  }, lower: {
-    hips: [[2, -8, 0], [6, -10, 0], [-5, 8, 0], [-5, 8, 0], [2, -8, 0]],
-    upperLegL: [[-8, 0, 5], [-48, 0, 5], [-100, 0, 5], [-95, 0, 5], [-8, 0, 5]],
-    lowerLegL: [[15, 0, 0], [105, 0, 0], [18, 0, 0], [18, 0, 0], [15, 0, 0]],
-    upperLegR: [[10, 0, -5], [18, 0, -5], [23, 0, -5], [23, 0, -5], [10, 0, -5]],
-    lowerLegR: [[15, 0, 0], [22, 0, 0], [25, 0, 0], [25, 0, 0], [15, 0, 0]],
-  } },
 ];
 
 /** Build only the families that match this character's equipment. */
@@ -288,8 +249,9 @@ export function combatStudyClips(
   for (const move of moves) {
     if (move.id.startsWith('staff') && !weapons.staff) continue;
     if (move.id.startsWith('saber') && !weapons.sabers) continue;
-    addMove(out, unarmedMove(enemyMove(move, character), style), p, style);
+    addMove(out, enemyMove(move, character), p, style);
   }
+  Object.assign(out, unarmedStudyClips(p, pace[style]));
   return out;
 }
 

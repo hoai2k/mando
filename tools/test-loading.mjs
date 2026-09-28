@@ -43,7 +43,7 @@ const state = () => h.page.evaluate(() => window.__state);
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
 await sleep(3000);
 check('the title warms the first Mandalorian', await waitForAsset('din.glb'));
-check('the title warms its own backdrop', await waitForAsset('board_tatooine.jpg'));
+check('the title warms its own backdrop', await waitForAsset('title_dune_sea_hd.jpg'));
 check('the title warms the territory art', await waitForAsset('board_tatooine_v2.jpg'));
 // the planet discs are the Missions strip two screens on, and they are the
 // whole screen there — warming them is not conditional on picking that mode
@@ -183,11 +183,14 @@ check('...and the retry lands, so the character is not stuck on its stand-in',
 
 // ---- the geometry a sculpt was delivered with that belongs to nobody ----
 //
-// `din.glb` carries a 1,290-triangle ball welded to nothing, riding behind a
-// shoulder (see src/characters/strays.ts). The fix file says which triangles
-// it is and the loader drops them, which is invisible when it works — so check
-// the body mesh came out the smaller size, and that the model is otherwise all
-// there rather than having been cut down by a fix aimed at the wrong mesh.
+// Din's delivered sculpt carried a 1,290-triangle ball welded to nothing,
+// riding behind a shoulder (see src/characters/strays.ts). Since the budget
+// pass (tools/asset-pipeline/decimate.mjs) the ball is baked out when the
+// shipped model is made, and the fix file lives beside the full-resolution
+// original in public/models/full/ — so the model the game loads has nothing
+// left for the loader to drop. Check exactly that: the body mesh is the
+// decimated one, at the playable budget, and it arrived without needing a
+// load-time drop (one would mean the stray survived into the shipped file).
 const body = await h.page.evaluate(() => {
   const p = window.__game?.players?.[0];
   let out = null;
@@ -201,10 +204,10 @@ const body = await h.page.evaluate(() => {
   });
   return out;
 });
-check('the stray ball is dropped from the delivered sculpt at load',
-  !!body && body.dropped && body.tris === 118710, JSON.stringify(body));
+check('the shipped body is the budget sculpt, with the stray already baked out',
+  !!body && !body.dropped && body.tris <= 15000, JSON.stringify(body));
 check('...and the rest of the model is still there',
-  !!body && body.verts === 69089, JSON.stringify(body));
+  !!body && body.verts > 5000, JSON.stringify(body));
 
 // The blocked krykna request above logs a console error in the page. That is
 // this test staging a failure on purpose, so it must not count as one.
