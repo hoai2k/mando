@@ -102,8 +102,27 @@ court inside the dome ring.
 
 **The city** is seeded (same every run). Towers are kept 13 m clear of the
 golden path's segments unless well below them, so the ring line is always
-flyable. Drawn as three merged meshes with world-scaled UVs; every box keeps
-its own collider.
+flyable. Drawn as five merged meshes (stone, roofs, ridge, glass, bays) with
+world-scaled UVs; every solid box keeps its own collider.
+
+*Tower polish (2026-09-28, orchestrator's review).* The first pass had plain
+boxes with full-height emissive green panes that read as neon bars. Now:
+- **Silhouettes**: most towers step out to a wider podium (the old street
+  storeys) and carry a broken crown, a narrower tier on three of four
+  quarters with one fallen, or broken corner piers where no tier stands.
+  Neighbours of a height are joined by rib-bridges over broken arches.
+- **Window bays**: dark recesses in rows up the faces toward the approach
+  and the city's middle, about one in five missing; sparser on the ridge.
+- **Fused glass** is a muted green-grey glaze (`0x55655d`, faint emissive,
+  low roughness, metallic, opaque): slumped skirts and a pooled lip at each
+  tower's foot above the cloud deck, and a low glassy mound where a crown
+  quarter fell. No panes.
+- **The ridge** spires are staggered back from the edge (a low wall fills
+  each notch at the cloud line), so the edge reads as separate towers.
+- **Textures**: stone is `cliff_ruin` (+ normal), overridden by
+  `ruin_tower` / `ruin_tower_normal` when those land; missing files are
+  harmless (`loadOptionalTexture`).
+Flak towers keep plain flat roofs, so the landing reads.
 
 ## K5 — `kit/objective.ts`
 
