@@ -191,6 +191,7 @@ export const TEXT = {
     checkpoint: 'Checkpoint',
     riders: { title: 'Riders', sub: 'drop the rider, take the ride' },
     swoopPack: { title: 'Swoop pack', sub: 'they are coming in over the rim' },
+    regrouped: 'the party regroups at the door',
     airLow: { title: 'Air low', sub: 'the wreck holds air — or make for the pool' },
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },

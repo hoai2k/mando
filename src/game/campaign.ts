@@ -86,6 +86,15 @@ const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
  */
 const supplied = (spec: ZoneSpec): boolean =>
   !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
+/** an open assault's posted force is capped at this, plus this much per player */
+const OUTDOOR_CAP_BASE = 10;
+const OUTDOOR_CAP_PER = 2;
+/**
+ * A sealed room waits for every living player to be through its door. With
+ * most of the party inside for this long, the rest are re-formed at the door
+ * rather than holding four players hostage to one straggler.
+ */
+const STRAGGLER_WAIT = 8;
 /** what running out of air costs a second, under the sea */
 const DROWN_DPS = 9;
 /** encounters fought where they stand: a zone-0 one shuts the way back while it lasts */
@@ -158,6 +167,8 @@ export class Campaign implements MissionController {
   private cachesDropped = new Set<number>();
   /** roads whose swoop pack has been sent, by beat */
   private packSent = new Set<number>();
+  /** seconds most of the party has stood inside a sealed room waiting on the rest */
+  private straggleT = 0;
   /** the low-air warning has been given on this stage */
   private airNoted = false;
   /** road: the furthest drop mark the lead has actually reached */
@@ -422,7 +433,10 @@ export class Campaign implements MissionController {
       // a zone the party already cleared comes back cleared
       if (mem.visited && i < mem.clearedTo) return;
       if (zone.spec.kind === 'camp') {
-        const size = Math.min(zone.posts.length + 2,
+        // one more body per player, up to one per post and a player over:
+        // a camp capped at its posts plus two was four solo and five for a
+        // party of four in the ravine (audit, co-op)
+        const size = Math.min(zone.posts.length + game.players.length,
           3 + Math.floor(this.rampWave(zone.beat) / 3) + game.players.length);
         this.garrison.set(zone,
           this.postSquad(this.squadFor(this.rampWave(zone.beat), size, zone), zone.posts, 9000 + zone.beat));
@@ -452,7 +466,12 @@ export class Campaign implements MissionController {
           // fifty-metre zone holds its back rank out of the fight until you
           // push into it, so what bounded the numbers before — calling the
           // next wave — is now the ground itself.
-          ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + ((zone.spec.garrison ?? 2) - 1) * 2)
+          //
+          // The cap grows with the party and the solo base is a body lower:
+          // a flat fourteen put thirteen on one player and the same thirteen
+          // on four (audit, co-op).
+          ? Math.min(OUTDOOR_CAP_BASE + OUTDOOR_CAP_PER * game.players.length,
+            2 + this.rampWave(zone.beat) + game.players.length + ((zone.spec.garrison ?? 2) - 1) * 2)
           // A supplied zone posts a holding force and is sent the rest. A
           // sealed room is small enough that everyone in it is in the fight
           // from the first second, so it keeps its reinforcements — which is
@@ -771,8 +790,10 @@ export class Campaign implements MissionController {
       && v.pos.x >= r.minX && v.pos.x <= r.maxX && v.pos.z >= r.minZ && v.pos.z <= r.maxZ);
     if (!rides.length) return;
     // leave at least half the squad on foot: a camp that empties itself onto
-    // its bikes is a camp with nobody in it to clear
-    let seats = Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2)));
+    // its bikes is a camp with nobody in it to clear — and leave a ride for
+    // every player, so nobody walks the road because the camp got there first
+    let seats = Math.min(Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2))),
+      rides.length - game.players.length);
     let sent = 0;
     for (const v of rides) {
       if (seats <= 0) break;
@@ -1008,6 +1029,30 @@ export class Campaign implements MissionController {
    * rather than as one continuous spawn.
    */
   private fieldClear(): boolean { return this.emptyT >= FIELD_CLEAR_DWELL; }
+
+  /**
+   * Most of the party is through a sealed door and the rest are not: after
+   * `STRAGGLER_WAIT`, re-form the stragglers just inside it — the same
+   * dissolve-and-gather the respawn plays — and let the seal go. Returns
+   * whether it did.
+   */
+  private reformStragglers(zone: MissionZone, dt: number): boolean {
+    const alive = this.game.players.filter((p) => p.alive);
+    const inside = alive.filter((p) => this.inside(zone, p, 'sealRect'));
+    if (alive.length < 2 || inside.length * 2 < alive.length) { this.straggleT = 0; return false; }
+    this.straggleT += dt;
+    if (this.straggleT < STRAGGLER_WAIT) return false;
+    this.straggleT = 0;
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry).setY(0).normalize();
+    const side = new THREE.Vector3(dir.z, 0, -dir.x);
+    alive.filter((p) => !inside.includes(p)).forEach((p, k) => {
+      const at = zone.entry.clone().addScaledVector(dir, 1.5).addScaledVector(side, (k - 1) * 1.8);
+      p.spawnAt(this.placeNear(at, 'pyke'));
+      p.faceToward(zone.center);
+    });
+    this.game.announce(zone.spec.label, TEXT.banners.regrouped);
+    return true;
+  }
 
   /** the zone's own garrison, posted at raise, is dead */
   private garrisonDown(zone: MissionZone): boolean {
@@ -1644,9 +1689,11 @@ export class Campaign implements MissionController {
         && (zone.spec.kind === 'assault' || zone.spec.kind === 'lieutenant' || zone.spec.kind === 'warlord');
       const arena = zone.spec.kind === 'lieutenant' || zone.spec.kind === 'warlord';
       const walked = zone.spec.kind === 'camp' || zone.spec.kind === 'trek' || zone.spec.kind === 'start';
-      const ready = seals || arena ? this.allInside(zone)
+      let ready = seals || arena ? this.allInside(zone)
         : walked ? this.anyInside(zone)
           : this.anyInside(zone, 'triggerRect');
+      if ((seals || arena) && !ready) ready = this.reformStragglers(zone, dt);
+      else this.straggleT = 0;
       // An unsealed zone can also catch up when the party has walked past it
       // and left the field empty. A boss or sealed room still waits for every
       // living player; this shortcut used to start the fight with someone

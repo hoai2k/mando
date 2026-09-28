@@ -305,6 +305,20 @@ The roads stay (the sections are additive).
 - **Tests.** See the end-of-work runs; the sea stage is raised by
   `audit-mission-build` (starts, spots, doors) and crossed by the sections run.
 
+### 14. Co-op scaling — done
+
+- Open assaults: posted force capped at 10 + 2 × players (was a flat 14), base
+  one lower (2 + ramp + players + ranks).
+- Camps: capped at posts + players (was posts + 2); camps now have six posts.
+- Sealed rooms and arenas: with at least half the living party inside for
+  `STRAGGLER_WAIT` (8 s), the rest are re-formed just inside the door (the
+  respawn's dissolve-and-gather) and the seal goes; banner "the party regroups
+  at the door".
+- Riders: an alerted camp never claims more rides than leave one per player.
+- **Tests.** `test-missions` (stragglers block): with two players, one in an
+  arena and one hanging back in the vestibule, the arena is still waiting at
+  4 s and has re-formed the straggler inside and started by 11 s.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in

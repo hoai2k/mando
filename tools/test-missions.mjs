@@ -1229,6 +1229,48 @@ check('so a boss arena in zone 0 waits for the party to walk in',
 check('the way back shuts while zone 0 is being fought',
   vest.fight.phase === 'fight' && vest.fight.backClosed && vest.fight.stayed, JSON.stringify(vest.fight));
 check('and opens again once it is cleared', vest.cleared.backOpen, JSON.stringify(vest.cleared));
+
+// ---------------------------------------------------------------- stragglers
+//
+// A sealed room or an arena waits for every living player, and it used to
+// wait forever: one player hanging back held four (audit item 14). With most
+// of the party inside for eight seconds, the rest are re-formed at the door.
+
+await startMode('campaign', 2, 'desert', ['din', 'armorer']);
+
+const straggle = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  c.enterStage(2, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  for (const p of g.players) { p.maxHp = 1e6; p.hp = 1e6; }
+  const z0 = c.stage.zones[0];
+  const inR = (r, q) => q.x >= r.minX && q.x <= r.maxX && q.z >= r.minZ && q.z <= r.maxZ;
+  const hold = c.stage.starts[1].clone();
+  let at4 = null;
+  for (let f = 0; f < 330 && c.phase === 'travel'; f++) {
+    g.players[0].position.copy(z0.center);
+    if (c.phase === 'travel') g.players[1].position.copy(hold);   // hanging back in the vestibule
+    g.update(1 / 30, idle);
+    if (f === 120) at4 = c.phase;
+  }
+  const out = { at4, phase: c.phase, reformed: inR(z0.sealRect, g.players[1].position) };
+  window.__manual = false;
+  return out;
+});
+check('a sealed arena still waits on a straggler for a few seconds',
+  straggle.at4 === 'travel', JSON.stringify(straggle));
+check('but re-forms them at its door rather than holding the party forever',
+  straggle.phase === 'fight' && straggle.reformed, JSON.stringify(straggle));
+
 // ---------------------------------------------------------------- the floors
 //
 // A floor is chosen by what it is under, not by the stage it is in: a hall on
