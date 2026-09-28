@@ -927,9 +927,9 @@ three-view sheets for all eleven props are delivered as
 Make each model from its sheet; the GLB requests remain open. The corvette,
 flak tower and valve wheel sheets were corrected on review (see
 [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
-The hydraulic press sheet is being redone once more (see
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--hydraulic-press-sheet-second-redo-2026-09-28));
-wait for it before modelling the press. Rigless props on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
+The hydraulic press sheet was replaced with a gantry-only three-view reference
+(see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#hydraulic-press-sheet-second-redo--delivered-2026-09-28)).
+Rigless props on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
 weathered, original. Priority is by how
 much players look at the prop.
 
