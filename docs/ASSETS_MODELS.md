@@ -910,9 +910,9 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 
 Canonical three-view sheets for this optional outdoor set are delivered as
 `reference/props/<id>_ref.png` for each of the seven IDs above. These are
-visual references; the GLB models remain open. The two cliff pillar sheets are
-too squat for the 8 × 36 m spec and are being redone (see
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--six-model-reference-sheets-to-redo-2026-09-28)).
+visual references; the GLB models remain open. The two cliff pillar sheets
+were replaced with slender 8 × 36 m references (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
 
 ## Gameplay sections — props and a prisoner, requested 2026-09-28
 
@@ -924,8 +924,9 @@ below, so a delivered model drops into place through `loadProp()`. Canonical
 three-view sheets for all eleven props are delivered as
 `reference/props/<id>_ref.png`, and the prisoner has
 `reference/characters/prisoner_front.png`, `_side.png` and `_back.png`.
-Make each model from its sheet; the GLB requests remain open. The corvette, press, flak tower and valve wheel sheets are being redone (see [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#open--six-model-reference-sheets-to-redo-2026-09-28)); wait for those before modelling them. Rigless props
-on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
+Make each model from its sheet; the GLB requests remain open. The corvette,
+press, flak tower and valve wheel sheets were corrected on review (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)). Rigless props on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
 weathered, original. Priority is by how
 much players look at the prop.
 
