@@ -379,13 +379,20 @@ export const TEXT = {
 
   // ---------- the credits ----------
   //
-  // One roll, top to bottom. A section is a heading and its lines; a line is
-  // [role, who] or a single sentence.
+  // Everything on the credits roll is here; src/ui/credits.ts only lays it out.
+  // It rolls top to bottom in the order written:
+  //
+  //   - `sections` is a list of { head, lines }. Add a section by adding an
+  //     entry; reorder the roll by reordering them.
+  //   - each line is [role, who]: the role sits right-aligned beside the name,
+  //     as in ['Sound effects', 'Jane Doe'].
+  //   - leave the role empty — ['', '...'] — for a line on its own, centred:
+  //     a name standing alone under its heading, or a sentence.
+  //   - the first section's lone lines are set large, as the lead credit.
   credits: {
     title: 'Bounty Hunters',
     sub: 'a Mandalorian fan game',
     back: 'Back',
-    skip: 'Hold A to hurry',
     sections: [
       { head: 'Principal Game Designer', lines: [['', 'Hoai Nguyen']] },
       {

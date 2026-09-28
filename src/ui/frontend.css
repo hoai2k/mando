@@ -113,9 +113,17 @@
   content: ''; position: absolute; left: 50%; top: -12px; width: 10px; height: 10px; margin-left: -5px;
   border-radius: 50%; background: #ffd08a; box-shadow: 0 0 14px 4px rgba(255,170,80,0.8);
 }
-/* clear of the corner buttons, which sit in the window's own corner */
+/* Right-aligned to just short of the corner buttons, whatever the window.
+   The buttons live in the window's own corner at a fixed size (three 42px
+   buttons, 8px apart, 14px in: 156px), while this block is on the scaled
+   stage; so the margin is worked out in window pixels — the buttons plus a
+   20px gap, less however far the stage already sits in from the window's
+   edge — and converted back to stage pixels. The buttons render inside the
+   block's right margin rather than being added to it, so a larger window no
+   longer opens a wider gap. */
 .fe-title-start {
-  margin-left: auto; margin-right: 150px;
+  margin-left: auto;
+  margin-right: max(0px, calc((176px - (100vw - 1280px * var(--fe-scale, 1)) / 2) / var(--fe-scale, 1) - 64px));
   display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
 }
 .fe-title-players { font: 600 16px/1 var(--fe-cond); letter-spacing: 2px; color: #bfa888; text-transform: uppercase; }
