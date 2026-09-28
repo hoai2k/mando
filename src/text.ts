@@ -396,9 +396,18 @@ export const TEXT = {
     sections: [
       { head: 'Principal Game Designer', lines: [['', 'Hoai Nguyen']] },
       {
+        head: 'Music',
+        lines: [['Composed by', 'Hoai Nguyen, with Suno']],
+      },
+      {
+        head: 'QA & game testing',
+        lines: [['Testing, feedback & inspiration', 'Francis Nguyen']],
+      },
+      {
         head: 'Built with',
         lines: [
           ['Code & design assistance', 'Claude Code, by Anthropic'],
+          ['Code assistance', 'Codex, by OpenAI'],
           ['3D engine', 'three.js — Ricardo Cabello (mrdoob) and contributors'],
           ['Tooling', 'TypeScript · Vite · Playwright'],
         ],
@@ -416,7 +425,8 @@ export const TEXT = {
         head: 'Other assets',
         lines: [
           ['Character, prop and vehicle models', 'generated with Tripo AI, rigged and cleaned in Blender'],
-          ['Sound effects', 'generated with ElevenLabs'],
+          ['Key art, board, system & planet paintings', 'generated with ChatGPT ImageGen, by OpenAI'],
+          ['Sound effects & voices', 'generated with ElevenLabs'],
           ['Select-screen portraits', 'rendered in the game from its own models'],
         ],
       },
@@ -619,7 +629,7 @@ export const TEXT = {
     ranged: {
       carbine: 'EE-3 Carbine', crossbow: 'Laser Crossbow', longrifle: 'Long Rifle', pistols: 'Twin Pistols',
     },
-    melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers' },
+    melee: { gaffi: 'Gaffi Stick', sabers: 'Twin Sabers', fists: 'Fists' },
     /**
      * A signature weapon the HUD names for itself rather than by its slot:
      * a staff other than the gaffi, or a single saber rather than a pair.

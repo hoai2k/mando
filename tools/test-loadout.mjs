@@ -103,14 +103,16 @@ check('and the one who carries no gun throws a blade instead',
   !!ventress && ventress.ranged === 0 && ventress.throws, ventress);
 
 // ---- a fighter's own weapon arrives with them, and goes by its own name ----
-// Embo's quarterstaff and IG-11's force pike were once left off the list of
-// files a fighter's art waits on, so they came up holding the procedural
-// stand-in; and Din's second blade, a single Darksaber, read "Twin Sabers".
+// IG-11's force pike was once left off the list of files a fighter's art
+// waits on, so he came up holding the procedural stand-in; and Din's second
+// blade, a single Darksaber, read "Twin Sabers". Embo fights with his fists:
+// nothing to wait on, and his melee says so.
 const kit = await page.evaluate(() => Object.fromEntries(window.__playables()
   .filter((d) => ['embo', 'ig11', 'din'].includes(d.id))
   .map((d) => [d.id, { modelIds: d.modelIds, meleeNames: d.profile.meleeNames }])));
 check('a fighter waits for their own staff as well as their body',
-  kit.embo?.modelIds.includes('rey_staff') && kit.ig11?.modelIds.includes('force_pike'), kit);
+  kit.ig11?.modelIds.includes('force_pike') && kit.embo?.modelIds.length === 1, kit);
+check('a bare-handed fighter goes by his fists', kit.embo?.meleeNames?.[0] === 'Fists', kit.embo);
 check("Din's second blade is named the Darksaber, not a pair",
   kit.din?.meleeNames?.includes('Darksaber') && !kit.din.meleeNames.includes('Twin Sabers'), kit.din);
 

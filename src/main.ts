@@ -800,7 +800,21 @@ function updateLoading(dt: number): void {
   // __holdLoading keeps the screen up for capture and for the tests that read
   // it; a real drop is over in the time it takes to fetch what is missing
   if (window.__holdLoading) return;
-  if (built && p.pending === 0) enterMatch();
+  if (built && p.pending === 0) {
+    // the files are in; now the GPU, while the loading screen still covers it
+    warmGpu();
+    enterMatch();
+  }
+}
+
+/**
+ * Compile and upload everything the match is made of (see `Game.warmGpu`).
+ * Skipped while a test owns the clock (`__manual`): a suite that steps the
+ * simulation and draws nothing has no first frame to protect, and a full
+ * compile under software GL costs it half a minute a boot.
+ */
+function warmGpu(): void {
+  if (game && !window.__manual) game.warmGpu(renderer);
 }
 
 /**
@@ -837,7 +851,8 @@ function updateStageVeil(): void {
   const c = game?.campaign;
   const want = !!c?.settlingStage;
   if (!want) {
-    if (stageVeil) { stageVeil = false; loading.hide(); }
+    // the stage's files are in: ready it for the GPU before the veil comes off
+    if (stageVeil) { warmGpu(); stageVeil = false; loading.hide(); }
     return;
   }
   const p = c!.stageSettleProgress();

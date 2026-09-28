@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Proportions } from './skeleton';
 import { counterweightTracks } from './counterweight';
+import { unarmedClips } from './unarmed';
 
 /**
  * Procedurally authored AnimationClips on the canonical skeleton.
@@ -51,7 +52,7 @@ type Deg = [number, number, number];
  * first rather than transcribed, which also means retiming a gait is a matter
  * of moving one set of numbers.
  */
-function halfCycle(times: number[], rots: Deg[], dur: number): { times: number[]; rots: Deg[] } {
+export function halfCycle(times: number[], rots: Deg[], dur: number): { times: number[]; rots: Deg[] } {
   const at = (u: number): Deg => {
     const t = ((u % dur) + dur) % dur;
     let i = 0;
@@ -560,6 +561,49 @@ function makeClips(p: Proportions): ClipSet {
     qt('upperArmR', rt, [[-30, 0, -19], [5, 0, -19], [35, 0, -19], [5, 0, -19], [-30, 0, -19]]),
     qt('forearmR', rt, [[-70, 0, 0], [-55, 0, 0], [-40, 0, 0], [-55, 0, 0], [-70, 0, 0]]),
     qt('head', rt, [[-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0], [-4, 0, 0]]),
+  ]);
+
+  // ---------- walk (1.1 s cycle) ----------
+  // Gait-lab numbers rather than a slowed run: the foot is down for three
+  // fifths of the cycle and there is no flight. The thigh swings from a
+  // quarter-turn's third ahead at heel strike to a little behind at heel-off;
+  // the knee takes the weight with a small give just after contact, then
+  // folds to its deepest (about 60°) to clear the ground mid-swing. The pelvis
+  // turns with the stepping leg and drops a few degrees on the swinging side,
+  // and the body is lowest as each foot takes the weight, highest as the other
+  // passes it. The arms swing against the legs and peak at contact — a walk's
+  // timing, where a run's peak in the flight.
+  const wkT = [0, 0.13, 0.33, 0.55, 0.68, 0.82, 0.96, 1.1];
+  const wkThighL: Deg[] = [[-31, 0, 1], [-25, 0, 1], [-3, 0, 1], [17, 0, 1], [10, 0, 1], [-15, 0, 1], [-33, 0, 1], [-31, 0, 1]];
+  const wkShinL: Deg[] = [[4, 0, 0], [18, 0, 0], [6, 0, 0], [12, 0, 0], [40, 0, 0], [62, 0, 0], [16, 0, 0], [4, 0, 0]];
+  const wkFootL: Deg[] = [[8, 0, 0], [-2, 0, 0], [2, 0, 0], [8, 0, 0], [-16, 0, 0], [-6, 0, 0], [6, 0, 0], [8, 0, 0]];
+  const wkThighR = halfCycle(wkT.slice(0, -1), wkThighL.slice(0, -1).map(([x, y, z]) => [x, y, -z] as Deg), 1.1);
+  const wkShinR = halfCycle(wkT.slice(0, -1), wkShinL.slice(0, -1), 1.1);
+  const wkFootR = halfCycle(wkT.slice(0, -1), wkFootL.slice(0, -1), 1.1);
+  const wkQ = [0, 0.275, 0.55, 0.825, 1.1];
+  clips.walkLower = new THREE.AnimationClip('walkLower', 1.1, [
+    // low as each foot takes the weight (0.13, 0.68), high as the other passes (0.33, 0.88)
+    pt('hips', [0, 0.13, 0.33, 0.55, 0.68, 0.88, 1.1],
+      [[0, hipY - 0.01, 0], [0, hipY - 0.025, 0], [0, hipY + 0.008, 0], [0, hipY - 0.01, 0], [0, hipY - 0.025, 0], [0, hipY + 0.008, 0], [0, hipY - 0.01, 0]]),
+    // the pelvis turns with the stepping leg and drops on the swinging side
+    qt('hips', wkQ, [[3, -4, 0], [3, 0, 3], [3, 4, 0], [3, 0, -3], [3, -4, 0]]),
+    qt('spine', wkQ, [[2, 3, 0], [2, 0, -1.5], [2, -3, 0], [2, 0, 1.5], [2, 3, 0]]),
+    qt('upperLegL', wkT, wkThighL),
+    qt('lowerLegL', wkT, wkShinL),
+    qt('footL', wkT, wkFootL),
+    qt('upperLegR', wkThighR.times, wkThighR.rots),
+    qt('lowerLegR', wkShinR.times, wkShinR.rots),
+    qt('footR', wkFootR.times, wkFootR.rots),
+  ]);
+  clips.walkUpper = new THREE.AnimationClip('walkUpper', 1.1, [
+    // the shoulders turn against the pelvis, so the head travels straight
+    qt('chest', wkQ, [[2, 4, 0], [2.5, 0, 0], [2, -4, 0], [2.5, 0, 0], [2, 4, 0]]),
+    // left foot forward at 0: the right arm forward, the left back
+    qt('upperArmR', wkQ, [[-18, 0, -18], [-2, 0, -19], [16, 0, -18], [-2, 0, -19], [-18, 0, -18]]),
+    qt('forearmR', wkQ, [[-30, 0, 0], [-20, 0, 0], [-12, 0, 0], [-20, 0, 0], [-30, 0, 0]]),
+    qt('upperArmL', wkQ, [[16, 0, 18], [-2, 0, 19], [-18, 0, 18], [-2, 0, 19], [16, 0, 18]]),
+    qt('forearmL', wkQ, [[-12, 0, 0], [-20, 0, 0], [-30, 0, 0], [-20, 0, 0], [-12, 0, 0]]),
+    qt('head', wkQ, [[-2, -2, 0], [-2, 0, 0], [-2, 2, 0], [-2, 0, 0], [-2, -2, 0]]),
   ]);
 
   // ---------- LOWER: airborne / jump ----------
@@ -1323,6 +1367,9 @@ function makeClips(p: Proportions): ClipSet {
     qt('upperArmL', [0, 0.42, 0.55, 0.7], [[-130, 0, -18], [-150, 0, -22], [-70, 0, 15], [-18.6, 0.6, 39.9]]),
     qt('forearmL', [0, 0.55, 0.7], [[-60, 0, 0], [-18, -12, -12], [-27.3, -19.6, -22.1]]),
   ]);
+
+  // ---------- bare hands: punches and kicks, for everyone who fights without a blade ----------
+  Object.assign(clips, unarmedClips(p));
 
   return clips;
 }
