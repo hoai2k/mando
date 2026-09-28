@@ -8,6 +8,7 @@ import {
 import { Fence } from './barriers';
 import type { StageBuilder } from './builder';
 import { layLink } from './links';
+import { layVestibule } from './vestibule';
 
 /**
  * The chain itself: each zone's floor and shell — a roofed hall, a deck, a
@@ -113,7 +114,9 @@ export function layZones(b: StageBuilder) {
         pickups.push(f.vec(l / 2, p0 + 1.8, top + 0.2));
         rects.push(f.rect(l / 2 - 2.4, l / 2 + 2.4, p0, p0 + 3.4));
       }
-      if (internalEntry) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, roofH, pal.accent);
+      // zone 0 of a stage with a door behind it has a vestibule, and the room
+      // seals against it like against any other way in
+      if (internalEntry || entryOpen) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, roofH, pal.accent);
       if (internalExit) exitBarrier = new Gate(board, group, f.vec(l, 0, top), dir, roofH, pal.accent);
       const lamp = new THREE.PointLight(0xffd9a0, 40 + (w * l) / 8, Math.max(w, l) * 1.7, 1.4);
       lamp.position.set(f.x(l / 2, 0), top + roofH - 0.4, f.z(l / 2, 0));
@@ -243,7 +246,7 @@ export function layZones(b: StageBuilder) {
         && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord')) {
         exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
-      if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && internalEntry) {
+      if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && entryOpen) {
         // the arena's own gate behind the party, so the fight has a back wall
         entryBarrier = new Fence(board, group, surf(f, -0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
@@ -320,7 +323,16 @@ export function layZones(b: StageBuilder) {
     frame = layLink(b, i, f, l, isHall);
   }
 
-  return { zones, zoneFrames, zoneTops, last, hasNext, hasPrev };
+  // The vestibule: every stage with a door behind it opens outside its first
+  // zone rather than inside it. Its point leads the golden path, so every
+  // zone's place in the path moves up one.
+  let vestibule: THREE.Vector3 | null = null;
+  if (hasPrev && zones.length) {
+    vestibule = layVestibule(b, zoneFrames[0], stage.zones[0], zoneTops[0]);
+    for (const z of zones) z.pathFrom++;
+  }
+
+  return { zones, zoneFrames, zoneTops, last, hasNext, hasPrev, vestibule };
 }
 
 export type StageChain = ReturnType<typeof layZones>;

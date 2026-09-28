@@ -1105,6 +1105,73 @@ check('a transport door holds the run while the next stage is dressed',
 check('and lets it go once the stage is ready',
   door.crossed && door.held < 240, `${door.held} frame(s) — the cap is 240`);
 
+// ---------------------------------------------------------------- the vestibule
+//
+// A stage used to re-form the party 2.4 m inside its first zone. Where that
+// zone was a sealed room or a boss arena the fight began on the first frame,
+// with the garrison already standing round them — and the door they had come
+// in by open a step behind, so a solo player backing away from the fight
+// stepped into its pocket and was carried back a stage. Every stage with a
+// door behind it now opens in a vestibule outside zone 0 (audit item 1), and
+// the way back shuts while zone 0 is being fought.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const vest = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  // the far side: its first zone is the fighting pit, a boss arena
+  c.enterStage(2, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const z0 = c.stage.zones[0];
+  const inR = (r, q) => q.x >= r.minX && q.x <= r.maxX && q.z >= r.minZ && q.z <= r.maxZ;
+  const arrived = {
+    kind: z0.spec.kind,
+    inZone: inR(z0.rect, p.position),
+    free: g.board.physics.capsuleFree(p.position.x, p.position.y, p.position.z, p.radius, p.height),
+    onStage: c.stage.contains(p.position.x, p.position.z),
+    back: +p.position.distanceTo(c.stage.backPortal.pos).toFixed(1),
+  };
+  for (let f = 0; f < 90; f++) g.update(1 / 30, idle);
+  arrived.phase = c.phase;
+  arrived.boss = !!g.boss;
+  arrived.backOpen = c.stage.backPortal.open_;
+  // walk in: the arena seals and the way back shuts with it
+  p.position.copy(z0.center);
+  for (let f = 0; f < 45; f++) g.update(1 / 30, idle);
+  const fight = { phase: c.phase, backClosed: c.stage.backPortal.closed };
+  // ...and standing in its pocket carries nobody anywhere
+  const was = c.stageIdx;
+  for (let f = 0; f < 60; f++) {
+    p.position.copy(c.stage.backPortal.threshold);
+    g.update(1 / 30, idle);
+  }
+  fight.stayed = c.stageIdx === was && !c.exited.size;
+  // cleared, the way back opens again
+  c.clearZone(z0, true);
+  for (let f = 0; f < 45; f++) g.update(1 / 30, idle);
+  const cleared = { backOpen: c.stage.backPortal.open_ };
+  window.__manual = false;
+  return { arrived, fight, cleared };
+});
+check('a stage re-forms the party in a vestibule outside its first zone',
+  !vest.arrived.inZone && vest.arrived.free && vest.arrived.onStage && vest.arrived.back < 12,
+  JSON.stringify(vest.arrived));
+check('so a boss arena in zone 0 waits for the party to walk in',
+  vest.arrived.phase === 'travel' && !vest.arrived.boss && vest.arrived.backOpen, JSON.stringify(vest.arrived));
+check('the way back shuts while zone 0 is being fought',
+  vest.fight.phase === 'fight' && vest.fight.backClosed && vest.fight.stayed, JSON.stringify(vest.fight));
+check('and opens again once it is cleared', vest.cleared.backOpen, JSON.stringify(vest.cleared));
+
 // ---------------------------------------------------------------- the road
 //
 // Everything from here down moves the party about, empties zones and walks the

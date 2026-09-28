@@ -98,6 +98,17 @@ export const PATH_WALKABLE = 2.5;
 export const BARRICADE_HP = 40;
 /** depth of the confirm pocket behind a transport door's leaves */
 export const PORTAL_POCKET = 4;
+/**
+ * How long the antechamber between a stage's back door and its first zone is.
+ *
+ * A stage used to re-form the party 2.4 m inside zone 0, so where zone 0 was
+ * a sealed room or a boss arena the fight started on the first frame, with
+ * the posted garrison standing round them as the loading veil lifted and the
+ * door they came in by a step behind. Every stage with a door behind it now
+ * opens in this vestibule instead: the party arrives *outside* the first
+ * zone and walks into it (docs/AUDIT_LEVELS_2026-09.md, item 1).
+ */
+export const VESTIBULE = 8;
 
 export const WALL_T = 1;
 export const CORR_H = 3.8;

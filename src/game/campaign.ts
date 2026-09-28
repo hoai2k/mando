@@ -86,6 +86,8 @@ const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
  */
 const supplied = (spec: ZoneSpec): boolean =>
   !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
+/** encounters fought where they stand: a zone-0 one shuts the way back while it lasts */
+const FIGHT_KINDS = new Set<ZoneSpec['kind']>(['assault', 'lieutenant', 'warlord', 'chase']);
 /** stand this close to the objective and its column goes out — you are there */
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
@@ -560,7 +562,9 @@ export class Campaign implements MissionController {
       // plays, so a transport reads as arriving somewhere
       p.spawnAt(at);
     });
-    this.checkpoint.copy(stage.zones.length
+    // Going forward that is the vestibule the party re-formed in, outside the
+    // first zone — never the middle of a room nobody has walked into yet.
+    this.checkpoint.copy(stage.zones.length && back
       ? stage.zones[Math.min(this.idx, stage.zones.length - 1)].center
       : stage.starts[0]);
     const toward = back && stage.zones.length ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
@@ -1284,12 +1288,22 @@ export class Campaign implements MissionController {
       if (this.idx >= zones.length) portal.open();
       else portal.close();
     }
-    // The way back is always open — it is a safety valve, not a fight —
-    // except onto a section. A section is one-way (you cannot ride back up a
-    // lava river or climb back down a lift shaft), so the door the party
-    // arrived by stands shut behind them for good.
-    if (this.cameFromSection) this.stage.backPortal?.close();
+    // The way back is a safety valve, not a fight, so it stands open —
+    // except onto a section, and while the stage's first zone is being fought.
+    // A section is one-way (you cannot ride back up a lava river or climb back
+    // down a lift shaft), so the door the party arrived by stands shut behind
+    // them for good. And a fight in zone 0 is fought with its back to that
+    // door: left open, a solo player backing away from a sealed room's
+    // garrison stepped into the pocket and was carried to the last stage.
+    if (this.backLocked) this.stage.backPortal?.close();
     else this.stage.backPortal?.open();
+  }
+
+  /** the door behind the party is shut: onto a section for good, or for a zone-0 fight */
+  private get backLocked(): boolean {
+    if (this.cameFromSection) return true;
+    const z0 = this.stage.zones[0];
+    return this.idx === 0 && this.phase === 'fight' && !!z0 && FIGHT_KINDS.has(z0.spec.kind);
   }
 
   /**
@@ -1336,7 +1350,12 @@ export class Campaign implements MissionController {
     }
 
     const back = stage.backPortal;
-    if (!back || this.cameFromSection) return;
+    if (!back || this.backLocked) {
+      // nobody is waiting at a door that has shut on them
+      for (const p of game.players) p.exited = false;
+      this.exited.clear();
+      return;
+    }
     const living = game.players.filter((p) => p.alive);
     for (const p of game.players) {
       const inPocket = p.alive && back.depthOf(p.position) >= PORTAL_POCKET - 0.6;

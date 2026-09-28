@@ -30,7 +30,7 @@ export function buildStage(board: Board, spec: MissionSpec, index: number, beat0
   const { exitPortal, backPortal } = layDoors(b, chain, gorgeDepth, gorgeHalf);
   settleBorders(b, exitPortal, backPortal);
   raiseHorizon(b);
-  const starts = validateSpots(b, zones);
+  const starts = validateSpots(b, zones, chain.vestibule);
   const waterY = layWater(b);
 
   const contains = (x: number, z: number): boolean =>

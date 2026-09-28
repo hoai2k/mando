@@ -10,7 +10,8 @@ import type { StageBuilder } from './builder';
  * Validation: keep only spots a body actually fits in, now that every
  * collider on the stage is standing. Returns the party's starts.
  */
-export function validateSpots(b: StageBuilder, zones: MissionZone[]): THREE.Vector3[] {
+export function validateSpots(b: StageBuilder, zones: MissionZone[],
+  vestibule: THREE.Vector3 | null = null): THREE.Vector3[] {
   const { board, defenders, groundAt } = b;
 
   // ---- validation: keep only spots a body actually fits in ----
@@ -31,9 +32,11 @@ export function validateSpots(b: StageBuilder, zones: MissionZone[]): THREE.Vect
   }
   for (let i = 0; i < defenders.length; i++) defenders[i] = defenders[i].filter((d) => fits(d.pos));
 
-  const startZone = zones[0];
+  // A stage with a door behind it re-forms the party in its vestibule, outside
+  // zone 0; the run's first stage has none and opens on its trailhead.
+  const at = vestibule ?? zones[0].entry;
   const starts = [[0.9, 0.9], [-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9]].map(([dx, dz]) => {
-    const x = startZone.entry.x + dx, z = startZone.entry.z + dz;
+    const x = at.x + dx, z = at.z + dz;
     return new THREE.Vector3(x, groundAt(x, z) + 0.2, z);
   });
   return starts;

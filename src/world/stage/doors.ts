@@ -1,6 +1,6 @@
 import { GATE_W } from '../gate';
 import type { Shell } from '../mission';
-import { PORTAL_POCKET, WALL_T, ROOF_H, RIM_OVER_CEILING, type Frame } from './common';
+import { PORTAL_POCKET, WALL_T, ROOF_H, RIM_OVER_CEILING, VESTIBULE, type Frame } from './common';
 import { Portal } from './barriers';
 import type { StageBuilder } from './builder';
 import type { StageChain } from './zones';
@@ -127,14 +127,19 @@ export function layDoors(b: StageBuilder, chain: StageChain, gorgeDepth: number,
     path.push(exitPortal.threshold.clone());
   }
   if (hasPrev) {
+    // The way back stands at the far end of the vestibule, not on zone 0's
+    // edge: the party arrives outside the first zone and walks into it.
     const f = zoneFrames[0];
-    const top = onGround ? groundAt(f.x(-3, 0), f.z(-3, 0)) : zoneTops[0];
+    const u = -1 - VESTIBULE;
+    const top = onGround ? groundAt(f.x(u - 2, 0), f.z(u - 2, 0)) : zoneTops[0];
     const doorH = Math.max(6, (stage.zones[0].roofH ?? ROOF_H));
-    pocket(f, -1, top, true, doorH);
+    pocket(f, u, top, true, doorH);
     if (!bare && facedShell(stage.zones[0].shell)) {
-      doorwayFace(f, -1 + WALL_T, stage.zones[0].w / 2 + 1.5, top, doorH);
+      // the vestibule's lane is held by cliffs a link's width apart; the face
+      // closes it wall to wall, past both slabs
+      doorwayFace(f, u + WALL_T, Math.max(b.corrW, 9) / 2 + 4, top, doorH);
     }
-    backPortal = new Portal(board, group, f.vec(-1, 0, top),
+    backPortal = new Portal(board, group, f.vec(u, 0, top),
       { x: -f.dx, z: -f.dz }, doorH, PORTAL_POCKET);
   }
 
