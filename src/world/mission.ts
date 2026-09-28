@@ -144,6 +144,11 @@ export interface ZoneSpec {
    * Only worth having on a siege — nothing else calls runners.
    */
   pass?: boolean;
+  /**
+   * Camp: which flank its garrison holds (+1 is left, toward +v). The other
+   * flank is the quiet way through. Defaults to alternating by beat.
+   */
+  postSide?: 1 | -1;
   /** trek: posted sentries who raise the alarm rather than hold ground */
   lookouts?: number;
   /** hall: roof height; default ROOF_H */

@@ -187,6 +187,20 @@ RUNS=desert,station,nevarro,crevasse,trask,refinery,forge,ringworld,narkina node
   than half the runs fight theirs indoors. `audit-mission-build`: every
   hall-assault → hall-lieutenant pair has a quiet link with nobody posted in it.
 
+### 8. Camps leave a flank — done
+
+- **What.** A camp's posts are six spots across the middle third (u 0.36–0.66
+  of its length) on one flank only, at |v| ≥ 0.3 w (clamped 2 m off the wall);
+  the other flank is quiet. `ZoneSpec.postSide` picks the flank (default
+  alternates by beat). A camp is through the moment anyone alive is past its
+  far line anywhere across it (`pastExit`), with its garrison still standing —
+  not only within 4.2 m of the exit point.
+- **Tests.** `test-missions`: the corral's posts are all on one flank at
+  ≥ 0.25 w, and walking down the quiet flank past the far line clears the zone
+  with the garrison alive.
+- **Left.** A narrow canyon camp (12 m) still has little room to slip by; that
+  is the canyon's nature, and the posts are at least off the path.
+
 ## Boundary changes (section entry and exit zones)
 
 Every change to a zone a gameplay section enters from or exits into, mirrored in

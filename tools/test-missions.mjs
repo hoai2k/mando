@@ -687,6 +687,41 @@ check('a camp cleared of its garrison advances without the checkpoint',
 check('but the last checkpoint before the door is still a walk',
   optional.heldAtTheDoor && optional.openedOnTheWalk, JSON.stringify(optional));
 
+// A camp says "clear it, or slip through". Its garrison used to be posted on
+// and beside the centreline round an exit you had to touch within four
+// metres, so every camp played as a small assault (audit item 8). It holds
+// one flank now, and getting past its far line down the other one is through.
+await startMode('campaign', 1, 'desert', ['din']);
+const slip = await page.evaluate(`(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  window.__simUntil(() => g.state === 'fighting', 30);
+  p.maxHp = 1e6; p.hp = 1e6;
+  const corral = c.stage.zones[1];
+  const dx = corral.exit.x - corral.entry.x, dz = corral.exit.z - corral.entry.z;
+  const len = Math.hypot(dx, dz);
+  const ux = dx / len, uz = dz / len, vx = -uz, vz = ux;   // +v is left
+  const across = (q) => (q.x - corral.entry.x) * vx + (q.z - corral.entry.z) * vz;
+  const vs = corral.posts.map(across);
+  const side = Math.sign(vs.reduce((a, b) => a + b, 0));
+  const oneFlank = vs.every((v) => Math.sign(v) === side && Math.abs(v) >= corral.spec.w * 0.25);
+  // down the quiet flank, past the far line, with the garrison untouched
+  c.idx = 1; c.phase = 'travel';
+  const posted = g.enemies.filter((e) => e.alive && e.squad === 9000 + corral.beat).length;
+  const qv = -side * corral.spec.w * 0.35;
+  const at = corral.exit.clone();
+  at.x += vx * qv + ux * 1.5; at.z += vz * qv + uz * 1.5;
+  p.position.set(corral.entry.x + vx * qv, corral.entry.y + 0.5, corral.entry.z + vz * qv);
+  window.__sim(0.3);
+  p.position.set(at.x, at.y + 0.5, at.z);
+  window.__sim(0.5);
+  const alive = g.enemies.filter((e) => e.alive && e.squad === 9000 + corral.beat).length;
+  return { oneFlank, vs: vs.map((v) => +v.toFixed(1)), posted, alive, through: c.idx > 1 };
+})()`);
+check('a camp posts its garrison on one flank and leaves the other quiet',
+  slip.oneFlank && slip.vs.length >= 3, JSON.stringify(slip));
+check('and slipping past its far line down the quiet flank is through',
+  slip.through && slip.alive > 0, JSON.stringify(slip));
+
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 const bossEntrance = await page.evaluate(() => {
   const g = window.__game, c = g.campaign;

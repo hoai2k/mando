@@ -313,10 +313,21 @@ export function layZones(b: StageBuilder) {
       [l * 0.7, w / 2 - 3.5], [l * 0.7, -(w / 2 - 3.5)],
     ]) sideVents.push(surf(f, u, v));
     const posts: THREE.Vector3[] = [];
-    for (const [u, v] of [
-      [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
-      [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
-    ]) posts.push(surf(f, u, v));
+    if (zs.kind === 'camp') {
+      // A camp says "clear it, or slip through", so its garrison holds one
+      // flank of the middle third and leaves the other quiet. Posted on and
+      // beside the centreline round the exit, as every other zone is, a camp
+      // was a small assault with nothing to slip past (audit finding 7).
+      const side = zs.postSide ?? ((beat0 + i) % 2 ? 1 : -1);
+      for (const [u, v] of [
+        [0.36, 0.3], [0.46, 0.38], [0.52, 0.3], [0.6, 0.4], [0.66, 0.32], [0.42, 0.44],
+      ]) posts.push(surf(f, l * u, side * Math.min(w * v, w / 2 - 2)));
+    } else {
+      for (const [u, v] of [
+        [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
+        [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
+      ]) posts.push(surf(f, u, v));
+    }
 
     zoneFrames.push(f);
     zoneTops.push(top);

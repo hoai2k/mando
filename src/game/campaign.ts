@@ -1628,7 +1628,12 @@ export class Campaign implements MissionController {
         // itself: that one is a deliberate walk, so the way on never opens
         // behind you while you are still fighting in front of it.
         const last = this.idx === this.stage.zones.length - 1;
-        const done = this.nearExit(zone)
+        // Slipping through is getting past the camp's far line anywhere across
+        // it — down the quiet flank as well as through the exit's own ring —
+        // with its garrison still standing.
+        const slipped = zone.spec.kind === 'camp'
+          && this.game.players.some((p) => p.alive && this.pastExit(zone, p.position));
+        const done = this.nearExit(zone) || slipped
           || (!last && this.garrisonDown(zone))
           || (this.fieldClear() && this.game.players.some((p) => p.alive && this.pastExit(zone, p.position)));
         if (done) this.clearZone(zone, this.garrisonDown(zone));
