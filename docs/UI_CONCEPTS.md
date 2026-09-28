@@ -335,3 +335,25 @@ gone. The bottom right reads **1–4 PLAYERS** above "Press A to ride out", in p
 the mode blurb. The Twin Suns letterboxed menu along the bottom stays.
 `title_twin_suns_v2.jpg` (with armored hunters) is delivered as an option to
 compare against the stand-in.
+
+## Round 4, third update — Systems 4 rides with the traveller (2026-09-28)
+
+This replaces the fly-to camera from the second update.
+
+- **The whole system is always in view.** The camera sits above and behind the
+  current world, looking at the twin suns. The suns hold one spot on screen (upper
+  right), and the current world holds another (large, left of centre). All nine
+  orbits and the other worlds stay in frame as named points of light, with the
+  previous and next marked ▲ and ▼.
+- **Moving on turns the system under you.** The traveller flies the route's own
+  spiral, with radius and angle both running from one world to the next, and the
+  camera rides along in the traveller's frame. So the suns stay put, the orbits
+  swing round, the old world falls away behind, and the new world swings up into
+  the foreground. The route steps 55° a world, so the campaign goes more than once
+  round the suns. A single hop takes 1.3 s, plus 0.32 s for each extra world; a
+  ship and a trail mark the arc flown.
+- To keep the whole system in frame from the innermost world, the orbits are
+  compressed (radius 400 + 28 per world rather than true proportions). The worlds'
+  on-screen sizes are for readability, not scale.
+- Controls are unchanged: ▲ back, ▼ on, and a bare ◀ or ▶ to whichever neighbour
+  lies further that way on screen.
