@@ -105,3 +105,18 @@ the prisoner's three views). Every one ships today as a procedural stand-in
 | The station board's ambient `spice_run_frigate` fly-by can read as a sister ship during Guns of the Frigate. | `frigate.md` Known issues | art | This is a possible confusion, left alone because it belongs to the board. |
 | In a stepped harness, the first render after many unrendered steps can drop a just-loaded model for a frame (the shot scripts render twice). | `lava.md` Known issues | test | This is a test-harness quirk to know about when taking screenshots. |
 | The Ring Walk's gantry wall behind the cage is drawn one-sided so the rail camera can start behind it. | `station.md` Known issues | feature | This is correct as built. Note it if the start is ever reworked. |
+
+## 7. Found while writing the in-game guides (`src/sections/guide.ts`)
+
+Read against each section's code on 2026-09-28. The guides describe what the code does; where a header comment or the design doc says otherwise, the code won.
+
+| Item | Where | Kind | Why it matters |
+|---|---|---|---|
+| The pirate tram's coupling can be shot out while the tram is still pulling up; the peel-off only fires if it breaks once the tram is alongside, so an early break leaves you killing every gunner instead. | `src/sections/tram-top.ts` | bug | The climax can silently skip its own set piece. |
+| Two players reaching the stair on the same frame show the score banner twice (the finish loop doesn't break). | `src/sections/one-way-out.ts` | bug | Cosmetic, co-op only. |
+| The chute only completes when every player is alive and past the snowbank, so a dead teammate holds the party until they respawn. | `src/sections/glacier-chute.ts` | tuning | Can read as "stuck" at the finish. |
+| Header comments disagree with the code: Chimney valve pause (12 s in the header, 10 s / 6 s in the code); Ring Walk Lock 1 (two passes in the doc, three drops in the code); The Line's door release (the squad drops after the hold, not during it); Barge Run "re-form once" (it happens on every wipe). | those section files, `LEVEL_SECTIONS.md` | docs | A future tuner would read the wrong number. |
+| Hard-coded banner strings outside `TEXT`: the Chimney's `floor ${k} of 3` and two Mark Runs checkpoint banners. | `chimney.ts`, `mark-runs.ts` | docs | Breaks the one-place-for-words rule. |
+| Mark Runs "by hand" counts any hit from within 3.6 m, so point-blank blaster fire costs no bounty. | `src/sections/mark-runs.ts` | tuning | An exploit, or intended leniency — decide. |
+| Magma Run's `wiped` flag is set and never read. | `src/sections/magma-run.ts` | cleanup | Dead code. |
+| Lamplight's beam focus uses aim (LT / right mouse), which the controls page doesn't mention (the job page does). | `src/sections/lamplight.ts` | docs | Discoverability. |
