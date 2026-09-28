@@ -4,12 +4,7 @@ import { launch, makeCheck } from './harness.mjs';
 const check = makeCheck();
 const h = await launch();
 try {
-  await h.page.evaluate(() => {
-    window.__manual = false;
-    window.__quitToTitle?.();
-    window.__startMode('campaign', 1, 'station', ['din']);
-  });
-  await h.page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+  await h.startMode('campaign', 1, 'station', ['din']);
   await h.page.waitForFunction(() => {
     let ship = null;
     window.__game.board.group.traverse((o) => { if (o.userData?.prop === 'freighter') ship = o; });

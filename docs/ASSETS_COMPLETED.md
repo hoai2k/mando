@@ -21,7 +21,7 @@ source with five main shells. Blender welded coincident vertices, assigned
 detached details by row, reduced the two heavy slices to 3,200 triangles,
 and exported five textured GLBs. The original source and editable cleaned
 blend remain under ignored `model-work/`; the reproducible slicer is
-`tools/slice-enemy-weapon-collection.py`. All five props are mounted on the
+`tools/asset-pipeline/slice-enemy-weapon-collection.py`. All five props are mounted on the
 intended enemies in game. The Imperial Officer also takes the earlier
 `electrostaff.glb` with purple tip arcs generated in code.
 

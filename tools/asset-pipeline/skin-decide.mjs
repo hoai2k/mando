@@ -7,13 +7,13 @@
  * sets the fix `applied`, discard sets it `discarded`, and the decision is
  * kept on the fix so a re-run of `skin-audit.mjs` honours it.
  *
- * Usage: node tools/skin-decide.mjs skinfix-decisions.json
+ * Usage: node tools/asset-pipeline/skin-decide.mjs skinfix-decisions.json
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const OUT = 'public/models/skinfix';
 const file = process.argv[2];
-if (!file) { console.error('usage: node tools/skin-decide.mjs <skinfix-decisions.json>'); process.exit(1); }
+if (!file) { console.error('usage: node tools/asset-pipeline/skin-decide.mjs <skinfix-decisions.json>'); process.exit(1); }
 const doc = JSON.parse(readFileSync(file, 'utf8'));
 const decisions = doc.decisions ?? doc;
 

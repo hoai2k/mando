@@ -20,6 +20,7 @@ import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { MANDO_ROSTER, meleeKinds, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { expose } from '../debug';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -38,7 +39,7 @@ setClipCaching(false);
 
 type Mode = 'authored' | 'procedural' | 'both';
 
-interface Figure {
+export interface Figure {
   inst: CharacterInstance;
   /** the rig as built, before any clip touched it — see `applyPose` */
   rest: Array<{ bone: THREE.Object3D; quaternion: THREE.Quaternion; position: THREE.Vector3 }>;
@@ -324,7 +325,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  (window as unknown as { __wb?: unknown }).__wb = { figures, subject, pose, camera, controls };  // debug/testing handle
+  expose({ __wb: { figures, subject, pose, camera, controls } });  // debug/testing handle
 }
 
 /**

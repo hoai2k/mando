@@ -17,28 +17,10 @@
  * throws that ball round a circle a quarter-metre across, so the test watches
  * the body's own mass centre and holds it to a line.
  */
-import { launch, BTN } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
 const h = await launch();
-let failures = 0;
-const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
-
-/** start a match as the named fighter, whatever their place in the roster is */
-async function startAs(name) {
-  await h.waitForText(/PRESS START|WAVE BATTLE/i);
-  await h.pad.tap(BTN.START);
-  await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
-  await h.pad.tap(BTN.A);
-  await h.waitForText(/CHOOSE YOUR|DIN DJARIN/i);
-  for (let i = 0; i < 14; i++) {
-    if (new RegExp(name, 'i').test(await h.text())) break;
-    await h.pad.tap(BTN.DRIGHT);
-  }
-  await h.tapUntil(BTN.A, async () => /READY/i.test(await h.text()));
-  await h.pad.tap(BTN.A);
-  await h.tapUntil(BTN.A, () => h.page.evaluate(() => !!window.__game), { timeoutMs: 20000 });
-  await h.waitForPlaying();
-}
+const check = makeCheck();
 
 /**
  * Lift the player off the ground, then hold jump for `holdFrames` and let go,
@@ -95,22 +77,22 @@ async function tumble(holdFrames) {
 }
 
 // ---- the acrobat ----
-await startAs('ventress');
+await h.startAs('ventress', 'The Dune Sea');
 const v = await tumble(45);
 const turned = Math.max(...v.held) - Math.min(...v.held);
 console.log(`  ${v.name}: airFlip=${v.airFlip}, pitch swept ${turned.toFixed(2)} rad while held, legs ran ${v.clipsHeld.join(',')}`);
-check(v.airFlip === true, 'Ventress is flagged as an acrobat');
-check(turned > 5, 'holding jump in the air turns her most of a revolution or more');
-check(v.clipsHeld.includes('tuckLower'), '...in the tuck-roll pose');
+check('Ventress is flagged as an acrobat', v.airFlip === true);
+check('holding jump in the air turns her most of a revolution or more', turned > 5);
+check('...in the tuck-roll pose', v.clipsHeld.includes('tuckLower'));
 
 const last = v.settle[v.settle.length - 1];
 const upright = Math.abs(Math.atan2(Math.sin(last), Math.cos(last)));
 console.log(`  after release: settled at ${last.toFixed(3)} rad (${upright.toFixed(3)} from upright), legs ran ${v.clipsAfter.join(',')}`);
-check(upright < 0.25, 'letting go leaves her upright, not head-down');
-check(v.clipsAfter.includes('airLower'), '...and unfolds back to the falling stance');
+check('letting go leaves her upright, not head-down', upright < 0.25);
+check('...and unfolds back to the falling stance', v.clipsAfter.includes('airLower'));
 // the turn must carry on past the release rather than stopping dead
 const afterRelease = Math.abs(v.settle[6] - v.settle[0]);
-check(afterRelease > 0.05, 'the roll carries on turning after the button comes up');
+check('the roll carries on turning after the button comes up', afterRelease > 0.05);
 
 // ---- what the height has to buy ----
 //
@@ -193,9 +175,9 @@ async function jumpAndRoll(climbFrames, mass) {
 const hop = await jumpAndRoll(0, MASS);
 const hopTurn = Math.max(...hop.pitch) - Math.min(...hop.pitch);
 console.log(`  flat hop: ${hop.frames} frames of air, pitch swept ${hopTurn.toFixed(2)} rad, legs ran ${hop.clips.join(',')}`);
-check(hop.frames > 20, 'the flat hop does leave the ground');
-check(!hop.clips.includes('tuckLower'), 'a hop with no room for a whole turn does not start one');
-check(hopTurn < 1, '...and the body never leaves upright');
+check('the flat hop does leave the ground', hop.frames > 20);
+check('a hop with no room for a whole turn does not start one', !hop.clips.includes('tuckLower'));
+check('...and the body never leaves upright', hopTurn < 1);
 
 // The same jump with the climb held first, which is how an acrobat buys the
 // height — and then the tuck held all the way down, so the roll has to give
@@ -204,8 +186,8 @@ const high = await jumpAndRoll(40, MASS);
 const lastAir = high.pitch[high.air.lastIndexOf(true)];
 const off = Math.abs(Math.atan2(Math.sin(lastAir), Math.cos(lastAir)));
 console.log(`  held climb: ${high.climbed.toFixed(1)} m of rise, ${high.frames} frames of air, last airborne pitch ${lastAir.toFixed(2)} rad (${off.toFixed(2)} from upright), legs ran ${high.clips.join(',')}`);
-check(high.clips.includes('tuckLower'), 'the height bought by the climb does buy the roll');
-check(off < 0.3, '...and holding the tuck all the way down still lands her on her feet');
+check('the height bought by the climb does buy the roll', high.clips.includes('tuckLower'));
+check('...and holding the tuck all the way down still lands her on her feet', off < 0.3);
 
 // ---- where the turn is centred ----
 //
@@ -220,20 +202,19 @@ if (rolled.length > 20) {
   drift = Math.max(...rolled.map((c) => Math.hypot(c[0] - mx, c[2] - mz)));
 }
 console.log(`  mass centre wandered ${drift.toFixed(3)} m off its line over ${rolled.length} frames of tumble`);
-check(rolled.length > 20, 'the body is on a rig, and rolled long enough to read');
+check('the body is on a rig, and rolled long enough to read', rolled.length > 20);
 // turning about the standing hips instead puts this at a quarter of a metre
-check(drift < 0.06, 'the tumble turns about the body\'s weight, not a point behind it');
+check('the tumble turns about the body\'s weight, not a point behind it', drift < 0.06);
 
 // ---- and a fighter who is not one ----
 await h.page.reload({ waitUntil: 'networkidle' });
-await startAs('din djarin');
+await h.startAs('din djarin', 'The Dune Sea');
 const d = await tumble(45);
 const dinTurn = Math.max(...d.held) - Math.min(...d.held);
 console.log(`  ${d.name}: airFlip=${d.airFlip}, pitch swept ${dinTurn.toFixed(2)} rad, legs ran ${d.clipsHeld.join(',')}`);
-check(d.airFlip === false, 'Din is not an acrobat');
-check(dinTurn < 1, 'and holding jump in the air does not roll him');
-check(!d.clipsHeld.includes('tuckLower'), '...nor put him in a tuck');
+check('Din is not an acrobat', d.airFlip === false);
+check('and holding jump in the air does not roll him', dinTurn < 1);
+check('...nor put him in a tuck', !d.clipsHeld.includes('tuckLower'));
 
 await h.close();
-console.log(failures ? `\n${failures} failure(s)` : '\nthe somersault rolls and lands upright');
-process.exit(failures ? 1 : 0);
+check.done('Air somersault');

@@ -5,12 +5,11 @@
  * drop plays one, and a heavy drop costs a beat before the player can run out
  * of it. All measured off the live game rather than off the clip.
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck } from './harness.mjs';
 
 const h = await launch();
 await h.startMatch();
-let failures = 0;
-const check = (ok, label) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}`); if (!ok) failures++; };
+const check = makeCheck();
 
 /** drop the player from `height` metres and report what the legs did */
 async function drop(height) {
@@ -53,18 +52,17 @@ async function drop(height) {
 
 const light = await drop(0.35);
 console.log(`  light drop: impact ${light.impact.toFixed(1)} m/s, speed 5 frames later ${light.after5.toFixed(2)} m/s`);
-check(!light.crouched, 'a kerb-step does not play the landing crouch');
+check('a kerb-step does not play the landing crouch', !light.crouched);
 
 const normal = await drop(4);
 console.log(`  jump-height drop: impact ${normal.impact.toFixed(1)} m/s`);
-check(normal.crouched, 'a jump-height drop takes it in the knees');
+check('a jump-height drop takes it in the knees', normal.crouched);
 
 const heavy = await drop(20);
 console.log(`  heavy drop: impact ${heavy.impact.toFixed(1)} m/s, speed 5 frames later ${heavy.after5.toFixed(2)}, 25 frames later ${heavy.after25.toFixed(2)}`);
-check(heavy.crouched, 'a heavy drop takes it in the knees');
-check(heavy.after5 < normal.after5, 'a heavy landing holds the player up where a light one does not');
-check(heavy.after25 > heavy.after5, 'and lets them go again a beat later');
+check('a heavy drop takes it in the knees', heavy.crouched);
+check('a heavy landing holds the player up where a light one does not', heavy.after5 < normal.after5);
+check('and lets them go again a beat later', heavy.after25 > heavy.after5);
 
 await h.close();
-console.log(failures ? `\n${failures} failure(s)` : '\nlandings absorb the way they should');
-process.exit(failures ? 1 : 0);
+check.done('Landings');

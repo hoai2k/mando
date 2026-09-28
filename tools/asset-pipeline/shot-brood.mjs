@@ -8,10 +8,10 @@
  * writes a picture per state, along with the world spots `eggSpot` reports,
  * which is where the delivered egg is born.
  *
- * Usage:  node tools/shot-brood.mjs [outdir]      (default /tmp/brood)
+ * Usage:  node tools/asset-pipeline/shot-brood.mjs [outdir]      (default /tmp/brood)
  */
 import { mkdir } from 'node:fs/promises';
-import { launch } from './harness.mjs';
+import { launch } from '../harness.mjs';
 
 const out = process.argv[2] || '/tmp/brood';
 await mkdir(out, { recursive: true });

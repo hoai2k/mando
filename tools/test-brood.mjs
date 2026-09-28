@@ -18,13 +18,9 @@
  *
  * Run:  node tools/test-brood.mjs
  */
-import { launch } from './harness.mjs';
+import { launch, makeCheck, sleep } from './harness.mjs';
 
-const failures = [];
-const check = (name, ok, detail = '') => {
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? `: ${detail}` : ''}`);
-  if (!ok) failures.push(name);
-};
+const check = makeCheck();
 
 const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/` });
 const { page } = h;
@@ -44,13 +40,7 @@ const STEP = `(n, press) => {
   }
 }`;
 
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('pvp', 2, 'desert', ['npc:broodmother', 'npc:tusken']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('pvp', 2, 'desert', ['npc:broodmother', 'npc:tusken']);
 
 // ---- the rack ----
 // Six sacs, and they start spent. One charges every three seconds, so after
@@ -285,7 +275,7 @@ await page.evaluate(`(() => {
 })()`);
 // real time, not sim ticks: her sculpt arrives on a promise, and stepping the
 // simulation sixty times in one turn never lets that promise resolve
-await new Promise((r) => setTimeout(r, 4000));
+await sleep(4000);
 const boss = await page.evaluate(`(() => {
   (${STEP})(30);
   const e = window.__boss;
@@ -306,5 +296,4 @@ check('...on the back it was delivered with',
 
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
 await h.close();
-console.log(failures.length ? `\n${failures.length} FAILED: ${failures.join(', ')}` : '\nall brood checks passed');
-process.exit(failures.length ? 1 : 0);
+check.done('Brood');

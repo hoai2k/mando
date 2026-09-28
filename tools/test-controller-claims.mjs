@@ -1,9 +1,8 @@
 /** Keyboard P1 plus the first connected gamepad must produce a working P2. */
-import { launch, BTN, makeCheck } from './harness.mjs';
+import { launch, BTN, makeCheck, sleep } from './harness.mjs';
 
 const check = makeCheck();
 const h = await launch();
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 try {
   await h.waitForText(/PRESS START|WAVE BATTLE/i);
   await h.page.keyboard.press('Enter');

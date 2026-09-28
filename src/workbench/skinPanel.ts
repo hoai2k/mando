@@ -10,8 +10,8 @@ import { rigidifyDinJetpack } from '../characters/rigidpack';
  * the rest wait here as `pending`. This panel puts the authored figure into a
  * pose that exercises every chain at once, paints where each bone's weight
  * sits, and lets each fix be switched on and off, approved or discarded. The
- * decisions export as one JSON, which `tools/skin-decide.mjs` folds back into
- * the fix files.
+ * decisions export as one JSON, which `tools/asset-pipeline/skin-decide.mjs`
+ * folds back into the fix files.
  */
 
 /** what the panel needs of a figure on the turntable */
@@ -212,7 +212,7 @@ export class SkinPanel {
     const doc = {
       format: 'mando-skinfix-decisions/1',
       exportedAt: new Date().toISOString(),
-      howToApply: 'node tools/skin-decide.mjs <this file> — approve = status applied, discard = status discarded.',
+      howToApply: 'node tools/asset-pipeline/skin-decide.mjs <this file> — approve = status applied, discard = status discarded.',
       decisions: this.decisions,
     };
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
@@ -276,7 +276,7 @@ export class SkinPanel {
           <button id="skinForget"${decided ? '' : ' disabled'} title="drop every decision made in this browser">Clear</button>
         </div>
         <p class="note">Approve / Discard are remembered in this browser across characters. Export hands back one JSON
-          for every model you looked at; <code>node tools/skin-decide.mjs</code> folds it into the fix files.</p>
+          for every model you looked at; <code>node tools/asset-pipeline/skin-decide.mjs</code> folds it into the fix files.</p>
       </div>`;
 
     const q = <T extends Element>(sel: string) => this.host.querySelector<T>(sel);

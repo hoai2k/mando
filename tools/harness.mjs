@@ -57,7 +57,10 @@ export function blankInput(over = {}) {
 /**
  * The suites' shared pass/fail line. Returns a `check` function bound to one
  * running tally; call `tally.done(label)` at the end to print the verdict and
- * exit non-zero on any failure — the same shape nine suites each redeclared.
+ * exit non-zero on any failure — the shape the suites each used to redeclare
+ * for themselves, in four slightly different spellings.
+ * `check.failed` is the running count, for a suite that has advice to give
+ * before the verdict when something went red.
  */
 export function makeCheck() {
   let failed = 0;
@@ -67,12 +70,16 @@ export function makeCheck() {
     console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${d}`);
     return ok;
   };
+  Object.defineProperty(check, 'failed', { get: () => failed });
   check.done = (label) => {
     console.log(failed ? `\n${label}: ${failed} check(s) FAILED` : `\n${label}: all checks passed`);
     if (failed) process.exitCode = 1;
   };
   return check;
 }
+
+/** Wall-clock wait, Node side. Page-side code still needs its own. */
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Xbox standard-mapping button indices, matching src/core/input.ts */
 export const BTN = {
@@ -277,8 +284,6 @@ export function pickSeed() {
   const asked = Number(process.env.HARNESS_SEED);
   return Number.isFinite(asked) && asked > 0 ? asked >>> 0 : (Math.random() * 2 ** 32) >>> 0;
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Pad {
   /** `index` picks which of the four shimmed controllers this drives */
@@ -575,6 +580,56 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     await waitForPlaying();
   }
 
+  /**
+   * Start a Wave Battle on `board` (a territory card's label, e.g. 'The Prison
+   * Rig') as the fighter whose name matches `character`, through the real
+   * menus, and wait until the match is live.
+   *
+   * For a suite that wants a particular fighter as player one and cares that
+   * the select put them there. `startMode` is the quicker way to the same
+   * match when the menus are not the point.
+   */
+  async function startAs(character, board) {
+    await waitForText(/PRESS START|WAVE BATTLE/i);
+    // Name the mode rather than trusting START's default focus. Missions is the
+    // first button on the title now, so a bare START opens the planet strip —
+    // and that strip lists every territory, so a wait for DUNE SEA matched it
+    // and walked on into the wrong screen carrying a passing check with it.
+    await focusButton(/WAVE BATTLE/i);
+    await pad.tap(BTN.START);
+    // `CHOOSE TERRITORY` exactly, and nothing a mission card can spell: the strip
+    // says DUNE SEA too, which is how the wrong screen slipped through before.
+    await waitForText(/CHOOSE TERRITORY/i);
+    // by name, not by counting presses: the territory grid moves focus by where
+    // cards sit on screen, so a run of DRIGHTs does not land on a known board
+    await clickText(board);
+    await waitForText(/CHOOSE YOUR|DIN DJARIN/i);
+    // Player one is the keyboard's own seat now ("Fix controller claims for
+    // keyboard and co-op players"): a lone connected gamepad claims player TWO
+    // instead of driving player one directly, the way this used to work. Tapping
+    // the pad here cycled and "locked in" a phantom second player while player
+    // one — the one a suite reads as `g.players[0]` — sat on the roster's
+    // default pick the whole time, which is both the wrong fighter and, since
+    // player one never reached `ready`, the reason this hung waiting for a
+    // `READY` that could only ever belong to someone else. Player one has to be
+    // driven the way `test-controller-claims.mjs` drives it: keyboard.
+    for (let i = 0; i < 14; i++) {
+      if (new RegExp(character, 'i').test(await text())) break;
+      await page.keyboard.press('ArrowRight');
+      await sleep(150);
+    }
+    let ready = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if ((await page.evaluate(() => window.__charselLine()[0]?.phase)) === 'ready') { ready = true; break; }
+      await page.keyboard.press('Enter');
+      await sleep(500);
+    }
+    if (!ready) throw new Error(`player one never locked in as ${character}`);
+    await page.keyboard.press('Enter');
+    await tapUntil(BTN.A, () => page.evaluate(() => !!window.__game), { timeoutMs: 25000 });
+    await waitForPlaying();
+  }
+
   /** Wait out the loading screen (or any other menu) until the match is live. */
   async function waitForPlaying(timeoutMs = 45000) {
     const t0 = Date.now();
@@ -693,7 +748,7 @@ export async function launch({ headless = true, width = 1280, height = 720, url 
     browser, page, pad, pads, errors,
     workbench,
     seed,
-    text, waitForText, tapUntil, clickText, focusButton, startMatch, startStepped,
+    text, waitForText, tapUntil, clickText, focusButton, startMatch, startAs, startStepped,
     waitForPlaying, waitForTitle,
     startCoop, startMode, manual, step, game,
     shot: (path, opts = {}) => page.screenshot({ path, timeout: 90000, ...opts }),

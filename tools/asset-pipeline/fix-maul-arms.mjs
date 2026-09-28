@@ -3,7 +3,7 @@
  * Run after fix-sith-skirts.mjs; the runtime applies all three fixes in order.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { readGlb } from './lib/glb.mjs';
+import { readGlb } from '../lib/glb.mjs';
 
 const path = 'public/models/skinfix/maul.json';
 const doc = JSON.parse(readFileSync(path, 'utf8'));

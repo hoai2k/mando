@@ -26,7 +26,7 @@
  *
  * Exits non-zero if anything is flagged, so it can gate a build.
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 // stringified into the page: no closure over module scope
 function audit(stageName) {
@@ -355,7 +355,7 @@ for (const board of (only ? [only] : BOARDS)) {
       return c.stageIdx !== was;
     });
     if (!crossed) break;
-    await new Promise((r) => setTimeout(r, 4000));
+    await sleep(4000);
   }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));

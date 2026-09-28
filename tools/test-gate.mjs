@@ -45,14 +45,13 @@ import { cp, mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPlaywright, makeCheck } from './harness.mjs';
+import { loadPlaywright, makeCheck, sleep } from './harness.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.GATE_PORT ?? 4188);
 const ENDPOINT = 'https://gate.example.invalid/exec';
 const CODE = 'ANYA-7F2C9K';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',

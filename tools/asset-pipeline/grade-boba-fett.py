@@ -23,7 +23,7 @@ Geometry, skin and scene layout are otherwise copied unchanged. Reads the
 delivered model from public/models/sources/boba_fett.glb and writes
 public/models/boba_fett.glb.
 
-Usage: python3 tools/grade-boba-fett.py
+Usage: python3 tools/asset-pipeline/grade-boba-fett.py
 """
 
 import io
@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'public' / 'models' / 'sources' / 'boba_fett.glb'
 OUTPUT = ROOT / 'public' / 'models' / 'boba_fett.glb'
 

@@ -23,7 +23,7 @@
  *
  * Exits non-zero if anything is flagged, so it can gate a build.
  */
-import { launch } from './harness.mjs';
+import { launch, sleep } from './harness.mjs';
 
 // NB: the audit body is stringified into the page, so everything it uses has
 // to live inside it — no closure over module scope.
@@ -512,7 +512,7 @@ for (const board of (only ? [only] : BOARDS)) {
     });
     if (!crossed) break;
     // the next stage's sculpts have to land before it is worth measuring
-    await new Promise((r) => setTimeout(r, 4000));
+    await sleep(4000);
   }
 }
 if (h.errors.length) console.log('page errors:', h.errors.slice(0, 4));
