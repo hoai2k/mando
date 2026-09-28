@@ -1,6 +1,8 @@
 import type { SectionId } from '../world/mission';
 import type { SectionDef } from './api';
 import { chimney } from './chimney';
+import { holdTheForge } from './hold-the-forge';
+import { covertSky } from './covert-sky';
 import { SECTION_BOARD, MISSION_LAYOUTS } from '../world/mission-layouts';
 import { BUILT_SECTIONS } from './ids';
 
@@ -10,6 +12,8 @@ import { BUILT_SECTIONS } from './ids';
  */
 export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   chimney,
+  'hold-the-forge': holdTheForge,
+  'covert-sky': covertSky,
 };
 
 /**

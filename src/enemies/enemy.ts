@@ -1335,7 +1335,10 @@ export class Enemy {
     for (const e of game.enemies) if (e !== this) foes.push(e);
     for (const f of foes) {
       if (!f.alive || f.team === this.team) continue;
-      const d = f.position.distanceToSquared(this.position);
+      let d = f.position.distanceToSquared(this.position);
+      // K5 (sections/kit/objective.ts): a defended ally reads as nearer than it is
+      const w = (f as { targetWeight?: number }).targetWeight;
+      if (w) d /= w * w;
       if (d < bestD) { bestD = d; best = f; }
     }
     return best;
