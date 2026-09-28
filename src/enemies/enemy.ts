@@ -255,8 +255,6 @@ function rivalDef(kind: RivalKind, melee: boolean, hp = 180): Def {
   };
 }
 
-/** the rider's seat, in the pose the ride's stance asks for */
-const _seat = new THREE.Vector3();
 const _grip = new THREE.Vector3();
 const _elbow = new THREE.Vector3();
 /** how sharply a hostile at the pedals turns the nose onto its mark */
@@ -3234,7 +3232,6 @@ export class Enemy {
     if (game.ceilingY !== null) gy = Math.min(gy, game.ceilingY - this.height - 2);
     const goal = new THREE.Vector3(gx, gy, gz);
     const to = goal.sub(this.position);
-    const dist = to.length();
     to.normalize();
     this.velocity.x = damp(this.velocity.x, to.x * d.speed, 3.5, dt);
     this.velocity.y = damp(this.velocity.y, to.y * d.speed * 0.8, 3.5, dt);

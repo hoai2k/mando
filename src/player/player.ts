@@ -11,7 +11,7 @@ import { nodeCount, visibleBounds } from '../core/bounds';
 import type { FrameInput } from '../core/input';
 import { clamp, damp, dampAngle, yawBasis } from '../core/math';
 import { audio } from '../core/audio';
-import { gravityScale, hazardAt, type Board } from '../world/board';
+import { gravityScale, type Board } from '../world/board';
 import { GRAVITY, applyGravity, applyKnockback, newBurnState, tickHazards } from '../core/body';
 import type { Game } from '../game/game';
 import type { Combatant, Enemy } from '../enemies/enemy';
@@ -122,7 +122,6 @@ const TAKEN_SINK = 1.5;
 const _grip = new THREE.Vector3();
 const _elbowHint = new THREE.Vector3();
 
-const RUN_SPEED = 9.2;
 const AIR_CONTROL = 7.5;
 /** below this much of a g there is nothing to lean on: you drift (waystation.ts) */
 const ZERO_G = 0.02;
@@ -219,7 +218,6 @@ const FLIP_TUCK_FADE = 18;
 const JET_DESCENT_GRAV = 0.3;
 /** eased jetpack descent: terminal fall speed, m/s */
 const JET_DESCENT_FALL = 4.5;
-const SPRINT_SPEED = 14.4;      // vs RUN_SPEED 9.2
 const SPRINT_SECONDS = 6;       // full gauge held down
 export const SPRINT_REFILL = 4.5;      // seconds to refill from empty
 const DASH_ENERGY = 0.22;
@@ -307,8 +305,6 @@ const COVER_ARC = 0.62;
  * leaves your helmet over the top of it.
  */
 export const COVER_STAND_OVER = 0.25;
-/** how far the hips drop into the cover crouch, as a fraction of body height */
-const CROUCH_DROP = 0.3;
 /** A low passage a humanoid can duck through without a dedicated button. */
 const PASSAGE_HEIGHT = 0.68;
 const PASSAGE_SPEED = 2.6;

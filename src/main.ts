@@ -21,7 +21,7 @@ import { VsScreen } from './ui/vs';
 import { faceSvg, portraitName } from './ui/faces';
 import { ASSET_ROOT } from './core/assets';
 import { controlsMarkup } from './ui/controls-art';
-import { MANDO_ROSTER, PLAYABLE_MANDO_IDS, type MandoId } from './characters/mandalorians';
+import { MANDO_ROSTER, PLAYABLE_MANDO_IDS } from './characters/mandalorians';
 import { playableDef, playableModelIds, PVP_ROSTER, STANDARD_ROSTER, type PlayableId } from './characters/roster';
 import { authoredCached, releaseModels } from './characters/authored';
 import { propsUsed } from './world/props';

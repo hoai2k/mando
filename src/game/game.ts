@@ -13,7 +13,6 @@ import { ProjectileSystem, type BoltTarget, type DeflectSphere } from '../fx/pro
 import type { PlayableId } from '../characters/roster';
 import { ParticleFX } from '../fx/particles';
 import { audio } from '../core/audio';
-import { yawBasis } from '../core/math';
 import { glRect, splitLayout } from '../core/layout';
 import { loadOptionalTexture } from '../core/assets';
 import { disposeSubtree } from '../core/dispose';
@@ -40,10 +39,6 @@ const MONSTER_QUAKE_LEN = 4;
 const BOSS_INTRO_TIMESCALE = 0.12;
 /** reach of the warlord's shock-slam, and the radius its ember ring is drawn at */
 const BOSS_SLAM_R = 8.5;
-/** a wave this old starts sweeping for the players rather than waiting to be found... */
-const HUNT_AFTER = 45;
-/** ...as does one down to this many bodies, scattered over the board */
-const HUNT_REMNANT = 3;
 
 /** hands-off-the-sticks input, fed to everyone while the boss card is up */
 const BLANK_INPUT: FrameInput = {

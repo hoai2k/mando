@@ -37,7 +37,6 @@ const FIRE_CONE = 0.16;
 const NOTICE = 70;
 
 const _to = new THREE.Vector3();
-const _aim = new THREE.Vector3();
 
 const blank = (): FrameInput => ({
   moveX: 0, moveY: 0, lookX: 0, lookY: 0,

@@ -372,7 +372,6 @@ export class InputManager {
     if (padIdx >= 0) {
       const pad = (navigator.getGamepads?.() ?? [])[padIdx];
       if (pad) {
-        const st = this.padState(pad.index);
         inp.moveX += dz(pad.axes[0] ?? 0);
         inp.moveY += -dz(pad.axes[1] ?? 0);
         // A response curve on the look stick: linear made fine aim twitchy

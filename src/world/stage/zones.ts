@@ -21,7 +21,7 @@ import { layLink } from './links';
 export function layZones(b: StageBuilder) {
   const {
     board, spec, stage, index, beat0, pal, baseWallH, ceiling, onGround, bare, wantRim, canyon,
-    floorMat, wallMat, rockMat, trimMat, accentGlow, owned, group,
+    floorMat, wallMat, rockMat, trimMat, owned, group,
     boxes, breakables, rects, pickups, path, anchor, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge, setPieces, placeProps, placeRides,
   } = b;

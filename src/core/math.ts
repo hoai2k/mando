@@ -14,11 +14,6 @@ export function dampAngle(cur: number, target: number, lambda: number, dt: numbe
   return cur + d * (1 - Math.exp(-lambda * dt));
 }
 
-export function dampV3(cur: THREE.Vector3, target: THREE.Vector3, lambda: number, dt: number): void {
-  const t = 1 - Math.exp(-lambda * dt);
-  cur.lerp(target, t);
-}
-
 // ---------- deterministic hash noise ----------
 function hash2(x: number, y: number): number {
   let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);

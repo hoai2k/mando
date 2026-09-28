@@ -82,6 +82,7 @@ class Pool {
   }
 
   spawn(p: THREE.Vector3, baseVel: THREE.Vector3, spread: number, life: number, count: number): void {
+    this.live = Math.min(this.capacity, this.live + Math.max(0, count));
     for (let n = 0; n < count; n++) {
       const i = this.cursor;
       this.cursor = (this.cursor + 1) % this.capacity;
@@ -95,15 +96,21 @@ class Pool {
   }
 
   update(dt: number): void {
+    if (this.live === 0) return;
+    let live = 0;
     for (let i = 0; i < this.capacity; i++) {
       if (this.life[i] <= 0) continue;
       this.life[i] -= dt;
       if (this.life[i] <= 0) { this.pos[i * 3 + 1] = 1e6; continue; }
+      live++;
       this.vel[i * 3 + 1] -= this.gravity * dt;
       this.pos[i * 3] += this.vel[i * 3] * dt;
       this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt;
       this.pos[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
     }
+    // the frame a pool goes quiet still uploads, so its last particles are
+    // parked off-screen on the GPU as well as here
+    this.live = live;
     (this.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
   }
 }

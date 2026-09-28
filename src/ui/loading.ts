@@ -3,7 +3,7 @@ import { MANDO_ROSTER, type MandoId } from '../characters/mandalorians';
 import { playableDef, type PlayableId } from '../characters/roster';
 import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { ASSET_ROOT, portraitName } from '../core/assets';
-import { faceSvg, helmetSvg, hex, hostileSvg } from './faces';
+import { helmetSvg, hex, hostileSvg } from './faces';
 import type { BoardInfo } from '../world/boards';
 
 /**

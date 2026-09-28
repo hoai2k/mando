@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Game } from './game';
 import {
   buildStage, MISSION_LAYOUTS, PORTAL_POCKET,
-  type MissionStage, type MissionZone, type Portal, type Shell, type ZoneSpec,
+  type MissionStage, type MissionZone, type Shell, type ZoneSpec,
 } from '../world/mission';
 import { ALLY_WAVES, FINAL_WAVE, MID_BOSS_WAVE, waveComposition } from '../enemies/spawner';
 import { Enemy, enemyBody, type EnemyKind } from '../enemies/enemy';
