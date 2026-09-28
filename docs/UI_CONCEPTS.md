@@ -191,3 +191,50 @@ room count come from `src/text.ts`.
    holds it, and status, with a paper ticket stub for the pick. In Missions it
    becomes an itinerary: arrived legs, the leg now boarding, scheduled legs, and a
    ticket that lists the leg's stops.
+
+## Round 3 — the chosen flow, and the Missions route restyled (2026-09-28)
+
+**Decided so far:**
+
+| Screen | Choice |
+|---|---|
+| Title | Twin Suns (round 1, B) |
+| Wave Battle territory | Departures board (round 2, stage 4) |
+| Character select | The Lineup, four players (round 2, select 1) |
+| Loading | Wanted (round 1, A), showing all four hunters |
+
+On the canvas's **Round 3** page, the top row shows those four screens in order.
+
+**Missions: the current route map, restyled.** All four keep what `src/ui/planets.ts`
+already does. The route is `plotRoute(9)`: the same zig-zag, at the same node
+positions. The lanes are shallow arcs, ◀ ▶ or a click moves to a planet, the map
+pans so the chosen planet sits in the middle, and the lanes behind it light up. What
+changes is the art direction, plus three additions:
+
+- **Liberated vs. next.** Three states: finished lanes and planets, the next
+  territory, and a marching "plotted course" from your progress to whatever you're
+  looking at. This needs campaign progress to be saved (see round 2).
+- **An information panel.** A fixed panel shows what the old hanging caption
+  couldn't fit: the stages, the room count, the lieutenant and the warlord.
+- **On-screen ◀ ▶ buttons** for mouse players.
+
+1. **Twin Suns trail.** Letterboxed like the title, over warm dust and two star
+   layers that move at different speeds as the map pans. The focused planet has a
+   rotating sun-flare ring. Liberated planets get an orange check, the header shows
+   nine small suns for progress, and the bottom letterbox is the chapter card.
+2. **Bounty string.** The route is a red string between brass pins on the Wanted
+   board. Each planet hangs a paper tag naming its warlord, and finished tags are
+   stamped COLLECTED. A dossier strip with the territory photo sits along the
+   bottom. This one leads straight into the Wanted loading screen.
+3. **Holo table.** The same route laid on a tilted holo-table grid, so the zig-zag
+   reads as near and far. The planets stand upright over their projection pads on
+   light beams. The side readouts are amber terminal text.
+4. **Transit line.** The route is drawn as a rail line with station roundels and
+   name plates. A split-flap "Next stop" header and a split-flap leg board sit
+   beside a ticket stub. This matches the Departures board chosen for Wave Battle,
+   so both modes read as one transit system.
+
+Implementation note for the holo table: CSS `perspective` tilts the grid and lanes,
+but the planets are laid out flat. Their screen positions come from projecting each
+route point through the same perspective, so nothing depends on nested
+`preserve-3d`.
