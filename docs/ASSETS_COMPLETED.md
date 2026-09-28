@@ -1145,3 +1145,12 @@ no cast shadows, plain mid-grey background, no people, no text, no logos.
 | File | Prompt |
 |---|---|
 | `hydraulic_press_ref.png` | "Orthographic three-view model reference sheet on one canvas: side view, front view and top view of the same object at the same scale, flat even lighting, plain mid-grey background, no perspective, no text. Subject: a heavy industrial hydraulic press gantry **on its own, with no conveyor belt and nothing under it**, 8 meters wide, 7 meters tall and 3 meters deep: two thick steel columns left and right standing on flat foot plates, a crossbeam across their tops, a massive press head hanging between the columns on four hydraulic rams, a clear empty opening 6 meters wide under the press head for a belt to pass through from front to back, hazard striping on the press face and the columns, hoses and gauges, grimy grey-yellow paint. The front view looks through the opening; the side view looks along the crossbeam and shows one column with the press head edge-on; the top view shows the two column tops joined by the crossbeam." |
+
+**Review (2026-09-28): accepted.** Gantry only, with a clear opening under the head. The
+side view shows one column with the head edge-on, and the top view shows both column
+tops joined by the crossbeam. The press head and its rams hang slightly forward of the
+crossbeam rather than centred in its depth; the side and top views agree on that, so
+the set still describes one object, and the head is a clean separate block for the
+`head` node. The top view is drawn a little larger than the front, with matching
+proportions, which is fine once the views are cropped apart. All eleven prop sheets
+and the prisoner's three views are now ready for modelling.
