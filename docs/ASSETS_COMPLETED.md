@@ -997,3 +997,24 @@ figures in the left half and lower middle, and keep the upper right as calm sky.
 | File | Prompt |
 |---|---|
 | `title_twin_suns_v2.jpg` | "Cinematic ultra-wide sci-fi western key art at twin sunset, 21:9. Two suns low over a cracked salt flat, burnt orange and deep red sky, heat haze, long shadows toward the viewer. In the left third, seen from behind and slightly to the side, a posse of four armored bounty hunters stands on a low rock shelf. The lead warrior wears a battered polished-silver helmet with a dark T-shaped visor, silver plate armor and a tattered brown cape, a rifle held low. Beside him is a heavy warrior in dented dark-blue plate armor with a large twin-tank jetpack. A third, slim figure in gold-bronze armor wears a helmet with a raised crest. The fourth hunter in olive-green armor with a T-visor helmet and a rangefinder stalk rises a few meters into the air on a short jetpack flame. Far away on the right horizon, a lone rival silhouette waits. Distant desert spires and the curved ribs of a wrecked starship on the right. Strong negative space in the upper right third for a logo. Gritty film grain, painterly realism, spaghetti-western framing. No text, no logos, no named characters or film frames." |
+
+## Alternate Dune Sea board image — delivered 2026-09-28
+
+`board_tatooine.jpg` (the lone armored hunter looking over the dunes toward a town
+under twin suns) has been chosen as the **title screen** art. The Dune Sea needs a
+second, different picture for its in-game uses: the board and territory cards, the
+Departures ticket, the Missions chapter card and the loading screen's photograph. That
+way the title and the territory don't show the same picture.
+
+**File:** `public/assets/textures/board_tatooine_v2.jpg`, 1536×864, the size of the
+other board images. Generated with the built-in image tool and visually verified.
+Once the swap is made in `src/world/boards.ts`, it replaces
+`board_tatooine.jpg` as the Dune Sea's `art`, and the old file stays as the title art.
+
+**Keep it distinct from the title:** no lone figure looking at the view, and no
+twin suns low on the horizon at the centre. Show the territory itself, the place you
+are about to fight through.
+
+| File | Prompt |
+|---|---|
+| `board_tatooine_v2.jpg` | "Cinematic wide establishing shot of a desert territory in a sci-fi western, mid-afternoon under two small high suns. Rolling ochre dune sea in the foreground cut by a rocky ravine, a Tusken-style raider camp of patched hide tents and a smoking fire on a mesa to the left, a rusted crashed transport half-buried in the dunes, a sunken sand pit with a ring of teeth and tentacles in the middle distance, swoop-bike dust trails racing along a ridge, a cluster of domed adobe buildings and a water tower on the far right horizon. Heat haze, long shadows, warm dusty palette, readable shapes, painterly realism, concept-art style. No text, no logos, no people in the foreground." |

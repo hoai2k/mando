@@ -367,9 +367,9 @@ This replaces the fly-to camera from the second update.
   armored posse) arrived at the same time, so it is on the canvas as alternate 1b for
   comparison.
 - **The Dune Sea gets a second picture.** Since the original is now the title, a
-  different in-game Dune Sea, `board_tatooine_v2.jpg`, is requested in
-  `ASSETS_IMAGES.md`. It would be used for the board card, the ticket, the chapter
-  card and the loading screen.
+  different in-game Dune Sea, `board_tatooine_v2.jpg`, is delivered under
+  `public/assets/textures/`. It is ready for the board card, ticket, chapter card
+  and loading screen once `src/world/boards.ts` selects it.
 - **Systems 3 (galaxy map with a lens).**
   - The map's stars are now the worlds' own planet images, 48 px, and 72 px for the
     chosen world.
