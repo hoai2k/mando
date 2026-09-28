@@ -8,6 +8,8 @@ import { glacierChute } from './glacier-chute';
 import { lamplight } from './lamplight';
 import { theLine } from './the-line';
 import { lightsOut } from './lights-out';
+import { theLift } from './the-lift';
+import { oneWayOut } from './one-way-out';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -22,6 +24,8 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   lamplight,
   'the-line': theLine,
   'lights-out': lightsOut,
+  'the-lift': theLift,
+  'one-way-out': oneWayOut,
 };
 
 /**
