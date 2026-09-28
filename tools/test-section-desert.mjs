@@ -275,5 +275,125 @@ const duo = await page.evaluate(() => {
 check('worm sign: the threshold scales with the party', solo.threshold1 < duo.threshold2, { solo: solo.threshold1, duo: duo.threshold2 });
 check('worm sign: it goes for the loudest player on the sand', duo.state === 'ring' && duo.prey === 1, duo);
 
+// ------------------------------------------------------------ The Barge Run
+await boot('barge-run', ['din']);
+const landing = await page.evaluate(() => {
+  const g = window.__game, s = g.campaign.section, t = s.test;
+  const p = g.players[0];
+  const out = { phase0: t.phase };
+  const deck = t.skiffDeck();
+  const landZ = t.landingItem.pos.z;
+  // walk aboard over the gangway; she casts off once everyone standing is aboard
+  window.__step(20, null, () => { p.position.set(deck.x, deck.y + 0.05, deck.z); p.velocity.set(0, 0, 0); });
+  out.phase1 = t.phase;
+  window.__step(150, null);
+  out.speed = t.mill.speed;
+  out.landingGone = landZ - t.landingItem.pos.z;
+  out.stillAboard = t.onSkiff(p.position);
+  return out;
+});
+check('barge run: the skiff casts off once the party is aboard', landing.phase0 === 'landing' && landing.phase1 === 'castoff', landing);
+check('barge run: the world goes by, and the landing slides away astern', landing.speed > 10 && landing.landingGone > 20 && landing.stillAboard, landing);
+
+const broadside = await page.evaluate(() => {
+  const g = window.__game, s = g.campaign.section, t = s.test;
+  const p = g.players[0];
+  const out = {};
+  for (let f = 0; f < 600 && t.phase !== 'broadside'; f++) window.__step(1, null, () => { p.hp = p.maxHp; });
+  out.phase = t.phase;
+  out.gunner = !!t.shellGunner?.alive;
+  // a shell: the ring on the deck, then the blast — it hurts and costs the hull
+  const deck = t.skiffDeck();
+  for (const sh of t.shells.splice(0)) sh.ring.parent?.remove(sh.ring);
+  t.fireShell();
+  const sh = t.shells[t.shells.length - 1];
+  const at = { x: deck.x + sh.at.x, z: deck.z + sh.at.z };
+  const hull0 = t.hull, hp0 = p.maxHp;
+  p.hp = p.maxHp;
+  window.__step(50, null, () => { p.position.set(at.x, deck.y + 0.05, at.z); p.velocity.set(0, 0, 0); });
+  out.hurt = hp0 - p.hp;
+  out.hullCost = hull0 - t.hull;
+  // the deck gun: man it, fire, heat
+  p.hp = p.maxHp;
+  const gun = t.deckGun;
+  window.__step(20, (slot) => slot === 0 ? { ...window.__blank, interactHeld: true } : null, () => {
+    p.position.set(gun.pos.x - 1, gun.pos.y + 0.05, gun.pos.z); p.velocity.set(0, 0, 0); p.hp = p.maxHp;
+  });
+  out.manned = gun.gunner === 0;
+  const shots0 = gun.shots;
+  window.__step(45, (slot) => slot === 0 ? { ...window.__blank, shootHeld: true } : null, () => { p.hp = p.maxHp; });
+  out.mannedShots = gun.shots - shots0;
+  out.heat = gun.heat;
+  window.__step(30, (slot, f) => slot === 0 && f < 2 ? { ...window.__blank, jumpPressed: true } : null, () => { p.hp = p.maxHp; });
+  out.left = gun.gunner === -1;
+  // and on its own, at half rate, when there is something to shoot
+  const shots1 = gun.shots;
+  const e = s.test && g.enemies.find((x) => x.alive && x.team === 1 && x.kind === 'nikto');
+  window.__step(60, null, () => { p.hp = p.maxHp; });
+  out.autoShots = gun.shots - shots1;
+  out.swoopUp = !!e;
+  // off the side: the sand is a fall, and the fall comes back aboard
+  p.position.set(deck.x - 8, deck.y - 1.5, deck.z);
+  p.velocity.set(0, -5, 0);
+  window.__step(20, null, () => { p.hp = p.maxHp; });
+  out.backAboard = t.onSkiff(p.position);
+  // the skiff breaking up: a fresh one and the broadside again
+  const b0 = t.breakups;
+  t.hull = 0;
+  window.__step(3, null, () => { p.hp = p.maxHp; });
+  out.brokeUp = t.breakups - b0;
+  out.freshHull = t.hull;
+  out.phaseAfter = t.phase;
+  return out;
+});
+check('barge run: the broadside starts with the gunner on the heavy gun', broadside.phase === 'broadside' && broadside.gunner, broadside);
+check('barge run: a shell lands in its ring — it hurts, and it costs the skiff', broadside.hurt > 10 && broadside.hullCost > 0.05, broadside);
+check('barge run: the deck gun is manned with Y and fires on the trigger', broadside.manned && broadside.mannedShots > 5 && broadside.heat > 0.1, broadside);
+check('barge run: jump leaves the gun', broadside.left, broadside);
+check('barge run: unmanned, it fires on its own', !broadside.swoopUp || broadside.autoShots > 0, broadside);
+check('barge run: falling to the sand re-forms you on the skiff', broadside.backAboard, broadside);
+check('barge run: a broken skiff is replaced and the broadside restarts', broadside.brokeUp === 1 && broadside.freshHull > 0.9 && broadside.phaseAfter === 'broadside', broadside);
+
+const board = await page.evaluate(() => {
+  const g = window.__game, s = g.campaign.section, t = s.test, Y0 = s.floorY;
+  const p = g.players[0];
+  const out = {};
+  const cull = () => { for (const e of g.enemies) if (e.alive && e.team === 1) e.damage(9999999, e.position, 0); };
+  // silence the gun; she closes to nine metres and the planks come down
+  for (let f = 0; f < 3000 && t.phase !== 'deck'; f++) window.__step(1, null, (gg, k) => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
+  out.phase = t.phase;
+  out.gap = t.gap;
+  // standing on the skiff while it closed carried you with it
+  out.aboard = t.onSkiff(p.position);
+  // walk the plank: from the skiff's rail to the barge's deck
+  const deck = t.skiffDeck();
+  const z = t.planks[0].z;
+  p.position.set(deck.x + 1.5, deck.y + 0.05, z); p.velocity.set(0, 0, 0);
+  p.cam.yaw = Math.PI / 2;
+  window.__step(90, (slot) => slot === 0 ? { ...window.__blank, moveY: 1 } : null, () => { p.hp = p.maxHp; cull(); });
+  out.onBarge = t.onBarge(p.position);
+  out.y = +(p.position.y - Y0).toFixed(2);
+  // clear the decks, burn the raiders, kill the helmsman: she grounds
+  for (let f = 0; f < 30 * 120 && t.phase !== 'upper'; f++) window.__step(1, null, () => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
+  out.upper = t.phase;
+  out.heavyOurs = t.heavyGun.friendly;
+  for (let f = 0; f < 30 * 40 && !t.raiders.every((r) => r.b); f++) window.__step(1, null, () => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
+  for (const r of t.raiders) if (r.b) { r.b.hp = 1; }
+  window.__step(1, null);
+  for (const r of t.raiders) if (r.b && !r.b.broken) g.damageBreakablesNear?.(r.b.center, 3, 50);
+  for (let f = 0; f < 30 * 30 && t.phase !== 'helm'; f++) window.__step(1, null, () => { p.hp = p.maxHp; });
+  out.helm = t.phase;
+  out.helmsman = !!t.helmsman?.alive;
+  cull();
+  for (let f = 0; f < 30 * 10 && !s.complete; f++) window.__step(1, null, () => { p.hp = p.maxHp; });
+  out.complete = s.complete;
+  return out;
+});
+check('barge run: she closes to nine metres, carrying whoever is aboard', board.phase === 'deck' && Math.abs(board.gap - 9) < 0.2 && board.aboard, board);
+check('barge run: the planks are walkable onto the cargo deck', board.onBarge && board.y > 3.5, board);
+check('barge run: the cargo deck taken, the heavy gun changes hands', board.upper === 'upper' && board.heavyOurs, board);
+check('barge run: both skiffs burnt, the helmsman comes out', board.helm === 'helm' && board.helmsman, board);
+check('barge run: and when he falls, she grounds', board.complete, board);
+
 await h.close();
 check.done('desert sections');

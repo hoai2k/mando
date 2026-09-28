@@ -42,7 +42,7 @@ export const BARGE = {
   plankHalf: 1.6,
   railH: 1.1,
   /** the heavy gun on the upper deck, and the helm aft */
-  gun: new THREE.Vector3(0, 10, -5),
+  gun: new THREE.Vector3(1.6, 10, -7),
   helm: new THREE.Vector3(0, 10, -16.5),
   mast: new THREE.Vector3(0, 4, 11),
 };
@@ -87,11 +87,11 @@ function placer(ctx: SectionContext, origin: THREE.Vector3, yaw: number, solid: 
 
 /** shared dressing materials, made once per section */
 function hullMats(ctx: SectionContext) {
-  const hull = ctx.paint(0x6a5238, { rough: 0.75, metal: 0.35 });
+  const hull = ctx.paint(0x9a7a56, { rough: 0.75, metal: 0.25 });
   ctx.tile(hull, 'rust_hull', 4, 1);
   const deck = ctx.paint(0x8a6a44, { rough: 0.9 });
   ctx.tile(deck, 'dock_planks', 3, 8);
-  const trim = ctx.paint(0x3e3226, { rough: 0.6, metal: 0.5 });
+  const trim = ctx.paint(0x5a4834, { rough: 0.6, metal: 0.4 });
   const sail = ctx.paint(0x9a4a2c, { rough: 1 });
   ctx.tile(sail, 'tent_cloth', 2, 2);
   sail.side = THREE.DoubleSide;
@@ -223,8 +223,10 @@ export function buildBarge(ctx: SectionContext, origin: THREE.Vector3, opts: {
     add(new THREE.CylinderGeometry(0.3, 0.45, h, 8), m.trim, B.mast.x, B.lower + h / 2, B.mast.z);
     box(B.mast.x, B.lower + h / 2, B.mast.z, 0.8, h, 0.8);
     const full = opts.sails ?? 1;
+    // rigged fore-and-aft, the canvas along the hull: broadside on, the whole
+    // spread of red cloth is what you see
     for (const [y, w, hh] of [[B.lower + 21, 14, 7], [B.lower + 12.5, 18, 8]] as const) {
-      add(new THREE.CylinderGeometry(0.15, 0.15, w + 1, 6), m.trim, 0, y + hh / 2, B.mast.z).rotation.z = Math.PI / 2;
+      add(new THREE.CylinderGeometry(0.15, 0.15, w + 1, 6), m.trim, 0, y + hh / 2, B.mast.z - w / 2 + 1).rotation.x = Math.PI / 2;
       // a sail bellies forward when full, hangs when slack
       const geo = new THREE.PlaneGeometry(w, hh, 8, 6);
       const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -233,7 +235,8 @@ export function buildBarge(ctx: SectionContext, origin: THREE.Vector3, opts: {
         pos.setZ(i, (1 - u * u) * (1 - v * v * 0.3) * 1.8 * full + (1 - full) * (v < 0 ? v * 0.6 : 0));
       }
       geo.computeVertexNormals();
-      add(geo, m.sail, 0, y, B.mast.z + 0.3);
+      const sailMesh = add(geo, m.sail, 0.3, y, B.mast.z - w / 2 + 1);
+      sailMesh.rotation.y = Math.PI / 2;
     }
   }
 
@@ -266,7 +269,8 @@ export function buildGroundedBarge(ctx: SectionContext, origin: THREE.Vector3, l
  * the stern. Built about its own centre (the group's position is the deck's
  * middle at y = 0), so a `Mover` can carry it by moving the group.
  */
-export function buildSkiff(ctx: SectionContext, origin: THREE.Vector3): Hull & { envelope: StaticBox } {
+export function buildSkiff(ctx: SectionContext, origin: THREE.Vector3,
+  opts: { gaps?: number[]; gapHalf?: number } = {}): Hull & { envelope: StaticBox } {
   const { box, boxes, toWorld } = placer(ctx, origin, 0, true);
   const m = hullMats(ctx);
   const S = SKIFF;
@@ -291,7 +295,18 @@ export function buildSkiff(ctx: SectionContext, origin: THREE.Vector3): Hull & {
   g.add(deck);
   // the bow, a wedge, and the rails: low, so a jump clears them
   add(S.halfBeam * 1.2, S.deck - S.keel, 2, m.hull, 0, (S.deck + S.keel) / 2, S.halfLen + 1);
-  for (const sx of [-1, 1]) add(0.2, S.railH, S.halfLen * 2, m.trim, sx * (S.halfBeam - 0.1), S.deck + S.railH / 2, 0);
+  // the rails, cut for a gangway amidships on the port side (where it ties up
+  // at a landing) and, on the starboard side, where boarding planks come down
+  const rail = (x: number, gaps: number[], half: number): void => {
+    let z0 = -S.halfLen;
+    for (const gz of [...gaps].sort((a, b) => a - b)) {
+      if (gz - half > z0) add(0.2, S.railH, gz - half - z0, m.trim, x, S.deck + S.railH / 2, (z0 + gz - half) / 2);
+      z0 = gz + half;
+    }
+    if (S.halfLen > z0) add(0.2, S.railH, S.halfLen - z0, m.trim, x, S.deck + S.railH / 2, (z0 + S.halfLen) / 2);
+  };
+  rail(-(S.halfBeam - 0.1), [0], 1.5);
+  rail(S.halfBeam - 0.1, opts.gaps ?? [], opts.gapHalf ?? 1.6);
   add(S.halfBeam * 2, S.railH, 0.2, m.trim, 0, S.deck + S.railH / 2, -S.halfLen + 0.1);
   // the engines astern and the repulsor vanes under it
   for (const sx of [-1, 1]) add(0.9, 0.9, 1.6, m.trim, sx * 1.4, S.deck - 0.4, -S.halfLen - 0.8, false);
