@@ -80,12 +80,7 @@ const others = Object.entries(out.boards).filter(([id, v]) => id !== 'station' &
 check('no other board gained a gravity field', others.length === 0, others.map(([id]) => id));
 
 // ---- the landing freighter carries whoever is standing on it ----
-await h.page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('wave', 1, 'station', ['din']);
-});
-await h.page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+await h.startMode('wave', 1, 'station', ['din']);
 // the sculpts land seconds after the board is built; the fit follows them
 await sleep(12000);
 await h.page.evaluate(() => { window.__manual = true; });

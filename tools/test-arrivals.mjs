@@ -150,10 +150,7 @@ if (land.landings > 0) {
 // transport version asked. Is the ground held before you get there; is the
 // room refused a clear while it still owes a wave; and does that wave end up
 // on the room's floor rather than wherever it was put.
-await h.page.evaluate(() => {
-  window.__quitToTitle?.();
-  window.__startMode('campaign', 1, 'desert', ['din']);
-});
+await h.startStepped('campaign', 1, 'desert', ['din']);
 // The campaign opens on an intro card and the controller only ticks while the
 // match is fighting — probing before that finds a level nobody is playing yet.
 //
@@ -162,12 +159,9 @@ await h.page.evaluate(() => {
 // at a 0.05 s per-frame clamp, and so the wait needs ~60 s of wall clock on an
 // idle machine and more than the 120 s budget on a loaded one (CI run 179).
 // Step it out instead, which is what the rest of this file already does — the
-// live loop is paused first so the frames are ours and the count is exact.
-await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
-await h.page.evaluate(`(() => {
-  window.__manual = true;
-  (${STEP})(120);          // 4 simulated seconds: past the 2.2 s intro
-})()`);
+// match was booted stepped with the live loop off, so the frames are ours and
+// the count is exact.
+await h.page.evaluate(`(${STEP})(120)`);   // 4 simulated seconds: past the 2.2 s intro
 await h.page.evaluate(() => { window.__manual = false; });
 await sleep(500);
 const miss = await h.page.evaluate(`(async () => {
@@ -351,16 +345,8 @@ if (!miss.skipped) {
 // Nevarro, because that is where one of the two is: the Lava Flats' crossing,
 // the big open assault of its last stage. The Dune Sea the section above runs
 // on has none, and should not.
-await h.page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('campaign', 1, 'nevarro', ['din']);
-});
-await h.page.waitForFunction(() => !!window.__game && window.__state === 'playing', null, { timeout: 60000 });
-await h.page.evaluate(`(() => {
-  window.__manual = true;
-  (${STEP})(120);          // past the intro card, as above
-})()`);
+await h.startStepped('campaign', 1, 'nevarro', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
 const siege = await h.page.evaluate(`(async () => {
   const g = window.__game, c = g.campaign;
   const blank = () => ({ moveX:0,moveY:0,lookX:0,lookY:0,jumpHeld:false,jumpPressed:false,

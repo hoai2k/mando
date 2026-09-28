@@ -36,8 +36,7 @@ const h = await launch();
 const { page } = h;
 page.on('pageerror', (e) => console.log(`  PAGE ERROR: ${String(e).slice(0, 200)}`));
 await h.waitForText(/PRESS START|WAVE BATTLE/i);
-await page.evaluate(() => { window.__manual = false; window.__startMode('wave', 1, 'desert', ['din']); });
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+await h.startMode('wave', 1, 'desert', ['din']);
 await sleep(6000);
 
 // ---------------------------------------------------------------- contact

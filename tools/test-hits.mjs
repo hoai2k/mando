@@ -21,13 +21,7 @@ const h = await launch();
 const { page } = h;
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
 
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('wave', 1, 'desert', ['din']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('wave', 1, 'desert', ['din']);
 
 const PROBE = `() => {
   const blank = () => ({ moveX:0, moveY:0, lookX:0, lookY:0, jumpHeld:false, jumpPressed:false,

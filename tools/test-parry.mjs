@@ -20,12 +20,7 @@ const { page } = h;
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
 
 async function match(chars, mode = 'wave') {
-  await page.evaluate(({ chars, mode }) => {
-    window.__manual = false;
-    window.__quitToTitle?.();
-    window.__startMode(mode, chars.length, 'desert', chars);
-  }, { chars, mode });
-  await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
+  await h.startMode(mode, chars.length, 'desert', chars);
   // let the sculpts and their weapon props settle in
   await page.waitForTimeout(2500);
   await page.evaluate(() => {

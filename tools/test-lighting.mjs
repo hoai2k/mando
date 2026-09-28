@@ -3,15 +3,7 @@ import { launch, makeCheck } from './harness.mjs';
 
 const check = makeCheck();
 const h = await launch();
-const start = async (board, character) => {
-  await h.page.evaluate(([b, c]) => {
-    window.__quitToTitle?.();
-    window.__startMode('wave', 1, b, [c]);
-  }, [board, character]);
-  await h.page.waitForFunction(([b, c]) => window.__state === 'playing'
-    && window.__game?.board.kind === b && window.__game.players[0].characterId === c,
-  [board, character], { timeout: 120000 });
-};
+const start = (board, character) => h.startMode('wave', 1, board, [character]);
 
 try {
   await start('nevarro', 'din');

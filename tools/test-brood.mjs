@@ -40,13 +40,7 @@ const STEP = `(n, press) => {
   }
 }`;
 
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('pvp', 2, 'desert', ['npc:broodmother', 'npc:tusken']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('pvp', 2, 'desert', ['npc:broodmother', 'npc:tusken']);
 
 // ---- the rack ----
 // Six sacs, and they start spent. One charges every three seconds, so after

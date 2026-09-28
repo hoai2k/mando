@@ -28,13 +28,7 @@ const check = makeCheck();
 const h = await launch();
 const { page } = h;
 await h.waitForText(/WAVE BATTLE|PRESS START/i);
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('wave', 1, 'station', ['din']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('wave', 1, 'station', ['din']);
 
 /** every bolt speed on the roster, slowest (quarren net) to fastest (a Mandalorian's) */
 const SPEEDS = [19, 26, 28, 34, 44, 60, 75];
@@ -141,13 +135,7 @@ check('flame: control — with nothing in the way it still burns',
 // The synthetic wall above proves the projectile maths. This proves the thing
 // that was reported: standing at the side of a real mission door, behind the
 // post, and being shot through it. The posts were decoration.
-await page.evaluate(() => {
-  window.__manual = false;
-  window.__quitToTitle?.();
-  window.__startMode('campaign', 1, 'refinery', ['din']);
-});
-await page.waitForFunction(() => window.__state === 'playing', null, { timeout: 120000 });
-await page.evaluate(() => { window.__manual = true; });
+await h.startStepped('campaign', 1, 'refinery', ['din']);
 
 const doors = await page.evaluate(() => {
   const g = window.__game;
