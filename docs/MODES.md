@@ -277,6 +277,13 @@ order, continuing offscreen (scroll with stick/arrows, click to pick). All nine
 are unlocked for now; the lock-past-your-frontier rule is designed (see
 expansion) but deliberately not enforced yet.
 
+> **Retired design.** The room chain described in this section is no longer in
+> the game. Missions runs the outdoor stage chain of `docs/MISSIONS_OUTDOOR.md`
+> (the default from 2026-09-06); the room chain stayed behind `?missions=old`
+> for a few weeks as a way back and was then removed along with that flag. The
+> flow, beacon, assault waves and boss arenas below carried over; the walled
+> rooms and corridors did not.
+
 **The run.** One territory = one level ≈ one Gauntlet chapter (8–12 min),
 played in a **purpose-built mission level** (`world/mission.ts`): an authored
 chain of walled fight rooms joined by real, walkable corridor pinches, raised

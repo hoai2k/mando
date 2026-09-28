@@ -13,6 +13,12 @@ mission levels and per-player cameras.
 > a per-board flight ceiling, and layered guidance. The rules in §1, §5, §6
 > and §7 carry over unchanged. Read that document first.
 >
+> **Retired.** The outdoor design became the default on 2026-09-06, and the
+> room chain — `world/mission-legacy.ts`, `game/campaign-legacy.ts`, reachable
+> at `?missions=old` / `?backup=missions` — has since been removed. §2–§4 are a
+> record of it, not a description of the game; `MISSION_LAYOUTS` now names the
+> outdoor stage layouts in `world/mission-layouts.ts`.
+>
 > **2026-09-28 — proposed.** Eighteen new kinds of level beat, two per
 > territory (on-rails walks under one shared camera, vehicle combat lanes,
 > turret defence, stealth, pursuit, rising-hazard climbs and more), are

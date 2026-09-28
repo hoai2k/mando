@@ -1521,15 +1521,16 @@ diff the two to find out. Implemented on branch
   than on the territory ninety metres below. The **road/chase** beat runs on
   the Dune Sea, the Lava Flats and the Great Forge.
 - **Which one runs** — **this design is what Missions runs** (default again
-  since 2026-09-06); the room chain (`world/mission-legacy.ts`,
-  `game/campaign-legacy.ts`) is behind **`?missions=old`**, and the older
-  spelling `?backup=missions` still names it. Both satisfy
-  `MissionController`; nothing else in the game branches on which is running.
+  since 2026-09-06, and the only design since 2026-09-28). The room chain
+  (`world/mission-legacy.ts`, `game/campaign-legacy.ts`) stayed behind
+  **`?missions=old`** — and the older spelling `?backup=missions` — as a way
+  back while this proved itself; both files and both flags have since been
+  retired. `MissionController` survives as the surface `Game` reads.
 - **Tests** — `tools/test-missions.mjs`: the build, the borders, the ceiling
   (including a measured jetpack burn and a flier that must come down before
   it shoots), a golden-path walkthrough to liberation, the transport doors
-  both ways with the cancel, a per-board audit of all nine, and the mode
-  flag.
+  both ways with the cancel, a per-board audit of all nine, and that the plain
+  page runs the stages.
 
 **Restored as the default (2026-09-06).** The three things the demotion named
 are done. A ground stage is no longer rimmed zone by zone: one **canyon**

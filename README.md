@@ -68,9 +68,9 @@ The title screen offers three modes:
 | **PvP** | Hunter against hunter, each with a squad of followers, last one standing. |
 
 Full design record in [`docs/MODES.md`](docs/MODES.md). Add `?nomodes` to the URL for the
-one-button title and the wave game on its own, or `?missions=new` for the experimental
-outdoor Missions level design ([`docs/MISSIONS_OUTDOOR.md`](docs/MISSIONS_OUTDOOR.md))
-in place of the room chain Missions ships with.
+one-button title and the wave game on its own. Missions runs on outdoor stages — open ground
+held in by terrain, under a flight ceiling ([`docs/MISSIONS_OUTDOOR.md`](docs/MISSIONS_OUTDOOR.md));
+the walled room chain it replaced has been retired.
 
 Then pick a territory, and pick your fighter. Eight of them, in two families — the covert's
 Mandalorians, who all carry the carbine and the gaffi stick, and the underworld hunters,
