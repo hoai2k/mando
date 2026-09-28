@@ -136,6 +136,14 @@ export class Fence implements Barrier {
 }
 
 /**
+ * How a transport door reads. A `door` is the blast door in a pocket; a
+ * `hatch` is a hole in the floor with a lid on it (the dive into the Prison
+ * Rig's sea); a `ring` is a lit pool you swim up into (surfacing). All three
+ * board the same way: step to the far end of the pocket.
+ */
+export type PortalStyle = 'door' | 'hatch' | 'ring';
+
+/**
  * A transport door: the boundary between two stages (docs/MISSIONS_OUTDOOR.md
  * §1.9). Wider than a blast door, lit white-blue rather than in the palette's
  * accent, and with a **pocket** behind the leaves whose far end is the
@@ -147,17 +155,64 @@ export class Portal extends Gate {
   /** the pocket a player stands in to wait for the others, on the way back */
   readonly pocket: THREE.Vector3;
   readonly forward: { x: number; z: number };
+  /** what the door is: a blast door, a hatch in the floor, or a lit pool ring */
+  readonly style: PortalStyle;
+  /** a hatch's lid, which slides off it as it opens */
+  private lid: THREE.Object3D | null = null;
+  private lidHome = new THREE.Vector3();
 
   constructor(board: Board, parent: THREE.Object3D, pos: THREE.Vector3,
-    dir: { x: number; z: number }, wallH: number, depth: number) {
-    super(board, parent, pos, dir, wallH, 0xbfe6ff, { width: GATE_W + 1.6 });
+    dir: { x: number; z: number }, wallH: number, depth: number, style: PortalStyle = 'door') {
+    super(board, parent, pos, dir, wallH, 0xbfe6ff, { width: GATE_W + 1.6, hidden: style !== 'door' });
+    this.style = style;
     this.forward = { x: dir.x, z: dir.z };
     this.threshold = new THREE.Vector3(pos.x + dir.x * depth, pos.y, pos.z + dir.z * depth);
     this.pocket = new THREE.Vector3(pos.x + dir.x * (depth * 0.5), pos.y, pos.z + dir.z * (depth * 0.5));
     // a lamp over it, so the way on is the brightest thing ahead
     const lamp = new THREE.PointLight(0xbfe6ff, 26, 22, 1.5);
-    lamp.position.set(pos.x, pos.y + wallH - 0.4, pos.z);
+    lamp.position.set(pos.x, pos.y + (style === 'door' ? wallH - 0.4 : 3.5), pos.z);
     parent.add(lamp);
+    if (style === 'door') return;
+    // A hatch into the water (the dive) or a lit pool ring you swim up into
+    // (surfacing): the way through is a hole, not a pair of leaves.
+    const at = this.threshold.clone().lerp(this.pocket, 0.35);
+    const glow = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const water = new THREE.MeshBasicMaterial({ color: 0x2a6a80, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+    const ringAt = (y: number, r: number): THREE.Mesh => {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.35, 28), glow);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(at.x, y, at.z);
+      parent.add(ring);
+      return ring;
+    };
+    ringAt(pos.y + 0.06, 2.4);
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(2.4, 28), water);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(at.x, pos.y + 0.05, at.z);
+    parent.add(pool);
+    if (style === 'hatch') {
+      // the lid: a steel disc over the hole while the way is shut
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 0.22, 24), mat(0x4a5058, { rough: 0.5, metal: 0.7 }));
+      lid.position.set(at.x, pos.y + 0.12, at.z);
+      parent.add(lid);
+      this.lid = lid;
+      this.lidHome.copy(lid.position);
+    } else {
+      // the pool overhead, and the light coming down through it
+      ringAt(pos.y + 5.2, 2.2);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 14, 20, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.12,
+          blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      shaft.position.set(at.x, pos.y + 7, at.z);
+      parent.add(shaft);
+    }
+  }
+
+  override update(dt: number): void {
+    super.update(dt);
+    // the lid slides aside with the opening, and back over it as it shuts
+    if (this.lid) this.lid.position.set(this.lidHome.x + this.t * 5.4 * -this.forward.z, this.lidHome.y,
+      this.lidHome.z + this.t * 5.4 * this.forward.x);
   }
 
   /** how far along the doorway's own axis this position stands */

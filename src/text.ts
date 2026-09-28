@@ -104,7 +104,7 @@ export const TEXT = {
 
   // ---------- heads-up display ----------
   hud: {
-    bars: { health: 'HP', fuel: 'JET', energy: 'ENERGY', heat: 'HEAT' },
+    bars: { health: 'HP', fuel: 'JET', energy: 'ENERGY', heat: 'HEAT', air: 'AIR' },
     newContact: '◢ New contact',
     newContacts: '◢ New contacts',
     /** the kicker over a boss's name card */
@@ -184,10 +184,15 @@ export const TEXT = {
     thisIsTheWay: 'This is the Way',
     // Missions
     sealedIn: 'Sealed in',
+    /** an open assault that is not a siege: nothing seals, nothing is sent */
+    holdGround: { title: (where: string) => `Take ${where}`, sub: 'clear them off it' },
     hold: (where: string) => `hold ${where}`,
     waveOf: (n: number, of: number) => `Wave ${n} of ${of}`,
     checkpoint: 'Checkpoint',
     riders: { title: 'Riders', sub: 'drop the rider, take the ride' },
+    swoopPack: { title: 'Swoop pack', sub: 'they are coming in over the rim' },
+    regrouped: 'the party regroups at the door',
+    airLow: { title: 'Air low', sub: 'the wreck holds air — or make for the pool' },
     pushOn: (where: string) => `push on to ${where}`,
     bacta: { title: 'Bacta canister', sub: '+45 health' },
     offPath: { title: 'Off the path', sub: 'back to the last checkpoint' },
@@ -488,15 +493,15 @@ export const TEXT = {
      * announced as "undefined", which is the one failure worth catching loudly.
      */
     rooms: {
-    desert: ['the trailhead flats', 'the Tusken corral', 'the dune road', 'the ravine', 'the cistern approach', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
+    desert: ['the trailhead flats', 'the Tusken corral', 'the dune road', 'the ravine', 'the cistern court', 'the fighting pit', 'the dune gate', 'the caravan graves', "the Old One's hollow"],
     station: ['the docking bay', 'the cargo gantries', 'the outer yard', 'the spice vault', 'the loading gantry', 'the crew catwalks', 'the reactor ring', 'the hold of the prize'],
     nevarro: ['the ash flats', 'the bike pool', 'the crust causeway', 'the town gate', 'the garrison yard', 'the magistrate court', 'the crossing', 'the cantina row', 'the rancor pen'],
-    crevasse: ['the rim shelf', 'the frozen gallery', 'the nest mouth', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
-    trask: ['the quay steps', 'the fish market', 'the net lofts', 'the freighter hold', 'the cold stores', 'the trawler deck', 'the pier heads', 'the mamacore pool'],
-    refinery: ['the tanker yard', 'the pipe run', 'the intake ramp', 'the barrel stores', 'the reactor floor', 'the pump hall', 'the reactor crown', 'the loading field'],
+    crevasse: ['the rim shelf', 'the frozen gallery', 'the queen tunnel', 'the hatchery', 'the cracked lake', 'the ice chimney', 'the breaker deep'],
+    trask: ['the quay steps', 'the fish market', 'the freighter hold', 'the cold stores', 'the trawler deck', 'the pier heads', 'the mamacore pool'],
+    refinery: ['the tanker yard', 'the pipe run', 'the barrel stores', 'the reactor floor', 'the reactor crown', 'the loading field'],
     forge: ['the glassed plain', 'the glass corral', 'the glass highway', 'the shattered gate', 'the dome undercroft', 'the armoury vault', 'the glassed court', 'the forge steps', "the sleeper's basin"],
     ringworld: ['the tram stop', 'the market arcade', 'the night-side row', 'the terminus', 'the sentinel walk', 'the plaza', 'the service spine', 'the high street terrace'],
-    narkina: ['the landing deck', 'the gantry run', 'the kelp forest', 'the moon pool shaft', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the discharge gantry', 'the moon pool deck'],
+    narkina: ['the landing deck', 'the gantry run', 'the kelp forest', 'the moon pool shaft', 'the work floor', 'the supervisor deck', 'the assembly deck', 'the moon pool deck'],
     },
     /**
      * What each **stage** of a run is called: the line on the transition card
@@ -533,6 +538,7 @@ export const TEXT = {
     /** the HUD's standing instruction, by what the room ahead wants */
     makeFor: (where: string, metres: number) => `Make for ${where} · ${metres} m`,
     holdRoom: (where: string, wave: number, of: number) => `Hold ${where} · wave ${wave} of ${of}`,
+    holdGround: (where: string, left: number) => `Take ${where} · ${left} holding it`,
     bringDownLieutenant: 'Bring down the lieutenant',
     bringDownWarlord: 'Bring down the warlord',
     pushThrough: (where: string, metres: number) => `Push through ${where} · ${metres} m`,

@@ -848,7 +848,8 @@ expose({
   __missionZones: () => Object.entries(MISSION_LAYOUTS).flatMap(([board, spec]) =>
     spec.stages.flatMap((st: StageSpec, si: number) => st.zones.map((zn: ZoneSpec) => ({
       board, stage: si, label: zn.label, shell: zn.shell, kind: zn.kind,
-      waves: zn.waves ?? null, siege: !!zn.siege,
+      waves: zn.waves ?? null, garrison: zn.garrison ?? null, siege: !!zn.siege,
+      pass: !!zn.pass, deadEnd: !!zn.deadEnd, w: zn.w, l: zn.l, rides: (zn.rides ?? []).map((r) => r.kind),
     })))),
   __startCoop: (n: number, boardId?: string) => {
     playerCount = Math.max(1, Math.min(MAX_PLAYERS, n));

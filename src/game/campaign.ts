@@ -86,6 +86,29 @@ const OUTDOOR_SHELLS = new Set<Shell>(['open', 'canyon', 'road']);
  */
 const supplied = (spec: ZoneSpec): boolean =>
   !OUTDOOR_SHELLS.has(spec.shell) || !!spec.siege;
+/** an open assault's posted force is capped at this, plus this much per player */
+const OUTDOOR_CAP_BASE = 10;
+const OUTDOOR_CAP_PER = 2;
+/**
+ * A sealed room waits for every living player to be through its door. With
+ * most of the party inside for this long, the rest are re-formed at the door
+ * rather than holding four players hostage to one straggler.
+ */
+const STRAGGLER_WAIT = 8;
+/** what running out of air costs a second, under the sea */
+const DROWN_DPS = 9;
+/** encounters fought where they stand: a zone-0 one shuts the way back while it lasts */
+const FIGHT_KINDS = new Set<ZoneSpec['kind']>(['assault', 'lieutenant', 'warlord', 'chase']);
+/**
+ * How far ahead of the lead a road's drop mark is called. A carrier takes a
+ * few seconds to cross and let its squad go, and a ride covers seventy metres
+ * in three: a mark fired as the lead passed it dropped its squad *behind* a
+ * party already at the barricade (audit finding 3). So a mark is called this
+ * far ahead of the lead, and its squad is sent where the lead will be.
+ */
+const ROAD_MARK_LEAD = 40;
+/** the seconds a road drop is expected to take, for aiming it ahead of a ride */
+const ROAD_DROP_ETA = 2.8;
 /** stand this close to the objective and its column goes out — you are there */
 const BEACON_HIDE = 7;
 /** the transport beat before the stage swap: inputs blanked, cameras drift */
@@ -140,6 +163,16 @@ export class Campaign implements MissionController {
   /** a wave is called and its transport is still inbound — the zone is owed it */
   private dropping = false;
   private bossCalled = false;
+  /** the bosses (by beat) a supply cache has already been put down for */
+  private cachesDropped = new Set<number>();
+  /** roads whose swoop pack has been sent, by beat */
+  private packSent = new Set<number>();
+  /** seconds most of the party has stood inside a sealed room waiting on the rest */
+  private straggleT = 0;
+  /** the low-air warning has been given on this stage */
+  private airNoted = false;
+  /** road: the furthest drop mark the lead has actually reached */
+  private markReached = -1;
   /** road: which of its drop marks have fired */
   private marksFired: boolean[] = [];
   /** camps whose riders have already been sent for their rides */
@@ -310,7 +343,18 @@ export class Campaign implements MissionController {
         board.tractionAt = (x, z) => (stage.contains(x, z) ? grip : prev ? prev(x, z) : 1);
       }
     }
+    // a stage's own slick ground — the cracked lake's disc of bare ice — goes
+    // over whatever grip the world already has
+    if (stage.slickAt) {
+      const under = board.tractionAt;
+      const slickAt = stage.slickAt;
+      board.tractionAt = (x, z) => slickAt(x, z) ?? (under ? under(x, z) : 1);
+    }
     if (stage.waterY !== undefined) board.waterY = stage.waterY;
+
+    // the sea's clock starts full the moment the party goes under
+    for (const p of game.players) p.air = stage.spec.air ? 1 : null;
+    this.airNoted = false;
 
     // The stage has to be the standing one *before* anyone is posted in it:
     // `placeNear` — which every garrison, defender and ride placement goes
@@ -401,7 +445,10 @@ export class Campaign implements MissionController {
       // a zone the party already cleared comes back cleared
       if (mem.visited && i < mem.clearedTo) return;
       if (zone.spec.kind === 'camp') {
-        const size = Math.min(zone.posts.length + 2,
+        // one more body per player, up to one per post and a player over:
+        // a camp capped at its posts plus two was four solo and five for a
+        // party of four in the ravine (audit, co-op)
+        const size = Math.min(zone.posts.length + game.players.length,
           3 + Math.floor(this.rampWave(zone.beat) / 3) + game.players.length);
         this.garrison.set(zone,
           this.postSquad(this.squadFor(this.rampWave(zone.beat), size, zone), zone.posts, 9000 + zone.beat));
@@ -425,14 +472,18 @@ export class Campaign implements MissionController {
         // rather than delivered. `enterZone` counts them as the first wave,
         // so the fight is the same size it always was; what changed is where
         // it was standing when you walked in.
-        const waves = zone.spec.waves ?? 2;
         const size = !supplied(zone.spec)
           // Under the sky the whole fight is posted at once and nothing is
           // ever flown in. It does not all come at you at once either: a
           // fifty-metre zone holds its back rank out of the fight until you
           // push into it, so what bounded the numbers before — calling the
           // next wave — is now the ground itself.
-          ? Math.min(14, 3 + this.rampWave(zone.beat) + game.players.length + (waves - 1) * 2)
+          //
+          // The cap grows with the party and the solo base is a body lower:
+          // a flat fourteen put thirteen on one player and the same thirteen
+          // on four (audit, co-op).
+          ? Math.min(OUTDOOR_CAP_BASE + OUTDOOR_CAP_PER * game.players.length,
+            2 + this.rampWave(zone.beat) + game.players.length + ((zone.spec.garrison ?? 2) - 1) * 2)
           // A supplied zone posts a holding force and is sent the rest. A
           // sealed room is small enough that everyone in it is in the fight
           // from the first second, so it keeps its reinforcements — which is
@@ -551,6 +602,7 @@ export class Campaign implements MissionController {
     this.phase = 'travel';
     this.bossCalled = false;
     this.marksFired = [];
+    this.markReached = -1;
 
     // where they stand: the trailhead going forward, the door they came back
     // through going back
@@ -565,11 +617,29 @@ export class Campaign implements MissionController {
       // plays, so a transport reads as arriving somewhere
       p.spawnAt(at);
     });
-    this.checkpoint.copy(stage.zones.length
+    // Going forward that is the vestibule the party re-formed in, outside the
+    // first zone — never the middle of a room nobody has walked into yet.
+    this.checkpoint.copy(stage.zones.length && back
       ? stage.zones[Math.min(this.idx, stage.zones.length - 1)].center
       : stage.starts[0]);
     const toward = back && stage.zones.length ? stage.zones[Math.max(0, this.idx - 1)].center : this.objectivePos;
     game.players.forEach((p) => p.faceToward(toward));
+    // A stage that reaches its warlord with no walked beat on the way — a
+    // fight, then the arena — has nowhere else to put Fennec's cache, so it is
+    // down in the vestibule as the party arrives. Only for the warlord: a
+    // lieutenant behind a single hall fight keeps the old rule and gets none.
+    if (!back && stage.zones.length) {
+      const boss = this.bossAhead(0);
+      if (boss?.spec.kind === 'warlord' && !['camp', 'trek', 'start'].includes(stage.zones[0].spec.kind)) {
+        const z0 = stage.zones[0];
+        const side = new THREE.Vector3(z0.exit.z - z0.entry.z, 0, -(z0.exit.x - z0.entry.x)).normalize();
+        // against the vestibule's side wall and toward the zone, clear of the
+        // four spots the party re-forms on
+        const fwd = new THREE.Vector3(z0.exit.x - z0.entry.x, 0, z0.exit.z - z0.entry.z).normalize();
+        const mid = stage.starts.reduce((a, q) => a.add(q), new THREE.Vector3()).divideScalar(stage.starts.length);
+        this.dropCache(boss, mid.addScaledVector(side, 3.2).addScaledVector(fwd, 2), stage.spec.label);
+      }
+    }
     // hold behind the veil until this place is dressed (see `settleT`)
     this.settleT = 0;
     audio.checkpointChime();
@@ -684,6 +754,8 @@ export class Campaign implements MissionController {
     const ok = (x: number, z: number): boolean => {
       const y = yAt(x, z);
       if (!phys.capsuleFree(x, y, z, body.radius, body.height)) return false;
+      // free because there is nothing there at all — a deck's gap — is not a place to stand
+      if (!(phys.groundHeight(x, z, y + 0.3) > y - 1.5)) return false;
       const hz = hazardAt(this.game.board, _probe.set(x, y, z));
       return !hz.kill && hz.dps <= 0;
     };
@@ -730,8 +802,10 @@ export class Campaign implements MissionController {
       && v.pos.x >= r.minX && v.pos.x <= r.maxX && v.pos.z >= r.minZ && v.pos.z <= r.maxZ);
     if (!rides.length) return;
     // leave at least half the squad on foot: a camp that empties itself onto
-    // its bikes is a camp with nobody in it to clear
-    let seats = Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2)));
+    // its bikes is a camp with nobody in it to clear — and leave a ride for
+    // every player, so nobody walks the road because the camp got there first
+    let seats = Math.min(Math.max(1, Math.min(rides.length, Math.floor(crew.length / 2))),
+      rides.length - game.players.length);
     let sent = 0;
     for (const v of rides) {
       if (seats <= 0) break;
@@ -858,7 +932,11 @@ export class Campaign implements MissionController {
     }
     if (this.phase === 'travel') return TEXT.missions.makeFor(zone.spec.label, d);
     switch (zone.spec.kind) {
-      case 'assault': return TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount);
+      // a wave count only where there are waves: "wave 1 of 1" on open
+      // ground was a count of nothing
+      case 'assault': return supplied(zone.spec)
+        ? TEXT.missions.holdRoom(zone.spec.label, Math.max(1, this.waveNum), this.waveCount)
+        : TEXT.missions.holdGround(zone.spec.label, this.zoneForce.filter((e) => e.alive).length);
       case 'chase': return zone.spec.barricade === 'crates' && d < 30
         ? TEXT.missions.clearTheWay
         : TEXT.missions.ride(zone.spec.label, d);
@@ -964,6 +1042,30 @@ export class Campaign implements MissionController {
    */
   private fieldClear(): boolean { return this.emptyT >= FIELD_CLEAR_DWELL; }
 
+  /**
+   * Most of the party is through a sealed door and the rest are not: after
+   * `STRAGGLER_WAIT`, re-form the stragglers just inside it — the same
+   * dissolve-and-gather the respawn plays — and let the seal go. Returns
+   * whether it did.
+   */
+  private reformStragglers(zone: MissionZone, dt: number): boolean {
+    const alive = this.game.players.filter((p) => p.alive);
+    const inside = alive.filter((p) => this.inside(zone, p, 'sealRect'));
+    if (alive.length < 2 || inside.length * 2 < alive.length) { this.straggleT = 0; return false; }
+    this.straggleT += dt;
+    if (this.straggleT < STRAGGLER_WAIT) return false;
+    this.straggleT = 0;
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry).setY(0).normalize();
+    const side = new THREE.Vector3(dir.z, 0, -dir.x);
+    alive.filter((p) => !inside.includes(p)).forEach((p, k) => {
+      const at = zone.entry.clone().addScaledVector(dir, 1.5).addScaledVector(side, (k - 1) * 1.8);
+      p.spawnAt(this.placeNear(at, 'pyke'));
+      p.faceToward(zone.center);
+    });
+    this.game.announce(zone.spec.label, TEXT.banners.regrouped);
+    return true;
+  }
+
   /** the zone's own garrison, posted at raise, is dead */
   private garrisonDown(zone: MissionZone): boolean {
     const held = this.garrison.get(zone);
@@ -995,19 +1097,16 @@ export class Campaign implements MissionController {
       case 'trek':
       case 'camp': {
         this.game.announce(zone.spec.label, zone.spec.kind === 'trek' ? 'keep moving' : 'clear it, or slip through');
-        // The covert's supply cache, in the beat before each boss arena: the
-        // same crate the wave game drops on its milestone waves, and the same
-        // kinds — the marshal ahead of the champion, Fennec ahead of the
-        // warlord.
-        const next = this.stage.zones[this.idx + 1];
-        const ally = next?.spec.kind === 'lieutenant' ? ALLY_WAVES[MID_BOSS_WAVE - 1]
-          : next?.spec.kind === 'warlord' ? ALLY_WAVES[FINAL_WAVE] : undefined;
-        if (ally && !this.game.allyCrate) {
+        // The covert's supply cache, in the last walked beat before each boss
+        // arena: the same crate the wave game drops on its milestone waves,
+        // and the same kinds — the marshal ahead of the champion, Fennec ahead
+        // of the warlord. See `bossAhead`.
+        const boss = this.bossAhead(this.idx + 1);
+        if (boss) {
           const want = zone.entry.clone().lerp(zone.center, 0.6);
           const side = new THREE.Vector3(zone.exit.z - zone.entry.z, 0, -(zone.exit.x - zone.entry.x)).normalize();
           want.addScaledVector(side, Math.min(9, zone.spec.w * 0.28));
-          this.game.allyCrate = new AllyCrate(this.game, ally, want, want);
-          this.game.announce(zone.spec.label, 'a covert supply cache is down — crack it open');
+          this.dropCache(boss, want, zone.spec.label);
         }
         break;
       }
@@ -1015,7 +1114,9 @@ export class Campaign implements MissionController {
         // A road is held at its far mouth, never behind: the fight is the
         // length of it, and the barricade is what you are riding at.
         zone.exitBarrier?.close();
-        this.marksFired = (zone.marks ?? []).map(() => false);
+        // (the first mark may already have been called from the ground before)
+        if (this.marksFired.length !== zone.marks.length) this.marksFired = zone.marks.map(() => false);
+        this.swoopPack(zone);
         this.game.announce(zone.spec.label, 'ride it — they will come at you the whole way');
         audio.waveStart();
         break;
@@ -1038,7 +1139,11 @@ export class Campaign implements MissionController {
         this.waveNum = held.length ? 1 : 0;
         this.dropping = false;
         this.waveDelay = held.length ? 0 : 0.9;
-        this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(zone.spec.label));
+        // "Sealed in" is only true where something is: a room's doors, a
+        // deck's void, a siege's waves. Open ground keeps its way in open and
+        // calls nothing, so it says what it is — take the ground.
+        if (supplied(zone.spec)) this.game.announce(TEXT.banners.sealedIn, TEXT.banners.hold(zone.spec.label));
+        else this.game.announce(TEXT.banners.holdGround.title(zone.spec.label), TEXT.banners.holdGround.sub);
         audio.waveStart();
         break;
       default:
@@ -1050,6 +1155,36 @@ export class Campaign implements MissionController {
         this.game.spawnBoss(zone.center, zone.spec.kind === 'lieutenant' ? 'mid' : 'final');
         break;
     }
+  }
+
+  /**
+   * The boss a supply cache dropped here would be for, if any.
+   *
+   * The cache used to drop only in a camp or trek *immediately* before a boss,
+   * so a stage that put a fight between its last camp and its warlord — the
+   * Spice Run's catwalks, ring and hold — had no cache at all, and the Prison
+   * Rig kept a whole canyon (the discharge gantry) only to hold one. It looks
+   * further now: from `from` on through this stage, the first boss arena
+   * reached before another walked beat (which would carry the cache itself).
+   */
+  private bossAhead(from: number): MissionZone | null {
+    const zones = this.stage.zones;
+    for (let j = from; j < zones.length; j++) {
+      const k = zones[j].spec.kind;
+      if (k === 'lieutenant' || k === 'warlord') return this.cachesDropped.has(zones[j].beat) ? null : zones[j];
+      if (k === 'camp' || k === 'trek' || k === 'start') return null;
+    }
+    return null;
+  }
+
+  /** put the covert's cache down for `boss`, once per boss per run */
+  private dropCache(boss: MissionZone, at: THREE.Vector3, where: string): void {
+    if (this.game.allyCrate) return;
+    const ally = boss.spec.kind === 'lieutenant' ? ALLY_WAVES[MID_BOSS_WAVE - 1] : ALLY_WAVES[FINAL_WAVE];
+    if (!ally) return;
+    this.cachesDropped.add(boss.beat);
+    this.game.allyCrate = new AllyCrate(this.game, ally, at, at);
+    this.game.announce(where, 'a covert supply cache is down — crack it open');
   }
 
   /**
@@ -1101,15 +1236,20 @@ export class Campaign implements MissionController {
     const vents = pool.length ? pool : zone.vents;
     // where a zone has a runner notch in its rim, the beasts and locals come
     // in through it on foot rather than by transport
-    const runners = zone.runnerPost ? kinds.filter((k) => RUNNER_KINDS.has(k)) : [];
+    const runners = zone.runnerPost && zone.runnerIn ? kinds.filter((k) => RUNNER_KINDS.has(k)) : [];
     const dropped = kinds.filter((k) => !runners.includes(k));
     if (runners.length) {
       runners.forEach((kind, i) => {
+        // a little spread, but not enough to start a beast in the gully's wall
         const from = zone.runnerPost!.clone();
-        from.x += (Math.random() - 0.5) * 5;
-        from.z += (Math.random() - 0.5) * 5;
-        const to = vents[i % vents.length];
-        const e = new Enemy(kind, this.placeNear(to.clone(), kind), 1, { silent: true });
+        from.x += (Math.random() - 0.5) * 2;
+        from.z += (Math.random() - 0.5) * 2;
+        // down the gully and in through the notch, then out across the zone:
+        // aimed at a vent they would run straight at the rim beside the notch
+        const to = zone.runnerIn!.clone();
+        to.x += (Math.random() - 0.5) * 2;
+        to.z += (Math.random() - 0.5) * 2;
+        const e = new Enemy(kind, this.placeNear(to, kind), 1, { silent: true });
         e.squad = 9600 + zone.beat * 10 + this.waveNum;
         e.squadSize = runners.length;
         this.game.addEnemy(e);
@@ -1255,6 +1395,15 @@ export class Campaign implements MissionController {
       : this.stage.exitPortal?.pos ?? zone.exit;
     this.layArrow(zone.exit, to);
 
+    // The ground before a road clears as the lead reaches its far side: that
+    // is the moment to call the road's first drop, so it is down on the road
+    // ahead of the party rather than behind it.
+    const road = this.stage.zones[this.idx];
+    if (road?.spec.kind === 'chase' && this.marksFired.length === 0) {
+      this.marksFired = road.marks.map(() => false);
+      this.fireMark(road, 0);
+    }
+
     // The chime, fading column and ground arrow carry this checkpoint. The
     // next destination stays on the beacon and the standing HUD instruction.
   }
@@ -1289,12 +1438,22 @@ export class Campaign implements MissionController {
       if (this.idx >= zones.length) portal.open();
       else portal.close();
     }
-    // The way back is always open — it is a safety valve, not a fight —
-    // except onto a section. A section is one-way (you cannot ride back up a
-    // lava river or climb back down a lift shaft), so the door the party
-    // arrived by stands shut behind them for good.
-    if (this.cameFromSection) this.stage.backPortal?.close();
+    // The way back is a safety valve, not a fight, so it stands open —
+    // except onto a section, and while the stage's first zone is being fought.
+    // A section is one-way (you cannot ride back up a lava river or climb back
+    // down a lift shaft), so the door the party arrived by stands shut behind
+    // them for good. And a fight in zone 0 is fought with its back to that
+    // door: left open, a solo player backing away from a sealed room's
+    // garrison stepped into the pocket and was carried to the last stage.
+    if (this.backLocked) this.stage.backPortal?.close();
     else this.stage.backPortal?.open();
+  }
+
+  /** the door behind the party is shut: onto a section for good, or for a zone-0 fight */
+  private get backLocked(): boolean {
+    if (this.cameFromSection) return true;
+    const z0 = this.stage.zones[0];
+    return this.idx === 0 && this.phase === 'fight' && !!z0 && FIGHT_KINDS.has(z0.spec.kind);
   }
 
   /**
@@ -1341,7 +1500,12 @@ export class Campaign implements MissionController {
     }
 
     const back = stage.backPortal;
-    if (!back || this.cameFromSection) return;
+    if (!back || this.backLocked) {
+      // nobody is waiting at a door that has shut on them
+      for (const p of game.players) p.exited = false;
+      this.exited.clear();
+      return;
+    }
     const living = game.players.filter((p) => p.alive);
     for (const p of game.players) {
       const inPocket = p.alive && back.depthOf(p.position) >= PORTAL_POCKET - 0.6;
@@ -1513,6 +1677,7 @@ export class Campaign implements MissionController {
     }
 
     this.updateCeilingNote();
+    this.updateAir(dt);
     this.updatePortals();
     if (this.transitT > 0) return;
 
@@ -1536,9 +1701,11 @@ export class Campaign implements MissionController {
         && (zone.spec.kind === 'assault' || zone.spec.kind === 'lieutenant' || zone.spec.kind === 'warlord');
       const arena = zone.spec.kind === 'lieutenant' || zone.spec.kind === 'warlord';
       const walked = zone.spec.kind === 'camp' || zone.spec.kind === 'trek' || zone.spec.kind === 'start';
-      const ready = seals || arena ? this.allInside(zone)
+      let ready = seals || arena ? this.allInside(zone)
         : walked ? this.anyInside(zone)
           : this.anyInside(zone, 'triggerRect');
+      if ((seals || arena) && !ready) ready = this.reformStragglers(zone, dt);
+      else this.straggleT = 0;
       // An unsealed zone can also catch up when the party has walked past it
       // and left the field empty. A boss or sealed room still waits for every
       // living player; this shortcut used to start the fight with someone
@@ -1557,7 +1724,12 @@ export class Campaign implements MissionController {
         // itself: that one is a deliberate walk, so the way on never opens
         // behind you while you are still fighting in front of it.
         const last = this.idx === this.stage.zones.length - 1;
-        const done = this.nearExit(zone)
+        // Slipping through is getting past the camp's far line anywhere across
+        // it — down the quiet flank as well as through the exit's own ring —
+        // with its garrison still standing.
+        const slipped = zone.spec.kind === 'camp'
+          && this.game.players.some((p) => p.alive && this.pastExit(zone, p.position));
+        const done = this.nearExit(zone) || slipped
           || (!last && this.garrisonDown(zone))
           || (this.fieldClear() && this.game.players.some((p) => p.alive && this.pastExit(zone, p.position)));
         if (done) this.clearZone(zone, this.garrisonDown(zone));
@@ -1620,29 +1792,21 @@ export class Campaign implements MissionController {
       const leadAlong = along(lead.position);
       zone.marks.forEach((m, i) => {
         if (this.marksFired[i]) return;
-        if (lead.position.distanceToSquared(m) > 18 * 18 && leadAlong < along(m)) return;
-        this.marksFired[i] = true;
-        // A road is a hundred and sixty metres of fight; dying at the far end
-        // and walking the whole of it again is not a cost, it is a punishment.
-        // Each mark you reach is ground earned.
-        this.checkpoint.copy(m);
-        const wave = this.rampWave(zone.beat);
-        const kinds = this.squadFor(wave, 3 + this.game.players.length, zone, { debut: true });
-        const spots = kinds.map((_, k) => {
-          const at = m.clone();
-          at.x += (Math.random() - 0.5) * zone.spec.w * 0.6;
-          at.z += (Math.random() - 0.5) * zone.spec.w * 0.6;
-          void k;
-          return at;
-        });
-        this.dropping = true;
-        this.game.dropReinforcements(kinds, spots, 9700 + zone.beat * 10 + i, (bodies) => {
-          this.dropping = false;
-          this.zoneForce = this.zoneForce.concat(bodies);
-          for (const e of bodies) e.alert(lead.position, true);
-        });
-        audio.waveStart();
+        // Called ahead: once the lead is within ROAD_MARK_LEAD of the mark
+        // (or past it on a wide line), not once they are standing on it.
+        if (leadAlong < along(m) - ROAD_MARK_LEAD) return;
+        const v = lead.vehicle?.vel ?? lead.velocity;
+        this.fireMark(zone, i, lead.position, Math.hypot(v.x, v.z));
       });
+      // A road is a long fight; dying at the far end and riding the whole of
+      // it again is not a cost, it is a punishment. Each mark the lead has
+      // *reached* is ground earned — reached, now that marks are called ahead.
+      for (let k = zone.marks.length - 1; k > this.markReached; k--) {
+        if (along(zone.marks[k]) > leadAlong) continue;
+        this.markReached = k;
+        this.checkpoint.copy(zone.marks[k]);
+        break;
+      }
     }
     // The barricade is the wall: a fence lifts when the road's escort is down,
     // crates are shot or rammed out of the way.
@@ -1678,6 +1842,80 @@ export class Campaign implements MissionController {
     if (roadRun && open && alive.some((p) => this.pastExit(zone, p.position))) this.clearZone(zone, true);
   }
 
+  /**
+   * Call a road's drop mark `i`: a squad by transport, sent to where the lead
+   * will be when the ship lets it go — the mark itself, or further down the
+   * road if the lead is riding fast enough to be past it by then — and never
+   * beyond the barricade.
+   */
+  private fireMark(zone: MissionZone, i: number, leadPos?: THREE.Vector3, leadSpeed = 0): void {
+    if (this.marksFired[i]) return;
+    this.marksFired[i] = true;
+    const m = zone.marks[i];
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry);
+    const runLen = dir.length() || 1;
+    dir.divideScalar(runLen);
+    const along = (p: THREE.Vector3): number => (p.x - zone.entry.x) * dir.x + (p.z - zone.entry.z) * dir.z;
+    const lead = leadPos ?? zone.entry;
+    const want = Math.min(runLen - 6, Math.max(along(m), along(lead) + leadSpeed * ROAD_DROP_ETA + 8));
+    const centre = zone.entry.clone().addScaledVector(dir, want);
+    centre.y = m.y;
+    const wave = this.rampWave(zone.beat);
+    const kinds = this.squadFor(wave, 3 + this.game.players.length, zone, { debut: true });
+    const spots = kinds.map(() => {
+      const at = centre.clone();
+      at.x += (Math.random() - 0.5) * zone.spec.w * 0.6;
+      at.z += (Math.random() - 0.5) * zone.spec.w * 0.6;
+      return at;
+    });
+    this.dropping = true;
+    this.game.dropReinforcements(kinds, spots, 9700 + zone.beat * 10 + i, (bodies) => {
+      this.dropping = false;
+      this.zoneForce = this.zoneForce.concat(bodies);
+      const target = this.game.players.find((p) => p.alive)?.position ?? lead;
+      for (const e of bodies) e.alert(target, true);
+    });
+    audio.waveStart();
+  }
+
+  /**
+   * The swoop pack: the road's fliers, come in over the rim as the chase
+   * begins and harrying the column the length of it (MISSIONS_OUTDOOR §1.2).
+   * Drawn from the board's air kinds — the first of its table that has any,
+   * if the road comes before the ramp would have reached them.
+   */
+  private swoopPack(zone: MissionZone): void {
+    const game = this.game;
+    if (this.packSent.has(zone.beat)) return;
+    this.packSent.add(zone.beat);
+    let kinds: EnemyKind[] = [];
+    for (let w = Math.max(1, this.rampWave(zone.beat)); w <= FINAL_WAVE && !kinds.length; w++) {
+      kinds = waveComposition(game.board.kind, w, game.players.length).filter((e) => e.air).map((e) => e.kind);
+    }
+    if (!kinds.length) return;
+    const n = 2 + Math.floor(game.players.length / 2);
+    const dir = new THREE.Vector3().subVectors(zone.exit, zone.entry).setY(0).normalize();
+    const side = new THREE.Vector3(dir.z, 0, -dir.x);
+    for (let i = 0; i < n; i++) {
+      const kind = kinds[i % kinds.length];
+      const flank = i % 2 ? 1 : -1;
+      const at = zone.entry.clone().lerp(zone.exit, 0.3 + 0.4 * (i / Math.max(1, n - 1)))
+        .addScaledVector(side, flank * zone.spec.w * 0.2);
+      const e = new Enemy(kind, this.placeNear(at, kind), 1, { silent: true });
+      e.squad = 9750 + zone.beat;
+      e.squadSize = n;
+      game.addEnemy(e);
+      this.seenKinds.add(kind);
+      // in over the rim on either side, low under the ceiling
+      const from = e.position.clone().addScaledVector(side, flank * (zone.spec.w / 2 + 28));
+      from.y += Math.min(22, (game.ceilingY ?? from.y + 30) - from.y - 4);
+      e.beginArrival('fly', from, e.position.clone());
+      this.zoneForce.push(e);
+    }
+    game.waveSpawned += n;
+    game.announce(TEXT.banners.swoopPack.title, TEXT.banners.swoopPack.sub);
+  }
+
   /** past the far mouth of a road: the ride is over and the ground is earned */
   private pastExit(zone: MissionZone, p: THREE.Vector3): boolean {
     const toExit = new THREE.Vector3().subVectors(zone.exit, zone.entry);
@@ -1685,6 +1923,27 @@ export class Campaign implements MissionController {
     toExit.divideScalar(len);
     const along = (p.x - zone.entry.x) * toExit.x + (p.z - zone.entry.z) * toExit.z;
     return along >= len - 1.5;
+  }
+
+  /**
+   * Air, under the sea: it runs down, the wreck's trapped air fills it back
+   * up, and a player who runs out is drowning until they reach some or the
+   * far pool. A fallen player comes back with a full tank.
+   */
+  private updateAir(dt: number): void {
+    const air = this.stage.spec.air;
+    if (!air) return;
+    for (const p of this.game.players) {
+      if (p.air === null) continue;
+      if (!p.alive) { p.air = 1; continue; }
+      const inPocket = air.pockets.some((k) => Math.hypot(p.position.x - k.x, p.position.z - k.z) < k.r);
+      p.air = inPocket ? Math.min(1, p.air + dt / 1.5) : Math.max(0, p.air - dt / air.seconds);
+      if (p.air <= 0) p.damage(DROWN_DPS * dt, p.position, -1, { dot: true });
+      if (!this.airNoted && p.air < 0.3) {
+        this.airNoted = true;
+        this.game.announce(TEXT.banners.airLow.title, TEXT.banners.airLow.sub);
+      }
+    }
   }
 
   /**

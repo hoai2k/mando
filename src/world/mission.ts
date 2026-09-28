@@ -89,8 +89,19 @@ export interface ZoneSpec {
   /** width across travel and length along it, metres */
   w: number;
   l: number;
-  /** assault rooms: how many sealed waves the zone runs */
+  /**
+   * How many waves a **supplied** assault runs — a hall, a deck, or a siege
+   * (see `siege`). Open ground that is not a siege calls no waves at all, so
+   * `waves` is not read there and the layouts warn at load if it is set.
+   */
   waves?: number;
+  /**
+   * Open ground that is not a siege: how deep the posted force stands. The
+   * whole fight is standing in the zone when you arrive, and each rank past
+   * the first adds two to it. This used to be spelled `waves`, which is why
+   * authors kept expecting waves from zones that never call one.
+   */
+  garrison?: number;
   /**
    * Open ground fought for in waves, supplied from the air.
    *
@@ -127,8 +138,40 @@ export interface ZoneSpec {
    * off that rect.)
    */
   deadEnd?: boolean;
-  /** open: a runner notch in the far rim, and a post outside it */
+  /**
+   * Outdoors on a stage with its own water: the sides of the zone that are
+   * the sea instead of a rim — `left` is +v, `right` is -v. The plate's edge
+   * is the border there, lit like a deck's, and the water under it is the
+   * catch (the off-path rule already returns whoever goes in). A harbour or a
+   * rig walled on four sides never shows its water (audit finding 9).
+   */
+  water?: ('left' | 'right')[];
+  /**
+   * Open ground: a runner notch in the far rim with a walled gully behind it,
+   * down which a siege's beasts and locals come on foot rather than by ship.
+   * Only worth having on a siege — nothing else calls runners.
+   */
   pass?: boolean;
+  /**
+   * Camp: which flank its garrison holds (+1 is left, toward +v). The other
+   * flank is the quiet way through. Defaults to alternating by beat.
+   */
+  postSide?: 1 | -1;
+  /**
+   * Deck: the zone is `n` plates in a row with void between them, `gap`
+   * metres across (at most `DECK_GAP_MAX`), each raised `rise[k]` over the
+   * stage floor — the first and last at 0, so the links meet them. A single
+   * flat plate gave the Spice Run's low gravity nothing to do (audit finding
+   * 10); a gap you jet across is its verb.
+   */
+  plates?: { n: number; gap: number; rise: number[] };
+  /**
+   * A disc of bare ice this wide (radius, metres) at the zone's centre, where
+   * the grip drops to `SLICK_TRACTION` — the cracked lake's traction disc.
+   */
+  slick?: number;
+  /** hall: a gallery along the left wall this high, with steps up to it */
+  gallery?: number;
   /** trek: posted sentries who raise the alarm rather than hold ground */
   lookouts?: number;
   /** hall: roof height; default ROOF_H */
@@ -160,6 +203,12 @@ export interface LinkSpec {
    * Defaults to a corridor when either end is indoors, a trek otherwise.
    */
   kind?: 'corridor' | 'trek';
+  /**
+   * A breather: nobody posted in it, and a bacta canister halfway. Every link
+   * long enough is picketed otherwise, which left no quiet stretch anywhere in
+   * a run — two sealed rooms joined by a held corridor are one long fight.
+   */
+  quiet?: boolean;
 }
 
 export interface StageSpec {
@@ -187,6 +236,13 @@ export interface StageSpec {
     /** hemisphere fill over the stage */
     fill?: number;
   };
+  /**
+   * `sea` only: air, and where to find more of it. The party carries `seconds`
+   * of it from the moment they go under; `pockets` are air trapped in a wreck
+   * (board coordinates), each with a bacta canister in it, that fill the tank
+   * back up while you are in one. Air is the sea's clock.
+   */
+  air?: { seconds: number; pockets: { x: number; z: number; r: number }[] };
   /** overrides the spec's ceiling for this stage */
   ceiling?: number;
   /**
@@ -258,8 +314,10 @@ export interface MissionZone {
   farVents: THREE.Vector3[];
   sideVents: THREE.Vector3[];
   posts: THREE.Vector3[];
-  /** open zones with a `pass`: where runners enter from */
+  /** open zones with a `pass`: where runners enter from, in the gully behind the notch */
   runnerPost: THREE.Vector3 | null;
+  /** ...and the ground just inside the notch they run to before they fan out */
+  runnerIn: THREE.Vector3 | null;
   /** road zones: the drop marks along it, in order */
   marks: THREE.Vector3[];
   /** the pillars that frame the way on — what the guidance points at */
@@ -303,6 +361,8 @@ export interface MissionStage {
   groundAt(x: number, z: number): number;
   /** a local water plane, where the stage has one */
   waterY?: number;
+  /** grip at a spot, where the stage lays its own (a slick disc); undefined elsewhere */
+  slickAt?(x: number, z: number): number | undefined;
   /** is this x,z over the stage's walkable footprint? */
   contains(x: number, z: number): boolean;
   /** give the board back everything this stage put in it */

@@ -687,6 +687,41 @@ check('a camp cleared of its garrison advances without the checkpoint',
 check('but the last checkpoint before the door is still a walk',
   optional.heldAtTheDoor && optional.openedOnTheWalk, JSON.stringify(optional));
 
+// A camp says "clear it, or slip through". Its garrison used to be posted on
+// and beside the centreline round an exit you had to touch within four
+// metres, so every camp played as a small assault (audit item 8). It holds
+// one flank now, and getting past its far line down the other one is through.
+await startMode('campaign', 1, 'desert', ['din']);
+const slip = await page.evaluate(`(() => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  window.__simUntil(() => g.state === 'fighting', 30);
+  p.maxHp = 1e6; p.hp = 1e6;
+  const corral = c.stage.zones[1];
+  const dx = corral.exit.x - corral.entry.x, dz = corral.exit.z - corral.entry.z;
+  const len = Math.hypot(dx, dz);
+  const ux = dx / len, uz = dz / len, vx = -uz, vz = ux;   // +v is left
+  const across = (q) => (q.x - corral.entry.x) * vx + (q.z - corral.entry.z) * vz;
+  const vs = corral.posts.map(across);
+  const side = Math.sign(vs.reduce((a, b) => a + b, 0));
+  const oneFlank = vs.every((v) => Math.sign(v) === side && Math.abs(v) >= corral.spec.w * 0.25);
+  // down the quiet flank, past the far line, with the garrison untouched
+  c.idx = 1; c.phase = 'travel';
+  const posted = g.enemies.filter((e) => e.alive && e.squad === 9000 + corral.beat).length;
+  const qv = -side * corral.spec.w * 0.35;
+  const at = corral.exit.clone();
+  at.x += vx * qv + ux * 1.5; at.z += vz * qv + uz * 1.5;
+  p.position.set(corral.entry.x + vx * qv, corral.entry.y + 0.5, corral.entry.z + vz * qv);
+  window.__sim(0.3);
+  p.position.set(at.x, at.y + 0.5, at.z);
+  window.__sim(0.5);
+  const alive = g.enemies.filter((e) => e.alive && e.squad === 9000 + corral.beat).length;
+  return { oneFlank, vs: vs.map((v) => +v.toFixed(1)), posted, alive, through: c.idx > 1 };
+})()`);
+check('a camp posts its garrison on one flank and leaves the other quiet',
+  slip.oneFlank && slip.vs.length >= 3, JSON.stringify(slip));
+check('and slipping past its far line down the quiet flank is through',
+  slip.through && slip.alive > 0, JSON.stringify(slip));
+
 await startMode('campaign', 2, 'desert', ['din', 'armorer']);
 const bossEntrance = await page.evaluate(() => {
   const g = window.__game, c = g.campaign;
@@ -795,6 +830,9 @@ for (const board of boards) {
       if (fight && z.spec.shell === 'hall' && z.hatches.length < 2) bad.push(`${z.spec.label}: hatches`);
       if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) bad.push(`${z.spec.label}: vents`);
       if (!z.posts.length) bad.push(`${z.spec.label}: posts`);
+      // a pass nobody can come through is a notch that goes nowhere (audit item 3)
+      if (z.spec.pass && !z.runnerPost) bad.push(`${z.spec.label}: its runner pass never validated`);
+      if (z.spec.pass && !z.spec.siege) bad.push(`${z.spec.label}: a pass on a zone that calls no runners`);
     }
     // A ride stands on the ground, not on the furniture. It takes its hover
     // height from the physics — the highest surface under it — so one authored
@@ -811,6 +849,25 @@ for (const board of boards) {
             bad.push(`${zone.spec.label}: a ${ride.kind} is parked ${d.toFixed(1)} m from a ${prop.id} (needs ${(prop.solid.r + 3).toFixed(1)})`);
           }
         }
+      }
+    }
+
+    // A side that is the sea is open to it: no rim along it, so from the
+    // middle of the zone the water can be seen, and walked into (audit item 10).
+    for (const zone of spec.zones) {
+      const ex = zone.exit.x - zone.entry.x, ez = zone.exit.z - zone.entry.z;
+      const len = Math.hypot(ex, ez) || 1;
+      const ux = ex / len, uz = ez / len;
+      for (const side of zone.spec.water ?? []) {
+        const sgn = side === 'left' ? 1 : -1;
+        const dir = new zone.center.constructor(-uz * sgn, 0, ux * sgn);
+        let clear = false;
+        for (const t of [0.2, 0.4, 0.6, 0.8]) {
+          const from = zone.entry.clone().lerp(zone.exit, t);
+          from.y += 1.6;
+          if (!phys.raycast(from, dir, zone.spec.w / 2 + 25)) { clear = true; break; }
+        }
+        if (!clear) bad.push(`${zone.spec.label}: its ${side} side is meant to be the sea, and a wall stands on it`);
       }
     }
 
@@ -1105,6 +1162,247 @@ check('a transport door holds the run while the next stage is dressed',
 check('and lets it go once the stage is ready',
   door.crossed && door.held < 240, `${door.held} frame(s) — the cap is 240`);
 
+// ---------------------------------------------------------------- the vestibule
+//
+// A stage used to re-form the party 2.4 m inside its first zone. Where that
+// zone was a sealed room or a boss arena the fight began on the first frame,
+// with the garrison already standing round them — and the door they had come
+// in by open a step behind, so a solo player backing away from the fight
+// stepped into its pocket and was carried back a stage. Every stage with a
+// door behind it now opens in a vestibule outside zone 0 (audit item 1), and
+// the way back shuts while zone 0 is being fought.
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const vest = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  // the far side: its first zone is the fighting pit, a boss arena
+  c.enterStage(2, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const z0 = c.stage.zones[0];
+  const inR = (r, q) => q.x >= r.minX && q.x <= r.maxX && q.z >= r.minZ && q.z <= r.maxZ;
+  const arrived = {
+    kind: z0.spec.kind,
+    inZone: inR(z0.rect, p.position),
+    free: g.board.physics.capsuleFree(p.position.x, p.position.y, p.position.z, p.radius, p.height),
+    onStage: c.stage.contains(p.position.x, p.position.z),
+    back: +p.position.distanceTo(c.stage.backPortal.pos).toFixed(1),
+  };
+  for (let f = 0; f < 90; f++) g.update(1 / 30, idle);
+  arrived.phase = c.phase;
+  arrived.boss = !!g.boss;
+  arrived.backOpen = c.stage.backPortal.open_;
+  // walk in: the arena seals and the way back shuts with it
+  p.position.copy(z0.center);
+  // the door's leaves take a moment to travel; it counts as shut once they have
+  for (let f = 0; f < 90; f++) g.update(1 / 30, idle);
+  const fight = { phase: c.phase, backClosed: c.stage.backPortal.closed };
+  // ...and standing in its pocket carries nobody anywhere
+  const was = c.stageIdx;
+  for (let f = 0; f < 60; f++) {
+    p.position.copy(c.stage.backPortal.threshold);
+    g.update(1 / 30, idle);
+  }
+  fight.stayed = c.stageIdx === was && !c.exited.size;
+  // cleared, the way back opens again
+  c.clearZone(z0, true);
+  for (let f = 0; f < 45; f++) g.update(1 / 30, idle);
+  const cleared = { backOpen: c.stage.backPortal.open_ };
+  window.__manual = false;
+  return { arrived, fight, cleared };
+});
+check('a stage re-forms the party in a vestibule outside its first zone',
+  !vest.arrived.inZone && vest.arrived.free && vest.arrived.onStage && vest.arrived.back < 12,
+  JSON.stringify(vest.arrived));
+check('so a boss arena in zone 0 waits for the party to walk in',
+  vest.arrived.phase === 'travel' && !vest.arrived.boss && vest.arrived.backOpen, JSON.stringify(vest.arrived));
+check('the way back shuts while zone 0 is being fought',
+  vest.fight.phase === 'fight' && vest.fight.backClosed && vest.fight.stayed, JSON.stringify(vest.fight));
+check('and opens again once it is cleared', vest.cleared.backOpen, JSON.stringify(vest.cleared));
+
+// ---------------------------------------------------------------- stragglers
+//
+// A sealed room or an arena waits for every living player, and it used to
+// wait forever: one player hanging back held four (audit item 14). With most
+// of the party inside for eight seconds, the rest are re-formed at the door.
+
+await startMode('campaign', 2, 'desert', ['din', 'armorer']);
+
+const straggle = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  c.enterStage(2, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  for (const p of g.players) { p.maxHp = 1e6; p.hp = 1e6; }
+  const z0 = c.stage.zones[0];
+  const inR = (r, q) => q.x >= r.minX && q.x <= r.maxX && q.z >= r.minZ && q.z <= r.maxZ;
+  const hold = c.stage.starts[1].clone();
+  let at4 = null;
+  for (let f = 0; f < 330 && c.phase === 'travel'; f++) {
+    g.players[0].position.copy(z0.center);
+    if (c.phase === 'travel') g.players[1].position.copy(hold);   // hanging back in the vestibule
+    g.update(1 / 30, idle);
+    if (f === 120) at4 = c.phase;
+  }
+  const out = { at4, phase: c.phase, reformed: inR(z0.sealRect, g.players[1].position) };
+  window.__manual = false;
+  return out;
+});
+check('a sealed arena still waits on a straggler for a few seconds',
+  straggle.at4 === 'travel', JSON.stringify(straggle));
+check('but re-forms them at its door rather than holding the party forever',
+  straggle.phase === 'fight' && straggle.reformed, JSON.stringify(straggle));
+
+// ---------------------------------------------------------------- the floors
+//
+// A floor is chosen by what it is under, not by the stage it is in: a hall on
+// a built stage took the stage's sand (the Dune Sea's cistern court read as a
+// sand-floored steel room), and open ground on an interior stage took the
+// corridor plate (audit item 5).
+
+await startMode('campaign', 1, 'desert', ['din']);
+
+const floors = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign;
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  window.__manual = true;
+  c.enterStage(1, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, [blank(), blank(), blank(), blank()]);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const group = g.board.group.children.find((o) => o.name === `mission-stage-${c.stageIdx}`);
+  /** the floor slab under a point: a one-metre-thick box whose top is the floor */
+  const slabUnder = (p) => {
+    let hit = null;
+    group.traverse((o) => {
+      if (hit || !o.isMesh || o.geometry?.type !== 'BoxGeometry') return;
+      const { width, height, depth } = o.geometry.parameters;
+      if (Math.abs(height - 1) > 0.01) return;
+      if (Math.abs(o.position.y + 0.5 - c.stage.groundAt(p.x, p.z)) > 0.1) return;
+      if (Math.abs(p.x - o.position.x) < width / 2 && Math.abs(p.z - o.position.z) < depth / 2) hit = o;
+    });
+    return hit;
+  };
+  const hall = c.stage.zones.find((z) => z.spec.shell === 'hall');
+  const open = c.stage.zones.find((z) => z.spec.shell !== 'hall');
+  const h = hall && slabUnder(hall.center), o = open && slabUnder(open.center);
+  window.__manual = false;
+  return { hall: !!h, open: !!o, differ: !!h && !!o && h.material !== o.material };
+});
+check('a hall takes a roofed floor, open ground the territory\'s own',
+  floors.differ, JSON.stringify(floors));
+
+// ---------------------------------------------------------------- the cache
+//
+// The covert's supply cache dropped only in a camp or trek *immediately*
+// before a boss arena. The Spice Run's last stage puts a fight between its
+// camp and its warlord, so the one run with no cache at all was the Spice Run
+// (audit item 4). The rule now looks back to the last walked beat before the
+// boss, and a stage with none drops Fennec's cache in its vestibule.
+
+await startMode('campaign', 1, 'station', ['din']);
+
+const cache = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  const last = c.memory.length - 1;
+  c.enterStage(last, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const kinds = c.stage.zones.map((z) => z.spec.kind).join(',');
+  const walked = c.stage.zones.findIndex((z) => z.spec.kind === 'camp' || z.spec.kind === 'trek');
+  if (walked >= 0) {
+    c.idx = walked; c.phase = 'travel';
+    p.position.copy(c.stage.zones[walked].center);
+    for (let f = 0; f < 30; f++) g.update(1 / 30, idle);
+  }
+  const crate = g.allyCrate;
+  const out = { kinds, walked, crate: !!crate,
+    onStage: crate ? c.stage.contains(crate.pos.x, crate.pos.z)
+      && Math.abs(crate.pos.y - c.stage.groundAt(crate.pos.x, crate.pos.z)) < 2 : false };
+  window.__manual = false;
+  return out;
+});
+check('the Spice Run\'s last stage puts a supply cache down before its warlord',
+  cache.crate && cache.onStage, JSON.stringify(cache));
+
+// ---------------------------------------------------------------- the atrium
+//
+// The Refinery's lieutenant fought in an 18 m slot of the plant's south strip
+// while the board's forty-metre reactor atrium — core, three catwalk rings,
+// the one space built for jetpack combat — stood unused 24 m north of it. The
+// plant stage turns in to it now (audit item 11).
+
+await startMode('campaign', 1, 'refinery', ['din']);
+
+const atrium = await page.evaluate(async () => {
+  const g = window.__game, c = g.campaign, p = g.players[0];
+  const blank = () => ({ moveX: 0, moveY: 0, lookX: 0, lookY: 0, jumpHeld: false, jumpPressed: false,
+    dashPressed: false, sprintHeld: false, shootHeld: false, aimHeld: false, meleePressed: false,
+    rocketPressed: false, zoomHeld: false, zoomDelta: 0, blockHeld: false, slamPressed: false,
+    meleeSwapPressed: false, rangedSwapPressed: false, pausePressed: false });
+  const idle = [blank(), blank(), blank(), blank()];
+  window.__manual = true;
+  p.maxHp = 1e6; p.hp = 1e6;
+  const plant = c.memory.findIndex((_, i) => window.__missionZones().some((z) => z.board === 'refinery' && z.stage === i && z.kind === 'lieutenant'));
+  c.enterStage(plant, false);
+  for (let f = 0; f < 600 && c.settlingStage; f++) {
+    g.update(1 / 30, idle);
+    if (f % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  const s = c.stage, i = s.zones.findIndex((z) => z.spec.kind === 'lieutenant'), z = s.zones[i];
+  const inR = (r, x, zz) => x >= r.minX && x <= r.maxX && zz >= r.minZ && zz <= r.maxZ;
+  // every point of the golden path is somewhere a body can stand
+  const blocked = s.path.filter((q) => !g.board.physics.capsuleFree(q.x, q.y + 0.2, q.z, 0.5, 1.8)).length;
+  const out = { plant, centre: [+z.center.x.toFixed(1), +z.center.z.toFixed(1)],
+    catwalks: [[0, -14], [0, 14], [-14, 0], [14, 0]].every(([x, zz]) => inR(z.rect, x, zz)),
+    blocked, path: s.path.length };
+  // walk in: it seals, and the lieutenant stands up inside it
+  c.idx = i; c.phase = 'travel';
+  for (const e of g.enemies) e.removeMe = true;
+  p.position.set(z.center.x + 9, z.center.y + 0.3, z.center.z - 9);
+  for (let f = 0; f < 150 && !g.boss; f++) g.update(1 / 30, idle);
+  out.phase = c.phase;
+  out.boss = !!g.boss && inR(z.rect, g.boss.position.x, g.boss.position.z);
+  window.__manual = false;
+  return out;
+});
+check('the Refinery\'s lieutenant is fought round the reactor core, catwalks and all',
+  atrium.plant > 0 && Math.hypot(...atrium.centre) < 4 && atrium.catwalks, JSON.stringify(atrium));
+check('and the plant\'s path to it is walkable end to end', atrium.blocked === 0, JSON.stringify(atrium));
+check('and walking in seals it and stands the lieutenant up inside',
+  atrium.phase === 'fight' && atrium.boss, JSON.stringify(atrium));
+
 // ---------------------------------------------------------------- the road
 //
 // Everything from here down moves the party about, empties zones and walks the
@@ -1134,9 +1432,21 @@ const road = await page.evaluate(async () => {
   window.__manual = true;
   c.idx = i;
   c.phase = 'travel';
-  for (const p of g.players) if (p.alive) p.position.copy(z.entry);
+  // just over the road's trigger line (six metres in), where a rider coming
+  // off the corral starts the chase — the entry point itself is short of it
+  const mouth = z.entry.clone().lerp(z.exit, 5 / z.entry.distanceTo(z.exit));
+  for (const p of g.players) if (p.alive) p.position.copy(mouth);
   for (let k = 0; k < 90; k++) g.update(1 / 30, idle);
-  const atEntry = { open: !!z.exitBarrier?.open_, fired: c.marksFired.filter(Boolean).length, marks: z.marks.length };
+  // Called ahead (audit item 9): the first mark's drop is already on its way
+  // with the party still at the mouth, and a swoop pack is coming in over the
+  // rim to harry them the length of it.
+  const dirX = z.exit.x - z.entry.x, dirZ = z.exit.z - z.entry.z;
+  const runLen = Math.hypot(dirX, dirZ);
+  const along = (q) => ((q.x - z.entry.x) * dirX + (q.z - z.entry.z) * dirZ) / runLen;
+  const pack = g.enemies.filter((e) => e.alive && e.squad === 9750 + z.beat);
+  const atEntry = { open: !!z.exitBarrier?.open_, fired: c.marksFired.filter(Boolean).length, marks: z.marks.length,
+    pack: pack.length, packAir: pack.every((e) => e.def.style === 'hover' || e.def.style === 'swoop'),
+    leadAlong: +along(g.players[0].position).toFixed(1), firstMark: +along(z.marks[0]).toFixed(1) };
   // …and the road does end: ride it to the far mouth, put down whatever the
   // marks send (they arrive by transport, so this has to keep killing across
   // the flight rather than clearing the field once), and the zone clears.
@@ -1156,6 +1466,10 @@ if (road) {
   check('the road holds its barricade until the road has been run',
     !road.atEntry.open,
     `at the mouth: ${road.atEntry.open ? 'open' : 'shut'}, ${road.atEntry.fired}/${road.atEntry.marks} marks fired`);
+  check('the road\'s first drop is called before the party reaches its mark',
+    road.atEntry.fired >= 1 && road.atEntry.leadAlong < road.atEntry.firstMark - 5, JSON.stringify(road.atEntry));
+  check('and a swoop pack comes in to harry the column',
+    road.atEntry.pack >= 2 && road.atEntry.packAir, JSON.stringify(road.atEntry));
   check('and opens the way on once every mark is down',
     road.atEnd.ran, `${road.atEnd.fired} marks fired, ${road.atEnd.ran ? 'through' : 'still held'}`);
 }
