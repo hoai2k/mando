@@ -171,3 +171,14 @@ option.not-in-game { color: var(--dim); }
 .weapon-choices .ledger .edit span { flex-basis: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .weapon-choices .ledger .edit span { flex: 0 0 74px; }
 .weapon-choices .ledger .edit code { white-space: normal; min-width: 0; }
+
+/* folded panel sections: Shoulder width and Details start closed */
+details.fold { margin: 10px 0; border-top: 1px solid var(--line, #2b3139); padding-top: 8px; }
+details.fold > summary {
+  cursor: pointer; list-style: none; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted, #98a1ab); user-select: none;
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform 0.15s; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold[open] > summary { margin-bottom: 8px; }

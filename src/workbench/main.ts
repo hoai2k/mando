@@ -144,17 +144,16 @@ scene.add(ruler);
 const turntable = new THREE.Group();
 scene.add(turntable);
 let figures: Figure[] = [];
-let skeletons: THREE.SkeletonHelper[] = [];
 
 const initialParams = new URLSearchParams(location.search);
 let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
 let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
 let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
   ? initialParams.get('mode') as Mode : 'both';
-let spin = false;
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
-let showSkeleton = false;
+/** whether the folded panel sections are open — both start closed */
+const folds = { shoulders: false, details: false };
 let showGrid = true;
 let editing = false;
 let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
@@ -235,10 +234,8 @@ function disposeFigures(): void {
   vehicleEditor.setTarget(null);
   for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
-  for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
   figures = [];
-  skeletons = [];
 }
 
 /**
@@ -296,12 +293,6 @@ function spawn(): void {
   });
   showLoading();
 
-  for (const f of figures) {
-    const helper = new THREE.SkeletonHelper(f.inst.root);
-    helper.visible = showSkeleton;
-    skeletons.push(helper);
-    scene.add(helper);
-  }
   // a fresh character arrives with pristine clips: record them, then put the
   // session's edits back so what is on the turntable never loses them
   for (const f of figures) {
@@ -564,8 +555,6 @@ function sampleWeaponPose(): void {
 
 function enterEdit(): void {
   editing = true;
-  spin = false;
-  turntable.rotation.y = 0;
   freezePose();
   editor.setEnabled(editKind === 'rotate');
   positionEditor.setEnabled(editKind === 'position');
@@ -816,10 +805,9 @@ function renderPanel(): void {
       </div>
     </div>
 
-    <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
-    <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
     ${subject.hasModel && !isProp(subject) ? `
+    <details class="fold" data-fold="shoulders" ${folds.shoulders ? 'open' : ''}><summary>Shoulder width</summary>
     <div class="field playback shoulder-tuning">
       <label for="restShoulders">Rest shoulder width <output id="restShouldersValue">${Math.round(shoulderSpacing.rest * 100)}%</output></label>
       <input id="restShoulders" type="range" min="0" max="2" step="0.05" value="${shoulderSpacing.rest}"
@@ -831,13 +819,15 @@ function renderPanel(): void {
         ${editing && editKind === 'position' ? 'disabled' : ''} aria-label="A-pose shoulder width">
       <p class="hint">100% rest matches the measured Din spacing. Ventress and Bossk start at 50%; A-pose starts at 0%.</p>
       <button id="resetShoulders" type="button" ${editing && editKind === 'position' ? 'disabled' : ''}>Reset shoulder widths</button>
-    </div>` : ''}
+    </div>
+    </details>` : ''}
 
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
     </button>
     <div id="edit"></div>
 
+    <details class="fold" data-fold="details" ${folds.details ? 'open' : ''}><summary>Details</summary>
     <p class="note">
       ${!subject.hasModel
         ? 'No authored model for this character yet — procedural build only.'
@@ -864,7 +854,8 @@ function renderPanel(): void {
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
-    </p>`;
+    </p>
+    </details>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
     subject = findSubject((e.target as HTMLSelectElement).value);
@@ -925,14 +916,10 @@ function renderPanel(): void {
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
   });
-  panel.querySelector<HTMLInputElement>('#spin')!.onchange = (e) => {
-    spin = (e.target as HTMLInputElement).checked;
-    if (!spin) turntable.rotation.y = 0;
-  };
-  panel.querySelector<HTMLInputElement>('#skeleton')!.onchange = (e) => {
-    showSkeleton = (e.target as HTMLInputElement).checked;
-    for (const s of skeletons) s.visible = showSkeleton;
-  };
+  // the two folded sections remember being opened across the panel's re-renders
+  panel.querySelectorAll<HTMLDetailsElement>('details[data-fold]').forEach((d) => {
+    d.ontoggle = () => { folds[d.dataset.fold as keyof typeof folds] = d.open; };
+  });
   panel.querySelector<HTMLInputElement>('#grid')!.onchange = (e) => {
     showGrid = (e.target as HTMLInputElement).checked;
     grid.visible = ruler.visible = showGrid;
@@ -1626,7 +1613,6 @@ function frame(now: number): void {
   last = now;
   const animationDt = paused ? 0 : dt * animationSpeed;
   time += animationDt;
-  if (spin) turntable.rotation.y += dt * 0.4;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
   // a creature's attack is a one-shot method, not a clip we can loop: replay it
