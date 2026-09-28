@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { collectLitBlades } from '../fx/saberLights';
 import { flightClips, flightPose, travelClip, type Animator, type FlightPose } from '../anim/animator';
 import {
   MELEE_NAMES, RANGED_NAMES, saberClipsFor, saberScaleFor, saberStyleFor, staffPropFor,
@@ -26,6 +27,8 @@ import { updateRiding } from './riding';
 import { reachArm } from '../anim/seating';
 import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
+import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
+import { strikePace } from '../characters/combatStyle';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
@@ -247,6 +250,29 @@ const SABER_STOW_DELAY = 4;
 const BLOCK_SECONDS = 5;
 /** you can shuffle behind the shield, but not run */
 const BLOCK_SPEED = 3.2;
+/**
+ * The left stick's travel, read as a gait: a light push walks, the last of
+ * its throw runs. Up to `WALK_TILT` the stick sets a walking pace from a creep
+ * to `WALK_SPEED` — the walk cycle's own pace, so it is never hurried; from
+ * there to `RUN_TILT` the pace climbs to the run, which holds to the rim.
+ * Keys are all-or-nothing, so the keyboard always runs.
+ */
+const WALK_TILT = 0.6;
+const RUN_TILT = 0.9;
+const WALK_SPEED = 1.4;
+/** a walk slows its stride right down with a creeping stick, where a run bottoms out */
+const WALK_RATE_FLOOR = 0.12;
+/** below this the body stands; above it the feet step (m/s) */
+const STEP_SPEED = 0.25;
+/** ground speed the walk cycle plays up to, and the run takes over from (with a margin each way) */
+const WALK_GAIT_MAX = 2.1;
+const WALK_GAIT_MARGIN = 0.25;
+function stickSpeed(tilt: number, top: number): number {
+  if (top <= WALK_SPEED) return Math.min(tilt, 1) * top;
+  if (tilt <= WALK_TILT) return (tilt / WALK_TILT) * WALK_SPEED;
+  if (tilt >= RUN_TILT) return top;
+  return WALK_SPEED + (top - WALK_SPEED) * ((tilt - WALK_TILT) / (RUN_TILT - WALK_TILT));
+}
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 /**
@@ -286,6 +312,8 @@ const LAND_ABSORB = 9.5;
 const LAND_HEAVY = 17;
 /** how long a heavy landing keeps you from simply running off */
 const LAND_RECOVER = 0.3;
+/** the deep crouch holds a beat at the bottom before it springs, so it slows you for longer */
+const LAND_RECOVER_DEEP = 0.45;
 
 // ---- cover ----
 /** a face this much above the boots is worth hugging: chest-high or better */
@@ -457,13 +485,30 @@ export class Player {
    */
   moveYaw: number | null = null;
   /**
+   * The soft-lock cone, as the cosine `aimAssistTarget` needs a target inside,
+   * when a section widens it (K1's twin-stick aim: a stick pointed in the
+   * ground plane is a coarser pointer than a crosshair). Null everywhere else.
+   */
+  aimCone: number | null = null;
+  /**
    * A gameplay section's own way of moving — sliding, flight, a turret seat,
    * a lane-guided bike (§2.3). `adjust` may rewrite the frame's input;
    * `take` may take the whole frame (return true). Null outside a section.
    */
   sectionMove: SectionMove | null = null;
+  /**
+   * K7 flight (sections/kit/locomotion.ts): the airborne top speed while a
+   * section's boosters are on. Null everywhere else — the profile's run speed.
+   */
+  flightTopSpeed: number | null = null;
   hp = 100;
   maxHp = 100;
+  /**
+   * Max health earned for the rest of the run (Hold the Forge's beskar,
+   * sections/hold-the-forge.ts). Kept apart from the profile's number so a
+   * body swap (`morph`) keeps it.
+   */
+  maxHpBonus = 0;
   /** PvP: respawns left; other modes never read it */
   lives = 0;
   /** who last hurt this player (their slot), for PvP kill credit */
@@ -472,12 +517,19 @@ export class Player {
   deathCounted = false;
   fuel = 1;
   /**
+   * Air left, 0..1, while the party is under the sea (a `sea` stage's clock);
+   * null anywhere else, and the HUD shows the gauge only when it is not.
+   */
+  air: number | null = null;
+  /**
    * Seconds left of a heavy landing's recovery: the legs are absorbing the
    * drop and there is no running out of it yet.
    */
   private landRecovery = 0;
   /** seconds left of the landing crouch, so leaving the ground can release it */
   private landTimer = 0;
+  /** the deep landing has the arms too, so letting go of it lets go of both */
+  private landArms = false;
   /**
    * Nobody is holding this one's controller: its input comes from a `BotBrain`
    * rather than a pad. It is a player in every other respect — same body, same
@@ -503,6 +555,8 @@ export class Player {
   /** counts down from the last shot; the barrel sheds nothing until it hits 0 */
   private heatHold = 0;
   sprinting = false;
+  /** on the walk cycle rather than the run: held across a margin, so the gait does not flicker at the seam */
+  private walking = false;
   /** shield up: drains the same gauge sprinting does */
   blocking = false;
   /** scratch for the shield collider handed to the projectile system */
@@ -568,6 +622,8 @@ export class Player {
   private meleeRange = 3;
   /** the current swing is bare-handed (both blades thrown away) */
   private meleeBare = false;
+  /** the swing in hand is a kick: its contact sweeps the legs as well as the fists */
+  private swingKick = false;
   alive = true;
   kills = 0;
   team = 0;
@@ -1013,7 +1069,7 @@ export class Player {
     if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
     this.takenT = TAKEN_TIME;
     this.takenBy.copy(at);
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.cover = null;
     this.velocity.set(0, 0, 0);
     audio.hurt(this.profile.voice);
@@ -1102,6 +1158,12 @@ export class Player {
    * hatchling → broodmother on growth — and how a respawn walks a morphed
    * player back to the fighter they picked.
    */
+  /** Every blade this player holds or has thrown that asks for a light (see `SaberLights`). */
+  litBlades(out: THREE.Object3D[]): void {
+    collectLitBlades(this.char.root, out);
+    if (this.throwFx) collectLitBlades(this.throwFx, out);
+  }
+
   morph(id: PlayableId, game: Game): void {
     this.restoreMats();   // any dissolve clones belong to the body being shed
     // A thrown saber belongs to the old body and its old hilt style. Retire
@@ -1122,7 +1184,7 @@ export class Player {
     this.profile = def.profile;
     this.char = def.build();
     this.char.setHeroLight(game.board.heroLight ?? 0);
-    this.maxHp = this.profile.maxHp;
+    this.maxHp = this.profile.maxHp + this.maxHpBonus;
     this.hp = Math.min(this.hp, this.maxHp);
     this.radius = this.profile.radius;
     this.height = this.profile.height;
@@ -1252,7 +1314,7 @@ export class Player {
   }
 
   private die(): void {
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.hp = 0;
     this.alive = false;
     this.deadT = 0;
@@ -1876,6 +1938,8 @@ export class Player {
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
+    // K7 flight: a section's boosters set the airborne top speed
+    if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;
     // chest-deep: slow, loud, exposed — less so for something built for it
     if (this.wading) topSpeed *= this.profile.amphibious ? 0.75 : 0.45;
@@ -1884,7 +1948,8 @@ export class Player {
     this.landRecovery = Math.max(0, this.landRecovery - dt);
     this.landTimer = Math.max(0, this.landTimer - dt);
     if (this.landRecovery > 0) topSpeed *= 1 - 0.85 * (this.landRecovery / LAND_RECOVER);
-    const speedTarget = Math.min(wishLen, 1) * topSpeed;
+    // the walk is a thing feet do: in the air the stick steers in proportion
+    const speedTarget = this.sprinting || !this.grounded ? Math.min(wishLen, 1) * topSpeed : stickSpeed(wishLen, topSpeed);
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
@@ -1897,6 +1962,9 @@ export class Player {
       // here there is nothing to push against — a body drifting between
       // platforms that slows to a halt on its own is the one thing space
       // cannot do. Point and burn to change it; otherwise you coast.
+    } else if (this.sectionMove?.steer?.(this, dt, input, game)) {
+      // A gameplay section's own locomotion (K7: the slide, flight) set the
+      // horizontal velocity itself (docs/SECTIONS_IMPLEMENTATION.md §2.3).
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
@@ -2019,6 +2087,15 @@ export class Player {
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
+  }
+
+  /**
+   * K7 flight (sections/kit/locomotion.ts): a super-jumper wearing a
+   * section's boosters relights the rise in mid-air while A is held, where
+   * normally the climb is spent for good the moment the button lifts.
+   */
+  relightRise(): void {
+    if (this.profile.flight === 'superjump' && !this.grounded) this.riseHold = true;
   }
 
   /** super jump: the non-Mandalorian answer to the jetpack */
@@ -2183,11 +2260,18 @@ export class Player {
       if (impact > LAND_ABSORB || this.slamming || braced) {
         const heavy = impact > LAND_HEAVY || this.slamming;
         const soft = braced && impact <= LAND_ABSORB;
+        // A fast fall goes all the way down into the deep crouch and springs
+        // back out of it (clips.ts `landingClips`); the arms come down with
+        // it for balance unless they are busy with a gun or a blade.
+        const deep = heavy && !!anim.clips.landHardLower;
         this.landTimer = anim.playOnce(
-          'lower', 'landLower', braced ? LAND_BRACE_FADE : 0.05, false,
+          'lower', deep ? 'landHardLower' : 'landLower', braced ? LAND_BRACE_FADE : 0.05, false,
           heavy ? 1 : soft ? 1.9 : 1.5,
         );
-        if (heavy) this.landRecovery = LAND_RECOVER;
+        this.landArms = deep && this.meleeTimer <= 0 && !this.gunRaised && !this.blocking
+          && !!anim.clips.landHardUpper;
+        if (this.landArms) anim.playOnce('upper', 'landHardUpper', 0.05);
+        if (heavy) this.landRecovery = deep ? LAND_RECOVER_DEEP : LAND_RECOVER;
       }
       if (this.slamming) {
         this.slamming = false;
@@ -2339,6 +2423,14 @@ export class Player {
     return this.characterId === 'duelist' ? 'dualPistolAimUpper' : 'aimUpper';
   }
 
+  /** hand the legs (and the arms, if the landing took them) back to the gait */
+  private releaseLanding(anim: Animator): void {
+    anim.release('lower');
+    if (this.landArms) anim.release('upper');
+    this.landArms = false;
+    this.landTimer = 0;
+  }
+
   /** which clips the body plays for what it is doing */
   private updateLocomotionAnim(dt: number, input: FrameInput, game: Game, anim: Animator, speed2: number): void {
     const gunUp = input.aimHeld || input.shootHeld || this.queuedHipShot
@@ -2352,16 +2444,22 @@ export class Player {
     // Jumping, dashing or thrusting straight back out of a landing cancels the
     // crouch: a one-shot holds the channel to its end, and the legs would stay
     // folded under a body that is already in the air.
-    if (this.landTimer > 0 && !this.grounded) { anim.release('lower'); this.landTimer = 0; }
+    if (this.landTimer > 0 && !this.grounded) { this.releaseLanding(anim); }
     // The same for running out of one on the ground: a light landing at run
     // speed held the crouch for the whole clip while the body kept going —
     // ~1.9 m of frozen-legged slide after every hop. Once the feet are
     // clearly travelling, hand the channel back to the gait. A heavy landing
     // is not affected in practice: its recovery holds the speed under this
     // until the clip has all but finished.
-    if (this.landTimer > 0 && this.grounded && speed2 > 3) { anim.release('lower'); this.landTimer = 0; }
-    if (this.autoCrouching) {
-      anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+    if (this.landTimer > 0 && this.grounded && speed2 > 3) { this.releaseLanding(anim); }
+    // a gun coming up takes the arms straight back from the deep landing
+    if (this.landArms && gunUp) { anim.release('upper'); this.landArms = false; }
+    // K7's slide holds a crouched surf while it carries the body (§2.3)
+    const surf = this.grounded && !!this.sectionMove?.crouch?.(this);
+    if (this.autoCrouching || surf) {
+      // the surf is the crouched stride held still: knees bent, one foot leading
+      if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
+      else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
       else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
     } else if (this.blocking) {
@@ -2390,7 +2488,7 @@ export class Player {
     } else if (!this.grounded) {
       anim.play('lower', 'airLower');
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'airUpper');
-    } else if (speed2 > 0.6) {
+    } else if (speed2 > STEP_SPEED) {
       // Which way is travel, relative to the body? Combat facing points the
       // chest at the camera while the feet go where the stick says, and the
       // forward run played for all of it — legs pumping forward through a
@@ -2401,13 +2499,20 @@ export class Player {
       let lowerClip: string = travel.clip;
       // a sprint is its own longer-reaching cycle, not the run spun faster
       if (lowerClip === 'runLower' && this.sprinting) lowerClip = 'sprintLower';
+      // and a walk its own cycle, not the run slowed down: the stick pushed
+      // lightly sets a walking pace (`stickSpeed`), and under it the feet walk
+      this.walking = lowerClip === 'runLower'
+        && speed2 < WALK_GAIT_MAX + (this.walking ? WALK_GAIT_MARGIN : -WALK_GAIT_MARGIN);
+      if (this.walking) lowerClip = 'walkLower';
       // the gait runs at whatever rate plants the feet at our actual ground
       // speed, so the stride pushes off instead of skating; the back-pedal
       // is its cycle played backward, a touch slower
-      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale) * (travel.dir < 0 ? 0.9 : 1);
+      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale, this.walking ? WALK_RATE_FLOOR : undefined)
+        * (travel.dir < 0 ? 0.9 : 1);
       anim.play('lower', lowerClip, 0.15, rate);
       this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
-      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper` : 'runUpper';
+      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper`
+        : this.walking ? 'walkUpper' : 'runUpper';
       if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
@@ -2618,6 +2723,11 @@ export class Player {
    * claw or a jaw — those neither parry nor are parried. Every saber is energy,
    * the darksaber included; Din's spear is beskar; the rest is steel.
    */
+  /** what a swing sounds like: a blade's hum, or the whoosh of anything else */
+  private get swingSound(): 'gaffi' | 'sabers' {
+    return this.meleeKind === 'sabers' && !this.meleeBare ? 'sabers' : 'gaffi';
+  }
+
   get meleeBlade(): Blade | null {
     if (this.meleeBare || UNARMED_MELEE.has(this.characterId)) return null;
     if (this.meleeKind === 'sabers') return 'energy';
@@ -2705,7 +2815,7 @@ export class Player {
     const close = this.swingClose;
     const bones = this.char.rig?.bones as Record<string, THREE.Object3D> | undefined;
     let n = this.meleeBare ? 0 : weaponSegments(weaponMounts(this.char), this.swingSegs);
-    if (n === 0) n = fistSegments(bones, this.swingSegs);
+    if (n === 0) n = fistSegments(bones, this.swingSegs, this.swingKick);
     if (n === 0) {
       if (before < this.swingHitAt && this.swingT >= this.swingHitAt) this.strikeByReach(game);
     } else if (this.swingT >= open && !this.swingDone) {
@@ -2763,7 +2873,10 @@ export class Player {
   /** damage and shove one body; the finisher is the haymaker */
   private landHit(e: Combatant, to: THREE.Vector3, game: Game): void {
     const wasAlive = e.alive;
-    e.damage(this.meleeDamage, this.position, this.slot);
+    // a gameplay section may rewrite the hit (Lights Out's silent takedown;
+    // sections/kit/detection.ts). Null outside a section: the usual damage.
+    const dmg = this.sectionMove?.meleeHit?.(this, e, this.meleeDamage, game) ?? this.meleeDamage;
+    e.damage(dmg, this.position, this.slot);
     // the finisher is the haymaker: it puts the target flat on the
     // ground (follow up while they're down and hits land double)
     const en = e as Partial<Enemy> & typeof e;
@@ -2789,7 +2902,7 @@ export class Player {
   private landedFeedback(game: Game): void {
     if (this.swingLanded) return;
     this.swingLanded = true;
-    audio.meleeHit(this.meleeBare ? 'gaffi' : this.meleeKind);
+    audio.meleeHit(this.swingSound);
     this.cam.shake(0.1);
     game.hitMarker(this.slot);
     // hit-stop: the attacker's animation hangs for a few frames on
@@ -2857,7 +2970,8 @@ export class Player {
     for (const v of game.vehicles) {
       // one with a hostile in the saddle is theirs until they are off it;
       // one a hostile is still running for is anyone's — get there first
-      if (!v.alive || v.rider || v.hostile) continue;
+      // K3: a ridden ride with its second seat empty takes a pillion
+      if (!v.alive || v.hostile || (v.rider && !v.pillionOpen)) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
@@ -2886,7 +3000,7 @@ export class Player {
    */
   handsToControls(v: Vehicle, gunUp: boolean): void {
     const rig = this.char.rig;
-    const hold = v.def.hands;
+    const hold = v.hands;
     if (!rig || !hold) return;
     // the world matrices the solve reads are the ones `syncVisual` just wrote
     this.char.root.updateMatrixWorld(true);
@@ -3139,8 +3253,10 @@ export class Player {
       this.meleeStep = this.meleeComboWindow > 0 ? (this.meleeStep % 3) + 1 : 1;
       // Both blades away means both hands empty: the same combo swings, but
       // as fists — shorter reach, less than half the damage, and no saber
-      // sound to sell a blade that isn't there.
-      const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
+      // sound to sell a blade that isn't there. A brawler's fists are their
+      // weapon: the same reach, at full weight.
+      const fists = this.meleeKind === 'fists';
+      const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
       this.meleeBare = bare;
       this.meleeRange = bare ? 1.8 : 3;
       // Use the weapon's keyed attack family; Din's single Darksaber keeps
@@ -3154,20 +3270,27 @@ export class Player {
       // the stance's grip out of a standing ready; a strike that starts in it
       // is the likelier draw.
       const inGrip = this.meleeComboWindow > 0 ? this.attackGrip : gripEnd(this.sabersDrawn ? this.stance : null);
-      const style = set === 'melee' ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
+      const style = set === 'melee' || fists ? null : pickStyleMove(this.characterId, this.meleeStep as 1 | 2 | 3, inGrip);
+      // A brawler draws each hit at random from that step's punches (the
+      // first two) or kicks (the finisher), at their own cadence; every one
+      // is thrown from the hips, so its legs always play.
+      const fist = fists ? pickUnarmed(this.meleeStep as UnarmedSlot) : null;
+      const pace = fist ? strikePace(this.characterId) : 1;
+      this.swingKick = !!fist?.kick;
       const variant: { upper: string; lower: string; hit: number; lowerAlways?: boolean } | null =
-        this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
-          : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
+        fist ? { upper: fist.upper, lower: fist.lower, hit: 0.45, lowerAlways: true }
+          : this.characterId === 'din' && set === 'melee' && Math.random() < 0.25 ? DIN_STAFF_VARIANTS[this.meleeStep - 1]
+            : style ? { upper: style.upper, lower: style.lower, hit: 0.45, lowerAlways: style.lowerAlways } : null;
       const clip = variant?.upper ?? `${set}${this.meleeStep}`;
       // creatures (the playable heavies) animate their own strike — their
       // Animator is a stub, so without the attack hook an X press showed
       // nothing at all
-      const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05) ?? 0.5;
+      const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', clip, 0.05, false, 1 / pace) ?? 0.5;
       this.meleeTimer = dur;
       this.meleeComboWindow = dur + 0.55;
       this.meleeHitPending = dur * (variant?.hit ?? 0.45);
       this.meleeDamage = (this.meleeStep === 3 ? this.profile.meleeFinisher : this.profile.meleeDamage)
-        * (bare ? 0.4 : 1);
+        * (bare && !fists ? 0.4 : 1);
       this.beginSwingContact(dur, this.meleeHitPending, game);
       // Melee draws: pressing swing with the blades away lights them on the
       // spot rather than costing a swap first, and they stay lit afterwards
@@ -3176,7 +3299,7 @@ export class Player {
       this.weapon = 'gaffi';
       this.saberIdle = 0;
       this.char.setWeapon('gaffi');
-      audio.melee(this.meleeStep, bare ? 'gaffi' : this.meleeKind);
+      audio.melee(this.meleeStep, this.swingSound);
       // lunge toward nearest enemy in front (fists don't carry as far)
       const target = this.nearestEnemy(game, bare ? 3.5 : 5.5, 0.4);
       if (target) {
@@ -3192,7 +3315,7 @@ export class Player {
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
       if (variant?.lowerAlways
         || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
-        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08);
+        this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08, false, 1 / pace);
       }
       this.flourished = false;
       // the fighter comes out of every attack free to settle into either ready,
@@ -3374,8 +3497,9 @@ export class Player {
   private heavyLunge(game: Game): void {
     this.rocketCd = 5;
     // both blades away: the leap still goes, but it lands as a body-check —
-    // bare-hand reach and bare-hand damage
-    const bare = this.meleeKind === 'sabers' && this.sabersHeld === 0;
+    // bare-hand reach and bare-hand damage. A brawler's leap lands a kick.
+    const fists = this.meleeKind === 'fists';
+    const bare = fists || (this.meleeKind === 'sabers' && this.sabersHeld === 0);
     this.meleeBare = bare;
     this.meleeRange = bare ? 1.8 : 3;
     const target = this.nearestEnemy(game, 14, 0.2);
@@ -3392,16 +3516,21 @@ export class Player {
     this.weapon = 'gaffi';
     this.char.setWeapon('gaffi');
     this.saberIdle = 0;
-    const dur = this.char.attack?.() ?? this.char.animator?.playOnce('upper', `${set}3`, 0.05) ?? 0.6;
+    const kick = fists ? pickUnarmed(3) : null;
+    const pace = kick ? strikePace(this.characterId) : 1;
+    this.swingKick = !!kick;
+    const dur = this.char.attack?.()
+      ?? this.char.animator?.playOnce('upper', kick?.upper ?? `${set}3`, 0.05, false, 1 / pace) ?? 0.6;
+    if (kick) this.char.animator?.playOnce('lower', kick.lower, 0.05, false, 1 / pace);
     this.meleeTimer = dur + 0.1;
     this.meleeComboWindow = dur + 0.55;
-    this.meleeHitPending = dur * 0.6;
-    this.meleeDamage = this.profile.meleeFinisher * (bare ? 0.4 : 1);
+    this.meleeHitPending = dur * (kick ? 0.45 : 0.6);
+    this.meleeDamage = this.profile.meleeFinisher * (bare && !fists ? 0.4 : 1);
     this.beginSwingContact(this.meleeTimer, this.meleeHitPending, game);
     this.lungeTarget = target;
     this.lungeSpeed = 16;
     this.flourished = false;
-    audio.melee(3, bare ? 'gaffi' : this.meleeKind);
+    audio.melee(3, this.swingSound);
     audio.dash();
     this.cam.shake(0.12);
     game.particles.dustPuff(this.position, 8);
@@ -3434,6 +3563,8 @@ export class Player {
 
   /** Best hostile near the aim direction (dot threshold), for soft-lock. */
   aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+    // a rail section's twin-stick aim widens the cone (see `aimCone`)
+    if (this.aimCone !== null) minDot = Math.min(minDot, this.aimCone);
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();

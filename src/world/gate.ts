@@ -68,24 +68,27 @@ export class Gate implements Barrier {
   /** the frame's own posts and head — solid for as long as the doorway stands */
   private frameSolids: StaticBox[] = [];
   private leaves: THREE.Mesh[] = [];
+  /** no frame, no leaves, no blocker: a doorway that is a hole (see `Portal`'s styles) */
+  private readonly hidden: boolean;
   private seam: THREE.Mesh;
   private half: THREE.Vector3;
   private entryDirection: { x: number; z: number };
   /** 0 = shut, 1 = fully retracted */
-  private t = 0;
+  protected t = 0;
   private want = 0;
   private travel: number;
   private leafW: number;
 
   constructor(private board: Board, parent: THREE.Object3D, pos: THREE.Vector3,
     dir: { x: number; z: number }, wallH: number, accent: number,
-    opts: { width?: number } = {}) {
+    opts: { width?: number; hidden?: boolean } = {}) {
     this.pos = pos.clone();
+    this.hidden = !!opts.hidden;
     this.entryDirection = { x: dir.x, z: dir.z };
     const gateW = opts.width ?? GATE_W;
     const yaw = Math.atan2(dir.x, dir.z);
     this.yaw = yaw;
-    this.frameSolids = buildDoorFrame(parent, pos.clone(), yaw,
+    this.frameSolids = this.hidden ? [] : buildDoorFrame(parent, pos.clone(), yaw,
       { leaf: false, physics: board.physics }).solids;
     // blocker half-extents: thin along the travel axis, spanning the gap
     const across = gateW / 2 + 0.5;
@@ -97,6 +100,7 @@ export class Gate implements Barrier {
     const hub = new THREE.Group();
     hub.position.copy(pos);
     hub.rotation.y = yaw;
+    hub.visible = !this.hidden;
     parent.add(hub);
     const leafW = gateW / 2;
     this.leafW = leafW;
@@ -187,6 +191,7 @@ export class Gate implements Barrier {
   }
 
   private block(on: boolean): void {
+    if (this.hidden) return;
     // A retracted leaf is meant to be walked through, and it has slid into the
     // wall to say so. Nothing in the game reads this; `tools/audit-collision`
     // does, because a leaf standing in its pocket with no blocker under it is

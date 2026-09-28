@@ -23,7 +23,10 @@ import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from
 import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
-import { reachArm } from '../anim/seating';
+import { reachArm, spreadKnees } from '../anim/seating';
+import { pickUnarmed } from '../anim/unarmed';
+import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
+import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import { TEXT } from '../text';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
 import {
@@ -75,14 +78,23 @@ const HIT_REACTS = new Set(['hitUpper', 'hitFromL', 'hitFromR']);
  * play when its strike is met second.
  */
 const ENEMY_BLADES: Partial<Record<EnemyKind, Blade>> = {
-  tusken: 'steel', pirateMelee: 'steel', alamite: 'steel', officer: 'steel',
+  tusken: 'steel', alamite: 'steel', officer: 'steel',
   rivalMaul: 'energy', rivalRevan: 'energy', rivalVentress: 'energy', rivalGalen: 'energy', rivalMaris: 'energy',
 };
 const ENEMY_PARRY_CLIPS: Partial<Record<EnemyKind, string>> = {
   rivalVentress: 'saberParryUpper', rivalGalen: 'saberParryUpper', rivalMaris: 'marisFlipOutUpper',
 };
-/** armed with nothing but their hands: struck with the fists, and no parry */
-const FIST_KINDS: ReadonlySet<EnemyKind> = new Set(['enforcer']);
+/**
+ * Armed with nothing but their hands: struck with the fists (and feet), and no
+ * parry. The enforcer and the pirate brawler are brawlers outright; the
+ * gunfighters shoot, but anyone who walks up on them gets a fist or a boot.
+ */
+const FIST_KINDS = FIST_ENEMIES as ReadonlySet<EnemyKind>;
+/** the gunfighters among them, and how close and how often they brawl */
+const BRAWLERS: ReadonlySet<EnemyKind> = new Set(['fennec', 'marshal', 'gunslinger']);
+const BRAWL_RANGE = 1.6;
+const BRAWL_CD = 1.8;
+const BRAWL_DAMAGE = 15;
 /** how long past the wind-up a swing can still connect */
 const STRIKE_FOLLOW = 0.16;
 /** the forgiveness on a hostile's blade, as on the player's */
@@ -668,6 +680,11 @@ export class Enemy {
   private windupStartedAt = 0;
   /** seconds of follow-through after the wind-up in which the weapon can still connect */
   private strikeFollow = 0;
+  /** the strike in hand is a kick: its contact sweeps the legs as well as the fists */
+  private strikeKick = false;
+  /** what the strike in hand deals: the kind's own blow, or a gunfighter's fist */
+  private strikeDamage = 0;
+  private brawlCd = 0;
   private strikeSegs: Segment[] = [];
   private strikePrev: Segment[] = [];
   private strikePrevN = 0;
@@ -690,6 +707,13 @@ export class Enemy {
   private strafePhase = Math.random() * Math.PI * 2;
   /** public because src/enemies/arrival.ts steers an arriving body by it */
   facingYaw = 0;
+  /**
+   * A gameplay section's own brain for this one body (K9: a krykna shying
+   * from a helmet lamp, docs/SECTIONS_IMPLEMENTATION.md §3). Runs at the top
+   * of the steering; returning true means it set the velocity and facing
+   * itself this frame. Null everywhere outside a section.
+   */
+  sectionSteer: ((e: Enemy, dt: number, game: Game, target: Combatant | null) => boolean) | null = null;
   spawnPos = new THREE.Vector3();
   // ---- ragdoll & corpse ----
   /**
@@ -724,6 +748,15 @@ export class Enemy {
   ride: Vehicle | null = null;
   /** the ride this one is running for, claimed but not yet reached */
   boarding: Vehicle | null = null;
+
+  /**
+   * A stealth section's sight rules (Lights Out, K6 in
+   * sections/kit/detection.ts), set while it stands and cleared on teardown:
+   * `scale` multiplies how far a hostile sees, and `behind` is how close
+   * behind it a body must come to be noticed (the game's usual is 8 m), so a
+   * silent takedown can be walked up to. Null everywhere else.
+   */
+  static stealthSight: { scale: number; behind: number } | null = null;
 
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
@@ -781,6 +814,21 @@ export class Enemy {
   private coverRetry = Math.random() * 0.8;
   private coverCheck = 0;
   private peekFired = false;
+
+  // ---- a gameplay section's hand on this body (K8 pursuit) ----
+  /**
+   * Null everywhere outside a section. `drive` moves the body itself this
+   * frame and returns the pose to hold ('ground' runs the locomotion cycle,
+   * 'air' the flight pose, 'still' leaves whatever the section played on the
+   * animator) — the AI is skipped, the timers, pose and visuals
+   * still run; returning false hands the frame back to the AI. `hurt` sees
+   * every hit first and returns the damage that lands (0 for a hit it turns
+   * into something else, a stagger or a cost). src/sections/kit/pursuit.ts.
+   */
+  scripted: {
+    drive?: (e: Enemy, dt: number, game: Game) => 'ground' | 'air' | 'still' | false;
+    hurt?: (amount: number, from: THREE.Vector3, bySlot: number) => number;
+  } | null = null;
 
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
@@ -1111,6 +1159,11 @@ export class Enemy {
 
   damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
+    // a section's scripted body decides what a hit does to it (K8 pursuit)
+    if (this.scripted?.hurt) {
+      amount = this.scripted.hurt(amount, from, bySlot);
+      if (amount <= 0) { this.hitFlash = 0.15; if (bySlot >= 0) this.lastHitBy = bySlot; return; }
+    }
     // under the ground nothing lands — the whole lesson of the burrower is
     // that it has to be hurt while it is up
     if (this.submerged) { this.alert(from, true); return; }
@@ -1335,7 +1388,10 @@ export class Enemy {
     for (const e of game.enemies) if (e !== this) foes.push(e);
     for (const f of foes) {
       if (!f.alive || f.team === this.team) continue;
-      const d = f.position.distanceToSquared(this.position);
+      let d = f.position.distanceToSquared(this.position);
+      // K5 (sections/kit/objective.ts): a defended ally reads as nearer than it is
+      const w = (f as { targetWeight?: number }).targetWeight;
+      if (w) d /= w * w;
       if (d < bestD) { bestD = d; best = f; }
     }
     return best;
@@ -1435,6 +1491,19 @@ export class Enemy {
 
     if (this.arrival) {
       updateArrival(this, dt, game);
+      return;
+    }
+
+    // a section is driving this body (K8 pursuit): no AI, but the pose and visuals run
+    const scriptPose = this.scripted?.drive?.(this, dt, game);
+    if (scriptPose) {
+      this.tickTimers(dt);
+      if (anim && scriptPose === 'air') {
+        anim.play('lower', 'flyLower', 0.2);
+        anim.play('upper', 'idleUpper', 0.25);
+      } else if (anim && scriptPose === 'ground') this.updateLocomotionAnim(anim);
+      this.syncVisual(dt, game);
+      anim?.update(dt);
       return;
     }
 
@@ -1560,7 +1629,7 @@ export class Enemy {
     v.driveHostile(dt, steer, pedal, boost, charge, game);
     if (!this.ride) return;   // thrown clear inside the drive
     // carried: the body sits the seat and moves with the hull
-    v.seatWorld(this.position);
+    v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
     this.velocity.copy(v.vel);
     this.grounded = true;
     this.facingYaw = v.yaw;
@@ -1574,13 +1643,14 @@ export class Enemy {
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
+    if (v.legSpread !== null && this.char.rig) spreadKnees(this.char.rig, v.legSpread);
     this.handsToGrips(v);
   }
 
   /** both hands to the ride's grips, or the rein hand on a mount — the player's own solve */
   private handsToGrips(v: Vehicle): void {
     const rig = this.char.rig;
-    const hold = v.def.hands;
+    const hold = v.hands;
     if (!rig || !hold) return;
     this.char.root.updateMatrixWorld(true);
     const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);
@@ -1759,6 +1829,8 @@ export class Enemy {
   /** the AI proper: what this body does with the frame, by state and by style */
   private steer(dt: number, game: Game, target: Combatant | null): void {
     const d = this.def;
+    // a section's brain for this body (see `sectionSteer`) — never over a stagger
+    if (this.stagger <= 0 && this.sectionSteer?.(this, dt, game, target)) return;
     if (this.stagger > 0) {
       // reeling from a hit: coast on the impulse, just bleed it off slowly
       this.stagger -= dt;
@@ -2043,7 +2115,7 @@ export class Enemy {
     // sight range scales with the light falling on the *target*: on a board
     // with a moving terminator the night side is genuinely safer to cross
     const lit = game.board.lightAt ? 0.45 + 0.55 * game.board.lightAt(foe.position.x, foe.position.z) : 1;
-    let notice = d.notice * lit;
+    let notice = d.notice * lit * (Enemy.stealthSight?.scale ?? 1);
     // a submerged target is a shadow under the chop: near-invisible from
     // above, which is what makes the water a stealth route
     const wY = game.board.waterY;
@@ -2052,7 +2124,8 @@ export class Enemy {
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
     // ahead: full range; peripheral: about half; behind: only right on top of them
-    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : 8;
+    // (a stealth section tightens "on top of them" — see `Enemy.stealthSight`)
+    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : (Enemy.stealthSight?.behind ?? 8);
     if (dist > range) { this.sightMemo = false; return false; }
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.2 + (this.id % 5) * 0.03;
@@ -2712,7 +2785,7 @@ export class Enemy {
     const d = this.def;
     const t = this.windupTarget!;
     const n = this.meleeBlade ? weaponSegments(weaponMounts(this.char), this.strikeSegs)
-      : FIST_KINDS.has(this.kind) ? fistSegments(this.char.rig?.bones as Record<string, THREE.Object3D> | undefined, this.strikeSegs)
+      : FIST_KINDS.has(this.kind) ? fistSegments(this.char.rig?.bones as Record<string, THREE.Object3D> | undefined, this.strikeSegs, this.strikeKick)
       : 0;
     if (n === 0) {
       if (!windupEnded) return;
@@ -2760,7 +2833,7 @@ export class Enemy {
     this.attackCd = this.def.attackCd;
     if (clash.kind === 'sheared') { game.meleeShear(this, t, at); return; }
     if (clash.kind === 'cut') game.bladeCut(at);
-    t.damage(this.def.damage * this.dmgScale, this.position, -1, { heavy: true });
+    t.damage((this.strikeDamage || this.def.damage) * this.dmgScale, this.position, -1, { heavy: true });
     this.contactStop();
   }
 
@@ -2873,9 +2946,13 @@ export class Enemy {
     } else {
       this.velocity.x = damp(this.velocity.x, 0, 10, dt);
       this.velocity.z = damp(this.velocity.z, 0, 10, dt);
-      if (this.attackCd <= 0) {
+      if (this.attackCd <= 0 && FIST_KINDS.has(this.kind) && !this.char.attack) {
+        this.throwFist(target, game, d.damage);
+      } else if (this.attackCd <= 0) {
         this.windup = 0.55;
         this.windupTarget = target;
+        this.strikeKick = false;
+        this.strikeDamage = d.damage;
         // creatures animate their own strike (attack hook); rigged humanoids
         // play the overhead swing. The damage lands when the wind-up expires,
         // so time it near the clip's strike frame (~55% in) rather than its tail.
@@ -2886,6 +2963,50 @@ export class Enemy {
         this.strikePrevN = 0;
       }
     }
+  }
+
+  /**
+   * A bare-handed strike: any of the punches and kicks (`anim/unarmed.ts`), at
+   * this fighter's cadence. Its contact key sits at 45% of the clip, so the
+   * wind-up runs to there and the fists — and the feet, for a kick — are swept
+   * through its last stretch, as a weapon's meshes are.
+   */
+  private throwFist(target: Combatant, game: Game, damage: number): void {
+    const move = pickUnarmed();
+    const rate = 1 / strikePace(this.kind);
+    const anim = this.char.animator;
+    const dur = anim?.playOnce('upper', move.upper, 0.06, false, rate) || 0.8;
+    anim?.playOnce('lower', move.lower, 0.06, false, rate);
+    this.windup = Math.max(0.2, dur * 0.45);
+    this.windupTarget = target;
+    this.windupTotal = this.windup;
+    this.windupStartedAt = game.time;
+    this.strikePrevN = 0;
+    this.strikeKick = move.kick;
+    this.strikeDamage = damage;
+  }
+
+  /**
+   * A gunfighter with a body up against them: a fist or a boot before the
+   * gun. Runs ahead of cover and the volley, and holds them while it plays.
+   * True while it has the fighter's attention this frame.
+   */
+  private updateBrawl(dt: number, game: Game, target: Combatant, dist: number): boolean {
+    this.brawlCd -= dt;
+    if (this.windup > 0 || this.strikeFollow > 0) {
+      const wasWinding = this.windup > 0;
+      if (wasWinding) this.windup -= dt;
+      else this.strikeFollow -= dt;
+      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
+      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      if (this.windupTarget) this.updateStrike(game, wasWinding && this.windup <= 0);
+      return true;
+    }
+    if (dist > BRAWL_RANGE || this.brawlCd > 0 || !target.alive || !this.char.animator) return false;
+    this.brawlCd = BRAWL_CD;
+    this.faceToward(1, target.position.x, target.position.z, 30);
+    this.throwFist(target, game, BRAWL_DAMAGE);
+    return true;
   }
 
   /**
@@ -3018,6 +3139,7 @@ export class Enemy {
     to.y = 0;
     const dist = to.length();
     this.faceToward(dt, target.position.x, target.position.z, 7);
+    if (BRAWLERS.has(this.kind) && this.updateBrawl(dt, game, target, dist)) return;
 
     // ---- cover first: a shooter with a crate to fight from uses it ----
     // Everyone works the boxes — settle behind one, peek out, fire, duck

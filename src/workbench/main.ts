@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { CharacterInstance } from '../characters/builder';
-import { loadOptionalTexture } from '../core/assets';
+import { loadOptionalTexture, showFullResolution } from '../core/assets';
 import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './poses';
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
@@ -12,14 +12,17 @@ import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
 import { setClipCaching } from '../anim/clips';
-import { SkinPanel } from './skinPanel';
 import { ATTACK_ALTERNATES, combatStudyClips, combatStyle, type Alternate } from './combatStudies';
 import { styleStudyAlternates, styleStudyClips } from './styleStudies';
 import { styleMoves } from '../characters/styleClips';
 import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
+import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
+import { FIST_ENEMIES } from '../characters/combatStyle';
+import { clench } from '../characters/fistRig';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
+import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
@@ -33,8 +36,9 @@ setClipCaching(false);
  *
  * A turntable for the cast: pick a character, run any clip the game plays on
  * them, and stand the authored model next to the procedural build it replaces.
- * It shares the game's rig, clips and animator. Attack alternates and unarmed
- * motions are isolated workbench studies; None shows the exact game attack.
+ * It shares the game's rig, clips and animator. Attack and run alternates are
+ * workbench studies until approved (the unarmed moves are in play for the
+ * fighters who fight bare-handed); None shows the exact game attack.
  */
 
 type Mode = 'authored' | 'procedural' | 'both';
@@ -143,20 +147,63 @@ scene.add(ruler);
 const turntable = new THREE.Group();
 scene.add(turntable);
 let figures: Figure[] = [];
-let skeletons: THREE.SkeletonHelper[] = [];
 
 const initialParams = new URLSearchParams(location.search);
+// before anything is built: which files a character is read from
+if (initialParams.get('res') === 'full') showFullResolution();
 let subject: Subject = findSubject(initialParams.get('character') ?? 'din');
 let pose: Pose = findPose(initialParams.get('pose') ?? 'idle');
 let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('mode') === 'procedural'
   ? initialParams.get('mode') as Mode : 'both';
-let spin = false;
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
-let showSkeleton = false;
+/** whether the folded panel sections are open — both start closed */
+const folds = { shoulders: false, details: false };
 let showGrid = true;
+/** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
+let fists = initialParams.get('fists') === '1';
 let editing = false;
 let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
+/**
+ * What a rotation edit changes: the whole clip, as one offset measured at its
+ * first key, or one moment of it — a key at the scrubbed time, which the clip
+ * eases into from the key before and out of to the key after.
+ */
+let editAt: 'clip' | 'moment' = 'clip';
+/** moments are scrubbed to while editing, so the slider stays live for them */
+const scrubbingEdits = (): boolean => editing && editKind === 'rotate' && editAt === 'moment';
+
+/**
+ * The times the pose's clips hold a key, where a moment is edited: the slider
+ * runs freely while it is dragged and settles on the nearest of these when it
+ * is let go, so an edit always changes a key the clip already has.
+ */
+function keyTimes(): number[] {
+  const anim = figures.find((f) => f.inst.animator)?.inst.animator;
+  const clips = activeClips();
+  const times = new Set<number>();
+  for (const name of [clips.lower, clips.upper]) {
+    const clip = name ? anim?.clips[name] : undefined;
+    for (const track of clip?.tracks ?? []) for (const t of track.times) times.add(Math.round(t * 1000) / 1000);
+  }
+  const sorted = [...times].sort((a, b) => a - b);
+  // the last key is the loop's wrap back to the first: nothing to edit there
+  const end = animationDuration();
+  return sorted.length > 1 && Math.abs(sorted[sorted.length - 1] - end) < 1e-3 ? sorted.slice(0, -1) : sorted;
+}
+/** the key nearest the current time, by index */
+function keyIndex(keys: number[]): number {
+  let best = 0;
+  keys.forEach((t, i) => { if (Math.abs(t - animationTime) < Math.abs(keys[best] - animationTime)) best = i; });
+  return best;
+}
+const timeLabel = (): string => {
+  const plain = `${animationTime.toFixed(2)} / ${animationDuration().toFixed(2)} s`;
+  if (!scrubbingEdits()) return plain;
+  const keys = keyTimes();
+  const i = keyIndex(keys);
+  return Math.abs(keys[i] - animationTime) < 1e-3 ? `key ${i + 1} of ${keys.length} · ${plain}` : plain;
+};
 let positionAwaiting = false;
 let weaponAwaiting = false;
 let weaponSample = 0;
@@ -164,6 +211,12 @@ let animationSpeed = 1;
 let paused = false;
 let animationTime = 0;
 let offhandStrength = 0.5;
+/**
+ * How deep each landing folds, metres of hip drop — the slider on the two
+ * landing poses rebuilds the clip at this depth (feet stay planted at any of
+ * them), so a depth can be tried here before it is baked into LAND_DEPTH.
+ */
+const landDepth = { ...LAND_DEPTH };
 let alternateChoice = initialParams.get('alternate') ?? 'none';
 /** weapon picks per character and slot — see `weaponChoice.ts` */
 const weaponChoices = new WeaponChoices();
@@ -176,23 +229,23 @@ function alternatesFor(p: Pose): Alternate[] {
   };
   // A fighter with approved moves of their own no longer carries the generic
   // saber studies; their approved moves are offered in their place.
-  const own = styleMoves(subject.id);
-  const generic = subject.id === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
-    : own.length && subject.id !== 'ventress' ? [] : ATTACK_ALTERNATES[p.id] ?? [];
+  const own = styleMoves(cid());
+  const generic = cid() === 'din' && dinSingleSaber[p.id] ? dinSingleSaber[p.id]
+    : own.length && cid() !== 'ventress' && p.id.startsWith('saber') ? [] : ATTACK_ALTERNATES[p.id] ?? [];
   const approved: Alternate[] = own
     .filter((m) => (m.slot === 'flourish' ? 'flourish' : m.slot === 'idle' ? 'saberIdle' : `saber${m.slot}`) === p.id)
     .map((m) => ({ id: m.id, name: m.name, lower: m.lower, upper: m.upper, reference: 'saber' }));
-  const choices = [...generic, ...approved, ...styleStudyAlternates(subject.id, p.id)];
+  const choices = [...generic, ...approved, ...styleStudyAlternates(cid(), p.id)];
   return choices.filter((alt) => figures.length > 0
     && figures.every((f) => !!f.inst.animator?.clips[alt.lower] && !!f.inst.animator?.clips[alt.upper]));
 }
 function activeClips(): { lower: string | null; upper: string | null } {
   const selected = alternatesFor(pose).find((alt) => alt.id === alternateChoice) ?? pose;
   let upper = selected.upper;
-  if (subject.id === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
+  if (cid() === 'duelist' && upper === 'aimUpper') upper = 'dualPistolAimUpper';
   // the saber poses are the generic saber's; a fighter whose blade has clips
   // of its own (the Darksaber, the tonfas, the double saber) plays those
-  const { attack, stance } = saberClipsFor(subject.id);
+  const { attack, stance } = saberClipsFor(cid());
   if (alternateChoice === 'none' && (attack !== 'saber' || stance !== 'saber')) {
     const weaponClips: Record<string, string> = {
       saber1: `${attack}1`, saber2: `${attack}2`, saber3: `${attack}3`,
@@ -218,20 +271,18 @@ const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
 const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
-/** the skinning review: fix toggles, weight paint, and the pose that exercises every chain */
-const skinHost = document.createElement('div');
-const skin = new SkinPanel(skinHost, () => { if (skin.holding) { spin = false; turntable.rotation.y = 0; } });
+/** seat and hand anchors on the rides, and the Nikto's seat on his swoop — see vehicleAnchorEdit.ts */
+const vehicleEditor = new VehicleAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 
 function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
   weaponEditor.setPose('', '', null);
+  vehicleEditor.setTarget(null);
   for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
-  for (const s of skeletons) scene.remove(s);
   for (const f of figures) f.card?.remove();
   figures = [];
-  skeletons = [];
 }
 
 /**
@@ -241,25 +292,32 @@ function disposeFigures(): void {
  * twice would stand the same sculpt beside itself under two different labels.
  */
 const isProp = (s: Subject): boolean => s.build.length === 0;
+/** the character the subject plays as — itself, or the one a variant file stands in for */
+const cid = (): string => subject.character ?? subject.id;
 
 function spawn(): void {
   disposeFigures();
-  const wants: Array<[boolean, string]> = isProp(subject)
+  // A variant (the re-rigged Din) compares against the character it stands in
+  // for — the original file on the left — rather than against the procedural body.
+  const original = subject.character ? findSubject(subject.character) : null;
+  const wants: Array<[boolean, string, Subject?]> = isProp(subject)
     ? [[true, 'Authored model']]
-    : subject.hasModel && mode === 'both'
-      ? [[true, 'Authored model'], [false, 'Procedural']]
-      : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
+    : original && mode === 'both'
+      ? [[true, 'Original rig', original], [true, 'Re-rigged']]
+      : subject.hasModel && mode === 'both'
+        ? [[true, 'Authored model'], [false, 'Procedural']]
+        : [[mode !== 'procedural' && subject.hasModel, mode === 'procedural' || !subject.hasModel ? 'Procedural' : 'Authored model']];
 
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
-  figures = wants.map(([authored, label], i) => {
-    const inst = subject.build(authored) as CharacterInstance & Figure['extras'];
+  figures = wants.map(([authored, label, from], i) => {
+    const inst = (from ?? subject).build(authored) as CharacterInstance & Figure['extras'];
     if (inst.animator && inst.rig) {
-      const mando = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
-      const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(subject.id);
-      Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, subject.id, {
+      const mando = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
+      const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(cid());
+      Object.assign(inst.animator.clips, combatStudyClips(inst.rig.proportions, cid(), {
         staff, sabers: mando.includes('sabers'),
       }));
-      Object.assign(inst.animator.clips, styleStudyClips(subject.id, inst.rig.proportions));
+      Object.assign(inst.animator.clips, styleStudyClips(cid(), inst.rig.proportions));
       for (const clip of Object.values(inst.animator.clips)) {
         if (!hasCounterweight(clip.name)) continue;
         for (const strength of [0, 0.25, 0.5, 0.75, 1, 1.25]) {
@@ -278,23 +336,17 @@ function spawn(): void {
     const rest = Object.values(inst.rig?.bones ?? {}).map((bone) => ({
       bone, quaternion: bone.quaternion.clone(), position: bone.position.clone(),
     }));
-    const loadout = isProp(subject) ? null : loadoutFor(subject.id, inst);
+    const loadout = isProp(subject) ? null : loadoutFor(cid(), inst);
     return {
       inst, extras: inst, rest,
       weapons: loadout && inst.rig ? new FigureWeapons(inst.root, inst.rig.bones, loadout) : null,
-      waitingFor: authored ? modelUrl(subject.modelFile ?? subject.id) : null,
+      waitingFor: authored ? modelUrl((from ?? subject).modelFile ?? (from ?? subject).id) : null,
       card: null,
       label: sides[i] ? `${sides[i]} — ${label}` : label,
     };
   });
   showLoading();
 
-  for (const f of figures) {
-    const helper = new THREE.SkeletonHelper(f.inst.root);
-    helper.visible = showSkeleton;
-    skeletons.push(helper);
-    scene.add(helper);
-  }
   // a fresh character arrives with pristine clips: record them, then put the
   // session's edits back so what is on the turntable never loses them
   for (const f of figures) {
@@ -308,17 +360,13 @@ function spawn(): void {
   available();
   renderPanel();
   applyPose();
+  // a new figure gets the game's landings: carry over a depth being tried
+  if (landDepth.soft !== LAND_DEPTH.soft || landDepth.hard !== LAND_DEPTH.hard) rebuildLandings();
   editor.setTargets(figures
     .filter((f) => f.inst.rig)
     .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
   if (editing && editKind === 'position') refreshPositionPose();
   if (editing && editKind === 'weapon') refreshWeaponPose();
-  skin.setSubject(
-    subject.hasModel && !isProp(subject) && mode !== 'procedural' ? (subject.modelFile ?? subject.id) : null,
-    figures.filter((f) => f.waitingFor).map((f) => ({
-      root: f.inst.root, bones: (f.inst.rig?.bones as Record<string, THREE.Object3D> | undefined) ?? null, rest: f.rest,
-    })),
-  );
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
@@ -341,7 +389,7 @@ function frameSubject(): void {
   const box = new THREE.Box3();
   for (const f of figures) {
     f.inst.root.updateWorldMatrix(true, true);
-    if (subject.id === 'boba_fett') {
+    if (cid() === 'boba_fett') {
       // The imported FBX mesh boxes are in bind space. Frame its evaluated
       // standing dimensions rather than sending the camera toward those boxes.
       box.expandByPoint(f.inst.root.localToWorld(new THREE.Vector3(-0.65, 0, -0.65)));
@@ -378,19 +426,42 @@ function capabilities(): PoseCapabilities[] {
   }));
 }
 
+/** fighters with a blade in each hand (mandalorians.ts builds the off-hand saber for these) */
+const TWIN_BLADES: ReadonlySet<string> = new Set(['ventress', 'jedi', 'maris']);
+
 /** The poses this turntable can actually play, with the current pick kept valid. */
 function available(): Pose[] {
-  const kinds = subject.id in MANDO_ROSTER ? meleeKinds(subject.id as MandoId) : [];
+  const kinds = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
   const playerAttack = new Set(['melee1', 'melee2', 'melee3']);
   const saberAttack = new Set(['saber1', 'saber2', 'saber3', 'saberIdle', 'saberRun', 'flourish']);
   const list = posesFor(capabilities()).filter((p) => {
     if (playerAttack.has(p.id)) return kinds.includes('gaffi');
     if (saberAttack.has(p.id)) return kinds.includes('sabers');
+    // Only the twin-blade fighters parry with the off hand (player.ts
+    // PARRY_CLIPS), and only they have a left-hand blade to throw and catch.
+    if (p.id === 'parry') return cid() === 'ventress' || cid() === 'jedi';
+    if (p.id === 'throwL' || p.id === 'catchL') return TWIN_BLADES.has(cid());
+    if (p.id === 'throwR' || p.id === 'catchR') return kinds.includes('sabers');
     if (p.id === 'enemySwing') return kinds.length === 0 && !!figures[0]?.inst.animator;
     return true;
   });
   if (!list.some((p) => p.id === pose.id)) pose = list.find((p) => p.id === 'idle') ?? list[0];
   return list;
+}
+
+/** which landing depth the current pose previews, if it is a landing */
+function landSlot(): 'soft' | 'hard' | null {
+  return pose.id === 'land' ? 'soft' : pose.id === 'landHard' ? 'hard' : null;
+}
+
+/** rebuild every figure's landings at the slider's depths */
+function rebuildLandings(): void {
+  for (const f of figures) {
+    const anim = f.inst.animator;
+    if (!anim || !f.inst.rig) continue;
+    Object.assign(anim.clips, landingClips(f.inst.rig.proportions, landDepth));
+    anim.invalidate();
+  }
 }
 
 function applyPose(): void {
@@ -424,7 +495,7 @@ function applyPose(): void {
     if (pose.melee && f.extras.setMeleeKind) {
       f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
     }
-    const armorerIdle = subject.id === 'armorer' && pose.id === 'idle';
+    const armorerIdle = cid() === 'armorer' && pose.id === 'idle';
     f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
     setWeaponVisibility(f, !pose.unarmed);
     f.extras.setBlock?.(pose.block ? 1 : 0);
@@ -432,7 +503,7 @@ function applyPose(): void {
     // way the game would, then put the slot's pick (if any) in that hand.
     const held = heldWeapon();
     if (held.hand && held.hand !== held.gameHand) f.extras.setWeapon?.(held.hand === 'melee' ? 'gaffi' : 'blaster');
-    f.weapons?.show(held.hand, held.hand ? weaponChoices.get(subject.id, held.hand) : null);
+    f.weapons?.show(held.hand, held.hand ? weaponChoices.get(cid(), held.hand) : null);
     f.inst.cosmetic?.(0, time);
     f.weapons?.frame(time);
   }
@@ -453,8 +524,8 @@ function heldWeapon(): { loadout: Loadout | null; slots: WeaponSlot[]; hand: Wea
   if (!slots.length) return { loadout, slots, hand: null, gameHand: null };
   // the Armorer shows her axe at idle, as the character-select screen does
   const gameHand: WeaponSlot = kind !== 'either' ? kind
-    : subject.id === 'armorer' && pose.id === 'idle' ? 'melee' : loadout.hand;
-  const asked = weaponHand.get(subject.id);
+    : cid() === 'armorer' && pose.id === 'idle' ? 'melee' : loadout.hand;
+  const asked = weaponHand.get(cid());
   const hand = kind === 'either' && asked && slots.includes(asked) ? asked
     : slots.includes(gameHand) ? gameHand : slots[0];
   return { loadout, slots, hand, gameHand };
@@ -500,10 +571,12 @@ function setWeaponVisibility(f: Figure, visible: boolean): void {
  * Hold the pose still so it can be edited: rewind both channels to their first
  * keyframe, write that frame onto the bones, then stop advancing the mixer (the
  * frame loop skips `animator.update` while editing). Frame 0 is the honest
- * thing to edit against — a clip sampled mid-cycle would export numbers that
- * match no keyframe in `clips.ts`.
+ * thing to edit the whole clip against — a clip sampled mid-cycle would export
+ * numbers that match no keyframe in `clips.ts`. A moment is edited where it
+ * is, at the scrubbed time.
  */
 function freezePose(): void {
+  const at = scrubbingEdits() ? animationTime : 0;
   for (const f of figures) {
     const anim = f.inst.animator;
     if (!anim) continue;
@@ -512,7 +585,7 @@ function freezePose(): void {
       if (!name) continue;
       const clip = anim.clips[name];
       const action = clip && anim.mixer.existingAction(clip);
-      if (action) action.time = 0;
+      if (action) action.time = Math.min(at, Math.max(0, clip.duration - 1e-4));
     }
     anim.update(0);
   }
@@ -537,13 +610,14 @@ function sampleWeaponPose(): void {
 }
 
 function enterEdit(): void {
+  // a pose scrubbed to while paused is where a moment gets edited
+  if (!paused) animationTime = 0;
   editing = true;
-  spin = false;
-  turntable.rotation.y = 0;
   freezePose();
   editor.setEnabled(editKind === 'rotate');
   positionEditor.setEnabled(editKind === 'position');
   weaponEditor.setEnabled(editKind === 'weapon');
+  vehicleEditor.setEnabled(editKind === 'weapon');
   if (editKind === 'position') refreshPositionPose();
   if (editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
 }
@@ -555,6 +629,7 @@ function leaveEdit(): void {
   positionEditor.setEnabled(false);
   weaponEditor.restore();
   weaponEditor.setEnabled(false);
+  vehicleEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
@@ -582,12 +657,15 @@ function refreshWeaponPose(): void {
   if (!figure) {
     weaponAwaiting = !!figures.find((f) => f.waitingFor);
     weaponEditor.setPose(subject.id, poseKey, null);
+    vehicleEditor.setTarget(null);
     return;
   }
   weaponAwaiting = false;
   figure.inst.cosmetic?.(0, time);
   figure.weapons?.frame(time);
   weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
+  vehicleEditor.setTarget(VehicleAnchorEditor.handles(figure.inst.root) ? figure.inst.root : null);
+  vehicleEditor.setEnabled(true);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -611,16 +689,28 @@ function clipFor(bone: string): string | null {
 
 /**
  * Record the rotation the editor just made: the difference between the bone now
- * and the clip's original first key, stored against that clip.
+ * and the clip's original first key, stored against that clip — or, editing a
+ * moment, the difference from what the clip plays at the scrubbed time.
  */
 function commitBone(bone: string): void {
   const clip = clipFor(bone);
   const rig = figures.find((f) => f.inst.rig)?.inst.rig;
   const joint = rig?.bones[bone as keyof typeof rig.bones];
   if (!clip || !joint) { renderEditPanel(); return; }
-  edits.set(clip, bone, eulerSub(eulerOf(joint.quaternion), edits.baseOf(clip, bone)) as Euler3);
+  if (scrubbingEdits()) {
+    // onto the clip's own key when the scrub sits within half a frame of one,
+    // and the pose held there, so the frame shown is the frame changed
+    const at = edits.snap(clip, bone, momentTime());
+    animationTime = at;
+    edits.set(clip, bone, eulerSub(eulerOf(joint.quaternion), edits.baseAt(clip, bone, at)) as Euler3, at);
+  } else {
+    edits.set(clip, bone, eulerSub(eulerOf(joint.quaternion), edits.baseOf(clip, bone)) as Euler3);
+  }
   refreshEdits();
 }
+
+/** the scrubbed time a moment is keyed at: whole milliseconds, as the ledger stores it */
+const momentTime = (): number => Math.round(animationTime * 1000) / 1000;
 
 /**
  * Push the ledger into the clips and put the figures back in the frozen pose.
@@ -637,7 +727,10 @@ function refreshEdits(): void {
     if (edits.apply(f.inst.animator.clips)) f.inst.animator.invalidate();
     else f.inst.animator.noteClipEdit();
   }
+  // `applyPose` rewinds the clock; a moment being edited is held where it is
+  const at = animationTime;
   applyPose();
+  if (scrubbingEdits()) animationTime = at;
   if (editing) freezePose();
   renderEditPanel();
 }
@@ -667,9 +760,15 @@ function option(value: string, label: string, selected: boolean, dim = false): s
  */
 const DIN_LIVE_ALTERNATE: Record<string, string> = { melee1: 'spearTest2', melee2: 'staffRise', melee3: 'staffDiagonal' };
 function altUsedInGame(alt: Alternate, poseId: string): boolean {
-  return (subject.id === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id)
-    || styleMoves(subject.id).some((m) => m.id === alt.id);
+  return (cid() === 'din' && DIN_LIVE_ALTERNATE[poseId] === alt.id)
+    || styleMoves(cid()).some((m) => m.id === alt.id)
+    || (alt.reference === 'unarmed' && fightsUnarmed(cid()));
 }
+/** this fighter throws the unarmed moves in play: a hero with fists, or a bare-handed hostile */
+const fightsUnarmed = (id: string): boolean =>
+  (id in MANDO_ROSTER && meleeKinds(id as MandoId).includes('fists')) || FIST_ENEMIES.has(id);
+/** a pose the game plays on this fighter, rather than one only previewed here */
+const inGame = (p: Pose): boolean => !p.previewOnly || (!!p.unarmed && fightsUnarmed(cid()));
 /** a pose still has alternates waiting on a decision */
 const hasOpenAlternates = (p: Pose): boolean => alternatesFor(p).some((alt) => !altUsedInGame(alt, p.id));
 
@@ -681,11 +780,12 @@ function syncSelectionUrl(): void {
   url.searchParams.set('mode', mode);
   if (alternateChoice === 'none') url.searchParams.delete('alternate');
   else url.searchParams.set('alternate', alternateChoice);
+  if (fists) url.searchParams.set('fists', '1'); else url.searchParams.delete('fists');
   history.replaceState(null, '', url);
 }
 
 function renderPanel(): void {
-  const shoulderAsset = subject.modelFile ?? subject.id;
+  const shoulderAsset = subject.character ?? subject.modelFile ?? subject.id;
   const shoulderSpacing = shoulderSpacingFor(shoulderAsset);
   const characterOptions = GROUPS
     .map((g) => `<optgroup label="${g.label}">`
@@ -699,14 +799,20 @@ function renderPanel(): void {
     flourish: 'Darksaber flourish', saber1: 'Darksaber 1 — right cut',
     saber2: 'Darksaber 2 — backswing', saber3: 'Darksaber 3 — overhead',
   };
-  const gameOptions = list.filter((p) => !p.previewOnly).map((p) =>
-    option(p.id, `${subject.id === 'din' ? (dinSaberLabels[p.id] ?? p.name) : p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
-  const previewOptions = list.filter((p) => p.previewOnly && p.id !== 'rest').map((p) =>
+  // a ride's "gait" is its speed, and the swoop rider's attack is a ram
+  const rideLabels: Record<string, string> | null = subject.id === 'nikto'
+    ? { creatureIdle: 'Hover', creatureWalk: 'Cruise — slow', creatureRun: 'Cruise — full speed', creatureAttack: 'Ram' }
+    : subject.id.startsWith('vehicle:')
+      ? { creatureIdle: 'Parked — rider seated', creatureWalk: 'Moving — slow', creatureRun: 'Moving — full speed' }
+      : null;
+  const gameOptions = list.filter(inGame).map((p) =>
+    option(p.id, `${cid() === 'din' ? (dinSaberLabels[p.id] ?? p.name) : rideLabels?.[p.id] ?? p.name}${hasOpenAlternates(p) ? ' •' : ''}`, p.id === pose.id)).join('');
+  const previewOptions = list.filter((p) => !inGame(p) && p.id !== 'rest').map((p) =>
     option(p.id, `${p.name} ◆`, p.id === pose.id)).join('');
   const choices = alternatesFor(pose);
   const selectedUpper = (choices.find((alt) => alt.id === alternateChoice) ?? pose).upper;
   const counterweightAvailable = hasCounterweight(selectedUpper)
-    || ((subject.id === 'maul' || subject.id === 'din') && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
+    || ((cid() === 'maul' || cid() === 'din') && alternateChoice === 'none' && ['saber1', 'saber2', 'saber3'].includes(selectedUpper ?? ''));
   if (alternateChoice !== 'none' && !choices.some((alt) => alt.id === alternateChoice)) alternateChoice = 'none';
   syncSelectionUrl();
 
@@ -741,13 +847,19 @@ function renderPanel(): void {
       ${choices.some((alt) => !altUsedInGame(alt, pose.id))
         ? '<p class="picker-key">◆ workbench study only — not rolled in game</p>' : ''}
     </div>` : ''}
-    ${pose.unarmed ? `<p class="study-note">${combatStyle(subject.id)} unarmed study · weapons hidden · not used in combat yet.</p>` : ''}
-    ${subject.id === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
+    ${pose.unarmed ? `<p class="study-note">${combatStyle(cid())} unarmed · weapons hidden · ${fightsUnarmed(cid())
+      ? 'thrown in combat: each hit draws one of this step’s moves at random.' : 'not this fighter’s in combat.'}</p>` : ''}
+    ${cid() === 'din' && ['melee1', 'melee2', 'melee3'].includes(pose.id)
       ? `<p class="study-note">In game, this combo hit occasionally uses ${pose.id === 'melee1' ? 'Long lunge thrust' : pose.id === 'melee2' ? 'Low rising sweep' : 'Diagonal step and strike'} instead of the original (25% chance).</p>` : ''}
     ${counterweightAvailable ? `<div class="field playback">
       <label for="offhandStrength">Free arm counterweight <output id="offhandValue">${Math.round(offhandStrength * 100)}%</output></label>
       <input id="offhandStrength" type="range" min="0" max="1.25" step="0.25" value="${offhandStrength}" aria-label="Free arm counterweight">
       <p class="hint">Adjust how far the free arm reaches during the windup.</p>
+    </div>` : ''}
+    ${landSlot() ? `<div class="field playback">
+      <label for="landDepth">Crouch depth <output id="landDepthValue">${landDepth[landSlot()!].toFixed(2)} m</output></label>
+      <input id="landDepth" type="range" min="0.08" max="0.65" step="0.01" value="${landDepth[landSlot()!]}" aria-label="Crouch depth">
+      <p class="hint">How far the hips drop at the bottom of the ${landSlot() === 'hard' ? 'fast-fall' : 'hop'} landing. The game uses ${LAND_DEPTH[landSlot()!].toFixed(2)} m; the feet stay planted at any depth.</p>
     </div>` : ''}
     ${weaponChoiceHtml()}
 
@@ -758,11 +870,12 @@ function renderPanel(): void {
         <button id="pauseAnimation" type="button" aria-pressed="${paused}">${paused ? 'Play' : 'Pause'}</button>
       </div>
     </div>
-    ${paused ? `<div class="field playback">
-      <label for="animationTime">Animation time <output id="animationTimeValue">${animationTime.toFixed(2)} / ${animationDuration().toFixed(2)} s</output></label>
+    ${paused || scrubbingEdits() ? `<div class="field playback">
+      <label for="animationTime">Animation time <output id="animationTimeValue">${timeLabel()}</output></label>
       <input id="animationTime" type="range" min="0" max="${Math.max(1, Math.ceil(animationDuration() * 60) - 1)}" step="1"
-        value="${Math.round(animationTime * 60)}" ${editing || animationDuration() === 0 ? 'disabled' : ''} aria-label="Animation time in 60 fps frames">
-      ${editing ? '<p class="hint">Leave edit mode to scrub playback; Weapon grips has its own animation-frame slider.</p>' : ''}
+        value="${Math.round(animationTime * 60)}" ${(editing && !scrubbingEdits()) || animationDuration() === 0 ? 'disabled' : ''} aria-label="Animation time in 60 fps frames">
+      ${scrubbingEdits() ? '<p class="hint">Drag through the animation; let go and it settles on the nearest keyframe, which the joint you turn then changes.</p>'
+        : editing ? '<p class="hint">Leave edit mode to scrub playback, or edit a moment; Weapon grips has its own animation-frame slider.</p>' : ''}
     </div>` : ''}
 
     <div class="field">
@@ -774,10 +887,11 @@ function renderPanel(): void {
       </div>
     </div>
 
-    <label class="check"><input type="checkbox" id="spin" ${spin ? 'checked' : ''} ${editing ? 'disabled' : ''}> Turntable</label>
-    <label class="check"><input type="checkbox" id="skeleton" ${showSkeleton ? 'checked' : ''}> Skeleton overlay</label>
+    <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
+    <label class="check" title="Curls the model's fingers into a fist on any pose. A preview: the game does not clench yet."><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists</label>
     ${subject.hasModel && !isProp(subject) ? `
+    <details class="fold" data-fold="shoulders" ${folds.shoulders ? 'open' : ''}><summary>Shoulder width</summary>
     <div class="field playback shoulder-tuning">
       <label for="restShoulders">Rest shoulder width <output id="restShouldersValue">${Math.round(shoulderSpacing.rest * 100)}%</output></label>
       <input id="restShoulders" type="range" min="0" max="2" step="0.05" value="${shoulderSpacing.rest}"
@@ -789,14 +903,15 @@ function renderPanel(): void {
         ${editing && editKind === 'position' ? 'disabled' : ''} aria-label="A-pose shoulder width">
       <p class="hint">100% rest matches the measured Din spacing. Ventress and Bossk start at 50%; A-pose starts at 0%.</p>
       <button id="resetShoulders" type="button" ${editing && editKind === 'position' ? 'disabled' : ''}>Reset shoulder widths</button>
-    </div>` : ''}
+    </div>
+    </details>` : ''}
 
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
     </button>
     <div id="edit"></div>
-    <div id="skin"></div>
 
+    <details class="fold" data-fold="details" ${folds.details ? 'open' : ''}><summary>Details</summary>
     <p class="note">
       ${!subject.hasModel
         ? 'No authored model for this character yet — procedural build only.'
@@ -823,7 +938,8 @@ function renderPanel(): void {
       <br><br><b>Shoulder width</b> uses the averaged spacing from your JSON on
       authored models in the workbench and game. Each slider controls its own arm
       angle; leave Position mode before adjusting it so manual joint offsets do not cover the result.
-    </p>`;
+    </p>
+    </details>`;
 
   panel.querySelector<HTMLSelectElement>('#character')!.onchange = (e) => {
     subject = findSubject((e.target as HTMLSelectElement).value);
@@ -855,6 +971,14 @@ function renderPanel(): void {
     animationSpeed = Number((e.target as HTMLInputElement).value);
     panel.querySelector<HTMLOutputElement>('#speedValue')!.value = `${animationSpeed.toFixed(2)}×`;
   };
+  const depthSlider = panel.querySelector<HTMLInputElement>('#landDepth');
+  if (depthSlider) depthSlider.oninput = () => {
+    landDepth[landSlot()!] = Number(depthSlider.value);
+    panel.querySelector<HTMLOutputElement>('#landDepthValue')!.value = `${landDepth[landSlot()!].toFixed(2)} m`;
+    rebuildLandings();
+    applyPose();
+    if (editing) freezePose();
+  };
   const offhandSlider = panel.querySelector<HTMLInputElement>('#offhandStrength');
   if (offhandSlider) offhandSlider.oninput = (e) => {
     offhandStrength = Number((e.target as HTMLInputElement).value);
@@ -870,19 +994,36 @@ function renderPanel(): void {
   const timeSlider = panel.querySelector<HTMLInputElement>('#animationTime');
   if (timeSlider) timeSlider.oninput = () => {
     seekAnimation(Number(timeSlider.value) / 60);
-    panel.querySelector<HTMLOutputElement>('#animationTimeValue')!.value =
-      `${animationTime.toFixed(2)} / ${animationDuration().toFixed(2)} s`;
+    panel.querySelector<HTMLOutputElement>('#animationTimeValue')!.value = timeLabel();
+  };
+  // editing a moment: let go, and the pose settles on the nearest keyframe
+  if (timeSlider) timeSlider.onchange = () => {
+    if (!scrubbingEdits()) return;
+    const keys = keyTimes();
+    const t = keys[keyIndex(keys)] ?? 0;
+    seekAnimation(t);
+    timeSlider.value = String(Math.round(t * 60));
+    panel.querySelector<HTMLOutputElement>('#animationTimeValue')!.value = timeLabel();
+    renderEditPanel();
   };
   panel.querySelector('#mode')!.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { mode = btn.dataset.mode as Mode; spawn(); renderPanel(); };
-  });
-  panel.querySelector<HTMLInputElement>('#spin')!.onchange = (e) => {
-    spin = (e.target as HTMLInputElement).checked;
-    if (!spin) turntable.rotation.y = 0;
+  // A loaded model is cached by its file, so switching resolution is a reload
+  // of the page on the other set of files, keeping everything else in the URL.
+  const fullRes = panel.querySelector<HTMLInputElement>('#fullRes');
+  if (fullRes) fullRes.onchange = () => {
+    const url = new URL(location.href);
+    if (fullRes.checked) url.searchParams.set('res', 'full'); else url.searchParams.delete('res');
+    location.href = url.toString();
   };
-  panel.querySelector<HTMLInputElement>('#skeleton')!.onchange = (e) => {
-    showSkeleton = (e.target as HTMLInputElement).checked;
-    for (const s of skeletons) s.visible = showSkeleton;
+  });
+  // the two folded sections remember being opened across the panel's re-renders
+  panel.querySelectorAll<HTMLDetailsElement>('details[data-fold]').forEach((d) => {
+    d.ontoggle = () => { folds[d.dataset.fold as keyof typeof folds] = d.open; };
+  });
+  panel.querySelector<HTMLInputElement>('#fists')!.onchange = (e) => {
+    fists = (e.target as HTMLInputElement).checked;
+    syncSelectionUrl();
   };
   panel.querySelector<HTMLInputElement>('#grid')!.onchange = (e) => {
     showGrid = (e.target as HTMLInputElement).checked;
@@ -907,8 +1048,6 @@ function renderPanel(): void {
     if (editing) leaveEdit(); else enterEdit();
     renderPanel();
   };
-  // the skinning review keeps its own subtree, so a re-render here never loses it
-  panel.querySelector('#skin')!.replaceWith(skinHost);
   renderEditPanel();
 }
 
@@ -927,7 +1066,7 @@ function weaponChoiceHtml(): string {
   if (!slots.length && !picks.length) return '';
   const pickers = slots.map((slot) => {
     const def = loadout![slot]!;
-    const chosen = weaponChoices.get(subject.id, slot);
+    const chosen = weaponChoices.get(cid(), slot);
     const offered = WEAPON_OPTIONS.filter((o) => o.slot === slot && o.id !== def.id);
     return `<div class="field weapon-choice${chosen ? ' changed' : ''}">
       <label for="weaponChoice-${slot}">${SLOT_LABEL[slot]}${chosen ? ' <span class="changed-tag">changed</span>' : ''}</label>
@@ -965,14 +1104,14 @@ function bindWeaponChoice(): void {
   panel.querySelectorAll<HTMLSelectElement>('[data-weapon-slot]').forEach((select) => {
     select.onchange = () => {
       const slot = select.dataset.weaponSlot as WeaponSlot;
-      weaponChoices.set(subject.id, subject.name, slot, loadout![slot]!, select.value || null);
+      weaponChoices.set(cid(), subject.name, slot, loadout![slot]!, select.value || null);
       // picking for a slot is asking to see it
-      if (poseWeapon(pose) === 'either') weaponHand.set(subject.id, slot);
+      if (poseWeapon(pose) === 'either') weaponHand.set(cid(), slot);
       refresh();
     };
   });
   panel.querySelectorAll<HTMLButtonElement>('#weaponHand [data-hand]').forEach((button) => {
-    button.onclick = () => { weaponHand.set(subject.id, button.dataset.hand as WeaponSlot); refresh(); };
+    button.onclick = () => { weaponHand.set(cid(), button.dataset.hand as WeaponSlot); refresh(); };
   });
   panel.querySelectorAll<HTMLButtonElement>('[data-choice-character]').forEach((button) => {
     button.onclick = () => {
@@ -1028,11 +1167,19 @@ function renderEditPanel(): void {
   const sel = editing ? editor.selected : null;
   const list = edits.entries();
   const selClip = sel ? clipFor(sel) : null;
-  const selEdited = !!(sel && selClip && edits.deltaOf(selClip, sel));
+  const selAt = scrubbingEdits() ? momentTime() : undefined;
+  const selEdited = !!(sel && selClip && edits.deltaOf(selClip, sel, selAt));
   editSignature = signature();
   const deg = editing ? editor.selectedEuler() : null;
 
   const editBox = !editing ? '' : `
+      <div class="field">
+        <label>Edits change</label>
+        <div class="seg" id="editAt">
+          <button data-edit-at="clip" aria-pressed="${editAt === 'clip'}">Whole clip</button>
+          <button data-edit-at="moment" aria-pressed="${editAt === 'moment'}">This moment${editAt === 'moment' ? ` · ${momentTime().toFixed(2)} s` : ''}</button>
+        </div>
+      </div>
       <div class="field">
         <label>Rotate about</label>
         <div class="seg" id="space">
@@ -1060,7 +1207,7 @@ function renderEditPanel(): void {
           </div>
         </div>
         <div class="row">
-          <button id="resetBone"${selEdited ? '' : ' disabled'}>Reset ${sel}</button>
+          <button id="resetBone"${selEdited ? '' : ' disabled'}>Reset ${sel}${selAt === undefined ? '' : ` at ${selAt.toFixed(2)} s`}</button>
         </div>
         <p class="hint" id="drag">${dragHint()}</p>
         <p class="hint keys">
@@ -1092,6 +1239,22 @@ function renderEditPanel(): void {
     </div>`;
 
   bindEditModeButtons(host);
+  host.querySelector('#editAt')?.querySelectorAll<HTMLButtonElement>('button').forEach((btn) => {
+    btn.onclick = () => {
+      const next = btn.dataset.editAt as 'clip' | 'moment';
+      if (next === editAt) return;
+      editAt = next;
+      // the whole clip is edited at its first key; a moment on the key nearest
+      // where it was scrubbed
+      if (next === 'moment') {
+        paused = true;
+        const keys = keyTimes();
+        animationTime = keys[keyIndex(keys)] ?? 0;
+      }
+      freezePose();
+      renderPanel();
+    };
+  });
   host.querySelector('#space')?.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => { editor.setSpace(btn.dataset.space as GizmoSpace); renderEditPanel(); };
   });
@@ -1106,7 +1269,7 @@ function renderEditPanel(): void {
     }
   }
   host.querySelector<HTMLButtonElement>('#resetBone')?.addEventListener('click', () => {
-    if (sel && selClip) { edits.clear(selClip, sel); refreshEdits(); }
+    if (sel && selClip) { edits.clear(selClip, sel, selAt); refreshEdits(); }
   });
   host.querySelector<HTMLButtonElement>('#undo')!.onclick = undoEdit;
   host.querySelector<HTMLButtonElement>('#redo')!.onclick = redoEdit;
@@ -1114,7 +1277,7 @@ function renderEditPanel(): void {
   host.querySelector<HTMLButtonElement>('#export')!.onclick = exportChanges;
   for (const row of host.querySelectorAll<HTMLButtonElement>('.ledger button')) {
     row.onclick = () => {
-      edits.clear(row.dataset.clip!, row.dataset.bone!);
+      edits.clear(row.dataset.clip!, row.dataset.bone!, row.dataset.at ? Number(row.dataset.at) : undefined);
       refreshEdits();
     };
   }
@@ -1139,6 +1302,7 @@ function bindEditModeButtons(host: HTMLElement): void {
       editor.setEnabled(next === 'rotate');
       positionEditor.setEnabled(next === 'position');
       weaponEditor.setEnabled(next === 'weapon');
+      vehicleEditor.setEnabled(next === 'weapon');
       for (const id of ['restShoulders', 'aPoseShoulders', 'resetShoulders']) {
         const control = panel.querySelector<HTMLInputElement | HTMLButtonElement>(`#${id}`);
         if (control) control.disabled = next === 'position';
@@ -1152,6 +1316,7 @@ function bindEditModeButtons(host: HTMLElement): void {
 }
 
 function renderWeaponPanel(host: HTMLDivElement): void {
+  if (vehicleEditor.kind) { renderVehiclePanel(host); return; }
   const names = weaponEditor.names();
   const selected = weaponEditor.selected;
   const current = weaponEditor.current();
@@ -1235,6 +1400,91 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   };
 }
 
+/**
+ * The rides' anchors: the seat and the left hand's grip on a vehicle, or the
+ * Nikto's own seat on his swoop. Exported as the game's data file itself.
+ */
+function renderVehiclePanel(host: HTMLDivElement): void {
+  const ed = vehicleEditor;
+  // typing into a field re-renders nothing: the gizmo follows, the field keeps focus
+  if ((document.activeElement as HTMLElement | null)?.dataset?.anchorAxis && host.querySelector('[data-anchor-axis]')) return;
+  // ...and a spread being dragged or typed keeps its control until let go
+  if (['legSpread', 'legSpreadNumber'].includes(document.activeElement?.id ?? '') && host.querySelector('#legSpread')) return;
+  const cur = ed.current();
+  const nikto = ed.kind === 'nikto';
+  const label: Record<string, string> = {
+    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)', rider: 'Rider — on the swoop',
+  };
+  const edited = ed.edited();
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
+        <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
+      ${nikto ? `<div class="field"><label>3D handle</label><div class="seg">
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move rider</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate rider</button>
+      </div></div>` : ''}
+      ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
+        <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
+      ${cur.rotation ? `<div class="field"><label>Rotation in degrees, XYZ</label>
+        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
+      <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
+    : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
+        <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
+        <div class="weapon-scale-row">
+          <input id="legSpread" type="range" min="0.08" max="0.5" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+          <input id="legSpreadNumber" type="number" min="0" max="0.8" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+        </div>
+        <div class="row"><button id="legSpreadClear" ${ed.legSpread === null ? 'disabled' : ''}>Use the pose's own legs</button></div>
+        <p class="hint">In metres, so it carries to every rider: each body's own hips and thighs open to put the knees there.</p>
+      </div>
+      <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
+      <p class="hint">${nikto
+        ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
+        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
+        The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
+      ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
+        e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}</code></div>`).join('')}</div>` : ''}
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
+    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'rider');
+  host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
+    button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
+  });
+  host.querySelectorAll<HTMLInputElement>('[data-anchor-axis]').forEach((input) => {
+    input.onchange = () => {
+      const read = (kind: 'p' | 'r'): [number, number, number] => [0, 1, 2].map((i) =>
+        Number(host.querySelector<HTMLInputElement>(`[data-anchor-axis="${kind}${i}"]`)?.value)) as [number, number, number];
+      if (input.dataset.anchorAxis!.startsWith('p')) ed.setPosition(read('p'));
+      else ed.setRotation(read('r'));
+      input.blur();
+      renderVehiclePanel(host);
+    };
+  });
+  host.querySelector<HTMLButtonElement>('#anchorReset')?.addEventListener('click', () => ed.resetSelected());
+  const spread = host.querySelector<HTMLInputElement>('#legSpread')!;
+  const spreadNumber = host.querySelector<HTMLInputElement>('#legSpreadNumber')!;
+  // dragging updates in place, so the slider keeps the pointer; letting go redraws
+  spread.oninput = () => {
+    ed.setLegSpread(Number(spread.value));
+    spreadNumber.value = spread.value;
+    host.querySelector<HTMLOutputElement>('#legSpreadValue')!.value = `${Math.round(Number(spread.value) * 100)} cm`;
+  };
+  spread.onchange = () => { spread.blur(); renderVehiclePanel(host); };
+  spreadNumber.onchange = () => { ed.setLegSpread(Number(spreadNumber.value)); spreadNumber.blur(); renderVehiclePanel(host); };
+  host.querySelector<HTMLButtonElement>('#legSpreadClear')!.onclick = () => { ed.setLegSpread(null); renderVehiclePanel(host); };
+  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));
+    anchor.download = 'vehicleAnchors.json';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  };
+}
+
 function renderPositionPanel(host: HTMLDivElement): void {
   const names = positionEditor.names();
   const selected = positionEditor.selected;
@@ -1298,9 +1548,9 @@ function renderLedger(list: EditEntry[]): string {
     <div class="clip">${clip}</div>
     ${entries.map((e) => `
       <div class="edit">
-        <span>${e.bone}</span>
+        <span>${e.bone}${e.at === undefined ? '' : ` @${e.at.toFixed(2)}s`}</span>
         <code>${e.delta.map((d) => (d > 0 ? '+' : '') + d).join(' ')}</code>
-        <button data-clip="${e.clip}" data-bone="${e.bone}" title="drop this edit">×</button>
+        <button data-clip="${e.clip}" data-bone="${e.bone}"${e.at === undefined ? '' : ` data-at="${e.at}"`} title="drop this edit">×</button>
       </div>`).join('')}`).join('');
 }
 
@@ -1309,8 +1559,8 @@ const dragHint = (): string => (editor.dragAxis
   : 'Drag a ring to rotate; hold Shift to snap to 5°.');
 
 const signature = (): string =>
-  `${editing}|${editor.selected}|${editor.space}|${edits.canUndo}|${edits.canRedo}|`
-  + edits.entries().map((e) => `${e.clip}.${e.bone}:${e.delta}`).join(',');
+  `${editing}|${editAt}|${momentTime()}|${editor.selected}|${editor.space}|${edits.canUndo}|${edits.canRedo}|`
+  + edits.entries().map((e) => `${e.clip}.${e.bone}@${e.at}:${e.delta}`).join(',');
 
 /** Cheap refresh: numbers only, leaving the DOM (and focus) where it is. */
 function syncEditValues(): void {
@@ -1379,30 +1629,34 @@ function exportChanges(): void {
         .filter((a) => a.lower === clip || a.upper === clip).map((a) => a.name),
     ];
 
-  const clips: Record<string, unknown> = {};
+  interface BoneDoc {
+    wholeClip?: { base: Euler3; edited: Euler3; delta: Euler3 };
+    moments?: Array<{ at: number; share: number; base: Euler3; edited: Euler3; delta: Euler3 }>;
+    currentKeys: EditEntry['keys'];
+    newKeys: EditEntry['newKeys'];
+  }
+  const clips: Record<string, { playedBy: string[]; duration: number; bones: Record<string, BoneDoc> }> = {};
+  const anim = figures.find((f) => f.inst.animator)?.inst.animator;
   for (const entry of list) {
-    const bones = (clips[entry.clip] ??= { playedBy: posesOf(entry.clip), bones: {} }) as
-      { playedBy: string[]; bones: Record<string, unknown> };
-    bones.bones[entry.bone] = {
-      base: entry.base,
-      edited: entry.edited,
-      delta: entry.delta,
-      currentKeys: entry.keys,
-      newKeys: entry.newKeys,
-    };
+    const duration = anim?.clips[entry.clip]?.duration ?? 0;
+    const doc = (clips[entry.clip] ??= { playedBy: posesOf(entry.clip), duration: +duration.toFixed(3), bones: {} });
+    const bone = (doc.bones[entry.bone] ??= { currentKeys: entry.keys, newKeys: entry.newKeys });
+    const change = { base: entry.base, edited: entry.edited, delta: entry.delta };
+    if (entry.at === undefined) bone.wholeClip = change;
+    else (bone.moments ??= []).push({ at: entry.at, share: duration ? +(entry.at / duration).toFixed(3) : 0, ...change });
   }
 
   const doc = {
-    format: 'mando-pose-edit/2',
+    format: 'mando-pose-edit/3',
     exportedAt: new Date().toISOString(),
     editedOn: { character: subject.id, lastPose: pose.id },
     units: 'local-space Euler XYZ in degrees — the argument order of qt() in src/anim/clips.ts',
     howToApply: [
       'Each entry is one bone of the canonical rig (src/anim/skeleton.ts) in one clip.',
       '`newKeys` is the finished track: paste those values into that clip’s qt() call.',
-      '`delta` is what was added to every key; `currentKeys` is what the clip holds today.',
-      '`currentKeys: null` means the clip had no track for that bone — add one (constant over the clip).',
-      'Bones were edited against the clip’s first keyframe; the delta carries to the rest.',
+      '`wholeClip.delta` was added to every key, measured against the clip’s first keyframe.',
+      '`moments` are keys at one time (`at` seconds, `share` of the clip): the key already there, or a new one, set to `edited`; the clip eases in and out of it from its neighbours.',
+      '`currentKeys` is what the clip holds today; `currentKeys: null` means it had no track for that bone.',
       'Remember the splay sign convention documented at the top of clips.ts.',
     ],
     clips,
@@ -1515,7 +1769,6 @@ function frame(now: number): void {
   last = now;
   const animationDt = paused ? 0 : dt * animationSpeed;
   time += animationDt;
-  if (spin) turntable.rotation.y += dt * 0.4;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
   // a creature's attack is a one-shot method, not a clip we can loop: replay it
@@ -1526,11 +1779,10 @@ function frame(now: number): void {
     strikeAt = time + next + 0.4;
   }
   for (const f of figures) {
-    // edit mode (and the skin-test pose) own the bones; the mixer would write over them every frame
-    if (!editing && !skin.holding && !paused) f.inst.animator?.update(animationDt);
+    // edit mode owns the bones; the mixer would write over them every frame
+    if (!editing && !paused) f.inst.animator?.update(animationDt);
     if (pose.unarmed) setWeaponVisibility(f, false);
   }
-  skin.frame();
   if (positionAwaiting && editing && editKind === 'position'
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
   if (weaponAwaiting && editing && editKind === 'weapon'
@@ -1538,9 +1790,11 @@ function frame(now: number): void {
   if (!paused && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
+  for (const f of figures) clench(f.inst.root, fists ? 1 : 0);
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);
+  vehicleEditor.update(camera);
   updateLoading();
   controls.update();
   renderer.render(scene, camera);

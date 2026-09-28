@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
-import { reachArm, seatSurface } from '../anim/seating';
+import { reachArm, seatSurface, spreadKnees } from '../anim/seating';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
 import { applyTuskenWeaponGrip } from './tuskenWeaponGrips';
 import { applySharedWeaponGrip } from './sharedWeaponGrips';
 import { WEAPON_PROPS } from './weaponProps';
+import { hipsOverFeet, NIKTO_RIDER, stanceRise, VEHICLE_ANCHORS } from '../game/vehicleAnchors';
+import { sculptLift, VEHICLE_DEFS } from '../game/vehicles';
 import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
 
@@ -196,7 +198,7 @@ export function buildPyke(authored = true): CharacterInstance {
   return inst;
 }
 
-// ---------- Space pirate: rough leathers, pauldron, rifle or fists ----------
+// ---------- Space pirate: rough leathers, pauldron, rifle or bare fists ----------
 export function buildPirate(melee: boolean, authored = true): CharacterInstance {
   const leather = mat(0x5c4632, { rough: 0.95 });
   const shirt = mat(0x6e6250, { rough: 0.95 });
@@ -210,16 +212,8 @@ export function buildPirate(melee: boolean, authored = true): CharacterInstance 
   addSphere(b.head, dark, 0.02, -0.05, 0.06, 0.11, 5, 4);
   addSphere(b.head, dark, 0.02, 0.05, 0.06, 0.11, 5, 4);
   for (let i = 0; i < 4; i++) addCyl(b.head, skinM, 0.01, 0.025, 0.09, -0.06 + i * 0.04, 0.16, -0.04, -0.5, 0, 0, 5);
-  if (melee) {
-    const club = new THREE.Group();
-    addCyl(club, dark, 0.025, 0.03, 0.7);
-    addBox(club, mat(0x555a5e, { rough: 0.4, metal: 0.6 }), 0.1, 0.14, 0.1, 0, 0.38, 0);
-    club.rotation.x = Math.PI / 2;
-    b.weaponR.add(club);
-    mountEnemyProp(club, 'pirate_boarding_club', WEAPON_PROPS.pirate_boarding_club.length, Math.PI / 2, 0, 0.14);
-  } else {
-    inst.muzzle = rifle(b.weaponR);
-  }
+  // the brawler fights with his fists: nothing in his hands
+  if (!melee) inst.muzzle = rifle(b.weaponR);
   // The blaster sculpt has a face on both sides. Use the healthy pirate
   // brawler body as a temporary skin; the gun stays a separate hand prop.
   authoredEnemy(inst, rig, melee ? 'pirateMelee' : 'pirate', authored);
@@ -725,6 +719,14 @@ const SWOOP_BARS = { x: 0.28, y: 0.29, z: 0.23 };
  * the same bike, so they all get the same answer.
  */
 let swoopSaddleY: number | null = null;
+/** the swoop's keel over the ground, at rest — its hover height (VEHICLE_DEFS.swoop.hover) */
+const BIKE_REST = 0.55;
+/**
+ * The pilotable swoop hangs its sculpt `sculptLift` over the keel; this bike
+ * carries the same sculpt at the keel. So an anchor placed on the ride — the
+ * seat, the grip — sits that much lower here.
+ */
+const swoopAnchorY = (y: number): number => y - sculptLift(VEHICLE_DEFS.swoop);
 
 export function buildNikto(authored = true): CharacterInstance {
   const group = new THREE.Group();
@@ -741,7 +743,7 @@ export function buildNikto(authored = true): CharacterInstance {
   flame.rotation.x = -Math.PI / 2;
   flame.position.set(0, 0, -1.35);
   bike.add(flame);
-  bike.position.y = 0.55;
+  bike.position.y = BIKE_REST;
   group.add(bike);
   // The bike is a vehicle, not a character — nothing animates it, so it comes
   // in through the prop path and simply replaces the procedural box.
@@ -772,11 +774,28 @@ export function buildNikto(authored = true): CharacterInstance {
     [rb.head, -14 * D, 0, 0],
   ];
   for (const [o, x, y, z] of pose) o.rotation.set(x, y, z);
-  // seat the pelvis just above the bike's saddle (top ~0.67): the rig's origin
-  // is at the feet, so the root has to sit below the group origin or the rider
-  // floats a metre over the bike with nothing bridging the gap
-  rider.root.position.set(0, -0.22, -0.1);
-  group.add(rider.root);
+  /**
+   * Open his knees to `knee` metres off the centre line (see `spreadKnees`),
+   * from the pose above — or back to it, for null. His own spread when the
+   * workbench has set one, else the swoop's: it is the same bike.
+   */
+  const thighs = [rb.upperLegL.quaternion.clone(), rb.upperLegR.quaternion.clone()];
+  let legSpread = NIKTO_RIDER?.legSpread ?? VEHICLE_ANCHORS.swoop?.legSpread ?? null;
+  const spreadLegs = (): void => {
+    rb.upperLegL.quaternion.copy(thighs[0]);
+    rb.upperLegR.quaternion.copy(thighs[1]);
+    if (legSpread !== null) spreadKnees(riderRig, legSpread);
+  };
+  spreadLegs();
+  // The rider rides the bike: parented to it, so the hover bob, the roll and
+  // the ram's nose-dip carry the body with them. (It used to hang off the
+  // group beside the bike, and sat perfectly still while the bike bobbed
+  // under it.) Positions below are in the bike's space, whose origin is the
+  // keel, BIKE_REST over the ground. Seated so the pelvis sits just above the
+  // stand-in's saddle (top ~0.67 over the ground): the rig's origin is at the
+  // feet, so the root goes well below the keel.
+  rider.root.position.set(0, -0.22 - BIKE_REST, -0.1);
+  bike.add(rider.root);
 
   // The rider is a whole biped on the canonical rig, just held in one pose
   // rather than animated, so the swap works exactly as it does for anyone
@@ -787,8 +806,30 @@ export function buildNikto(authored = true): CharacterInstance {
     // The seat offset above is tuned to the procedural rider's proportions;
     // the authored one sits with its hips lower, so it needs raising to meet
     // the same saddle.
-    onLoad: () => { rider.root.position.y = -0.09; },
+    onLoad: () => { rider.root.position.y = -0.09 - BIKE_REST; },
   });
+
+  /**
+   * Put the rider's hands on the bars: the swoop's grip anchor from the
+   * workbench when it has one (the same sculpt as the pilotable swoop, in the
+   * same frame), or the bars `VEHICLE_DEFS` declares, off the saddle.
+   */
+  const handsToBars = (saddleY: number): void => {
+    bike.updateMatrixWorld(true);
+    const anchor = VEHICLE_ANCHORS.swoop;
+    const fwd = new THREE.Vector3();
+    group.getWorldDirection(fwd);
+    const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+    for (const side of [-1, 1] as const) {
+      const local = anchor
+        ? new THREE.Vector3(side === 1 ? anchor.grip[0] : 2 * anchor.seat[0] - anchor.grip[0], swoopAnchorY(anchor.grip[1]), anchor.grip[2])
+        : new THREE.Vector3(SWOOP_SEAT.x + side * SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z);
+      const grip = bike.localToWorld(local);
+      const hint = grip.clone().addScaledVector(right, side * 0.5);
+      hint.y -= 0.4;
+      reachArm(riderRig, side === 1 ? 'L' : 'R', grip, hint);
+    }
+  };
 
   /**
    * Sit the rider on the swoop it is actually riding, and put its hands on
@@ -800,9 +841,12 @@ export function buildNikto(authored = true): CharacterInstance {
    * beside its own bike holding nothing. Both are read off the sculpt the
    * frame after it lands: the saddle by the same footprint probe the pilotable
    * rides use, the bars by the grips the swoop's own definition declares.
-   * Done once — the rider is a still pose, not an animation.
+   * Hand-placed anchors from the workbench win over both: the rider's own
+   * (`NIKTO_RIDER`), then the swoop's seat. Done once — the rider is a still
+   * pose, not an animation.
    */
   let seated = false;
+  let saddle = SWOOP_SEAT.stand - BIKE_REST;
   const seatRider = (): void => {
     if (seated || !swoopModel) return;
     seated = true;
@@ -812,48 +856,67 @@ export function buildNikto(authored = true): CharacterInstance {
     group.getWorldDirection(fwd);
     right.set(fwd.z, 0, -fwd.x);
     if (swoopSaddleY === null) {
-      const at = group.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, bike.position.y + 3, SWOOP_SEAT.z));
+      const at = bike.localToWorld(new THREE.Vector3(SWOOP_SEAT.x, 3, SWOOP_SEAT.z));
       const world = seatSurface(swoopModel, at, fwd, right, 5);
       if (world === null) return;
-      swoopSaddleY = group.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
+      swoopSaddleY = bike.worldToLocal(new THREE.Vector3(at.x, world, at.z)).y;
     }
-    const saddleY = swoopSaddleY;
-    // the pose above is tuned to the *stand-in* saddle, so this corrects it by
-    // however far the sculpt's own saddle differs — which keeps the tuning for
-    // the procedural rider and the retargeted one both
-    rider.root.position.y += saddleY - SWOOP_SEAT.stand;
-    group.updateMatrixWorld(true);
-    for (const side of [-1, 1] as const) {
-      const grip = group.localToWorld(new THREE.Vector3(
-        SWOOP_SEAT.x + side * SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z));
-      const hint = grip.clone().addScaledVector(right, side * 0.5);
-      hint.y -= 0.4;
-      reachArm(riderRig, side === 1 ? 'L' : 'R', grip, hint);
+    saddle = swoopSaddleY;
+    const seat = VEHICLE_ANCHORS.swoop?.seat;
+    if (NIKTO_RIDER) {
+      rider.root.position.set(...NIKTO_RIDER.position);
+      rider.root.rotation.set(...NIKTO_RIDER.rotation.map((d) => d * D) as [number, number, number]);
+    } else if (seat) {
+      rider.root.position.set(seat[0], swoopAnchorY(seat[1]) - stanceRise('saddle', hipsOverFeet({ rig: riderRig })), seat[2]);
+    } else {
+      // the pose above is tuned to the *stand-in* saddle, so this corrects it
+      // by however far the sculpt's own saddle differs — which keeps the
+      // tuning for the procedural rider and the retargeted one both
+      rider.root.position.y += saddle - (SWOOP_SEAT.stand - BIKE_REST);
     }
+    handsToBars(saddle);
+  };
+  // the workbench moves the rider by hand and asks for the hands again
+  group.userData.niktoRider = {
+    bike, rider: rider.root, handsToBars: () => handsToBars(saddle),
+    get legSpread() { return legSpread; },
+    setLegSpread: (knee: number | null) => { legSpread = knee; spreadLegs(); },
+    kneeWidth: () => {
+      const thigh = new THREE.Vector3(0, -1, 0).applyQuaternion(thighs[0]);
+      return +(riderRig.proportions.hipWidth + riderRig.proportions.upperLegLen * thigh.x).toFixed(3);
+    },
   };
 
   // the swoop's melee is a ram: nose dipped and driven forward, then pulled up
   let attackT = -1;
   const ATTACK_DUR = 0.45;
+  /** how fast it is going, eased, for the pitch and the lean into the run */
+  let speed = 0;
+  let speedTarget = 0;
   return {
     root: group, rig: null, animator: null, height: 1.6, baseScale: 1,
     // rider and bike are two separate files: this fighter is only presentable
     // once both have answered, or a menu shows an authored rider on a box
     modelReady: () => bikeSettled && swap.settled,
     attack: () => { attackT = 0; return ATTACK_DUR; },
+    // At speed the nose goes down into the run and the tail burns long; parked
+    // it sits level on a lazy hover. Reported by the enemy's move each frame.
+    setGait: (v) => { speedTarget = v; },
     cosmetic: (dt, time) => {
       swap.update();
       if (swap.settled) seatRider();
-      bike.position.y = 0.55 + Math.sin(time * 6) * 0.05;
-      bike.rotation.z = Math.sin(time * 3.1) * 0.06;
-      bike.rotation.x = 0;
-      flame.scale.y = 0.8 + Math.sin(time * 40) * 0.2;
+      speed = damp(speed, speedTarget, 4, dt);
+      const run = clamp(speed / 15, 0, 1);
+      bike.position.y = BIKE_REST + Math.sin(time * (6 + run * 3)) * (0.05 - run * 0.025);
+      bike.rotation.z = Math.sin(time * 3.1) * (0.06 + run * 0.05);
+      bike.rotation.x = run * 0.1;
+      flame.scale.y = (0.8 + run * 0.9) + Math.sin(time * 40) * 0.2;
       if (attackT >= 0) {
         attackT += dt;
         if (attackT > ATTACK_DUR) attackT = -1;
         else {
           const w = strikeCurve(attackT, ATTACK_DUR);
-          bike.rotation.x = w * 0.28;          // nose down on the coil, whipped up through
+          bike.rotation.x += w * 0.28;          // nose down on the coil, whipped up through
           bike.position.y += Math.max(0, -w) * 0.12;
         }
       }

@@ -1,9 +1,23 @@
 import type { SectionId } from '../world/mission';
 import type { SectionDef } from './api';
 import { chimney } from './chimney';
+import { holdTheForge } from './hold-the-forge';
+import { covertSky } from './covert-sky';
+import { SECTION_BOARD, MISSION_LAYOUTS } from '../world/mission-layouts';
+import { glacierChute } from './glacier-chute';
+import { lamplight } from './lamplight';
+import { theLine } from './the-line';
+import { lightsOut } from './lights-out';
 import { theLift } from './the-lift';
 import { oneWayOut } from './one-way-out';
-import { SECTION_BOARD } from '../world/mission-layouts';
+import { markRuns } from './mark-runs';
+import { tramTop } from './tram-top';
+import { squall } from './squall';
+import { wormSign } from './worm-sign';
+import { bargeRun } from './barge-run';
+import { runThePier } from './run-the-pier';
+import { magmaRun } from './magma-run';
+import { ringWalk } from './ring-walk';
 import { BUILT_SECTIONS } from './ids';
 
 /**
@@ -12,8 +26,22 @@ import { BUILT_SECTIONS } from './ids';
  */
 export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   chimney,
+  'hold-the-forge': holdTheForge,
+  'covert-sky': covertSky,
+  'glacier-chute': glacierChute,
+  lamplight,
+  'the-line': theLine,
+  'lights-out': lightsOut,
   'the-lift': theLift,
   'one-way-out': oneWayOut,
+  'mark-runs': markRuns,
+  'tram-top': tramTop,
+  squall,
+  'worm-sign': wormSign,
+  'barge-run': bargeRun,
+  'run-the-pier': runThePier,
+  'magma-run': magmaRun,
+  'ring-walk': ringWalk,
 };
 
 /**
@@ -24,4 +52,5 @@ export const SECTIONS: Partial<Record<SectionId, SectionDef>> = {
   registered: Object.keys(SECTIONS),
   built: [...BUILT_SECTIONS],
   boards: SECTION_BOARD,
+  stageCount: Object.fromEntries(Object.entries(MISSION_LAYOUTS).map(([b, spec]) => [b, spec.stages.length])),
 };

@@ -8,10 +8,11 @@ import {
   kraytClips, kwazelMawClips, mamacoreClips, mudhornClips, mythosaurClips, nexuClips,
   rancorClips, ravinakClips, zilloClips,
 } from '../anim/quadruped';
-import { ASSET_ROOT } from '../core/assets';
+import { ASSET_ROOT, modelDir } from '../core/assets';
 import { RETRY_DELAYS, tracked, warmQueue, type WarmPriority } from '../core/warm';
 import { markSharedTree } from '../core/dispose';
 import { activeFixes, loadSkinFix, setSkinFixes } from './skinfix';
+import { applyFistRig } from './fistRig';
 import { applyStrays, loadStrays } from './strays';
 import { applyJawRig, loadJawRig } from './jawrig';
 import { rigidifyDinJetpack } from './rigidpack';
@@ -299,7 +300,7 @@ function loader(): GLTFLoader {
 }
 
 /** Where a character or creature model lives, and what the tracker calls it. */
-export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}.glb`; }
+export function modelUrl(id: string): string { return `${ASSET_ROOT}${modelDir(id)}${id}.glb`; }
 
 /**
  * Load and cache a .glb, resolving null when it isn't present.
@@ -309,6 +310,13 @@ export function modelUrl(id: string): string { return `${ASSET_ROOT}models/${id}
  * `scheduleRetry`, which must not reopen the ledger entry a drop screen has
  * already settled.
  */
+/**
+ * Variant files that share another model's mesh, vertex for vertex — a
+ * re-rigged copy (tools/asset-pipeline/rerig.mjs) moves joints and leaves the
+ * skin alone — and so share its fix documents, which are keyed by vertex.
+ */
+const SHARES_DOCS: Record<string, string> = { din_rerig: 'din', duelist_rerig: 'duelist' };
+
 function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | null> {
   let p = cache.get(id);
   if (!p) {
@@ -318,12 +326,12 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
     const handle = tracked.start(trackKey);
     // the model's skin-weight fixes, fetched alongside it (see skinfix.ts);
     // models without one cost nothing here beyond a shared index lookup
-    const fixes = loadSkinFix(id);
+    const fixes = loadSkinFix(SHARES_DOCS[id] ?? id);
     // ...and the bones it was delivered without (see jawrig.ts)
-    const jaw = loadJawRig(id);
+    const jaw = loadJawRig(SHARES_DOCS[id] ?? id);
     // ...and the geometry it was delivered *with* that belongs to nobody — the
     // ball off Din's shoulder and its like (see strays.ts)
-    const strays = loadStrays(id);
+    const strays = loadStrays(SHARES_DOCS[id] ?? id);
     p = new Promise<THREE.Group | null>((resolve) => {
       loader().load(
         url,
@@ -348,12 +356,15 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           if (doc) setSkinFixes(gltf.scene, activeFixes(doc));
           // Din's welded jetpack is metal: shoulder and arm weights from the
           // automatic skinning must not bend it when he raises his blaster.
-          if (id === 'din') rigidifyDinJetpack(gltf.scene);
+          if ((SHARES_DOCS[id] ?? id) === 'din') rigidifyDinJetpack(gltf.scene);
           // After the fixes, not before: a jaw is an addition to the weights
           // the fixes have finished settling, and it folds itself into their
           // baseline so toggling one in the workbench cannot undo it.
           const jawDoc = await jaw;
           if (jawDoc) applyJawRig(gltf.scene, jawDoc);
+          // ...and fingers for the Rigify hands, which shipped as one bone
+          // each: unturned they change nothing, and a fist can close them
+          applyFistRig(gltf.scene);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.
@@ -559,7 +570,7 @@ export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['mod
  * prefetcher and the drop screen wait on. (Scenery and ships load by the
  * same path under names of their own, so the loader itself takes any string.)
  */
-export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop';
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig';
 
 /** the model entry for any kind, with `height` readable whether or not it has one */
 export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>
@@ -578,7 +589,7 @@ const ENEMY_EXTRA_MODEL_IDS: Partial<Record<EnemyKind, ModelId[]>> = {
   darktrooper: ['enemy_blaster_rifle'], marshal: ['enemy_blaster_rifle'],
   fennec: ['enemy_blaster_rifle'], capo: ['enemy_blaster_rifle'],
   ringEnforcer: ['enemy_blaster_rifle'], escortDroid: ['enemy_blaster_rifle'],
-  pirateMelee: ['pirate_boarding_club'], flametrooper: ['flame_projector'],
+  flametrooper: ['flame_projector'],
   quarren: ['net_launcher'], alamite: ['alamite_stone_club'],
   officer: ['electrostaff'],
   nikto: ['nikto_swoop'],

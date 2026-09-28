@@ -19,7 +19,7 @@ await h.focusButton(/PVP/i);            // by name, not by counting from Wave Ba
 await h.pad.tap(BTN.A);
 await h.waitForText(/CHOOSE|TERRITORY|DUNE SEA/i);
 await h.pad.tap(BTN.A);
-await h.waitForText(/CHOOSE YOUR/i);
+await h.waitForText(/DIN DJARIN/i);
 
 // player one settles on a fighter
 await h.tapUntil(BTN.A, async () => /READY/i.test(await h.text()));

@@ -4,7 +4,7 @@ import { launch, makeCheck } from './harness.mjs';
 const check = makeCheck();
 const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
 const url = (character, pose) => `${base}/workbench/?edit=models&character=${character}&pose=${pose}&mode=authored`;
-const h = await launch({ url: url('paz', 'idle') });
+const h = await launch({ url: url('ig11', 'idle') });
 const page = h.page;
 
 const MELEE = ['gaffi', 'gaffi_collection', 'poleaxe', 'electrostaff', 'force_pike', 'rey_staff',
@@ -42,7 +42,8 @@ const settle = (name) => page.waitForFunction((n) => {
 
 try {
   await page.evaluate(() => localStorage.clear());
-  await open('paz', 'melee1');
+  // IG-11 carries the force pike (Paz, who used to, fights with his fists now)
+  await open('ig11', 'melee1');
 
   const meleePose = { melee: await offered('melee'), gun: await offered('gun') };
   check('melee attack offers only melee weapons',
@@ -61,7 +62,7 @@ try {
     !!idlePose.melee?.length && !!idlePose.gun?.length && await page.locator('#weaponHand').isVisible(), idlePose);
 
   const seen = [];
-  for (const [character, pose] of [['paz', 'idle'], ['armorer', 'idle'], ['bossk', 'idle'], ['duelist', 'idle'],
+  for (const [character, pose] of [['ig11', 'idle'], ['armorer', 'idle'], ['bossk', 'idle'], ['duelist', 'idle'],
     ['stormtrooper', 'idle'], ['tusken', 'idle'], ['officer', 'idle'], ['enforcer', 'idle'], ['din', 'idle']]) {
     await open(character, pose);
     seen.push(...await allLabels());
@@ -87,11 +88,12 @@ try {
   check('saber wielders show no weapon choice at all', Object.values(sabers).every((n) => n === 0), sabers);
 
   // ---- the swap itself ----
-  await open('paz', 'melee1');
+  await open('ig11', 'melee1');
+  // IG-11 carries the force pike; its hand group keeps the slot's own name
   const beforeGaffi = await drawn('gaffi');
-  await page.locator('#weaponChoice-melee').selectOption('force_pike');
-  await settle('force_pike');
-  const pike = await drawn('force_pike');
+  await page.locator('#weaponChoice-melee').selectOption('electrostaff');
+  await settle('electrostaff');
+  const pike = await drawn('electrostaff');
   const gaffiHidden = await page.evaluate(() => window.__wb.figures[0].extras.gaffi.visible === false);
   check('choosing a melee weapon puts it in the authored hand and hides the default',
     beforeGaffi.chain && pike.chain && pike.meshes > 0 && pike.parent === 'weaponMount' && gaffiHidden,
@@ -105,31 +107,32 @@ try {
     const gun = window.__wb.figures[0].inst.muzzle.parent;
     return gun.visible;
   });
-  const pikeInAim = await drawn('force_pike');
+  const pikeInAim = await drawn('electrostaff');
   check('the melee pick stays out of a gun pose', carbine && !pikeInAim.found, { carbine, pikeInAim });
 
   await page.locator('#pose').selectOption('melee2');
   check('the melee pick persists across poses',
-    await page.locator('#weaponChoice-melee').inputValue() === 'force_pike' && (await drawn('force_pike')).chain);
+    await page.locator('#weaponChoice-melee').inputValue() === 'electrostaff' && (await drawn('electrostaff')).chain);
 
   await page.locator('#pose').selectOption('idle');
-  await page.locator('#weaponChoice-gun').selectOption('longrifle');
-  await settle('longrifle');
-  const rifle = await drawn('longrifle');
+  // IG-11's own gun is the long rifle: the pick is the pistol
+  await page.locator('#weaponChoice-gun').selectOption('pistol');
+  await settle('pistol');
+  const rifle = await drawn('pistol');
   const handGun = await page.locator('#weaponHand [data-hand="gun"]').getAttribute('aria-pressed');
   check('choosing a gun in idle shows it in hand', rifle.chain && rifle.meshes > 0 && handGun === 'true', rifle);
   await page.locator('#weaponHand [data-hand="melee"]').click();
-  const pikeIdle = await drawn('force_pike');
-  const rifleIdle = await drawn('longrifle');
+  const pikeIdle = await drawn('electrostaff');
+  const rifleIdle = await drawn('pistol');
   check('the in-hand toggle shows the melee pick in idle', pikeIdle.chain && !rifleIdle.found, { pikeIdle, rifleIdle });
 
   // the grip editor works on the weapon that is showing
   await page.locator('#editToggle').click();
   await page.locator('[data-edit-kind="weapon"]').click();
   await page.waitForFunction(() => [...document.querySelector('#weaponTarget').options]
-    .some((o) => o.textContent.includes('force_pike')), undefined, { timeout: 15000 }).catch(() => {});
+    .some((o) => o.textContent.includes('electrostaff')), undefined, { timeout: 15000 }).catch(() => {});
   const targets = await page.locator('#weaponTarget option').allTextContents();
-  check('weapon grip editor targets the chosen weapon', targets.some((t) => t.includes('force_pike'))
+  check('weapon grip editor targets the chosen weapon', targets.some((t) => t.includes('electrostaff'))
     && !targets.some((t) => t.includes('gaffi')), targets);
   await page.locator('#editToggle').click();
 
@@ -154,12 +157,12 @@ try {
   const find = (c, s) => exported.entries.find((e) => e.character === c && e.slot === s);
   check('export lists every pick against its default',
     exported.format === 'mando-workbench-weapon-choices/1' && exported.entries.length === 3
-      && find('paz', 'melee')?.chosen.id === 'force_pike' && find('paz', 'melee')?.default.id === 'gaffi'
-      && find('paz', 'gun')?.chosen.id === 'longrifle' && find('paz', 'gun')?.default.id === 'carbine'
+      && find('ig11', 'melee')?.chosen.id === 'electrostaff' && find('ig11', 'melee')?.default.id === 'force_pike'
+      && find('ig11', 'gun')?.chosen.id === 'pistol' && find('ig11', 'gun')?.default.id === 'longrifle'
       && find('stormtrooper', 'gun')?.chosen.id === 'pistols', exported);
 
   if (process.env.WB_SHOT) {
-    await open('paz', 'melee1');
+    await open('ig11', 'melee1');
     await page.waitForTimeout(800);
     await page.screenshot({ path: process.env.WB_SHOT });
   }

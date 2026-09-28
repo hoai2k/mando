@@ -78,6 +78,33 @@ Consider the Generations Blender cleanup, rigging, decimation, export and
 compression stages when the input model needs them. The game depends on the
 resulting usable `.glb`, not on a specific production pipeline.
 
+### Decimating to budget
+
+A model that arrives over budget is brought down with
+
+    node tools/asset-pipeline/decimate.mjs <id> <triangles>
+
+(add `--dry` to see the result without writing anything). It keeps the
+original byte for byte in `public/models/full/`, with the skinfix / strays /
+jawrig documents written for it, and always decimates from there — so running
+it again at a different budget is safe, and putting an original back is copying
+its files from `full/` over the shipped ones and dropping its entry from
+`src/characters/data/fullResolution.json`. Stray lumps are baked out before
+simplifying; every vertex-numbered fix is renumbered onto the new mesh. The
+simplifier weighs normals, texture coordinates and skin weights, so seams,
+creases and the borders between bones' territories are kept.
+
+The model workbench shows a decimated character's original with **Full-resolution
+original** (or `?res=full`), for checking the two side by side.
+
+Decimated on 2026-09-28, from 120k (60-100k for the props and the massiff):
+the playable heroes `din armorer paz bokatan ig11 duelist` to 15k; the NPCs
+`darktrooper deathtrooper fennec imperial_officer pirate pirate_melee pyke
+pyke_capo stormtrooper tusken droid marshal nikto wookiee_enforcer massiff
+massiff_static` to 8k; `carbine gaffi nikto_swoop` to 4k. They were each drawn
+two to four times a frame (every split-screen view and every shadow pass) at
+eight to fifteen times the budget above.
+
 ## Playable Mandalorians (4) — priority 1
 
 All share the rig, jetpack mount (`jetpack` bone), and weapon mounts (`weaponR`). Each needs: armored body, distinct helmet, jetpack variant, optional cape on `capeRoot`.
@@ -881,17 +908,29 @@ props on the `loadProp()` path; origin at the base, +Z forward; ≤ 1.5k tris an
 | `energy_pylon` | 1 | 0.9 Ø × 4.5 m | The fence post: a pair of these carries the energy pane that seals an outdoor zone's exit. Industrial emitter column with a glowing cap (emissive slot: red shut, accent-colour when it may open — the game drives the colour), cable spool at the base. ≤ 1.2k tris. |
 | `trail_post` | 1 | 0.3 Ø × 1.8 m | The breadcrumb along long treks and roads: a survey stake with a lantern head (emissive slot) and a tattered pennant. ≤ 500 tris. |
 
+Canonical three-view sheets for this optional outdoor set are delivered as
+`reference/props/<id>_ref.png` for each of the seven IDs above. These are
+visual references; the GLB models remain open. The two cliff pillar sheets
+were replaced with slender 8 × 36 m references (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
+
 ## Gameplay sections — props and a prisoner, requested 2026-09-28
 
 Opened by [`SECTIONS_IMPLEMENTATION.md`](SECTIONS_IMPLEMENTATION.md). All eighteen
 sections in [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are being built, and these are
 the sculpts they would like. **Every one ships as a procedural stand-in first**, and
 a section never waits on a file. The stand-in's size, pivot and collider are the spec
-below, so a delivered model drops into place through `loadProp()`. Reference sheets
-for each prop are requested in
-[`ASSETS_IMAGES.md`](ASSETS_IMAGES.md#gameplay-sections--supporting-images-2026-09-28):
-make each model from its sheet. Rigless props on the `loadProp()` path, origin at the
-base, +Z forward. Stylized-realistic, weathered, original. Priority is by how
+below, so a delivered model drops into place through `loadProp()`. Canonical
+three-view sheets for all eleven props are delivered as
+`reference/props/<id>_ref.png`, and the prisoner has
+`reference/characters/prisoner_front.png`, `_side.png` and `_back.png`.
+Make each model from its sheet; the GLB requests remain open. The corvette,
+flak tower and valve wheel sheets were corrected on review (see
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#six-corrected-model-reference-sheets--delivered-2026-09-28)).
+The hydraulic press sheet was replaced with a gantry-only three-view reference
+(see [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#hydraulic-press-sheet-second-redo--delivered-2026-09-28)).
+Rigless props on the `loadProp()` path, origin at the base, +Z forward. Stylized-realistic,
+weathered, original. Priority is by how
 much players look at the prop.
 
 | Id | Section | Size | Role / constraints | Priority |
@@ -908,6 +947,41 @@ much players look at the prop.
 | `boarding_tube` | Guns of the Frigate | 3 m Ø × 8 m | A flexible armoured boarding tube with a clamp collar (`latch` node: the part a player melees off). ≤ 2k tris. | 2 |
 | `freight_lift` | The Lift | 12 × 12 m platform | Heavy lift platform with rails on two sides and a control pylon in one corner (`pylon`). The collider is the deck plus the rails. ≤ 3k tris. | 3 |
 | `prisoner` | One Way Out | 1.78 m biped | **A character, on the canonical rig** per the [swap contract](#swap-contract-applies-to-every-biped): a gaunt prison labourer in a plain pale jumpsuit with numbered patches (sheets requested as `prisoner_front/side/back.png`). The stand-in is the droid or trooper builder re-skinned pale. Several on screen at once, so ≤ 6k tris, 1024² set. | 1 |
+
+### Stand-in proportions, measured from the sheets (2026-09-28)
+
+A delivered sculpt is scaled by **one** dimension (`loadProp` size, along its longest
+axis unless the placement names another), and its other dimensions follow the
+reference sheet. So a stand-in, and every collider sized from it, should use the
+sheet's proportions, not just the size column above, or the swap leaves an invisible
+wall or a gap. These are the sheets' bounding boxes (side, front and top views
+measured against each other), scaled by the dimension that governs each prop. Where a
+sheet departs from the size column, the sheet is what the model will be.
+
+| Id | Governing size | Bounding box from the sheet (L × W × H, m) | Shape notes from the sheet (read off it, approximate) |
+|---|---|---|---|
+| `thumper` | 2.4 m tall | 2.0 × 1.8 × 2.4 | Tripod of three spiked legs about 1.8 m apart; a crank lever across the top with a netted stone counterweight on one end and the cylindrical `hammer` hanging from the other, about 0.7 m off the tripod's centre, bottoming out about 0.5 m above the ground. |
+| `quad_turret` | 4 m long, barrel tips to shield | 4.0 × 3.0 × 2.7 (the size column says 2.4 tall) | A drum base about 3.0 m across and 1.0 m tall (`base`); the yaw block on top; four barrels stacked vertically, trunnion about 1.9 m up, reaching 1.5 m forward of the drum; the seat and a curved shield behind. |
+| `pirate_corvette` | 60 m long | 60 × 16 × 18 (height includes the bridge mast) | Long box hull about 60 × 12 × 9; three domes in a row on the dorsal centreline over the middle third; the spinal gun ahead of them; the bridge block near the stern; three engine pods at the rear. |
+| `searchlight_tower` | 14 m tall | 5.5 × 5.0 × 14 | Lattice mast about 1.7 m square on a 2.7 m hazard-striped footing; a platform about 4.8 m square at 11 m; the `lamp` drum on its yoke above the platform, about 1.8 m across; the sensor mast at one corner. The r 1.2 m collider covers the mast only. |
+| `hydraulic_press` | 8 m wide | 8.0 × 2.0 × 5.4 (the size column says 7 tall, 3 deep) | Two columns about 0.8 m square on foot plates; the crossbeam across the top; the `head` about 5 × 1.2 × 1.0 m on four rams, hanging slightly forward of the crossbeam; the opening under it about 6.4 m wide. |
+| `welding_arm` | 6 m reach | 6.0 × 1.6 × 5.1 | A square base plate about 1.6 m; `base` drum; the upper arm rising to the `shoulder` about 3.5 m up; the forearm reaching out level; the torch `tip` about 3 m up at full reach. |
+| `flak_tower` | 6 m across | 6.7 × 6.0 × 3.3 (length includes the barrels) | A stone slab 6 m across and about 0.9 m thick; sandbags and crates round its edge; the turret on a turntable in the middle, barrels level about 2.4 m up, reaching 0.7 m past the slab's edge. |
+| `beskar_barricade` | 3 m wide | 3.0 × 1.0 × 0.9 (the size column says 1.2 tall) | A curved plate bowing about 0.5 m, posts at both ends, braced feet front and back; depth including the feet about 1.0 m. The 3 × 1.2 × 0.4 m collider box is taller and shallower than the drawn shape. |
+| `boarding_tube` | 8 m long | 8.0 × 2.4 × 2.4 (the size column says 3 m across) | A ribbed tube about 2.2 m across; a clamp collar at one end about 2.4 m across with four clamp jaws (`latch`); a hoop guard at the other end. |
+| `freight_lift` | 12 m square | 12 × 12 × 5.4 | Deck about 12 × 12 × 2.0 m (the underframe included); rails 1.1 m tall along two sides; the control `pylon` about 1 m square rising to 5.4 m at one corner. |
+| `valve_wheel` | 1.6 m tall (as the Chimney places it) | 0.8 × 0.6 × 1.6 | Built to these in `src/sections/chimney.ts`: flange about 0.55 m across, pedestal pipe about 0.18 m, the `wheel` 0.82 m across centred 1.19 m up on an axle 0.23 m forward. |
+| `prisoner` | 1.78 m | biped | The three views agree with an ordinary adult build in a relaxed A-pose; the stand-in's usual biped proportions are right. |
+
+The outdoor set (`boulder_a/b/c`, `cliff_pillar_rock/ice`, `energy_pylon`, `trail_post`)
+already has stand-ins built to their sheets: see `src/world/stage/primitives.ts`
+(`BOULDER_SHAPE`), `ridge.ts` (`PILLAR_PROFILE`, with stepped colliders),
+`barriers.ts` (`PYLON_GEO`) and `links.ts` (`TRAIL_POST_GEO`). One caveat for the pillar sculpts: at the
+heights the levels ask for (about 1.25× the ceiling, around 32-38 m) the sheets' foot
+flare reaches 4.7-5.2 m radius at the ground, past the 4.4 m footprint the gap framers
+are laid out for. The stand-in and its colliders keep that footprint; a sculpt should
+keep its flare within about 4.5 m of its axis at 4-8 % of its height.
+
 
 ## Stray geometry in a delivered sculpt (2026-09-20)
 

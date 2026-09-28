@@ -13,15 +13,30 @@ import {
 /** scratch for projecting a pedestal to the screen */
 const PROJECT = new THREE.Vector3();
 import type { MenuAction } from '../core/input';
+import { ASSET_ROOT } from '../core/assets';
+import { makeStage } from './stage';
+import { faceSvg, portraitName } from './faces';
 import { propsSettled } from '../characters/builder';
 import type { PlayerCharacter } from '../characters/mandalorians';
 import { applyArmorerAxeGrip } from '../characters/armorerAxeGrips';
 import { playableDef, STANDARD_ROSTER, type PlayableId } from '../characters/roster';
 
 /**
- * 3D character select: two pedestals rendered by the game's own renderer, with
- * a thin DOM chrome on top (names, arrows, join/ready prompts). Player 1 is
- * keyboard + first pad; a second pad joins by pressing A on its own pedestal.
+ * Character select: the line-up (docs/UI_CONCEPTS.md, "Hunters").
+ *
+ * What the players see is a row of portrait strips — the whole roster, each
+ * hunter a tall slanted card, widened where a player is standing on it — and
+ * under it one card per place in the line: who that player has picked, what
+ * they carry, and a READY stamp once they are locked in. A place still open
+ * says so ("Press A to join"). Player 1 is keyboard + first pad; another pad
+ * joins by pressing A.
+ *
+ * Underneath, the screen is still the 3D stage it was built as: every place is
+ * a plinth with the fighter's body on it, driven and loaded exactly as before,
+ * just not drawn. That is deliberate. Locking in waits on the body being
+ * there, which is what guarantees every picked model is warm by the time the
+ * match starts — the drop screen's wait is short because this one did the
+ * work — and the stage is also where the poster tool shoots its pictures.
  *
  * Only the authored models are ever shown — the procedural body a character is
  * born with stays hidden, and a pedestal shows a spinner instead if its model
@@ -43,10 +58,14 @@ const ARC_RATE = 0.4;
 /** yaw rate at full right-stick deflection, and how fast a released stick eases back */
 const MANUAL_RATE = 2.8;
 const RETURN_TAU = 0.55;
-/** radians of yaw per pixel of mouse drag */
-const DRAG_RATE = 0.011;
 /** resting emissive lift, matched to how the hero reads in-game */
 const BASE_GLOW = 0.22;
+/** each place in the line wears a colour: its card's edge and its tag on the strips */
+const SLOT_COLOURS = ['#e0452c', '#3d86e0', '#4fb05a', '#e8b830', '#b06ad8', '#e07a2c', '#3dc0c0', '#c8c0b0'];
+/** the portrait a fighter wears on this screen */
+const portraitUrl = (id: PlayableId): string => `${ASSET_ROOT}assets/textures/${portraitName(id)}.jpg`;
+/** the one word a strip has room for: "Din Djarin" is DIN, "The Armorer" ARMORER, "Darth Maul" MAUL */
+const stripName = (name: string): string => name.replace(/^(The|Darth)\s+/, '').split(/\s+/)[0];
 
 /**
  * The line only ever holds the players who are here plus one open place —
@@ -138,14 +157,14 @@ interface Slot {
   glowRise: number;                 // seconds since this model became visible
   glowId: PlayableId | null;
   appear: number;                 // 0 = off stage, 1 = fully in the line
-  screenX: number;                // last projected x, 0..1 across the window
   // DOM
   panel: HTMLElement;
   name: HTMLElement;
   status: HTMLElement;
   kit: HTMLElement;
   spinner: HTMLElement;
-  arrows: HTMLElement[];
+  /** whose portrait the card is wearing, so it is only re-set on a change */
+  shownId: PlayableId | null;
   /** last state the status line was written for, so it is only rewritten on a change */
   waiting: boolean;
   /** the pre-rendered picture standing in for this slot's pick, if there is one */
@@ -218,10 +237,12 @@ export class CharacterSelect {
   private humanSource: number[] = Array(MAX_PLAYERS).fill(-2);
   private titleEl!: HTMLElement;
   private hintEl!: HTMLElement;
-  /** in-progress mouse drag: which pedestal it grabbed and where it last was */
-  private drag: { slot: number; lastX: number } | null = null;
-  /** live press, to tell a click apart from a drag on release */
-  private press: { slot: number; x: number; y: number; moved: number } | null = null;
+  private subEl!: HTMLElement;
+  private contextEl!: HTMLElement;
+  /** the roster's portrait strips, one per id on offer, rebuilt when the roster changes */
+  private strips!: HTMLElement;
+  private stripEls: HTMLElement[] = [];
+  private stripRoster: PlayableId[] = [];
 
   constructor(
     parent: HTMLElement,
@@ -242,21 +263,30 @@ export class CharacterSelect {
       stickX: (slot: number) => number;
     },
   ) {
-    // ---- DOM chrome (transparent — the 3D scene shows through) ----
+    // ---- the line-up, laid out on the front end's fixed stage ----
     this.root = document.createElement('div');
-    this.root.className = 'menu-screen charsel-screen';
+    this.root.className = 'menu-screen fe-screen fe-hunters charsel-screen';
     this.root.style.display = 'none';
     parent.appendChild(this.root);
+    const stage = makeStage(this.root);
 
-    const title = document.createElement('div');
-    title.className = 'menu-title charsel-title';
-    title.textContent = TEXT.charSelect.title;
-    this.root.appendChild(title);
-    this.titleEl = title;
+    const head = document.createElement('div');
+    head.className = 'fe-hunters-head';
+    head.innerHTML = `<span class="l"><span class="charsel-title"></span><span class="sub"></span></span><span class="ctx"></span>`;
+    stage.appendChild(head);
+    this.titleEl = head.querySelector('.charsel-title') as HTMLElement;
+    this.titleEl.textContent = TEXT.charSelect.title;
+    this.subEl = head.querySelector('.sub') as HTMLElement;
+    this.subEl.textContent = TEXT.charSelect.sub;
+    this.contextEl = head.querySelector('.ctx') as HTMLElement;
 
-    // Before the panels, so a picture sits over the 3D stage and under every
-    // name plate and arrow — the plates are what a player reads while the
-    // pictures are flipping past.
+    this.strips = document.createElement('div');
+    this.strips.className = 'fe-strips';
+    stage.appendChild(this.strips);
+
+    // The pictures the 3D stage flips through. The stage is not drawn any
+    // more, so neither are they, but they are still laid out: the poster
+    // pipeline is measured against this layer.
     const posterLayer = document.createElement('div');
     posterLayer.className = 'charsel-posters';
     this.root.appendChild(posterLayer);
@@ -264,67 +294,30 @@ export class CharacterSelect {
 
     const panels = document.createElement('div');
     panels.className = 'charsel-panels';
-    this.root.appendChild(panels);
+    stage.appendChild(panels);
     this.panels = panels;
 
     for (let i = 0; i < MAX_FIGHTERS; i++) this.slots.push(this.makeSlot(i, panels));
+    this.buildStrips();
 
-    this.startBtn = document.createElement('button');
-    this.startBtn.className = 'menu-btn charsel-start';
-    this.startBtn.textContent = TEXT.charSelect.start;
-    // Hidden, not removed: the button sits in the same column as the panels,
-    // and taking it out of the flow grew the panel box by its height — so the
-    // clamp that keeps a name off the plinth had a different ceiling before
-    // and after locking in, and READY landed on the ring. Reserving the space
-    // keeps the geometry identical in both states.
-    this.startBtn.style.visibility = 'hidden';
-    this.startBtn.addEventListener('click', () => { audio.uiConfirm(); this.start(); });
-    this.root.appendChild(this.startBtn);
-
-    const hint = document.createElement('div');
-    hint.className = 'menu-hint';
-    hint.innerHTML = TEXT.charSelect.hint;
-    this.root.appendChild(hint);
+    // the prompt bar: the standard pair on the left, and on the right whatever
+    // the line needs next — an open place, a count, or the start itself
+    const bar = document.createElement('div');
+    bar.className = 'fe-prompts fe-hunters-bar';
+    bar.innerHTML = `
+      <span><span class="fe-glyph a">A</span>${TEXT.charSelect.confirm}</span>
+      <span><span class="fe-glyph b">B</span>${TEXT.charSelect.cancel}</span>`;
+    stage.appendChild(bar);
+    const hint = document.createElement('span');
+    hint.className = 'fe-hunters-status';
+    bar.appendChild(hint);
     this.hintEl = hint;
-
-    // ---- mouse drag turns the model on the pedestal you grabbed ----
-    // The stage is drawn behind this overlay rather than into it, so the
-    // pedestal is picked from which half of the screen the drag started in;
-    // that is exactly the region its panel occupies.
-    this.root.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
-      const slot = this.slotNearest(e.clientX);
-      // Remember every press, not just the ones that can turn a model: a press
-      // on an empty or spinning pedestal can still resolve into a click.
-      this.press = { slot, x: e.clientX, y: e.clientY, moved: 0 };
-      const phase = this.slots[slot].phase;
-      if (phase === 'empty' || phase === 'spinning') return;   // nothing to turn
-      this.drag = { slot, lastX: e.clientX };
-      this.root.classList.add('dragging');
-    });
-    this.root.addEventListener('pointermove', (e) => {
-      if (this.press) {
-        this.press.moved = Math.max(this.press.moved, Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y));
-      }
-      if (!this.drag) return;
-      const s = this.slots[this.drag.slot];
-      s.manual = wrapPi(s.manual + (e.clientX - this.drag.lastX) * DRAG_RATE);
-      this.drag.lastX = e.clientX;
-    });
-    // on window, so releasing outside the screen still ends the drag
-    const endDrag = () => { this.drag = null; this.root.classList.remove('dragging'); };
-    window.addEventListener('pointerup', (e) => {
-      // A press that barely moved is a click, not a turn: it selects the
-      // pedestal it landed on — join an empty slot, lock in a browsing one,
-      // start from a ready one — which is what A does on a pad.
-      const press = this.press;
-      this.press = null;
-      endDrag();
-      if (press && press.moved < 6 && !(e.target as HTMLElement).closest('button')) {
-        this.select(press.slot, -1);
-      }
-    });
-    window.addEventListener('pointercancel', () => { this.press = null; endDrag(); });
+    this.startBtn = document.createElement('button');
+    this.startBtn.className = 'charsel-start';
+    this.startBtn.innerHTML = `<span class="fe-glyph a">A</span>${TEXT.charSelect.start}`;
+    this.startBtn.style.display = 'none';
+    this.startBtn.addEventListener('click', () => { audio.uiConfirm(); this.startBtn.blur(); this.start(); });
+    bar.appendChild(this.startBtn);
 
     // ---- 3D stage ----
     this.scene.background = new THREE.Color(0x07080c);
@@ -371,6 +364,8 @@ export class CharacterSelect {
    */
   private layoutStage(dt: number): void {
     const n = this.onStage();
+    // past four places (PvP with bots in the line) the cards narrow to fit
+    this.panels.classList.toggle('crowded', n > 4);
     // the camera eases back as the line widens, so four fit the frame without
     // two ever looking marooned at the edges
     const z = STAGE_Z[Math.max(1, Math.min(MAX_FIGHTERS, n))];
@@ -434,50 +429,32 @@ export class CharacterSelect {
   }
 
   private makeSlot(i: number, panels: HTMLElement): Slot {
+    // one card per place in the line: the portrait on the right, fading into
+    // the plate on the left that says who, with what, and whether they are in
     const panel = document.createElement('div');
     panel.className = 'charsel-panel';
+    panel.style.setProperty('--pc', SLOT_COLOURS[i % SLOT_COLOURS.length]);
+    panel.innerHTML = `
+      <div class="in">
+        <div class="art"><div class="face"></div><div class="photo"></div></div>
+        <div class="fade"></div>
+        <div class="body">
+          <div class="charsel-status"></div>
+          <div class="charsel-name"><span class="charsel-name-current"></span></div>
+          <div class="charsel-kit"></div>
+          <div class="epithet"></div>
+        </div>
+        <div class="stamp">${TEXT.charSelect.ready}</div>
+        <div class="charsel-spinner" style="display:none"></div>
+      </div>`;
     panels.appendChild(panel);
-
-    const status = document.createElement('div');
-    status.className = 'charsel-status';
-    panel.appendChild(status);
-
-    const spinner = document.createElement('div');
-    spinner.className = 'charsel-spinner';
-    spinner.style.display = 'none';
-    panel.appendChild(spinner);
-
-    const base = document.createElement('div');
-    base.className = 'charsel-base';
-    panel.appendChild(base);
-    const mkArrow = (dir: -1 | 1): HTMLElement => {
-      const a = document.createElement('button');
-      a.className = 'charsel-arrow';
-      a.textContent = dir < 0 ? '◀' : '▶';
-      a.addEventListener('click', () => this.flip(i, dir));
-      return a;
-    };
-    const nameBox = document.createElement('div');
-    nameBox.className = 'charsel-name';
-    // Invisible names share the same grid cell as the visible one, so the
-    // arrows stay outside the widest name in this mode while browsing.
-    for (const id of this.roster) {
-      const measure = document.createElement('span');
-      measure.className = 'charsel-name-measure';
-      measure.setAttribute('aria-hidden', 'true');
-      measure.textContent = playableDef(id).profile.name;
-      nameBox.appendChild(measure);
-    }
-    const name = document.createElement('span');
-    name.className = 'charsel-name-current';
-    nameBox.appendChild(name);
-    const arrows = [mkArrow(-1), mkArrow(1)];
-    base.append(arrows[0], nameBox, arrows[1]);
-    // what the fighter brings: one line under the name, so a thirty-body
-    // PvP roster is a choice and not a guess
-    const kit = document.createElement('div');
-    kit.className = 'charsel-kit';
-    panel.appendChild(kit);
+    // a click is A on this place: join it, lock it in, or start from it
+    panel.addEventListener('click', () => this.select(i, -1));
+    const q = (sel: string): HTMLElement => panel.querySelector(sel) as HTMLElement;
+    const status = q('.charsel-status');
+    const spinner = q('.charsel-spinner');
+    const name = q('.charsel-name-current');
+    const kit = q('.charsel-kit');
 
     const pedestal = new THREE.Mesh(
       new THREE.CylinderGeometry(0.62, 0.7, 0.12, 36),
@@ -500,8 +477,8 @@ export class CharacterSelect {
       phase: 'empty', bot: false, owner: -1, choice: i % this.roster.length, spinT: 0, loadingFor: 0,
       baseYaw: 0, arcT: 0, manual: 0,
       group, chars: new Map(), pedestal, ring, backGlow, glowRise: 0, glowId: null,
-      appear: 0, screenX: 0.5,
-      panel, name, status, kit, spinner, arrows, waiting: false, poster: null,
+      appear: 0,
+      panel, name, status, kit, spinner, waiting: false, poster: null, shownId: null,
     };
   }
 
@@ -675,25 +652,6 @@ export class CharacterSelect {
   }
 
   // ---------- input ----------
-
-  /**
-   * The on-stage pedestal nearest a click.
-   *
-   * The stage is drawn behind this overlay rather than into it, so a click is
-   * matched to a plinth by where that plinth projects on screen — which is
-   * exact however many are up and wherever the line has slid to. (Splitting
-   * the window in half worked only while there were exactly two.)
-   */
-  private slotNearest(clientX: number): number {
-    const x = clientX / window.innerWidth;
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < this.onStage(); i++) {
-      const d = Math.abs(this.slots[i].screenX - x);
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    return best;
-  }
 
   /** Map an input source (-1 keyboard, else pad index) to a player slot. */
   private slotFor(source: number): number {
@@ -971,13 +929,15 @@ export class CharacterSelect {
    * Dress the screen for a mode: which ids are on offer, what the title says,
    * and how many players the mode insists on (PvP: two). Call before show().
    */
-  configure(opts: { roster: PlayableId[]; title: string; minPlayers?: number; allowBots?: boolean }): void {
+  configure(opts: { roster: PlayableId[]; title: string; minPlayers?: number; allowBots?: boolean; context?: string }): void {
     const changed = opts.roster.length !== this.roster.length
       || opts.roster.some((id, i) => id !== this.roster[i]);
     this.roster = [...opts.roster];
     this.minPlayers = opts.minPlayers ?? 1;
     this.allowBots = !!opts.allowBots;
     this.titleEl.textContent = opts.title;
+    this.contextEl.textContent = opts.context ?? '';
+    this.buildStrips();
     if (changed) {
       for (const s of this.slots) {
         s.choice = Math.min(s.choice, this.roster.length - 1);
@@ -1113,15 +1073,15 @@ export class CharacterSelect {
         // to zero, so it settles into the idle sweep rather than snapping.
         const stick = this.opts.stickX(i);
         if (stick !== 0) s.manual = wrapPi(s.manual + stick * MANUAL_RATE * dt);
-        else if (this.drag?.slot !== i) s.manual *= Math.exp(-dt / RETURN_TAU);
+        else s.manual *= Math.exp(-dt / RETURN_TAU);
         // slow turntable, centred on facing the camera, so it reads from both sides
         if (s.phase === 'browsing') s.arcT += dt;
         const arc = s.phase === 'browsing' ? Math.sin(s.arcT * ARC_RATE) * ARC : 0;
         s.group.rotation.y = s.baseYaw + arc + s.manual;
       }
     }
-    this.startShown = anyJoined && allReady;
-    this.startBtn.style.visibility = this.startShown ? '' : 'hidden';
+    const startShown = anyJoined && allReady;
+    if (startShown !== this.startShown) { this.startShown = startShown; this.paintBar(); }
   }
 
   /**
@@ -1166,11 +1126,15 @@ export class CharacterSelect {
     this.camera.updateMatrixWorld();
   }
 
+  /**
+   * The line-up is DOM over a plain backdrop: the stage behind it is kept
+   * running (see the class comment) but not drawn. The posters are still laid
+   * out, since they are measured against the stage's own camera.
+   */
   render(renderer: THREE.WebGLRenderer): void {
     this.aimCamera();
-    this.layoutPanels();
     this.layoutPosters();
-    renderer.render(this.scene, this.camera);
+    renderer.clear();
   }
 
   /**
@@ -1335,82 +1299,149 @@ export class CharacterSelect {
     };
   }
 
-  /**
-   * Put each player's name and arrows under that player's pedestal.
-   *
-   * The panels used to be equal flex columns, which lined up with two
-   * pedestals only because the spacing had been picked to make it so — and
-   * only at one aspect ratio. Projecting the pedestal instead is exact at any
-   * window shape and any number of players.
-   */
-  private layoutPanels(): void {
-    const box = this.panels.getBoundingClientRect();
-    for (const s of this.slots) {
-      // Joined slots hang their plate off the plinth; an empty one puts its
-      // invitation up where a character would stand, so the eye reads a place
-      // waiting to be filled rather than a caption under an empty disc.
-      PROJECT.copy(s.group.position);
-      // a hand's width below the plinth for a name, chest height for an
-      // invitation — measured in the world, so the gap shrinks in perspective
-      // with the plinth rather than sitting on the ring when the line is short
-      PROJECT.y += s.phase === 'empty' ? 1.15 : -0.45;
-      PROJECT.project(this.camera);
-      s.screenX = PROJECT.x * 0.5 + 0.5;
-      s.panel.style.left = `${s.screenX * 100}%`;
-      // Following the plinth vertically as well keeps the name clear of it at
-      // every line width: the stage camera pulls back as players join, which
-      // slides the whole line up the screen.
-      // ...and clamped to the band between the title and the hint, so a short
-      // line placing its plinths low on screen can never push a name into them
-      const y = (1 - (PROJECT.y * 0.5 + 0.5)) * window.innerHeight - box.top;
-      s.panel.style.top = `${Math.max(0, Math.min(y, box.height - 74))}px`;
-    }
-  }
-
   // ---------- DOM state ----------
 
   private refresh(): void {
+    const T = TEXT.charSelect;
+    const humans = this.humanCount();
     this.slots.forEach((s, i) => {
       const id = this.roster[s.choice];
+      s.panel.classList.toggle('empty', s.phase === 'empty');
+      s.panel.classList.toggle('ready', s.phase === 'ready');
+      s.panel.classList.toggle('locked', s.phase === 'ready' || s.phase === 'spinning');
+      s.panel.classList.toggle('bot', s.bot);
+      const epithet = s.panel.querySelector('.epithet') as HTMLElement;
       if (s.phase === 'empty') {
         s.name.textContent = '';
-        const join = `<b>${TEXT.charSelect.player(this.humanCount() + 1)}</b><br/>${TEXT.charSelect.join}`;
-        // the invitation only offers a bot where the mode has them, and only
-        // to a line with somebody in it to pick for one
-        s.status.innerHTML = this.allowBots && this.humanCount() > 0
-          ? `${join}<br/>${TEXT.charSelect.joinBot}`
+        epithet.textContent = '';
+        s.kit.innerHTML = '';
+        // the invitation: the next player's number, and a bot where the mode
+        // has them and there is somebody in the line to pick for one
+        const join = `<b>${T.tag(humans + 1)}</b>${T.join('<span class="fe-glyph a">A</span>')}`;
+        s.status.innerHTML = this.allowBots && humans > 0
+          ? `${join}<br/>${T.joinBot('<span class="fe-glyph y">Y</span>')}`
           : join;
-        s.panel.classList.add('empty');
-        s.panel.classList.remove('ready');
-      } else if (s.bot) {
-        s.name.textContent = playableDef(id).profile.name;
-        const owner = TEXT.charSelect.player(s.owner + 1);
-        const tag = `<b>${TEXT.charSelect.bot}</b><br/>`;
-        s.status.innerHTML = s.phase === 'ready' ? `${tag}${TEXT.charSelect.ready}`
-          : s.waiting ? `${tag}${TEXT.charSelect.loading}`
-            : this.slots[s.owner]?.phase === 'ready'
-              ? `${tag}${TEXT.charSelect.botPicking(owner)}`
-              : `${tag}${TEXT.charSelect.botWaiting(owner)}`;
-        s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
-        s.panel.classList.remove('empty');
-      } else {
-        const pr = playableDef(id).profile;
-        s.name.textContent = pr.name;
-        const bits = [TEXT.charSelect.kit.hp(pr.maxHp)];
-        bits.push(pr.rangedName ? pr.rangedName : `<b>${pr.meleeName}</b>`);
-        bits.push(pr.flight === 'jetpack' ? TEXT.charSelect.kit.jetpack : TEXT.charSelect.kit.superJump);
-        if (pr.squad) bits.push(TEXT.charSelect.kit.squad(pr.squad.count));
-        if (pr.special === 'layEgg') bits.push(TEXT.charSelect.kit.laysEggs);
-        s.kit.innerHTML = `${pr.desc ? pr.desc + '<br/>' : ''}${bits.join(' · ')}`;
-        s.status.innerHTML = s.phase === 'ready' ? `<b>${TEXT.charSelect.ready}</b>`
-          : s.waiting ? `<b>${TEXT.charSelect.player(i + 1)}</b><br/>${TEXT.charSelect.loading}`
-            : `<b>${TEXT.charSelect.player(i + 1)}</b>`;
-        s.panel.classList.toggle('ready', s.phase === 'ready' || s.phase === 'spinning');
-        s.panel.classList.remove('empty');
+        this.wear(s, null);
+        return;
       }
-      const browsing = s.phase === 'browsing' && (!s.bot || this.slots[s.owner]?.phase === 'ready');
-      for (const a of s.arrows) a.style.visibility = browsing ? 'visible' : 'hidden';
+      const pr = playableDef(id).profile;
+      s.name.textContent = pr.name;
+      epithet.textContent = pr.desc;
+      // what the fighter brings, one chip each, so a thirty-body PvP roster is
+      // a choice and not a guess
+      const chips = [
+        T.kit.hp(pr.maxHp),
+        pr.rangedName ?? T.noGun,
+        pr.meleeName,
+        pr.flight === 'jetpack' ? T.kit.jetpack : T.kit.superJump,
+      ];
+      if (pr.squad) chips.push(T.kit.squad(pr.squad.count));
+      if (pr.special === 'layEgg') chips.push(T.kit.laysEggs);
+      s.kit.innerHTML = chips.map((c) => `<span>${c}</span>`).join('');
+      const locked = s.phase === 'ready' || s.phase === 'spinning';
+      if (s.bot) {
+        const owner = T.player(s.owner + 1);
+        s.status.innerHTML = `<b>${T.cpu}</b> · ${locked ? T.locked
+          : s.waiting ? T.loading
+            : this.slots[s.owner]?.phase === 'ready' ? T.botPicking(owner) : T.botWaiting(owner)}`;
+      } else {
+        s.status.innerHTML = `<b>${T.tag(i + 1)}</b> · ${locked ? T.locked : s.waiting ? T.loading : T.choosing}`;
+      }
+      this.wear(s, id);
     });
+    this.paintStrips();
+    this.paintBar();
+  }
+
+  /** put a fighter's portrait on a card, over their drawn mark in case the picture is missing */
+  private wear(s: Slot, id: PlayableId | null): void {
+    if (s.shownId === id) return;
+    s.shownId = id;
+    const face = s.panel.querySelector('.face') as HTMLElement;
+    const photo = s.panel.querySelector('.photo') as HTMLElement;
+    face.innerHTML = id ? faceSvg(id) : '';
+    photo.style.backgroundImage = id ? `url('${portraitUrl(id)}')` : '';
+  }
+
+  /** the roster strips, one per id on offer; rebuilt only when the roster changes */
+  private buildStrips(): void {
+    if (this.stripRoster.length === this.roster.length
+      && this.stripRoster.every((id, i) => id === this.roster[i])) return;
+    this.stripRoster = [...this.roster];
+    this.strips.innerHTML = '';
+    // a PvP roster is three dozen strong: two rows of narrower strips
+    this.strips.classList.toggle('two-rows', this.roster.length > 16);
+    const perRow = this.roster.length > 16 ? Math.ceil(this.roster.length / 2) : this.roster.length;
+    let row: HTMLElement | null = null;
+    this.stripEls = this.roster.map((id, j) => {
+      if (j % perRow === 0) {
+        row = document.createElement('div');
+        row.className = 'fe-strip-row';
+        this.strips.appendChild(row);
+      }
+      const name = playableDef(id).profile.name;
+      const el = document.createElement('div');
+      el.className = 'fe-strip';
+      el.setAttribute('aria-label', name);
+      el.innerHTML = `
+        <div class="in">
+          <div class="face">${faceSvg(id)}</div>
+          <div class="photo" style="background-image:url('${portraitUrl(id)}')"></div>
+          <div class="shade"></div>
+          <span class="vn">${TEXT.charSelect.short[id] ?? stripName(name)}</span>
+          <span class="tags"></span>
+        </div>`;
+      el.addEventListener('click', () => this.pickStrip(j));
+      row!.appendChild(el);
+      return el;
+    });
+  }
+
+  /** a click on a strip is the mouse player walking the line to that hunter */
+  private pickStrip(j: number): void {
+    if (this.humanSource[0] === -2) {
+      this.humanSource[0] = -1;
+      this.opts.alignPads(this.humanSource);
+    }
+    const slot = this.drivingSlot(-1);
+    const s = this.slots[slot];
+    if (!s || s.phase !== 'browsing' || this.botLocked(slot)) return;
+    if (!this.available(slot).has(this.roster[j])) return;
+    if (s.choice === j) { this.commit(slot); return; }      // a second click locks it in
+    audio.uiMove();
+    s.choice = j;
+    s.loadingFor = 0;
+    s.arcT = 0;
+    this.preloadAround();
+    this.refresh();
+  }
+
+  /** who is standing on which strip: widened, lit, and tagged with their places */
+  private paintStrips(): void {
+    this.stripEls.forEach((el, j) => {
+      const here = this.slots
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.phase !== 'empty' && s.choice === j);
+      el.classList.toggle('hot', here.length > 0);
+      el.classList.toggle('taken', here.some(({ s }) => s.phase === 'ready' || s.phase === 'spinning'));
+      (el.querySelector('.tags') as HTMLElement).innerHTML = here
+        .map(({ s, i }) => `<span class="tg" style="background:${SLOT_COLOURS[i % SLOT_COLOURS.length]}">${s.bot ? TEXT.charSelect.cpu : TEXT.charSelect.tag(i + 1)}</span>`)
+        .join('');
+    });
+  }
+
+  /** the right end of the prompt bar: an open place, a count, or the start */
+  private paintBar(): void {
+    const T = TEXT.charSelect;
+    this.startBtn.style.display = this.startShown ? '' : 'none';
+    this.hintEl.style.display = this.startShown ? 'none' : '';
+    if (this.startShown) return;
+    const joined = this.slots.filter((s) => s.phase !== 'empty').length;
+    const locked = this.slots.filter((s) => s.phase === 'ready').length;
+    const bits: string[] = [];
+    if (this.onStage() > joined) bits.push(T.joinPrompt('<span class="fe-glyph a">A</span>'));
+    if (joined > 1 || locked > 0) bits.push(T.lockedCount(locked, joined));
+    this.hintEl.innerHTML = bits.join('<span class="dot">·</span>');
   }
 
   /** the line as it stands, for tests: who is in it, in the order they stand */
@@ -1422,7 +1453,7 @@ export class CharacterSelect {
 
   show(primarySource = -1): void {
     this.root.style.display = '';
-    this.drag = null;
+    this.startShown = false;
     this.humanSource.fill(-2);
     this.humanSource[0] = primarySource;
     this.opts.alignPads(this.humanSource);
@@ -1445,13 +1476,10 @@ export class CharacterSelect {
     if (!this.available(0).has(this.roster[this.slots[0].choice])) this.slots[0].choice = 0;
     this.preloadAround();
     this.layoutStage(0);            // open on the line already spaced, not sliding in
-    this.layoutPanels();
     this.refresh();
   }
   hide(): void {
     this.root.style.display = 'none';
-    this.drag = null;
-    this.root.classList.remove('dragging');
     // the pictures are DOM over the stage, and the stage stops being drawn
     for (const s of this.slots) this.dropPoster(s);
   }

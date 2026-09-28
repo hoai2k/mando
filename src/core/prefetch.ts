@@ -263,6 +263,8 @@ function dropNeeds(board: BoardId, ctx: WarmContext): Need[] {
   const out: Need[] = [];
   const info = BOARDS.find((b) => b.id === board);
   if (info) out.push(pic(artName(info), artExt(info)));
+  // the Wanted sheet: the board it is pinned to and the paper it is printed on
+  out.push(pic('ui_bounty_board'), pic('ui_paper_aged'));
   // which fighters get picked is not settled until this screen is entered, so
   // cover the browsable roster; PvP's cast depends on the picks twice over
   // (the rivals, and the squads they lead), hence the roster there too
@@ -393,7 +395,8 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
      * Behind the sign-in door (`src/gate/`) it stopped being true in a way
      * that costs real seconds: nothing constructs the title screen until the
      * visitor is through, so the two largest files on it — `logo.png` at 1.2
-     * MB and `title_bg.jpg` at 326 kB — sat untouched for the whole sign-in
+     * MB and the backdrop (then `title_bg.jpg`, now the Dune Sea painting
+     * `title_dune_sea_hd.jpg`) — sat untouched for the whole sign-in
      * and then began downloading at the moment they were wanted.
      *
      * Declaring them here puts them in the `now` lane of whatever screen the
@@ -406,9 +409,11 @@ function needs(screen: WarmScreen, ctx: WarmContext): Need[] {
      * constructor — is not "already coming" just because it is early. If the
      * title screen needs it, name it here.
      */
-    case 'title': return [pic('logo', 'png'), pic('title_bg', 'jpg')];
-    case 'select': return BOARDS.map((info) => pic(artName(info), artExt(info)));
-    case 'planets': return BOARDS.map((info) => pic(`planet_${info.id}`, 'png'));
+    case 'title': return [pic('logo', 'png'), pic('title_dune_sea_hd', 'jpg')];
+    // the departures board's ticket is printed on aged paper
+    case 'select': return [pic('ui_paper_aged'), ...BOARDS.map((info) => pic(artName(info), artExt(info)))];
+    // the map's discs, and the painting of each system its lens opens onto
+    case 'planets': return BOARDS.flatMap((info) => [pic(`planet_${info.id}`, 'png'), pic(`system_${info.id}`)]);
     case 'characters': return rosterNeeds(ctx);
     case 'loading': return ctx.board ? dropNeeds(ctx.board, ctx) : [];
     case 'playing': return ctx.board ? matchNeeds(ctx.board, ctx) : [];
@@ -514,4 +519,3 @@ export function matchAssets(board: BoardId, chars: PlayableId[], mode: GameMode 
   ];
   return [...new Set(keys)];
 }
-

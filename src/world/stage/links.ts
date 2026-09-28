@@ -9,6 +9,17 @@ import {
 import type { StageBuilder } from './builder';
 
 /**
+ * The trail post stand-in, lathed to its reference sheet
+ * (`reference/props/trail_post_ref.png`, 1.8 m): a flanged foot, a slim pole,
+ * and the lantern's frame and cap at the top. [radius, height] in metres.
+ */
+const TRAIL_POST_GEO = new THREE.LatheGeometry([
+  [0.01, 0], [0.2, 0], [0.2, 0.05], [0.12, 0.09], [0.08, 0.2], [0.055, 0.26],
+  [0.055, 1.5], [0.08, 1.53], [0.08, 1.55], [0.02, 1.55], [0.02, 1.73], [0.13, 1.73],
+  [0.14, 1.76], [0.04, 1.8], [0.01, 1.8],
+].map(([r, y]) => new THREE.Vector2(r, y)), 8);
+
+/**
  * The link out of zone `i`, which was laid in frame `f` and is `l` long: one
  * leg along the heading and any bends after it, roofed as a corridor or open
  * as a lane, with its crates, trail posts and pickets. Returns the frame the
@@ -16,13 +27,19 @@ import type { StageBuilder } from './builder';
  */
 export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall: boolean): Frame {
   const {
-    stage, corrW, onGround, canyon, rand, floorMat, wallMat, trimMat, accentGlow, group,
+    stage, corrW, onGround, bare, canyon, rand, floorMat, hallFloorMat, wallMat, trimMat, accentGlow, group,
     rects, pickups, defenders, path, floorY, groundAt,
     solid, slab, wallU, wallV, surf, crate, ridge,
   } = b;
 
   const link = stage.links[i] ?? { len: 14 };
   const nextIsHall = stage.zones[i + 1].shell === 'hall';
+  /**
+   * A gangway between two decks: the void is its border, as it is the decks'.
+   * It used to be walled by hull ridges sixty-six metres tall, which made the
+   * Spice Run's plates in space a corridor between two cliffs.
+   */
+  const gangway = stage.zones[i].shell === 'deck' && stage.zones[i + 1].shell === 'deck';
   const roofed = link.kind ? link.kind === 'corridor' : (isHall || nextIsHall);
   const linkPosts: DefenderPost[] = [];
   let g = new Frame(f.x(l + 1.5, 0), f.z(l + 1.5, 0), f.dx, f.dz);
@@ -32,8 +49,18 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     const ltop = onGround
       ? groundAt(lf.x(len / 2, 0), lf.z(len / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
-    if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, floorMat);
-    if (roofed) {
+    if (!onGround) solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop - 1, ltop, roofed ? hallFloorMat : floorMat);
+    // A link through a building that is already there (a `plant`) or a sea is
+    // walked through the board's own halls and water: it lays no walls and
+    // no rock. It used to lay a forty-metre border along a trek link as if it
+    // were outdoors — two slabs of cliff standing inside the Refinery.
+    if (bare) {
+      // nothing
+    } else if (gangway && !roofed) {
+      const edge = b.accentGlow;
+      slab(lf, 0, len, laneW / 2 - 0.3, laneW / 2, ltop + 0.02, ltop + 0.2, edge);
+      slab(lf, 0, len, -laneW / 2, -laneW / 2 + 0.3, ltop + 0.02, ltop + 0.2, edge);
+    } else if (roofed) {
       solid(lf, -1, len + 1, -laneW / 2 - 1, laneW / 2 + 1, ltop + CORR_H, ltop + CORR_H + 1, wallMat);
       // the lane walls sit 5 cm proud and run only their own span: the room
       // and junction walls seal the corners, and a wall that overshot into a
@@ -64,17 +91,17 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
       for (let d = TRAIL_EVERY; d < len; d += TRAIL_EVERY) {
         const px = lf.x(d, laneW / 2 - 0.9), pz = lf.z(d, laneW / 2 - 0.9);
         const ltop = groundAt(px, pz);
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.8, 6),
-          mat(0x3a3a3a, { rough: 0.8, metal: 0.3 }));
-        post.position.set(px, ltop + 0.9, pz);
+        const post = new THREE.Mesh(TRAIL_POST_GEO, mat(0x3a3a3a, { rough: 0.8, metal: 0.3 }));
+        post.position.set(px, ltop, pz);
         group.add(post);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), accentGlow);
-        head.position.set(px, ltop + 1.9, pz);
+        // the lantern glass, 1.55-1.73 m up under its cap, as on the sheet
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.18, 8), accentGlow);
+        head.position.set(px, ltop + 1.64, pz);
         group.add(head);
         authoredProp(group, [post, head], 'trail_post', 1.8, { x: px, y: ltop, z: pz, axis: 'y' });
       }
     }
-    if (withCrates && roofed && len >= 12) {
+    if (withCrates && roofed && !bare && len >= 12) {
       // a staggered pair butted flush against the walls: tuck, peek, advance.
       // Flush matters — a crate floating off the wall leaves a gap too narrow
       // for a body, and that pocket catches anyone hugging the wall.
@@ -89,7 +116,8 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
         const across = per * ch;
         const v = side * (laneW / 2 + 0.03 - across / 2);
         crate(lf.x(len * t, v), ltop, lf.z(len * t, v), ch);
-        linkPosts.push({
+        // a breather keeps its cover and posts nobody behind it
+        if (!link.quiet) linkPosts.push({
           pos: lf.vec(len * t + 1.5, v, ltop + 0.2),
           toward: lf.vec(0, 0, ltop),
         });
@@ -100,7 +128,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     // walk is a series of angles rather than a shooting gallery, and they
     // stand off the centreline so the golden path stays clear. Anything
     // that lands inside a crate or a wall is dropped by `fits` below.
-    if (len >= PICKET_MIN_LEN) {
+    // …except under the sea, where the clock is the air, not a picket: a
+    // trooper stood on the seabed was the whole of the sea's garrison
+    if (len >= PICKET_MIN_LEN && !link.quiet && stage.kind !== 'sea') {
       let n = 0;
       for (let d = PICKET_EVERY * 0.6; d < len - 2; d += PICKET_EVERY) {
         const side = n++ % 2 ? 1 : -1;
@@ -121,8 +151,11 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     const jtop = onGround
       ? groundAt(jf.x(laneW / 2, 0), jf.z(laneW / 2, 0))
       : floorY + (b.spaceN++ % 3) * EPS;
-    if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, floorMat);
-    if (roofed) {
+    if (!onGround) solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop - 1, jtop, roofed ? hallFloorMat : floorMat);
+    if (bare || (gangway && !roofed)) {
+      // a bend through a building that is already there lays nothing either,
+      // and a bend in a gangway is held by the void
+    } else if (roofed) {
       solid(jf, -1, laneW + 1, -laneW / 2 - 1, laneW / 2 + 1, jtop + CORR_H, jtop + CORR_H + 1, wallMat);
       wallU(jf, laneW + WALL_T / 2, -laneW / 2 - WALL_T, laneW / 2 + WALL_T, [], jtop, CORR_H);
       wallV(jf, -turn * (laneW / 2 + WALL_T / 2), -WALL_T, laneW + WALL_T, [], jtop, CORR_H);
@@ -149,8 +182,9 @@ export function layLink(b: StageBuilder, i: number, f: Frame, l: number, isHall:
     g = g2;
     lastLen = len2;
   }
-  // bacta midway down every other link — the attrition beat pays for itself
-  if (i % 2 === 1) pickups.push(surf(g, 6, -1.4));
+  // bacta midway down every other link — the attrition beat pays for itself —
+  // and down every quiet one, which is what a breather is for
+  if (i % 2 === 1 || link.quiet) pickups.push(surf(g, 6, -1.4));
   defenders.push(linkPosts);
   return new Frame(g.x(lastLen + 1.5, 0), g.z(lastLen + 1.5, 0), g.dx, g.dz);
 }

@@ -29,7 +29,7 @@ export interface BoardInfo {
 export const BOARDS: BoardInfo[] = [
   {
     id: 'desert', ...TEXT.boards.desert,
-    art: 'board_tatooine.jpg', gradient: 'linear-gradient(160deg, #d9a860, #7a4a28)',
+    art: 'board_tatooine_v2.jpg', gradient: 'linear-gradient(160deg, #d9a860, #7a4a28)',
     build: buildTatooine,
   },
   {

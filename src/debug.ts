@@ -64,7 +64,14 @@ export interface MissionZoneRow {
   shell: ZoneSpec['shell'];
   kind: ZoneSpec['kind'];
   waves: number | null;
+  /** open ground that is not a siege: the depth of its posted force */
+  garrison: number | null;
   siege: boolean;
+  pass: boolean;
+  deadEnd: boolean;
+  w: number;
+  l: number;
+  rides: string[];
 }
 
 export interface DebugHooks {
@@ -115,6 +122,10 @@ export interface DebugHooks {
 
   /** back to the title from wherever the app is */
   __quitToTitle: () => void;
+  /** the end-of-hunt screen from whatever the ledger holds, without nine territories to reach it */
+  __openComplete: () => void;
+  /** the credits roll */
+  __openCredits: () => void;
   /** the renderer's viewport rectangle: x, y, width, height */
   __viewport: () => [number, number, number, number];
   /** how many of this drop's required files are still outstanding */
