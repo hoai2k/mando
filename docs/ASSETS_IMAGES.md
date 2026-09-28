@@ -5,12 +5,15 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open as of 2026-09-28:** the UI concept art in
-[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below, and the
-gameplay-section keyframes in
-[Gameplay sections — keyframe concepts](#gameplay-sections--keyframe-concepts-2026-09-28),
-raised by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md). Before those
-batches there were no open requests (as of 2026-09-24). The Jedi and Maris
+**Open as of 2026-09-28:** the unchosen UI concept art and optional fighter poses in
+[Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below.
+The nine Missions system vistas from round 4 are delivered; the galaxy arm
+background remains optional.
+The Twin Suns title, its armored-posse variant, Wanted loading assets, and the
+alternate Dune Sea board image are delivered. Gameplay-section keyframes raised by
+[`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are delivered; supporting images are
+conditional on choosing sections for building. Before those batches there were no
+open requests (as of 2026-09-24). The Jedi and Maris
 canonical views, the five-hilt collection, and the two Sith character
 front sheets are saved under `reference/characters/`. The Spice Run sky frigate's
 canonical three-view sheet lives in `reference/props/` and is recorded in
@@ -81,9 +84,11 @@ Production-only reference art lives in `reference/` and is **not** shipped.
 ## Open — front-end UI concepts (2026-09-28)
 
 Art for the title, character select and loading screen redesign explored in
-[`UI_CONCEPTS.md`](UI_CONCEPTS.md). Every concept there swaps the 3D pedestals for a
-**portrait grid**, so the first group is wanted whichever direction is picked; the
-rest belong to one concept each and should only be made once that concept is chosen.
+[`UI_CONCEPTS.md`](UI_CONCEPTS.md). Round 3 chose the Twin Suns title and Wanted
+loading screen. Their three background assets are delivered and recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#chosen-ui-backgrounds--3-files-delivered-2026-09-28).
+The other concept assets stay here pending a choice to use them. Every concept
+swaps the 3D pedestals for a portrait grid.
 
 Runtime files land in `public/assets/textures/`. Same global specs as everything else
 in this doc: no text, no logos, no watermarks, original designs described rather than
@@ -101,18 +106,10 @@ models, lit and framed in the painted portraits' style by `tools/portraits.mjs`
 table). The same tool is the fallback for any future fighter the image generator cannot
 be trusted with.
 
-### Concept A — "Wanted", the Guild bounty board
-
-| File | Size | Prompt |
-|---|---|---|
-| `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
-| `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |
-
 ### Concept B — "Twin Suns", the widescreen showdown
 
 | File | Size | Prompt |
 |---|---|---|
-| `title_twin_suns.jpg` | 2560×1080 (21:9) | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
 | `pose_<id>.png` (optional) | 768×1536, transparent | Full-body action-pose cut-outs, one per playable fighter, for the tall lineup strips. Optional: the strips work with the current head-and-shoulders portraits cropped tall, so ask for these only if the portrait crops feel too tight in the build. |
 
 ### Concept C — "Navicomputer", the salvaged gunship console
@@ -130,51 +127,24 @@ be trusted with.
 | `ui_card_back.png` | 512×720 | "The back of an ornate sci-fi gambling card: deep burgundy field, a fine gold geometric border, a symmetrical original emblem of interlocking diamonds and a stylised crescent in the centre, slight wear on the corners. Flat lighting, no text, no real-world logos." |
 | `title_cantina.jpg` | 1920×1080 | "Interior of a dim frontier cantina at night, seen from a gambling table: blurry patrons in the background, glowing pink and cyan neon tubes, a curved bar, haze and smoke, warm pools of light on a green-felt table in the foreground with scattered chips. Leave the upper centre calm for a logo. No legible text." |
 
-## Gameplay sections — keyframe concepts (2026-09-28)
+## Optional — galaxy map background
 
-Raised by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md), which proposes eighteen new kinds of
-level beat, two per territory. None is built yet. These pictures are there to help choose
-which ones to build, and to give the chosen ones something to aim the art at. Each one
-shows the moment the section exists for, from the camera the section will use. The
-schematic plans are already in `docs/sections/*.svg`. These paintings are the mood to go
-with them.
+The nine Missions system vistas are delivered in `public/assets/textures/` and
+recorded in [`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#missions-system-vistas--9-files-delivered-2026-09-28).
+The background below is optional for the galaxy-map-with-a-lens layout.
 
-**Location: `reference/sections/` — NOT under `public/`** (production reference, never
-shipped). **Files:** `<nn>-<id>.png`, 1536×864 (16:9), named to match the diagrams.
+**Optional, for the "galaxy map with a lens" layout:**
 
-**Shared preamble — prepend verbatim to every keyframe prompt below:**
-
-> Cinematic concept keyframe for a stylized-realistic third-person sci-fi action video
-> game, 16:9, a single readable gameplay moment seen from the game camera described.
-> A party of four mismatched armored bounty hunters with jetpacks (a T-visor helmeted
-> warrior in battered silver plate, a hooded gunslinger in a long coat, a horned
-> red-and-black warrior with a double-bladed energy staff, a lean hunter in green-grey
-> armor), small in frame so the place reads. Strong silhouettes, clear foreground /
-> midground / background, dramatic but even enough to read shapes. No text, no UI, no
-> logos, no watermark, no named characters or film frames. Scene:
-
-Same standing rules as every sheet: original designs only, described and never named.
-
-| File | Section | Scene prompt |
+| File | Size | Prompt |
 |---|---|---|
-| `01-barge-run.png` | The Barge Run | "Chase camera behind and above a small open cargo skiff racing across golden dunes at speed, a huge three-deck desert sail barge with a tattered sail running parallel ten meters away, hunters leaping the gap with jetpack flames, desert raiders firing from the barge rail, swoop bikes banking alongside, dust streaming off both hulls, twin suns low" |
-| `02-worm-sign.png` | Worm Sign | "Over-the-shoulder view across open dunes scattered with flat rock islands, one hunter frozen mid-stride on the sand as a ring of rippling sand opens under a teammate ahead, a pounding metal thumper post planted on the far dune throwing up puffs of sand, desert raiders crouched on a rock with long rifles, the colossal back of something moving under the sand in the distance" |
-| `03-ring-walk.png` | The Ring Walk | "Elevated three-quarter side view from outside a colossal rotating space-station ring, four hunters walking its outer hull spine in one shot, the curved hull dropping away over a close horizon ahead, a docking spoke rising into the starfield, the station hub huge in the background, plasma vents flaring across the walkway in red, pirate dropships cresting the horizon, deep space all round" |
-| `04-frigate-guns.png` | Guns of the Frigate | "Low angle on the dorsal hull of a battered cargo frigate in open space, a hunter in a quad-barrelled gun turret firing tracer streams at incoming pirate interceptor drones, a boarding tube from a rust-brown dropship clamped to the hull edge with pirates climbing out, a second hunter sprinting across the hull to meet them, a space station and asteroid field falling away behind" |
-| `05-magma-run.png` | The Magma Run | "Chase camera behind a hunter on a lean speeder bike flying low over a river of glowing lava in a black basalt canyon, a pirate biker alongside being struck from the saddle by the hunter's swung spear, twin blaster bolts from the bike's nose, a falling basalt column ahead, lava geysers erupting, embers and heat haze" |
-| `06-chimney.png` | The Chimney | "Looking up from inside a vast vertical volcanic shaft, spiral basalt ledges climbing its walls, hunters jetpacking between ledges, one hunter turning a valve wheel on a wide landing while others fire upward at raiders on higher ledges, bright magma surging up from below lighting everything orange, a small disc of daylight at the very top" |
-| `07-glacier-chute.png` | The Glacier Chute | "Chase camera behind hunters sliding at speed down a banked channel of blue glacier ice, crouched like surfers, one jetpacking over a dark crevasse, pale long-legged ice spiders dropping from the channel walls, a white avalanche billowing down behind them, ice walls streaked with speed" |
-| `08-lamplight.png` | Lamplight | "Near-total darkness in an ice cavern hung with webs, four hunters back to back with narrow white helmet lamp beams cutting the dark, a burning brazier making a small warm pool of light, pale spiders recoiling at the edge of a beam, faintly glowing egg sacs on the walls, one hunter throwing a red flare into a nest" |
-| `09-squall.png` | The Squall | "A fishing trawler's deck heeling hard in a storm at sea, a wall of green water breaking over the rail, a hunter braced against a winch while another is washed across the deck, amphibious raiders climbing over the far rail, a loose net boom swinging overhead, lightning on the mast, rain and spray, dark heavy swell" |
-| `10-run-the-pier.png` | Run the Pier | "Camera ahead of the action looking back along a long rain-soaked wooden pier at night, four hunters sprinting straight toward the viewer, the pier planks exploding upward behind them as a colossal round-mouthed sea monster bursts through, one hunter turning to fire into its mouth, warehouse lights and storm sky behind" |
-| `11-lights-out.png` | Lights Out | "Night in an industrial refinery yard between huge storage tanks, searchlight beams sweeping from tall towers through steam, a hunter crouched in shadow behind a pipe rack as a beam passes inches away, another taking down an armored white-helmeted sentry from behind, a lit intake door far ahead, sodium lamps and haze" |
-| `12-the-line.png` | The Line | "A long industrial processing hall, four parallel conveyor belts running toward a glowing smelter mouth, massive hydraulic presses slamming down across the belts, sparking welding arms sweeping, hunters jumping between belts and riding crates, armored troopers firing from catwalks above, a flame trooper on the floor, orange molten light at the far end" |
-| `13-covert-sky.png` | Covert Sky | "Aerial view of armored hunters flying with jetpacks at full burn between the broken towers of a ruined city fused to green glass, glowing flight rings marking a path, air-burst flak blooming, sleek interceptor drones in pursuit, a colossal broken dome on the horizon with a breach in its roof, dusk sky" |
-| `14-hold-the-forge.png` | Hold the Forge | "Inside a ruined circular stone court under a broken dome, a masked armorer in a horned helmet hammering glowing metal at a great brazier on a raised dais, four hunters holding the dais behind waist-high curved metal shields, stone-skinned brutes pouring in through a pass, sparks and forge-fire light" |
-| `15-tram-top.png` | Tram Top | "Side-on view from beside a speeding city tram of three cars, hunters fighting pirates on the roof, one hunter ducking flat under an overhead sign gantry sweeping past, a rival tram on the next track closing in with gunners on its roof, neon city towers and a curved ring-world horizon rising into the sky behind" |
-| `16-the-mark-runs.png` | The Mark Runs | "A rooftop chase across a neon sci-fi city at dusk, a fleeing fugitive with a small jetpack leaping a gap between rooftops ahead, two hunters in pursuit mid-jump with jetpack flames, crates tumbling off a roof edge behind the fugitive, water tanks and antenna masts, a long drop to the street" |
-| `17-one-way-out.png` | One Way Out | "A stark white prison work floor laid out in a grid of floor tiles, a row of tiles crackling with blue-white electricity, a crowd of prisoners in plain work jumpsuits surging behind a hunter across the safe tiles, cell shutters open along the walls, armored guards firing from gantries above, hard white light" |
-| `18-the-lift.png` | The Lift | "A square open freight lift platform rising fast up a tall white-paneled shaft, hunters holding the platform as armored jet troopers drop onto it from above, a landing sliding past with guards firing across the gap, a shadow of falling debris on the deck, light from the top of the shaft" |
+| `galaxy_arm.jpg` | 2560×1440 | "Top-down view along one spiral arm of a galaxy, a long band of warm gold and pale violet star clouds running left to right across the middle, dark dust lanes, scattered bright stars, deep black above and below the band. No text, no labels." |
+
+## Gameplay sections — supporting images (conditional)
+
+The 18 keyframe concepts requested by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md) are
+delivered in `reference/sections/` and recorded in
+[`ASSETS_COMPLETED.md`](ASSETS_COMPLETED.md#gameplay-sections--18-keyframe-concepts-delivered-2026-09-28).
+The supporting images below remain conditional on choosing a section for building.
 
 **Supporting images — generate only when a section is picked.** Each is listed under the
 section that needs it. If a section is not chosen for building, its images are never

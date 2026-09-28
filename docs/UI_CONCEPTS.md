@@ -191,3 +191,191 @@ room count come from `src/text.ts`.
    holds it, and status, with a paper ticket stub for the pick. In Missions it
    becomes an itinerary: arrived legs, the leg now boarding, scheduled legs, and a
    ticket that lists the leg's stops.
+
+## Round 3 — the chosen flow, and the Missions route restyled (2026-09-28)
+
+**Decided so far:**
+
+| Screen | Choice |
+|---|---|
+| Title | Twin Suns (round 1, B) |
+| Wave Battle territory | Departures board (round 2, stage 4) |
+| Character select | The Lineup, four players (round 2, select 1) |
+| Loading | Wanted (round 1, A), showing all four hunters |
+
+On the canvas's **Round 3** page, the top row shows those four screens in order.
+
+**Missions: the current route map, restyled.** All four keep what `src/ui/planets.ts`
+already does. The route is `plotRoute(9)`: the same zig-zag, at the same node
+positions. The lanes are shallow arcs, ◀ ▶ or a click moves to a planet, the map
+pans so the chosen planet sits in the middle, and the lanes behind it light up. What
+changes is the art direction, plus three additions:
+
+- **Liberated vs. next.** Three states: finished lanes and planets, the next
+  territory, and a marching "plotted course" from your progress to whatever you're
+  looking at. This needs campaign progress to be saved (see round 2).
+- **An information panel.** A fixed panel shows what the old hanging caption
+  couldn't fit: the stages, the room count, the lieutenant and the warlord.
+- **On-screen ◀ ▶ buttons** for mouse players.
+
+1. **Twin Suns trail.** Letterboxed like the title, over warm dust and two star
+   layers that move at different speeds as the map pans. The focused planet has a
+   rotating sun-flare ring. Liberated planets get an orange check, the header shows
+   nine small suns for progress, and the bottom letterbox is the chapter card.
+2. **Bounty string.** The route is a red string between brass pins on the Wanted
+   board. Each planet hangs a paper tag naming its warlord, and finished tags are
+   stamped COLLECTED. A dossier strip with the territory photo sits along the
+   bottom. This one leads straight into the Wanted loading screen.
+3. **Holo table.** The same route laid on a tilted holo-table grid, so the zig-zag
+   reads as near and far. The planets stand upright over their projection pads on
+   light beams. The side readouts are amber terminal text.
+4. **Transit line.** The route is drawn as a rail line with station roundels and
+   name plates. A split-flap "Next stop" header and a split-flap leg board sit
+   beside a ticket stub. This matches the Departures board chosen for Wave Battle,
+   so both modes read as one transit system.
+
+Implementation note for the holo table: CSS `perspective` tilts the grid and lanes,
+but the planets are laid out flat. Their screen positions come from projecting each
+route point through the same perspective, so nothing depends on nested
+`preserve-3d`.
+
+## Round 4 — delivered art, and travelling between systems (2026-09-28)
+
+**Delivered art, now in the mockups.** The canvas's **Round 4** page opens with the
+chosen flow using the images that arrived on `main`:
+
+- `title_twin_suns.jpg` behind the title. The logo and tagline moved into the sky's
+  empty upper right, clear of both hunters.
+- `ui_bounty_board.jpg` behind the Wanted loading screen, with `ui_paper_aged.jpg`
+  as the stock for the photograph and the contract sheet. The field note sits on a
+  dark backing so it reads over the board's paper scraps.
+- `ui_paper_aged.jpg` as the Departures ticket stub.
+- The rendered `portrait_din`, `portrait_maul` and `portrait_boba_fett` in the Lineup
+  and on the loading screen. Boba Fett's strip no longer shows a placeholder.
+
+The Round 3 page's flow boards have the same updates.
+
+**Missions A is kept and renamed "The Bounty Hunt".** It sits in the flow as 2b.
+
+**Missions — travelling between solar systems.** Each territory gets its own solar
+system: its world seen from its own angle, its own sun or twin suns at the edge or
+behind the limb, and a moon, gas giant or ring for depth. The nine
+`system_<id>.jpg` vistas are delivered under `public/assets/textures/`,
+with the same colours and surfaces as the `planet_<id>.png` discs. The mockups
+currently build these scenes from the discs; the vistas are available for the
+next round. They keep A's letterboxed Twin Suns card along the bottom.
+
+1. **Warp from the stars.** The other eight systems are distant stars strung along
+   the game's own zig-zag route across the top of the sky. Picking one zooms its
+   whole system out of that star to fill the screen, while the old system shrinks
+   back into its own star.
+2. **The next system over.** The route runs left to right through space. The system
+   you're in fills the view; the previous one is a star at the left edge and the
+   next one a star at the right edge, each with its name. Moving on zooms the next
+   system out of the right-hand star, and the old one falls back into the left edge,
+   so travel always has a direction.
+3. **Galaxy map with a lens.** This keeps the current pan-to-centre route map, drawn
+   as stars along a galaxy arm, each star tinted with its own sun's colour. The
+   chosen star opens a bronze-framed lens above it that zooms into that system's
+   scene.
+4. **One system, nine worlds.** Everything is in one system around a pair of suns,
+   one world per orbit, and the route spirals outward along transfer arcs. The
+   camera flies to and closes in on the chosen world. Each world's night side faces
+   away from the suns wherever it sits on its orbit.
+
+## Round 4, update — the system paintings in, and Systems 4 animated (2026-09-28)
+
+- **The system paintings are in.** Warp, The next system over and the galaxy lens
+  now show the delivered `system_<id>.jpg` vistas. The CSS-built scenes stay in the
+  mockup code as a fallback.
+- **Systems 4 (one system, nine worlds) is reworked:**
+  - The twin suns stay still.
+  - The worlds are laid out so every world sits lower on screen than the one before
+    it. The route sweeps down the near side of the tilted orbital plane, so **down is
+    always on and up is always back** through the list.
+  - A bare **left or right** goes to whichever neighbour (back or on) lies further
+    that way. If neither does, nothing happens. The chosen world shows "▲ previous" and
+    "▼ next" hints, and there's an on-screen d-pad for the mouse.
+  - **The move between worlds is animated.** A small ship flies the transfer arcs,
+    passing through any worlds in between on a longer jump, with the camera following
+    it. The camera pulls back mid-flight so the jump reads against the whole system,
+    then closes in on arrival. A bright trail marks the path flown, the old world
+    shrinks as the new one grows, the chapter card fades through the jump, and the
+    header reads "En route". A single hop takes 1.1 s, plus 0.38 s for each extra
+    world.
+- **Title art.** `title_twin_suns.jpg` has no Mandalorians in it, so
+  `title_twin_suns_v2.jpg` is delivered alongside it: the same standoff,
+  with a posse of armored, T-visor hunters. Compare both in the next mockup round.
+
+## Round 4, second update — Systems 4 at true distances (2026-09-28)
+
+- **Systems 1 and 2 were showing only the painting.** Each painted scene carried a
+  `z-index` for the zoom, and that lifted it over the title strip, the star map and
+  the chapter card. The scenes now sit in their own stacking layer beneath the UI.
+- **Systems 4 now keeps the worlds tiny against the gaps between them.** Parked, the
+  camera is right on the chosen world (it fills the middle of the screen), and every
+  other world is millions of kilometres off screen. A chevron on the frame points
+  to the previous and next world, with its name and distance ("53 million km").
+  The suns are usually off screen too, so their light spills in from the edge they
+  sit beyond.
+- **A jump is a fly-to, not a hop.** In well under a second (0.95 s, plus 0.22 s for
+  each extra world), the camera zooms out in log space, 12 to 30× depending on the
+  distance. The worlds shrink to named points of light and the orbits and suns come
+  into view. The camera crosses while pulled back, then punches in on the new world.
+  Star streaks, a stretching engine burn on the ship and the starfield swelling sell
+  the speed, the header reads the distance being covered, and the chapter card fades
+  through the jump.
+- The layout rules from the first update still hold: down is on, up is back, and a
+  bare left or right takes the neighbour that lies further that way.
+
+**Title, revised (2026-09-28).** The title goes back to the original stand-in art
+(`title_bg.jpg`, the battered T-visor helmet). The logo now sits on the left, over a
+darkened side of the image. The top strip and the "Two suns. One contract." line are
+gone. The bottom right reads **1–4 PLAYERS** above "Press A to ride out", in place of
+the mode blurb. The Twin Suns letterboxed menu along the bottom stays.
+`title_twin_suns_v2.jpg` (with armored hunters) is delivered as an option to
+compare against the stand-in.
+
+## Round 4, third update — Systems 4 rides with the traveller (2026-09-28)
+
+This replaces the fly-to camera from the second update.
+
+- **The whole system is always in view.** The camera sits above and behind the
+  current world, looking at the twin suns. The suns hold one spot on screen (upper
+  right), and the current world holds another (large, left of centre). All nine
+  orbits and the other worlds stay in frame as named points of light, with the
+  previous and next marked ▲ and ▼.
+- **Moving on turns the system under you.** The traveller flies the route's own
+  spiral, with radius and angle both running from one world to the next, and the
+  camera rides along in the traveller's frame. So the suns stay put, the orbits
+  swing round, the old world falls away behind, and the new world swings up into
+  the foreground. The route steps 55° a world, so the campaign goes more than once
+  round the suns. A single hop takes 1.3 s, plus 0.32 s for each extra world; a
+  ship and a trail mark the arc flown.
+- To keep the whole system in frame from the innermost world, the orbits are
+  compressed (radius 400 + 28 per world rather than true proportions). The worlds'
+  on-screen sizes are for readability, not scale.
+- Controls are unchanged: ▲ back, ▼ on, and a bare ◀ or ▶ to whichever neighbour
+  lies further that way on screen.
+
+## Round 4, fourth update — the title uses the Dune Sea art; Systems 3 sequenced (2026-09-28)
+
+- **Title art.** The title uses `board_tatooine.jpg`, the original Dune Sea stand-in:
+  a lone hunter over the dunes and the twin suns. The logo sits lower right, over the
+  dunes, clear of the hunter and the suns. The top strip and subtitle stay removed,
+  and the bottom right still reads 1–4 PLAYERS. `title_twin_suns_v2.jpg` (the
+  armored posse) arrived at the same time, so it is on the canvas as alternate 1b for
+  comparison.
+- **The Dune Sea gets a second picture.** Since the original is now the title, a
+  different in-game Dune Sea, `board_tatooine_v2.jpg`, is delivered under
+  `public/assets/textures/`. It is ready for the board card, ticket, chapter card
+  and loading screen once `src/world/boards.ts` selects it.
+- **Systems 3 (galaxy map with a lens).**
+  - The map's stars are now the worlds' own planet images, 48 px, and 72 px for the
+    chosen world.
+  - A move plays in three beats:
+    1. The open view folds back down into the world it shows.
+    2. The map travels to the new world.
+    3. The new view opens out of that world, up to the viewer.
+
+    A single hop takes about 1.5 s.

@@ -873,3 +873,148 @@ behind the backdrop row, in the fog's own colour — which is what puts a countr
 the borders. `sea_surface` and its normal dress the local water plane on the harbour and
 rig stages, and `energy_cells` is the fence pane that seals an outdoor mouth (and, at
 `Fence`'s own scale, reads as a field rather than a coloured sheet).
+
+## Gameplay sections — 18 keyframe concepts, delivered 2026-09-28
+
+Raised by [`LEVEL_SECTIONS.md`](LEVEL_SECTIONS.md), which proposes eighteen new kinds of
+level beat, two per territory. None is built yet. These pictures are there to help choose
+which ones to build, and to give the chosen ones something to aim the art at. Each one
+shows the moment the section exists for, from the camera the section will use. The
+schematic plans are already in `docs/sections/*.svg`. These paintings are the mood to go
+with them.
+
+**Location: `reference/sections/` — NOT under `public/`** (production reference, never
+shipped). **Files:** `<nn>-<id>.png`, 1536×864 (16:9), named to match the diagrams.
+All 18 keyframes were generated with the built-in image tool and saved at these paths.
+The Lift was rendered as a calmer ascent scene after the original combat-focused
+prompt was rejected by the image service.
+
+**Shared preamble — prepend verbatim to every keyframe prompt below:**
+
+> Cinematic concept keyframe for a stylized-realistic third-person sci-fi action video
+> game, 16:9, a single readable gameplay moment seen from the game camera described.
+> A party of four mismatched armored bounty hunters with jetpacks (a T-visor helmeted
+> warrior in battered silver plate, a hooded gunslinger in a long coat, a horned
+> red-and-black warrior with a double-bladed energy staff, a lean hunter in green-grey
+> armor), small in frame so the place reads. Strong silhouettes, clear foreground /
+> midground / background, dramatic but even enough to read shapes. No text, no UI, no
+> logos, no watermark, no named characters or film frames. Scene:
+
+Same standing rules as every sheet: original designs only, described and never named.
+
+| File | Section | Scene prompt |
+|---|---|---|
+| `01-barge-run.png` | The Barge Run | "Chase camera behind and above a small open cargo skiff racing across golden dunes at speed, a huge three-deck desert sail barge with a tattered sail running parallel ten meters away, hunters leaping the gap with jetpack flames, desert raiders firing from the barge rail, swoop bikes banking alongside, dust streaming off both hulls, twin suns low" |
+| `02-worm-sign.png` | Worm Sign | "Over-the-shoulder view across open dunes scattered with flat rock islands, one hunter frozen mid-stride on the sand as a ring of rippling sand opens under a teammate ahead, a pounding metal thumper post planted on the far dune throwing up puffs of sand, desert raiders crouched on a rock with long rifles, the colossal back of something moving under the sand in the distance" |
+| `03-ring-walk.png` | The Ring Walk | "Elevated three-quarter side view from outside a colossal rotating space-station ring, four hunters walking its outer hull spine in one shot, the curved hull dropping away over a close horizon ahead, a docking spoke rising into the starfield, the station hub huge in the background, plasma vents flaring across the walkway in red, pirate dropships cresting the horizon, deep space all round" |
+| `04-frigate-guns.png` | Guns of the Frigate | "Low angle on the dorsal hull of a battered cargo frigate in open space, a hunter in a quad-barrelled gun turret firing tracer streams at incoming pirate interceptor drones, a boarding tube from a rust-brown dropship clamped to the hull edge with pirates climbing out, a second hunter sprinting across the hull to meet them, a space station and asteroid field falling away behind" |
+| `05-magma-run.png` | The Magma Run | "Chase camera behind a hunter on a lean speeder bike flying low over a river of glowing lava in a black basalt canyon, a pirate biker alongside being struck from the saddle by the hunter's swung spear, twin blaster bolts from the bike's nose, a falling basalt column ahead, lava geysers erupting, embers and heat haze" |
+| `06-chimney.png` | The Chimney | "Looking up from inside a vast vertical volcanic shaft, spiral basalt ledges climbing its walls, hunters jetpacking between ledges, one hunter turning a valve wheel on a wide landing while others fire upward at raiders on higher ledges, bright magma surging up from below lighting everything orange, a small disc of daylight at the very top" |
+| `07-glacier-chute.png` | The Glacier Chute | "Chase camera behind hunters sliding at speed down a banked channel of blue glacier ice, crouched like surfers, one jetpacking over a dark crevasse, pale long-legged ice spiders dropping from the channel walls, a white avalanche billowing down behind them, ice walls streaked with speed" |
+| `08-lamplight.png` | Lamplight | "Near-total darkness in an ice cavern hung with webs, four hunters back to back with narrow white helmet lamp beams cutting the dark, a burning brazier making a small warm pool of light, pale spiders recoiling at the edge of a beam, faintly glowing egg sacs on the walls, one hunter throwing a red flare into a nest" |
+| `09-squall.png` | The Squall | "A fishing trawler's deck heeling hard in a storm at sea, a wall of green water breaking over the rail, a hunter braced against a winch while another is washed across the deck, amphibious raiders climbing over the far rail, a loose net boom swinging overhead, lightning on the mast, rain and spray, dark heavy swell" |
+| `10-run-the-pier.png` | Run the Pier | "Camera ahead of the action looking back along a long rain-soaked wooden pier at night, four hunters sprinting straight toward the viewer, the pier planks exploding upward behind them as a colossal round-mouthed sea monster bursts through, one hunter turning to fire into its mouth, warehouse lights and storm sky behind" |
+| `11-lights-out.png` | Lights Out | "Night in an industrial refinery yard between huge storage tanks, searchlight beams sweeping from tall towers through steam, a hunter crouched in shadow behind a pipe rack as a beam passes inches away, another taking down an armored white-helmeted sentry from behind, a lit intake door far ahead, sodium lamps and haze" |
+| `12-the-line.png` | The Line | "A long industrial processing hall, four parallel conveyor belts running toward a glowing smelter mouth, massive hydraulic presses slamming down across the belts, sparking welding arms sweeping, hunters jumping between belts and riding crates, armored troopers firing from catwalks above, a flame trooper on the floor, orange molten light at the far end" |
+| `13-covert-sky.png` | Covert Sky | "Aerial view of armored hunters flying with jetpacks at full burn between the broken towers of a ruined city fused to green glass, glowing flight rings marking a path, air-burst flak blooming, sleek interceptor drones in pursuit, a colossal broken dome on the horizon with a breach in its roof, dusk sky" |
+| `14-hold-the-forge.png` | Hold the Forge | "Inside a ruined circular stone court under a broken dome, a masked armorer in a horned helmet hammering glowing metal at a great brazier on a raised dais, four hunters holding the dais behind waist-high curved metal shields, stone-skinned brutes pouring in through a pass, sparks and forge-fire light" |
+| `15-tram-top.png` | Tram Top | "Side-on view from beside a speeding city tram of three cars, hunters fighting pirates on the roof, one hunter ducking flat under an overhead sign gantry sweeping past, a rival tram on the next track closing in with gunners on its roof, neon city towers and a curved ring-world horizon rising into the sky behind" |
+| `16-the-mark-runs.png` | The Mark Runs | "A rooftop chase across a neon sci-fi city at dusk, a fleeing fugitive with a small jetpack leaping a gap between rooftops ahead, two hunters in pursuit mid-jump with jetpack flames, crates tumbling off a roof edge behind the fugitive, water tanks and antenna masts, a long drop to the street" |
+| `17-one-way-out.png` | One Way Out | "A stark white prison work floor laid out in a grid of floor tiles, a row of tiles crackling with blue-white electricity, a crowd of prisoners in plain work jumpsuits surging behind a hunter across the safe tiles, cell shutters open along the walls, armored guards firing from gantries above, hard white light" |
+| `18-the-lift.png` | The Lift | "A square open freight lift platform rising fast up a tall white-paneled shaft, hunters holding the platform as armored jet troopers drop onto it from above, a landing sliding past with guards firing across the gap, a shadow of falling debris on the deck, light from the top of the shaft" |
+
+## Chosen UI backgrounds — 3 files, delivered 2026-09-28
+
+Round 3 of [`UI_CONCEPTS.md`](UI_CONCEPTS.md) chose Twin Suns for the title and
+Wanted for loading. These are generated background assets; screen implementation
+and text overlays remain separate. Files are under `public/assets/textures/`.
+
+| File | Size | Prompt |
+|---|---|---|
+| `title_twin_suns.jpg` | 2560×1080 | "Cinematic ultra-wide desert panorama at twin sunset: two suns low over a cracked salt flat, heat haze, long shadows. A lone armored hunter in a long tattered cape stands small in the left third, seen from behind. A distant rival figure far away on the right horizon. Burnt orange and deep red sky, strong negative space in the upper right for a logo. Spaghetti-western framing, gritty film grain, no text." |
+| `ui_bounty_board.jpg` | 1920×1080 | "Close-up of a weathered frontier notice board on a desert outpost wall: sun-bleached riveted sheet-metal panels over old wooden slats, torn scraps of blank paper notices, rusted pins and staples, scorch marks and blaster pits, dust in the seams. Warm low sunlight from the left. No legible text, no symbols, nothing in focus in the centre third." |
+| `ui_paper_aged.jpg` | 1024×1024, tileable | "Seamless tileable texture of aged, sun-yellowed coarse paper with faint fold creases, coffee-ring stains and fine grit. Flat even lighting, no text, no shadows." |
+
+## Missions system vistas — 9 files, delivered 2026-09-28
+
+Round 4 of [`UI_CONCEPTS.md`](UI_CONCEPTS.md) explores a Missions select where each
+territory is seen inside its own solar system, and the camera warps or flies from
+one system to the next. The mockups build each system in CSS from the existing
+`planet_<id>.png` discs, adding suns, moons, rings and a lit/dark side. These paintings
+replace those builds in the delivered art set. Each one is a single view of the territory's world,
+from its own angle, with its own sun(s) and neighbours in frame.
+
+**Files:** `public/assets/textures/system_<boardId>.jpg`, 1920×1080.
+All nine were generated with the built-in image tool and visually checked against the
+existing `planet_<id>.png` discs. Board ids match
+`src/world/boards.ts`: desert, station, nevarro, crevasse, trask, refinery, forge,
+ringworld, narkina. The world must match its existing `planet_<id>.png` disc
+(same colours and surface) so the two read as one place when the camera zooms
+from the map dot into the vista.
+
+**Composition rule for all nine:** the UI puts a title strip across the top 60 px and
+a chapter card across the bottom 200 px. Keep both bands calm (dark space or a planet
+limb) and keep the world and its sun in the middle band. No text, no ships, no UI.
+
+**Shared preamble — prepend verbatim to every vista prompt below:**
+
+> Cinematic space vista for a stylized-realistic sci-fi western video game, 16:9, seen
+> from high orbit. One world is the subject, lit by its own star(s), with a few
+> smaller neighbours (moons, a distant planet) placed for depth. Deep black space,
+> fine star field, subtle nebula haze, dramatic rim light and a clear day/night
+> terminator on the main world. Calm dark bands along the top edge and the bottom
+> fifth of the frame. No text, no ships, no UI, no logos. Scene:
+
+| File | Scene prompt |
+|---|---|
+| `system_desert.jpg` | "a vast orange desert world filling the lower right as a curved horizon, dune seas and pale salt flats on its day side, lit by two suns high in the upper left (one large and white-gold, one smaller and amber), two tiny cratered moons in the upper right, warm dusty haze along the limb" |
+| `system_station.jpg` | "a round industrial smugglers' waystation of dark plates and glowing docking rings floating right of centre, a small dim red dwarf star at the far right edge casting red rim light, a scatter of tumbling asteroids on the left, a small blue ocean planet far away upper left, violet nebula" |
+| `system_nevarro.jpg` | "a volcanic world of black glass left of centre with glowing orange lava rivers, its night side lit by lava, a large orange sun half out of frame at the right edge, a distant pale ringed gas giant in the upper right" |
+| `system_crevasse.jpg` | "an ice world with blue glacier cracks rising from the bottom centre, a small cold blue-white sun just peeking over its upper rim in a bright eclipse flare, fragments of a shattered moon drifting in the upper left" |
+| `system_trask.jpg` | "a dark green ocean world right of centre wrapped in spiralling storm systems, a hazy yellow sun low at the lower left edge, a large grey cratered moon in the upper left" |
+| `system_refinery.jpg` | "a small rust-orange industrial moon with glowing refinery lights on its night side, lower left, in front of a colossal banded brown gas giant filling the right half, a small white sun peeking over the gas giant's upper limb" |
+| `system_forge.jpg` | "a green-grey world of glassed and cracked ruins left of centre, a thin ring of debris circling it, magnetic auroras at the poles, a small dim white sun in the upper right, one tiny distant moon lower right" |
+| `system_ringworld.jpg` | "a ring-shaped megastructure habitat around a deep blue world, right of centre, city lights along the ring's night side, a pale white star at the left, a small red planet low at the right edge" |
+| `system_narkina.jpg` | "a white-clouded blue ocean world filling the lower left as a curved horizon, a small bright pale sun in the upper right, two small grey moons near the sun" |
+
+## Title key art with armored posse — delivered 2026-09-28
+
+The delivered `title_twin_suns.jpg` has the right light and framing, but its hunters
+are generic cowboys in wide-brimmed hats. The stand-in it replaced (`title_bg.jpg`, a
+battered T-visor helmet) at least said *Mandalorian* at a glance. The title needs
+both: the twin-sunset standoff and unmistakable armored Mandalorian-style hunters.
+
+**File:** `public/assets/textures/title_twin_suns_v2.jpg`, 2560×1080 (21:9). It sits
+beside the current file rather than over it, so the two can be compared in the
+mockup before one is dropped. Generated with the built-in image tool and checked
+at the requested dimensions.
+
+**Composition, fixed by the title screen mockup:** the logo and tagline go in the
+empty sky in the **upper right third**. The mode menu sits in a black letterbox
+along the bottom 100 px, and a thin strip runs across the top 70 px. Keep the
+figures in the left half and lower middle, and keep the upper right as calm sky.
+
+| File | Prompt |
+|---|---|
+| `title_twin_suns_v2.jpg` | "Cinematic ultra-wide sci-fi western key art at twin sunset, 21:9. Two suns low over a cracked salt flat, burnt orange and deep red sky, heat haze, long shadows toward the viewer. In the left third, seen from behind and slightly to the side, a posse of four armored bounty hunters stands on a low rock shelf. The lead warrior wears a battered polished-silver helmet with a dark T-shaped visor, silver plate armor and a tattered brown cape, a rifle held low. Beside him is a heavy warrior in dented dark-blue plate armor with a large twin-tank jetpack. A third, slim figure in gold-bronze armor wears a helmet with a raised crest. The fourth hunter in olive-green armor with a T-visor helmet and a rangefinder stalk rises a few meters into the air on a short jetpack flame. Far away on the right horizon, a lone rival silhouette waits. Distant desert spires and the curved ribs of a wrecked starship on the right. Strong negative space in the upper right third for a logo. Gritty film grain, painterly realism, spaghetti-western framing. No text, no logos, no named characters or film frames." |
+
+## Alternate Dune Sea board image — delivered 2026-09-28
+
+`board_tatooine.jpg` (the lone armored hunter looking over the dunes toward a town
+under twin suns) has been chosen as the **title screen** art. The Dune Sea needs a
+second, different picture for its in-game uses: the board and territory cards, the
+Departures ticket, the Missions chapter card and the loading screen's photograph. That
+way the title and the territory don't show the same picture.
+
+**File:** `public/assets/textures/board_tatooine_v2.jpg`, 1536×864, the size of the
+other board images. Generated with the built-in image tool and visually verified.
+Once the swap is made in `src/world/boards.ts`, it replaces
+`board_tatooine.jpg` as the Dune Sea's `art`, and the old file stays as the title art.
+
+**Keep it distinct from the title:** no lone figure looking at the view, and no
+twin suns low on the horizon at the centre. Show the territory itself, the place you
+are about to fight through.
+
+| File | Prompt |
+|---|---|
+| `board_tatooine_v2.jpg` | "Cinematic wide establishing shot of a desert territory in a sci-fi western, mid-afternoon under two small high suns. Rolling ochre dune sea in the foreground cut by a rocky ravine, a Tusken-style raider camp of patched hide tents and a smoking fire on a mesa to the left, a rusted crashed transport half-buried in the dunes, a sunken sand pit with a ring of teeth and tentacles in the middle distance, swoop-bike dust trails racing along a ridge, a cluster of domed adobe buildings and a water tower on the far right horizon. Heat haze, long shadows, warm dusty palette, readable shapes, painterly realism, concept-art style. No text, no logos, no people in the foreground." |
