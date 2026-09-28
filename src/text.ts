@@ -602,7 +602,8 @@ export const TEXT = {
       regroup: (n: number) => `Regroup · ${n} still sliding`,
       speed: (v: number) => `${v} m/s`,
       behind: (m: number) => `Avalanche ${m} m behind`,
-      kick: 'Kick',
+      kick: 'Kick!',
+      crash: 'Wiped out · clear the lane ahead',
     },
     lamplight: {
       stage: 'the dark', title: 'Lamplight',

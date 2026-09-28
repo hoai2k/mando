@@ -104,7 +104,7 @@ function build(ctx: SectionContext): SectionInstance {
   }, { exts: ['png'] });
   const burnMat = new THREE.MeshBasicMaterial({ map: webTex, color: 0xff7a30, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
   ctx.own(burnMat);
-  const eggMat = new THREE.MeshStandardMaterial({ color: 0x8a7a50, emissive: 0xffa040, emissiveIntensity: 0.22, roughness: 0.45 });
+  const eggMat = new THREE.MeshStandardMaterial({ color: 0x7a6a48, emissive: 0xffa040, emissiveIntensity: 0.16, roughness: 0.4 });
   ctx.own(eggMat);
   const nestMat = new THREE.MeshStandardMaterial({ color: 0x6a2a24, emissive: 0xff3020, emissiveIntensity: 0.45, roughness: 0.45 });
   ctx.own(nestMat);
@@ -191,18 +191,24 @@ function build(ctx: SectionContext): SectionInstance {
       const r = ch.r - 1.5;
       const x = ch.c.x + Math.cos(a) * r, z = ch.c.z + Math.sin(a) * r;
       if (openings.some((o) => Math.abs(x - o.x) < o.half + 2 && Math.abs(z - o.z) < 4)) continue;
-      for (let k = 0; k < 4; k++) {
+      const y = Y0 + 0.6 + rand() * 3;
+      for (let k = 0; k < 6; k++) {
         const egg = new THREE.Mesh(eggGeo, eggMat);
-        egg.scale.set(0.9 + rand() * 0.6, 1.1 + rand() * 0.6, 0.9 + rand() * 0.6);
-        egg.position.set(x + (rand() - 0.5) * 1.8, Y0 + 0.5 + rand() * 3.5, z + (rand() - 0.5) * 1.8);
+        egg.scale.set(0.5 + rand() * 0.3, 0.65 + rand() * 0.3, 0.5 + rand() * 0.3);
+        egg.position.set(x + (rand() - 0.5) * 1.4, y + (rand() - 0.5) * 1.2, z + (rand() - 0.5) * 1.4);
         ctx.mesh(egg);
       }
+      // wrapped in silk
+      const shroud = new THREE.Mesh(eggGeo, webMat);
+      shroud.scale.set(2.2, 2.4, 2.2);
+      shroud.position.set(x, y, z);
+      ctx.mesh(shroud);
     }
     // the nests: where they come out of the walls, lit red from inside
     for (const n of ch.nests) {
-      for (let k = 0; k < 6; k++) {
+      for (let k = 0; k < 7; k++) {
         const egg = new THREE.Mesh(eggGeo, nestMat);
-        egg.scale.setScalar(0.8 + rand() * 0.7);
+        egg.scale.setScalar(0.45 + rand() * 0.4);
         egg.position.set(n.x + (rand() - 0.5) * 2.2, Y0 + 0.4 + rand() * 2.2, n.z + (rand() - 0.5) * 2.2);
         ctx.mesh(egg);
       }
@@ -237,17 +243,20 @@ function build(ctx: SectionContext): SectionInstance {
 
   // ---- the braziers ----
   const interactions = new Interactions();
-  interface Brazier { ci: number; at: THREE.Vector3; lit: boolean; it: Interactable; ember: THREE.Mesh; flames: THREE.Mesh[]; pool: THREE.Mesh }
+  interface Brazier { ci: number; at: THREE.Vector3; lit: boolean; it: Interactable; ember: THREE.Mesh; flames: THREE.Sprite[]; pool: THREE.Mesh }
   const emberMat = new THREE.MeshBasicMaterial({ color: 0xff7a30, fog: false });
   ctx.own(emberMat);
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flameTex = drawFlame();
+  ctx.own(flameTex);
+  const flameMat = new THREE.SpriteMaterial({ map: flameTex, color: 0xffb060, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
   ctx.own(flameMat);
-  const poolMat = new THREE.MeshBasicMaterial({ color: 0xff8a30, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
+  const glowTex = drawGlow();
+  ctx.own(glowTex);
+  const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, color: 0xff8a30, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false });
   ctx.own(poolMat);
   const emberGeo = new THREE.SphereGeometry(0.16, 8, 6);
-  const flameGeo = new THREE.ConeGeometry(0.28, 1, 7);
   const poolGeo = new THREE.CircleGeometry(6, 28);
-  ctx.own(emberGeo); ctx.own(flameGeo); ctx.own(poolGeo);
+  ctx.own(emberGeo); ctx.own(poolGeo);
   // the dark stands up with the stage: the world's own light goes out now,
   // behind the arrival veil, not on the first frame of play
   const dark: Darkness = new Darkness(game, ctx.group, { keep: ctx.group });
@@ -274,9 +283,9 @@ function build(ctx: SectionContext): SectionInstance {
       const ember = new THREE.Mesh(emberGeo, emberMat);
       ember.position.set(b.x, Y0 + 1.25, b.z);
       ctx.mesh(ember);
-      const flames = [0, 1, 2].map((k) => {
-        const f = new THREE.Mesh(flameGeo, flameMat);
-        f.position.set(b.x + Math.cos(k * 2.1) * 0.2, Y0 + 1.6, b.z + Math.sin(k * 2.1) * 0.2);
+      const flames = [0, 1].map((k) => {
+        const f = new THREE.Sprite(flameMat);
+        f.position.set(b.x + (k - 0.5) * 0.25, Y0 + 1.75, b.z);
         f.visible = false;
         ctx.mesh(f);
         return f;
@@ -308,6 +317,8 @@ function build(ctx: SectionContext): SectionInstance {
   let burning = -1;       // seconds into the last web's burn; -1 before it
   let burnt = false;
   let rush = false;
+  /** the rush comes in two waves: the second this many seconds after the first */
+  let rushSecond = -1;
   ctx.checkpoint.set(0, Y0, -11);
 
   const litIn = (ci: number): number => braziers.filter((b) => b.ci === ci && b.lit).length;
@@ -340,7 +351,8 @@ function build(ctx: SectionContext): SectionInstance {
       burning = 0;
       rush = true;
       ctx.announce(T.burning, T.burningSub);
-      spawnBrood(2, Math.round(3 + party * 1.5), true);
+      spawnBrood(2, 3 + party, true);
+      rushSecond = 3;
     }
   };
 
@@ -385,7 +397,7 @@ function build(ctx: SectionContext): SectionInstance {
       const inside = game.players.some((p) => p.alive && inChamber(p.position.x, p.position.z, ci));
       if (!entered[ci] && inside) {
         entered[ci] = true;
-        spawnBrood(ci, (solo ? [2, 3, 4] : [3, 4, 5])[ci] + (party - 1), true);
+        spawnBrood(ci, (solo ? [3, 4, 5] : [4, 6, 7])[ci] + (party - 1), true);
       }
       if (!entered[ci] || chamberDone(ci)) continue;
       darkT[ci] += dt;
@@ -398,11 +410,15 @@ function build(ctx: SectionContext): SectionInstance {
       trickle[ci] -= dt;
       const alive = [...home.entries()].filter(([e, c]) => c === ci && e.alive).length;
       if (trickle[ci] <= 0 && inside) {
-        trickle[ci] = (solo ? 11 : 8) - ci;
-        if (alive < 3 + party + ci) spawnBrood(ci, 1);
+        trickle[ci] = (solo ? 9 : 6) - ci;
+        if (alive < 3 + party + 2 * ci) spawnBrood(ci, 1);
       }
     }
     for (const [e] of home) if (!e.alive) home.delete(e);
+    if (rushSecond > 0) {
+      rushSecond -= dt;
+      if (rushSecond <= 0) spawnBrood(2, 2 + party, true);
+    }
 
     // ---- the web walls ----
     for (const w of walls) {
@@ -442,7 +458,9 @@ function build(ctx: SectionContext): SectionInstance {
       }
       br.flames.forEach((f, k) => {
         const t = game.time * 9 + k * 2 + br.at.z;
-        f.scale.set(1, 0.9 + 0.35 * Math.sin(t) + Math.random() * 0.15, 1);
+        const h = 1.3 + 0.3 * Math.sin(t) + Math.random() * 0.15;
+        f.scale.set(0.8 + 0.1 * Math.sin(t * 1.3), h, 1);
+        f.position.y = Y0 + 1.15 + h * 0.45;
       });
     }
 
@@ -549,7 +567,7 @@ function build(ctx: SectionContext): SectionInstance {
 
   const inTunnel = (x: number, z: number): boolean =>
     TUNNELS.some(([z0, z1]) => z > z0 - 1 && z < z1 + 1 && Math.abs(x - TX) < TW);
-  return {
+  const inst: SectionInstance = {
     starts: [0, 1, 2, 3].map((i) => new THREE.Vector3(((i % 2) * 2 - 1) * 1.8, Y0, -12 + Math.floor(i / 2) * 1.8)),
     floorY: Y0,
     ceilingY: Y0 + ROOF,
@@ -574,6 +592,9 @@ function build(ctx: SectionContext): SectionInstance {
       z: game.players.map((p) => Math.round(p.position.z)),
     }),
   };
+  // for the mechanics suite (tools/test-section-crevasse.mjs)
+  (inst as unknown as { kit: unknown }).kit = { dark, braziers, walls, bold, darkT, home, spawnBrood };
+  return inst;
 }
 
 /** a web drawn on a canvas: radial strands and a spiral, for when web_sheet.png is not in */
@@ -601,6 +622,44 @@ function drawWeb(): THREE.CanvasTexture {
     }
     g.stroke();
   }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** a round glow that fades to nothing at its rim, for the warm pools on the floor */
+function drawGlow(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** a flame: a soft teardrop of light, white at the root, for an additive sprite */
+function drawFlame(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 128;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 96, 2, 32, 80, 60);
+  grad.addColorStop(0, 'rgba(255,250,220,1)');
+  grad.addColorStop(0.3, 'rgba(255,190,90,0.85)');
+  grad.addColorStop(0.7, 'rgba(255,90,20,0.3)');
+  grad.addColorStop(1, 'rgba(255,40,0,0)');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.moveTo(32, 4);
+  g.bezierCurveTo(52, 50, 60, 80, 56, 100);
+  g.bezierCurveTo(52, 124, 12, 124, 8, 100);
+  g.bezierCurveTo(4, 80, 12, 50, 32, 4);
+  g.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;

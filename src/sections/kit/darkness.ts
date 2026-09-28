@@ -299,7 +299,7 @@ export class Darkness {
       l.color.setHex(pool.color);
       l.position.set(pool.pos.x, pool.pos.y + 2.2, pool.pos.z);
       l.distance = pool.radius * 2.2;
-      l.intensity = 34 + Math.sin(this.time * 7 + i * 2) * 3 + Math.random() * 2;
+      l.intensity = 22 + Math.sin(this.time * 7 + i * 2) * 2.5 + Math.random() * 1.5;
     });
 
     // ---- the dazzle: held in a focused beam ----

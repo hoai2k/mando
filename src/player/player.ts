@@ -2366,7 +2366,9 @@ export class Player {
     // K7's slide holds a crouched surf while it carries the body (§2.3)
     const surf = this.grounded && !!this.sectionMove?.crouch?.(this);
     if (this.autoCrouching || surf) {
-      anim.play('lower', speed2 > 0.35 && !surf ? 'crouchWalkLower' : 'coverLower', 0.12);
+      // the surf is the crouched stride held still: knees bent, one foot leading
+      if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
+      else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
       else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
     } else if (this.blocking) {

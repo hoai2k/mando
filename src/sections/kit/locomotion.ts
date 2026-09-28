@@ -45,6 +45,8 @@ export interface SlideOpts {
   drag?: (p: Player) => number;
   /** something the slide kick connected with besides a body (a web to tear) */
   onKick?: (p: Player, at: THREE.Vector3, game: Game) => void;
+  /** sliding into a hostile at speed bowls it over and costs you (default true) */
+  crash?: boolean;
 }
 
 /**
@@ -53,9 +55,9 @@ export interface SlideOpts {
  */
 export const SLIDE = {
   /** the pull down the fall line on a 1-in-1 slope (arcade gravity is 26; this is the ice's share) */
-  pull: 11,
-  /** air and snow drag, ×speed² — sets the cruise: ~22 m/s on the 12° average */
-  drag: 0.0047,
+  pull: 16,
+  /** air and snow drag, ×speed² — sets the cruise: ~22 m/s on the 11° average */
+  drag: 0.0064,
   /** the hardest the body is ever allowed to go */
   maxSpeed: 28,
   /** the stick's lateral force, m/s² — carves the heading rather than adding speed */
@@ -71,9 +73,16 @@ export const SLIDE = {
   bankTurn: 6,
   /** the slide kick: reach, damage, shove, and how often */
   kickReach: 3.2,
+  /** ...plus this much per m/s of speed: the faster you come, the earlier the boot is out */
+  kickReachPerSpeed: 0.12,
   kickDamage: 22,
   kickShove: 18,
   kickCd: 0.55,
+  /** sliding into a body: the speed you keep, what it costs you, and what it does to it */
+  crashAbove: 8,
+  crashKeep: 0.35,
+  crashHurt: 10,
+  crashHit: 12,
   /** how firmly the camera is swung to look down the line while the look stick is idle */
   lookAhead: 2.2,
 };
@@ -86,6 +95,8 @@ export interface SlideState {
   kickCd: number;
   /** seconds since the last kick landed, for the HUD flash */
   kicked: number;
+  /** seconds since the last crash into a body */
+  crashed: number;
 }
 
 /**
@@ -94,7 +105,7 @@ export interface SlideState {
  * slide kick on the melee button, and hip-fire only.
  */
 export class SlideMove {
-  readonly state: SlideState[] = [0, 1, 2, 3].map(() => ({ sliding: false, speed: 0, digging: false, kickCd: 0, kicked: 99 }));
+  readonly state: SlideState[] = [0, 1, 2, 3].map(() => ({ sliding: false, speed: 0, digging: false, kickCd: 0, kicked: 99, crashed: 99 }));
   private readonly n = new THREE.Vector3();
 
   constructor(private readonly opts: SlideOpts = {}) {}
@@ -116,6 +127,7 @@ export class SlideMove {
     const st = this.state[p.slot];
     st.kickCd -= dt;
     st.kicked += dt;
+    st.crashed += dt;
     st.sliding = this.on(p);
     if (!st.sliding) return input;
     // what the buttons mean on the ice: no sprint and no dodge (there is no
@@ -194,6 +206,7 @@ export class SlideMove {
     const lane = this.opts.lane?.(p.position.x, p.position.z);
     if (lane) this.bank(p, lane, dt);
 
+    if (this.opts.crash !== false) this.crash(p, game);
     speed = Math.hypot(v.x, v.z);
     if (speed > SLIDE.maxSpeed) { v.x *= SLIDE.maxSpeed / speed; v.z *= SLIDE.maxSpeed / speed; speed = SLIDE.maxSpeed; }
     st.speed = speed;
@@ -240,6 +253,37 @@ export class SlideMove {
     }
   }
 
+  /**
+   * Into a body at speed: it goes over, and so does most of your speed, and
+   * it gets a bite in on the way. This is what makes the gun and the kick
+   * matter on the slide — the lane has to be cleared ahead, not ridden
+   * through — and a crash is a stall, which is what the avalanche feeds on.
+   */
+  private crash(p: Player, game: Game): void {
+    const st = this.state[p.slot];
+    const v = p.velocity;
+    const sp = Math.hypot(v.x, v.z);
+    if (sp < SLIDE.crashAbove || st.crashed < 0.8) return;
+    for (const e of game.enemies) {
+      if (!e.alive || e.team === p.team || e.downed) continue;
+      const dx = e.position.x - p.position.x, dz = e.position.z - p.position.z;
+      const reach = e.radius + p.radius + 0.25;
+      if (dx * dx + dz * dz > reach * reach || Math.abs(e.position.y - p.position.y) > 1.6) continue;
+      if (dx * v.x + dz * v.z < 0) continue;     // it is behind you: you have already gone through
+      st.crashed = 0;
+      v.x *= SLIDE.crashKeep;
+      v.z *= SLIDE.crashKeep;
+      p.damage(SLIDE.crashHurt, e.position);
+      e.damage(SLIDE.crashHit, p.position, p.slot);
+      e.knockback(p.position, 14, 0.5, 0.4);
+      e.knockdown(0.9);
+      p.cam.shake(0.25);
+      audio.impact();
+      game.particles.dustPuff(p.position, 16);
+      return;
+    }
+  }
+
   private kick(p: Player, game: Game): void {
     const st = this.state[p.slot];
     st.kickCd = SLIDE.kickCd;
@@ -252,7 +296,7 @@ export class SlideMove {
       if (!e.alive || e.team === p.team) continue;
       const dx = e.position.x - p.position.x, dz = e.position.z - p.position.z;
       const d = Math.hypot(dx, dz);
-      if (d > SLIDE.kickReach + e.radius || Math.abs(e.position.y - p.position.y) > 2.2) continue;
+      if (d > SLIDE.kickReach + SLIDE.kickReachPerSpeed * sp + e.radius || Math.abs(e.position.y - p.position.y) > 2.2) continue;
       if (d > 1.6 && (dx * hx + dz * hz) / d < -0.1) continue;   // behind you
       e.damage(SLIDE.kickDamage, p.position, p.slot);
       // out of the lane: shoved along your heading and off to whichever side it is on

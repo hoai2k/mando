@@ -71,6 +71,8 @@ const WALL_W = 3;
 const PLATEAU = 22;
 /** the floor under a crevasse, below its rim */
 const DEEP = 60;
+/** the avalanche closes up to this far behind the last of the party, then holds its own pace */
+const LOOM = 70;
 /** the flag gates, by z (a branch gate stands on both branches) */
 const GATES = [130, 312, 472, 602, 690, 892, 1040, 1162];
 
@@ -675,7 +677,9 @@ function build(ctx: SectionContext): SectionInstance {
     for (const p of game.players) p.cam.shake(0.35);
   };
 
+  const caught = { avalanche: 0, crevasse: 0 };
   const catchUp = (p: Player, title: string, sub: string, force = false): void => {
+    if (title === T.caught) caught.avalanche++; else caught.crevasse++;
     const k = reformGate(p.slot);
     const at = gateSpot(k, p.slot, botLane[p.slot]);
     p.position.copy(at);
@@ -745,9 +749,15 @@ function build(ctx: SectionContext): SectionInstance {
 
     // ---- the avalanche ----
     if (avalancheOn) {
+      // A fixed speed a little under the cruise, so only a body that stalls
+      // meets it — but never so far back that it stops being there: more than
+      // `LOOM` metres behind the last of the party it gathers pace to close
+      // up, and it surges down the final pitch. It dies in the cave mouth.
+      let rear = Infinity;
+      for (const p of game.players) if (p.alive) rear = Math.min(rear, p.position.z);
+      const cruise = front.at > 960 ? (party === 1 ? 17.5 : 19) : (party === 1 ? 14 : 15.5);
+      front.speed = isFinite(rear) && rear - front.at > LOOM ? 21 : cruise;
       front.update(dt);
-      // it surges down the final pitch, and dies in the cave mouth
-      if (front.at > 960) front.speed = party === 1 ? 17.5 : 19;
       front.at = Math.min(front.at, CAVE[0] + 20);
       for (const p of game.players) {
         if (!p.alive || p.position.z > front.at + 1.5) continue;
@@ -860,11 +870,11 @@ function build(ctx: SectionContext): SectionInstance {
     if (avalancheOn && front.at < CAVE[0] + 19) {
       const gap = Math.max(0, p.position.z - front.at);
       bars.push({ label: T.avalanche, value: Math.max(0, Math.min(1, 1 - gap / 140)), tone: gap < 40 ? 'danger' : gap < 80 ? 'warn' : 'info' });
-      return { bars, line: st.kicked < 0.6 ? T.kick : T.behind(Math.round(gap)) };
+      return { bars, line: st.crashed < 1.2 ? T.crash : st.kicked < 0.6 ? T.kick : T.behind(Math.round(gap)) };
     }
     const alive = game.players.filter((q) => q.alive);
     const left = alive.filter((q) => q.position.z <= Z_SNOW).length;
-    return { bars, line: p.position.z > Z_SNOW && left ? T.regroup(left) : T.hintSlide };
+    return { bars, line: p.position.z > Z_SNOW && left ? T.regroup(left) : st.crashed < 1.2 ? T.crash : T.hintSlide };
   };
 
   // ---- the autopilot: ride the lane, jump the crevasses, shoot, kick ----
@@ -902,13 +912,18 @@ function build(ctx: SectionContext): SectionInstance {
       }
     }
     // a spider or a web right in front: kick it
-    const near = game.enemies.some((e) => e.alive && e.team === 1 && e.position.distanceTo(p.position) < 3);
-    const web = webs.some((w) => !w.b.broken && w.pos.distanceTo(p.position) < 3.5);
+    const reach = 3 + slide.state[slot].speed * 0.12;
+    const inReach = (q: THREE.Vector3): boolean => {
+      const d = q.distanceTo(p.position);
+      return d < reach && (q.z - p.position.z > -0.5 || d < 1.6);
+    };
+    const near = game.enemies.some((e) => e.alive && e.team === 1 && !e.downed && inReach(e.position));
+    const web = webs.some((w) => !w.b.broken && inReach(w.pos));
     if ((near || web) && kickCue[slot] <= 0) { out.meleePressed = true; kickCue[slot] = 0.6; }
     return out;
   };
 
-  return {
+  const inst: SectionInstance = {
     starts: [0, 1, 2, 3].map((i) => new THREE.Vector3(((i % 2) * 2 - 1) * 1.4, YT, 3 + Math.floor(i / 2) * 1.8)),
     floorY: Y0,
     ceilingY: YT + 34,
@@ -935,11 +950,14 @@ function build(ctx: SectionContext): SectionInstance {
       for (const p of game.players) p.sectionMove = null;
     },
     debug: () => ({
-      front: Math.round(front.at), gate: gateReached, collapsed,
+      front: Math.round(front.at), gate: gateReached, collapsed, caught: { ...caught }, t: Math.round(startT),
       z: game.players.map((p) => Math.round(p.position.z)),
       speed: slide.state.map((s) => Math.round(s.speed)),
     }),
   };
+  // for the mechanics suite (tools/test-section-crevasse.mjs): the kit and the numbers it runs on
+  (inst as unknown as { kit: unknown }).kit = { slide, front, gates: GATES, crevasses: CREVASSES, surface, laneAt, webs, Z_SNOW };
+  return inst;
 }
 
 export const glacierChute: SectionDef = {
