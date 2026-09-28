@@ -357,3 +357,25 @@ This replaces the fly-to camera from the second update.
   on-screen sizes are for readability, not scale.
 - Controls are unchanged: ▲ back, ▼ on, and a bare ◀ or ▶ to whichever neighbour
   lies further that way on screen.
+
+## Round 4, fourth update — the title uses the Dune Sea art; Systems 3 sequenced (2026-09-28)
+
+- **Title art.** The title uses `board_tatooine.jpg`, the original Dune Sea stand-in:
+  a lone hunter over the dunes and the twin suns. The logo sits lower right, over the
+  dunes, clear of the hunter and the suns. The top strip and subtitle stay removed,
+  and the bottom right still reads 1–4 PLAYERS. `title_twin_suns_v2.jpg` (the
+  armored posse) arrived at the same time, so it is on the canvas as alternate 1b for
+  comparison.
+- **The Dune Sea gets a second picture.** Since the original is now the title, a
+  different in-game Dune Sea, `board_tatooine_v2.jpg`, is requested in
+  `ASSETS_IMAGES.md`. It would be used for the board card, the ticket, the chapter
+  card and the loading screen.
+- **Systems 3 (galaxy map with a lens).**
+  - The map's stars are now the worlds' own planet images, 48 px, and 72 px for the
+    chosen world.
+  - A move plays in three beats:
+    1. The open view folds back down into the world it shows.
+    2. The map travels to the new world.
+    3. The new view opens out of that world, up to the viewer.
+
+    A single hop takes about 1.5 s.

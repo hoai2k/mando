@@ -5,7 +5,8 @@
 Once a request is filled it moves there, and anything that builds on it (the 3D model
 briefs, say) cites the resulting filename from there.
 
-**Open as of 2026-09-28:** the unchosen UI concept art and optional fighter poses in
+**Open as of 2026-09-28:** an [alternate Dune Sea board image](#open--alternate-dune-sea-board-image-2026-09-28),
+plus the unchosen UI concept art and optional fighter poses in
 [Open — front-end UI concepts](#open--front-end-ui-concepts-2026-09-28) below.
 The nine Missions system vistas from round 4 are delivered; the galaxy arm
 background remains optional.
@@ -79,6 +80,26 @@ were the one deliberate exception; both are delivered.)
 
 Runtime textures land in `public/assets/textures/` and the loader tries `.jpg` then `.png`.
 Production-only reference art lives in `reference/` and is **not** shipped.
+
+## Open — alternate Dune Sea board image (2026-09-28)
+
+`board_tatooine.jpg` (the lone armored hunter looking over the dunes toward a town
+under twin suns) has been chosen as the **title screen** art. The Dune Sea needs a
+second, different picture for its in-game uses: the board and territory cards, the
+Departures ticket, the Missions chapter card and the loading screen's photograph. That
+way the title and the territory don't show the same picture.
+
+**File:** `public/assets/textures/board_tatooine_v2.jpg`, 1536×864, the size of the
+other board images. Once the swap is made in `src/world/boards.ts`, it replaces
+`board_tatooine.jpg` as the Dune Sea's `art`, and the old file stays as the title art.
+
+**Keep it distinct from the title:** no lone figure looking at the view, and no
+twin suns low on the horizon at the centre. Show the territory itself, the place you
+are about to fight through.
+
+| File | Prompt |
+|---|---|
+| `board_tatooine_v2.jpg` | "Cinematic wide establishing shot of a desert territory in a sci-fi western, mid-afternoon under two small high suns. Rolling ochre dune sea in the foreground cut by a rocky ravine, a Tusken-style raider camp of patched hide tents and a smoking fire on a mesa to the left, a rusted crashed transport half-buried in the dunes, a sunken sand pit with a ring of teeth and tentacles in the middle distance, swoop-bike dust trails racing along a ridge, a cluster of domed adobe buildings and a water tower on the far right horizon. Heat haze, long shadows, warm dusty palette, readable shapes, painterly realism, concept-art style. No text, no logos, no people in the foreground." |
 
 ## Open — front-end UI concepts (2026-09-28)
 
