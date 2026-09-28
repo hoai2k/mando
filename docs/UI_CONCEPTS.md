@@ -327,3 +327,11 @@ next round. They keep A's letterboxed Twin Suns card along the bottom.
   through the jump.
 - The layout rules from the first update still hold: down is on, up is back, and a
   bare left or right takes the neighbour that lies further that way.
+
+**Title, revised (2026-09-28).** The title goes back to the original stand-in art
+(`title_bg.jpg`, the battered T-visor helmet). The logo now sits on the left, over a
+darkened side of the image. The top strip and the "Two suns. One contract." line are
+gone. The bottom right reads **1–4 PLAYERS** above "Press A to ride out", in place of
+the mode blurb. The Twin Suns letterboxed menu along the bottom stays.
+`title_twin_suns_v2.jpg` (with Mandalorians) is still requested, as an option to
+compare against the stand-in.
