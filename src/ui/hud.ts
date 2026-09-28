@@ -547,7 +547,9 @@ export class Hud {
         h.coverHint.textContent = v.def.living
           ? TEXT.hud.riding(v.def.name.toUpperCase(), hp, v.maxHp,
             v.chargeReady ? TEXT.hud.chargeReady : TEXT.hud.chargeWait)
-          : TEXT.hud.driving(v.def.name.toUpperCase(), hp, v.maxHp);
+          // a mounted gun (K3 turret) has no stick to drive with: say what it does
+          : v.def.turret ? TEXT.hud.gunning(v.def.name.toUpperCase(), hp, v.maxHp)
+            : TEXT.hud.driving(v.def.name.toUpperCase(), hp, v.maxHp);
       } else if (p.nearVehicle && p.alive) h.coverHint.textContent = TEXT.hud.rideVehicle(p.nearVehicle.def.name.toLowerCase());
       else if (p.cover) h.coverHint.textContent = p.peeking ? TEXT.hud.firingFromCover : TEXT.hud.inCover;
       else if (p.nearCover && p.alive) h.coverHint.textContent = TEXT.hud.takeCover;

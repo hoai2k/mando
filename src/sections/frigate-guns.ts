@@ -114,11 +114,18 @@ const BOARD_GAP = 2.2;
 
 /** the hull's health, and what hurts it */
 const HULL_HP = 1000;
-const DRONE_STRIKE = 24;
-const GUNSHIP_BURST = 6;
-const TUBE_DRAIN = 6;
-const SPINAL_HULL = 50;
+const DRONE_STRIKE = 30;
+const GUNSHIP_BURST = 8;
+const TUBE_DRAIN = 8;
+const SPINAL_HULL = 60;
 const SPINAL_DMG = 70;
+/**
+ * What an unmanned gun's fire does to armour (gunships, the corvette's domes
+ * and bridge). Its bolts carry no shooter (`bySlot` −1); a gun somebody is
+ * aiming does full damage. The auto-fire is there to thin the drones — the
+ * armoured work needs crew.
+ */
+const AUTO_VS_ARMOUR = 0.25;
 /** seconds of warning before a contact arrives */
 const RADAR_WARN = 4;
 /** the spinal gun: telegraph, then the shot */
@@ -180,28 +187,32 @@ function waveScript(k: number, party: number): WaveEvent[] {
   const p = party;
   switch (k) {
     case 0: return [
-      { at: RADAR_WARN, kind: 'swarm', bearing: 'ahead', n: 3 + 2 * p },
-      { at: 15, kind: 'swarm', bearing: 'port', n: 3 + p },
-      { at: 25, kind: 'swarm', bearing: 'starboard', n: 2 + p },
+      { at: RADAR_WARN, kind: 'swarm', bearing: 'ahead', n: 4 + 2 * p },
+      { at: 14, kind: 'swarm', bearing: 'port', n: 3 + 2 * p },
+      // two bearings at once: one gun cannot cover both
+      { at: 24, kind: 'swarm', bearing: 'starboard', n: 3 + p },
+      { at: 24, kind: 'swarm', bearing: 'astern', n: 2 + p },
     ];
     case 1: return [
       { at: RADAR_WARN, kind: 'gunship', bearing: 'astern' },
-      { at: 13, kind: 'swarm', bearing: 'ahead', n: 3 + p },
-      { at: p >= 2 ? 20 : 30, kind: 'gunship', bearing: 'starboard' },
-      ...(p >= 3 ? [{ at: 28, kind: 'swarm' as const, bearing: 'port' as const, n: 2 + p }] : []),
+      { at: 8, kind: 'swarm', bearing: 'port', n: 3 + p },
+      { at: p >= 2 ? 16 : 24, kind: 'gunship', bearing: 'starboard' },
+      { at: 28, kind: 'swarm', bearing: 'ahead', n: 3 + p },
     ];
     case 2: return [
       { at: RADAR_WARN, kind: 'board', bearing: 'port', pt: 0 },
-      { at: 12, kind: 'swarm', bearing: 'ahead', n: 2 + p },
-      { at: p >= 2 ? 18 : 22, kind: 'board', bearing: 'port', pt: 2, oneTube: p === 1 },
-      { at: 30, kind: 'gunship', bearing: 'astern' },
+      { at: 10, kind: 'swarm', bearing: 'ahead', n: 3 + p },
+      { at: 18, kind: 'board', bearing: 'port', pt: 2, oneTube: p === 1 },
+      { at: 26, kind: 'gunship', bearing: 'astern' },
+      ...(p >= 3 ? [{ at: 32, kind: 'swarm' as const, bearing: 'starboard' as const, n: 2 + p }] : []),
     ];
     default: return [
       { at: RADAR_WARN, kind: 'board', bearing: 'starboard', pt: 1 },
-      { at: 9, kind: 'gunship', bearing: 'ahead' },
-      { at: 15, kind: 'swarm', bearing: 'astern', n: 3 + p },
-      { at: p >= 3 ? 18 : 26, kind: 'board', bearing: 'port', pt: 0, oneTube: p <= 2 },
-      { at: 24, kind: 'swarm', bearing: 'port', n: 2 + p },
+      { at: 8, kind: 'gunship', bearing: 'ahead' },
+      { at: 14, kind: 'swarm', bearing: 'astern', n: 3 + p },
+      { at: p >= 3 ? 16 : 24, kind: 'board', bearing: 'port', pt: 0, oneTube: p <= 2 },
+      { at: 22, kind: 'swarm', bearing: 'port', n: 3 + p },
+      ...(p >= 2 ? [{ at: 30, kind: 'gunship' as const, bearing: 'port' as const }] : []),
     ];
   }
 }
@@ -472,12 +483,15 @@ function build(ctx: SectionContext): SectionInstance {
   keel.position.set(0, Y0 - DECK_T - 14, -3);
   ctx.mesh(keel);
   // a row of lit ports along each flank, so the side reads as a ship's side
-  const portGeo = ctx.own(new THREE.BoxGeometry(0.2, 0.5, 1.2));
+  const portGeo = ctx.own(new THREE.BoxGeometry(0.2, 0.4, 0.55));
   for (const sx of [-1, 1]) {
-    for (let z = STERN + 4; z < TAPER - 2; z += 3.2) {
-      const port = new THREE.Mesh(portGeo, amber);
-      port.position.set(sx * (HALF_W * 0.97 + 0.02), Y0 - 4, z);
-      ctx.mesh(port);
+    for (const [y, step] of [[-3.4, 2.6], [-6.8, 4.1]] as const) {
+      for (let z = STERN + 4; z < TAPER - 2; z += step) {
+        if (Math.sin(z * 1.7 + y) > 0.6) continue;
+        const port = new THREE.Mesh(portGeo, amber);
+        port.position.set(sx * (HALF_W * 0.97 + 0.02), Y0 + y, z);
+        ctx.mesh(port);
+      }
     }
   }
   // the engine block astern, below the deck, with three bells burning blue
@@ -522,7 +536,9 @@ function build(ctx: SectionContext): SectionInstance {
   for (const side of [-1, 1]) {
     for (const [z0, z1] of bulwarkRuns(side)) {
       if (z1 - z0 < 0.5) continue;
-      ctx.box(side * (HALF_W - 0.3), Y0 + BULWARK_H / 2, (z0 + z1) / 2, 0.6, BULWARK_H, z1 - z0, trim);
+      const armour = ctx.paint(0x7a7068, { rough: 0.8, metal: 0.45 });
+      ctx.tile(armour, 'rust_hull', (z1 - z0) / 5, 0.3);
+      ctx.box(side * (HALF_W - 0.3), Y0 + BULWARK_H / 2, (z0 + z1) / 2, 0.6, BULWARK_H, z1 - z0, armour);
       const band = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.12, z1 - z0), stripe);
       ctx.own(band.geometry);
       band.position.set(side * (HALF_W - 0.3), Y0 + BULWARK_H + 0.02, (z0 + z1) / 2);
@@ -534,8 +550,10 @@ function build(ctx: SectionContext): SectionInstance {
   const COVER: [number, number, number, number][] = [
     [4.2, -6, 2.4, 1.6], [-4.2, -6, 2.4, 1.6], [4.5, 12, 1.8, 2.6], [-4.5, 14, 1.8, 2.6], [-5, -17, 2.2, 1.6], [5.2, -26, 1.8, 2],
   ];
+  const housing = ctx.paint(0x6a7079, { rough: 0.7, metal: 0.5 });
+  ctx.tile(housing, 'hull_plate_large', 0.5, 0.5);
   for (const [x, z, sx, sz] of COVER) {
-    ctx.box(x, Y0 + 0.6, z, sx, 1.2, sz, dark);
+    ctx.box(x, Y0 + 0.6, z, sx, 1.2, sz, housing);
     const grille = new THREE.Mesh(new THREE.BoxGeometry(sx * 0.8, 0.05, sz * 0.8), trim);
     ctx.own(grille.geometry);
     grille.position.set(x, Y0 + 1.23, z);
@@ -686,7 +704,7 @@ function build(ctx: SectionContext): SectionInstance {
   // the docking collar at her stern. It stays put while she lies docked, then
   // recedes astern for the whole section.
   const stationMat = ctx.paint(0x4a5262, { rough: 0.8, metal: 0.4 });
-  ctx.tile(stationMat, 'panel_white', 1 / 24, 1 / 24);
+  ctx.tile(stationMat, 'panel_white', 14, 9);
   const windowMat = new THREE.MeshBasicMaterial({ color: 0xffd79a });
   ctx.own(windowMat);
   const stationFace = (w: number, h: number, withBay: boolean): THREE.Group => {
@@ -694,13 +712,17 @@ function build(ctx: SectionContext): SectionInstance {
     const face = new THREE.Mesh(new THREE.BoxGeometry(w, h, 30), stationMat);
     ctx.own(face.geometry);
     g.add(face);
-    const winGeo = ctx.own(new THREE.BoxGeometry(3, 1.2, 0.4));
-    for (let i = 0; i < 90; i++) {
-      const wx = (Math.random() - 0.5) * (w - 20), wy = (Math.random() - 0.5) * (h - 20);
-      if (withBay && Math.abs(wx) < 26 && Math.abs(wy) < 18) continue;
-      const m = new THREE.Mesh(winGeo, windowMat);
-      m.position.set(wx, wy, 15.1);
-      g.add(m);
+    // lit ports in rows, one row under each deck rib, with dark gaps
+    const winGeo = ctx.own(new THREE.BoxGeometry(2.2, 1.1, 0.4));
+    for (let row = 0; row < 5; row++) {
+      const wy = -h / 2 + (row + 0.5) * (h / 5) - 6;
+      for (let wx = -w / 2 + 8; wx < w / 2 - 8; wx += 4.5) {
+        if (Math.sin(wx * 0.37 + row * 2.1) > 0.55) continue;
+        if (withBay && Math.abs(wx) < 28 && Math.abs(wy + 6) < 22) continue;
+        const m = new THREE.Mesh(winGeo, windowMat);
+        m.position.set(wx, wy, 15.1);
+        g.add(m);
+      }
     }
     for (let i = 0; i < 5; i++) {
       const rib = new THREE.Mesh(new THREE.BoxGeometry(w, 3, 4), dark);
@@ -823,19 +845,19 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.mesh(dock);
 
   // ---- the pools: dropships, tubes, the corvette ----
+  // `ctx.prop` hands back the sculpt's holder; the stand-in is its sibling
+  // under one parent. The parent is what flies: moved, both go.
+  const flying = (id: string, size: number, fallback: () => THREE.Object3D): { rig: THREE.Group; sculpt: THREE.Group } => {
+    const sculpt = ctx.prop(id, new THREE.Vector3(0, 0, 0), { size, fallback });
+    const rig = sculpt.parent as THREE.Group;
+    rig.visible = false;
+    return { rig, sculpt };
+  };
   const shipModels: THREE.Group[] = [];
-  for (let i = 0; i < 4; i++) {
-    const g = ctx.prop('raider_dropship', new THREE.Vector3(0, 0, 0), { size: 14, fallback: dropshipStandIn });
-    g.visible = false;
-    shipModels.push(g);
-  }
-  const tubeModels = BOARD_PTS.map(() => {
-    const g = ctx.prop('boarding_tube', new THREE.Vector3(0, 0, 0), { size: 8, fallback: tubeStandIn });
-    g.visible = false;
-    return g;
-  });
-  const corvette = ctx.prop('pirate_corvette', new THREE.Vector3(0, 0, 0), { size: 60, fallback: corvetteStandIn });
-  corvette.visible = false;
+  for (let i = 0; i < 4; i++) shipModels.push(flying('raider_dropship', 14, dropshipStandIn).rig);
+  const tubeModels = BOARD_PTS.map(() => flying('boarding_tube', 8, tubeStandIn).rig);
+  const corvetteProp = flying('pirate_corvette', 60, corvetteStandIn);
+  const corvette = corvetteProp.rig;
   const shieldMat = new THREE.MeshBasicMaterial({ color: 0x5aa0ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   ctx.own(shieldMat);
   const shield = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), shieldMat);
@@ -880,6 +902,9 @@ function build(ctx: SectionContext): SectionInstance {
   let docked = false;
   let dockItem: ReturnType<typeof mill.conveyor> | null = null;
   let lidOpen = 0;
+  let deckToned = false;
+  let stationToned = false;
+  let housingToned = false;
   let hullCheckpoint = HULL_HP;
   let rides: RideLedger | null = null;
   const guns: Vehicle[] = [];
@@ -924,8 +949,16 @@ function build(ctx: SectionContext): SectionInstance {
     e.height = shape.h;
     e.hitParts = shape.parts ?? [];
     e.char.root.visible = false;
+    const last = at.clone();
     e.scripted = {
-      drive: (b, dt) => { drive(b, dt); return 'still'; },
+      drive: (b, dt) => {
+        drive(b, dt);
+        // what it is actually doing, for the guns' lead — a bolt's shove
+        // would otherwise pile up in a body nothing else moves
+        if (dt > 0) b.velocity.subVectors(b.position, last).divideScalar(dt);
+        last.copy(b.position);
+        return 'still';
+      },
       ...(hurt ? { hurt } : {}),
     };
     return e;
@@ -945,12 +978,12 @@ function build(ctx: SectionContext): SectionInstance {
     const out = BEARING[bearing];
     const across = new THREE.Vector3(out.z, 0, -out.x);
     for (let i = 0; i < n; i++) {
-      const hunter = party >= 2 && i % 3 === 2;
+      const hunter = i % 3 === 2;
       const p0 = P(0, 14 + Math.random() * 16, 0).addScaledVector(out, 175 + i * 6).addScaledVector(across, (Math.random() - 0.5) * 50);
       const p2 = hunter ? P((Math.random() - 0.5) * 12, 9, (Math.random() - 0.5) * 30) : hullPoint();
       const p1 = p2.clone().addScaledVector(out, 55).addScaledVector(across, (Math.random() - 0.5) * 40);
       p1.y = Y0 + 16 + Math.random() * 10;
-      const d: Drone = { e: null as unknown as Enemy, role: hunter ? 'hunter' : 'hull', p0, p1, p2, u: 0, len: bezLen(p0, p1, p2), speed: 19 + Math.random() * 4 };
+      const d: Drone = { e: null as unknown as Enemy, role: hunter ? 'hunter' : 'hull', p0, p1, p2, u: 0, len: bezLen(p0, p1, p2), speed: 26 + Math.random() * 6 };
       d.e = ctx.spawn('drone', p0, { exact: true, squad: 8841 });
       d.e.position.copy(p0);
       d.e.scripted = { drive: (e, dt) => { driveDrone(d, e, dt); return 'still'; } };
@@ -990,13 +1023,18 @@ function build(ctx: SectionContext): SectionInstance {
   const shipProxy = (s: Ship, hp: number): Enemy => proxy(s.pos.clone(), hp,
     { r: 2.8, h: 4, parts: [{ z: 4.5, y: 2.2, r: 2.4 }, { z: -4.5, y: 2.2, r: 2.4 }] },
     (e, dt) => driveShip(s, e, dt),
-    (amount) => (s.state === 'latched' && amount < 40 ? amount * 0.25 : amount));
+    (amount, _from, bySlot) => {
+      if (s.state === 'latched' && amount < 40) return amount * 0.25;
+      return bySlot < 0 && amount < 40 ? amount * AUTO_VS_ARMOUR : amount;
+    });
   const launchShip = (kind: 'gunship' | 'board', bearing: Bearing, pt = 0): void => {
     const model = takeModel();
     if (!model) return;
     model.userData.busy = true;
     const out = BEARING[bearing];
-    const p0 = P(0, 18, 0).addScaledVector(out, 200);
+    // a gunship comes in high; a boarder comes up from under the hull, where
+    // no gun on the deck can depress to it — the radar is the only warning
+    const p0 = P(0, kind === 'gunship' ? 18 : -34, 0).addScaledVector(out, 200);
     const s: Ship = {
       kind, e: null as unknown as Enemy, model, state: 'inbound', t: 0,
       p0, p1: new THREE.Vector3(), p2: new THREE.Vector3(), u: 0, len: 1, speed: 26,
@@ -1010,15 +1048,16 @@ function build(ctx: SectionContext): SectionInstance {
       s.dir = bearing === 'ahead' ? -1 : 1;
       s.p2.copy(P(s.side * 32, 9, -s.dir * 62));
       s.p1.copy(s.p2).addScaledVector(out, 60).setY(Y0 + 24);
+      s.speed = 34;
     } else {
       const b = BOARD_PTS[pt];
       s.side = Math.sign(b.x);
       s.p2.copy(P(b.x + s.side * 7.5, -2.8, b.z));
-      s.p1.copy(s.p2).add(new THREE.Vector3(s.side * 55, 12, 0)).addScaledVector(out, 30);
-      s.speed = 22;
+      s.p1.copy(s.p2).add(new THREE.Vector3(s.side * 14, -34, 0)).addScaledVector(out, 40);
+      s.speed = 24;
     }
     s.len = bezLen(s.p0, s.p1, s.p2);
-    s.e = shipProxy(s, kind === 'gunship' ? 420 + 160 * (party - 1) : 300 + 110 * (party - 1));
+    s.e = shipProxy(s, kind === 'gunship' ? 650 + 220 * (party - 1) : 900 + 300 * (party - 1));
     model.visible = true;
     ships.push(s);
     audio.shipPass(0.4);
@@ -1070,7 +1109,7 @@ function build(ctx: SectionContext): SectionInstance {
     } else if (s.state === 'pass') {
       if (fly(s, dt)) startLoop(s);
       s.fireT -= dt;
-      if (s.fireT <= 0 && Math.abs(s.pos.z) < 46) { s.fireT = 0.75; shipFire(s); }
+      if (s.fireT <= 0 && Math.abs(s.pos.z) < 46) { s.fireT = 0.6; shipFire(s); }
     } else if (s.state === 'loop') {
       if (fly(s, dt)) startPass(s);
     } else if (s.state === 'latching' || s.state === 'latched') {
@@ -1141,9 +1180,12 @@ function build(ctx: SectionContext): SectionInstance {
     const pt = s.pt;
     const queue: EnemyKind[] = ['pirate', 'pirateMelee'];
     for (let i = 1; i < party; i++) queue.push(i % 2 ? 'pirate' : 'pyke');
-    queue.push('capo');     // the Pyke heavy comes out last, once the deck is busy
+    // the Pyke heavy comes out last, once the deck is busy — the capo himself
+    // when there is company to take him on, a Pyke gunner for a lone hunter
+    // until the last wave
+    queue.push(party >= 2 || waveIdx >= 3 ? 'capo' : 'pyke');
     if (party >= 3) queue.push('pirateMelee');
-    const t: Tube = { pt, holder: tubeModels[pt], latch: null, queue, nextT: 2.4, ext: 0, cut: false, bodies: [], ship: s, fall: 0 };
+    const t: Tube = { pt, holder: tubeModels[pt], latch: null, queue, nextT: 0.4, ext: 0, cut: false, bodies: [], ship: s, fall: 0 };
     s.tube = t;
     tubes.push(t);
     t.holder.visible = true;
@@ -1160,7 +1202,9 @@ function build(ctx: SectionContext): SectionInstance {
   };
   const armLatch = (t: Tube): void => {
     const at = latchPos(t.pt);
-    t.latch = proxy(at, 150 + 45 * (party - 1), { r: 1.2, h: 2.8 }, (e) => { e.position.copy(at); e.velocity.set(0, 0, 0); }, latchHurt(t));
+    // a clamp takes eight or so good blows: long enough that the tube has
+    // emptied onto the deck by the time it gives
+    t.latch = proxy(at, (party === 1 ? 240 : 320) + 90 * Math.max(0, party - 2), { r: 1.2, h: 2.8 }, (e) => { e.position.copy(at); e.velocity.set(0, 0, 0); }, latchHurt(t));
     ctx.announce(T.boarders, T.boardersSub);
     audio.alarm(0.45);
   };
@@ -1217,7 +1261,8 @@ function build(ctx: SectionContext): SectionInstance {
       const b = BOARD_PTS[t.pt];
       const s2 = Math.sign(b.x);
       const kind = t.queue.shift() ?? (mine < 2 ? 'pirate' : null);
-      t.nextT = t.queue.length ? 1.6 : 12;
+      // the first two come out together as the collar blows, then one at a time
+      t.nextT = t.bodies.length === 0 ? 0.25 : t.queue.length ? 1.5 : 12;
       if (kind) {
         const e = ctx.spawn(kind, P(b.x - s2 * 2.4, 0, b.z + (Math.random() - 0.5) * 1.6), { exact: true, alert: true, squad: 8842 });
         e.facingYaw = s2 > 0 ? -Math.PI / 2 : Math.PI / 2;
@@ -1235,8 +1280,9 @@ function build(ctx: SectionContext): SectionInstance {
   let bridgeNode: THREE.Object3D | null = null;
   const cv = { pos: new THREE.Vector3(), yaw: 0, t: 0, arrive: 0, slideZ: 0, spinal: 'idle' as 'idle' | 'charge' | 'fire' | 'recover', spinalT: 7, laneZ: 0, turn: 0, fall: 0, burnT: 0 };
   const CV_X = -52;
-  const genHp = 360 + 130 * (party - 1);
-  const bridgeHp = 700 + 250 * (party - 1);
+  const genHp = 900 + 300 * (party - 1);
+  const bridgeHp = 1600 + 500 * (party - 1);
+  const armour = (amount: number, bySlot: number): number => (bySlot < 0 && amount < 40 ? amount * AUTO_VS_ARMOUR : amount);
   const nodeWorld = (n: THREE.Object3D | null, local: THREE.Vector3): THREE.Vector3 => {
     corvette.updateMatrixWorld(true);
     if (n) return n.getWorldPosition(new THREE.Vector3());
@@ -1244,9 +1290,12 @@ function build(ctx: SectionContext): SectionInstance {
   };
   const GEN_LOCAL = [0, 1, 2].map((i) => new THREE.Vector3(0, 9.6, -4 + i * 11));
   const BRIDGE_LOCAL = new THREE.Vector3(0, 9, -18);
+  // the sculpt's own nodes once it has landed, the stand-in's until then
+  const node = (name: string): THREE.Object3D | null =>
+    corvetteProp.sculpt.getObjectByName(name) ?? corvette.getObjectByName(name) ?? null;
   const findNodes = (): void => {
-    for (const g of gens) g.node = corvette.getObjectByName(`gen_${g.i}`) ?? null;
-    bridgeNode = corvette.getObjectByName('bridge') ?? null;
+    for (const g of gens) g.node = node(`gen_${g.i}`);
+    bridgeNode = node('bridge');
   };
   const shieldsUp = (): boolean => gens.some((g) => !g.down);
   const startCorvette = (): void => {
@@ -1269,17 +1318,16 @@ function build(ctx: SectionContext): SectionInstance {
       if (g.node) g.node.visible = true;
       g.e = proxy(nodeWorld(g.node, GEN_LOCAL[g.i]), genHp, { r: 2.6, h: 5.2 }, (e) => {
         e.position.copy(nodeWorld(g.node, GEN_LOCAL[g.i])).y -= 2.6;
-        e.velocity.set(0, 0, 0);
-      });
+      }, (amount, _from, bySlot) => { shieldMat.opacity = 0.32; return armour(amount, bySlot); });
     }
     bridge = proxy(nodeWorld(bridgeNode, BRIDGE_LOCAL), bridgeHp, { r: 3.6, h: 5, parts: [{ z: 2.5, y: 2.5, r: 3 }, { z: -2.5, y: 2.5, r: 3 }] },
       (e) => {
         e.position.copy(nodeWorld(bridgeNode, BRIDGE_LOCAL)).y -= 2.5;
         e.facingYaw = cv.yaw;
       },
-      (amount) => {
+      (amount, _from, bySlot) => {
         if (shieldsUp()) { shieldMat.opacity = 0.5; return 0; }
-        return amount;
+        return armour(amount, bySlot);
       });
     ctx.announce(T.corvette, T.corvetteSub);
     audio.bossHorn(false);
@@ -1420,7 +1468,9 @@ function build(ctx: SectionContext): SectionInstance {
 
   // ---- the waves ----
   let events: WaveEvent[] = [];
-  const tubeActive = (): boolean => tubes.some((t) => !t.cut);
+  /** a tube latched, or a boarding ship on its way to latch one */
+  const tubeActive = (): boolean => tubes.some((t) => !t.cut)
+    || ships.some((s) => s.kind === 'board' && (s.state === 'inbound' || s.state === 'latching'));
   const fire = (ev: WaveEvent): void => {
     if (ev.kind === 'swarm') spawnSwarm(ev.bearing, ev.n ?? 4);
     else if (ev.kind === 'gunship') launchShip('gunship', ev.bearing);
@@ -1476,7 +1526,8 @@ function build(ctx: SectionContext): SectionInstance {
     waveT += dt;
     events.forEach((ev, i) => {
       if (fired[i]) return;
-      if (ev.oneTube && tubeActive() && !told[i]) { ev.at = Math.max(ev.at, waveT + RADAR_WARN); return; }
+      // one tube at a time: the next waits for the last to be cut and its boarders down
+      if (ev.oneTube && (tubeActive() || deckBoarders().length) && !told[i]) { ev.at = Math.max(ev.at, waveT + RADAR_WARN + 2); return; }
       // on the radar first
       const due = ev.at - waveT;
       if (due <= RADAR_WARN && !told[i]) {
@@ -1519,7 +1570,9 @@ function build(ctx: SectionContext): SectionInstance {
       for (const gn of GUNS) {
         guns.push(rides.add({ kind: 'turret', x: gn.x, z: gn.z, y: Y0, yaw: gn.yaw }, {
           team: 0, hp: 900,
-          turret: { yawArc: GUN_ARC, pitchMin: GUN_PITCH_MIN, pitchMax: 0.75, autoRange: 110 },
+          // the eye a hand over the gunner's shield (K3's default sits level with
+          // its top edge, and the plate filled the lower half of the sight)
+          turret: { yawArc: GUN_ARC, pitchMin: GUN_PITCH_MIN, pitchMax: 0.75, autoRange: 110, sight: { x: 0, y: 2.7, z: -0.35 } },
         }));
       }
       for (const p of game.players) {
@@ -1534,13 +1587,20 @@ function build(ctx: SectionContext): SectionInstance {
       audio.doorCycle();
     }
     phaseT += dt;
+    // the plate texture lands bright; the frigate is old grey metal
+    if (plate.map && !deckToned) { deckToned = true; plate.color.set(0x8a9098); }
+    if (stationMat.map && !stationToned) { stationToned = true; stationMat.color.set(0x6c7684); }
+    if (housing.map && !housingToned) { housingToned = true; housing.color.set(0x8c939c); }
     mill.update(dt);
     hull.update(dt);
     layStreaks(dt);
     for (const d of debris) { d.obj.rotation.x += d.spin.x * dt; d.obj.rotation.y += d.spin.y * dt; }
     const flicker = 0.85 + Math.sin(game.time * 23) * 0.1;
     const thrust = Math.min(1, mill.speed / CRUISE);
-    for (const pl of plumes) pl.scale.set(0.6 + thrust * 0.5, 0.2 + thrust * flicker, 0.6 + thrust * 0.5);
+    for (const pl of plumes) {
+      pl.visible = thrust > 0.04;
+      pl.scale.set(0.6 + thrust * 0.5, 0.2 + thrust * flicker, 0.6 + thrust * 0.5);
+    }
     plumeMat.opacity = 0.15 + 0.45 * thrust;
     engineLight.intensity = 40 * thrust;
 
@@ -1692,6 +1752,7 @@ function build(ctx: SectionContext): SectionInstance {
       const b = deckBoarders()[0];
       return { pos: b.position.clone(), label: T.hullLabel, hint: T.boardHint, beacon: false };
     }
+    if (!guns.length) return { pos: P(GUNS[0].x, 0, GUNS[0].z), label: T.gunLabel, hint: T.gunHint, beacon: false };
     const free = guns.find((g) => g.alive && !g.rider);
     if (free) {
       const anyone = game.players.some((p) => p.vehicle);
@@ -1741,30 +1802,40 @@ function build(ctx: SectionContext): SectionInstance {
   // tube latches or a boarder is on the deck — the section's question, asked
   // of a bot.
   const obstacles = (): { x: number; z: number; r: number }[] => [
-    ...guns.map((g) => ({ x: g.pos.x, z: g.pos.z, r: 2.2 })),
-    ...COVER.map(([x, z, sx, sz]) => ({ x, z, r: Math.max(sx, sz) / 2 + 0.9 })),
+    ...guns.map((g) => ({ x: g.pos.x, z: g.pos.z, r: 2.0 })),
+    ...COVER.map(([x, z, sx, sz]) => ({ x, z, r: Math.hypot(sx, sz) / 2 + 0.55 })),
   ];
+  /**
+   * Walk toward `to`: straight, unless a gun or a vent housing is on the
+   * line, in which case toward the near side of it (a detour point just off
+   * its circle, on whichever side the line already passes).
+   */
   const walkTo = (p: Player, to: THREE.Vector3, out: AutopilotInput, stopAt = 0.6): boolean => {
     const tx = THREE.MathUtils.clamp(to.x, -(halfW(to.z) - 2.2), halfW(to.z) - 2.2);
     const tz = THREE.MathUtils.clamp(to.z, STERN + 3, BOW - 6);
-    let dx = tx - p.position.x, dz = tz - p.position.z;
-    const d = Math.hypot(dx, dz);
+    const px = p.position.x, pz = p.position.z;
+    const d = Math.hypot(tx - px, tz - pz);
     if (d < stopAt) return true;
-    dx /= d; dz /= d;
-    // steer round the guns and the vent housings
+    let gx = tx, gz = tz;
+    let nearest = Infinity;
     for (const o of obstacles()) {
-      const ox = o.x - p.position.x, oz = o.z - p.position.z;
-      const od = Math.hypot(ox, oz);
-      if (od > o.r + 2.5 || od < 0.01) continue;
-      const ahead = (ox * dx + oz * dz) / od;
-      if (ahead < 0) continue;
-      const push = (o.r + 2.5 - od) / 2.5;
-      const sx = -oz / od, sz = ox / od;
-      const sgn = sx * dx + sz * dz > 0 ? -1 : 1;
-      dx += sgn * sx * push * 1.4 - (ox / od) * push * 0.6;
-      dz += sgn * sz * push * 1.4 - (oz / od) * push * 0.6;
+      if (Math.hypot(tx - o.x, tz - o.z) < o.r) continue;          // the goal is at it
+      const ux = (tx - px) / d, uz = (tz - pz) / d;
+      const along = (o.x - px) * ux + (o.z - pz) * uz;
+      if (along < -0.5 || along > d) continue;
+      const cx = px + ux * along, cz = pz + uz * along;
+      const off = Math.hypot(o.x - cx, o.z - cz);
+      if (off >= o.r) continue;
+      if (along >= nearest) continue;
+      nearest = along;
+      // round it on the side the line already leans to
+      let sx = cx - o.x, sz = cz - o.z;
+      const sl = Math.hypot(sx, sz);
+      if (sl < 1e-3) { sx = -uz; sz = ux; } else { sx /= sl; sz /= sl; }
+      gx = o.x + sx * (o.r + 1.1) + ux * 0.8;
+      gz = o.z + sz * (o.r + 1.1) + uz * 0.8;
     }
-    out.yaw = Math.atan2(dx, dz);
+    out.yaw = Math.atan2(gx - px, gz - pz);
     out.moveY = Math.min(1, d / 2);
     return false;
   };
@@ -1805,13 +1876,15 @@ function build(ctx: SectionContext): SectionInstance {
       return out;
     }
     const latch = activeLatch(p.position);
-    if (latch?.latch) {
+    const close = deckBoarders().filter((b) => b.position.distanceTo(p.position) < 14);
+    if (latch?.latch && !close.length) {
       const at = latch.latch.position;
       const s = Math.sign(BOARD_PTS[latch.pt].x);
       const stand = P(at.x - s * 1.8, 0, at.z);
       const d = Math.hypot(at.x - p.position.x, at.z - p.position.z);
       if (d > 2.6) { walkTo(p, stand, out, 0.4); out.shootHeld = false; return out; }
       out.yaw = Math.atan2(at.x - p.position.x, at.z - p.position.z);
+      p.cam.pitch = -0.15;
       if (cursors[slot]++ % 10 === 0) out.meleePressed = true;
       return out;
     }
@@ -1822,6 +1895,8 @@ function build(ctx: SectionContext): SectionInstance {
       const d = f.position.distanceTo(p.position);
       if (d > 9) walkTo(p, f.position, out, 6);
       if (!out.moveY) out.yaw = Math.atan2(f.position.x - p.position.x, f.position.z - p.position.z);
+      // level with them: a gunner's pitch left over from the sky puts every bolt overhead
+      p.cam.pitch = Math.atan2(f.position.y + f.height * 0.5 - (p.position.y + 1.5), Math.max(1, d));
       out.shootHeld = true;
       return out;
     }
@@ -1923,7 +1998,7 @@ function build(ctx: SectionContext): SectionInstance {
     },
     debug: () => ({
       phase, wave: waveIdx + 1, hull: Math.round(hull.body.hp), drones: drones.length, ships: ships.length,
-      tubes: tubes.length, boarders: boarders.length, speed: Math.round(mill.speed * 10) / 10,
+      tubes: tubes.map((t) => `B${t.pt + 1}:${t.cut ? 'cut' : t.ship.state}`).join(' '), boarders: boarders.length, speed: Math.round(mill.speed * 10) / 10,
       spinal: cv.spinal, gens: gens.filter((g) => !g.down).length, docked,
     }),
   };
