@@ -1028,7 +1028,7 @@ export class Player {
     if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
     this.takenT = TAKEN_TIME;
     this.takenBy.copy(at);
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.cover = null;
     this.velocity.set(0, 0, 0);
     audio.hurt(this.profile.voice);
@@ -1267,7 +1267,7 @@ export class Player {
   }
 
   private die(): void {
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.hp = 0;
     this.alive = false;
     this.deadT = 0;
@@ -2910,7 +2910,8 @@ export class Player {
     for (const v of game.vehicles) {
       // one with a hostile in the saddle is theirs until they are off it;
       // one a hostile is still running for is anyone's — get there first
-      if (!v.alive || v.rider || v.hostile) continue;
+      // K3: a ridden ride with its second seat empty takes a pillion
+      if (!v.alive || v.hostile || (v.rider && !v.pillionOpen)) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
