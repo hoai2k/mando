@@ -227,6 +227,19 @@ export function signatureMeleeProp(id: MandoId): WeaponPropId | null {
   return saber.pair ? null : saber.prop;
 }
 
+/**
+ * What the HUD calls one of this character's melee weapons: a staff or a
+ * saber of its own goes by its own name, the common ones by their slot's.
+ * Asked per weapon rather than once for the signature, since Din's second
+ * blade is a single Darksaber and not the slot's "Twin Sabers".
+ */
+export function meleeNameFor(id: MandoId, kind: MeleeKind): string {
+  const key = kind === 'gaffi'
+    ? weaponProp(staffPropFor(id)).name
+    : SABER_STYLES[saberStyleFor(id)].name ?? weaponProp(SABER_STYLES[saberStyleFor(id)].prop).name;
+  return key ? TEXT.weapons.props[key] : MELEE_NAMES[kind];
+}
+
 /** Every melee weapon this character carries, signature first. */
 export function meleeKinds(id: MandoId): MeleeKind[] {
   return list(MANDO_ROSTER[id].melee, 'gaffi');

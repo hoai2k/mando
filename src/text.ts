@@ -488,7 +488,7 @@ export const TEXT = {
      */
     props: {
       beskarSpear: 'Beskar Spear', poleaxe: 'Poleaxe', quarterstaff: 'Quarterstaff', forcePike: 'Force Pike',
-      doubleSaber: 'Double Saber', redSaber: 'Red Saber',
+      doubleSaber: 'Double Saber', redSaber: 'Red Saber', darksaber: 'Darksaber',
     },
     /** what a playable NPC's slots are called, built from its own name */
     npcRifle: (name: string) => `${name} Rifle`,

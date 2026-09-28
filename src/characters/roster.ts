@@ -2,7 +2,7 @@ import { TEXT } from '../text';
 import * as THREE from 'three';
 import {
   buildMandalorian, MANDO_ROSTER, meleeKinds, MELEE_NAMES, PLAYABLE_MANDO_IDS,
-  rangedKinds, RANGED_NAMES, signatureMeleeProp,
+  meleeNameFor, rangedKinds, RANGED_NAMES, signatureMeleeProp,
   type MandoId, type MeleeKind, type PlayerCharacter, type RangedKind,
 } from './mandalorians';
 import { weaponProp } from './weaponProps';
@@ -69,6 +69,8 @@ export interface PlayerProfile {
   /** null = melee-only fighter (no gun, no ADS, no lock-on) */
   rangedName: string | null;
   meleeName: string;
+  /** what the HUD calls each of `meleeOptions`, where it differs by fighter */
+  meleeNames?: string[];
   /** which blaster report the audio plays */
   blasterVoice: RangedKind;
   voice: VoiceId;
@@ -145,6 +147,7 @@ const mandoProfile = (id: MandoId): PlayerProfile => {
     // can use their trigger to throw a blade instead.
     rangedName: ranged.length ? RANGED_NAMES[ranged[0]] : null,
     meleeName: ownName ? TEXT.weapons.props[ownName] : MELEE_NAMES[melee[0]],
+    meleeNames: melee.map((kind) => meleeNameFor(id, kind)),
     blasterVoice: ranged[0] ?? 'carbine',
     voice: cfg.voice ?? 'mando_m',
     radius: 0.45, height: 1.75,
@@ -324,20 +327,14 @@ function npcDef(kind: EnemyKind): PlayableDef {
   };
 }
 
-/**
- * Fighters whose own melee weapon is not waited on with their body.
- *
- * Every other signature weapon is part of "this fighter's art has arrived"
- * (see `modelIds`), but Embo's and IG-11's staffs were given to them after
- * this list was written and never joined it. Whether they should is a
- * behaviour change of its own; until then they are named here rather than
- * silently left out.
- */
-const PROP_NOT_AWAITED = new Set<MandoId>(['embo', 'ig11']);
 
 const DEFS = new Map<PlayableId, PlayableDef>();
 for (const id of PLAYABLE_MANDO_IDS) {
-  const prop = PROP_NOT_AWAITED.has(id) ? null : signatureMeleeProp(id);
+  // A fighter's signature weapon is part of "this fighter's art has arrived",
+  // so the select screen and the drop wait for it with the body. Embo's and
+  // IG-11's staffs were once left out of this, and they came up with the
+  // procedural stand-in in hand and swapped a beat later.
+  const prop = signatureMeleeProp(id);
   DEFS.set(id, {
     id,
     modelIds: prop ? [id, prop] : [id],
