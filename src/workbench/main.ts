@@ -376,7 +376,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  expose({ __wb: { figures, subject, pose, camera, controls } });  // debug/testing handle
+  expose({ __wb: { figures, subject, pose, camera, controls, editor } });  // debug/testing handle
 }
 
 /**
@@ -627,6 +627,11 @@ function freezePose(): void {
       if (action) action.time = Math.min(at, Math.max(0, clip.duration - 1e-4));
     }
     anim.update(0);
+    // and onto the authored skin: `applyPose` last retargeted it at frame 0,
+    // and a paused frame loop never would again, so a moment would show the
+    // rig at its time and the model at the clip's start (position edits live
+    // on the model's own bones, and `refreshPositionPose` retargets for them)
+    if (!(editing && editKind === 'position')) f.inst.cosmetic?.(0, time);
   }
 }
 
@@ -1841,7 +1846,10 @@ function frame(now: number): void {
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
   if (weaponAwaiting && editing && editKind === 'weapon'
     && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
-  if (!paused && !(editing && editKind === 'position'))
+  // A joint turned in edit mode is turned on the rig; the authored skin follows
+  // it through `cosmetic`, so that runs while editing even with playback paused
+  // (a moment is edited paused), or the model would sit still under the gizmo.
+  if ((!paused || (editing && editKind === 'rotate')) && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
   syncFists();

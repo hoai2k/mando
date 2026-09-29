@@ -78,6 +78,41 @@ try {
   check('undo restores the key', undone.keys === before.keys && (await ledger()).length === 0
     && (await boneAngle()) - at < 0.5, undone);
 
+  // the authored skin follows the rig through a moment edit: it moves under
+  // the gizmo while a joint is dragged (playback is paused, so nothing else
+  // would retarget it), and holds the pose on release. Its arm is not the
+  // rig's length, so its hand travels about as far, not along the same line.
+  const hands = () => page.evaluate(() => {
+    const root = window.__wb.figures[0].inst.root;
+    let model = null, rig = null;
+    root.traverse((o) => { if (o.name === 'weaponMount') model = o; if (o.name === 'weaponR') rig = o; });
+    root.updateMatrixWorld(true);
+    const V = root.position.constructor, a = new V(), b = new V();
+    model.getWorldPosition(a); rig.getWorldPosition(b);
+    return { model: a.toArray(), rig: b.toArray() };
+  });
+  const moved = (from, to, k) => Math.hypot(...to[k].map((v, i) => v - from[k][i]));
+  const drift = (from, to) => Math.hypot(...to.model.map((v, i) => (v - from.model[i]) - (to.rig[i] - from.rig[i])));
+  const held = await hands();
+  await page.evaluate(() => {
+    const e = window.__wb.editor;
+    e.rotateWorld('upperArmR', new window.__wb.camera.up.constructor(0, 0, 1), -0.8);
+    e.onChange();
+  });
+  await page.waitForTimeout(200);
+  const dragging = await hands();
+  check('the model follows a joint while it is dragged',
+    moved(held, dragging, 'rig') > 0.1 && drift(held, dragging) < 0.1
+      && moved(held, dragging, 'model') > 0.7 * moved(held, dragging, 'rig'),
+    { rig: moved(held, dragging, 'rig'), model: moved(held, dragging, 'model'), drift: drift(held, dragging) });
+  await page.evaluate(() => { const e = window.__wb.editor; e.onCommit('upperArmR'); e.onChange(); });
+  await page.waitForTimeout(200);
+  const released = await hands();
+  check('letting go keeps the pose on rig and model alike',
+    moved(dragging, released, 'rig') < 0.01 && moved(dragging, released, 'model') < 0.01,
+    { rig: moved(dragging, released, 'rig'), model: moved(dragging, released, 'model') });
+  await page.locator('#undo').click();
+
   // fists: the fingers the model was delivered without. Paz is passed for
   // play, and the game closes his hands in a bare-handed fight: the pose shows
   // it, and the toggle stands aside
