@@ -41,8 +41,9 @@ try {
   const walk = await gait(0.6);
   check('a light push walks at the walk’s own pace', walk.lower === 'walkLower' && walk.upper === 'walkUpper'
     && walk.speed > 1.2 && walk.speed < 1.6, walk);
-  const run = await gait(1);
-  check('full tilt runs', run.lower === 'runLower' && run.speed > 7, run);
+  // a run builds up: a second's walk, a second's jog, then the run
+  const run = await gait(1, 180);
+  check('full tilt runs, once it has built up', run.lower === 'runLower' && run.speed > 7, run);
   const back = await gait(0.4);
   check('easing off from a run drops back to a walk', back.lower === 'walkLower' && back.speed < 1.3, back);
   const still = await gait(0, 90);

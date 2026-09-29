@@ -303,7 +303,9 @@ const STEP_SPEED = 0.25;
 const WALK_GAIT_MAX = 2.1;
 const WALK_GAIT_MARGIN = 0.25;
 function stickSpeed(tilt: number, top: number): number {
-  if (top <= WALK_SPEED) return Math.min(tilt, 1) * top;
+  // under the walk (a planted swing), the stick scales what is left; at the
+  // walk itself (the first second of a build-up) it reads as it always does
+  if (top < WALK_SPEED) return Math.min(tilt, 1) * top;
   if (tilt <= WALK_TILT) return (tilt / WALK_TILT) * WALK_SPEED;
   if (tilt >= RUN_TILT) return top;
   return WALK_SPEED + (top - WALK_SPEED) * ((tilt - WALK_TILT) / (RUN_TILT - WALK_TILT));
@@ -1996,12 +1998,14 @@ export class Player {
     const gaitPace = this.gaitT < GAIT_WALK_FOR ? WALK_SPEED
       : this.gaitT < GAIT_WALK_FOR + GAIT_JOG_FOR ? Math.max(WALK_SPEED, run * GAIT_JOG_SHARE)
       : run;
-    // Flying under power (jetpack, super jump) keeps the full listed speed:
-    // the build-up is about legs. A plain jump carries the ground pace it
-    // left with, so hopping out of a walk is not a way to skip to a run.
+    // The build-up is about legs. Flying under power (jetpack, super jump)
+    // keeps the full listed speed; a plain jump steers at the run, so a
+    // standing hop onto a ledge still gets there — steering in the air is
+    // slow to bite (AIR_CONTROL), and the build-up only advances underfoot,
+    // so a hop out of a walk lands back on a walk rather than skipping ahead.
     const flying = !this.grounded && (this.thrusting > 0 || this.superRising || this.superGliding);
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed
-      : flying ? this.profile.runSpeed : gaitPace;
+      : flying ? this.profile.runSpeed : !this.grounded ? run : gaitPace;
     // K7 flight: a section's boosters set the airborne top speed
     if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;
@@ -2478,8 +2482,11 @@ export class Player {
       || this.weapon === 'blaster' && this.fireCd > -0.6;
     let targetYaw = this.facingYaw;
     let turn = TURN_RATE;
+    // a swing's feet shuffle (MELEE_MOVE_SPEED), and a shuffle is still a
+    // direction the stick asked for: it turns from a much slower speed
+    const turnFrom = this.meleeTimer > 0 ? 0.09 : 0.8;
     if (squareToCamera) targetYaw = this.cam.yaw;
-    else if (speed2 > 0.8) {
+    else if (speed2 > turnFrom) {
       targetYaw = Math.atan2(this.velocity.x, this.velocity.z);
       // Standing still mid-swing holds the aim it was struck at: there is no
       // travel to turn toward, and a stationary strike that drifts is a strike
