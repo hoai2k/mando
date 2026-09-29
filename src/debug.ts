@@ -35,6 +35,7 @@ import type { fitStats } from './world/collide';
 import type { ZoneSpec } from './world/mission';
 import type { Figure } from './workbench/main';
 import type { Pose } from './workbench/poses';
+import type { PoseEditor } from './workbench/poseEdit';
 import type { Subject } from './workbench/roster';
 
 /** one of `tools/harness.mjs`'s shimmed controllers, as `navigator.getGamepads()` reads it */
@@ -159,6 +160,8 @@ export interface DebugHooks {
     pose: Pose;
     camera: THREE.PerspectiveCamera;
     controls: OrbitControls;
+    /** the joint gizmo, so a test can turn a joint the way a drag does */
+    editor: PoseEditor;
   };
 
   // ---- set by the page's caller, read by the game ----

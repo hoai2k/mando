@@ -14,9 +14,9 @@ import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
-import { reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import { orientFoot, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
 import type { Rig } from '../anim/skeleton';
-import { ANKLE_OVER_SOLE, CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
+import { ANKLE_OVER_SOLE, CANONICAL_HIPS, footQuaternion, handFromSeat, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 import { saberClipsFor } from '../characters/mandalorians';
 
@@ -420,6 +420,8 @@ export const BIKE_PILLION = { x: 0, y: -0.28, z: -1.15 };
 
 /** a mount's charge: how long the horns are down, and the wait before another */
 const _restFoot = new THREE.Vector3();
+const _bodyQ = new THREE.Quaternion();
+const _soleQ = new THREE.Quaternion();
 const _restKnee = new THREE.Vector3();
 
 const CHARGE_TIME = 1.5;
@@ -1333,6 +1335,12 @@ export class Vehicle {
       if (!this.footWorld(side, _restFoot)) return;
       this.rideToWorld(this.seatX + side * spread, this.seatTop + 0.1, this.seatZ + 0.45, _restKnee);
       reachLeg(rig, side === 1 ? 'L' : 'R', _restFoot, _restKnee);
+      // the sole as the anchor lays it on the rest, turned with the hull
+      const turn = this.anchor.footRotation;
+      if (turn) {
+        this.body.getWorldQuaternion(_bodyQ);
+        orientFoot(rig, side === 1 ? 'L' : 'R', footQuaternion(_bodyQ, turn, side, _soleQ));
+      }
     }
   }
 
@@ -1489,7 +1497,8 @@ export class Vehicle {
   gripWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
     const g = this.hands;
     if (!g) return null;
-    return this.rideToWorld(this.seatX + side * g.x, this.seatTop + g.y, this.seatZ + g.z, out);
+    const h = handFromSeat(g, side, this.seatYaw, g.only !== 'left', out);
+    return this.rideToWorld(this.seatX + h.x, this.seatTop + h.y, this.seatZ + h.z, out);
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */

@@ -186,3 +186,6 @@ details.fold[open] > summary { margin-bottom: 8px; }
 .check .fists-note { display: none; font-size: 11px; }
 .check.official { cursor: default; }
 .check.official .fists-note { display: inline; }
+/* a control that is recorded but changes nothing yet */
+.hint.warn { color: #e0b25a; }
+.hint.warn::before { content: '⚠ '; }
