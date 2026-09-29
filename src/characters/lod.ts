@@ -34,7 +34,7 @@ import { generatedClips } from './authored';
  */
 
 type Row = number[];
-interface LodChar { h: number; p: number[]; parts: Row[] }
+interface LodChar { h: number; p: number[]; parts: Row[]; balls?: Row[] }
 interface LodCreature { nodes: Array<Array<string | number>>; parts: Row[]; eggs?: Row[] }
 interface LodProp { parts: Row[] }
 const DATA = lodData as unknown as {
@@ -51,6 +51,8 @@ const PROPORTION_KEYS: (keyof Proportions)[] = ['hipHeight', 'spineLen', 'chestL
 // hundreds of boxes cost one geometry and a palette.
 let unitBox: THREE.BoxGeometry | null = null;
 const box = (): THREE.BoxGeometry => (unitBox ??= markShared(new THREE.BoxGeometry(1, 1, 1)));
+let unitSphere: THREE.SphereGeometry | null = null;
+const sphere = (): THREE.SphereGeometry => (unitSphere ??= markShared(new THREE.SphereGeometry(1, 12, 8)));
 const palette = new Map<number, THREE.MeshStandardMaterial>();
 function lodMat(color: number): THREE.MeshStandardMaterial {
   let m = palette.get(color);
@@ -124,6 +126,17 @@ export function buildLodBody(game: Rig, id: string, height: number): LodBody {
     const part = addPart(rig.bones[BONES[bi]], cx, cy, cz, sx, sy, sz, color, k);
     // a limb's boxes lie along the sculpt's own bone, which need not hang straight down
     if (qw !== undefined) part.quaternion.set(qx, qy, qz, qw);
+  }
+  // a ball at each limb joint, the size of the limb's section there, filling
+  // the notch the boxes open where the limb bends
+  for (const [bi, ox, oy, oz, r, color] of d.balls ?? []) {
+    const ball = new THREE.Mesh(sphere(), lodMat(color));
+    ball.position.set(ox * k, oy * k, oz * k);
+    ball.scale.setScalar(r * k);
+    ball.castShadow = true;
+    ball.receiveShadow = true;
+    ball.userData.lod = true;
+    rig.bones[BONES[bi]].add(ball);
   }
   game.root.add(rig.root);
 

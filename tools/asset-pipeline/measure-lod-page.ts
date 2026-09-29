@@ -930,12 +930,93 @@ async function measureChar(id: string, height: number): Promise<{ data: unknown;
     }
   }
 
+  const balls = jointBalls(solid, world, lodAt, cx, h);
+
   const standIn = (rows: number[][]): Reach => reach(rows.map((r) => ({
     m: new THREE.Matrix4().makeTranslation(lodAt[BONES[r[0]]]), c: r.slice(1, 4), s: r.slice(4, 7), q: r.length >= 12 ? r.slice(8, 12) : null,
   })));
   const old = (OLD_LOD as unknown as { chars: Record<string, { parts: number[][] }> }).chars[id];
   record(id, 'char', tris, solid, standIn(parts), old ? standIn(old.parts) : null);
-  return { data: { h: height, p: PROPORTION_KEYS.map((k) => p[k] ?? 0), parts }, report: { id, height, p, verts, empty, joints, raw } };
+  return { data: { h: height, p: PROPORTION_KEYS.map((k) => p[k] ?? 0), parts, balls }, report: { id, height, p, verts, empty, joints, raw } };
+}
+
+// ---------------------------------------------------------------- joint balls
+/**
+ * A ball at each limb joint (and the neck), read off the solid: the limb's
+ * cross-section square to its bone, taken at the joint, gives the ball's
+ * radius (the circle of the same area) and its centre (the section's
+ * centroid, which need not be the rig's pivot). The ball rides on the joint's
+ * child bone, so it turns about the pivot with the limb and fills the notch
+ * the boxes leave where a limb bends.
+ *
+ * The section is limited to the voxels of the bones either side of the joint,
+ * and to a disc a little wider than the child limb itself (measured a quarter
+ * of the way down it), so the torso beside a shoulder or the other thigh
+ * beside a hip is not counted in.
+ *
+ * Row: [bone index, centre x, y, z (in that bone's frame), radius, colour].
+ */
+const BALL_JOINTS: Array<[BoneName, BoneName[], BoneName]> = [
+  // [child bone (the joint is its head), the bones either side, the bone the limb runs to]
+  ['neck', ['neck', 'chest', 'head'], 'head'],
+  ['upperArmL', ['upperArmL', 'shoulderL'], 'forearmL'], ['upperArmR', ['upperArmR', 'shoulderR'], 'forearmR'],
+  ['forearmL', ['forearmL', 'upperArmL'], 'handL'], ['forearmR', ['forearmR', 'upperArmR'], 'handR'],
+  ['handL', ['handL', 'forearmL'], 'weaponL'], ['handR', ['handR', 'forearmR'], 'weaponR'],
+  ['upperLegL', ['upperLegL'], 'lowerLegL'], ['upperLegR', ['upperLegR'], 'lowerLegR'],
+  ['lowerLegL', ['lowerLegL', 'upperLegL'], 'footL'], ['lowerLegR', ['lowerLegR', 'upperLegR'], 'footR'],
+  ['footL', ['footL', 'lowerLegL'], 'footL'], ['footR', ['footR', 'lowerLegR'], 'footR'],
+];
+
+function jointBalls(solid: Solid, world: Cloud, lodAt: Record<BoneName, THREE.Vector3>, cx: number, h: number): number[][] {
+  const rows: number[][] = [];
+  const joint = new THREE.Vector3(), axis = new THREE.Vector3(), d = new THREE.Vector3(), c = new THREE.Vector3();
+  /** the section square to `axis` through `at`, over voxels keyed in `keys`, within `rMax` of the axis */
+  const section = (at: THREE.Vector3, keys: Set<number>, rMax: number): { area: number; centre: THREE.Vector3 } | null => {
+    let w = 0;
+    c.set(0, 0, 0);
+    for (let i = 0; i < solid.n; i++) {
+      if (!keys.has(solid.key[i])) continue;
+      d.set(solid.xyz[i * 3] - at.x, solid.xyz[i * 3 + 1] - at.y, solid.xyz[i * 3 + 2] - at.z);
+      const along = d.dot(axis);
+      if (Math.abs(along) > h) continue;
+      if (d.addScaledVector(axis, -along).length() > rMax) continue;
+      w += solid.w[i];
+      c.x += solid.xyz[i * 3] * solid.w[i]; c.y += solid.xyz[i * 3 + 1] * solid.w[i]; c.z += solid.xyz[i * 3 + 2] * solid.w[i];
+    }
+    if (w <= 0) return null;
+    // the slab is 2h thick: its volume over its thickness is the section's area
+    return { area: (w * h * h * h) / (2 * h), centre: c.clone().divideScalar(w) };
+  };
+  for (const [child, side, tip] of BALL_JOINTS) {
+    joint.copy(lodAt[child]).setX(lodAt[child].x + cx);
+    // the foot has no bone past it here: its section is taken across the ankle, straight down
+    if (tip === child) axis.set(0, -1, 0);
+    else axis.subVectors(lodAt[tip], lodAt[child]).normalize();
+    if (axis.lengthSq() < 0.5) axis.set(0, -1, 0);
+    const len = tip === child ? 0.1 : lodAt[tip].distanceTo(lodAt[child]);
+    // how thick the child limb itself is, a quarter of the way down it
+    const own = new Set([BONES.indexOf(child)]);
+    const down = joint.clone().addScaledVector(axis, len * 0.25);
+    const limb = section(down, own, 0.4);
+    const rLimb = limb ? Math.sqrt(limb.area / Math.PI) : 0.06;
+    const keys = new Set(side.map((b) => BONES.indexOf(b)));
+    const sec = section(joint, keys, Math.max(rLimb * 1.6, 3 * h));
+    if (!sec) continue;
+    const r = Math.sqrt(sec.area / Math.PI);
+    // colour: the surface samples of those bones around the section
+    const col = [0, 0, 0];
+    let n = 0;
+    for (let i = 0; i < world.n; i++) {
+      if (!keys.has(world.key[i])) continue;
+      d.set(world.xyz[i * 3], world.xyz[i * 3 + 1], world.xyz[i * 3 + 2]).sub(sec.centre);
+      if (d.length() > r * 1.5) continue;
+      col[0] += world.rgb[i * 3]; col[1] += world.rgb[i * 3 + 1]; col[2] += world.rgb[i * 3 + 2]; n++;
+    }
+    const colour = n ? new THREE.Color(col[0] / n, col[1] / n, col[2] / n).getHex() : 0x808080;
+    const o = sec.centre.clone().sub(joint);
+    rows.push([BONES.indexOf(child), mm(o.x), mm(o.y), mm(o.z), mm(r), colour]);
+  }
+  return rows;
 }
 
 /**
