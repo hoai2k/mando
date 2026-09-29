@@ -51,7 +51,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     goal: 'Hold the frigate through four waves and the pirate corvette, then drop down the forward hatch.',
     steps: [
       'Man a quad gun with Y · C. RT · left mouse fires, Y · C steps off. The radar calls each contact\'s bearing.',
-      'The guns cannot aim down at the deck. When a boarding tube latches, someone has to leave a gun.',
+      'The guns turn all the way round: follow a ship past you and catch it coming back. They cannot aim down at the deck, so when a boarding tube latches, someone has to leave a gun.',
       'Cut the boarding latch with melee or a rocket. Bolts spark off it, and while it holds it drains the hull.',
       'The corvette: shoot out its three shield domes, then its bridge. A manned gun hits them hardest.',
       'When she docks, the forward hatch opens. Drop into it.',
@@ -61,6 +61,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'If the hull bar empties, the wave starts again with the hull as it was when that wave began.',
       'Over the side is the void. Fall or go down and you come back up through the nearest hatch.',
       'An empty gun fires on its own, but it barely scratches armour and locks onto boarders it cannot hit.',
+      'The guns do not care whose they hit. Fly up into a gun\'s line of fire and you are blasted off into space, unless you block it with a blade.',
     ],
   },
 

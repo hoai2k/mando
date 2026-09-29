@@ -3,7 +3,7 @@ import { audio } from '../core/audio';
 import type { Board } from './board';
 import type { StaticBox } from '../core/physics';
 import { mat } from '../characters/builder';
-import { buildDoorFrame } from './corridor';
+import { buildDoorFrame, DOOR_CLEAR } from './corridor';
 
 /**
  * The Missions blast door.
@@ -81,15 +81,18 @@ export class Gate implements Barrier {
 
   constructor(private board: Board, parent: THREE.Object3D, pos: THREE.Vector3,
     dir: { x: number; z: number }, wallH: number, accent: number,
-    opts: { width?: number; hidden?: boolean } = {}) {
+    opts: { width?: number; hidden?: boolean; opening?: { w: number; h: number } } = {}) {
     this.pos = pos.clone();
     this.hidden = !!opts.hidden;
     this.entryDirection = { x: dir.x, z: dir.z };
     const gateW = opts.width ?? GATE_W;
     const yaw = Math.atan2(dir.x, dir.z);
     this.yaw = yaw;
+    // The frame is built into the hole the wall has cut for it — by default
+    // the gate's own width at the full height given — so nothing round the
+    // door is see-through (see `buildDoorFrame`'s collar).
     this.frameSolids = this.hidden ? [] : buildDoorFrame(parent, pos.clone(), yaw,
-      { leaf: false, physics: board.physics }).solids;
+      { leaf: false, physics: board.physics, opening: opts.opening ?? { w: gateW, h: wallH } }).solids;
     // blocker half-extents: thin along the travel axis, spanning the gap
     const across = gateW / 2 + 0.5;
     this.half = new THREE.Vector3(
@@ -102,30 +105,35 @@ export class Gate implements Barrier {
     hub.rotation.y = yaw;
     hub.visible = !this.hidden;
     parent.add(hub);
-    const leafW = gateW / 2;
+    // The leaves fill the frame's clear opening, which is all a body can walk
+    // through; everything round it is the frame and its collar. (They used to
+    // be sized to the whole cut, which is what hid the see-through rim while a
+    // door was shut and showed it the moment it opened.)
+    const leafW = DOOR_CLEAR.w / 2;
+    const leafH = Math.min(wallH, DOOR_CLEAR.h);
     this.leafW = leafW;
-    this.travel = leafW + 0.25;
+    this.travel = leafW + 0.1;
     const skin = mat(0x53585f, { rough: 0.55, metal: 0.7 });
     const trim = mat(accent, { rough: 0.4, metal: 0.6 });
     for (const side of [-1, 1]) {
-      const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, wallH, 0.36), skin);
-      leaf.position.set(side * leafW / 2, wallH / 2, 0);
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, leafH, 0.36), skin);
+      leaf.position.set(side * leafW / 2, leafH / 2, 0);
       leaf.castShadow = leaf.receiveShadow = true;
       hub.add(leaf);
       this.leaves.push(leaf);
       // a band of accent near the meeting edge, so the parting reads at a
       // glance — local to the leaf, so it travels with it
       const band = new THREE.Mesh(new THREE.BoxGeometry(leafW * 0.55, 0.22, 0.44), trim);
-      band.position.set(-side * leafW * 0.18, wallH * 0.06, 0);
+      band.position.set(-side * leafW * 0.18, leafH * 0.06, 0);
       leaf.add(band);
     }
     this.seam = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.14, wallH - 0.3),
+      new THREE.PlaneGeometry(0.14, leafH - 0.3),
       new THREE.MeshBasicMaterial({
         color: accent, transparent: true, opacity: 0.75,
         blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
       }));
-    this.seam.position.set(0, wallH / 2, 0.2);
+    this.seam.position.set(0, leafH / 2, 0.2);
     hub.add(this.seam);
     this.shutNow();
   }

@@ -178,7 +178,9 @@ export class Portal extends Gate {
 
   constructor(board: Board, parent: THREE.Object3D, pos: THREE.Vector3,
     dir: { x: number; z: number }, wallH: number, depth: number, style: PortalStyle = 'door') {
-    super(board, parent, pos, dir, wallH, 0xbfe6ff, { width: GATE_W + 1.6, hidden: style !== 'door' });
+    // the opening is the one `layDoors` cuts in the face: GATE_W + 2.6 wide, the door's full height
+    super(board, parent, pos, dir, wallH, 0xbfe6ff,
+      { width: GATE_W + 1.6, hidden: style !== 'door', opening: { w: GATE_W + 2.6, h: wallH } });
     this.style = style;
     this.forward = { x: dir.x, z: dir.z };
     this.threshold = new THREE.Vector3(pos.x + dir.x * depth, pos.y, pos.z + dir.z * depth);
