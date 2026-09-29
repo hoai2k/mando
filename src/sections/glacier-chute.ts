@@ -821,9 +821,11 @@ function build(ctx: SectionContext): SectionInstance {
     for (const w of webs) if (w.b.broken && w.mesh.visible) w.mesh.visible = false;
     for (let i = 0; i < 4; i++) kickCue[i] = Math.max(0, kickCue[i] - dt);
 
-    // ---- the snowbank: everyone down is the end of it ----
+    // ---- the snowbank: everyone still standing down is the end of it ----
+    // The fallen do not hold the party at the finish: they come back with it
+    // on the next stage. Anyone alive and still sliding does.
     const alive = game.players.filter((p) => p.alive);
-    if (alive.length && alive.length === game.players.length && alive.every((p) => p.position.z > Z_SNOW)) {
+    if (alive.length && alive.every((p) => p.position.z > Z_SNOW)) {
       complete = true;
       audio.setBurrowRumble(0);
     }

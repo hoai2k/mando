@@ -245,6 +245,16 @@ export class Campaign implements MissionController {
    */
   section: SectionInstance | null = null;
 
+  // ---- a section's reward for the next stage (docs/sections-notes/narkina.md) ----
+  // One Way Out: ten or more prisoners hold the stairs, and the stage after it
+  // (the supervisor deck) has a lieutenant who calls for backup in vain.
+  // Per run: a new run builds a new Campaign.
+  private retinueWaiver: { stage: number; line: string } | null = null;
+  waiveRetinue(stage: number, line: string): void { this.retinueWaiver = { stage, line }; }
+  retinueWaived(): string | null {
+    return this.retinueWaiver && this.retinueWaiver.stage === this.stageIdx ? this.retinueWaiver.line : null;
+  }
+
   constructor(private game: Game) {
     const spec = MISSION_LAYOUTS[game.board.kind];
     this.memory = spec.stages.map(() => ({ clearedTo: 0, pickupsTaken: [], visited: false }));
@@ -265,7 +275,12 @@ export class Campaign implements MissionController {
     this.beacon.position.copy(this.objectivePos);
     this.beacon.position.y += 30;
     this.beacon.frustumCulled = false;
-    this.beacon.visible = !this.atTrailhead;
+    // A section that asks for no column (`objective().beacon === false`) gets
+    // none from the first frame. `update` sets this every frame once the match
+    // is fighting, but the intro plays before the first update — and on a
+    // `?section=` boot that was one to three seconds of a sixty-metre column
+    // standing over a skiff deck or a shaft. The section is raised above.
+    this.beacon.visible = !this.atTrailhead && (!this.section || this.section.objective().beacon !== false);
     game.scene.add(this.beacon);
 
     // ---- the ground arrow: laid at every checkpoint, pointing at the next ----

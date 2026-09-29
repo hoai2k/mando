@@ -52,8 +52,21 @@ ride through `new Vehicle(spec, board, opts: VehicleOpts)`. `tools/test-vehicles
 - **Pillion**: a ride with `pillion` set takes a second player (Y at a teammate's ride). The
   pillion works the gun and swings to both flanks; the driver only drives. The driver
   stepping off, or dying, slides the pillion onto the bars. A wreck throws both.
-- **Turret** (`kind: 'turret'`, the `quad_turret` stand-in: `base`, `yaw`, `pitch` nodes, four
-  barrels): it never moves or unparks. The look is the gun inside its arc (`yawArc`,
+- **Turret** (`kind: 'turret'`): built to the `quad_turret` sheet, 4.0 × 3.0 × 2.7 m, +Z the
+  barrels. `base` — the static drum, 3.0 m across × 1.0 m; `yaw` — the turning block on it
+  (2.0 m across) with the trunnion cheeks, the seat pan (1.35 m up) and the curved shield
+  *behind* the seat (to 2.7 m); `pitch` — the breech and four barrels two over two, pivoting at
+  the trunnion 1.9 m over the drum's centre, tips 2.5 m out with `muzzle_0..3` empties there;
+  `seat` — an empty. (The sheet's "tips 1.5 m forward of the drum" is read as past the turning
+  block: past the 3.0 m base drum it would be 4.5 m long, not 4.0.) Its collider is the drum: a
+  cylinder r 1.5 × 1.0 m (a bike running into it never unparks it). The game drives the named
+  `yaw` / `pitch` nodes, the stand-in's or the sculpt's, and fires from the `muzzle_k` empties
+  (the sculpt's when it has them, else the def's `turret.muzzles` — never the handed-in gun's
+  own list, so a heavier gun keeps its mouths on the barrels). Seat and footprint come from the
+  def, not measured off the sculpt. `VehicleOpts.scale` builds the whole box bigger (model,
+  collider, seat, sight, muzzles) for a heavy gun. The sight is 2.45 m up, 0.4 m behind the
+  trunnion: at the lowest pitch the breech and barrels fill the bottom third and the rest is
+  clear. It never moves or unparks. The look is the gun inside its arc (`yawArc`,
   `pitchMin/Max`), the gun slews at `slew` rad/s, the gunner's camera sits at `sight` looking
   down the barrels (`applySight`), RT fires, heat locks it and it vents, Y steps off. With
   nobody in it, it fights for `team` at `auto` × its rate (0.5) in bursts; a hostile in it
@@ -102,6 +115,9 @@ quay, the alcove ramp, the landing); nothing without a bike under it lives on th
   fence (pylons, red beams) across a short tunnel whose far end glows — the Chimney's arrival
   tunnel, fence behind it. Complete when every living player is on the landing and the barge is
   gone.
+- **A wipe** (everyone down at once): the campaign re-forms the party at the last gate; the
+  hostile riders still out on the river are called off and the waves from that gate play again
+  when the party reaches them. Fallen columns and the barge stand as they are.
 - **Checkpoints and fresh bikes.** Gates (toll arches with lamps that turn green) at 40, 500,
   1000, 1500 and 1700 m. The fallen re-form at the party's last gate on a fresh bike, already
   moving. Anyone thrown onto crust gets a fresh bike where they stand after 1.8 s (a teammate's
@@ -137,7 +153,21 @@ barge), which a player with the shield up will not.
 - `src/player/player.ts`: `dropRider(this)` in `takenByHazard` and `die`; `findVehicle` lets a
   player board a ridden ride whose pillion seat is open.
 - `src/sections/index.ts`, `ids.ts` (registration, `SECTION_ASSETS`), `src/text.ts`
-  (`TEXT.sections['magma-run']` only).
+  (`TEXT.sections['magma-run']`, and `chimney.floorOf` — the Chimney is Lava Flats', so ours).
+- `src/sections/guide.ts`: the Magma Run's entry gains the wipe tip; the Chimney's still reads
+  true (hold four seconds, three alone).
+- `docs/ASSETS_MODELS.md`: the `quad_turret` proportions row says how the stand-in was built.
+
+## Round 2 (2026-09-29, after merging the working branch)
+
+- The quad gun rebuilt to its sheet (above); the mounts suite now measures the stand-in's box
+  (3.0 × 2.7 × 4.0), its node names and its drum collider.
+- The Chimney: the header now says the valve pauses the rise ten seconds (six at the chamber
+  floor's), as the code does; the checkpoint banner is `TEXT.sections.chimney.floorOf`.
+- The Magma Run: the `wiped` flag now does its job (see *A wipe*).
+- Main's walk gait (stick ≤ 0.6 walks): the Magma Run's autopilot is on a bike almost all the
+  way (the throttle band, not the gait) and walks the quay at full stick; the Chimney's closes
+  on ledges with a partial stick only in the last metre or two, where a walk is what it wants.
 
 ## Tests
 
@@ -161,3 +191,5 @@ barge), which a player with the shield up will not.
 - No authored models of our own: every prop is a stand-in (quay, gates, barge platform,
   columns). `quad_turret` is requested in `ASSETS_MODELS.md`; its node names are what the
   turret drives.
+- The HUD's ride line on a turret reads "stick drives · A hop · RB shield", which a turret has
+  none of (`hud.ts`, not ours).

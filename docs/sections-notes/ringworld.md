@@ -77,9 +77,10 @@ route graph (29 nodes, two forks).
   to +7 m, live for 10 s (12 damage and a shove back, 8 solo). The last
   crossing goes over it.
 - **Hits in the chase** (`hurt` filter on the mark): a blaster hit staggers
-  him 1.1 s (≈10 m of lead at his run) and costs 4% bounty per 34 damage; a
-  hit from a hunter within 3.6 m (a hand on him: melee, a lunge, point-blank)
-  staggers him 1.4 s and costs nothing. After a stagger he cannot be
+  him 1.1 s (≈10 m of lead at his run) and costs 4% bounty per 34 damage, at
+  any range; a melee blow (a swing or a lunge — the player's melee pipeline
+  flags it through `SectionMove.meleeHit` just before it lands) staggers him
+  1.4 s and costs nothing. After a stagger he cannot be
   staggered again for 1.4 s (a party cannot pin him). A hit mid-leap staggers
   him on landing. He cannot be killed in the chase.
 - **The net launcher** (B / Q, replacing the rocket while it has nets): three
@@ -151,7 +152,7 @@ put "up" on the screen's right. No kit change was needed for this.
 | Gantries | 420–1050 | Ten sign gantries 70 m apart, the beam's underside 1.4 m over the roof. Horn and flashing red lamp 3 s out ("Gantry! duck (hold Y) or jump it" on the first). Standing bodies in the beam are swept off the side (12/16 damage); ducking bodies pass under; enemies in the beam die. Jet pirates at 620 and 900. |
 | Station | 1200 | `stopAt(1200)`: stops dead at a platform; doors open; 2 + n boarders appear at the doors inside the cars, 1 + ⌈n/2⌉ snipers on the canopy. 30 s, then doors shut (not on anyone) and it leaves; the snipers go with the platform. |
 | Tunnel | 1480, 160 m | Slows to 6 m/s from 1410. "Tunnel!" at 55 m out. The portal takes anyone on the roof (or over it) and drops them into the car below (10/14 damage): so everyone goes in through the three roof hatches. The camera drops to the windows (the camera-side wall is mostly glass; the tunnel's near wall is cut away). Stowaways (1 + ⌊n/2⌋) in the front car. |
-| Pirate tram | tunnel end + 70 m | Two red cars on the parallel track (far side, 7.2 m off) ride up from behind over 9 s with 1 + n gunners (a Ringworld enforcer at 3–4 players). **Clear it** (every gunner down) or **cut it loose** (shoot out the glowing coupling between its cars, 280 + 140n HP; its bar replaces the HUD line while it is alongside). It peels off; anyone still on it at 2.2 s is put back aboard. |
+| Pirate tram | tunnel end + 70 m | Two red cars on the parallel track (far side, 7.2 m off) ride up from behind over 9 s with 1 + n gunners (a Ringworld enforcer at 3–4 players). **Clear it** (every gunner down) or **cut it loose** (shoot out the coupling between its cars — dark and no target while it rides up, lit cyan and on `board.breakables` once alongside, so it cannot be broken early and skip the set piece; 280 + 140n HP; its bar replaces the HUD line while it is alongside). It peels off; anyone still on it at 2.2 s is put back aboard. |
 | Terminus | peel + 240 m | Stops at the terminus platform; doors open; the gate is the objective. |
 
 **Duck** is the roof crouch: hold Y (C on the keyboard) on a roof — the K7
@@ -214,8 +215,10 @@ and walks to the terminus gate.
 - **Net at half** — a net that takes him at full health made the duel two
   button presses. At half, the choice is the section's: shoot him down to half
   (−15%), or go in by hand for free and risk his volleys.
-- **Hand reach 3.6 m** — generous enough to include lunges and point-blank
-  fire, which is what "take him by hand" feels like.
+- **"By hand" is a melee blow.** It first counted any hit from within 3.6 m,
+  which made point-blank blaster fire free — an exploit the orchestrator
+  caught reading the code. Now only the melee pipeline (swings, lunges) is a
+  hand; the ground slam and thrown blades are not.
 
 ## Shared-file changes
 
@@ -234,7 +237,7 @@ and walks to the terminus gate.
 - `CHROMIUM_PATH=/opt/pw-browsers/chromium HARNESS_PORT=4217 PLAYERS=1|2|4 node tools/test-sections.mjs mark-runs`
   — passes at 1, 2, 4 (mixed `din,maul,armorer,jedi`), ~62–67 s simulated,
   0 deaths, nobody outside.
-- `HARNESS_PORT=4217 node tools/test-section-mark-runs.mjs` — 22 checks:
+- `HARNESS_PORT=4217 node tools/test-section-mark-runs.mjs` — 24 checks (a melee blow is free, point-blank gunfire costs, and the autopilot's whole run takes him at full bounty, besides those below):
   escape distance/time at 1p and 2p, that he only escapes after the full clock
   and restarts on the checkpoint roof and runs again; the fork rule both ways;
   a blaster hit staggers and costs, a hand staggers free, a removal-sized hit
@@ -254,8 +257,11 @@ the autopilot has to actually net him on the pad.
 first way at a fork, odd the second, so the fork rule is exercised), re-synced
 to the roof underfoot after a respawn or fall. Over a gap it holds height over
 both ends until it is over the far roof and aims 4 m past his landing (a
-super-jumper takes 2 m more). Grabs the rack first. On the pad it shoots him
-to half, then fires nets; after the capture it walks into the stair.
+super-jumper takes 2 m more). Grabs the rack first. On the pad it closes at a
+run and beats him with melee (free), then nets him once he is under half — no
+gunfire, so it takes him at the full bounty (the mechanics test asserts ≥ 85%;
+it measures ~99%). After the capture it walks into the stair. Every stick push
+is a full 1.0 (the merged gait walks below 0.6).
 
 ### Tram Top tests
 

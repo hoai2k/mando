@@ -10,6 +10,7 @@ import { deckTexture, hullTexture } from '../core/assets';
 import { Interactions } from './kit/interact';
 import { composeMoves } from './kit/moves';
 import { DetectionField, Takedowns, type LightCone, type DetectionMask } from './kit/detection';
+import { drivenProp, type DrivenNode } from './kit/sculpt';
 
 /**
  * Lights Out (docs/LEVEL_SECTIONS.md §2.11) — the Refinery, between the
@@ -42,7 +43,10 @@ import { DetectionField, Takedowns, type LightCone, type DetectionMask } from '.
  * pattern: fences seal the three pipe-rack lanes, turrets rise out of the
  * tank rows, a drop comes in and the whole yard is hunting. Kill the drop and
  * hold an alarm console for three seconds, and the yard goes back to the
- * dark. Or fight through to the stair: it is just the hard way.
+ * dark. Or fight through to the stair: it is just the hard way. (A safety
+ * valve: 45 s after the alarm trips a console works even with the drop still
+ * alive — a squad stuck somewhere unreachable must never keep the yard lit
+ * for good.)
  *
  * **Escalation.** The west lane (one patrol, one searchlight: learn the
  * sweep and the takedown), the open middle or the north lane (sensor posts,
@@ -74,7 +78,8 @@ const TOWERS: { at: [number, number]; path: [number, number][]; speed: number }[
   { at: [2, 52], path: [[-32, 64], [-8, 64], [16, 64], [12, 42], [-10, 42]], speed: 7 },
   { at: [40, 8], path: [[39, 22], [39, 50], [24, 62], [14, 52], [26, 32]], speed: 6.5 },
 ];
-const TOWER_H = 14;
+/** the searchlight tower, measured from its reference sheet */
+const TOWER = { h: 14, footH: 0.8, foot: 2.7, mast: 1.7, deck: 11, deckW: 4.8, lamp: 12.4, drumR: 0.9, drumL: 1.4 };
 /** a searchlight's own light on the ground: bright, not blown */
 const SPOT_I = 90;
 /** sensor posts: fixed beams at chest height that turn slowly */
@@ -128,6 +133,8 @@ interface Searchlight {
   dir: 1 | -1;
   aim: THREE.Vector3;
   drum: THREE.Object3D;
+  /** the delivered sculpt's `lamp` node, swept in the drum's place once it is in */
+  sculpt: { lampNode: DrivenNode | null };
 }
 interface Patrol {
   e: Enemy;
@@ -402,23 +409,73 @@ function build(ctx: SectionContext): SectionInstance {
     return g;
   };
   const DOWN = new THREE.Vector3(0, -1, 0);
+  const towerGeo = {
+    footing: ctx.own(new THREE.BoxGeometry(TOWER.foot, TOWER.footH, TOWER.foot)),
+    leg: ctx.own(new THREE.BoxGeometry(0.18, TOWER.deck - TOWER.footH, 0.18)),
+    bar: ctx.own(new THREE.BoxGeometry(TOWER.mast, 0.1, 0.1)),
+    brace: ctx.own(new THREE.BoxGeometry(Math.hypot(TOWER.mast, 2.2), 0.08, 0.08)),
+    platform: ctx.own(new THREE.BoxGeometry(TOWER.deckW, 0.25, TOWER.deckW)),
+    post: ctx.own(new THREE.BoxGeometry(0.1, 1.1, 0.1)),
+    yoke: ctx.own(new THREE.BoxGeometry(0.3, TOWER.lamp - TOWER.deck, 0.3)),
+    sensor: ctx.own(new THREE.CylinderGeometry(0.06, 0.06, TOWER.h - TOWER.deck, 6)),
+    drum: ctx.own(new THREE.CylinderGeometry(TOWER.drumR, TOWER.drumR, TOWER.drumL, 16)),
+  };
   const searchlights: Searchlight[] = TOWERS.map((t) => {
     const [tx, tz] = t.at;
-    // the tower: a lattice mast (a box stand-in) with a platform and the lamp drum
+    // The tower, to its reference sheet (5.5 × 5.0 × 14 m): a hazard-striped
+    // footing, a lattice mast 1.7 m square, a 4.8 m platform at 11 m, the
+    // lamp drum on its yoke above it, a sensor mast at one corner. The drum is
+    // the game's: it sweeps, and a delivered sculpt's own `lamp` is swept in
+    // its place.
     const mast = new THREE.Group();
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(1.2, TOWER_H, 1.2), steel);
-    leg.position.y = TOWER_H / 2;
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 3), steel);
-    deck.position.y = TOWER_H - 1.2;
-    const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1, 2.4), stripe);
-    base.position.y = 0.5;
-    mast.add(leg, deck, base);
-    // the collider stops short of the lamp head, so the beam's own sight line starts clear of its mast
-    ctx.prop('searchlight_tower', V(tx, 0, tz), { size: TOWER_H, fallback: () => mast, solid: { r: 1.2, h: TOWER_H - 2 } });
-    const lamp = V(tx, TOWER_H + 0.6, tz);
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 1.2, 12), dark);
+    const footing = new THREE.Mesh(towerGeo.footing, stripe);
+    footing.position.y = TOWER.footH / 2;
+    mast.add(footing);
+    for (const [lx, lz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      const leg = new THREE.Mesh(towerGeo.leg, steel);
+      leg.position.set(lx * TOWER.mast / 2, TOWER.footH + (TOWER.deck - TOWER.footH) / 2, lz * TOWER.mast / 2);
+      mast.add(leg);
+    }
+    for (let y = TOWER.footH + 1.6; y < TOWER.deck; y += 2.2) {
+      for (const [bx, bz, ry] of [[0, -1, 0], [0, 1, 0], [-1, 0, Math.PI / 2], [1, 0, Math.PI / 2]] as const) {
+        const bar = new THREE.Mesh(towerGeo.bar, steel);
+        bar.position.set(bx * TOWER.mast / 2, y, bz * TOWER.mast / 2);
+        bar.rotation.y = ry;
+        mast.add(bar);
+        const brace = new THREE.Mesh(towerGeo.brace, steel);
+        brace.position.set(bx * TOWER.mast / 2, y + 1.1, bz * TOWER.mast / 2);
+        brace.rotation.set(0, ry, Math.atan2(2.2, TOWER.mast));
+        mast.add(brace);
+      }
+    }
+    const platform = new THREE.Mesh(towerGeo.platform, steel);
+    platform.position.y = TOWER.deck;
+    mast.add(platform);
+    for (const [px, pz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      const post = new THREE.Mesh(towerGeo.post, stripe);
+      post.position.set(px * 2.3, TOWER.deck + 0.55, pz * 2.3);
+      mast.add(post);
+    }
+    const yoke = new THREE.Mesh(towerGeo.yoke, dark);
+    yoke.position.y = TOWER.deck + (TOWER.lamp - TOWER.deck) / 2;
+    const sensor = new THREE.Mesh(towerGeo.sensor, steel);
+    sensor.position.set(2.1, TOWER.deck + (TOWER.h - TOWER.deck) / 2, 2.1);
+    mast.add(yoke, sensor);
+    mast.position.set(tx, Y0, tz);
+    ctx.mesh(mast);
+    // colliders: the footing and the mast up to the platform — the lamp sits
+    // clear above, so the beam's own sight line never starts inside its tower
+    ctx.cyl(tx, Y0 + TOWER.footH / 2, tz, 1.4, TOWER.footH, null);
+    ctx.cyl(tx, Y0 + TOWER.deck / 2, tz, 1.2, TOWER.deck, null);
+    const lamp = V(tx, TOWER.lamp, tz);
+    const drum = new THREE.Mesh(towerGeo.drum, dark);
     drum.position.copy(lamp);
     ctx.mesh(drum);
+    const rec = { lampNode: null as DrivenNode | null };
+    drivenProp(ctx, 'searchlight_tower', V(tx, 0, tz), {
+      size: TOWER.h, axis: 'y', hide: [mast, drum], nodes: ['lamp'],
+      onNodes: (n) => { rec.lampNode = n.lamp ?? null; if (!n.lamp) drum.visible = true; },
+    });
     const path = t.path.map(([x, z]) => V(x, 0, z));
     const aim = path[0].clone();
     const dir = aim.clone().sub(lamp).normalize();
@@ -438,9 +495,9 @@ function build(ctx: SectionContext): SectionInstance {
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.6, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
     ctx.own(lens.material as THREE.Material);
     drum.add(lens);
-    lens.position.y = -0.61;
+    lens.position.y = -0.71;
     lens.rotation.x = Math.PI / 2;
-    return { lamp, cone, beam, beamMat, spot, path, speed: t.speed, s: 0, dir: 1 as const, aim, drum };
+    return { lamp, cone, beam, beamMat, spot, path, speed: t.speed, s: 0, dir: 1 as const, aim, drum, sculpt: rec };
   });
   const pathLen = (pts: THREE.Vector3[]): number => {
     let L = 0;
@@ -776,6 +833,13 @@ function build(ctx: SectionContext): SectionInstance {
       sl.spot.intensity = dark ? 0 : SPOT_I;
       sl.spot.target.position.copy(sl.aim);
       sl.drum.quaternion.setFromUnitVectors(DOWN, sl.cone.dir);
+      const ln = sl.sculpt.lampNode;
+      if (ln) {
+        // the sculpt's lamp: pan about Y, tilt about X, its lens along its +Z
+        const d = sl.cone.dir;
+        ln.node.rotation.order = 'YXZ';
+        ln.node.rotation.set(ln.rest.rotation.x + Math.asin(-d.y), ln.rest.rotation.y + Math.atan2(d.x, d.z), ln.rest.rotation.z);
+      }
     }
     for (const s of sensors) {
       s.yawNow += s.rate * dt;

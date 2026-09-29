@@ -7,7 +7,7 @@ Spice Run section) is another agent's and is not in this branch.
 
 | Piece | State |
 |---|---|
-| `ring-walk` (`src/sections/ring-walk.ts`) | **Built, registered, playable.** `test-sections` passes at 1, 2 and 4 players (mixed jetpack and super-jump). Screenshots checked across all four stretches, the three locks, the entry blend and the exit. |
+| `ring-walk` (`src/sections/ring-walk.ts`) | **Built, registered, playable; bug round 2026-09-29 done** (merged the working branch, Lock 1 docs, sweep alarm, gait-safe autopilot; `RUNS=station` passes). `test-sections` passes at 1, 2 and 4 players (mixed jetpack and super-jump). Screenshots checked across all four stretches, the three locks, the entry blend and the exit. |
 | K1 rail camera (`src/sections/kit/railcam.ts`) | **Built.** Camera on the lane, leash, gates, locks, reversed mode, twin-stick aim, mouse reticle, 0.6 s blend in and out, merged HUD strip. `tools/test-section-railcam.mjs` passes at 2 and 4 players. |
 | Regression | `test-modes` and `test-coop` pass (split-screen elsewhere unchanged). |
 
@@ -49,7 +49,9 @@ catwalks (stage C) are through it. The whole stage is one camera.
      0.9 m. A body caught standing in a beam calls 1 + ⌈party/2⌉ interceptor drones
      up over the hull's edge (7 s cooldown per boom, 6 alive at most). Jump the
      beam, or stand on the conduit's far side from that boom: the conduit is taller
-     than the beam. **Lock 3** (266–298): the Pyke capo, 2 + party guards and an
+     than the beam. Walking in (centroid past s 238) sets off the booms' **alarm**
+     once: 2 + party drones (6 at most) up over the edges and one or two jetpack
+     pirates, so the stretch is fought under the beams. **Lock 3** (266–298): the Pyke capo, 2 + party guards and an
      enforcer (2+ players) walk out of the airlock you want. When the capo is at
      half health his crew drops in.
 - **Pickups:** bacta just past each rail gate, and one on the apron at 3+ players.
@@ -76,6 +78,35 @@ climax. The autopilot (which aims perfectly) takes ~100–140 s with nothing cul
 | Locks | the next wave comes when standing ≤ min(2, party), or after 22–25 s | A lock should never go quiet, and never stall on one straggler. |
 | Drop grace | 11 s | A carrier's squad falls a long way, so a lock does not count a drop as landed until then. |
 | Lock clear | every hostile inside [from − 6, to + 6], ±22 m, plus its own bodies | The first version counted spawns before they existed (locks cleared instantly) and trusted drop callbacks. |
+
+### Pacing (bug round, 2026-09-29)
+
+Measured with nothing culled, at 2 players (1 and 4 are within a few seconds):
+walk the spine and vent run 25 s, Lock 1 38 s, walk to the junction 5 s,
+Lock 2 23 s, the sweep 7 s, Lock 3 36 s, for about 140 s in all. The bots aim
+perfectly (the twin-stick soft-lock does the rest), never wait on a vent they
+can see through, and never miss a gap.
+
+Reasoning: a human is roughly 2.5–3× slower than these bots in a fight and about
+1.5× slower on the timing stretches. That puts a human run at about
+0.37 × 60 × 1.5 + 97 × 2.7 ≈ 55 + 260 s, so **5–5.5 min**, already at or above the
+design's 4–5 min. The walk does not need more length. What it did need was the
+**sweep**, which bots crossed in 7 s: its own verb (the booms) was barely played,
+so it was the flat spot before the climax. It now has one escalation beat, the
+booms' alarm (above). Bots still walk it quickly, because the leash does not hold
+them there and the drones die on the way. The jetpack pair it adds usually carries
+into the capo's fight, which is where the extra pressure lands. Lock 1 stays at
+three passes. The two-pass text in the header and `LEVEL_SECTIONS.md` §2.3 was
+the stale part, and both now say three. If a human playtest runs long, the first
+lever is Lock 1's third pass, then the hatch HP.
+
+**Left-stick gait** (main now reads tilt as a gait, with ≤ 0.6 a walk at ≤ 1.4 m/s).
+The autopilot steers with a unit direction at full tilt until the last 2 m (it
+used `min(1, dist/3)`, which would have crawled for the last 3 m). The kit never
+scales the move stick. `moveYaw` only rotates it, so a light push walks along the
+rail as it should. Twin-stick aim reads the right stick past 0.35 as a direction
+at any tilt. The "gun follows the feet" fallback reads the left stick's direction
+past 0.3, so a walking hunter still aims where they walk.
 
 ## K1 — `src/sections/kit/railcam.ts`
 
@@ -167,9 +198,10 @@ and `sectionMove` on teardown).
   modules. No model requests were opened for them. `ring_hull_spine.jpg` (already
   requested) takes over the deck's `metal_deck` when it lands. `planet_station.png`
   dresses the planet.
-- **Length.** The autopilot's twin-stick aim is perfect, so real pacing needs a human
-  playtest. The levers are the wave sizes in `runLock`, the posted counts in
-  `spawnStart`, and the hatch HP.
+- **Length.** The reasoned estimate is 5–5.5 min for humans (see "Pacing"). It
+  still needs one human playtest to confirm. The levers are the wave sizes in
+  `runLock`, the posted counts in `spawnStart`, the hatch HP and the sweep alarm's
+  size.
 - **The start.** The gantry wall behind the cage is drawn one-sided (visible from the
   ring) so the rail camera can start behind it. A player who turns round sees the
   shut red door, which is correct. Its collider is a normal box.

@@ -1432,7 +1432,7 @@ function build(ctx: SectionContext): SectionInstance {
     }
 
     // the riders, wave by wave, scaled to the party
-    while (waveIdx < WAVES.length && leadS >= WAVES[waveIdx].at) {
+    while (any && waveIdx < WAVES.length && leadS >= WAVES[waveIdx].at) {
       const w = WAVES[waveIdx++];
       const riders = [...w.riders];
       if (party >= 3 && riders.length) riders.push('swinger');
@@ -1451,9 +1451,19 @@ function build(ctx: SectionContext): SectionInstance {
     cull();
     rides.prune(dt);
 
-    // a wipe: the party re-forms at the last gate (the campaign respawns them there)
+    // A wipe: the campaign re-forms the party at the last gate (`respawnSpot`),
+    // and the stretch from that gate plays again — the riders still out on
+    // the river are called off, and its waves come back in when the party
+    // reaches them. The river's own state (columns already down, the barge)
+    // stands as it is. Once per wipe, on the frame the last of them falls.
     if (!any && !wiped) {
       wiped = true;
+      for (const v of [...rides.list]) {
+        if (v.hostile && v !== barge?.hull && v !== barge?.gun) rides.drop(v);
+      }
+      waveIdx = WAVES.findIndex((w) => w.at > GATES[reached]);
+      if (waveIdx < 0) waveIdx = WAVES.length;
+      leadS = tailS = GATES[reached];
     } else if (any) wiped = false;
 
     // the lava's flow, and its light on whoever is leading
@@ -1599,7 +1609,8 @@ function build(ctx: SectionContext): SectionInstance {
       if (bike && Math.hypot(bike.pos.x - p.position.x, bike.pos.z - p.position.z) < 2.6) {
         return { slamPressed: game.time % 0.2 < 0.1, yaw: Math.atan2(dx, dz) };
       }
-      return { moveY: Math.min(1, d / 2), yaw: Math.atan2(dx, dz), shootHeld: false };
+      // a full stick until the last metre: main's gait walks anything under 0.6
+      return { moveY: d > 1.2 ? 1 : 0.6, yaw: Math.atan2(dx, dz), shootHeld: false };
     }
     if (v.pillion === p) return { shootHeld: true };
     const s = v.laneS;

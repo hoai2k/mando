@@ -27,6 +27,11 @@ async function boot(id, chars = ['din']) {
   await page.goto(`http://localhost:${PORT}/?section=${id}`);
   await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
   await h.startStepped('campaign', chars.length, 'desert', chars);
+  // the guide column as the intro plays, before the first update has run
+  const beaconAtBoot = await page.evaluate(() => {
+    const c = window.__game.campaign;
+    return { lit: c.beacon.visible, wants: c.section ? c.section.objective().beacon !== false : true };
+  });
   await page.evaluate((b) => {
     window.__blank = b;
     // step `n` frames; `inputs(slot, f)` gives each slot's input, `each(g, f)` runs first
@@ -39,6 +44,7 @@ async function boot(id, chars = ['din']) {
     };
     window.__step(90, null);
   }, blankInput());
+  return beaconAtBoot;
 }
 
 // ------------------------------------------------------------ Worm Sign, solo
@@ -276,7 +282,21 @@ check('worm sign: the threshold scales with the party', solo.threshold1 < duo.th
 check('worm sign: it goes for the loudest player on the sand', duo.state === 'ring' && duo.prey === 1, duo);
 
 // ------------------------------------------------------------ The Barge Run
-await boot('barge-run', ['din']);
+const bargeBeacon = await boot('barge-run', ['din']);
+check('the guide column stays dark at boot over an objective that asks for none', bargeBeacon.lit === bargeBeacon.wants && !bargeBeacon.lit, bargeBeacon);
+{
+  // and while the section runs: never lit over a beacon-less objective
+  const lit = await page.evaluate(() => {
+    const g = window.__game, c = g.campaign, s = c.section;
+    let bad = 0;
+    for (let f = 0; f < 600; f++) {
+      window.__step(1, null);
+      if (c.beacon.visible && s.objective().beacon === false) bad++;
+    }
+    return bad;
+  });
+  check('and it stays dark while the section runs', lit === 0, String(lit));
+}
 const landing = await page.evaluate(() => {
   const g = window.__game, s = g.campaign.section, t = s.test;
   const p = g.players[0];
@@ -361,7 +381,11 @@ const board = await page.evaluate(() => {
   const g = window.__game, s = g.campaign.section, t = s.test, Y0 = s.floorY;
   const p = g.players[0];
   const out = {};
-  const cull = () => { for (const e of g.enemies) if (e.alive && e.team === 1) e.damage(9999999, e.position, 0); };
+  const cull = () => {
+    for (const e of g.enemies) if (e.alive && e.team === 1) e.damage(9999999, e.position, 0);
+    // the guide column, all the way through: never lit over a beacon-less objective
+    if (g.campaign.beacon.visible && s.objective().beacon === false) window.__litBad = (window.__litBad ?? 0) + 1;
+  };
   // silence the gun; she closes to nine metres and the planks come down
   for (let f = 0; f < 3000 && t.phase !== 'deck'; f++) window.__step(1, null, (gg, k) => { p.hp = p.maxHp; if (f % 30 === 0) cull(); });
   out.phase = t.phase;
@@ -390,6 +414,7 @@ const board = await page.evaluate(() => {
   cull();
   for (let f = 0; f < 30 * 10 && !s.complete; f++) window.__step(1, null, () => { p.hp = p.maxHp; });
   out.complete = s.complete;
+  out.litBad = window.__litBad ?? 0;
   return out;
 });
 check('barge run: she closes to nine metres, carrying whoever is aboard', board.phase === 'deck' && Math.abs(board.gap - 9) < 0.2 && board.aboard, board);
@@ -397,6 +422,7 @@ check('barge run: the planks are walkable onto the cargo deck', board.onBarge &&
 check('barge run: the cargo deck taken, the heavy gun changes hands', board.upper === 'upper' && board.heavyOurs, board);
 check('barge run: both skiffs burnt, the helmsman comes out', board.helm === 'helm' && board.helmsman, board);
 check('barge run: and when he falls, she grounds', board.complete, board);
+check('the guide column is never lit over the barge run\'s beacon-less objectives', board.litBad === 0, board);
 
 await h.close();
 check.done('desert sections');

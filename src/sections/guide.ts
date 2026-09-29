@@ -72,7 +72,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Vent run: a grate glows red before it fires plasma. Cross between bursts. Jump the missing plates.',
       'At each lock the camera stops and a fence goes up. Clear every wave to move on.',
       'At the spoke junction, a gun hatch rises out of the hull. Shoot its open eye or club it shut.',
-      'Sensor booms sweep at knee height. Jump the beam or keep the conduit between you and the boom.',
+      'Sensor booms sweep at knee height. Walking in sets off their alarm: drones come up over the edge. Jump the beam or keep the conduit between you and the boom.',
     ],
     tips: [
       'Gravity is 0.45 g here. Jumps carry a long way.',
@@ -96,6 +96,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'RB raises the ride\'s deflector shield, drawing on your shield gauge.',
       'Lose your bike on the lava and you get a fresh one at the last gate. On crust, you get one where you stand.',
       'The run ends once the barge is gone and every living hunter is standing on the landing.',
+      'If everyone goes down, the party re-forms at the last gate and that stretch plays again.',
     ],
   },
 
@@ -124,7 +125,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Steer with the stick. Pull back to dig in, which slows you but never stops you.',
       'Jump the crevasses. At the fork, left is short with big jumps and right is long with spiders.',
       'Webs in the lane slow you. Shoot them, or kick them with the slide kick (X · F).',
-      'Ride into the snowbank and regroup. The run ends when every hunter is down.',
+      'Ride into the snowbank and regroup. The run ends when every hunter still standing is down; the fallen come back with you.',
     ],
     tips: [
       'The avalanche gains on anyone who stalls. If it catches you, you are dug out at a gate further down.',
@@ -193,9 +194,9 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     steps: [
       'The belts carry you toward the smelter at different speeds. Crates are cover. Barrels explode.',
       'Presses slam each belt\'s opening. A hiss and a red strip warn you a second before. Pass when it\'s up.',
-      'Welding arms sweep at waist height. Jump them or walk the floor lanes, which flametroopers hold.',
+      'Welding arms turn full circle at head height over the belts. Time them, fly over, or walk the floor lanes.',
       'At the slag pit, get off the belts onto the door deck, the only ground left.',
-      'Hold Y · C at the door release for four seconds (three alone), then hold the deck until it opens.',
+      'Hold Y · C at the door release for four seconds (three alone). A squad drops in halfway: hold on.',
     ],
     tips: [
       'Hold Y · C at a catwalk belt switch to brake the machines ahead: 15 s (25 alone). Never required.',
@@ -217,6 +218,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     tips: [
       'The alarm is not a fail. It seals the lanes, raises turrets and calls a drop.',
       'Kill the drop, then hold Y · C at an alarm console for three seconds to put the yard back in the dark.',
+      'If the drop cannot be finished, the consoles work anyway 45 seconds after the alarm.',
       'Venting steam blocks the beams and swallows noise while it blows.',
       'The fallen come back at the last dark corner the party reached.',
     ],
@@ -235,6 +237,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     tips: [
       'It cannot be lost. If the Armorer falls, the forging slips back to its last quarter and she rises.',
       'Raising a fourth shield folds the oldest one. Put them where the tunnels are.',
+      'A raised shield is cover: press Y · C behind it to put your back to it.',
       'Reward: beskar for each of you, +25 max health for the rest of the run.',
       'The fallen re-form on the dais.',
     ],
@@ -247,7 +250,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Hold A · Space to fly. It never runs dry. Let go to glide. LB · Shift boosts, Y · C dives.',
       'Fly through each ring for a checkpoint and a boost. Rings past a live flak gun stay dark.',
       'A flak screen blocks the sky past each gun. Silence the gun on its tower first.',
-      'Land on the flak tower\'s roof and hold Y · C for three seconds to plant a charge, then clear off.',
+      'Land on the gun\'s stone slab and hold Y · C at the glowing mark for three seconds to plant a charge, then clear off.',
       'Once the last gun is down, the breach opens. Dive into the dome through it.',
     ],
     tips: [
@@ -266,7 +269,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Gantry: a horn and a red lamp three seconds out. Hold Y · C to duck, or jump it.',
       'At the station, hold the doors for thirty seconds while a squad boards and snipers work the canopy.',
       'Tunnel: one metre of clearance. Drop through the roof hatches, fight inside, climb back up after.',
-      'Pirate tram: jump across and clear its gunners, or shoot out its coupling. Then off at the terminus.',
+      'Pirate tram: jump across and clear its gunners, or shoot out its coupling once it is alongside and lit. Then off at the terminus.',
     ],
     tips: [
       'On the flank camera the stick is turned to the screen. Stick right runs along the train.',
@@ -283,11 +286,11 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Grab the net launcher on the first roof. B · Q fires a net. You carry three.',
       'Keep him in reach. Drop too far behind for too long and he escapes back to the last checkpoint roof.',
       'At a fork he takes the way with the fewest hunters on it. Split up.',
-      'On the pad he turns and fights. Wear him under half, then net him, or beat him down by hand.',
+      'On the pad he turns and fights. Wear him under half, then net him, or beat him down with melee.',
       'Once he is taken, the stair down is the way on.',
     ],
     tips: [
-      'Blaster hits stagger him but cost bounty. Hits up close and nets are free. Nets stop him longest.',
+      'Blaster hits stagger him but cost bounty, at any range. Melee blows and nets are free. Nets stop him longest.',
       'Shoot him dead and it still counts, at half the bounty. Take him alive at 85% or more for a rocket recharge.',
       'Nets refill at checkpoint roofs, at the resupply crates, and every time you respawn.',
       'Fall off and you re-form on the most advanced roof a hunter stands on.',
@@ -302,12 +305,13 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Hold Y · C at a block\'s release panel to free its prisoners. They follow the nearest of you.',
       'Climb to a gantry, clear the guards near its control desk, and hold Y · C there. That third goes dead.',
       'Two desks down (one alone) opens the stair core. The floor still live overloads.',
-      'Clear the stairwell squad and lead the crowd up. Ten or more brought out hold the stairs.',
+      'Clear the stairwell squad and step into the stair core. Everyone with you then counts.',
     ],
     tips: [
       'Prisoners will not step onto a charging or live tile. Walk them across, don\'t fly, or they stay behind.',
       'A downed guard drops his rifle, and an empty-handed prisoner runs to pick it up.',
       'Prisoners who die are gone. You re-form beside a teammate, or at the pool if nobody is standing.',
+      'Prisoners are optional: you can leave with none. Bring ten or more and they hold the stairs, so the supervisor deck\'s lieutenant calls for backup and nobody comes.',
     ],
   },
 

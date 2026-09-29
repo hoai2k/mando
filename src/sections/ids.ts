@@ -28,6 +28,7 @@ export const BUILT_SECTIONS: ReadonlySet<SectionId> = new Set<SectionId>([
   'run-the-pier',
   'magma-run',
   'ring-walk',
+  'frigate-guns',
 ]);
 
 /**
@@ -44,10 +45,11 @@ export const SECTION_ASSETS: Partial<Record<SectionId, string[]>> = {
   'the-line': ['hydraulic_press', 'welding_arm'],
   'lights-out': ['searchlight_tower', 'pipe_rack', 'alarm_console', 'reactor_core', 'fuel_barrel'],
   'the-lift': ['freight_lift'],
-  'one-way-out': ['alarm_console'],
+  'one-way-out': ['alarm_console', 'prisoner'],
   squall: ['cargo_crate', 'fuel_barrel', 'trawler'],
   'worm-sign': ['thumper', 'tusken_tent', 'sandworm'],
   'barge-run': ['quad_turret'],
   'run-the-pier': ['mamacore', 'fish_rack'],
   'magma-run': ['speeder_bike', 'skiff', 'quad_turret', 'nikto_swoop'],
+  'frigate-guns': ['quad_turret', 'raider_dropship', 'boarding_tube', 'pirate_corvette', 'interceptor_drone'],
 };

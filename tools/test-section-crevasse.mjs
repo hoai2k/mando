@@ -35,10 +35,10 @@ async function boot(id, chars = ['din']) {
 
 // ---------------------------------------------------------------- the chute
 console.log('\n-- the Glacier Chute: the slide');
-await boot('glacier-chute');
+await boot('glacier-chute', ['din', 'maul']);
 const chute = await page.evaluate(async (blank) => {
   const g = window.__game, s = g.campaign.section, kit = s.kit, p = g.players[0];
-  const step = (n, inp = {}) => { for (let i = 0; i < n; i++) g.update(1 / 30, [{ ...blank, ...inp }]); };
+  const step = (n, inp = {}) => { for (let i = 0; i < n; i++) g.update(1 / 30, [{ ...blank, ...inp }, ...g.players.slice(1).map(() => blank)]); };
   const out = {};
   const speed = () => Math.hypot(p.velocity.x, p.velocity.z);
   const put = (x, z, vz = 0) => {
@@ -114,6 +114,19 @@ const chute = await page.evaluate(async (blank) => {
   out.avZ = p.position.z;
   out.avFront = kit.front.at;
   kit.front.resetTo(-400, 999);
+
+  // 8. the finish: a fallen teammate does not hold the party in the snowbank,
+  // but a living one still sliding does
+  const q = g.players[1];
+  const inSnow = (pl) => { const z = kit.Z_SNOW + 12; pl.position.set(0, kit.surface(0, z) + 0.05, z); pl.velocity.set(0, 0, 0); };
+  inSnow(p);
+  q.position.set(0, kit.surface(0, 600) + 0.05, 600);
+  step(10);
+  out.soloFinish = s.complete;
+  q.damage(9999, q.position);
+  inSnow(p);
+  step(3);
+  out.deadFinish = s.complete;
   return out;
 }, blankInput());
 
@@ -130,6 +143,8 @@ check('there is a spider to kick', chute.hadSpider);
 if (chute.hadSpider) check('the slide kick hurts it and puts it down', chute.kickHurt > 10 && chute.kickDown, `-${chute.kickHurt} hp`);
 check('a crevasse re-forms you at the next gate, forward and alive',
   chute.crevAlive && chute.crevZ >= chute.crevGate, `z ${chute.crevZ.toFixed(0)} (gate at ${chute.crevGate})`);
+check('one hunter in the snowbank does not end it while another is still sliding', !chute.soloFinish);
+check('a fallen teammate does not hold the party at the finish', chute.deadFinish);
 check('the avalanche digs you out ahead of it', chute.avZ > chute.avFront + 40, `z ${chute.avZ.toFixed(0)}, front ${chute.avFront.toFixed(0)}`);
 
 // ---------------------------------------------------------------- the dark
@@ -137,7 +152,7 @@ console.log('\n-- Lamplight: the darkness');
 await boot('lamplight');
 const dark = await page.evaluate(async (blank) => {
   const g = window.__game, s = g.campaign.section, kit = s.kit, p = g.players[0];
-  const step = (n, inp = {}) => { for (let i = 0; i < n; i++) g.update(1 / 30, [{ ...blank, ...inp }]); };
+  const step = (n, inp = {}) => { for (let i = 0; i < n; i++) g.update(1 / 30, [{ ...blank, ...inp }, ...g.players.slice(1).map(() => blank)]); };
   const out = {};
   // the world's light is out
   let ambient = 0;

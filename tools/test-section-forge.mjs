@@ -173,10 +173,21 @@ const shields = await page.evaluate(() => {
   const boxes3 = g.board.physics.boxes.length;
   const first = P.sockets[0];
   P.raise(3);
-  return { three, four: P.raised.length, firstFolded: !first.up, solid: boxes3 > boxes0 };
+  // a hunter behind a raised shield can put their back to it (the socket's
+  // plinth lifts the 0.9 m plate to a face the cover system takes)
+  const so = P.sockets[1];
+  const V = so.at.constructor;
+  const p = g.players[0];
+  p.position.copy(so.at).addScaledVector(new V(-Math.sin(so.theta), 0, -Math.cos(so.theta)), 1.4);
+  p.velocity.set(0, 0, 0);
+  window.__step(6, (slot, f) => (slot === 0 ? { slamPressed: f === 2 } : {}));
+  const cover = !!p.cover, face = p.cover ? p.cover.top - p.position.y : 0;
+  window.__step(2, (slot, f) => (slot === 0 ? { slamPressed: f === 0 } : {}));
+  return { three, four: P.raised.length, firstFolded: !first.up, solid: boxes3 > boxes0, cover, face };
 });
 check('raised shields are solid', shields.solid, shields);
 check('three shields at most: a fourth folds the oldest', shields.three === 3 && shields.four === 3 && shields.firstFolded, shields);
+check('a raised shield is cover, over a crouched hunter\'s chest', shields.cover && shields.face >= 1.0, shields);
 
 const fall = await page.evaluate(() => {
   const g = window.__game, s = g.campaign.section, P = s.probe;

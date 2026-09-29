@@ -93,6 +93,18 @@ with short ones (6–11 m). They meet on the checkpoint islands at the 66 m and
   worm ignores every player while it does, circles it, and on the last 2 s
   rings it and eats it. A spent, eaten or dropped thumper is back on its post
   6 s later.
+- **The thumper prop**, built to its sheet (`thumper`, 2.0 × 1.8 × 2.4 m, the
+  sculpt scaled by the 2.4 m height, `loadProp(…, { axis: 'y', ground: true })`):
+  three spiked legs with the feet on a 1.8 m triangle, a crank lever across the
+  top with a netted stone counterweight on its −x end, and the `hammer` node on
+  the +x end, 0.7 m off the centre, bottoming out 0.5 m above the ground and
+  riding a 0.45 m stroke while it pounds. Pivot at the ground under the
+  tripod's centre. When the sculpt loads, its own `hammer` node is driven
+  (the stroke converted into its parent's scaled units) and the stand-in,
+  procedural hammer included, is hidden. Collider: a cylinder r 0.9 m, 2.4 m
+  tall while it stands (on its post or planted), none while carried or gone.
+  It plants 1.6 m ahead of the planter, clear of their capsule; the post's
+  stake stands 1.4 m off, clear of the feet.
 - **Tusken camps.** Two, on the big islands of each flank's middle third
   (tents, a fire, 3–5 Tuskens and Pykes, posted). Their fire is heard: every
   hostile bolt adds 0.06 to each player on the sand within 34 m of the shooter
@@ -180,22 +192,48 @@ the Barge Run's screenshots; `vehicles.ts` is not mine to change.
 
 ## Shared-file changes
 
-None (the working branch was merged in for K1–K3; conflicts only in `index.ts`/`ids.ts`, both sides kept). Everything goes through the section hooks (`Enemy.scripted`,
+- `src/game/campaign.ts` (constructor, one commented line): the guide column
+  is lit at construction only if the raised section's objective allows it
+  (`objective().beacon !== false`). It used to be lit unconditionally, and the
+  intro plays before the first `update`, so a `?section=` boot showed a
+  sixty-metre column for one to three seconds over objectives that ask for
+  none. Reproduced with `campaign.beacon.visible` sampled through a stepped
+  boot (true for the intro frames, false once `update` ran); checked in
+  `tools/test-section-desert.mjs` at boot and across the whole Barge Run. The
+  "stands over beacon-less objectives mid-run" report was the same intro
+  window: once `update` runs it already followed `beacon: false`.
+
+Otherwise everything goes through the section hooks (`Enemy.scripted`,
 `Player.sectionMove`, `board.movers`, `board.breakables`). Worm Sign wraps
 `game.projectiles.fire` at runtime for as long as it stands and puts it back
-on dispose.
+on dispose. The working branch was merged in twice (K1–K3; then main, every
+section and the audit fixes); conflicts only in `index.ts`/`ids.ts`, both sides
+kept.
+
+## Round 2 (after main's stick gait)
+
+main reads the stick as a gait (≤ 0.6 walks at ≤ 1.4 m/s, ≥ 0.9 runs). Worm
+Sign's autopilot already pushes full tilt; the Barge Run's used `d / 2` near a
+waypoint and now uses full tilt until 1.5 m out, then a walk to settle. The
+stowed boarding planks no longer clip a crate stack (two stacks moved clear of
+them). The wipe comment in the broadside now says what the code does: a fresh
+skiff on *every* wipe, once per wipe (the frame the last player falls), not on
+every frame the party is down — that was the intent.
 
 ## Known issues / left
 
-- **Framework, not mine:** in a stepped boot the campaign's guide column was
-  seen standing over a section objective that returns `beacon: false`
-  (`campaign.beacon.visible` read true after `update`), in both sections'
-  screenshots. Worth a look in `campaign.ts`; I did not touch it.
 - A solo player who never silences the barge's gunner loses the skiff's hull
   at about 1.2 % a second; the broadside closes at 75 s regardless, which is
   just before a solo skiff would break up. Tight on purpose; loosen the chip
   rates in `update`'s broadside case if play says so.
-- The stowed boarding planks lie across the cargo deck and clip one crate
-  stack slightly.
 - The `thumper` and `quad_turret` sculpts are not delivered; the stand-ins are
-  the look.
+  the look. The `quad_turret` stand-in is K3's (being rebuilt to 4.0 × 3.0 ×
+  2.7 m by the Lava Flats team). The placements leave room for it: the skiff's
+  deck gun sits on the 4.6 m-wide stern with its 3 m drum clear of both rails
+  (0.8 m of deck either side) and its barrels reaching over the starboard rail;
+  the heavy gun's ring is 3.4 m across, 4.7 m from the fore rail and 2.8 m from
+  the starboard one, so a 3 m drum and 1.5 m barrel reach fit.
+- The treadmill carries riders a frame late (narkina's note). The only rider
+  it carries here is a straggler left on the landing as it slides away, who is
+  re-formed on the skiff anyway; the skiff's own lateral move is a `Mover`
+  outside the treadmill.

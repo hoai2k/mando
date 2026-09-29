@@ -11,7 +11,7 @@ Branch `claude/sections-narkina`. Owner of `src/sections/the-lift.ts`,
 |---|---|
 | **K2 treadmill** (`kit/treadmill.ts`) | Built, general, tested (`tools/test-section-treadmill.mjs`, 29 checks). |
 | **The Lift** (`the-lift`) | Built, registered, placed before stage D. `test-sections` passes at 1, 2, 4 players (≈125 s simulated). |
-| **One Way Out** (`one-way-out`) | Built, registered, placed before stage C. `test-sections` passes at 1, 2, 4 players (≈22–30 s simulated with the suite culling hostiles; 90–150 s with them alive). |
+| **One Way Out** (`one-way-out`) | Built, registered, placed before stage C. Own suite `tools/test-section-one-way-out.mjs` (finish once, the reward's waiver). `test-sections` passes at 1, 2, 4 players (≈22–30 s simulated with the suite culling hostiles; 90–150 s with them alive). |
 
 Both registered in `sections/index.ts` and `sections/ids.ts` (`BUILT_SECTIONS`,
 `SECTION_ASSETS`). Placement was already in `SECTION_PLACEMENT`.
@@ -71,9 +71,9 @@ the top decks: a deck ring round the mouth, a crane, the sea far below, and
 the rig's superstructure across the far side with the **deck gate** in it
 (the transport door onto stage D's assembly deck).
 
-Plan: 12 × 12 m platform (rails on the west and pylon sides, open on the
-landing side and the far side), shaft wall 4 m back from the open far edge
-(camera room, per the design), 3 m behind the rails, 7 m on the landing side
+Plan: 12 × 12 m platform (1.1 m rails along the east and west sides, open on
+the landing side, +z, and the far side, −z), shaft wall 4 m back from the open
+far edge (camera room, per the design), 3 m behind the rails, 7 m on the landing side
 where each landing's 4.5 m deck leaves a 2.5 m gap. 200 m of travel at 2 m/s.
 
 How it plays:
@@ -114,8 +114,14 @@ Falling off an open edge or riding a landing down past 8 m under the deck is
 off-path: re-form on the platform. Death: re-form on the platform. The lift
 is the checkpoint and only goes up.
 
-Assets: the platform's visuals are the stand-in for `freight_lift` (12 m,
-origin at the deck's centre, a `pylon` node), colliders kept separate. Walls
+Assets: the platform's visuals are the stand-in for `freight_lift`, built to
+its sheet (SECTIONS_IMPLEMENTATION §4 "Props to build"): 12 × 12 × 5.4 m scaled
+by the 12 m square, origin at the underside centre, a 2.0 m deck with its
+underframe (so the floor is 2.0 m over the origin), 1.1 m rails along two
+opposite sides, and the `pylon`, 1 m square, rising 3.4 m over the deck in the
+east rail's far corner. The colliders are exactly those: the 2 m deck box, the
+two rails, the pylon box. (Before 2026-09-29 the rails were on two adjacent
+sides and the far open edge faced −x; re-tested at the new layout.) Walls
 wear `shaft_wall` when it lands and `panel_white` until then
 (`tilePreferred`, exported from `the-lift.ts`).
 
@@ -175,29 +181,56 @@ Respawn: beside a living player who is standing, else at the pool. The
 design says "re-form at the entry"; §0.4 says forward with the party, and the
 hall is small, so the party wins and the pool is the wipe case.
 
-The prisoner stand-in: the canonical biped re-skinned — pale jumpsuit, grey
-vest, cropped hair, five skin tones, belt, numbered patches on chest and left
-shoulder (twelve canvas numbers, shared). It is spawned as a `pirateMelee`
-and re-dressed (its `char` swapped before it is added, its `def` copied with
-110 HP, 5.6 m/s, 9-damage 1.2 m punches), so no shared file changed.
+The prisoner stand-in (temporary, by request): a random mix of **Maris**
+(`buildMandalorian('maris')`, `setWeapon('none')`) and **Cobb Vanth** (the
+`marshal`, `buildGunfighter('marshal')`, his rifle hidden). Each is spawned as a
+`pirateMelee` and re-dressed (its `char` swapped before it is added, its `def`
+copied with 110 HP, 5.6 m/s, 9-damage 1.2 m punches), so no shared file
+changed. Picking up a guard's rifle draws the body's *own* gun (Maris's blaster,
+Cobb's rifle) rather than attaching a prop; a Mandalorian's `muzzle` is a getter,
+so the gun it shows is the one its bolts leave from.
+
+**The `prisoner` sculpt drops in when it lands.** `'prisoner'` is in
+`ModelId` (`src/characters/authored.ts`), warmed with the section
+(`SECTION_ASSETS`), and probed once per build (`loadAuthored('prisoner', 1.78)`).
+Prisoners let out after the file is found are a plain pale biped on the
+canonical rig wearing it through `attachAuthored` (the swap contract), with a
+rifle pre-mounted and hidden in the hand, carried into the sculpt's
+`weaponMount` on load and shown when they pick one up. Until then: the Maris /
+Cobb Vanth mix. (The orchestrator's round note suggested the pale re-skinned
+biped as the stand-in; the user's own request for Maris and Cobb Vanth stands,
+and the sheet's ordinary adult proportions match either.)
+
+**The ten-or-more reward is real.** Ten or more brought out calls
+`campaign.waiveRetinue(nextStage, line)`. In that stage (C, the supervisor
+deck) the lieutenant's phase turns at ⅔ and ⅓ health call no retinue and the
+banner says "nobody comes — the prisoners hold the stairs"; the repulsor pulse
+and the enrage still happen, and the two guards he arrives with still come.
+The waiver lives on the run's `Campaign`, so a new run starts without it.
+Prisoners are optional: the run finishes with none (intended; the guide says so).
 
 ## Shared-file changes
 
-None. `src/text.ts` changed only inside the two `TEXT.sections` blocks.
-`src/sections/index.ts` and `ids.ts` got one line each per section.
+- `src/characters/authored.ts`: `| 'prisoner'` added to `ModelId`, with a comment.
+- `src/game/mission-api.ts`: optional `waiveRetinue?(stage, line)` and
+  `retinueWaived?()` on `MissionController`.
+- `src/game/campaign.ts`: one commented block after `section` — the private
+  waiver and those two methods.
+- `src/game/game.ts` `updateBoss`: at a phase turn, if the boss is the board's
+  lieutenant kind and `campaign.retinueWaived()` answers, the retinue loop runs
+  zero times and the banner uses the waiver's line.
+- `src/sections/guide.ts`: my two entries (the bonus and "prisoners are optional").
+- `src/text.ts` only inside my `TEXT.sections` blocks; `index.ts` / `ids.ts`
+  my lines (plus `'prisoner'` in `SECTION_ASSETS`).
+
+`test-missions` and `test-modes` pass after these.
 
 ## Known issues / left
 
-- **The `prisoner` model** is not wired: `authored.ts`'s `ModelId` has no
-  `'prisoner'` and that file is shared. When the model lands, add the id there
-  and call `attachAuthored(rig, 'prisoner', 1.78, …)` in `buildPrisoner`
-  (`one-way-out.ts`). The prisoner is also built on a `pirateMelee`, whose
-  own sculpt starts loading on an orphaned rig and is thrown away — harmless,
-  one cached fetch.
-- **The 10+ bonus** is announced but does not yet reach stage C (the design
-  wants the supervisor deck's lieutenant to get no reinforcements). That needs
-  a flag on the campaign that stage C's lieutenant zone reads —
-  `campaign.ts`, shared; left for the orchestrator.
+- The prisoner is built on a `pirateMelee`, whose own sculpt starts loading
+  on an orphaned rig and is thrown away — harmless, one cached fetch.
+- The `prisoner` sculpt path is untested with a real file (none exists yet);
+  it follows the enemy sculpts' `authoredEnemy` pattern.
 - The autopilots are good enough to finish at 1, 2 and 4 (and to fight a
   held desk and a held stairwell), not to play well: with hostiles alive the
   solo bot loses most prisoners to gunfire. The numbers above were tuned by

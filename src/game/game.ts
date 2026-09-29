@@ -693,6 +693,16 @@ export class Game {
 
   /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
   get bossPhaseLevel(): number { return this.bossPhase; }
+  /**
+   * Put a boss a gameplay section raised itself on the bar (Hold the Forge's
+   * chieftain), starting its phases from the top: assigning `boss` alone kept
+   * whatever phase the run's earlier boss had reached, so its retinue call
+   * could silently never come.
+   */
+  adoptBoss(e: Enemy): void {
+    this.boss = e;
+    this.bossPhase = 0;
+  }
 
   /**
    * True while the warlord is down but the fight is not over: the ground is
@@ -805,7 +815,10 @@ export class Game {
         ? MONSTER_BOSS[this.board.kind]?.retinue
         : undefined) ?? BOSS_RETINUE[this.board.kind];
       const lead = this.players.find((p) => p.alive) ?? this.players[0];
-      for (let i = 0; i < 3 + due; i++) {
+      // A section's reward can waive the lieutenant's backup (One Way Out:
+      // the freed prisoners hold the stairs). The pulse and enrage still come.
+      const waived = b.kind === MID_BOSS[this.board.kind].kind ? this.campaign?.retinueWaived?.() ?? null : null;
+      for (let i = 0; i < (waived ? 0 : 3 + due); i++) {
         const a = Math.random() * Math.PI * 2;
         const e = this.addReinforcement(guard, b.position.clone().add(new THREE.Vector3(Math.cos(a) * 10, 0.2, Math.sin(a) * 10)), 9900 + due);
         // The retinue lands ten metres out, right after the pulse has thrown
@@ -822,7 +835,8 @@ export class Game {
       // melee scrum so the new phase starts at range, on both sides' terms
       this.bossShockwave(b, 10, 0, 9);
       if (due === 2) b.enrage();
-      this.events.banner(b.bossName, due === 1 ? TEXT.banners.callsForBackup : TEXT.banners.lastStand);
+      this.events.banner(b.bossName, waived && due === 1 ? waived
+        : due === 1 ? TEXT.banners.callsForBackup : TEXT.banners.lastStand);
       audio.bossHorn(false);
     }
 
