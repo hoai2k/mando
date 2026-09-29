@@ -1031,6 +1031,8 @@ export const TEXT = {
       sweep: 'Jump the beam · or duck the conduit',
       spotted: 'Spotted',
       spottedSub: 'the boom called drones',
+      alarm: 'The booms have you',
+      alarmSub: 'drones up over the edge — fight under the sweep',
       airlock: 'the crew airlock',
       airlockOpen: 'The airlock is open',
       airlockSub: 'the crew catwalks are through it',

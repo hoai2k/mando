@@ -29,7 +29,8 @@ import { RailCamera } from './kit/railcam';
  * 2. **The vent run** — plasma vents fire up out of grates across the whole
  *    spine on a cycle (a red glow in the grate for 1.2 s first), and two
  *    stretches of plating are gone (7 and 6 m: at 0.45 g a jump carries).
- *    Lock 1: two dropship passes over the curve.
+ *    Lock 1: three dropship passes over the curve, each called as the last
+ *    thins (a squad, fliers, then heavier).
  * 3. **The spoke junction** — a spoke twenty metres wide climbs out of the
  *    ring toward the hub; its apron is Lock 2: three waves out of the spoke
  *    and the sky, and a gun hatch that rises out of the hull and has to be
@@ -37,6 +38,9 @@ import { RailCamera } from './kit/railcam';
  * 4. **The sweep** — two sensor booms, one on each edge, sweep the spine like
  *    clock hands at knee height. Caught, and the boom calls drones up over the
  *    hull's edge. Jump the beam, or put the conduit between you and the boom.
+ *    Walking in sets off the booms' alarm once: a drone flight and a pair of
+ *    fliers come up over the edge, so the stretch is fought under the beams
+ *    rather than walked past them.
  *    Lock 3 at the airlock: the Pyke capo's retinue comes out of it.
  *
  * The ring's gravity plating is the hull: its field holds you to the spine
@@ -635,6 +639,9 @@ function build(ctx: SectionContext): SectionInstance {
   const jumpT = [0, 0, 0, 0];
   const meleeT = [0, 0, 0, 0];
   let drones = 0;
+  /** the sweep's alarm: rung once, as the party walks in under the booms */
+  let sweepAlarm = false;
+  const SWEEP_ALARM_AT = 238;
 
   const spawnPosted = (kind: EnemyKind, s: number, lat: number, dy = 0): Enemy =>
     ctx.spawn(kind, at(s, lat, Y0 + dy), { exact: true });
@@ -824,6 +831,20 @@ function build(ctx: SectionContext): SectionInstance {
       }
     }
 
+    // The sweep's alarm (tuning pass, 2026-09-28): bots walked the booms in
+    // seven seconds, so the stretch's own verb was barely played. One flight,
+    // once, as the party walks in — then the beams sweep over a fight.
+    if (!sweepAlarm && lockIdx < 0 && cw >= SWEEP_ALARM_AT) {
+      sweepAlarm = true;
+      ctx.announce(T.alarm, T.alarmSub);
+      const n = Math.min(6, 2 + party);
+      for (let i = 0; i < n; i++) {
+        ctx.spawn('drone', at(252 + i * 3, (i % 2 ? -1 : 1) * (HALF + 5), Y0 - 4), { exact: true, alert: true });
+        drones++;
+      }
+      for (let i = 0; i < (party >= 2 ? 2 : 1); i++) ctx.spawn('jetpirate', at(262 + i * 4, (i % 2 ? 3 : -3), Y0 + 6), { exact: true, alert: true });
+    }
+
     // the end door slides into the frame above it
     endDoor.open += Math.sign(endDoor.want - endDoor.open) * Math.min(Math.abs(endDoor.want - endDoor.open), dt / 0.8);
     endDoor.mesh.position.y = Y0 + 2.2 + endDoor.open * 4.2;
@@ -1002,7 +1023,8 @@ function build(ctx: SectionContext): SectionInstance {
     const dist = Math.hypot(dx, dz);
     const b = yawBasis(p.moveYaw ?? p.cam.yaw);
     if (dist > 0.8) {
-      const k = Math.min(1, dist / 3);
+      // the stick is a gait (a light push walks at 1.4 m/s): run until the last couple of metres
+      const k = dist > 2 ? 1 : 0.5;
       out.moveY = ((dx * b.fwdX + dz * b.fwdZ) / dist) * k;
       out.moveX = ((dx * b.rightX + dz * b.rightZ) / dist) * k;
     }
