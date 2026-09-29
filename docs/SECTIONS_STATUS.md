@@ -34,7 +34,7 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 | 1 | barge-run | Dune Sea | B ⇒ · ⇒ worm-sign | merged | desert team; deck gun and heavy gun are K3 turrets |
 | 2 | worm-sign | Dune Sea | barge-run ⇒ · ⇒ C | merged | desert team; K6 detection crossing (thumpers, worm) |
 | 3 | ring-walk | Spice Run | B ⇒ · ⇒ C | merged | station team; K1 |
-| 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | merged (working branch) | frigate team; K2 treadmill hull + K3 quad guns + K5 objective; verifying |
+| 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | merged | frigate team; K2 treadmill hull + K3 quad guns + K5 objective |
 | 5 | magma-run | Lava Flats | B ⇒ · ⇒ chimney | merged | lava team; K3 |
 | 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | merged | reference section; autopilot finishes at 2 and 4 players in ~55 s (hostiles culled) |
 | 7 | glacier-chute | Crevasse | A ⇒ · ⇒ lamplight | merged | crevasse team; K7 slide + K9 darkness |
@@ -81,4 +81,5 @@ when an item is closed or found.
 - 2026-09-28 23:4x — round 5 sent to nine team sessions: rebuild every stand-in prop to the sheet-measured sizes in the plan's §4 "Props to build" notes (named nodes driven when a model lands), and fix the bugs the guide pass found (Tram Top coupling, One Way Out double banner and the unpaid 10+ prisoners bonus, Glacier Chute's wait on the dead, Mark Runs' point-blank "by hand", the guide beacon, comment/code mismatches, strings outside TEXT, `prisoner` missing from ModelId). Frigate merges after its props.
 - 2026-09-29 00:2x — **on `main`** (1dcb13d): the framework, all nine kits, 17 of 18 sections, the audit fixes, the job page and its dev skip. Before it: the full suite (51 files) had three failures, all stale tests that failed on `main` too — grip data for the now bare-handed melee pirate, the title art renamed to `title_dune_sea_hd.jpg`, and a block probe that let Wave Battle's first wave walk in mid-burst. Fixed. main's footrest/hull-riding change merged with K3's pillion and turret seats (a turret's seat turns with the gun, its base stays put).
 - 2026-09-29 00:3x — round 5 merged from all nine teams: every stand-in prop built to its sheet (named nodes handed to the game when a sculpt lands, `kit/sculpt.ts`), the guide pass's bugs fixed, Guns of the Frigate merged — all 18 sections are in. `sections-notes/_followups.md` consolidated (open items first). Full verification running before `main`.
+- 2026-09-29 02:0x — **all 18 sections on `main`** (1e8dfb7), with round 5 (props to their sheets, the guide pass's bugs) and the chieftain's phase fix. Verified first: every section at 2 players and the riskiest at 1 and 4, all 13 mechanics tests, all nine runs start to finish, and the full suite (53 of 53). Next step for every section is `tuned`: a human playtest. What is left: [`sections-notes/_followups.md`](sections-notes/_followups.md).
 
