@@ -57,7 +57,8 @@ for (const kind of ['swoop', 'speederBike', 'landspeeder', 'bantha', 'skiff']) {
   await page.goto(`${base}/workbench/?character=vehicle:${kind}&mode=authored`);
   await settle();
   await page.waitForTimeout(400);
-  const seat = await page.evaluate((palm) => {
+  // the palm is steered onto the grip off each drawing: a few frames once the sculpts are in
+  const measure = () => page.evaluate((palm) => {
     const vr = window.__wb.figures[0].inst.root.userData.vehicleRig;
     vr.frame.updateMatrixWorld(true);
     const rider = vr.frame.children.find((c) => c !== vr.frame.children[0] && c.getObjectByName?.('hips'));
@@ -75,6 +76,11 @@ for (const kind of ['swoop', 'speederBike', 'landspeeder', 'bantha', 'skiff']) {
       hasHands: !!vr.def.hands,
     };
   }, DIN_PALM);
+  let seat = await measure();
+  for (let i = 0; i < 12 && seat.hasHands && !(seat.handToGrip < 0.12); i++) {
+    await page.waitForTimeout(250);
+    seat = await measure();
+  }
   const sat = seat.stance === 'stand' ? true : seat.hipsOverSeat > -0.05 && seat.hipsOverSeat < 0.2;
   check(`${kind}: Din sits the seat anchor`, sat, seat);
   if (seat.hasHands) check(`${kind}: ...with his left hand on the grip`, seat.handToGrip !== null && seat.handToGrip < 0.12, seat);
