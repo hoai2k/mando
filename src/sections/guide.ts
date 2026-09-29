@@ -72,7 +72,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Vent run: a grate glows red before it fires plasma. Cross between bursts. Jump the missing plates.',
       'At each lock the camera stops and a fence goes up. Clear every wave to move on.',
       'At the spoke junction, a gun hatch rises out of the hull. Shoot its open eye or club it shut.',
-      'Sensor booms sweep at knee height. Jump the beam or keep the conduit between you and the boom.',
+      'Sensor booms sweep at knee height. Walking in sets off their alarm: drones come up over the edge. Jump the beam or keep the conduit between you and the boom.',
     ],
     tips: [
       'Gravity is 0.45 g here. Jumps carry a long way.',
