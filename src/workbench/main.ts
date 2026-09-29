@@ -1444,6 +1444,13 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   };
 }
 
+/** what turning each ride anchor does — and, where it does nothing yet, a warning that says so */
+const ROTATION_NOTE: Partial<Record<string, { text: string; warn?: boolean }>> = {
+  seat: { text: 'Y turns the rider on the seat, in the game too. X and Z tilt him here only — the game does not tilt a rider yet, so they are a note of how the ride should sit under him.', warn: true },
+  grip: { text: 'No bearing on anything yet: the hand keeps the pose\'s own wrist. Exported as a note of how the bars lie.', warn: true },
+  foot: { text: 'How the sole lies on the rest, in the ride\'s frame: 0, 0, 0 is flat with the toes forward. The right foot mirrors it.' },
+};
+
 /**
  * The rides' anchors: the seat and the left hand's grip on a vehicle, or the
  * Nikto's own seat on his swoop. Exported as the game's data file itself.
@@ -1465,22 +1472,20 @@ function renderVehiclePanel(host: HTMLDivElement): void {
     <div class="editbox">
       <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
         <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
-      ${nikto ? `<div class="field"><label>3D handle</label><div class="seg">
-        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move rider</button>
-        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate rider</button>
-      </div></div>` : ''}
+      <div class="field"><label>3D handle</label><div class="seg">
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto ? ' rider' : ''}</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto ? ' rider' : ''}</button>
+      </div></div>
       ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
         <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
-      ${cur.rotation ? `<div class="field"><label>Rotation in degrees, XYZ</label>
-        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
+      <div class="field"><label>Rotation in degrees, XYZ (Y first)</label>
+        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div>
+        ${ed.selected && ROTATION_NOTE[ed.selected] ? `<p class="hint${ROTATION_NOTE[ed.selected]!.warn ? ' warn' : ''}">${ROTATION_NOTE[ed.selected]!.text}</p>` : ''}</div>
       <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
-      ${ed.turns ? `<div class="field"><label>Turns, in degrees about the vertical</label>
-        <div class="weapon-scale-row"><span class="hint">Rider on the seat</span>
-          <input id="riderYaw" type="number" step="0.5" value="${ed.turns.yaw}"></div>
-        <div class="weapon-scale-row"><span class="hint">Model on its keel</span>
-          <input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
-        <p class="hint">Turn the rider to face the helm, or the ride's model to line up with the way it drives (then re-place its anchors).</p>
+      ${ed.turns ? `<div class="field"><label>Model on its keel, degrees about the vertical</label>
+        <div class="weapon-scale-row"><input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
+        <p class="hint">Turn the ride's model to line up with the way it drives (then re-place its anchors). The rider turns with the seat's rotation (its Y).</p>
       </div>` : ''}
       <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
         <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
@@ -1501,15 +1506,16 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
         'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
         'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
-        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}</code></div>`).join('')}</div>` : ''}
+        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}${
+        'seatRotation' in e.anchor && e.anchor.seatRotation ? ` · seat ${e.anchor.seatRotation.join('/')}°` : ''}${
+        'gripRotation' in e.anchor && e.anchor.gripRotation ? ` · grip ${e.anchor.gripRotation.join('/')}°` : ''}${
+        'footRotation' in e.anchor && e.anchor.footRotation ? ` · sole ${e.anchor.footRotation.join('/')}°` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
     ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'foot' | 'rider');
-  for (const which of ['riderYaw', 'modelYaw'] as const) {
-    const input = host.querySelector<HTMLInputElement>(`#${which}`);
-    if (input) input.onchange = () => { ed.setTurn(which === 'riderYaw' ? 'yaw' : 'modelYaw', Number(input.value)); input.blur(); renderVehiclePanel(host); };
-  }
+  const modelYaw = host.querySelector<HTMLInputElement>('#modelYaw');
+  if (modelYaw) modelYaw.onchange = () => { ed.setTurn('modelYaw', Number(modelYaw.value)); modelYaw.blur(); renderVehiclePanel(host); };
   host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
     button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
   });

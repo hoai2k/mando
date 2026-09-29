@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import data from './data/vehicleAnchors.json';
 import type { VehicleSpec } from '../world/board';
 
@@ -26,12 +27,34 @@ import type { VehicleSpec } from '../world/board';
  *    whose helm is not dead ahead of where its pilot stands.
  *  - `modelYaw`, optional: the ride's sculpt turned on its keel, in degrees,
  *    for one delivered a little off square. Anchors are placed after it.
+ *  - `seatRotation`, `gripRotation`, `footRotation`, optional: each anchor
+ *    turned, in degrees about X, Y, Z (applied Y first), in the ride's frame.
+ *    The seat's Y is the rider's turn (`yaw`, which the export keeps in step);
+ *    its X and Z tilt the rider in the workbench only. The foot's is how the
+ *    sole lies on its rest — 0, 0, 0 flat with the toes forward, the right
+ *    foot mirrored — and the game stands the feet so. The grip's is not used
+ *    yet: a note of how the bars lie.
  *
  * A ride with no entry keeps the defaults in `VEHICLE_DEFS` and the measured
  * seat, which is how every ride worked before these existed.
  */
 export type V3 = [number, number, number];
-export interface VehicleAnchor { seat: V3; grip: V3; legSpread?: number; foot?: V3; yaw?: number; modelYaw?: number }
+export interface VehicleAnchor {
+  seat: V3; grip: V3; legSpread?: number; foot?: V3; yaw?: number; modelYaw?: number;
+  seatRotation?: V3; gripRotation?: V3; footRotation?: V3;
+}
+
+const _euler = new THREE.Euler();
+/**
+ * A foot anchor's rotation as the world rotation of the sole, for side 1 (the
+ * rider's left) or -1 (mirrored across the seat), given the ride frame's own
+ * world rotation.
+ */
+export function footQuaternion(frame: THREE.Quaternion, degrees: V3, side: 1 | -1, out: THREE.Quaternion): THREE.Quaternion {
+  const d = THREE.MathUtils.DEG2RAD;
+  _euler.set(degrees[0] * d, side * degrees[1] * d, side * degrees[2] * d, 'YXZ');
+  return out.copy(frame).multiply(new THREE.Quaternion().setFromEuler(_euler));
+}
 
 /** a foot anchor is the sole on the rest; the ankle the leg reaches for stands this far over it (m) */
 export const ANKLE_OVER_SOLE = 0.08;

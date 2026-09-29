@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
-import { reachArm, reachLeg, spreadKnees } from '../anim/seating';
+import { orientFoot, reachArm, reachLeg, spreadKnees } from '../anim/seating';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
 } from '../game/vehicles';
-import { ANKLE_OVER_SOLE, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
+import { ANKLE_OVER_SOLE, footQuaternion, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
 import type { VehicleSpec } from '../world/board';
 
 /**
@@ -37,6 +37,14 @@ export interface VehicleRig {
   /** the rider turned on the seat, and the sculpt on its keel (degrees) */
   yaw: number;
   modelYaw: number;
+  /**
+   * The anchors turned (degrees, XYZ, Y first), or null where untouched: the
+   * seat's X and Z tilt the rider here (its Y is `yaw`), the foot's lays the
+   * sole on its rest, and the grip's is only a note.
+   */
+  seatTilt: [number, number] | null;
+  footRotation: V3 | null;
+  gripRotation: V3 | null;
   /** the rider's hands are on the grips this frame (a tiller with no grip placed leaves them free) */
   gripped: boolean;
   /** where the clip alone puts the knees (m from the centre line), to start a spread from */
@@ -50,6 +58,8 @@ export interface VehicleRig {
 const _grip = new THREE.Vector3();
 const _hint = new THREE.Vector3();
 const _foot = new THREE.Vector3();
+const _frameQ = new THREE.Quaternion();
+const _soleQ = new THREE.Quaternion();
 
 /** the anchors a ride would have with nothing placed by hand: the def's seat on the measured surface */
 function defaultAnchors(def: VehicleDef, sit: number): VehicleAnchor {
@@ -97,6 +107,10 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     yaw: data?.yaw ?? 0,
     modelYaw: data?.modelYaw ?? 0,
     gripped: false,
+    seatTilt: data?.seatRotation && (data.seatRotation[0] || data.seatRotation[2])
+      ? [data.seatRotation[0], data.seatRotation[2]] : null,
+    footRotation: data?.footRotation ?? null,
+    gripRotation: data?.gripRotation ?? null,
     kneeWidth: () => {
       const rig = rider.rig;
       if (!rig) return 0.2;
@@ -126,7 +140,8 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     const rise = stanceRise(stance, hipsOverFeet(rider));
     rider.root.position.set(vr.seat.x, vr.seat.y - rise, vr.seat.z);
     if (saddle) rider.root.position.add(saddle.shift);
-    rider.root.rotation.y = THREE.MathUtils.degToRad(vr.yaw);
+    const d = THREE.MathUtils.DEG2RAD;
+    rider.root.rotation.set((vr.seatTilt?.[0] ?? 0) * d, vr.yaw * d, (vr.seatTilt?.[1] ?? 0) * d, 'YXZ');
   };
   /** a point in the ride's frame, carried with the mount's back, in the world */
   const world = (x: number, y: number, z: number, out: THREE.Vector3): THREE.Vector3 => {
@@ -155,6 +170,11 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
           world(vr.seat.x + side * (vr.foot.x - vr.seat.x), vr.foot.y + ANKLE_OVER_SOLE, vr.foot.z, _foot);
           world(vr.seat.x + side * spread, vr.seat.y + 0.1, vr.seat.z + 0.45, _hint);
           reachLeg(rig, side === 1 ? 'L' : 'R', _foot, _hint);
+          // the sole as the footrest's rotation lays it, as the game does
+          if (vr.footRotation) {
+            frame.getWorldQuaternion(_frameQ);
+            orientFoot(rig, side === 1 ? 'L' : 'R', footQuaternion(_frameQ, vr.footRotation, side, _soleQ));
+          }
         }
       } else if (vr.legSpread !== null) {
         spreadKnees(rig, vr.legSpread);
