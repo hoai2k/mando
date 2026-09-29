@@ -474,11 +474,30 @@ function settle(users: THREE.SkinnedMesh[]): void {
  */
 export function fistFrames(model: string): Array<{
   side: Side; hand: string; along: THREE.Vector3; palm: THREE.Vector3; from: number; length: number;
+  /** where the fist expects the palm: see `palmCentre` */
+  palmCentre: THREE.Vector3;
 }> {
   return (fits.get(model) ?? []).flatMap((rig) => rig.hands.map((h) => ({
     side: h.side, hand: rig.bones[h.hand].name, along: h.frame.along.clone(), palm: h.frame.palm.clone(),
-    from: h.frame.from, length: h.frame.length,
+    from: h.frame.from, length: h.frame.length, palmCentre: palmCentre(h, fistTune(model).knuckleAt),
   })));
+}
+
+/**
+ * The middle of the palm as the fist sees the hand, in the hand bone's space:
+ * halfway from the wrist to the knuckle joint (so a palm placed here, read by
+ * the workbench's Follow the palm, gives back the joint where it is), in the
+ * middle of the hand's width with the thumb left out, and on the palm's own
+ * surface.
+ */
+function palmCentre(h: FittedHand, knuckleAt: number): THREE.Vector3 {
+  const { frame } = h;
+  const u = knuckleAt / 2;
+  const at = (p: THREE.Vector3): number => (p.dot(frame.along) - frame.from) / frame.length;
+  const band = h.verts.map((v) => v.p).filter((p) => Math.abs(at(p) - u) < 0.08 && p.dot(frame.thumb) <= h.thumbEdge);
+  const c = band.length ? centroid(band) : h.bandAt(u);
+  const surface = band.length ? Math.max(...band.map((p) => p.dot(frame.palm))) : c.dot(frame.palm);
+  return c.addScaledVector(frame.palm, surface - c.dot(frame.palm));
 }
 
 /**
