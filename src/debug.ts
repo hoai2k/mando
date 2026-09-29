@@ -65,7 +65,14 @@ export interface MissionZoneRow {
   shell: ZoneSpec['shell'];
   kind: ZoneSpec['kind'];
   waves: number | null;
+  /** open ground that is not a siege: the depth of its posted force */
+  garrison: number | null;
   siege: boolean;
+  pass: boolean;
+  deadEnd: boolean;
+  w: number;
+  l: number;
+  rides: string[];
 }
 
 export interface DebugHooks {

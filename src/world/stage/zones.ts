@@ -3,11 +3,12 @@ import { Gate, GATE_W, type Barrier } from '../gate';
 import { addBreakable } from '../board';
 import type { MissionZone } from '../mission';
 import {
-  EPS, WALL_T, ROOF_H, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, Frame,
+  EPS, WALL_T, ROOF_H, DOOR_MAX_H, DECK_GAP_MAX, TRIGGER_IN, RIM_OVER_CEILING, BARRICADE_HP, PASS_W, PASS_DEPTH, Frame,
 } from './common';
 import { Fence } from './barriers';
 import type { StageBuilder } from './builder';
 import { layLink } from './links';
+import { layVestibule } from './vestibule';
 
 /**
  * The chain itself: each zone's floor and shell — a roofed hall, a deck, a
@@ -21,8 +22,8 @@ import { layLink } from './links';
 export function layZones(b: StageBuilder) {
   const {
     board, spec, stage, index, beat0, pal, baseWallH, ceiling, onGround, bare, wantRim, canyon,
-    floorMat, wallMat, rockMat, trimMat, owned, group,
-    boxes, breakables, rects, pickups, path, anchor, floorY, groundAt,
+    floorMat, hallFloorMat, wallMat, rockMat, trimMat, owned, group,
+    boxes, breakables, rects, pickups, path, lanes, anchor, floorY, groundAt, raised, blocked,
     solid, slab, wallU, wallV, surf, crate, ridge, setPieces, placeProps, placeRides,
   } = b;
 
@@ -50,12 +51,32 @@ export function layZones(b: StageBuilder) {
     const roofH = zs.roofH ?? ROOF_H;
     const hatches: { gate: Gate; post: THREE.Vector3 }[] = [];
     let runnerPost: THREE.Vector3 | null = null;
+    let runnerIn: THREE.Vector3 | null = null;
     const marks: THREE.Vector3[] = [];
 
     // ---- the floor ----
     // A ground stage stands on the board's own: no plate, no seam, and the
     // dunes or basalt the territory is *made of* under the fight.
-    if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, floorMat);
+    /** a deck laid as plates with void between: each plate's [u0, u1, rise] */
+    const plates: [number, number, number][] = [];
+    if (zs.shell === 'deck' && zs.plates && zs.plates.n > 1 && !onGround) {
+      const { n, rise } = zs.plates;
+      const gap = Math.min(zs.plates.gap, DECK_GAP_MAX);
+      const pl = (l - (n - 1) * gap) / n;
+      for (let k = 0; k < n; k++) {
+        const u0 = k * (pl + gap), u1 = u0 + pl;
+        const y = top + (k === 0 || k === n - 1 ? 0 : rise[k] ?? 0);
+        plates.push([u0, u1, y - top]);
+        solid(f, k === 0 ? -1 : u0, k === n - 1 ? l + 1 : u1, -w / 2 - 1, w / 2 + 1, y - 1, y, floorMat);
+        if (y !== top) raised.push({ ...f.rect(u0, u1, -w / 2 - 1, w / 2 + 1), y });
+        if (k > 0) {
+          // the void between two plates: nothing is set down in it
+          for (let v = -w / 2; v <= w / 2; v += 4) {
+            blocked.push({ x: f.x(u0 - gap / 2, v), z: f.z(u0 - gap / 2, v), r: gap / 2 + 1 });
+          }
+        }
+      }
+    } else if (!onGround) solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top - 1, top, isHall ? hallFloorMat : floorMat);
     rects.push(f.rect(-0.5, l + 0.5, -w / 2 - 0.5, w / 2 + 0.5));
 
     const dir = { x: f.dx, z: f.dz };
@@ -80,6 +101,17 @@ export function layZones(b: StageBuilder) {
       const hatchGaps = [{ c: l * 0.35, w: 2.6 }, { c: l * 0.7, w: 2.6 }];
       wallV(f, w / 2 + WALL_T / 2, -WALL_T, l + WALL_T, [...alcoveGap, hatchGaps[0]], top, roofH);
       wallV(f, -w / 2 - WALL_T / 2, -WALL_T, l + WALL_T, [hatchGaps[1]], top, roofH);
+      /** how tall the room's doors, hatches and nooks stand */
+      const doorH = Math.min(roofH, DOOR_MAX_H);
+      if (roofH > doorH) {
+        // a tall room keeps door-sized doors: the wall is filled over each one
+        for (const [u, gaps] of [[-WALL_T / 2, entryGaps], [l + WALL_T / 2, exitGaps]] as const) {
+          for (const g of gaps) solid(f, u - WALL_T / 2, u + WALL_T / 2, g.c - g.w / 2, g.c + g.w / 2, top + doorH, top + roofH, wallMat);
+        }
+        for (const [v, gaps] of [[w / 2 + WALL_T / 2, [...alcoveGap, hatchGaps[0]]], [-w / 2 - WALL_T / 2, [hatchGaps[1]]]] as const) {
+          for (const g of gaps) solid(f, g.c - g.w / 2, g.c + g.w / 2, v - WALL_T / 2, v + WALL_T / 2, top + doorH, top + roofH, wallMat);
+        }
+      }
       // the roof: the hallway beat is indoors, and the jetpack is a hop in it
       solid(f, -1, l + 1, -w / 2 - 1, w / 2 + 1, top + roofH, top + roofH + 0.8, wallMat);
       slab(f, 1, l - 1, w / 2 - 0.22, w / 2 - 0.02, top + 0.04, top + 0.18, trimMat);
@@ -93,28 +125,43 @@ export function layZones(b: StageBuilder) {
         const side = k === 0 ? 1 : -1;
         const p0 = side * (w / 2 + WALL_T);
         const outer = side * (w / 2 + WALL_T + 4.2);
-        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top - 1, top, floorMat);
-        wallU(f, h.c - 2 - WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
-        wallU(f, h.c + 2 + WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, roofH);
-        wallV(f, outer + side * WALL_T / 2, h.c - 2 - WALL_T, h.c + 2 + WALL_T, [], top, roofH);
-        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top + roofH, top + roofH + 0.8, wallMat);
+        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top - 1, top, hallFloorMat);
+        wallU(f, h.c - 2 - WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, doorH);
+        wallU(f, h.c + 2 + WALL_T / 2, Math.min(p0, outer), Math.max(p0, outer), [], top, doorH);
+        wallV(f, outer + side * WALL_T / 2, h.c - 2 - WALL_T, h.c + 2 + WALL_T, [], top, doorH);
+        solid(f, h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer), top + doorH, top + doorH + 0.8, wallMat);
         const gate = new Gate(board, group, f.vec(h.c, p0, top),
-          { x: f.px * side, z: f.pz * side }, roofH, pal.accent, { width: 2.6 });
+          { x: f.px * side, z: f.pz * side }, doorH, pal.accent, { width: 2.6 });
         hatches.push({ gate, post: f.vec(h.c, side * (w / 2 + 3.2), top + 0.2) });
         rects.push(f.rect(h.c - 2, h.c + 2, Math.min(p0, outer), Math.max(p0, outer)));
       });
 
       if (zs.alcove) {
         const p0 = w / 2 + WALL_T;
-        solid(f, l / 2 - 2.4, l / 2 + 2.4, p0 - 0.5, p0 + 3.4, top - 1, top, floorMat);
-        wallU(f, l / 2 - 2.4 - WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
-        wallU(f, l / 2 + 2.4 + WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, roofH);
-        wallV(f, p0 + 3.4 + WALL_T / 2, l / 2 - 2.4 - WALL_T, l / 2 + 2.4 + WALL_T, [], top, roofH);
+        solid(f, l / 2 - 2.4, l / 2 + 2.4, p0 - 0.5, p0 + 3.4, top - 1, top, hallFloorMat);
+        wallU(f, l / 2 - 2.4 - WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, doorH);
+        wallU(f, l / 2 + 2.4 + WALL_T / 2, p0 + 0.05, p0 + 3.4 + WALL_T, [], top, doorH);
+        wallV(f, p0 + 3.4 + WALL_T / 2, l / 2 - 2.4 - WALL_T, l / 2 + 2.4 + WALL_T, [], top, doorH);
         pickups.push(f.vec(l / 2, p0 + 1.8, top + 0.2));
         rects.push(f.rect(l / 2 - 2.4, l / 2 + 2.4, p0, p0 + 3.4));
       }
-      if (internalEntry) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, roofH, pal.accent);
-      if (internalExit) exitBarrier = new Gate(board, group, f.vec(l, 0, top), dir, roofH, pal.accent);
+      if (zs.gallery) {
+        // A gallery along the left wall, with steps up at its far end: a
+        // second level for a duel, which one flat floor under a roof is not.
+        const gy = top + zs.gallery, gw = 4, gEnd = l - 6.8;
+        solid(f, 3, gEnd, w / 2 - gw, w / 2, gy - 0.5, gy, wallMat);
+        slab(f, 3, gEnd, w / 2 - gw, w / 2 - gw + 0.2, gy + 0.02, gy + 0.18, trimMat);
+        raised.push({ ...f.rect(3, gEnd, w / 2 - gw, w / 2), y: gy });
+        for (let k = 0; k < 3; k++) {
+          const sy = top + zs.gallery * (0.75 - k * 0.25);
+          solid(f, gEnd + k * 1.4, gEnd + (k + 1) * 1.4, w / 2 - gw, w / 2, top, sy, wallMat);
+          raised.push({ ...f.rect(gEnd + k * 1.4, gEnd + (k + 1) * 1.4, w / 2 - gw, w / 2), y: sy });
+        }
+      }
+      // zone 0 of a stage with a door behind it has a vestibule, and the room
+      // seals against it like against any other way in
+      if (internalEntry || entryOpen) entryBarrier = new Gate(board, group, f.vec(0, 0, top), dir, doorH, pal.accent);
+      if (internalExit) exitBarrier = new Gate(board, group, f.vec(l, 0, top), dir, doorH, pal.accent);
       const lamp = new THREE.PointLight(0xffd9a0, 40 + (w * l) / 8, Math.max(w, l) * 1.7, 1.4);
       lamp.position.set(f.x(l / 2, 0), top + roofH - 0.4, f.z(l / 2, 0));
       group.add(lamp);
@@ -127,6 +174,11 @@ export function layZones(b: StageBuilder) {
       if (internalExit) {
         slab(f, l - 0.2, l + 0.6, -w / 2, w / 2, top + 0.02, top + 0.2, edge);
         exitBarrier = new Fence(board, group, f.vec(l + 1, 0, top), dir, GATE_W + 3, ceiling, pal.accent);
+      }
+      // a plated deck lights both edges of every gap, so the jump reads
+      for (const [u0, u1, rise] of plates) {
+        slab(f, u0, u0 + 0.6, -w / 2, w / 2, top + rise + 0.02, top + rise + 0.2, edge);
+        slab(f, u1 - 0.6, u1, -w / 2, w / 2, top + rise + 0.02, top + rise + 0.2, edge);
       }
       landmark = f.vec(l + 6, 0, top + 3);
     } else if (bare) {
@@ -166,10 +218,20 @@ export function layZones(b: StageBuilder) {
       const rimmed = (wantRim || !onGround) && !openTrailhead && !canyon;
       /** the playable side of this zone's borders, for the rock to stand clear of */
       const heart = { x: f.x(l / 2, 0), z: f.z(l / 2, 0) };
-      // sides run the full length
+      // sides run the full length — except a side that is the sea, where the
+      // plate's lit edge is the border and the water is what you see
+      const wet = new Set(stage.world?.waterDrop !== undefined && !onGround ? zs.water ?? [] : []);
       if (rimmed) {
-        ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
-        ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top, { inside: heart });
+        if (!wet.has('left')) ridge([[f.x(back, half), f.z(back, half)], [f.x(front, half), f.z(front, half)]], top, { inside: heart });
+        if (!wet.has('right')) ridge([[f.x(back, -half), f.z(back, -half)], [f.x(front, -half), f.z(front, -half)]], top, { inside: heart });
+      }
+      if (wet.size) {
+        const edge = new THREE.MeshBasicMaterial({ color: pal.accent, transparent: true, opacity: 0.5 });
+        owned.push(edge);
+        for (const side of wet) {
+          const v = side === 'left' ? w / 2 + 1 : -w / 2 - 1;
+          slab(f, -1, l + 1, Math.min(v, v - Math.sign(v) * 0.3), Math.max(v, v - Math.sign(v) * 0.3), top + 0.02, top + 0.2, edge);
+        }
       }
       // A dead end's way on is a door in the rock rather than an open mouth —
       // except where the stage itself ends here, because then the transport
@@ -177,9 +239,27 @@ export function layZones(b: StageBuilder) {
       // second door. Either way the rim leaves the gap: the face fills it.
       const doorFace = !!zs.deadEnd && internalExit;
       const frontGaps: [number, number][] = exitOpen ? [[-gapHalf, gapHalf]] : [];
-      if (zs.pass) {
-        frontGaps.push([w / 3 - 2, w / 3 + 2]);
-        runnerPost = surf(f, l + 9, w / 3);
+      if (zs.pass && rimmed) {
+        // The pass is a way *in*, for the siege's runners: a notch in the far
+        // rim, well clear of the exit's own gap, and a short gully behind it
+        // walled on three sides — floored on a plate stage, so a body has
+        // somewhere to stand. It used to be a four-metre notch with a post
+        // nine metres out over nothing, and the post never validated, so no
+        // runner ever came through it (audit finding 5).
+        const pv = Math.max(w / 3, gapHalf + PASS_W / 2 + 4);
+        const ph = PASS_W / 2;
+        frontGaps.push([pv - ph, pv + ph]);
+        const gEnd = front + PASS_DEPTH;
+        if (!onGround) solid(f, l + 1, gEnd + 1, pv - ph - 1, pv + ph + 1, top - 1, top, floorMat);
+        rects.push(f.rect(l + 1, gEnd, pv - ph, pv + ph));
+        const gully = { x: f.x(front + PASS_DEPTH / 2, pv), z: f.z(front + PASS_DEPTH / 2, pv) };
+        const gw = ph + 1.5;
+        ridge([[f.x(front, pv + gw), f.z(front, pv + gw)], [f.x(gEnd, pv + gw), f.z(gEnd, pv + gw)]], top, { inside: gully });
+        ridge([[f.x(front, pv - gw), f.z(front, pv - gw)], [f.x(gEnd, pv - gw), f.z(gEnd, pv - gw)]], top, { inside: gully });
+        ridge([[f.x(gEnd, pv + gw), f.z(gEnd, pv + gw)], [f.x(gEnd, pv - gw), f.z(gEnd, pv - gw)]], top, { inside: gully });
+        runnerPost = surf(f, gEnd - 3.5, pv);
+        runnerIn = surf(f, l - 4, pv);
+        lanes.push([runnerPost.clone(), runnerIn.clone()]);
       }
       frontGaps.sort((a, b) => a[0] - b[0]);
       if (rimmed) {
@@ -243,7 +323,7 @@ export function layZones(b: StageBuilder) {
         && (zs.kind === 'assault' || zs.kind === 'lieutenant' || zs.kind === 'warlord')) {
         exitBarrier = new Fence(board, group, surf(f, l + 0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
-      if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && internalEntry) {
+      if ((zs.kind === 'lieutenant' || zs.kind === 'warlord') && entryOpen) {
         // the arena's own gate behind the party, so the fight has a back wall
         entryBarrier = new Fence(board, group, surf(f, -0.6, 0, 0), dir, GATE_W + 3, ceiling, pal.accent);
       }
@@ -279,22 +359,43 @@ export function layZones(b: StageBuilder) {
     placeRides(f, zs, top);
 
     // ---- spawn geometry ----
+    // On a plated deck a spot that falls in a gap is moved onto the nearest
+    // plate: nobody is posted in the void.
+    const onPlate = (u: number): number => {
+      if (!plates.length || plates.some(([a, b]) => u >= a + 1 && u <= b - 1)) return u;
+      let best = u, d = Infinity;
+      for (const [a, b] of plates) {
+        for (const e of [a + 2, b - 2]) if (Math.abs(e - u) < d) { d = Math.abs(e - u); best = e; }
+      }
+      return best;
+    };
     const farVents: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l - 3.5, w / 2 - 3.5], [l - 3.5, -(w / 2 - 3.5)],
       [l - 3.5, w * 0.17], [l - 3.5, -w * 0.17],
-    ]) farVents.push(surf(f, u, v));
+    ]) farVents.push(surf(f, onPlate(u), v));
     const sideVents: THREE.Vector3[] = [];
     for (const [u, v] of [
       [l * 0.5, w / 2 - 3], [l * 0.5, -(w / 2 - 3)],
       [l * 0.32, w / 2 - 3.5], [l * 0.32, -(w / 2 - 3.5)],
       [l * 0.7, w / 2 - 3.5], [l * 0.7, -(w / 2 - 3.5)],
-    ]) sideVents.push(surf(f, u, v));
+    ]) sideVents.push(surf(f, onPlate(u), v));
     const posts: THREE.Vector3[] = [];
-    for (const [u, v] of [
-      [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
-      [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
-    ]) posts.push(surf(f, u, v));
+    if (zs.kind === 'camp') {
+      // A camp says "clear it, or slip through", so its garrison holds one
+      // flank of the middle third and leaves the other quiet. Posted on and
+      // beside the centreline round the exit, as every other zone is, a camp
+      // was a small assault with nothing to slip past (audit finding 7).
+      const side = zs.postSide ?? ((beat0 + i) % 2 ? 1 : -1);
+      for (const [u, v] of [
+        [0.36, 0.3], [0.46, 0.38], [0.52, 0.3], [0.6, 0.4], [0.66, 0.32], [0.42, 0.44],
+      ]) posts.push(surf(f, onPlate(l * u), side * Math.min(w * v, w / 2 - 2)));
+    } else {
+      for (const [u, v] of [
+        [l * 0.6, w * 0.28], [l * 0.6, -w * 0.28], [l * 0.75, 0],
+        [l * 0.82, w * 0.2], [l * 0.82, -w * 0.2],
+      ]) posts.push(surf(f, onPlate(u), v));
+    }
 
     zoneFrames.push(f);
     zoneTops.push(top);
@@ -310,7 +411,7 @@ export function layZones(b: StageBuilder) {
       sealRect: f.rect(1.2, l - 1.2, -w / 2, w / 2),
       triggerRect: f.rect(Math.min(TRIGGER_IN, l * 0.4), l, -w / 2, w / 2),
       entryBarrier, exitBarrier, hatches,
-      farVents, sideVents, vents: [], posts, runnerPost, marks,
+      farVents, sideVents, vents: [], posts, runnerPost, runnerIn, marks,
       landmark,
     });
     path.push(surf(f, 2.4, 0), surf(f, l - 2.4, 0));
@@ -320,7 +421,21 @@ export function layZones(b: StageBuilder) {
     frame = layLink(b, i, f, l, isHall);
   }
 
-  return { zones, zoneFrames, zoneTops, last, hasNext, hasPrev };
+  // the air pockets of a sea stage each hold a bacta canister: a wreck cache
+  for (const pk of stage.air?.pockets ?? []) {
+    pickups.push(new THREE.Vector3(pk.x, groundAt(pk.x, pk.z) + 0.6, pk.z));
+  }
+
+  // The vestibule: every stage with a door behind it opens outside its first
+  // zone rather than inside it. Its point leads the golden path, so every
+  // zone's place in the path moves up one.
+  let vestibule: THREE.Vector3 | null = null;
+  if (hasPrev && zones.length) {
+    vestibule = layVestibule(b, zoneFrames[0], stage.zones[0], zoneTops[0]);
+    for (const z of zones) z.pathFrom++;
+  }
+
+  return { zones, zoneFrames, zoneTops, last, hasNext, hasPrev, vestibule };
 }
 
 export type StageChain = ReturnType<typeof layZones>;

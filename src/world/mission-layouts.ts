@@ -112,41 +112,45 @@ const desert: StageSpec[] = [
     kind: 'built',
     label: TEXT.missions.stages.desert[1],
     zones: [
-      // The ravine is a run of corridors that happen to be cut from rock:
-      // walls both sides, close, and the way on always round the next bend.
-      // The bends are on the links (a zone cannot bend), and there are three
-      // of them between the camp and the cistern approach — an S through
-      // the rock — so it twists rather than running straight.
+      // The ravine is one long held canyon, ending at a door in its far face.
+      // It used to be two — a camp and then a "cistern approach" that was the
+      // same width, the same rock and the same posted fight, whose only
+      // content was the door — so the second is folded into the first. The
+      // S through the rock is still there: it is the tunnel behind the door,
+      // twisting down to the cistern (a zone cannot bend, so the bends live
+      // on the link).
       z('desert', 3, {
-        shell: 'canyon', kind: 'camp', w: 14, l: 56, alcove: true,
+        shell: 'canyon', kind: 'camp', w: 14, l: 88, alcove: true, deadEnd: true,
         props: [
           // solid, like the corral's: a 5 m tent you walk through is the
           // "rock walls we walked right through" report, and these two were
           // the only props on the run that had been left decorative.
           { id: 'tusken_tent', u: 36, v: 4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
           { id: 'tusken_tent', u: 44, v: -4, size: 5.2, solid: { r: 1.9, h: 2.6 } },
+          { id: 'tusken_tent', u: 66, v: 4.2, size: 5.2, solid: { r: 1.9, h: 2.6 } },
         ],
       }),
-      z('desert', 4, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
       // The cistern court is where the run first meets a war massiff, and a
       // war massiff wants room: the hall is sized for a beast to come out of
       // a hatch and be fought round the pit, not for a squad to hold a door.
-      z('desert', 5, {
+      z('desert', 4, {
         shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pit', alcove: true,
       }),
     ],
     links: [
-      { len: 14, turn: 1, len2: 14, legs: [{ turn: -1, len: 14 }], kind: 'trek' },
-      { len: 14, turn: -1, len2: 12, kind: 'corridor' },
+      { len: 14, turn: 1, len2: 12, legs: [{ turn: -1, len: 12 }], kind: 'corridor' },
     ],
   },
   {
     kind: 'built',
     label: TEXT.missions.stages.desert[2],
     zones: [
-      z('desert', 6, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
-      z('desert', 7, { shell: 'canyon', kind: 'assault', w: 16, l: 60, waves: 3, pass: true }),
-      z('desert', 8, {
+      z('desert', 5, { shell: 'open', kind: 'lieutenant', w: 56, l: 50, air: true }),
+      // The gate is a garrison fight in a slot, not the run's third long canyon
+      // assault: forty metres, and no pass — its notch overlapped the way on
+      // and no runner ever came through it.
+      z('desert', 6, { shell: 'canyon', kind: 'assault', w: 16, l: 40, garrison: 3 }),
+      z('desert', 7, {
         // A twenty-six metre barge nine metres off a lane twenty-two metres
         // wide is a barge lying across the lane: the golden path ran through
         // its hull, so the arrow pointed into it and the way on was a wreck
@@ -155,7 +159,7 @@ const desert: StageSpec[] = [
         shell: 'open', kind: 'camp', w: 60, l: 40, feature: 'crates',
         props: [{ id: 'sail_barge', u: 24, v: 19, size: 20, yaw: 0.5, solid: { r: 4.4, h: 5 } }],
       }),
-      z('desert', 9, {
+      z('desert', 8, {
         shell: 'open', kind: 'warlord', w: 80, l: 70, air: true,
         props: [{ id: 'troop_carrier', u: 20, v: 28, size: 14, yaw: 2.2, solid: { r: 3, h: 3 } }],
         rides: [{ kind: 'swoop', u: 10, v: 22, yaw: 0 }, { kind: 'skiff', u: 12, v: -24, yaw: 0 }],
@@ -176,7 +180,13 @@ const station: StageSpec[] = [
         shell: 'deck', kind: 'start', w: 40, l: 30,
         props: [{ id: 'freighter', u: 8, v: 13, size: 11, yaw: 1.1, solid: { r: 3.4, h: 4 } }],
       }),
-      z('station', 1, { shell: 'deck', kind: 'camp', w: 26, l: 40, feature: 'crates' }),
+      // The cargo gantries are three plates with void between them, the
+      // middle one four metres up: the jetpack's first real verb at 0.45 g.
+      // (One flat plate, as it was, asked nothing of the low gravity at all.)
+      z('station', 1, {
+        shell: 'deck', kind: 'camp', w: 18, l: 72, feature: 'crates',
+        plates: { n: 3, gap: 15, rise: [0, 4, 0] },
+      }),
       z('station', 2, {
         shell: 'deck', kind: 'assault', w: 44, l: 36, waves: 2, air: true, feature: 'crates',
         props: [
@@ -198,22 +208,37 @@ const station: StageSpec[] = [
     world: { fogColor: 0x14181f, fogNear: 12, fogFar: 90, background: 0x0b0d12, roofed: true, gravity: 0.45, fill: 1.5 },
     zones: [
       z('station', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
-      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // The gunslinger's duel wants two levels: a fourteen-metre roof and a
+      // gallery along one wall, with steps up at its far end.
+      z('station', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars', roofH: 14, gallery: 6 }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    // a quiet corridor between the two rooms: the breath before the duel
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
     label: TEXT.missions.stages.station[2],
     zones: [
-      z('station', 5, { shell: 'deck', kind: 'camp', w: 24, l: 38, alcove: true }),
+      // the crew catwalks: three plates strung off the hull, the middle one
+      // raised, arrived at in front of the hull you left the station by
+      z('station', 5, {
+        shell: 'deck', kind: 'camp', w: 14, l: 60, alcove: true,
+        plates: { n: 3, gap: 12, rise: [0, 4, 0] },
+      }),
       z('station', 6, {
         shell: 'deck', kind: 'assault', w: 40, l: 32, waves: 3, air: true,
         props: [{ id: 'reactor_core', u: 16, v: 11, size: 16, solid: { r: 5.5, h: 16 } }],
       }),
       z('station', 7, {
-        shell: 'deck', kind: 'warlord', w: 60, l: 50,
-        props: [{ id: 'raider_dropship', u: 40, v: 20, size: 14, yaw: 2.4, solid: { r: 3, h: 3 } }],
+        // containers for the mudhorn's charges to have something to hit
+        shell: 'deck', kind: 'warlord', w: 60, l: 50, feature: 'crates',
+        props: [
+          { id: 'raider_dropship', u: 40, v: 20, size: 14, yaw: 2.4, solid: { r: 3, h: 3 } },
+          { id: 'cargo_crate', u: 14, v: -16, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 17, v: -12, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 34, v: -18, size: 2.4, solid: { r: 1.5, h: 2.4 } },
+          { id: 'cargo_crate', u: 30, v: 11, size: 2.4, yaw: 0.6, solid: { r: 1.5, h: 2.4 } },
+        ],
       }),
     ],
     links: [{ len: 16, kind: 'trek' }, { len: 18, kind: 'trek' }],
@@ -241,13 +266,22 @@ const nevarro: StageSpec[] = [
           { kind: 'speederBike', u: 14, v: 8, yaw: 0 },
           { kind: 'speederBike', u: 18, v: 12, yaw: 0 },
           { kind: 'speederBike', u: 22, v: -10, yaw: 0 },
+          // a fourth, so a party of four can all ride the causeway: the
+          // riders rule claims up to half the camp's rides for its own crew
+          { kind: 'speederBike', u: 26, v: -14, yaw: 0 },
         ],
       }),
+      // The crust causeway: a road with live lava down both edges — the one
+      // idea that makes it Nevarro's rather than the Great Forge's highway.
       z('nevarro', 2, {
-        shell: 'road', kind: 'chase', w: 26, l: 72,
+        shell: 'road', kind: 'chase', w: 26, l: 72, feature: 'lava',
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
-      z('nevarro', 3, { shell: 'open', kind: 'assault', w: 36, l: 30, waves: 2, feature: 'crates' }),
+      // The lieutenant holds the town gate, under the sky. A promoted massiff
+      // is a leaper, and it used to be fought in the pillared 30 x 26 box
+      // that seven other territories fight theirs in; out here the pounce has
+      // room, and the gate is the officer's to hold.
+      z('nevarro', 3, { shell: 'open', kind: 'lieutenant', w: 44, l: 40, feature: 'crates' }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -257,7 +291,10 @@ const nevarro: StageSpec[] = [
     world: { fogColor: 0x1a120e, fogNear: 10, fogFar: 80, background: 0x0d0806, roofed: true, fill: 1.4 },
     zones: [
       z('nevarro', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
-      z('nevarro', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // The court after the yard is a breather, not a second sealed room: the
+      // magistrate is gone, a couple of lookouts are left, and its far door is
+      // the way down to the lava tunnels.
+      z('nevarro', 5, { shell: 'hall', kind: 'trek', w: 30, l: 26, feature: 'pillars', lookouts: 2 }),
     ],
     links: [{ len: 14, turn: 1, len2: 12, kind: 'corridor' }],
   },
@@ -291,26 +328,30 @@ const crevasse: StageSpec[] = [
         shell: 'open', kind: 'start', w: 60, l: 50,
         props: [{ id: 'survey_crawler', u: 16, v: 18, size: 10, yaw: 2.1, solid: { r: 2.4, h: 3.4 } }],
       }),
-      z('crevasse', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 80, feature: 'pillars', alcove: true }),
-      z('crevasse', 2, { shell: 'canyon', kind: 'assault', w: 10, l: 40, waves: 2, deadEnd: true }),
+      // One long gallery that ends at the glacier door (the nest mouth). It
+      // used to hand over to a second, narrower canyon of forty metres whose
+      // only content was that door; its last stretch is now this one's.
+      z('crevasse', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 108, feature: 'pillars', alcove: true, deadEnd: true }),
     ],
-    links: [{ len: 20, turn: -1, len2: 16, kind: 'trek' }, { len: 16, turn: 1, len2: 12, kind: 'trek' }],
+    links: [{ len: 20, turn: -1, len2: 16, kind: 'trek' }],
   },
   {
     kind: 'interior',
     label: TEXT.missions.stages.crevasse[1],
     world: { fogColor: 0x16303e, fogNear: 8, fogFar: 70, background: 0x08161e, roofed: true, traction: 0.55, fill: 1.6 },
     zones: [
-      z('crevasse', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
-      z('crevasse', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      z('crevasse', 2, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
+      z('crevasse', 3, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
       // The other one: the ice shelf under the open sky, out of the halls and
       // before the last camp. Two in the game, and this is the second.
-      z('crevasse', 5, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true, siege: true }),
-      z('crevasse', 6, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
-      z('crevasse', 7, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
+      // a disc of bare ice at its heart, where the grip goes (and a cavern
+      // roof over it, as over all the deep's open ground)
+      z('crevasse', 4, { shell: 'open', kind: 'assault', w: 50, l: 46, waves: 3, pass: true, siege: true, slick: 10 }),
+      z('crevasse', 5, { shell: 'canyon', kind: 'camp', w: 14, l: 50, alcove: true }),
+      z('crevasse', 6, { shell: 'open', kind: 'warlord', w: 72, l: 62 }),
     ],
     links: [
-      { len: 14, turn: -1, len2: 12, kind: 'corridor' }, { len: 16, kind: 'corridor' },
+      { len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }, { len: 16, kind: 'corridor' },
       { len: 16, kind: 'trek' }, { len: 18, kind: 'trek' },
     ],
   },
@@ -325,36 +366,45 @@ const trask: StageSpec[] = [
     world: { waterDrop: 3 },
     zones: [
       z('trask', 0, {
-        shell: 'open', kind: 'start', w: 60, l: 40,
+        shell: 'open', kind: 'start', w: 60, l: 40, water: ['right'],
         props: [{ id: 'dock_shed', u: 12, v: 22, size: 10, yaw: 1.6, solid: { r: 3.4, h: 7 } }],
       }),
-      // The fish market is the harbour's camp, and the skiff is tied up at the
-      // near end of it — the easier steal: the crews are further in among the
-      // racks, and a party that comes in quiet can be aboard before they turn.
+      // The fish market is a pier: ten metres of planking over the harbour,
+      // racks down both sides, the sea either hand, and the freighter's cargo
+      // door at the far end (the net lofts that used to stand between them
+      // were the fifth dead-end canyon fight). It was built as the standard
+      // 44 x 40 box with a skiff that had nowhere to go; a pier is no place to
+      // park one, so it went.
       z('trask', 1, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, alcove: true,
+        shell: 'open', kind: 'camp', w: 10, l: 70, alcove: true, water: ['left', 'right'], deadEnd: true,
         props: [
-          { id: 'fish_rack', u: 22, v: 6, size: 2, solid: { r: 0.9, h: 2 } },
-          { id: 'fish_rack', u: 30, v: -6, size: 2, solid: { r: 0.9, h: 2 } },
-          { id: 'fish_rack', u: 26, v: 13, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 14, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 26, v: -3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 38, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 50, v: -3.2, size: 2, solid: { r: 0.9, h: 2 } },
+          { id: 'fish_rack', u: 60, v: 3.2, size: 2, solid: { r: 0.9, h: 2 } },
         ],
-        rides: [{ kind: 'skiff', u: 9, v: -12, yaw: 0 }],
       }),
-      z('trask', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 46, waves: 2, deadEnd: true }),
-      z('trask', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
-      z('trask', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
-      z('trask', 5, {
-        shell: 'open', kind: 'assault', w: 52, l: 44, waves: 3, air: true, feature: 'crates',
+      z('trask', 2, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'barrels', alcove: true }),
+      // a breather between the hold's fight and the deck's: the cold stores
+      // are walked, past a couple of lookouts, not fought
+      z('trask', 3, { shell: 'hall', kind: 'trek', w: 30, l: 26, feature: 'pillars', lookouts: 2 }),
+      z('trask', 4, {
+        // the officer on the trawler's deck: the Storm Docks' lieutenant,
+        // fought under the squall rather than in a second sealed room
+        // — the sea both sides, and the wheelhouse door in the far wall
+        shell: 'open', kind: 'lieutenant', w: 52, l: 44, air: true, feature: 'crates', water: ['left', 'right'],
         props: [{ id: 'trawler', u: 26, v: 14, size: 16, yaw: 0.2, solid: { r: 3.5, h: 4 } }],
       }),
-      z('trask', 6, {
-        shell: 'canyon', kind: 'camp', w: 10, l: 50, alcove: true,
+      z('trask', 5, {
+        // the pier heads are a pier, with water both sides
+        shell: 'canyon', kind: 'camp', w: 10, l: 50, alcove: true, water: ['left', 'right'],
         props: [{ id: 'fish_rack', u: 30, v: 3, size: 2, solid: { r: 0.9, h: 2 } }],
       }),
-      z('trask', 7, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'pit' }),
+      z('trask', 6, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'pit' }),
     ],
     links: [
-      { len: 16, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'corridor' },
+      { len: 16, kind: 'trek' }, { len: 14, kind: 'corridor' },
       { len: 12, turn: 1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'corridor' },
       { len: 16, kind: 'trek' }, { len: 18, kind: 'trek' },
     ],
@@ -372,20 +422,24 @@ const refinery: StageSpec[] = [
         shell: 'open', kind: 'start', w: 60, l: 50,
         props: [{ id: 'pipe_rack', u: 30, v: 22, size: 6, solid: { r: 1.2, h: 4 } }],
       }),
-      // The pipe run is the yard's camp. Its landspeeder is parked at the near
-      // end, by the first rack: closer to you than to the crew working the far
-      // one, which is the whole of why it is worth trying to take quietly.
+      // The pipe run is the lane it was designed as: twelve metres between
+      // racks, held by the yard's crew, ending at the intake's blast door. It
+      // used to be the standard 44 x 40 box with a landspeeder that had
+      // nowhere to go, and then a forty-metre dead-end canyon whose only
+      // content was that door; the door is this lane's now, and the ride is
+      // gone — a lane is no place to turn one.
       z('refinery', 1, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'barrels', alcove: true,
+        shell: 'canyon', kind: 'camp', w: 12, l: 60, feature: 'barrels', alcove: true, deadEnd: true,
         props: [
-          { id: 'pipe_rack', u: 16, v: 8, size: 6, solid: { r: 1.2, h: 4 } },
-          { id: 'pipe_rack', u: 30, v: -8, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 8, v: 4.3, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 20, v: -4.3, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 32, v: 4.3, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 44, v: -4.3, size: 6, solid: { r: 1.2, h: 4 } },
+          { id: 'pipe_rack', u: 54, v: 4.3, size: 6, solid: { r: 1.2, h: 4 } },
         ],
-        rides: [{ kind: 'landspeeder', u: 9, v: -11, yaw: 0 }],
       }),
-      z('refinery', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 40, waves: 2, deadEnd: true }),
     ],
-    links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }],
   },
   {
     // The Refinery board *is* the plant: a ring of walled work halls under a
@@ -393,38 +447,51 @@ const refinery: StageSpec[] = [
     // lit, already audited, with its own barrels and alarm consoles and
     // catwalks. Laying a lesser copy of it over the top would be the one
     // place in this design where a stage argued with its own territory. So
-    // this stage builds nothing — it walks the south side of the ring and
-    // says where the fights are.
+    // this stage builds nothing but its rooms — it walks the south side of the
+    // ring and turns in to the reactor, and says where the fights are.
     kind: 'plant',
     label: TEXT.missions.stages.refinery[1],
-    // The lane runs along z = -46, south of the partition walls: those span
+    // The lane starts along z = -46, south of the partition walls: those span
     // z -42..-18, so passing below them is passing through the doorways the
-    // board left at their ends rather than through the walls themselves.
-    anchor: { x: -40, z: -46, dx: 1, dz: 0 },
+    // board left at their ends rather than through the walls themselves. It
+    // starts at x = -35 so the vestibule and the back door behind it still
+    // stand inside the plant's west wall (x = -49).
+    anchor: { x: -35, z: -46, dx: 1, dz: 0 },
     zones: [
-      // Rooms, and declared as rooms. These three sit *inside* the plant,
-      // between its tanks and partition walls, and they are 18 m on a side:
-      // the borders audit measures five to eleven metres to the nearest wall
-      // all round each of them, which is a hall's number, not open ground's.
-      // Calling them `open` was the muddle a playtest asked about — the fight
-      // reads as a room whatever the layout says, so the layout should say it,
-      // and then the room behaviour that goes with it (the party gathers, the
-      // doors seal, the cover is crates rather than boulders) follows.
-      z('refinery', 3, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
-      z('refinery', 4, { shell: 'hall', kind: 'lieutenant', w: 18, l: 18 }),
-      z('refinery', 5, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
+      // Rooms, and declared as rooms. The barrel stores sit *inside* the
+      // plant, between its tanks and partition walls, 18 m on a side: the
+      // borders audit measures five to eleven metres to the nearest wall all
+      // round, which is a hall's number, not open ground's. Calling it `open`
+      // was the muddle a playtest asked about — the fight reads as a room
+      // whatever the layout says, so the layout should say it, and then the
+      // room behaviour that goes with it (the party gathers, the doors seal,
+      // the cover is crates rather than boulders) follows.
+      z('refinery', 2, { shell: 'hall', kind: 'assault', w: 18, l: 18, waves: 2 }),
+      // The reactor floor is the reactor floor: the lieutenant is fought in
+      // the board's forty-metre atrium, round the core, with the three catwalk
+      // rings as high ground — the one space in the game built for jetpack
+      // combat, which the run used to walk straight past to fight in a third
+      // 18 m slot of the south strip (audit finding 6). The room is walled
+      // and roofed at the atrium's own edges and just under its roof, so it
+      // seals like any lieutenant's hall; its far door, in the north wall, is
+      // the plant's rear airlock.
+      z('refinery', 3, { shell: 'hall', kind: 'lieutenant', w: 40, l: 40, roofH: 38 }),
     ],
-    links: [{ len: 12, kind: 'trek' }, { len: 12, kind: 'trek' }],
+    // East out of the stores, north between the partitions at x = -22 and
+    // x = -7, east again above the short partition at z = -30, and north into
+    // the atrium's south door at x = 0.
+    // (quiet: the walk in to the reactor is the breath between two sealed rooms)
+    links: [{ len: 2, turn: 1, len2: 15.5, legs: [{ turn: -1, len: 6 }, { turn: 1, len: 1.5 }], kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
     label: TEXT.missions.stages.refinery[2],
     zones: [
-      z('refinery', 6, {
+      z('refinery', 4, {
         shell: 'open', kind: 'camp', w: 50, l: 44, alcove: true,
         props: [{ id: 'reactor_core', u: 22, v: 15, size: 40, solid: { r: 5.5, h: 40 } }],
       }),
-      z('refinery', 7, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'barrels' }),
+      z('refinery', 5, { shell: 'open', kind: 'warlord', w: 70, l: 60, feature: 'barrels' }),
     ],
     links: [{ len: 18, kind: 'trek' }],
   },
@@ -438,9 +505,17 @@ const forge: StageSpec[] = [
     // and well clear of the Living Waters. Emptiness is this board's whole
     // personality, and fused ground under a ride is the argument for standing
     // the run on it rather than on a plate that only looks like it.
+    //
+    // And it opens in a glassed valley, the way the Dune Sea opens in its
+    // canyon, rather than in the row of rimmed boxes the Lava Flats open in:
+    // two walls of fused ruin a long way off, closing as the run goes, and a
+    // gorge through the dome's broken footing at the far end with the vault
+    // door at the back of it. The two runs were the same beat for beat; this
+    // is the opening that tells them apart (audit item 15).
     kind: 'territory',
     label: TEXT.missions.stages.forge[0],
     anchor: { x: -74, z: -62, dx: 1, dz: 0 },
+    canyon: { from: 70, to: 28, gorge: { w: 16, len: 22 } },
     zones: [
       z('forge', 0, { shell: 'open', kind: 'start', w: 44, l: 50 }),
       // The corral on the glass: the pirates' rides, and the pirates.
@@ -457,7 +532,7 @@ const forge: StageSpec[] = [
         shell: 'road', kind: 'chase', w: 28, l: 78,
         marks: [0.34, 0.7], barricade: 'fence', air: true,
       }),
-      z('forge', 3, { shell: 'open', kind: 'assault', w: 38, l: 32, waves: 2, feature: 'pillars' }),
+      z('forge', 3, { shell: 'open', kind: 'assault', w: 38, l: 32, garrison: 2, feature: 'pillars' }),
     ],
     links: [{ len: 18, kind: 'trek' }, { len: 14, kind: 'trek' }, { len: 14, kind: 'trek' }],
   },
@@ -469,14 +544,14 @@ const forge: StageSpec[] = [
       z('forge', 4, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'pillars', alcove: true }),
       z('forge', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
     label: TEXT.missions.stages.forge[2],
     zones: [
       z('forge', 6, {
-        shell: 'open', kind: 'assault', w: 54, l: 48, waves: 3, pass: true, air: true, feature: 'pillars',
+        shell: 'open', kind: 'assault', w: 54, l: 48, garrison: 3, air: true, feature: 'pillars',
         // v: 0 is the lane's own centreline, which is where the golden path
         // runs and where the floor arrow points — a brazier there is a thing
         // the guidance sends you into. Off to one side it is a landmark.
@@ -504,24 +579,38 @@ const ringworld: StageSpec[] = [
         shell: 'open', kind: 'start', w: 56, l: 48,
         props: [{ id: 'tram', u: 12, v: 18, size: 12.2, yaw: 0, solid: { r: 1.9, h: 3.4 } }],
       }),
-      // The market arcade is the high street's camp. Two swoops stand outside
-      // the first kiosk with their riders inside it — the tavern steal: the
-      // bikes are at the near edge, the owners are a wall away, and whether
-      // you get one started before they come out is the fight.
+      // The market arcade is a street: sixteen metres between lit facades,
+      // eighty long, kiosks down both sides — the Ringworld's signature shape,
+      // where the Storm Docks' is a pier. Two swoops stand at the tram stop's
+      // end with their riders at the first kiosks — the tavern steal — and a
+      // street is somewhere a swoop has to go. Its far end is the tram
+      // platform.
       z('ringworld', 1, {
-        shell: 'open', kind: 'camp', w: 44, l: 40, feature: 'crates', alcove: true,
+        shell: 'canyon', kind: 'camp', w: 16, l: 80, feature: 'crates', alcove: true,
         props: [
-          { id: 'street_kiosk', u: 14, v: 10, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 26, v: -9, size: 3.2, solid: { r: 1.7, h: 2.4 } },
-          { id: 'street_kiosk', u: 32, v: 8, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 14, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 24, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 36, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 46, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 58, v: 5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
+          { id: 'street_kiosk', u: 68, v: -5.6, size: 3.2, solid: { r: 1.7, h: 2.4 } },
         ],
-        rides: [{ kind: 'swoop', u: 9, v: 12, yaw: 0 }, { kind: 'swoop', u: 10, v: 16, yaw: 0 }],
+        rides: [{ kind: 'swoop', u: 7, v: 2, yaw: 0 }, { kind: 'swoop', u: 7, v: -2, yaw: 0 }],
       }),
-      z('ringworld', 2, { shell: 'canyon', kind: 'assault', w: 12, l: 50, waves: 2, deadEnd: true }),
+      // The night-side row was the run's fifth dead-end canyon assault. It is
+      // not folded into the arcade before it, because the Tram Top section is
+      // cut in between the two (SECTION_PLACEMENT) and delivers the party
+      // here; so it keeps its place and its name and becomes what the run
+      // lacked instead — a breather: a dark street with lookouts in it, who
+      // raise the terminus rather than hold the row.
+      z('ringworld', 2, { shell: 'canyon', kind: 'trek', w: 12, l: 44, lookouts: 2 }),
       z('ringworld', 3, { shell: 'hall', kind: 'assault', w: 28, l: 24, waves: 2, feature: 'crates', alcove: true }),
-      z('ringworld', 4, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, feature: 'pillars' }),
+      // a covered walkway is a lane, not a room: held, but not sealed
+      z('ringworld', 4, { shell: 'canyon', kind: 'camp', w: 12, l: 44, alcove: true }),
       z('ringworld', 5, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, pass: true, air: true,
+        // the enforcer is fought in the plaza, among the kiosks, and the
+        // Ringworld has one hall instead of two
+        shell: 'open', kind: 'lieutenant', w: 50, l: 44, air: true,
         props: [
           { id: 'street_kiosk', u: 16, v: 14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
           { id: 'street_kiosk', u: 30, v: -14, size: 3.2, solid: { r: 1.7, h: 2.4 } },
@@ -532,7 +621,7 @@ const ringworld: StageSpec[] = [
     ],
     links: [
       { len: 16, kind: 'trek' }, { len: 16, kind: 'trek' }, { len: 14, kind: 'corridor' },
-      { len: 12, turn: -1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'corridor' },
+      { len: 12, turn: -1, len2: 12, kind: 'corridor' }, { len: 14, kind: 'trek' },
       { len: 16, kind: 'trek' }, { len: 18, kind: 'trek' },
     ],
   },
@@ -547,7 +636,8 @@ const narkina: StageSpec[] = [
     world: { waterDrop: 4 },
     zones: [
       z('narkina', 0, {
-        shell: 'open', kind: 'start', w: 56, l: 44,
+        // the rig's landing deck, with the sea on both sides of it
+        shell: 'open', kind: 'start', w: 56, l: 44, water: ['left', 'right'],
         props: [{ id: 'troop_carrier', u: 14, v: 18, size: 14, yaw: 1.2, solid: { r: 3, h: 3 } }],
       }),
       z('narkina', 1, { shell: 'canyon', kind: 'camp', w: 12, l: 60, feature: 'shock', alcove: true }),
@@ -560,11 +650,14 @@ const narkina: StageSpec[] = [
     // and a level raised into the sky could never reach it. So the run goes
     // down: the gantry ends at a dive hatch, and the next map is the sea
     // itself. No rim (the reef holds it), no hazards laid (the sea is the
-    // hazard), and air is the clock.
+    // hazard), and air is the clock: under a minute of it, and more trapped
+    // in the sunken transport off the kelp forest's north edge, with a bacta
+    // canister — worth the detour, and a detour.
     kind: 'sea',
     label: TEXT.missions.stages.narkina[1],
     anchor: { x: -70, z: 26, dx: 1, dz: 0 },
     ceiling: 14,
+    air: { seconds: 55, pockets: [{ x: -52, z: 48, r: 4.5 }] },
     zones: [
       z('narkina', 2, { shell: 'open', kind: 'trek', w: 40, l: 40 }),
       z('narkina', 3, { shell: 'canyon', kind: 'trek', w: 20, l: 26 }),
@@ -582,7 +675,7 @@ const narkina: StageSpec[] = [
       }),
       z('narkina', 5, { shell: 'hall', kind: 'lieutenant', w: 30, l: 26, roofH: 7, feature: 'pillars' }),
     ],
-    links: [{ len: 14, turn: -1, len2: 12, kind: 'corridor' }],
+    links: [{ len: 18, turn: -1, len2: 14, kind: 'corridor', quiet: true }],
   },
   {
     kind: 'built',
@@ -590,13 +683,16 @@ const narkina: StageSpec[] = [
     world: { waterDrop: 4 },
     zones: [
       z('narkina', 6, {
-        shell: 'open', kind: 'assault', w: 50, l: 44, waves: 3, feature: 'shock', air: true,
+        shell: 'open', kind: 'assault', w: 50, l: 44, garrison: 3, feature: 'shock', air: true, water: ['left', 'right'],
         props: [{ id: 'sunken_transport', u: 30, v: 18, size: 15, yaw: 0.4, solid: { r: 4, h: 4 } }],
       }),
-      z('narkina', 7, { shell: 'canyon', kind: 'camp', w: 12, l: 50, alcove: true }),
-      z('narkina', 8, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit' }),
+      // The discharge gantry that stood here repeated the gantry run minus its
+      // shock strips, and existed only to hold Fennec's cache. The cache now
+      // comes down in the stage's vestibule (campaign `bossAhead`), so the
+      // assembly deck hands straight on to the moon pool.
+      z('narkina', 7, { shell: 'open', kind: 'warlord', w: 66, l: 56, feature: 'pit', water: ['left'] }),
     ],
-    links: [{ len: 16, kind: 'trek' }, { len: 18, kind: 'trek' }],
+    links: [{ len: 18, kind: 'trek' }],
   },
 ];
 
@@ -677,12 +773,14 @@ const SECTION_PLACEMENT: Record<BoardId, SectionPlace[]> = {
   station: [{ before: 1, ids: ['frigate-guns'] }, { before: 2, ids: ['ring-walk'] }],
   // the magistrate court → the lava tunnels → the magma chamber → up to the glass fields
   nevarro: [{ before: 2, ids: ['magma-run', 'chimney'] }],
-  // the nest mouth's door → the chute → the dark at the bottom → the queen tunnel
+  // the frozen gallery's far door (the nest mouth) → the chute → the dark at the bottom → the queen tunnel
   crevasse: [{ before: 1, ids: ['glacier-chute', 'lamplight'] }],
   // one stage, cut after the trawler deck: the trawler casts off into the
   // squall, and the far pier is where the mamacore wakes and chases you in
-  trask: [{ split: { stage: 0, after: 5, label: TEXT.missions.stages.trask[1] }, ids: ['squall', 'run-the-pier'] }],
-  // the intake door → the processing line → the plant; the plant's rear airlock → the tank farm
+  // (zone 4 since the net lofts were folded into the fish market)
+  trask: [{ split: { stage: 0, after: 4, label: TEXT.missions.stages.trask[1] }, ids: ['squall', 'run-the-pier'] }],
+  // the pipe run's intake door → the processing line → the plant; the reactor
+  // floor's rear airlock → the tank farm
   refinery: [{ before: 1, ids: ['the-line'] }, { before: 2, ids: ['lights-out'] }],
   // the armoury vault → the covert forge → up its shaft into the sky → the dome's breach
   forge: [{ before: 2, ids: ['hold-the-forge', 'covert-sky'] }],
@@ -764,6 +862,13 @@ for (const [board, spec] of Object.entries(MISSION_LAYOUTS)) {
   }
   for (const stage of spec.stages) {
     if (stage.kind === 'section') continue;
+    for (const zs of stage.zones) {
+      // open ground that is not a siege calls no waves (campaign `supplied`)
+      const open = zs.shell === 'open' || zs.shell === 'canyon' || zs.shell === 'road';
+      if (open && !zs.siege && zs.waves !== undefined) {
+        console.warn(`[mission] ${board} "${zs.label}": \`waves\` on open ground that is not a siege calls nothing — use \`garrison\``);
+      }
+    }
     if (stage.links.length !== stage.zones.length - 1) {
       console.warn(`[mission] ${board} stage "${stage.label}": ${stage.zones.length} zones want ${stage.zones.length - 1} links, has ${stage.links.length}`);
     }
