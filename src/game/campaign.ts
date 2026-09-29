@@ -265,7 +265,12 @@ export class Campaign implements MissionController {
     this.beacon.position.copy(this.objectivePos);
     this.beacon.position.y += 30;
     this.beacon.frustumCulled = false;
-    this.beacon.visible = !this.atTrailhead;
+    // A section that asks for no column (`objective().beacon === false`) gets
+    // none from the first frame. `update` sets this every frame once the match
+    // is fighting, but the intro plays before the first update — and on a
+    // `?section=` boot that was one to three seconds of a sixty-metre column
+    // standing over a skiff deck or a shaft. The section is raised above.
+    this.beacon.visible = !this.atTrailhead && (!this.section || this.section.objective().beacon !== false);
     game.scene.add(this.beacon);
 
     // ---- the ground arrow: laid at every checkpoint, pointing at the next ----
