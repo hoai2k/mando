@@ -89,48 +89,51 @@ export function palmWorld(root: THREE.Object3D, rig: Rig, id: string, side: Hand
 const _def = new THREE.Vector3();
 
 /**
- * Puts a rider's palm on a grip. The arm is solved on our rig, and the sculpt
- * is only turned to match it, so where its palm lands is known once it has
- * been drawn: this measures that — the palm as last drawn, in the rig's hand
- * as it was solved — and hands it to the next solve (`reachArm`'s palmShift,
- * negated), which reaches with that point instead of the wrist. A riding pose
- * barely changes frame to frame, so the palm settles on the grip at once.
+ * Puts a rider's palm on a grip. The arm is solved on our rig and the sculpt
+ * is only turned to match it, so where its palm lands is known only once it
+ * has been drawn — and it is no fixed point of the rig's hand: a longer or
+ * shorter sculpt arm puts it somewhere else for every bend of the elbow. So
+ * this steers: the wrist is aimed at the grip plus a correction, and each
+ * frame the correction moves by however far the drawn palm missed. A riding
+ * pose barely changes frame to frame, so within a few it lands.
+ *
+ * It starts from where the palm sits from the wrist as drawn now, which is
+ * close. A build with no sculpt has its palm on the rig's own hand, which is
+ * exact, and steers by that alone.
  */
 export class PalmReach {
-  /** where the rig's hand was put by the last solve, in the character's own frame */
-  private solved = new Map<HandSide, { at: THREE.Vector3; turn: THREE.Quaternion }>();
+  /** the wrist's aim less the grip, in the character's own frame */
+  private corr = new Map<HandSide, THREE.Vector3>();
+  /** the grip last aimed at, in the character's own frame */
+  private aimed = new Map<HandSide, THREE.Vector3>();
   constructor(private root: THREE.Object3D, private rig: Rig, private id: string) {}
 
-  /** `reachArm`'s palmShift: minus the palm from the rig's wrist, in metres along the hand's axes */
-  shift(side: HandSide, out: THREE.Vector3): THREE.Vector3 {
+  /** Where to aim the wrist so the palm lands on `grip` (world), into `out`. */
+  aim(side: HandSide, grip: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
     const hand = side === 'L' ? this.rig.bones.handL : this.rig.bones.handR;
-    const last = this.solved.get(side);
-    if (!palmFrameOf(this.root, side) || !last) {
-      // no sculpt (or not drawn yet): the palm on the rig's own hand
-      hand.getWorldScale(_s);
-      return out.copy(palmOf(this.id, side)).multiply(_s).negate();
-    }
-    // both in the character's own frame, so where it has moved to since is no matter
     this.root.updateWorldMatrix(true, false);
-    const at = this.root.worldToLocal(palmWorld(this.root, this.rig, this.id, side, out));
-    at.sub(last.at).applyQuaternion(_q.copy(last.turn).invert());
-    this.root.getWorldScale(_s);
-    return at.multiply(_s).negate();
-  }
-
-  /** after the solve: where the rig's hand was put, in the character's own frame */
-  note(side: HandSide): void {
-    const hand = side === 'L' ? this.rig.bones.handL : this.rig.bones.handR;
-    hand.updateWorldMatrix(true, false);
-    _rel.copy(this.root.matrixWorld).invert().multiply(hand.matrixWorld);
-    const last = this.solved.get(side) ?? { at: new THREE.Vector3(), turn: new THREE.Quaternion() };
-    _rel.decompose(last.at, last.turn, _s);
-    this.solved.set(side, last);
+    const at = this.root.worldToLocal(_g.copy(grip));
+    const palm = this.root.worldToLocal(palmWorld(this.root, this.rig, this.id, side, _p));
+    const wrist = this.root.worldToLocal(hand.getWorldPosition(_w));
+    let c = this.corr.get(side);
+    const last = this.aimed.get(side);
+    if (!palmFrameOf(this.root, side) || !c) {
+      // the palm from the wrist as it stands: exact on the rig's own hand, a start on a sculpt's
+      c = (c ?? new THREE.Vector3()).copy(wrist).sub(palm);
+      this.corr.set(side, c);
+    } else if (last) {
+      // the drawn palm missed the grip it was aimed at by this much: aim that much further
+      c.add(_e.copy(last).sub(palm));
+      if (c.length() > 0.4) c.setLength(0.4);
+    }
+    this.aimed.set(side, (last ?? new THREE.Vector3()).copy(at));
+    return this.root.localToWorld(out.copy(at).add(c));
   }
 }
-const _rel = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
-const _s = new THREE.Vector3();
+const _g = new THREE.Vector3();
+const _p = new THREE.Vector3();
+const _w = new THREE.Vector3();
+const _e = new THREE.Vector3();
 
 const reaches = new WeakMap<Rig, PalmReach>();
 /** the palm-reach for one character's rig, made once */

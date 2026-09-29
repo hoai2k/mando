@@ -264,7 +264,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     }
     const shift = gripHold?.shift ?? saddle?.shift;
     const reach = palmReach(rider.root, rig, riderId);
-    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3; palm: THREE.Vector3; extra: number }> = [];
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3 }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
       // mirrored across the rider's own midline, as the game does it
@@ -273,16 +273,13 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       // the elbow outboard of the bar and a little below it, in the rider's frame
       const hint = world(vr.seat.x + h.x + side * 0.55 * Math.cos(yaw), vr.seat.y + h.y - 0.42,
         vr.seat.z + h.z - side * 0.55 * Math.sin(yaw), new THREE.Vector3(), shift);
-      // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
-      const palm = reach.shift(side === 1 ? 'L' : 'R', new THREE.Vector3());
-      grips.push({ side: side === 1 ? 'L' : 'R', at, hint, palm, extra: palm.length() });
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      reach.aim(side === 1 ? 'L' : 'R', at, at);
+      grips.push({ side: side === 1 ? 'L' : 'R', at, hint });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    for (const { side, at, hint, palm } of grips) {
-      reachArm(rig, side, at, hint, palm);
-      reach.note(side);
-    }
+    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint);
   };
 
   // a living mount walks its own clips, blended by the speed it is given

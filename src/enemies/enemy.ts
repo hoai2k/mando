@@ -1734,21 +1734,19 @@ export class Enemy {
     const yaw = v.yaw + v.seatYaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
     const reach = palmReach(this.char.root, rig, this.kind);
-    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number; shift: THREE.Vector3; extra: number }> = [];
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
       const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
       if (!at) continue;
-      // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
-      const shift = reach.shift(side === 1 ? 'L' : 'R', _palms[side === 1 ? 0 : 1]);
-      grips.push({ side: side === 1 ? 'L' : 'R', at, out: side, shift, extra: shift.length() });
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      grips.push({ side: side === 1 ? 'L' : 'R', at: reach.aim(side === 1 ? 'L' : 'R', at, _palms[side === 1 ? 0 : 1]), out: side });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    for (const { side, at, out, shift } of grips) {
+    for (const { side, at, out } of grips) {
       _elbow.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      reachArm(rig, side, at, _elbow, shift);
-      reach.note(side);
+      reachArm(rig, side, at, _elbow);
     }
   }
 

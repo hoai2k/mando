@@ -852,22 +852,19 @@ export function buildNikto(authored = true): CharacterInstance {
     // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
     const reach = palmReach(rider.root, riderRig, 'nikto');
     const grips = ([1, -1] as const).map((side) => {
-      const shift = reach.shift(side === 1 ? 'L' : 'R', new THREE.Vector3());
-      return {
-        side: side === 1 ? 'L' as const : 'R' as const, out: side, shift, extra: shift.length(),
-        at: bike.localToWorld(new THREE.Vector3(side === 1 ? gx : 2 * mid - gx, gy, gz)),
-      };
+      const grip = bike.localToWorld(new THREE.Vector3(side === 1 ? gx : 2 * mid - gx, gy, gz));
+      // the wrist is aimed so the drawn palm lands on the grip
+      return { side: side === 1 ? 'L' as const : 'R' as const, out: side, at: reach.aim(side === 1 ? 'L' : 'R', grip, grip) };
     });
     // bend forward to bars past arm's reach, then take them
     leanToReach(riderRig, grips);
-    for (const { side, out, at, shift } of grips) {
+    for (const { side, out, at } of grips) {
       const hint = at.clone().addScaledVector(right, out * 0.5);
       hint.y -= 0.4;
-      reachArm(riderRig, side, at, hint, shift);
-      reach.note(side);
+      reachArm(riderRig, side, at, hint);
     }
-    // the palm is measured off the sculpt as drawn: solve again once it has been
-    settleHands = 3;
+    // the palm is steered off the sculpt as drawn: a few more solves, each after a drawing
+    settleHands = 12;
   };
   let settleHands = 0;
 

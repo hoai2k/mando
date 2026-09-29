@@ -3141,7 +3141,7 @@ export class Player {
     const yaw = v.yaw + v.seatYaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
     const reach = palmReach(this.char.root, rig, this.characterId);
-    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number; shift: THREE.Vector3; extra: number }> = [];
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
     for (const side of [-1, 1] as const) {
       // an animal is steered one-handed: reins in the off hand, gun in the
       // other, so the right arm is the combat pose's to keep
@@ -3149,19 +3149,17 @@ export class Player {
       if (gunUp && side === -1) continue;
       const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
       if (!at) continue;
-      // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
-      const shift = reach.shift(side === 1 ? 'L' : 'R', _palms[side === 1 ? 0 : 1]);
-      grips.push({ side: side === 1 ? 'L' : 'R', at, out: side, shift, extra: shift.length() });
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      grips.push({ side: side === 1 ? 'L' : 'R', at: reach.aim(side === 1 ? 'L' : 'R', at, _palms[side === 1 ? 0 : 1]), out: side });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    for (const { side, at, out, shift } of grips) {
+    for (const { side, at, out } of grips) {
       // the elbow rides outboard of the bar and a little below it, which is
       // where a rider's elbow goes and what stops the solve folding the arm
       // up over the shoulder
       _elbowHint.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      reachArm(rig, side, at, _elbowHint, shift);
-      reach.note(side);
+      reachArm(rig, side, at, _elbowHint);
     }
   }
 
