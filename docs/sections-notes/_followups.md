@@ -7,10 +7,9 @@ sections and the level-audit fixes. It is gathered from each team's notes in
 `docs/ASSETS_IMAGES.md` / `docs/ASSETS_MODELS.md`. Each row cites where it came
 from.
 
-**Where things stand.** All 18 sections, Guns of the Frigate included, are
-merged into the working branch (`claude/level-design-gameplay-sections-koa6ye`;
-`BUILT_SECTIONS` in `src/sections/ids.ts` lists all 18). Seventeen of them, with
-the framework, the kits, the audit fixes and the job page, are on `main`.
+**Where things stand.** All 18 sections, the framework, the nine kits, the
+audit fixes and the job page are on `main` (2026-09-29); `BUILT_SECTIONS` in
+`src/sections/ids.ts` lists all 18.
 No human has played any section yet: every one was tuned against autopilots
 that aim perfectly, usually with hostiles culled once a second.
 
