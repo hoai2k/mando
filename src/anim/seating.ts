@@ -124,13 +124,28 @@ const _basis = new THREE.Matrix4();
  *
  * Call it *after* the animator has written the frame's pose and the character's
  * world matrices are up to date; it overwrites the two bones it owns.
+ *
+ * `palmShift`, in the hand's own frame, moves the wrist off the target: a grip
+ * placed for one rider's hand, reached by another's (`handAnchors.ts`). The
+ * hand's turn depends on the reach, so it is solved, the shift turned the way
+ * the hand then lies, and solved again.
  */
 export function reachArm(rig: Rig, side: 'L' | 'R',
-  target: THREE.Vector3, elbowHint: THREE.Vector3): void {
+  target: THREE.Vector3, elbowHint: THREE.Vector3, palmShift?: THREE.Vector3): void {
   const b = rig.bones;
-  reachLimb(side === 'L' ? b.upperArmL : b.upperArmR, side === 'L' ? b.forearmL : b.forearmR,
-    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone(), -1);
+  const upper = side === 'L' ? b.upperArmL : b.upperArmR, fore = side === 'L' ? b.forearmL : b.forearmR;
+  const hand = side === 'L' ? b.handL : b.handR;
+  const bow = _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone();
+  reachLimb(upper, fore, hand, target, elbowHint, bow, -1);
+  if (!palmShift || palmShift.lengthSq() < 1e-10) return;
+  hand.updateWorldMatrix(true, false);
+  // the shift as the hand now lies, at its scale, in the world
+  _shift.copy(palmShift).applyMatrix3(_handM.setFromMatrix4(hand.matrixWorld));
+  reachLimb(upper, fore, hand, _shifted.copy(target).add(_shift), elbowHint, bow, -1);
 }
+const _shift = new THREE.Vector3();
+const _shifted = new THREE.Vector3();
+const _handM = new THREE.Matrix3();
 
 const _lean = new THREE.Quaternion();
 const _parentW = new THREE.Quaternion();

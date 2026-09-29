@@ -3,6 +3,7 @@ import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
 import { leanToReach, orientFoot, reachArm, reachLeg, spreadKnees, unlean } from '../anim/seating';
 import type { BoneName, Rig } from '../anim/skeleton';
+import { palmShift } from '../characters/handAnchors';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
@@ -54,6 +55,10 @@ export interface VehicleRig {
   readonly riderRig: Rig | null;
   /** keep the turn the gizmo just gave a joint as this ride's pose for it */
   takeJoint(name: string): void;
+  /** how far through its cycle the ride is held (0–1): the rider's clips and a mount's gait */
+  readonly phase: number;
+  /** hold the ride at this point of its cycle, for editing it still */
+  seek(fraction: number): void;
   /** where the clip alone puts the knees (m from the centre line), to start a spread from */
   kneeWidth(): number;
   /** where the clip alone puts the left sole, in the ride's frame, to start a footrest from */
@@ -109,6 +114,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
   const gripAt = new THREE.Vector3(NaN, NaN, NaN);
   let sculpt: THREE.Object3D | null = null;
   let time = 0;
+  let phase = 0;
   /** each joint this frame: as the clip and the hand-set pose had it, and as shown after the solves */
   const based = new Map<string, THREE.Quaternion>();
   const shown = new Map<string, THREE.Quaternion>();
@@ -124,6 +130,21 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     gripped: false,
     jointPose: new Map(Object.entries(data?.pose ?? {}).map(([name, d]) => [name, eulerQ(d)])),
     riderRig: rider.rig,
+    get phase() { return phase; },
+    seek: (fraction: number) => {
+      phase = THREE.MathUtils.clamp(fraction, 0, 0.999);
+      const anim = rider.animator;
+      const long = Math.max(anim?.clips[lower]?.duration ?? 0, anim?.clips[upper]?.duration ?? 0);
+      anim?.poseAt(phase * long);
+      if (mixer) {
+        for (const a of [idle, walk]) if (a) a.time = phase * a.getClip().duration;
+        mixer.update(0);
+        saddle?.update();
+        gripHold?.update();
+      }
+      place();
+      pose(0);
+    },
     takeJoint: (name: string) => {
       const bone = rider.rig?.bones[name as BoneName];
       const base = based.get(name), was = shown.get(name);
@@ -255,7 +276,8 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint);
+    // the rider's palm where Din's is on the grip it was placed with
+    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint, palmShift(riderId, side));
   };
 
   // a living mount walks its own clips, blended by the speed it is given

@@ -24,6 +24,7 @@ import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
 import { leanToReach, reachArm } from '../anim/seating';
+import { palmShift } from '../characters/handAnchors';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
 import { FistDriver } from '../characters/fists';
@@ -272,6 +273,7 @@ function rivalDef(kind: RivalKind, melee: boolean, hp = 180): Def {
 
 /** the two hands' grips, reused frame to frame */
 const _grips = [new THREE.Vector3(), new THREE.Vector3()];
+const _palm = new THREE.Vector3();
 const _elbow = new THREE.Vector3();
 /** how sharply a hostile at the pedals turns the nose onto its mark */
 const RIDE_STEER_GAIN = 1.6;
@@ -1733,7 +1735,8 @@ export class Enemy {
     leanToReach(rig, grips);
     for (const { side, at, out } of grips) {
       _elbow.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      reachArm(rig, side, at, _elbow);
+      // their palm where Din's is on the grip it was placed with
+      reachArm(rig, side, at, _elbow, palmShift(this.kind, side, _palm));
     }
   }
 

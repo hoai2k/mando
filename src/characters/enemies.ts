@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { leanToReach, reachArm, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import { palmShift } from './handAnchors';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
@@ -857,7 +858,8 @@ export function buildNikto(authored = true): CharacterInstance {
     for (const { side, out, at } of grips) {
       const hint = at.clone().addScaledVector(right, out * 0.5);
       hint.y -= 0.4;
-      reachArm(riderRig, side, at, hint);
+      // his own grip is where his wrist goes; the swoop's is Din's, so his palm is put where Din's would be
+      reachArm(riderRig, side, at, hint, ownGrip ? undefined : palmShift('nikto', side));
     }
   };
 
