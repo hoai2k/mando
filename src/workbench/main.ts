@@ -2016,14 +2016,13 @@ function frame(now: number): void {
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
   if (weaponAwaiting && editing && editKind === 'weapon'
     && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
-  // A joint turned in edit mode is turned on the rig; the authored skin follows
-  // it through `cosmetic`, so that runs while editing even with playback paused
-  // (a moment is edited paused), or the model would sit still under the gizmo.
-  // Edit mode holds the frame still — a handle is hard to catch on a moving
-  // body — so the time stands where the slider put it; the figures still
-  // refresh at zero time (a ride re-solves its rider onto moved anchors).
-  if ((!paused || editing) && !(editing && editKind === 'position'))
-    for (const f of figures) f.inst.cosmetic?.(editing ? 0 : animationDt, time);
+  // `cosmetic` carries the rig onto the authored skin, and settles a model that
+  // lands late (the Nikto is seated on his swoop by it), so it runs every frame
+  // — at zero time while paused or editing, when nothing is meant to move: a
+  // joint turned by the gizmo still shows on the skin, a ride still re-solves
+  // its rider onto moved anchors, and a model loaded while paused still lands.
+  if (!(editing && editKind === 'position'))
+    for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
   syncFists();
   editor.update();
