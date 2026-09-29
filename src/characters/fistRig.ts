@@ -467,6 +467,21 @@ function settle(users: THREE.SkinnedMesh[]): void {
 }
 
 /**
+ * Each hand's frame as the fist rig measured it (in the hand bone's own
+ * space): along the fingers, toward the palm, where the hand starts and how
+ * long it is — what a placed palm is read against (the workbench's Follow the
+ * palm). Empty for a sculpt with fingers of its own.
+ */
+export function fistFrames(model: string): Array<{
+  side: Side; hand: string; along: THREE.Vector3; palm: THREE.Vector3; from: number; length: number;
+}> {
+  return (fits.get(model) ?? []).flatMap((rig) => rig.hands.map((h) => ({
+    side: h.side, hand: rig.bones[h.hand].name, along: h.frame.along.clone(), palm: h.frame.palm.clone(),
+    from: h.frame.from, length: h.frame.length,
+  })));
+}
+
+/**
  * Move a sculpt's added finger joints to where its tune now puts them, and
  * weigh the skin to them again: on the file's template, whose bind matrices
  * and skin every copy shares, and on each of `roots`' own copies of the bones.
