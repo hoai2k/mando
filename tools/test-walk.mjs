@@ -1,6 +1,7 @@
 /**
- * The stick's throw is a gait: a light push walks, a harder one hurries
- * toward the run, the rim runs — and the feet play the matching cycle.
+ * The stick's throw is the speed: a light push walks, a harder one jogs, the
+ * rim runs — and the feet play the matching cycle, the walk shading into the
+ * run in step rather than cutting over at a threshold.
  *
  * Run:  node tools/test-walk.mjs
  */
@@ -38,14 +39,18 @@ const gait = (tilt, frames = 120) => page.evaluate(({ tilt, frames }) => {
 try {
   const creep = await gait(0.2);
   check('a creeping stick walks slowly', creep.lower === 'walkLower' && creep.speed > 0.25 && creep.speed < 0.8, creep);
-  const walk = await gait(0.6);
-  check('a light push walks at the walk’s own pace', walk.lower === 'walkLower' && walk.upper === 'walkUpper'
-    && walk.speed > 1.2 && walk.speed < 1.6, walk);
-  // a run builds up: a second's walk, a second's jog, then the run
-  const run = await gait(1, 180);
-  check('full tilt runs, once it has built up', run.lower === 'runLower' && run.speed > 7, run);
+  const walk = await gait(0.45);
+  check('a light push walks, at a brisk pace', walk.lower === 'walkLower' && walk.upper === 'walkUpper'
+    && walk.speed > 1.4 && walk.speed < 2.3, walk);
+  // every step of the throw a little faster than the last: no plateau, no jump
+  const ladder = [];
+  for (const tilt of [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) ladder.push((await gait(tilt)).speed);
+  check('the speed climbs smoothly with the stick', ladder.every((v, i) => i === 0 || (v > ladder[i - 1] && v - ladder[i - 1] < 1.6)),
+    ladder);
+  const run = await gait(1, 60);
+  check('full tilt runs, within a second', run.lower === 'runLower' && run.speed > 7, run);
   const back = await gait(0.4);
-  check('easing off from a run drops back to a walk', back.lower === 'walkLower' && back.speed < 1.3, back);
+  check('easing off from a run drops back to a walk', back.lower === 'walkLower' && back.speed < 1.6, back);
   const still = await gait(0, 90);
   check('let go and the fighter stands', still.lower !== 'walkLower' && still.lower !== 'runLower' && still.speed < 0.3, still);
   check('browser reported no errors', h.errors.length === 0, h.errors);

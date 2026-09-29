@@ -253,34 +253,21 @@ const BLOCK_SECONDS = 5;
 /** you can shuffle behind the shield, but not run */
 const BLOCK_SPEED = 3.2;
 /**
- * The left stick's travel, read as a gait: a light push walks, the last of
- * its throw runs. Up to `WALK_TILT` the stick sets a walking pace from a creep
- * to `WALK_SPEED` — the walk cycle's own pace, so it is never hurried; from
- * there to `RUN_TILT` the pace climbs to the run, which holds to the rim.
- * Keys are all-or-nothing, so the keyboard always runs.
+ * The left stick's travel is the speed, from a standstill at its centre to
+ * the run at `RUN_TILT` — on a curve (`STICK_CURVE`), so the first half of
+ * the throw is a walk with room to pick a pace in, and the last of it climbs
+ * quickly to the run. Nothing holds a run back: pushed all the way, a
+ * fighter runs from the first step. Keys are all-or-nothing, so the keyboard
+ * always runs.
  */
-const WALK_TILT = 0.6;
 const RUN_TILT = 0.9;
-const WALK_SPEED = 1.4;
-/**
- * A run builds up. Pushing the stick for a run starts on a walk, a second
- * later breaks into a jog, and a second after that runs — at `RUN_PACE` of
- * the fighter's listed run speed, which is what they used to go at from the
- * first frame. LB is the hurry: its dodge and sprint are immediate, as they
- * always were, and coming off a sprint drops to the run rather than back to a
- * walk. Stopping, firing, swinging or raising the shield starts the build-up
- * again; a jump carries it.
- */
-const GAIT_WALK_FOR = 1;
-const GAIT_JOG_FOR = 1;
-/** the jog's pace, as a share of the run's */
-const GAIT_JOG_SHARE = 0.55;
+const STICK_CURVE = 2;
 /** the run, as a share of a fighter's listed run speed (see `PlayerProfile.runSpeed`) */
 const RUN_PACE = 0.8;
 
 /**
  * The pace a fighter keeps while the gun is going: a purposeful walk, on the
- * walk cycle (under `WALK_GAIT_MAX`), never a run. Running and firing at once
+ * walk cycle (under `WALK_BLEND_FROM`), never a run. Running and firing at once
  * read as a body gliding under a turret; a hunter who walks their fire in reads
  * as one aiming it. Ground only, and not from a saddle — a ride's own update
  * owns the body there, and firing from a speeder at full tilt is the point of it.
@@ -299,17 +286,54 @@ const MELEE_MOVE_SPEED = 0.6;
 const WALK_RATE_FLOOR = 0.12;
 /** below this the body stands; above it the feet step (m/s) */
 const STEP_SPEED = 0.25;
-/** ground speed the walk cycle plays up to, and the run takes over from (with a margin each way) */
-const WALK_GAIT_MAX = 2.1;
-const WALK_GAIT_MARGIN = 0.25;
-function stickSpeed(tilt: number, top: number): number {
-  // under the walk (a planted swing), the stick scales what is left; at the
-  // walk itself (the first second of a build-up) it reads as it always does
-  if (top < WALK_SPEED) return Math.min(tilt, 1) * top;
-  if (tilt <= WALK_TILT) return (tilt / WALK_TILT) * WALK_SPEED;
-  if (tilt >= RUN_TILT) return top;
-  return WALK_SPEED + (top - WALK_SPEED) * ((tilt - WALK_TILT) / (RUN_TILT - WALK_TILT));
+/**
+ * The walk shades into the run across a band of ground speed: the two cycles
+ * play at once, in step, weighted by where in the band the body is
+ * (`Animator.playBlend`) — a walk under `WALK_BLEND_FROM` (m/s), the run from
+ * `RUN_BLEND_SHARE` of the fighter's own run up, and a jog made of both
+ * between. Each point of it plants its feet: the pair's cycle is timed for
+ * the stride their blend covers. The band runs nearly to the full run so the
+ * jog's cadence holds steady as it lengthens its stride, rather than dropping
+ * into a long, slow run stride at half speed.
+ */
+const WALK_BLEND_FROM = 2.2;
+const RUN_BLEND_SHARE = 0.95;
+/**
+ * How fast the blend can move toward the run (and back), per second. Off a
+ * standstill the speed is most of the way to a run within a few frames, and
+ * a blend that followed it swung the run's stride in over the walk's at
+ * whatever point of the cycle the feet were — at the wrong one, it dragged
+ * the planted foot back a quarter of a metre in a frame. Eased in, a start
+ * is a few quick short steps opening out into the run's long ones, which is
+ * how a body accelerates anyway.
+ */
+const GAIT_BLEND_RISE = 2.5;
+const GAIT_BLEND_FALL = 4;
+/**
+ * Where a gait begins from a standstill, as a share of its cycle: mid-stride,
+ * the left foot planted under the body and the right passing it. Every cycle
+ * begins at heel strike, legs split, and a start from there had the back foot
+ * slide backward into place under a body that had not moved yet. From here
+ * the planted foot stays where it stood while the body goes past it, and the
+ * other pushes off from beside it.
+ */
+const PUSH_OFF_PHASE: Record<string, number> = { walkLower: 0.27 / 1.1, runLower: 0.105 / 0.6, sprintLower: 0.1 / 0.6 };
+/** the gaits a stride can carry over between, keeping its place in the cycle */
+const STRIDE_CYCLES = new Set(['walkLower', 'runLower', 'sprintLower']);
+/**
+ * The push a step off from a standstill starts with, as a share of the speed
+ * it is heading for: the body is thrown forward from the first frame rather
+ * than easing out of the stance, which is what a first step is.
+ */
+const START_PUSH = 0.4;
+/** the stick's pace (m/s) at a tilt of `tilt`, for a fighter whose run is `run` */
+function stickPace(tilt: number, run: number): number {
+  return run * Math.min(1, tilt / RUN_TILT) ** STICK_CURVE;
 }
+const smoothstep = (a: number, b: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 /** extra downward pull while blocking in the air, m/s² */
 const BLOCK_SINK = 16;
 /**
@@ -594,10 +618,13 @@ export class Player {
   sprinting = false;
   /** counts down from the last shot: while it runs the feet keep to a walk */
   private shotWalkT = 0;
-  /** how long the stick has been asking for a run, for the walk-jog-run build-up (s) */
-  private gaitT = 0;
-  /** on the walk cycle rather than the run: held across a margin, so the gait does not flicker at the seam */
-  private walking = false;
+  /**
+   * Where the forward gait sits between the walk (0) and the run (1), eased
+   * toward the speed's share (GAIT_BLEND_RISE); 0 while standing, so a start
+   * opens out from the walk, and -1 where the next forward stride should take
+   * the speed's share at once (off a landing, out of a side-step).
+   */
+  private gaitBlend = 0;
   /** shield up: drains the same gauge sprinting does */
   blocking = false;
   /** scratch for the shield collider handed to the projectile system */
@@ -1985,27 +2012,12 @@ export class Player {
     this.snareTimer -= dt;
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
-    // the build-up: see GAIT_WALK_FOR. It advances while the feet are on the
-    // ground and the stick asks for more than a walk; a jump carries it.
     const run = this.profile.runSpeed * RUN_PACE;
-    if (this.sprinting || this.dashTimer > 0) {
-      this.gaitT = GAIT_WALK_FOR + GAIT_JOG_FOR;          // off a sprint or a dodge: already running
-    } else if (!moving || firing || swinging || this.blocking || snared) {
-      this.gaitT = 0;
-    } else if (this.grounded && wishLen > WALK_TILT) {
-      this.gaitT = Math.min(this.gaitT + dt, GAIT_WALK_FOR + GAIT_JOG_FOR);
-    }
-    const gaitPace = this.gaitT < GAIT_WALK_FOR ? WALK_SPEED
-      : this.gaitT < GAIT_WALK_FOR + GAIT_JOG_FOR ? Math.max(WALK_SPEED, run * GAIT_JOG_SHARE)
-      : run;
-    // The build-up is about legs. Flying under power (jetpack, super jump)
-    // keeps the full listed speed; a plain jump steers at the run, so a
-    // standing hop onto a ledge still gets there — steering in the air is
-    // slow to bite (AIR_CONTROL), and the build-up only advances underfoot,
-    // so a hop out of a walk lands back on a walk rather than skipping ahead.
+    // Flying under power (jetpack, super jump) keeps the full listed speed;
+    // on foot, and in a plain jump, the top is the run.
     const flying = !this.grounded && (this.thrusting > 0 || this.superRising || this.superGliding);
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed
-      : flying ? this.profile.runSpeed : !this.grounded ? run : gaitPace;
+      : flying ? this.profile.runSpeed : run;
     // K7 flight: a section's boosters set the airborne top speed
     if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;
@@ -2020,8 +2032,10 @@ export class Player {
       if (firing) topSpeed = Math.min(topSpeed, SHOOT_WALK_SPEED);
       if (swinging) topSpeed = Math.min(topSpeed, MELEE_MOVE_SPEED);
     }
-    // the walk is a thing feet do: in the air the stick steers in proportion
-    const speedTarget = this.sprinting || !this.grounded ? Math.min(wishLen, 1) * topSpeed : stickSpeed(wishLen, topSpeed);
+    // on the ground the stick sets the pace (stickPace) and everything above
+    // trims it; in the air, and in a sprint, it steers in proportion
+    const speedTarget = this.sprinting || !this.grounded ? Math.min(wishLen, 1) * topSpeed
+      : Math.min(topSpeed, stickPace(wishLen, run));
 
     if (this.dashTimer > 0) {
       this.dashTimer -= dt;
@@ -2046,6 +2060,13 @@ export class Player {
       // a swing plants the feet hard: a skid under a punch is the slide it is
       // there to stop (MELEE_MOVE_SPEED); ice still gets its drift
       const lambda = this.grounded ? (swinging ? 26 : 13) * traction : airLambda;
+      // the first step off a standstill is a push, not an ease (START_PUSH)
+      if (this.grounded && moving && !swinging && speedTarget > STEP_SPEED * 2
+        && Math.hypot(this.velocity.x, this.velocity.z) < STEP_SPEED) {
+        const push = speedTarget * START_PUSH * traction;
+        this.velocity.x = nx * push;
+        this.velocity.z = nz * push;
+      }
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
@@ -2533,6 +2554,8 @@ export class Player {
     if (this.landArms && gunUp) { anim.release('upper'); this.landArms = false; }
     // K7's slide holds a crouched surf while it carries the body (§2.3)
     const surf = this.grounded && !!this.sectionMove?.crouch?.(this);
+    // off the ground the next stride takes up the speed it lands at
+    if (!this.grounded) this.gaitBlend = -1;
     if (this.autoCrouching || surf) {
       // the surf is the crouched stride held still: knees bent, one foot leading
       if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
@@ -2576,21 +2599,49 @@ export class Player {
       let lowerClip: string = travel.clip;
       // a sprint is its own longer-reaching cycle, not the run spun faster
       if (lowerClip === 'runLower' && this.sprinting) lowerClip = 'sprintLower';
-      // and a walk its own cycle, not the run slowed down: the stick pushed
-      // lightly sets a walking pace (`stickSpeed`), and under it the feet walk
-      this.walking = lowerClip === 'runLower'
-        && speed2 < WALK_GAIT_MAX + (this.walking ? WALK_GAIT_MARGIN : -WALK_GAIT_MARGIN);
-      if (this.walking) lowerClip = 'walkLower';
-      // the gait runs at whatever rate plants the feet at our actual ground
-      // speed, so the stride pushes off instead of skating; the back-pedal
-      // is its cycle played backward, a touch slower
-      const rate = travel.dir * anim.gaitRate(lowerClip, speed2, this.char.baseScale, this.walking ? WALK_RATE_FLOOR : undefined)
-        * (travel.dir < 0 ? 0.9 : 1);
-      anim.play('lower', lowerClip, 0.15, rate);
+      // Forward, the walk and the run are one gait blended by speed (see
+      // WALK_BLEND_FROM), timed so the feet plant at our actual ground speed:
+      // the stride pushes off instead of skating. The rest — the sprint, the
+      // side-steps, the back-pedal (its cycle played backward, a touch slower)
+      // — are one clip each, at the rate that plants theirs.
+      const prev = anim.playing('lower');
+      const carried = prev !== null && STRIDE_CYCLES.has(prev);
+      const scale = this.char.baseScale;
+      let rate: number;
+      // an upper cycle outside the blend (a saber stance, a gun raised) keeps the legs' time
+      let upperRate: number;
+      let upperClip: string | null = null;
+      if (lowerClip === 'runLower') {
+        const runPace = this.profile.runSpeed * RUN_PACE;
+        const want = smoothstep(WALK_BLEND_FROM, Math.max(WALK_BLEND_FROM + 1, runPace * RUN_BLEND_SHARE), speed2);
+        const was = this.gaitBlend;
+        const t = this.gaitBlend = was < 0 ? want
+          : want > was ? Math.min(want, was + GAIT_BLEND_RISE * dt) : Math.max(want, was - GAIT_BLEND_FALL * dt);
+        // each clip's own planted period at this speed, blended as the poses are
+        const stride = anim.cycleLength('walkLower', scale) * (1 - t) + anim.cycleLength('runLower', scale) * t;
+        const walkLongest = anim.clips.walkLower.duration / WALK_RATE_FLOOR;
+        const period = Math.min(walkLongest, stride / Math.max(speed2, 1e-3));
+        const phase = carried ? anim.clipProgress('lower') : PUSH_OFF_PHASE[t < 0.5 ? 'walkLower' : 'runLower'];
+        anim.playBlend('lower', 'walkLower', 'runLower', t, period, carried ? 0.15 : 0.08, phase);
+        rate = anim.clips[t < 0.5 ? 'walkLower' : 'runLower'].duration / period;
+        upperRate = anim.clips.runLower.duration / period;
+        if (!this.sabersDrawn && this.meleeTimer <= 0 && !gunUp) {
+          anim.playBlend('upper', 'walkUpper', 'runUpper', t, period, 0.15, anim.clipProgress('lower'));
+          upperClip = anim.playing('upper');
+        }
+        lowerClip = anim.playing('lower') ?? lowerClip;
+      } else {
+        this.gaitBlend = -1;
+        rate = travel.dir * anim.gaitRate(lowerClip, speed2, scale) * (travel.dir < 0 ? 0.9 : 1);
+        const phase = STRIDE_CYCLES.has(lowerClip) ? (carried ? anim.clipProgress('lower') : PUSH_OFF_PHASE[lowerClip]) : undefined;
+        anim.play('lower', lowerClip, 0.15, rate, phase);
+        upperRate = Math.abs(rate);
+      }
       this.bladeStance();   // keep the draw tracked on the move, so a redraw rolls afresh
-      const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper`
-        : this.walking ? 'walkUpper' : 'runUpper';
-      if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, Math.abs(rate));
+      if (this.meleeTimer <= 0 && !upperClip) {
+        const runUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}RunUpper` : 'runUpper';
+        anim.play('upper', gunUp ? this.gunAimClip : runUpper, 0.15, upperRate);
+      }
       if (this.wading) {
         if (Math.random() < speed2 * dt * 0.9) game.particles.splash(this.position.clone().setY(game.board.waterY ?? this.position.y), 3);
       } else if (Math.random() < speed2 * dt * 0.7) game.particles.runDust(this.position);
@@ -2602,6 +2653,7 @@ export class Player {
         else audio.footstep(game.board.footstep);
       }
     } else {
+      this.gaitBlend = 0;
       const stance = gunUp ? null : this.bladeStance();
       anim.play('lower', stance?.lower ?? 'idleLower');
       const idleUpper = this.sabersDrawn ? `${saberClipsFor(this.characterId).stance}IdleUpper` : 'idleUpper';
