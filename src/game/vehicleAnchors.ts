@@ -13,8 +13,9 @@ import type { VehicleSpec } from '../world/board';
  *  - `seat`: the point on the saddle, cushion or deck the rider sits (or
  *    stands) on. When it is set it wins over the height measured off the
  *    sculpt (`seatSurface`), which can only guess at where a body belongs.
- *  - `grip`: where the left hand — the one that never holds the gun — takes
- *    the bars, the yoke or the reins. A machine mirrors it across the rider's
+ *  - `grip`: where the left palm — the hand that never holds the gun — takes
+ *    the bars, the yoke or the reins (each rider's own palm, as its sculpt
+ *    draws it: `handAnchors.ts`). A machine mirrors it across the rider's
  *    own midline for the right hand (`handFromSeat`), side by side on a grip
  *    placed on it; a mount leaves the right hand to the gun. A rider leans
  *    forward to a grip past arm's reach (`leanToReach`).
@@ -95,7 +96,7 @@ export const ANKLE_OVER_SOLE = 0.08;
  * its rider in one): this is where the rider's root sits in the bike's space,
  * position in metres and rotation in degrees, when it has been placed by hand,
  * and his knees' spread (as `VehicleAnchor.legSpread`; the swoop's when unset).
- * `grip`, optional, is where his left hand takes the bars, in the bike's space
+ * `grip`, optional, is where his left palm takes the bars, in the bike's space
  * (the right mirrored across him); unset, it is the swoop's own grip.
  */
 export interface NiktoRiderAnchor { position: V3; rotation: V3; legSpread?: number; grip?: V3 }

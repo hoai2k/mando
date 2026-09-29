@@ -125,10 +125,10 @@ const _basis = new THREE.Matrix4();
  * Call it *after* the animator has written the frame's pose and the character's
  * world matrices are up to date; it overwrites the two bones it owns.
  *
- * `palmShift`, in the hand's own frame, moves the wrist off the target: a grip
- * placed for one rider's hand, reached by another's (`handAnchors.ts`). The
- * hand's turn depends on the reach, so it is solved, the shift turned the way
- * the hand then lies, and solved again.
+ * `palmShift`, in metres along the hand's own axes, moves the wrist off the
+ * target: minus where the palm is from the wrist, so the palm lands on it
+ * (`handAnchors.ts`). The hand's turn depends on the reach, so it is solved,
+ * the shift turned the way the hand then lies, and solved again.
  */
 export function reachArm(rig: Rig, side: 'L' | 'R',
   target: THREE.Vector3, elbowHint: THREE.Vector3, palmShift?: THREE.Vector3): void {
@@ -138,14 +138,13 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   const bow = _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone();
   reachLimb(upper, fore, hand, target, elbowHint, bow, -1);
   if (!palmShift || palmShift.lengthSq() < 1e-10) return;
-  hand.updateWorldMatrix(true, false);
-  // the shift as the hand now lies, at its scale, in the world
-  _shift.copy(palmShift).applyMatrix3(_handM.setFromMatrix4(hand.matrixWorld));
+  // the shift as the hand now lies
+  _shift.copy(palmShift).applyQuaternion(hand.getWorldQuaternion(_handQ));
   reachLimb(upper, fore, hand, _shifted.copy(target).add(_shift), elbowHint, bow, -1);
 }
 const _shift = new THREE.Vector3();
 const _shifted = new THREE.Vector3();
-const _handM = new THREE.Matrix3();
+const _handQ = new THREE.Quaternion();
 
 const _lean = new THREE.Quaternion();
 const _parentW = new THREE.Quaternion();
@@ -175,20 +174,21 @@ const MAX_LEAN = THREE.MathUtils.degToRad(70);
  * changes nothing. Call it after the clip has written the pose and before
  * `reachArm`, with the world matrices current; returns the lean, radians.
  */
-export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3 }>): number {
+export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; extra?: number }>): number {
   const b = rig.bones;
   const turned = leanBones(rig);
   unlean(rig);
   if (!grips.length || !b.hips.parent) return 0;
   // each arm's full reach, shoulder to wrist, in world metres
-  const arms = grips.map(({ side, at }) => {
+  // an arm reaching with its palm (`palmShift`) reaches that much further
+  const arms = grips.map(({ side, at, extra = 0 }) => {
     const upper = side === 'L' ? b.upperArmL : b.upperArmR;
     const fore = side === 'L' ? b.forearmL : b.forearmR;
     const hand = side === 'L' ? b.handL : b.handR;
     upper.getWorldPosition(_shoulder);
     fore.getWorldPosition(_joint);
     const length = _shoulder.distanceTo(_joint) + _joint.distanceTo(hand.getWorldPosition(_mid));
-    return { upper, at, length };
+    return { upper, at, length: length + extra };
   });
   const short = (): number => {
     b.hips.updateMatrixWorld(true);

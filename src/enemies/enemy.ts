@@ -24,7 +24,7 @@ import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
 import { leanToReach, reachArm } from '../anim/seating';
-import { palmShift } from '../characters/handAnchors';
+import { palmReach } from '../characters/handAnchors';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
 import { FistDriver } from '../characters/fists';
@@ -273,7 +273,7 @@ function rivalDef(kind: RivalKind, melee: boolean, hp = 180): Def {
 
 /** the two hands' grips, reused frame to frame */
 const _grips = [new THREE.Vector3(), new THREE.Vector3()];
-const _palm = new THREE.Vector3();
+const _palms = [new THREE.Vector3(), new THREE.Vector3()];
 const _elbow = new THREE.Vector3();
 /** how sharply a hostile at the pedals turns the nose onto its mark */
 const RIDE_STEER_GAIN = 1.6;
@@ -1733,18 +1733,22 @@ export class Enemy {
     this.char.root.updateMatrixWorld(true);
     const yaw = v.yaw + v.seatYaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
-    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
+    const reach = palmReach(this.char.root, rig, this.kind);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number; shift: THREE.Vector3; extra: number }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
       const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
-      if (at) grips.push({ side: side === 1 ? 'L' : 'R', at, out: side });
+      if (!at) continue;
+      // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
+      const shift = reach.shift(side === 1 ? 'L' : 'R', _palms[side === 1 ? 0 : 1]);
+      grips.push({ side: side === 1 ? 'L' : 'R', at, out: side, shift, extra: shift.length() });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    for (const { side, at, out } of grips) {
+    for (const { side, at, out, shift } of grips) {
       _elbow.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      // their palm where Din's is on the grip it was placed with
-      reachArm(rig, side, at, _elbow, palmShift(this.kind, side, _palm));
+      reachArm(rig, side, at, _elbow, shift);
+      reach.note(side);
     }
   }
 

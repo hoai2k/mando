@@ -729,7 +729,7 @@ function refreshWeaponPose(): void {
   vehicleEditor.setTarget(VehicleAnchorEditor.handles(figure.inst.root) ? figure.inst.root : null);
   vehicleEditor.setEnabled(true);
   // a character's own palms: not a ride's, whose rider is Din as he is
-  palmEditor.setTarget(vehicleEditor.kind ? null : subject.id, figure.inst.rig);
+  palmEditor.setTarget(vehicleEditor.kind ? null : subject.id, figure.inst.rig, figure.inst.root);
   palmEditor.setEnabled(true);
 }
 
@@ -1648,15 +1648,14 @@ function renderWeaponPanel(host: HTMLDivElement): void {
 }
 
 /**
- * Each character's palms (`handAnchors.ts`): the points its hands are put to
- * a ride's grips by. Din's come first — the rides were placed with him, so
- * an edit of his leaves him where he is and moves everyone else against him.
+ * Each character's palms (`handAnchors.ts`), on the sculpt's own hands: the
+ * points its hands are put to a ride's grips by.
  */
 function palmPanelHtml(): string {
   if (!palmEditor.enabled) return '';
   const side = palmEditor.selected, at = palmEditor.current();
   const edited = editedPalms();
-  return `<div class="field"><label>Hand anchors — each palm, in its hand's frame</label><div class="seg">
+  return `<div class="field"><label>Hand anchors — each palm, on the model's hand</label><div class="seg">
         <button data-palm="L" aria-pressed="${side === 'L'}">Left hand anchor</button>
         <button data-palm="R" aria-pressed="${side === 'R'}">Right hand anchor</button>
       </div></div>
@@ -1665,8 +1664,8 @@ function palmPanelHtml(): string {
       <div class="row"><button id="palmReset">Reset to deployed</button></div>` : ''}
       <div class="row"><button id="palmExport" class="primary" ${Object.keys(edited).length ? '' : 'disabled'}>Export hand anchors JSON</button></div>
       <p class="hint">Drag the <b style="color:#6bd0ff">left</b> and <b style="color:#ffa04a">right</b> dots onto the middle of each palm.
-        They start where the rig holds a weapon. Rides were set up with Din, so place his first: his hands stay put on
-        every ride, and anyone else's palm is put where his would be.</p>
+        They ride on the model's own hand, so a palm placed in one pose holds in every pose; they start where the rig
+        holds a weapon. A ride's grip is where the palm goes, so every rider's palm lands on it.</p>
       ${Object.keys(edited).length ? `<div class="ledger">${Object.keys(edited).map((id) => `<div class="edit"><span>${id}</span><code>palms</code></div>`).join('')}</div>` : ''}`;
 }
 function bindPalmPanel(host: HTMLElement): void {

@@ -17,7 +17,8 @@ const open = (character, pose) => h.workbench(character, pose, 'edit=models&mode
 /** option values of a slot's picker, without the empty "Default" entry; null when there is no picker */
 const offered = (slot) => page.evaluate((s) => {
   const select = document.querySelector(`#weaponChoice-${s}`);
-  return select ? [...select.options].map((o) => o.value).filter(Boolean) : null;
+  // the weapons on offer: not the default (''), nor None (an empty hand, offered in every slot)
+  return select ? [...select.options].map((o) => o.value).filter((v) => v && v !== 'none') : null;
 }, slot);
 const allLabels = () => page.evaluate(() => [...document.querySelectorAll('[data-weapon-slot] option')]
   .map((o) => `${o.value} ${o.textContent}`));

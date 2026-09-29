@@ -1,36 +1,37 @@
 import * as THREE from 'three';
+import type { Rig } from '../anim/skeleton';
 import data from './data/handAnchors.json';
 
 /**
- * Where each character's palm is, in its own hand: a point in the canonical
- * hand bone's frame (`handL`/`handR` on the rig, the wrist at the origin, the
- * hand hanging down its -Y), placed by eye in the workbench (Weapon grips →
- * Hand anchors) on the model as it is drawn, and exported to
- * `data/handAnchors.json`. Left out, a hand's palm is where the rig holds a
- * weapon (`weaponL`/`weaponR`).
+ * Where each character's palm is, on its own hand: placed by eye in the
+ * workbench (Weapon grips → Hand anchors) and exported to
+ * `data/handAnchors.json`.
  *
- * The rides' grips were placed with Din in the saddle, so a grip anchor is
- * where *his* wrist goes. Anyone else is put so that their palm lands where
- * his does: their wrist goes to the grip shifted by the difference between
- * his palm and theirs, in the hand's own frame (`palmShift`). Din himself is
- * unmoved by any edit of his palms, so the grips stay where they were tuned —
- * which is why he is set up first, and everyone else against him.
+ * A palm is a point in metres from the sculpt's own wrist, along the axes our
+ * rig's hand has at rest (the fingers down its -Y), carried by the sculpt's
+ * hand bone (`palmFrameL`/`palmFrameR`, beside the weapon mounts in
+ * `authored.ts`). It rides with the hand as it is drawn, so one placement
+ * holds in every pose. (It used to live on the rig's own hand, which the
+ * sculpt's is only turned to match: the sculpt's hand sits a different
+ * distance from it in each pose, 10 cm between two for Cad Bane.) A build with
+ * no sculpt keeps it on the rig's hand. Left out, it is the rig's weapon
+ * point.
+ *
+ * A ride's grip is where the palm goes (`PalmReach`).
  */
 
 export type HandSide = 'L' | 'R';
 type V3 = [number, number, number];
 interface HandPair { left?: V3; right?: V3 }
 
-/** the rig's weapon point: where a hand holds a grip, until a palm is placed */
+/** the rig's weapon point, from the wrist: a palm until one is placed, and the palm frames' origin */
 export const DEFAULT_PALM: Readonly<V3> = [0, -0.05, 0.02];
-/** whose hands the rides' grips were placed with */
-export const EXAMPLE_RIDER = 'din';
 
 const deployed = data as unknown as Record<string, HandPair>;
 const workbench = new Map<string, HandPair>();
 const key = (side: HandSide): keyof HandPair => (side === 'L' ? 'left' : 'right');
 
-/** A character's palm, in its hand bone's frame: the workbench's, the file's, or the rig's weapon point. */
+/** A character's palm, from its wrist: the workbench's, the file's, or the rig's weapon point. */
 export function palmOf(id: string, side: HandSide): THREE.Vector3 {
   const v = workbench.get(id)?.[key(side)] ?? deployed[id]?.[key(side)] ?? DEFAULT_PALM;
   return new THREE.Vector3(...v);
@@ -72,11 +73,69 @@ export function handAnchorsJson(): string {
   return `${JSON.stringify({ ...deployed, ...editedPalms() }, null, 2)}\n`;
 }
 
+/** the sculpt's palm frame on one hand, or null for a build with no sculpt (yet) */
+export function palmFrameOf(root: THREE.Object3D, side: HandSide): THREE.Object3D | null {
+  return root.getObjectByName(`palmFrame${side}`) ?? null;
+}
+
+/** Where the palm is in the world: on the sculpt's hand, or the rig's for a build without one. */
+export function palmWorld(root: THREE.Object3D, rig: Rig, id: string, side: HandSide, out: THREE.Vector3): THREE.Vector3 {
+  const frame = palmFrameOf(root, side);
+  const q = palmOf(id, side);
+  if (!frame) return (side === 'L' ? rig.bones.handL : rig.bones.handR).localToWorld(out.copy(q));
+  frame.updateWorldMatrix(true, false);
+  return frame.localToWorld(out.copy(q).sub(_def.set(...DEFAULT_PALM)));
+}
+const _def = new THREE.Vector3();
+
 /**
- * How far `id`'s wrist goes from a grip placed for Din's, in the hand's own
- * frame: his palm less theirs, so their palm lands where his would. Zero for
- * him, and for anyone whose palms are where his are.
+ * Puts a rider's palm on a grip. The arm is solved on our rig, and the sculpt
+ * is only turned to match it, so where its palm lands is known once it has
+ * been drawn: this measures that — the palm as last drawn, in the rig's hand
+ * as it was solved — and hands it to the next solve (`reachArm`'s palmShift,
+ * negated), which reaches with that point instead of the wrist. A riding pose
+ * barely changes frame to frame, so the palm settles on the grip at once.
  */
-export function palmShift(id: string, side: HandSide, out = new THREE.Vector3()): THREE.Vector3 {
-  return out.copy(palmOf(EXAMPLE_RIDER, side)).sub(palmOf(id, side));
+export class PalmReach {
+  /** where the rig's hand was put by the last solve, in the character's own frame */
+  private solved = new Map<HandSide, { at: THREE.Vector3; turn: THREE.Quaternion }>();
+  constructor(private root: THREE.Object3D, private rig: Rig, private id: string) {}
+
+  /** `reachArm`'s palmShift: minus the palm from the rig's wrist, in metres along the hand's axes */
+  shift(side: HandSide, out: THREE.Vector3): THREE.Vector3 {
+    const hand = side === 'L' ? this.rig.bones.handL : this.rig.bones.handR;
+    const last = this.solved.get(side);
+    if (!palmFrameOf(this.root, side) || !last) {
+      // no sculpt (or not drawn yet): the palm on the rig's own hand
+      hand.getWorldScale(_s);
+      return out.copy(palmOf(this.id, side)).multiply(_s).negate();
+    }
+    // both in the character's own frame, so where it has moved to since is no matter
+    this.root.updateWorldMatrix(true, false);
+    const at = this.root.worldToLocal(palmWorld(this.root, this.rig, this.id, side, out));
+    at.sub(last.at).applyQuaternion(_q.copy(last.turn).invert());
+    this.root.getWorldScale(_s);
+    return at.multiply(_s).negate();
+  }
+
+  /** after the solve: where the rig's hand was put, in the character's own frame */
+  note(side: HandSide): void {
+    const hand = side === 'L' ? this.rig.bones.handL : this.rig.bones.handR;
+    hand.updateWorldMatrix(true, false);
+    _rel.copy(this.root.matrixWorld).invert().multiply(hand.matrixWorld);
+    const last = this.solved.get(side) ?? { at: new THREE.Vector3(), turn: new THREE.Quaternion() };
+    _rel.decompose(last.at, last.turn, _s);
+    this.solved.set(side, last);
+  }
+}
+const _rel = new THREE.Matrix4();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3();
+
+const reaches = new WeakMap<Rig, PalmReach>();
+/** the palm-reach for one character's rig, made once */
+export function palmReach(root: THREE.Object3D, rig: Rig, id: string): PalmReach {
+  let r = reaches.get(rig);
+  if (!r) { r = new PalmReach(root, rig, id); reaches.set(rig, r); }
+  return r;
 }

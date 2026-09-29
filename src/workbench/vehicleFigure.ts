@@ -3,7 +3,7 @@ import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
 import { leanToReach, orientFoot, reachArm, reachLeg, spreadKnees, unlean } from '../anim/seating';
 import type { BoneName, Rig } from '../anim/skeleton';
-import { palmShift } from '../characters/handAnchors';
+import { palmReach } from '../characters/handAnchors';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
@@ -263,7 +263,8 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       gripAt.copy(own);
     }
     const shift = gripHold?.shift ?? saddle?.shift;
-    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3 }> = [];
+    const reach = palmReach(rider.root, rig, riderId);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3; palm: THREE.Vector3; extra: number }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
       // mirrored across the rider's own midline, as the game does it
@@ -272,12 +273,16 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       // the elbow outboard of the bar and a little below it, in the rider's frame
       const hint = world(vr.seat.x + h.x + side * 0.55 * Math.cos(yaw), vr.seat.y + h.y - 0.42,
         vr.seat.z + h.z - side * 0.55 * Math.sin(yaw), new THREE.Vector3(), shift);
-      grips.push({ side: side === 1 ? 'L' : 'R', at, hint });
+      // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
+      const palm = reach.shift(side === 1 ? 'L' : 'R', new THREE.Vector3());
+      grips.push({ side: side === 1 ? 'L' : 'R', at, hint, palm, extra: palm.length() });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    // the rider's palm where Din's is on the grip it was placed with
-    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint, palmShift(riderId, side));
+    for (const { side, at, hint, palm } of grips) {
+      reachArm(rig, side, at, hint, palm);
+      reach.note(side);
+    }
   };
 
   // a living mount walks its own clips, blended by the speed it is given

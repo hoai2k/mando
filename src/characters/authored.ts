@@ -833,6 +833,11 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
   const weaponMount = handMount('handR', 'weaponMount');
   const weaponMountL = handMount('handL', 'weaponMountL');
+  // ...and the same frame again for the palm (`handAnchors.ts`), which the
+  // weapon mounts cannot be: they are hidden with the weapons in a pose that
+  // holds none, and the palm is wanted in every pose
+  handMount('handR', 'palmFrameR');
+  handMount('handL', 'palmFrameL');
   const hip = nodes.find((n) => n.canonical === 'hips');
   const holsterMount = hip ? new THREE.Group() : null;
   if (hip && holsterMount) {

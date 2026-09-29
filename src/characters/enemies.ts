@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { leanToReach, reachArm, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
-import { palmShift } from './handAnchors';
+import { palmReach } from './handAnchors';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
@@ -849,19 +849,27 @@ export function buildNikto(authored = true): CharacterInstance {
     const [gx, gy, gz] = leftGrip(saddleY);
     // the right hand mirrors the left across him (his own grip) or the saddle (the swoop's)
     const mid = ownGrip ? rider.root.position.x : swoop ? swoop.seat[0] : SWOOP_SEAT.x;
-    const grips = ([1, -1] as const).map((side) => ({
-      side: side === 1 ? 'L' as const : 'R' as const, out: side,
-      at: bike.localToWorld(new THREE.Vector3(side === 1 ? gx : 2 * mid - gx, gy, gz)),
-    }));
+    // the grip is where the palm goes: the arm reaches with the palm as the sculpt draws it
+    const reach = palmReach(rider.root, riderRig, 'nikto');
+    const grips = ([1, -1] as const).map((side) => {
+      const shift = reach.shift(side === 1 ? 'L' : 'R', new THREE.Vector3());
+      return {
+        side: side === 1 ? 'L' as const : 'R' as const, out: side, shift, extra: shift.length(),
+        at: bike.localToWorld(new THREE.Vector3(side === 1 ? gx : 2 * mid - gx, gy, gz)),
+      };
+    });
     // bend forward to bars past arm's reach, then take them
     leanToReach(riderRig, grips);
-    for (const { side, out, at } of grips) {
+    for (const { side, out, at, shift } of grips) {
       const hint = at.clone().addScaledVector(right, out * 0.5);
       hint.y -= 0.4;
-      // his own grip is where his wrist goes; the swoop's is Din's, so his palm is put where Din's would be
-      reachArm(riderRig, side, at, hint, ownGrip ? undefined : palmShift('nikto', side));
+      reachArm(riderRig, side, at, hint, shift);
+      reach.note(side);
     }
+    // the palm is measured off the sculpt as drawn: solve again once it has been
+    settleHands = 3;
   };
+  let settleHands = 0;
 
   /**
    * Sit the rider on the swoop it is actually riding, and put its hands on
@@ -946,6 +954,8 @@ export function buildNikto(authored = true): CharacterInstance {
     cosmetic: (dt, time) => {
       swap.update();
       if (swap.settled) seatRider();
+      // a still pose: once more with the sculpt drawn from the last solve, till the palms land
+      if (seated && settleHands > 0) { const n = settleHands - 1; handsToBars(saddle); settleHands = n; }
       // both hands on the bars, closed on them (`fists.ts`)
       if (seated && fistsInPlay(rider.root, true)) clench(rider.root, 1);
       speed = damp(speed, speedTarget, 4, dt);
