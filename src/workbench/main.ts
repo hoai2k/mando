@@ -19,7 +19,7 @@ import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { FIST_ENEMIES } from '../characters/combatStyle';
-import { clench, fistTuneSnapshot, refitFists, restoreFistTunes } from '../characters/fistRig';
+import { clench, fistFrames, fistTuneSnapshot, refitFists, restoreFistTunes } from '../characters/fistRig';
 import { fistsInPlay, fistTargets } from '../characters/fists';
 import type { VehicleRig } from './vehicleFigure';
 import { PositionEditor } from './positionEdit';
@@ -390,7 +390,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  expose({ __wb: { figures, subject, pose, camera, controls, editor } });  // debug/testing handle
+  expose({ __wb: { figures, subject, pose, camera, controls, editor, fistFrames } });  // debug/testing handle
 }
 
 /**

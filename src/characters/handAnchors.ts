@@ -106,6 +106,8 @@ export class PalmReach {
   private corr = new Map<HandSide, THREE.Vector3>();
   /** the grip last aimed at, in the character's own frame */
   private aimed = new Map<HandSide, THREE.Vector3>();
+  /** whether the correction was started off a sculpt's palm (it restarts when one first appears) */
+  private onSculpt = new Map<HandSide, boolean>();
   constructor(private root: THREE.Object3D, private rig: Rig, private id: string) {}
 
   /** Where to aim the wrist so the palm lands on `grip` (world), into `out`. */
@@ -117,15 +119,22 @@ export class PalmReach {
     const wrist = this.root.worldToLocal(hand.getWorldPosition(_w));
     let c = this.corr.get(side);
     const last = this.aimed.get(side);
-    if (!palmFrameOf(this.root, side) || !c) {
-      // the palm from the wrist as it stands: exact on the rig's own hand, a start on a sculpt's
+    const sculpt = !!palmFrameOf(this.root, side);
+    const miss = last ? _e.copy(last).sub(palm) : null;
+    // Start (or start again) from the palm's offset from the wrist as it
+    // stands — exact on the rig's own hand, close on a sculpt's: with no
+    // correction yet, when a sculpt's palm has just appeared, or when the
+    // drawn palm is so far off (a sculpt drawn before it was posed) that
+    // steering from it would throw the aim across the ride.
+    if (!sculpt || !c || !this.onSculpt.get(side) || !miss || miss.length() > 0.3) {
       c = (c ?? new THREE.Vector3()).copy(wrist).sub(palm);
       this.corr.set(side, c);
-    } else if (last) {
+    } else {
       // the drawn palm missed the grip it was aimed at by this much: aim that much further
-      c.add(_e.copy(last).sub(palm));
+      c.add(miss);
       if (c.length() > 0.4) c.setLength(0.4);
     }
+    this.onSculpt.set(side, sculpt);
     this.aimed.set(side, (last ?? new THREE.Vector3()).copy(at));
     return this.root.localToWorld(out.copy(at).add(c));
   }
