@@ -74,6 +74,14 @@ const TUCK_R: Reach = [[-0.02, 0.16, 0.24]], TUCK_L: Reach = [[0.02, 0.16, 0.24]
 const G_CHEST: V3 = [4, 5, 0], G_HIPS: V3 = [3, -25, 0], G_HEAD: V3 = [-2, 18, 0];
 /** the cross's wind-up: the rear fist cocked wide and high, out past its elbow */
 const CROSS_WINDUP: Joints = { upper: [-30, -61.28, -54.82], lower: [-144.17, -0.29, 46.63] };
+/**
+ * The rear arm through a kick, thrown back for balance: from the workbench
+ * edits (pose-edits_2.json, 2026-09-29), held across the kick's extreme keys
+ * in place of the solved reaches, which twisted the arm nearly straight.
+ */
+const ROUNDHOUSE_ARM: Joints = { upper: [43.11, -52.35, -5.12], lower: [-89.63, 2.22, 22.32] };
+const ROUNDHOUSE_SHOULDER: V3 = [1.67, -7.82, -2.24];
+const PUSH_ARM: Joints = { upper: [63.48, -35.82, 4.8], lower: [-31.32, 6.46, 0.18] };
 /** the rear knee folded, heel up: weight on the lead foot */
 const LOADED: Legs = { upperLegL: [-18, 0, 5], lowerLegL: [26, 0, 0], upperLegR: [14, 0, -6], lowerLegR: [30, 0, 0] };
 
@@ -221,7 +229,8 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
     add('kickRoundhouse', 0.9, at, {
       chest: [G_CHEST, [2, 0, 0], [0, -10, 8], [-4, -20, 14], [-4, -18, 12], [2, -5, 4], G_CHEST],
       head: [G_HEAD, [0, 22, 0], [0, 10, -6], [2, -20, -10], [2, -18, -8], [0, 10, 0], G_HEAD],
-      ...arm('R', GUARD_R, GUARD_R, [[-0.35, -0.3, 0.1]], [[-0.4, -0.45, -0.2]], [[-0.4, -0.4, -0.1]], GUARD_R, GUARD_R),
+      ...arm('R', GUARD_R, GUARD_R, ROUNDHOUSE_ARM, ROUNDHOUSE_ARM, ROUNDHOUSE_ARM, GUARD_R, GUARD_R),
+      shoulderR: [[0, 0, 0], [0, 0, 0], ROUNDHOUSE_SHOULDER, ROUNDHOUSE_SHOULDER, ROUNDHOUSE_SHOULDER, [0, 0, 0], [0, 0, 0]],
       ...arm('L', GUARD_L, GUARD_L, TUCK_L, TUCK_L, TUCK_L, GUARD_L, GUARD_L),
     }, {
       hips: [G_HIPS, [3, -20, 0], [0, 25, -10], [-4, 70, -20], [-4, 66, -18], [0, 15, -5], G_HIPS],
@@ -257,7 +266,7 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
     add('kickPush', 0.8, at, {
       chest: [G_CHEST, [4, 0, 0], [8, 10, 0], [10, 14, 0], [10, 12, 0], [6, 5, 0], G_CHEST],
       head: [G_HEAD, [0, 16, 0], [4, 4, 0], [8, 0, 0], [8, 0, 0], [2, 10, 0], G_HEAD],
-      ...arm('R', GUARD_R, [[-0.3, -0.1, 0.3]], [[-0.4, -0.4, -0.15]], [[-0.4, -0.45, -0.25]], [[-0.4, -0.4, -0.2]], GUARD_R, GUARD_R),
+      ...arm('R', GUARD_R, [[-0.3, -0.1, 0.3]], PUSH_ARM, PUSH_ARM, PUSH_ARM, GUARD_R, GUARD_R),
       ...arm('L', GUARD_L, GUARD_L, [[0.3, -0.05, 0.35]], [[0.3, -0.05, 0.35]], [[0.3, -0.05, 0.35]], GUARD_L, GUARD_L),
     }, {
       hips: [G_HIPS, [0, -15, 0], [-14, -5, 0], [-18, 0, 0], [-16, 0, 0], [-4, -15, 0], G_HIPS],
