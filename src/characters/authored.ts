@@ -570,7 +570,11 @@ export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['mod
  * prefetcher and the drop screen wait on. (Scenery and ships load by the
  * same path under names of their own, so the loader itself takes any string.)
  */
-export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig';
+// \`prisoner\`: One Way Out's freed prisoners (docs/ASSETS_MODELS.md) — a biped on
+// the canonical rig that is an ally, not an EnemyKind, so it is named here for
+// the prefetcher and \`attachAuthored\` (src/sections/one-way-out.ts)
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig'
+  | 'prisoner';
 
 /** the model entry for any kind, with `height` readable whether or not it has one */
 export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>

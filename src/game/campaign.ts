@@ -245,6 +245,16 @@ export class Campaign implements MissionController {
    */
   section: SectionInstance | null = null;
 
+  // ---- a section's reward for the next stage (docs/sections-notes/narkina.md) ----
+  // One Way Out: ten or more prisoners hold the stairs, and the stage after it
+  // (the supervisor deck) has a lieutenant who calls for backup in vain.
+  // Per run: a new run builds a new Campaign.
+  private retinueWaiver: { stage: number; line: string } | null = null;
+  waiveRetinue(stage: number, line: string): void { this.retinueWaiver = { stage, line }; }
+  retinueWaived(): string | null {
+    return this.retinueWaiver && this.retinueWaiver.stage === this.stageIdx ? this.retinueWaiver.line : null;
+  }
+
   constructor(private game: Game) {
     const spec = MISSION_LAYOUTS[game.board.kind];
     this.memory = spec.stages.map(() => ({ clearedTo: 0, pickupsTaken: [], visited: false }));
