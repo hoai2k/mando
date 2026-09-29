@@ -31,8 +31,9 @@ import { composeMoves } from './kit/moves';
  * floor (a posted squad), the second (a heavier one, boulders rolled down the
  * hole), the third (the elites and fliers), and the crack — twenty-four metres
  * to the lip while the vent surges. Each floor has a **valve**: hold it four
- * seconds and the rise stops for twelve, which is the co-op beat — one turns,
- * the others hold the floor.
+ * seconds (three alone) and the rise stops for ten (six at the chamber
+ * floor's, which teaches it), and the shutter over the hole above opens —
+ * the co-op beat: one turns, the others hold the floor.
  *
  * Nothing can be left behind: the fallen come back on the highest floor a
  * living player has reached (or, if the magma is already over it, on the
@@ -371,7 +372,7 @@ function build(ctx: SectionContext): SectionInstance {
         if (onFloor(p.position, k)) {
           reached = k;
           ctx.checkpoint.copy(floorAt(k));
-          ctx.announce(TEXT.banners.checkpoint, `floor ${k} of 3`);
+          ctx.announce(TEXT.banners.checkpoint, T.floorOf(k, 3));
         }
       }
       if (onFloor(p.position, 4) || p.position.y > Y0 + LIP + 0.6) complete = true;
