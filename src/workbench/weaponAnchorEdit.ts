@@ -216,6 +216,25 @@ export class WeaponAnchorEditor {
     this.onChange();
   }
 
+  /** this session's grips and scales, for the workbench's undo */
+  snapshot(): { entries: Array<[string, WeaponAnchorEntry]>; scales: Array<[string, WeaponScaleEntry]> } {
+    return { entries: [...this.entries], scales: [...this.scaleEntries] };
+  }
+
+  /** Put the session's grips and scales back as a snapshot had them, on the weapons showing now. */
+  restoreSnapshot(snap: ReturnType<WeaponAnchorEditor['snapshot']>): void {
+    this.entries = new Map(snap.entries);
+    this.scaleEntries = new Map(snap.scales);
+    for (const [name, target] of this.targets) {
+      const saved = this.entries.get(this.key(name, target.attachment));
+      target.object.position.copy(saved ? new THREE.Vector3(...saved.editedPosition) : target.basePosition);
+      target.object.quaternion.copy(saved ? new THREE.Quaternion(...saved.editedQuaternion) : target.baseQuaternion);
+      const scale = this.scaleEntries.get(this.scaleKey(name, target));
+      target.object.scale.copy(target.baseScale).multiplyScalar(scale?.scaleMultiplier ?? 1);
+    }
+    this.onChange();
+  }
+
   restore(): void {
     for (const target of this.targets.values()) {
       target.object.position.copy(target.basePosition);

@@ -1,6 +1,7 @@
 /**
  * Re-rig a character .glb: move its limb joints to where the mesh bends
- * (the joint audit's estimates, docs/audits/rig-joints.md), and write a copy
+ * (the skin-seam audit's estimates, docs/audits/rig-joints.md, or the
+ * geometric ones, docs/audits/geo-joints.md), and write a copy
  * with the skin left exactly as it was.
  *
  * Nothing about the mesh changes — not a vertex, not a weight. What changes is
@@ -65,8 +66,9 @@ function writeGlb(json: any, bin: Uint8Array): Uint8Array {
  * @param url      the .glb to re-rig
  * @param joints   the audit's joints for this model (at / est, audit frame)
  * @param move     which audit joints to move (e.g. ['elbow','wrist','knee','ankle'])
+ * @param source   where the estimates came from ('seam' = rig-joints.json, 'geo' = geo-joints.json); recorded in the file
  */
-async function rerig(url: string, joints: Record<string, AuditJoint>, move: string[]): Promise<{ glb: string; report: unknown }> {
+async function rerig(url: string, joints: Record<string, AuditJoint>, move: string[], source = 'seam'): Promise<{ glb: string; report: unknown }> {
   const buf = await (await fetch(url)).arrayBuffer();
   const { json, bin } = readGlb(buf);
   const gltf = await new GLTFLoader().parseAsync(buf.slice(0), '');
@@ -199,7 +201,7 @@ async function rerig(url: string, joints: Record<string, AuditJoint>, move: stri
       next.toArray(f, k * 16);
     });
   }
-  json.asset = { ...json.asset, extras: { ...(json.asset?.extras ?? {}), rerig: { from: url, moved: Object.keys(moved) } } };
+  json.asset = { ...json.asset, extras: { ...(json.asset?.extras ?? {}), rerig: { from: url, source, moved: Object.keys(moved) } } };
   const out = writeGlb(json, bin);
   let s = '';
   for (let i = 0; i < out.length; i += 0x8000) s += String.fromCharCode(...out.subarray(i, i + 0x8000));

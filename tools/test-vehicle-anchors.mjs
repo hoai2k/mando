@@ -11,6 +11,9 @@
  * Run:  node tools/test-vehicle-anchors.mjs
  */
 import { launch, makeCheck } from './harness.mjs';
+import { readFileSync } from 'node:fs';
+/** Din's left palm, from his wrist (src/characters/data/handAnchors.json) */
+const DIN_PALM = JSON.parse(readFileSync(new URL('../src/characters/data/handAnchors.json', import.meta.url), 'utf8')).din?.left ?? [0, -0.05, 0.02];
 
 const check = makeCheck();
 const base = `http://localhost:${process.env.HARNESS_PORT ?? '4173'}`;
@@ -54,13 +57,17 @@ for (const kind of ['swoop', 'speederBike', 'landspeeder', 'bantha', 'skiff']) {
   await page.goto(`${base}/workbench/?character=vehicle:${kind}&mode=authored`);
   await settle();
   await page.waitForTimeout(400);
-  const seat = await page.evaluate(() => {
+  // the palm is steered onto the grip off each drawing: a few frames once the sculpts are in
+  const measure = () => page.evaluate((palm) => {
     const vr = window.__wb.figures[0].inst.root.userData.vehicleRig;
     vr.frame.updateMatrixWorld(true);
     const rider = vr.frame.children.find((c) => c !== vr.frame.children[0] && c.getObjectByName?.('hips'));
     const hips = rider.getObjectByName('hips').getWorldPosition(vr.seat.clone());
     const seatW = vr.frame.localToWorld(vr.seat.clone());
-    const hand = rider.getObjectByName('handL')?.getWorldPosition(vr.seat.clone());
+    // a grip is where the palm goes: Din's placed palm on his sculpt's hand (from the weapon point)
+    const frame = rider.getObjectByName('palmFrameL');
+    const hand = frame ? frame.localToWorld(vr.seat.clone().set(palm[0], palm[1] + 0.05, palm[2] - 0.02))
+      : rider.getObjectByName('handL')?.getWorldPosition(vr.seat.clone());
     const gripW = vr.frame.localToWorld(vr.grip.clone());
     return {
       stance: vr.def.stance,
@@ -68,7 +75,12 @@ for (const kind of ['swoop', 'speederBike', 'landspeeder', 'bantha', 'skiff']) {
       handToGrip: hand ? +hand.distanceTo(gripW).toFixed(3) : null,
       hasHands: !!vr.def.hands,
     };
-  });
+  }, DIN_PALM);
+  let seat = await measure();
+  for (let i = 0; i < 12 && seat.hasHands && !(seat.handToGrip < 0.12); i++) {
+    await page.waitForTimeout(250);
+    seat = await measure();
+  }
   const sat = seat.stance === 'stand' ? true : seat.hipsOverSeat > -0.05 && seat.hipsOverSeat < 0.2;
   check(`${kind}: Din sits the seat anchor`, sat, seat);
   if (seat.hasHands) check(`${kind}: ...with his left hand on the grip`, seat.handToGrip !== null && seat.handToGrip < 0.12, seat);
@@ -182,7 +194,8 @@ await page.waitForTimeout(400);
 const niktoHand = await page.evaluate(([edited, committed]) => {
   const r = window.__wb.figures[0].inst.root.userData.niktoRider;
   r.bike.updateMatrixWorld(true);
-  const hand = r.rider.getObjectByName('handL').getWorldPosition(r.bike.position.clone());
+  // a grip is where the palm goes: his palm frame's origin (he has no palm placed of his own)
+  const hand = (r.rider.getObjectByName('palmFrameL') ?? r.rider.getObjectByName('handL')).getWorldPosition(r.bike.position.clone());
   // the swoop's frame to his bike's: the same sculpt hangs 0.385 m lower on his
   const at = (g) => r.bike.localToWorld(r.bike.position.clone().set(g[0], g[1] - 0.385, g[2]));
   const own = r.bike.localToWorld(r.bike.position.clone().set(...r.grip));

@@ -3,7 +3,7 @@ import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
 import { leanToReach, orientFoot, reachArm, reachLeg, spreadKnees, unlean } from '../anim/seating';
 import type { BoneName, Rig } from '../anim/skeleton';
-import { palmShift } from '../characters/handAnchors';
+import { palmReach } from '../characters/handAnchors';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
@@ -263,6 +263,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       gripAt.copy(own);
     }
     const shift = gripHold?.shift ?? saddle?.shift;
+    const reach = palmReach(rider.root, rig, riderId);
     const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3 }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
@@ -272,12 +273,13 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
       // the elbow outboard of the bar and a little below it, in the rider's frame
       const hint = world(vr.seat.x + h.x + side * 0.55 * Math.cos(yaw), vr.seat.y + h.y - 0.42,
         vr.seat.z + h.z - side * 0.55 * Math.sin(yaw), new THREE.Vector3(), shift);
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      reach.aim(side === 1 ? 'L' : 'R', at, at);
       grips.push({ side: side === 1 ? 'L' : 'R', at, hint });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
-    // the rider's palm where Din's is on the grip it was placed with
-    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint, palmShift(riderId, side));
+    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint);
   };
 
   // a living mount walks its own clips, blended by the speed it is given
@@ -311,7 +313,17 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     // measured at rest, before the gait takes a step, as the game does it
     saddle = new SaddleBone(loaded, frame, vr.seat.clone());
     sculpt = loaded;
-  }, () => { settled = true; });
+  }, () => { settled = true; }, (standIn) => {
+    // until the sculpt lands (or for good, when it never does) the rider sits
+    // on its low-LOD stand-in, measured the same way
+    if (data) return;
+    const surface = measureSeatSurface(kind, standIn, frame);
+    if (surface === null) return;
+    const sit = sitOnModel(body, surface, null);
+    vr.defaults = defaultAnchors(def, sit);
+    vr.seat.set(...vr.defaults.seat);
+    vr.grip.set(...vr.defaults.grip);
+  });
   vr.relayout();
   root.userData.vehicleRig = vr;
 

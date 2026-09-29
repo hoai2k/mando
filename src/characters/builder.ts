@@ -3,6 +3,7 @@ import { buildRig, HUMAN, type Proportions, type Rig } from '../anim/skeleton';
 import { buildClips } from '../anim/clips';
 import { Animator } from '../anim/animator';
 import { loadProp } from './authored';
+import { buildLodProp } from './lod';
 import { markShared } from '../core/dispose';
 import { makeDarksaberBlade } from './darksaberBlade';
 import { SABER_STYLES, WEAPON_PROPS, type SaberStyle, type StaffPropId } from './weaponProps';
@@ -134,48 +135,52 @@ export function addSphere(parent: THREE.Object3D, m: THREE.Material, r: number,
   return mesh;
 }
 
-/** Cylinder hanging down from a bone: the standard limb segment. */
-export function limbMesh(bone: THREE.Object3D, m: THREE.Material, len: number, r0: number, r1: number): THREE.Mesh {
+/** a tapered limb hung down its bone */
+function limbMesh(bone: THREE.Object3D, m: THREE.Material, len: number, r0: number, r1: number): THREE.Mesh {
   return addCyl(bone, m, r0, r1, len, 0, -len / 2, 0, 0, 0, 0, 8);
+}
+
+/** the primitive suit body, for a figure with no sculpt (see `BipedOptions.skin`) */
+function plainBody(rig: Rig, p: Proportions, skin: THREE.Material, torso: THREE.Material): void {
+  const b = rig.bones;
+  addBox(b.hips, skin, 0.34, 0.2, 0.22, 0, 0.02, 0);
+  // the abdomen closes the gap between the hips and chest boxes at any proportions
+  addBox(b.spine, skin, 0.34, p.spineLen + p.chestLen - 0.13, 0.235, 0, (p.chestLen - p.spineLen + 0.05) / 2, 0);
+  addBox(b.chest, torso, 0.4, 0.34, 0.26, 0, 0.1, 0);
+  for (const s of ['L', 'R'] as const) {
+    limbMesh(b[`upperArm${s}`], skin, p.upperArmLen, 0.055, 0.05);
+    limbMesh(b[`forearm${s}`], skin, p.forearmLen, 0.05, 0.042);
+    limbMesh(b[`upperLeg${s}`], skin, p.upperLegLen, 0.075, 0.06);
+    limbMesh(b[`lowerLeg${s}`], skin, p.lowerLegLen, 0.06, 0.05);
+    addBox(b[`foot${s}`], skin, 0.11, 0.07, 0.24, 0, -0.035, 0.05);
+  }
 }
 
 export interface BipedOptions {
   proportions?: Proportions;
-  skin: THREE.Material;        // limbs / body suit
-  torso: THREE.Material;       // chest
   scale?: number;
+  /**
+   * A plain primitive body — suit limbs and a torso — for a figure that has
+   * no sculpt and never will (the Narkina prisoners, sections/one-way-out.ts).
+   * Anything with an authored model leaves this out: its body is the model,
+   * or its low-LOD stand-in until the model lands.
+   */
+  skin?: THREE.Material;
+  torso?: THREE.Material;
 }
 
-/** Base biped: rig + suit limbs + torso. Species detail goes on top. */
-export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: Rig } {
+/**
+ * Base biped: the canonical rig and its animator, and no body at all. The body
+ * is the authored model, or until it lands its low-LOD stand-in — both hung
+ * on this rig by `attachAuthored`, which every biped goes through.
+ */
+export function buildBiped(opts: BipedOptions = {}): { inst: CharacterInstance; rig: Rig } {
   const p = opts.proportions ?? HUMAN;
   const rig = buildRig(p);
   const clips = buildClips(p);
   const animator = new Animator(rig, clips);
-  const b = rig.bones;
 
-  addBox(b.hips, opts.skin, 0.34, 0.2, 0.22, 0, 0.02, 0);
-  // Abdomen on the spine bone. Without it the hips and chest boxes leave a
-  // hole at the waist (~0.28 m on HUMAN proportions) that reads as a missing
-  // midsection on anyone without a robe or long coat to hide it. Derived from
-  // the proportions so it still closes for the taller/shorter species.
-  const absHeight = p.spineLen + p.chestLen - 0.13;
-  const absCentre = (p.chestLen - p.spineLen + 0.05) / 2;
-  addBox(b.spine, opts.skin, 0.34, absHeight, 0.235, 0, absCentre, 0);
-  addBox(b.chest, opts.torso, 0.4, 0.34, 0.26, 0, 0.1, 0);
-  limbMesh(b.upperArmL, opts.skin, p.upperArmLen, 0.055, 0.05);
-  limbMesh(b.forearmL, opts.skin, p.forearmLen, 0.05, 0.042);
-  limbMesh(b.upperArmR, opts.skin, p.upperArmLen, 0.055, 0.05);
-  limbMesh(b.forearmR, opts.skin, p.forearmLen, 0.05, 0.042);
-  limbMesh(b.upperLegL, opts.skin, p.upperLegLen, 0.075, 0.06);
-  limbMesh(b.lowerLegL, opts.skin, p.lowerLegLen, 0.06, 0.05);   // shin, not thigh — the right leg had it right
-  limbMesh(b.upperLegR, opts.skin, p.upperLegLen, 0.075, 0.06);
-  limbMesh(b.lowerLegR, opts.skin, p.lowerLegLen, 0.06, 0.05);
-  addBox(b.footL, opts.skin, 0.11, 0.07, 0.24, 0, -0.035, 0.05);
-  addBox(b.footR, opts.skin, 0.11, 0.07, 0.24, 0, -0.035, 0.05);
-  addSphere(b.handL, opts.skin, 0.05, 0, -0.02, 0, 8, 6);
-  addSphere(b.handR, opts.skin, 0.05, 0, -0.02, 0, 8, 6);
-
+  if (opts.skin) plainBody(rig, p, opts.skin, opts.torso ?? opts.skin);
   if (opts.scale && opts.scale !== 1) rig.root.scale.setScalar(opts.scale);
 
   const inst: CharacterInstance = {
@@ -186,60 +191,42 @@ export function buildBiped(opts: BipedOptions): { inst: CharacterInstance; rig: 
   return { inst, rig };
 }
 
-/** Simple verlet-ish cape: chain of segments trailing from capeRoot. */
-export function attachCape(rig: Rig, m: THREE.Material, width = 0.42, segs = 5, segLen = 0.24): (dt: number, time: number) => void {
-  const nodes: THREE.Object3D[] = [];
-  let parent: THREE.Object3D = rig.bones.capeRoot;
-  for (let i = 0; i < segs; i++) {
-    const g = new THREE.Group();
-    g.position.y = i === 0 ? 0 : -segLen;
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width * (1 + i * 0.1), segLen, 0.02), m);
-    mesh.position.y = -segLen / 2;
-    mesh.castShadow = true;
-    g.add(mesh);
-    parent.add(g);
-    nodes.push(g);
-    parent = g;
-  }
-  const swing: number[] = new Array(segs).fill(0);
-  const vel: number[] = new Array(segs).fill(0);
-  return (dt: number, time: number) => {
-    // pseudo-physics: each segment springs toward hanging + wind ripple
-    for (let i = 0; i < segs; i++) {
-      const target = Math.sin(time * 2.2 + i * 0.9) * 0.06;
-      const k = 26 - i * 3;
-      vel[i] += (target - swing[i]) * k * dt;
-      vel[i] *= Math.exp(-4 * dt);
-      swing[i] += vel[i] * dt;
-      nodes[i].rotation.x = swing[i] + (i === 0 ? 0.12 : 0.03);
-    }
-  };
-}
-
-/** Impulse the cape when the character accelerates (called by controller). */
 /**
  * Weapons follow the same rule as characters: the procedural shape is the
  * fallback, and an authored model replaces it the moment the file is there.
  * They hang off the same group, so the mount, the muzzle and every clip that
  * swings them are untouched by the swap.
  */
-function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0, onLoad?: (root: THREE.Object3D) => void): void {
+function swapWeapon(g: THREE.Group, id: string, length: number, orientX = 0,
+  onLoad?: (root: THREE.Object3D) => void, sculpt = true): void {
+  if (!sculpt) {
+    // a build that asks for no sculpt (the workbench's procedural view) holds
+    // the stand-in for good
+    const holder = new THREE.Group();
+    const standIn = buildLodProp(id);
+    if (standIn) { holder.add(standIn); onLoad?.(standIn); }
+    holder.rotation.x = orientX;
+    g.add(holder);
+    return;
+  }
   // Marked while the file is in flight, so anything that has to depict the
   // finished fighter can wait for the weapon as well as the body — a
-  // character-select picture shot with the stand-in in hand shows a thin
-  // stick where the model carries a rifle. Cleared either way: a weapon with
-  // no sculpt is settled the moment that is known.
+  // character-select picture shot with the stand-in in hand shows a blocky
+  // stand-in where the model carries a rifle. Cleared either way: a weapon
+  // with no sculpt is settled the moment that is known.
   g.userData.propPending = true;
+  // The stand-in is the weapon's own low-LOD build (lod.ts), in the sculpt's
+  // frame, so whatever `onLoad` does to seat the sculpt it does to the
+  // stand-in first.
   const prop = loadProp(id, length, {
     axis: 'longest',
-    onLoad: (root) => {
-      for (const c of [...g.children]) if ((c as THREE.Mesh).isMesh) c.visible = false;
-      onLoad?.(root);
-    },
+    lod: true,
+    onStandIn: onLoad,
+    onLoad,
     onSettle: () => { g.userData.propPending = false; },
   });
-  // The sculpts lie along their longest axis, which is Z; a procedural weapon
-  // built along Y needs the model turned to match before anything that holds it
+  // The sculpts lie along their longest axis, which is Z; a weapon mounted
+  // along Y needs the model turned to match before anything that holds it
   // will hold it the same way.
   prop.rotation.x = orientX;
   g.add(prop);
@@ -257,43 +244,20 @@ export function propsSettled(root: THREE.Object3D): boolean {
   return !waiting;
 }
 
-export function makeGaffi(
-  m1: THREE.Material, m2: THREE.Material,
-  propId: StaffPropId = 'gaffi',
-): THREE.Group {
+/**
+ * The weapon builders: an empty mount group holding the weapon's sculpt, which
+ * stands on its low-LOD build until it lands. `sculpt: false` holds the
+ * stand-in for good.
+ */
+export function makeGaffi(propId: StaffPropId = 'gaffi', sculpt = true): THREE.Group {
   const g = new THREE.Group();
-  if (propId === 'electrostaff') {
-    addCyl(g, m1, 0.022, 0.022, 1.55, 0, 0, 0, 0, 0, 0, 10);
-    for (const end of [-1, 1]) {
-      addCyl(g, m2, 0.045, 0.032, 0.15, 0, end * 0.78, 0, 0, 0, 0, 10);
-      addCyl(g, m2, 0.015, 0.015, 0.06, 0, end * 0.87, 0, 0, 0, 0, 10);
-    }
-  } else if (propId === 'beskar_spear') {
-    addCyl(g, m2, 0.015, 0.015, 1.43, 0, 0, 0, 0, 0, 0, 10);
-    addCyl(g, m2, 0.002, 0.048, 0.23, 0, 0.82, 0, 0, 0, 0, 10);
-    addCyl(g, m2, 0.022, 0.018, 0.07, 0, -0.73, 0, 0, 0, 0, 10);
-  } else if (propId === 'poleaxe') {
-    addCyl(g, m1, 0.026, 0.028, 1.27, 0, 0, 0, 0, 0, 0, 8);
-    addBox(g, m2, 0.3, 0.25, 0.045, 0.14, 0.59, 0);
-    addCyl(g, m2, 0.006, 0.04, 0.13, 0, 0.76, 0, 0, 0, 0, 8);
-  } else {
-    addCyl(g, m1, 0.02, 0.024, 1.35, 0, 0, 0, 0, 0, 0, 8); // shaft
-    addCyl(g, m2, 0.005, 0.05, 0.22, 0, 0.78, 0, 0, 0, 0, 8); // spearhead
-    addSphere(g, m2, 0.055, 0, 0.62, 0, 8, 6, 1.4, 1); // club knot
-    addCyl(g, m2, 0.05, 0.02, 0.16, 0, -0.72, 0, Math.PI * 0.5, 0, 0, 6); // bottom blade
-  }
-  swapWeapon(g, propId, WEAPON_PROPS[propId].length, -Math.PI / 2);
+  swapWeapon(g, propId, WEAPON_PROPS[propId].length, -Math.PI / 2, undefined, sculpt);
   return g;
 }
 
-export function makeCarbine(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+export function makeCarbine(sculpt = true): THREE.Group {
   const g = new THREE.Group();
-  addBox(g, mBody, 0.05, 0.09, 0.42, 0, 0, 0.1);            // receiver
-  addCyl(g, mDark, 0.016, 0.016, 0.34, 0, 0.015, 0.42, Math.PI / 2, 0, 0, 8); // barrel
-  addCyl(g, mDark, 0.03, 0.03, 0.06, 0, 0.015, 0.6, Math.PI / 2, 0, 0, 8);    // muzzle
-  addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.08, 0.02, 0.3);  // grip
-  addBox(g, mDark, 0.03, 0.05, 0.2, 0, 0.07, 0.12);         // scope
-  swapWeapon(g, 'carbine', WEAPON_PROPS.carbine.length);
+  swapWeapon(g, 'carbine', WEAPON_PROPS.carbine.length, 0, undefined, sculpt);
   return g;
 }
 
@@ -317,11 +281,7 @@ export interface SaberLightSpec {
   y: number;
 }
 
-export function makeSaber(
-  mHilt: THREE.Material,
-  mDark: THREE.Material,
-  opts: { light?: boolean; style?: SaberStyle } = {},
-): THREE.Group {
+export function makeSaber(opts: { light?: boolean; style?: SaberStyle; sculpt?: boolean } = {}): THREE.Group {
   const g = new THREE.Group();
   const white = opts.style === 'white';
   const darksaber = opts.style === 'darksaber';
@@ -340,35 +300,6 @@ export function makeSaber(
   spin.add(body);
   g.add(spin);
   g.userData.gripSpin = spin;
-  if (tonfa) {
-    // The emitter is on the long end; the short end is capped. The grip
-    // branches across the palm, as a tonfa does, instead of sitting in-line.
-    addCyl(body, mHilt, 0.016, 0.016, 0.24, 0, -0.035, 0, 0, 0, 0, 10);
-    addCyl(body, mDark, 0.019, 0.019, 0.075, 0, -0.15, 0, 0, 0, 0, 10);
-    addCyl(body, mHilt, 0.024, 0.018, 0.04, 0, 0.095, 0, 0, 0, 0, 10);
-    addCyl(body, mDark, 0.016, 0.016, 0.12, -0.065, -0.085, 0, 0, 0, Math.PI / 2, 10);
-  } else if (white || darksaber || opts.style === 'dark' || double) {
-    // The Jedi's separate hilt is a procedural stand-in until its concept is
-    // approved and modelled. Keep the same mount and length as the final prop.
-    addCyl(body, mHilt, 0.021, 0.021, double ? 0.4 : 0.21, 0, double ? 0 : -0.06, 0, 0, 0, 0, 10);
-    for (const y of [-0.12, -0.065, -0.01]) addCyl(body, mDark, 0.023, 0.023, 0.018, 0, y, 0, 0, 0, 0, 10);
-    addCyl(body, mHilt, 0.028, 0.022, 0.055, 0, 0.055, 0, 0, 0, 0, 10);
-    addSphere(body, mDark, 0.023, 0, -0.18, 0, 10, 8);
-  } else {
-    // Ventress's curved hilt: main grip with a hook at the pommel.
-    addCyl(body, mHilt, 0.019, 0.022, 0.15, 0, -0.03, 0, 0, 0, 0, 8);
-    addCyl(body, mDark, 0.023, 0.023, 0.025, 0, 0.045, 0, 0, 0, 0, 8);
-    addCyl(body, mHilt, 0.016, 0.019, 0.09, 0.028, -0.135, 0, 0, 0, -0.55, 8);
-    addSphere(body, mDark, 0.02, 0.05, -0.175, 0, 8, 6);
-  }
-  if (tonfa) {
-    // Keep the temporary fallback at the authored hilt's new size while its
-    // GLB loads; it is hidden as soon as the authored mesh arrives.
-    for (const part of body.children) {
-      part.position.multiplyScalar(2);
-      part.scale.multiplyScalar(2);
-    }
-  }
   const blade = new THREE.Group();
   // Maris' tonfa emitter is on the longer, negative-Y end of its authored
   // hilt. The previous positive-Y emitter lit the short capped end instead.
@@ -434,7 +365,7 @@ export function makeSaber(
     } else if (white || darksaber) blade.position.set(0.001, 0.126, -0.008);
     else if (opts.style === 'dark') blade.position.set(-0.003, 0.127, -0.013);
     else blade.position.set(-0.002, 0.125, -0.029);
-  });
+  }, opts.sculpt !== false);
   return g;
 }
 
@@ -506,24 +437,10 @@ export function makeBladeTrail(host: THREE.Object3D, saber: THREE.Group, opposit
   };
 }
 
-/** Laser crossbow: forward-swept limbs around a rifle core, glowing string line. */
-export function makeCrossbow(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+/** Laser crossbow. */
+export function makeCrossbow(sculpt = true): THREE.Group {
   const g = new THREE.Group();
-  addBox(g, mBody, 0.05, 0.08, 0.5, 0, 0, 0.08);            // stock and rail
-  addCyl(g, mDark, 0.014, 0.014, 0.2, 0, 0.02, 0.38, Math.PI / 2, 0, 0, 8); // short emitter barrel
-  addBox(g, mDark, 0.03, 0.11, 0.05, 0, -0.08, 0, 0.3);     // grip
-  // bow limbs, swept toward the muzzle
-  addBox(g, mBody, 0.3, 0.03, 0.05, -0.17, 0.02, 0.24, 0, -0.55);
-  addBox(g, mBody, 0.3, 0.03, 0.05, 0.17, 0.02, 0.24, 0, 0.55);
-  addSphere(g, mDark, 0.025, -0.31, 0.02, 0.315, 8, 6);     // limb tip emitters
-  addSphere(g, mDark, 0.025, 0.31, 0.02, 0.315, 8, 6);
-  // energy string stretched between the tips
-  const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.62, 6), glowMat(0xffc24a, 0.7));
-  string.position.set(0, 0.02, 0.315);
-  string.rotation.z = Math.PI / 2;
-  string.castShadow = false;
-  g.add(string);
-  swapWeapon(g, 'crossbow', WEAPON_PROPS.crossbow.length);
+  swapWeapon(g, 'crossbow', WEAPON_PROPS.crossbow.length, 0, undefined, sculpt);
   return g;
 }
 
@@ -532,33 +449,21 @@ export function makeCrossbow(mBody: THREE.Material, mDark: THREE.Material): THRE
  * two-handed aim clip still reads: the off-hand copy is a second instance of
  * this on `weaponL`.
  */
-export function makePistol(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+export function makePistol(sculpt = true): THREE.Group {
   const g = new THREE.Group();
-  addBox(g, mBody, 0.042, 0.075, 0.2, 0, 0.01, 0.05);        // receiver
-  addCyl(g, mDark, 0.013, 0.013, 0.17, 0, 0.025, 0.19, Math.PI / 2, 0, 0, 8); // barrel
-  addCyl(g, mDark, 0.024, 0.02, 0.05, 0, 0.025, 0.29, Math.PI / 2, 0, 0, 8);  // flared muzzle
-  addBox(g, mDark, 0.028, 0.11, 0.045, 0, -0.07, -0.01, 0.22); // grip
-  addBox(g, mDark, 0.02, 0.025, 0.06, 0, 0.06, 0.02);          // hammer/sight
   // The authored pistol's muzzle is at local -Z and its grip at +Z, opposite
-  // the procedural shape and the shot marker. Turn only the sculpt, then seat
+  // the mount's forward and the shot marker. Turn only the sculpt, then seat
   // its grip in the hand so the barrel reaches the +Z muzzle at 0.3 m.
   swapWeapon(g, 'pistol', WEAPON_PROPS.pistol.length, 0, (model) => {
     model.rotation.y = Math.PI;
     model.position.set(0, 0.1, 0.12);
-  });
+  }, sculpt);
   return g;
 }
 
 /** Long-barrelled hunting rifle: the carbine's heavier, slower-looking cousin. */
-export function makeLongRifle(mBody: THREE.Material, mDark: THREE.Material): THREE.Group {
+export function makeLongRifle(sculpt = true): THREE.Group {
   const g = new THREE.Group();
-  addBox(g, mBody, 0.05, 0.1, 0.5, 0, 0, 0.05);             // receiver
-  addBox(g, mBody, 0.045, 0.07, 0.18, 0, -0.03, -0.2, -0.12); // shoulder stock
-  addCyl(g, mDark, 0.015, 0.017, 0.62, 0, 0.02, 0.58, Math.PI / 2, 0, 0, 8); // long barrel
-  addCyl(g, mDark, 0.032, 0.026, 0.09, 0, 0.02, 0.9, Math.PI / 2, 0, 0, 8);  // flared muzzle
-  addBox(g, mDark, 0.03, 0.12, 0.05, 0, -0.09, 0.06, 0.3);  // grip
-  addCyl(g, mDark, 0.028, 0.028, 0.26, 0, 0.085, 0.1, Math.PI / 2, 0, 0, 8); // long scope
-  addBox(g, mDark, 0.04, 0.04, 0.14, 0, -0.045, 0.42);      // fore grip
-  swapWeapon(g, 'longrifle', WEAPON_PROPS.longrifle.length);
+  swapWeapon(g, 'longrifle', WEAPON_PROPS.longrifle.length, 0, undefined, sculpt);
   return g;
 }

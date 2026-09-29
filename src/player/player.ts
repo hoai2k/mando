@@ -25,7 +25,7 @@ import { ThrownSaber } from './saberthrow';
 import { updateInCover } from './cover';
 import { updateRiding } from './riding';
 import { leanToReach, reachArm } from '../anim/seating';
-import { palmShift } from '../characters/handAnchors';
+import { palmReach } from '../characters/handAnchors';
 import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
@@ -127,7 +127,7 @@ const TAKEN_SINK = 1.5;
 
 /** the two hands' grips, reused frame to frame */
 const _grips = [new THREE.Vector3(), new THREE.Vector3()];
-const _palm = new THREE.Vector3();
+const _palms = [new THREE.Vector3(), new THREE.Vector3()];
 const _elbowHint = new THREE.Vector3();
 
 const AIR_CONTROL = 7.5;
@@ -3140,6 +3140,7 @@ export class Player {
     this.char.root.updateMatrixWorld(true);
     const yaw = v.yaw + v.seatYaw;
     const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    const reach = palmReach(this.char.root, rig, this.characterId);
     const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
     for (const side of [-1, 1] as const) {
       // an animal is steered one-handed: reins in the off hand, gun in the
@@ -3147,7 +3148,9 @@ export class Player {
       if (hold.only === 'left' && side !== 1) continue;
       if (gunUp && side === -1) continue;
       const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
-      if (at) grips.push({ side: side === 1 ? 'L' : 'R', at, out: side });
+      if (!at) continue;
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      grips.push({ side: side === 1 ? 'L' : 'R', at: reach.aim(side === 1 ? 'L' : 'R', at, _palms[side === 1 ? 0 : 1]), out: side });
     }
     // bend forward to a grip past arm's reach, then put the hands on it
     leanToReach(rig, grips);
@@ -3156,8 +3159,7 @@ export class Player {
       // where a rider's elbow goes and what stops the solve folding the arm
       // up over the shoulder
       _elbowHint.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      // their palm where Din's is on the grip it was placed with
-      reachArm(rig, side, at, _elbowHint, palmShift(this.characterId, side, _palm));
+      reachArm(rig, side, at, _elbowHint);
     }
   }
 

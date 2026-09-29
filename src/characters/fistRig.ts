@@ -82,6 +82,17 @@ export function fistDefaults(model: string): FistTune { return { ...DEFAULTS[kin
 export function deployedFistTune(model: string): FistTune { return { ...fistDefaults(model), ...deployed[model] }; }
 /** The tune in force: a workbench adjustment, or what is deployed. */
 export function fistTune(model: string): FistTune { return workbenchTunes.get(model) ?? deployedFistTune(model); }
+/** this page's fist tunes, for the workbench's undo */
+export function fistTuneSnapshot(): Array<[string, FistTune]> {
+  return [...workbenchTunes].map(([model, tune]) => [model, { ...tune }]);
+}
+/** Put this page's fist tunes back as a snapshot had them: the models whose tune changed, to refit. */
+export function restoreFistTunes(snap: Array<[string, FistTune]>): string[] {
+  const touched = new Set([...workbenchTunes.keys(), ...snap.map(([m]) => m)]);
+  workbenchTunes.clear();
+  for (const [model, tune] of snap) workbenchTunes.set(model, { ...tune });
+  return [...touched];
+}
 /** A workbench adjustment stays in that page; null goes back to the deployed tune. */
 export function setWorkbenchFistTune(model: string, tune: FistTune | null): void {
   if (tune) workbenchTunes.set(model, { ...tune }); else workbenchTunes.delete(model);
@@ -453,6 +464,40 @@ function settle(users: THREE.SkinnedMesh[]): void {
       snapshot.weight.set(geo.attributes.skinWeight.array as THREE.TypedArray);
     }
   }
+}
+
+/**
+ * Each hand's frame as the fist rig measured it (in the hand bone's own
+ * space): along the fingers, toward the palm, where the hand starts and how
+ * long it is — what a placed palm is read against (the workbench's Follow the
+ * palm). Empty for a sculpt with fingers of its own.
+ */
+export function fistFrames(model: string): Array<{
+  side: Side; hand: string; along: THREE.Vector3; palm: THREE.Vector3; from: number; length: number;
+  /** where the fist expects the palm: see `palmCentre` */
+  palmCentre: THREE.Vector3;
+}> {
+  return (fits.get(model) ?? []).flatMap((rig) => rig.hands.map((h) => ({
+    side: h.side, hand: rig.bones[h.hand].name, along: h.frame.along.clone(), palm: h.frame.palm.clone(),
+    from: h.frame.from, length: h.frame.length, palmCentre: palmCentre(h, fistTune(model).knuckleAt),
+  })));
+}
+
+/**
+ * The middle of the palm as the fist sees the hand, in the hand bone's space:
+ * halfway from the wrist to the knuckle joint (so a palm placed here, read by
+ * the workbench's Follow the palm, gives back the joint where it is), in the
+ * middle of the hand's width with the thumb left out, and on the palm's own
+ * surface.
+ */
+function palmCentre(h: FittedHand, knuckleAt: number): THREE.Vector3 {
+  const { frame } = h;
+  const u = knuckleAt / 2;
+  const at = (p: THREE.Vector3): number => (p.dot(frame.along) - frame.from) / frame.length;
+  const band = h.verts.map((v) => v.p).filter((p) => Math.abs(at(p) - u) < 0.08 && p.dot(frame.thumb) <= h.thumbEdge);
+  const c = band.length ? centroid(band) : h.bandAt(u);
+  const surface = band.length ? Math.max(...band.map((p) => p.dot(frame.palm))) : c.dot(frame.palm);
+  return c.addScaledVector(frame.palm, surface - c.dot(frame.palm));
 }
 
 /**

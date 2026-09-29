@@ -10,7 +10,6 @@ import type { StaticBox, StaticCylinder } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import { loadProp } from '../characters/authored';
 import { propsUsed } from '../world/props';
-import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
@@ -858,7 +857,8 @@ export class Vehicle {
     this.hands = handsFor(this.def, this.anchor);
     this.seatY = this.anchor ? this.anchor.seat[1] - STANCE_RISE[this.def.stance] : this.def.seat.y;
     this.group.add(this.body);
-    const parts = buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
+    const parts = buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root), undefined,
+      (root) => this.seatToStandIn(root));
     this.yawNode = parts.yaw;
     this.pitchNode = parts.pitch;
     this.muzzleNodes = parts.muzzles;
@@ -1440,6 +1440,24 @@ export class Vehicle {
    * the surface it finds: feet on it for a rider who stands, hips just over it
    * for one who straddles.
    */
+  /**
+   * Until the sculpt lands, its low-LOD stand-in is what the ride looks like:
+   * sit the saddle and the rider on that rather than on the def's guess, which
+   * was tuned to the hand-built stand-ins these replaced. For this instance
+   * only — `seatToModel` measures the sculpt itself once it is in, and only
+   * that is remembered for the kind.
+   */
+  private seatToStandIn(root: THREE.Object3D): void {
+    let surface = this.anchor ? undefined : seatByKind.get(this.spec.kind);
+    if (!this.anchor && surface === undefined) {
+      const measured = measureSeatSurface(this.spec.kind, root, this.group, { x: this.seatX, z: this.seatZ });
+      if (measured === null) return;
+      surface = measured;
+    }
+    const sit = sitOnModel(this.body, surface, this.anchor);
+    this.seatY = sit - STANCE_RISE[this.def.stance];
+  }
+
   private seatToModel(root: THREE.Object3D): void {
     // A seat placed by hand in the workbench is the seat: nothing to measure
     let surface = this.anchor ? undefined : seatByKind.get(this.spec.kind);
@@ -2950,18 +2968,10 @@ export function spawnVehicles(board: Board, scene: THREE.Scene): Vehicle[] {
   return out;
 }
 
-// ---------- procedural builds (hidden when the authored model lands) ----------
+// ---------- the body: the sculpt, standing on its low-LOD build until it lands ----------
 
 function mat(color: number, rough = 0.6, metal = 0.35): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
-}
-
-function addBox(parent: THREE.Object3D, m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = mesh.receiveShadow = true;
-  parent.add(mesh);
-  return mesh;
 }
 
 function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: number, len: number, x: number, y: number, z: number, rx: number): THREE.Mesh {
@@ -2973,11 +2983,14 @@ function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: numbe
   return mesh;
 }
 
-/**
- * The stand-in geometry per kind, built around the keel origin (+Z forward).
- * When the kind's authored .glb exists it loads through `loadProp` and the
- * procedural meshes hide — the same swap the enemy swoop bike already does.
- */
+function addBox(parent: THREE.Object3D, m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
 /**
  * The hands, from the seat: the def's, or the workbench's grip anchor turned
  * into the same seat-relative offset (the left hand's; the right mirrors it).
@@ -3121,9 +3134,18 @@ export function sitOnModel(body: THREE.Object3D, surface: number | undefined, an
 /** the stance's rise for a canonical rider: how far its root sits under the seat surface */
 export const riderRise = (stance: VehicleDef['stance'], hips = CANONICAL_HIPS): number => stanceRise(stance, hips);
 
+/**
+ * A ride's body, built around the keel origin (+Z forward): the kind's
+ * authored .glb through `loadProp`, which stands the sculpt's own low-LOD build
+ * (characters/lod.ts, measured off the same file at the same fit) in its place
+ * until the file lands — the same swap the enemy swoop bike does.
+ */
 export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void,
-  onSettle?: () => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null; muzzles: THREE.Object3D[] } {
+  onSettle?: () => void, onStandIn?: (root: THREE.Object3D) => void,
+): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null; muzzles: THREE.Object3D[] } {
   const def = VEHICLE_DEFS[kind];
+  // the few meshes still built by hand (the turret, until a sculpt of it
+  // lands), hidden the moment one does; the rides' stand-ins are low-LOD builds
   const built: THREE.Mesh[] = [];
   const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
   const dark = mat(0x2c2f33, 0.7, 0.4);
@@ -3187,59 +3209,9 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     });
     parts.yaw = yaw;
     parts.pitch = pitch;
-  } else if (kind === 'swoop') {
-    const body = mat(0x8a4b2f, 0.5, 0.5);
-    track(addBox(group, body, 0.36, 0.26, 1.8, 0, 0.4, 0.1));
-    track(addCyl(group, dark, 0.11, 0.15, 0.4, 0, 0.4, -0.85, Math.PI / 2));
-    track(addCyl(group, body, 0.05, 0.1, 0.75, 0, 0.38, 1.2, Math.PI / 2));
-    track(addBox(group, dark, 0.55, 0.04, 0.04, 0, 0.62, 0.55));
-  } else if (kind === 'speederBike') {
-    const body = mat(0x6a6f62, 0.55, 0.4);
-    track(addBox(group, body, 0.34, 0.3, 1.5, 0, 0.5, -0.4));        // saddle + engine
-    track(addCyl(group, body, 0.06, 0.06, 1.6, 0.14, 0.42, 0.9, Math.PI / 2)); // outrigger vanes
-    track(addCyl(group, body, 0.06, 0.06, 1.6, -0.14, 0.42, 0.9, Math.PI / 2));
-    track(addBox(group, dark, 0.5, 0.05, 0.05, 0, 0.68, 0.15));      // bars
-    track(addBox(group, dark, 0.3, 0.35, 0.15, 0, 0.35, 1.55));      // steering fin
-  } else if (kind === 'landspeeder') {
-    const body = mat(0xb0a070, 0.5, 0.45);
-    const hull = track(addBox(group, body, 1.8, 0.42, 3.9, 0, 0.42, 0));
-    hull.receiveShadow = true;
-    track(addBox(group, dark, 0.72, 0.1, 0.72, 0, 0.66, -0.45));      // seat cushion
-    track(addBox(group, dark, 0.8, 0.34, 0.14, 0, 0.85, -0.95));      // seat back
-    for (const sx of [-0.62, 0, 0.62]) track(addCyl(group, dark, 0.2, 0.24, 0.6, sx, 0.55, -1.95, Math.PI / 2));
-    const shield = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.9, 0.32),
-      new THREE.MeshStandardMaterial({ color: 0xcfe4ea, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5, side: THREE.DoubleSide }),
-    );
-    shield.position.set(0, 0.78, 0.35);
-    shield.rotation.x = -0.35;
-    group.add(shield);
-    built.push(shield as unknown as THREE.Mesh);
   } else if (kind === 'bantha') {
-    // The camp's mount: the same stand-in the Tusken herd is built from
-    // (world/tatooine.ts) so a saddled bantha and a grazing one read as the
-    // same animal, plus the woven saddle that says this one is broken to ride.
-    const hide = mat(0x5a4632, 1, 0);
-    const horn = mat(0xb8a888, 0.8, 0);
-    const barrel = track(new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 9), hide));
-    barrel.scale.set(1, 1.05, 1.9);
-    barrel.position.y = 1.9;
-    barrel.castShadow = true;
-    group.add(barrel);
-    const skull = track(new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 8), hide));
-    skull.position.set(0, 1.6, 2.7);
-    skull.castShadow = true;
-    group.add(skull);
-    for (const sx of [-1, 1]) {
-      const spiral = track(new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 10, Math.PI * 1.3), horn));
-      spiral.position.set(sx * 0.55, 2.1, 2.7);
-      spiral.rotation.set(Math.PI / 2, 0, sx * 0.6);
-      spiral.castShadow = true;
-      group.add(spiral);
-      for (const sz of [-1, 1]) track(addCyl(group, hide, 0.28, 0.34, 1.5, sx * 0.8, 0.75, sz * 1.1, 0));
-    }
-    // The saddle and its straps dress the stand-in only: the sculpt carries
-    // its rider bare-backed, so they go with the rest when it lands.
+    // The saddle and its straps dress the low-LOD stand-in only: the sculpt
+    // carries its rider bare-backed, so they go with the rest when it lands.
     const saddle = new THREE.Group();
     saddle.name = 'saddle';
     saddle.position.y = 3.2;
@@ -3251,24 +3223,13 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     for (const sx of [-1, 1]) addBox(saddle, leather, 0.06, 0.5, 0.3, sx * 0.62, -0.2, -0.2); // stirrup straps
     saddle.traverse((o) => { o.castShadow = true; if ((o as THREE.Mesh).isMesh) track(o as THREE.Mesh); });
     group.add(saddle);
-  } else {
-    // skiff: flat working deck, low rails, the helm forward (as the sculpt
-    // has it, turned to lead), lashed cargo astern
-    const hullMat2 = new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0xa08a60, roughness: 0.65, metalness: 0.35 });
-    const deck = track(addBox(group, hullMat2, 3, 0.5, 8.6, 0, 0.55, 0));
-    deck.receiveShadow = true;
-    for (const sx of [-1.45, 1.45]) track(addBox(group, dark, 0.08, 0.35, 8.2, sx, 0.95, 0));
-    track(addBox(group, hullMat2, 1.4, 0.3, 1.2, 0, 0.9, 3.4));      // helm platform
-    track(addCyl(group, dark, 0.04, 0.04, 1.1, -0.5, 1.5, 3.6, -0.3)); // tiller
-    const crateMat = new THREE.MeshStandardMaterial({ map: crateTexture(), roughness: 0.8 });
-    track(addBox(group, crateMat, 1.1, 1.1, 1.1, 0.6, 1.35, -2.9));
-    track(addBox(group, crateMat, 0.9, 0.9, 0.9, -0.7, 1.25, -3.2));
   }
   if (def.modelId) {
     propsUsed.add(def.modelId);   // a parked ride is part of the board's art
     const model = loadProp(def.modelId, def.modelSize ?? def.length, {
       axis: def.modelAxis,
       ground: def.modelGround,
+      lod: true,
       onLoad: (root) => { for (const m of built) m.visible = false; onModel?.(root); },
       onSettle,
     });
@@ -3276,6 +3237,11 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     model.position.y = sculptLift(def);
     model.rotation.y = modelTurn(kind);
     group.add(model);
+    // Still loading: the stand-in is what shows, and it is only now in the
+    // ride's frame, so only now can anything be measured off it. (A sculpt
+    // already in the cache has landed by here and taken the stand-in away.)
+    const standIn = model.getObjectByName('lodProp');
+    if (standIn) onStandIn?.(standIn);
   } else onSettle?.();
   return parts;
 }

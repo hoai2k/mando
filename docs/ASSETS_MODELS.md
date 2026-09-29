@@ -68,7 +68,7 @@ for diagnosis, but is no longer loaded for those two enemy variants.
 - Skeleton node names must match the canonical rig in `src/anim/skeleton.ts`:
   `hips, spine, chest, neck, head, shoulderL/R, upperArmL/R, forearmL/R, handL/R, upperLegL/R, lowerLegL/R, footL/R` plus attachment points `weaponR, weaponL, jetpack, capeRoot`.
 - Origin at the feet, +Z facing forward, real-world scale (heads ~1.7–2.2 m tall as noted).
-- Rest pose: relaxed A-pose matching the procedural proportions (`HUMAN` in skeleton.ts) so our procedural clips read correctly; authored clips may ship in the file and will be preferred if present.
+- Rest pose: relaxed A-pose matching the canonical proportions (`HUMAN` in skeleton.ts) so our procedural clips read correctly; authored clips may ship in the file and will be preferred if present.
 - **Visual reference: model from the A-pose turnaround sheets, not from the prose below.** Each character's `_front` / `_side` / `_back` sheets are requested in [`ASSETS_IMAGES.md`](ASSETS_IMAGES.md) and land at `reference/characters/<id>_front.png` etc. The prose here is a summary of the same design — where they disagree, the sheet wins. Heights are specified alongside the sheets so relative scale survives into the models.
 - Budgets: ≤ 15k tris playable characters, ≤ 8k tris grunts, ≤ 4k tris critters/props; one 1024² (playables) or 512² (grunts) PBR texture set (baseColor/metal-rough/normal).
 - Non-biped characters (marked ◆) use their own free-form rig — animation is procedural code, so any node layout is fine; keep the listed named nodes if possible.
@@ -104,6 +104,26 @@ pyke_capo stormtrooper tusken droid marshal nikto wookiee_enforcer massiff
 massiff_static` to 8k; `carbine gaffi nikto_swoop` to 4k. They were each drawn
 two to four times a frame (every split-screen view and every shadow pass) at
 eight to fifteen times the budget above.
+
+### Low-LOD stand-ins and the rig audit
+
+What shows while a model downloads, in the workbench's **Procedural** view, and
+on an `authored: false` build is no longer hand-modelled: it is the model itself
+at a very low level of detail — a few boxes per bone around the vertices that
+bone drives, in the sculpt's own colours, on a rig with the sculpt's joint
+positions (characters), on the sculpt's own skeleton with the same gait clips
+(creatures), or in the frame `loadProp` fits it in (weapons and rides).
+`src/characters/lod.ts` builds them from `src/characters/data/lod.json`, which
+
+    CHROMIUM_PATH=... node tools/asset-pipeline/measure-lod.mjs [id,id,...]
+
+measures off the shipped files. **Re-run it whenever a model, its fitted height,
+a weapon length or a ride's model size changes** (with ids, only those entries
+are re-measured). A full run also rewrites the rig joint audit,
+[`docs/audits/rig-joints.md`](audits/rig-joints.md), which compares every
+character skeleton's joints against where the mesh says they belong and ends
+with what fixing the .glb rigs would take;
+`node tools/asset-pipeline/show-joints.mjs <id> <out.png>` draws it on a model.
 
 ## Playable Mandalorians (4) — priority 1
 
