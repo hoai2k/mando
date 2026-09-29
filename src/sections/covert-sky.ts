@@ -432,50 +432,109 @@ function build(ctx: SectionContext): SectionInstance {
   const redMat = new THREE.MeshBasicMaterial({ color: 0xff3a22, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   ctx.own(redMat);
   type Flak = {
-    i: number; at: THREE.Vector3; gun: THREE.Group; yaw: THREE.Object3D; alive: boolean; charged: boolean;
+    i: number; at: THREE.Vector3; gun: THREE.Group; model: THREE.Group; alive: boolean; charged: boolean;
     fuse: number; cd: number; rockets: number; breech: Breakable; screen: THREE.Mesh; screenZ: number;
     it: Interactable; guards: Enemy[]; socket: THREE.Vector3; box: StaticBox;
+    /** the stand-in's turning parts, driven until the sculpt's own `yaw`/`pitch` nodes land */
+    yaw: THREE.Object3D; pitch: THREE.Object3D; lamp: THREE.Mesh;
+  };
+  // Built to its sheet (reference/props/flak_tower_ref.png, docs/ASSETS_MODELS.md):
+  // 6.7 × 6.0 × 3.3 m, scaled by the 6 m slab. A round rubble slab 0.9 m
+  // thick with sandbags and crates round its rim; the turret on a turntable in
+  // the middle, twin barrels level 2.4 m up reaching 0.7 m past the slab's
+  // edge; a sensor dish at the back. Pivot at the slab's underside centre.
+  const SLAB = { r: 3, t: 0.9 };
+  const BARREL_Y = 2.4;
+  const stone = ctx.paint(0x8a8a82, { rough: 0.95 });
+  ctx.tile(stone, 'cliff_ruin', 1, 0.3, { normal: true });
+  const sand = ctx.paint(0x8f7d5a, { rough: 1 });
+  const olive = ctx.paint(0x4d5a3a, { rough: 0.8, metal: 0.2 });
+  const steel = ctx.paint(0x6c7075, { rough: 0.5, metal: 0.8 });
+  const lampOff = new THREE.MeshBasicMaterial({ color: 0x5a1a12 });
+  ctx.own(lampOff);
+  const lampOn = new THREE.MeshBasicMaterial({ color: 0xff3a22 });
+  ctx.own(lampOn);
+  const buildFlak = (): { gun: THREE.Group; yaw: THREE.Group; pitch: THREE.Group; lamp: THREE.Mesh } => {
+    const gun = new THREE.Group();
+    const slab = new THREE.Mesh(new THREE.CylinderGeometry(SLAB.r, SLAB.r * 1.02, SLAB.t, 28), stone);
+    slab.position.y = SLAB.t / 2;
+    gun.add(slab);
+    // sandbag arcs and ammunition crates round the rim, clear of the socket side
+    for (const [a0, n] of [[0.6, 5], [2.2, 4], [3.6, 5], [5.2, 3]] as const) {
+      for (let k = 0; k < n; k++) {
+        const a = a0 + k * 0.17;
+        const bag = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.26, 0.32), sand);
+        bag.position.set(Math.sin(a) * 2.6, SLAB.t + 0.13 + (k % 2) * 0.22, Math.cos(a) * 2.6);
+        bag.rotation.y = a + Math.PI / 2;
+        gun.add(bag);
+      }
+    }
+    for (const a of [1.4, 4.4]) {
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.38, 0.4), olive);
+      crate.position.set(Math.sin(a) * 2.2, SLAB.t + 0.19, Math.cos(a) * 2.2);
+      crate.rotation.y = a;
+      gun.add(crate);
+    }
+    const table = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.45, 0.45, 24), steel);
+    table.position.y = SLAB.t + 0.225;
+    gun.add(table);
+    // the turret turns on the table (`yaw`), the barrels lift in it (`pitch`)
+    const yaw = new THREE.Group();
+    yaw.position.y = SLAB.t + 0.45;
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.9, 0.5, 20), steel);
+    drum.position.y = 0.25;
+    const house = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 1.4), iron);
+    house.position.set(0, 0.5 + 0.5, -0.1);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6), steel);
+    mast.position.set(0.8, 1.5, -0.55);
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.1, 0.1, 14), steel);
+    dish.rotation.x = Math.PI / 2 - 0.3;
+    dish.position.set(0.8, 1.95 - 0.02, -0.5);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), lampOff);
+    lamp.position.set(0, 1.1, -0.82);
+    yaw.add(drum, house, mast, dish, lamp);
+    const pitch = new THREE.Group();
+    pitch.position.set(0, BARREL_Y - (SLAB.t + 0.45), 0.55);
+    for (const sx of [-0.22, 0.22]) {
+      const reach = SLAB.r + 0.7 - 0.55;
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, reach, 10), steel);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(sx, 0, reach / 2);
+      const brake = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.3, 10), iron);
+      brake.rotation.x = Math.PI / 2;
+      brake.position.set(sx, 0, reach - 0.15);
+      pitch.add(barrel, brake);
+    }
+    yaw.add(pitch);
+    gun.add(yaw);
+    return { gun, yaw, pitch, lamp };
   };
   const flaks: Flak[] = flakSpec.map((f, i) => {
     const top = G + f.top;
     addTower({ x: f.x, z: f.z, w: 16, d: 16, top }, { plain: true });
+    // the pivot: the slab's underside, on the tower's roof
     const at = new THREE.Vector3(f.x, top + 0.5, f.z);
-    // the gun: a rubble ring, a turning mount, twin barrels
-    const gun = new THREE.Group();
-    const ringM = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.6, 6, 16), ruin);
-    ringM.rotation.x = Math.PI / 2;
-    ringM.position.y = 0.4;
-    const yaw = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.2, 1.8), iron);
-    body.position.y = 1.2;
-    yaw.add(body);
-    for (const s of [-0.4, 0.4]) {
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 3.4, 8), iron);
-      barrel.rotation.x = Math.PI / 2 - 0.8;
-      barrel.position.set(s, 2.2, 1.0);
-      yaw.add(barrel);
-    }
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3a22 }));
-    lamp.position.set(0, 2.0, -0.6);
-    yaw.add(lamp);
-    gun.add(ringM, yaw);
-    const holder = ctx.prop('flak_tower', at, { size: 6, fallback: () => gun });
-    void holder;
-    const { box, mesh } = ctx.box(at.x, at.y + 1.1, at.z, 1.9, 2.2, 1.9, null);
-    void mesh;
+    const parts = buildFlak();
+    const model = ctx.prop('flak_tower', at, { size: 6, fallback: () => parts.gun });
+    // the slab is the landing surface; the turret is the breech the rockets want
+    ctx.box(at.x, at.y + SLAB.t / 2, at.z, SLAB.r * 2, SLAB.t, SLAB.r * 2, null);
+    const { box } = ctx.box(at.x, at.y + SLAB.t + 1.0, at.z, 1.8, 2.0, 1.8, null);
     // the breech: rockets dent it, bolts do not (see `update`)
-    const breech = addBreakable(game.board, gun, box, 1000, { radius: 2.4 });
+    const breech = addBreakable(game.board, parts.gun, box, 1000, { radius: 2.4 });
     const screenZ = f.z + SCREEN_AHEAD;
     const screen = new THREE.Mesh(geo(new THREE.PlaneGeometry(HALF_W * 2, LID + 20)), redMat);
     screen.position.set(0, G + (LID + 20) / 2 - 10, screenZ);
     ctx.mesh(screen);
-    const socket = new THREE.Vector3(at.x + 3.2, top + 0.5, at.z - 2.5);
-    const plate = new THREE.Mesh(geo(new THREE.CylinderGeometry(1.2, 1.2, 0.08, 16)), new THREE.MeshBasicMaterial({ color: spec.palette.accent }));
-    plate.position.copy(socket).setY(top + 0.54);
+    // where the charge is planted: on the slab at the turret's back, clear of the sandbags
+    const socket = new THREE.Vector3(at.x + 1.5, at.y + SLAB.t, at.z - 1.6);
+    const plate = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.55, 0.55, 0.04, 16)), new THREE.MeshBasicMaterial({ color: spec.palette.accent }));
+    ctx.own(plate.material as THREE.Material);
+    plate.position.copy(socket).setY(socket.y + 0.02);
     ctx.mesh(plate);
     const flak: Flak = {
-      i, at, gun, yaw, alive: true, charged: false, fuse: 0, cd: 3 + i, rockets: 0, breech,
+      i, at, gun: parts.gun, model, alive: true, charged: false, fuse: 0, cd: 3 + i, rockets: 0, breech,
       screen, screenZ, it: null as unknown as Interactable, guards: [], socket, box,
+      yaw: parts.yaw, pitch: parts.pitch, lamp: parts.lamp,
     };
     flak.it = interactions.add({
       pos: socket, hold: 3, radius: 3, verb: T.flakVerb,
@@ -488,6 +547,9 @@ function build(ctx: SectionContext): SectionInstance {
     });
     return flak;
   });
+  /** the part to turn: the sculpt's named node once it has landed, the stand-in's until then */
+  const node = (f: Flak, name: 'yaw' | 'pitch'): THREE.Object3D =>
+    f.model.getObjectByName(name) ?? (name === 'yaw' ? f.yaw : f.pitch);
 
   // ---- the city, drawn: one mesh per material ----
   for (const [kind, mat, shadow] of [['ruin', ruin, true], ['roof', roofMat, false], ['ridge', ridgeMat, false],
@@ -721,6 +783,8 @@ function build(ctx: SectionContext): SectionInstance {
       f.breech.hp = f.breech.maxHp;
       if (f.charged) {
         f.fuse -= dt;
+        // the charge's lamp blinks faster as the fuse runs down
+        f.lamp.material = Math.sin(t * (10 + (2.5 - f.fuse) * 12)) > 0 ? lampOn : lampOff;
         if (f.fuse <= 0) f.rockets = 2;
       }
       if (f.rockets >= 2) {
@@ -728,15 +792,17 @@ function build(ctx: SectionContext): SectionInstance {
         f.breech.broken = true;
         game.board.breakables = (game.board.breakables ?? []).filter((b) => b !== f.breech);
         ctx.unsolid({ box: f.box });
-        const boom = f.at.clone().setY(f.at.y + 1.5);
+        const boom = f.at.clone().setY(f.at.y + SLAB.t + 1.2);
         game.particles.explosion(boom, 2.2);
         audio.explosion();
         for (const p of game.players) {
           const d = p.position.distanceTo(boom);
           if (p.alive && d < 5) p.damage(20 * (1 - d / 5), boom);
         }
-        f.yaw.rotation.z = 0.6;
-        f.yaw.position.y = -0.6;
+        // the dead gun: slumped on its mount, barrels down
+        node(f, 'pitch').rotation.x = 0.5;
+        node(f, 'yaw').rotation.z = 0.25;
+        f.lamp.material = lampOff;
         for (const e of f.guards) if (e.alive) e.alert(boom, true);
         const last = flaks.every((x) => !x.alive);
         if (last) { breachOpen = true; ctx.announce(T.breachOpen, T.breachOpenSub); }
@@ -753,12 +819,17 @@ function build(ctx: SectionContext): SectionInstance {
         if (d < 14 || d > best) continue;
         best = d; target = p;
       }
-      if (target) f.yaw.rotation.y = Math.atan2(target.position.x - f.at.x, target.position.z - f.at.z);
+      if (target) {
+        const dx = target.position.x - f.at.x, dz = target.position.z - f.at.z;
+        node(f, 'yaw').rotation.y = Math.atan2(dx, dz);
+        // barrels lift toward it (negative x turns +z up)
+        node(f, 'pitch').rotation.x = -Math.min(1.2, Math.max(0, Math.atan2(target.position.y - (f.at.y + BARREL_Y), Math.hypot(dx, dz))));
+      }
       if (target && f.cd <= 0) {
         f.cd = (solo ? 3.3 : 2.6) - Math.min(0.8, party * 0.1);
         const lead = target.position.clone().addScaledVector(target.velocity, FLAK_FLIGHT * 0.8);
         lead.y += 1;
-        fire(f.at.clone().setY(f.at.y + 2.5), lead);
+        fire(f.at.clone().setY(f.at.y + BARREL_Y), lead);
       }
     }
 
