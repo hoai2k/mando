@@ -269,7 +269,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Gantry: a horn and a red lamp three seconds out. Hold Y · C to duck, or jump it.',
       'At the station, hold the doors for thirty seconds while a squad boards and snipers work the canopy.',
       'Tunnel: one metre of clearance. Drop through the roof hatches, fight inside, climb back up after.',
-      'Pirate tram: jump across and clear its gunners, or shoot out its coupling. Then off at the terminus.',
+      'Pirate tram: jump across and clear its gunners, or shoot out its coupling once it is alongside and lit. Then off at the terminus.',
     ],
     tips: [
       'On the flank camera the stick is turned to the screen. Stick right runs along the train.',
@@ -286,11 +286,11 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Grab the net launcher on the first roof. B · Q fires a net. You carry three.',
       'Keep him in reach. Drop too far behind for too long and he escapes back to the last checkpoint roof.',
       'At a fork he takes the way with the fewest hunters on it. Split up.',
-      'On the pad he turns and fights. Wear him under half, then net him, or beat him down by hand.',
+      'On the pad he turns and fights. Wear him under half, then net him, or beat him down with melee.',
       'Once he is taken, the stair down is the way on.',
     ],
     tips: [
-      'Blaster hits stagger him but cost bounty. Hits up close and nets are free. Nets stop him longest.',
+      'Blaster hits stagger him but cost bounty, at any range. Melee blows and nets are free. Nets stop him longest.',
       'Shoot him dead and it still counts, at half the bounty. Take him alive at 85% or more for a rocket recharge.',
       'Nets refill at checkpoint roofs, at the resupply crates, and every time you respawn.',
       'Fall off and you re-form on the most advanced roof a hunter stands on.',

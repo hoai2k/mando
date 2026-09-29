@@ -1393,6 +1393,8 @@ export const TEXT = {
       // banners
       armed: 'Net launcher', armedSub: 'B / Q fires a net · takes him alive',
       resupply: 'nets refilled',
+      cpNets: 'nets refill here',
+      cpLast: 'the last roof before the pad',
       fork: 'He is choosing a way', forkSub: 'split up — he runs from the crowd',
       called: 'His pirates', calledSub: 'the next roof is waiting for you',
       kick: 'Crates!',

@@ -184,11 +184,20 @@ await boot(['din', 'maul']);
   const r = await run(`${H}
     const out = {};
     // out of the tunnel and on to the rival
+    out.coldWhileComing = null;
     for (let f = 0; f < 30 * 90 && k.rival.state !== 'alongside'; f++) {
       hold(-2);
       g.update(1 / 30, [blank, blank, blank, blank]);
+      if (k.rival.state === 'coming') {
+        // riding up, the coupling is no target at all: a blast on it does nothing
+        const hp = k.coupling.hp;
+        g.damageBreakablesNear?.(k.coupling.center, 4, 9999);
+        const cold = !k.couplingTargetable() && k.coupling.hp === hp && !k.coupling.broken;
+        out.coldWhileComing = out.coldWhileComing === null ? cold : out.coldWhileComing && cold;
+      }
     }
     out.state0 = k.rival.state;
+    out.liveAlongside = k.couplingTargetable();
     // one hunter across on its roof; the other shoots out the coupling
     const across = g.players[1];
     across.position.set(k.rival.x + 6, k.roofY + 0.1, k.rival.z);
@@ -203,6 +212,8 @@ await boot(['din', 'maul']);
     return out;
   `);
   check('the pirate tram pulls alongside', r.state0 === 'alongside', JSON.stringify(r));
+  check('its coupling cannot be broken while it rides up', r.coldWhileComing === true, JSON.stringify(r));
+  check('and goes live once it is alongside', r.liveAlongside, JSON.stringify(r));
   check('a hunter can stand on it', r.onRival, JSON.stringify(r));
   check('shooting out its coupling cuts it loose', r.state1 === 'peeling', JSON.stringify(r));
   check('anyone still on it is put back aboard as it peels off', r.back && (r.state2 === 'gone' || r.state2 === 'peeling'), JSON.stringify(r));
