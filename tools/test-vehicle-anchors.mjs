@@ -95,6 +95,69 @@ const json = JSON.parse(await readFile(file, 'utf8'));
 check('the export is the game\'s anchor file with the swoop in it',
   json.version === 1 && Array.isArray(json.vehicles?.swoop?.seat) && Array.isArray(json.vehicles.swoop.grip), json);
 
+// ---- paused, an edit still shows on the model; the footrest; the rider's turn ----
+if (await page.locator('#pauseAnimation').getAttribute('aria-pressed') !== 'true') await page.click('#pauseAnimation');
+const where = (name) => page.evaluate((n) => {
+  const vr = window.__wb.figures[0].inst.root.userData.vehicleRig;
+  vr.frame.updateMatrixWorld(true);
+  let bone = null;
+  vr.frame.traverse((o) => { if (!bone && o.name.replace(/[.]/g, '') === n) bone = o; });
+  return bone ? vr.frame.worldToLocal(bone.getWorldPosition(vr.seat.clone())).toArray() : null;
+}, name);
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const setAnchor = async (handle, values) => {
+  await page.locator('#anchorTarget').selectOption(handle);
+  await page.waitForSelector('[data-anchor-axis="p0"]');
+  for (const [i, v] of values.entries()) {
+    if (v === null) continue;
+    await page.$eval(`[data-anchor-axis="p${i}"]`, (el, value) => { el.value = String(value); el.dispatchEvent(new Event('change')); }, v);
+  }
+  await page.waitForTimeout(150);
+};
+const handBefore = await where('DEF-handL');
+const grip = await page.evaluate(() => window.__wb.figures[0].inst.root.userData.vehicleRig.grip.toArray());
+await setAnchor('grip', [null, null, grip[2] + 0.1]);
+const handAfter = await where('DEF-handL');
+check('paused, moving the grip moves the model\'s own hand', !!handBefore && !!handAfter
+  && handAfter[2] - handBefore[2] > 0.05, { handBefore, handAfter });
+
+const sole = [0.2, 0.2, -0.1];
+await setAnchor('foot', sole);
+const ankle = await where('footL');
+check('a footrest puts the left foot on it (the ankle just over the sole)', !!ankle
+  && dist(ankle, [sole[0], sole[1] + 0.08, sole[2]]) < 0.04, { ankle, sole });
+const ankleR = await where('footR');
+const seatX = await page.evaluate(() => window.__wb.figures[0].inst.root.userData.vehicleRig.seat.x);
+check('...and the right foot on its mirror', !!ankleR
+  && dist(ankleR, [2 * seatX - sole[0], sole[1] + 0.08, sole[2]]) < 0.04, { ankleR });
+
+await page.$eval('#riderYaw', (el) => { el.value = '20'; el.dispatchEvent(new Event('change')); });
+await page.waitForTimeout(150);
+const turned = await page.evaluate(() => window.__wb.figures[0].inst.root.userData.vehicleRig.frame.children
+  .find((c) => c.getObjectByName?.('hips')).rotation.y);
+check('the rider turns on the seat', Math.abs(turned - 20 * Math.PI / 180) < 1e-3, { turned });
+
+const download2 = page.waitForEvent('download');
+await page.click('#anchorExport');
+const json2 = JSON.parse(await readFile(await (await download2).path(), 'utf8'));
+check('the export carries the footrest and the turn',
+  Array.isArray(json2.vehicles.swoop.foot) && json2.vehicles.swoop.yaw === 20, json2.vehicles.swoop);
+
+// ---- the session's swoop edits reach the Nikto, who rides the same bike ----
+await page.click('#editToggle');
+await h.workbench('nikto', 'creatureIdle');
+await page.waitForTimeout(400);
+const niktoHand = await page.evaluate(([edited, committed]) => {
+  const r = window.__wb.figures[0].inst.root.userData.niktoRider;
+  r.bike.updateMatrixWorld(true);
+  const hand = r.rider.getObjectByName('handL').getWorldPosition(r.bike.position.clone());
+  // the swoop's frame to his bike's: the same sculpt hangs 0.385 m lower on his
+  const at = (g) => r.bike.localToWorld(r.bike.position.clone().set(g[0], g[1] - 0.385, g[2]));
+  return { edited: +hand.distanceTo(at(edited)).toFixed(3), committed: +hand.distanceTo(at(committed)).toFixed(3) };
+}, [[grip[0], grip[1], grip[2] + 0.1], grip]);
+check('the Nikto\'s hand follows the swoop\'s grip as edited this session',
+  niktoHand.edited < 0.15 && niktoHand.edited < niktoHand.committed, niktoHand);
+
 if (h.errors.length) check('no page errors', false, h.errors.slice(0, 3));
 check.done('vehicle anchors');
 await h.close();

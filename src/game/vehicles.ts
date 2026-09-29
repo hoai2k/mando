@@ -14,8 +14,9 @@ import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
-import { seatSurface } from '../anim/seating';
-import { CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
+import { reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import type { Rig } from '../anim/skeleton';
+import { ANKLE_OVER_SOLE, CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 import { saberClipsFor } from '../characters/mandalorians';
 
@@ -367,6 +368,9 @@ export const BIKE_CANNON_HOSTILE: GunDef = {
 export const BIKE_PILLION = { x: 0, y: -0.28, z: -1.15 };
 
 /** a mount's charge: how long the horns are down, and the wait before another */
+const _restFoot = new THREE.Vector3();
+const _restKnee = new THREE.Vector3();
+
 const CHARGE_TIME = 1.5;
 const CHARGE_COOLDOWN = 5;
 /** what the charge is worth as a multiple of the animal's own top speed */
@@ -651,6 +655,10 @@ export class Vehicle {
   readonly hands: VehicleDef['hands'];
   /** how far the rider's knees open, when the ride sets it — see `VehicleAnchor.legSpread` */
   get legSpread(): number | null { return this.anchor?.legSpread ?? null; }
+  /** the rider turned on the seat, radians — see `VehicleAnchor.yaw` */
+  get seatYaw(): number { return THREE.MathUtils.degToRad(this.anchor?.yaw ?? 0); }
+  /** a walking mount's back, which carries the saddle as it moves (`SaddleBone`) */
+  private saddle: SaddleBone | null = null;
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -1186,16 +1194,70 @@ export class Vehicle {
     // K3: the pillion sits behind, at the same height over the saddle line
     if (who && who === this.pillion && this.def.pillion) {
       const q = this.def.pillion;
-      this.localPoint(q.x, 0, q.z, out);
-      out.y = this.pos.y + this.seatTop - rise + (q.y - this.def.seat.y);
-      return out;
+      return this.rideToWorld(q.x, this.seatTop - rise + (q.y - this.def.seat.y), q.z, out);
     }
-    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-    return out.set(
-      this.pos.x + cos * this.seatX + sin * this.seatZ,
-      this.pos.y + this.seatTop - rise,
-      this.pos.z - sin * this.seatX + cos * this.seatZ,
-    );
+    // K3: a turret's base stays put and only the gun turns (`yaw` against
+    // `baseYaw`), so its seat is swung about the ring by the gun's own yaw
+    // rather than through the hull, which is drawn at the base's heading
+    if (this.def.turret) {
+      const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+      return out.set(
+        this.pos.x + cos * this.seatX + sin * this.seatZ,
+        this.pos.y + this.seatTop - rise,
+        this.pos.z - sin * this.seatX + cos * this.seatZ,
+      );
+    }
+    return this.rideToWorld(this.seatX, this.seatTop - rise, this.seatZ, out);
+  }
+
+  /**
+   * A point in the ride's own frame (from the keel: +X its left, +Z its nose)
+   * in the world — through the hull as it is drawn, so the lean into a turn
+   * and the pitch at speed carry the seat, the bars and the footrests with
+   * them (on a bantha the saddle is two metres up that lever), and carried
+   * with a walking mount's back, when it has one.
+   */
+  private rideToWorld(lx: number, ly: number, lz: number, out: THREE.Vector3): THREE.Vector3 {
+    const shift = this.saddle?.shift;
+    if (shift) { lx += shift.x; ly += shift.y; lz += shift.z; }
+    // the hull where the ride is this frame, whether or not it has been drawn yet
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
+    this.body.updateWorldMatrix(true, false);
+    return this.body.localToWorld(out.set(lx, ly, lz));
+  }
+
+  /**
+   * Where a foot rests, for side 1 (the rider's left) or -1: the anchor's
+   * footrest, mirrored across the seat for the right, lifted to the ankle.
+   * Null for a ride with no footrest placed.
+   */
+  footWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
+    const f = this.anchor?.foot;
+    if (!f || !this.anchor) return null;
+    const s = this.anchor.seat;
+    return this.rideToWorld(this.seatX + side * (f[0] - s[0]), this.seatTop + (f[1] - s[1]) + ANKLE_OVER_SOLE,
+      this.seatZ + (f[2] - s[2]), out);
+  }
+
+  /**
+   * Put the rider's legs where the ride has them: each foot on its rest, the
+   * knee bowed forward and out to the ride's spread, when it has footrests;
+   * otherwise the clip's legs opened to the spread, when it sets one. Call it
+   * after the animator has posed the frame and before the hands.
+   */
+  poseLegs(rig: Rig): void {
+    if (!this.anchor?.foot) {
+      if (this.legSpread !== null) spreadKnees(rig, this.legSpread);
+      return;
+    }
+    rig.root.updateMatrixWorld(true);
+    const spread = this.legSpread ?? 0.25;
+    for (const side of [1, -1] as const) {
+      if (!this.footWorld(side, _restFoot)) return;
+      this.rideToWorld(this.seatX + side * spread, this.seatTop + 0.1, this.seatZ + 0.45, _restKnee);
+      reachLeg(rig, side === 1 ? 'L' : 'R', _restFoot, _restKnee);
+    }
   }
 
   /** a point in the ride's own space (as `seat`: +z the nose), in the world */
@@ -1246,6 +1308,8 @@ export class Vehicle {
       // clip is measured the same way, near enough to keep the feet honest
       this.walkStride = BANTHA_STRIDE / Math.max(walk.duration, 0.2);
     }
+    // measured now, at rest, before the gait has taken a step
+    this.saddle = new SaddleBone(root, this.group, new THREE.Vector3(this.seatX, this.seatTop, this.seatZ));
   }
 
   /**
@@ -1340,13 +1404,7 @@ export class Vehicle {
   gripWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
     const g = this.hands;
     if (!g) return null;
-    const lx = this.seatX + side * g.x, lz = this.seatZ + g.z;
-    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
-    return out.set(
-      this.pos.x + cos * lx + sin * lz,
-      this.pos.y + this.seatTop + g.y,
-      this.pos.z - sin * lx + cos * lz,
-    );
+    return this.rideToWorld(this.seatX + side * g.x, this.seatTop + g.y, this.seatZ + g.z, out);
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
@@ -2556,6 +2614,7 @@ export class Vehicle {
       this.walkAction.timeScale = clamp(speed / Math.max(this.walkStride, 0.1), 0.25, 2.4);
     }
     this.mixer.update(dt);
+    this.saddle?.update();
   }
 
   /**
@@ -2776,6 +2835,80 @@ function addCyl(parent: THREE.Object3D, m: THREE.Material, r1: number, r2: numbe
  * The hands, from the seat: the def's, or the workbench's grip anchor turned
  * into the same seat-relative offset (the left hand's; the right mirrors it).
  */
+/** how far a ride's sculpt is turned on its keel: the def's own turn, plus any the anchors add (radians) */
+export const modelTurn = (kind: VehicleSpec['kind']): number =>
+  (VEHICLE_DEFS[kind].modelYaw ?? 0) + THREE.MathUtils.degToRad(VEHICLE_ANCHORS[kind]?.modelYaw ?? 0);
+
+/**
+ * The back of a walking mount. The saddle is laid on the sculpt at rest, but
+ * the gait moves the animal under it — the back rises and falls with each
+ * step and rolls over each planted foot — so a rider pinned to the frame
+ * floats still while the bantha walks beneath him.
+ *
+ * What carries the saddle is the skin under it, and that skin is carried by
+ * whichever bones its weights name — not necessarily the bone nearest the
+ * seat (on the bantha that is a mid-back vertebra the walk hardly moves, while
+ * the saddle's skin is weighted back toward the hips, which do). So this reads
+ * the skin: the vertices within reach of the seat, the bones they are weighted
+ * to and by how much, and it carries the seat on that same blend — as if it
+ * were one more vertex of the saddle. `shift` is how far that has moved it
+ * from rest, in the ride's frame.
+ */
+export class SaddleBone {
+  private holds: Array<{ bone: THREE.Object3D; onBone: THREE.Vector3; weight: number }> = [];
+  private rest = new THREE.Vector3();
+  /** how far the back has moved the seat from rest, in the ride's frame (m) */
+  readonly shift = new THREE.Vector3();
+
+  constructor(model: THREE.Object3D, private frame: THREE.Object3D, seat: THREE.Vector3) {
+    model.updateMatrixWorld(true);
+    frame.updateMatrixWorld(true);
+    const seatWorld = frame.localToWorld(seat.clone());
+    const weights = new Map<THREE.Object3D, number>();
+    const v = new THREE.Vector3();
+    model.traverse((o) => {
+      const mesh = o as THREE.SkinnedMesh;
+      if (!mesh.isSkinnedMesh || !mesh.geometry.attributes.skinIndex) return;
+      const idx = mesh.geometry.attributes.skinIndex, wt = mesh.geometry.attributes.skinWeight;
+      const count = mesh.geometry.attributes.position.count;
+      for (let i = 0; i < count; i++) {
+        mesh.localToWorld(mesh.getVertexPosition(i, v));
+        const d = v.distanceTo(seatWorld);
+        if (d > 0.45) continue;
+        // nearer skin counts for more
+        const near = 1 - d / 0.45;
+        for (let k = 0; k < idx.itemSize; k++) {
+          const w = wt.getComponent(i, k) * near;
+          const bone = mesh.skeleton.bones[idx.getComponent(i, k)];
+          if (w > 0 && bone) weights.set(bone, (weights.get(bone) ?? 0) + w);
+        }
+      }
+    });
+    const total = [...weights.values()].reduce((a, b) => a + b, 0);
+    if (!total) return;
+    this.rest.copy(seat);
+    for (const [bone, w] of weights) {
+      if (w / total < 0.02) continue;
+      this.holds.push({ bone, weight: w, onBone: bone.worldToLocal(seatWorld.clone()) });
+    }
+    const kept = this.holds.reduce((a, h) => a + h.weight, 0);
+    for (const h of this.holds) h.weight /= kept;
+  }
+
+  /** read the back after the gait has posed it */
+  update(): void {
+    if (!this.holds.length) return;
+    this.frame.updateWorldMatrix(true, false);
+    this.shift.set(0, 0, 0);
+    for (const h of this.holds) {
+      h.bone.updateWorldMatrix(true, false);
+      this.shift.addScaledVector(h.bone.localToWorld(_held.copy(h.onBone)), h.weight);
+    }
+    this.frame.worldToLocal(this.shift).sub(this.rest);
+  }
+}
+const _held = new THREE.Vector3();
+
 /**
  * How far over the keel a ride's sculpt hangs: a grounded one stands on it,
  * the rest hang off their own origin a third of the body up. Anything else
@@ -2963,7 +3096,7 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     });
     // a grounded sculpt stands on the keel; the rest hang off their own origin
     model.position.y = sculptLift(def);
-    model.rotation.y = def.modelYaw ?? 0;
+    model.rotation.y = modelTurn(kind);
     group.add(model);
   } else onSettle?.();
   return parts;
