@@ -291,6 +291,23 @@ the same death-credit path.)
   foreclaw onto the dais and holds it there: continuous slow claw sweeps rake the
   dais while the head fights on — the arena's safe ground halves.
 
+**Shipped moves** (`src/enemies/sleeper.ts`). A party with rockets could walk it
+into a corner of the basin and pin it there, so the shipped Sleeper answers pressure
+itself:
+
+- **Dive and resurface** — every 15–20 s (10–13 enraged), and at once when it has
+  been driven more than 16 m from where it made its stand, it sinks (untouchable while
+  under), a dust wake crosses the basin, the ground boils where it is coming up, and it
+  erupts there (30, knock-up, 6.5 m) somewhere round its stand, away from where it
+  went down.
+- **Reflecting roar** — with someone within reach it rears for 1.5 s while a ring of
+  fire spreads across the ground to 15 m and its body glows (the first two are named on
+  a banner), then roars: everyone inside is thrown clear (10). For 2.8 s after, a gold
+  shell turns every attack back — bolts fly back at the party, and a blade or blast
+  that lands costs its striker half of what it would have dealt.
+- **Unshovable** — knockback moves it a third as far as anything else, and not at all
+  mid-move.
+
 **Integration notes.** Anchored to the pool exactly as the event is
 (`src/world/forge.ts` owns the eye, rumble and skull; the fight replaces the event's
 timer with an encounter). Deflect zones are hit volumes returning the spark FX with

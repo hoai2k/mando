@@ -891,7 +891,7 @@ six **barricade sockets** around the dais.
 
 **How it plays.**
 
-- **The forging** (K5). A progress bar climbs from 0 to 100% over ~3 minutes
+- **The forging** (K5). A progress bar climbs from 0 to 100% over ~1–1.5 minutes
   while the Armorer works. It **stalls** while an enemy is within 6 m of her, and
   runs at half speed if a bellows is broken.
 - **The Armorer** has HP (she fights back at melee range with her hammer, which

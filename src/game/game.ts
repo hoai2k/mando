@@ -497,6 +497,11 @@ export class Game {
    * lighter promotion and a thinner guard) or the territory's warlord.
    * Shared by the wave game's boss battles and the campaign's two arenas.
    */
+  /** a spot a body of `kind` can stand, near `pos`: the stage's own rules in a campaign */
+  placeBoss(pos: THREE.Vector3, kind: EnemyKind): THREE.Vector3 {
+    return this.campaign ? this.campaign.placeNear(pos.clone(), kind) : standingSpot(this.board, pos.clone(), kind);
+  }
+
   spawnBoss(pos: THREE.Vector3, tier: 'mid' | 'final' = 'final'): Enemy {
     const mid = MID_BOSS[this.board.kind];
     const kind = tier === 'mid' ? mid.kind
@@ -845,7 +850,8 @@ export class Game {
     // a burrower under the ground has its own answer to a camper — the
     // eruption — and a slam telegraphed from under the sand would promise a
     // hit from a body nobody can see
-    if (b.submerged) { this.bossTelegraph = 0; return; }
+    // (and the Sleeper mid-dive or rearing to roar has its own ring on the ground)
+    if (b.submerged || b.sleeper?.busy) { this.bossTelegraph = 0; return; }
     if (this.bossTelegraph > 0) {
       // winding up: ember ring so the radius is readable, then the hit
       this.bossTelegraph -= dt;
