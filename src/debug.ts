@@ -35,6 +35,7 @@ import type { fitStats } from './world/collide';
 import type { ZoneSpec } from './world/mission';
 import type { Figure } from './workbench/main';
 import type { Pose } from './workbench/poses';
+import type { PoseEditor } from './workbench/poseEdit';
 import type { Subject } from './workbench/roster';
 
 /** one of `tools/harness.mjs`'s shimmed controllers, as `navigator.getGamepads()` reads it */
@@ -64,7 +65,14 @@ export interface MissionZoneRow {
   shell: ZoneSpec['shell'];
   kind: ZoneSpec['kind'];
   waves: number | null;
+  /** open ground that is not a siege: the depth of its posted force */
+  garrison: number | null;
   siege: boolean;
+  pass: boolean;
+  deadEnd: boolean;
+  w: number;
+  l: number;
+  rides: string[];
 }
 
 export interface DebugHooks {
@@ -152,6 +160,8 @@ export interface DebugHooks {
     pose: Pose;
     camera: THREE.PerspectiveCamera;
     controls: OrbitControls;
+    /** the joint gizmo, so a test can turn a joint the way a drag does */
+    editor: PoseEditor;
   };
 
   // ---- set by the page's caller, read by the game ----

@@ -1,14 +1,14 @@
 import { TEXT } from '../text';
 import type { Game } from '../game/game';
 import { Radar } from './radar';
-import { splitLayout } from '../core/layout';
+import { splitLayout, type Rect } from '../core/layout';
 import { yawBasis } from '../core/math';
 import * as THREE from 'three';
 import type { Player } from '../player/player';
 import { ENEMY_NAME, type EnemyKind } from '../enemies/enemy';
 import { FINAL_WAVE } from '../enemies/spawner';
 import { ASSET_ROOT, portraitName } from '../core/assets';
-import { hostileSvg } from './faces';
+import { faceSvg, hostileSvg } from './faces';
 
 const paper = (): string => `url('${ASSET_ROOT}assets/textures/ui_paper_aged.jpg')`;
 const portrait = (kind: string): string => `url('${ASSET_ROOT}assets/textures/${portraitName(kind)}.jpg')`;
@@ -27,6 +27,8 @@ interface PlayerHud {
   energy: HTMLElement;
   heat: HTMLElement;
   heatBar: HTMLElement;
+  air: HTMLElement;
+  airBar: HTMLElement;
   coverHint: HTMLElement;
   hpNum: HTMLElement;
   healthBar: HTMLElement;
@@ -47,6 +49,22 @@ interface PlayerHud {
   crosshair: SVGElement;
   radar: Radar;
   hitTimer: number;
+  /** K1's merged strip: this player's face, shown only while the screen is shared */
+  portrait: HTMLElement;
+}
+
+/**
+ * The one full-screen layer the merged strip adds while a rail section shares
+ * the screen (K1): a single objective marker and the party's top line, since
+ * there is one picture to point into rather than one per player.
+ */
+interface MergedHud {
+  root: HTMLElement;
+  objective: HTMLElement;
+  objMark: SVGElement;
+  objLabel: HTMLElement;
+  wave: HTMLElement;
+  kills: HTMLElement;
 }
 
 interface SharedHud {
@@ -90,6 +108,11 @@ export class Hud {
   private shared: SharedHud | null = null;
   private transitionCard: HTMLElement | null = null;
   private transitionTimer = 0;
+  /** K1: the split's rectangles and rules, and whether the strip is standing in for them */
+  private rects: Rect[] = [];
+  private dividers: HTMLElement[] = [];
+  private merged: MergedHud | null = null;
+  private isMerged = false;
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement('div');
@@ -100,6 +123,8 @@ export class Hud {
   setLayout(playerCount: number): void {
     this.layer.innerHTML = '';
     this.huds = [];
+    this.dividers = [];
+    this.isMerged = false;
     this.shared = null;
     this.transitionCard = null;
     this.transitionTimer = 0;
@@ -107,6 +132,7 @@ export class Hud {
     // bars always sit inside that player's picture — every mode splits the
     // screen the same way now that Missions gives each player their own camera
     const rects = splitLayout(playerCount);
+    this.rects = rects;
     for (let i = 0; i < playerCount; i++) {
       const root = document.createElement('div');
       root.className = 'hud-viewport';
@@ -125,6 +151,7 @@ export class Hud {
           <div class="bar fuel"><div class="fill"></div><div class="label">${TEXT.hud.bars.fuel}</div></div>
           <div class="bar energy"><div class="fill"></div><div class="label">${TEXT.hud.bars.energy}</div></div>
           <div class="bar heat"><div class="fill"></div><div class="label">${TEXT.hud.bars.heat}</div></div>
+          <div class="bar air"><div class="fill"></div><div class="label">${TEXT.hud.bars.air}</div></div>
         </div>
         <div class="hud-wave"><div class="wave-num"></div><div class="wave-pips"></div><div class="wave-kills"></div></div>
         <div class="hud-weapon"><div class="wname"></div><div class="rocket"></div></div>
@@ -133,6 +160,7 @@ export class Hud {
         <div class="hud-objective"><svg class="obj-mark" viewBox="0 0 24 24"><path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="#ffcf6a" stroke-width="2.4" stroke-linejoin="round"/><path class="obj-arrow" d="M12 4 L20 16 L12 12 L4 16 Z" fill="#ffcf6a" opacity="0"/></svg><div class="obj-label"></div></div>
         <div class="hud-exited"></div>
         <div class="hud-section"></div>
+        <div class="hud-portrait"><div class="face"></div><div class="tag">P${i + 1}</div></div>
       `;
       this.layer.appendChild(root);
       const radar = new Radar();
@@ -146,6 +174,8 @@ export class Hud {
         energy: root.querySelector('.bar.energy .fill') as HTMLElement,
         heat: root.querySelector('.bar.heat .fill') as HTMLElement,
         heatBar: root.querySelector('.bar.heat') as HTMLElement,
+        air: root.querySelector('.bar.air .fill') as HTMLElement,
+        airBar: root.querySelector('.bar.air') as HTMLElement,
         coverHint: root.querySelector('.hud-cover') as HTMLElement,
         hpNum: root.querySelector('.bar.health .hpnum') as HTMLElement,
         healthBar: root.querySelector('.bar.health') as HTMLElement,
@@ -163,6 +193,7 @@ export class Hud {
         vignette: root.querySelector('.damage-vignette') as HTMLElement,
         crosshair: root.querySelector('.crosshair') as SVGElement,
         hitTimer: 0,
+        portrait: root.querySelector('.hud-portrait') as HTMLElement,
       });
       // A rule along each internal edge of this viewport, so neighbours read
       // apart — spanning only that viewport's own edge, never the full window:
@@ -173,6 +204,7 @@ export class Hud {
         el.className = cls;
         Object.assign(el.style, style);
         this.layer.appendChild(el);
+        this.dividers.push(el);
       };
       if (r.y > 0) rule('hud-divider', { top: `${r.y * 100}%`, left: `${r.x * 100}%`, width: `${r.w * 100}%` });
       if (r.x > 0) rule('hud-divider-v', { left: `${r.x * 100}%`, top: `${r.y * 100}%`, height: `${r.h * 100}%` });
@@ -207,6 +239,21 @@ export class Hud {
       bossFill: shared.querySelector('.bossfill') as HTMLElement,
       bannerTimer: 0,
       contactsTimer: 0,
+    };
+    // K1's merged layer: built with the rest, shown only while the screen is shared
+    const merged = document.createElement('div');
+    merged.className = 'hud-merged';
+    merged.innerHTML = `
+      <div class="hud-wave"><div class="wave-num"></div><div class="wave-kills"></div></div>
+      <div class="hud-objective"><svg class="obj-mark" viewBox="0 0 24 24"><path d="M12 2 L22 12 L12 22 L2 12 Z" fill="none" stroke="#ffcf6a" stroke-width="2.4" stroke-linejoin="round"/><path class="obj-arrow" d="M12 4 L20 16 L12 12 L4 16 Z" fill="#ffcf6a" opacity="0"/></svg><div class="obj-label"></div></div>`;
+    this.layer.appendChild(merged);
+    this.merged = {
+      root: merged,
+      objective: merged.querySelector('.hud-objective') as HTMLElement,
+      objMark: merged.querySelector('.obj-mark') as SVGElement,
+      objLabel: merged.querySelector('.obj-label') as HTMLElement,
+      wave: merged.querySelector('.wave-num') as HTMLElement,
+      kills: merged.querySelector('.wave-kills') as HTMLElement,
     };
     const transition = document.createElement('div');
     transition.className = 'hud-transition';
@@ -326,22 +373,25 @@ export class Hud {
    * you or off the side — a chevron pinned to the edge of your own viewport
    * pointing at it. Per player, through that player's own camera.
    */
-  private updateObjective(h: PlayerHud, p: Player, game: Game): void {
+  private updateObjective(h: Pick<PlayerHud, 'objective' | 'objMark' | 'objLabel'> & { exited?: HTMLElement },
+    p: Player, game: Game, camera: THREE.Camera = p.cam.camera): void {
     const campaign = game.campaign;
     if (!campaign || !p.alive) {
       h.objective.style.opacity = '0';
-      h.exited.textContent = '';
+      if (h.exited) h.exited.textContent = '';
       return;
     }
     // the exited state: your own screen says how to come back, everyone
     // else's says who they are waiting on
-    h.exited.textContent = game.exitNotice(p);
-    h.exited.classList.toggle('show', !!h.exited.textContent);
+    if (h.exited) {
+      h.exited.textContent = game.exitNotice(p);
+      h.exited.classList.toggle('show', !!h.exited.textContent);
+    }
 
     const obj = campaign.objectivePos;
     // The name belongs at the head of the light column, not across the
     // character standing at its foot. Keep the ground point for the bearing.
-    _v.copy(obj).project(p.cam.camera);
+    _v.copy(obj).project(camera);
     const behind = _v.z > 1;
     // NDC to viewport percentage; a point behind the camera projects inverted,
     // so it is flipped back before being pinned to an edge
@@ -357,7 +407,7 @@ export class Hud {
     }
     if (!off) {
       _tip.copy(obj).y += 60;
-      _tip.project(p.cam.camera);
+      _tip.project(camera);
       y = Math.max(0.09, Math.min(y - 0.06, 0.5 - _tip.y * 0.5));
     }
     h.objective.style.left = `${(x * 100).toFixed(2)}%`;
@@ -409,6 +459,65 @@ export class Hud {
     h.section.classList.add('show');
   }
 
+  /**
+   * K1 — the merged strip. While a rail section shares the screen
+   * (`Game.sharedView`) there is one picture, so the four corner-pinned HUDs
+   * become four cells of one strip along the bottom, each with its hunter's
+   * face; the crosshair, radar, vignettes and markers of each split viewport
+   * go, and one objective marker and one top line take their place over the
+   * whole screen. The split's rules fade with the viewports' blend, and the
+   * strip stands only once the blend is whole (and falls as soon as it is
+   * not), so it never sits over a picture that is still in pieces.
+   * Returns true while merged.
+   */
+  private updateMerged(game: Game): boolean {
+    const sv = game.sharedView;
+    const blend = sv ? (sv.blend ?? 1) : 0;
+    for (const d of this.dividers) d.style.opacity = String(1 - blend);
+    const want = !!sv && blend >= 1;
+    if (want !== this.isMerged) {
+      this.isMerged = want;
+      const n = this.huds.length;
+      this.huds.forEach((h, i) => {
+        const r = want ? { x: i / n, y: 0, w: 1 / n, h: 1 } : this.rects[i];
+        h.root.style.left = `${r.x * 100}%`;
+        h.root.style.width = `${r.w * 100}%`;
+        h.root.style.top = want ? '' : `${r.y * 100}%`;
+        h.root.style.height = want ? '' : `${r.h * 100}%`;
+        h.root.classList.toggle('merged', want);
+        h.root.classList.toggle('compact', want ? n >= 3 : r.h < 0.9 && r.w < 0.9);
+      });
+      this.merged?.root.classList.toggle('show', want);
+      this.layer.classList.toggle('rail-merged', want);
+    }
+    const m = this.merged;
+    if (want && m && sv) {
+      // the party's line and marker, measured from the first hunter standing
+      const p = game.players.find((q) => q.alive) ?? game.players[0];
+      if (p) {
+        m.wave.textContent = game.hudTopLine(p);
+        m.kills.textContent = game.hudScoreLine(p);
+        this.updateObjective(m, p, game, sv.camera);
+      }
+    }
+    return want;
+  }
+
+  /** the hunter's face on their cell of the merged strip: the authored portrait, else the drawn mark */
+  private fillPortrait(h: PlayerHud, p: Player): void {
+    h.portrait.dataset.char = p.characterId;
+    const face = h.portrait.querySelector('.face') as HTMLElement;
+    face.innerHTML = faceSvg(p.characterId);
+    face.style.backgroundImage = '';
+    const img = new Image();
+    img.onload = () => {
+      if (h.portrait.dataset.char !== p.characterId) return;
+      face.innerHTML = '';
+      face.style.backgroundImage = `url('${img.src}')`;
+    };
+    img.src = `${ASSET_ROOT}assets/textures/${portraitName(p.characterId)}.jpg`;
+  }
+
   update(dt: number, game: Game): void {
     if (this.transitionTimer > 0) {
       this.transitionTimer -= dt;
@@ -440,10 +549,12 @@ export class Hud {
         shared.boss.classList.contains('show') ||
         shared.contacts.classList.contains('show'));
     }
+    const merged = this.updateMerged(game);
     for (let i = 0; i < this.huds.length; i++) {
       const h = this.huds[i];
       const p = game.players[i];
       if (!p) continue;
+      if (merged && h.portrait.dataset.char !== p.characterId) this.fillPortrait(h, p);
       h.health.style.transform = `scaleX(${Math.max(0, p.hp / p.maxHp)})`;
       h.health.style.background = p.hp < 30 ? '#e0301e' : '#c33f2e';
       h.hpNum.textContent = p.alive ? String(Math.max(0, Math.ceil(p.hp))) : '';
@@ -472,6 +583,12 @@ export class Hud {
       h.heatBar.style.display = p.weapon === 'blaster' ? '' : 'none';
       h.heat.style.transform = `scaleX(${p.heat})`;
       h.heatBar.classList.toggle('overheated', p.overheated);
+      // the air gauge only under the sea, where it is the clock
+      h.airBar.style.display = p.air === null ? 'none' : '';
+      if (p.air !== null) {
+        h.air.style.transform = `scaleX(${p.air})`;
+        h.airBar.classList.toggle('low', p.air < 0.3);
+      }
       if (p.vehicle) {
         const v = p.vehicle;
         const hp = Math.max(0, Math.ceil(v.hp));
@@ -518,9 +635,9 @@ export class Hud {
         h.pips.dataset.n = String(pips);
         h.pips.innerHTML = pips ? Array.from({ length: FINAL_WAVE }, (_, w) => `<i${w < pips ? ' class="lit"' : ''}></i>`).join('') : '';
       }
-      this.updateObjective(h, p, game);
+      if (!merged) this.updateObjective(h, p, game);
       this.updateSection(h, i, game);
-      h.radar.update(p, game);
+      if (!merged) h.radar.update(p, game);
       h.vignette.style.opacity = String(Math.min(1, p.hurtIntensity + (p.hp < 30 && p.alive ? 0.4 : 0)));
 
       // the reticle belongs to ADS only — hip fire reads off the muzzle. The

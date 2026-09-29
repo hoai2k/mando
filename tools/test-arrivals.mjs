@@ -340,9 +340,11 @@ if (!miss.skipped) {
 // Nevarro, because that is where one of the two is: the Lava Flats' crossing,
 // the big open assault of its last stage. The Dune Sea the section above runs
 // on has none, and should not.
-await h.startStepped('campaign', 1, 'nevarro', ['din']);
-await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
-const siege = await h.page.evaluate(`(async () => {
+//
+// Ordinary open ground is looked for on the Dune Sea: since the level audit
+// (item 7) the Lava Flats' only other open assault, the town gate, is where
+// its lieutenant fights, so its run has the siege and nothing ordinary.
+const PROBE = `(async () => {
   const g = window.__game, c = g.campaign;
   const blank = () => ({ moveX:0,moveY:0,lookX:0,lookY:0,jumpHeld:false,jumpPressed:false,
     dashPressed:false,sprintHeld:false,shootHeld:false,aimHeld:false,meleePressed:false,
@@ -392,10 +394,13 @@ const siege = await h.page.evaluate(`(async () => {
     const oz = c.stage.zones[oi];
     hold(oz, oi);
     const held = c.waveCount;
+    // what the player is told: no seal, no wave count — there are no waves
+    const hint = c.hint(g.players[0].position);
     const after = nextWave(oi);
     ordinary = { label: oz.spec.label, shell: oz.spec.shell, waveCount: held,
-      waves: oz.spec.waves ?? 2, ...after };
+      garrison: oz.spec.garrison ?? 2, hint, ...after };
   }
+  if ('__MODE__' === 'ordinary') return { ordinary };
 
   // the siege zone: a holding force, and the rest arrives by air
   const si = find((z) => z.spec.siege);
@@ -404,10 +409,37 @@ const siege = await h.page.evaluate(`(async () => {
   const posted = (c.garrison.get(zone) ?? []).filter((e) => e.alive).length;
   hold(zone, si);
   const waveCount = c.waveCount;
+  const pass = { post: !!zone.runnerPost, seen: 0, landed: 0, inZone: 0 };
+  const isRunner = (e) => e.squad >= 9600 && e.squad < 9700;
   const supplied = nextWave(si);
+  // The pass: a siege's beasts and locals come down the gully and in through
+  // the notch on foot (audit item 3). Watched across the waves the zone still
+  // owes, since which wave draws a runner kind is the board's table's business.
+  for (let w = 0; w < 4 && c.idx === si; w++) {
+    const run = g.enemies.filter((e) => e.alive && isRunner(e));
+    pass.seen += run.length;
+    // an arrival gives up after thirty seconds wherever it has got to, so
+    // wait past that: a runner still in the gully then is one that was stuck
+    for (let n = 0; n < 110 && run.some((e) => e.alive && e.arriving); n++) step(10);
+    for (const e of run) {
+      if (!e.alive) continue;
+      pass.landed++;
+      const r = zone.rect;
+      if (e.position.x >= r.minX && e.position.x <= r.maxX && e.position.z >= r.minZ && e.position.z <= r.maxZ) pass.inZone++;
+    }
+    if (pass.seen) break;
+    nextWave(si);
+  }
   return { label: zone.spec.label, shell: zone.spec.shell, waves: zone.spec.waves,
-    posted, waveCount, supplied, ordinary };
-})()`);
+    posted, waveCount, supplied, ordinary, pass };
+})()`;
+await h.startStepped('campaign', 1, 'desert', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);   // past the intro card, as above
+const { ordinary } = await h.page.evaluate(PROBE.replace('__MODE__', 'ordinary'));
+await h.startStepped('campaign', 1, 'nevarro', ['din']);
+await h.page.evaluate(`(${STEP})(120)`);
+const siege = await h.page.evaluate(PROBE.replace('__MODE__', 'siege'));
+siege.ordinary = ordinary;
 check('missions: the run\'s one wave battle holds with what is posted',
   !siege.err && siege.posted > 0 && siege.waveCount === siege.waves,
   { label: siege.label, shell: siege.shell, posted: siege.posted,
@@ -416,6 +448,14 @@ check('missions: ordinary open ground is held, never supplied',
   !siege.err && siege.ordinary && siege.ordinary.waveCount === 1
   && siege.ordinary.carriers === 0 && siege.ordinary.arrived === 0
   && siege.ordinary.cleared, siege.ordinary);
+check('missions: a siege\'s runners come in through its pass and into the fight',
+  !siege.err && siege.pass.post && siege.pass.seen > 0 && siege.pass.landed > 0
+  && siege.pass.inZone === siege.pass.landed, siege.pass);
+// "Sealed in" and "wave 1 of 1" were both said of open ground that seals
+// nothing and calls no waves (audit item 2)
+check('missions: open ground is not told it is sealed in or counted in waves',
+  !siege.err && siege.ordinary && !/wave/i.test(siege.ordinary.hint)
+  && !/sealed/i.test(siege.ordinary.hint), siege.ordinary?.hint);
 check('missions: ...and the rest of it comes in by ship',
   !siege.err && siege.supplied && siege.supplied.carriers > 0
   && siege.supplied.arrived > 0 && !siege.supplied.cleared, siege.supplied);
@@ -430,6 +470,31 @@ const outdoor = zones.filter((z) => ['open', 'canyon', 'road'].includes(z.shell)
 check('missions: a wave battle is rare, and outdoors',
   sieges.length > 0 && sieges.length <= 3 && sieges.every((z) => z.shell === 'open'),
   { sieges: sieges.map((z) => `${z.board} ${z.label}`), ofOutdoor: outdoor.length });
+
+// Eight of nine lieutenants were a promoted grunt in the same pillared box, a
+// corridor after a hall fight (audit item 7). Three of them are fought under
+// the sky now.
+const lts = zones.filter((z) => z.kind === 'lieutenant');
+const outside = ['nevarro', 'trask', 'ringworld'].map((b) => lts.find((z) => z.board === b));
+check('missions: the Lava Flats, Storm Docks and Ringworld lieutenants fight outdoors',
+  outside.every((z) => z && z.shell === 'open'), outside.map((z) => z && `${z.board} ${z.label} ${z.shell}`));
+check('missions: and no more than half the runs fight theirs indoors',
+  lts.filter((z) => z.shell === 'hall').length <= Math.ceil(lts.length / 2),
+  lts.map((z) => `${z.board}:${z.shell}`));
+
+// A corral parks a ride for every player the game allows, and one over: the
+// riders rule claims up to half of them for the camp's own crew (audit item 9).
+// (a corral: the camp whose rides are for the road straight after it)
+const corrals = zones.filter((z, i) => z.kind === 'camp' && z.rides.length
+  && zones[i + 1]?.board === z.board && zones[i + 1]?.stage === z.stage && zones[i + 1]?.shell === 'road');
+const shortCorrals = corrals.filter((z) => z.rides.length < 4);
+check('missions: every corral parks a ride for each of four players',
+  corrals.length > 0 && shortCorrals.length === 0, shortCorrals.map((z) => `${z.board} ${z.label}: ${z.rides.length}`));
+
+// and nothing authored for open ground still asks for waves it will never get
+const idleWaves = outdoor.filter((z) => !z.siege && z.kind === 'assault' && z.waves !== null);
+check('missions: open ground that is not a siege asks for a garrison, not waves',
+  idleWaves.length === 0, idleWaves.map((z) => `${z.board} ${z.label}`));
 
 console.log('page errors:', h.errors.length ? h.errors.slice(0, 3) : 'none');
 await h.close();

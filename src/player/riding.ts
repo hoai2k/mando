@@ -62,7 +62,7 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   if (input.slamPressed || !v.alive) {
     const carry = v.vel.clone();
     const hop = Math.hypot(carry.x, carry.z) > 6;
-    v.dropRider();
+    v.dropRider(this);
     this.velocity.copy(carry);
     if (hop) {
       this.velocity.y = JUMP_VEL;
@@ -82,7 +82,10 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
     return;
   }
 
-  v.drive(dt, input, this, game);
+  // K3 (docs/SECTIONS_IMPLEMENTATION.md §3): the pillion works the weapons
+  // and the driver drives — one ride, two riders, each with their own frame
+  if (v.pillion === this) v.ridePillion(dt, input, this, game);
+  else v.drive(dt, input, this, game);
   // a crash or a ram chip can end the ride inside drive(): destroy() has
   // already thrown us clear — settle the visuals and let next frame be normal
   if (!this.vehicle) {
@@ -95,7 +98,7 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   }
 
   // sit the seat, carry the ride's momentum (the camera paces off velocity)
-  v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
+  v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)), this);
   this.velocity.copy(v.vel);
   this.grounded = true;
   this.wasGrounded = true;
@@ -124,7 +127,8 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   // the bolts have to leave where the crosshair is looking.
   const gunUp = armed && (input.aimHeld || input.shootHeld
     || (this.weapon === 'blaster' && this.fireCd > -0.6));
-  this.facingYaw = dampAngle(this.facingYaw, gunUp ? this.cam.yaw : v.yaw + v.seatYaw, gunUp ? 14 : 10, dt);
+  // K3: a swing from the saddle turns the body to its flank, a gunner turns with the gun
+  this.facingYaw = dampAngle(this.facingYaw, v.riderFacing(this) ?? (gunUp ? this.cam.yaw : v.yaw + v.seatYaw), gunUp ? 14 : 10, dt);
   // three ways to be carried, three poses: on your feet at a tiller, sat in
   // a seat with the legs forward, or straddling a saddle over the hull
   const stance = v.def.stance;
@@ -138,10 +142,13 @@ export function updateRiding(this: Player, dt: number, input: FrameInput, game: 
   this.syncVisual(dt, game);
   anim.update(dt);
   if (this.char.rig) v.poseLegs(this.char.rig);
-  this.handsToControls(v, gunUp);
+  // K3: a swing takes the hands off the bars, and a pillion has none to hold
+  if (!v.swinging(this) && v.pillion !== this) this.handsToControls(v, gunUp);
   this.frameCamera();
   const speed = Math.hypot(v.vel.x, v.vel.z);
   this.cam.update(realDt, this.position, game.board.physics, {
     aiming: this.aiming, speed, dashing: false, flying: false, climb: 0,
   });
+  // K3: a turret's gunner sees down the barrels (and gets the crosshair)
+  if (v.def.turret) { this.aiming = true; v.applySight(this); }
 }
