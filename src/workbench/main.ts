@@ -24,6 +24,7 @@ import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
 import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
+import { hasGeoAudit, syncGeoOverlay } from './geoOverlay';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -162,6 +163,8 @@ const folds = { shoulders: false, details: false };
 let showGrid = true;
 /** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
 let fists = initialParams.get('fists') === '1';
+/** the geometric joint audit on the figures (geoOverlay.ts): 0 off, 1 joint markers, 2 markers and the volume stand-in */
+let geoView = Number(initialParams.get('geo') ?? 0);
 let editing = false;
 let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
 /**
@@ -781,6 +784,7 @@ function syncSelectionUrl(): void {
   if (alternateChoice === 'none') url.searchParams.delete('alternate');
   else url.searchParams.set('alternate', alternateChoice);
   if (fists) url.searchParams.set('fists', '1'); else url.searchParams.delete('fists');
+  if (geoView) url.searchParams.set('geo', String(geoView)); else url.searchParams.delete('geo');
   history.replaceState(null, '', url);
 }
 
@@ -890,6 +894,9 @@ function renderPanel(): void {
     <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
     <label class="check" title="Curls the model's fingers into a fist on any pose. A preview: the game does not clench yet."><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists</label>
+    ${hasGeoAudit(cid()) ? `
+    <label class="check" title="docs/audits/geo-joints.md: green = where the mesh's volume puts each limb joint, blue = the skin-weight seam, red = the rig's joint"><input type="checkbox" id="geoJoints" ${geoView ? 'checked' : ''}> Geometric joints</label>
+    <label class="check" title="The volume-based stand-in: capsules along the geometric centre lines, sized by the section profile"><input type="checkbox" id="geoStandIn" ${geoView > 1 ? 'checked' : ''}> …and volume stand-in</label>` : ''}
     ${subject.hasModel && !isProp(subject) ? `
     <details class="fold" data-fold="shoulders" ${folds.shoulders ? 'open' : ''}><summary>Shoulder width</summary>
     <div class="field playback shoulder-tuning">
@@ -1025,6 +1032,15 @@ function renderPanel(): void {
     fists = (e.target as HTMLInputElement).checked;
     syncSelectionUrl();
   };
+  const geoJoints = panel.querySelector<HTMLInputElement>('#geoJoints');
+  const geoStandIn = panel.querySelector<HTMLInputElement>('#geoStandIn');
+  if (geoJoints && geoStandIn) {
+    geoJoints.onchange = geoStandIn.onchange = (e) => {
+      if (e.target === geoStandIn && geoStandIn.checked) geoJoints.checked = true;
+      geoView = geoJoints.checked ? (geoStandIn.checked ? 2 : 1) : 0;
+      syncSelectionUrl();
+    };
+  }
   panel.querySelector<HTMLInputElement>('#grid')!.onchange = (e) => {
     showGrid = (e.target as HTMLInputElement).checked;
     grid.visible = ruler.visible = showGrid;
@@ -1791,6 +1807,7 @@ function frame(now: number): void {
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
   for (const f of figures) clench(f.inst.root, fists ? 1 : 0);
+  syncGeoOverlay(figures, cid(), geoView > 0, geoView > 1);
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);

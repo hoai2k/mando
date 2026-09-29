@@ -315,7 +315,7 @@ export function modelUrl(id: string): string { return `${ASSET_ROOT}${modelDir(i
  * re-rigged copy (tools/asset-pipeline/rerig.mjs) moves joints and leaves the
  * skin alone — and so share its fix documents, which are keyed by vertex.
  */
-const SHARES_DOCS: Record<string, string> = { din_rerig: 'din', duelist_rerig: 'duelist' };
+const SHARES_DOCS: Record<string, string> = { din_rerig: 'din', duelist_rerig: 'duelist', din_rerig_geo: 'din', duelist_rerig_geo: 'duelist' };
 
 function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | null> {
   let p = cache.get(id);
@@ -570,7 +570,7 @@ export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['mod
  * prefetcher and the drop screen wait on. (Scenery and ships load by the
  * same path under names of their own, so the loader itself takes any string.)
  */
-export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig';
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig' | 'din_rerig_geo' | 'duelist_rerig_geo';
 
 /** the model entry for any kind, with `height` readable whether or not it has one */
 export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>

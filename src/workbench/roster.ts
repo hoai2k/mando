@@ -96,6 +96,14 @@ export const GROUPS: SubjectGroup[] = [
     }, {
       id: 'duelist_rerig', name: 'Cad Bane — re-rigged', character: 'duelist', modelFile: 'duelist_rerig', hasModel: true,
       build: (authored) => buildMandalorian('duelist', { authored, modelFile: 'duelist_rerig' }),
+    }, {
+      // docs/audits/geo-joints.md: the joints read off the mesh's volume alone
+      // (no bones, no weights), moved where confident — rerig.mjs --source=geo
+      id: 'din_rerig_geo', name: 'Din Djarin — re-rigged from geometry', character: 'din', modelFile: 'din_rerig_geo', hasModel: true,
+      build: (authored) => buildMandalorian('din', { authored, modelFile: 'din_rerig_geo' }),
+    }, {
+      id: 'duelist_rerig_geo', name: 'Cad Bane — re-rigged from geometry', character: 'duelist', modelFile: 'duelist_rerig_geo', hasModel: true,
+      build: (authored) => buildMandalorian('duelist', { authored, modelFile: 'duelist_rerig_geo' }),
     }],
   },
   {
