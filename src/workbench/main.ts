@@ -7,7 +7,7 @@ import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './p
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
-import { modelUrl, shoulderSpacingFor, setWorkbenchShoulderSpacing, type ShoulderSpacing } from '../characters/authored';
+import { modelUrl, restoreShoulderSpacing, shoulderSpacingFor, shoulderSpacingSnapshot, setWorkbenchShoulderSpacing, type ShoulderSpacing } from '../characters/authored';
 import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
@@ -19,7 +19,7 @@ import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { FIST_ENEMIES } from '../characters/combatStyle';
-import { clench } from '../characters/fistRig';
+import { clench, fistTuneSnapshot, refitFists, restoreFistTunes } from '../characters/fistRig';
 import { fistsInPlay, fistTargets } from '../characters/fists';
 import type { VehicleRig } from './vehicleFigure';
 import { PositionEditor } from './positionEdit';
@@ -29,7 +29,9 @@ import { expose } from '../debug';
 import { hasGeoAudit, syncGeoOverlay } from './geoOverlay';
 import { RIG_EXPERIMENTS } from './roster';
 import { FistTuning } from './fistTuning';
-import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
+import { PalmEditor } from './palmAnchorEdit';
+import { editedPalms, handAnchorsJson, palmSnapshot, restorePalms } from '../characters/handAnchors';
+import { FigureWeapons, findWeaponOption, NO_WEAPON, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -284,12 +286,15 @@ const positionEditor = new PositionEditor(scene, camera, controls, renderer.domE
 const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 /** seat and hand anchors on the rides, and the Nikto's seat on his swoop — see vehicleAnchorEdit.ts */
 const vehicleEditor = new VehicleAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
+/** each character's palms, the points a hand is put to a grip by — see palmAnchorEdit.ts */
+const palmEditor = new PalmEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 
 function disposeFigures(): void {
   positionEditor.restore();
   positionEditor.setPose('', '', null);
   weaponEditor.setPose('', '', null);
   vehicleEditor.setTarget(null);
+  palmEditor.setTarget(null, null);
   for (const f of figures) f.weapons?.release();
   for (const f of figures) turntable.remove(f.inst.root);
   for (const f of figures) f.card?.remove();
@@ -375,9 +380,11 @@ function spawn(): void {
   applyPose();
   // a new figure gets the game's landings: carry over a depth being tried
   if (landDepth.soft !== LAND_DEPTH.soft || landDepth.hard !== LAND_DEPTH.hard) rebuildLandings();
+  // a ride offers its rider's joints, edited as that ride's pose for him
   editor.setTargets(figures
-    .filter((f) => f.inst.rig)
-    .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
+    .map((f) => ({ label: f.label, rig: f.inst.rig ?? rideOf(f)?.riderRig ?? null }))
+    .filter((t) => t.rig)
+    .map((t) => ({ label: t.label, bones: t.rig!.bones as Record<string, THREE.Object3D> })));
   if (editing && editKind === 'position') refreshPositionPose();
   if (editing && editKind === 'weapon') refreshWeaponPose();
   if (editing) enterEdit();
@@ -509,8 +516,8 @@ function applyPose(): void {
       f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
     }
     const armorerIdle = cid() === 'armorer' && pose.id === 'idle';
-    f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
-    setWeaponVisibility(f, !pose.unarmed);
+    f.extras.setWeapon?.(emptyHanded(pose) ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
+    setWeaponVisibility(f, !emptyHanded(pose));
     f.extras.setBlock?.(pose.block ? 1 : 0);
     // An either-pose the user asked to show the other slot in: draw it the
     // way the game would, then put the slot's pick (if any) in that hand.
@@ -606,6 +613,9 @@ function seekAnimation(seconds: number): void {
   }
 }
 
+/** a pose with nothing in the hands: a bare-handed one, or the rest pose (a stowed hilt stays on the hip) */
+const emptyHanded = (p: Pose): boolean => !!p.unarmed || p.id === 'rest';
+
 /** Enemy props are mounted on weapon bones or the retargeted hand mounts. */
 function setWeaponVisibility(f: Figure, visible: boolean): void {
   f.inst.root.traverse((o) => {
@@ -671,6 +681,7 @@ function enterEdit(): void {
   positionEditor.setEnabled(editKind === 'position');
   weaponEditor.setEnabled(editKind === 'weapon');
   vehicleEditor.setEnabled(editKind === 'weapon');
+  palmEditor.setEnabled(editKind === 'weapon');
   if (editKind === 'position') refreshPositionPose();
   if (editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
 }
@@ -683,6 +694,7 @@ function leaveEdit(): void {
   weaponEditor.restore();
   weaponEditor.setEnabled(false);
   vehicleEditor.setEnabled(false);
+  palmEditor.setEnabled(false);
   // the edits are in the clips now, so the animation runs with them
   applyPose();
 }
@@ -711,6 +723,7 @@ function refreshWeaponPose(): void {
     weaponAwaiting = !!figures.find((f) => f.waitingFor);
     weaponEditor.setPose(subject.id, poseKey, null);
     vehicleEditor.setTarget(null);
+    palmEditor.setTarget(null, null);
     return;
   }
   weaponAwaiting = false;
@@ -719,6 +732,9 @@ function refreshWeaponPose(): void {
   weaponEditor.setPose(subject.id, poseKey, figure.inst.root);
   vehicleEditor.setTarget(VehicleAnchorEditor.handles(figure.inst.root) ? figure.inst.root : null);
   vehicleEditor.setEnabled(true);
+  // a character's own palms: not a ride's, whose rider is Din as he is
+  palmEditor.setTarget(vehicleEditor.kind ? null : subject.id, figure.inst.rig, figure.inst.root);
+  palmEditor.setEnabled(true);
 }
 
 /** bones the lower channel drives; everything else belongs to the upper clip */
@@ -788,8 +804,90 @@ function refreshEdits(): void {
   renderEditPanel();
 }
 
-function undoEdit(): void { if (edits.undo()) refreshEdits(); }
-function redoEdit(): void { if (edits.redo()) refreshEdits(); }
+// ---------- undo: one history for every edit in the page ----------
+/**
+ * Everything an edit in this page can change, as plain data: the clip edits,
+ * the weapon grips and scales, the joint positions, the rides' anchors and
+ * their riders' joints, the palms, the fist tunes, the shoulder widths and
+ * the weapon picks.
+ */
+interface WorkbenchState {
+  pose: ReturnType<PoseEdits['snapshot']>;
+  weapon: ReturnType<WeaponAnchorEditor['snapshot']>;
+  position: ReturnType<PositionEditor['snapshot']>;
+  ride: ReturnType<VehicleAnchorEditor['snapshot']>;
+  palms: ReturnType<typeof palmSnapshot>;
+  fists: ReturnType<typeof fistTuneSnapshot>;
+  shoulders: ReturnType<typeof shoulderSpacingSnapshot>;
+  picks: ReturnType<WeaponChoices['snapshot']>;
+}
+const snapState = (): WorkbenchState => ({
+  pose: edits.snapshot(), weapon: weaponEditor.snapshot(), position: positionEditor.snapshot(),
+  ride: vehicleEditor.snapshot(), palms: palmSnapshot(), fists: fistTuneSnapshot(),
+  shoulders: shoulderSpacingSnapshot(), picks: weaponChoices.snapshot(),
+});
+/**
+ * The state before the edit under way, and the undo and redo stacks of whole
+ * states. An edit is whatever changed between one checkpoint and the next:
+ * one taken whenever a press, a drag, a typed value or a button in the page
+ * has finished (`settleHistory`), so a gizmo dragged about is one step, and
+ * anything any editor does can be undone the same way.
+ */
+let settled = '';
+let settledState: WorkbenchState | null = null;
+const undoStack: WorkbenchState[] = [];
+const redoStack: WorkbenchState[] = [];
+const canUndo = (): boolean => undoStack.length > 0 || (settledState !== null && JSON.stringify(snapState()) !== settled);
+const canRedo = (): boolean => redoStack.length > 0;
+
+/** Close the edit under way, if there was one: the state before it goes on the undo stack. */
+function settleHistory(): void {
+  const now = snapState();
+  const key = JSON.stringify(now);
+  if (settledState && key !== settled) {
+    undoStack.push(settledState);
+    if (undoStack.length > 200) undoStack.shift();
+    redoStack.length = 0;
+  }
+  settledState = now;
+  settled = key;
+}
+
+/** Put the whole page back as a state had it, touching only what differs. */
+function applyState(to: WorkbenchState): void {
+  const from = snapState();
+  const differs = (k: keyof WorkbenchState): boolean => JSON.stringify(from[k]) !== JSON.stringify(to[k]);
+  if (differs('weapon')) weaponEditor.restoreSnapshot(to.weapon);
+  if (differs('position')) positionEditor.restoreSnapshot(to.position);
+  if (differs('ride')) vehicleEditor.restoreSnapshot(to.ride, figures[0]?.inst.root ?? null);
+  if (differs('palms')) { restorePalms(to.palms); palmEditor.refresh(); }
+  if (differs('fists')) for (const model of restoreFistTunes(to.fists)) refitFists(model, figures.map((f) => f.inst.root));
+  if (differs('shoulders')) restoreShoulderSpacing(to.shoulders);
+  if (differs('picks')) weaponChoices.restoreSnapshot(to.picks);
+  if (differs('pose')) edits.restoreSnapshot(to.pose);
+  // the clips from the ledger, and the figures posed again with every part put back
+  if (differs('pose') || differs('picks')) refreshEdits();
+  else if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
+  for (const f of figures) f.inst.cosmetic?.(0, time);
+  settledState = to;
+  settled = JSON.stringify(to);
+  renderPanel();
+}
+
+function undoEdit(): void {
+  settleHistory();
+  const to = undoStack.pop();
+  if (!to) return;
+  redoStack.push(settledState!);
+  applyState(to);
+}
+function redoEdit(): void {
+  settleHistory();
+  const to = redoStack.pop();
+  if (!to) return;
+  undoStack.push(settledState!);
+  applyState(to);
+}
 
 addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.target instanceof HTMLInputElement) return;
@@ -797,6 +895,15 @@ addEventListener('keydown', (e) => {
   if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoEdit(); }
   else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redoEdit(); }
 });
+// Each finished press, drag, typed value or click is a checkpoint, taken once
+// the page's own handlers have run; a press on the undo buttons is theirs.
+const checkpointSoon = (e: Event): void => {
+  if ((e.target as HTMLElement | null)?.closest?.('#undo, #redo, [data-history]')) return;
+  setTimeout(settleHistory, 0);
+};
+addEventListener('pointerup', checkpointSoon);
+addEventListener('change', checkpointSoon, true);
+addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === 'Tab') checkpointSoon(e); });
 
 // ---------- panel ----------
 const panel = document.getElementById('panel')!;
@@ -1141,6 +1248,7 @@ function weaponChoiceHtml(): string {
       <label for="weaponChoice-${slot}">${SLOT_LABEL[slot]}${chosen ? ' <span class="changed-tag">changed</span>' : ''}</label>
       <select id="weaponChoice-${slot}" data-weapon-slot="${slot}">
         ${option('', `Default — ${def.name}`, !chosen)}
+        ${option(NO_WEAPON, 'None — an empty hand', chosen === NO_WEAPON)}
         ${offered.map((o) => option(o.id, o.name, o.id === chosen)).join('')}
       </select>
     </div>`;
@@ -1156,7 +1264,7 @@ function weaponChoiceHtml(): string {
     ${pickers}${handSeg}
     <div class="row"><button id="weaponChoiceExport" class="primary"${picks.length ? '' : ' disabled'}>Export weapon choices JSON</button></div>
     ${picks.length ? `<div class="ledger">${picks.map((e) => `<div class="edit"><span>${e.characterName}</span>
-      <code>${e.slot}: ${findWeaponOption(e.choice)?.name ?? e.choice}</code>
+      <code>${e.slot}: ${e.choice === NO_WEAPON ? 'none' : findWeaponOption(e.choice)?.name ?? e.choice}</code>
       <button data-choice-character="${e.character}" data-choice-slot="${e.slot}" title="back to ${e.defaultName}">×</button></div>`).join('')}</div>` : ''}
     <p class="hint">Workbench only — the game keeps its defaults. Picks stay with each character across poses.</p>
   </div>`;
@@ -1222,11 +1330,86 @@ function exportWeaponChoices(): void {
 const EDITABLE_BONES = BONES.filter((b) => b !== 'weaponL' && b !== 'weaponR');
 let editSignature = '';
 
+/**
+ * Edit mode holds a ride still; this is where in its cycle (the rider's clip,
+ * a mount's gait), set by hand.
+ */
+const rideFrameHtml = (vr: VehicleRig | null): string => !vr ? '' : `
+      <div class="field playback"><label for="rideFrame">Frame — held still while editing
+        <output id="rideFrameValue">${Math.round(vr.phase * 100)}%</output></label>
+        <input id="rideFrame" type="range" min="0" max="0.999" step="0.001" value="${vr.phase}"></div>`;
+function bindRideFrame(host: HTMLElement, vr: VehicleRig | null): void {
+  const slider = host.querySelector<HTMLInputElement>('#rideFrame');
+  if (!slider || !vr) return;
+  slider.oninput = () => {
+    vr.seek(Number(slider.value));
+    host.querySelector<HTMLOutputElement>('#rideFrameValue')!.value = `${Math.round(vr.phase * 100)}%`;
+  };
+}
+
+/** the ride a figure is, when it is one (its rider's joints are edited as the ride's pose) */
+const rideOf = (f: Figure | undefined): VehicleRig | null =>
+  (f?.inst.root.userData.vehicleRig as VehicleRig | undefined) ?? null;
+
+/**
+ * Rotate on a ride: the rider's joints, kept as that ride's pose for him and
+ * exported with its anchors, rather than written into the riding clip every
+ * rider on every ride shares.
+ */
+function renderRideJointPanel(host: HTMLDivElement, vr: VehicleRig): void {
+  const sel = editor.selected;
+  const deg = editor.selectedEuler();
+  editSignature = signature();
+  const joints = [...vr.jointPose.keys()];
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      ${rideFrameHtml(vr)}
+      <p class="hint">The rider's joints on the ${vr.def.name.toLowerCase()}: a turn is kept as this ride's pose
+        for him, over the riding clip, and exported with its anchors. Joints the ride solves (an arm on a grip,
+        a leg on a footrest, the lean to the grips) end where the solve puts them.</p>
+      <div class="field"><label>Rotate about</label><div class="seg" id="space">
+        <button data-space="camera" aria-pressed="${editor.space === 'camera'}">Camera</button>
+        <button data-space="local" aria-pressed="${editor.space === 'local'}">Local</button>
+        <button data-space="world" aria-pressed="${editor.space === 'world'}">World</button>
+      </div></div>
+      <div class="field"><label for="bone">Joint</label><select id="bone">
+        <option value=""${sel ? '' : ' selected'}>— click a joint in the viewport —</option>
+        ${EDITABLE_BONES.map((b) => option(b, b, b === sel)).join('')}
+      </select></div>
+      ${sel && deg ? `<div class="field"><label>Local rotation — degrees, XYZ</label><div class="xyz">
+        <input type="number" id="rx" step="1" value="${deg[0].toFixed(1)}">
+        <input type="number" id="ry" step="1" value="${deg[1].toFixed(1)}">
+        <input type="number" id="rz" step="1" value="${deg[2].toFixed(1)}">
+      </div></div>
+      <p class="hint" id="drag">${dragHint()}</p>` : '<p class="hint">Pick a joint — its rotation rings appear on the rider.</p>'}
+      ${joints.length ? `<div class="ledger">${joints.map((j) => `<div class="edit"><span>${j}</span></div>`).join('')}</div>` : ''}
+      <div class="row">
+        <button id="rideJointsClear" ${joints.length ? '' : 'disabled'}>Clip's own joints</button>
+        <button id="rideJointsExport" class="primary" ${vehicleEditor.edited().length ? '' : 'disabled'}>Export vehicle anchors JSON</button>
+      </div>
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector('#space')?.querySelectorAll('button').forEach((btn) => {
+    btn.onclick = () => { editor.setSpace(btn.dataset.space as GizmoSpace); renderEditPanel(); };
+  });
+  const bonePicker = host.querySelector<HTMLSelectElement>('#bone');
+  if (bonePicker) bonePicker.onchange = (e) => editor.select((e.target as HTMLSelectElement).value || null);
+  const fields = ['#rx', '#ry', '#rz'].map((id) => host.querySelector<HTMLInputElement>(id));
+  if (fields[0]) for (const f of fields) {
+    f!.oninput = () => editor.setSelectedEuler(fields.map((x) => Number(x!.value) || 0) as [number, number, number]);
+  }
+  bindRideFrame(host, vr);
+  host.querySelector<HTMLButtonElement>('#rideJointsClear')!.onclick = () => { vehicleEditor.clearJoints(vr); renderEditPanel(); };
+  host.querySelector<HTMLButtonElement>('#rideJointsExport')!.onclick = () => downloadAnchors();
+}
+
 function renderEditPanel(): void {
   const host = panel.querySelector<HTMLDivElement>('#edit');
   if (!host) return;
   if (editing && editKind === 'position') { renderPositionPanel(host); return; }
   if (editing && editKind === 'weapon') { renderWeaponPanel(host); return; }
+  const ride = editing && editKind === 'rotate' ? rideOf(figures[0]) : null;
+  if (ride) { renderRideJointPanel(host, ride); return; }
   if (!editing && !edits.size) {
     host.innerHTML = '';
     editSignature = '';
@@ -1291,10 +1474,10 @@ function renderEditPanel(): void {
     ${editing ? editModeButtons() : ''}
     <div class="editbox">
       ${editBox}
-      <div class="row">
-        <button id="undo"${edits.canUndo ? '' : ' disabled'} title="Ctrl/Cmd+Z">↶ Undo</button>
-        <button id="redo"${edits.canRedo ? '' : ' disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
-      </div>
+      ${editing ? '' : `<div class="row">
+        <button id="undo"${canUndo() ? '' : ' disabled'} title="Ctrl/Cmd+Z">↶ Undo</button>
+        <button id="redo"${canRedo() ? '' : ' disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
+      </div>`}
       <div class="row">
         <button id="resetAll"${list.length ? '' : ' disabled'}>Reset all</button>
         <button id="export" class="primary"${list.length ? '' : ' disabled'}>Export changes</button>
@@ -1340,8 +1523,8 @@ function renderEditPanel(): void {
   host.querySelector<HTMLButtonElement>('#resetBone')?.addEventListener('click', () => {
     if (sel && selClip) { edits.clear(selClip, sel, selAt); refreshEdits(); }
   });
-  host.querySelector<HTMLButtonElement>('#undo')!.onclick = undoEdit;
-  host.querySelector<HTMLButtonElement>('#redo')!.onclick = redoEdit;
+  host.querySelector<HTMLButtonElement>('#undo')?.addEventListener('click', undoEdit);
+  host.querySelector<HTMLButtonElement>('#redo')?.addEventListener('click', redoEdit);
   host.querySelector<HTMLButtonElement>('#resetAll')!.onclick = () => { edits.clearAll(); refreshEdits(); };
   host.querySelector<HTMLButtonElement>('#export')!.onclick = exportChanges;
   for (const row of host.querySelectorAll<HTMLButtonElement>('.ledger button')) {
@@ -1357,10 +1540,16 @@ function editModeButtons(): string {
     <button data-edit-kind="rotate" aria-pressed="${editKind === 'rotate'}">Rotate</button>
     <button data-edit-kind="position" aria-pressed="${editKind === 'position'}">Position</button>
     <button data-edit-kind="weapon" aria-pressed="${editKind === 'weapon'}">Weapon grips</button>
-  </div></div>`;
+  </div></div>
+  <div class="row history">
+    <button data-history="undo" ${canUndo() ? '' : 'disabled'} title="Ctrl/Cmd+Z — any edit in the page">↶ Undo</button>
+    <button data-history="redo" ${canRedo() ? '' : 'disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
+  </div>`;
 }
 
 function bindEditModeButtons(host: HTMLElement): void {
+  host.querySelector<HTMLButtonElement>('[data-history="undo"]')?.addEventListener('click', undoEdit);
+  host.querySelector<HTMLButtonElement>('[data-history="redo"]')?.addEventListener('click', redoEdit);
   host.querySelectorAll<HTMLButtonElement>('[data-edit-kind]').forEach((button) => {
     button.onclick = () => {
       const next = button.dataset.editKind as 'rotate' | 'position' | 'weapon';
@@ -1372,6 +1561,7 @@ function bindEditModeButtons(host: HTMLElement): void {
       positionEditor.setEnabled(next === 'position');
       weaponEditor.setEnabled(next === 'weapon');
       vehicleEditor.setEnabled(next === 'weapon');
+      palmEditor.setEnabled(next === 'weapon');
       for (const id of ['restShoulders', 'aPoseShoulders', 'resetShoulders']) {
         const control = panel.querySelector<HTMLInputElement | HTMLButtonElement>(`#${id}`);
         if (control) control.disabled = next === 'position';
@@ -1420,6 +1610,7 @@ function renderWeaponPanel(host: HTMLDivElement): void {
       <div class="row"><button id="weaponExport" class="primary" ${entries.length || scales.length ? '' : 'disabled'}>Export weapon grips JSON</button></div>
       <p class="hint">Move or rotate with the 3D handle. Scale uses the hand or hip anchor as its centre and applies to this weapon in every pose. Hip placement carries between rest and idle. Export JSON when aligned; changes reset on reload.</p>
       ${entries.length || scales.length ? `<div class="ledger">${entries.map((e) => `<div class="edit"><span>${e.character} · ${e.pose}</span><code>${e.weapon} grip</code></div>`).join('')}${scales.map((e) => `<div class="edit"><span>${e.character} · all poses</span><code>${e.weapon} · ${e.scaleMultiplier.toFixed(2)}×</code></div>`).join('')}</div>` : ''}
+      ${palmPanelHtml()}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLInputElement>('#weaponSample')!.oninput = (event) => {
@@ -1427,8 +1618,12 @@ function renderWeaponPanel(host: HTMLDivElement): void {
     sampleWeaponPose();
     host.querySelector<HTMLLabelElement>('label[for="weaponSample"]')!.textContent = `Animation frame: ${Math.round(weaponSample * 100)}%`;
   };
-  host.querySelector<HTMLSelectElement>('#weaponTarget')!.onchange = (event) =>
+  host.querySelector<HTMLSelectElement>('#weaponTarget')!.onchange = (event) => {
+    // one gizmo at a time: a weapon takes it from a palm
+    palmEditor.select(null);
     weaponEditor.select((event.target as HTMLSelectElement).value || null);
+  };
+  bindPalmPanel(host);
   host.querySelectorAll<HTMLButtonElement>('[data-weapon-mode]').forEach((button) => {
     button.onclick = () => weaponEditor.setMode(button.dataset.weaponMode as 'translate' | 'rotate');
   });
@@ -1469,6 +1664,52 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   };
 }
 
+/**
+ * Each character's palms (`handAnchors.ts`), on the sculpt's own hands: the
+ * points its hands are put to a ride's grips by.
+ */
+function palmPanelHtml(): string {
+  if (!palmEditor.enabled) return '';
+  const side = palmEditor.selected, at = palmEditor.current();
+  const edited = editedPalms();
+  return `<div class="field"><label>Hand anchors — each palm, on the model's hand</label><div class="seg">
+        <button data-palm="L" aria-pressed="${side === 'L'}">Left hand anchor</button>
+        <button data-palm="R" aria-pressed="${side === 'R'}">Right hand anchor</button>
+      </div></div>
+      ${at ? `<div class="field"><label>${side === 'L' ? 'Left' : 'Right'} palm from the wrist (hand bone frame, -Y down the fingers)</label>
+        <div class="xyz">${at.map((v, i) => `<input data-palm-axis="${i}" type="number" step="0.002" value="${v}">`).join('')}</div></div>
+      <div class="row"><button id="palmReset">Reset to deployed</button></div>` : ''}
+      <div class="row"><button id="palmExport" class="primary" ${Object.keys(edited).length ? '' : 'disabled'}>Export hand anchors JSON</button></div>
+      <p class="hint">Drag the <b style="color:#6bd0ff">left</b> and <b style="color:#ffa04a">right</b> dots onto the middle of each palm.
+        They ride on the model's own hand, so a palm placed in one pose holds in every pose; they start where the rig
+        holds a weapon. A ride's grip is where the palm goes, so every rider's palm lands on it.</p>
+      ${Object.keys(edited).length ? `<div class="ledger">${Object.keys(edited).map((id) => `<div class="edit"><span>${id}</span><code>palms</code></div>`).join('')}</div>` : ''}`;
+}
+function bindPalmPanel(host: HTMLElement): void {
+  host.querySelectorAll<HTMLButtonElement>('[data-palm]').forEach((button) => {
+    button.onclick = () => {
+      const side = button.dataset.palm as 'L' | 'R';
+      // one gizmo at a time: a palm takes it from a weapon
+      weaponEditor.select(null);
+      palmEditor.select(palmEditor.selected === side ? null : side);
+      renderWeaponPanel(host as HTMLDivElement);
+    };
+  });
+  const inputs = [...host.querySelectorAll<HTMLInputElement>('[data-palm-axis]')];
+  for (const input of inputs) {
+    input.onchange = () => palmEditor.setPosition(inputs.map((f) => Number(f.value)) as [number, number, number]);
+  }
+  host.querySelector<HTMLButtonElement>('#palmReset')?.addEventListener('click', () => palmEditor.reset());
+  const out = host.querySelector<HTMLButtonElement>('#palmExport');
+  if (out) out.onclick = () => {
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(new Blob([handAnchorsJson()], { type: 'application/json' }));
+    anchor.download = 'handAnchors.json';
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  };
+}
+
 /** what turning each ride anchor does — and, where it does nothing yet, a warning that says so */
 const ROTATION_NOTE: Partial<Record<string, { text: string; warn?: boolean }>> = {
   seat: { text: 'Y turns the rider on the seat, in the game too. X and Z tilt him here only — the game does not tilt a rider yet, so they are a note of how the ride should sit under him.', warn: true },
@@ -1495,11 +1736,12 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   const edited = ed.edited();
   host.innerHTML = `${editModeButtons()}
     <div class="editbox">
+      ${rideFrameHtml(rideOf(figures[0]))}
       <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
         <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
       <div class="field"><label>3D handle</label><div class="seg">
-        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto ? ' rider' : ''}</button>
-        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto ? ' rider' : ''}</button>
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto && ed.selected === 'rider' ? ' rider' : ''}</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto && ed.selected === 'rider' ? ' rider' : ''}</button>
       </div></div>
       ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
         <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
@@ -1523,11 +1765,12 @@ function renderVehiclePanel(host: HTMLDivElement): void {
       </div>
       <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
       <p class="hint">${nikto
-        ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
+        ? 'Move and turn the rider to sit him on the bike. Orange is his left hand on the bars (the right mirrors it across him); until it is moved it is the swoop\'s own grip, and follows the bars as he moves. He leans forward to bars out of reach. '
         : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. Green is the left footrest: once moved, both feet reach for it (the right mirrored), the knees bowed out to the leg spread. '}
         The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
       ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
-        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}`
+          : `at ${e.anchor.position.join(', ')}${e.anchor.grip ? ` · grip ${e.anchor.grip.join(', ')}` : ''}`}${
         e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
         'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
         'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
@@ -1537,6 +1780,7 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         'footRotation' in e.anchor && e.anchor.footRotation ? ` · sole ${e.anchor.footRotation.join('/')}°` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
+  bindRideFrame(host, rideOf(figures[0]));
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
     ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'foot' | 'rider');
   const modelYaw = host.querySelector<HTMLInputElement>('#modelYaw');
@@ -1566,13 +1810,16 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   spread.onchange = () => { spread.blur(); renderVehiclePanel(host); };
   spreadNumber.onchange = () => { ed.setLegSpread(Number(spreadNumber.value)); spreadNumber.blur(); renderVehiclePanel(host); };
   host.querySelector<HTMLButtonElement>('#legSpreadClear')!.onclick = () => { ed.setLegSpread(null); renderVehiclePanel(host); };
-  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
-    const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));
-    anchor.download = 'vehicleAnchors.json';
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
-  };
+  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = downloadAnchors;
+}
+
+/** the anchors file, with this session's edits over what is committed */
+function downloadAnchors(): void {
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(new Blob([vehicleEditor.exportJson()], { type: 'application/json' }));
+  anchor.download = 'vehicleAnchors.json';
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
 }
 
 function renderPositionPanel(host: HTMLDivElement): void {
@@ -1649,7 +1896,7 @@ const dragHint = (): string => (editor.dragAxis
   : 'Drag a ring to rotate; hold Shift to snap to 5°.');
 
 const signature = (): string =>
-  `${editing}|${editAt}|${momentTime()}|${editor.selected}|${editor.space}|${edits.canUndo}|${edits.canRedo}|`
+  `${editing}|${editAt}|${momentTime()}|${editor.selected}|${editor.space}|${canUndo()}|${canRedo()}|`
   + edits.entries().map((e) => `${e.clip}.${e.bone}@${e.at}:${e.delta}`).join(',');
 
 /** Cheap refresh: numbers only, leaving the DOM (and focus) where it is. */
@@ -1668,6 +1915,14 @@ function syncEditValues(): void {
 }
 
 function onEditorChange(): void {
+  // a ride's rider: the turn the gizmo gave is kept as the ride's pose for him
+  const ride = editing && editKind === 'rotate' ? rideOf(figures[0]) : null;
+  if (ride && editor.selected && ride.jointPose && editor.selectedEuler()) {
+    const before = ride.jointPose.get(editor.selected)?.clone();
+    ride.takeJoint(editor.selected);
+    const after = ride.jointPose.get(editor.selected);
+    if (after && !(before && before.angleTo(after) < 1e-6)) vehicleEditor.noteJoints(ride);
+  }
   if (editing && editKind === 'weapon') {
     const host = panel.querySelector<HTMLDivElement>('#edit');
     if (host) {
@@ -1857,7 +2112,8 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  const animationDt = paused ? 0 : dt * animationSpeed;
+  // edit mode holds the frame: nothing moves on its own until it is left
+  const animationDt = paused || editing ? 0 : dt * animationSpeed;
   time += animationDt;
   // an authored .glb lands a beat after the figure does — re-frame when it shows up
   if (figures.length && visibleMeshCount() !== framedAt) frameSubject();
@@ -1871,22 +2127,27 @@ function frame(now: number): void {
   for (const f of figures) {
     // edit mode owns the bones; the mixer would write over them every frame
     if (!editing && !paused) f.inst.animator?.update(animationDt);
-    if (pose.unarmed) setWeaponVisibility(f, false);
+    if (emptyHanded(pose)) setWeaponVisibility(f, false);
   }
   if (positionAwaiting && editing && editKind === 'position'
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
   if (weaponAwaiting && editing && editKind === 'weapon'
     && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
-  // A joint turned in edit mode is turned on the rig; the authored skin follows
-  // it through `cosmetic`, so that runs while editing even with playback paused
-  // (a moment is edited paused), or the model would sit still under the gizmo.
-  if ((!paused || (editing && editKind === 'rotate')) && !(editing && editKind === 'position'))
+  // `cosmetic` carries the rig onto the authored skin, and settles a model that
+  // lands late (the Nikto is seated on his swoop by it), so it runs every frame
+  // — at zero time while paused or editing, when nothing is meant to move: a
+  // joint turned by the gizmo still shows on the skin, a ride still re-solves
+  // its rider onto moved anchors, and a model loaded while paused still lands.
+  if (!(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
   syncFists();
   syncGeoOverlay(figures, cid(), geoView > 0, geoView > 1);
   editor.update();
   if (fistTuning.update(figures.map((f) => f.inst.root))) renderPanel();
+  // the fist following a palm that has moved: its joints re-seated, the section's sliders with them
+  fistTuning.subject = subject.id;
+  if (fistTuning.followPalms(figures.map((f) => f.inst.root), figures.map((f) => f.inst.rig))) renderPanel();
   positionEditor.update(camera);
   weaponEditor.update(camera);
   vehicleEditor.update(camera);
@@ -1900,5 +2161,7 @@ function frame(now: number): void {
 // the rest pose — and `available` then quietly moved the pick to it, so the
 // workbench opened standing in no clip at all whatever it was asked for.
 spawn();
+// the page as it opened: the first edit is undone back to this
+settleHistory();
 resize();
 requestAnimationFrame(frame);

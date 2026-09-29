@@ -182,6 +182,11 @@ export class Animator {
   private revision = 0;
   private current: { lower: string | null; upper: string | null } = { lower: null, upper: null };
   private oneShotUntil = { lower: 0, upper: 0 };
+  /**
+   * The second cycle of a `playBlend` pair, playing under the channel's
+   * current one in step with it; null when the channel plays one clip.
+   */
+  private partner: { lower: string | null; upper: string | null } = { lower: null, upper: null };
   private time = 0;
   /**
    * Additive offsets laid over the mixer's pose each update — the aim pitch
@@ -262,12 +267,28 @@ export class Animator {
     return clip ? clip.duration / Math.max(0.05, Math.abs(rate)) / 2 : 0.3;
   }
 
-  play(channel: 'lower' | 'upper', name: string, fade = 0.18, timeScale = 1): void {
+  /**
+   * Ground one cycle of a locomotion clip covers on this body (m) — what
+   * `gaitRate` divides by. See `cycleDistance`.
+   */
+  cycleLength(name: string, scale = 1): number {
+    const clip = this.clips[name];
+    return clip ? cycleDistance(clip, this.rig.proportions) * Math.max(0.5, scale) : 0;
+  }
+
+  /**
+   * `phase` (0..1 of the cycle) is where a newly started clip begins — a gait
+   * starting from a standstill begins mid-stride rather than at heel strike,
+   * and one gait handing over to another keeps its place in the stride. It
+   * has no effect on a clip already playing.
+   */
+  play(channel: 'lower' | 'upper', name: string, fade = 0.18, timeScale = 1, phase?: number): void {
     if (this.time < this.oneShotUntil[channel]) return; // one-shot in progress
     const cur = this.current[channel];
+    this.dropPartner(channel, fade);
     if (cur === name) {
       const a = this.action(name);
-      if (a) a.timeScale = timeScale;
+      if (a) { a.timeScale = timeScale; a.weight = 1; }
       return;
     }
     const next = this.action(name);
@@ -275,8 +296,10 @@ export class Animator {
     next.reset();
     next.setLoop(THREE.LoopRepeat, Infinity);
     next.timeScale = timeScale;
+    next.weight = 1;
     next.enabled = true;
-    if (/idle/i.test(name)) next.time = this.idlePhase * next.getClip().duration;
+    if (phase !== undefined) next.time = (((phase % 1) + 1) % 1) * next.getClip().duration;
+    else if (/idle/i.test(name)) next.time = this.idlePhase * next.getClip().duration;
     // A zero-length fade has to be a plain cut, not a fade of duration 0: the
     // mixer's weight interpolant reads 0 at the instant it starts, so a clip
     // faded in over 0 s contributes nothing on the very next update and the
@@ -289,13 +312,76 @@ export class Animator {
     this.current[channel] = name;
   }
 
+  /**
+   * Two looping cycles at once, in step: `a` at weight `1 - t` and `b` at
+   * weight `t`, each advanced so that one cycle takes `period` seconds, with
+   * `b` held at the same point of its cycle as `a`. This is the walk shading
+   * into the run: both clips start on the same foot, so blended in step their
+   * poses average into a stride between the two — a jog — instead of the
+   * pop of one cycle cut over to another at some threshold speed. The
+   * heavier of the two is the channel's `playing()` clip.
+   *
+   * Entering the pair fades in from whatever was playing (starting at
+   * `phase`, as `play` does); inside it, `t` and `period` can change every
+   * frame without a restart. Any other `play` or one-shot on the channel
+   * ends the pair.
+   */
+  playBlend(channel: 'lower' | 'upper', a: string, b: string, t: number, period: number,
+    fade = 0.15, phase?: number): void {
+    if (this.time < this.oneShotUntil[channel]) return;
+    const ca = this.clips[a], cb = this.clips[b];
+    if (!ca || !cb) return;
+    t = Math.min(1, Math.max(0, t));
+    period = Math.max(0.05, period);
+    const lead = t < 0.5 ? a : b, other = lead === a ? b : a;
+    const cur = this.current[channel];
+    const inPair = cur === a || cur === b;
+    if (!inPair) {
+      this.play(channel, lead, fade, this.clips[lead].duration / period, phase);
+    } else if (cur !== lead) {
+      // the two trade places at the midpoint: both are already playing, so
+      // this is only which one `playing()` reports
+      this.current[channel] = lead;
+    }
+    this.partner[channel] = other;
+    const la = this.action(lead)!, oa = this.action(other)!;
+    const lDur = this.clips[lead].duration, oDur = this.clips[other].duration;
+    if (!inPair) {
+      oa.reset();
+      oa.setLoop(THREE.LoopRepeat, Infinity);
+      oa.enabled = true;
+      if (fade > 0) oa.fadeIn(fade); else oa.setEffectiveWeight(1);
+      oa.play();
+    }
+    la.timeScale = lDur / period;
+    oa.timeScale = oDur / period;
+    // the partner rides the lead's clock, so the two can never drift apart
+    oa.time = (la.time / lDur) * oDur;
+    // `weight` rather than `setEffectiveWeight`: a fade in progress scales
+    // this, and setting the effective weight would cut the fade short
+    la.weight = lead === a ? 1 - t : t;
+    oa.weight = 1 - la.weight;
+  }
+
+  /** End a `playBlend` pair's second clip (the first is the caller's to replace). */
+  private dropPartner(channel: 'lower' | 'upper', fade: number): void {
+    const p = this.partner[channel];
+    if (!p) return;
+    this.partner[channel] = null;
+    const a = this.actions.get(p);
+    if (!a) return;
+    if (fade > 0) a.fadeOut(fade); else a.stop();
+  }
+
   /** Play a one-shot (melee swing, hit react, death); channel returns to normal after. */
   playOnce(channel: 'lower' | 'upper', name: string, fade = 0.06, clamp = false, timeScale = 1): number {
     const next = this.action(name);
     if (!next) return 0;
     const cur = this.current[channel];
     if (cur && cur !== name) this.action(cur)?.fadeOut(fade);
+    this.dropPartner(channel, fade);
     next.reset();
+    next.weight = 1;
     next.setLoop(THREE.LoopOnce, 1);
     // Always clamp: three disables a LoopOnce action outright the instant it
     // reaches its end, and the channel is released 50 ms before that so the
@@ -366,6 +452,7 @@ export class Animator {
   release(channel: 'lower' | 'upper'): void {
     const cur = this.current[channel];
     if (cur) this.actions.get(cur)?.stop();
+    this.dropPartner(channel, 0);
     this.oneShotUntil[channel] = 0;
     this.current[channel] = null;
   }

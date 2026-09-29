@@ -67,7 +67,8 @@ try {
   const aim = await hands([{ aimHeld: true }], 30);
   check('Din aiming: both hands on the carbine, both closed', closed(aim[0].right) && closed(aim[0].left), aim[0]);
 
-  const run = await hands([{ moveY: 1 }, { moveY: 1 }, { moveY: 1 }], 60);
+  // past the build-up's first second on a walk, into the jog and the run
+  const run = await hands([{ moveY: 1 }, { moveY: 1 }, { moveY: 1 }], 150);
   check('Din running: both hands closed', run[0].lower === 'runLower' && closed(run[0].right) && closed(run[0].left), run[0]);
   check('Cad Bane running: still open', open(run[2].right) && open(run[2].left), run[2]);
 

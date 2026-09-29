@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import type { Rig } from '../anim/skeleton';
 import {
-  deployedFistTune, fistDefaults, fistKind, fistModel, fistTune, refitFists, setWorkbenchFistTune, type FistTune,
+  deployedFistTune, fistDefaults, fistFrames, fistKind, fistModel, fistTune, refitFists, setWorkbenchFistTune, type FistTune,
 } from '../characters/fistRig';
+import { palmOf, palmWorld } from '../characters/handAnchors';
 import { FISTS_IN_PLAY } from '../characters/fists';
 
 /**
@@ -34,6 +36,16 @@ export class FistTuning {
   hold = false;
   clench = 1;
   guides = false;
+  /**
+   * Seat the knuckle and middle joints from the placed palm (Hand anchors), as
+   * it moves: a palm's centre sits about halfway from the wrist to the
+   * knuckles, so the knuckles go at twice its share of the hand, and the
+   * middle joints halfway on from there to the fingertips.
+   */
+  followPalm = false;
+  /** whose palms these are (the workbench's character), for the palm */
+  subject = '';
+  private palmKey = '';
   private readonly group = new THREE.Group();
   private revision = 0;
 
@@ -60,6 +72,8 @@ export class FistTuning {
     <p class="hint">${tier === 'all' ? 'The game closes these hands everywhere.' : tier === 'npc'
       ? 'The game closes these hands on its own fighters only.' : 'Not in play yet: the game leaves these hands open.'}
       ${kind === 'own' ? ' The sculpt has fingers of its own, so its joints stay where they were built.' : ''}</p>
+    ${kind === 'added' ? `<label class="check" title="Moving a palm (Edit → Weapon grips → Hand anchors) moves the knuckle and middle joints with it"><input type="checkbox" id="fistFollow" ${this.followPalm ? 'checked' : ''}> Follow the palm</label>
+    ${this.followPalm ? '<p class="hint">The knuckles go at twice the palm\'s share of the way down the hand, the middle joints halfway on to the fingertips. Put each palm dot on the middle of the palm\'s own surface; the palm side stays the flip below.</p>' : ''}` : ''}
     <label class="check"><input type="checkbox" id="fistHold" ${this.hold ? 'checked' : ''}> Hold the clench at
       <output id="fistClenchValue">${Math.round(this.clench * 100)}%</output></label>
     <input id="fistClench" type="range" min="0" max="1" step="0.01" value="${this.clench}" aria-label="Clench to hold">
@@ -99,6 +113,8 @@ export class FistTuning {
         panel.querySelector<HTMLOutputElement>(`#fist_${s.key}Value`)!.value = show(s, v);
       };
     }
+    const follow = panel.querySelector<HTMLInputElement>('#fistFollow');
+    if (follow) follow.onchange = () => { this.followPalm = follow.checked; this.palmKey = ''; rerender(); };
     const hold = panel.querySelector<HTMLInputElement>('#fistHold');
     if (hold) hold.onchange = () => { this.hold = hold.checked; };
     const clench = panel.querySelector<HTMLInputElement>('#fistClench');
@@ -119,6 +135,39 @@ export class FistTuning {
       rerender();
     });
     panel.querySelector<HTMLButtonElement>('#fistExport')?.addEventListener('click', () => this.export(model));
+  }
+
+  /**
+   * Following the palm: when either palm has moved since last time, the
+   * knuckle and middle joints are seated from it. True when the tune changed.
+   */
+  followPalms(roots: THREE.Object3D[], rigs: Array<Rig | null>): boolean {
+    if (!this.followPalm || !this.subject) return false;
+    const model = this.model(roots);
+    if (!model || fistKind(model) !== 'added') return false;
+    const key = `${model}|${palmOf(this.subject, 'L').toArray()}|${palmOf(this.subject, 'R').toArray()}`;
+    if (key === this.palmKey) return false;
+    this.palmKey = key;
+    const i = roots.findIndex((r) => fistModel(r) === model);
+    const root = roots[i], rig = rigs[i];
+    if (!root || !rig) return false;
+    root.updateMatrixWorld(true);
+    // each hand's palm, as a share of the way from its start to its fingertips
+    const shares: number[] = [];
+    for (const f of fistFrames(model)) {
+      const hand = root.getObjectByName(f.hand);
+      if (!hand) continue;
+      const at = hand.worldToLocal(palmWorld(root, rig, this.subject, f.side, new THREE.Vector3()));
+      shares.push((at.dot(f.along) - f.from) / f.length);
+    }
+    if (!shares.length) return false;
+    const share = shares.reduce((a, b) => a + b, 0) / shares.length;
+    const knuckleAt = +THREE.MathUtils.clamp(2 * share, 0.3, 0.7).toFixed(3);
+    const middleAt = +(knuckleAt + 0.48 * (1 - knuckleAt)).toFixed(3);
+    setWorkbenchFistTune(model, { ...fistTune(model), knuckleAt, middleAt });
+    refitFists(model, roots);
+    this.revision++;
+    return true;
   }
 
   /** One sculpt's tune, whole, with what differs from what is deployed. */

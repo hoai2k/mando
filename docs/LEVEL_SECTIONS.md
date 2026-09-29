@@ -319,14 +319,16 @@ arrives, clear to advance):
    jetpack pirate pair. Teaches the twin-stick aim.
 2. **The vent run** — **plasma vents** in the hull fire across the walkway on a
    cycle (telegraph: a red glow in the grate for 1.2 s); gaps where panels are
-   missing (6–8 m, the low gravity makes a jump carry). Lock 1: two dropship
-   passes.
+   missing (6–8 m, the low gravity makes a jump carry). Lock 1: three dropship
+   passes (a squad, fliers, then heavier), each called as the last thins.
 3. **The spoke junction** — a spoke 20 m wide rises out of the ring into the
    sky; its base is the arena for Lock 2 (three waves, a **gun hatch** turret
    that pops out of the hull and must be meleed shut or shot in its open eye).
 4. **The sweep** — a **sensor boom** sweeps the walkway like a clock hand; being
    caught by the beam calls down drone swarms (interceptor drones) — jump it or
-   duck behind the conduit. Lock 3 at the airlock: the Pyke capo's retinue.
+   duck behind the conduit. Walking in sets off the booms' alarm once: a drone
+   flight and two fliers come up over the edge, so this stretch is fought under
+   the beams. Lock 3 at the airlock: the Pyke capo's retinue.
 
 **Co-op.** This is the section that is *best* at four: one screen, everyone
 visible, the Gauntlet feel the LEVEL_DESIGN research was chasing. The leash (K1)
@@ -889,7 +891,7 @@ six **barricade sockets** around the dais.
 
 **How it plays.**
 
-- **The forging** (K5). A progress bar climbs from 0 to 100% over ~3 minutes
+- **The forging** (K5). A progress bar climbs from 0 to 100% over ~1–1.5 minutes
   while the Armorer works. It **stalls** while an enemy is within 6 m of her, and
   runs at half speed if a bellows is broken.
 - **The Armorer** has HP (she fights back at melee range with her hammer, which

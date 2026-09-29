@@ -42,10 +42,30 @@ const check = makeCheck();
     p.velocity.set(0, 0, 0);
     // quiet the board: nothing else should shoot or be shot in this test
     for (const e of g.enemies) e.damage(9999999, e.position, 0);
-    return { solid: g.board.physics.boxes.some((b) => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z),
-      arc: t.def.turret.yawArc, rate: t.def.gun.rate };
+    // the stand-in, measured: the sheet's box, its named nodes, its drum collider
+    t.syncMesh?.(0, 0, g);
+    t.group.updateMatrixWorld(true);
+    let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    t.group.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      o.geometry.computeBoundingBox();
+      const bb = o.geometry.boundingBox;
+      for (const cx of [bb.min.x, bb.max.x]) for (const cy of [bb.min.y, bb.max.y]) for (const cz of [bb.min.z, bb.max.z]) {
+        const v = new t.pos.constructor(cx, cy, cz).applyMatrix4(o.matrixWorld);
+        const l = [v.x - t.pos.x, v.y - t.pos.y, v.z - t.pos.z];
+        for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], l[k]); max[k] = Math.max(max[k], l[k]); }
+      }
+    });
+    const size = [max[0] - min[0], max[1] - min[1], max[2] - min[2]].map((n) => +n.toFixed(2));
+    const names = ['base', 'yaw', 'pitch', 'seat', 'muzzle_0', 'muzzle_1', 'muzzle_2', 'muzzle_3'].filter((n) => !t.group.getObjectByName(n));
+    const cyl = g.board.physics.cylinders.find((c) => Math.hypot(c.x - x, c.z - z) < 0.01);
+    return { solid: !!cyl, cyl: cyl ? { r: cyl.r, h: +(cyl.maxY - cyl.minY).toFixed(2), base: +(cyl.minY - t.pos.y).toFixed(2) } : null,
+      size, missing: names, arc: t.def.turret.yawArc, rate: t.def.gun.rate };
   });
-  check('a turret stands solid on its ring', setup.solid);
+  check('a turret stands solid on its drum: a cylinder r 1.5, 1 m tall', setup.solid && setup.cyl.r === 1.5 && setup.cyl.h === 1 && setup.cyl.base === 0, setup.cyl);
+  // yaw 0: +z is the barrels, so x is the width and z the length
+  check('the stand-in is the sheet\'s 4.0 × 3.0 × 2.7 m', Math.abs(setup.size[2] - 4) < 0.06 && Math.abs(setup.size[0] - 3) < 0.06 && Math.abs(setup.size[1] - 2.7) < 0.06, setup.size);
+  check('with the nodes the game drives: base, yaw, pitch, seat, muzzle_0..3', setup.missing.length === 0, setup.missing);
 
   const step = (secs, over = {}, fn = null) => page.evaluate(([secs, over, BLANK, fn]) => {
     const g = window.__game;
@@ -112,7 +132,7 @@ const check = makeCheck();
   const off = await page.evaluate(() => {
     const g = window.__game, p = g.players[0], t = window.__turret;
     const x = t.pos.x, z = t.pos.z;
-    return { off: !p.vehicle && !t.rider, solid: g.board.physics.boxes.some((b) => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z) };
+    return { off: !p.vehicle && !t.rider, solid: g.board.physics.cylinders.some((c) => Math.hypot(c.x - x, c.z - z) < 0.01) };
   });
   check('Y steps off', off.off);
   check('and the turret is still solid', off.solid);

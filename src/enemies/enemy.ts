@@ -23,13 +23,16 @@ import { applyKnockback, bodyGravity, newBurnState, stepBody, tickHazards } from
 import type { Game } from '../game/game';
 import type { Vehicle } from '../game/vehicles';
 import type { VehicleSpec } from '../world/board';
-import { reachArm } from '../anim/seating';
+import { leanToReach, reachArm } from '../anim/seating';
+import { palmReach } from '../characters/handAnchors';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
 import { FistDriver } from '../characters/fists';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import { TEXT } from '../text';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
+import { SleeperMoves, SLEEPER_SHOVE } from './sleeper';
+import type { DeflectSphere } from '../fx/projectiles';
 import {
   fistSegments, resolveClash, sweepTouches, weaponSegments, weaponMounts, PARRY_SHOVE,
   type Blade, type Duelist, type Guard, type Segment,
@@ -268,7 +271,9 @@ function rivalDef(kind: RivalKind, melee: boolean, hp = 180): Def {
   };
 }
 
-const _grip = new THREE.Vector3();
+/** the two hands' grips, reused frame to frame */
+const _grips = [new THREE.Vector3(), new THREE.Vector3()];
+const _palms = [new THREE.Vector3(), new THREE.Vector3()];
 const _elbow = new THREE.Vector3();
 /** how sharply a hostile at the pedals turns the nose onto its mark */
 const RIDE_STEER_GAIN = 1.6;
@@ -575,6 +580,27 @@ export function enemyStats(kind: EnemyKind): {
   return { hp: d.hp, speed: d.speed, radius: d.radius, height: d.height, style: d.style, damage: d.damage, attackCd: d.attackCd };
 }
 
+/**
+ * Everything on foot moves at this share of its listed speed. The players'
+ * run was brought down to 80% of what it was (see `RUN_PACE` in player.ts),
+ * and the hostiles came down with it so a chase
+ * reads the same as it did. Riders and fliers are left alone: a swoop is a
+ * vehicle, and a jetpack or a drone is not a pair of legs.
+ */
+const ENEMY_FOOT_PACE = 0.8;
+/**
+ * How hard a melee hostile brakes once it is in reach and winding up. Its
+ * swing starts at the edge of its reach and the run carries it the rest of
+ * the way in — speed ÷ this — and the reaches were set with the old speed's
+ * carry: at 80% of it an enforcer's hook stopped ten centimetres short. The
+ * braking eases by the same share, so the carry is what it always was.
+ */
+const MELEE_BRAKE = 10 * ENEMY_FOOT_PACE;
+function footPaced(d: Def): Def {
+  if (d.style === 'swoop' || d.style === 'hover') return d;
+  return { ...d, speed: d.speed * ENEMY_FOOT_PACE };
+}
+
 export class Enemy {
   id = nextId++;
   def: Def;
@@ -717,6 +743,8 @@ export class Enemy {
    * itself this frame. Null everywhere outside a section.
    */
   sectionSteer: ((e: Enemy, dt: number, game: Game, target: Combatant | null) => boolean) | null = null;
+  /** the mythosaur's own moves — the dive and the roar (see enemies/sleeper.ts) */
+  sleeper: SleeperMoves | null = null;
   spawnPos = new THREE.Vector3();
   // ---- ragdoll & corpse ----
   /**
@@ -834,6 +862,24 @@ export class Enemy {
   } | null = null;
 
   get downed(): boolean { return this.downTimer > 0; }
+
+  /** the game this body last ran in, for a getter that needs it (the Sleeper's shell) */
+  private lastGame: Game | null = null;
+
+  /** drop whatever strike or second move is in hand (a move of its own is starting) */
+  interruptMoves(): void {
+    this.windup = 0;
+    this.strikeFollow = 0;
+    this.windupTarget = null;
+    this.special = null;
+    this.dashT = 0;
+    this.volleyLeft = 0;
+  }
+
+  /** the pale boss flash, held for `secs` — a warning glow or a turned blow */
+  parryFlash(secs: number): void {
+    this.bossParryT = Math.max(this.bossParryT, secs);
+  }
   /** out of the fight for commitment purposes */
   get outOfFight(): boolean { return !this.alive || this.wounded || this.fleeing || this.downed; }
 
@@ -849,7 +895,7 @@ export class Enemy {
     // bolts passed through it and a blade found nothing, which is not a thing
     // a player will believe about a target they can see. Half under is the
     // line: while more of it is out than in, it is a body.
-    return !!this.def.burrows && this.burrowDepth > 0.55;
+    return (!!this.def.burrows && this.burrowDepth > 0.55) || !!this.sleeper?.submerged;
   }
 
   /** a body a bolt, a blade or a lock-on can find */
@@ -905,7 +951,7 @@ export class Enemy {
    */
   constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1,
     opts: { silent?: boolean } = {}) {
-    this.def = DEFS[kind];
+    this.def = footPaced(DEFS[kind]);
     this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
     this.char = this.def.build();
@@ -917,6 +963,8 @@ export class Enemy {
     this.position.copy(pos);
     this.spawnPos.copy(pos);
     this.post.copy(pos);
+    // the Sleeper dives, resurfaces and roars (enemies/sleeper.ts)
+    if (kind === 'mythosaur') this.sleeper = new SleeperMoves(pos);
     this.idleGoal.copy(pos);
     this.facingYaw = Math.random() * Math.PI * 2;
     this.idleYaw = this.facingYaw;
@@ -1110,7 +1158,8 @@ export class Enemy {
    * held out in front of wherever the body faces. Bolts bounce; melee, rockets
    * and anything from behind land as normal. Down or wounded drops the pane.
    */
-  get shieldCollider(): { center: THREE.Vector3; radius: number; normal: THREE.Vector3 } | null {
+  get shieldCollider(): DeflectSphere | null {
+    if (this.sleeper?.reflecting && this.alive && this.lastGame) return this.sleeper.deflector(this, this.lastGame);
     if (!this.def.frontShield || !this.alive || this.downed || this.wounded || this.fleeing) return null;
     const s = this.shieldSphere;
     s.normal.set(Math.sin(this.facingYaw), 0, Math.cos(this.facingYaw));
@@ -1170,6 +1219,13 @@ export class Enemy {
     // under the ground nothing lands — the whole lesson of the burrower is
     // that it has to be hurt while it is up
     if (this.submerged) { this.alert(from, true); return; }
+    // the Sleeper's shell after a roar: nothing lands, and a blow comes back
+    if (this.sleeper?.reflecting) {
+      if (!_opts?.dot) this.sleeper.turnBack(amount, bySlot);
+      this.bossParryT = 0.25;
+      if (bySlot >= 0) this.lastHitBy = bySlot;
+      return;
+    }
     // A warlord turns some hits aside — a sharp sidestep off the line of the
     // shot, a pale flash, and almost none of the damage. The cooldown is the
     // fairness: at most one parry every 1.2 s, so sustained fire always gets
@@ -1237,6 +1293,7 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false;
+      this.sleeper?.end();
       // Shot out of the saddle: the ride rolls on without them and parks where
       // it stops, which is the whole bargain — drop the rider, take the ride.
       // The corpse leaves at the ride's speed, so it is thrown rather than
@@ -1326,6 +1383,14 @@ export class Enemy {
   knockback(from: THREE.Vector3, force: number, stagger = 0.3, lift = 0.35): void {
     if (this.submerged) return;   // the ground it is under does not shove
     if (this.ride) return;        // the saddle holds; the ride takes the shove
+    // The Sleeper is of the ground: a shove moves it a third as far, and not
+    // at all mid-move. At full strength a party's rockets walked it into a
+    // corner of its own basin and pinned it there.
+    if (this.sleeper) {
+      if (this.sleeper.busy) return;
+      force *= SLEEPER_SHOVE;
+      stagger *= SLEEPER_SHOVE;
+    }
     // `lift` is what separates a shove from a launch: keep it low to slide the
     // target clear along the ground, raise it when a pop is wanted (explosions)
     applyKnockback(this.velocity, this.position, from, force, force * lift, true);
@@ -1541,6 +1606,16 @@ export class Enemy {
     // ---- broke and ran ----
     if (this.updateFleeing(dt, game, anim)) return;
 
+    // the Sleeper's own moves take the frame while one is running
+    this.lastGame = game;
+    if (this.sleeper?.update(this, dt, game, target && this.visible ? target : null)) {
+      this.separate(dt, game);
+      this.integrate(dt, game);
+      this.syncVisual(dt, game);
+      anim?.update(dt);
+      return;
+    }
+
     this.steer(dt, game, target);
     this.separate(dt, game);
     this.integrate(dt, game);
@@ -1656,12 +1731,22 @@ export class Enemy {
     const hold = v.hands;
     if (!rig || !hold) return;
     this.char.root.updateMatrixWorld(true);
-    const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);
+    const yaw = v.yaw + v.seatYaw;
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    const reach = palmReach(this.char.root, rig, this.kind);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
-      if (!v.gripWorld(side, _grip)) continue;
-      _elbow.set(_grip.x + cos * side * 0.55, _grip.y - 0.42, _grip.z - sin * side * 0.55);
-      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _elbow);
+      const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
+      if (!at) continue;
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      grips.push({ side: side === 1 ? 'L' : 'R', at: reach.aim(side === 1 ? 'L' : 'R', at, _palms[side === 1 ? 0 : 1]), out: side });
+    }
+    // bend forward to a grip past arm's reach, then put the hands on it
+    leanToReach(rig, grips);
+    for (const { side, at, out } of grips) {
+      _elbow.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
+      reachArm(rig, side, at, _elbow);
     }
   }
 
@@ -2851,8 +2936,8 @@ export class Enemy {
       const wasWinding = this.windup > 0;
       if (wasWinding) this.windup -= dt;
       else this.strikeFollow -= dt;
-      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      this.velocity.x = damp(this.velocity.x, 0, MELEE_BRAKE, dt);
+      this.velocity.z = damp(this.velocity.z, 0, MELEE_BRAKE, dt);
       if (this.special) this.telegraphSpecial(dt, game);
       if (this.windup <= 0 && this.special === 'dash') { this.launchDash(target); return; }
       if (this.windup <= 0 && this.special === 'slam') { this.groundShock(game); return; }
@@ -2947,8 +3032,8 @@ export class Enemy {
       this.velocity.x = damp(this.velocity.x, (to.x + sx) * d.speed, 8, dt);
       this.velocity.z = damp(this.velocity.z, (to.z + sz) * d.speed, 8, dt);
     } else {
-      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      this.velocity.x = damp(this.velocity.x, 0, MELEE_BRAKE, dt);
+      this.velocity.z = damp(this.velocity.z, 0, MELEE_BRAKE, dt);
       if (this.attackCd <= 0 && FIST_KINDS.has(this.kind) && !this.char.attack) {
         this.throwFist(target, game, d.damage);
       } else if (this.attackCd <= 0) {
@@ -3534,6 +3619,7 @@ export class Enemy {
     // and every bone itself, so syncVisual must keep its hands off
     if (this.ragdoll) return;
     this.char.root.position.copy(this.position);
+    if (this.sleeper) this.char.root.position.y -= this.sleeper.sinkOffset;
     this.char.root.rotation.y = this.facingYaw;
     if (this.kind === 'nikto') {
       this.char.root.rotation.z = clamp(-this.velocity.x * Math.cos(this.facingYaw) * 0.03 + this.velocity.z * Math.sin(this.facingYaw) * 0.03, -0.5, 0.5);

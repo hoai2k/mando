@@ -147,7 +147,8 @@ export const findWeaponOption = (id: string | null | undefined): WeaponOption | 
  */
 export type PoseWeapon = WeaponSlot | 'either' | 'none';
 export function poseWeapon(p: Pose): PoseWeapon {
-  if (p.rig !== 'humanoid' || p.unarmed || p.block) return 'none';
+  // the rest pose is the body as it stands, nothing in its hands
+  if (p.rig !== 'humanoid' || p.unarmed || p.block || p.id === 'rest') return 'none';
   if (p.id.startsWith('saber') || p.id === 'flourish') return 'none';
   if (p.melee || p.id === 'enemySwing') return 'melee';
   if (p.upper && /aim/i.test(p.upper)) return 'gun';
@@ -285,7 +286,12 @@ function unhide(h: Hidden): void {
 const _m = new THREE.Matrix4();
 const _s = new THREE.Vector3();
 
+/** the pick that takes the weapon out of the hand altogether, to see the hand */
+export const NO_WEAPON = 'none';
+
 export class FigureWeapons {
+  /** the default weapons hidden by a `NO_WEAPON` pick */
+  private cleared: Hidden[] = [];
   private active: {
     slot: WeaponSlot; option: WeaponOption; made: Made; hidden: Hidden[];
     held: HeldDefault | null; lastPos: THREE.Vector3; lastQuat: THREE.Quaternion; placed: boolean;
@@ -300,6 +306,17 @@ export class FigureWeapons {
   /** Put `optionId` in the hand for `slot`, or the default when it is null. */
   show(slot: WeaponSlot | null, optionId: string | null): void {
     const def = slot ? this.loadout[slot] : null;
+    for (const h of this.cleared) unhide(h);
+    this.cleared = [];
+    if (optionId === NO_WEAPON) {
+      // an empty hand: the default hidden, nothing in its place
+      this.release();
+      if (def?.held) {
+        this.cleared.push(hide(def.held.main, []));
+        if (def.held.offhand) this.cleared.push(hide(def.held.offhand, []));
+      }
+      return;
+    }
     const option = findWeaponOption(optionId);
     if (!slot || !def || !option || option.slot !== slot || option.id === def.id) { this.release(); return; }
     if (this.active?.slot === slot && this.active.option === option) return;
@@ -322,6 +339,7 @@ export class FigureWeapons {
 
   release(): void {
     const a = this.active;
+    if (!a) { for (const h of this.cleared) unhide(h); this.cleared = []; }
     if (!a) return;
     for (const h of a.hidden) unhide(h);
     a.made.main.removeFromParent();
@@ -421,6 +439,10 @@ export class WeaponChoices {
   }
 
   clear(): void { this.map.clear(); }
+
+  /** this session's picks, for the workbench's undo */
+  snapshot(): Array<[string, WeaponChoiceEntry]> { return [...this.map].map(([k, e]) => [k, { ...e }]); }
+  restoreSnapshot(snap: Array<[string, WeaponChoiceEntry]>): void { this.map = new Map(snap.map(([k, e]) => [k, { ...e }])); }
 
   entries(): WeaponChoiceEntry[] {
     return [...this.map.values()].sort((a, b) => a.character.localeCompare(b.character) || a.slot.localeCompare(b.slot));

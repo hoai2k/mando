@@ -26,6 +26,8 @@
  *  - a live gun's flak screen throws you back
  *  - a charge planted on the roof silences a gun; two rockets into the breech
  *    do too, and bolts do not
+ *  - the city's towers and bridges can be shot down: bolts bring a tower
+ *    down, its bridges fall with it, and its roof stops being ground
  *
  * Run:  node tools/test-section-forge.mjs   (HARNESS_PORT, CHROMIUM_PATH as usual)
  */
@@ -173,10 +175,21 @@ const shields = await page.evaluate(() => {
   const boxes3 = g.board.physics.boxes.length;
   const first = P.sockets[0];
   P.raise(3);
-  return { three, four: P.raised.length, firstFolded: !first.up, solid: boxes3 > boxes0 };
+  // a hunter behind a raised shield can put their back to it (the socket's
+  // plinth lifts the 0.9 m plate to a face the cover system takes)
+  const so = P.sockets[1];
+  const V = so.at.constructor;
+  const p = g.players[0];
+  p.position.copy(so.at).addScaledVector(new V(-Math.sin(so.theta), 0, -Math.cos(so.theta)), 1.4);
+  p.velocity.set(0, 0, 0);
+  window.__step(6, (slot, f) => (slot === 0 ? { slamPressed: f === 2 } : {}));
+  const cover = !!p.cover, face = p.cover ? p.cover.top - p.position.y : 0;
+  window.__step(2, (slot, f) => (slot === 0 ? { slamPressed: f === 0 } : {}));
+  return { three, four: P.raised.length, firstFolded: !first.up, solid: boxes3 > boxes0, cover, face };
 });
 check('raised shields are solid', shields.solid, shields);
 check('three shields at most: a fourth folds the oldest', shields.three === 3 && shields.four === 3 && shields.firstFolded, shields);
+check('a raised shield is cover, over a crouched hunter\'s chest', shields.cover && shields.face >= 1.0, shields);
 
 const fall = await page.evaluate(() => {
   const g = window.__game, s = g.campaign.section, P = s.probe;
@@ -368,6 +381,41 @@ const rockets = await page.evaluate(() => {
 });
 check('bolts do not dent a flak gun', rockets.afterBolts, rockets);
 check('two rockets into the breech silence it', rockets.one && rockets.dead, rockets);
+
+const wreck = await page.evaluate(() => {
+  const g = window.__game, s = g.campaign.section, P = s.probe;
+  const p = g.players[0];
+  const V = p.position.constructor;
+  window.__step(10);
+  const towers = P.wrecks.filter((w) => w.tower);
+  const bridges = P.wrecks.filter((w) => !w.tower);
+  const w = towers.find((t) => t.carries.length) ?? towers[5];
+  // hover beside it
+  const stand = () => { p.position.set(w.x, (w.base + w.top) / 2, w.z - w.tower.d / 2 - 22); p.velocity.set(0, 0, 0); };
+  stand();
+  P.scanWrecks();
+  const boxes0 = g.board.physics.boxes.length;
+  const live = (g.board.breakables ?? []).length;
+  const aim = new V(w.x, (w.base + w.top) / 2, w.z);
+  let shots = 0;
+  for (let i = 0; i < 40 && !w.down; i++) {
+    stand();
+    const from = p.position.clone();
+    const dir = aim.clone().sub(from).normalize();
+    g.projectiles.fire(from, dir, 75, 34, 0, 0);
+    shots++;
+    window.__step(8);
+  }
+  const out = { towers: towers.length, bridges: bridges.length, live, shots, down: w.down, dmg: w.dmg, hp: w.hp,
+    boxesGone: boxes0 - g.board.physics.boxes.length, carried: w.carries.map((c) => c.down), felled: s.debug().felled };
+  out.ground = s.groundAt(w.x, w.z) < w.top;
+  window.__step(160);
+  return out;
+});
+check('the city has shootable towers and bridges', wreck.towers > 30 && wreck.bridges > 0 && wreck.live > 0, wreck);
+check('bolts bring a tower down', wreck.down && wreck.boxesGone > 0, wreck);
+check('its bridges go with it, and its roof is no longer ground', wreck.carried.every(Boolean) && wreck.ground, wreck);
+
 
 const errs = h.errors.filter((e) => !/Couldn't load texture blob:/.test(String(e)));
 check('no page errors', errs.length === 0, errs.slice(0, 5).join(' | '));

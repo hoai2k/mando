@@ -710,7 +710,10 @@ function build(ctx: SectionContext): SectionInstance {
 
     // the checkpoint follows the skiff (the fallen come back aboard it)
     ctx.checkpoint.copy(skiffDeck());
-    // a wipe in the broadside: a fresh skiff (once — the party re-forms on it)
+    // A wipe in the broadside breaks the skiff up: a fresh one, and the
+    // broadside again. Every wipe does this; `wiped` only makes it happen once
+    // per wipe (the frame the last player falls), not on every frame the party
+    // is down waiting to re-form.
     const anyAlive = game.players.some((p) => p.alive);
     if (!anyAlive && !wiped && phase === 'broadside') { wiped = true; breakUp(); }
     else if (anyAlive) wiped = false;
@@ -773,7 +776,8 @@ function build(ctx: SectionContext): SectionInstance {
     const steer = (to: THREE.Vector3, extra: AutopilotInput = {}): AutopilotInput => {
       const dx = to.x - p.position.x, dz = to.z - p.position.z;
       const d = Math.hypot(dx, dz);
-      return { yaw: Math.atan2(dx, dz), moveY: d > 0.5 ? Math.min(1, d / 2) : 0, ...extra };
+      // the stick is a gait (≤ 0.6 walks, ≥ 0.9 runs): full tilt until close, a walk to settle
+      return { yaw: Math.atan2(dx, dz), moveY: d > 1.5 ? 1 : d > 0.5 ? 0.6 : 0, ...extra };
     };
     const nearestEnemy = (): THREE.Vector3 | null => {
       let best: THREE.Vector3 | null = null, bd = 60;

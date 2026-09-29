@@ -124,6 +124,15 @@ export function shoulderSpacingFor(id: string): ShoulderSpacing {
   return workbenchSpacing.get(id) ?? (id === 'ventress' || id === 'bossk' || id === 'maris' ? HALF_SPACING : FULL_SPACING);
 }
 
+/** this page's shoulder spacings, for the workbench's undo */
+export function shoulderSpacingSnapshot(): Array<[string, ShoulderSpacing]> {
+  return [...workbenchSpacing].map(([id, s]) => [id, { ...s }]);
+}
+export function restoreShoulderSpacing(snap: Array<[string, ShoulderSpacing]>): void {
+  workbenchSpacing.clear();
+  for (const [id, s] of snap) workbenchSpacing.set(id, { ...s });
+}
+
 /** A workbench adjustment stays in this page; the game's defaults stay above. */
 export function setWorkbenchShoulderSpacing(id: string, value: ShoulderSpacing | null): void {
   if (value) workbenchSpacing.set(id, {
@@ -571,7 +580,11 @@ export type EnemyModelId = (typeof ENEMY_MODELS)[keyof typeof ENEMY_MODELS]['mod
  * prefetcher and the drop screen wait on. (Scenery and ships load by the
  * same path under names of their own, so the loader itself takes any string.)
  */
-export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig' | 'din_rerig_geo' | 'duelist_rerig_geo';
+// `prisoner`: One Way Out's freed prisoners (docs/ASSETS_MODELS.md) — a biped on
+// the canonical rig that is an ally, not an EnemyKind, so it is named here for
+// the prefetcher and `attachAuthored` (src/sections/one-way-out.ts)
+export type ModelId = MandoId | EnemyModelId | WeaponPropId | 'nikto_swoop' | 'din_rerig' | 'duelist_rerig'
+  | 'din_rerig_geo' | 'duelist_rerig_geo' | 'prisoner';
 
 /** the model entry for any kind, with `height` readable whether or not it has one */
 export const enemyModel = (kind: EnemyKind): { model: EnemyModelId; height?: number } | undefined =>
@@ -821,6 +834,11 @@ export async function loadAuthored(id: string, targetHeight: number): Promise<Au
   };
   const weaponMount = handMount('handR', 'weaponMount');
   const weaponMountL = handMount('handL', 'weaponMountL');
+  // ...and the same frame again for the palm (`handAnchors.ts`), which the
+  // weapon mounts cannot be: they are hidden with the weapons in a pose that
+  // holds none, and the palm is wanted in every pose
+  handMount('handR', 'palmFrameR');
+  handMount('handL', 'palmFrameL');
   const hip = nodes.find((n) => n.canonical === 'hips');
   const holsterMount = hip ? new THREE.Group() : null;
   if (hip && holsterMount) {

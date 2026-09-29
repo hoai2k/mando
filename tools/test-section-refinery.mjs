@@ -298,12 +298,12 @@ await page.evaluate(() => window.__step(90, null));
     const p = g.players[0];
     t.holdLeft.arms = 0;
     const a = t.arms[0];
-    // the point on belt 2 the arm's boom crosses at the middle of its swing
+    // a point on belt 2 inside the arm's circle, and the floor lane beside its base
     const x = t.BELT_X[2];
     const z = a.z;
     let beltHit = false, floorHit = false;
     let hp = 100;
-    window.__step(120, null, () => {
+    window.__step(180, null, () => {
       p.hp = Math.min(p.hp, 100);
       if (p.hp < hp - 5) beltHit = true;
       hp = 100; p.hp = 100;
@@ -311,10 +311,10 @@ await page.evaluate(() => window.__step(90, null));
     });
     hp = 100; p.hp = 100;
     let at = null;
-    window.__step(120, null, () => {
+    window.__step(180, null, () => {
       if (p.hp < hp - 5 && !floorHit) { floorHit = true; at = [p.position.x, p.position.y - Y0, p.position.z]; }
       hp = 100; p.hp = 100;
-      p.position.set(4.8, Y0, z); p.velocity.set(0, 0, 0);
+      p.position.set(a.x, Y0, z + 2.5); p.velocity.set(0, 0, 0);
     });
     return { beltHit, floorHit, at };
   });

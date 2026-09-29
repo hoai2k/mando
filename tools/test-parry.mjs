@@ -155,7 +155,7 @@ await match(['ig11']);
 for (const kind of ['tusken', 'pirateMelee', 'alamite', 'officer', 'enforcer',
   'rivalMaul', 'rivalRevan', 'rivalVentress', 'rivalGalen', 'rivalMaris']) {
   // (the enforcer opens with its ground-slam telegraph, which spends a cooldown first)
-  const r = await duel({ kind, dist: 4, windup: false, playerSwing: false, frames: 270 });
+  const r = await duel({ kind, dist: 4, windup: false, playerSwing: false, frames: 330 });
   check(`a ${kind} closes and its swing lands`, r.playerHurt > 0, r);
 }
 {

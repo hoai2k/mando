@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
-import { orientFoot, reachArm, reachLeg, spreadKnees } from '../anim/seating';
+import { leanToReach, orientFoot, reachArm, reachLeg, spreadKnees, unlean } from '../anim/seating';
+import type { BoneName, Rig } from '../anim/skeleton';
+import { palmReach } from '../characters/handAnchors';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
 } from '../game/vehicles';
-import { ANKLE_OVER_SOLE, footQuaternion, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
+import { ANKLE_OVER_SOLE, footQuaternion, handFromSeat, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
 import type { VehicleSpec } from '../world/board';
 
 /**
@@ -47,6 +49,16 @@ export interface VehicleRig {
   gripRotation: V3 | null;
   /** the rider's hands are on the grips this frame (a tiller with no grip placed leaves them free) */
   gripped: boolean;
+  /** the rider's joints set by hand on this ride (`VehicleAnchor.pose`): local rotations over the clip */
+  jointPose: Map<string, THREE.Quaternion>;
+  /** the rider's rig, for the joint gizmo */
+  readonly riderRig: Rig | null;
+  /** keep the turn the gizmo just gave a joint as this ride's pose for it */
+  takeJoint(name: string): void;
+  /** how far through its cycle the ride is held (0–1): the rider's clips and a mount's gait */
+  readonly phase: number;
+  /** hold the ride at this point of its cycle, for editing it still */
+  seek(fraction: number): void;
   /** where the clip alone puts the knees (m from the centre line), to start a spread from */
   kneeWidth(): number;
   /** where the clip alone puts the left sole, in the ride's frame, to start a footrest from */
@@ -55,8 +67,9 @@ export interface VehicleRig {
   relayout(): void;
 }
 
-const _grip = new THREE.Vector3();
 const _hint = new THREE.Vector3();
+const eulerQ = (d: V3): THREE.Quaternion => new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(d[0] * THREE.MathUtils.DEG2RAD, d[1] * THREE.MathUtils.DEG2RAD, d[2] * THREE.MathUtils.DEG2RAD, 'XYZ'));
 const _foot = new THREE.Vector3();
 const _frameQ = new THREE.Quaternion();
 const _soleQ = new THREE.Quaternion();
@@ -96,7 +109,15 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
   const sit0 = data ? data.seat[1] : def.seat.y + stanceRise(stance, 0.95);
   let model: THREE.Object3D | null = null;
   let saddle: SaddleBone | null = null;
+  /** the part of a living mount the rein hand holds, measured where the grip is (rebuilt when it moves) */
+  let gripHold: SaddleBone | null = null;
+  const gripAt = new THREE.Vector3(NaN, NaN, NaN);
+  let sculpt: THREE.Object3D | null = null;
   let time = 0;
+  let phase = 0;
+  /** each joint this frame: as the clip and the hand-set pose had it, and as shown after the solves */
+  const based = new Map<string, THREE.Quaternion>();
+  const shown = new Map<string, THREE.Quaternion>();
   const vr: VehicleRig = {
     kind, def, frame,
     seat: new THREE.Vector3(...(data ?? defaultAnchors(def, sit0)).seat),
@@ -107,6 +128,37 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     yaw: data?.yaw ?? 0,
     modelYaw: data?.modelYaw ?? 0,
     gripped: false,
+    jointPose: new Map(Object.entries(data?.pose ?? {}).map(([name, d]) => [name, eulerQ(d)])),
+    riderRig: rider.rig,
+    get phase() { return phase; },
+    seek: (fraction: number) => {
+      phase = THREE.MathUtils.clamp(fraction, 0, 0.999);
+      const anim = rider.animator;
+      const long = Math.max(anim?.clips[lower]?.duration ?? 0, anim?.clips[upper]?.duration ?? 0);
+      anim?.poseAt(phase * long);
+      if (mixer) {
+        for (const a of [idle, walk]) if (a) a.time = phase * a.getClip().duration;
+        mixer.update(0);
+        saddle?.update();
+        gripHold?.update();
+      }
+      place();
+      pose(0);
+    },
+    takeJoint: (name: string) => {
+      const bone = rider.rig?.bones[name as BoneName];
+      const base = based.get(name), was = shown.get(name);
+      if (!bone || !base || !was) return;
+      // the gizmo turned the joint as it was shown (the lean and the reaches
+      // on it); the same turn on the pose under them is what is kept
+      const turn = bone.quaternion.clone().multiply(was.clone().invert()).normalize();
+      // picked, not turned (a quaternion's length drifts a hair): nothing to keep
+      if (2 * Math.acos(Math.min(1, Math.abs(turn.w))) < 2e-5) return;
+      const kept = turn.multiply(base).normalize();
+      vr.jointPose.set(name, kept);
+      based.set(name, kept.clone());
+      shown.set(name, bone.quaternion.clone());
+    },
     seatTilt: data?.seatRotation && (data.seatRotation[0] || data.seatRotation[2])
       ? [data.seatRotation[0], data.seatRotation[2]] : null,
     footRotation: data?.footRotation ?? null,
@@ -143,10 +195,11 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     const d = THREE.MathUtils.DEG2RAD;
     rider.root.rotation.set((vr.seatTilt?.[0] ?? 0) * d, vr.yaw * d, (vr.seatTilt?.[1] ?? 0) * d, 'YXZ');
   };
-  /** a point in the ride's frame, carried with the mount's back, in the world */
-  const world = (x: number, y: number, z: number, out: THREE.Vector3): THREE.Vector3 => {
+  /** a point in the ride's frame, carried with the mount's back (or `shift`), in the world */
+  const world = (x: number, y: number, z: number, out: THREE.Vector3,
+    shift: THREE.Vector3 | undefined = saddle?.shift): THREE.Vector3 => {
     out.set(x, y, z);
-    if (saddle) out.add(saddle.shift);
+    if (shift) out.add(shift);
     return frame.localToWorld(out);
   };
 
@@ -163,6 +216,11 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     rider.animator?.update(dt);
     const rig = rider.rig;
     if (rig) {
+      // last frame's lean to the grips off first, before a leg is turned
+      unlean(rig);
+      // the joints set by hand on this ride, over the clip
+      for (const [name, q] of vr.jointPose) rig.bones[name as BoneName]?.quaternion.copy(q);
+      for (const [name, bone] of Object.entries(rig.bones)) based.set(name, bone.quaternion.clone());
       root.updateMatrixWorld(true);
       if (vr.foot) {
         const spread = vr.legSpread ?? 0.25;
@@ -180,6 +238,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
         spreadKnees(rig, vr.legSpread);
       }
       hands();
+      for (const [name, bone] of Object.entries(rig.bones)) shown.set(name, bone.quaternion.clone());
     }
     rider.cosmetic?.(dt, time);
   };
@@ -196,13 +255,31 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     if (!hold || !rig) return;
     vr.gripped = true;
     root.updateMatrixWorld(true);
+    const yaw = THREE.MathUtils.degToRad(vr.yaw);
+    // a living mount's grip rides the part of it the hand is on, as the game does it
+    const own = handFromSeat(hold, 1, yaw, hold.only !== 'left', new THREE.Vector3()).add(vr.seat);
+    if (sculpt && saddle && !own.equals(gripAt)) {
+      gripHold = new SaddleBone(sculpt, frame, own);
+      gripAt.copy(own);
+    }
+    const shift = gripHold?.shift ?? saddle?.shift;
+    const reach = palmReach(rider.root, rig, riderId);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3 }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
-      world(vr.seat.x + side * hold.x, vr.seat.y + hold.y, vr.seat.z + hold.z, _grip);
-      // the elbow outboard of the bar and a little below it, as the game does it
-      world(vr.seat.x + side * (hold.x + 0.55), vr.seat.y + hold.y - 0.42, vr.seat.z + hold.z, _hint);
-      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _hint);
+      // mirrored across the rider's own midline, as the game does it
+      const h = handFromSeat(hold, side, yaw, hold.only !== 'left', new THREE.Vector3());
+      const at = world(vr.seat.x + h.x, vr.seat.y + h.y, vr.seat.z + h.z, new THREE.Vector3(), shift);
+      // the elbow outboard of the bar and a little below it, in the rider's frame
+      const hint = world(vr.seat.x + h.x + side * 0.55 * Math.cos(yaw), vr.seat.y + h.y - 0.42,
+        vr.seat.z + h.z - side * 0.55 * Math.sin(yaw), new THREE.Vector3(), shift);
+      // the grip is where the palm goes: the wrist is aimed so the drawn palm lands on it
+      reach.aim(side === 1 ? 'L' : 'R', at, at);
+      grips.push({ side: side === 1 ? 'L' : 'R', at, hint });
     }
+    // bend forward to a grip past arm's reach, then put the hands on it
+    leanToReach(rig, grips);
+    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint);
   };
 
   // a living mount walks its own clips, blended by the speed it is given
@@ -235,6 +312,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     if (w) { walk = mixer.clipAction(w); walk.play(); walk.setEffectiveWeight(0); stride = BANTHA_STRIDE / Math.max(w.duration, 0.2); }
     // measured at rest, before the gait takes a step, as the game does it
     saddle = new SaddleBone(loaded, frame, vr.seat.clone());
+    sculpt = loaded;
   }, () => { settled = true; }, (standIn) => {
     // until the sculpt lands (or for good, when it never does) the rider sits
     // on its low-LOD stand-in, measured the same way
@@ -266,6 +344,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
         mixer.update(dt);
         // the back moved under the saddle: the rider goes with it
         saddle?.update();
+        gripHold?.update();
         place();
       } else if (!def.living) {
         // a parked repulsor hull breathes on its field, harder at speed

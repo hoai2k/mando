@@ -428,7 +428,13 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     vbox(rivalG, cx, 1.9, HALF_W + 0.02, CAR_L - 1, 1.0, 0.03, glass);
     vbox(rivalG, cx - 3, ROOF + 0.35, 0.8, 1.6, 0.7, 1.2, darkMat);      // gunner cover
   }
-  const coupling = vbox(rivalG, 0, ROOF - 0.6, 0, 2.2, 0.8, 1.2, new THREE.MeshBasicMaterial({ color: 0x66e0ff }));
+  // the coupling: dark and cold while the pirate tram rides up, live (lit
+  // cyan, and only then a target) once it is alongside
+  const couplingLive = new THREE.MeshBasicMaterial({ color: 0x66e0ff });
+  const couplingCold = new THREE.MeshBasicMaterial({ color: 0x1c2a30 });
+  ctx.own(couplingCold);
+  ctx.own(couplingLive);
+  const coupling = vbox(rivalG, 0, ROOF - 0.6, 0, 2.2, 0.8, 1.2, couplingCold);
   ctx.own(coupling.material as THREE.Material);
   rivalG.position.set(-400, Y0, RIVAL_Z);
   rivalG.visible = false;
@@ -445,8 +451,10 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   const couplingHp = 280 + 140 * party;
   const couplingB: Breakable = addBreakable(board, coupling, couplingBox, couplingHp, {
     radius: 1.3,
-    onBreak: () => { if (rival.state === 'alongside') peelOff('cut'); },
+    onBreak: () => peelOff('cut'),
   });
+  // not a target until the pirate tram is alongside (see 'alongside' below)
+  board.breakables = (board.breakables ?? []).filter((x) => x !== couplingB);
   const rival = { state: 'away' as 'away' | 'coming' | 'alongside' | 'peeling' | 'gone', t: 0, x: -400, z: RIVAL_Z, gunners: [] as Enemy[] };
   const placeRival = (x: number, z: number): void => {
     rival.x = x; rival.z = z;
@@ -650,7 +658,14 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
       const k = Math.min(1, rival.t / 9);
       const e = k * k * (3 - 2 * k);
       placeRival(-110 + 110 * e, RIVAL_Z);
-      if (k >= 1) { rival.state = 'alongside'; rival.t = 0; alertAll(rival.gunners); }
+      if (k >= 1) {
+        rival.state = 'alongside';
+        rival.t = 0;
+        alertAll(rival.gunners);
+        // the coupling goes live: lit, and on the board's list of things a bolt or a blast can break
+        coupling.material = couplingLive;
+        if (!(board.breakables ?? []).includes(couplingB)) (board.breakables ??= []).push(couplingB);
+      }
       return;
     }
     if (rival.state === 'alongside') {
@@ -1054,6 +1069,7 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     get phase() { return phase; },
     get rival() { return rival; },
     coupling: couplingB,
+    couplingTargetable: () => (board.breakables ?? []).includes(couplingB),
     ducking: () => ducking.slice(),
     swept: () => swept.slice(),
     gantryX: (i: number) => gantryX(gantries[i]),

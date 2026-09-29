@@ -507,6 +507,12 @@ function build(ctx: SectionContext): SectionInstance {
     const ci = Math.min(2, current());
     let line: string = at ? at.line : T.dark;
     if (!at && dark.flareReady(slot) > 0) line = T.flare(Math.ceil(dark.flareReady(slot)));
+    // the moment the beam matters — a spider in your lamp, not yet focused —
+    // the line says which button focuses it (the controls page does not)
+    if (!at && !dark.lamps[slot].focusing
+      && game.enemies.some((e) => e.alive && e.team === 1 && dark.lit(e.position, e.height * 0.5, ['lamp'])?.slot === slot)) {
+      line = T.focus;
+    }
     return { title: T.braziers(litIn(ci)), bars, line };
   };
 
@@ -559,7 +565,8 @@ function build(ctx: SectionContext): SectionInstance {
     } else if (goal) {
       const dx = goal.x - p.position.x, dz = goal.z - p.position.z;
       out.yaw = Math.atan2(dx, dz);
-      out.moveY = Math.min(1, Math.hypot(dx, dz) / 2);
+      // full stick: a partial one is a walk now (the gait), and the bot has nowhere to stroll
+      out.moveY = 1;
     }
     if (foe && fd < 2.4) out.meleePressed = true;
     return out;

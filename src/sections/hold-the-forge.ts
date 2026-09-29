@@ -303,34 +303,105 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- the barricade sockets and the beskar shields ----
+  // The shield is built to its sheet (reference/props/beskar_barricade_ref.png,
+  // docs/ASSETS_MODELS.md): 3.0 wide, 0.9 tall, 1.0 deep with its feet — a
+  // plate bowed 0.5 m toward the enemy, a post at each end, braced feet front
+  // and back, pivot on the ground under its middle. The sculpt is scaled by
+  // the 3 m width, so this stand-in is the spec.
+  //
+  // Each socket is a low stone plinth (0.25 m) the shield stands on. That is
+  // the socket's, not the prop's: on the bare floor a 0.9 m plate is under
+  // the 1.0 m the cover system asks of a face (`COVER_MIN_H`), and a bolt at
+  // a standing hunter's chest clears it. On the plinth the face is 1.15 m —
+  // cover you can put your back to, over the chest of anyone crouched in it.
+  const PLINTH = 0.25;
+  const SH = { w: 3.0, h: 0.9, bow: 0.5, depth: 1.0 };
   type Socket = { at: THREE.Vector3; theta: number; up: boolean; raiseT: number; boxes: StaticBox[]; wall: THREE.Group; it: Interactable };
   const raisedOrder: Socket[] = [];
-  const shieldGeo = geo(new THREE.BoxGeometry(3, 1.2, 0.35));
-  const rimGeo = geo(new THREE.BoxGeometry(3.1, 0.12, 0.42));
-  const crestGeo = geo(new THREE.CircleGeometry(0.28, 3));
-  const plateGeo = geo(new THREE.CylinderGeometry(1.6, 1.6, 0.06, 20));
+  // the plate: an arc of a 2.5 m circle, whose 3 m chord bows 0.5 m
+  const arcR = ((SH.w / 2) ** 2 + SH.bow ** 2) / (2 * SH.bow);
+  const arcHalf = Math.asin(SH.w / 2 / arcR);
+  /** the plate's centre line in the shield's own frame: +z is out, toward the tunnel */
+  const plateZ = (x: number): number => SH.bow / 2 - (arcR - Math.sqrt(arcR * arcR - x * x));
+  const beskarBoth = beskar.clone();
+  beskarBoth.side = THREE.DoubleSide;
+  ctx.own(beskarBoth);
+  const plateGeo = geo(new THREE.CylinderGeometry(arcR, arcR, SH.h - 0.14, 24, 1, true, -arcHalf, arcHalf * 2));
+  const rimGeo = geo(new THREE.TorusGeometry(arcR, 0.045, 4, 24, arcHalf * 2));
+  const postGeo = geo(new THREE.BoxGeometry(0.16, SH.h + 0.05, 0.16));
+  const footGeo = geo(new THREE.BoxGeometry(0.22, 0.06, 0.3));
+  const braceGeo = geo(new THREE.BoxGeometry(0.07, 0.55, 0.07));
+  const crestGeo = geo(new THREE.ConeGeometry(0.16, 0.5, 3));
+  const plinthGeo = geo(new THREE.BoxGeometry(SH.w + 0.3, PLINTH, SH.depth - 0.2));
+  const grooveGeo = geo(new THREE.BoxGeometry(SH.w, 0.03, 0.12));
+  const buildShield = (): THREE.Group => {
+    const g = new THREE.Group();
+    const plate = new THREE.Mesh(plateGeo, beskarBoth);
+    plate.position.set(0, SH.h / 2, SH.bow / 2 - arcR);
+    for (const y of [0.07, SH.h - 0.07]) {
+      const rim = new THREE.Mesh(rimGeo, gold);
+      rim.rotation.x = Math.PI / 2;
+      rim.rotation.z = Math.PI / 2 - arcHalf;   // (Z turns first: the arc centred on +z)
+      rim.position.set(0, y, SH.bow / 2 - arcR);
+      g.add(rim);
+    }
+    g.add(plate);
+    for (const sx of [-1, 1]) {
+      const x = sx * SH.w / 2, z = plateZ(x);
+      const post = new THREE.Mesh(postGeo, beskar);
+      post.position.set(x, (SH.h + 0.05) / 2, z);
+      g.add(post);
+      // braced feet, one in front of the post and one behind
+      for (const sz of [-1, 1]) {
+        const foot = new THREE.Mesh(footGeo, beskar);
+        foot.position.set(x, 0.03, z + sz * 0.3);
+        const brace = new THREE.Mesh(braceGeo, beskar);
+        brace.position.set(x, 0.26, z + sz * 0.16);
+        brace.rotation.x = -sz * 0.6;
+        g.add(foot, brace);
+      }
+    }
+    // the crest on the face: a horned mark in gold
+    for (const sx of [-0.18, 0, 0.18]) {
+      const horn = new THREE.Mesh(crestGeo, gold);
+      horn.position.set(sx, SH.h * 0.55, SH.bow / 2 + 0.03);
+      horn.rotation.z = -sx * 2.2;
+      g.add(horn);
+    }
+    return g;
+  };
+  // the shield's collider: three blocks along the plate, each turned into its
+  // box on the ground (the physics has no turned box), plinth to plate top
+  const segBoxes = (at: THREE.Vector3, theta: number, bottom: number, top: number): StaticBox[] => {
+    const c = Math.cos(theta), sn = Math.sin(theta);
+    return [-1, 0, 1].map((k) => {
+      const lx = k * SH.w / 3, lz = plateZ(lx);
+      // local x → world (cos θ, −sin θ); local z → world (sin θ, cos θ)
+      const wx = at.x + lx * c + lz * sn, wz = at.z - lx * sn + lz * c;
+      const hw = SH.w / 6, hd = 0.25;
+      const ex = Math.abs(c) * hw + Math.abs(sn) * hd, ez = Math.abs(sn) * hw + Math.abs(c) * hd;
+      return ctx.box(wx, (bottom + top) / 2, wz, ex * 2, top - bottom, ez * 2, null).box;
+    });
+  };
   const sockets: Socket[] = [];
   for (const pass of PASS_THETA) {
     for (const off of [-0.42, 0.42]) {
       const theta = pass + off;
       const d = dirOf(theta);
       const at = new THREE.Vector3(d.x * SOCKET_R, Y0, d.z * SOCKET_R);
-      const plate = new THREE.Mesh(plateGeo, glowMat);
-      plate.position.set(at.x, Y0 + 0.03, at.z);
-      ctx.mesh(plate);
-      // the stand-in is the spec: 3 m wide, 1.2 m tall, pivot at the foot
-      const wall = new THREE.Group();
-      const face = new THREE.Mesh(shieldGeo, beskar);
-      face.position.y = 0.6;
-      const rim = new THREE.Mesh(rimGeo, gold);
-      rim.position.y = 1.2;
-      const crest = new THREE.Mesh(crestGeo, gold);
-      crest.position.set(0, 0.7, 0.19);
-      wall.add(face, rim, crest);
+      // the socket: a stone plinth with a glowing groove where the shield seats
+      const plinth = new THREE.Mesh(plinthGeo, daisMat);
+      plinth.position.set(at.x, Y0 + PLINTH / 2, at.z);
+      plinth.rotation.y = theta;
+      const groove = new THREE.Mesh(grooveGeo, glowMat);
+      groove.position.set(0, PLINTH / 2 + 0.01, plateZ(0) - 0.1);
+      plinth.add(groove);
+      ctx.mesh(plinth);
+      segBoxes(at, theta, Y0, Y0 + PLINTH);
       // the stand-in and the sculpt share one parent, which is what rises
-      const holder = ctx.prop('beskar_barricade', new THREE.Vector3(), { size: 3, fallback: () => wall }).parent as THREE.Group;
-      holder.position.set(at.x, Y0 - 1.2, at.z);
-      holder.rotation.y = theta;           // the face looks out, toward the tunnel
+      const holder = ctx.prop('beskar_barricade', new THREE.Vector3(), { size: SH.w, fallback: buildShield }).parent as THREE.Group;
+      holder.position.set(at.x, Y0 + PLINTH - SH.h, at.z);
+      holder.rotation.y = theta;           // +z, the bowed face, looks out toward the tunnel
       holder.visible = false;
       const sock: Socket = { at, theta, up: false, raiseT: 0, boxes: [], wall: holder, it: null as unknown as Interactable };
       sock.it = interactions.add({
@@ -348,11 +419,7 @@ function build(ctx: SectionContext): SectionInstance {
     s.up = true;
     s.raiseT = 0;
     s.wall.visible = true;
-    // three overlapping blocks along the face: the physics has no turned box
-    const tan = new THREE.Vector3(Math.cos(s.theta), 0, -Math.sin(s.theta));
-    for (const k of [-1, 0, 1]) {
-      s.boxes.push(ctx.box(s.at.x + tan.x * k, Y0 + 0.6, s.at.z + tan.z * k, 1.05, 1.2, 1.05, null).box);
-    }
+    s.boxes = segBoxes(s.at, s.theta, Y0 + PLINTH, Y0 + PLINTH + SH.h);
     raisedOrder.push(s);
     audio.clash('steel');
     game.particles.impactSparks(new THREE.Vector3(s.at.x, Y0 + 1, s.at.z), 12);
@@ -361,6 +428,7 @@ function build(ctx: SectionContext): SectionInstance {
     if (!s.up) return;
     s.up = false;
     s.wall.visible = false;
+    s.wall.position.y = Y0 + PLINTH - SH.h;
     for (const b of s.boxes) ctx.unsolid({ box: b });
     s.boxes = [];
     const i = raisedOrder.indexOf(s);
@@ -409,21 +477,27 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- the forging and the waves ----
-  const progress = new Progress(solo ? 120 : party === 2 ? 165 : 180);
+  // The forging runs at twice the pace it first shipped at (a full bar was
+  // two to three minutes, and read as waiting), and the waves come far
+  // closer together: the gaps between them are about 30% of the old ones in
+  // real time — 0.6 of the old progress spacing on a bar filling twice as
+  // fast. The chieftain's wave now lands a little before halfway, so the
+  // back half of the bar is fought over with him on the floor.
+  const progress = new Progress(solo ? 60 : party === 2 ? 82 : 90);
   const waves: Wave[] = solo
     ? [
       { at: 0, passes: [0], budget: 3, air: false, chief: false },
-      { at: 0.2, passes: [1], budget: 4, air: false, chief: false },
-      { at: 0.4, passes: [2], budget: 4, air: true, chief: false },
-      { at: 0.58, passes: [0], budget: 5, air: false, chief: false },
-      { at: 0.76, passes: [1], budget: 5, air: true, chief: true },
+      { at: 0.12, passes: [1], budget: 4, air: false, chief: false },
+      { at: 0.24, passes: [2], budget: 4, air: true, chief: false },
+      { at: 0.35, passes: [0], budget: 5, air: false, chief: false },
+      { at: 0.46, passes: [1], budget: 5, air: true, chief: true },
     ]
     : [
       { at: 0, passes: [0], budget: 3 + party, air: false, chief: false },
-      { at: 0.17, passes: [1], budget: 3 + party, air: false, chief: false },
-      { at: 0.34, passes: [2], budget: 4 + party, air: true, chief: false },
-      { at: 0.52, passes: [0, 1], budget: 5 + party, air: false, chief: false },
-      { at: 0.72, passes: [0, 1, 2], budget: 6 + party, air: true, chief: true },
+      { at: 0.1, passes: [1], budget: 3 + party, air: false, chief: false },
+      { at: 0.2, passes: [2], budget: 4 + party, air: true, chief: false },
+      { at: 0.31, passes: [0, 1], budget: 5 + party, air: false, chief: false },
+      { at: 0.43, passes: [0, 1, 2], budget: 6 + party, air: true, chief: true },
     ];
   let waveIdx = 0;
   let warnT = -1;
@@ -457,7 +531,7 @@ function build(ctx: SectionContext): SectionInstance {
       const d = dirOf(PASS_THETA[w.passes[0]]);
       chief = ctx.spawn('alamite', new THREE.Vector3(d.x * (R + 4), Y0, d.z * (R + 4)), { exact: true, alert: true, squad: 8899 });
       chief.promoteBoss(T.chieftain, solo ? 12 : 8 + party * 3, 1.5);
-      game.boss = chief;
+      game.adoptBoss(chief);
       finalBodies.push(chief);
     }
     mouthLights.forEach((l) => { l.intensity = 0; });
@@ -550,7 +624,7 @@ function build(ctx: SectionContext): SectionInstance {
     for (const s of sockets) {
       if (!s.up || s.raiseT >= 1) continue;
       s.raiseT = Math.min(1, s.raiseT + dt / 0.4);
-      s.wall.position.y = Y0 - 1.2 + 1.2 * s.raiseT;
+      s.wall.position.y = Y0 + PLINTH - SH.h * (1 - s.raiseT);
     }
 
     // ---- the phases ----
@@ -683,7 +757,8 @@ function build(ctx: SectionContext): SectionInstance {
     const out: AutopilotInput = { shootHeld: true };
     if (dist > (hold ? 1.2 : 0.8)) {
       out.yaw = Math.atan2(dx, dz);
-      out.moveY = Math.min(1, dist / 2);
+      // the stick is a gait (a light push walks): run, and ease to a jog at the end
+      out.moveY = dist > 2.5 ? 1 : 0.78;
       cursors[slot] = 0;
     } else {
       if (hold) out.interactHeld = true;

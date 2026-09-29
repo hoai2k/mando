@@ -242,7 +242,7 @@ export function buildBarge(ctx: SectionContext, origin: THREE.Vector3, opts: {
 
   // ---- cargo racks on the cargo deck: cover for the fight there ----
   const cargo: THREE.Vector3[] = [];
-  for (const [x, z, n] of [[3.4, 15, 2], [-3.2, 11.5, 1], [3.6, 7.5, 2], [-3.4, 18, 2], [3.2, 1.2, 1]] as const) {
+  for (const [x, z, n] of [[3.4, 17.2, 2], [-3.2, 11.5, 1], [3.6, 5.2, 2], [-3.4, 18, 2], [3.2, 1.2, 1]] as const) {
     for (let k = 0; k < n; k++) {
       slab(x, B.lower + 0.6 + k * 1.2, z, 1.8, 1.2, 1.8, m.crate);
     }

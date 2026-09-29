@@ -148,6 +148,21 @@ export class PositionEditor {
     }
   }
 
+  /** this session's joint moves, for the workbench's undo */
+  snapshot(): Array<[string, PositionEntry]> { return [...this.entries]; }
+
+  /** Put the session's joint moves back as a snapshot had them, on the joints showing now. */
+  restoreSnapshot(snap: Array<[string, PositionEntry]>): void {
+    this.entries = new Map(snap);
+    for (const [name, bone] of this.bones) {
+      const entry = this.entries.get(this.key(name));
+      const base = this.bases.get(name);
+      if (entry) bone.position.set(...entry.editedLocal); else if (base) bone.position.copy(base);
+      this.lastPositions.set(name, bone.position.clone());
+    }
+    this.onChange();
+  }
+
   update(camera: THREE.Camera): void {
     if (!this.enabled) return;
     const p = new THREE.Vector3();

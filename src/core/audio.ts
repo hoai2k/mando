@@ -104,6 +104,9 @@ interface SaberVoice {
  */
 const OUTPUT_TRIM = 1.6;
 
+/** localStorage key for the corner button's mute */
+const MUTE_KEY = 'mando.muted';
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -130,10 +133,24 @@ export class AudioEngine {
   private musicStop: (() => void) | null = null;
   private noiseBuf: AudioBuffer | null = null;
 
-  /** Must be called from a user gesture. */
+  /**
+   * Must be called from a user gesture. Safe to call on every gesture: once
+   * the context exists it resumes it, and restarts a streamed track whose
+   * play() the browser refused before it counted as a gesture.
+   */
   init(): void {
-    if (this.ctx) { this.ctx.resume(); return; }
+    if (this.ctx) {
+      this.ctx.resume().then(() => this.kickMusic(), () => {});
+      this.kickMusic();
+      return;
+    }
     this.ctx = new AudioContext();
+    // suspended until a real gesture, running after one, suspended again
+    // behind a hidden tab: the mute button follows every change
+    this.ctx.addEventListener('statechange', () => {
+      if (this.ctx?.state === 'running') this.kickMusic();
+      this.notify();
+    });
     this.master = this.ctx.createGain();
     // Everything leaves through a limiter. The buses run at the ceiling now,
     // and a wave puts a score, an ambience bed and a dozen blasters through
@@ -160,9 +177,48 @@ export class AudioEngine {
     this.noiseBuf = this.makeNoise();
     this.tryLoadSamples();
     this.watchVisibility();
+    this.notify();
   }
 
   get ready(): boolean { return !!this.ctx; }
+
+  // ---- mute ----
+  /**
+   * The player's own mute, from the corner button. Kept apart from the volume
+   * sliders (it zeroes the master bus without touching `config.audio`, so
+   * unmuting puts back exactly the mix that was set) and remembered across
+   * visits.
+   */
+  private mutedFlag = (() => { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } })();
+  private listeners: (() => void)[] = [];
+
+  get muted(): boolean { return this.mutedFlag; }
+  /**
+   * Is anything actually coming out: the engine is up, the browser is letting
+   * it play (a context made before the first gesture sits suspended), and the
+   * player has not muted it.
+   */
+  get audible(): boolean { return !!this.ctx && this.ctx.state === 'running' && !this.mutedFlag; }
+  /** whether the music bus has something on it (a streamed track may still be waiting on a gesture) */
+  get musicOn(): boolean { return this.musicTag !== null; }
+
+  setMuted(m: boolean): void {
+    this.mutedFlag = m;
+    try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* private mode */ }
+    this.applyConfig();
+    this.notify();
+  }
+
+  /** call `fn` whenever `audible` or `muted` may have changed */
+  onChange(fn: () => void): void { this.listeners.push(fn); }
+  private notify(): void { for (const fn of this.listeners) fn(); }
+
+  /** the streamed track, if its play() was refused, gets another go */
+  private kickMusic(): void {
+    const el = this.musicEl;
+    if (el && el.paused && el.getAttribute('src') && this.ctx?.state === 'running') el.play().catch(() => {});
+  }
+  private musicEl: HTMLAudioElement | null = null;
 
   /**
    * Go silent while the tab is in the background. Suspending the context (not
@@ -1193,6 +1249,7 @@ export class AudioEngine {
     let stopped = false;
     const teardown = () => {
       stopped = true;
+      if (this.musicEl === el) this.musicEl = null;
       el.pause();
       el.removeAttribute('src');
       el.load();
@@ -1217,6 +1274,7 @@ export class AudioEngine {
       play();
     });
     el.addEventListener('canplay', () => { failures = 0; });
+    this.musicEl = el;
     play();
     this.musicStop = teardown;
     return true;
@@ -1286,7 +1344,7 @@ export class AudioEngine {
    */
   applyConfig(): void {
     if (!this.ctx) return;
-    this.master.gain.value = config.audio.master;
+    this.master.gain.value = this.mutedFlag ? 0 : config.audio.master;
     this.sfx.gain.value = config.audio.sfx;
     this.music.gain.value = config.audio.music;
   }
@@ -1294,7 +1352,8 @@ export class AudioEngine {
   /** live bus gains, for a settings screen or a console tweak to read back */
   get volumes(): { master: number; sfx: number; music: number } {
     return this.ctx
-      ? { master: this.master.gain.value, sfx: this.sfx.gain.value, music: this.music.gain.value }
+      // the slider's level, not the muted bus: a mute is not a volume
+      ? { master: config.audio.master, sfx: this.sfx.gain.value, music: this.music.gain.value }
       : { ...config.audio };
   }
 

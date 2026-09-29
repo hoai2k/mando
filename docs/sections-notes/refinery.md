@@ -175,13 +175,6 @@ now turns at z 22.
 
 ## Known issues / left to do
 
-- `hydraulic_press` and `welding_arm` sculpts: the game drives the press head
-  and the arm's boom itself. When the models land, the press's own `head` node
-  and the arm's `shoulder`/`elbow` should be hidden or driven instead (today
-  the press's gantry sculpt hangs over an empty stand-in, and the arm's sculpt
-  replaces only the base).
-- `searchlight_tower`'s `lamp` node likewise: the game's drum sweeps; hide the
-  sculpt's drum when it lands.
 - The Line's flametroopers' flames are not pushed along the belts (design
   nice-to-have).
 - Enemy bolts fired at a player on the far side of a steam plume still fly; the
@@ -198,3 +191,51 @@ now turns at z 22.
 written against a linear stick, so Lights Out's 0.55 creep became a 1.3 m/s
 walk and the searchlights caught it every pass (the alarm loop never ended).
 Re-set to the old speeds: Lights Out 0.74 / 0.83, The Line's slow 0.76.
+
+## 2026-09-29 — props to the sheets, and two header fixes
+
+**Stand-ins at the sheets' sizes** (`docs/SECTIONS_IMPLEMENTATION.md` §4
+"Props to build"). A delivered sculpt is scaled by one dimension and keeps
+its sheet's proportions, so each stand-in and its colliders are now that
+shape:
+
+- `hydraulic_press` 8.0 × 2.0 × 5.4 m (scaled by the width): two 0.8 m
+  columns on foot plates round a 6.4 m opening, a crossbeam, the 5 × 1.2 ×
+  1.0 m head on four rams, hung 0.2 m toward the oncoming belt. **This set
+  the hall's width.** Four 8 m presses cannot stand side by side over four
+  belts 4.8 m apart, so the hall is now 34 m (was 26) with the belts 8 m
+  apart and 4.4 m wide; neighbouring presses stand column to column in the
+  floor lanes, and the frame is the press's 2 m deep (was 4). The head's
+  kill volume is its 5 × 1.2 m footprint; its collider runs from its
+  underside to the crossbeam, so nothing slips over a lowered head. Raised,
+  the head clears the belt by 2.4 m. Crates are 2.0 m now (they must pass
+  under a raised head) and the warning sag is 0.15 m.
+- `welding_arm` 6.0 × 1.6 × 5.1 m (scaled by the reach): a 1.6 m plate, the
+  `base` drum, the upper arm to the `shoulder` at 3.5 m, the forearm reaching
+  5.2 m out to the `tip` at 3 m. The arms now stand in the floor lanes
+  between belts ((8, 66), (0, 72), (−8, 78)) and turn full circle
+  (1.3 rad/s, alternating directions): the forearm band (2.65–3.6 m) is head
+  height to a belt rider and overhead to anyone on the floor. Braked, they
+  swing round to lie along their own lane. Collider: a 0.7 m post up to the
+  shoulder.
+- `searchlight_tower` 5.5 × 5.0 × 14 m (scaled by the height): a 2.7 m
+  striped footing, a 1.7 m lattice mast, a 4.8 m platform at 11 m, the 1.8 m
+  drum on its yoke at 12.4 m (the cone's origin), a sensor mast at one
+  corner. Colliders: the footing (r 1.4) and the mast to the platform (r 1.2);
+  the lamp sits clear above, so the beam's sight line starts outside the
+  tower.
+
+**Driven nodes.** `src/sections/kit/sculpt.ts` `drivenProp` loads a sculpt,
+hides the stand-in *and* the game's own moving parts when it lands, and hands
+the section the named nodes with their rest pose and a metres-to-local scale.
+The press drives its sculpt's `head` down by the same travel as the game's
+head; the arm turns its sculpt's `base` about +Y (the whole sculpt, if it has
+no `base`); the tower pans and tilts its sculpt's `lamp` (lens along +Z).
+
+**Header fixes.** The Line: the last squad comes with the surge; the second
+now drops in when the door release is **half held** (it used to come after
+the hold, when there was nothing left to hold), so the release is held under
+fire — header, guide and code agree. Lights Out: the header now documents the
+45 s safety valve (a console works 45 s after the alarm even with the drop
+alive). `guide.ts` entries updated to match (the arms, the mid-hold squad,
+the valve).

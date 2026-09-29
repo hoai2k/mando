@@ -30,9 +30,9 @@ import { loadOptionalTexture } from '../core/assets';
  * on a landing when the lift restarts goes down with it too — for five
  * seconds, and then the fall catches them and they re-form on the platform.
  *
- * The plan: a 12 × 12 m platform with a waist-high rail on the west (−z) and
- * the pylon side (+x), open edges on the landing side (+z) and on the far
- * side (−x). The shaft wall stands 4 m back from the open far edge (so the
+ * The plan: a 12 × 12 m platform with waist-high rails along its east and
+ * west sides (the pylon in the east rail's far corner), open edges on the
+ * landing side (+z) and on the far side (−z). The shaft wall stands 4 m back from the open far edge (so the
  * camera never has the wall in its face) and 7 m back on the landing side,
  * where each landing's 4.5 m deck leaves a 2.5 m gap: close enough to fire
  * across and for a guard to jump, far enough that a stop is a leap.
@@ -47,9 +47,14 @@ const GAP = 2.5;
 const LAND_D = 4.5;
 /** the shaft's inside faces */
 const WALL_ZP = PLAT + GAP + LAND_D;   // the landing side
-const WALL_ZN = -(PLAT + 3);           // behind the west rail
-const WALL_XP = PLAT + 3;              // behind the pylon rail
-const WALL_XN = -(PLAT + 4);           // the open far edge: 4 m back, per the design
+const WALL_ZN = -(PLAT + 4);           // the open far edge: 4 m back, per the design
+const WALL_XP = PLAT + 3;              // behind the east rail (the pylon's side)
+const WALL_XN = -(PLAT + 3);           // behind the west rail
+/** the freight_lift sheet: the deck with its underframe is this deep, origin at its underside */
+const DECK_D = 2.0;
+/** the control pylon: about a metre square, rising to 5.4 m over the underside */
+const PYLON_W = 1.0;
+const PYLON_H = 5.4 - DECK_D;
 const WALL_T = 2;
 /** metres of shaft to the top */
 const TRAVEL = 200;
@@ -122,53 +127,56 @@ function build(ctx: SectionContext): SectionInstance {
     ctx.box(cx, cy, cz, sx, sy, sz, null).box;
 
   // ================================================================ the platform
-  // Static, the whole ride. The colliders are the deck, the two rails and
-  // the pylon; what you see is the `freight_lift` sculpt (docs/ASSETS_MODELS.md:
-  // 12 × 12 m, rails on two sides, the pylon in a corner, origin at the deck's
-  // centre) or, until it lands, this stand-in built to the same spec.
-  const railZ = -PLAT + 0.1, railX = PLAT - 0.1;
-  const pylonAt = new THREE.Vector3(PLAT - 1.1, Y0, -PLAT + 1.1);
-  solid(0, Y0 - 0.4, 0, PLAT * 2, 0.8, PLAT * 2);
-  solid(0, Y0 + RAIL_H / 2, railZ, PLAT * 2, RAIL_H, 0.2);
-  solid(railX, Y0 + RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2);
-  ctx.cyl(pylonAt.x, Y0 + 1.1, pylonAt.z, 0.6, 2.2, null);
+  // Static, the whole ride. What you see is the `freight_lift` sculpt or,
+  // until it lands, this stand-in built to its sheet (docs/SECTIONS_IMPLEMENTATION.md
+  // §4 Prison Rig, "Props to build"): 12 × 12 × 5.4 m scaled by the 12 m
+  // square, origin at the underside centre, a 2.0 m deck with its underframe,
+  // 1.1 m rails along two opposite sides (east and west), and the control
+  // `pylon`, about a metre square, rising 3.4 m over the deck at one corner.
+  // The colliders are the deck, the two rails and the pylon, sized the same.
+  const railX = PLAT - 0.1;
+  const pylonAt = new THREE.Vector3(PLAT - PYLON_W / 2 - 0.1, Y0, -PLAT + PYLON_W / 2 + 0.1);
+  solid(0, Y0 - DECK_D / 2, 0, PLAT * 2, DECK_D, PLAT * 2);
+  for (const sx of [-1, 1]) solid(sx * railX, Y0 + RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2);
+  solid(pylonAt.x, Y0 + PYLON_H / 2, pylonAt.z, PYLON_W, PYLON_H, PYLON_W);
   const stripe = ctx.paint(0xe0b030, { rough: 0.6 });
   ctx.tile(stripe, 'hazard_stripe', 12, 1);
-  ctx.prop('freight_lift', new THREE.Vector3(0, Y0, 0), {
+  ctx.prop('freight_lift', new THREE.Vector3(0, Y0 - DECK_D, 0), {
     size: 12,
     fallback: () => {
+      // laid out from the underside centre, as the sculpt is
       const g = new THREE.Group();
-      // stand-in parts are laid out relative to the deck's centre
-      slab(g, deckMat, 0, -0.4, 0, PLAT * 2, 0.8, PLAT * 2);
-      // the underside's girders, seen from the landings
-      for (const x of [-4, 0, 4]) slab(g, darkMat, x, -1.3, 0, 0.6, 1.2, PLAT * 2);
-      slab(g, darkMat, 0, -2.2, 0, 3, 1.2, 3);
-      // the rails: waist-high on the west (−z) and pylon (+x) sides
-      slab(g, railMat, 0, RAIL_H / 2, railZ, PLAT * 2, RAIL_H, 0.2);
-      slab(g, railMat, railX, RAIL_H / 2, 0, 0.2, RAIL_H, PLAT * 2);
-      for (let i = -PLAT; i <= PLAT; i += 3) {
-        slab(g, darkMat, i, RAIL_H / 2, railZ, 0.14, RAIL_H, 0.14);
-        slab(g, darkMat, railX, RAIL_H / 2, i, 0.14, RAIL_H, 0.14);
+      const top = DECK_D;
+      // the deck plate over its underframe: edge beams, cross girders, a hub
+      slab(g, deckMat, 0, top - 0.2, 0, PLAT * 2, 0.4, PLAT * 2);
+      for (const sz of [-1, 1]) slab(g, darkMat, 0, top - 0.9, sz * (PLAT - 0.3), PLAT * 2, 1.0, 0.6);
+      for (const sx of [-1, 1]) slab(g, darkMat, sx * (PLAT - 0.3), top - 0.9, 0, 0.6, 1.0, PLAT * 2);
+      for (const x of [-3, 0, 3]) slab(g, darkMat, x, top - 0.9, 0, 0.45, 1.0, PLAT * 2 - 1.2);
+      slab(g, darkMat, 0, 0.3, 0, 3.2, 0.6, 3.2);
+      // the rails, waist-high along the east and west sides
+      for (const sx of [-1, 1]) {
+        slab(g, railMat, sx * railX, top + RAIL_H - 0.08, 0, 0.2, 0.16, PLAT * 2);
+        slab(g, railMat, sx * railX, top + RAIL_H * 0.5, 0, 0.08, 0.08, PLAT * 2);
+        for (let i = -PLAT; i <= PLAT; i += 3) slab(g, darkMat, sx * railX, top + RAIL_H / 2, i, 0.14, RAIL_H, 0.14);
       }
       // hazard striping along the two open edges
-      slab(g, stripe, 0, 0.02, PLAT - 0.3, PLAT * 2, 0.06, 0.6);
-      slab(g, stripe, -PLAT + 0.3, 0.02, 0, 0.6, 0.06, PLAT * 2);
-      // the control pylon, in the rails' corner
+      for (const sz of [-1, 1]) slab(g, stripe, 0, top + 0.02, sz * (PLAT - 0.3), PLAT * 2, 0.06, 0.6);
+      // the control pylon, in the east rail's far corner
       const pylon = new THREE.Group();
       pylon.name = 'pylon';
-      pylon.position.set(pylonAt.x, 0, pylonAt.z);
-      slab(pylon, darkMat, 0, 1.1, 0, 0.9, 2.2, 0.9);
-      slab(pylon, railMat, 0, 2.3, 0, 1.1, 0.2, 1.1);
+      pylon.position.set(pylonAt.x, top, pylonAt.z);
+      slab(pylon, darkMat, 0, PYLON_H / 2, 0, PYLON_W, PYLON_H, PYLON_W);
+      slab(pylon, railMat, 0, PYLON_H - 0.1, 0, PYLON_W + 0.15, 0.2, PYLON_W + 0.15);
+      slab(pylon, accentMat, 0, 1.2, PYLON_W / 2 + 0.01, PYLON_W * 0.7, 0.8, 0.04);
       g.add(pylon);
       return g;
     },
   });
   // the pylon's state lamp: blue running, red when the power is cut (kept
   // outside the sculpt, so it lights whichever body is standing)
-  const pylonLight = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.08), accentMat);
+  const pylonLight = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.06), accentMat);
   ctx.own(pylonLight.geometry);
-  pylonLight.position.set(pylonAt.x - 0.35, Y0 + 1.5, pylonAt.z + 0.46);
-  pylonLight.rotation.y = -Math.PI / 4;
+  pylonLight.position.set(pylonAt.x, Y0 + 2.2, pylonAt.z + PYLON_W / 2 + 0.04);
   ctx.mesh(pylonLight);
   // The guide rails: two ribbed columns the platform runs on, in the rails'
   // outer corners, running the height of the shaft. They are the one piece
@@ -183,7 +191,7 @@ function build(ctx: SectionContext): SectionInstance {
   // shaft's mouth, and end there when the mouth comes down to the platform.
   const GUIDE_BOT = -80;
   const guides: THREE.Mesh[] = [];
-  for (const [x, z] of [[PLAT + 1.4, -PLAT - 1.4], [-PLAT + 1, -PLAT - 1.4], [PLAT + 1.4, PLAT - 1]] as const) {
+  for (const [x, z] of [[PLAT + 1.4, -3.5], [-PLAT - 1.4, -3.5], [PLAT + 1.4, 3.5], [-PLAT - 1.4, 3.5]] as const) {
     const col = new THREE.Mesh(unit, guideMat);
     col.position.set(x, Y0, z);
     col.castShadow = true;

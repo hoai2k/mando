@@ -50,6 +50,15 @@ export interface MissionController {
   sectionAfterFrame?(dt: number): void;
   /** the stage in play, for the manual's job page: its name, and its section if it is one */
   readonly stageBrief?: { label: string; section: SectionId | null };
+  /**
+   * A section's reward reaching the next stage (One Way Out's ten-or-more
+   * prisoners): the lieutenant fought in stage `stage` calls for backup and
+   * none comes; `line` is the banner said instead. Lives on the run, so it
+   * is gone when the run ends.
+   */
+  waiveRetinue?(stage: number, line: string): void;
+  /** that reward's banner line, if the boss fight standing now is waived, else null */
+  retinueWaived?(): string | null;
   /** development only: play the transport out of the standing section as though it were won */
   skipSection?(): boolean;
 }
