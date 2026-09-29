@@ -137,8 +137,15 @@ await step(30 * 4);
     const near = g.players[1];
     near.position.set(m.position.x - 1.5, m.position.y + 0.1, m.position.z);
     const guardOk = run.state === 'run' || run.state === 'leap';
-    m.damage(32, near.position.clone(), 1);
+    // a melee blow: the player's melee pipeline asks the section first, then lands
+    const dmg = near.sectionMove.meleeHit(near, m, 32, g);
+    m.damage(dmg, near.position.clone(), 1);
     out.handState = guardOk ? run.state : `not running (${run.state})`; out.v2 = k.value;
+    // point-blank blaster fire is still gunfire: it costs
+    for (let f = 0; f < 30 * 3.5; f++) g.update(1 / 30, [blank, blank, blank, blank]);
+    near.position.set(m.position.x - 1.5, m.position.y + 0.1, m.position.z);
+    m.damage(34, near.position.clone(), 1);
+    out.vPointBlank = k.value;
     // a removal-sized hit is not a hit
     for (let f = 0; f < 30 * 3.5; f++) g.update(1 / 30, [blank, blank, blank, blank]);
     const before = run.state;
@@ -147,8 +154,9 @@ await step(30 * 4);
     return out;
   }, [blank]);
   check('a blaster hit staggers him and costs bounty', r.boltState === 'stagger' && r.v1 < r.v0 && r.alive, JSON.stringify(r));
-  check('a hand on him staggers him for free', r.handState === 'stagger' && r.v2 === r.v1, JSON.stringify(r));
-  check('a removal-sized hit does nothing to him', r.alive2 && r.v3 === r.v2 && r.cullState[0] === r.cullState[1], JSON.stringify(r));
+  check('a melee blow on him staggers him for free', r.handState === 'stagger' && r.v2 === r.v1, JSON.stringify(r));
+  check('point-blank blaster fire still costs bounty', r.vPointBlank < r.v2, JSON.stringify(r));
+  check('a removal-sized hit does nothing to him', r.alive2 && r.v3 === r.vPointBlank && r.cullState[0] === r.cullState[1], JSON.stringify(r));
 }
 
 // ---------------------------------------------------------------- the net, in the chase
@@ -249,6 +257,34 @@ await boot(['din', 'maul']);
     return { phase: k.phase, alive: m.alive, v0, v1: k.value, obj: g.campaign.section.objective().label };
   }, [blank]);
   check('shot dead on the pad is still a clear, and blaster fire cost bounty', r.phase === 'dead' && !r.alive && r.v1 < r.v0 && r.obj === 'the stair down', JSON.stringify(r));
+}
+
+// ---------------------------------------------------------------- the whole run, by the autopilot
+await boot(['din', 'maul']);
+{
+  const r = await page.evaluate(async ([blank]) => {
+    const g = window.__game, c = g.campaign;
+    for (let f = 0; f < 30 * 200; f++) {
+      const s = c.section;
+      const k = s?.testKit;
+      if (!k) return { gone: true };
+      if (k.phase === 'taken' || k.phase === 'dead') return { phase: k.phase, value: k.value, t: f / 30 };
+      const inputs = [0, 1, 2, 3].map((slot) => {
+        const p = g.players[slot];
+        if (!p) return blank;
+        const a = s.autopilot(slot) || {};
+        if (typeof a.yaw === 'number') p.cam.yaw = a.yaw;
+        const { yaw, ...rest } = a; void yaw;
+        return { ...blank, ...rest };
+      });
+      g.update(1 / 30, inputs);
+      if (f % 30 === 0) for (const e of g.enemies) if (e.alive && e.team === 1 && e !== k.mark) e.damage(9999999, e.position, 0);
+      if (f % 300 === 0) await new Promise((res) => setTimeout(res, 0));
+    }
+    return { timeout: true };
+  }, [blank]);
+  check('the autopilot takes him alive at the full bounty (hands and nets, no gunfire)',
+    r.phase === 'taken' && r.value >= 0.85, JSON.stringify(r));
 }
 
 // ---------------------------------------------------------------- falling

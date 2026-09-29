@@ -22,8 +22,8 @@ import { audio } from '../core/audio';
  * change. More than 60 m ahead of every hunter for 8 s (75 m / 10 s alone)
  * and he is gone: the chase restarts from the last checkpoint roof with him a
  * fixed lead ahead. Blaster hits stagger him (his lead drops by about ten
- * metres) but every one costs bounty value; a hunter close enough to hit him
- * by hand staggers him for free, and a net stops him longer for free.
+ * metres) but every one costs bounty value, at any range; a melee blow (a
+ * hand on him) staggers him for free, and a net stops him longer for free.
  *
  * **Escalation.** The first roofs teach it (the net launcher rack is by the
  * stair door; his first call brings two pirates up). The middle adds his
@@ -155,8 +155,6 @@ const NET_TAKES = 0.5;
 const NETS = 3;
 /** hits at or over this are no weapon in the game — a scripted removal, and he is not removed */
 const NOT_A_HIT = 5000;
-/** a hit from a hunter this close is a hand on him, not a bolt */
-const HAND_REACH = 3.6;
 
 type Phase = 'intro' | 'chase' | 'duel' | 'taken' | 'dead';
 
@@ -541,6 +539,8 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   // the duel's evasive hop, and a snare on the pad
   const hop = { t: 0, dur: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), cd: 4 };
   let snareT = 0;
+  /** the next hit on him is a melee blow (set by `meleeHit`, spent by `hurt`) */
+  let handPending = false;
   let duelHp0 = 0;
 
   // ---- the net launcher, per hunter ----
@@ -667,8 +667,10 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
   /** what a hit on him does: the chase turns it into a stagger, the pad into health */
   const hurt = (amount: number, from: THREE.Vector3, bySlot: number): number => {
     if (amount >= NOT_A_HIT || !mark) return 0;
-    const by = bySlot >= 0 ? game.players[bySlot] : undefined;
-    const hand = !!by && Math.hypot(by.position.x - mark.position.x, by.position.z - mark.position.z) < HAND_REACH;
+    // a hand on him is a melee blow (a swing, a lunge), flagged by the
+    // player's own melee pipeline just before it lands; gunfire at any range is not
+    const hand = handPending && bySlot >= 0;
+    handPending = false;
     void from;
     if (phase === 'intro' || phase === 'chase') {
       if (hand) runner?.hit('melee');
@@ -854,6 +856,10 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     ctx.announce(T.title, T.sub);
     for (const p of game.players) {
       p.sectionMove = composeMoves({
+        meleeHit: (_pl, target, amount) => {
+          if (target === mark) handPending = true;
+          return amount;
+        },
         adjust: (pl, _dt, input) => {
           if (armed[pl.slot] && nets[pl.slot] > 0 && input.rocketPressed && pl.alive) {
             if (netCd[pl.slot] <= 0) fireNet(pl);
@@ -903,7 +909,7 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
           checkpoint = r;
           ctx.checkpoint.copy(cpSpot());
           audio.checkpointChime();
-          ctx.announce(TEXT.banners.checkpoint, ROOFS[r].name === 'R9' ? 'the last roof before the pad' : 'nets refill here');
+          ctx.announce(TEXT.banners.checkpoint, ROOFS[r].name === 'R9' ? T.cpLast : T.cpNets);
           for (const q of game.players) if (armed[q.slot]) nets[q.slot] = NETS;
         }
       }
@@ -1131,6 +1137,7 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     return out;
   });
   const cursors = [0, 0, 0, 0];
+  const swingT = [0, 0, 0, 0];
   const launchY = [Y0, Y0, Y0, Y0];
   const autopilot = (slot: number): AutopilotInput => {
     const p = game.players[slot];
@@ -1148,14 +1155,21 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     if (!armed[slot] && myRoof === 0 && flat(rackAt) < 30) {
       return { yaw: yawTo(rackAt), moveY: 1 };
     }
-    // on the pad with him: the duel
+    // on the pad with him: the duel, by hand (free) and net (free) — no
+    // gunfire, so the bot earns the full bounty the way a player can
     if (myRoof === PAD && (phase === 'duel' || phase === 'chase')) {
       const d = flat(mark.position);
-      const out: AutopilotInput = { yaw: yawTo(mark.position), moveY: d > 9 ? 1 : 0, moveX: Math.sin(game.time * 0.7 + slot) * 0.6 };
+      const out: AutopilotInput = { yaw: yawTo(mark.position) };
+      if (phase !== 'duel') return { ...out, moveY: d > 9 ? 1 : 0 };
       const weak = mark.hp <= mark.maxHp * NET_TAKES;
-      if (phase === 'duel' && weak && nets[slot] > 0 && d < 26) {
+      if (weak && nets[slot] > 0 && d < 22) {
         if (netCd[slot] <= 0) out.rocketPressed = true;
-      } else if (phase === 'duel') out.shootHeld = true;
+        return out;
+      }
+      // close in at a run (the gait reads a full stick as a run) and swing
+      if (d > 1.7) { out.moveY = 1; out.sprintHeld = d > 5; }
+      swingT[slot] = Math.max(0, swingT[slot] - 1 / 30);
+      if (d < 2.8 && swingT[slot] <= 0) { swingT[slot] = 0.35; out.meleePressed = true; }
       return out;
     }
 
@@ -1240,7 +1254,10 @@ function build(ctx: SectionContext): SectionInstance & { testKit: unknown } {
     contains: (x, z) => {
       // won: the run is carrying the party on into the next stage
       if (complete) return true;
-      if (roofAt(x, z) >= 0) return true;
+      // a body straddling a roof's lip is still on the roof (off it, the drop catches it)
+      for (const r of ROOFS) {
+        if (x >= r.x0 + OX - 0.8 && x <= r.x1 + OX + 0.8 && z >= r.z0 + OZ - 0.8 && z <= r.z1 + OZ + 0.8) return true;
+      }
       // the air over each leap is in play: the gaps are crossed, not left
       for (let i = 0; i < nodes.length; i++) {
         for (const n of nodes[i].next) {
