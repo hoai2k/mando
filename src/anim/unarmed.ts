@@ -39,7 +39,6 @@ const move = (slot: UnarmedSlot, id: string, name: string): UnarmedMove =>
 export const UNARMED_MOVES: readonly UnarmedMove[] = [
   move(1, 'fistCross', 'Wound-up cross'),
   move(1, 'fistHaymaker', 'Haymaker'),
-  move(1, 'fistSuperman', 'Superman punch'),
   move(1, 'fistUppercut', 'Rising uppercut'),
   move(2, 'fistHook', 'Lead hook'),
   move(2, 'fistBackfist', 'Spinning backfist'),
@@ -64,6 +63,8 @@ export function pickUnarmed(slot?: UnarmedSlot): UnarmedMove {
  * where it is aimed on every body.
  */
 type Reach = [to: V3, pole?: V3];
+/** a key set by hand in the workbench: the two joints' angles, as exported */
+interface Joints { upper: V3; lower: V3 }
 
 // the guard: hands high, chin tucked, the body bladed a quarter turn so the
 // left shoulder leads — the rear fist by the jaw, the lead a forearm out
@@ -71,6 +72,8 @@ const GUARD_R: Reach = [[-0.04, 0.12, 0.27]], GUARD_L: Reach = [[0.2, 0.12, 0.42
 /** a fist tucked back to the chin once its partner has been thrown */
 const TUCK_R: Reach = [[-0.02, 0.16, 0.24]], TUCK_L: Reach = [[0.02, 0.16, 0.24]];
 const G_CHEST: V3 = [4, 5, 0], G_HIPS: V3 = [3, -25, 0], G_HEAD: V3 = [-2, 18, 0];
+/** the cross's wind-up: the rear fist cocked wide and high, out past its elbow */
+const CROSS_WINDUP: Joints = { upper: [-30, -61.28, -54.82], lower: [-144.17, -0.29, 46.63] };
 /** the rear knee folded, heel up: weight on the lead foot */
 const LOADED: Legs = { upperLegL: [-18, 0, 5], lowerLegL: [26, 0, 0], upperLegR: [14, 0, -6], lowerLegR: [30, 0, 0] };
 
@@ -86,11 +89,15 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
   const track = (upper: string, lower: string, limbs: Limb[]): Record<string, Key[]> =>
     ({ [upper]: limbs.map((l) => l.upper), [lower]: limbs.map((l) => l.lower) });
   // the fist's knuckles sit a hand's breadth past the wrist
-  const arm = (side: 'R' | 'L', ...poses: Reach[]): Record<string, Key[]> => {
+  const arm = (side: 'R' | 'L', ...poses: Array<Reach | Joints>): Record<string, Key[]> => {
     const sx = side === 'R' ? -1 : 1;
-    return track(`upperArm${side}`, `forearm${side}`, poses.map(([[x, y, z], pole]) =>
-      reach(p.upperArmLen, p.forearmLen + 0.07, [x - sx * shoulder, y - shoulderUp, z], pole ?? [sx * 0.3, -1, 0])));
+    return {
+      [`upperArm${side}`]: poses.map((q) => Array.isArray(q) ? limb(sx, q).upper : q.upper),
+      [`forearm${side}`]: poses.map((q) => Array.isArray(q) ? limb(sx, q).lower : q.lower),
+    };
   };
+  const limb = (sx: number, [[x, y, z], pole]: Reach): Limb =>
+    reach(p.upperArmLen, p.forearmLen + 0.07, [x - sx * shoulder, y - shoulderUp, z], pole ?? [sx * 0.3, -1, 0]);
   const leg = (side: 'R' | 'L', ...poses: Array<Reach | Legs>): Record<string, Key[]> => {
     const limbs = poses.map((q): Limb => Array.isArray(q)
       ? reach(p.upperLegLen, p.lowerLegLen, q[0], q[1] ?? [0, 0, 1], true)
@@ -102,14 +109,14 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
   // Wound-up cross: the rear fist draws back wide and high, out past its
   // elbow, as the lead hand reaches out to measure, then the hips turn and the
   // right drives straight through the target while the left snaps home to the
-  // chin. The wind-up key is in the chest's frame, which the counter-turn has
-  // swung ~47° away, so "out and forward" there reads as out and back.
+  // chin. The wind-up is set by joint angle, from the workbench edit
+  // (pose-edits_1.json, 2026-09-29), not solved from a fist target.
   {
     const at = [0, 0.25, 0.38, 0.45, 0.6, 1];
     add('fistCross', 0.75, at, {
       chest: [G_CHEST, [2, -15, 0], [6, 10, 0], [10, 22, 0], [10, 24, 0], G_CHEST],
       head: [G_HEAD, [-4, 40, 0], [0, 0, 0], [4, -32, 0], [4, -34, 0], G_HEAD],
-      ...arm('R', GUARD_R, [[-0.64, 0.15, 0.12], [0.3, -1, 0]], [[-0.15, 0.03, 0.35], [-0.3, -1, -0.2]],
+      ...arm('R', GUARD_R, CROSS_WINDUP, [[-0.15, 0.03, 0.35], [-0.3, -1, -0.2]],
         [[-0.5, 0.35, 0.58]], [[-0.5, 0.33, 0.56]], GUARD_R),
       ...arm('L', GUARD_L, [[0.55, 0.1, 0.55]], [[0.2, 0.05, 0.35]], TUCK_L, TUCK_L, GUARD_L),
     }, {
@@ -132,26 +139,6 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
       hips: [G_HIPS, [2, -38, 0], [4, -5, 0], [8, 25, 0], [9, 32, 0], G_HIPS],
       ...legs(SET, LOADED, LUNGE, LUNGE, LUNGE, SET),
     }, hipsAt(p, [0.04, 0], [0.06, -0.06], [0.08, 0.08], [0.1, 0.16], [0.11, 0.2], [0.04, 0]));
-  }
-
-  // Superman punch: the rear knee drives up as if to kick, then scissors back
-  // as the body springs forward off the lead foot, and the right comes over
-  // the top in the air — the fist arriving with the rear leg trailing straight.
-  {
-    const at = [0, 0.22, 0.35, 0.45, 0.62, 1];
-    add('fistSuperman', 0.9, at, {
-      chest: [G_CHEST, [-6, -10, 0], [4, 0, 0], [16, 20, 0], [14, 20, 0], G_CHEST],
-      head: [G_HEAD, [4, 30, 0], [0, 14, 0], [-10, -18, 0], [-8, -18, 0], G_HEAD],
-      ...arm('R', GUARD_R, [[-0.3, -0.35, -0.1], [-0.2, -0.3, -1]], [[-0.3, 0.1, -0.05], [-0.5, 0.2, -1]],
-        [[-0.45, 0.3, 0.6]], [[-0.45, 0.25, 0.58]], GUARD_R),
-      ...arm('L', GUARD_L, [[0.1, 0.1, 0.3]], [[0.35, -0.3, -0.2]], [[0.4, -0.35, -0.25]], [[0.3, -0.1, 0.1]], GUARD_L),
-    }, {
-      hips: [G_HIPS, [-4, -20, 0], [0, -10, 0], [10, 15, 0], [8, 15, 0], G_HIPS],
-      upperLegL: [SET.upperLegL, [-10, 0, 5], [-20, 0, 5], [-30, 0, 5], [-40, 0, 5], SET.upperLegL],
-      lowerLegL: [SET.lowerLegL, [30, 0, 0], [20, 0, 0], [30, 0, 0], [50, 0, 0], SET.lowerLegL],
-      upperLegR: [SET.upperLegR, [-60, 0, -5], [10, 0, -5], [40, 0, -5], [30, 0, -6], SET.upperLegR],
-      lowerLegR: [SET.lowerLegR, [95, 0, 0], [60, 0, 0], [20, 0, 0], [40, 0, 0], SET.lowerLegR],
-    }, hipsAt(p, [0.04, 0], [0.02, 0], [-0.08, 0.12], [-0.04, 0.26], [0.12, 0.3], [0.04, 0]));
   }
 
   // Rising uppercut: a dip and a turn that drops the right fist to the hip,
