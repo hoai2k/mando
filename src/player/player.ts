@@ -24,7 +24,7 @@ import { BROOD_EGG_RACK } from '../characters/enemies';
 import { ThrownSaber } from './saberthrow';
 import { updateInCover } from './cover';
 import { updateRiding } from './riding';
-import { reachArm } from '../anim/seating';
+import { leanToReach, reachArm } from '../anim/seating';
 import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
@@ -124,7 +124,8 @@ const TAKEN_PULL = 3.2;
 /** and how fast it takes you under, m/s at the start of the pull */
 const TAKEN_SINK = 1.5;
 
-const _grip = new THREE.Vector3();
+/** the two hands' grips, reused frame to frame */
+const _grips = [new THREE.Vector3(), new THREE.Vector3()];
 const _elbowHint = new THREE.Vector3();
 
 const AIR_CONTROL = 7.5;
@@ -3007,18 +3008,25 @@ export class Player {
     if (!rig || !hold) return;
     // the world matrices the solve reads are the ones `syncVisual` just wrote
     this.char.root.updateMatrixWorld(true);
-    const cos = Math.cos(v.yaw), sin = Math.sin(v.yaw);
+    const yaw = v.yaw + v.seatYaw;
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; out: number }> = [];
     for (const side of [-1, 1] as const) {
       // an animal is steered one-handed: reins in the off hand, gun in the
       // other, so the right arm is the combat pose's to keep
       if (hold.only === 'left' && side !== 1) continue;
       if (gunUp && side === -1) continue;
-      if (!v.gripWorld(side, _grip)) continue;
+      const at = v.gripWorld(side, _grips[side === 1 ? 0 : 1]);
+      if (at) grips.push({ side: side === 1 ? 'L' : 'R', at, out: side });
+    }
+    // bend forward to a grip past arm's reach, then put the hands on it
+    leanToReach(rig, grips);
+    for (const { side, at, out } of grips) {
       // the elbow rides outboard of the bar and a little below it, which is
       // where a rider's elbow goes and what stops the solve folding the arm
       // up over the shoulder
-      _elbowHint.set(_grip.x + cos * side * 0.55, _grip.y - 0.42, _grip.z - sin * side * 0.55);
-      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _elbowHint);
+      _elbowHint.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
+      reachArm(rig, side, at, _elbowHint);
     }
   }
 

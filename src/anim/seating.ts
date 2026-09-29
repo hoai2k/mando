@@ -132,6 +132,101 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
     side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone(), -1);
 }
 
+const _lean = new THREE.Quaternion();
+const _parentW = new THREE.Quaternion();
+const _mid = new THREE.Vector3();
+const _waist = new THREE.Vector3();
+const _leanAxis = new THREE.Vector3();
+const _shoulder = new THREE.Vector3();
+const _joint = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** turn a bone about a world axis, whatever its parents' turn */
+function turnWorld(bone: THREE.Object3D, axis: THREE.Vector3, angle: number): void {
+  bone.parent!.getWorldQuaternion(_parentW);
+  _lean.setFromAxisAngle(axis, angle);
+  bone.quaternion.premultiply(_parentW.clone().invert().multiply(_lean).multiply(_parentW));
+}
+
+/** how far a rider may bend forward to reach a grip */
+const MAX_LEAN = THREE.MathUtils.degToRad(70);
+
+/**
+ * Lean a rider forward, just as far as the hands need to reach their grips (up
+ * to 70°). Half the bend is at the hips, the legs held where they stand, the
+ * rest shared by the spine and the chest: a grip down at hip height is reached
+ * by folding at the hips, as a body does, where a bend at the waist alone
+ * lowers the shoulders without bringing them any nearer. A grip in reach
+ * changes nothing. Call it after the clip has written the pose and before
+ * `reachArm`, with the world matrices current; returns the lean, radians.
+ */
+export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3 }>): number {
+  const b = rig.bones;
+  const turned = [b.hips, b.spine, b.chest, b.upperLegL, b.upperLegR];
+  // Last frame's lean comes off first wherever the clip has not written the
+  // bone since: a pose with no track for a thigh leaves it as the lean left
+  // it, and leaning again from there would wind the legs round frame by frame.
+  const last = leaned.get(rig);
+  if (last) {
+    turned.forEach((bone, i) => { if (bone.quaternion.equals(last.after[i])) bone.quaternion.copy(last.before[i]); });
+    leaned.delete(rig);
+    b.hips.updateMatrixWorld(true);
+  }
+  if (!grips.length || !b.hips.parent) return 0;
+  // each arm's full reach, shoulder to wrist, in world metres
+  const arms = grips.map(({ side, at }) => {
+    const upper = side === 'L' ? b.upperArmL : b.upperArmR;
+    const fore = side === 'L' ? b.forearmL : b.forearmR;
+    const hand = side === 'L' ? b.handL : b.handR;
+    upper.getWorldPosition(_shoulder);
+    fore.getWorldPosition(_joint);
+    const length = _shoulder.distanceTo(_joint) + _joint.distanceTo(hand.getWorldPosition(_mid));
+    return { upper, at, length };
+  });
+  const short = (): number => {
+    b.hips.updateMatrixWorld(true);
+    return Math.max(...arms.map((a) => a.upper.getWorldPosition(_shoulder).distanceTo(a.at) - 0.98 * a.length));
+  };
+  if (short() <= 0) return 0;
+  // toward the grips, about the level axis square to them
+  _mid.set(0, 0, 0);
+  for (const g of grips) _mid.add(g.at);
+  _mid.divideScalar(grips.length);
+  b.spine.getWorldPosition(_waist);
+  _mid.sub(_waist).setY(0);
+  if (_mid.lengthSq() < 1e-6) return 0;
+  _leanAxis.crossVectors(UP, _mid.normalize()).normalize();
+  const start = turned.map((bone) => bone.quaternion.clone());
+  const settle = (angle: number): number => {
+    lean(angle);
+    leaned.set(rig, { before: start, after: turned.map((bone) => bone.quaternion.clone()) });
+    return angle;
+  };
+  const lean = (angle: number): number => {
+    turned.forEach((bone, i) => bone.quaternion.copy(start[i]));
+    turnWorld(b.hips, _leanAxis, angle / 2);
+    b.hips.updateMatrixWorld(true);
+    // the thighs turned back as far, so the legs stand as they did
+    turnWorld(b.upperLegL, _leanAxis, -angle / 2);
+    turnWorld(b.upperLegR, _leanAxis, -angle / 2);
+    turnWorld(b.spine, _leanAxis, angle / 4);
+    b.spine.updateMatrixWorld(true);
+    turnWorld(b.chest, _leanAxis, angle / 4);
+    b.hips.updateMatrixWorld(true);
+    return short();
+  };
+  if (lean(MAX_LEAN) > 0) return settle(MAX_LEAN);
+  let lo = 0, hi = MAX_LEAN;
+  for (let i = 0; i < 10; i++) {
+    const mid = (lo + hi) / 2;
+    if (lean(mid) > 0) lo = mid; else hi = mid;
+  }
+  return settle(hi);
+}
+
+/** each rider's last lean: the bones as the pose had them, and as the lean left them */
+const leaned = new WeakMap<Rig, { before: THREE.Quaternion[]; after: THREE.Quaternion[] }>();
+
 /**
  * Put a foot on something — a footrest, a peg, a stirrup: the same solve down
  * one leg (`upperLeg → lowerLeg → foot`), the target being the ankle. Which way

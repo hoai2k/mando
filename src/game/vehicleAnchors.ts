@@ -14,8 +14,10 @@ import type { VehicleSpec } from '../world/board';
  *    stands) on. When it is set it wins over the height measured off the
  *    sculpt (`seatSurface`), which can only guess at where a body belongs.
  *  - `grip`: where the left hand — the one that never holds the gun — takes
- *    the bars, the yoke or the reins. A machine mirrors it across the seat for
- *    the right hand; a mount leaves the right hand to the gun.
+ *    the bars, the yoke or the reins. A machine mirrors it across the rider's
+ *    own midline for the right hand (`handFromSeat`), side by side on a grip
+ *    placed on it; a mount leaves the right hand to the gun. A rider leans
+ *    forward to a grip past arm's reach (`leanToReach`).
  *  - `legSpread`, optional: how far each knee sits out from the centre line,
  *    in metres, so the thighs clear the saddle or the cowl. A width rather
  *    than an angle, so every rider's own hips and thighs work out how far to
@@ -54,6 +56,27 @@ export function footQuaternion(frame: THREE.Quaternion, degrees: V3, side: 1 | -
   const d = THREE.MathUtils.DEG2RAD;
   _euler.set(degrees[0] * d, side * degrees[1] * d, side * degrees[2] * d, 'YXZ');
   return out.copy(frame).multiply(new THREE.Quaternion().setFromEuler(_euler));
+}
+
+/** the least a pair of hands sits either side of the rider's midline: side by side on one tiller */
+export const HAND_HALF_SPREAD = 0.1;
+
+/**
+ * Where a hand goes from the seat, in the ride's frame. The grip is the left
+ * hand's; the right hand mirrors it across the rider's own midline — the seat
+ * turned by `yaw` (radians), so a rider turned toward a helm keeps his hands
+ * symmetric about himself, not about the ride. A pair never closes on one
+ * point: a grip on the midline puts the hands side by side on it,
+ * `HAND_HALF_SPREAD` either way. A lone rein hand (`pair` false) goes where
+ * the grip is.
+ */
+export function handFromSeat(grip: { x: number; y: number; z: number }, side: 1 | -1, yaw: number, pair: boolean,
+  out: THREE.Vector3): THREE.Vector3 {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  // into the rider's frame, where +X is his left
+  const lx = grip.x * c - grip.z * s, lz = grip.x * s + grip.z * c;
+  const across = side * (pair ? Math.max(lx, HAND_HALF_SPREAD) : lx);
+  return out.set(across * c + lz * s, grip.y, -across * s + lz * c);
 }
 
 /** a foot anchor is the sole on the rest; the ankle the leg reaches for stands this far over it (m) */

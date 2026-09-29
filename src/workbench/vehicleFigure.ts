@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import type { CharacterInstance } from '../characters/builder';
 import { buildMandalorian, type MandoId } from '../characters/mandalorians';
-import { orientFoot, reachArm, reachLeg, spreadKnees } from '../anim/seating';
+import { leanToReach, orientFoot, reachArm, reachLeg, spreadKnees } from '../anim/seating';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import {
   buildVehicleMesh, handsFor, measureSeatSurface, SaddleBone, sitOnModel, VEHICLE_DEFS, type VehicleDef,
 } from '../game/vehicles';
-import { ANKLE_OVER_SOLE, footQuaternion, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
+import { ANKLE_OVER_SOLE, footQuaternion, handFromSeat, hipsOverFeet, stanceRise, VEHICLE_ANCHORS, type V3, type VehicleAnchor } from '../game/vehicleAnchors';
 import type { VehicleSpec } from '../world/board';
 
 /**
@@ -55,7 +55,6 @@ export interface VehicleRig {
   relayout(): void;
 }
 
-const _grip = new THREE.Vector3();
 const _hint = new THREE.Vector3();
 const _foot = new THREE.Vector3();
 const _frameQ = new THREE.Quaternion();
@@ -196,13 +195,21 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     if (!hold || !rig) return;
     vr.gripped = true;
     root.updateMatrixWorld(true);
+    const yaw = THREE.MathUtils.degToRad(vr.yaw);
+    const grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3; hint: THREE.Vector3 }> = [];
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;
-      world(vr.seat.x + side * hold.x, vr.seat.y + hold.y, vr.seat.z + hold.z, _grip);
-      // the elbow outboard of the bar and a little below it, as the game does it
-      world(vr.seat.x + side * (hold.x + 0.55), vr.seat.y + hold.y - 0.42, vr.seat.z + hold.z, _hint);
-      reachArm(rig, side === 1 ? 'L' : 'R', _grip, _hint);
+      // mirrored across the rider's own midline, as the game does it
+      const h = handFromSeat(hold, side, yaw, hold.only !== 'left', new THREE.Vector3());
+      const at = world(vr.seat.x + h.x, vr.seat.y + h.y, vr.seat.z + h.z, new THREE.Vector3());
+      // the elbow outboard of the bar and a little below it, in the rider's frame
+      const hint = world(vr.seat.x + h.x + side * 0.55 * Math.cos(yaw), vr.seat.y + h.y - 0.42,
+        vr.seat.z + h.z - side * 0.55 * Math.sin(yaw), new THREE.Vector3());
+      grips.push({ side: side === 1 ? 'L' : 'R', at, hint });
     }
+    // bend forward to a grip past arm's reach, then put the hands on it
+    leanToReach(rig, grips);
+    for (const { side, at, hint } of grips) reachArm(rig, side, at, hint);
   };
 
   // a living mount walks its own clips, blended by the speed it is given

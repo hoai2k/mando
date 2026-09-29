@@ -16,7 +16,7 @@ import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
 import { orientFoot, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
 import type { Rig } from '../anim/skeleton';
-import { ANKLE_OVER_SOLE, CANONICAL_HIPS, footQuaternion, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
+import { ANKLE_OVER_SOLE, CANONICAL_HIPS, footQuaternion, handFromSeat, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 import { saberClipsFor } from '../characters/mandalorians';
 
@@ -1412,7 +1412,8 @@ export class Vehicle {
   gripWorld(side: -1 | 1, out: THREE.Vector3): THREE.Vector3 | null {
     const g = this.hands;
     if (!g) return null;
-    return this.rideToWorld(this.seatX + side * g.x, this.seatTop + g.y, this.seatZ + g.z, out);
+    const h = handFromSeat(g, side, this.seatYaw, g.only !== 'left', out);
+    return this.rideToWorld(this.seatX + h.x, this.seatTop + h.y, this.seatZ + h.z, out);
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
