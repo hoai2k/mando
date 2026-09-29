@@ -182,7 +182,8 @@ await page.waitForTimeout(400);
 const niktoHand = await page.evaluate(([edited, committed]) => {
   const r = window.__wb.figures[0].inst.root.userData.niktoRider;
   r.bike.updateMatrixWorld(true);
-  const hand = r.rider.getObjectByName('handL').getWorldPosition(r.bike.position.clone());
+  // a grip is where the palm goes: his palm frame's origin (he has no palm placed of his own)
+  const hand = (r.rider.getObjectByName('palmFrameL') ?? r.rider.getObjectByName('handL')).getWorldPosition(r.bike.position.clone());
   // the swoop's frame to his bike's: the same sculpt hangs 0.385 m lower on his
   const at = (g) => r.bike.localToWorld(r.bike.position.clone().set(g[0], g[1] - 0.385, g[2]));
   const own = r.bike.localToWorld(r.bike.position.clone().set(...r.grip));
