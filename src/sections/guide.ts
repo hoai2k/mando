@@ -194,9 +194,9 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     steps: [
       'The belts carry you toward the smelter at different speeds. Crates are cover. Barrels explode.',
       'Presses slam each belt\'s opening. A hiss and a red strip warn you a second before. Pass when it\'s up.',
-      'Welding arms sweep at waist height. Jump them or walk the floor lanes, which flametroopers hold.',
+      'Welding arms turn full circle at head height over the belts. Time them, fly over, or walk the floor lanes.',
       'At the slag pit, get off the belts onto the door deck, the only ground left.',
-      'Hold Y · C at the door release for four seconds (three alone), then hold the deck until it opens.',
+      'Hold Y · C at the door release for four seconds (three alone). A squad drops in halfway: hold on.',
     ],
     tips: [
       'Hold Y · C at a catwalk belt switch to brake the machines ahead: 15 s (25 alone). Never required.',
@@ -218,6 +218,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
     tips: [
       'The alarm is not a fail. It seals the lanes, raises turrets and calls a drop.',
       'Kill the drop, then hold Y · C at an alarm console for three seconds to put the yard back in the dark.',
+      'If the drop cannot be finished, the consoles work anyway 45 seconds after the alarm.',
       'Venting steam blocks the beams and swallows noise while it blows.',
       'The fallen come back at the last dark corner the party reached.',
     ],

@@ -5,10 +5,10 @@ import type { SectionContext } from './context';
 import type { Enemy, EnemyKind } from '../enemies/enemy';
 import type { Player } from '../player/player';
 import { addBreakable, type Breakable } from '../world/board';
-import { authoredProp } from '../world/props';
 import { audio } from '../core/audio';
 import { deckTexture, hullTexture } from '../core/assets';
 import { Interactions } from './kit/interact';
+import { drivenProp, type DrivenNode } from './kit/sculpt';
 import { composeMoves } from './kit/moves';
 
 /**
@@ -36,12 +36,15 @@ import { composeMoves } from './kit/moves';
  *
  * **Escalation.** Station 1, the belts: learn the ride, troopers above.
  * Station 2, the presses: two press rows, the second faster. Station 3, the
- * arms: welding arms sweep the belts at waist height (jump them, or walk the
- * floor lanes, which the flametroopers hold). Station 4, the smelter: the
- * floor ends in a slag pit sixteen metres short of the smelter, the belts
- * surge, and the only ground left is the door deck by the plant door — whose
- * release has to be held for four seconds while the last squad comes down
- * the gantry.
+ * arms: welding arms stand in the floor lanes and turn full circle, the
+ * forearm at head height to anyone riding a belt (fly over it, time it, or
+ * walk the floor lanes under it, which the flametroopers hold). Station 4, the
+ * smelter: the floor ends in a slag pit eighteen metres short of the smelter,
+ * the belts surge, and the only ground left is the door deck by the plant
+ * door. The surge brings the last squad along the gantry and down onto the
+ * deck; the door's release is held for four seconds (three solo), and a
+ * second squad drops in from the catwalks halfway through the hold — so it
+ * is held under fire, and the deck is held while the door lifts.
  *
  * **Co-op.** A belt switch on the catwalk of each of the first three
  * stations throws the brake on the machines of the station ahead for 15 s
@@ -55,14 +58,19 @@ import { composeMoves } from './kit/moves';
  */
 
 // ---- the hall (local metres; x across, z along toward the smelter, y up from the floor) ----
+//
+// The width is set by the presses. The hydraulic press sculpt is 8 m wide
+// (two 0.8 m columns round a 6.4 m opening, docs/ASSETS_MODELS.md), and every
+// belt has its own, so the belts are laid 8 m apart: neighbouring presses
+// stand column to column in the floor lanes between the belts.
 /** half the hall's inside width */
-const HW = 13;
+const HW = 17;
 const WALL_T = 2;
 const ROOF = 14;
 /** the entry vestibule runs back to here, where the intake blast door is */
 const ENTRY_Z = -8;
-const BELT_X = [-7.2, -2.4, 2.4, 7.2];
-const BELT_W = 3.6;
+const BELT_X = [-12, -4, 4, 12];
+const BELT_W = 4.4;
 const BELT_TOP = 1.2;
 const BELT_Z0 = 2;
 /** the belts end at the smelter's mouth */
@@ -70,44 +78,57 @@ const BELT_Z1 = 104;
 const SMELTER_Z1 = 111;
 /** the belts' speeds, m/s, toward the smelter */
 const SPEEDS = [3, 5, 5, 7];
-/** each press row's frame starts here and is `FRAME_D` deep */
+/** each press row's frame starts here and is `FRAME_D` deep (the sculpt's 2 m) */
 const FRAMES = [30, 56];
-const FRAME_D = 4;
-/** the openings over the belts: from the belt top up this far */
-const OPEN_H = 3.4;
-/** how far the head sits above the belt when it is up */
-const HEAD_UP = 2.6;
+const FRAME_D = 2;
+/** the press sculpt (8.0 × 2.0 × 5.4 m): its columns, crossbeam and head */
+const PRESS = { w: 8, h: 5.4, col: 0.8, open: 6.4, beam: 0.8, headW: 5, headD: 1.2, headH: 1.0 };
+/** the opening under the crossbeam, above the belt */
+const OPEN_H = PRESS.h - PRESS.beam - BELT_TOP;
+/** how far the head's underside sits above the belt when it is up */
+const HEAD_UP = OPEN_H - PRESS.headH;
+/** the head hangs a little in front of the crossbeam, toward the oncoming belt */
+const HEAD_FWD = 0.2;
+/** the right-hand walkway, between the fast belt and the wall: the bots' lane */
+const WALK_X = 15.5;
 /** the floor lanes end here, at the slag pit */
 const FLOOR_END = 86;
 /** the door deck, by the plant door */
-const DECK = { x0: 9.0, x1: HW, z0: 91, z1: BELT_Z1 };
+const DECK = { x0: BELT_X[3] + BELT_W / 2, x1: HW, z0: 91, z1: BELT_Z1 };
 /** the plant door in the right wall */
 const DOOR = { z0: 96, z1: 101, h: 4.5 };
 /** catwalks: their z spans, and their height */
 const CAT_Y = 6;
-const CAT_IN = 10.8;
-const CATWALKS: [number, number][] = [[5.5, 29.5], [34.5, 55.5], [60.5, BELT_Z1]];
-/** welding arms: base x (the wall side it stands on), z, and phase */
-const ARMS: { x: number; z: number; ph: number }[] = [
-  { x: 12.3, z: 64, ph: 0 }, { x: -12.3, z: 72, ph: 1.9 }, { x: 12.3, z: 80, ph: 3.6 },
+const CAT_IN = 15.4;
+const CAT_X = 16.2;
+/** where a bot stands to rise past a catwalk's edge (inboard of it, clear of the belt) */
+const CLIMB_X = 14.9;
+const CATWALKS: [number, number][] = [[5.5, FRAMES[0] - 0.5], [FRAMES[0] + FRAME_D + 0.5, FRAMES[1] - 0.5], [FRAMES[1] + FRAME_D + 0.5, BELT_Z1]];
+/**
+ * Welding arms (the sculpt is 6.0 × 1.6 × 5.1 m): each stands in a floor lane
+ * between two belts and turns full circle, its forearm reaching 5.2 m out at
+ * about three metres up — head height to anyone riding a belt, clear over
+ * anyone on the floor.
+ */
+const ARMS: { x: number; z: number; ph: number; dir: number }[] = [
+  { x: 8, z: 66, ph: 0, dir: 1 }, { x: 0, z: 72, ph: 2.1, dir: -1 }, { x: -8, z: 78, ph: 4.2, dir: 1 },
 ];
-const ARM_L = 11;
-const ARM_SWING = (40 * Math.PI) / 180;
-/** the arm's bar, above the belt top: waist height to anyone riding a belt */
-const ARM_LO = BELT_TOP + 0.6;
-const ARM_HI = BELT_TOP + 1.2;
+const ARM = { reach: 5.2, shoulder: 3.5, tip: 3.0, plate: 1.6, spin: 1.3 };
+/** the band the forearm sweeps through, above the floor */
+const ARM_LO = 2.65;
+const ARM_HI = 3.6;
 /** the belt switches: position on the catwalks, and which machines ahead each brakes */
 const SWITCHES: { x: number; z: number; what: 'press0' | 'press1' | 'arms' }[] = [
-  { x: 11.9, z: 20, what: 'press0' },
-  { x: -11.9, z: 46, what: 'press1' },
-  { x: 11.9, z: 76, what: 'arms' },
+  { x: CAT_X, z: 20, what: 'press0' },
+  { x: -CAT_X, z: 46, what: 'press1' },
+  { x: CAT_X, z: 76, what: 'arms' },
 ];
 /** the checkpoint stations: re-form spots, and the z a living player must pass to earn each */
 const STATIONS: { at: [number, number, number]; z: number }[] = [
   { at: [4, 0, -3], z: -Infinity },
-  { at: [10.3, 0, 37], z: FRAMES[0] + FRAME_D + 1.5 },
-  { at: [10.3, 0, 63], z: FRAMES[1] + FRAME_D + 1.5 },
-  { at: [11.2, BELT_TOP, 94], z: Infinity },   // the deck: earned by standing on it
+  { at: [WALK_X, 0, FRAMES[0] + FRAME_D + 5], z: FRAMES[0] + FRAME_D + 1.5 },
+  { at: [WALK_X, 0, FRAMES[1] + FRAME_D + 5], z: FRAMES[1] + FRAME_D + 1.5 },
+  { at: [WALK_X, BELT_TOP, 94], z: Infinity },   // the deck: earned by standing on it
 ];
 
 type PressPhase = 'open' | 'warn' | 'slam' | 'down' | 'rise';
@@ -121,10 +142,15 @@ interface Press {
   bottom: number;
   phase: PressPhase;
   box: THREE.Object3D;
+  rams: THREE.Mesh[];
+  /** the sculpt's own `head` node, once the model is in */
+  sculptHead: DrivenNode | null;
   collider: { min: THREE.Vector3; max: THREE.Vector3 };
   strip: THREE.MeshBasicMaterial;
 }
 const WARN = 1.0, SLAM = 0.16, DOWN = 0.7, RISE = 0.8;
+/** how far a head sags in its warning second (a crate still clears it) */
+const WARN_DIP = 0.15;
 
 interface Crate {
   belt: number;
@@ -157,6 +183,8 @@ function build(ctx: SectionContext): SectionInstance {
   const wallMat = ctx.own(new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x8a8d92, roughness: 0.65, metalness: 0.45 }));
   const darkMat = ctx.paint(0x24262c, { rough: 0.7, metal: 0.4 });
   const frameMat = ctx.own(new THREE.MeshStandardMaterial({ map: hullTexture(), color: 0x5c5f66, roughness: 0.55, metalness: 0.6 }));
+  // the presses' grimy grey-yellow paint (the reference sheet)
+  const pressMat = ctx.paint(0x8a7c4a, { rough: 0.6, metal: 0.5 });
   const stripeMat = ctx.paint(0xd8b02a, { rough: 0.5, emissive: 0x3a1004 });
   ctx.tile(stripeMat, 'hazard_stripe', 2, 1);
   const beltSide = ctx.paint(0x3a3d44, { rough: 0.6, metal: 0.5 });
@@ -278,10 +306,11 @@ function build(ctx: SectionContext): SectionInstance {
     }
   });
   // the hopper the belts come out of, at the near end
-  ctx.box(0, Y0 + (3.4 + ROOF) / 2, BELT_Z0 + 0.8, 19, ROOF - 3.4, 2.6, frameMat);
-  ctx.box(0, Y0 + 1.7, BELT_Z0 - 0.3, 19, 3.4, 0.6, frameMat);
+  const hopperW = (BELT_X[3] + BELT_W / 2 + 0.3) * 2;
+  ctx.box(0, Y0 + (3.4 + ROOF) / 2, BELT_Z0 + 0.8, hopperW, ROOF - 3.4, 2.6, frameMat);
+  ctx.box(0, Y0 + 1.7, BELT_Z0 - 0.3, hopperW, 3.4, 0.6, frameMat);
   {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(19, 0.5, 0.1), stripeMat);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(hopperW, 0.5, 0.1), stripeMat);
     band.position.set(0, Y0 + 3.65, BELT_Z0 - 0.62);
     ctx.mesh(band);
     // the chute mouths the ore drops out of, one over each belt, lit from inside
@@ -375,86 +404,147 @@ function build(ctx: SectionContext): SectionInstance {
   ctx.mesh(plantLight);
 
   // ---- the press rows ----
+  // Each row is a frame across the whole hall, floor to roof, with one
+  // opening per belt the width of the press head: the only way on is through
+  // an opening, under a head. The press sculpts stand in the frame, one per
+  // belt, columns shoulder to shoulder in the floor lanes.
   const presses: Press[] = [];
+  const colGeo = ctx.own(new THREE.BoxGeometry(PRESS.col, PRESS.h, PRESS.col));
+  const plateGeo = ctx.own(new THREE.BoxGeometry(1.4, 0.2, 1.4));
+  const beamGeo = ctx.own(new THREE.BoxGeometry(PRESS.w, PRESS.beam, 1.4));
+  const ramGeo = ctx.own(new THREE.CylinderGeometry(0.16, 0.16, 1, 8));
   FRAMES.forEach((fz, f) => {
-    // the frame: a beam over the openings, posts down to the floor between them
-    ctx.box(0, Y0 + (BELT_TOP + OPEN_H + ROOF) / 2, fz + FRAME_D / 2, HW * 2, ROOF - BELT_TOP - OPEN_H, FRAME_D, frameMat);
-    const edges = [-HW, ...BELT_X.flatMap((x) => [x - BELT_W / 2, x + BELT_W / 2]), HW];
+    const zc = fz + FRAME_D / 2;
+    // the beam over everything, from the presses' crossbeams to the roof
+    ctx.box(0, Y0 + (PRESS.h - PRESS.beam + ROOF) / 2, zc, HW * 2, ROOF - PRESS.h + PRESS.beam, FRAME_D, frameMat);
+    // posts from the floor to the beam everywhere but the head openings
+    const edges = [-HW, ...BELT_X.flatMap((x) => [x - PRESS.headW / 2, x + PRESS.headW / 2]), HW];
     for (let k = 0; k < edges.length; k += 2) {
       const x0 = edges[k], x1 = edges[k + 1];
-      ctx.box((x0 + x1) / 2, Y0 + (BELT_TOP + OPEN_H) / 2, fz + FRAME_D / 2, x1 - x0, BELT_TOP + OPEN_H, FRAME_D, frameMat);
+      ctx.box((x0 + x1) / 2, Y0 + (PRESS.h - PRESS.beam) / 2, zc, x1 - x0, PRESS.h - PRESS.beam, FRAME_D, frameMat);
     }
-    // hazard banding on the face of the beam, both sides
+    // hazard banding across the beam's faces, where the crossbeams meet it
     for (const zf of [fz - 0.02, fz + FRAME_D + 0.02]) {
-      const band = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, 0.9), stripeMat);
-      band.position.set(0, Y0 + BELT_TOP + OPEN_H + 0.45, zf);
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, 0.6), stripeMat);
+      band.position.set(0, Y0 + PRESS.h + 0.3, zf);
       if (zf < fz) band.rotation.y = Math.PI;
       ctx.mesh(band);
-    }
-    // the gantry sculpt, where one lands, over each opening (the head is the game's)
-    for (const x of BELT_X) {
-      ctx.prop('hydraulic_press', new THREE.Vector3(x, Y0 + BELT_TOP, fz + FRAME_D / 2), {
-        size: 8, fallback: () => new THREE.Group(),
-      });
     }
     // Staggered so there is always an open belt somewhere in the row; the
     // second row runs shorter open windows than the first.
     const open = (f === 0 ? 2.6 : 1.9) + (solo ? 0.5 : 0);
     const cycle = open + WARN + SLAM + DOWN + RISE;
     BELT_X.forEach((x, belt) => {
-      const headH = OPEN_H - HEAD_UP;
-      const head = new THREE.Mesh(new THREE.BoxGeometry(BELT_W - 0.2, 1, FRAME_D - 0.4), stripeMat);
+      // the stand-in: two columns on foot plates and a crossbeam (the
+      // sheet's gantry, 8.0 × 2.0 × 5.4 m); the frame's posts are its colliders
+      const gantry = new THREE.Group();
+      for (const sx of [-1, 1]) {
+        const cx = sx * (PRESS.open + PRESS.col) / 2;
+        const col = new THREE.Mesh(colGeo, pressMat);
+        col.position.set(x + cx, Y0 + PRESS.h / 2, zc);
+        const foot = new THREE.Mesh(plateGeo, frameMat);
+        foot.position.set(x + cx, Y0 + 0.1, zc);
+        gantry.add(col, foot);
+      }
+      const cross = new THREE.Mesh(beamGeo, pressMat);
+      cross.position.set(x, Y0 + PRESS.h - PRESS.beam / 2, zc);
+      gantry.add(cross);
+      ctx.mesh(gantry);
+      // the head and its four rams: the game's, driven down onto the belt
+      const hz = zc - HEAD_FWD;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(PRESS.headW, PRESS.headH, PRESS.headD), stripeMat);
       ctx.mesh(head);
-      const collider = ctx.box(x, Y0 + BELT_TOP + HEAD_UP + headH / 2, fz + FRAME_D / 2, BELT_W - 0.2, headH, FRAME_D - 0.4, null).box;
+      const rams: THREE.Mesh[] = [];
+      for (const [rx, rz] of [[-1.6, -0.3], [1.6, -0.3], [-1.6, 0.3], [1.6, 0.3]] as const) {
+        const ram = new THREE.Mesh(ramGeo, frameMat);
+        ram.userData.at = [x + rx, hz + rz];
+        ctx.mesh(ram);
+        rams.push(ram);
+      }
+      // the sculpt, faced up the line; when it lands its own `head` is what moves
+      const pr: Press = {
+        frame: f, belt, t: ((belt * (f === 0 ? 0.27 : 0.61) + f * 0.13) % 1) * cycle, open,
+        bottom: HEAD_UP, phase: 'open', box: head, rams, sculptHead: null,
+        collider: ctx.box(x, Y0 + BELT_TOP + HEAD_UP + PRESS.headH / 2, hz, PRESS.headW, PRESS.headH, PRESS.headD, null).box,
+        strip: null as unknown as THREE.MeshBasicMaterial,
+      };
+      drivenProp(ctx, 'hydraulic_press', new THREE.Vector3(x, Y0, zc), {
+        size: PRESS.w, axis: 'x', yaw: Math.PI, hide: [gantry, head, ...rams], nodes: ['head'],
+        onNodes: (n) => { pr.sculptHead = n.head ?? null; if (!n.head) { head.visible = true; for (const r of rams) r.visible = true; } },
+      });
       const stripMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.12, depthWrite: false });
       ctx.own(stripMat);
+      pr.strip = stripMat;
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(BELT_W - 0.3, 1.2), stripMat);
       strip.rotation.x = -Math.PI / 2;
       strip.position.set(x, Y0 + BELT_TOP + 0.05, fz - 0.6);
       ctx.mesh(strip);
-      presses.push({
-        frame: f, belt, t: ((belt * (f === 0 ? 0.27 : 0.61) + f * 0.13) % 1) * cycle, open,
-        bottom: HEAD_UP, phase: 'open', box: head, collider, strip: stripMat,
-      });
+      presses.push(pr);
     });
   });
   const pressCycle = (p: Press): number => p.open + WARN + SLAM + DOWN + RISE;
-  const pressFootprint = (p: Press) => ({
-    x0: BELT_X[p.belt] - BELT_W / 2, x1: BELT_X[p.belt] + BELT_W / 2,
-    z0: FRAMES[p.frame] + 0.2, z1: FRAMES[p.frame] + FRAME_D - 0.2,
-  });
+  /** the head's footprint: its kill volume */
+  const pressFootprint = (p: Press) => {
+    const hz = FRAMES[p.frame] + FRAME_D / 2 - HEAD_FWD;
+    return {
+      x0: BELT_X[p.belt] - PRESS.headW / 2, x1: BELT_X[p.belt] + PRESS.headW / 2,
+      z0: hz - PRESS.headD / 2, z1: hz + PRESS.headD / 2,
+    };
+  };
 
   // ---- the welding arms ----
+  // The stand-in is the sheet's arm: a 1.6 m base plate, the `base` drum, the
+  // upper arm to the `shoulder` 3.5 m up, the forearm reaching out 5.2 m to
+  // the `tip` at about 3 m. The game turns it about +Y — the stand-in's spin
+  // group, or the sculpt's `base` node once the model is in.
+  const armGeo = {
+    plate: ctx.own(new THREE.BoxGeometry(ARM.plate, 0.2, ARM.plate)),
+    drum: ctx.own(new THREE.CylinderGeometry(0.62, 0.7, 0.8, 16)),
+    upper: ctx.own(new THREE.BoxGeometry(0.5, ARM.shoulder - 0.8, 0.5)),
+    joint: ctx.own(new THREE.SphereGeometry(0.38, 12, 8)),
+    fore: ctx.own(new THREE.BoxGeometry(ARM.reach - 0.3, 0.4, 0.4)),
+  };
   const arms = ARMS.map((a) => {
-    const side = Math.sign(a.x);
     const pivot = new THREE.Group();
     pivot.position.set(a.x, Y0, a.z);
     ctx.mesh(pivot);
-    const stand = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, (ARM_LO + ARM_HI) / 2 + 0.3, 12), railMat);
-    base.position.y = ((ARM_LO + ARM_HI) / 2 + 0.3) / 2;
-    stand.add(base);
-    pivot.add(stand);
-    authoredProp(pivot, [stand], 'welding_arm', 6, { axis: 'longest' });
-    // the swinging part stays the game's: a boom at waist height over the belts, a torch at the tip
-    const boom = new THREE.Group();
-    boom.position.y = (ARM_LO + ARM_HI) / 2;
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(ARM_L, ARM_HI - ARM_LO, 0.5), stripeMat);
-    bar.position.x = ARM_L / 2;
-    boom.add(bar);
-    const torch = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9fd8ff }));
-    torch.position.x = ARM_L;
-    boom.add(torch);
-    pivot.add(boom);
-    ctx.box(a.x, Y0 + 1, a.z, 1.4, 2, 1.4, null);
-    return { ...a, side, boom, torch, ang: 0, lastAng: 0, hit: new Map<object, number>() };
+    const plate = new THREE.Mesh(armGeo.plate, frameMat);
+    plate.position.y = 0.1;
+    const spin = new THREE.Group();
+    const drum = new THREE.Mesh(armGeo.drum, pressMat);
+    drum.position.y = 0.6;
+    const upper = new THREE.Mesh(armGeo.upper, pressMat);
+    upper.position.y = 0.8 + (ARM.shoulder - 0.8) / 2;
+    const shoulder = new THREE.Mesh(armGeo.joint, frameMat);
+    shoulder.position.y = ARM.shoulder;
+    // the forearm runs out along +x, dipping from the shoulder to the tip
+    const fore = new THREE.Mesh(armGeo.fore, stripeMat);
+    const dip = Math.atan2(ARM.shoulder - ARM.tip, ARM.reach);
+    fore.position.set(ARM.reach / 2, (ARM.shoulder + ARM.tip) / 2, 0);
+    fore.rotation.z = -dip;
+    const torch = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9fd8ff }));
+    ctx.own(torch.material as THREE.Material);
+    torch.position.set(ARM.reach, ARM.tip, 0);
+    spin.add(drum, upper, shoulder, fore, torch);
+    pivot.add(plate, spin);
+    const rec = { ...a, pivot, spin, torch, ang: a.ph, sculptBase: null as DrivenNode | null, sculpt: null as THREE.Object3D | null };
+    const holder = drivenProp(ctx, 'welding_arm', new THREE.Vector3(0, 0, 0), {
+      size: 6, axis: 'longest', hide: [plate, spin], nodes: ['base'],
+      // a sculpt without a `base` node turns whole
+      onNodes: (n) => { rec.sculptBase = n.base ?? null; if (!n.base) rec.sculpt = holder; },
+    });
+    pivot.add(holder);
+    // the base column: a plate-sized post up to the shoulder
+    ctx.cyl(a.x, Y0 + ARM.shoulder / 2, a.z, 0.7, ARM.shoulder, null);
+    return rec;
   });
 
   // ---- crates and barrels riding the belts ----
   const crateMat = ctx.paint(0x8a7454, { rough: 0.8, metal: 0.2 });
   ctx.tile(crateMat, 'crate_side', 1, 1);
   const crates: Crate[] = [];
-  const CRATE = 2.2;
+  // a crate rides under a raised press head with room to spare
+  const CRATE = 2.0;
   [3, 2, 2, 3].forEach((n, belt) => {
     for (let k = 0; k < n; k++) {
       const z = BELT_Z0 + 8 + ((k + belt * 0.37) / n) * (BELT_Z1 - BELT_Z0 - 14);
@@ -505,7 +595,7 @@ function build(ctx: SectionContext): SectionInstance {
   });
   let doorOpen = 0;              // 0 shut → 1 open
   let releasing = false;
-  const releaseAt = new THREE.Vector3(11.6, Y0 + BELT_TOP, DOOR.z0 - 1.2);
+  const releaseAt = new THREE.Vector3(WALK_X + 0.3, Y0 + BELT_TOP, DOOR.z0 - 1.2);
   {
     const panel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.6, 1.0), darkMat);
     panel.position.set(HW - 0.2, Y0 + BELT_TOP + 1.1, releaseAt.z);
@@ -518,9 +608,11 @@ function build(ctx: SectionContext): SectionInstance {
       releasing = true;
       audio.doorCycle();
       ctx.announce(T.opening, T.openingSub);
-      spawnLast(true);
     },
   });
+  // the second squad comes in halfway through the hold, so the release is
+  // held under fire rather than finished before anyone arrives
+  let midWave = false;
 
   // ---- state ----
   let started = false;
@@ -537,7 +629,7 @@ function build(ctx: SectionContext): SectionInstance {
     p.x > DECK.x0 && p.x < DECK.x1 && p.z > DECK.z0 && p.z < DECK.z1 && p.y > Y0 + BELT_TOP - 0.6;
 
   // ---- hostiles ----
-  const catwalkAt = (side: number, z: number) => new THREE.Vector3(side * 11.9, Y0 + CAT_Y, z);
+  const catwalkAt = (side: number, z: number) => new THREE.Vector3(side * CAT_X, Y0 + CAT_Y, z);
   const post = (kind: EnemyKind, at: THREE.Vector3, squad: number, alert = false): Enemy =>
     ctx.spawn(kind, at, { exact: true, squad, alert });
   const floorSquad = (wave: number, n: number, spots: THREE.Vector3[], squad: number, extra?: EnemyKind): void => {
@@ -550,18 +642,18 @@ function build(ctx: SectionContext): SectionInstance {
     post('stormtrooper', catwalkAt(1, 12), 8811);
     post('stormtrooper', catwalkAt(-1, 24), 8811);
     if (party >= 3) post('stormtrooper', catwalkAt(-1, 10), 8811);
-    floorSquad(ctx.wave, 1 + Math.floor(party / 2), [new THREE.Vector3(-11, Y0, 22), new THREE.Vector3(0, Y0, 26)], 8812);
+    floorSquad(ctx.wave, 1 + Math.floor(party / 2), [new THREE.Vector3(-WALK_X, Y0, 22), new THREE.Vector3(0, Y0, 26)], 8812);
     // station 2: the presses — the catwalks and a flametrooper in the lanes
     post('stormtrooper', catwalkAt(1, 44), 8821);
     post('stormtrooper', catwalkAt(-1, 50), 8821);
     if (party >= 3) post('deathtrooper', catwalkAt(1, 52), 8821);
-    floorSquad(ctx.wave + 1, party, [new THREE.Vector3(0, Y0, 46), new THREE.Vector3(-11, Y0, 50)], 8822, 'flametrooper');
+    floorSquad(ctx.wave + 1, party, [new THREE.Vector3(0, Y0, 46), new THREE.Vector3(-WALK_X, Y0, 50)], 8822, 'flametrooper');
     // station 3: the arms — flametroopers hold the floor lanes, troopers above
     post('stormtrooper', catwalkAt(-1, 68), 8831);
     post('stormtrooper', catwalkAt(1, 86), 8831);
-    post('flametrooper', new THREE.Vector3(-4.8, Y0, 76), 8832);
-    if (party >= 2) post('flametrooper', new THREE.Vector3(11, Y0, 70), 8832);
-    if (party >= 4) post('flametrooper', new THREE.Vector3(0, Y0, 82), 8832);
+    post('flametrooper', new THREE.Vector3(-8, Y0, 70), 8832);
+    if (party >= 2) post('flametrooper', new THREE.Vector3(WALK_X, Y0, 72), 8832);
+    if (party >= 4) post('flametrooper', new THREE.Vector3(8, Y0, 82), 8832);
   };
   let lastWave = 0;
   const spawnLast = (second: boolean): void => {
@@ -569,7 +661,7 @@ function build(ctx: SectionContext): SectionInstance {
       // the smelter gantry: troopers come along the far catwalk and down onto the deck
       for (let i = 0; i < 2 + Math.floor(party / 2); i++) post('stormtrooper', catwalkAt(1, 100 - i * 2.5), 8841, true);
       const kinds = ctx.squadFor(ctx.wave + 2, 1 + party);
-      kinds.forEach((k, i) => post(k, new THREE.Vector3(11.5, Y0 + BELT_TOP, 102.5 - (i % 3) * 1.4), 8842, true));
+      kinds.forEach((k, i) => post(k, new THREE.Vector3(WALK_X + 0.2, Y0 + BELT_TOP, 102.5 - (i % 3) * 1.4), 8842, true));
     } else if (lastWave < 2) {
       post('flametrooper', catwalkAt(-1, 96), 8843, true);
       for (let i = 0; i < Math.ceil(party / 2); i++) post('deathtrooper', catwalkAt(1, 90 + i * 2.5), 8843, true);
@@ -579,10 +671,10 @@ function build(ctx: SectionContext): SectionInstance {
 
   // ---- the golden path ----
   const path = [
-    new THREE.Vector3(4, Y0, -3), new THREE.Vector3(10, Y0, 6),
-    new THREE.Vector3(10, Y0, FRAMES[0] - 2.5), new THREE.Vector3(7.2, Y0 + BELT_TOP, FRAMES[0] + FRAME_D + 1),
-    new THREE.Vector3(10, Y0, FRAMES[1] - 2.5), new THREE.Vector3(7.2, Y0 + BELT_TOP, FRAMES[1] + FRAME_D + 1),
-    new THREE.Vector3(10, Y0, FLOOR_END - 1.5), new THREE.Vector3(7.2, Y0 + BELT_TOP, DECK.z0 + 1),
+    new THREE.Vector3(4, Y0, -3), new THREE.Vector3(WALK_X, Y0, 6),
+    new THREE.Vector3(WALK_X, Y0, FRAMES[0] - 2.5), new THREE.Vector3(BELT_X[3], Y0 + BELT_TOP, FRAMES[0] + FRAME_D + 1),
+    new THREE.Vector3(WALK_X, Y0, FRAMES[1] - 2.5), new THREE.Vector3(BELT_X[3], Y0 + BELT_TOP, FRAMES[1] + FRAME_D + 1),
+    new THREE.Vector3(WALK_X, Y0, FLOOR_END - 1.5), new THREE.Vector3(BELT_X[3], Y0 + BELT_TOP, DECK.z0 + 1),
     releaseAt.clone(), new THREE.Vector3(VX1 - 2, Y0 + BELT_TOP, (DOOR.z0 + DOOR.z1) / 2),
   ];
 
@@ -616,8 +708,8 @@ function build(ctx: SectionContext): SectionInstance {
       if (held && p.phase !== 'open') p.phase = 'rise';
       switch (p.phase) {
         case 'open': p.bottom = HEAD_UP; break;
-        case 'warn': p.bottom = HEAD_UP - 0.35 * Math.min(1, (t - o) / 0.3); break;
-        case 'slam': p.bottom = Math.max(0, (HEAD_UP - 0.35) * (1 - (t - o - WARN) / SLAM)); break;
+        case 'warn': p.bottom = HEAD_UP - WARN_DIP * Math.min(1, (t - o) / 0.3); break;
+        case 'slam': p.bottom = Math.max(0, (HEAD_UP - WARN_DIP) * (1 - (t - o - WARN) / SLAM)); break;
         case 'down': p.bottom = 0; break;
         case 'rise': p.bottom = Math.min(HEAD_UP, p.bottom + (HEAD_UP / RISE) * dt); break;
       }
@@ -628,14 +720,25 @@ function build(ctx: SectionContext): SectionInstance {
         if (near < 30) audio.steamHiss(Math.max(0.05, Math.min(0.4, 8 / Math.max(near, 4))));
       }
       if (prevPhase !== 'down' && p.phase === 'down') slam(p);
-      // the head: mesh and collider
-      const headH = OPEN_H - p.bottom;
-      const fz = FRAMES[p.frame] + FRAME_D / 2;
+      // the head: mesh, rams, collider — or the sculpt's own head node
       const x = BELT_X[p.belt];
-      p.box.scale.y = headH;
-      p.box.position.set(x, Y0 + BELT_TOP + p.bottom + headH / 2, fz);
-      p.collider.min.set(x - (BELT_W - 0.2) / 2, Y0 + BELT_TOP + p.bottom, fz - (FRAME_D - 0.4) / 2);
-      p.collider.max.set(x + (BELT_W - 0.2) / 2, Y0 + BELT_TOP + OPEN_H, fz + (FRAME_D - 0.4) / 2);
+      const hz = FRAMES[p.frame] + FRAME_D / 2 - HEAD_FWD;
+      const bottom = Y0 + BELT_TOP + p.bottom;
+      p.box.position.set(x, bottom + PRESS.headH / 2, hz);
+      const ramTop = Y0 + PRESS.h - PRESS.beam;
+      const ramLen = Math.max(0.05, ramTop - (bottom + PRESS.headH));
+      for (const r of p.rams) {
+        const [rx, rz] = r.userData.at as [number, number];
+        r.scale.y = ramLen;
+        r.position.set(rx, ramTop - ramLen / 2, rz);
+      }
+      if (p.sculptHead) {
+        const h = p.sculptHead;
+        h.node.position.y = h.rest.position.y - (HEAD_UP - p.bottom) * h.metres;
+      }
+      // solid from the head's underside up to the crossbeam: nothing slips over a lowered head
+      p.collider.min.set(x - PRESS.headW / 2, bottom, hz - PRESS.headD / 2);
+      p.collider.max.set(x + PRESS.headW / 2, ramTop, hz + PRESS.headD / 2);
     }
   };
 
@@ -777,28 +880,32 @@ function build(ctx: SectionContext): SectionInstance {
   const updateArms = (dt: number): void => {
     const parked = holdLeft.arms > 0;
     for (const a of arms) {
-      a.lastAng = a.ang;
-      const want = parked ? a.side * -Math.PI / 2 * 0.98 : ARM_SWING * Math.sin(game.time * 1.7 + a.ph);
-      a.ang = parked ? a.ang + (want - a.ang) * Math.min(1, dt * 2) : want;
-      // the boom points inward (−side on x), turned by the swing angle
-      const dirX = -a.side * Math.cos(a.ang), dirZ = Math.sin(a.ang);
-      a.boom.rotation.y = Math.atan2(-dirZ, dirX);
+      // turning full circle; braked, it comes round to lie along its own lane
+      if (parked) {
+        const rest = Math.PI / 2;
+        const d = Math.atan2(Math.sin(rest - a.ang), Math.cos(rest - a.ang));
+        a.ang += d * Math.min(1, dt * 2);
+      } else {
+        a.ang += a.dir * ARM.spin * dt;
+      }
+      // the forearm's heading: +x at angle 0, turning about +Y
+      const dirX = Math.cos(a.ang), dirZ = -Math.sin(a.ang);
+      a.spin.rotation.y = a.ang;
+      if (a.sculptBase) a.sculptBase.node.rotation.y = a.sculptBase.rest.rotation.y + a.ang;
+      else if (a.sculpt) a.sculpt.rotation.y = a.ang;
       if (!parked && Math.random() < dt * 14) {
-        const tip = new THREE.Vector3(a.x + dirX * ARM_L, Y0 + (ARM_LO + ARM_HI) / 2, a.z + dirZ * ARM_L);
-        game.particles.impactSparks(tip, 3);
+        game.particles.impactSparks(new THREE.Vector3(a.x + dirX * ARM.reach, Y0 + ARM.tip, a.z + dirZ * ARM.reach), 3);
       }
       if (parked) continue;
-      const sweep = Math.sign(a.ang - a.lastAng) || 1;
       const hitBody = (pos: THREE.Vector3, r: number): THREE.Vector3 | null => {
-        // waist height over the belts: someone on the floor is under it, someone jumping over it
-        if (!(pos.y + 1.3 > Y0 + ARM_LO && pos.y < Y0 + ARM_HI)) return null;
+        // the forearm's height: head height on a belt, overhead on the floor
+        if (!(pos.y + 1.75 > Y0 + ARM_LO + 0.1 && pos.y < Y0 + ARM_HI)) return null;
         const rx = pos.x - a.x, rz = pos.z - a.z;
         const along = rx * dirX + rz * dirZ;
-        if (along < 0.5 || along > ARM_L) return null;
-        const off = Math.abs(rx * -dirZ + rz * dirX);
-        if (off > 0.35 + r) return null;
-        // the push goes the way the boom is moving
-        return new THREE.Vector3(a.side * Math.sin(a.ang) * sweep, 0, Math.cos(a.ang) * sweep);
+        if (along < 0.8 || along > ARM.reach + 0.3) return null;
+        if (Math.abs(rx * -dirZ + rz * dirX) > 0.3 + r) return null;
+        // the push goes the way the forearm is moving
+        return new THREE.Vector3(-dirZ * a.dir, 0, dirX * a.dir).multiplyScalar(-1);
       };
       for (const p of game.players) {
         if (!p.alive || (hitCd.get(p) ?? 0) > game.time) continue;
@@ -814,8 +921,7 @@ function build(ctx: SectionContext): SectionInstance {
       }
       for (const e of game.enemies) {
         if (!e.alive || (hitCd.get(e) ?? 0) > game.time) continue;
-        const push = hitBody(e.position, e.radius);
-        if (!push) continue;
+        if (!hitBody(e.position, e.radius)) continue;
         hitCd.set(e, game.time + 0.9);
         e.damage(30, new THREE.Vector3(a.x, e.position.y + 1, a.z), -1);
       }
@@ -827,9 +933,9 @@ function build(ctx: SectionContext): SectionInstance {
     if (!started) {
       started = true;
       spawnPosted();
-      ctx.pickup(new THREE.Vector3(10.4, Y0, FRAMES[0] + FRAME_D + 3));
-      ctx.pickup(new THREE.Vector3(10.4, Y0, FRAMES[1] + FRAME_D + 3));
-      if (party >= 2) ctx.pickup(new THREE.Vector3(-10.4, Y0, FRAMES[1] + FRAME_D + 3));
+      ctx.pickup(new THREE.Vector3(WALK_X, Y0, FRAMES[0] + FRAME_D + 3));
+      ctx.pickup(new THREE.Vector3(WALK_X, Y0, FRAMES[1] + FRAME_D + 3));
+      if (party >= 2) ctx.pickup(new THREE.Vector3(-WALK_X, Y0, FRAMES[1] + FRAME_D + 3));
       ctx.pickup(new THREE.Vector3(12, Y0 + BELT_TOP, DECK.z0 + 1.5));
       ctx.announce(T.title, T.sub);
       for (const p of game.players) {
@@ -875,6 +981,8 @@ function build(ctx: SectionContext): SectionInstance {
       }
     }
 
+    if (!midWave && (release.progress >= 0.5 || releasing)) { midWave = true; spawnLast(true); }
+
     // the door
     if (releasing && doorOpen < 1) {
       doorOpen = Math.min(1, doorOpen + dt / 2.2);
@@ -893,7 +1001,7 @@ function build(ctx: SectionContext): SectionInstance {
   const objective = () => {
     if (reached < 2) {
       const f = reached;
-      return { pos: new THREE.Vector3(7.2, Y0 + BELT_TOP + 1, FRAMES[f]), label: T.pressLabel, hint: T.pressHint, beacon: false };
+      return { pos: new THREE.Vector3(BELT_X[3], Y0 + BELT_TOP + 1, FRAMES[f]), label: T.pressLabel, hint: T.pressHint, beacon: false };
     }
     if (reached < 3) {
       return { pos: new THREE.Vector3(11, Y0 + BELT_TOP, DECK.z0 + 2), label: T.ledgeLabel, hint: reached === 2 ? T.armsHint : T.ledgeHint, beacon: false };
@@ -929,14 +1037,14 @@ function build(ctx: SectionContext): SectionInstance {
     | { k: 'exit'; station: number };
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, Y0 + y, z);
   const program = (runner: boolean): Step[] => [
-    { k: 'go', at: V(11, 0, -1), station: 0 },
-    { k: 'go', at: V(10, 0, 8), station: 0 },
+    { k: 'go', at: V(WALK_X, 0, -1), station: 0 },
+    { k: 'go', at: V(WALK_X, 0, 8), station: 0 },
     ...(runner ? [{ k: 'switch', s: 0, station: 0 } as Step] : []),
     { k: 'frame', f: 0, station: 0 },
-    { k: 'go', at: V(10, 0, 50), station: 1 },
+    { k: 'go', at: V(WALK_X, 0, 50), station: 1 },
     { k: 'frame', f: 1, station: 1 },
     ...(runner ? [{ k: 'switch', s: 2, station: 2 } as Step] : []),
-    { k: 'go', at: V(10, 0, FLOOR_END - 2), station: 2 },
+    { k: 'go', at: V(WALK_X, 0, FLOOR_END - 2), station: 2 },
     { k: 'ride', station: 2 },
     { k: 'release', station: 3 },
     { k: 'exit', station: 3 },
@@ -986,7 +1094,7 @@ function build(ctx: SectionContext): SectionInstance {
         if (holdLeft[sw.what] > 0 && phase[slot] < 3) phase[slot] = 3;
         if (phase[slot] === 0) {
           // stand inboard of the catwalk, under nothing
-          const d = steer(p, V(sw.x > 0 ? 10 : -10, 0, sw.z - 1), out);
+          const d = steer(p, V(Math.sign(sw.x) * CLIMB_X, 0, sw.z - 1), out);
           if (d < 0.8 && p.grounded) phase[slot] = 1;
         } else if (phase[slot] === 1) {
           // rise past the catwalk's edge, then step in over it
@@ -1000,7 +1108,7 @@ function build(ctx: SectionContext): SectionInstance {
           if (d < 1.4 && Math.abs(p.position.y - (Y0 + CAT_Y)) < 0.6) { out.interactHeld = true; delete out.moveY; }
         } else {
           // thrown: step off inboard and carry on
-          const d = steer(p, V(sw.x > 0 ? 9.8 : -9.8, 0, sw.z + 2), out);
+          const d = steer(p, V(Math.sign(sw.x) * CLIMB_X, 0, sw.z + 2), out);
           if (d < 1.0 && p.position.y < Y0 + 0.6) return next();
         }
         return out;
@@ -1010,7 +1118,7 @@ function build(ctx: SectionContext): SectionInstance {
         const pr = presses.find((q) => q.frame === step.f && q.belt === 3)!;
         const crateNear = crates.some((q) => q.gone < 0 && q.belt === 3 && q.z > fz - 6 && q.z < fz + FRAME_D + 2);
         if (phase[slot] === 0) {
-          const d = steer(p, V(10, 0, fz - 2.2), out);
+          const d = steer(p, V(WALK_X, 0, fz - 2.2), out);
           if (d < 0.9) { delete out.moveY; if (pressSafe(pr) > 1.5 && !crateNear) phase[slot] = 1; }
         } else if (phase[slot] === 1) {
           // up onto the belt, short of the press
@@ -1021,7 +1129,7 @@ function build(ctx: SectionContext): SectionInstance {
           steer(p, V(BELT_X[3], BELT_TOP, fz + FRAME_D + 2), out);
           if (p.position.z > fz + FRAME_D + 1) phase[slot] = 3;
         } else {
-          const d = steer(p, V(10, 0, fz + FRAME_D + 3.5), out);
+          const d = steer(p, V(WALK_X, 0, fz + FRAME_D + 3.5), out);
           if (d < 1.0 && p.position.y < Y0 + 0.5) return next();
         }
         return out;
@@ -1035,7 +1143,7 @@ function build(ctx: SectionContext): SectionInstance {
         } else {
           // let the belt carry you past the pit, then step right, onto the deck
           if (p.position.z < DECK.z0 + 0.8) { out.yaw = Math.atan2(0, 1); return out; }
-          steer(p, V(11.2, BELT_TOP, p.position.z + 1), out);
+          steer(p, V(WALK_X, BELT_TOP, p.position.z + 1), out);
           if (onDeck(p.position) && p.position.x > DECK.x0 + 1) return next();
         }
         return out;
