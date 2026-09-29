@@ -15,12 +15,12 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 
 | Item | State | Branch / notes |
 |---|---|---|
-| Framework (§2): section stage kind, registry, campaign routing, one-way doors, flags, HUD panel, engine hooks, `interactHeld`, `kit/interact`, `kit/moves` | built | working branch; see §2.6 of the plan |
-| `tools/test-sections.mjs` | built | per-section build + autopilot completion; legacy suites run sections-off |
+| Framework (§2): section stage kind, registry, campaign routing, one-way doors, flags, HUD panel, engine hooks, `interactHeld`, `kit/interact`, `kit/moves` | merged | working branch; see §2.6 of the plan |
+| `tools/test-sections.mjs` | merged | per-section build + autopilot completion; legacy suites run sections-off |
 | K1 rail camera | merged | `kit/railcam.ts` (shared view, twin-stick aim, merged HUD) |
 | K2 treadmill | merged | `kit/treadmill.ts` |
 | K3 mounts (vehicle guns, side swing, lane, pillion, turret) | merged | `vehicles.ts` + mounts; `tools/test-section-mounts.mjs` |
-| K4 hazard front | built | `kit/front.ts` (`RisingPlane`, `PathFront`), by the Chimney |
+| K4 hazard front | merged | `kit/front.ts` (`RisingPlane`, `PathFront`), by the Chimney |
 | K5 objective bar / defend target | merged | `kit/objective.ts` (`DefendTarget`, `Progress`) |
 | K6 detection | merged | `kit/detection.ts` |
 | K7 locomotion: slide / flight / tilt | merged | `kit/locomotion.ts` (`slideMove`, `flightMove`, `deckTilt`) |
@@ -31,24 +31,24 @@ Working branch: `claude/level-design-gameplay-sections-koa6ye`.
 
 | # | Section | Territory | Placement | State | Notes |
 |---|---|---|---|---|---|
-| 1 | barge-run | Dune Sea | B ⇒ · ⇒ worm-sign | merged (working branch) | desert team; deck gun and heavy gun are K3 turrets; verifying |
-| 2 | worm-sign | Dune Sea | barge-run ⇒ · ⇒ C | merged (working branch) | desert team; K6 detection crossing (thumpers, worm); verifying |
-| 3 | ring-walk | Spice Run | B ⇒ · ⇒ C | merged (working branch) | station team; K1; verifying |
+| 1 | barge-run | Dune Sea | B ⇒ · ⇒ worm-sign | merged | desert team; deck gun and heavy gun are K3 turrets |
+| 2 | worm-sign | Dune Sea | barge-run ⇒ · ⇒ C | merged | desert team; K6 detection crossing (thumpers, worm) |
+| 3 | ring-walk | Spice Run | B ⇒ · ⇒ C | merged | station team; K1 |
 | 4 | frigate-guns | Spice Run | A ⇒ · ⇒ B | built (its branch) | `claude/sections-frigate` (session_01Hh1Lchy7jWq4jMuSCYrcAF); K2 + K3 + K5; tuning, then merge |
-| 5 | magma-run | Lava Flats | B ⇒ · ⇒ chimney | merged (working branch) | lava team; K3; verifying |
-| 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | built | reference section; autopilot finishes at 2 and 4 players in ~55 s (hostiles culled) |
-| 7 | glacier-chute | Crevasse | A ⇒ · ⇒ lamplight | merged (working branch) | crevasse team; K7 slide + K9 darkness |
-| 8 | lamplight | Crevasse | chute ⇒ · ⇒ B | merged (working branch) | crevasse team; K7 slide + K9 darkness |
-| 9 | squall | Storm Docks | A (split after trawler deck) ⇒ · ⇒ run-the-pier | merged (working branch) | trask team; K7 tilt |
-| 10 | run-the-pier | Storm Docks | squall ⇒ · ⇒ A2 | merged (working branch) | trask team; K1 reversed rail camera, rubber-band collapse front; verifying |
-| 11 | lights-out | Refinery | B ⇒ · ⇒ C | merged (working branch) | refinery team; K6 detection, silent takedowns |
-| 12 | the-line | Refinery | A ⇒ · ⇒ B | merged (working branch) | refinery team; K6 detection, silent takedowns |
-| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | merged (working branch) | 1/2/4 players pass, ~73 s; tower polish merged |
-| 14 | hold-the-forge | Great Forge | B ⇒ · ⇒ covert-sky | merged (working branch) | 1/2/4 players pass, ~220–275 s; +25 max HP survives stages and deaths |
-| 15 | tram-top | Ringworld | A (split after market arcade) ⇒ · ⇒ A2 | merged (working branch) | ringworld team; K1 + K2 train roof, gantry sweeps; verifying |
-| 16 | mark-runs | Ringworld | A2 (split after plaza) ⇒ · ⇒ A3 | merged (working branch) | ringworld team; K8 pursuit |
-| 17 | one-way-out | Prison Rig | B ⇒ · ⇒ C | merged (working branch) | narkina team; K2 treadmill; prisoner stand-in |
-| 18 | the-lift | Prison Rig | C ⇒ · ⇒ D | merged (working branch) | narkina team; K2 treadmill; prisoner stand-in |
+| 5 | magma-run | Lava Flats | B ⇒ · ⇒ chimney | merged | lava team; K3 |
+| 6 | chimney | Lava Flats | magma-run ⇒ · ⇒ C | merged | reference section; autopilot finishes at 2 and 4 players in ~55 s (hostiles culled) |
+| 7 | glacier-chute | Crevasse | A ⇒ · ⇒ lamplight | merged | crevasse team; K7 slide + K9 darkness |
+| 8 | lamplight | Crevasse | chute ⇒ · ⇒ B | merged | crevasse team; K7 slide + K9 darkness |
+| 9 | squall | Storm Docks | A (split after trawler deck) ⇒ · ⇒ run-the-pier | merged | trask team; K7 tilt |
+| 10 | run-the-pier | Storm Docks | squall ⇒ · ⇒ A2 | merged | trask team; K1 reversed rail camera, rubber-band collapse front |
+| 11 | lights-out | Refinery | B ⇒ · ⇒ C | merged | refinery team; K6 detection, silent takedowns |
+| 12 | the-line | Refinery | A ⇒ · ⇒ B | merged | refinery team; K6 detection, silent takedowns |
+| 13 | covert-sky | Great Forge | hold-the-forge ⇒ · ⇒ C | merged | 1/2/4 players pass, ~73 s; tower polish merged |
+| 14 | hold-the-forge | Great Forge | B ⇒ · ⇒ covert-sky | merged | 1/2/4 players pass, ~220–275 s; +25 max HP survives stages and deaths |
+| 15 | tram-top | Ringworld | A (split after market arcade) ⇒ · ⇒ A2 | merged | ringworld team; K1 + K2 train roof, gantry sweeps |
+| 16 | mark-runs | Ringworld | A2 (split after plaza) ⇒ · ⇒ A3 | merged | ringworld team; K8 pursuit |
+| 17 | one-way-out | Prison Rig | B ⇒ · ⇒ C | merged | narkina team; K2 treadmill; prisoner stand-in |
+| 18 | the-lift | Prison Rig | C ⇒ · ⇒ D | merged | narkina team; K2 treadmill; prisoner stand-in |
 
 ## What is left
 
@@ -64,7 +64,7 @@ when an item is closed or found.
 | Image requests (keyframes + supporting) | open | `ASSETS_IMAGES.md`, committed to `main` early for generation |
 | Model requests (props + prisoner) | open | `ASSETS_MODELS.md`; stand-ins ship first |
 | Existing-level audit | done | [`AUDIT_LEVELS_2026-09.md`](AUDIT_LEVELS_2026-09.md): 16 prioritised recommendations |
-| Audit fixes | merged (working branch) | `claude/audit-fixes`; notes (what was done, what was left) in `sections-notes/audit-fixes.md`; Storm Docks split moved to after zone 4 |
+| Audit fixes | merged | `claude/audit-fixes`; notes (what was done, what was left) in `sections-notes/audit-fixes.md`; Storm Docks split moved to after zone 4 |
 
 ## Log
 
@@ -79,4 +79,5 @@ when an item is closed or found.
 - 2026-09-28 22:4x — main merged into the working branch (rider-anchor seating, walk gait). The walk gait slowed Lights Out's autopilot into the searchlights; paces re-set. All nine runs pass again.
 - 2026-09-28 23:3x — the field manual gains "The job": each section's guide (`src/sections/guide.ts`) or the stage's objective, opened by default in a Missions run, with a dev-only "Skip section". `sections-notes/_followups.md` gathers everything left. Turret sight raised clear of the shield.
 - 2026-09-28 23:4x — round 5 sent to nine team sessions: rebuild every stand-in prop to the sheet-measured sizes in the plan's §4 "Props to build" notes (named nodes driven when a model lands), and fix the bugs the guide pass found (Tram Top coupling, One Way Out double banner and the unpaid 10+ prisoners bonus, Glacier Chute's wait on the dead, Mark Runs' point-blank "by hand", the guide beacon, comment/code mismatches, strings outside TEXT, `prisoner` missing from ModelId). Frigate merges after its props.
+- 2026-09-29 00:2x — **on `main`** (1dcb13d): the framework, all nine kits, 17 of 18 sections, the audit fixes, the job page and its dev skip. Before it: the full suite (51 files) had three failures, all stale tests that failed on `main` too — grip data for the now bare-handed melee pirate, the title art renamed to `title_dune_sea_hd.jpg`, and a block probe that let Wave Battle's first wave walk in mid-burst. Fixed. main's footrest/hull-riding change merged with K3's pillion and turret seats (a turret's seat turns with the gun, its base stays put).
 
