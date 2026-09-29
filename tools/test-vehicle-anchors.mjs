@@ -172,7 +172,8 @@ const sw = json2.vehicles.swoop;
 check('the export carries the footrest, the turn and the rotations',
   Array.isArray(sw.foot) && sw.yaw === 20 && sw.footRotation?.[1] === 30 && sw.gripRotation?.[2] === 15 && !sw.seatRotation, sw);
 
-// ---- the session's swoop edits reach the Nikto, who rides the same bike ----
+// ---- the Nikto rides the same bike: the swoop's grip as edited this session
+// reaches him, unless he has a grip of his own on it, which then holds ----
 await page.click('#editToggle');
 await h.workbench('nikto', 'creatureIdle');
 await page.waitForTimeout(400);
@@ -182,10 +183,15 @@ const niktoHand = await page.evaluate(([edited, committed]) => {
   const hand = r.rider.getObjectByName('handL').getWorldPosition(r.bike.position.clone());
   // the swoop's frame to his bike's: the same sculpt hangs 0.385 m lower on his
   const at = (g) => r.bike.localToWorld(r.bike.position.clone().set(g[0], g[1] - 0.385, g[2]));
-  return { edited: +hand.distanceTo(at(edited)).toFixed(3), committed: +hand.distanceTo(at(committed)).toFixed(3) };
+  const own = r.bike.localToWorld(r.bike.position.clone().set(...r.grip));
+  return {
+    edited: +hand.distanceTo(at(edited)).toFixed(3), committed: +hand.distanceTo(at(committed)).toFixed(3),
+    own: +hand.distanceTo(own).toFixed(3), hasOwn: Math.abs(r.grip[1] - (edited[1] - 0.385)) > 1e-3,
+  };
 }, [[grip[0], grip[1], grip[2] + 0.1], grip]);
-check('the Nikto\'s hand follows the swoop\'s grip as edited this session',
-  niktoHand.edited < 0.15 && niktoHand.edited < niktoHand.committed, niktoHand);
+check(niktoHand.hasOwn ? 'the Nikto\'s hand holds his own grip on the bars'
+  : 'the Nikto\'s hand follows the swoop\'s grip as edited this session',
+niktoHand.hasOwn ? niktoHand.own < 0.01 : niktoHand.edited < 0.15 && niktoHand.edited < niktoHand.committed, niktoHand);
 
 if (h.errors.length) check('no page errors', false, h.errors.slice(0, 3));
 check.done('vehicle anchors');
