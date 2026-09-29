@@ -409,21 +409,27 @@ function build(ctx: SectionContext): SectionInstance {
   });
 
   // ---- the forging and the waves ----
-  const progress = new Progress(solo ? 120 : party === 2 ? 165 : 180);
+  // The forging runs at twice the pace it first shipped at (a full bar was
+  // two to three minutes, and read as waiting), and the waves come far
+  // closer together: the gaps between them are about 30% of the old ones in
+  // real time — 0.6 of the old progress spacing on a bar filling twice as
+  // fast. The chieftain's wave now lands a little before halfway, so the
+  // back half of the bar is fought over with him on the floor.
+  const progress = new Progress(solo ? 60 : party === 2 ? 82 : 90);
   const waves: Wave[] = solo
     ? [
       { at: 0, passes: [0], budget: 3, air: false, chief: false },
-      { at: 0.2, passes: [1], budget: 4, air: false, chief: false },
-      { at: 0.4, passes: [2], budget: 4, air: true, chief: false },
-      { at: 0.58, passes: [0], budget: 5, air: false, chief: false },
-      { at: 0.76, passes: [1], budget: 5, air: true, chief: true },
+      { at: 0.12, passes: [1], budget: 4, air: false, chief: false },
+      { at: 0.24, passes: [2], budget: 4, air: true, chief: false },
+      { at: 0.35, passes: [0], budget: 5, air: false, chief: false },
+      { at: 0.46, passes: [1], budget: 5, air: true, chief: true },
     ]
     : [
       { at: 0, passes: [0], budget: 3 + party, air: false, chief: false },
-      { at: 0.17, passes: [1], budget: 3 + party, air: false, chief: false },
-      { at: 0.34, passes: [2], budget: 4 + party, air: true, chief: false },
-      { at: 0.52, passes: [0, 1], budget: 5 + party, air: false, chief: false },
-      { at: 0.72, passes: [0, 1, 2], budget: 6 + party, air: true, chief: true },
+      { at: 0.1, passes: [1], budget: 3 + party, air: false, chief: false },
+      { at: 0.2, passes: [2], budget: 4 + party, air: true, chief: false },
+      { at: 0.31, passes: [0, 1], budget: 5 + party, air: false, chief: false },
+      { at: 0.43, passes: [0, 1, 2], budget: 6 + party, air: true, chief: true },
     ];
   let waveIdx = 0;
   let warnT = -1;

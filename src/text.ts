@@ -238,6 +238,7 @@ export const TEXT = {
     callsForBackup: 'They call for backup',
     lastStand: 'Enraged — a last stand',
     groundOpening: { title: 'Something is coming up', sub: 'the ground will not hold' },
+    sleeperRoar: { title: 'The Sleeper draws breath', sub: 'get out of the ring — its roar turns every attack back' },
     territoryHeld: { title: 'Territory held', sub: 'This is the Way' },
     territoryLiberated: { title: 'Territory liberated', sub: 'This is the Way' },
     lieutenantFalls: { title: 'The lieutenant falls', sub: 'The warlord is watching' },
