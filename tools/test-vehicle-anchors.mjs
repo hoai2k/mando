@@ -176,6 +176,8 @@ check('the export carries the footrest, the turn and the rotations',
 // reaches him, unless he has a grip of his own on it, which then holds ----
 await page.click('#editToggle');
 await h.workbench('nikto', 'creatureIdle');
+// seated, and his hands put on the bars, once his sculpt and the bike's have landed
+await page.waitForFunction(() => window.__wb?.figures?.[0]?.inst.modelReady?.(), undefined, { timeout: 120000 });
 await page.waitForTimeout(400);
 const niktoHand = await page.evaluate(([edited, committed]) => {
   const r = window.__wb.figures[0].inst.root.userData.niktoRider;
