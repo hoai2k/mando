@@ -542,6 +542,9 @@ export const TEXT = {
     back: 'Back',
     settingsButton: 'Settings',
     fullscreen: 'Fullscreen (controller: View button)',
+    soundOn: 'Sound on — click to mute',
+    soundMuted: 'Sound muted — click to turn it on',
+    soundBlocked: 'Sound off — click to turn it on',
     /** what a screen reader announces for the controller diagram */
     padAlt: "Xbox controller with the game's button bindings labelled",
     /** keyboard and mouse, as [what it does, what to press] */

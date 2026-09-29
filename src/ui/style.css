@@ -197,7 +197,13 @@ body.in-play.cursor-hidden #corner-buttons { opacity: 0; pointer-events: none; }
   pointer-events: auto; transition: all 0.12s;
 }
 .corner-btn:hover, .corner-btn.focused { background: #d8b25a; color: #111; border-color: #f0d492; }
-.corner-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.corner-btn svg { width: 20px; height: 20px; fill: currentColor; pointer-events: none; }
+/* the browser has not let the page make sound yet: a slow pulse says "press me" */
+.corner-btn.waiting { animation: sound-waiting 1.6s ease-in-out infinite; }
+@keyframes sound-waiting {
+  0%, 100% { border-color: #5f4d2c; color: #cbb98e; }
+  50% { border-color: #f0d492; color: #f0d492; }
+}
 
 .fade-screen { position: absolute; inset: 0; background: #000; pointer-events: none; transition: opacity 0.5s; }
 

@@ -117,6 +117,12 @@ export class InputManager {
   /** set true while in menus so gameplay ignores input & pads emit menu events */
   menuMode = true;
   onFullscreenToggle: (() => void) | null = null;
+  /**
+   * Any controller button going down, in any mode. The audio unlock rides on
+   * it: a keyboard or a click already starts the sound, and a player on a
+   * controller should not have to reach for the mouse to hear the title.
+   */
+  onPadButton: (() => void) | null = null;
 
   constructor(private canvas: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -316,7 +322,13 @@ export class InputManager {
       } else {
         if (this.padPressed(pad, BTN.START, st)) this.menuQueue.push({ action: 'pause', source: pad.index });
       }
-      for (let i = 0; i < pad.buttons.length && i < 17; i++) st.prev[i] = !!pad.buttons[i]?.pressed;
+      let pressed = false;
+      for (let i = 0; i < pad.buttons.length && i < 17; i++) {
+        const now = !!pad.buttons[i]?.pressed;
+        if (now && !st.prev[i]) pressed = true;
+        st.prev[i] = now;
+      }
+      if (pressed) this.onPadButton?.();
     }
     for (const e of this.menuQueue) {
       if (e.action === 'fullscreen') this.onFullscreenToggle?.();

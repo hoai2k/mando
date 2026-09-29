@@ -72,11 +72,20 @@ const unlockAudio = () => {
   audio.init();
   // Autoplay rules mean the title screen is necessarily silent until the
   // player touches something; this is the first legal moment for the score,
-  // and setState has already been and gone by now.
-  if (!game && state !== 'playing') audio.startMenuMusic();
+  // and setState has already been and gone by now. A match that started
+  // before the sound did (a controller player's first press can come too
+  // early for the browser) gets its own score the same way.
+  if (audio.musicOn) return;
+  if (game) audio.startMusic(game.board.music, game.board.kind);
+  else if (state !== 'playing') audio.startMenuMusic();
 };
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
+// A controller press counts too. Browsers that treat a gamepad button as a
+// user gesture start the sound on it outright; one that does not still gets
+// the engine built and the score queued, and the first click or key after it
+// (the sound button, say) is what lets it play.
+input.onPadButton = unlockAudio;
 
 // ---------- corner buttons (bottom right, always visible) ----------
 const corner = document.createElement('div');
@@ -97,6 +106,37 @@ cornerButton(TEXT.controls.title, '<svg viewBox="0 0 24 24"><path d="M12 2a10 10
   () => openOverlay('controls'));
 cornerButton(TEXT.controls.settingsButton, '<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 00-1.7-1L15 3.4h-4l-.3 2.6a7.6 7.6 0 00-1.7 1l-2.4-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 001.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 001.7-1l2.4 1 2-3.4-2-1.6zM12 15.2A3.2 3.2 0 1112 8.8a3.2 3.2 0 010 6.4z"/></svg>',
   () => openOverlay('settings'));
+
+// The sound button: shows whether anything is coming out, and turns it on or
+// off. "Off" covers both a player's mute and a browser that has not let the
+// page make sound yet — pressing it in the second case is the click that does.
+const soundBtn = document.createElement('button');
+soundBtn.className = 'corner-btn sound-btn';
+const SOUND_ON = '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8v8a4.5 4.5 0 002.5-4zM14 3.2v2.1a7 7 0 010 13.4v2.1a9 9 0 000-17.6z"/></svg>';
+const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3l2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4-2.7-2.7z"/></svg>';
+let soundPainted: boolean | null = null;
+function paintSound(): void {
+  const on = audio.audible;
+  // Only when it changes: the first press builds the engine on pointerdown,
+  // and swapping the icon out from under the pointer before pointerup used
+  // to cost the press its click.
+  if (on !== soundPainted) { soundBtn.innerHTML = on ? SOUND_ON : SOUND_OFF; soundPainted = on; }
+  soundBtn.title = on ? TEXT.controls.soundOn : audio.muted ? TEXT.controls.soundMuted : TEXT.controls.soundBlocked;
+  soundBtn.setAttribute('aria-label', soundBtn.title);
+  soundBtn.setAttribute('aria-pressed', String(!on));
+  // waiting on the browser rather than on the player: nudge them toward it
+  soundBtn.classList.toggle('waiting', !on && !audio.muted);
+}
+soundBtn.addEventListener('click', () => {
+  soundBtn.blur();
+  if (audio.audible) { audio.setMuted(true); return; }
+  audio.setMuted(false);
+  unlockAudio();
+  audio.uiConfirm();
+});
+audio.onChange(paintSound);
+paintSound();
+corner.appendChild(soundBtn);
 
 const fsBtn = document.createElement('button');
 fsBtn.className = 'corner-btn';
