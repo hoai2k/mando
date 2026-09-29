@@ -204,6 +204,34 @@ around 60%. The corvette fight takes about 40 s either way. The suite (culled) f
   `spinal`, `setHull`, `spawn`, …) for `tools/test-section-frigate.mjs`. Nothing in the game
   reads it.
 
+## Playtest round, 2026-09-29 (the guns)
+
+From a user playtest of "man the guns":
+
+- **Nothing on the deck stands in front of a gun.** The 7 m sensor mast at the bow (right in
+  front of the bow gun) is gone. The radar lamps sit low on the rail (1.1–1.2 m) instead of on
+  2.2 m posts beside the side and stern guns. Every muzzle is 1.74–2.06 m over the deck and never
+  points lower than +0.08 rad, so no bolt can meet the deck or anything standing on it.
+- **All the way round.** `GUN_ARC` is π. Over another gun the barrels will not come lower than a
+  line half a metre over its gunner's head (`gunFloor`), which fades in across the gun's width so
+  a swing lifts the barrels smoothly. This is K3's new `TurretDef.pitchFloor`, and the gunner's
+  sight, the unmanned brain and the slew all honour it. The corvette off starboard is still out of
+  the port gun's reach, because the starboard gun is in the way, as the design had it.
+- **Craft fly where the guns can track them.** Gunship passes run at 13–17 m (were 8–11), and
+  their loop ends at 14 m. Boarders now come in over the side at 16 m and drop to their boarding
+  point at the end of their run (they used to come up from under the hull, where no gun could
+  reach them). A latched ship still hangs below the guns, so a latch is still "leave your gun".
+- **A hit shows.** Every hit that does damage to a craft (a gunship, a boarder, a dome, the bridge)
+  bursts at the point it struck (`shipHit`: a small explosion and sparks), and the craft's hull
+  flashes red for 0.2 s. The materials are cloned on the first hit, since the ship models are
+  pooled, and a sculpt that lands mid-fight is taken over on its next hit.
+- **Crossfire.** A quad gun's bolts are tagged `'turret'`, and while the section stands the
+  projectile system lets tagged bolts meet the party's own players (anyone but the shooter;
+  `ProjectileSystem.crossfire`). A hunter caught takes 25, is thrown along the bolt at 26 m/s and
+  up at 9, off the deck into space, and comes back up a hatch through the usual off-path catch.
+  A hunter blocking with blades (or a shield) turns the bolt like any other, and it stops being
+  crossfire the moment it is turned.
+
 ## Shared-file changes (each one small and commented)
 
 - `src/ui/hud.ts`: the ride prompt has a turret branch. A gun said *stick drives · A hop · RB
@@ -213,7 +241,13 @@ around 60%. The corvette fight takes about 40 s either way. The suite (culled) f
   block.
 - `src/sections/index.ts`, `src/sections/ids.ts`: registration and `SECTION_ASSETS`.
 
-No change to `vehicles.ts`, `player.ts`, `game.ts` or `campaign.ts`.
+- `src/game/vehicles.ts` (playtest round): `TurretDef.pitchFloor?(yaw)`, honoured by
+  `driveTurret`, `turretFight` and `slewTo` (`pitchFloorAt`); turret bolts are fired with the tag
+  `'turret'`.
+- `src/fx/projectiles.ts` (playtest round): `crossfire` / `onCrossfire`, null outside this section,
+  so friendly fire stays off everywhere else.
+
+No change to `player.ts`, `game.ts` or `campaign.ts`.
 
 ## Tests
 
@@ -222,7 +256,12 @@ No change to `vehicles.ts`, `player.ts`, `game.ts` or `campaign.ts`.
   jedi): pass.
 - `RUNS=station node tools/test-sections.mjs --runs-only`: the Spice Run with both of its
   sections, in order, hands over.
-- `node tools/test-section-frigate.mjs`: 27 checks, all pass.
+- `node tools/test-section-frigate.mjs`: 27 checks, all pass. (The arc check now asks for all
+  the way round.)
+- `node tools/test-section-frigate-fire.mjs`: every gun goes all the way round, and the line of
+  fire clears every other gun and its gunner. A hit on a gunship lands and flashes it. A blocking
+  blade turns a gun's bolts, and a hunter who is not blocking is blasted off and comes back up a
+  hatch.
 - For the `hud.ts` change: `tools/test-section-mounts.mjs` (K3) and `tools/test-modes.mjs` pass.
 
 ## Known issues / left

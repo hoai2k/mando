@@ -385,8 +385,10 @@ function build(ctx: SectionContext): SectionInstance {
   const doorR = slab(gateG, darkMat, 1.5, 2.5, 0, 3, 5, 0.4);
   const gateBox = solid(0, Y0 + TRAVEL + 2.5, GATE.z + 1, 6, 5, 0.4);
   const gateLamp = slab(gateG, redMat, 0, 5.2, -0.6, 1.2, 0.3, 0.1);
-  // behind the doors: the lit way on (the transition card names it)
-  slab(gateG, glowMat, 0, 2.5, 3.2, 5.8, 4.8, 0.2);
+  // behind the doors: the lit way on (the transition card names it). The
+  // opening's full 6 × 5: a glow any smaller left slits round it onto the sky
+  // behind the superstructure's face, which is only 4 m deep.
+  slab(gateG, glowMat, 0, 2.5, 3.2, 6, 5, 0.2);
   topBoxes.push(gateBox);
   // the sea, far below the rig's top: a wide plane under the fog
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), ctx.paint(0x1d4a5e, { rough: 0.3, metal: 0.2 }));

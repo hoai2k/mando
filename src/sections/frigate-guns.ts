@@ -27,8 +27,13 @@ import { loadOptionalTexture } from '../core/assets';
  * **Built on K2, K3 and K5.** The hull never moves (K2, `kit/treadmill.ts`):
  * the station face the collar let go of, the debris, the dust and at the end
  * the far dock go past it. The guns are K3 turrets (`game/vehicles.ts`,
- * `kind: 'turret'`, 200° arcs, heat, half-rate auto-fire when nobody is in
- * them). The hull's health is K5's bar (`DefendTarget` over the hull), and it
+ * `kind: 'turret'`, heat, half-rate auto-fire when nobody is in them). Each
+ * comes all the way round, so a ship that has gone past can be followed and
+ * shot as it turns to come back; over another gun the barrels will not come
+ * down lower than its gunner's head (`gunFloor`), and nothing else on the deck
+ * stands as high as a muzzle. A gun's bolts do not care whose they hit: a
+ * hunter who jetpacks up into the line of fire is blasted off into space (and
+ * comes back up a hatch), unless they turn the bolt with a blade. The hull's health is K5's bar (`DefendTarget` over the hull), and it
  * is the fail state: if it empties, the wave comes round again from its start
  * with the hull as it was when the wave began.
  *
@@ -42,8 +47,9 @@ import { loadOptionalTexture } from '../core/assets';
  *    whoever is on deck instead.
  * 2. **Gun-dropships.** Raider dropships on strafing passes down either
  *    flank, looping over the bow or stern to come back down the other side.
- * 3. **Boarding tubes.** A dropship that survives its run hovers beside a
- *    boarding point and latches a tube onto the deck edge. Pirates and a
+ * 3. **Boarding tubes.** A dropship comes in over the side at the guns'
+ *    height, then drops beside a boarding point and latches a tube onto the
+ *    deck edge. Pirates and a
  *    Pyke heavy pour out of it, and the latched tube drains the hull until
  *    somebody cuts its latch — melee, or a rocket; bolts spark off the clamp.
  *    The guns cannot depress onto the deck (and an unmanned gun locks onto
@@ -99,14 +105,43 @@ const GUNS: { key: Bearing; x: number; z: number; yaw: number }[] = [
   { key: 'astern', x: 0, z: -23, yaw: Math.PI },
   { key: 'port', x: 7, z: 0, yaw: Math.PI / 2 },
 ];
-/** half of each gun's 200° arc */
-const GUN_ARC = (100 * Math.PI) / 180;
+/** half of each gun's arc: all the way round */
+const GUN_ARC = Math.PI;
 /**
  * The guns cannot depress onto their own deck: the barrels stop a little
  * above level, so a bolt clears a standing boarder's head from five metres
  * out (the barrels sit 1.4–1.7 m over the deck).
  */
 const GUN_PITCH_MIN = 0.08;
+/** a quad gun with its gunner in it, over the deck: what another gun must clear */
+const GUN_TOP = 3.4;
+/** the lowest barrel's mouth over the deck (`QUAD_MUZZLES`), and how far out it is */
+const MUZZLE_Y = 1.74;
+const MUZZLE_OUT = 2.5;
+
+/**
+ * The barrels' floor on a bearing, for gun `gi`: over another gun they will
+ * not come down below a line half a metre over its gunner's head. Faded in
+ * across the gun's width, so a swing across it lifts the barrels smoothly
+ * rather than in a jump.
+ */
+function gunFloor(gi: number, yaw: number): number {
+  const g = GUNS[gi];
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  let floor = GUN_PITCH_MIN;
+  GUNS.forEach((o, j) => {
+    if (j === gi) return;
+    const dx = o.x - g.x, dz = o.z - g.z;
+    const along = dx * fx + dz * fz;
+    if (along <= 0) return;
+    const perp = Math.abs(dx * fz - dz * fx);
+    const w = THREE.MathUtils.clamp((3.8 - perp) / 1.2, 0, 1);
+    if (w <= 0) return;
+    const need = Math.atan2(GUN_TOP + 0.5 - MUZZLE_Y, Math.max(1, along - MUZZLE_OUT - 1.9));
+    floor = Math.max(floor, GUN_PITCH_MIN + (need - GUN_PITCH_MIN) * w);
+  });
+  return floor;
+}
 
 /** the three boarding points on the deck edge (B1 port aft, B2 starboard, B3 port forward) */
 const BOARD_PTS: { x: number; z: number; bearing: Bearing }[] = [
@@ -541,11 +576,9 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   const engineLight = new THREE.PointLight(0x6ab8ff, 0, 60, 1.4);
   engineLight.position.set(0, Y0 - 4, STERN - 12);
   ctx.mesh(engineLight);
-  // a sensor mast at the bow tip, a landmark down the length of the deck
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 7, 8), trim);
-  ctx.own(mast.geometry);
-  mast.position.set(0, Y0 + 3.5, BOW - 1.2);
-  ctx.mesh(mast);
+  // (The bow's sensor mast is gone: seven metres of pole straight in front of
+  // the bow gun's barrels, which looked as if the gun could shoot its own ship.
+  // Nothing on the deck now stands higher than a muzzle.)
 
   // ---- bulwarks: knee-high armour along both flanks, open at the boarding points ----
   const bulwarkRuns = (side: number): [number, number][] => {
@@ -680,16 +713,17 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   ctx.mesh(fwdLidPivot);
 
   // ---- the radar lamps: one on each side of the hull, red when a contact comes that way ----
+  // Low on the rail, under every muzzle: tall posts here stood in the guns' way.
   const lampSpots: Record<Bearing, THREE.Vector3> = {
-    ahead: P(0, 7.2, BOW - 1.2), astern: P(0, 2.2, STERN + 0.6),
-    port: P(HALF_W - 0.3, 2.2, -6), starboard: P(-HALF_W + 0.3, 2.2, -6),
+    ahead: P(0, 1.1, BOW - 1.2), astern: P(0, 1.2, STERN + 0.6),
+    port: P(HALF_W - 0.3, 1.2, -6), starboard: P(-HALF_W + 0.3, 1.2, -6),
   };
   const redLamp = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
   ctx.own(redLamp);
   const radarLamps = {} as Record<Bearing, { mesh: THREE.Mesh; light: THREE.PointLight }>;
   for (const b of Object.keys(lampSpots) as Bearing[]) {
     const at = lampSpots[b];
-    if (b !== 'ahead') {
+    {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, at.y - Y0, 6), trim);
       ctx.own(post.geometry);
       post.position.set(at.x, (at.y + Y0) / 2, at.z);
@@ -964,8 +998,63 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   // drives (`Enemy.scripted`) and sizes to the thing it stands for; its
   // visuals are the section's own. Turret soft-lock, lock-on and the radar
   // pip come with it for free.
+  // ---- hits on the pirates' craft: a burst where the bolt struck, and a red flash ----
+  // A ship taking fire used to show nothing until it broke: the bolts went in
+  // and it flew on. Now every hit that does damage bursts at the point it
+  // struck, and the craft's hull flashes red — so a gunner tracking one can see
+  // they are on it. The flash clones the craft's materials once (they are
+  // shared with the pool's other models) and eases their glow back.
+  const HIT_RED = new THREE.Color(0xff2a14);
+  const flashes = new Map<THREE.Object3D, { t: number; mats: { m: THREE.MeshStandardMaterial; e: THREE.Color; i: number }[] }>();
+  const flash = (root: THREE.Object3D | null): void => {
+    if (!root) return;
+    let f = flashes.get(root);
+    if (!f) { f = { t: 0, mats: [] }; flashes.set(root, f); }
+    const fl = f;
+    // a sculpt can land mid-fight: anything not yet ours is taken over now
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const next = list.map((m) => {
+        const sm = m as THREE.MeshStandardMaterial;
+        if (!sm.emissive || sm.userData.hitFlash) return m;
+        const c = sm.clone();
+        c.userData.hitFlash = true;
+        ctx.own(c);
+        fl.mats.push({ m: c, e: c.emissive.clone(), i: c.emissiveIntensity });
+        return c;
+      });
+      mesh.material = Array.isArray(mesh.material) ? next : next[0];
+    });
+    fl.t = 0.2;
+  };
+  const updateFlashes = (dt: number): void => {
+    for (const f of flashes.values()) {
+      if (f.t <= 0) continue;
+      f.t = Math.max(0, f.t - dt);
+      const k = f.t / 0.2;
+      for (const x of f.mats) {
+        // strong enough to read at a hundred metres, not so strong the hull's detail is lost under fire
+        x.m.emissive.copy(x.e).lerp(HIT_RED, k * 0.8);
+        x.m.emissiveIntensity = x.i + k * 0.9;
+      }
+    }
+  };
+  const _hitAt = new THREE.Vector3();
+  /** a hit that did damage: the burst on the craft's skin, facing the shot, and the flash */
+  const shipHit = (e: Enemy, from: THREE.Vector3, look: THREE.Object3D | null): void => {
+    const c = _hitAt.set(e.position.x, e.position.y + e.height * 0.5, e.position.z);
+    const to = from.clone().sub(c);
+    if (to.lengthSq() > 1e-4) c.addScaledVector(to.normalize(), e.radius * 0.9);
+    game.particles.explosion(c.clone(), 0.32);
+    game.particles.impactSparks(c.clone(), 8);
+    flash(look);
+  };
+
   const proxy = (at: THREE.Vector3, hp: number, shape: { r: number; h: number; parts?: { z: number; y: number; r: number }[] },
-    drive: (e: Enemy, dt: number) => void, hurt?: (amount: number, from: THREE.Vector3, bySlot: number) => number): Enemy => {
+    drive: (e: Enemy, dt: number) => void, hurt?: (amount: number, from: THREE.Vector3, bySlot: number) => number,
+    look?: () => THREE.Object3D | null): Enemy => {
     const e = ctx.spawn('droid', at, { exact: true, squad: 8840 });
     e.position.copy(at);
     e.hp = e.maxHp = hp;
@@ -983,7 +1072,11 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
         last.copy(b.position);
         return 'still';
       },
-      ...(hurt ? { hurt } : {}),
+      hurt: (amount, from, bySlot) => {
+        const n = hurt ? hurt(amount, from, bySlot) : amount;
+        if (n > 0 && look) shipHit(e, from, look());
+        return n;
+      },
     };
     return e;
   };
@@ -1050,15 +1143,17 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     (amount, _from, bySlot) => {
       if (s.state === 'latched' && amount < 40) return amount * 0.25;
       return bySlot < 0 && amount < 40 ? amount * AUTO_VS_ARMOUR : amount;
-    });
+    },
+    () => s.model);
   const launchShip = (kind: 'gunship' | 'board', bearing: Bearing, pt = 0): void => {
     const model = takeModel();
     if (!model) return;
     model.userData.busy = true;
     const out = BEARING[bearing];
-    // a gunship comes in high; a boarder comes up from under the hull, where
-    // no gun on the deck can depress to it — the radar is the only warning
-    const p0 = P(0, kind === 'gunship' ? 18 : -34, 0).addScaledVector(out, 200);
+    // both come in high, where the guns can track them (a boarder used to come
+    // up from under the hull, out of every gun's reach until it had latched);
+    // a boarder drops to its boarding point only at the end of its run
+    const p0 = P(0, kind === 'gunship' ? 18 : 16, 0).addScaledVector(out, 200);
     const s: Ship = {
       kind, e: null as unknown as Enemy, model, state: 'inbound', t: 0,
       p0, p1: new THREE.Vector3(), p2: new THREE.Vector3(), u: 0, len: 1, speed: 26,
@@ -1070,14 +1165,14 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       if (bearing === 'port' || bearing === 'starboard') s.side = bearing === 'port' ? 1 : -1;
       else s.side = Math.random() < 0.5 ? 1 : -1;
       s.dir = bearing === 'ahead' ? -1 : 1;
-      s.p2.copy(P(s.side * 32, 9, -s.dir * 62));
+      s.p2.copy(P(s.side * 32, 14, -s.dir * 62));
       s.p1.copy(s.p2).addScaledVector(out, 60).setY(Y0 + 24);
       s.speed = 34;
     } else {
       const b = BOARD_PTS[pt];
       s.side = Math.sign(b.x);
       s.p2.copy(P(b.x + s.side * 7.5, -2.8, b.z));
-      s.p1.copy(s.p2).add(new THREE.Vector3(s.side * 14, -34, 0)).addScaledVector(out, 40);
+      s.p1.copy(s.p2).add(new THREE.Vector3(s.side * 16, 16, 0)).addScaledVector(out, 40);
       s.speed = 24;
     }
     s.len = bezLen(s.p0, s.p1, s.p2);
@@ -1159,7 +1254,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
   const startPass = (s: Ship): void => {
     s.state = 'pass';
     s.p0.copy(s.pos);
-    s.p2.copy(P(s.side * 32, 8 + Math.random() * 3, s.dir * 68));
+    // a pass flies at the guns' height: over the far gun's floor, under their top
+    s.p2.copy(P(s.side * 32, 13 + Math.random() * 4, s.dir * 68));
     s.p1.copy(s.p0).lerp(s.p2, 0.5).setX(s.side * 30);
     s.u = 0;
     s.speed = 14;
@@ -1173,7 +1269,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     s.p1.copy(P(0, 40, s.dir * 110));
     s.side = -s.side;
     s.dir = -s.dir;
-    s.p2.copy(P(s.side * 32, 10, -s.dir * 68));
+    s.p2.copy(P(s.side * 32, 14, -s.dir * 68));
     s.u = 0;
     s.speed = 24;
     s.len = bezLen(s.p0, s.p1, s.p2);
@@ -1356,7 +1452,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       if (g.node) g.node.visible = true;
       g.e = proxy(nodeWorld(g.node, GEN_LOCAL[g.i]), genHp, { r: 2.3, h: 4.6 }, (e) => {
         e.position.copy(nodeWorld(g.node, GEN_LOCAL[g.i])).y -= 2.3;
-      }, (amount, _from, bySlot) => { shieldMat.opacity = 0.32; return armour(amount, bySlot); });
+      }, (amount, _from, bySlot) => { shieldMat.opacity = 0.32; return armour(amount, bySlot); },
+      () => g.node ?? corvette);
     }
     bridge = proxy(nodeWorld(bridgeNode, BRIDGE_LOCAL), bridgeHp, { r: 3.2, h: 4.6, parts: [{ z: 2.5, y: 2.3, r: 2.6 }, { z: -2.5, y: 2.3, r: 2.6 }] },
       (e) => {
@@ -1366,7 +1463,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       (amount, _from, bySlot) => {
         if (shieldsUp()) { shieldMat.opacity = 0.5; return 0; }
         return armour(amount, bySlot);
-      });
+      },
+      () => bridgeNode ?? corvette);
     ctx.announce(T.corvette, T.corvetteSub);
     audio.bossHorn(false);
     radar.push({ bearing: 'starboard', what: 'corvette', t: 3 });
@@ -1608,14 +1706,31 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     if (!started) {
       started = true;
       rides = new RideLedger(ctx);
-      for (const gn of GUNS) {
-        guns.push(rides.add({ kind: 'turret', x: gn.x, z: gn.z, y: Y0, yaw: gn.yaw }, {
+      GUNS.forEach((gn, gi) => {
+        guns.push(rides!.add({ kind: 'turret', x: gn.x, z: gn.z, y: Y0, yaw: gn.yaw }, {
           team: 0, hp: 900,
           // the eye a hand over the gunner's shield (K3's default sits level with
           // its top edge, and the plate filled the lower half of the sight)
-          turret: { yawArc: GUN_ARC, pitchMin: GUN_PITCH_MIN, pitchMax: 0.75, autoRange: 110, sight: { x: 0, y: 2.7, z: -0.35 } },
+          turret: {
+            yawArc: GUN_ARC, pitchMin: GUN_PITCH_MIN, pitchMax: 0.75, autoRange: 110, sight: { x: 0, y: 2.7, z: -0.35 },
+            pitchFloor: (yaw) => gunFloor(gi, yaw),
+          },
         }));
-      }
+      });
+      // Crossfire: a quad gun's bolts stop at whoever is in front of them,
+      // friends included (`ProjectileSystem.crossfire`). A hunter caught is
+      // blasted off the deck into space, and comes back up a hatch like any
+      // fall; one who meets it with a blade (block) turns it like any bolt.
+      game.projectiles.crossfire = (tag) => tag === 'turret';
+      game.projectiles.onCrossfire = (slot, dir, at) => {
+        const p = game.players[slot];
+        if (!p || !p.alive || p.vehicle || p.exited) return;
+        game.particles.explosion(at, 0.7);
+        audio.explosion();
+        p.damage(25, at, -1, { heavy: true });
+        p.velocity.set(dir.x * 26, Math.max(9, dir.y * 26 + 9), dir.z * 26);
+        p.cam.shake(0.35);
+      };
       for (const p of game.players) {
         p.sectionMove = composeMoves({
           meleeHit: (_p, target, amount) => {
@@ -1628,6 +1743,7 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
       audio.doorCycle();
     }
     phaseT += dt;
+    updateFlashes(dt);
     // the plate texture lands bright; the frigate is old grey metal
     if (plate.map && !deckToned) { deckToned = true; plate.color.set(0x8a9098); }
     if (stationMat.map && !stationToned) { stationToned = true; stationMat.color.set(0x6c7684); }
@@ -1997,7 +2113,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     }
     const a = aimAt(p, sight, best, gun.def.gun?.speed ?? 95);
     out.yaw = a.yaw;
-    p.cam.pitch = THREE.MathUtils.clamp(a.pitch, GUN_PITCH_MIN, 0.75);
+    const gi = guns.indexOf(gun);
+    p.cam.pitch = THREE.MathUtils.clamp(a.pitch, gi < 0 ? GUN_PITCH_MIN : gunFloor(gi, a.yaw), 0.75);
     const err = Math.abs(angleDiff(gun.yaw, a.yaw)) + Math.abs(gun.aimPitch - p.cam.pitch);
     out.shootHeld = !gun.overheated && gun.heat < 0.92 && err < 0.12;
     return out;
@@ -2044,6 +2161,12 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     gens: () => gens.map((g) => g.e),
     bridge: () => bridge,
     spawn: (kind: EnemyKind, x: number, z: number) => ctx.spawn(kind, P(x, 0, z), { exact: true, squad: 8899 }),
+    /** a gunship on its way in, and its hit-proxy */
+    gunship: (b: Bearing) => { launchShip('gunship', b); return ships[ships.length - 1]?.e ?? null; },
+    /** is any craft's hull flashing red from a hit right now? */
+    flashing: () => [...flashes.values()].some((f) => f.t > 0 && f.mats.length > 0),
+    /** the barrels' floor for gun `i` on world bearing `yaw` */
+    floor: (i: number, yaw: number) => gunFloor(i, yaw),
   };
 
   return {
@@ -2066,6 +2189,8 @@ function build(ctx: SectionContext): SectionInstance & { probe: unknown } {
     dispose: () => {
       rides?.dispose();
       for (const p of game.players) p.sectionMove = null;
+      game.projectiles.crossfire = null;
+      game.projectiles.onCrossfire = null;
     },
     debug: () => ({
       phase, wave: waveIdx + 1, hull: Math.round(hull.body.hp), drones: drones.length, ships: ships.length,

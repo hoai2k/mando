@@ -192,6 +192,14 @@ export interface TurretDef {
   auto: number;
   /** how far an unmanned gun looks for something to shoot */
   autoRange: number;
+  /**
+   * The lowest the barrels may point at a given bearing (world yaw), when a
+   * section's deck has things on it the gun must not be able to hit — the
+   * other guns, their gunners (Guns of the Frigate). Taken with `pitchMin`,
+   * whichever is higher, by the gunner's sight, the unmanned brain and the
+   * slew alike.
+   */
+  pitchFloor?: (yaw: number) => number;
 }
 
 /**
@@ -2005,7 +2013,9 @@ export class Vehicle {
     dir.normalize();
     const lock = this.softLock(origin, dir, g, team, game);
     if (lock) dir.subVectors(lock, origin).normalize();
-    game.projectiles.fire(origin, dir, g.speed, g.damage, team, slot);
+    // a turret's bolts are tagged, so a section can let them hit the party's own
+    // (`ProjectileSystem.crossfire`: a gun on a crowded deck is not a friendly thing)
+    game.projectiles.fire(origin, dir, g.speed, g.damage, team, slot, this.def.turret ? 'turret' : undefined);
     game.particles.muzzleFlash(origin, dir);
     if (shooter) {
       audio.blaster(g.voice ?? 'carbine');
@@ -2365,7 +2375,7 @@ export class Vehicle {
     this.gunTick(dt);
     const off = clamp(wrapAngle(p.cam.yaw - this.baseYaw), -t.yawArc, t.yawArc);
     p.cam.yaw = this.baseYaw + off;
-    p.cam.pitch = clamp(p.cam.pitch, t.pitchMin, t.pitchMax);
+    p.cam.pitch = clamp(p.cam.pitch, this.pitchFloorAt(p.cam.yaw), t.pitchMax);
     this.slewTo(p.cam.yaw, p.cam.pitch, dt);
     if (input.shootHeld) {
       // converge on what the sight is over: sixty metres down the barrels' line
@@ -2410,8 +2420,8 @@ export class Vehicle {
     _aim.subVectors(_aimPt, _sight);
     const wantYaw = Math.atan2(_aim.x, _aim.z);
     const wantPitch = Math.atan2(_aim.y, Math.hypot(_aim.x, _aim.z));
-    this.slewTo(this.baseYaw + clamp(wrapAngle(wantYaw - this.baseYaw), -t.yawArc, t.yawArc),
-      clamp(wantPitch, t.pitchMin, t.pitchMax), dt);
+    const aimYaw = this.baseYaw + clamp(wrapAngle(wantYaw - this.baseYaw), -t.yawArc, t.yawArc);
+    this.slewTo(aimYaw, clamp(wantPitch, this.pitchFloorAt(aimYaw), t.pitchMax), dt);
     const onIt = Math.abs(wrapAngle(wantYaw - this.yaw)) < 0.07 && Math.abs(wantPitch - this.aimPitch) < 0.08;
     // bursts: five rounds, then a breath — long enough to be read and dodged
     this.burstRest -= dt;
@@ -2452,6 +2462,14 @@ export class Vehicle {
     const step = (this.def.turret?.slew ?? 2) * dt;
     this.yaw += clamp(wrapAngle(yaw - this.yaw), -step, step);
     this.aimPitch += clamp(pitch - this.aimPitch, -step, step);
+    // swinging past something on the deck lifts the barrels over it, whatever was asked
+    if (this.def.turret?.pitchFloor) this.aimPitch = Math.max(this.aimPitch, this.pitchFloorAt(this.yaw));
+  }
+
+  /** the lowest the barrels may point on this bearing: the def's floor, and the section's (`pitchFloor`) */
+  private pitchFloorAt(yaw: number): number {
+    const t = this.def.turret!;
+    return t.pitchFloor ? Math.max(t.pitchMin, t.pitchFloor(yaw)) : t.pitchMin;
   }
 
   /** the ring where it was bolted; the gun turned and pitched on it */

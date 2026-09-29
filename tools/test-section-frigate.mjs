@@ -4,7 +4,7 @@
  * can be finished; this proves the pieces it is made of do what the design
  * says they do:
  *
- *  1. The **guns**: four quad guns in a diamond, 200° arcs, owned by the
+ *  1. The **guns**: four quad guns in a diamond, all the way round, owned by the
  *     party, and an unmanned one shoots drones down on its own.
  *  2. They **cannot depress onto the deck**: a gunner aiming at a boarder on
  *     the deck gets the barrels no lower than level, and the boarder lives.
@@ -60,7 +60,7 @@ const guns = await page.evaluate(() => {
   }));
 });
 check('four quad guns stand on the hull', guns.length === 4 && guns.every((g) => g.kind === 'turret'), guns);
-check('each with a 200° arc', guns.every((g) => Math.abs(g.arc * 2 - (200 * Math.PI) / 180) < 0.01));
+check('each coming all the way round', guns.every((g) => g.arc >= Math.PI - 1e-6));
 check('the party\'s guns, firing at half rate when nobody is in them', guns.every((g) => g.team === 0 && g.auto === 0.5));
 check('in a diamond: bow, stern, port, starboard',
   guns.some((g) => g.z > 15) && guns.some((g) => g.z < -15) && guns.some((g) => g.x > 5) && guns.some((g) => g.x < -5));
