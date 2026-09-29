@@ -27,6 +27,7 @@ import { WeaponAnchorEditor } from './weaponAnchorEdit';
 import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { hasGeoAudit, syncGeoOverlay } from './geoOverlay';
+import { RIG_EXPERIMENTS } from './roster';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -166,7 +167,7 @@ let showGrid = true;
 /** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
 let fists = initialParams.get('fists') === '1';
 /** the geometric joint audit on the figures (geoOverlay.ts): 0 off, 1 joint markers, 2 markers and the volume stand-in */
-let geoView = Number(initialParams.get('geo') ?? 0);
+let geoView = RIG_EXPERIMENTS ? Number(initialParams.get('geo') ?? 0) : 0;
 const FISTS_FREE_TITLE = 'Curls the model\'s fingers into a fist on any pose, to see how it reads with them.';
 const FISTS_SET_TITLE = 'The game closes this character\'s hands on this pose (gun hand, ride grips, a bare-handed fight, walking and running), so this shows them as it does.';
 let editing = false;
@@ -938,7 +939,7 @@ function renderPanel(): void {
     <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
     <label class="check" title="${FISTS_FREE_TITLE}"><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists <span class="fists-note">— set by the game here</span></label>
-    ${hasGeoAudit(cid()) ? `
+    ${RIG_EXPERIMENTS && hasGeoAudit(cid()) ? `
     <label class="check" title="docs/audits/geo-joints.md: green = where the mesh's volume puts each limb joint, blue = the skin-weight seam, red = the rig's joint"><input type="checkbox" id="geoJoints" ${geoView ? 'checked' : ''}> Geometric joints</label>
     <label class="check" title="The volume-based stand-in: capsules along the geometric centre lines, sized by the section profile"><input type="checkbox" id="geoStandIn" ${geoView > 1 ? 'checked' : ''}> …and volume stand-in</label>` : ''}
     ${subject.hasModel && !isProp(subject) ? `

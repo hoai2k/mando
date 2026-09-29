@@ -81,12 +81,19 @@ const vehicle = (kind: VehicleSpec['kind']): Subject => ({
   build: () => buildVehicleFigure(kind),
 });
 
+/**
+ * The joint-placement experiments (re-rigged models, the geometric joint
+ * overlay) — on hold, kept for later. The re-rigged .glb files live in
+ * archive/rerig/; copy them back into public/models/ before turning this on.
+ */
+export const RIG_EXPERIMENTS = false;
+
 export const GROUPS: SubjectGroup[] = [
   {
     label: 'Playable',
     subjects: PLAYABLE_MANDO_IDS.map(mando),
   },
-  {
+  ...(RIG_EXPERIMENTS ? [{
     label: 'Re-rigged (joint audit)',
     subjects: [{
       // docs/audits/rig-joints.md: the joints the audit calls likely misplaced
@@ -104,8 +111,8 @@ export const GROUPS: SubjectGroup[] = [
     }, {
       id: 'duelist_rerig_geo', name: 'Cad Bane — re-rigged from geometry', character: 'duelist', modelFile: 'duelist_rerig_geo', hasModel: true,
       build: (authored) => buildMandalorian('duelist', { authored, modelFile: 'duelist_rerig_geo' }),
-    }],
-  },
+    }] as Subject[],
+  }] : []),
   {
     label: 'Benched',
     subjects: [...BENCHED_MANDO_IDS].map(mando),
