@@ -78,16 +78,25 @@ try {
   check('undo restores the key', undone.keys === before.keys && (await ledger()).length === 0
     && (await boneAngle()) - at < 0.5, undone);
 
-  // fists: the fingers the model was delivered without, curled on demand
+  // fists: the fingers the model was delivered without. Paz is passed for
+  // play, and the game closes his hands in a bare-handed fight: the pose shows
+  // it, and the toggle stands aside
   await page.locator('#editToggle').click();
-  await page.locator('#fists').check();
   await page.waitForTimeout(200);
-  const fist = await page.evaluate(() => {
+  const knuckleTurn = () => page.evaluate(() => {
     let knuckle = null;
     window.__wb.figures[0].inst.root.traverse((o) => { if (o.name === 'fist_knuckleR') knuckle = o; });
-    return knuckle ? knuckle.rotation.z : null;
+    return knuckle ? 2 * Math.acos(Math.min(1, Math.abs(knuckle.quaternion.w))) : null;
   });
-  check('Clench fists curls the fingers', fist !== null && fist > 1, { fist });
+  const official = { disabled: await page.locator('#fists').isDisabled(), turn: await knuckleTurn() };
+  check('the game\'s own fists: Paz clenches in a fight, toggle locked', official.disabled && official.turn > 1, official);
+  // anyone not passed for play is the toggle's to preview
+  await h.workbench('revan', 'unarmed1', 'mode=authored');
+  const open = { disabled: await page.locator('#fists').isDisabled(), turn: await knuckleTurn() };
+  await page.locator('#fists').check();
+  await page.waitForTimeout(200);
+  const fist = await knuckleTurn();
+  check('Clench fists curls the fingers where the game leaves them', !open.disabled && open.turn < 0.05 && fist > 1, { open, fist });
   check('browser reported no errors', h.errors.length === 0, h.errors);
 } finally {
   await h.close();

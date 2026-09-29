@@ -26,6 +26,7 @@ import type { VehicleSpec } from '../world/board';
 import { reachArm } from '../anim/seating';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
+import { FistDriver } from '../characters/fists';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import { TEXT } from '../text';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
@@ -632,6 +633,8 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
+  /** closes the hands for what the body is doing, on the sculpts passed for it */
+  private fists: FistDriver | null = null;
   /** burn-zone damage accrues and lands in ticks, not per frame (src/core/body.ts) */
   private burn = newBurnState();
   /** where a flame volley was aimed when it started — the stream holds its line */
@@ -3483,6 +3486,15 @@ export class Enemy {
     // creatures that animate themselves need to know how fast they're going
     this.updateHalo(dt, game);
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
+    // hands close on the gun, the grips, a fight and a run (`fists.ts`); the
+    // swoop's rider has no clips to read and holds its bars itself
+    if (this.char.animator) {
+      if (this.fists?.root !== this.char.root) this.fists = new FistDriver(this.char.root, true);
+      this.fists.update(dt, this.alive ? this.char.animator : null, {
+        gun: !FIST_ENEMIES.has(this.kind) && (this.def.style === 'ranged' || this.def.style === 'hover'),
+        fight: FIST_ENEMIES.has(this.kind) && this.windup > 0,
+      });
+    }
     this.char.cosmetic?.(dt, game.time);
     // Hit flash: a brief scale pop, multiplied into the species bulk rather
     // than written over it. Overwriting meant every scaled enemy (dark trooper

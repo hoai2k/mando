@@ -37,6 +37,8 @@ export interface VehicleRig {
   /** the rider turned on the seat, and the sculpt on its keel (degrees) */
   yaw: number;
   modelYaw: number;
+  /** the rider's hands are on the grips this frame (a tiller with no grip placed leaves them free) */
+  gripped: boolean;
   /** where the clip alone puts the knees (m from the centre line), to start a spread from */
   kneeWidth(): number;
   /** where the clip alone puts the left sole, in the ride's frame, to start a footrest from */
@@ -94,6 +96,7 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     legSpread: data?.legSpread ?? null,
     yaw: data?.yaw ?? 0,
     modelYaw: data?.modelYaw ?? 0,
+    gripped: false,
     kneeWidth: () => {
       const rig = rider.rig;
       if (!rig) return 0.2;
@@ -166,10 +169,12 @@ export function buildVehicleFigure(kind: VehicleSpec['kind'], riderId: MandoId =
     // free here too, until a grip is placed for it — then it is what the
     // game will do once the anchor is exported.
     const placed = vr.grip.toArray().some((n, i) => Math.abs(n - vr.defaults.grip[i]) > 1e-6);
+    vr.gripped = false;
     if (!def.hands && !VEHICLE_ANCHORS[kind] && !placed) return;
     const hold = handsFor(def, { seat: vr.seat.toArray() as V3, grip: vr.grip.toArray() as V3 });
     const rig = rider.rig;
     if (!hold || !rig) return;
+    vr.gripped = true;
     root.updateMatrixWorld(true);
     for (const side of [-1, 1] as const) {
       if (hold.only === 'left' && side !== 1) continue;

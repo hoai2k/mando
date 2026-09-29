@@ -364,7 +364,7 @@ function loadRaw(id: string, trackKey = modelUrl(id)): Promise<THREE.Group | nul
           if (jawDoc) applyJawRig(gltf.scene, jawDoc);
           // ...and fingers for the Rigify hands, which shipped as one bone
           // each: unturned they change nothing, and a fist can close them
-          applyFistRig(gltf.scene);
+          applyFistRig(gltf.scene, id);
           // Stash the file's own clips on the scene. Characters on our rig are
           // driven by our clips and ignore these, but a creature with a rig of
           // its own (the quadruped massiff) has nothing else to animate it.

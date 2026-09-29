@@ -20,6 +20,8 @@ import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { FIST_ENEMIES } from '../characters/combatStyle';
 import { clench } from '../characters/fistRig';
+import { fistsInPlay, fistTargets } from '../characters/fists';
+import type { VehicleRig } from './vehicleFigure';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
 import { VehicleAnchorEditor } from './vehicleAnchorEdit';
@@ -162,6 +164,8 @@ const folds = { shoulders: false, details: false };
 let showGrid = true;
 /** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
 let fists = initialParams.get('fists') === '1';
+const FISTS_FREE_TITLE = 'Curls the model\'s fingers into a fist on any pose, to see how it reads with them.';
+const FISTS_SET_TITLE = 'The game closes this character\'s hands on this pose (gun hand, ride grips, a bare-handed fight, walking and running), so this shows them as it does.';
 let editing = false;
 let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
 /**
@@ -533,6 +537,39 @@ function heldWeapon(): { loadout: Loadout | null; slots: WeaponSlot[]; hand: Wea
   return { loadout, slots, hand, gameHand };
 }
 
+/**
+ * How the game itself closes a figure's hands on this pose (`fists.ts`), or
+ * null where it leaves them as sculpted and the toggle is free to preview.
+ * An NPC's rule counts: the workbench shows a fighter as the game can field it.
+ */
+function officialFists(f: Figure): [number, number] | null {
+  const root = f.inst.root;
+  if (!fistsInPlay(root, true)) return null;
+  const ride = root.userData.vehicleRig as VehicleRig | undefined;
+  if (ride) return ride.gripped ? [1, 1] : null;
+  // the swoop's rider holds its bars, and closes on them
+  if (root.userData.niktoRider) return [1, 1];
+  const [r, l] = fistTargets(f.inst.animator, { gun: heldWeapon().hand === 'gun' });
+  return r || l ? [r, l] : null;
+}
+
+/** each figure's hands: the game's own fists where it sets them, the toggle's everywhere else */
+function syncFists(): void {
+  let set = false;
+  for (const f of figures) {
+    const official = officialFists(f);
+    set ||= !!official;
+    if (official) clench(f.inst.root, official[0], official[1]);
+    else clench(f.inst.root, fists ? 1 : 0);
+  }
+  const box = panel.querySelector<HTMLInputElement>('#fists');
+  if (box && box.disabled !== set) {
+    box.disabled = set;
+    box.parentElement!.title = set ? FISTS_SET_TITLE : FISTS_FREE_TITLE;
+    box.parentElement!.classList.toggle('official', set);
+  }
+}
+
 /** Seconds in the longest active channel; both channels scrub together. */
 function animationDuration(): number {
   const anim = figures.find((f) => f.inst.animator)?.inst.animator;
@@ -891,7 +928,7 @@ function renderPanel(): void {
 
     <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
-    <label class="check" title="Curls the model's fingers into a fist on any pose. A preview: the game does not clench yet."><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists</label>
+    <label class="check" title="${FISTS_FREE_TITLE}"><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists <span class="fists-note">— set by the game here</span></label>
     ${subject.hasModel && !isProp(subject) ? `
     <details class="fold" data-fold="shoulders" ${folds.shoulders ? 'open' : ''}><summary>Shoulder width</summary>
     <div class="field playback shoulder-tuning">
@@ -1807,7 +1844,7 @@ function frame(now: number): void {
   if (!paused && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
-  for (const f of figures) clench(f.inst.root, fists ? 1 : 0);
+  syncFists();
   editor.update();
   positionEditor.update(camera);
   weaponEditor.update(camera);

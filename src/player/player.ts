@@ -29,6 +29,7 @@ import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
 import { strikePace } from '../characters/combatStyle';
+import { FistDriver } from '../characters/fists';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
@@ -562,6 +563,8 @@ export class Player {
    * therefore switches itself off for a character who carries no gun.
    */
   weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
+  /** closes the hands for what the body is doing, on the sculpts passed for it */
+  private fists: FistDriver | null = null;
   /** which of the carried weapons is in each slot; the D-pad moves these */
   private rangedIdx = 0;
   private meleeIdx = 0;
@@ -3778,6 +3781,12 @@ export class Player {
     }
     // creature playables (PvP heavies) animate themselves off their gait
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
+    // hands close on the gun, the grips, a fight and a run (`fists.ts`)
+    if (this.fists?.root !== this.char.root) this.fists = new FistDriver(this.char.root, false);
+    this.fists.update(dt, this.alive ? this.char.animator : null, {
+      gun: this.weapon === 'blaster' && !this.meleeOnly,
+      fight: this.meleeKind === 'fists' && (this.meleeTimer > 0 || this.meleeComboWindow > 0),
+    });
     this.char.cosmetic?.(dt, game.time);
   }
 }
