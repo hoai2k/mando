@@ -78,6 +78,7 @@ const SUITES = [
   { name: 'test-sound-button', weight: 20 },
   { name: 'test-workbench-weapon-grips', weight: 136 },
   { name: 'test-workbench-moment-edits', weight: 60 },
+  { name: 'test-workbench-fist-palms', weight: 40 },
   { name: 'test-walk', weight: 50 },
   { name: 'test-fists', weight: 70 },
   { name: 'test-loading', weight: 134 },

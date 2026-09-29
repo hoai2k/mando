@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import deployedTunes from './data/fistTunes.json';
+import { DEFAULT_PALM } from './handAnchors';
 
 /**
  * Fists for sculpts whose hands cannot make one.
@@ -29,7 +30,17 @@ import deployedTunes from './data/fistTunes.json';
  * Some sculpts leave the hand to the forearm's twist bone altogether (Embo,
  * Ventress): the hand bone carries none of it, so neither a wrist nor a finger
  * can move it. Those vertices — past the wrist, carried by the arm — are
- * handed to the hand bone first, blended across the wrist.
+ * handed to the hand bone first, blended across the wrist. On others (the
+ * Pykes) the hand bone was put down at the fingertips, and the whole hand lies
+ * before it, on the twist bone: there the fingers hang off that bone instead,
+ * measured in the hand bone's frame all the same.
+ *
+ * Where the fingers bend is read off the palm placed for the character
+ * (`handAnchors.ts`): the palm mark sits on the palm's surface at the base of
+ * the fingers, and each hand's knuckle joint goes that far along it, give or
+ * take the tune's `knuckleFromPalm` — so moving a palm moves its fist
+ * (`seatFistsOnPalms`). A hand with no palm placed keeps the tune's
+ * `knuckleAt`.
  *
  * The first sculpts closed well on the frame every Rigify hand was assumed to
  * share (+Y to the fingertips, the palm on -X for the right hand and +X for
@@ -53,10 +64,15 @@ const SHARED_FRAME: ReadonlySet<string> = new Set([
  * (toward the thumb, or the little finger), and a flip for a palm the
  * measurement put on the wrong side. A sculpt with fingers of its own (`own`)
  * takes the curls, the tilt and the flip; its joints are where it was built.
+ *
+ * The knuckle joint is the placed palm mark's share of the hand plus
+ * `knuckleFromPalm` (`knuckleAt` for a hand with no palm placed); the middle
+ * joint is `middleOn` of the way on from it to the fingertips.
  */
 export interface FistTune {
   knuckleAt: number;
-  middleAt: number;
+  knuckleFromPalm: number;
+  middleOn: number;
   knuckle: number;
   middle: number;
   thumb: number;
@@ -64,11 +80,18 @@ export interface FistTune {
   tilt: number;
   flip: boolean;
 }
+/**
+ * The knuckle joint's place past the palm mark, as a share of the hand
+ * measured from the wrist: the mark is on the palm's skin where the fingers
+ * start, and the fists passed for play bend a quarter of the hand past where
+ * Din's palms were placed (his at 23% and 30%, his knuckles at 50%).
+ */
+const KNUCKLE_FROM_PALM = 0.25;
 /** fingers this rig added to a one-bone hand, or the ones the sculpt shipped with */
 export type FistKind = 'added' | 'own';
 const DEFAULTS: Record<FistKind, FistTune> = {
-  added: { knuckleAt: 0.5, middleAt: 0.74, knuckle: 85, middle: 95, thumb: 55, thumbTwist: 20, tilt: 0, flip: false },
-  own: { knuckleAt: 0.5, middleAt: 0.74, knuckle: 70, middle: 70, thumb: 35, thumbTwist: 0, tilt: 0, flip: false },
+  added: { knuckleAt: 0.5, knuckleFromPalm: KNUCKLE_FROM_PALM, middleOn: 0.48, knuckle: 85, middle: 95, thumb: 55, thumbTwist: 20, tilt: 0, flip: false },
+  own: { knuckleAt: 0.5, knuckleFromPalm: KNUCKLE_FROM_PALM, middleOn: 0.48, knuckle: 70, middle: 70, thumb: 35, thumbTwist: 0, tilt: 0, flip: false },
 };
 const deployed = deployedTunes as Record<string, Partial<FistTune>>;
 const workbenchTunes = new Map<string, FistTune>();
@@ -100,6 +123,16 @@ export function setWorkbenchFistTune(model: string, tune: FistTune | null): void
 
 const SIDES = ['R', 'L'] as const;
 type Side = (typeof SIDES)[number];
+
+/** each sculpt's placed palm marks, as a share of each hand (wrist 0, fingertips 1) */
+const palmShares = new Map<string, Partial<Record<Side, number>>>();
+
+/** where one hand's knuckle and middle joints sit along it (shares of the hand), by its palm and the tune */
+function jointsOf(model: string, side: Side, tune: FistTune): { knuckle: number; middle: number } {
+  const u = palmShares.get(model)?.[side];
+  const knuckle = u === undefined ? tune.knuckleAt : THREE.MathUtils.clamp(u + tune.knuckleFromPalm, 0.15, 0.85);
+  return { knuckle, middle: knuckle + tune.middleOn * (1 - knuckle) };
+}
 /** the loader flattens dots out of node names: `DEF-hand.R` arrives as `DEF-handR` */
 const norm = (n: string): string => n.replace(/[.\s:[\]]/g, '');
 const smooth = (a: number, b: number, x: number): number => {
@@ -292,6 +325,32 @@ function adoptHand(users: THREE.SkinnedMesh[], bones: THREE.Bone[], inverses: TH
   }
 }
 
+/**
+ * A hand bone put down at the fingertips: nothing the arm carries lies past
+ * it, and the bone before it (the forearm's twist) carries skin right up to
+ * it — the hand, which then moves with that bone rather than this one.
+ */
+function handBeforeItsBone(users: THREE.SkinnedMesh[], bones: THREE.Bone[], inverses: THREE.Matrix4[], hand: number): boolean {
+  const parent = bones.indexOf(bones[hand].parent as THREE.Bone);
+  if (parent < 0) return false;
+  const reach = bones[hand].position.length();
+  const p = new THREE.Vector3();
+  let past = 0, before = 0;
+  for (const mesh of users) {
+    const toHand = inverses[hand].clone().multiply(mesh.bindMatrix);
+    const pos = mesh.geometry.attributes.position, idx = mesh.geometry.attributes.skinIndex, wt = mesh.geometry.attributes.skinWeight;
+    for (let v = 0; v < pos.count; v++) {
+      let best = -1, bw = 0;
+      for (let k = 0; k < idx.itemSize; k++) if (wt.getComponent(v, k) > bw) { bw = wt.getComponent(v, k); best = idx.getComponent(v, k); }
+      if (best !== parent && best !== hand) continue;
+      p.fromBufferAttribute(pos, v).applyMatrix4(toHand);
+      if (p.y > reach * 0.05) past++;
+      else if (best === parent && p.y > -reach * 0.3) before++;
+    }
+  }
+  return past < 20 && before >= 20;
+}
+
 /** the direction back up the arm from a bone's origin, in its own frame */
 function towardParent(bone: THREE.Object3D): THREE.Vector3 {
   const back = bone.position.clone().negate().applyQuaternion(bone.quaternion.clone().invert());
@@ -320,35 +379,49 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
     if (model) kinds.set(model, 'added');
     const tune = fistTune(model);
 
-    const hands: Array<{ side: Side; hand: number; verts: HandVertex[]; frame: HandFrame }> = [];
+    const hands: Array<{ side: Side; hand: number; carrier: number; verts: HandVertex[]; frame: HandFrame }> = [];
     for (const side of SIDES) {
       const hand = bones.findIndex((b) => norm(b.name) === `DEF-hand${side}`);
       if (hand < 0) continue;
       adoptHand(users, bones, inverses, hand);
-      // the hand's vertices in its own bind frame: those it carries most of all
-      const verts: HandVertex[] = [];
-      users.forEach((mesh, mi) => {
-        const toHand = inverses[hand].clone().multiply(mesh.bindMatrix);
-        const pos = mesh.geometry.attributes.position;
-        const idx = mesh.geometry.attributes.skinIndex;
-        const wt = mesh.geometry.attributes.skinWeight;
-        for (let v = 0; v < pos.count; v++) {
-          let w = 0, other = 0;
-          for (let k = 0; k < idx.itemSize; k++) {
-            const x = wt.getComponent(v, k);
-            if (idx.getComponent(v, k) === hand) w += x; else other = Math.max(other, x);
+      // the hand's vertices in its own bind frame: those the bone carrying
+      // the hand carries most of all — the hand bone, or, for a hand bone put
+      // down at the fingertips, the twist bone the whole hand lies on
+      // (short of the hand bone: nothing is past it)
+      const carried = (carrier: number, before: boolean): HandVertex[] => {
+        const verts: HandVertex[] = [];
+        users.forEach((mesh, mi) => {
+          const toHand = inverses[hand].clone().multiply(mesh.bindMatrix);
+          const pos = mesh.geometry.attributes.position;
+          const idx = mesh.geometry.attributes.skinIndex;
+          const wt = mesh.geometry.attributes.skinWeight;
+          for (let v = 0; v < pos.count; v++) {
+            let w = 0, other = 0;
+            for (let k = 0; k < idx.itemSize; k++) {
+              const x = wt.getComponent(v, k);
+              if (idx.getComponent(v, k) === carrier) w += x; else other = Math.max(other, x);
+            }
+            if (w < 0.25 || w < other) continue;
+            const p = new THREE.Vector3().fromBufferAttribute(pos, v).applyMatrix4(toHand);
+            if (before && p.y > 0) continue;
+            const orig: Array<[number, number]> = [];
+            for (let k = 0; k < idx.itemSize; k++) orig.push([idx.getComponent(v, k), wt.getComponent(v, k)]);
+            verts.push({ mesh: mi, v, p, w, orig });
           }
-          if (w < 0.25 || w < other) continue;
-          const orig: Array<[number, number]> = [];
-          for (let k = 0; k < idx.itemSize; k++) orig.push([idx.getComponent(v, k), wt.getComponent(v, k)]);
-          verts.push({ mesh: mi, v, p: new THREE.Vector3().fromBufferAttribute(pos, v).applyMatrix4(toHand), w, orig });
-        }
-      });
+        });
+        return verts;
+      };
+      let carrier = hand;
+      let verts = carried(hand, false);
+      if (verts.length < 20 && handBeforeItsBone(users, bones, inverses, hand)) {
+        carrier = bones.indexOf(bones[hand].parent as THREE.Bone);
+        verts = carried(carrier, true);
+      }
       if (verts.length < 20) continue;
       const frame = SHARED_FRAME.has(model)
         ? sharedFrame(side, verts)
         : measureHand(verts.map((h) => h.p), towardParent(bones[hand]), side, new THREE.Vector3(0, 1, 0));
-      hands.push({ side, hand, verts, frame });
+      hands.push({ side, hand, carrier, verts, frame });
     }
     // A sculpt's hands are mirror images (a Rigify left hand's frame is its
     // right's with X flipped), so a hand the cues barely decide goes the way
@@ -362,8 +435,12 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
         if (h.frame.palm.dot(want) < 0) { h.frame.palm.negate(); h.frame.thumb.negate(); }
       }
     }
-    for (const { side, hand, verts, frame } of hands) {
+    for (const { side, hand, carrier, verts, frame } of hands) {
       const at = (p: THREE.Vector3): number => (p.dot(frame.along) - frame.from) / frame.length;
+      // the hand's frame in the carrier's, where the fingers hang off a twist bone (identity otherwise)
+      const toCarrier = carrier === hand ? new THREE.Matrix4()
+        : new THREE.Matrix4().compose(bones[hand].position, bones[hand].quaternion, bones[hand].scale);
+      const restInCarrier = carrier === hand ? undefined : bones[hand].quaternion.toArray() as [number, number, number, number];
       const tips = verts.filter((h) => at(h.p) > 0.82).map((h) => h.p.dot(frame.thumb));
       const edge = Math.max(...tips) + (Math.max(...tips) - Math.min(...tips)) * 0.15;
       const bandAt = (u: number): THREE.Vector3 => {
@@ -372,8 +449,9 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
       };
       const thumbRoot = verts.filter((h) => h.p.dot(frame.thumb) > edge && at(h.p) > 0.12 && at(h.p) < 0.32).map((h) => h.p);
       const base = bandAt(0.22);
+      const joints = jointsOf(model, side, tune);
       const pos = {
-        knuckle: bandAt(tune.knuckleAt), middle: bandAt(tune.middleAt),
+        knuckle: bandAt(joints.knuckle), middle: bandAt(joints.middle),
         thumb: thumbRoot.length ? centroid(thumbRoot) : base.addScaledVector(frame.thumb, edge - base.dot(frame.thumb)),
       };
       // the fingers curl toward the palm, about the axis square to both
@@ -384,6 +462,13 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
         const bone = new THREE.Bone();
         bone.name = name;
         bone.position.copy(offset);
+        // hung off the carrier, a finger starts out turned as the hand is on it
+        if (parent === carrier && carrier !== hand) {
+          bone.position.applyMatrix4(toCarrier);
+          bone.quaternion.fromArray(restInCarrier!);
+          bone.scale.copy(bones[hand].scale);
+          curl = { ...curl, rest: restInCarrier };
+        }
         bone.userData.fistCurl = { ...curl, model };
         bones[parent].add(bone);
         bones.push(bone);
@@ -392,19 +477,19 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
         return bones.length - 1;
       };
       const palm = arr(frame.palm);
-      const knuckle = add(boneName(side, 'knuckle'), hand, pos.knuckle, pos.knuckle,
+      const knuckle = add(boneName(side, 'knuckle'), carrier, pos.knuckle, pos.knuckle,
         { axis: arr(curlAxis), degrees: DEFAULTS.added.knuckle, part: 'knuckle', palm });
       const middle = add(boneName(side, 'middle'), knuckle, pos.middle.clone().sub(pos.knuckle), pos.middle,
         { axis: arr(curlAxis), degrees: DEFAULTS.added.middle, part: 'middle', palm });
-      const thumb = add(boneName(side, 'thumb'), hand, pos.thumb, pos.thumb, {
+      const thumb = add(boneName(side, 'thumb'), carrier, pos.thumb, pos.thumb, {
         axis: arr(frame.along.clone().multiplyScalar(thumbSign)), degrees: DEFAULTS.added.thumb, part: 'thumb',
         twist: { axis: arr(curlAxis), degrees: DEFAULTS.added.thumbTwist },
       });
-      remaps.push({ side, hand, knuckle, middle, thumb, verts, frame, thumbEdge: edge, bandAt });
+      remaps.push({ side, hand, carrier, toCarrier, knuckle, middle, thumb, verts, frame, thumbEdge: edge, bandAt });
     }
     if (!remaps.length) continue;
 
-    for (const fitted of remaps) weigh(fitted, users, tune);
+    for (const fitted of remaps) weigh(fitted, users, jointsOf(model, fitted.side, tune));
     const next = new THREE.Skeleton(bones, inverses);
     for (const mesh of users) mesh.bind(next, mesh.bindMatrix);
     settle(users);
@@ -416,6 +501,10 @@ export function applyFistRig(root: THREE.Object3D, model = ''): void {
 /** one hand's added fingers: the bones, the vertices they share, and how to find a point along it */
 interface FittedHand {
   side: Side; hand: number; knuckle: number; middle: number; thumb: number;
+  /** the bone the hand's skin is on, which the fingers hang off: the hand, or the twist bone before it */
+  carrier: number;
+  /** the hand bone's frame into the carrier's (identity when they are one) */
+  toCarrier: THREE.Matrix4;
   verts: HandVertex[]; frame: HandFrame; thumbEdge: number;
   bandAt: (u: number) => THREE.Vector3;
 }
@@ -428,7 +517,7 @@ const fits = new Map<string, FittedRig[]>();
  * rather than tears: from the influences they had before, so it can be done
  * again with the joints somewhere else.
  */
-function weigh(h: FittedHand, users: THREE.SkinnedMesh[], tune: FistTune): void {
+function weigh(h: FittedHand, users: THREE.SkinnedMesh[], joints: { knuckle: number; middle: number }): void {
   const { frame } = h;
   for (const vert of h.verts) {
     const mesh = users[vert.mesh];
@@ -441,12 +530,12 @@ function weigh(h: FittedHand, users: THREE.SkinnedMesh[], tune: FistTune): void 
       const t = smooth(0.14, 0.3, u);
       if (t > 0) give.push([h.thumb, t]);
     } else {
-      const f1 = smooth(tune.knuckleAt - 0.06, tune.knuckleAt + 0.06, u);
-      const f2 = smooth(tune.middleAt - 0.05, tune.middleAt + 0.05, u);
+      const f1 = smooth(joints.knuckle - 0.06, joints.knuckle + 0.06, u);
+      const f2 = smooth(joints.middle - 0.05, joints.middle + 0.05, u);
       if (f1 * (1 - f2) > 0) give.push([h.knuckle, f1 * (1 - f2)]);
       if (f1 * f2 > 0) give.push([h.middle, f1 * f2]);
     }
-    if (give.length) reweigh(mesh, vert.v, h.hand, give);
+    if (give.length) reweigh(mesh, vert.v, h.carrier, give);
   }
 }
 
@@ -474,31 +563,74 @@ function settle(users: THREE.SkinnedMesh[]): void {
  */
 export function fistFrames(model: string): Array<{
   side: Side; hand: string; along: THREE.Vector3; palm: THREE.Vector3; from: number; length: number;
-  /** where the fist expects the palm: see `palmCentre` */
-  palmCentre: THREE.Vector3;
+  /** where the palm mark goes for the fist as it stands: see `palmMark` */
+  palmMark: THREE.Vector3;
+  /** where a palm mark would seat the knuckle joint at the tune's `knuckleAt` (the fist with no palm placed) */
+  restMark: THREE.Vector3;
+  /** the knuckle joint's share of the hand, as seated now */
+  knuckleAt: number;
 }> {
-  return (fits.get(model) ?? []).flatMap((rig) => rig.hands.map((h) => ({
-    side: h.side, hand: rig.bones[h.hand].name, along: h.frame.along.clone(), palm: h.frame.palm.clone(),
-    from: h.frame.from, length: h.frame.length, palmCentre: palmCentre(h, fistTune(model).knuckleAt),
-  })));
+  const tune = fistTune(model);
+  return (fits.get(model) ?? []).flatMap((rig) => rig.hands.map((h) => {
+    const { knuckle } = jointsOf(model, h.side, tune);
+    return {
+      side: h.side, hand: rig.bones[h.hand].name, along: h.frame.along.clone(), palm: h.frame.palm.clone(),
+      from: h.frame.from, length: h.frame.length, knuckleAt: knuckle,
+      // a palm mark put here seats the joint where it is now
+      palmMark: palmMark(h, palmShares.get(model)?.[h.side] ?? knuckle - tune.knuckleFromPalm),
+      restMark: palmMark(h, tune.knuckleAt - tune.knuckleFromPalm),
+    };
+  }));
 }
 
 /**
- * The middle of the palm as the fist sees the hand, in the hand bone's space:
- * halfway from the wrist to the knuckle joint (so a palm placed here, read by
- * the workbench's Follow the palm, gives back the joint where it is), in the
- * middle of the hand's width with the thumb left out, and on the palm's own
- * surface.
+ * The palm mark as the fist reads it, in the hand bone's space: on the palm's
+ * own skin, across the middle of the fingers (the thumb left out), `u` of the
+ * way down the hand — where the fingers start, for the fist as it stands.
  */
-function palmCentre(h: FittedHand, knuckleAt: number): THREE.Vector3 {
+function palmMark(h: FittedHand, u: number): THREE.Vector3 {
   const { frame } = h;
-  const u = knuckleAt / 2;
   const at = (p: THREE.Vector3): number => (p.dot(frame.along) - frame.from) / frame.length;
-  const band = h.verts.map((v) => v.p).filter((p) => Math.abs(at(p) - u) < 0.08 && p.dot(frame.thumb) <= h.thumbEdge);
+  const band = h.verts.map((v) => v.p).filter((p) => Math.abs(at(p) - u) < 0.06 && p.dot(frame.thumb) <= h.thumbEdge);
   const c = band.length ? centroid(band) : h.bandAt(u);
-  const surface = band.length ? Math.max(...band.map((p) => p.dot(frame.palm))) : c.dot(frame.palm);
+  // the skin nearest the palm across the middle of the hand's width, not off an edge
+  const across = new THREE.Vector3().crossVectors(frame.along, frame.palm).normalize();
+  const width = band.length ? Math.max(...band.map((p) => p.dot(across))) - Math.min(...band.map((p) => p.dot(across))) : 0;
+  const middle = band.filter((p) => Math.abs(p.clone().sub(c).dot(across)) < width * 0.25);
+  // the hand is a shell: its palm-side half is the palm's skin (and the odd
+  // relaxed finger curled in front of it, which the median outvotes)
+  const skin = (middle.length ? middle : band).map((p) => p.dot(frame.palm)).filter((d) => d > c.dot(frame.palm))
+    .sort((a, b) => a - b);
+  const surface = skin.length ? skin[Math.floor(skin.length / 2)] : c.dot(frame.palm);
   return c.addScaledVector(frame.palm, surface - c.dot(frame.palm));
 }
+
+/**
+ * Seat each hand's knuckle and middle joints from the palm placed on it: the
+ * mark's share of the hand, plus the tune's `knuckleFromPalm`. `palmAt` gives
+ * a side's placed palm (from the wrist, as `handAnchors.ts` keeps it) or null
+ * for one never placed; the palm frames on `root` carry it into the hand
+ * bone's space. True when a joint moved (and the skin was weighed again).
+ */
+export function seatFistsOnPalms(model: string, root: THREE.Object3D, palmAt: (side: Side) => THREE.Vector3 | null): boolean {
+  const rigs = fits.get(model);
+  if (!rigs) return false;
+  const next: Partial<Record<Side, number>> = {};
+  for (const rig of rigs) for (const h of rig.hands) {
+    const frame = root.getObjectByName(`palmFrame${h.side}`);
+    const q = palmAt(h.side);
+    if (!frame || !q || frame.parent?.name !== rig.bones[h.hand].name) continue;
+    frame.updateMatrix();
+    const p = q.clone().sub(_origin.set(...DEFAULT_PALM)).applyMatrix4(frame.matrix);
+    next[h.side] = +((p.dot(h.frame.along) - h.frame.from) / h.frame.length).toFixed(4);
+  }
+  const was = palmShares.get(model) ?? {};
+  if (was.L === next.L && was.R === next.R) return false;
+  palmShares.set(model, next);
+  refitFists(model, [root]);
+  return true;
+}
+const _origin = new THREE.Vector3();
 
 /**
  * Move a sculpt's added finger joints to where its tune now puts them, and
@@ -511,15 +643,16 @@ export function refitFists(model: string, roots: THREE.Object3D[]): void {
   const seats = new Map<string, THREE.Vector3>();
   for (const rig of fits.get(model) ?? []) {
     for (const h of rig.hands) {
-      const knuckle = h.bandAt(tune.knuckleAt), middle = h.bandAt(tune.middleAt);
+      const joints = jointsOf(model, h.side, tune);
+      const knuckle = h.bandAt(joints.knuckle), middle = h.bandAt(joints.middle);
       rig.inverses[h.knuckle].makeTranslation(-knuckle.x, -knuckle.y, -knuckle.z).multiply(rig.inverses[h.hand]);
       rig.inverses[h.middle].makeTranslation(-middle.x, -middle.y, -middle.z).multiply(rig.inverses[h.hand]);
-      const offsets = { knuckle, middle: middle.clone().sub(knuckle) };
+      const offsets = { knuckle: knuckle.clone().applyMatrix4(h.toCarrier), middle: middle.clone().sub(knuckle) };
       rig.bones[h.knuckle].position.copy(offsets.knuckle);
       rig.bones[h.middle].position.copy(offsets.middle);
       seats.set(boneName(h.side, 'knuckle'), offsets.knuckle);
       seats.set(boneName(h.side, 'middle'), offsets.middle);
-      weigh(h, rig.users, tune);
+      weigh(h, rig.users, joints);
     }
     settle(rig.users);
   }
