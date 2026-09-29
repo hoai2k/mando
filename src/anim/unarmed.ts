@@ -99,15 +99,17 @@ export function unarmedClips(p: Proportions, pace = 1): ClipSet {
   };
 
   // ---------------------------------------------------------------- slot 1
-  // Wound-up cross: the rear fist draws back beside the ear as the lead hand
-  // reaches out to measure, then the hips turn and the right drives straight
-  // through the target while the left snaps home to the chin.
+  // Wound-up cross: the rear fist draws back wide and high, out past its
+  // elbow, as the lead hand reaches out to measure, then the hips turn and the
+  // right drives straight through the target while the left snaps home to the
+  // chin. The wind-up key is in the chest's frame, which the counter-turn has
+  // swung ~47° away, so "out and forward" there reads as out and back.
   {
     const at = [0, 0.25, 0.38, 0.45, 0.6, 1];
     add('fistCross', 0.75, at, {
       chest: [G_CHEST, [2, -15, 0], [6, 10, 0], [10, 22, 0], [10, 24, 0], G_CHEST],
       head: [G_HEAD, [-4, 40, 0], [0, 0, 0], [4, -32, 0], [4, -34, 0], G_HEAD],
-      ...arm('R', GUARD_R, [[-0.22, 0.15, 0], [-0.5, -0.6, -1]], [[-0.15, 0.03, 0.35], [-0.3, -1, -0.2]],
+      ...arm('R', GUARD_R, [[-0.64, 0.15, 0.12], [0.3, -1, 0]], [[-0.15, 0.03, 0.35], [-0.3, -1, -0.2]],
         [[-0.5, 0.35, 0.58]], [[-0.5, 0.33, 0.56]], GUARD_R),
       ...arm('L', GUARD_L, [[0.55, 0.1, 0.55]], [[0.2, 0.05, 0.35]], TUCK_L, TUCK_L, GUARD_L),
     }, {
