@@ -4,7 +4,8 @@ import type { SectionDef, SectionInstance, SectionHud, SectionBar, AutopilotInpu
 import type { SectionContext } from './context';
 import { Enemy, type EnemyKind } from '../enemies/enemy';
 import type { StaticBox } from '../core/physics';
-import { addBox, mat, type CharacterInstance } from '../characters/builder';
+import { addBox, addSphere, buildBiped, mat, type CharacterInstance } from '../characters/builder';
+import { attachAuthored, loadAuthored } from '../characters/authored';
 import { buildGunfighter } from '../characters/enemies';
 import { buildMandalorian } from '../characters/mandalorians';
 import { Interactions, type Interactable } from './kit/interact';
@@ -130,6 +131,7 @@ interface Prisoner {
 }
 
 function build(ctx: SectionContext): SectionInstance {
+  probePrisonerSculpt();
   const { game, spec } = ctx;
   const Y0 = ctx.floorY;
   const T = TEXT.sections['one-way-out'];
@@ -802,6 +804,11 @@ function build(ctx: SectionContext): SectionInstance {
         complete = true;
         broughtOut = prisoners.filter((pr) => pr.e.alive && pr.e.position.distanceTo(stairMouth) < 22).length;
         ctx.announce(broughtOut >= 10 ? T.scoreBonus(broughtOut) : T.score(broughtOut), T.scoreSub);
+        // Ten or more hold the stairwell behind the party: the next stage's
+        // lieutenant (the supervisor deck) calls for backup and nobody comes.
+        if (broughtOut >= 10) game.campaign?.waiveRetinue?.(ctx.index + 1, T.retinueHeld);
+        // one crossing ends it, however many step in on this frame
+        break;
       }
     }
   };
@@ -989,14 +996,54 @@ function groundKind(k: EnemyKind): EnemyKind {
 }
 
 // ================================================================ the prisoner
-// The `prisoner` model is requested (docs/ASSETS_MODELS.md) and not yet
-// delivered. Until it is, the prisoners are a random mix of Maris and Cobb
-// Vanth (the marshal) with their weapons stowed. They fight on the escort AI
-// as unarmed brawlers — the pirate brawler's numbers with the reach of a fist
-// — and draw their own gun once they have picked up a guard's rifle.
+// The `prisoner` model (docs/ASSETS_MODELS.md: a 1.78 m biped on the canonical
+// rig) drops in as soon as its file exists. Until then the prisoners are a
+// random mix of Maris and Cobb Vanth (the marshal) with their weapons stowed.
+// They fight on the escort AI as unarmed brawlers — the pirate brawler's
+// numbers with the reach of a fist — and draw a gun once they have picked up
+// a guard's rifle.
 
-/** a stand-in prisoner body, and how to put its own gun in its hands */
+/**
+ * Has the `prisoner` sculpt been found? Asked once per section build
+ * (`probePrisonerSculpt`); prisoners let out after the answer wear it.
+ */
+let prisonerSculpt = false;
+function probePrisonerSculpt(): void {
+  if (prisonerSculpt) return;
+  void loadAuthored('prisoner', PRISONER_H).then((m) => { if (m) prisonerSculpt = true; });
+}
+/** the sheet's standing height (docs/ASSETS_MODELS.md) */
+const PRISONER_H = 1.78;
+
+/** a prisoner body, and how to put a gun in its hands */
 function buildPrisoner(): { inst: CharacterInstance; draw: () => void } {
+  if (prisonerSculpt) {
+    // the delivered sculpt, on the canonical rig (the swap contract): a plain
+    // pale biped underneath, and a rifle already mounted in the hand and
+    // hidden, carried into the sculpt's hand when it goes on
+    const suit = mat(0xd9d4c4, { rough: 0.95 });
+    const { inst, rig } = buildBiped({ skin: suit, torso: mat(0x8a8f92, { rough: 0.9 }) });
+    addSphere(rig.bones.head, mat(0xc89a78, { rough: 0.8 }), 0.12, 0, 0.05, 0.01, 10, 8, 1.12, 1);
+    const gun = new THREE.Group();
+    addBox(gun, mat(0x2a2a2a, { rough: 0.5, metal: 0.5 }), 0.07, 0.1, 0.62, 0, 0, 0);
+    gun.rotation.x = Math.PI / 2;
+    gun.visible = false;
+    const muzzle = new THREE.Group();
+    muzzle.position.set(0, 0.02, 0.4);
+    gun.add(muzzle);
+    rig.bones.weaponR.add(gun);
+    const swap = attachAuthored(rig, 'prisoner', PRISONER_H, {
+      animator: inst.animator,
+      keep: [rig.bones.weaponR, rig.bones.weaponL],
+      onLoad: (model) => { if (model.weaponMount) model.weaponMount.add(gun); },
+    });
+    const prev = inst.cosmetic;
+    inst.cosmetic = (dt, time) => { swap.update(); prev?.(dt, time); };
+    inst.muzzle = muzzle;
+    return { inst, draw: () => { gun.visible = true; } };
+  }
+  // Until it lands (and as asked for, as a temporary stand-in): a random mix
+  // of Maris and Cobb Vanth, weapons stowed, who draw their own guns.
   if (Math.random() < 0.5) {
     const maris = buildMandalorian('maris');
     maris.setWeapon('none');

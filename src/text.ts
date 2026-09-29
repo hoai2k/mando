@@ -1282,6 +1282,7 @@ export const TEXT = {
       score: (n: number) => `${n} brought out`,
       scoreBonus: (n: number) => `${n} brought out — they hold the stairs`,
       scoreSub: 'up to the work floor',
+      retinueHeld: 'nobody comes — the prisoners hold the stairs',
     },
     'the-lift': {
       stage: 'the lift', title: 'The Lift',

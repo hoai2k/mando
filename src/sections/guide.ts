@@ -302,12 +302,13 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Hold Y · C at a block\'s release panel to free its prisoners. They follow the nearest of you.',
       'Climb to a gantry, clear the guards near its control desk, and hold Y · C there. That third goes dead.',
       'Two desks down (one alone) opens the stair core. The floor still live overloads.',
-      'Clear the stairwell squad and lead the crowd up. Ten or more brought out hold the stairs.',
+      'Clear the stairwell squad and step into the stair core. Everyone with you then counts.',
     ],
     tips: [
       'Prisoners will not step onto a charging or live tile. Walk them across, don\'t fly, or they stay behind.',
       'A downed guard drops his rifle, and an empty-handed prisoner runs to pick it up.',
       'Prisoners who die are gone. You re-form beside a teammate, or at the pool if nobody is standing.',
+      'Prisoners are optional: you can leave with none. Bring ten or more and they hold the stairs, so the supervisor deck\'s lieutenant calls for backup and nobody comes.',
     ],
   },
 
