@@ -983,6 +983,7 @@ export const TEXT = {
       sub: 'the vent is flooding — climb',
       lip: 'the chimney lip',
       climb: (m: number) => `Climb · magma ${m} m below`,
+      floorOf: (k: number, of: number) => `floor ${k} of ${of}`,
       valveVerb: 'vent the shutter',
       valveLabel: 'the valve',
       valveHint: 'Way up shut · hold Y at the valve',

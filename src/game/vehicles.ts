@@ -6,7 +6,7 @@ import type { Enemy } from '../enemies/enemy';
 import { applyKnockback } from '../core/body';
 import type { Board, VehicleSpec } from '../world/board';
 import type { FrameInput } from '../core/input';
-import type { StaticBox } from '../core/physics';
+import type { StaticBox, StaticCylinder } from '../core/physics';
 import type { DeflectSphere } from '../fx/projectiles';
 import { loadProp } from '../characters/authored';
 import { propsUsed } from '../world/props';
@@ -177,8 +177,15 @@ export interface TurretDef {
   pitchMax: number;
   /** the gunner's eye over the keel, in the gun's own (turned) space */
   sight: { x: number; y: number; z: number };
-  /** the height of the trunnion the barrels pitch about */
+  /** the height of the trunnion the barrels pitch about (it stands over the ring's centre) */
   pivot: number;
+  /**
+   * The barrels' mouths with the gun level, in the ride's space (as `seat`).
+   * A turret fires from these rather than its gun's own list, so a section
+   * that hands a turret a heavier gun keeps the mouths where the barrels
+   * are; the sculpt's `muzzle_0..3` empties take over when it lands.
+   */
+  muzzles: { x: number; y: number; z: number }[];
   /** how fast the gun comes round, rad/s */
   slew: number;
   /** with nobody in it: fire at this fraction of the rate (0 = never) */
@@ -206,6 +213,12 @@ export interface VehicleOpts {
   hp?: number;
   /** a turret built otherwise than the kind's own: its arc, its auto-fire */
   turret?: Partial<TurretDef>;
+  /**
+   * Build a turret this much bigger than the sheet's 4 m — the whole box:
+   * the model, the drum's collider, the seat, the sight and the muzzles.
+   * A barge's heavy gun is a quad gun placed large.
+   */
+  scale?: number;
 }
 
 /**
@@ -248,6 +261,37 @@ export interface LaneOrder {
    * apply). A gunner riding ahead of the party shoots back this way.
    */
   aimAt?: THREE.Vector3 | null;
+}
+
+/**
+ * The quad gun's four mouths, the gun level: two over two either side of the
+ * line, stacked on the trunnion (1.9 m up), 2.5 m out from the ring's centre.
+ *
+ * The sheet's governing size is 4.0 m long, the drum 3.0 m across: from the
+ * drum's back (−1.5) that puts the tips at +2.5 — 1.5 m past the turning
+ * block (r 1.1) that the sheet's "forward of the drum" is measured from, and
+ * 1.0 m past the base drum's rim. (Tips 1.5 m past the base drum would make
+ * the gun 4.5 m long, which is not the sheet's box.)
+ */
+const QUAD_MUZZLES = [
+  { x: 0.24, y: 2.06, z: 2.5 }, { x: -0.24, y: 2.06, z: 2.5 },
+  { x: 0.24, y: 1.74, z: 2.5 }, { x: -0.24, y: 1.74, z: 2.5 },
+];
+
+/** the quad gun's drum: how tall its collider stands */
+const DRUM_H = 1.0;
+
+/** a turret's def built `k` times the sheet's size: every length in it */
+function scaleTurret(def: VehicleDef, k: number): VehicleDef {
+  const p = (v: { x: number; y: number; z: number }) => ({ x: v.x * k, y: v.y * k, z: v.z * k });
+  const t = def.turret!;
+  return {
+    ...def,
+    radius: def.radius * k, body: def.body * k, length: def.length * k,
+    seat: { x: def.seat.x * k, y: (def.seat.y + STANCE_RISE.seated) * k - STANCE_RISE.seated, z: def.seat.z * k },
+    ...(def.gun ? { gun: { ...def.gun, muzzles: def.gun.muzzles.map(p) } } : {}),
+    turret: { ...t, sight: p(t.sight), pivot: t.pivot * k, muzzles: t.muzzles.map(p) },
+  };
 }
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
@@ -322,25 +366,32 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     name: 'Quad gun', hp: 420, top: 0, throttle: 0, brake: 0, drag: 0,
     turn: 0, grip: 10, boost: 0,
     shotResist: 0.45, crashScale: 0, mass: 40,
-    radius: 1.4, body: 2.2, hover: 0, length: 2.8,
-    // the gunner sits in the bucket behind the breech and turns with the gun
-    seat: { x: 0, y: 0.05, z: -1.0 }, stance: 'seated',
+    // To the `quad_turret` sheet (docs/SECTIONS_IMPLEMENTATION.md §4, Spice
+    // Run): 4.0 × 3.0 × 2.7 m. A drum 3.0 m across and 1.0 m tall (the
+    // collider: `park` stands a cylinder on it), the trunnion 1.9 m up over
+    // the drum's centre, the tips 2.5 m out (see `QUAD_MUZZLES`), the seat
+    // behind the breech and the curved shield behind that.
+    radius: 1.5, body: 2.7, hover: 0, length: 3.0,
+    // the gunner sits on the yaw block (its seat 1.35 up) behind the breech
+    // and turns with the gun
+    seat: { x: 0, y: 1.35 - 0.93, z: -0.62 }, stance: 'seated',
     modelId: 'quad_turret', modelSize: 4, modelAxis: 'longest', modelGround: true,
     gun: {
       // heat vents all the time and a shot adds it: 9 × 0.078 against 0.45 a
       // second locks a held trigger in about four seconds
       rate: 9, heat: 0.078, cool: 0.45, resume: 0.3, damage: 22, speed: 95,
       cone: 0.05, range: 140, voice: 'longrifle',
-      muzzles: [
-        { x: 0.32, y: 1.72, z: 1.9 }, { x: -0.32, y: 1.72, z: 1.9 },
-        { x: 0.32, y: 1.42, z: 1.9 }, { x: -0.32, y: 1.42, z: 1.9 },
-      ],
+      muzzles: QUAD_MUZZLES,
     },
     turret: {
       yawArc: Math.PI * 0.75, pitchMin: -0.25, pitchMax: 0.7,
-      // the sight clears the shield plate (top at 2.3): any lower and aiming
-      // below level looks into the plate's back
-      sight: { x: 0, y: 2.7, z: -0.35 }, pivot: 1.55,
+      // The eye over the breech. The sheet's shield is *behind* the seat, so
+      // nothing stands in front of the sight but the gun itself: high enough
+      // that the breech block (top 2.15, pitching with the barrels) stays
+      // under the view at the lowest pitch, and the barrels run out along
+      // the bottom of the frame.
+      sight: { x: 0, y: 2.45, z: -0.4 }, pivot: 1.9,
+      muzzles: QUAD_MUZZLES,
       slew: 2.6, auto: 0.5, autoRange: 90,
     },
   },
@@ -736,6 +787,12 @@ export class Vehicle {
   /** the turret's moving parts, stand-in or sculpt */
   private yawNode: THREE.Object3D | null = null;
   private pitchNode: THREE.Object3D | null = null;
+  /** the turret's muzzle empties (`muzzle_0..3`), stand-in or sculpt */
+  private muzzleNodes: THREE.Object3D[] = [];
+  /** a turret's drum, stood as a cylinder rather than a box (see `park`) */
+  private parkedCyl: StaticCylinder | null = null;
+  /** how much bigger than its sheet this ride was built (turrets only) */
+  private scale = 1;
   /**
    * A section's own brain for a hostile rider on a lane (K3). Null: the
    * built-in one — come alongside a player, swing or fire, peel off.
@@ -756,6 +813,8 @@ export class Vehicle {
         ...(opts.turret && base.turret ? { turret: { ...base.turret, ...opts.turret } } : {}),
       }
       : base;
+    if (opts.scale && opts.scale !== 1 && this.def.turret) this.def = scaleTurret(this.def, opts.scale);
+    this.scale = opts.scale ?? 1;
     this.lane = opts.lane ?? null;
     this.respawns = opts.respawns ?? true;
     this.team = opts.team ?? 0;
@@ -777,6 +836,10 @@ export class Vehicle {
     const parts = buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
     this.yawNode = parts.yaw;
     this.pitchNode = parts.pitch;
+    this.muzzleNodes = parts.muzzles;
+    // the stand-in and the sculpt are built at the sheet's size; a scaled
+    // turret scales the lot (its def was scaled to match, above)
+    if (this.scale !== 1) this.body.scale.setScalar(this.scale);
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
     if (this.lane) {
@@ -799,7 +862,14 @@ export class Vehicle {
 
   /** A parked ride is solid: one axis-aligned box over its footprint. */
   private park(): void {
-    if (this.parkedBox) return;
+    if (this.parkedBox || this.parkedCyl) return;
+    if (this.def.turret) {
+      // the sheet's collider: the drum, a cylinder its own width and a metre
+      // tall. The gun over it is out of reach, and the barrels are no wall.
+      const drum = DRUM_H * this.scale;
+      this.parkedCyl = this.board.physics.addCylinder(this.pos.x, this.pos.y + drum / 2, this.pos.z, this.def.radius, drum);
+      return;
+    }
     // the sculpt's own footprint where it has landed, the def's numbers until
     // then — and the AABB of that rectangle turned to the ride's yaw
     const hx = this.foot?.x ?? this.def.radius;
@@ -815,6 +885,12 @@ export class Vehicle {
   }
 
   private unpark(): void {
+    if (this.parkedCyl) {
+      const cyls = this.board.physics.cylinders;
+      const j = cyls.indexOf(this.parkedCyl);
+      if (j >= 0) cyls.splice(j, 1);
+      this.parkedCyl = null;
+    }
     if (!this.parkedBox) return;
     const boxes = this.board.physics.boxes;
     const i = boxes.indexOf(this.parkedBox);
@@ -1212,9 +1288,18 @@ export class Vehicle {
       const p = root.getObjectByName('pitch');
       if (y) this.yawNode = y;
       if (p) this.pitchNode = p;
+      // its mouths are its own empties; a sculpt that turns its own barrels
+      // but has none fires from the def's (the stand-in's would not turn)
+      const mouths = [0, 1, 2, 3].map((k) => root.getObjectByName(`muzzle_${k}`)).filter((o): o is THREE.Object3D => !!o);
+      if (mouths.length) this.muzzleNodes = mouths;
+      else if (p) this.muzzleNodes = [];
     }
-    this.footToModel(root);
-    this.seatToModel(root);
+    // a turret is built to its sheet, seat and footprint included, and may
+    // be placed scaled: its def already says where both are
+    if (!this.def.turret) {
+      this.footToModel(root);
+      this.seatToModel(root);
+    }
     if (this.def.living) this.gaitFromModel(root);
   }
 
@@ -1301,7 +1386,7 @@ export class Vehicle {
       footByKind.set(this.spec.kind, half);
     }
     this.foot = half;
-    if (this.parkedBox) { this.unpark(); this.park(); }
+    if (this.parkedBox || this.parkedCyl) { this.unpark(); this.park(); }
   }
 
   /** the height of the surface being sat on, over the keel */
@@ -1807,8 +1892,10 @@ export class Vehicle {
     const g = this.def.gun;
     if (!g || !this.alive || this.overheated || this.gunCd > 0) return false;
     this.gunCd = 1 / (g.rate * rate);
-    const m = g.muzzles[this.muzzleIdx++ % g.muzzles.length];
-    const origin = this.muzzleWorld(m, _muzzle);
+    // a turret fires from its own barrels whatever gun it was handed
+    const mouths = this.def.turret?.muzzles ?? g.muzzles;
+    const k = this.muzzleIdx++ % mouths.length;
+    const origin = this.muzzleWorld(k, mouths[k], _muzzle);
     const dir = _shot.subVectors(aimPt, origin);
     if (dir.lengthSq() < 1e-6) dir.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     dir.normalize();
@@ -1857,9 +1944,16 @@ export class Vehicle {
   }
 
   /** a muzzle in the world; a turret's barrels pitch about its trunnion */
-  private muzzleWorld(m: { x: number; y: number; z: number }, out: THREE.Vector3): THREE.Vector3 {
+  private muzzleWorld(k: number, m: { x: number; y: number; z: number }, out: THREE.Vector3): THREE.Vector3 {
     const t = this.def.turret;
     if (!t) return this.localPoint(m.x, m.y, m.z, out);
+    // a turret's mouths are its model's empties, turned and pitched with it
+    const node = this.muzzleNodes.length ? this.muzzleNodes[k % this.muzzleNodes.length] : null;
+    if (node) {
+      this.syncTurretNodes();
+      this.group.updateMatrixWorld(true);
+      return node.getWorldPosition(out);
+    }
     const c = Math.cos(this.aimPitch), sn = Math.sin(this.aimPitch);
     const dy = m.y - t.pivot;
     return this.localPoint(m.x, t.pivot + dy * c + m.z * sn, m.z * c - dy * sn, out);
@@ -2256,6 +2350,14 @@ export class Vehicle {
     this.aimPitch += clamp(pitch - this.aimPitch, -step, step);
   }
 
+  /** the ring where it was bolted; the gun turned and pitched on it */
+  private syncTurretNodes(): void {
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.baseYaw;
+    if (this.yawNode) this.yawNode.rotation.y = this.yaw - this.baseYaw;
+    if (this.pitchNode) this.pitchNode.rotation.x = -this.aimPitch;
+  }
+
   /** the gunner's eye, over the breech, turned with the gun */
   sightWorld(out: THREE.Vector3): THREE.Vector3 {
     const s = this.def.turret?.sight ?? { x: 0, y: this.def.body, z: 0 };
@@ -2309,7 +2411,7 @@ export class Vehicle {
     this.baseYaw = baseYaw;
     this.yaw = baseYaw + off;
     this.pos.set(x, y, z);
-    if (this.parkedBox) { this.unpark(); this.park(); }
+    if (this.parkedBox || this.parkedCyl) { this.unpark(); this.park(); }
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
   }
@@ -2652,7 +2754,7 @@ export class Vehicle {
       this.vel.z -= uz * push * (other.def.mass / total);
       other.vel.x += ux * push * (this.def.mass / total);
       other.vel.z += uz * push * (this.def.mass / total);
-      if (other.parkedBox) {
+      if (other.parkedBox && !other.def.turret) {
         // a parked ride that has just been hit is rolling now, not parked
         other.unpark();
         other.coasting = true;
@@ -2689,9 +2791,7 @@ export class Vehicle {
     this.group.position.copy(this.pos);
     if (this.def.turret) {
       // the ring stays where it was bolted; the gun turns and pitches on it
-      this.group.rotation.y = this.baseYaw;
-      if (this.yawNode) this.yawNode.rotation.y = this.yaw - this.baseYaw;
-      if (this.pitchNode) this.pitchNode.rotation.x = -this.aimPitch;
+      this.syncTurretNodes();
       this.updateShield(dt, game.time);
       return;
     }
@@ -2842,37 +2942,69 @@ export function sitOnModel(body: THREE.Object3D, surface: number | undefined, an
 export const riderRise = (stance: VehicleDef['stance'], hips = CANONICAL_HIPS): number => stanceRise(stance, hips);
 
 export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void,
-  onSettle?: () => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } {
+  onSettle?: () => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null; muzzles: THREE.Object3D[] } {
   const def = VEHICLE_DEFS[kind];
   const built: THREE.Mesh[] = [];
   const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
   const dark = mat(0x2c2f33, 0.7, 0.4);
-  const parts: { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } = { yaw: null, pitch: null };
+  const parts: { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null; muzzles: THREE.Object3D[] } = { yaw: null, pitch: null, muzzles: [] };
   if (kind === 'turret') {
-    // K3's quad gun, to the `quad_turret` spec (ASSETS_MODELS.md): a base
-    // ring, a `yaw` node that turns on it with the seat and the shield, and a
-    // `pitch` node — the barrel block, pivoting at the trunnion — with four
-    // barrels. The gun's own nodes are what the game drives, stand-in or sculpt.
+    // K3's quad gun, to its sheet (docs/SECTIONS_IMPLEMENTATION.md §4 and
+    // ASSETS_MODELS.md, `quad_turret`): 4.0 × 3.0 × 2.7 m, +Z the barrels.
+    //   base  — the static drum, 3.0 m across and 1.0 m tall;
+    //   yaw   — the block on it that turns about +Y, carrying the trunnion
+    //           cheeks, the seat and the curved shield behind the seat;
+    //   pitch — the barrel block, pivoting at the trunnion 1.9 m up over the
+    //           drum's centre: four barrels two over two, their tips 1.5 m
+    //           past the turning block, with `muzzle_0..3` empties there;
+    //   seat  — an empty at the gunner's seat.
+    // The game drives `yaw` and `pitch` by name, stand-in or sculpt.
+    const t = def.turret!;
     const iron = mat(0x4b4f52, 0.55, 0.6);
     const olive = mat(0x5d5a44, 0.7, 0.35);
-    track(addCyl(group, iron, 1.35, 1.5, 0.5, 0, 0.25, 0, 0));
+    const base = new THREE.Group();
+    base.name = 'base';
+    group.add(base);
+    track(addCyl(base, iron, 1.42, 1.5, DRUM_H * 0.8, 0, DRUM_H * 0.4, 0, 0));
+    track(addCyl(base, dark, 1.5, 1.5, DRUM_H * 0.2, 0, DRUM_H * 0.9, 0, 0));    // the race ring
     const yaw = new THREE.Group();
     yaw.name = 'yaw';
+    yaw.position.y = DRUM_H;
     group.add(yaw);
-    track(addCyl(yaw, dark, 0.9, 1.0, 0.45, 0, 0.72, 0, 0));
-    track(addBox(yaw, olive, 0.42, 1.0, 0.42, 0.62, 1.25, 0.1));      // trunnion cheeks
-    track(addBox(yaw, olive, 0.42, 1.0, 0.42, -0.62, 1.25, 0.1));
-    track(addBox(yaw, dark, 0.75, 0.12, 0.7, 0, 0.62, -1.0));         // the seat
-    track(addBox(yaw, dark, 0.75, 0.7, 0.1, 0, 0.95, -1.35));
-    track(addBox(yaw, olive, 2.0, 1.1, 0.08, 0, 1.75, 0.55));         // the gunner's shield
+    track(addCyl(yaw, olive, 1.0, 1.05, 0.35, 0, 0.175, 0, 0));                  // the turning block
+    for (const sx of [-1, 1]) {
+      // trunnion cheeks, topping out just over the trunnion so they stay low in the sight
+      track(addBox(yaw, olive, 0.22, t.pivot - DRUM_H + 0.05, 0.9, sx * 0.62, (t.pivot - DRUM_H + 0.05) / 2 + 0.1, 0));
+    }
+    track(addBox(yaw, dark, 0.62, 0.1, 0.55, 0, 0.35 - 0.05 + 0.05, -0.62));    // the seat pan (1.35 up)
+    const seat = new THREE.Group();
+    seat.name = 'seat';
+    seat.position.set(0, 0.4, -0.62);
+    yaw.add(seat);
+    // the curved shield behind the seat, up to the sheet's 2.7 m
+    const shieldH = 2.7 - DRUM_H - 0.25;
+    const shield = track(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, shieldH, 16, 1, true, Math.PI * 0.72, Math.PI * 0.56), olive));
+    shield.material = olive.clone();
+    (shield.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+    shield.position.set(0, 0.25 + shieldH / 2, 0.25);
+    shield.castShadow = true;
+    yaw.add(shield);
     const pitch = new THREE.Group();
     pitch.name = 'pitch';
-    pitch.position.set(0, def.turret?.pivot ?? 1.55, 0);
+    pitch.position.y = t.pivot - DRUM_H;
     yaw.add(pitch);
-    track(addBox(pitch, iron, 0.9, 0.6, 1.0, 0, 0.02, 0.3));          // breech block
-    for (const [bx, by] of [[0.32, 0.17], [-0.32, 0.17], [0.32, -0.13], [-0.32, -0.13]]) {
-      track(addCyl(pitch, dark, 0.07, 0.09, 1.7, bx, by, 1.3, Math.PI / 2));
-    }
+    track(addBox(pitch, iron, 0.9, 0.42, 1.1, 0, 0, 0.05));                     // the breech block
+    t.muzzles.forEach((m, k) => {
+      const my = m.y - t.pivot;
+      const len = m.z - 0.5;
+      track(addCyl(pitch, dark, 0.06, 0.085, len, m.x, my, 0.5 + len / 2, Math.PI / 2));
+      const mouth = new THREE.Object3D();
+      mouth.name = `muzzle_${k}`;
+      mouth.position.set(m.x, my, m.z);
+      pitch.add(mouth);
+      parts.muzzles.push(mouth);
+    });
     parts.yaw = yaw;
     parts.pitch = pitch;
   } else if (kind === 'swoop') {

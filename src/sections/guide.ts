@@ -96,6 +96,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'RB raises the ride\'s deflector shield, drawing on your shield gauge.',
       'Lose your bike on the lava and you get a fresh one at the last gate. On crust, you get one where you stand.',
       'The run ends once the barge is gone and every living hunter is standing on the landing.',
+      'If everyone goes down, the party re-forms at the last gate and that stretch plays again.',
     ],
   },
 
