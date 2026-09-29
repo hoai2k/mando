@@ -580,12 +580,20 @@ export function enemyStats(kind: EnemyKind): {
 
 /**
  * Everything on foot moves at this share of its listed speed. The players'
- * run was brought down to 80% of what it was (a run now builds up from a walk,
- * see `RUN_PACE` in player.ts), and the hostiles came down with it so a chase
+ * run was brought down to 80% of what it was (see `RUN_PACE` in player.ts),
+ * and the hostiles came down with it so a chase
  * reads the same as it did. Riders and fliers are left alone: a swoop is a
  * vehicle, and a jetpack or a drone is not a pair of legs.
  */
 const ENEMY_FOOT_PACE = 0.8;
+/**
+ * How hard a melee hostile brakes once it is in reach and winding up. Its
+ * swing starts at the edge of its reach and the run carries it the rest of
+ * the way in — speed ÷ this — and the reaches were set with the old speed's
+ * carry: at 80% of it an enforcer's hook stopped ten centimetres short. The
+ * braking eases by the same share, so the carry is what it always was.
+ */
+const MELEE_BRAKE = 10 * ENEMY_FOOT_PACE;
 function footPaced(d: Def): Def {
   if (d.style === 'swoop' || d.style === 'hover') return d;
   return { ...d, speed: d.speed * ENEMY_FOOT_PACE };
@@ -2923,8 +2931,8 @@ export class Enemy {
       const wasWinding = this.windup > 0;
       if (wasWinding) this.windup -= dt;
       else this.strikeFollow -= dt;
-      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      this.velocity.x = damp(this.velocity.x, 0, MELEE_BRAKE, dt);
+      this.velocity.z = damp(this.velocity.z, 0, MELEE_BRAKE, dt);
       if (this.special) this.telegraphSpecial(dt, game);
       if (this.windup <= 0 && this.special === 'dash') { this.launchDash(target); return; }
       if (this.windup <= 0 && this.special === 'slam') { this.groundShock(game); return; }
@@ -3019,8 +3027,8 @@ export class Enemy {
       this.velocity.x = damp(this.velocity.x, (to.x + sx) * d.speed, 8, dt);
       this.velocity.z = damp(this.velocity.z, (to.z + sz) * d.speed, 8, dt);
     } else {
-      this.velocity.x = damp(this.velocity.x, 0, 10, dt);
-      this.velocity.z = damp(this.velocity.z, 0, 10, dt);
+      this.velocity.x = damp(this.velocity.x, 0, MELEE_BRAKE, dt);
+      this.velocity.z = damp(this.velocity.z, 0, MELEE_BRAKE, dt);
       if (this.attackCd <= 0 && FIST_KINDS.has(this.kind) && !this.char.attack) {
         this.throwFist(target, game, d.damage);
       } else if (this.attackCd <= 0) {
