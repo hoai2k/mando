@@ -131,17 +131,46 @@ const seatX = await page.evaluate(() => window.__wb.figures[0].inst.root.userDat
 check('...and the right foot on its mirror', !!ankleR
   && dist(ankleR, [2 * seatX - sole[0], sole[1] + 0.08, sole[2]]) < 0.04, { ankleR });
 
-await page.$eval('#riderYaw', (el) => { el.value = '20'; el.dispatchEvent(new Event('change')); });
-await page.waitForTimeout(150);
+// the toes, in the ride's frame: which way each foot points once it is on the rest
+const toes = (name) => page.evaluate((n) => {
+  const vr = window.__wb.figures[0].inst.root.userData.vehicleRig;
+  vr.frame.updateMatrixWorld(true);
+  const bone = vr.frame.getObjectByName(n);
+  const q = bone.getWorldQuaternion(bone.quaternion.clone());
+  const fq = vr.frame.getWorldQuaternion(bone.quaternion.clone()).invert();
+  return bone.up.clone().set(0, 0, 1).applyQuaternion(q).applyQuaternion(fq).toArray().map((v) => +v.toFixed(3));
+}, name);
+const forward = { L: await toes('footL'), R: await toes('footR') };
+check('on a footrest the feet still point forward, not twisted back', forward.L[2] > 0.5 && forward.R[2] > 0.5, forward);
+
+const setRotation = async (handle, values) => {
+  await page.locator('#anchorTarget').selectOption(handle);
+  await page.waitForSelector('[data-anchor-axis="r0"]');
+  for (const [i, v] of values.entries()) {
+    await page.$eval(`[data-anchor-axis="r${i}"]`, (el, value) => { el.value = String(value); el.dispatchEvent(new Event('change')); }, v);
+  }
+  await page.waitForTimeout(150);
+};
+await setRotation('foot', [0, 30, 0]);
+const splay = { L: await toes('footL'), R: await toes('footR') };
+check('the foot\'s rotation lays the sole: toes turned 30° out, the right foot mirrored',
+  Math.abs(splay.L[0] - 0.5) < 0.03 && Math.abs(splay.R[0] + 0.5) < 0.03 && splay.L[2] > 0.8 && Math.abs(splay.L[1]) < 0.03, splay);
+
+await setRotation('grip', [0, 0, 15]);
+const gripWarn = await page.locator('.hint.warn').count();
+check('a grip\'s rotation is kept, with a warning that it changes nothing yet', gripWarn === 1);
+
+await setRotation('seat', [0, 20, 0]);
 const turned = await page.evaluate(() => window.__wb.figures[0].inst.root.userData.vehicleRig.frame.children
   .find((c) => c.getObjectByName?.('hips')).rotation.y);
-check('the rider turns on the seat', Math.abs(turned - 20 * Math.PI / 180) < 1e-3, { turned });
+check('the seat\'s Y turns the rider on it', Math.abs(turned - 20 * Math.PI / 180) < 1e-3, { turned });
 
 const download2 = page.waitForEvent('download');
 await page.click('#anchorExport');
 const json2 = JSON.parse(await readFile(await (await download2).path(), 'utf8'));
-check('the export carries the footrest and the turn',
-  Array.isArray(json2.vehicles.swoop.foot) && json2.vehicles.swoop.yaw === 20, json2.vehicles.swoop);
+const sw = json2.vehicles.swoop;
+check('the export carries the footrest, the turn and the rotations',
+  Array.isArray(sw.foot) && sw.yaw === 20 && sw.footRotation?.[1] === 30 && sw.gripRotation?.[2] === 15 && !sw.seatRotation, sw);
 
 // ---- the session's swoop edits reach the Nikto, who rides the same bike ----
 await page.click('#editToggle');

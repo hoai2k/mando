@@ -30,6 +30,9 @@ type Handle = 'seat' | 'grip' | 'foot' | 'rider';
 const round = (n: number): number => +n.toFixed(4);
 const v3 = (v: THREE.Vector3): V3 => [round(v.x), round(v.y), round(v.z)];
 const deg = (e: THREE.Euler): V3 => [e.x, e.y, e.z].map((r) => round(THREE.MathUtils.radToDeg(r))) as V3;
+const rad = (d: V3): V3 => d.map(THREE.MathUtils.degToRad) as V3;
+/** an anchor's rotation, or null when it is square (nothing to record) */
+const turned = (e: THREE.Euler): V3 | null => { const d = deg(e); return d.some((n) => Math.abs(n) > 1e-3) ? d : null; };
 
 export class VehicleAnchorEditor {
   enabled = false;
@@ -84,6 +87,19 @@ export class VehicleAnchorEditor {
         const h = new THREE.Object3D();
         // a ride with no footrest yet shows the handle where the clip has the sole
         h.position.copy(name === 'foot' ? vr.foot ?? vr.soleAt() : vr[name]);
+        // turned the way the anchor is: Y first, so the seat's Y is the rider's own turn
+        h.rotation.order = 'YXZ';
+        const d = THREE.MathUtils.DEG2RAD;
+        if (name === 'seat') h.rotation.set((vr.seatTilt?.[0] ?? 0) * d, vr.yaw * d, (vr.seatTilt?.[1] ?? 0) * d);
+        else if (name === 'grip' && vr.gripRotation) h.rotation.set(...rad(vr.gripRotation));
+        else if (name === 'foot' && vr.footRotation) h.rotation.set(...rad(vr.footRotation));
+        // which way it faces: red X (the rider's left), green up, blue forward
+        const axes = new THREE.AxesHelper(0.14);
+        (axes.material as THREE.Material).depthTest = false;
+        axes.renderOrder = 998;
+        axes.visible = this.enabled;
+        axes.userData.anchorAxes = true;
+        h.add(axes);
         vr.frame.add(h);
         this.handles.set(name, h);
         this.marker(name, colours[name]);
@@ -112,6 +128,10 @@ export class VehicleAnchorEditor {
       vr.foot = saved.foot ? new THREE.Vector3(...saved.foot) : null;
       vr.yaw = saved.yaw ?? 0;
       vr.modelYaw = saved.modelYaw ?? 0;
+      vr.seatTilt = saved.seatRotation && (saved.seatRotation[0] || saved.seatRotation[2])
+        ? [saved.seatRotation[0], saved.seatRotation[2]] : null;
+      vr.gripRotation = saved.gripRotation ?? null;
+      vr.footRotation = saved.footRotation ?? null;
       vr.relayout();
     } else if (nikto) {
       if (!this.niktoBase || this.nikto !== nikto) {
@@ -144,6 +164,7 @@ export class VehicleAnchorEditor {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     this.overlay.visible = enabled;
+    for (const h of this.handles.values()) for (const c of h.children) if (c.userData.anchorAxes) c.visible = enabled;
     if (!enabled) { this.gizmo.detach(); this.orbit.enabled = true; }
     else this.select(this.selected);
     this.gizmo.visible = enabled && !!this.selected;
@@ -152,8 +173,6 @@ export class VehicleAnchorEditor {
   select(name: Handle | null): void {
     this.selected = name && this.handles.has(name) ? name : null;
     this.gizmo.detach();
-    // only the rider turns; a seat or a grip is a point
-    if (this.selected !== 'rider') this.setMode('translate', false);
     if (this.enabled && this.selected) this.gizmo.attach(this.handles.get(this.selected)!);
     this.gizmo.visible = this.enabled && !!this.selected;
     this.onChange();
@@ -178,6 +197,8 @@ export class VehicleAnchorEditor {
   setTurn(which: 'yaw' | 'modelYaw', degrees: number): void {
     if (!this.vehicle || !Number.isFinite(degrees)) return;
     this.vehicle[which] = +degrees.toFixed(2);
+    // the rider's turn is the seat's own Y
+    if (which === 'yaw') this.handles.get('seat')!.rotation.y = THREE.MathUtils.degToRad(this.vehicle.yaw);
     this.fromHandle();
   }
 
@@ -190,10 +211,10 @@ export class VehicleAnchorEditor {
   }
 
   /** the selected handle's position in the ride's (or the bike's) frame */
-  current(): { position: V3; rotation: V3 | null } | null {
+  current(): { position: V3; rotation: V3 } | null {
     const h = this.selected && this.handles.get(this.selected);
     if (!h) return null;
-    return { position: v3(h.position), rotation: this.selected === 'rider' ? deg(h.rotation) : null };
+    return { position: v3(h.position), rotation: deg(h.rotation) };
   }
 
   setPosition(p: V3): void {
@@ -204,10 +225,10 @@ export class VehicleAnchorEditor {
   }
 
   setRotation(d: V3): void {
-    const h = this.selected === 'rider' ? this.handles.get('rider') : null;
+    const h = this.selected && this.handles.get(this.selected);
     if (!h || d.some((n) => !Number.isFinite(n))) return;
-    h.rotation.set(...d.map(THREE.MathUtils.degToRad) as V3);
-    this.fromHandle();
+    h.rotation.set(...rad(d));
+    this.fromHandle(this.selected === 'foot');
   }
 
   /** put the selected handle back where the game has it today */
@@ -215,11 +236,19 @@ export class VehicleAnchorEditor {
     if (this.vehicle && this.selected === 'foot') {
       // no footrest: the clip's own legs, and the handle back at the clip's sole
       this.vehicle.foot = null;
+      this.vehicle.footRotation = null;
       this.handles.get('foot')!.position.copy(this.vehicle.soleAt());
+      this.handles.get('foot')!.rotation.set(0, 0, 0);
       this.fromHandle();
     } else if (this.vehicle && (this.selected === 'seat' || this.selected === 'grip')) {
       const vr = this.vehicle;
-      this.handles.get(this.selected)!.position.set(...vr.defaults[this.selected]);
+      const h = this.handles.get(this.selected)!;
+      h.position.set(...vr.defaults[this.selected]);
+      const d = THREE.MathUtils.DEG2RAD;
+      if (this.selected === 'seat') {
+        const r = vr.defaults.seatRotation;
+        h.rotation.set((r?.[0] ?? 0) * d, (vr.defaults.yaw ?? r?.[1] ?? 0) * d, (r?.[2] ?? 0) * d);
+      } else h.rotation.set(...rad(vr.defaults.gripRotation ?? [0, 0, 0]));
       this.fromHandle();
       const kept = this.vehicles.get(vr.kind);
       if (kept && vr.seat.toArray().every((n, i) => Math.abs(n - vr.defaults.seat[i]) < 1e-6)
@@ -245,7 +274,16 @@ export class VehicleAnchorEditor {
       vr.grip.copy(this.handles.get('grip')!.position);
       // the footrest counts once it has been moved (or was placed before)
       const foot = this.handles.get('foot');
-      if (foot && (footMoved || vr.foot)) vr.foot = foot.position.clone();
+      if (foot && (footMoved || vr.foot)) {
+        vr.foot = foot.position.clone();
+        vr.footRotation = turned(foot.rotation);
+      }
+      // the seat's Y turns the rider (the game's `yaw`); X and Z tilt him here
+      const seat = this.handles.get('seat')!.rotation;
+      vr.yaw = round(THREE.MathUtils.radToDeg(seat.y));
+      vr.seatTilt = Math.abs(seat.x) > 1e-5 || Math.abs(seat.z) > 1e-5
+        ? [round(THREE.MathUtils.radToDeg(seat.x)), round(THREE.MathUtils.radToDeg(seat.z))] : null;
+      vr.gripRotation = turned(this.handles.get('grip')!.rotation);
       vr.relayout();
       this.vehicles.set(vr.kind, {
         seat: v3(vr.seat), grip: v3(vr.grip),
@@ -253,6 +291,9 @@ export class VehicleAnchorEditor {
         ...(vr.foot ? { foot: v3(vr.foot) } : {}),
         ...(vr.yaw ? { yaw: vr.yaw } : {}),
         ...(vr.modelYaw ? { modelYaw: vr.modelYaw } : {}),
+        ...(vr.seatTilt ? { seatRotation: [vr.seatTilt[0], vr.yaw, vr.seatTilt[1]] as V3 } : {}),
+        ...(vr.gripRotation ? { gripRotation: vr.gripRotation } : {}),
+        ...(vr.foot && vr.footRotation ? { footRotation: vr.footRotation } : {}),
       });
     } else if (this.nikto) {
       this.nikto.handsToBars();

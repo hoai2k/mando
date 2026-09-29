@@ -182,3 +182,10 @@ details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform 0.15s; }
 details.fold[open] > summary::before { transform: rotate(90deg); }
 details.fold[open] > summary { margin-bottom: 8px; }
+/* the fist toggle, where the game sets the hands itself */
+.check .fists-note { display: none; font-size: 11px; }
+.check.official { cursor: default; }
+.check.official .fists-note { display: inline; }
+/* a control that is recorded but changes nothing yet */
+.hint.warn { color: #e0b25a; }
+.hint.warn::before { content: '⚠ '; }

@@ -15,7 +15,7 @@ import type { stagePrimitives } from './primitives';
  */
 export function stageDressing(b: StageState & ReturnType<typeof stagePrimitives>) {
   const {
-    board, group, rand, bare, onGround, interior, wallMat, rockMat, accentGlow, owned,
+    board, group, rand, bare, onGround, interior, wallMat, rockMat, accentGlow, owned, slicks, ceilingY,
     boxes, breakables, rides, blocked, shockStrips, groundAt, removeBoxes, addBox, addCyl, addHazard,
     slab, clearOf, crate, coverRock,
   } = b;
@@ -63,7 +63,10 @@ export function stageDressing(b: StageState & ReturnType<typeof stagePrimitives>
   const placeRides = (f: Frame, zs: ZoneSpec, top: number): void => {
     for (const r of zs.rides ?? []) {
       const short = Math.min(zs.w, zs.l);
-      if (zs.shell !== 'road' && short < RIDE_MIN_SIDE) {
+      // a road, a zone wide enough to turn in, or a long lane — a street is
+      // somewhere a swoop has to go, even if it cannot turn round in it
+      const street = zs.shell === 'canyon' && zs.l >= 60 && zs.w >= 12;
+      if (zs.shell !== 'road' && !street && short < RIDE_MIN_SIDE) {
         console.warn(`[mission] ${zs.label}: no room to turn a ride (${short} m)`);
         continue;
       }
@@ -115,6 +118,74 @@ export function stageDressing(b: StageState & ReturnType<typeof stagePrimitives>
     // the sarlacc is *there*, forty metres off the trailhead. Laying a second
     // set over the top of them would be the level arguing with the board.
     const dressed = !onGround;
+    if (zs.slick) {
+      // The cracked lake's bare ice: a disc at the zone's heart where the
+      // grip goes, glassy enough to read as ice before you are on it.
+      const r = zs.slick;
+      const ice = new THREE.MeshStandardMaterial({
+        color: 0xcfeaf6, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.82,
+      });
+      owned.push(ice);
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 36), ice);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(f.x(l / 2, 0), top + 0.03, f.z(l / 2, 0));
+      disc.receiveShadow = true;
+      group.add(disc);
+      const rim = new THREE.Mesh(new THREE.RingGeometry(r - 0.2, r, 36),
+        new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.5 }));
+      owned.push(rim.material as THREE.Material);
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.set(f.x(l / 2, 0), top + 0.04, f.z(l / 2, 0));
+      group.add(rim);
+      slicks.push({ x: f.x(l / 2, 0), z: f.z(l / 2, 0), r });
+    }
+    if (zs.feature === 'lava' && zs.shell === 'road') {
+      // A causeway with live lava either side of it: two lengthwise channels
+      // down the road's edges, laid on the ground under each stretch — the
+      // one idea that makes a road Nevarro's, and laid even on the board's
+      // own basalt, since the board's rivers are nowhere near the road.
+      const glow = new THREE.MeshBasicMaterial({ color: 0xff5a2a });
+      owned.push(glow);
+      const seg = 6;
+      for (const side of [-1, 1]) {
+        const v0 = side * (w / 2 - 4.2), v1 = side * (w / 2 - 0.6);
+        for (let u = 3; u < l - 3; u += seg) {
+          const u1 = Math.min(l - 3, u + seg);
+          const x = f.x((u + u1) / 2, (v0 + v1) / 2), z = f.z((u + u1) / 2, (v0 + v1) / 2);
+          const gy = groundAt(x, z);
+          slab(f, u, u1, Math.min(v0, v1), Math.max(v0, v1), gy + 0.02, gy + 0.12, glow);
+          for (let d = 0; d < 3; d++) {
+            const hv = v0 + (v1 - v0) * (d + 0.5) / 3;
+            addHazard({ center: f.vec((u + u1) / 2, hv, gy), radius: 1.9, kind: 'burn', dps: 26, yMax: gy + 2.2 });
+          }
+          // nothing is set down in the channel
+          blocked.push({ x, z, r: 3 });
+        }
+      }
+    }
+    if (interior && zs.shell !== 'hall') {
+      // Open ground inside an interior stage is a cavern, not a night sky:
+      // a lid at the flight ceiling over it, and ice hanging from it.
+      const m = 3;
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), rockMat);
+      const cu = l / 2;
+      const sx = f.dx !== 0 ? l + 2 * m : w + 2 * m;
+      const sz = f.dx !== 0 ? w + 2 * m : l + 2 * m;
+      lid.scale.set(sx, 4, sz);
+      lid.position.set(f.x(cu, 0), ceilingY + 2, f.z(cu, 0));
+      group.add(lid);
+      addBox(f.x(cu, 0), ceilingY + 2, f.z(cu, 0), sx, 4, sz);
+      const n = Math.max(4, Math.round((w * l) / 300));
+      for (let k = 0; k < n; k++) {
+        const u = 3 + rand() * (l - 6), v = (rand() - 0.5) * (w - 6);
+        const h = 4 + rand() * 5;
+        const drip = new THREE.Mesh(new THREE.ConeGeometry(0.6 + rand() * 1.1, h, 7), rockMat);
+        drip.rotation.x = Math.PI;
+        drip.position.set(f.x(u, v), ceilingY - h / 2, f.z(u, v));
+        drip.userData.decor = true;
+        group.add(drip);
+      }
+    }
     if (dressed && zs.feature === 'pit') {
       const r = Math.min(w, l) * 0.18 + 1.4;
       const maw = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.72, 1.1, 20),

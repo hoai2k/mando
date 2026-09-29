@@ -26,6 +26,11 @@ let bad = 0;
 // a player does and reads back the stage the campaign raised.
 for (const board of boards) {
   const t0 = Date.now();
+  // A fresh page per board, as test-missions does: nine territories raised
+  // back to back in one page run the renderer out of memory around the fifth
+  // (a "Target crashed" that says nothing about any level).
+  await page.goto(page.url());
+  await page.waitForFunction(() => !!window.__startMode, null, { timeout: 60000 });
   await page.evaluate(([b]) => {
     window.__manual = false;
     window.__quitToTitle?.();
@@ -63,6 +68,26 @@ for (const board of boards) {
         if (fight && z.spec.shell === 'hall' && z.hatches.length < 2) issues.push(`${z.spec.label}: hatches`);
         if (fight && z.spec.shell !== 'hall' && z.vents.length < 3) issues.push(`${z.spec.label}: ${z.vents.length} vents`);
         if (!z.posts.length) issues.push(`${z.spec.label}: no posts`);
+        // a pass is a way in for runners, or it is a notch that goes nowhere
+        if (z.spec.pass && !(z.runnerPost && z.runnerIn)) issues.push(`${z.spec.label}: its runner pass never validated`);
+      }
+      // Two sealed rooms back to back are one long fight: between a hall
+      // assault and a hall lieutenant the corridor is a breather, with nobody
+      // posted in it (audit item 7).
+      for (let i = 0; i + 1 < s.zones.length; i++) {
+        const a = s.zones[i].spec, b = s.zones[i + 1].spec;
+        if (a.shell !== 'hall' || a.kind !== 'assault' || b.shell !== 'hall' || b.kind !== 'lieutenant') continue;
+        if (!s.spec.links[i]?.quiet) issues.push(`${a.label} → ${b.label}: two sealed rooms with no breather between`);
+        else if (s.defenders[i]?.length) issues.push(`${a.label} → ${b.label}: ${s.defenders[i].length} posted in the breather`);
+      }
+      // A stage with a door behind it opens outside its first zone, never in
+      // it: a sealed room or an arena there would fight on the first frame.
+      if (s.backPortal) {
+        const r = s.zones[0].sealRect;
+        const inside = s.starts.filter((p) => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ);
+        if (inside.length) issues.push(`${s.zones[0].spec.label}: ${inside.length} start(s) inside the first zone`);
+        const blocked = s.starts.filter((p) => !g.board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1));
+        if (blocked.length) issues.push(`${blocked.length} start(s) in the vestibule are blocked`);
       }
       for (const ride of s.rides) if (!s.contains(ride.x, ride.z)) issues.push(`ride ${ride.kind} off the stage`);
 
@@ -94,7 +119,11 @@ for (const board of boards) {
         const from = zone.entry.clone();
         const dir = zone.entry.clone();
         let seen = false;
-        for (const off of [0, spread, -spread]) {
+        // …and in a wide room a player steps further aside than that: a hall
+        // built round the Refinery's reactor core hides its far door from the
+        // middle third of the entry and shows it from either side
+        const wide = zone.spec.w > 30 ? [0.35, -0.35, 0.45, -0.45].map((k) => zone.spec.w * k) : [];
+        for (const off of [0, spread, -spread, ...wide]) {
           from.set(zone.entry.x + px * off, zone.entry.y + eye, zone.entry.z + pz * off);
           for (const t of targets) {
             dir.set(t.x - from.x, (t.y + eye) - from.y, t.z - from.z);

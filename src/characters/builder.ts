@@ -135,9 +135,38 @@ export function addSphere(parent: THREE.Object3D, m: THREE.Material, r: number,
   return mesh;
 }
 
+/** a tapered limb hung down its bone */
+function limbMesh(bone: THREE.Object3D, m: THREE.Material, len: number, r0: number, r1: number): THREE.Mesh {
+  return addCyl(bone, m, r0, r1, len, 0, -len / 2, 0, 0, 0, 0, 8);
+}
+
+/** the primitive suit body, for a figure with no sculpt (see `BipedOptions.skin`) */
+function plainBody(rig: Rig, p: Proportions, skin: THREE.Material, torso: THREE.Material): void {
+  const b = rig.bones;
+  addBox(b.hips, skin, 0.34, 0.2, 0.22, 0, 0.02, 0);
+  // the abdomen closes the gap between the hips and chest boxes at any proportions
+  addBox(b.spine, skin, 0.34, p.spineLen + p.chestLen - 0.13, 0.235, 0, (p.chestLen - p.spineLen + 0.05) / 2, 0);
+  addBox(b.chest, torso, 0.4, 0.34, 0.26, 0, 0.1, 0);
+  for (const s of ['L', 'R'] as const) {
+    limbMesh(b[`upperArm${s}`], skin, p.upperArmLen, 0.055, 0.05);
+    limbMesh(b[`forearm${s}`], skin, p.forearmLen, 0.05, 0.042);
+    limbMesh(b[`upperLeg${s}`], skin, p.upperLegLen, 0.075, 0.06);
+    limbMesh(b[`lowerLeg${s}`], skin, p.lowerLegLen, 0.06, 0.05);
+    addBox(b[`foot${s}`], skin, 0.11, 0.07, 0.24, 0, -0.035, 0.05);
+  }
+}
+
 export interface BipedOptions {
   proportions?: Proportions;
   scale?: number;
+  /**
+   * A plain primitive body — suit limbs and a torso — for a figure that has
+   * no sculpt and never will (the Narkina prisoners, sections/one-way-out.ts).
+   * Anything with an authored model leaves this out: its body is the model,
+   * or its low-LOD stand-in until the model lands.
+   */
+  skin?: THREE.Material;
+  torso?: THREE.Material;
 }
 
 /**
@@ -151,6 +180,7 @@ export function buildBiped(opts: BipedOptions = {}): { inst: CharacterInstance; 
   const clips = buildClips(p);
   const animator = new Animator(rig, clips);
 
+  if (opts.skin) plainBody(rig, p, opts.skin, opts.torso ?? opts.skin);
   if (opts.scale && opts.scale !== 1) rig.root.scale.setScalar(opts.scale);
 
   const inst: CharacterInstance = {

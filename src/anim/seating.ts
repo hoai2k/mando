@@ -129,7 +129,7 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   target: THREE.Vector3, elbowHint: THREE.Vector3): void {
   const b = rig.bones;
   reachLimb(side === 'L' ? b.upperArmL : b.upperArmR, side === 'L' ? b.forearmL : b.forearmR,
-    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone());
+    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone(), -1);
 }
 
 /**
@@ -142,16 +142,36 @@ export function reachLeg(rig: Rig, side: 'L' | 'R',
   ankle: THREE.Vector3, kneeHint: THREE.Vector3): void {
   const b = rig.bones;
   reachLimb(side === 'L' ? b.upperLegL : b.upperLegR, side === 'L' ? b.lowerLegL : b.lowerLegR,
-    side === 'L' ? b.footL : b.footR, ankle, kneeHint, new THREE.Vector3(0, 0, 1));
+    side === 'L' ? b.footL : b.footR, ankle, kneeHint, new THREE.Vector3(0, 0, 1), 1);
+}
+
+const _parentQ = new THREE.Quaternion();
+
+/**
+ * Stand a foot on a rest at an orientation: `world` is how the sole should
+ * lie, as a world rotation of the canonical foot (which at rest is flat,
+ * toes along the body's +Z). Call it after `reachLeg`, which leaves the foot
+ * at whatever angle the clip gave the ankle.
+ */
+export function orientFoot(rig: Rig, side: 'L' | 'R', world: THREE.Quaternion): void {
+  const foot = side === 'L' ? rig.bones.footL : rig.bones.footR;
+  if (!foot.parent) return;
+  foot.parent.updateWorldMatrix(true, false);
+  foot.parent.getWorldQuaternion(_parentQ);
+  foot.quaternion.copy(_parentQ.invert().multiply(world));
 }
 
 /**
  * The two-bone solve itself, for any limb hanging along its parents' -Y.
  * `fallback` is the direction (in the limb root's space) to bow the middle
- * joint when the hint lies on the root-to-target line.
+ * joint when the hint lies on the root-to-target line. `bend` is the way the
+ * middle joint hinges about its own X: an elbow folds the forearm forward
+ * (-X), a knee folds the shin back (+X). Solving a knee as an elbow still
+ * lands the ankle on the rest, but only by rolling the whole leg half a turn
+ * about the thigh — which is what spun a rider's feet round backwards.
  */
 function reachLimb(upper: THREE.Object3D, fore: THREE.Object3D, hand: THREE.Object3D,
-  target: THREE.Vector3, elbowHint: THREE.Vector3, fallback: THREE.Vector3): void {
+  target: THREE.Vector3, elbowHint: THREE.Vector3, fallback: THREE.Vector3, bend: 1 | -1): void {
   const parent = upper.parent;
   if (!parent) return;
   const l1 = fore.position.length();
@@ -184,11 +204,13 @@ function reachLimb(upper: THREE.Object3D, fore: THREE.Object3D, hand: THREE.Obje
   const swing = Math.acos(Math.min(1, Math.max(-1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d))));
   const inner = Math.acos(Math.min(1, Math.max(-1, (l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2))));
   _by.copy(_dir).applyAxisAngle(_axis, swing).negate();   // bone +Y is up the arm
-  _bx.copy(_axis);
+  // the hinge axis faces whichever way makes this joint's own bend fold the
+  // limb toward the hint
+  _bx.copy(_axis).multiplyScalar(-bend);
   _bz.crossVectors(_bx, _by);
   _basis.makeBasis(_bx, _by, _bz);
   upper.quaternion.setFromRotationMatrix(_basis);
-  fore.rotation.set(-(Math.PI - inner), 0, 0);
+  fore.rotation.set(bend * (Math.PI - inner), 0, 0);
 }
 
 const _thigh = new THREE.Vector3();

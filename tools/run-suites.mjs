@@ -63,6 +63,7 @@ const SUITES = [
   { name: 'test-missions', weight: 470 },
   // the gameplay sections: ~60 s a section at 2 players (measured on the chimney)
   { name: 'test-sections', weight: 120 },
+  { name: 'test-job-page', weight: 40 },
   { name: 'test-vehicles', weight: 365 },
   { name: 'test-modes', weight: 290 },
   { name: 'test-coop', weight: 263 },
@@ -74,6 +75,7 @@ const SUITES = [
   { name: 'test-workbench-weapon-grips', weight: 136 },
   { name: 'test-workbench-moment-edits', weight: 60 },
   { name: 'test-walk', weight: 50 },
+  { name: 'test-fists', weight: 70 },
   { name: 'test-loading', weight: 134 },
   { name: 'test-loadout', weight: 131 },
   { name: 'test-saber-ownership', weight: 130 },

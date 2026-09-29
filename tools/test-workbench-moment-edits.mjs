@@ -78,16 +78,60 @@ try {
   check('undo restores the key', undone.keys === before.keys && (await ledger()).length === 0
     && (await boneAngle()) - at < 0.5, undone);
 
-  // fists: the fingers the model was delivered without, curled on demand
-  await page.locator('#editToggle').click();
-  await page.locator('#fists').check();
+  // the authored skin follows the rig through a moment edit: it moves under
+  // the gizmo while a joint is dragged (playback is paused, so nothing else
+  // would retarget it), and holds the pose on release. Its arm is not the
+  // rig's length, so its hand travels about as far, not along the same line.
+  const hands = () => page.evaluate(() => {
+    const root = window.__wb.figures[0].inst.root;
+    let model = null, rig = null;
+    root.traverse((o) => { if (o.name === 'weaponMount') model = o; if (o.name === 'weaponR') rig = o; });
+    root.updateMatrixWorld(true);
+    const V = root.position.constructor, a = new V(), b = new V();
+    model.getWorldPosition(a); rig.getWorldPosition(b);
+    return { model: a.toArray(), rig: b.toArray() };
+  });
+  const moved = (from, to, k) => Math.hypot(...to[k].map((v, i) => v - from[k][i]));
+  const drift = (from, to) => Math.hypot(...to.model.map((v, i) => (v - from.model[i]) - (to.rig[i] - from.rig[i])));
+  const held = await hands();
+  await page.evaluate(() => {
+    const e = window.__wb.editor;
+    e.rotateWorld('upperArmR', new window.__wb.camera.up.constructor(0, 0, 1), -0.8);
+    e.onChange();
+  });
   await page.waitForTimeout(200);
-  const fist = await page.evaluate(() => {
+  const dragging = await hands();
+  check('the model follows a joint while it is dragged',
+    moved(held, dragging, 'rig') > 0.1 && drift(held, dragging) < 0.1
+      && moved(held, dragging, 'model') > 0.7 * moved(held, dragging, 'rig'),
+    { rig: moved(held, dragging, 'rig'), model: moved(held, dragging, 'model'), drift: drift(held, dragging) });
+  await page.evaluate(() => { const e = window.__wb.editor; e.onCommit('upperArmR'); e.onChange(); });
+  await page.waitForTimeout(200);
+  const released = await hands();
+  check('letting go keeps the pose on rig and model alike',
+    moved(dragging, released, 'rig') < 0.01 && moved(dragging, released, 'model') < 0.01,
+    { rig: moved(dragging, released, 'rig'), model: moved(dragging, released, 'model') });
+  await page.locator('#undo').click();
+
+  // fists: the fingers the model was delivered without. Paz is passed for
+  // play, and the game closes his hands in a bare-handed fight: the pose shows
+  // it, and the toggle stands aside
+  await page.locator('#editToggle').click();
+  await page.waitForTimeout(200);
+  const knuckleTurn = () => page.evaluate(() => {
     let knuckle = null;
     window.__wb.figures[0].inst.root.traverse((o) => { if (o.name === 'fist_knuckleR') knuckle = o; });
-    return knuckle ? knuckle.rotation.z : null;
+    return knuckle ? 2 * Math.acos(Math.min(1, Math.abs(knuckle.quaternion.w))) : null;
   });
-  check('Clench fists curls the fingers', fist !== null && fist > 1, { fist });
+  const official = { disabled: await page.locator('#fists').isDisabled(), turn: await knuckleTurn() };
+  check('the game\'s own fists: Paz clenches in a fight, toggle locked', official.disabled && official.turn > 1, official);
+  // anyone not passed for play is the toggle's to preview
+  await h.workbench('revan', 'unarmed1', 'mode=authored');
+  const open = { disabled: await page.locator('#fists').isDisabled(), turn: await knuckleTurn() };
+  await page.locator('#fists').check();
+  await page.waitForTimeout(200);
+  const fist = await knuckleTurn();
+  check('Clench fists curls the fingers where the game leaves them', !open.disabled && open.turn < 0.05 && fist > 1, { open, fist });
   check('browser reported no errors', h.errors.length === 0, h.errors);
 } finally {
   await h.close();

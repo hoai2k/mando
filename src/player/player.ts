@@ -29,6 +29,7 @@ import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
 import { strikePace } from '../characters/combatStyle';
+import { FistDriver } from '../characters/fists';
 import {
   fistSegments, forwardReach, resolveClash, sweepTouches, weaponSegments, PARRY_SHOVE,
   weaponMounts, type Blade, type Duelist, type Guard, type Segment,
@@ -485,13 +486,30 @@ export class Player {
    */
   moveYaw: number | null = null;
   /**
+   * The soft-lock cone, as the cosine `aimAssistTarget` needs a target inside,
+   * when a section widens it (K1's twin-stick aim: a stick pointed in the
+   * ground plane is a coarser pointer than a crosshair). Null everywhere else.
+   */
+  aimCone: number | null = null;
+  /**
    * A gameplay section's own way of moving — sliding, flight, a turret seat,
    * a lane-guided bike (§2.3). `adjust` may rewrite the frame's input;
    * `take` may take the whole frame (return true). Null outside a section.
    */
   sectionMove: SectionMove | null = null;
+  /**
+   * K7 flight (sections/kit/locomotion.ts): the airborne top speed while a
+   * section's boosters are on. Null everywhere else — the profile's run speed.
+   */
+  flightTopSpeed: number | null = null;
   hp = 100;
   maxHp = 100;
+  /**
+   * Max health earned for the rest of the run (Hold the Forge's beskar,
+   * sections/hold-the-forge.ts). Kept apart from the profile's number so a
+   * body swap (`morph`) keeps it.
+   */
+  maxHpBonus = 0;
   /** PvP: respawns left; other modes never read it */
   lives = 0;
   /** who last hurt this player (their slot), for PvP kill credit */
@@ -499,6 +517,11 @@ export class Player {
   /** set by Game once a PvP death has been scored */
   deathCounted = false;
   fuel = 1;
+  /**
+   * Air left, 0..1, while the party is under the sea (a `sea` stage's clock);
+   * null anywhere else, and the HUD shows the gauge only when it is not.
+   */
+  air: number | null = null;
   /**
    * Seconds left of a heavy landing's recovery: the legs are absorbing the
    * drop and there is no running out of it yet.
@@ -562,6 +585,8 @@ export class Player {
    * therefore switches itself off for a character who carries no gun.
    */
   weapon: 'blaster' | 'gaffi' | 'none' = 'blaster';
+  /** closes the hands for what the body is doing, on the sculpts passed for it */
+  private fists: FistDriver | null = null;
   /** which of the carried weapons is in each slot; the D-pad moves these */
   private rangedIdx = 0;
   private meleeIdx = 0;
@@ -1047,7 +1072,7 @@ export class Player {
     if (!this.alive || this.takenT > 0 || this.formT > 0 || this.exited) return;
     this.takenT = TAKEN_TIME;
     this.takenBy.copy(at);
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.cover = null;
     this.velocity.set(0, 0, 0);
     audio.hurt(this.profile.voice);
@@ -1162,7 +1187,7 @@ export class Player {
     this.profile = def.profile;
     this.char = def.build();
     this.char.setHeroLight(game.board.heroLight ?? 0);
-    this.maxHp = this.profile.maxHp;
+    this.maxHp = this.profile.maxHp + this.maxHpBonus;
     this.hp = Math.min(this.hp, this.maxHp);
     this.radius = this.profile.radius;
     this.height = this.profile.height;
@@ -1292,7 +1317,7 @@ export class Player {
   }
 
   private die(): void {
-    this.vehicle?.dropRider();
+    this.vehicle?.dropRider(this);
     this.hp = 0;
     this.alive = false;
     this.deadT = 0;
@@ -1916,6 +1941,8 @@ export class Player {
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
     let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
+    // K7 flight: a section's boosters set the airborne top speed
+    if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;
     // chest-deep: slow, loud, exposed — less so for something built for it
     if (this.wading) topSpeed *= this.profile.amphibious ? 0.75 : 0.45;
@@ -1938,6 +1965,9 @@ export class Player {
       // here there is nothing to push against — a body drifting between
       // platforms that slows to a halt on its own is the one thing space
       // cannot do. Point and burn to change it; otherwise you coast.
+    } else if (this.sectionMove?.steer?.(this, dt, input, game)) {
+      // A gameplay section's own locomotion (K7: the slide, flight) set the
+      // horizontal velocity itself (docs/SECTIONS_IMPLEMENTATION.md §2.3).
     } else {
       // on ice the grip goes: steering barely bites and running becomes a drift
       const traction = this.grounded ? (game.board.tractionAt?.(this.position.x, this.position.z) ?? 1) : 1;
@@ -2060,6 +2090,15 @@ export class Player {
     if (this.thrusting > 0 && !this.wasThrusting) audio.jetpackIgnite();
     this.wasThrusting = this.thrusting > 0;
     this.char.setThrust(this.thrusting || (this.gliding ? 0.3 : 0));
+  }
+
+  /**
+   * K7 flight (sections/kit/locomotion.ts): a super-jumper wearing a
+   * section's boosters relights the rise in mid-air while A is held, where
+   * normally the climb is spent for good the moment the button lifts.
+   */
+  relightRise(): void {
+    if (this.profile.flight === 'superjump' && !this.grounded) this.riseHold = true;
   }
 
   /** super jump: the non-Mandalorian answer to the jetpack */
@@ -2418,8 +2457,12 @@ export class Player {
     if (this.landTimer > 0 && this.grounded && speed2 > 3) { this.releaseLanding(anim); }
     // a gun coming up takes the arms straight back from the deep landing
     if (this.landArms && gunUp) { anim.release('upper'); this.landArms = false; }
-    if (this.autoCrouching) {
-      anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
+    // K7's slide holds a crouched surf while it carries the body (§2.3)
+    const surf = this.grounded && !!this.sectionMove?.crouch?.(this);
+    if (this.autoCrouching || surf) {
+      // the surf is the crouched stride held still: knees bent, one foot leading
+      if (surf) anim.play('lower', 'crouchWalkLower', 0.12, 0);
+      else anim.play('lower', speed2 > 0.35 ? 'crouchWalkLower' : 'coverLower', 0.12);
       if (this.blocking) anim.play('upper', 'blockUpper', 0.12);
       else if (this.meleeTimer <= 0) anim.play('upper', gunUp ? this.gunAimClip : 'idleUpper');
     } else if (this.blocking) {
@@ -2833,7 +2876,10 @@ export class Player {
   /** damage and shove one body; the finisher is the haymaker */
   private landHit(e: Combatant, to: THREE.Vector3, game: Game): void {
     const wasAlive = e.alive;
-    e.damage(this.meleeDamage, this.position, this.slot);
+    // a gameplay section may rewrite the hit (Lights Out's silent takedown;
+    // sections/kit/detection.ts). Null outside a section: the usual damage.
+    const dmg = this.sectionMove?.meleeHit?.(this, e, this.meleeDamage, game) ?? this.meleeDamage;
+    e.damage(dmg, this.position, this.slot);
     // the finisher is the haymaker: it puts the target flat on the
     // ground (follow up while they're down and hits land double)
     const en = e as Partial<Enemy> & typeof e;
@@ -2927,7 +2973,8 @@ export class Player {
     for (const v of game.vehicles) {
       // one with a hostile in the saddle is theirs until they are off it;
       // one a hostile is still running for is anyone's — get there first
-      if (!v.alive || v.rider || v.hostile) continue;
+      // K3: a ridden ride with its second seat empty takes a pillion
+      if (!v.alive || v.hostile || (v.rider && !v.pillionOpen)) continue;
       const d = Math.hypot(v.pos.x - this.position.x, v.pos.z - this.position.z) - v.def.radius;
       if (d > bestD) continue;
       if (Math.abs(v.pos.y - this.position.y) > 2.6) continue;
@@ -3519,6 +3566,8 @@ export class Player {
 
   /** Best hostile near the aim direction (dot threshold), for soft-lock. */
   aimAssistTarget(game: Game, dir: THREE.Vector3, from: THREE.Vector3, minDot = 0.986, maxDist = 65): Combatant | null {
+    // a rail section's twin-stick aim widens the cone (see `aimCone`)
+    if (this.aimCone !== null) minDot = Math.min(minDot, this.aimCone);
     let best: Combatant | null = null;
     let bestScore = -Infinity;
     const to = new THREE.Vector3();
@@ -3778,6 +3827,12 @@ export class Player {
     }
     // creature playables (PvP heavies) animate themselves off their gait
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
+    // hands close on the gun, the grips, a fight and a run (`fists.ts`)
+    if (this.fists?.root !== this.char.root) this.fists = new FistDriver(this.char.root, false);
+    this.fists.update(dt, this.alive ? this.char.animator : null, {
+      gun: this.weapon === 'blaster' && !this.meleeOnly,
+      fight: this.meleeKind === 'fists' && (this.meleeTimer > 0 || this.meleeComboWindow > 0),
+    });
     this.char.cosmetic?.(dt, game.time);
   }
 }

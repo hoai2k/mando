@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { launch, makeCheck } from './harness.mjs';
 
 const data = JSON.parse(readFileSync('src/characters/data/sharedWeaponGrips.json', 'utf8'));
+// hostiles who fight bare-handed (`FIST_ENEMIES` in src/characters/combatStyle.ts):
+// the brawlers carry nothing (the melee pirate's club grip stays in the data
+// unused); the gunfighters among them still carry a gun, and its grip is checked
+const FISTS = new Set([...readFileSync('src/characters/combatStyle.ts', 'utf8')
+  .match(/FIST_ENEMIES[^=]*=\s*new Set\(\[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
 const check = makeCheck();
 const h = await launch({ url: `http://localhost:${process.env.HARNESS_PORT ?? '4173'}/workbench/?character=din&pose=idle&mode=authored` });
 const near = (a, b) => a.length === b.length && a.every((n, i) => Math.abs(n - b[i]) < 1e-5);
@@ -43,6 +48,10 @@ try {
       return weapon && { position: weapon.position.toArray(),
         quaternion: weapon.quaternion.toArray(), scale: weapon.scale.x };
     }, entry.side);
+    if (FISTS.has(entry.character) && !actual) {
+      check(`${entry.character} ${entry.side}: fights bare-handed, nothing in the hand`, true);
+      continue;
+    }
     const scale = data.weaponScales.find((e) => e.character === entry.character
       && e.side === entry.side)?.scaleMultiplier ?? 1;
     check(`${entry.character} ${entry.side}: authored grip and scale`, !!actual

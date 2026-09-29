@@ -20,6 +20,8 @@ import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { FIST_ENEMIES } from '../characters/combatStyle';
 import { clench } from '../characters/fistRig';
+import { fistsInPlay, fistTargets } from '../characters/fists';
+import type { VehicleRig } from './vehicleFigure';
 import { PositionEditor } from './positionEdit';
 import { WeaponAnchorEditor } from './weaponAnchorEdit';
 import { VehicleAnchorEditor } from './vehicleAnchorEdit';
@@ -165,6 +167,8 @@ let showGrid = true;
 let fists = initialParams.get('fists') === '1';
 /** the geometric joint audit on the figures (geoOverlay.ts): 0 off, 1 joint markers, 2 markers and the volume stand-in */
 let geoView = Number(initialParams.get('geo') ?? 0);
+const FISTS_FREE_TITLE = 'Curls the model\'s fingers into a fist on any pose, to see how it reads with them.';
+const FISTS_SET_TITLE = 'The game closes this character\'s hands on this pose (gun hand, ride grips, a bare-handed fight, walking and running), so this shows them as it does.';
 let editing = false;
 let editKind: 'rotate' | 'position' | 'weapon' = 'rotate';
 /**
@@ -375,7 +379,7 @@ function spawn(): void {
   if (editing) enterEdit();
   renderLegend();
   frameSubject();
-  expose({ __wb: { figures, subject, pose, camera, controls } });  // debug/testing handle
+  expose({ __wb: { figures, subject, pose, camera, controls, editor } });  // debug/testing handle
 }
 
 /**
@@ -536,6 +540,39 @@ function heldWeapon(): { loadout: Loadout | null; slots: WeaponSlot[]; hand: Wea
   return { loadout, slots, hand, gameHand };
 }
 
+/**
+ * How the game itself closes a figure's hands on this pose (`fists.ts`), or
+ * null where it leaves them as sculpted and the toggle is free to preview.
+ * An NPC's rule counts: the workbench shows a fighter as the game can field it.
+ */
+function officialFists(f: Figure): [number, number] | null {
+  const root = f.inst.root;
+  if (!fistsInPlay(root, true)) return null;
+  const ride = root.userData.vehicleRig as VehicleRig | undefined;
+  if (ride) return ride.gripped ? [1, 1] : null;
+  // the swoop's rider holds its bars, and closes on them
+  if (root.userData.niktoRider) return [1, 1];
+  const [r, l] = fistTargets(f.inst.animator, { gun: heldWeapon().hand === 'gun' });
+  return r || l ? [r, l] : null;
+}
+
+/** each figure's hands: the game's own fists where it sets them, the toggle's everywhere else */
+function syncFists(): void {
+  let set = false;
+  for (const f of figures) {
+    const official = officialFists(f);
+    set ||= !!official;
+    if (official) clench(f.inst.root, official[0], official[1]);
+    else clench(f.inst.root, fists ? 1 : 0);
+  }
+  const box = panel.querySelector<HTMLInputElement>('#fists');
+  if (box && box.disabled !== set) {
+    box.disabled = set;
+    box.parentElement!.title = set ? FISTS_SET_TITLE : FISTS_FREE_TITLE;
+    box.parentElement!.classList.toggle('official', set);
+  }
+}
+
 /** Seconds in the longest active channel; both channels scrub together. */
 function animationDuration(): number {
   const anim = figures.find((f) => f.inst.animator)?.inst.animator;
@@ -593,6 +630,11 @@ function freezePose(): void {
       if (action) action.time = Math.min(at, Math.max(0, clip.duration - 1e-4));
     }
     anim.update(0);
+    // and onto the authored skin: `applyPose` last retargeted it at frame 0,
+    // and a paused frame loop never would again, so a moment would show the
+    // rig at its time and the model at the clip's start (position edits live
+    // on the model's own bones, and `refreshPositionPose` retargets for them)
+    if (!(editing && editKind === 'position')) f.inst.cosmetic?.(0, time);
   }
 }
 
@@ -895,7 +937,7 @@ function renderPanel(): void {
 
     <label class="check" title="Show a decimated character's full-resolution original (public/models/full/) instead of the budget-sized model the game ships"><input type="checkbox" id="fullRes" ${initialParams.get('res') === 'full' ? 'checked' : ''}> Full-resolution original</label>
     <label class="check"><input type="checkbox" id="grid" ${showGrid ? 'checked' : ''}> Grid &amp; scale post</label>
-    <label class="check" title="Curls the model's fingers into a fist on any pose. A preview: the game does not clench yet."><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists</label>
+    <label class="check" title="${FISTS_FREE_TITLE}"><input type="checkbox" id="fists" ${fists ? 'checked' : ''}> Clench fists <span class="fists-note">— set by the game here</span></label>
     ${hasGeoAudit(cid()) ? `
     <label class="check" title="docs/audits/geo-joints.md: green = where the mesh's volume puts each limb joint, blue = the skin-weight seam, red = the rig's joint"><input type="checkbox" id="geoJoints" ${geoView ? 'checked' : ''}> Geometric joints</label>
     <label class="check" title="The volume-based stand-in: capsules along the geometric centre lines, sized by the section profile"><input type="checkbox" id="geoStandIn" ${geoView > 1 ? 'checked' : ''}> …and volume stand-in</label>` : ''}
@@ -1418,6 +1460,13 @@ function renderWeaponPanel(host: HTMLDivElement): void {
   };
 }
 
+/** what turning each ride anchor does — and, where it does nothing yet, a warning that says so */
+const ROTATION_NOTE: Partial<Record<string, { text: string; warn?: boolean }>> = {
+  seat: { text: 'Y turns the rider on the seat, in the game too. X and Z tilt him here only — the game does not tilt a rider yet, so they are a note of how the ride should sit under him.', warn: true },
+  grip: { text: 'No bearing on anything yet: the hand keeps the pose\'s own wrist. Exported as a note of how the bars lie.', warn: true },
+  foot: { text: 'How the sole lies on the rest, in the ride\'s frame: 0, 0, 0 is flat with the toes forward. The right foot mirrors it.' },
+};
+
 /**
  * The rides' anchors: the seat and the left hand's grip on a vehicle, or the
  * Nikto's own seat on his swoop. Exported as the game's data file itself.
@@ -1439,22 +1488,20 @@ function renderVehiclePanel(host: HTMLDivElement): void {
     <div class="editbox">
       <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
         <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
-      ${nikto ? `<div class="field"><label>3D handle</label><div class="seg">
-        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move rider</button>
-        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate rider</button>
-      </div></div>` : ''}
+      <div class="field"><label>3D handle</label><div class="seg">
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto ? ' rider' : ''}</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto ? ' rider' : ''}</button>
+      </div></div>
       ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
         <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
-      ${cur.rotation ? `<div class="field"><label>Rotation in degrees, XYZ</label>
-        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
+      <div class="field"><label>Rotation in degrees, XYZ (Y first)</label>
+        <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div>
+        ${ed.selected && ROTATION_NOTE[ed.selected] ? `<p class="hint${ROTATION_NOTE[ed.selected]!.warn ? ' warn' : ''}">${ROTATION_NOTE[ed.selected]!.text}</p>` : ''}</div>
       <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
-      ${ed.turns ? `<div class="field"><label>Turns, in degrees about the vertical</label>
-        <div class="weapon-scale-row"><span class="hint">Rider on the seat</span>
-          <input id="riderYaw" type="number" step="0.5" value="${ed.turns.yaw}"></div>
-        <div class="weapon-scale-row"><span class="hint">Model on its keel</span>
-          <input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
-        <p class="hint">Turn the rider to face the helm, or the ride's model to line up with the way it drives (then re-place its anchors).</p>
+      ${ed.turns ? `<div class="field"><label>Model on its keel, degrees about the vertical</label>
+        <div class="weapon-scale-row"><input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
+        <p class="hint">Turn the ride's model to line up with the way it drives (then re-place its anchors). The rider turns with the seat's rotation (its Y).</p>
       </div>` : ''}
       <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
         <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
@@ -1475,15 +1522,16 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
         'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
         'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
-        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}</code></div>`).join('')}</div>` : ''}
+        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}${
+        'seatRotation' in e.anchor && e.anchor.seatRotation ? ` · seat ${e.anchor.seatRotation.join('/')}°` : ''}${
+        'gripRotation' in e.anchor && e.anchor.gripRotation ? ` · grip ${e.anchor.gripRotation.join('/')}°` : ''}${
+        'footRotation' in e.anchor && e.anchor.footRotation ? ` · sole ${e.anchor.footRotation.join('/')}°` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
     ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'foot' | 'rider');
-  for (const which of ['riderYaw', 'modelYaw'] as const) {
-    const input = host.querySelector<HTMLInputElement>(`#${which}`);
-    if (input) input.onchange = () => { ed.setTurn(which === 'riderYaw' ? 'yaw' : 'modelYaw', Number(input.value)); input.blur(); renderVehiclePanel(host); };
-  }
+  const modelYaw = host.querySelector<HTMLInputElement>('#modelYaw');
+  if (modelYaw) modelYaw.onchange = () => { ed.setTurn('modelYaw', Number(modelYaw.value)); modelYaw.blur(); renderVehiclePanel(host); };
   host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
     button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
   });
@@ -1820,10 +1868,13 @@ function frame(now: number): void {
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
   if (weaponAwaiting && editing && editKind === 'weapon'
     && figures.some((f) => f.waitingFor && ready(f))) refreshWeaponPose();
-  if (!paused && !(editing && editKind === 'position'))
+  // A joint turned in edit mode is turned on the rig; the authored skin follows
+  // it through `cosmetic`, so that runs while editing even with playback paused
+  // (a moment is edited paused), or the model would sit still under the gizmo.
+  if ((!paused || (editing && editKind === 'rotate')) && !(editing && editKind === 'position'))
     for (const f of figures) f.inst.cosmetic?.(animationDt, time);
   for (const f of figures) f.weapons?.frame(time);
-  for (const f of figures) clench(f.inst.root, fists ? 1 : 0);
+  syncFists();
   syncGeoOverlay(figures, cid(), geoView > 0, geoView > 1);
   editor.update();
   positionEditor.update(camera);

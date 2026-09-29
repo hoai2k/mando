@@ -26,6 +26,7 @@ import type { VehicleSpec } from '../world/board';
 import { reachArm } from '../anim/seating';
 import { pickUnarmed } from '../anim/unarmed';
 import { FIST_ENEMIES, strikePace } from '../characters/combatStyle';
+import { FistDriver } from '../characters/fists';
 import { hipsOverFeet, stanceRise } from '../game/vehicleAnchors';
 import { TEXT } from '../text';
 import { RIVALS, RIVAL_KINDS, type RivalKind } from './rivals';
@@ -632,6 +633,8 @@ export class Enemy {
 
   private attackCd = 0;
   private windup = 0;
+  /** closes the hands for what the body is doing, on the sculpts passed for it */
+  private fists: FistDriver | null = null;
   /** burn-zone damage accrues and lands in ticks, not per frame (src/core/body.ts) */
   private burn = newBurnState();
   /** where a flame volley was aimed when it started — the stream holds its line */
@@ -707,6 +710,13 @@ export class Enemy {
   private strafePhase = Math.random() * Math.PI * 2;
   /** public because src/enemies/arrival.ts steers an arriving body by it */
   facingYaw = 0;
+  /**
+   * A gameplay section's own brain for this one body (K9: a krykna shying
+   * from a helmet lamp, docs/SECTIONS_IMPLEMENTATION.md §3). Runs at the top
+   * of the steering; returning true means it set the velocity and facing
+   * itself this frame. Null everywhere outside a section.
+   */
+  sectionSteer: ((e: Enemy, dt: number, game: Game, target: Combatant | null) => boolean) | null = null;
   spawnPos = new THREE.Vector3();
   // ---- ragdoll & corpse ----
   /**
@@ -741,6 +751,15 @@ export class Enemy {
   ride: Vehicle | null = null;
   /** the ride this one is running for, claimed but not yet reached */
   boarding: Vehicle | null = null;
+
+  /**
+   * A stealth section's sight rules (Lights Out, K6 in
+   * sections/kit/detection.ts), set while it stands and cleared on teardown:
+   * `scale` multiplies how far a hostile sees, and `behind` is how close
+   * behind it a body must come to be noticed (the game's usual is 8 m), so a
+   * silent takedown can be walked up to. Null everywhere else.
+   */
+  static stealthSight: { scale: number; behind: number } | null = null;
 
   // ---- awareness / squad ----
   awareness: Awareness = 'idle';
@@ -798,6 +817,21 @@ export class Enemy {
   private coverRetry = Math.random() * 0.8;
   private coverCheck = 0;
   private peekFired = false;
+
+  // ---- a gameplay section's hand on this body (K8 pursuit) ----
+  /**
+   * Null everywhere outside a section. `drive` moves the body itself this
+   * frame and returns the pose to hold ('ground' runs the locomotion cycle,
+   * 'air' the flight pose, 'still' leaves whatever the section played on the
+   * animator) — the AI is skipped, the timers, pose and visuals
+   * still run; returning false hands the frame back to the AI. `hurt` sees
+   * every hit first and returns the damage that lands (0 for a hit it turns
+   * into something else, a stagger or a cost). src/sections/kit/pursuit.ts.
+   */
+  scripted: {
+    drive?: (e: Enemy, dt: number, game: Game) => 'ground' | 'air' | 'still' | false;
+    hurt?: (amount: number, from: THREE.Vector3, bySlot: number) => number;
+  } | null = null;
 
   get downed(): boolean { return this.downTimer > 0; }
   /** out of the fight for commitment purposes */
@@ -1128,6 +1162,11 @@ export class Enemy {
 
   damage(amount: number, from: THREE.Vector3, bySlot: number, _opts?: { dot?: boolean; heavy?: boolean }): void {
     if (!this.alive) return;
+    // a section's scripted body decides what a hit does to it (K8 pursuit)
+    if (this.scripted?.hurt) {
+      amount = this.scripted.hurt(amount, from, bySlot);
+      if (amount <= 0) { this.hitFlash = 0.15; if (bySlot >= 0) this.lastHitBy = bySlot; return; }
+    }
     // under the ground nothing lands — the whole lesson of the burrower is
     // that it has to be hurt while it is up
     if (this.submerged) { this.alert(from, true); return; }
@@ -1352,7 +1391,10 @@ export class Enemy {
     for (const e of game.enemies) if (e !== this) foes.push(e);
     for (const f of foes) {
       if (!f.alive || f.team === this.team) continue;
-      const d = f.position.distanceToSquared(this.position);
+      let d = f.position.distanceToSquared(this.position);
+      // K5 (sections/kit/objective.ts): a defended ally reads as nearer than it is
+      const w = (f as { targetWeight?: number }).targetWeight;
+      if (w) d /= w * w;
       if (d < bestD) { bestD = d; best = f; }
     }
     return best;
@@ -1452,6 +1494,19 @@ export class Enemy {
 
     if (this.arrival) {
       updateArrival(this, dt, game);
+      return;
+    }
+
+    // a section is driving this body (K8 pursuit): no AI, but the pose and visuals run
+    const scriptPose = this.scripted?.drive?.(this, dt, game);
+    if (scriptPose) {
+      this.tickTimers(dt);
+      if (anim && scriptPose === 'air') {
+        anim.play('lower', 'flyLower', 0.2);
+        anim.play('upper', 'idleUpper', 0.25);
+      } else if (anim && scriptPose === 'ground') this.updateLocomotionAnim(anim);
+      this.syncVisual(dt, game);
+      anim?.update(dt);
       return;
     }
 
@@ -1777,6 +1832,8 @@ export class Enemy {
   /** the AI proper: what this body does with the frame, by state and by style */
   private steer(dt: number, game: Game, target: Combatant | null): void {
     const d = this.def;
+    // a section's brain for this body (see `sectionSteer`) — never over a stagger
+    if (this.stagger <= 0 && this.sectionSteer?.(this, dt, game, target)) return;
     if (this.stagger > 0) {
       // reeling from a hit: coast on the impulse, just bleed it off slowly
       this.stagger -= dt;
@@ -2061,7 +2118,7 @@ export class Enemy {
     // sight range scales with the light falling on the *target*: on a board
     // with a moving terminator the night side is genuinely safer to cross
     const lit = game.board.lightAt ? 0.45 + 0.55 * game.board.lightAt(foe.position.x, foe.position.z) : 1;
-    let notice = d.notice * lit;
+    let notice = d.notice * lit * (Enemy.stealthSight?.scale ?? 1);
     // a submerged target is a shadow under the chop: near-invisible from
     // above, which is what makes the water a stealth route
     const wY = game.board.waterY;
@@ -2070,7 +2127,8 @@ export class Enemy {
     const inv = 1 / (dist || 1);
     const dot = (dx * inv) * Math.sin(this.facingYaw) + (dz * inv) * Math.cos(this.facingYaw);
     // ahead: full range; peripheral: about half; behind: only right on top of them
-    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : 8;
+    // (a stealth section tightens "on top of them" — see `Enemy.stealthSight`)
+    const range = dot > 0.25 ? notice : dot > -0.35 ? notice * 0.5 : (Enemy.stealthSight?.behind ?? 8);
     if (dist > range) { this.sightMemo = false; return false; }
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.2 + (this.id % 5) * 0.03;
@@ -3483,6 +3541,15 @@ export class Enemy {
     // creatures that animate themselves need to know how fast they're going
     this.updateHalo(dt, game);
     this.char.setGait?.(this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0);
+    // hands close on the gun, the grips, a fight and a run (`fists.ts`); the
+    // swoop's rider has no clips to read and holds its bars itself
+    if (this.char.animator) {
+      if (this.fists?.root !== this.char.root) this.fists = new FistDriver(this.char.root, true);
+      this.fists.update(dt, this.alive ? this.char.animator : null, {
+        gun: !FIST_ENEMIES.has(this.kind) && (this.def.style === 'ranged' || this.def.style === 'hover'),
+        fight: FIST_ENEMIES.has(this.kind) && this.windup > 0,
+      });
+    }
     this.char.cosmetic?.(dt, game.time);
     // Hit flash: a brief scale pop, multiplied into the species bulk rather
     // than written over it. Overwriting meant every scaled enemy (dark trooper

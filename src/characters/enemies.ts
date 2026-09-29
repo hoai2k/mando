@@ -12,6 +12,8 @@ import { ANKLE_OVER_SOLE, hipsOverFeet, NIKTO_RIDER, stanceRise, VEHICLE_ANCHORS
 import { sculptLift, VEHICLE_DEFS } from '../game/vehicles';
 import { addElectrostaffArcs } from './electrostaffFx';
 import { attachEggRack, BROOD_EGG_RACK, eggTint, type SculptRack } from './eggrack';
+import { clench } from './fistRig';
+import { fistsInPlay } from './fists';
 
 // the clutch's size is the sculpt's, and it is the rack module that counts it
 export { BROOD_EGG_RACK };
@@ -674,6 +676,8 @@ export function buildNikto(authored = true): CharacterInstance {
     cosmetic: (dt, time) => {
       swap.update();
       if (swap.settled) seatRider();
+      // both hands on the bars, closed on them (`fists.ts`)
+      if (seated && fistsInPlay(rider.root, true)) clench(rider.root, 1);
       speed = damp(speed, speedTarget, 4, dt);
       const run = clamp(speed / 15, 0, 1);
       bike.position.y = BIKE_REST + Math.sin(time * (6 + run * 3)) * (0.05 - run * 0.025);
