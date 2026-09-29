@@ -1,7 +1,12 @@
 /**
- * Footwork: what the feet do while the hands are busy.
+ * Footwork: how a run builds, and what the feet do while the hands are busy.
  *
- *  - A light push of the stick walks, on the walk cycle; the rim runs.
+ *  - A light push of the stick walks, on the walk cycle.
+ *  - Pushed for a run, a fighter walks for a second, jogs for a second, then
+ *    runs at 80% of the old run speed. LB is still the hurry: a dodge and a
+ *    sprint at once, and coming off it drops to the run, not to a walk.
+ *  - Enemies on foot move at 80% of their listed speed too; riders and fliers
+ *    are left as they were.
  *  - Firing slows the feet to a walk — even with LB held, which would
  *    otherwise sprint — and they run again once the trigger is let go.
  *  - A swing plants the feet. The lunge carries a swing onto a target; with
@@ -45,6 +50,24 @@ try {
     };
   }, [spec, blankInput()]);
 
+  // ---- enemies: 80% on foot, riders and fliers as they were ----
+  const foes = await page.evaluate(() => {
+    // the first wave has to arrive before there is anybody to measure
+    window.__simUntil((g) => g.enemies.filter((e) => e.alive).length >= 3, 40);
+    const out = {};
+    for (const e of window.__game.enemies) {
+      if (out[e.kind]) continue;
+      const listed = window.__bodyDecl(e.kind).speed;
+      out[e.kind] = { style: e.def.style, ratio: +(e.def.speed / listed).toFixed(3) };
+    }
+    return out;
+  });
+  const onFoot = Object.values(foes).filter((f) => f.style !== 'swoop' && f.style !== 'hover');
+  const riders = Object.values(foes).filter((f) => f.style === 'swoop' || f.style === 'hover');
+  check('enemies on foot move at 80% of their listed speed',
+    onFoot.length > 0 && onFoot.every((f) => f.ratio === 0.8), foes);
+  check('...and riders and fliers as they were', riders.every((f) => f.ratio === 1), foes);
+
   // somewhere open: the middle of the arena, facing out along +Z
   await page.evaluate(() => {
     const g = window.__game, p = g.players[0];
@@ -57,8 +80,19 @@ try {
   const walk = await run({ frames: 45, stick: 0.45 });
   check('a light push of the stick walks, on the walk cycle',
     walk.speed > 0.4 && walk.speed < 2.1 && walk.legs === 'walkLower', walk);
-  const full = await run({ frames: 45, stick: 1 });
-  check('the rim of the stick runs', full.speed > 8 && full.legs !== 'walkLower', full);
+  // ---- the build-up: walk, jog, run ----
+  await run({ frames: 30 });                                   // to a standstill
+  const walking = await run({ frames: 24, stick: 1 });          // 0.8 s
+  const jogging = await run({ frames: 24, stick: 1 });          // 1.6 s
+  const running = await run({ frames: 36, stick: 1 });          // 2.8 s
+  check('pushed for a run, the first second is a walk', walking.speed <= 1.5 && walking.legs === 'walkLower', walking);
+  check('...the second a jog', jogging.speed > 3 && jogging.speed < 5.5, jogging);
+  check('...and then a run, at 80% of the old 9.2 m/s', Math.abs(running.speed - 9.2 * 0.8) < 0.2, running);
+  await run({ frames: 30 });
+  const hurry = await run({ frames: 12, stick: 1, press: ['dashPressed'], hold: ['sprintHeld'], from: 8 });
+  check('LB is still the hurry: fast from the first moment', hurry.speed > 12 && hurry.sprinting, hurry);
+  const offSprint = await run({ frames: 15, stick: 1 });
+  check('...and letting go drops to the run, not back to a walk', Math.abs(offSprint.speed - 9.2 * 0.8) < 0.3, offSprint);
 
   // ---- the gun ----
   const firing = await run({ frames: 45, stick: 1, hold: ['shootHeld'], from: 20 });
@@ -66,16 +100,16 @@ try {
   check('...on the walk cycle', firing.legs === 'walkLower', firing);
   const sprintFire = await run({ frames: 45, stick: 1, press: ['dashPressed'], hold: ['sprintHeld', 'shootHeld'], from: 25 });
   check('LB held does not sprint through the fire', !sprintFire.sprinting && sprintFire.peak <= 1.85, sprintFire);
-  const released = await run({ frames: 45, stick: 1 });
-  check('let go of the trigger and the run comes back', released.speed > 8, released);
+  const released = await run({ frames: 90, stick: 1 });
+  check('let go of the trigger and the run builds back up', released.speed > 7, released);
 
   // ---- the swing ----
-  await run({ frames: 30, stick: 1 });
+  await run({ frames: 90, stick: 1 });
   const swing = await run({ frames: 8, stick: 1, press: ['meleePressed'], from: 4 });
   check('a swing with nothing to lunge at plants the feet',
     swing.swinging && swing.peak <= 1, swing);
-  const after = await run({ frames: 60, stick: 1 });
-  check('...and the run comes back once it is thrown', after.speed > 8, after);
+  const after = await run({ frames: 90, stick: 1 });
+  check('...and the run builds back up once it is thrown', after.speed > 7, after);
 
   // ---- the saddle ----
   const ride = await page.evaluate((BLANK) => {

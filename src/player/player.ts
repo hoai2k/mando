@@ -263,6 +263,22 @@ const WALK_TILT = 0.6;
 const RUN_TILT = 0.9;
 const WALK_SPEED = 1.4;
 /**
+ * A run builds up. Pushing the stick for a run starts on a walk, a second
+ * later breaks into a jog, and a second after that runs — at `RUN_PACE` of
+ * the fighter's listed run speed, which is what they used to go at from the
+ * first frame. LB is the hurry: its dodge and sprint are immediate, as they
+ * always were, and coming off a sprint drops to the run rather than back to a
+ * walk. Stopping, firing, swinging or raising the shield starts the build-up
+ * again; a jump carries it.
+ */
+const GAIT_WALK_FOR = 1;
+const GAIT_JOG_FOR = 1;
+/** the jog's pace, as a share of the run's */
+const GAIT_JOG_SHARE = 0.55;
+/** the run, as a share of a fighter's listed run speed (see `PlayerProfile.runSpeed`) */
+const RUN_PACE = 0.8;
+
+/**
  * The pace a fighter keeps while the gun is going: a purposeful walk, on the
  * walk cycle (under `WALK_GAIT_MAX`), never a run. Running and firing at once
  * read as a body gliding under a turret; a hunter who walks their fire in reads
@@ -576,6 +592,8 @@ export class Player {
   sprinting = false;
   /** counts down from the last shot: while it runs the feet keep to a walk */
   private shotWalkT = 0;
+  /** how long the stick has been asking for a run, for the walk-jog-run build-up (s) */
+  private gaitT = 0;
   /** on the walk cycle rather than the run: held across a margin, so the gait does not flicker at the seam */
   private walking = false;
   /** shield up: drains the same gauge sprinting does */
@@ -1965,7 +1983,25 @@ export class Player {
     this.snareTimer -= dt;
     if (this.snareTimer > 0 && input.meleePressed) this.snareTimer = 0;
     const snared = this.snareTimer > 0;
-    let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed : this.profile.runSpeed;
+    // the build-up: see GAIT_WALK_FOR. It advances while the feet are on the
+    // ground and the stick asks for more than a walk; a jump carries it.
+    const run = this.profile.runSpeed * RUN_PACE;
+    if (this.sprinting || this.dashTimer > 0) {
+      this.gaitT = GAIT_WALK_FOR + GAIT_JOG_FOR;          // off a sprint or a dodge: already running
+    } else if (!moving || firing || swinging || this.blocking || snared) {
+      this.gaitT = 0;
+    } else if (this.grounded && wishLen > WALK_TILT) {
+      this.gaitT = Math.min(this.gaitT + dt, GAIT_WALK_FOR + GAIT_JOG_FOR);
+    }
+    const gaitPace = this.gaitT < GAIT_WALK_FOR ? WALK_SPEED
+      : this.gaitT < GAIT_WALK_FOR + GAIT_JOG_FOR ? Math.max(WALK_SPEED, run * GAIT_JOG_SHARE)
+      : run;
+    // Flying under power (jetpack, super jump) keeps the full listed speed:
+    // the build-up is about legs. A plain jump carries the ground pace it
+    // left with, so hopping out of a walk is not a way to skip to a run.
+    const flying = !this.grounded && (this.thrusting > 0 || this.superRising || this.superGliding);
+    let topSpeed = this.blocking ? BLOCK_SPEED : this.sprinting ? this.profile.sprintSpeed
+      : flying ? this.profile.runSpeed : gaitPace;
     // K7 flight: a section's boosters set the airborne top speed
     if (!this.grounded && this.flightTopSpeed !== null) topSpeed = this.flightTopSpeed;
     if (snared) topSpeed *= 0.32;

@@ -578,6 +578,19 @@ export function enemyStats(kind: EnemyKind): {
   return { hp: d.hp, speed: d.speed, radius: d.radius, height: d.height, style: d.style, damage: d.damage, attackCd: d.attackCd };
 }
 
+/**
+ * Everything on foot moves at this share of its listed speed. The players'
+ * run was brought down to 80% of what it was (a run now builds up from a walk,
+ * see `RUN_PACE` in player.ts), and the hostiles came down with it so a chase
+ * reads the same as it did. Riders and fliers are left alone: a swoop is a
+ * vehicle, and a jetpack or a drone is not a pair of legs.
+ */
+const ENEMY_FOOT_PACE = 0.8;
+function footPaced(d: Def): Def {
+  if (d.style === 'swoop' || d.style === 'hover') return d;
+  return { ...d, speed: d.speed * ENEMY_FOOT_PACE };
+}
+
 export class Enemy {
   id = nextId++;
   def: Def;
@@ -928,7 +941,7 @@ export class Enemy {
    */
   constructor(public kind: EnemyKind, pos: THREE.Vector3, team = 1,
     opts: { silent?: boolean } = {}) {
-    this.def = DEFS[kind];
+    this.def = footPaced(DEFS[kind]);
     this.hitParts = (this.def.hitParts ?? []).map((p) => ({ ...p }));
     this.team = team;
     this.char = this.def.build();
