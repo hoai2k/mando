@@ -10,12 +10,16 @@ import type { StageBuilder } from './builder';
  * Validation: keep only spots a body actually fits in, now that every
  * collider on the stage is standing. Returns the party's starts.
  */
-export function validateSpots(b: StageBuilder, zones: MissionZone[]): THREE.Vector3[] {
+export function validateSpots(b: StageBuilder, zones: MissionZone[],
+  vestibule: THREE.Vector3 | null = null): THREE.Vector3[] {
   const { board, defenders, groundAt } = b;
 
   // ---- validation: keep only spots a body actually fits in ----
   const fits = (p: THREE.Vector3): boolean => {
     if (!board.physics.capsuleFree(p.x, p.y, p.z, 0.6, 2.1)) return false;
+    // and something under it: a spot over a deck's gap is free because
+    // nothing is there at all
+    if (!(board.physics.groundHeight(p.x, p.z, p.y) > p.y - 1.5)) return false;
     const hz = hazardAt(board, p);
     return !hz.kill && hz.dps <= 0;
   };
@@ -26,14 +30,20 @@ export function validateSpots(b: StageBuilder, zones: MissionZone[]): THREE.Vect
     if (!zone.vents.length) zone.vents.push(zone.center.clone());
     zone.posts = zone.posts.filter(fits);
     if (!zone.posts.length) zone.posts.push(zone.center.clone());
-    if (zone.runnerPost && !fits(zone.runnerPost)) zone.runnerPost = null;
+    if (zone.runnerPost && (!fits(zone.runnerPost) || !zone.runnerIn || !fits(zone.runnerIn))) {
+      console.warn(`[mission] ${zone.spec.label}: its runner pass has nowhere to stand — no runners will come through it`);
+      zone.runnerPost = null;
+      zone.runnerIn = null;
+    }
     for (const h of zone.hatches) if (!fits(h.post)) h.post.copy(zone.center);
   }
   for (let i = 0; i < defenders.length; i++) defenders[i] = defenders[i].filter((d) => fits(d.pos));
 
-  const startZone = zones[0];
+  // A stage with a door behind it re-forms the party in its vestibule, outside
+  // zone 0; the run's first stage has none and opens on its trailhead.
+  const at = vestibule ?? zones[0].entry;
   const starts = [[0.9, 0.9], [-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9]].map(([dx, dz]) => {
-    const x = startZone.entry.x + dx, z = startZone.entry.z + dz;
+    const x = at.x + dx, z = at.z + dz;
     return new THREE.Vector3(x, groundAt(x, z) + 0.2, z);
   });
   return starts;

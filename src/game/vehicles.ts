@@ -18,6 +18,7 @@ import { reachLeg, seatSurface, spreadKnees } from '../anim/seating';
 import type { Rig } from '../anim/skeleton';
 import { ANKLE_OVER_SOLE, CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
+import { saberClipsFor } from '../characters/mandalorians';
 
 /**
  * Pilotable vehicles (PLAN.md §17): rides with hit points parked around the
@@ -124,6 +125,130 @@ export interface VehicleDef {
   crashScale: number;
   /** tonnage — who comes off worse when two rides meet, and who barely notices */
   mass: number;
+  /**
+   * A gun on the ride (K3, docs/SECTIONS_IMPLEMENTATION.md §3): a nose cannon
+   * on a bike, the barrels of a turret. Absent on every ride the boards park —
+   * there the vehicle is the weapon — and a section opts a ride in through
+   * `VehicleOpts`.
+   */
+  gun?: GunDef;
+  /**
+   * The rider's own melee weapon swung to a flank from the saddle (K3): the
+   * melee button, at whoever is alongside. Off unless a section opts in.
+   */
+  sideSwing?: boolean;
+  /** a second seat behind the driver, in the ride's own space; the pillion works the weapons */
+  pillion?: { x: number; y: number; z: number };
+  /** a stationary mount: an arc, a sight and a gun, and no engine at all */
+  turret?: TurretDef;
+}
+
+/**
+ * A gun on a ride (K3). A bike's twin nose cannons, a turret's four barrels:
+ * the trigger is held, the muzzles alternate, and heat stacks until the gun
+ * locks up and has to vent — a hold is seconds, not a state, the same as the
+ * rider's own blaster.
+ */
+export interface GunDef {
+  /** shots a second with the trigger held */
+  rate: number;
+  /** the heat one shot adds; the gun locks at 1 */
+  heat: number;
+  /** heat vented a second off the trigger */
+  cool: number;
+  /** an overheated gun is back below this */
+  resume: number;
+  damage: number;
+  /** bolt speed, m/s */
+  speed: number;
+  /** half-angle of the soft-lock cone, radians — a bolt bends onto a target inside it */
+  cone: number;
+  /** how far the soft lock looks, metres */
+  range: number;
+  /** muzzles in the ride's own space (as `seat`), alternated shot to shot */
+  muzzles: { x: number; y: number; z: number }[];
+  voice?: 'carbine' | 'crossbow' | 'longrifle' | 'pistols';
+}
+
+/** A turret (K3): a ride that cannot move, with an arc, a sight and an auto-fire mode. */
+export interface TurretDef {
+  /** half the yaw arc either side of the mount's facing, radians (π = all round) */
+  yawArc: number;
+  pitchMin: number;
+  pitchMax: number;
+  /** the gunner's eye over the keel, in the gun's own (turned) space */
+  sight: { x: number; y: number; z: number };
+  /** the height of the trunnion the barrels pitch about */
+  pivot: number;
+  /** how fast the gun comes round, rad/s */
+  slew: number;
+  /** with nobody in it: fire at this fraction of the rate (0 = never) */
+  auto: number;
+  /** how far an unmanned gun looks for something to shoot */
+  autoRange: number;
+}
+
+/**
+ * What a section hands a ride it builds (K3): the weapons it carries, the
+ * lane that guides it, and whether it comes back where it was parked when
+ * it is wrecked. Every field is optional, and a ride built without any of
+ * them is exactly the ride the boards park.
+ */
+export interface VehicleOpts {
+  gun?: GunDef;
+  sideSwing?: boolean;
+  pillion?: { x: number; y: number; z: number };
+  lane?: SplineLane | null;
+  /** false: a wreck stays a wreck (the section brings a fresh one) */
+  respawns?: boolean;
+  /** a turret's side when nobody is in it (0 = the party's gun) */
+  team?: number;
+  /** hit points other than the kind's own (a gun barge is a skiff built lighter) */
+  hp?: number;
+  /** a turret built otherwise than the kind's own: its arc, its auto-fire */
+  turret?: Partial<TurretDef>;
+}
+
+/**
+ * A lane-guided ride's road (K3, `Vehicle.lane`): a spline down a river, a
+ * pier, a chute. Forward is carried along it, so the stick is *where in the
+ * lane* and *how fast*, never which way the level goes. `lat` is metres to
+ * the right of the centre line, looking along the lane.
+ */
+export interface SplineLane {
+  /** total length, metres */
+  readonly length: number;
+  /** where a point is on the lane; `hint` is the last answer, which keeps a bend that doubles back honest */
+  project(x: number, z: number, hint?: number): { s: number; lat: number };
+  /** the world point at distance `s`, `lat` metres right of the line (y is the floor there) */
+  point(s: number, lat: number, out: THREE.Vector3): THREE.Vector3;
+  /** the heading of the lane at `s` (yaw: 0 = +Z) */
+  heading(s: number): number;
+  /** how far either side of the line a hull may go at `s` */
+  halfWidth(s: number): number;
+  /** the throttle band at `s`: pulled back, stick centred, stick forward */
+  speed(s: number): { min: number; cruise: number; max: number };
+  /** a riderless hull here goes under (lava, open water) rather than coasting to a stop */
+  sinks?(s: number, lat: number): boolean;
+}
+
+/** what a lane brain asks of a hostile's ride this frame (see `Vehicle.laneBrain`) */
+export interface LaneOrder {
+  /** the lane offset to make for, metres right of the line */
+  lat: number;
+  /** the speed to hold, m/s */
+  speed: number;
+  boost?: boolean;
+  /** swing to this flank now (-1 left, 1 right) */
+  swing?: -1 | 1 | 0;
+  /** hold the trigger */
+  fire?: boolean;
+  /**
+   * Fire at this point instead of off the nose: the rider's own blaster,
+   * turned in the saddle at someone behind (the gun's rate and heat still
+   * apply). A gunner riding ahead of the party shoots back this way.
+   */
+  aimAt?: THREE.Vector3 | null;
 }
 
 export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
@@ -191,7 +316,56 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
     seat: { x: 0, y: 0.8, z: 2.6 }, stance: 'stand',
     modelId: 'skiff', modelSize: 9, modelYaw: Math.PI,
   },
+  turret: {
+    // K3's stationary mount: a quad gun on a ring. Nothing about it drives —
+    // it has no top speed and never unparks — so every number the engine
+    // reads is zero, and what it has instead is the arc, the sight and the gun.
+    name: 'Quad gun', hp: 420, top: 0, throttle: 0, brake: 0, drag: 0,
+    turn: 0, grip: 10, boost: 0,
+    shotResist: 0.45, crashScale: 0, mass: 40,
+    radius: 1.4, body: 2.2, hover: 0, length: 2.8,
+    // the gunner sits in the bucket behind the breech and turns with the gun
+    seat: { x: 0, y: 0.05, z: -1.0 }, stance: 'seated',
+    modelId: 'quad_turret', modelSize: 4, modelAxis: 'longest', modelGround: true,
+    gun: {
+      // heat vents all the time and a shot adds it: 9 × 0.078 against 0.45 a
+      // second locks a held trigger in about four seconds
+      rate: 9, heat: 0.078, cool: 0.45, resume: 0.3, damage: 22, speed: 95,
+      cone: 0.05, range: 140, voice: 'longrifle',
+      muzzles: [
+        { x: 0.32, y: 1.72, z: 1.9 }, { x: -0.32, y: 1.72, z: 1.9 },
+        { x: 0.32, y: 1.42, z: 1.9 }, { x: -0.32, y: 1.42, z: 1.9 },
+      ],
+    },
+    turret: {
+      yawArc: Math.PI * 0.75, pitchMin: -0.25, pitchMax: 0.7,
+      // the sight clears the shield plate (top at 2.3): any lower and aiming
+      // below level looks into the plate's back
+      sight: { x: 0, y: 2.7, z: -0.35 }, pivot: 1.55,
+      slew: 2.6, auto: 0.5, autoRange: 90,
+    },
+  },
 };
+
+/**
+ * The Magma Run's bike cannon (K3): twin bolts off the nose, alternating,
+ * bent onto a target inside a ±12° cone. About two seconds of trigger to lock
+ * it up, and a second and a half to come back.
+ */
+export const BIKE_CANNON: GunDef = {
+  // 8 × 0.13 a second in, 0.55 out: a held trigger locks in two seconds
+  rate: 8, heat: 0.13, cool: 0.55, resume: 0.35, damage: 16, speed: 80,
+  cone: 12 * Math.PI / 180, range: 70, voice: 'carbine',
+  muzzles: [{ x: 0.22, y: 0.55, z: 1.45 }, { x: -0.22, y: 0.55, z: 1.45 }],
+};
+
+/** the same cannons with a pirate on the trigger: slower, and not as sure */
+export const BIKE_CANNON_HOSTILE: GunDef = {
+  ...BIKE_CANNON, rate: 3.2, damage: 7, cone: 6 * Math.PI / 180, range: 55,
+};
+
+/** where a pillion sits on a speeder bike: over the engine, behind the saddle */
+export const BIKE_PILLION = { x: 0, y: -0.28, z: -1.15 };
 
 /** a mount's charge: how long the horns are down, and the wait before another */
 const _restFoot = new THREE.Vector3();
@@ -267,6 +441,49 @@ const HOP_GRAVITY = 22;
  * room to arrest it and set it down.
  */
 const HOP_CATCH = 0.6;
+
+/**
+ * A lane-guided ride's repulsors reach this far down and no further. Off a
+ * terrace lip the ground falls away by more, and the ride flies the drop on
+ * gravity instead of being hauled down it by the hover spring — which at
+ * seven metres is twenty g, and reads as the ride being slammed, not falling.
+ */
+const LANE_REACH = 1.8;
+/** metres a second of sideways lean at full stick */
+const LANE_LEAN = 11;
+/** how quickly the lean follows the stick (damp lambda) */
+const LANE_LEAN_BITE = 5.5;
+/** the shove a double-tapped lean gives — the sideswipe, into whoever is there */
+const SIDESWIPE = 10;
+/** how far a knocked-off, riderless lane hull rolls on before the lava has it */
+const SINK_AFTER = 1.1;
+/** how long going under takes */
+const SINK_TIME = 1.6;
+
+/**
+ * The side swing (K3): the rider's own weapon, swung from the saddle at
+ * whoever is alongside. The box is measured from the swinger's hull in its
+ * own axes — out to the flank, and a little ahead and behind — and a hit
+ * lands on the *rider*, not the hull: a knocked rider comes out of the saddle
+ * and their ride runs on without them.
+ */
+const SWING_OUT_MIN = 0.4;
+const SWING_OUT_MAX = 4.8;
+const SWING_ALONG = 3.2;
+const SWING_COOLDOWN = 0.35;
+/**
+ * When in the swing it can land, as fractions of its length: the blade is
+ * live through the middle of the arc, and it lands on the first thing it
+ * meets there. Tested every frame rather than at one instant, because two
+ * rides side by side at twenty metres a second do not hold still for it.
+ */
+const SWING_FROM = 0.28;
+const SWING_TO = 0.75;
+/**
+ * A hostile's club comes round slower than a player's own weapon — long
+ * enough to see it raised — so a rider who swings first wins the exchange.
+ */
+const HOSTILE_SWING = 0.95;
 
 /** seconds of ride deflector on a full rider gauge */
 const SHIELD_SECONDS = 4;
@@ -355,6 +572,26 @@ const _foot = new THREE.Box3();
 const _seatFrom = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
+// K3 scratch
+const _aimPt = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _sight = new THREE.Vector3();
+const _muzzle = new THREE.Vector3();
+const _shot = new THREE.Vector3();
+const _lock = new THREE.Vector3();
+const _lockPt = new THREE.Vector3();
+const _tgtPos = new THREE.Vector3();
+const _brainAim = new THREE.Vector3();
+
+/** an angle folded into (-π, π] */
+function wrapAngle(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/** a player rather than a hostile (the swing and the seat treat them differently) */
+function isPlayer(x: Player | Enemy): x is Player {
+  return 'characterId' in x;
+}
 
 export class Vehicle {
   def: VehicleDef;
@@ -454,10 +691,85 @@ export class Vehicle {
   /** per-vehicle crash cooldown, so one collision bills once */
   private hitMemo = new Map<Vehicle, number>();
 
-  constructor(public spec: VehicleSpec, private board: Board) {
-    this.def = VEHICLE_DEFS[spec.kind];
+  // ---- K3: mounted weapons, the lane, the pillion, the turret ----
+  /**
+   * The lane this ride is guided along, or null for a free ride. While set,
+   * forward is carried along it, the stick is lean and a throttle band, and
+   * the ride never stops (docs/SECTIONS_IMPLEMENTATION.md §3, K3).
+   */
+  lane: SplineLane | null = null;
+  /** where on the lane it is: metres along, metres right of the line */
+  laneS = 0;
+  laneLat = 0;
+  /** sideways speed across the lane, m/s */
+  private latVel = 0;
+  /** the sideswipe: the last lean tap's side and when, and the wait before another */
+  private tapSide = 0;
+  private tapT = 0;
+  private leanWas = 0;
+  private swipeCd = 0;
+  /** a second player sat behind the driver, working the weapons */
+  pillion: Player | null = null;
+  /** the gun's heat, 0..1, and whether it has locked up to vent */
+  heat = 0;
+  overheated = false;
+  private gunCd = 0;
+  private muzzleIdx = 0;
+  /** a swing from the saddle, while one is in the air */
+  private swing: {
+    side: -1 | 1; t: number; dur: number; landed: boolean;
+    by: Player | Enemy; weapon: Player['weapon'] | null;
+  } | null = null;
+  private swingCd = 0;
+  private swingStep = 0;
+  /** false: a wreck stays gone (a section brings the fresh one) */
+  respawns = true;
+  /**
+   * Moved by its section, not by its own physics (K3): a barge on a set
+   * course, a hull in a treadmill arena. Its rider's frame still fights —
+   * swings, the gun — but nothing drives it; `place` puts it where it goes.
+   */
+  scripted = false;
+  /** a riderless lane hull's count down to the lava, and going under */
+  private sinkIn = -1;
+  private sinkT = 0;
+  /** a turret's own facing (its arc is measured from it), and the barrels' pitch */
+  baseYaw = 0;
+  aimPitch = 0;
+  /** whose gun an unmanned turret is */
+  team = 0;
+  /** a turret's burst rhythm with a hostile or nobody on it */
+  private burstLeft = 0;
+  private burstRest = 0;
+  /** the turret's moving parts, stand-in or sculpt */
+  private yawNode: THREE.Object3D | null = null;
+  private pitchNode: THREE.Object3D | null = null;
+  /**
+   * A section's own brain for a hostile rider on a lane (K3). Null: the
+   * built-in one — come alongside a player, swing or fire, peel off.
+   */
+  laneBrain: ((v: Vehicle, dt: number, game: Game) => LaneOrder) | null = null;
+  /** the built-in brain's state */
+  brain = { mode: 'close' as 'close' | 'peel', t: 0, side: 1 as -1 | 1, role: 'swinger' as 'swinger' | 'gunner' };
+
+  constructor(public spec: VehicleSpec, private board: Board, opts: VehicleOpts = {}) {
+    const base = VEHICLE_DEFS[spec.kind];
+    this.def = opts.gun || opts.sideSwing || opts.pillion || opts.hp || opts.turret
+      ? {
+        ...base,
+        ...(opts.gun ? { gun: opts.gun } : {}),
+        ...(opts.sideSwing ? { sideSwing: true } : {}),
+        ...(opts.pillion ? { pillion: opts.pillion } : {}),
+        ...(opts.hp ? { hp: opts.hp } : {}),
+        ...(opts.turret && base.turret ? { turret: { ...base.turret, ...opts.turret } } : {}),
+      }
+      : base;
+    this.lane = opts.lane ?? null;
+    this.respawns = opts.respawns ?? true;
+    this.team = opts.team ?? 0;
     this.hp = this.maxHp = this.def.hp;
     this.yaw = spec.yaw ?? 0;
+    this.baseYaw = this.yaw;
     // `y` is the deck it was parked on (a mission level's plate); without it
     // the search starts from the terrain, which on a mission board is ninety
     // metres under the floor the ride is standing on.
@@ -470,9 +782,16 @@ export class Vehicle {
     this.hands = handsFor(this.def, this.anchor);
     this.seatY = this.anchor ? this.anchor.seat[1] - STANCE_RISE[this.def.stance] : this.def.seat.y;
     this.group.add(this.body);
-    buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
+    const parts = buildVehicleMesh(spec.kind, this.body, (root) => this.onModel(root));
+    this.yawNode = parts.yaw;
+    this.pitchNode = parts.pitch;
     this.group.position.copy(this.pos);
-    this.group.rotation.y = this.yaw;
+    this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
+    if (this.lane) {
+      const at = this.lane.project(this.pos.x, this.pos.z);
+      this.laneS = at.s;
+      this.laneLat = at.lat;
+    }
     this.park();
   }
 
@@ -512,7 +831,16 @@ export class Vehicle {
   }
 
   mount(rider: Player): void {
-    this.unpark();
+    // K3: a ride with a driver already on it and a second seat takes this one
+    // as the pillion — the weapons are theirs, the stick stays the driver's
+    if (this.rider && this.pillionOpen && rider !== this.rider) {
+      this.pillion = rider;
+      rider.vehicle = this;
+      audio.land(false);
+      return;
+    }
+    // a turret never leaves its ring: it stays solid with a gunner in it
+    if (!this.def.turret) this.unpark();
     this.rider = rider;
     rider.vehicle = this;
     // a machine turns over; an animal complains about the weight
@@ -522,7 +850,7 @@ export class Vehicle {
 
   /** A hostile swings up: the ride is theirs until they are shot off it. */
   mountHostile(e: Enemy): void {
-    this.unpark();
+    if (!this.def.turret) this.unpark();
     this.reserved = false;
     this.hostile = e;
     if (this.def.living) audio.banthaLow(0.5);
@@ -539,9 +867,20 @@ export class Vehicle {
     if (!e) return;
     this.hostile = null;
     e.ride = null;
-    if (!this.alive) return;
+    this.swing = null;
+    if (!this.alive || this.def.turret) return;
     if (Math.hypot(this.vel.x, this.vel.z) > COAST_STOP || this.hopT > 0) this.coasting = true;
     else this.park();
+  }
+
+  /** a driver is aboard and the second seat is empty (K3) */
+  get pillionOpen(): boolean {
+    return !!this.def.pillion && this.alive && !!this.rider && !this.pillion;
+  }
+
+  /** whoever works the weapons: the pillion when there is one, the driver otherwise */
+  get gunner(): Player | null {
+    return this.pillion ?? this.rider;
   }
 
   /**
@@ -553,14 +892,29 @@ export class Vehicle {
    * killed at forty kilometres an hour leaves a speeder still going, which is
    * both what should happen and a genuinely useful thing to walk back to.
    */
-  dropRider(): void {
+  dropRider(who: Player | null = this.rider): void {
+    // K3: the pillion steps off the back and the ride carries on under its driver
+    if (who && who === this.pillion) {
+      this.pillion = null;
+      who.vehicle = null;
+      if (this.swing?.by === who) this.endSwing();
+      return;
+    }
     const rider = this.rider;
-    if (!rider) return;
+    if (!rider || who !== rider) return;
+    if (this.swing?.by === rider) this.endSwing();
     this.rider = null;
     rider.vehicle = null;
     this.shieldWanted = false;
     audio.setEngine(rider.slot, 0);
-    if (!this.alive) return;
+    // a driver gone with a pillion aboard: the pillion slides forward onto
+    // the bars, and the ride never stops being ridden
+    if (this.pillion && this.alive) {
+      this.rider = this.pillion;
+      this.pillion = null;
+      return;
+    }
+    if (!this.alive || this.def.turret) return;
     // Still in the air off a hop counts as still rolling: parking registers a
     // solid box where the ride is *now*, and a rider who bails at the top of
     // one would otherwise leave an invisible box hanging over the road while
@@ -606,11 +960,24 @@ export class Vehicle {
    * Either way the ride is not gone: `respawnIn` runs down and it reforms
    * where it was first parked (see `respawn`).
    */
-  private destroy(explode: boolean): void {
+  private destroy(how: boolean | 'sink'): void {
     if (!this.alive) return;
     this.alive = false;
+    const explode = how === true;
     const at = this.pos.clone();
     const slot = this.rider?.slot ?? this.lastHitBy;
+    this.endSwing();
+    // K3: a pillion goes the way the driver does — thrown clear, and burnt
+    const pil = this.pillion;
+    if (pil) {
+      this.dropRider(pil);
+      pil.velocity.copy(this.vel);
+      pil.velocity.y = Math.max(pil.velocity.y, 8);
+      pil.velocity.x -= Math.sin(this.yaw + Math.PI / 2) * 3;
+      pil.velocity.z -= Math.cos(this.yaw + Math.PI / 2) * 3;
+      pil.position.y += 0.6;
+      if (explode) pil.damage(RIDER_BLAST * this.blastScale, at, -1, { heavy: true });
+    }
     if (this.rider) {
       const r = this.rider;
       this.dropRider();
@@ -647,8 +1014,14 @@ export class Vehicle {
     this.unpark();
     this.coasting = false;
     this.vel.set(0, 0, 0);
-    this.respawnIn = RESPAWN_DELAY;
-    if (explode) {
+    this.sinkIn = -1;
+    // a section's ride does not come back where it was parked: it brings a fresh one
+    this.respawnIn = this.respawns ? RESPAWN_DELAY : Infinity;
+    if (how === 'sink') {
+      // K3: into the lava — no fireball, the hull goes under where it is
+      this.sinkT = SINK_TIME;
+      audio.splash(true);
+    } else if (explode) {
       this.group.visible = false;
       this.pendingExplosion = { at: at.setY(at.y + 0.5), slot, scale: this.blastScale };
     } else {
@@ -675,6 +1048,7 @@ export class Vehicle {
    * invisible box standing in the middle of the next stage.
    */
   retire(): void {
+    if (this.pillion) this.dropRider(this.pillion);
     if (this.rider) this.dropRider();
     if (this.hostile) { this.hostile.ride = null; this.hostile = null; }
     this.reserved = false;
@@ -715,6 +1089,17 @@ export class Vehicle {
     this.coasting = false;
     this.hopT = this.hopCd = 0;
     this.dissolveT = 0;
+    this.heat = 0;
+    this.overheated = false;
+    this.latVel = 0;
+    this.sinkIn = -1;
+    this.sinkT = 0;
+    this.baseYaw = this.yaw;
+    if (this.lane) {
+      const on = this.lane.project(this.pos.x, this.pos.z);
+      this.laneS = on.s;
+      this.laneLat = on.lat;
+    }
     this.reformT = REFORM_TIME;
     this.hitMemo.clear();
     this.group.visible = true;
@@ -788,6 +1173,13 @@ export class Vehicle {
     this.rider?.cam.shake(0.02);
   }
 
+  /**
+   * Send it under where it is (K3): no fireball, the hull goes down into the
+   * lava or the sea and whoever is aboard is thrown clear. For a section's
+   * set piece — a barge whose crew is gone — rather than for a crash.
+   */
+  sink(): void { this.destroy('sink'); }
+
   /** true while the horns are down (drives the HUD's charge cue) */
   get charging(): boolean { return this.chargeT > 0; }
   /** true when the charge is off cooldown and can be asked for */
@@ -798,7 +1190,23 @@ export class Vehicle {
    * root sits under the seat surface for this rider (`stanceRise` off its own
    * hips); left out, a rider of the canonical build.
    */
-  seatWorld(out: THREE.Vector3, rise = STANCE_RISE[this.def.stance]): THREE.Vector3 {
+  seatWorld(out: THREE.Vector3, rise = STANCE_RISE[this.def.stance], who?: Player | Enemy | null): THREE.Vector3 {
+    // K3: the pillion sits behind, at the same height over the saddle line
+    if (who && who === this.pillion && this.def.pillion) {
+      const q = this.def.pillion;
+      return this.rideToWorld(q.x, this.seatTop - rise + (q.y - this.def.seat.y), q.z, out);
+    }
+    // K3: a turret's base stays put and only the gun turns (`yaw` against
+    // `baseYaw`), so its seat is swung about the ring by the gun's own yaw
+    // rather than through the hull, which is drawn at the base's heading
+    if (this.def.turret) {
+      const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+      return out.set(
+        this.pos.x + cos * this.seatX + sin * this.seatZ,
+        this.pos.y + this.seatTop - rise,
+        this.pos.z - sin * this.seatX + cos * this.seatZ,
+      );
+    }
     return this.rideToWorld(this.seatX, this.seatTop - rise, this.seatZ, out);
   }
 
@@ -814,7 +1222,7 @@ export class Vehicle {
     if (shift) { lx += shift.x; ly += shift.y; lz += shift.z; }
     // the hull where the ride is this frame, whether or not it has been drawn yet
     this.group.position.copy(this.pos);
-    this.group.rotation.y = this.yaw;
+    this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
     this.body.updateWorldMatrix(true, false);
     return this.body.localToWorld(out.set(lx, ly, lz));
   }
@@ -852,8 +1260,21 @@ export class Vehicle {
     }
   }
 
+  /** a point in the ride's own space (as `seat`: +z the nose), in the world */
+  localPoint(x: number, y: number, z: number, out: THREE.Vector3): THREE.Vector3 {
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    return out.set(this.pos.x + cos * x + sin * z, this.pos.y + y, this.pos.z - sin * x + cos * z);
+  }
+
   /** Everything that has to be measured off the sculpt, the moment it lands. */
   private onModel(root: THREE.Object3D): void {
+    if (this.def.turret) {
+      // the sculpt brings its own moving parts (ASSETS_MODELS.md, `quad_turret`)
+      const y = root.getObjectByName('yaw');
+      const p = root.getObjectByName('pitch');
+      if (y) this.yawNode = y;
+      if (p) this.pitchNode = p;
+    }
     this.footToModel(root);
     this.seatToModel(root);
     if (this.def.living) this.gaitFromModel(root);
@@ -993,9 +1414,13 @@ export class Vehicle {
       this.updateWreck(dt, game);
       return;
     }
+    if (this.scripted) { this.syncMesh(dt, Math.hypot(this.vel.x, this.vel.z), game); return; }
     if (this.rider || this.hostile) return; // driven from the rider's update
+    // K3: an empty turret still fights, at half rate, for whoever it belongs to
+    if (this.def.turret) { this.autoTurret(dt, game); return; }
     if (this.coasting) {
-      this.coast(dt, game);
+      if (this.lane) this.laneCoast(dt, game);
+      else this.coast(dt, game);
       return;
     }
     // settle toward hover height and idle-bob gently inside the parked box
@@ -1012,6 +1437,21 @@ export class Vehicle {
    * ash comes off it, so what is left after a second is sand.
    */
   private updateWreck(dt: number, game: Game): void {
+    if (this.sinkT > 0) {
+      // K3: going under — nose first, a little roll, the lava closing over it
+      this.sinkT -= dt;
+      const gone = 1 - Math.max(0, this.sinkT) / SINK_TIME;
+      this.body.position.y = -gone * (this.def.body + this.def.hover + 0.6);
+      this.body.rotation.x = gone * 0.5;
+      this.body.rotation.z += dt * 0.4;
+      if (Math.random() < dt * 14) {
+        game.particles.impactSparks(this.pos.clone().setY(this.pos.y - this.def.hover + 0.2), 4);
+      }
+      if (this.sinkT <= 0) {
+        this.group.visible = false;
+        game.particles.dustPuff(this.pos.clone().setY(this.pos.y - this.def.hover), 6);
+      }
+    }
     if (this.dissolveT > 0) {
       this.dissolveT -= dt;
       const gone = 1 - Math.max(0, this.dissolveT) / DISSOLVE_TIME;
@@ -1080,7 +1520,11 @@ export class Vehicle {
    */
   drive(dt: number, input: FrameInput, rider: Player, game: Game): void {
     const def = this.def;
+    // K3: a turret has no engine — the stick and the look are the gun's
+    if (def.turret) { this.driveTurret(dt, input, rider, game); return; }
     this.boostCd -= dt;
+    this.gunTick(dt);
+    this.swingCd -= dt;
 
     // ---- the deflector (B) ----
     // The rider's own shield thrown round the hull instead of held in front of
@@ -1152,8 +1596,29 @@ export class Vehicle {
     // the flank was also hauling the bantha round under themselves, and the
     // camera trailing the nose was fighting the aim the whole time.
     const aiming = !!def.living && rider.aiming;
-    const speed = this.run(dt, aiming ? 0 : input.moveX, input.moveY, boost, charging, rider, game);
+    let speed: number;
+    if (this.lane) {
+      // K3 lane: the stick is where in the lane and how fast, never which
+      // way the level goes — forward is the lane's
+      const band = this.lane.speed(this.laneS);
+      const want = input.moveY >= 0
+        ? band.cruise + (band.max - band.cruise) * input.moveY
+        : band.cruise + (band.cruise - band.min) * input.moveY;
+      this.sideswipe(dt, input.moveX);
+      speed = this.runLane(dt, input.moveX * LANE_LEAN, want, boost, rider, game);
+      if (!this.alive) return;
+      // the weapons are the driver's until someone sits behind them
+      if (!this.pillion) this.fight(input, rider, game);
+      this.updateSwing(dt, game);
+      this.laneCamera(rider, input, dt);
+      audio.setEngine(rider.slot, 0.35 + (speed / Math.max(1, def.top)) * 0.85);
+      return;
+    }
+    speed = this.run(dt, aiming ? 0 : input.moveX, input.moveY, boost, charging, rider, game);
     if (!this.alive) return;
+    // K3 on a free ride: a section may still hand it a gun or a swing
+    if (!this.pillion && (def.gun || def.sideSwing)) this.fight(input, rider, game);
+    if (def.sideSwing) this.updateSwing(dt, game);
 
     // The camera trails the nose while you drive, but only when you are not
     // working the right stick — steering is the heading now, so a camera left
@@ -1171,12 +1636,758 @@ export class Vehicle {
     if (!def.living) audio.setEngine(rider.slot, 0.35 + (speed / def.top) * 0.85);
   }
 
+  // ---------------------------------------------------------------- K3
+
+  /**
+   * One frame on a lane (K3): forward is the lane's, the stick is the lean and
+   * the throttle band, and everything the free ride has — the hover, the
+   * walls, the rams, the rides either side — still applies. Returns the speed
+   * it ends the frame at.
+   */
+  private runLane(dt: number, latWant: number, speedWant: number, boost: boolean,
+    rider: Player | null, game: Game): number {
+    const def = this.def;
+    const lane = this.lane!;
+    const on = lane.project(this.pos.x, this.pos.z, this.laneS);
+    this.laneS = on.s;
+    this.laneLat = on.lat;
+    const h = lane.heading(on.s);
+    const fx = Math.sin(h), fz = Math.cos(h);
+    const rx = -Math.cos(h), rz = Math.sin(h);
+    let fwd = this.vel.x * fx + this.vel.z * fz;
+    const band = lane.speed(on.s);
+    // the throttle band: the stick picks a speed inside it, and the ride
+    // pulls up to it or eases back down to it — never under the band's floor
+    fwd = fwd < speedWant
+      ? Math.min(speedWant, fwd + def.throttle * dt)
+      : Math.max(speedWant, fwd - def.brake * 0.6 * dt);
+    if (boost) fwd = Math.min(Math.max(band.max, 1) * 1.4, fwd + def.boost);
+    // the end of the lane: where the band closes to nothing, it stops
+    if (band.max <= 0.01 && fwd < 0.6) fwd = 0;
+    this.latVel = damp(this.latVel, latWant, LANE_LEAN_BITE, dt);
+    this.steer = clamp(latWant / LANE_LEAN, -1, 1);
+    this.vel.x = fx * fwd + rx * this.latVel;
+    this.vel.z = fz * fwd + rz * this.latVel;
+
+    this.applyHover(dt);
+    this.crashGrace -= dt;
+    const hitRide = this.collideVehicles(game);
+    const before = Math.hypot(this.vel.x, this.vel.z);
+    game.board.physics.moveCapsule(this.pos, def.radius, def.body, this.vel, dt);
+    const after = Math.hypot(this.vel.x, this.vel.z);
+    this.crashIntoWall(before - after, game, rider);
+    if (hitRide) this.crashGrace = 0.25;
+    if (!this.alive) return 0;
+    this.keepInLane(game, rider);
+    if (!this.alive) return 0;
+
+    // what the world left of the lean, and the nose turned into it
+    const f2 = this.vel.x * fx + this.vel.z * fz;
+    this.latVel = this.vel.x * rx + this.vel.z * rz;
+    this.yaw = h - Math.atan2(this.latVel, Math.max(6, f2)) * 0.7;
+
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    this.ram(speed, false, rider, game);
+    if (!this.alive) return speed;
+    this.dustTimer -= dt * speed;
+    if (this.dustTimer <= 0 && speed > 3) {
+      this.dustTimer = 2.2;
+      game.particles.runDust(this.pos.clone().setY(this.pos.y - def.hover * 0.5));
+    }
+    if (this.pos.y < game.board.physics.killY) { this.destroy(true); return speed; }
+    this.syncMesh(dt, speed, game);
+    return speed;
+  }
+
+  /**
+   * The lane's edges are walls: a hull that leans past one is set back on the
+   * line, its lean bounced back off the rock, and a hard scrape costs it.
+   * The far end is a wall too — the ride stops against it.
+   */
+  private keepInLane(game: Game, rider: Player | null): void {
+    const lane = this.lane!;
+    const on = lane.project(this.pos.x, this.pos.z, this.laneS);
+    let s = on.s, lat = on.lat;
+    let moved = false;
+    if (s > lane.length - 1) { s = lane.length - 1; moved = true; }
+    if (s < 0) { s = 0; moved = true; }
+    const lim = Math.max(0, lane.halfWidth(s) - this.def.radius);
+    if (Math.abs(lat) > lim) {
+      const side = Math.sign(lat);
+      const into = this.latVel * side;
+      lat = side * lim;
+      moved = true;
+      if (into > 0) {
+        if (into > 4) {
+          this.damage(into * 0.9, this.pos, -1, 'crash');
+          game.particles.impactSparks(this.pos.clone().setY(this.pos.y + 0.5), 10);
+          audio.land(true);
+          rider?.cam.shake(Math.min(0.2, into * 0.02));
+        }
+        this.latVel = -side * into * 0.35;
+      }
+    }
+    if (moved) {
+      const y = this.pos.y;
+      lane.point(s, lat, this.pos);
+      this.pos.y = y;
+      const h = lane.heading(s);
+      const fwd = s >= lane.length - 1 ? 0 : this.vel.x * Math.sin(h) + this.vel.z * Math.cos(h);
+      this.vel.x = Math.sin(h) * fwd - Math.cos(h) * this.latVel;
+      this.vel.z = Math.cos(h) * fwd + Math.sin(h) * this.latVel;
+    }
+    this.laneS = s;
+    this.laneLat = lat;
+  }
+
+  /**
+   * The sideswipe: lean, let go, lean again the same way inside a third of a
+   * second, and the hull is shoved sideways into whoever is there — the
+   * ride-on-ride mass rule does the rest.
+   */
+  private sideswipe(dt: number, lean: number): void {
+    this.swipeCd -= dt;
+    this.tapT -= dt;
+    const side = lean > 0.7 ? 1 : lean < -0.7 ? -1 : 0;
+    if (side !== 0 && this.leanWas === 0) {
+      if (side === this.tapSide && this.tapT > 0 && this.swipeCd <= 0) {
+        this.latVel += side * SIDESWIPE;
+        this.swipeCd = 1;
+        this.tapT = 0;
+        audio.dash();
+      } else {
+        this.tapSide = side;
+        this.tapT = 0.32;
+      }
+    }
+    this.leanWas = Math.abs(lean) < 0.3 ? 0 : (side || this.leanWas);
+  }
+
+  /** a riderless hull on a lane: it runs on, drifting, and the lava has it */
+  private laneCoast(dt: number, game: Game): void {
+    const lane = this.lane!;
+    const h = lane.heading(this.laneS);
+    const fx = Math.sin(h), fz = Math.cos(h);
+    let fwd = this.vel.x * fx + this.vel.z * fz;
+    fwd = Math.max(0, fwd - this.def.drag * 1.6 * dt);
+    this.latVel = damp(this.latVel, 0, 1.2, dt);
+    this.vel.x = fx * fwd - Math.cos(h) * this.latVel;
+    this.vel.z = fz * fwd + Math.sin(h) * this.latVel;
+    this.applyHover(dt);
+    this.crashGrace -= dt;
+    const hitRide = this.collideVehicles(game);
+    const before = Math.hypot(this.vel.x, this.vel.z);
+    game.board.physics.moveCapsule(this.pos, this.def.radius, this.def.body, this.vel, dt);
+    this.crashIntoWall(before - Math.hypot(this.vel.x, this.vel.z), game, null);
+    if (hitRide) this.crashGrace = 0.25;
+    if (!this.alive) return;
+    this.keepInLane(game, null);
+    // nobody holding it level: it noses over and goes in
+    if (this.sinkIn < 0) this.sinkIn = SINK_AFTER;
+    this.sinkIn -= dt;
+    if (this.sinkIn <= 0 && (lane.sinks?.(this.laneS, this.laneLat) ?? false)) {
+      this.destroy('sink');
+      return;
+    }
+    const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (speed < COAST_STOP && this.hopT <= 0) {
+      this.vel.set(0, 0, 0);
+      this.coasting = false;
+      this.sinkIn = -1;
+      this.park();
+    }
+    this.syncMesh(dt, speed, game);
+  }
+
+  /**
+   * The rider's camera on a lane: locked behind the ride along the lane's own
+   * heading, firmer than the free ride's trail. The right stick nudges the
+   * view a few degrees for the cannon, and it settles back when let go.
+   */
+  private laneCamera(p: Player, input: FrameInput, dt: number): void {
+    const h = this.lane!.heading(this.laneS);
+    let off = wrapAngle(p.cam.yaw - h);
+    off = clamp(off, -0.24, 0.24);
+    if (Math.abs(input.lookX) < 1e-4) off = damp(off, 0, 2.5, dt);
+    p.cam.yaw = h + off;
+    p.cam.pitch = clamp(p.cam.pitch, -0.45, 0.12);
+    if (Math.abs(input.lookY) < 1e-4) p.cam.pitch = damp(p.cam.pitch, -0.17, 2, dt);
+  }
+
+  /** the driver's or the pillion's trigger and melee button, from the saddle */
+  private fight(input: FrameInput, p: Player, game: Game): void {
+    if (this.def.gun && input.shootHeld) {
+      this.noseAim(_aimPt);
+      this.fireGun(_aimPt, p.team, p.slot, game, p);
+    }
+    if (this.def.sideSwing && input.meleePressed) {
+      this.startSwing(this.pickSide(p, input.moveX, game), p);
+    }
+  }
+
+  /**
+   * The pillion's frame (K3): the weapons are theirs — the cannon and both
+   * flanks' swings — and the stick is the driver's. The seat, the pose and
+   * the dismount are the rider's own (see `player/riding.ts`).
+   */
+  ridePillion(dt: number, input: FrameInput, p: Player, game: Game): void {
+    if (!this.alive || this.pillion !== p) return;
+    this.fight(input, p, game);
+    if (this.lane) this.laneCamera(p, input, dt);
+    else if (Math.abs(input.lookX) < 1e-4) p.cam.yaw = dampAngle(p.cam.yaw, this.yaw, 2, dt);
+  }
+
+  /** the point forty metres off the nose, at chest height: where an unaimed cannon goes */
+  private noseAim(out: THREE.Vector3): THREE.Vector3 {
+    return out.set(
+      this.pos.x + Math.sin(this.yaw) * 40,
+      this.pos.y + 1.3,
+      this.pos.z + Math.cos(this.yaw) * 40,
+    );
+  }
+
+  /** one frame of the gun's clock: the rate's wait, and the heat venting */
+  private gunTick(dt: number): void {
+    const g = this.def.gun;
+    if (!g) return;
+    this.gunCd -= dt;
+    this.heat = Math.max(0, this.heat - g.cool * dt);
+    if (this.overheated && this.heat <= g.resume) this.overheated = false;
+  }
+
+  /**
+   * One shot, if the gun is ready: from the next muzzle, at `aimPt` — bent
+   * onto a target inside the soft-lock cone — and a step of heat. True when
+   * it fired.
+   */
+  private fireGun(aimPt: THREE.Vector3, team: number, slot: number, game: Game,
+    shooter: Player | null, rate = 1): boolean {
+    const g = this.def.gun;
+    if (!g || !this.alive || this.overheated || this.gunCd > 0) return false;
+    this.gunCd = 1 / (g.rate * rate);
+    const m = g.muzzles[this.muzzleIdx++ % g.muzzles.length];
+    const origin = this.muzzleWorld(m, _muzzle);
+    const dir = _shot.subVectors(aimPt, origin);
+    if (dir.lengthSq() < 1e-6) dir.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    dir.normalize();
+    const lock = this.softLock(origin, dir, g, team, game);
+    if (lock) dir.subVectors(lock, origin).normalize();
+    game.projectiles.fire(origin, dir, g.speed, g.damage, team, slot);
+    game.particles.muzzleFlash(origin, dir);
+    if (shooter) {
+      audio.blaster(g.voice ?? 'carbine');
+      shooter.cam.shake(0.018);
+      game.director.noise(game, shooter.position, 55);
+    } else audio.enemyBlaster();
+    this.heat = Math.min(1, this.heat + g.heat);
+    if (this.heat >= 1) {
+      this.overheated = true;
+      audio.overheat(0.5);
+      game.particles.dustPuff(origin, 4);
+    }
+    return true;
+  }
+
+  /**
+   * A hostile rider's own blaster, turned in the saddle at `at` — behind as
+   * readily as ahead. On the gun's clock and heat, from the rider's chest,
+   * and not as sure as a cannon on a mount.
+   */
+  private fireFromSaddle(at: THREE.Vector3, e: Enemy, game: Game): boolean {
+    const g = this.def.gun;
+    if (!g || !this.alive || this.overheated || this.gunCd > 0) return false;
+    this.gunCd = 1 / g.rate;
+    const origin = _muzzle.set(e.position.x, e.position.y + 1.35, e.position.z);
+    const dir = _shot.subVectors(at, origin);
+    const d = dir.length();
+    if (d < 1) return false;
+    dir.divideScalar(d);
+    dir.x += (Math.random() - 0.5) * 0.06;
+    dir.y += (Math.random() - 0.5) * 0.03;
+    dir.z += (Math.random() - 0.5) * 0.06;
+    dir.normalize();
+    game.projectiles.fire(origin, dir, g.speed, g.damage, e.team, -1);
+    game.particles.muzzleFlash(origin, dir);
+    audio.enemyBlaster();
+    this.heat = Math.min(1, this.heat + g.heat);
+    if (this.heat >= 1) this.overheated = true;
+    return true;
+  }
+
+  /** a muzzle in the world; a turret's barrels pitch about its trunnion */
+  private muzzleWorld(m: { x: number; y: number; z: number }, out: THREE.Vector3): THREE.Vector3 {
+    const t = this.def.turret;
+    if (!t) return this.localPoint(m.x, m.y, m.z, out);
+    const c = Math.cos(this.aimPitch), sn = Math.sin(this.aimPitch);
+    const dy = m.y - t.pivot;
+    return this.localPoint(m.x, t.pivot + dy * c + m.z * sn, m.z * c - dy * sn, out);
+  }
+
+  /**
+   * The soft lock: the chest of the nearest body on the other side inside the
+   * gun's cone and range, or null. Nearest by angle, so the bolt goes where
+   * the gun was already pointing.
+   */
+  private softLock(origin: THREE.Vector3, dir: THREE.Vector3, g: GunDef, team: number,
+    game: Game): THREE.Vector3 | null {
+    const cosCone = Math.cos(g.cone);
+    let best = cosCone;
+    let found = false;
+    const consider = (pos: THREE.Vector3, height: number): void => {
+      _lock.set(pos.x, pos.y + height * 0.6, pos.z).sub(origin);
+      const d = _lock.length();
+      if (d < 1 || d > g.range) return;
+      const dot = _lock.dot(dir) / d;
+      if (dot <= best) return;
+      best = dot;
+      _lockPt.set(pos.x, pos.y + height * 0.6, pos.z);
+      found = true;
+    };
+    for (const e of game.enemies) {
+      if (!e.alive || e.team === team || !e.targetable) continue;
+      consider(e.position, e.height);
+    }
+    for (const p of game.players) {
+      if (!p.alive || p.team === team || p.exited) continue;
+      consider(p.position, p.height);
+    }
+    return found ? _lockPt : null;
+  }
+
+  /**
+   * Which flank a swing goes to: the stick's lean when it is leaning, the
+   * side the nearest body on the other side is on when it is not.
+   */
+  private pickSide(by: Player | Enemy, lean: number, game: Game): -1 | 1 {
+    if (Math.abs(lean) > 0.35) return lean > 0 ? 1 : -1;
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
+    let best = Infinity;
+    let side: -1 | 1 = 1;
+    const consider = (pos: THREE.Vector3): void => {
+      const dx = pos.x - this.pos.x, dz = pos.z - this.pos.z;
+      const along = dx * fx + dz * fz, lat = dx * rx + dz * rz;
+      if (Math.abs(along) > 7 || Math.abs(lat) > 9 || Math.abs(lat) < 0.3) return;
+      const d = Math.hypot(along, lat);
+      if (d < best) { best = d; side = lat > 0 ? 1 : -1; }
+    };
+    for (const e of game.enemies) if (e.alive && e.team !== by.team) consider(e.position);
+    for (const p of game.players) if (p.alive && p.team !== by.team) consider(p.position);
+    return side;
+  }
+
+  /**
+   * Swing from the saddle (K3). A player's swing is their own weapon and
+   * their own attack clip — Din's spear, Maul's staff, a saber — turned to
+   * the flank; a hostile's is a club. False when one is already in the air.
+   */
+  private startSwing(side: -1 | 1, by: Player | Enemy): boolean {
+    if (this.swing || this.swingCd > 0 || !this.alive) return false;
+    let dur = 0.55;
+    let weapon: Player['weapon'] | null = null;
+    if (isPlayer(by)) {
+      weapon = by.weapon;
+      const sabers = by.meleeKind === 'sabers';
+      const step = (this.swingStep++ % 3) + 1;
+      const set = sabers ? saberClipsFor(by.characterId).attack : 'melee';
+      if (by.weapon !== 'gaffi') {
+        by.weapon = 'gaffi';
+        by.char.setWeapon('gaffi');
+        if (sabers) audio.saberIgnite();
+      }
+      const played = by.char.attack?.() ?? by.char.animator?.playOnce('upper', `${set}${step}`, 0.05) ?? 0;
+      dur = clamp(played || 0.55, 0.35, 0.9);
+      audio.melee(step, sabers ? 'sabers' : 'gaffi');
+    } else {
+      by.char.animator?.playOnce('upper', 'melee1', 0.05);
+      dur = HOSTILE_SWING;
+    }
+    this.swing = { side, t: 0, dur, landed: false, by, weapon };
+    return true;
+  }
+
+  /** the swing's clock: it lands part-way through, then the weapon goes away */
+  private updateSwing(dt: number, game: Game): void {
+    const sw = this.swing;
+    if (!sw) return;
+    sw.t += dt;
+    if (!sw.by.alive) { this.endSwing(); return; }
+    // a hostile's club whooshes as it comes round, not as it is raised
+    if (!isPlayer(sw.by) && sw.t - dt < sw.dur * SWING_FROM && sw.t >= sw.dur * SWING_FROM) audio.melee(1, 'gaffi');
+    if (!sw.landed && sw.t >= sw.dur * SWING_FROM && sw.t <= sw.dur * SWING_TO) {
+      sw.landed = this.landSwing(sw.side, sw.by, game);
+    }
+    if (sw.t >= sw.dur) this.endSwing();
+  }
+
+  private endSwing(): void {
+    const sw = this.swing;
+    if (!sw) return;
+    this.swing = null;
+    this.swingCd = SWING_COOLDOWN;
+    if (isPlayer(sw.by) && sw.weapon && sw.weapon !== 'gaffi') {
+      sw.by.weapon = sw.weapon;
+      sw.by.char.setWeapon(sw.weapon);
+    }
+  }
+
+  /**
+   * The swing arrives: everyone on the other side inside the flank box is
+   * hit. A hostile in a saddle comes *out* of it — thrown sideways off a ride
+   * that runs on without them — which over lava is the end of them; a
+   * player hit from a hostile's saddle takes the blow and the shove.
+   */
+  private landSwing(side: -1 | 1, by: Player | Enemy, game: Game): boolean {
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    const rx = -Math.cos(this.yaw), rz = Math.sin(this.yaw);
+    const inBox = (pos: THREE.Vector3): boolean => {
+      const dx = pos.x - this.pos.x, dz = pos.z - this.pos.z;
+      const out = (dx * rx + dz * rz) * side;
+      const along = dx * fx + dz * fz;
+      return out >= SWING_OUT_MIN && out <= SWING_OUT_MAX && Math.abs(along) <= SWING_ALONG
+        && Math.abs(pos.y - this.pos.y) < 3;
+    };
+    let landed = false;
+    if (isPlayer(by)) {
+      const dmg = Math.max(45, by.profile.meleeFinisher);
+      for (const e of game.enemies) {
+        if (!e.alive || e.team === by.team || !inBox(e.position)) continue;
+        const ride = e.ride;
+        const carry = ride ? ride.vel.clone() : null;
+        if (ride) {
+          ride.dropHostile();
+          ride.latVel += side * 4;
+        }
+        // A rider is knocked *out of the saddle*, not cut down in it: the blow
+        // leaves him alive and flying, and what he lands in does the rest —
+        // over lava that is the end of him, on crust he gets up. A body on
+        // its feet takes the full blow.
+        e.damage(ride ? Math.min(dmg, Math.max(1, e.hp - 1)) : dmg, this.pos, by.slot);
+        if (carry) {
+          // out of the saddle, sideways, at the speed they were doing
+          e.velocity.set(carry.x * 0.7 + rx * side * 8, 6.5, carry.z * 0.7 + rz * side * 8);
+          e.position.y += 0.4;
+          if (e.alive) e.knockdown(2.6);
+        } else if (e.alive) {
+          e.knockback(this.pos, 12, 0.4);
+          e.knockdown(1.6);
+        }
+        game.particles.impactSparks(e.position.clone().setY(e.position.y + 1.1), 14);
+        landed = true;
+      }
+      if (landed) {
+        audio.meleeHit(by.meleeKind === 'sabers' ? 'sabers' : 'gaffi');
+        by.cam.shake(0.12);
+        game.hitMarker(by.slot);
+      }
+      return landed;
+    }
+    for (const p of game.players) {
+      if (!p.alive || p.team === by.team || p.exited || !inBox(p.position)) continue;
+      p.damage(14, this.pos, -1);
+      const pv = p.vehicle;
+      if (pv) {
+        pv.latVel += side * 7;
+      } else {
+        p.velocity.x += rx * side * 7;
+        p.velocity.z += rz * side * 7;
+        p.velocity.y += 2;
+      }
+      p.cam.shake(0.18);
+      game.particles.impactSparks(p.position.clone().setY(p.position.y + 1.1), 10);
+      landed = true;
+    }
+    if (landed) audio.meleeHit('gaffi');
+    return landed;
+  }
+
+  /**
+   * Where the rider faces this frame (K3), for `player/riding.ts`: a swing
+   * turns the body to its flank, and a turret's gunner turns with the gun.
+   * Null leaves the rider's own rule.
+   */
+  riderFacing(p: Player | Enemy): number | null {
+    if (this.swing && this.swing.by === p) return this.yaw - this.swing.side * 1.15;
+    if (this.def.turret) return this.yaw;
+    return null;
+  }
+
+  /** a swing from this saddle is in the air: the hands are off the bars */
+  swinging(p: Player | Enemy): boolean {
+    return !!this.swing && this.swing.by === p;
+  }
+
+  /** seconds of the side swing's cooldown left, for a HUD */
+  get swingReady(): boolean { return !this.swing && this.swingCd <= 0; }
+
+  // ---- the hostile on a lane ----
+
+  /** a hostile's frame on a lane: the brain's order, driven the player's way */
+  private hostileLane(dt: number, game: Game): void {
+    const e = this.hostile!;
+    this.boostCd -= dt;
+    this.hopCd -= dt;
+    if (this.hopT > 0) this.hopT -= dt;
+    this.gunTick(dt);
+    this.swingCd -= dt;
+    const order = this.laneBrain ? this.laneBrain(this, dt, game) : this.laneBrainDefault(dt, game);
+    let boost = false;
+    if (order.boost && this.boostCd <= 0) { this.boostCd = 1.6; boost = true; }
+    const latWant = clamp((order.lat - this.laneLat) * 2.2, -LANE_LEAN, LANE_LEAN);
+    this.runLane(dt, latWant, order.speed, boost, null, game);
+    if (!this.alive || this.hostile !== e) return;
+    if (order.fire && this.def.gun) {
+      if (order.aimAt) this.fireFromSaddle(order.aimAt, e, game);
+      else {
+        this.noseAim(_aimPt);
+        this.fireGun(_aimPt, e.team, -1, game, null);
+      }
+    }
+    if (order.swing && this.def.sideSwing) this.startSwing(order.swing, e);
+    this.updateSwing(dt, game);
+  }
+
+  /**
+   * The built-in lane brain (K3): pick the nearest player riding the lane,
+   * then — a **swinger** comes up alongside them on the side with room, swings
+   * and peels away to come again; a **gunner** sits on their tail and fires
+   * while it is lined up. Both fall back and come round when they overrun.
+   */
+  private laneBrainDefault(dt: number, game: Game): LaneOrder {
+    const b = this.brain;
+    const lane = this.lane!;
+    b.t -= dt;
+    let markV: Vehicle | null = null;
+    let best = Infinity;
+    for (const p of game.players) {
+      const pv = p.vehicle;
+      if (!p.alive || !pv || !pv.lane) continue;
+      const d = Math.abs(pv.laneS - this.laneS);
+      if (d < best) { best = d; markV = pv; }
+    }
+    const band = lane.speed(this.laneS);
+    if (!markV) return { lat: this.laneLat, speed: band.cruise };
+    const ms = markV.laneS, ml = markV.laneLat;
+    const mspd = Math.max(band.min * 0.8, Math.hypot(markV.vel.x, markV.vel.z));
+    const hw = Math.max(1, lane.halfWidth(this.laneS) - 1.6);
+    if (b.mode === 'peel') {
+      if (b.t <= 0 && !this.swing) {
+        b.mode = 'close';
+        b.t = 9;
+        b.side = Math.random() < 0.5 ? -1 : 1;
+      }
+      // hold station through the swing, then fall away to the far side
+      if (this.swing) return { lat: this.laneLat, speed: mspd + (ms - this.laneS) };
+      return { lat: clamp(ml + b.side * 9, -hw, hw), speed: mspd - 5 };
+    }
+    if (b.t <= 0) { b.mode = 'peel'; b.t = 2.5; }
+    if (b.role === 'gunner') {
+      // Out in front, weaving across the mark's line, turned in the saddle
+      // and shooting back in bursts — which puts it square in the mark's own
+      // nose cannons. A duel, not a tail that cannot be answered.
+      const gap = ms + 16 - this.laneS;
+      const weave = Math.sin(game.time * 0.7 + this.bobPhase) * 5;
+      const ahead = this.laneS > ms + 4 && this.laneS < ms + 45;
+      const burst = (game.time + this.bobPhase) % 2.4 < 0.9;
+      const mark = markV.rider ?? markV.pillion;
+      return {
+        lat: clamp(ml + weave, -hw, hw),
+        speed: mspd + clamp(gap * 0.9, -9, 12),
+        boost: gap > 30,
+        fire: ahead && burst && !!mark,
+        aimAt: mark ? _brainAim.set(mark.position.x, mark.position.y + 1.1, mark.position.z) : null,
+      };
+    }
+    let side = b.side;
+    let lat = clamp(ml + side * 3.1, -hw, hw);
+    if (Math.abs(lat - ml) < 2.2) {
+      side = -side as -1 | 1;
+      b.side = side;
+      lat = clamp(ml + side * 3.1, -hw, hw);
+    }
+    const gap = ms + 0.3 - this.laneS;
+    const off = Math.abs(this.laneLat - ml);
+    const alongside = Math.abs(gap) < 2.2 && off < 4.4 && off > 1.2;
+    let swing: -1 | 1 | 0 = 0;
+    if (alongside && this.swingCd <= 0 && !this.swing) {
+      swing = ml > this.laneLat ? 1 : -1;
+      b.mode = 'peel';
+      b.t = 2.4;
+    }
+    return { lat, speed: mspd + clamp(gap * 1.2, -8, 12), boost: gap > 26, swing };
+  }
+
+  // ---- the turret ----
+
+  /** a turret's gunner: the look is the gun, inside its arc; RT fires */
+  private driveTurret(dt: number, input: FrameInput, p: Player, game: Game): void {
+    const t = this.def.turret!;
+    this.gunTick(dt);
+    const off = clamp(wrapAngle(p.cam.yaw - this.baseYaw), -t.yawArc, t.yawArc);
+    p.cam.yaw = this.baseYaw + off;
+    p.cam.pitch = clamp(p.cam.pitch, t.pitchMin, t.pitchMax);
+    this.slewTo(p.cam.yaw, p.cam.pitch, dt);
+    if (input.shootHeld) {
+      // converge on what the sight is over: sixty metres down the barrels' line
+      this.sightWorld(_sight);
+      this.gunDir(_aim);
+      _aimPt.copy(_sight).addScaledVector(_aim, 60);
+      this.fireGun(_aimPt, p.team, p.slot, game, p);
+    }
+    this.syncMesh(dt, 0, game);
+  }
+
+  /** a hostile on the gun: onto the nearest of the party in the arc, in bursts */
+  private hostileTurret(dt: number, game: Game): void {
+    const e = this.hostile!;
+    this.turretFight(dt, game, e.team, 1, true);
+  }
+
+  /** nobody on the gun: it still fights for its side, at the def's fraction of the rate */
+  private autoTurret(dt: number, game: Game): void {
+    const t = this.def.turret!;
+    if (t.auto > 0) this.turretFight(dt, game, this.team, t.auto, false);
+    else {
+      this.gunTick(dt);
+      this.slewTo(this.baseYaw, 0, dt * 0.4);
+    }
+    this.syncMesh(dt, 0, game);
+  }
+
+  /** find, lead, slew, and fire in bursts — the one brain a gun without a player has */
+  private turretFight(dt: number, game: Game, team: number, rate: number, manned: boolean): void {
+    const t = this.def.turret!;
+    this.gunTick(dt);
+    const tgt = this.turretTarget(game, team, manned ? t.autoRange * 1.2 : t.autoRange);
+    if (!tgt) {
+      this.slewTo(this.baseYaw, 0, dt * 0.5);
+      return;
+    }
+    this.sightWorld(_sight);
+    const dist = _sight.distanceTo(tgt.pos);
+    const lead = dist / (this.def.gun?.speed ?? 80);
+    _aimPt.copy(tgt.pos).addScaledVector(tgt.vel, lead * 0.85);
+    _aim.subVectors(_aimPt, _sight);
+    const wantYaw = Math.atan2(_aim.x, _aim.z);
+    const wantPitch = Math.atan2(_aim.y, Math.hypot(_aim.x, _aim.z));
+    this.slewTo(this.baseYaw + clamp(wrapAngle(wantYaw - this.baseYaw), -t.yawArc, t.yawArc),
+      clamp(wantPitch, t.pitchMin, t.pitchMax), dt);
+    const onIt = Math.abs(wrapAngle(wantYaw - this.yaw)) < 0.07 && Math.abs(wantPitch - this.aimPitch) < 0.08;
+    // bursts: five rounds, then a breath — long enough to be read and dodged
+    this.burstRest -= dt;
+    if (this.burstRest > 0 || !onIt) return;
+    if (this.burstLeft <= 0) this.burstLeft = 5;
+    // a gun nobody is aiming by eye throws its rounds about a little
+    const miss = dist * 0.035;
+    _aimPt.x += (Math.random() - 0.5) * miss;
+    _aimPt.y += (Math.random() - 0.5) * miss * 0.5;
+    _aimPt.z += (Math.random() - 0.5) * miss;
+    if (this.fireGun(_aimPt, team, -1, game, null, rate)) {
+      this.burstLeft--;
+      if (this.burstLeft <= 0) this.burstRest = 1.5;
+    }
+  }
+
+  /** the nearest living body on the other side inside the arc and range */
+  private turretTarget(game: Game, team: number, range: number): { pos: THREE.Vector3; vel: THREE.Vector3 } | null {
+    const t = this.def.turret!;
+    let best = range;
+    let pick: { pos: THREE.Vector3; vel: THREE.Vector3 } | null = null;
+    const consider = (pos: THREE.Vector3, vel: THREE.Vector3, height: number): void => {
+      const dx = pos.x - this.pos.x, dz = pos.z - this.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= best || d < 1.5) return;
+      if (Math.abs(wrapAngle(Math.atan2(dx, dz) - this.baseYaw)) > t.yawArc) return;
+      best = d;
+      _tgtPos.set(pos.x, pos.y + height * 0.55, pos.z);
+      pick = { pos: _tgtPos, vel };
+    };
+    for (const e of game.enemies) if (e.alive && e.team !== team && e.targetable) consider(e.position, e.velocity, e.height);
+    for (const p of game.players) if (p.alive && p.team !== team && !p.exited) consider(p.position, p.velocity, p.height);
+    return pick;
+  }
+
+  /** the gun comes round at its own pace: `slew` radians a second, both axes */
+  private slewTo(yaw: number, pitch: number, dt: number): void {
+    const step = (this.def.turret?.slew ?? 2) * dt;
+    this.yaw += clamp(wrapAngle(yaw - this.yaw), -step, step);
+    this.aimPitch += clamp(pitch - this.aimPitch, -step, step);
+  }
+
+  /** the gunner's eye, over the breech, turned with the gun */
+  sightWorld(out: THREE.Vector3): THREE.Vector3 {
+    const s = this.def.turret?.sight ?? { x: 0, y: this.def.body, z: 0 };
+    return this.localPoint(s.x, s.y, s.z, out);
+  }
+
+  /** the barrels' line, unit */
+  gunDir(out: THREE.Vector3): THREE.Vector3 {
+    const c = Math.cos(this.aimPitch);
+    return out.set(Math.sin(this.yaw) * c, Math.sin(this.aimPitch), Math.cos(this.yaw) * c);
+  }
+
+  /**
+   * The gunner's sight camera (K3): after the chase camera has placed itself,
+   * a turret's gunner sees down the barrels from the eye over the breech.
+   * Called from `player/riding.ts` once the camera has updated.
+   */
+  applySight(p: Player): void {
+    if (!this.def.turret || this.rider !== p) return;
+    const cam = p.cam.camera;
+    this.sightWorld(cam.position);
+    this.gunDir(_aim);
+    cam.lookAt(cam.position.x + _aim.x * 20, cam.position.y + _aim.y * 20, cam.position.z + _aim.z * 20);
+    if (cam.fov !== 60) { cam.fov = 60; cam.updateProjectionMatrix(); }
+  }
+
+  /**
+   * Put a scripted ride where its section has it this frame (see `scripted`):
+   * the hull, its heading and the velocity it is carrying — which is what a
+   * bike running into it measures the collision against.
+   */
+  place(x: number, y: number, z: number, yaw: number, vx = 0, vz = 0): void {
+    this.pos.set(x, y, z);
+    this.yaw = yaw;
+    this.vel.set(vx, 0, vz);
+    if (this.lane) {
+      const on = this.lane.project(x, z, this.laneS);
+      this.laneS = on.s;
+      this.laneLat = on.lat;
+    }
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = yaw;
+  }
+
+  /**
+   * Stand a turret somewhere else — on a hull that is moving, say. The gun
+   * keeps its aim relative to the mount, and its ring goes with it.
+   */
+  moveMount(x: number, y: number, z: number, baseYaw = this.baseYaw): void {
+    const off = this.yaw - this.baseYaw;
+    this.baseYaw = baseYaw;
+    this.yaw = baseYaw + off;
+    this.pos.set(x, y, z);
+    if (this.parkedBox) { this.unpark(); this.park(); }
+    this.group.position.copy(this.pos);
+    this.group.rotation.y = this.def.turret ? this.baseYaw : this.yaw;
+  }
+
   /**
    * A hostile's frame of driving: the same ride, the same physics, and an AI
    * at the pedals instead of a stick. What it rams is the other side.
    */
   driveHostile(dt: number, steer: number, pedal: number, boost: boolean, charge: boolean, game: Game): void {
     const def = this.def;
+    // K3: a turret with a hostile on it, and a lane with one on it, have
+    // their own brains; the hostile's own steer and pedal are for free rides
+    if (def.turret) { this.hostileTurret(dt, game); return; }
+    if (this.scripted) {
+      this.gunTick(dt);
+      this.swingCd -= dt;
+      this.updateSwing(dt, game);
+      return;
+    }
+    if (this.lane) { this.hostileLane(dt, game); return; }
     this.boostCd -= dt;
     this.hopCd -= dt;
     if (this.hopT > 0) this.hopT -= dt;
@@ -1280,11 +2491,43 @@ export class Vehicle {
 
     const speed = Math.hypot(this.vel.x, this.vel.z);
 
+    this.ram(speed, charging, rider, game);
+
+    // an animal sounds like an animal under anyone; a machine's engine is the
+    // player's own mix (set by `drive`), and a hostile's is left to the world.
+    // Dust or spray kicks up in the wake either way.
+    if (def.living) this.mountVoice(dt, speed);
+    this.dustTimer -= dt * speed;
+    if (this.dustTimer <= 0 && speed > 3) {
+      this.dustTimer = 2.2;
+      const wake = this.pos.clone().setY(this.pos.y - def.hover * 0.5);
+      if (this.board.waterY !== undefined && this.pos.y - def.hover <= this.board.waterY + 0.1) {
+        game.particles.splash(wake.setY(this.board.waterY), 3);
+      } else {
+        game.particles.runDust(wake);
+      }
+    }
+
+    // safety: past the bottom of the world the ride is simply gone
+    if (this.pos.y < game.board.physics.killY) { this.destroy(!def.living); return speed; }
+
+    this.syncMesh(dt, speed, game);
+    return speed;
+  }
+
+  /**
+   * Ramming: the vehicle is the weapon. Whose weapon is the one thing the
+   * driver decides — a player's hull bowls hostiles over, a hostile's hull is
+   * aimed at the party.
+   */
+  private ram(speed: number, charging: boolean, rider: Player | null, game: Game): void {
+    const def = this.def;
     // ---- ramming: the vehicle is the weapon ----
     // Whose weapon is the one thing the driver decides: a player's hull bowls
     // hostiles over, a hostile's hull is what a bantha with a Tusken on it is
     // *for*, and the party on foot is what it is aimed at.
-    if (speed > 6) {
+    if (speed <= 6) return;
+    {
       const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
       const half = def.length / 2;
       const slot = rider ? rider.slot : -1;
@@ -1297,6 +2540,10 @@ export class Vehicle {
       for (const e of marks) {
         if (!e.alive) continue;
         if (Math.abs(e.position.y - this.pos.y) > 2.4) continue;
+        // K3 lane: two rides running side by side meet hull to hull (the mass
+        // rule in `collideVehicles`), not hull to rider — a biker alongside is
+        // for swinging at, not for bowling out of the saddle by brushing past
+        if (this.lane && ('characterId' in e ? !!e.vehicle : !!e.ride)) continue;
         // nearest point on the hull's axis, so a long skiff hits with its bow
         const relX = e.position.x - this.pos.x, relZ = e.position.z - this.pos.z;
         const along = Math.max(-half, Math.min(half, relX * sin + relZ * cos));
@@ -1329,30 +2576,10 @@ export class Vehicle {
         // deflector does not make it free either (see `DamageKind`) — though
         // an animal that meant to do it comes off better than one that did not
         this.damage(charging ? 1 : 3, e.position, -1, 'contact');
-        if (!this.alive) break;
+        if (!this.alive) return;
       }
     }
 
-    // an animal sounds like an animal under anyone; a machine's engine is the
-    // player's own mix (set by `drive`), and a hostile's is left to the world.
-    // Dust or spray kicks up in the wake either way.
-    if (def.living) this.mountVoice(dt, speed);
-    this.dustTimer -= dt * speed;
-    if (this.dustTimer <= 0 && speed > 3) {
-      this.dustTimer = 2.2;
-      const wake = this.pos.clone().setY(this.pos.y - def.hover * 0.5);
-      if (this.board.waterY !== undefined && this.pos.y - def.hover <= this.board.waterY + 0.1) {
-        game.particles.splash(wake.setY(this.board.waterY), 3);
-      } else {
-        game.particles.runDust(wake);
-      }
-    }
-
-    // safety: past the bottom of the world the ride is simply gone
-    if (this.pos.y < game.board.physics.killY) { this.destroy(!def.living); return speed; }
-
-    this.syncMesh(dt, speed, game);
-    return speed;
   }
 
   /**
@@ -1405,6 +2632,11 @@ export class Vehicle {
   private applyHover(dt: number): void {
     const target = this.groundAt(this.pos.x, this.pos.z) + this.def.hover;
     if (this.hopT > 0 && (this.vel.y > 0 || this.pos.y > target + HOP_CATCH)) {
+      this.vel.y -= HOP_GRAVITY * dt;
+      return;
+    }
+    // K3 lane: over a drop deeper than the repulsors reach, it flies it
+    if (this.lane && this.pos.y > target + LANE_REACH) {
       this.vel.y -= HOP_GRAVITY * dt;
       return;
     }
@@ -1514,6 +2746,14 @@ export class Vehicle {
 
   private syncMesh(dt: number, speed: number, game: Game): void {
     this.group.position.copy(this.pos);
+    if (this.def.turret) {
+      // the ring stays where it was bolted; the gun turns and pitches on it
+      this.group.rotation.y = this.baseYaw;
+      if (this.yawNode) this.yawNode.rotation.y = this.yaw - this.baseYaw;
+      if (this.pitchNode) this.pitchNode.rotation.x = -this.aimPitch;
+      this.updateShield(dt, game.time);
+      return;
+    }
     this.group.rotation.y = this.yaw;
     // Bank into the turn — both the slide the tail is carrying and the steering
     // itself, so a ride leans as it is asked to turn rather than only once it
@@ -1735,12 +2975,40 @@ export function sitOnModel(body: THREE.Object3D, surface: number | undefined, an
 export const riderRise = (stance: VehicleDef['stance'], hips = CANONICAL_HIPS): number => stanceRise(stance, hips);
 
 export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, onModel?: (root: THREE.Object3D) => void,
-  onSettle?: () => void): void {
+  onSettle?: () => void): { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } {
   const def = VEHICLE_DEFS[kind];
   const built: THREE.Mesh[] = [];
   const track = (m: THREE.Mesh): THREE.Mesh => { built.push(m); return m; };
   const dark = mat(0x2c2f33, 0.7, 0.4);
-  if (kind === 'swoop') {
+  const parts: { yaw: THREE.Object3D | null; pitch: THREE.Object3D | null } = { yaw: null, pitch: null };
+  if (kind === 'turret') {
+    // K3's quad gun, to the `quad_turret` spec (ASSETS_MODELS.md): a base
+    // ring, a `yaw` node that turns on it with the seat and the shield, and a
+    // `pitch` node — the barrel block, pivoting at the trunnion — with four
+    // barrels. The gun's own nodes are what the game drives, stand-in or sculpt.
+    const iron = mat(0x4b4f52, 0.55, 0.6);
+    const olive = mat(0x5d5a44, 0.7, 0.35);
+    track(addCyl(group, iron, 1.35, 1.5, 0.5, 0, 0.25, 0, 0));
+    const yaw = new THREE.Group();
+    yaw.name = 'yaw';
+    group.add(yaw);
+    track(addCyl(yaw, dark, 0.9, 1.0, 0.45, 0, 0.72, 0, 0));
+    track(addBox(yaw, olive, 0.42, 1.0, 0.42, 0.62, 1.25, 0.1));      // trunnion cheeks
+    track(addBox(yaw, olive, 0.42, 1.0, 0.42, -0.62, 1.25, 0.1));
+    track(addBox(yaw, dark, 0.75, 0.12, 0.7, 0, 0.62, -1.0));         // the seat
+    track(addBox(yaw, dark, 0.75, 0.7, 0.1, 0, 0.95, -1.35));
+    track(addBox(yaw, olive, 2.0, 1.1, 0.08, 0, 1.75, 0.55));         // the gunner's shield
+    const pitch = new THREE.Group();
+    pitch.name = 'pitch';
+    pitch.position.set(0, def.turret?.pivot ?? 1.55, 0);
+    yaw.add(pitch);
+    track(addBox(pitch, iron, 0.9, 0.6, 1.0, 0, 0.02, 0.3));          // breech block
+    for (const [bx, by] of [[0.32, 0.17], [-0.32, 0.17], [0.32, -0.13], [-0.32, -0.13]]) {
+      track(addCyl(pitch, dark, 0.07, 0.09, 1.7, bx, by, 1.3, Math.PI / 2));
+    }
+    parts.yaw = yaw;
+    parts.pitch = pitch;
+  } else if (kind === 'swoop') {
     const body = mat(0x8a4b2f, 0.5, 0.5);
     track(addBox(group, body, 0.36, 0.26, 1.8, 0, 0.4, 0.1));
     track(addCyl(group, dark, 0.11, 0.15, 0.4, 0, 0.4, -0.85, Math.PI / 2));
@@ -1831,4 +3099,5 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     model.rotation.y = modelTurn(kind);
     group.add(model);
   } else onSettle?.();
+  return parts;
 }

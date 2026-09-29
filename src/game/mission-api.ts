@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { EnemyKind } from '../enemies/enemy';
 import type { SectionHud } from '../sections/api';
+import type { SectionId } from '../world/mission';
 
 /**
  * What the rest of the game asks of a Missions controller.
@@ -45,4 +46,10 @@ export interface MissionController {
   animateGates(dt: number): void;
   /** a gameplay section's HUD panel for this player, when one is standing */
   sectionHud?(slot: number): SectionHud | null;
+  /** the end of the frame, for a standing gameplay section (`SectionInstance.afterFrame`) */
+  sectionAfterFrame?(dt: number): void;
+  /** the stage in play, for the manual's job page: its name, and its section if it is one */
+  readonly stageBrief?: { label: string; section: SectionId | null };
+  /** development only: play the transport out of the standing section as though it were won */
+  skipSection?(): boolean;
 }

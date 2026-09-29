@@ -4,6 +4,7 @@ import type { SectionId, StageSpec } from '../world/mission';
 import type { SectionContext } from './context';
 import type { Player } from '../player/player';
 import type { Game } from '../game/game';
+import type { Combatant } from '../enemies/enemy';
 
 /**
  * The contract every gameplay section is built to
@@ -93,6 +94,13 @@ export interface SectionInstance {
   hud?(slot: number): SectionHud | null;
   /** the inputs a bot would give this player this frame to make progress */
   autopilot(slot: number): AutopilotInput;
+  /**
+   * Called at the very end of `Game.update`, after every player, enemy and
+   * projectile has moved and written its pose — the place to adjust what is
+   * about to be drawn (K7's deck roll carries the bodies on the deck with it).
+   * Runs every frame the section stands, fighting or not.
+   */
+  afterFrame?(dt: number): void;
   /** anything the context does not already own */
   dispose?(): void;
   /** optional numbers for tests and debugging (`window.__game.campaign.section.debug()`) */
@@ -108,4 +116,19 @@ export interface SectionMove {
   adjust?(p: Player, dt: number, input: FrameInput, game: Game): FrameInput;
   /** take the whole frame — movement, animation, camera — and return true */
   take?(p: Player, dt: number, input: FrameInput, game: Game, realDt: number): boolean;
+  /**
+   * Own the horizontal velocity this frame and return true (K7: the slide's
+   * gravity along the slope, flight's thrust). Everything else of the frame —
+   * the jump, the jetpack, the gun, the animation, the camera — runs as
+   * normal around it, which is what `take` cannot offer.
+   */
+  steer?(p: Player, dt: number, input: FrameInput, game: Game): boolean;
+  /** hold the body in the crouched pose this frame (K7's surf) */
+  crouch?(p: Player): boolean;
+  /**
+   * A melee hit is about to land on `target` for `amount`: return the damage
+   * it should do instead (Lights Out's silent takedown, K6). Called from the
+   * player's `landHit`, before the damage is dealt.
+   */
+  meleeHit?(p: Player, target: Combatant, amount: number, game: Game): number;
 }

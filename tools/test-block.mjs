@@ -53,11 +53,17 @@ const PROBE = `(spec) => {
     }
     frame++;
     g.update(1/60, inputs);
+    // keep the field empty: this is a Wave Battle, and its first wave lands a
+    // few seconds in — on a slow load, in the middle of the burst, where a
+    // Tusken's club reached her and read as a bolt through the blades
+    if (clear) for (const e of g.enemies) if (e.alive) { e.alive = false; e.removeMe = true; }
   };
+  let clear = false;
   // settle: blades drawn, or the pane all the way up
   for (let i = 0; i < 60; i++) step();
   // an empty field — nothing else may touch the health we are watching
   for (const e of g.enemies) { e.alive = false; e.removeMe = true; }
+  clear = true;
   p.hp = p.maxHp = 100000;
 
   const fireFrom = (bearingDeg) => {

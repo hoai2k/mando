@@ -13,7 +13,7 @@ import type { StageBuilder } from './builder';
  */
 export function settleBorders(b: StageBuilder, exitPortal: Portal | null, backPortal: Portal | null): void {
   const {
-    stage, rockMat, backdropMat, group, boxes, cylinders, rects, path, rimGeo, rimAt, backGeo, backAt,
+    stage, rockMat, backdropMat, group, boxes, cylinders, rects, path, lanes, rimGeo, rimAt, backGeo, backAt,
     groundAt, addCyl,
   } = b;
 
@@ -89,11 +89,14 @@ export function settleBorders(b: StageBuilder, exitPortal: Portal | null, backPo
       && y > b.min.y && y < b.max.y)
       || cylinders.some((c) => y > c.minY && y < c.maxY && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
   };
-  /** how near the golden path a piece may stand before it is in the way */
+  /** how near the golden path — or a runner's lane — a piece may stand before it is in the way */
+  const segments: [THREE.Vector3, THREE.Vector3][] = [];
+  for (const line of [path, ...lanes]) {
+    for (let i = 0; i + 1 < line.length; i++) segments.push([line[i], line[i + 1]]);
+  }
   const pathNear = (x: number, z: number): number => {
     let best = Infinity;
-    for (let i = 0; i + 1 < path.length; i++) {
-      const a2 = path[i], b2 = path[i + 1];
+    for (const [a2, b2] of segments) {
       const dx = b2.x - a2.x, dz = b2.z - a2.z;
       const len2 = dx * dx + dz * dz;
       const t = len2 > 1e-6

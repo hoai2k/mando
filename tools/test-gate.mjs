@@ -195,7 +195,7 @@ async function main() {
       // waits on at the title (the logo is 1.2 MB) and they are fetched lazily
       // by the screen's construction, so behind a door nothing asks for them
       // until it is too late to help — see the `title` case in prefetch.ts.
-      const art = ['logo.png', 'board_tatooine.jpg']
+      const art = ['logo.png', 'title_dune_sea_hd.jpg']
         .filter((f) => !asked.some((u) => u.endsWith(f)));
       check('the title screen\'s own art warms too', art.length === 0, `missing: ${art.join(', ')}`);
       await page.close();

@@ -60,12 +60,20 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   // ---- materials (own copies: mat() caches by colour and shares game-wide) ----
   const wallMat = mat(pal.wall, { rough: 0.75, metal: 0.25 }).clone();
   const floorMat = mat(pal.floor, { rough: 0.85, metal: 0.15 }).clone();
+  /**
+   * The floor of anything roofed — a hall, a corridor, a closet, a door's
+   * pocket. Chosen by the shell rather than by the stage: a hall on a built
+   * stage used to take the stage's sand (the Dune Sea's cistern court read as
+   * a sand-floored steel room), and an open zone on an interior stage took
+   * the corridor plate (the Crevasse's cracked lake was diamond plate).
+   */
+  const hallFloorMat = mat(pal.floor, { rough: 0.85, metal: 0.15 }).clone();
   const rockMat = mat(pal.rock, { rough: 0.92, metal: 0.05 }).clone();
   const backdropMat = mat(pal.backdrop, { rough: 1, metal: 0 }).clone();
   const crateMat = mat(0x4a4436, { rough: 0.8, metal: 0.2 }).clone();
   const trimMat = mat(pal.trim, { rough: 0.5, metal: 0.4, emissive: pal.trim }).clone();
   const accentGlow = new THREE.MeshBasicMaterial({ color: pal.accent });
-  const owned: { dispose(): void }[] = [wallMat, floorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow];
+  const owned: { dispose(): void }[] = [wallMat, floorMat, hallFloorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow];
   /**
    * Dress a material with its tileable, and with the normal and emissive maps
    * that came with it where they exist.
@@ -108,7 +116,8 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   };
   const look = RIDGE_LOOK[spec.ridge];
   tile(wallMat, 'corridor_wall', 6, 2);
-  tile(floorMat, interior ? 'corridor_floor' : stageFloorTexture(spec.ridge), 8, 8);
+  tile(floorMat, stageFloorTexture(spec.ridge), 8, 8);
+  tile(hallFloorMat, 'corridor_floor', 8, 8);
   tile(crateMat, 'corridor_wall', 1, 1);
   tile(rockMat, look.tex, 2, 1, { normal: true, glow: look.glow });
   tile(backdropMat, look.tex, 3, 1);
@@ -152,6 +161,14 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
    * "decor, said so". So the merge checks the row against the floors too.
    */
   const backAt: { x: number; z: number; r: number }[] = [];
+  /**
+   * Ways through that are not the golden path but must stay just as clear —
+   * a runner pass's gully and the notch it comes through. The border merge
+   * treats them as it treats the path; the guidance never sees them.
+   */
+  const lanes: THREE.Vector3[][] = [];
+  /** the slick discs the zones lay: centre and radius */
+  const slicks: { x: number; z: number; r: number }[] = [];
 
   const removeBoxes = (bs: StaticBox[]): void => {
     const gone = new Set<StaticBox>(bs);
@@ -184,7 +201,18 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
   const aLen = Math.hypot(raw.dx, raw.dz) || 1;
   const anchor = { x: raw.x, z: raw.z, dx: raw.dx / aLen, dz: raw.dz / aLen };
   const floorY = onGround ? terrainAt(anchor.x, anchor.z) : MISSION_Y;
-  const groundAt = (x: number, z: number): number => (onGround ? terrainAt(x, z) : floorY);
+  /**
+   * Floor raised off a plate stage's one height: a deck's upper plate, a
+   * hall's gallery. Filled in as the zones are laid and read live, so every
+   * spot placed afterwards — posts, vents, cover, the party's inside test —
+   * stands on it rather than inside it.
+   */
+  const raised: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = [];
+  const groundAt = (x: number, z: number): number => {
+    if (onGround) return terrainAt(x, z);
+    for (const r of raised) if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return r.y;
+    return floorY;
+  };
   let highest = floorY;
   if (onGround) {
     // Sample the ground the chain actually crosses — its zones and the links
@@ -219,10 +247,10 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
     board, spec, stage, index, beat0,
     pal, corrW, baseWallH, ceiling, interior, onGround, worldHeightAt, bare, wantRim, canyon,
     terrainAt, rand,
-    wallMat, floorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
+    wallMat, floorMat, hallFloorMat, rockMat, backdropMat, crateMat, trimMat, accentGlow, owned, look,
     group,
     boxes, cylinders, hazards, breakables, rects, pickups, defenders, rides, path, blocked,
-    shockStrips, rimGeo, rimAt, backGeo, backAt,
+    shockStrips, rimGeo, rimAt, backGeo, backAt, lanes, slicks,
     /** a counter for staggering adjacent floor plates (see `EPS`) */
     spaceN: 0,
     /**
@@ -233,7 +261,7 @@ export function beginStage(board: Board, spec: MissionSpec, index: number, beat0
      */
     retired: false,
     removeBoxes, addBox, addCyl, addHazard,
-    anchor, floorY, groundAt, ceilingY,
+    anchor, floorY, groundAt, raised, ceilingY,
   };
 }
 
