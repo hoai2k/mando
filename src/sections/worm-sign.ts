@@ -4,6 +4,7 @@ import type { SectionDef, SectionInstance, SectionHud, SectionBar, AutopilotInpu
 import type { SectionContext } from './context';
 import type { Enemy, EnemyKind } from '../enemies/enemy';
 import type { Player } from '../player/player';
+import type { StaticCylinder } from '../core/physics';
 import type { FrameInput } from '../core/input';
 import { audio } from '../core/audio';
 import { Interactions, type Interactable } from './kit/interact';
@@ -143,8 +144,11 @@ interface Thumper {
   t: number;
   mesh: THREE.Group;
   hammer: THREE.Object3D;
-  /** the hammer's resting height in its own parent's frame */
+  /** the hammer's resting height in its own parent's frame, and metres → that frame */
   hammerY: number;
+  hammerScale: number;
+  /** its collider while it stands (on its post or planted); null while carried or gone */
+  solid: StaticCylinder | null;
   pull: Interactable;
 }
 
@@ -353,27 +357,57 @@ function build(ctx: SectionContext): SectionInstance {
   }
 
   // ---- thumpers ----
+  // The thumper, to its sheet (docs/ASSETS_MODELS.md, `thumper`): 2.0 × 1.8 ×
+  // 2.4 m, scaled by the height. A tripod of three spiked legs (the feet a
+  // 1.8 m triangle), a crank lever across the top with a netted stone
+  // counterweight on its −x end, and the `hammer` — the node the game drives —
+  // hanging from the +x end 0.7 m off the centre, bottoming out 0.5 m above the
+  // ground. Pivot at the ground under the tripod's centre.
   const buildThumper = (): { g: THREE.Group; hammer: THREE.Object3D } => {
     const g = new THREE.Group();
+    const apex = new THREE.Vector3(0, 2.25, 0);
+    const R = 1.8 / Math.sqrt(3);
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2;
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.5, 5), woodMat);
-      leg.position.set(Math.cos(a) * 0.45, 1.15, Math.sin(a) * 0.45);
-      leg.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
-      g.add(leg);
+      const foot = new THREE.Vector3(Math.cos(a) * R, 0.22, Math.sin(a) * R);
+      const len = foot.distanceTo(apex);
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, len, 5), woodMat);
+      leg.position.copy(foot).add(apex).multiplyScalar(0.5);
+      leg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), apex.clone().sub(foot).normalize());
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.24, 5), ironMat);
+      spike.rotation.x = Math.PI;
+      spike.position.set(foot.x, 0.12, foot.z);
+      g.add(leg, spike);
     }
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.6, 5), ironMat);
-    spike.rotation.x = Math.PI;
-    spike.position.y = 0.1;
-    const hammer = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.7, 8), ironMat);
-    hammer.position.y = 1.4;
-    const crank = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 4, 10), ironMat);
-    crank.position.y = 2.25;
-    const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.8), clothMat);
-    ribbon.position.set(0.3, 2.0, 0);
-    g.add(spike, hammer, crank, ribbon);
+    // the crank lever across the top, its wheel at the apex
+    const lever = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.1, 0.1), woodMat);
+    lever.position.set(-0.08, 2.3, 0);
+    const crank = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 4, 10), ironMat);
+    crank.position.set(0, 2.25, 0.12);
+    // the counterweight: stones in a net on the −x end
+    const stones = new THREE.Mesh(new THREE.DodecahedronGeometry(0.26, 0), ctx.paint(0x6a5a48, { rough: 1 }));
+    stones.position.set(-0.86, 1.98, 0);
+    const net = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 5), new THREE.MeshBasicMaterial({ color: 0x3a2c1c, wireframe: true }));
+    net.position.copy(stones.position);
+    const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.7), clothMat);
+    ribbon.position.set(-0.2, 1.9, 0.08);
+    g.add(lever, crank, stones, net, ribbon);
+    // the hammer: its own node, at rest bottomed out (its foot 0.5 m up)
+    const hammer = new THREE.Group();
+    hammer.name = 'hammer';
+    hammer.position.set(0.7, 0, 0);
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.5, 8), ironMat);
+    head.position.y = 0.75;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 5), ironMat);
+    rod.position.y = 1.65;
+    hammer.add(head, rod);
+    g.add(hammer);
     return { g, hammer };
   };
+  /** how far the hammer rides up its stroke, metres */
+  const HAMMER_LIFT = 0.45;
+  /** the thumper's collider: planted or on its post, a 0.9 m cylinder; none while carried */
+  const THUMP_R = 0.9, THUMP_H = 2.4;
   const interactions = new Interactions();
   const thumpers: Thumper[] = [];
   for (const isl of islands) {
@@ -382,14 +416,15 @@ function build(ctx: SectionContext): SectionInstance {
       const post = new THREE.Vector3(isl.x + Math.cos(a) * isl.r * 0.55, isl.top, isl.z + Math.sin(a) * isl.r * 0.55);
       isl.post.push(post);
       // the post itself: a stake and a lashing where the thumper hangs
-      ctx.cyl(post.x - 0.5, isl.top + 0.9, post.z, 0.1, 1.8, woodMat);
+      ctx.cyl(post.x - 1.4, isl.top + 0.9, post.z, 0.1, 1.8, woodMat);
       // a pivot of its own, so it can be carried, planted and spun about its foot
       const { g, hammer } = buildThumper();
       const pivot = new THREE.Group();
       pivot.position.copy(post);
       pivot.add(g);
       const th: Thumper = {
-        post, state: 'post', by: -1, at: post.clone(), t: 0, mesh: pivot, hammer, hammerY: 1.4,
+        post, state: 'post', by: -1, at: post.clone(), t: 0, mesh: pivot, hammer, hammerY: 0, hammerScale: 1,
+        solid: ctx.cyl(post.x, post.y + THUMP_H / 2, post.z, THUMP_R, THUMP_H, null).cyl,
         pull: null as unknown as Interactable,
       };
       th.pull = interactions.add({
@@ -408,7 +443,16 @@ function build(ctx: SectionContext): SectionInstance {
         axis: 'y', ground: true,
         onLoad: (root) => {
           g.visible = false;
-          root.traverse((o) => { if (o.name === 'hammer') { th.hammer = o; th.hammerY = o.position.y; } });
+          // the sculpt's own hammer is driven instead (the stand-in's is hidden with it);
+          // its stroke is in its parent's units, which the fit has scaled
+          root.traverse((o) => {
+            if (o.name !== 'hammer' || o === hammer) return;
+            th.hammer = o;
+            th.hammerY = o.position.y;
+            o.parent?.updateWorldMatrix(true, false);
+            const sc = o.parent ? o.parent.getWorldScale(new THREE.Vector3()).y : 1;
+            th.hammerScale = sc > 1e-6 ? 1 / sc : 1;
+          });
         },
       }));
       ctx.mesh(pivot);
@@ -799,7 +843,7 @@ function build(ctx: SectionContext): SectionInstance {
           th.state = 'planted';
           th.t = 0;
           th.by = p.slot;
-          th.at.set(p.position.x + Math.sin(yaw) * 1.2, Y0, p.position.z + Math.cos(yaw) * 1.2);
+          th.at.set(p.position.x + Math.sin(yaw) * 1.6, Y0, p.position.z + Math.cos(yaw) * 1.6);
           th.mesh.position.copy(th.at);
           th.mesh.rotation.set(0, yaw, 0);
           ctx.announce(T.planted, T.plantedSub);
@@ -807,13 +851,19 @@ function build(ctx: SectionContext): SectionInstance {
       } else plantHold[p.slot] = Math.max(0, plantHold[p.slot] - dt * 2);
     }
     for (const th of thumpers) {
+      // it is solid where it stands (on its post or planted), and not in someone's hands
+      const standing = th.state === 'post' || th.state === 'planted';
+      if (standing && !th.solid) th.solid = ctx.cyl(th.at.x, th.at.y + THUMP_H / 2, th.at.z, THUMP_R, THUMP_H, null).cyl;
+      else if (!standing && th.solid) { ctx.unsolid({ cyl: th.solid }); th.solid = null; }
       if (th.state === 'planted') {
         th.t += dt;
-        // the hammer: up on the crank, down on the sand
+        // the hammer: wound up the stroke on the crank, then dropped
         const ph = (th.t * 1.7) % 1;
-        th.hammer.position.y = th.hammerY + (ph < 0.8 ? ph * 0.6 : (1 - ph) * 2.4);
+        const lift = ph < 0.8 ? (ph / 0.8) * HAMMER_LIFT : ((1 - ph) / 0.2) * HAMMER_LIFT;
+        th.hammer.position.y = th.hammerY + lift * th.hammerScale;
         if (ph < dt * 1.7) {
-          game.particles.dustPuff(th.at.clone().setY(Y0 + 0.2), 6);
+          const yaw = th.mesh.rotation.y;
+          game.particles.dustPuff(new THREE.Vector3(th.at.x + Math.cos(yaw) * 0.7, Y0 + 0.3, th.at.z - Math.sin(yaw) * 0.7), 6);
           audio.land(false);
         }
         if (th.t > THUMP_SECS + 3) { th.state = 'gone'; th.t = 0; th.mesh.visible = false; }
