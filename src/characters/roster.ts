@@ -237,6 +237,11 @@ function stubAnimator(): NonNullable<CharacterInstance['animator']> {
     update: () => {},
     gaitRate: () => 1,
     stepInterval: () => 0.34,
+    // no clips, so the player's walk/run blend passes a creature by
+    clips: {},
+    cycleLength: () => 0,
+    playBlend: () => {},
+    clipProgress: () => 0,
     // the aim layer asks what is playing and writes additive rotations; a
     // creature has neither channel nor chest bone, so both are no-ops
     playing: () => null,

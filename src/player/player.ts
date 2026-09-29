@@ -2611,7 +2611,7 @@ export class Player {
       // an upper cycle outside the blend (a saber stance, a gun raised) keeps the legs' time
       let upperRate: number;
       let upperClip: string | null = null;
-      if (lowerClip === 'runLower') {
+      if (lowerClip === 'runLower' && anim.clips.walkLower && anim.clips.runLower) {
         const runPace = this.profile.runSpeed * RUN_PACE;
         const want = smoothstep(WALK_BLEND_FROM, Math.max(WALK_BLEND_FROM + 1, runPace * RUN_BLEND_SHARE), speed2);
         const was = this.gaitBlend;
@@ -2632,7 +2632,10 @@ export class Player {
         lowerClip = anim.playing('lower') ?? lowerClip;
       } else {
         this.gaitBlend = -1;
-        rate = travel.dir * anim.gaitRate(lowerClip, speed2, scale) * (travel.dir < 0 ? 0.9 : 1);
+        // a body with a run and no walk walks on its run, slowed as far as
+        // the walk would be, so its feet still plant at a stroll
+        const floor = lowerClip === 'runLower' ? WALK_RATE_FLOOR : undefined;
+        rate = travel.dir * anim.gaitRate(lowerClip, speed2, scale, floor) * (travel.dir < 0 ? 0.9 : 1);
         const phase = STRIDE_CYCLES.has(lowerClip) ? (carried ? anim.clipProgress('lower') : PUSH_OFF_PHASE[lowerClip]) : undefined;
         anim.play('lower', lowerClip, 0.15, rate, phase);
         upperRate = Math.abs(rate);
