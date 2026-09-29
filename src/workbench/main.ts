@@ -28,6 +28,7 @@ import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { hasGeoAudit, syncGeoOverlay } from './geoOverlay';
 import { RIG_EXPERIMENTS } from './roster';
+import { FistTuning } from './fistTuning';
 import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
@@ -162,7 +163,7 @@ let mode: Mode = initialParams.get('mode') === 'authored' || initialParams.get('
 /** mesh count the camera framing was computed for; authored skins arrive late */
 let framedAt = -1;
 /** whether the folded panel sections are open — both start closed */
-const folds = { shoulders: false, details: false };
+const folds = { shoulders: false, fist: false, details: false };
 let showGrid = true;
 /** close every figure's hands into fists (`fistRig.ts`), to see how a pose reads with them */
 let fists = initialParams.get('fists') === '1';
@@ -277,6 +278,8 @@ function activeClips(): { lower: string | null; upper: string | null } {
  */
 const edits = new PoseEdits();
 const editor = new PoseEditor(scene, camera, controls, renderer.domElement, onEditorChange, commitBone);
+/** the Fist section: a sculpt's fist tuned by hand, and the guides on its hands */
+const fistTuning = new FistTuning(scene);
 const positionEditor = new PositionEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 const weaponEditor = new WeaponAnchorEditor(scene, camera, controls, renderer.domElement, onEditorChange);
 /** seat and hand anchors on the rides, and the Nikto's seat on his swoop — see vehicleAnchorEdit.ts */
@@ -563,7 +566,9 @@ function syncFists(): void {
   for (const f of figures) {
     const official = officialFists(f);
     set ||= !!official;
-    if (official) clench(f.inst.root, official[0], official[1]);
+    // the Fist section's held clench wins over the game's and the toggle's
+    if (fistTuning.hold) clench(f.inst.root, fistTuning.clench);
+    else if (official) clench(f.inst.root, official[0], official[1]);
     else clench(f.inst.root, fists ? 1 : 0);
   }
   const box = panel.querySelector<HTMLInputElement>('#fists');
@@ -958,6 +963,8 @@ function renderPanel(): void {
     </div>
     </details>` : ''}
 
+    ${fistTuning.html(figures.map((f) => f.inst.root), folds.fist)}
+
     <button id="editToggle" class="toggle" aria-pressed="${editing}">
       ${editing ? 'Leave edit mode' : 'Edit mode'}
     </button>
@@ -1105,6 +1112,7 @@ function renderPanel(): void {
     for (const f of figures) f.inst.cosmetic?.(0, time);
     renderPanel();
   });
+  fistTuning.bind(panel, () => figures.map((f) => f.inst.root), renderPanel);
   panel.querySelector<HTMLButtonElement>('#editToggle')!.onclick = () => {
     if (editing) leaveEdit(); else enterEdit();
     renderPanel();
@@ -1878,6 +1886,7 @@ function frame(now: number): void {
   syncFists();
   syncGeoOverlay(figures, cid(), geoView > 0, geoView > 1);
   editor.update();
+  if (fistTuning.update(figures.map((f) => f.inst.root))) renderPanel();
   positionEditor.update(camera);
   weaponEditor.update(camera);
   vehicleEditor.update(camera);
