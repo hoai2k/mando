@@ -84,6 +84,12 @@ export class PalmEditor {
     this.onChange();
   }
 
+  /** the handles back onto the palms as they stand (after an undo) */
+  refresh(): void {
+    if (!this.id) return;
+    for (const [side, h] of this.handles) h.position.copy(palmOf(this.id, side));
+  }
+
   /** the selected palm back to what is deployed */
   reset(): void {
     const side = this.selected, h = side && this.handles.get(side);

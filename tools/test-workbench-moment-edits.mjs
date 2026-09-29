@@ -73,7 +73,7 @@ try {
     doc.format === 'mando-pose-edit/3' && moment && Math.abs(moment.at - launch) < 2e-3
       && Math.abs(moment.delta[0] - 30) < 0.5 && moment.share > 0 && moment.share < 1, moment);
 
-  await page.locator('#undo').click();
+  await page.locator('[data-history="undo"]').click();
   const undone = await clipState();
   check('undo restores the key', undone.keys === before.keys && (await ledger()).length === 0
     && (await boneAngle()) - at < 0.5, undone);
@@ -111,7 +111,7 @@ try {
   check('letting go keeps the pose on rig and model alike',
     moved(dragging, released, 'rig') < 0.01 && moved(dragging, released, 'model') < 0.01,
     { rig: moved(dragging, released, 'rig'), model: moved(dragging, released, 'model') });
-  await page.locator('#undo').click();
+  await page.locator('[data-history="undo"]').click();
 
   // fists: the fingers the model was delivered without. Paz is passed for
   // play, and the game closes his hands in a bare-handed fight: the pose shows

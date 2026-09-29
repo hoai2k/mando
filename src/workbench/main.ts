@@ -7,7 +7,7 @@ import { findPose, POSES, posesFor, type Pose, type PoseCapabilities } from './p
 import { PoseEditor, type GizmoSpace } from './poseEdit';
 import { eulerOf, eulerSub, PoseEdits, type EditEntry, type Euler3 } from './poseEdits';
 import { findSubject, GROUPS, type Subject } from './roster';
-import { modelUrl, shoulderSpacingFor, setWorkbenchShoulderSpacing, type ShoulderSpacing } from '../characters/authored';
+import { modelUrl, restoreShoulderSpacing, shoulderSpacingFor, shoulderSpacingSnapshot, setWorkbenchShoulderSpacing, type ShoulderSpacing } from '../characters/authored';
 import { tracked } from '../core/warm';
 import { BONES } from '../anim/skeleton';
 import './workbench.css';
@@ -19,7 +19,7 @@ import { counterweightVariant, hasCounterweight } from '../anim/counterweight';
 import { LAND_DEPTH, landingClips } from '../anim/clips';
 import { MANDO_ROSTER, meleeKinds, saberClipsFor, type MandoId, type MeleeKind } from '../characters/mandalorians';
 import { FIST_ENEMIES } from '../characters/combatStyle';
-import { clench } from '../characters/fistRig';
+import { clench, fistTuneSnapshot, refitFists, restoreFistTunes } from '../characters/fistRig';
 import { fistsInPlay, fistTargets } from '../characters/fists';
 import type { VehicleRig } from './vehicleFigure';
 import { PositionEditor } from './positionEdit';
@@ -28,8 +28,8 @@ import { VehicleAnchorEditor } from './vehicleAnchorEdit';
 import { expose } from '../debug';
 import { FistTuning } from './fistTuning';
 import { PalmEditor } from './palmAnchorEdit';
-import { editedPalms, handAnchorsJson } from '../characters/handAnchors';
-import { FigureWeapons, findWeaponOption, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
+import { editedPalms, handAnchorsJson, palmSnapshot, restorePalms } from '../characters/handAnchors';
+import { FigureWeapons, findWeaponOption, NO_WEAPON, loadoutFor, poseWeapon, WEAPON_OPTIONS, WeaponChoices, type Loadout, type WeaponSlot } from './weaponChoice';
 
 // The pose editor rewrites clip tracks in place, so each figure on the
 // turntable needs its own set — the game's shared-by-species cache would let an
@@ -512,8 +512,8 @@ function applyPose(): void {
       f.extras.setMeleeKind(pose.id.startsWith('saber') || pose.id === 'flourish' ? 'sabers' : 'gaffi');
     }
     const armorerIdle = cid() === 'armorer' && pose.id === 'idle';
-    f.extras.setWeapon?.(pose.unarmed ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
-    setWeaponVisibility(f, !pose.unarmed);
+    f.extras.setWeapon?.(emptyHanded(pose) ? 'none' : (pose.melee || armorerIdle) ? 'gaffi' : 'blaster');
+    setWeaponVisibility(f, !emptyHanded(pose));
     f.extras.setBlock?.(pose.block ? 1 : 0);
     // An either-pose the user asked to show the other slot in: draw it the
     // way the game would, then put the slot's pick (if any) in that hand.
@@ -608,6 +608,9 @@ function seekAnimation(seconds: number): void {
     f.inst.cosmetic?.(0, time);
   }
 }
+
+/** a pose with nothing in the hands: a bare-handed one, or the rest pose (a stowed hilt stays on the hip) */
+const emptyHanded = (p: Pose): boolean => !!p.unarmed || p.id === 'rest';
 
 /** Enemy props are mounted on weapon bones or the retargeted hand mounts. */
 function setWeaponVisibility(f: Figure, visible: boolean): void {
@@ -797,8 +800,90 @@ function refreshEdits(): void {
   renderEditPanel();
 }
 
-function undoEdit(): void { if (edits.undo()) refreshEdits(); }
-function redoEdit(): void { if (edits.redo()) refreshEdits(); }
+// ---------- undo: one history for every edit in the page ----------
+/**
+ * Everything an edit in this page can change, as plain data: the clip edits,
+ * the weapon grips and scales, the joint positions, the rides' anchors and
+ * their riders' joints, the palms, the fist tunes, the shoulder widths and
+ * the weapon picks.
+ */
+interface WorkbenchState {
+  pose: ReturnType<PoseEdits['snapshot']>;
+  weapon: ReturnType<WeaponAnchorEditor['snapshot']>;
+  position: ReturnType<PositionEditor['snapshot']>;
+  ride: ReturnType<VehicleAnchorEditor['snapshot']>;
+  palms: ReturnType<typeof palmSnapshot>;
+  fists: ReturnType<typeof fistTuneSnapshot>;
+  shoulders: ReturnType<typeof shoulderSpacingSnapshot>;
+  picks: ReturnType<WeaponChoices['snapshot']>;
+}
+const snapState = (): WorkbenchState => ({
+  pose: edits.snapshot(), weapon: weaponEditor.snapshot(), position: positionEditor.snapshot(),
+  ride: vehicleEditor.snapshot(), palms: palmSnapshot(), fists: fistTuneSnapshot(),
+  shoulders: shoulderSpacingSnapshot(), picks: weaponChoices.snapshot(),
+});
+/**
+ * The state before the edit under way, and the undo and redo stacks of whole
+ * states. An edit is whatever changed between one checkpoint and the next:
+ * one taken whenever a press, a drag, a typed value or a button in the page
+ * has finished (`settleHistory`), so a gizmo dragged about is one step, and
+ * anything any editor does can be undone the same way.
+ */
+let settled = '';
+let settledState: WorkbenchState | null = null;
+const undoStack: WorkbenchState[] = [];
+const redoStack: WorkbenchState[] = [];
+const canUndo = (): boolean => undoStack.length > 0 || (settledState !== null && JSON.stringify(snapState()) !== settled);
+const canRedo = (): boolean => redoStack.length > 0;
+
+/** Close the edit under way, if there was one: the state before it goes on the undo stack. */
+function settleHistory(): void {
+  const now = snapState();
+  const key = JSON.stringify(now);
+  if (settledState && key !== settled) {
+    undoStack.push(settledState);
+    if (undoStack.length > 200) undoStack.shift();
+    redoStack.length = 0;
+  }
+  settledState = now;
+  settled = key;
+}
+
+/** Put the whole page back as a state had it, touching only what differs. */
+function applyState(to: WorkbenchState): void {
+  const from = snapState();
+  const differs = (k: keyof WorkbenchState): boolean => JSON.stringify(from[k]) !== JSON.stringify(to[k]);
+  if (differs('weapon')) weaponEditor.restoreSnapshot(to.weapon);
+  if (differs('position')) positionEditor.restoreSnapshot(to.position);
+  if (differs('ride')) vehicleEditor.restoreSnapshot(to.ride, figures[0]?.inst.root ?? null);
+  if (differs('palms')) { restorePalms(to.palms); palmEditor.refresh(); }
+  if (differs('fists')) for (const model of restoreFistTunes(to.fists)) refitFists(model, figures.map((f) => f.inst.root));
+  if (differs('shoulders')) restoreShoulderSpacing(to.shoulders);
+  if (differs('picks')) weaponChoices.restoreSnapshot(to.picks);
+  if (differs('pose')) edits.restoreSnapshot(to.pose);
+  // the clips from the ledger, and the figures posed again with every part put back
+  if (differs('pose') || differs('picks')) refreshEdits();
+  else if (editing && editKind === 'weapon') { sampleWeaponPose(); refreshWeaponPose(); }
+  for (const f of figures) f.inst.cosmetic?.(0, time);
+  settledState = to;
+  settled = JSON.stringify(to);
+  renderPanel();
+}
+
+function undoEdit(): void {
+  settleHistory();
+  const to = undoStack.pop();
+  if (!to) return;
+  redoStack.push(settledState!);
+  applyState(to);
+}
+function redoEdit(): void {
+  settleHistory();
+  const to = redoStack.pop();
+  if (!to) return;
+  undoStack.push(settledState!);
+  applyState(to);
+}
 
 addEventListener('keydown', (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.target instanceof HTMLInputElement) return;
@@ -806,6 +891,15 @@ addEventListener('keydown', (e) => {
   if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoEdit(); }
   else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redoEdit(); }
 });
+// Each finished press, drag, typed value or click is a checkpoint, taken once
+// the page's own handlers have run; a press on the undo buttons is theirs.
+const checkpointSoon = (e: Event): void => {
+  if ((e.target as HTMLElement | null)?.closest?.('#undo, #redo, [data-history]')) return;
+  setTimeout(settleHistory, 0);
+};
+addEventListener('pointerup', checkpointSoon);
+addEventListener('change', checkpointSoon, true);
+addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === 'Tab') checkpointSoon(e); });
 
 // ---------- panel ----------
 const panel = document.getElementById('panel')!;
@@ -1137,6 +1231,7 @@ function weaponChoiceHtml(): string {
       <label for="weaponChoice-${slot}">${SLOT_LABEL[slot]}${chosen ? ' <span class="changed-tag">changed</span>' : ''}</label>
       <select id="weaponChoice-${slot}" data-weapon-slot="${slot}">
         ${option('', `Default — ${def.name}`, !chosen)}
+        ${option(NO_WEAPON, 'None — an empty hand', chosen === NO_WEAPON)}
         ${offered.map((o) => option(o.id, o.name, o.id === chosen)).join('')}
       </select>
     </div>`;
@@ -1152,7 +1247,7 @@ function weaponChoiceHtml(): string {
     ${pickers}${handSeg}
     <div class="row"><button id="weaponChoiceExport" class="primary"${picks.length ? '' : ' disabled'}>Export weapon choices JSON</button></div>
     ${picks.length ? `<div class="ledger">${picks.map((e) => `<div class="edit"><span>${e.characterName}</span>
-      <code>${e.slot}: ${findWeaponOption(e.choice)?.name ?? e.choice}</code>
+      <code>${e.slot}: ${e.choice === NO_WEAPON ? 'none' : findWeaponOption(e.choice)?.name ?? e.choice}</code>
       <button data-choice-character="${e.character}" data-choice-slot="${e.slot}" title="back to ${e.defaultName}">×</button></div>`).join('')}</div>` : ''}
     <p class="hint">Workbench only — the game keeps its defaults. Picks stay with each character across poses.</p>
   </div>`;
@@ -1362,10 +1457,10 @@ function renderEditPanel(): void {
     ${editing ? editModeButtons() : ''}
     <div class="editbox">
       ${editBox}
-      <div class="row">
-        <button id="undo"${edits.canUndo ? '' : ' disabled'} title="Ctrl/Cmd+Z">↶ Undo</button>
-        <button id="redo"${edits.canRedo ? '' : ' disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
-      </div>
+      ${editing ? '' : `<div class="row">
+        <button id="undo"${canUndo() ? '' : ' disabled'} title="Ctrl/Cmd+Z">↶ Undo</button>
+        <button id="redo"${canRedo() ? '' : ' disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
+      </div>`}
       <div class="row">
         <button id="resetAll"${list.length ? '' : ' disabled'}>Reset all</button>
         <button id="export" class="primary"${list.length ? '' : ' disabled'}>Export changes</button>
@@ -1411,8 +1506,8 @@ function renderEditPanel(): void {
   host.querySelector<HTMLButtonElement>('#resetBone')?.addEventListener('click', () => {
     if (sel && selClip) { edits.clear(selClip, sel, selAt); refreshEdits(); }
   });
-  host.querySelector<HTMLButtonElement>('#undo')!.onclick = undoEdit;
-  host.querySelector<HTMLButtonElement>('#redo')!.onclick = redoEdit;
+  host.querySelector<HTMLButtonElement>('#undo')?.addEventListener('click', undoEdit);
+  host.querySelector<HTMLButtonElement>('#redo')?.addEventListener('click', redoEdit);
   host.querySelector<HTMLButtonElement>('#resetAll')!.onclick = () => { edits.clearAll(); refreshEdits(); };
   host.querySelector<HTMLButtonElement>('#export')!.onclick = exportChanges;
   for (const row of host.querySelectorAll<HTMLButtonElement>('.ledger button')) {
@@ -1428,10 +1523,16 @@ function editModeButtons(): string {
     <button data-edit-kind="rotate" aria-pressed="${editKind === 'rotate'}">Rotate</button>
     <button data-edit-kind="position" aria-pressed="${editKind === 'position'}">Position</button>
     <button data-edit-kind="weapon" aria-pressed="${editKind === 'weapon'}">Weapon grips</button>
-  </div></div>`;
+  </div></div>
+  <div class="row history">
+    <button data-history="undo" ${canUndo() ? '' : 'disabled'} title="Ctrl/Cmd+Z — any edit in the page">↶ Undo</button>
+    <button data-history="redo" ${canRedo() ? '' : 'disabled'} title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
+  </div>`;
 }
 
 function bindEditModeButtons(host: HTMLElement): void {
+  host.querySelector<HTMLButtonElement>('[data-history="undo"]')?.addEventListener('click', undoEdit);
+  host.querySelector<HTMLButtonElement>('[data-history="redo"]')?.addEventListener('click', redoEdit);
   host.querySelectorAll<HTMLButtonElement>('[data-edit-kind]').forEach((button) => {
     button.onclick = () => {
       const next = button.dataset.editKind as 'rotate' | 'position' | 'weapon';
@@ -1779,7 +1880,7 @@ const dragHint = (): string => (editor.dragAxis
   : 'Drag a ring to rotate; hold Shift to snap to 5°.');
 
 const signature = (): string =>
-  `${editing}|${editAt}|${momentTime()}|${editor.selected}|${editor.space}|${edits.canUndo}|${edits.canRedo}|`
+  `${editing}|${editAt}|${momentTime()}|${editor.selected}|${editor.space}|${canUndo()}|${canRedo()}|`
   + edits.entries().map((e) => `${e.clip}.${e.bone}@${e.at}:${e.delta}`).join(',');
 
 /** Cheap refresh: numbers only, leaving the DOM (and focus) where it is. */
@@ -2010,7 +2111,7 @@ function frame(now: number): void {
   for (const f of figures) {
     // edit mode owns the bones; the mixer would write over them every frame
     if (!editing && !paused) f.inst.animator?.update(animationDt);
-    if (pose.unarmed) setWeaponVisibility(f, false);
+    if (emptyHanded(pose)) setWeaponVisibility(f, false);
   }
   if (positionAwaiting && editing && editKind === 'position'
     && figures.some((f) => f.waitingFor && ready(f))) refreshPositionPose();
@@ -2040,5 +2141,7 @@ function frame(now: number): void {
 // the rest pose — and `available` then quietly moved the pick to it, so the
 // workbench opened standing in no clip at all whatever it was asked for.
 spawn();
+// the page as it opened: the first edit is undone back to this
+settleHistory();
 resize();
 requestAnimationFrame(frame);

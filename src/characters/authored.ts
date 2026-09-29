@@ -123,6 +123,15 @@ export function shoulderSpacingFor(id: string): ShoulderSpacing {
   return workbenchSpacing.get(id) ?? (id === 'ventress' || id === 'bossk' || id === 'maris' ? HALF_SPACING : FULL_SPACING);
 }
 
+/** this page's shoulder spacings, for the workbench's undo */
+export function shoulderSpacingSnapshot(): Array<[string, ShoulderSpacing]> {
+  return [...workbenchSpacing].map(([id, s]) => [id, { ...s }]);
+}
+export function restoreShoulderSpacing(snap: Array<[string, ShoulderSpacing]>): void {
+  workbenchSpacing.clear();
+  for (const [id, s] of snap) workbenchSpacing.set(id, { ...s });
+}
+
 /** A workbench adjustment stays in this page; the game's defaults stay above. */
 export function setWorkbenchShoulderSpacing(id: string, value: ShoulderSpacing | null): void {
   if (value) workbenchSpacing.set(id, {

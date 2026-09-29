@@ -26,7 +26,7 @@ export const DEFAULT_PALM: Readonly<V3> = [0, -0.05, 0.02];
 /** whose hands the rides' grips were placed with */
 export const EXAMPLE_RIDER = 'din';
 
-const deployed = data as Record<string, HandPair>;
+const deployed = data as unknown as Record<string, HandPair>;
 const workbench = new Map<string, HandPair>();
 const key = (side: HandSide): keyof HandPair => (side === 'L' ? 'left' : 'right');
 
@@ -46,6 +46,16 @@ export function setWorkbenchPalm(id: string, side: HandSide, at: THREE.Vector3 |
   if (at) pair[key(side)] = at.toArray().map((n) => +n.toFixed(4)) as V3;
   else delete pair[key(side)];
   if (pair.left || pair.right) workbench.set(id, pair); else workbench.delete(id);
+}
+
+/** this page's palm placements, for the workbench's undo */
+export function palmSnapshot(): Array<[string, HandPair]> {
+  return [...workbench].map(([id, pair]) => [id, { ...pair }]);
+}
+/** Put this page's palm placements back as a snapshot had them. */
+export function restorePalms(snap: Array<[string, HandPair]>): void {
+  workbench.clear();
+  for (const [id, pair] of snap) workbench.set(id, { ...pair });
 }
 
 /** every character whose palms were placed in this page, both hands as they stand, for the export */

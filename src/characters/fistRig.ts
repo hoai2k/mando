@@ -82,6 +82,17 @@ export function fistDefaults(model: string): FistTune { return { ...DEFAULTS[kin
 export function deployedFistTune(model: string): FistTune { return { ...fistDefaults(model), ...deployed[model] }; }
 /** The tune in force: a workbench adjustment, or what is deployed. */
 export function fistTune(model: string): FistTune { return workbenchTunes.get(model) ?? deployedFistTune(model); }
+/** this page's fist tunes, for the workbench's undo */
+export function fistTuneSnapshot(): Array<[string, FistTune]> {
+  return [...workbenchTunes].map(([model, tune]) => [model, { ...tune }]);
+}
+/** Put this page's fist tunes back as a snapshot had them: the models whose tune changed, to refit. */
+export function restoreFistTunes(snap: Array<[string, FistTune]>): string[] {
+  const touched = new Set([...workbenchTunes.keys(), ...snap.map(([m]) => m)]);
+  workbenchTunes.clear();
+  for (const [model, tune] of snap) workbenchTunes.set(model, { ...tune });
+  return [...touched];
+}
 /** A workbench adjustment stays in that page; null goes back to the deployed tune. */
 export function setWorkbenchFistTune(model: string, tune: FistTune | null): void {
   if (tune) workbenchTunes.set(model, { ...tune }); else workbenchTunes.delete(model);

@@ -28,6 +28,9 @@ interface NiktoRig {
 
 type Handle = 'seat' | 'grip' | 'foot' | 'rider';
 
+/** what the game has today, which undo goes back to past a session's first edit */
+const committed = anchorFile as unknown as { vehicles: Record<string, VehicleAnchor>; niktoRider: NiktoRiderAnchor | null };
+
 const round = (n: number): number => +n.toFixed(4);
 const v3 = (v: THREE.Vector3): V3 => [round(v.x), round(v.y), round(v.z)];
 const deg = (e: THREE.Euler): V3 => [e.x, e.y, e.z].map((r) => round(THREE.MathUtils.radToDeg(r))) as V3;
@@ -53,7 +56,7 @@ export class VehicleAnchorEditor {
   /** where the game sits the Nikto's rider, before any edit */
   private niktoBase: NiktoRiderAnchor | null = null;
   /** the Nikto's own grip on the bars, once placed (null: the swoop's) */
-  private niktoGrip: V3 | null = (anchorFile as unknown as { niktoRider: NiktoRiderAnchor | null }).niktoRider?.grip ?? null;
+  private niktoGrip: V3 | null = committed.niktoRider?.grip ?? null;
 
   constructor(private scene: THREE.Scene, camera: THREE.PerspectiveCamera,
     private orbit: OrbitControls, private dom: HTMLElement, private onChange: () => void) {
@@ -126,11 +129,13 @@ export class VehicleAnchorEditor {
    * bike) — so switching subjects, in edit mode or out of it, shows what was
    * placed rather than what is committed.
    */
-  restore(root: THREE.Object3D): void {
+  restore(root: THREE.Object3D, orCommitted = false): void {
     const vr = root.userData.vehicleRig as VehicleRig | undefined;
     const nikto = root.userData.niktoRider as NiktoRig | undefined;
     if (vr) {
-      const saved = this.vehicles.get(vr.kind);
+      // no edit this session: left as built, or (undoing back past the first)
+      // put back to what the game has
+      const saved = this.vehicles.get(vr.kind) ?? (orCommitted ? vr.defaults : null);
       if (!saved) return;
       vr.seat.set(...saved.seat); vr.grip.set(...saved.grip);
       vr.legSpread = saved.legSpread ?? null;
@@ -148,16 +153,35 @@ export class VehicleAnchorEditor {
       if (!this.niktoBase || this.nikto !== nikto) {
         this.niktoBase = { position: v3(nikto.rider.position), rotation: deg(nikto.rider.rotation) };
       }
-      const swoop = this.vehicles.get('swoop');
+      const swoop = this.vehicles.get('swoop') ?? (orCommitted ? committed.vehicles.swoop : undefined);
       if (swoop) nikto.useSwoop(swoop);
-      if (this.niktoGrip) nikto.setGrip(this.niktoGrip);
-      if (this.niktoRider) {
-        nikto.rider.position.set(...this.niktoRider.position);
-        nikto.rider.rotation.set(...this.niktoRider.rotation.map(THREE.MathUtils.degToRad) as V3);
-        nikto.setLegSpread(this.niktoRider.legSpread ?? nikto.legSpread);
+      if (this.niktoGrip || orCommitted) nikto.setGrip(this.niktoGrip);
+      const rider = this.niktoRider ?? (orCommitted ? this.niktoBase : null);
+      if (rider) {
+        nikto.rider.position.set(...rider.position);
+        nikto.rider.rotation.set(...rider.rotation.map(THREE.MathUtils.degToRad) as V3);
+        nikto.setLegSpread(rider.legSpread ?? (orCommitted ? committed.niktoRider?.legSpread ?? null : nikto.legSpread));
         nikto.handsToBars();
       }
     }
+  }
+
+  /** this session's anchors, for the workbench's undo */
+  snapshot(): { vehicles: Array<[string, VehicleAnchor]>; niktoRider: NiktoRiderAnchor | null; niktoGrip: V3 | null } {
+    return { vehicles: [...this.vehicles], niktoRider: this.niktoRider, niktoGrip: this.niktoGrip };
+  }
+
+  /** Put the session's anchors back as a snapshot had them, on the figure showing (`root`). */
+  restoreSnapshot(snap: ReturnType<VehicleAnchorEditor['snapshot']>, root: THREE.Object3D | null): void {
+    this.vehicles = new Map(snap.vehicles);
+    this.niktoRider = snap.niktoRider;
+    this.niktoGrip = snap.niktoGrip;
+    if (root) {
+      this.restore(root, true);
+      // the handles back onto the anchors they stand for
+      if (this.vehicle || this.nikto) this.setTarget(root);
+    }
+    this.onChange();
   }
 
   private marker(name: Handle, color: number): void {

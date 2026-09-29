@@ -200,6 +200,12 @@ export class PoseEdits {
     this.redoStack.length = 0;
   }
 
+  /** the edits as they stand, for the workbench's undo (which calls `restoreSnapshot` and `apply`) */
+  snapshot(): Array<[string, Euler3]> { return [...this.deltas].map(([k, d]) => [k, [...d] as Euler3]); }
+  restoreSnapshot(snap: Array<[string, Euler3]>): void {
+    this.deltas = new Map(snap.map(([k, d]) => [k, [...d] as Euler3]));
+  }
+
   undo(): boolean {
     const step = this.undoStack.pop();
     if (!step) return false;
