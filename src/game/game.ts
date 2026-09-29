@@ -693,6 +693,16 @@ export class Game {
 
   /** how deep into the fight the warlord is, 0..2 — the HUD tints its bar by this */
   get bossPhaseLevel(): number { return this.bossPhase; }
+  /**
+   * Put a boss a gameplay section raised itself on the bar (Hold the Forge's
+   * chieftain), starting its phases from the top: assigning `boss` alone kept
+   * whatever phase the run's earlier boss had reached, so its retinue call
+   * could silently never come.
+   */
+  adoptBoss(e: Enemy): void {
+    this.boss = e;
+    this.bossPhase = 0;
+  }
 
   /**
    * True while the warlord is down but the fight is not over: the ground is

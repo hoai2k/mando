@@ -525,7 +525,7 @@ function build(ctx: SectionContext): SectionInstance {
       const d = dirOf(PASS_THETA[w.passes[0]]);
       chief = ctx.spawn('alamite', new THREE.Vector3(d.x * (R + 4), Y0, d.z * (R + 4)), { exact: true, alert: true, squad: 8899 });
       chief.promoteBoss(T.chieftain, solo ? 12 : 8 + party * 3, 1.5);
-      game.boss = chief;
+      game.adoptBoss(chief);
       finalBodies.push(chief);
     }
     mouthLights.forEach((l) => { l.intensity = 0; });
