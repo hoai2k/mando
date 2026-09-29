@@ -215,6 +215,26 @@ scaling the tilt by distance, which now walks); `guide.ts` entries updated (the
 shield is cover; the charge mark is on the gun's slab); `_followups.md` rows
 for the two props annotated.
 
+## The breach, dressed as a way in (2026-09-29, a playtest report)
+
+*Report:* the opening in the dome "looks a bit like a monster or something to
+avoid instead of a destination". It was a black disc ringed with iron cones —
+a spiked maw. Now:
+- **The collar**: a heavy polished metal ring (r 15.2, 1.15 thick) round the
+  opening, a brass lip inside it and sixteen clamp blocks, like a docking
+  collar; 24 guide lights round its rim.
+- **The strips**: twelve metal strips run along great circles down the
+  dome's face, converging on the collar from every side, studded with guide
+  lights (one merged mesh plus the studs).
+- **The lights chase inward**: six phase materials lit in turn, so light runs
+  down every strip toward the opening. Dim red while any flak gun stands;
+  warm amber, and faster, once the breach is open.
+- **The opening glows**: a radial gradient of the lit court inside (a canvas
+  texture, warm centre fading dark to the rim), dimmed while shut and full
+  when open; it sits in front of the dome's shell and ribs so they do not net
+  it over. The court light behind it already brightened on opening.
+The gold breach ring (the section's last ring) still sits inside the collar.
+
 ## The magnetic storm (2026-09-29, a playtest report)
 
 *Report:* "getting wounded standing near the Armorer". *Cause:* not the

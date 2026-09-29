@@ -153,8 +153,7 @@ function build(ctx: SectionContext): SectionInstance {
     color: 0x8d948f, roughness: 0.45, metalness: 0.7, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false,
   });
   const ribMat = new THREE.MeshBasicMaterial({ color: 0x4a504c, wireframe: true, transparent: true, opacity: 0.35 });
-  const breachMat = new THREE.MeshBasicMaterial({ color: 0x0a0806, side: THREE.DoubleSide });
-  for (const m of [glass, emberMat, deckMat, domeMat, ribMat, breachMat]) ctx.own(m);
+  for (const m of [glass, emberMat, deckMat, domeMat, ribMat]) ctx.own(m);
 
   // ---- the shaft: where Hold the Forge left the party ----
   // The forge's dais at the foot, its brazier still glowing, and the round
@@ -392,22 +391,102 @@ function build(ctx: SectionContext): SectionInstance {
   ribs.position.copy(dome.position);
   ctx.mesh(ribs);
   const normal = breachAt.clone().sub(dome.position).normalize();
-  const hole = new THREE.Mesh(geo(new THREE.CircleGeometry(15, 9)), breachMat);
-  hole.position.copy(breachAt).addScaledVector(normal, 0.6);
+  // The breach is the destination, so it is dressed as a way in, not a
+  // wound: a heavy metal collar round the opening, the warm light of the
+  // court showing through it, and metal strips running down the dome's
+  // curve from every side toward it, their guide lights chasing inward.
+  // Dim red while the guns still hold the sky; amber once it is open.
+  //
+  // the opening: the lit court inside, a warm glow fading dark to the rim
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = glowCanvas.height = 128;
+  const gc = glowCanvas.getContext('2d');
+  if (gc) {
+    const grad = gc.createRadialGradient(64, 64, 4, 64, 64, 64);
+    grad.addColorStop(0, '#ffe2a8');
+    grad.addColorStop(0.45, '#d98a3a');
+    grad.addColorStop(0.8, '#4a2410');
+    grad.addColorStop(1, '#0d0806');
+    gc.fillStyle = grad;
+    gc.fillRect(0, 0, 128, 128);
+  }
+  const glowTex = ctx.own(new THREE.CanvasTexture(glowCanvas));
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+  const holeMat = ctx.own(new THREE.MeshBasicMaterial({ map: glowTex, color: 0x6a5a50 }));
+  const hole = new THREE.Mesh(geo(new THREE.CircleGeometry(14.6, 40)), holeMat);
+  // in front of the dome's shell and its ribs (r + 0.5), so nothing nets it over
+  hole.position.copy(breachAt).addScaledVector(normal, 0.7);
   hole.lookAt(breachAt.clone().addScaledVector(normal, 10));
   ctx.mesh(hole);
-  // jagged shards round the hole
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const shard = new THREE.Mesh(geo(new THREE.ConeGeometry(1.4, 6 + (i % 3) * 3, 4)), iron);
-    shard.position.set(Math.cos(a) * 15, Math.sin(a) * 15, 0);
-    shard.rotation.z = a - Math.PI / 2;
-    const holder = new THREE.Group();
-    holder.add(shard);
-    holder.position.copy(hole.position);
-    holder.quaternion.copy(hole.quaternion);
-    ctx.mesh(holder);
+  // the collar: a thick polished ring, a brass lip inside it, clamp blocks round it
+  const collarMat = ctx.paint(0x9aa3ab, { rough: 0.32, metal: 0.92 });
+  const brass = ctx.paint(spec.palette.trim, { rough: 0.35, metal: 0.85 });
+  const collar = new THREE.Group();
+  collar.position.copy(breachAt).addScaledVector(normal, 1.1);
+  collar.lookAt(breachAt.clone().addScaledVector(normal, 10));
+  collar.add(new THREE.Mesh(geo(new THREE.TorusGeometry(15.2, 1.15, 12, 72)), collarMat));
+  const collarLip = new THREE.Mesh(geo(new THREE.TorusGeometry(13.9, 0.35, 8, 72)), brass);
+  collarLip.position.z = 0.5;
+  collar.add(collarLip);
+  const clampGeo = geo(new THREE.BoxGeometry(1.4, 3.4, 1.6));
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const clamp = new THREE.Mesh(clampGeo, i % 2 ? collarMat : brass);
+    clamp.position.set(Math.cos(a) * 15.2, Math.sin(a) * 15.2, 0.2);
+    clamp.rotation.z = a;
+    collar.add(clamp);
   }
+  ctx.mesh(collar);
+  // guide lights: six phase materials, lit in turn so the light runs inward
+  const guide = Array.from({ length: 6 }, () => ctx.own(new THREE.MeshBasicMaterial({ color: 0x5a1a12 })));
+  const studGeo = geo(new THREE.SphereGeometry(0.42, 8, 6));
+  // the collar's own ring of lights
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const stud = new THREE.Mesh(studGeo, guide[i % 6]);
+    stud.position.set(Math.cos(a) * 16.6, Math.sin(a) * 16.6, 0.3);
+    collar.add(stud);
+  }
+  // the strips: great circles down the dome's face, converging on the breach
+  {
+    const up = Math.abs(normal.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    const u = new THREE.Vector3().crossVectors(normal, up).normalize();
+    const v = new THREE.Vector3().crossVectors(normal, u).normalize();
+    const R = DOME.r + 0.35;
+    const at = (tan: THREE.Vector3, th: number): THREE.Vector3 =>
+      normal.clone().multiplyScalar(Math.cos(th)).addScaledVector(tan, Math.sin(th)).multiplyScalar(R).add(dome.position);
+    const parts: THREE.BufferGeometry[] = [];
+    const place = new THREE.Object3D();
+    const STRIPS = 12, TH0 = 16.5 / DOME.r, TH1 = 0.95, STEP = 0.028;
+    for (let k = 0; k < STRIPS; k++) {
+      const phi = (k / STRIPS) * Math.PI * 2 + 0.13;
+      const tan = u.clone().multiplyScalar(Math.cos(phi)).addScaledVector(v, Math.sin(phi));
+      let idx = 0;
+      for (let th = TH0; th + STEP <= TH1; th += STEP, idx++) {
+        const a = at(tan, th), b = at(tan, th + STEP);
+        // the dome is a half sphere: a strip ends where it meets the ground
+        if (b.y < dome.position.y + 2) break;
+        const seg = new THREE.BoxGeometry(1.3, 0.3, a.distanceTo(b) + 0.05);
+        place.position.addVectors(a, b).multiplyScalar(0.5);
+        place.up.copy(place.position).sub(dome.position).normalize();
+        place.lookAt(b);
+        place.updateMatrix();
+        seg.applyMatrix4(place.matrix);
+        parts.push(seg);
+        if (idx % 2 === 0) {
+          const stud = new THREE.Mesh(studGeo, guide[idx / 2 % 6 | 0]);
+          stud.position.copy(place.position).addScaledVector(place.up, 0.35);
+          ctx.mesh(stud);
+        }
+      }
+    }
+    const strips = new THREE.Mesh(geo(mergeGeometries(parts, false)), collarMat);
+    for (const g of parts) g.dispose();
+    strips.castShadow = false;
+    strips.receiveShadow = true;
+    ctx.mesh(strips);
+  }
+  const guideColor = new THREE.Color();
   const courtGlow = new THREE.PointLight(0xffc070, 60, 60, 1.2);
   courtGlow.position.copy(breachAt).addScaledVector(normal, -12);
   ctx.mesh(courtGlow);
@@ -868,6 +947,14 @@ function build(ctx: SectionContext): SectionInstance {
       r.mesh.rotation.z += dt * (i === nx ? 1.2 : 0.2);
     });
     courtGlow.intensity = breachOpen ? 90 + Math.sin(t * 3) * 10 : 30;
+    // the guide lights run inward, toward the breach: amber when it is open
+    const lit = Math.floor(t * (breachOpen ? 7 : 3));
+    guide.forEach((m, i) => {
+      const on = (i + lit) % 6 === 0 ? 1 : (i + lit) % 6 === 1 ? 0.45 : 0.12;
+      guideColor.setHex(breachOpen ? 0xffc060 : 0xff3a22).multiplyScalar(breachOpen ? on : on * 0.45);
+      m.color.copy(guideColor);
+    });
+    holeMat.color.setHex(breachOpen ? 0xffffff : 0x6a5a50);
   };
 
   const objective = () => {
