@@ -2127,6 +2127,9 @@ function frame(now: number): void {
   syncFists();
   editor.update();
   if (fistTuning.update(figures.map((f) => f.inst.root))) renderPanel();
+  // the fist following a palm that has moved: its joints re-seated, the section's sliders with them
+  fistTuning.subject = subject.id;
+  if (fistTuning.followPalms(figures.map((f) => f.inst.root), figures.map((f) => f.inst.rig))) renderPanel();
   positionEditor.update(camera);
   weaponEditor.update(camera);
   vehicleEditor.update(camera);
