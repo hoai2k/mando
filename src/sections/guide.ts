@@ -125,7 +125,7 @@ export const SECTION_GUIDE: Record<SectionId, SectionGuide> = {
       'Steer with the stick. Pull back to dig in, which slows you but never stops you.',
       'Jump the crevasses. At the fork, left is short with big jumps and right is long with spiders.',
       'Webs in the lane slow you. Shoot them, or kick them with the slide kick (X · F).',
-      'Ride into the snowbank and regroup. The run ends when every hunter is down.',
+      'Ride into the snowbank and regroup. The run ends when every hunter still standing is down; the fallen come back with you.',
     ],
     tips: [
       'The avalanche gains on anyone who stalls. If it catches you, you are dug out at a gate further down.',

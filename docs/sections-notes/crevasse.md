@@ -13,7 +13,7 @@ Branch `claude/sections-crevasse`. Both sections are built, registered
 | `lamplight` | built · autopilot finishes at 1, 2 and 4 players (~40–50 s with hostiles culled) |
 | K7 `slideMove` | built · `flightMove` / `deckTilt` to come from their owners (see "For the next K7 mode") |
 | K9 `Darkness` | built · lamps, focused beam + battery, flares, warm pools, `lit()`, `fearOfLight()` |
-| Tests | `test-sections glacier-chute lamplight` at PLAYERS=1/2/4 · `tools/test-section-crevasse.mjs` (19 checks) |
+| Tests | `test-sections glacier-chute lamplight` at PLAYERS=1/2/4 · `tools/test-section-crevasse.mjs` (21 checks) |
 
 ## The Glacier Chute (`src/sections/glacier-chute.ts`)
 
@@ -23,8 +23,9 @@ roof. The tunnel floor is four ice slabs over the first pitch; walking on (or 7 
 cracks them (1.3 s of shaking and ice cracking) and they fall away — the slide
 begins and the avalanche is loosed. Ends in a snowbank in a dark ice cave at the
 bottom (a roofed runout, a snow drift against the back wall, a cold glow). Complete
-when every player is alive and past the snowbank line (`Z_SNOW`); the fallen
-re-form in the snowbank once the leader is there, so the regroup is automatic.
+when every *living* player is past the snowbank line (`Z_SNOW`): the fallen do not
+hold the party at the finish (they come back with it on the next stage, or in the
+snowbank if they re-form first), but anyone alive and still sliding does.
 
 **Shape.** One analytic surface drives everything: `surface(x, z)` is the
 lowest of the lanes standing at z. Each lane is a centre line (Catmull-Rom
@@ -174,6 +175,23 @@ bold)` is a ready `Enemy.sectionSteer`.
 
 Lights are fixed from the start (4 spots, 3 pool, 2 flare) so no shader
 recompiles mid-fight.
+
+**Beam hint (Lamplight).** The HUD line reads `Hold LT · RMB to focus the beam`
+by default, and `Spider in the lamp · hold LT · RMB` whenever a spider is in
+your own unfocused lamp — the moment it matters (the controls page does not
+mention it; the job page in `guide.ts` does).
+
+## Round 2 (2026-09-28, after merging the working branch)
+
+- Chute completion: every living player past the snowbank (was: every player
+  alive and past it). Guide text updated. Two new checks in the suite.
+- Lamplight: the beam hint above.
+- Main's stick gait (tilt under 0.9 walks): the Lamplight bot's partial `moveY`
+  near a goal is now full stick; the chute bot already used full stick, and the
+  slide's `steer` reads the raw stick, so the gait does not touch sliding.
+- Main's new crouch poses: the surf (`crouchWalkLower` held still) still reads —
+  checked side-on, lower and more bent than before.
+- `glacier_chute.jpg` has landed and is on the ice.
 
 ## Shared-file changes (each a small commented block)
 
