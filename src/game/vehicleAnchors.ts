@@ -15,19 +15,34 @@ import type { VehicleSpec } from '../world/board';
  *  - `grip`: where the left hand — the one that never holds the gun — takes
  *    the bars, the yoke or the reins. A machine mirrors it across the seat for
  *    the right hand; a mount leaves the right hand to the gun.
+ *  - `legSpread`, optional: how far each knee sits out from the centre line,
+ *    in metres, so the thighs clear the saddle or the cowl. A width rather
+ *    than an angle, so every rider's own hips and thighs work out how far to
+ *    open (`spreadKnees`); left out, the riding clip's own legs stand.
+ *  - `foot`, optional: where the left foot rests — a footrest, a peg — with
+ *    the right mirrored across the seat as the hands are. The leg reaches it
+ *    (`reachLeg`), its knee bowed forward and out by `legSpread`.
+ *  - `yaw`, optional: the rider turned on the seat, in degrees, for a ride
+ *    whose helm is not dead ahead of where its pilot stands.
+ *  - `modelYaw`, optional: the ride's sculpt turned on its keel, in degrees,
+ *    for one delivered a little off square. Anchors are placed after it.
  *
  * A ride with no entry keeps the defaults in `VEHICLE_DEFS` and the measured
  * seat, which is how every ride worked before these existed.
  */
 export type V3 = [number, number, number];
-export interface VehicleAnchor { seat: V3; grip: V3 }
+export interface VehicleAnchor { seat: V3; grip: V3; legSpread?: number; foot?: V3; yaw?: number; modelYaw?: number }
+
+/** a foot anchor is the sole on the rest; the ankle the leg reaches for stands this far over it (m) */
+export const ANKLE_OVER_SOLE = 0.08;
 
 /**
  * The Nikto's swoop is not a pilotable ride but its own build (the bike and
  * its rider in one): this is where the rider's root sits in the bike's space,
- * position in metres and rotation in degrees, when it has been placed by hand.
+ * position in metres and rotation in degrees, when it has been placed by hand,
+ * and his knees' spread (as `VehicleAnchor.legSpread`; the swoop's when unset).
  */
-export interface NiktoRiderAnchor { position: V3; rotation: V3 }
+export interface NiktoRiderAnchor { position: V3; rotation: V3; legSpread?: number }
 
 interface AnchorFile {
   version: number;
@@ -35,7 +50,8 @@ interface AnchorFile {
   niktoRider: NiktoRiderAnchor | null;
 }
 
-const file = data as AnchorFile;
+// a JSON import types its arrays as number[], not the three-tuples they are
+const file = data as unknown as AnchorFile;
 
 export const VEHICLE_ANCHORS: Partial<Record<VehicleSpec['kind'], VehicleAnchor>> = file.vehicles;
 export const NIKTO_RIDER: NiktoRiderAnchor | null = file.niktoRider;

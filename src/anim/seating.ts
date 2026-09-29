@@ -128,9 +128,30 @@ const _basis = new THREE.Matrix4();
 export function reachArm(rig: Rig, side: 'L' | 'R',
   target: THREE.Vector3, elbowHint: THREE.Vector3): void {
   const b = rig.bones;
-  const upper = side === 'L' ? b.upperArmL : b.upperArmR;
-  const fore = side === 'L' ? b.forearmL : b.forearmR;
-  const hand = side === 'L' ? b.handL : b.handR;
+  reachLimb(side === 'L' ? b.upperArmL : b.upperArmR, side === 'L' ? b.forearmL : b.forearmR,
+    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone());
+}
+
+/**
+ * Put a foot on something — a footrest, a peg, a stirrup: the same solve down
+ * one leg (`upperLeg → lowerLeg → foot`), the target being the ankle. Which way
+ * the knee bends comes from the hint, as the elbow's does: put it ahead of the
+ * hip and out to the side, where a rider's knee goes.
+ */
+export function reachLeg(rig: Rig, side: 'L' | 'R',
+  ankle: THREE.Vector3, kneeHint: THREE.Vector3): void {
+  const b = rig.bones;
+  reachLimb(side === 'L' ? b.upperLegL : b.upperLegR, side === 'L' ? b.lowerLegL : b.lowerLegR,
+    side === 'L' ? b.footL : b.footR, ankle, kneeHint, new THREE.Vector3(0, 0, 1));
+}
+
+/**
+ * The two-bone solve itself, for any limb hanging along its parents' -Y.
+ * `fallback` is the direction (in the limb root's space) to bow the middle
+ * joint when the hint lies on the root-to-target line.
+ */
+function reachLimb(upper: THREE.Object3D, fore: THREE.Object3D, hand: THREE.Object3D,
+  target: THREE.Vector3, elbowHint: THREE.Vector3, fallback: THREE.Vector3): void {
   const parent = upper.parent;
   if (!parent) return;
   const l1 = fore.position.length();
@@ -152,9 +173,8 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   _elbow.subVectors(_hint, upper.position);
   _elbow.addScaledVector(_dir, -_elbow.dot(_dir));
   if (_elbow.lengthSq() < 1e-8) {
-    // hint on the line: fall back to "elbow away from the body, and down"
-    _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize();
-    _elbow.copy(_up).addScaledVector(_dir, -_up.dot(_dir));
+    // hint on the line: fall back to the limb's own default bow
+    _elbow.copy(fallback).addScaledVector(_dir, -fallback.dot(_dir));
     if (_elbow.lengthSq() < 1e-8) return;
   }
   _elbow.normalize();
@@ -169,4 +189,41 @@ export function reachArm(rig: Rig, side: 'L' | 'R',
   _basis.makeBasis(_bx, _by, _bz);
   upper.quaternion.setFromRotationMatrix(_basis);
   fore.rotation.set(-(Math.PI - inner), 0, 0);
+}
+
+const _thigh = new THREE.Vector3();
+const _out = new THREE.Vector3();
+const _open = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+
+/**
+ * Open (or close) a rider's knees to `knee` metres either side of the centre
+ * line, over whatever the clip has the legs doing: a saddle is only so narrow,
+ * and a pose that clears one ride's cowl puts the thighs through another's.
+ *
+ * The width is the ride's, not an angle, so one number serves every rider:
+ * each body's own hip width and thigh length decide how far its thighs turn
+ * to put the knees there. Each thigh turns out about the axis square to it
+ * and to the side, so a leg forward in a seat and a leg down a saddle both
+ * swing their knee outward rather than rolling about themselves.
+ *
+ * Call it after the animator has posed the frame; it turns the thighs it owns.
+ */
+export function spreadKnees(rig: Rig, knee: number): void {
+  const p = rig.proportions;
+  const scale = rig.root.scale.x || 1;
+  const reach = (knee / scale - p.hipWidth) / p.upperLegLen;
+  const want = Math.asin(THREE.MathUtils.clamp(reach, -0.95, 0.95));
+  for (const side of ['L', 'R'] as const) {
+    const bone = side === 'L' ? rig.bones.upperLegL : rig.bones.upperLegR;
+    // +X is the rig's left: each thigh opens toward its own side
+    const out = side === 'L' ? 1 : -1;
+    _thigh.set(0, -1, 0).applyQuaternion(bone.quaternion);
+    const now = Math.asin(THREE.MathUtils.clamp(out * _thigh.x, -1, 1));
+    const turn = THREE.MathUtils.clamp(want - now, -Math.PI / 4, Math.PI / 4);
+    _out.set(out, 0, 0);
+    _open.crossVectors(_thigh, _out);
+    if (Math.abs(turn) < 1e-4 || _open.lengthSq() < 1e-6) continue;
+    bone.quaternion.premultiply(_q.setFromAxisAngle(_open.normalize(), turn));
+  }
 }

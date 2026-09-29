@@ -311,6 +311,8 @@ function spawn(): void {
   const sides = wants.length > 1 ? ['Left', 'Right'] : [''];
   figures = wants.map(([authored, label, from], i) => {
     const inst = (from ?? subject).build(authored) as CharacterInstance & Figure['extras'];
+    // anchors placed this session go on a ride (or the Nikto) the moment it is built
+    vehicleEditor.restore(inst.root);
     if (inst.animator && inst.rig) {
       const mando = cid() in MANDO_ROSTER ? meleeKinds(cid() as MandoId) : [];
       const staff = mando.includes('gaffi') || ['tusken', 'pirateMelee', 'alamite', 'officer'].includes(cid());
@@ -1408,10 +1410,13 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   const ed = vehicleEditor;
   // typing into a field re-renders nothing: the gizmo follows, the field keeps focus
   if ((document.activeElement as HTMLElement | null)?.dataset?.anchorAxis && host.querySelector('[data-anchor-axis]')) return;
+  // ...and a spread being dragged or typed keeps its control until let go
+  if (['legSpread', 'legSpreadNumber'].includes(document.activeElement?.id ?? '') && host.querySelector('#legSpread')) return;
   const cur = ed.current();
   const nikto = ed.kind === 'nikto';
   const label: Record<string, string> = {
-    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)', rider: 'Rider — on the swoop',
+    seat: 'Seat — where the rider sits', grip: 'Hand — left grip (bars, yoke or reins)',
+    foot: 'Foot — left footrest (the right mirrors it)', rider: 'Rider — on the swoop',
   };
   const edited = ed.edited();
   host.innerHTML = `${editModeButtons()}
@@ -1428,17 +1433,41 @@ function renderVehiclePanel(host: HTMLDivElement): void {
         <div class="xyz">${cur.rotation.map((v, i) => `<input data-anchor-axis="r${i}" type="number" step="1" value="${v}">`).join('')}</div></div>` : ''}
       <div class="row"><button id="anchorReset">Reset to the game's</button></div>`
     : `<p class="hint">${weaponAwaiting ? 'Waiting for the authored model.' : 'Select an anchor.'}</p>`}
+      ${ed.turns ? `<div class="field"><label>Turns, in degrees about the vertical</label>
+        <div class="weapon-scale-row"><span class="hint">Rider on the seat</span>
+          <input id="riderYaw" type="number" step="0.5" value="${ed.turns.yaw}"></div>
+        <div class="weapon-scale-row"><span class="hint">Model on its keel</span>
+          <input id="modelYaw" type="number" step="0.5" value="${ed.turns.modelYaw}"></div>
+        <p class="hint">Turn the rider to face the helm, or the ride's model to line up with the way it drives (then re-place its anchors).</p>
+      </div>` : ''}
+      <div class="field weapon-scale"><label for="legSpread">Leg spread — each knee from the centre line
+        <output id="legSpreadValue">${ed.legSpread === null ? 'the pose’s own' : `${Math.round(ed.legSpread * 100)} cm`}</output></label>
+        <div class="weapon-scale-row">
+          <input id="legSpread" type="range" min="0.08" max="0.5" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+          <input id="legSpreadNumber" type="number" min="0" max="0.8" step="0.005" value="${ed.legSpread ?? ed.kneeWidth()}">
+        </div>
+        <div class="row"><button id="legSpreadClear" ${ed.legSpread === null ? 'disabled' : ''}>Use the pose's own legs</button></div>
+        <p class="hint">In metres, so it carries to every rider: each body's own hips and thighs open to put the knees there.</p>
+      </div>
       <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
       <p class="hint">${nikto
         ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
-        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. '}
+        : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. Green is the left footrest: once moved, both feet reach for it (the right mirrored), the knees bowed out to the leg spread. '}
         The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
       ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
-        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}</code></div>`).join('')}</div>` : ''}
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
+        e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
+        'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
+        'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
+        'modelYaw' in e.anchor && e.anchor.modelYaw ? ` · model ${e.anchor.modelYaw}°` : ''}</code></div>`).join('')}</div>` : ''}
     </div>`;
   bindEditModeButtons(host);
   host.querySelector<HTMLSelectElement>('#anchorTarget')!.onchange = (event) =>
-    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'rider');
+    ed.select((event.target as HTMLSelectElement).value as 'seat' | 'grip' | 'foot' | 'rider');
+  for (const which of ['riderYaw', 'modelYaw'] as const) {
+    const input = host.querySelector<HTMLInputElement>(`#${which}`);
+    if (input) input.onchange = () => { ed.setTurn(which === 'riderYaw' ? 'yaw' : 'modelYaw', Number(input.value)); input.blur(); renderVehiclePanel(host); };
+  }
   host.querySelectorAll<HTMLButtonElement>('[data-anchor-mode]').forEach((button) => {
     button.onclick = () => ed.setMode(button.dataset.anchorMode as 'translate' | 'rotate');
   });
@@ -1453,6 +1482,17 @@ function renderVehiclePanel(host: HTMLDivElement): void {
     };
   });
   host.querySelector<HTMLButtonElement>('#anchorReset')?.addEventListener('click', () => ed.resetSelected());
+  const spread = host.querySelector<HTMLInputElement>('#legSpread')!;
+  const spreadNumber = host.querySelector<HTMLInputElement>('#legSpreadNumber')!;
+  // dragging updates in place, so the slider keeps the pointer; letting go redraws
+  spread.oninput = () => {
+    ed.setLegSpread(Number(spread.value));
+    spreadNumber.value = spread.value;
+    host.querySelector<HTMLOutputElement>('#legSpreadValue')!.value = `${Math.round(Number(spread.value) * 100)} cm`;
+  };
+  spread.onchange = () => { spread.blur(); renderVehiclePanel(host); };
+  spreadNumber.onchange = () => { ed.setLegSpread(Number(spreadNumber.value)); spreadNumber.blur(); renderVehiclePanel(host); };
+  host.querySelector<HTMLButtonElement>('#legSpreadClear')!.onclick = () => { ed.setLegSpread(null); renderVehiclePanel(host); };
   host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));

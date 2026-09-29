@@ -66,7 +66,8 @@ message that started you, and in
 - **Assets.** Model ids requested for your sections are in `ASSETS_MODELS.md`
   ("Gameplay sections — props and a prisoner") and textures in `ASSETS_IMAGES.md`
   ("Gameplay sections — supporting images"). Use `ctx.prop(id, at, { fallback })`
-  with a procedural stand-in of the specified size and pivot, and
+  with a procedural stand-in of the specified size and pivot (built to the proportions
+  measured from its reference sheet: [`ASSETS_MODELS.md`](ASSETS_MODELS.md#stand-in-proportions-measured-from-the-sheets-2026-09-28)), and
   `ctx.tile(mat, name, …)` for textures. A missing file must look right.
   If you need an image that is not requested, add a row to `ASSETS_IMAGES.md`'s
   gameplay-sections table in your commit.

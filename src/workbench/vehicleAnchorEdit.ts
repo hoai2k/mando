@@ -13,12 +13,19 @@ import type { VehicleRig } from './vehicleFigure';
  * the seat (where the rider sits) and the grip (where the left hand takes the
  * bars). Dragging either re-seats Din or re-reaches his hand on the spot. On
  * the Nikto swoop rider the handle is the rider himself, moved and turned in
- * the bike's frame, so he can be sat properly on his own bike.
+ * the bike's frame, so he can be sat properly on his own bike. Both carry a
+ * leg spread too: how far each knee sits out from the centre line. A ride
+ * also has a footrest handle (the left foot; the right mirrors it), and can
+ * turn its rider on the seat or its sculpt on its keel.
  */
 
-interface NiktoRig { bike: THREE.Object3D; rider: THREE.Object3D; handsToBars: () => void }
+interface NiktoRig {
+  bike: THREE.Object3D; rider: THREE.Object3D; handsToBars: () => void;
+  readonly legSpread: number | null; setLegSpread: (knee: number | null) => void; kneeWidth: () => number;
+  useSwoop: (anchor: VehicleAnchor) => void;
+}
 
-type Handle = 'seat' | 'grip' | 'rider';
+type Handle = 'seat' | 'grip' | 'foot' | 'rider';
 
 const round = (n: number): number => +n.toFixed(4);
 const v3 = (v: THREE.Vector3): V3 => [round(v.x), round(v.y), round(v.z)];
@@ -51,7 +58,7 @@ export class VehicleAnchorEditor {
     this.gizmo.visible = false;
     scene.add(this.gizmo);
     this.gizmo.addEventListener('dragging-changed', (event) => { this.orbit.enabled = !event.value; });
-    this.gizmo.addEventListener('objectChange', () => this.fromHandle());
+    this.gizmo.addEventListener('objectChange', () => this.fromHandle(this.selected === 'foot'));
     dom.addEventListener('pointerdown', this.pick);
   }
 
@@ -69,28 +76,56 @@ export class VehicleAnchorEditor {
     this.markers.clear();
     this.vehicle = (root?.userData.vehicleRig as VehicleRig | undefined) ?? null;
     this.nikto = (root?.userData.niktoRider as NiktoRig | undefined) ?? null;
+    if (root) this.restore(root);
     if (this.vehicle) {
       const vr = this.vehicle;
-      const saved = this.vehicles.get(vr.kind);
-      if (saved) { vr.seat.set(...saved.seat); vr.grip.set(...saved.grip); vr.relayout(); }
-      for (const name of ['seat', 'grip'] as const) {
+      const colours = { seat: 0x6bd0ff, grip: 0xffc86b, foot: 0x8aff9d } as const;
+      for (const name of ['seat', 'grip', 'foot'] as const) {
         const h = new THREE.Object3D();
-        h.position.copy(vr[name]);
+        // a ride with no footrest yet shows the handle where the clip has the sole
+        h.position.copy(name === 'foot' ? vr.foot ?? vr.soleAt() : vr[name]);
         vr.frame.add(h);
         this.handles.set(name, h);
-        this.marker(name, name === 'seat' ? 0x6bd0ff : 0xffc86b);
+        this.marker(name, colours[name]);
       }
     } else if (this.nikto) {
-      this.niktoBase = { position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation) };
-      if (this.niktoRider) {
-        this.nikto.rider.position.set(...this.niktoRider.position);
-        this.nikto.rider.rotation.set(...this.niktoRider.rotation.map(THREE.MathUtils.degToRad) as V3);
-        this.nikto.handsToBars();
-      }
       this.handles.set('rider', this.nikto.rider);
       this.marker('rider', 0x9dff8a);
     }
     this.select(this.handles.has(this.selected ?? 'seat') ? this.selected ?? 'seat' : this.names()[0] ?? null);
+  }
+
+  /**
+   * Put this session's edits on a freshly built figure — a ride's anchors on
+   * its rig, and on the Nikto both his own and the swoop's (he rides the same
+   * bike) — so switching subjects, in edit mode or out of it, shows what was
+   * placed rather than what is committed.
+   */
+  restore(root: THREE.Object3D): void {
+    const vr = root.userData.vehicleRig as VehicleRig | undefined;
+    const nikto = root.userData.niktoRider as NiktoRig | undefined;
+    if (vr) {
+      const saved = this.vehicles.get(vr.kind);
+      if (!saved) return;
+      vr.seat.set(...saved.seat); vr.grip.set(...saved.grip);
+      vr.legSpread = saved.legSpread ?? null;
+      vr.foot = saved.foot ? new THREE.Vector3(...saved.foot) : null;
+      vr.yaw = saved.yaw ?? 0;
+      vr.modelYaw = saved.modelYaw ?? 0;
+      vr.relayout();
+    } else if (nikto) {
+      if (!this.niktoBase || this.nikto !== nikto) {
+        this.niktoBase = { position: v3(nikto.rider.position), rotation: deg(nikto.rider.rotation) };
+      }
+      const swoop = this.vehicles.get('swoop');
+      if (swoop) nikto.useSwoop(swoop);
+      if (this.niktoRider) {
+        nikto.rider.position.set(...this.niktoRider.position);
+        nikto.rider.rotation.set(...this.niktoRider.rotation.map(THREE.MathUtils.degToRad) as V3);
+        nikto.setLegSpread(this.niktoRider.legSpread ?? nikto.legSpread);
+        nikto.handsToBars();
+      }
+    }
   }
 
   private marker(name: Handle, color: number): void {
@@ -131,6 +166,29 @@ export class VehicleAnchorEditor {
   }
   get mode(): 'translate' | 'rotate' { return this.gizmo.getMode() as 'translate' | 'rotate'; }
 
+  /** each knee's distance from the centre line (m), or null for the pose's own legs */
+  get legSpread(): number | null { return this.vehicle?.legSpread ?? this.nikto?.legSpread ?? null; }
+  /** where the pose alone puts the knees, to start a spread from */
+  kneeWidth(): number { return this.vehicle?.kneeWidth() ?? this.nikto?.kneeWidth() ?? 0.2; }
+
+  /** the rider turned on the seat, and the sculpt on its keel (degrees) — a ride's only */
+  get turns(): { yaw: number; modelYaw: number } | null {
+    return this.vehicle ? { yaw: this.vehicle.yaw, modelYaw: this.vehicle.modelYaw } : null;
+  }
+  setTurn(which: 'yaw' | 'modelYaw', degrees: number): void {
+    if (!this.vehicle || !Number.isFinite(degrees)) return;
+    this.vehicle[which] = +degrees.toFixed(2);
+    this.fromHandle();
+  }
+
+  setLegSpread(knee: number | null): void {
+    if (knee !== null && !Number.isFinite(knee)) return;
+    const k = knee === null ? null : round(knee);
+    if (this.vehicle) this.vehicle.legSpread = k;
+    else if (this.nikto) this.nikto.setLegSpread(k);
+    this.fromHandle();
+  }
+
   /** the selected handle's position in the ride's (or the bike's) frame */
   current(): { position: V3; rotation: V3 | null } | null {
     const h = this.selected && this.handles.get(this.selected);
@@ -142,7 +200,7 @@ export class VehicleAnchorEditor {
     const h = this.selected && this.handles.get(this.selected);
     if (!h || p.some((n) => !Number.isFinite(n))) return;
     h.position.set(...p);
-    this.fromHandle();
+    this.fromHandle(this.selected === 'foot');
   }
 
   setRotation(d: V3): void {
@@ -154,7 +212,12 @@ export class VehicleAnchorEditor {
 
   /** put the selected handle back where the game has it today */
   resetSelected(): void {
-    if (this.vehicle && (this.selected === 'seat' || this.selected === 'grip')) {
+    if (this.vehicle && this.selected === 'foot') {
+      // no footrest: the clip's own legs, and the handle back at the clip's sole
+      this.vehicle.foot = null;
+      this.handles.get('foot')!.position.copy(this.vehicle.soleAt());
+      this.fromHandle();
+    } else if (this.vehicle && (this.selected === 'seat' || this.selected === 'grip')) {
       const vr = this.vehicle;
       this.handles.get(this.selected)!.position.set(...vr.defaults[this.selected]);
       this.fromHandle();
@@ -170,17 +233,34 @@ export class VehicleAnchorEditor {
     }
   }
 
-  /** the handle moved: carry it into the rig and remember the edit */
-  private fromHandle(): void {
+  /**
+   * A handle moved: carry it into the rig and remember the edit. `footMoved`
+   * is set only when the footrest itself was dragged or typed in, which is
+   * what places one on a ride that had none.
+   */
+  private fromHandle(footMoved = false): void {
     if (this.vehicle) {
       const vr = this.vehicle;
       vr.seat.copy(this.handles.get('seat')!.position);
       vr.grip.copy(this.handles.get('grip')!.position);
+      // the footrest counts once it has been moved (or was placed before)
+      const foot = this.handles.get('foot');
+      if (foot && (footMoved || vr.foot)) vr.foot = foot.position.clone();
       vr.relayout();
-      this.vehicles.set(vr.kind, { seat: v3(vr.seat), grip: v3(vr.grip) });
+      this.vehicles.set(vr.kind, {
+        seat: v3(vr.seat), grip: v3(vr.grip),
+        ...(vr.legSpread === null ? {} : { legSpread: vr.legSpread }),
+        ...(vr.foot ? { foot: v3(vr.foot) } : {}),
+        ...(vr.yaw ? { yaw: vr.yaw } : {}),
+        ...(vr.modelYaw ? { modelYaw: vr.modelYaw } : {}),
+      });
     } else if (this.nikto) {
       this.nikto.handsToBars();
-      this.niktoRider = { position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation) };
+      const knee = this.nikto.legSpread;
+      this.niktoRider = {
+        position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation),
+        ...(knee === null ? {} : { legSpread: knee }),
+      };
     }
     this.onChange();
   }
@@ -198,7 +278,7 @@ export class VehicleAnchorEditor {
    * already committed, with this session's edits laid over it.
    */
   exportJson(): string {
-    const base = anchorFile as { version: number; vehicles: Record<string, VehicleAnchor>; niktoRider: NiktoRiderAnchor | null };
+    const base = anchorFile as unknown as { version: number; vehicles: Record<string, VehicleAnchor>; niktoRider: NiktoRiderAnchor | null };
     const out = {
       version: 1,
       vehicles: { ...base.vehicles, ...Object.fromEntries(this.vehicles) },

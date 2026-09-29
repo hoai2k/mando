@@ -1580,7 +1580,7 @@ export class Enemy {
     v.seatWorld(this.position, stanceRise(v.def.stance, hipsOverFeet(this.char)));
     this.velocity.copy(v.vel);
     this.grounded = true;
-    this.facingYaw = v.yaw;
+    this.facingYaw = v.yaw + v.seatYaw;
     // a kill zone ends the rider, hull or no hull
     if (this.boardHazards(game, dt)) return;
     const anim = this.char.animator;
@@ -1591,6 +1591,7 @@ export class Enemy {
     }
     this.syncVisual(dt, game);
     anim?.update(dt);
+    if (this.char.rig) v.poseLegs(this.char.rig);
     this.handsToGrips(v);
   }
 
