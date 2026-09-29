@@ -14,9 +14,9 @@ import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
-import { reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import { orientFoot, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
 import type { Rig } from '../anim/skeleton';
-import { ANKLE_OVER_SOLE, CANONICAL_HIPS, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
+import { ANKLE_OVER_SOLE, CANONICAL_HIPS, footQuaternion, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 
 /**
@@ -195,6 +195,8 @@ export const VEHICLE_DEFS: Record<VehicleSpec['kind'], VehicleDef> = {
 
 /** a mount's charge: how long the horns are down, and the wait before another */
 const _restFoot = new THREE.Vector3();
+const _bodyQ = new THREE.Quaternion();
+const _soleQ = new THREE.Quaternion();
 const _restKnee = new THREE.Vector3();
 
 const CHARGE_TIME = 1.5;
@@ -849,6 +851,12 @@ export class Vehicle {
       if (!this.footWorld(side, _restFoot)) return;
       this.rideToWorld(this.seatX + side * spread, this.seatTop + 0.1, this.seatZ + 0.45, _restKnee);
       reachLeg(rig, side === 1 ? 'L' : 'R', _restFoot, _restKnee);
+      // the sole as the anchor lays it on the rest, turned with the hull
+      const turn = this.anchor.footRotation;
+      if (turn) {
+        this.body.getWorldQuaternion(_bodyQ);
+        orientFoot(rig, side === 1 ? 'L' : 'R', footQuaternion(_bodyQ, turn, side, _soleQ));
+      }
     }
   }
 
