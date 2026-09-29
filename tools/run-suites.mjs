@@ -115,6 +115,7 @@ const SUITES = [
   { name: 'test-shoulder-width', weight: 20 },
   { name: 'test-ragdoll', weight: 17 },
   { name: 'test-menunav', weight: 9 },
+  { name: 'test-footwork', weight: 30 },
   // `harness` is not here on purpose: it is the smoke every push to main
   // already runs (deploy.yml), the nightly only runs when main has moved, and
   // the menu path it walks is walked again by check-flight-poses,

@@ -221,12 +221,24 @@ for (const k of Object.keys(stance)) {
   const r = stance[k];
   console.log(`  ${r.label}: ${r.offCamera}° off the camera, ${r.offTravel}° off travel, legs on ${r.clip}`);
 }
+// Since 2026-09-29 a swing also plants the feet (playtest: "a bit funny to see
+// a character sliding and punching") — so a chain of swings is thrown from a
+// shuffle, not a run. What still has to hold is the note above: the body turns
+// with the stick, and the legs step into each swing instead of strafing. At a
+// shuffle's speed the direction of travel is a few degrees noisier than at a
+// run, hence the looser bound.
 check('a swing turns with the stick instead of holding square to the camera',
-  stance.swingLeft.offTravel <= 5 && stance.swingBack.offTravel <= 5,
-  JSON.stringify([stance.swingLeft.offTravel, stance.swingBack.offTravel]));
-check('...so a fight on the move runs rather than strafes',
-  stance.swingLeft.clip === 'runLower' && stance.swingBack.clip === 'runLower',
-  JSON.stringify([stance.swingLeft.clip, stance.swingBack.clip]));
+  stance.swingLeft.offTravel <= 10 && stance.swingBack.offTravel <= 10
+    && stance.swingLeft.offCamera >= 60 && stance.swingBack.offCamera >= 60,
+  JSON.stringify([stance.swingLeft, stance.swingBack].map((r) => [r.offTravel, r.offCamera])));
+// (the first frames of running backward strafe while the body comes round
+// from facing the camera, which is the turn, not the fight — so the legs are
+// judged where they end up, and on whether the swings' own steps played)
+check('...so a fight on the move steps into its swings rather than strafing',
+  [stance.swingLeft, stance.swingBack].every((r) => !/strafe|back/i.test(r.clip)
+    // a swing's own legs: anything that is not a locomotion cycle
+    && r.clips.split(',').some((c) => !/^(run|walk|sprint|strafe|back|idle|air|fly)/i.test(c))),
+  JSON.stringify([stance.swingLeft, stance.swingBack].map((r) => [r.clip, r.clips])));
 check('aiming is still the stance that holds the body square',
   stance.aimLeft.offCamera <= 5 && stance.aimLeft.clips.includes('strafe'),
   JSON.stringify(stance.aimLeft));

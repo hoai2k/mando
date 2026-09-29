@@ -262,6 +262,23 @@ const BLOCK_SPEED = 3.2;
 const WALK_TILT = 0.6;
 const RUN_TILT = 0.9;
 const WALK_SPEED = 1.4;
+/**
+ * The pace a fighter keeps while the gun is going: a purposeful walk, on the
+ * walk cycle (under `WALK_GAIT_MAX`), never a run. Running and firing at once
+ * read as a body gliding under a turret; a hunter who walks their fire in reads
+ * as one aiming it. Ground only, and not from a saddle — a ride's own update
+ * owns the body there, and firing from a speeder at full tilt is the point of it.
+ */
+const SHOOT_WALK_SPEED = 1.8;
+/** how long after a shot the walk holds, so a tapped trigger still slows the feet (s) */
+const SHOOT_WALK_HOLD = 0.3;
+/**
+ * The feet during a swing: planted, give or take a shuffle. The lunge is what
+ * carries a swing onto its target, and it overrides this until contact; what
+ * this stops is the rest of it — a body still running under a punch with no
+ * lunge to explain the ground it covers, which read as a character sliding.
+ */
+const MELEE_MOVE_SPEED = 0.6;
 /** a walk slows its stride right down with a creeping stick, where a run bottoms out */
 const WALK_RATE_FLOOR = 0.12;
 /** below this the body stands; above it the feet step (m/s) */
@@ -557,6 +574,8 @@ export class Player {
   /** counts down from the last shot; the barrel sheds nothing until it hits 0 */
   private heatHold = 0;
   sprinting = false;
+  /** counts down from the last shot: while it runs the feet keep to a walk */
+  private shotWalkT = 0;
   /** on the walk cycle rather than the run: held across a margin, so the gait does not flicker at the seam */
   private walking = false;
   /** shield up: drains the same gauge sprinting does */
@@ -1927,8 +1946,13 @@ export class Player {
   /** sprint, the top speed everything trims, and the steering that reaches it */
   private updateGroundMove(dt: number, input: FrameInput, game: Game,
     wishLen: number, nx: number, nz: number, moving: boolean): void {
+    // the gun going, or a swing in progress: the feet slow (see SHOOT_WALK_SPEED)
+    this.shotWalkT = Math.max(0, this.shotWalkT - dt);
+    const firing = this.shotWalkT > 0
+      || (input.shootHeld && this.weapon === 'blaster' && !this.overheated && !this.meleeOnly);
+    const swinging = this.meleeTimer > 0;
     const wantsSprint = this.sprintLatched && input.sprintHeld && moving
-      && this.grounded && this.energy > 0 && !this.blocking;
+      && this.grounded && this.energy > 0 && !this.blocking && !firing && !swinging;
     this.sprinting = wantsSprint && this.snareTimer <= 0 && !this.wading;
     if (this.sprinting) {
       this.energy = Math.max(0, this.energy - dt / SPRINT_SECONDS);
@@ -1952,6 +1976,10 @@ export class Player {
     this.landRecovery = Math.max(0, this.landRecovery - dt);
     this.landTimer = Math.max(0, this.landTimer - dt);
     if (this.landRecovery > 0) topSpeed *= 1 - 0.85 * (this.landRecovery / LAND_RECOVER);
+    if (this.grounded) {
+      if (firing) topSpeed = Math.min(topSpeed, SHOOT_WALK_SPEED);
+      if (swinging) topSpeed = Math.min(topSpeed, MELEE_MOVE_SPEED);
+    }
     // the walk is a thing feet do: in the air the stick steers in proportion
     const speedTarget = this.sprinting || !this.grounded ? Math.min(wishLen, 1) * topSpeed : stickSpeed(wishLen, topSpeed);
 
@@ -1975,7 +2003,9 @@ export class Player {
       // a rising or gliding super jumper steers like a flyer (flags are a
       // frame stale here, which the eye cannot see)
       const airLambda = this.thrusting > 0 || this.superRising || this.superGliding ? 9 : AIR_CONTROL * 0.6;
-      const lambda = this.grounded ? 13 * traction : airLambda;
+      // a swing plants the feet hard: a skid under a punch is the slide it is
+      // there to stop (MELEE_MOVE_SPEED); ice still gets its drift
+      const lambda = this.grounded ? (swinging ? 26 : 13) * traction : airLambda;
       this.velocity.x = damp(this.velocity.x, nx * speedTarget, lambda, dt);
       this.velocity.z = damp(this.velocity.z, nz * speedTarget, lambda, dt);
     }
@@ -3324,8 +3354,9 @@ export class Player {
       // With no lunge to carry the body, the legs join the swing: weight drop,
       // step, pivot — one-shots matched to each upper's duration. A move that
       // turns the whole body (a whirlwind, a cyclone) plays its legs anyway.
-      if (variant?.lowerAlways
-        || (!target && this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 3.5)) {
+      // (A swing plants the feet now — MELEE_MOVE_SPEED — so a fighter who was
+      // running a moment ago steps into it too, rather than sliding under it.)
+      if (variant?.lowerAlways || (!target && this.grounded)) {
         this.char.animator!.playOnce('lower', variant?.lower ?? `${saberClipsFor(this.characterId).lower}Lower${this.meleeStep}`, 0.08, false, 1 / pace);
       }
       this.flourished = false;
@@ -3398,6 +3429,7 @@ export class Player {
         && this.fireCd <= 0 && this.meleeTimer <= 0 && !this.overheated) {
       this.queuedHipShot = false;
       this.fireCd = this.profile.fireCd;
+      this.shotWalkT = SHOOT_WALK_HOLD;
       this.addHeat();
       const muzzlePos = new THREE.Vector3();
       this.char.muzzle!.getWorldPosition(muzzlePos);
