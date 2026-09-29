@@ -38,6 +38,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
  * alamites in the way), or by two rockets into its breech. **Drones** come in
  * pairs as the party passes rings: they are the dogfight.
  *
+ * **The city shoots down.** Every tower and rib-bridge between the rings can
+ * be shot, cut or blown apart like any breakable prop: take enough out of it
+ * and it breaks, leans and drops through the cloud deck, bridges going with
+ * the towers they hang from. Only the flak towers stand — their guns are
+ * silenced their own way.
+ *
  * **Escalation**: the climb out (no fight — learn to fly), the first gun
  * alone, the second held by alamites, the third on the dome's approach with
  * alamites and drones together. Its screen is the one across the breach, so
@@ -111,6 +117,31 @@ function segDistXZ(px: number, pz: number, a: THREE.Vector3, b: THREE.Vector3): 
 
 interface Tower {
   x: number; z: number; w: number; d: number; top: number;
+}
+
+/** a city part's slot in the merged mesh of its material (see `mergeCity`) */
+type PartRef = { kind: 'ruin' | 'roof' | 'ridge' | 'glass' | 'bay'; idx: number };
+
+/**
+ * One thing in the city that can be shot down — a tower or a rib-bridge. It
+ * owns its colliders, its pieces of the merged city meshes and any meshes of
+ * its own, so all of it goes at once when it falls.
+ */
+interface Wreck {
+  boxes: StaticBox[];
+  parts: PartRef[];
+  extra: THREE.Object3D[];
+  /** damage it takes to bring down */
+  hp: number;
+  dmg: number;
+  down: boolean;
+  /** where it is struck: hit volumes stacked up it (registered only near the party) */
+  chunks: Breakable[];
+  /** the ground-plane footing, for the nearness test and the fall */
+  x: number; z: number; base: number; top: number;
+  /** what else comes down with it (a tower's bridges) */
+  carries: Wreck[];
+  tower?: Tower;
 }
 
 function build(ctx: SectionContext): SectionInstance {
@@ -213,6 +244,7 @@ function build(ctx: SectionContext): SectionInstance {
 
   // ---- the city: broken towers, arches and rib-bridges ----
   const towers: Tower[] = [];
+  const towerWreck = new Map<Tower, Wreck>();
   const rand = rng(0xf0493);
   const clearOfLine = (x: number, z: number, half: number, top: number): boolean => {
     for (let i = 0; i + 1 < line.length; i++) {
@@ -229,9 +261,21 @@ function build(ctx: SectionContext): SectionInstance {
     ruin: [] as THREE.BufferGeometry[], roof: [] as THREE.BufferGeometry[], ridge: [] as THREE.BufferGeometry[],
     glass: [] as THREE.BufferGeometry[], bay: [] as THREE.BufferGeometry[],
   };
+  /** the wreck the next `solid` pieces belong to (null: the ridge, the flak towers) */
+  let owner: Wreck | null = null;
+  const wrecks: Wreck[] = [];
   const solid = (kind: keyof typeof cityParts, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, collide = true): void => {
-    if (collide) ctx.box(cx, cy, cz, sx, sy, sz, null);
+    if (collide) {
+      const { box } = ctx.box(cx, cy, cz, sx, sy, sz, null);
+      owner?.boxes.push(box);
+    }
     cityParts[kind].push(worldBox(cx, cy, cz, sx, sy, sz, kind === 'roof' ? 6 : kind === 'glass' ? 5 : 14));
+    owner?.parts.push({ kind, idx: cityParts[kind].length - 1 });
+  };
+  const newWreck = (x: number, z: number, base: number, top: number, hp: number): Wreck => {
+    const w: Wreck = { boxes: [], parts: [], extra: [], hp, dmg: 0, down: false, chunks: [], x, z, base, top, carries: [] };
+    wrecks.push(w);
+    return w;
   };
   /**
    * Window bays in rows up a face: dark recesses, a few missing where the
@@ -255,8 +299,13 @@ function build(ctx: SectionContext): SectionInstance {
     // and a lip where the run pooled
     solid('glass', cx, G + DECK - 1.6, cz, w + 5, 0.8, d + 5, false);
   };
-  const addTower = (t: Tower, opts: { plain?: boolean } = {}, r: () => number = rand): void => {
+  const addTower = (t: Tower, opts: { plain?: boolean; fixed?: boolean } = {}, r: () => number = rand): void => {
     const base = G - 30;
+    // every tower in the city can be shot down but the flak guns' own: those
+    // are the objectives, silenced their own way
+    const wreck = opts.fixed ? null : newWreck(t.x, t.z, G + DECK - 2, t.top, 150 + (t.top - G) * 5);
+    if (wreck) wreck.tower = t;
+    owner = wreck;
     // a broken crown: a narrower tier on three of four quarters, one fallen
     const tier = !opts.plain && t.top - G > 34 && r() < 0.75 ? 4 + r() * 4 : 0;
     const shoulder = t.top - tier;
@@ -298,7 +347,9 @@ function build(ctx: SectionContext): SectionInstance {
     const side = t.x > 0 ? -1 : 1;
     bays(t.x, t.z, t.d / 2, t.w / 2, side, 0, from, shoulder - 2, r);
     skirt(t.x, t.z, t.w, t.d, r);
-    towers.push({ ...t, top: t.top });
+    owner = null;
+    towers.push(t);
+    if (wreck) towerWreck.set(t, wreck);
   };
   for (let z = 70; z < 1130; z += 38) {
     for (let k = 0; k < 4; k++) {
@@ -326,12 +377,18 @@ function build(ctx: SectionContext): SectionInstance {
       if (y < G + DECK + 12) continue;
       const mid = new THREE.Vector3((a.x + b.x) / 2, y, (a.z + b.z) / 2);
       if (!clearOfLine(mid.x, mid.z, Math.abs(a.x - b.x) / 2, y + 2)) continue;
+      // a bridge is shot down on its own, and falls with either tower it hangs from
+      const bridge = newWreck(mid.x, mid.z, y - 1, y + 1, 140);
+      owner = bridge;
       solid('ruin', mid.x, y, mid.z, Math.abs(a.x - b.x), 1.6, 3);
+      owner = null;
       const arch = new THREE.Mesh(geo(new THREE.TorusGeometry(span / 2, 0.9, 6, 16, Math.PI)), ruin);
       arch.position.set(mid.x, y - 0.8, mid.z);
       arch.rotation.x = Math.PI;
       ctx.mesh(arch);
       arches.push(arch);
+      bridge.extra.push(arch);
+      for (const t of [a, b]) towerWreck.get(t)?.carries.push(bridge);
       bridged.add(i); bridged.add(j);
       break;
     }
@@ -511,7 +568,7 @@ function build(ctx: SectionContext): SectionInstance {
   };
   const flaks: Flak[] = flakSpec.map((f, i) => {
     const top = G + f.top;
-    addTower({ x: f.x, z: f.z, w: 16, d: 16, top }, { plain: true });
+    addTower({ x: f.x, z: f.z, w: 16, d: 16, top }, { plain: true, fixed: true });
     // the pivot: the slab's underside, on the tower's roof
     const at = new THREE.Vector3(f.x, top + 0.5, f.z);
     const parts = buildFlak();
@@ -552,17 +609,162 @@ function build(ctx: SectionContext): SectionInstance {
     f.model.getObjectByName(name) ?? (name === 'yaw' ? f.yaw : f.pitch);
 
   // ---- the city, drawn: one mesh per material ----
+  // Each part's vertex and index span in its merged mesh is kept, so a wreck
+  // can lift its own pieces out when it falls (see `collapse`).
+  const cityMats = { ruin, roof: roofMat, ridge: ridgeMat, glass, bay: bayMat } as const;
+  const merged: Partial<Record<PartRef['kind'], THREE.BufferGeometry>> = {};
+  const spans: Record<PartRef['kind'], { v0: number; vn: number; i0: number; in: number }[]> = {
+    ruin: [], roof: [], ridge: [], glass: [], bay: [],
+  };
   for (const [kind, mat, shadow] of [['ruin', ruin, true], ['roof', roofMat, false], ['ridge', ridgeMat, false],
     ['glass', glass, false], ['bay', bayMat, false]] as const) {
     const parts = cityParts[kind];
     if (!parts.length) continue;
-    const merged = geo(mergeGeometries(parts, false));
+    let v0 = 0, i0 = 0;
+    for (const g of parts) {
+      const vn = g.attributes.position.count, n = g.index ? g.index.count : vn;
+      spans[kind].push({ v0, vn, i0, in: n });
+      v0 += vn; i0 += n;
+    }
+    const mg = geo(mergeGeometries(parts, false));
+    merged[kind] = mg;
     for (const g of parts) g.dispose();
-    const mesh = new THREE.Mesh(merged, mat);
+    const mesh = new THREE.Mesh(mg, mat);
     mesh.castShadow = shadow;
     mesh.receiveShadow = true;
     ctx.mesh(mesh);
   }
+
+  // ---- the wrecks: every tower and bridge in the flight can be shot down ----
+  // Each is struck through a stack of hit volumes up its height (a tower is a
+  // hundred metres tall; one sphere at its middle would be all air or all
+  // miss). The volumes never break on their own — they are topped back up
+  // every frame and what they took goes on the wreck's own tally, the way the
+  // flak breeches count rockets — and only the wrecks near the party are
+  // registered at all, so the bolt test is not run against a whole city.
+  const CHUNK_HP = 1e6;
+  const hollow = new THREE.Object3D();
+  const allChunks = new Set<Breakable>();
+  const chunkOf = (min: THREE.Vector3, max: THREE.Vector3, radius: number): Breakable => {
+    const b = addBreakable({ physics: game.board.physics, breakables: [] }, hollow, { min, max }, CHUNK_HP, { radius });
+    allChunks.add(b);
+    return b;
+  };
+  for (const w of wrecks) {
+    const t = w.tower;
+    if (t) {
+      // Stacked close enough that the spheres still overlap at the tower's
+      // faces (a sphere is narrowest where it meets a flat wall), so a bolt
+      // into any face lands rather than sparking off the collider between.
+      const r = (Math.max(t.w, t.d) / 2) * 1.25;
+      const step = r * 1.05;
+      for (let y = w.base + r * 0.5; y < w.top + r * 0.3; y += step) {
+        w.chunks.push(chunkOf(
+          new THREE.Vector3(t.x - t.w / 2, y - step / 2, t.z - t.d / 2),
+          new THREE.Vector3(t.x + t.w / 2, y + step / 2, t.z + t.d / 2), r));
+      }
+    } else if (w.boxes[0]) {
+      w.chunks.push(chunkOf(w.boxes[0].min.clone(), w.boxes[0].max.clone(), 2.2));
+    }
+  }
+  let liveChunks = new Set<Breakable>();
+  /** register the near wrecks' hit volumes on the board, and drop the rest */
+  const scanWrecks = (): void => {
+    const want = new Set<Breakable>();
+    for (const w of wrecks) {
+      if (w.down) continue;
+      const near = game.players.some((p) => p.alive && Math.abs(p.position.z - w.z) < 170 && Math.abs(p.position.x - w.x) < 190);
+      if (near) for (const c of w.chunks) want.add(c);
+    }
+    const others = (game.board.breakables ?? []).filter((b) => !allChunks.has(b));
+    game.board.breakables = [...others, ...want];
+    liveChunks = want;
+  };
+
+  /** a copy of some parts of a merged mesh, as a mesh of their own */
+  type Span = (typeof spans)['ruin'][number];
+  const extract = (src: THREE.BufferGeometry, sp: Span[]): THREE.BufferGeometry => {
+    const out = new THREE.BufferGeometry();
+    const vn = sp.reduce((a, x) => a + x.vn, 0);
+    for (const name of ['position', 'normal', 'uv']) {
+      const a = src.getAttribute(name) as THREE.BufferAttribute | undefined;
+      if (!a) continue;
+      const arr = new Float32Array(vn * a.itemSize);
+      let o = 0;
+      for (const x of sp) {
+        arr.set((a.array as Float32Array).subarray(x.v0 * a.itemSize, (x.v0 + x.vn) * a.itemSize), o);
+        o += x.vn * a.itemSize;
+      }
+      out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+    }
+    if (src.index) {
+      const idx = src.index.array;
+      const arr = new Uint32Array(sp.reduce((a, x) => a + x.in, 0));
+      let o = 0, base = 0;
+      for (const x of sp) {
+        for (let k = 0; k < x.in; k++) arr[o++] = idx[x.i0 + k] - x.v0 + base;
+        base += x.vn;
+      }
+      out.setIndex(new THREE.BufferAttribute(arr, 1));
+    }
+    return ctx.own(out);
+  };
+
+  type Fall = { pivot: THREE.Group; t: number; y0: number; lean: THREE.Vector2 };
+  const falling: Fall[] = [];
+  let felled = 0;
+  /**
+   * Down it comes: the colliders go at once, its pieces are lifted out of the
+   * city meshes into a body of their own that leans and drops through the
+   * cloud deck, and whatever it carried (a tower's bridges) goes with it.
+   */
+  const collapse = (w: Wreck): void => {
+    if (w.down) return;
+    w.down = true;
+    felled++;
+    for (const b of w.boxes) ctx.unsolid({ box: b });
+    for (const p of game.players) if (p.cover && w.boxes.includes(p.cover.solid as StaticBox)) { p.cover = null; p.peeking = false; }
+    if (game.board.breakables) game.board.breakables = game.board.breakables.filter((b) => !w.chunks.includes(b));
+    for (const c of w.chunks) liveChunks.delete(c);
+    const pivot = new THREE.Group();
+    pivot.position.set(w.x, w.base, w.z);
+    ctx.mesh(pivot);
+    const byKind = new Map<PartRef['kind'], Span[]>();
+    for (const r of w.parts) {
+      const sp = spans[r.kind][r.idx];
+      if (!sp) continue;
+      if (!byKind.has(r.kind)) byKind.set(r.kind, []);
+      byKind.get(r.kind)!.push(sp);
+    }
+    for (const [kind, sp] of byKind) {
+      const src = merged[kind];
+      if (!src) continue;
+      const g = extract(src, sp);
+      g.translate(-w.x, -w.base, -w.z);
+      const m = new THREE.Mesh(g, cityMats[kind]);
+      m.castShadow = kind === 'ruin';
+      pivot.add(m);
+      // and out of the city: its vertices folded to one point draw nothing
+      const pos = src.attributes.position as THREE.BufferAttribute;
+      for (const x of sp) {
+        const px = pos.getX(x.v0), py = pos.getY(x.v0), pz = pos.getZ(x.v0);
+        for (let k = 0; k < x.vn; k++) pos.setXYZ(x.v0 + k, px, py, pz);
+      }
+      pos.needsUpdate = true;
+    }
+    ctx.group.updateMatrixWorld(true);
+    for (const m of w.extra) pivot.attach(m);
+    const a = Math.random() * Math.PI * 2;
+    falling.push({ pivot, t: 0, y0: w.base, lean: new THREE.Vector2(Math.cos(a), Math.sin(a)).multiplyScalar(0.35 + Math.random() * 0.25) });
+    // the break: blasts up the height, dust where it meets the cloud
+    const tall = w.top - w.base;
+    for (let k = 0; k < Math.min(5, 1 + Math.floor(tall / 14)); k++) {
+      game.particles.explosion(new THREE.Vector3(w.x, w.base + tall * (0.25 + 0.7 * Math.random()), w.z), tall > 10 ? 2 : 1.2);
+    }
+    game.particles.dustPuff(new THREE.Vector3(w.x, G + DECK, w.z), 30);
+    if (game.players.some((p) => p.position.distanceTo(pivot.position) < 200)) audio.explosion();
+    for (const c of w.carries) collapse(c);
+  };
 
   // ---- flak shells: a tracer climbs, a marker swells, the burst ----
   const shellMat = new THREE.MeshBasicMaterial({ color: 0xff4a2a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -626,6 +828,7 @@ function build(ctx: SectionContext): SectionInstance {
   const prev = new Map<number, THREE.Vector3>();
   const dronesSent = new Set<number>();
   const cursors = [0, 0, 0, 0];
+  let scanT = 0;
 
   const nextRing = () => Math.min(reached + 1, rings.length - 1);
   /** the first living gun, which is the one whose screen is next */
@@ -684,6 +887,34 @@ function build(ctx: SectionContext): SectionInstance {
       ctx.announce(T.teachTitle, T.teach);
     }
     interactions.update(dt, game);
+
+    // the wrecks: what the city took this frame, and what is coming down
+    scanT -= dt;
+    if (scanT <= 0) { scanT = 0.3; scanWrecks(); }
+    for (const w of wrecks) {
+      if (w.down || !liveChunks.has(w.chunks[0])) continue;
+      for (const c of w.chunks) {
+        const took = c.maxHp - c.hp;
+        if (took <= 0) continue;
+        w.dmg += took;
+        c.hp = c.maxHp;
+        c.broken = false;
+      }
+      if (w.dmg >= w.hp) collapse(w);
+    }
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const f = falling[i];
+      f.t += dt;
+      const k = Math.min(1, f.t / 2.2);
+      f.pivot.rotation.x = f.lean.x * k * k;
+      f.pivot.rotation.z = f.lean.y * k * k;
+      f.pivot.position.y = f.y0 - 5 * f.t * f.t;
+      if (Math.random() < dt * 6) game.particles.dustPuff(f.pivot.position.clone().setY(G + DECK), 6);
+      if (f.t > 4.5) {
+        f.pivot.removeFromParent();
+        falling.splice(i, 1);
+      }
+    }
 
     // rings: flown through is a checkpoint and a boost
     for (const p of game.players) {
@@ -952,7 +1183,10 @@ function build(ctx: SectionContext): SectionInstance {
     ceilingY: G + LID,
     groundAt: (x, z) => {
       if (Math.hypot(x, z) < SR + 3) return Y0 + (Math.hypot(x, z) < 6.5 ? 1 : 0);
-      for (const tw of towers) if (Math.abs(x - tw.x) < tw.w / 2 && Math.abs(z - tw.z) < tw.d / 2) return tw.top + 0.5;
+      for (const tw of towers) {
+        if (towerWreck.get(tw)?.down) continue;
+        if (Math.abs(x - tw.x) < tw.w / 2 && Math.abs(z - tw.z) < tw.d / 2) return tw.top + 0.5;
+      }
       return G + UPDRAFT;
     },
     // (the ridge's staggered notches reach a little past the edge)
@@ -969,17 +1203,17 @@ function build(ctx: SectionContext): SectionInstance {
     dispose: () => {
       for (const p of game.players) p.sectionMove = null;
       flight.release(game.players);
-      const mine = new Set(flaks.map((f) => f.breech));
+      const mine = new Set<Breakable>([...flaks.map((f) => f.breech), ...allChunks]);
       if (game.board.breakables) game.board.breakables = game.board.breakables.filter((b) => !mine.has(b));
     },
     debug: () => ({
-      reached, breachOpen, flaks: flaks.map((f) => (f.alive ? (f.charged ? 'charged' : 'up') : 'down')),
+      reached, breachOpen, flaks: flaks.map((f) => (f.alive ? (f.charged ? 'charged' : 'up') : 'down')), felled,
       t: Math.round(t), pos: game.players.map((p) => p.position.toArray().map(Math.round)),
     }),
   };
   // for tools/test-section-forge.mjs: the live pieces
   (inst as unknown as { probe: unknown }).probe = {
-    flaks, rings, flight, G, dome: dome.position, breachAt,
+    flaks, rings, flight, G, dome: dome.position, breachAt, wrecks, collapse, scanWrecks,
     reached: () => reached,
     breachOpen: () => breachOpen,
     airSpot,

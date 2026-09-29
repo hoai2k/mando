@@ -19,7 +19,12 @@ import type { Game } from '../game/game';
  * occasionally answers.
  */
 
-const SIZE = 340;
+// The visible terrain has to cover everything a stage lays on this board.
+// `heightAt` is analytic and runs on forever, so ground past the mesh edge is
+// ground you stand on but cannot see: at 340 the mesh stopped at x = 170, and
+// the first stage's shattered gate (on the rise, x ~149-181) and its gorge
+// (out to x ~215) stood half on invisible glass.
+const SIZE = 460;
 const POOL = new THREE.Vector3(66, 0, 44);
 
 function heightAt(x: number, z: number): number {
@@ -75,7 +80,7 @@ export function buildForge(): Board {
   group.add(stormLight);
 
   // terrain: fused glass-sand, green-grey, darker in the melt channels
-  const seg = 120;
+  const seg = 162; // ~2.8 m quads, the density the 340 m sheet had
   const terrainGeo = new THREE.PlaneGeometry(SIZE, SIZE, seg, seg);
   terrainGeo.rotateX(-Math.PI / 2);
   const posAttr = terrainGeo.attributes.position as THREE.BufferAttribute;

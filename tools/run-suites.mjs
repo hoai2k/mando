@@ -72,6 +72,8 @@ const SUITES = [
   { name: 'test-loadperf', weight: 197 },
   { name: 'test-airplay', weight: 152 },
   { name: 'test-monsters', weight: 143 },
+  // the Great Forge's mythosaur: dive, resurface, the roar and its shell
+  { name: 'test-sleeper', weight: 30 },
   { name: 'test-workbench-weapon-grips', weight: 136 },
   { name: 'test-workbench-moment-edits', weight: 60 },
   { name: 'test-walk', weight: 50 },
