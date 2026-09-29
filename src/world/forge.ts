@@ -286,12 +286,64 @@ export function buildForge(): Board {
     ],
   };
 
+  /** under cover from the storm: a section that says so, or anything solid overhead */
+  const stormCover = (pos: THREE.Vector3): boolean => {
+    if (board.sheltered?.(pos)) return true;
+    _probe.copy(pos);
+    _probe.y += 1.5;
+    return !!physics.raycastSolids(_probe, _up, 45);
+  };
+  // The arcs themselves: a short pool of jagged blue-white bolts, each a
+  // chain of thin additive rods from twelve metres up down onto whoever it
+  // found, flickering out in a fifth of a second.
+  const arcMat = new THREE.MeshBasicMaterial({
+    color: 0xbfe4ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const rodGeo = new THREE.CylinderGeometry(0.045, 0.045, 1, 5, 1, true);
+  const ARC_SEGS = 7;
+  const arcs = Array.from({ length: 6 }, () => {
+    const g = new THREE.Group();
+    const m = arcMat.clone();
+    for (let i = 0; i < ARC_SEGS; i++) g.add(new THREE.Mesh(rodGeo, m));
+    g.visible = false;
+    group.add(g);
+    return { g, m, life: 0 };
+  });
+  let arcNext = 0;
+  const _top = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _mid = new THREE.Vector3();
+  const strikeArc = (target: THREE.Vector3): void => {
+    const arc = arcs[arcNext];
+    arcNext = (arcNext + 1) % arcs.length;
+    arc.life = 0.2;
+    arc.g.visible = true;
+    _top.set(target.x + (Math.random() - 0.5) * 3, target.y + 12, target.z + (Math.random() - 0.5) * 3);
+    _a.copy(_top);
+    arc.g.children.forEach((rod, i) => {
+      const k1 = (i + 1) / ARC_SEGS;
+      _b.lerpVectors(_top, target, k1);
+      if (i < ARC_SEGS - 1) { _b.x += (Math.random() - 0.5) * 1.2; _b.z += (Math.random() - 0.5) * 1.2; }
+      else _b.copy(target);
+      _mid.addVectors(_a, _b).multiplyScalar(0.5);
+      rod.position.copy(_mid);
+      rod.scale.set(1, _a.distanceTo(_b), 1);
+      rod.lookAt(_b);
+      rod.rotateX(Math.PI / 2);
+      _a.copy(_b);
+    });
+  };
+
   let mythosaurIn = 35 + rng() * 30;
   let eyeGlow = 0;
   let strikeTick = 0;
   let stormWasOn = false;
   let warnWasOn = false;
   board.update = (dt: number, time: number, game?: Game) => {
+    for (const arc of arcs) {
+      if (arc.life <= 0) continue;
+      arc.life -= dt;
+      arc.m.opacity = arc.life > 0 ? (0.5 + 0.5 * Math.random()) * Math.min(1, arc.life / 0.1) : 0;
+      if (arc.life <= 0) arc.g.visible = false;
+    }
     const t = time % CYCLE;
     const warning = t >= CALM_T && t < CALM_T + WARN_T;
     const storm = t >= CALM_T + WARN_T;
@@ -305,7 +357,13 @@ export function buildForge(): Board {
     // Thunder on the *warning*, not on the first hit. The six seconds of grace
     // this mechanic gives you were signalled by nothing but the sun dimming,
     // which is a lot to read on a board where the answer is a sprint to cover.
-    if (warning && !warnWasOn) audio.thunder(0.55);
+    if (warning && !warnWasOn) {
+      audio.thunder(0.55);
+      // say so, to anyone standing where it will find them
+      if (game?.players.some((p) => p.alive && !stormCover(p.position))) {
+        game.announce(TEXT.banners.stormWarn.title, TEXT.banners.stormWarn.sub);
+      }
+    }
     warnWasOn = warning;
     if (storm && !stormWasOn) audio.thunder(0.75); // and again as it breaks
     stormWasOn = storm;
@@ -318,11 +376,7 @@ export function buildForge(): Board {
         // The AI reads the same rule: suppression plants it where it hides.
         // Straight up: only slabs, chunks and walls can be overhead, never the
         // ground, so this asks for the solids alone.
-        const sheltered = (pos: THREE.Vector3): boolean => {
-          _probe.copy(pos);
-          _probe.y += 1.5;
-          return !!physics.raycastSolids(_probe, _up, 45);
-        };
+        const sheltered = stormCover;
         // scratch, not three fresh vectors per struck body per tick
         const from = _strikeFrom, at = _strikeAt;
         for (const p of game.players) {
@@ -330,6 +384,10 @@ export function buildForge(): Board {
           if (Math.random() < 0.65) {
             p.damage(5, from.copy(p.position).setY(p.position.y + 8), -1, { dot: true });
             game.particles.impactSparks(at.copy(p.position).setY(p.position.y + 1.6), 14);
+            // every hit is seen and heard as the storm: an arc down out of
+            // the sky onto the body, and its crackle
+            strikeArc(at);
+            audio.arcStrike(0.55);
           }
         }
         for (const e of game.enemies) {
@@ -338,6 +396,7 @@ export function buildForge(): Board {
             e.damage(8, from.copy(e.position).setY(e.position.y + 8), -1);
             e.suppress(0.6);
             game.particles.impactSparks(at.copy(e.position).setY(e.position.y + 1.6), 10);
+            strikeArc(at);
           }
         }
         if (Math.random() < 0.5) audio.thunder(0.25 + Math.random() * 0.2);

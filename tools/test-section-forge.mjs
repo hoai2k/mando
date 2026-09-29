@@ -78,6 +78,32 @@ const prep = await page.evaluate(() => {
 });
 check('the forging starts after the breath to raise shields', prep.phase === 'forging' && prep.progress > 0, prep);
 
+const storm = await page.evaluate(() => {
+  const g = window.__game, s = g.campaign.section, P = s.probe;
+  const p = g.players[0];
+  for (const e of g.enemies) if (e.team === 1) e.damage(1e7, e.position, 0);
+  // stand under the open shaft on the dais, beside the Armorer, through a
+  // whole storm cycle of the board's weather (65 s): the forge is below ground
+  const her = P.armorer.body;
+  // a storm strike is a damage-over-time tick from 8 m straight overhead;
+  // count those alone (a drone or a stray bolt from a wave is not weather)
+  let hurt = 0;
+  const take = p.damage.bind(p);
+  p.damage = (amount, from, bySlot, opts) => {
+    if (opts?.dot && Math.abs(from.x - p.position.x) < 0.01 && Math.abs(from.y - p.position.y - 8) < 0.01) hurt++;
+    take(amount, from, bySlot, opts);
+  };
+  for (let f = 0; f < 30 * 70; f++) {
+    p.position.set(her.position.x + 1.6, her.position.y, her.position.z);
+    p.velocity.set(0, 0, 0);
+    window.__step(1);
+    if (f % 30 === 0) for (const e of g.enemies) if (e.team === 1) e.damage(1e7, e.position, 0);
+  }
+  p.damage = take;
+  return { sheltered: !!g.board.sheltered?.(p.position), hurt };
+});
+check('the Great Forge\'s magnetic storm does not reach the forge chamber', storm.sheltered && storm.hurt === 0, storm);
+
 const weight = await page.evaluate(() => {
   const g = window.__game, s = g.campaign.section, P = s.probe;
   for (const e of g.enemies) if (e.team === 1) e.damage(1e7, e.position, 0);

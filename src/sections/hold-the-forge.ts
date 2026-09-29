@@ -90,6 +90,13 @@ function build(ctx: SectionContext): SectionInstance {
   const Y0 = ctx.floorY;
   const T = TEXT.sections['hold-the-forge'];
   const party = Math.max(1, game.players.length);
+  // The covert's forge is under the ground: the Great Forge's magnetic storm
+  // (world/forge.ts) sweeps the open glass above and never reaches down here,
+  // open shaft or not. Without this the dais — right under the shaft — was
+  // the one spot the arcs found, and defending the Armorer bled health to
+  // weather nobody could see.
+  const shelter = (): boolean => true;
+  ctx.board.sheltered = shelter;
   const solo = party === 1;
   const DAIS = Y0 + TIER2.h;
 
@@ -792,6 +799,7 @@ function build(ctx: SectionContext): SectionInstance {
     hud,
     autopilot,
     dispose: () => {
+      if (ctx.board.sheltered === shelter) ctx.board.sheltered = undefined;
       for (const p of game.players) p.sectionMove = null;
       armorer.body.removeMe = true;
       if (game.boss === chief) game.boss = null;

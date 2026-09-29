@@ -244,6 +244,7 @@ export const TEXT = {
     waveCleared: (n: number) => `Wave ${n} cleared`,
     somethingBig: 'Something big is coming',
     backOnYourFeet: { title: 'Back on your feet', sub: 'the beacon waits' },
+    stormWarn: { title: 'Magnetic storm', sub: 'get under a roof — the arcs find open sky' },
     hunterFallen: 'The hunter has fallen',
     huntersFallen: 'The hunters have fallen',
     sweepingForYou: 'They are sweeping for you',

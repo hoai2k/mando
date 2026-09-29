@@ -584,6 +584,17 @@ export class AudioEngine {
     this.zap(90, 28, 1.6, 'sine', 0.5 * gain, 0.05);
     this.burst(1.4, 0.22 * gain, 180, 0.1, 0.4);
   }
+  /**
+   * One arc of the magnetic storm finding a body: a sharp electric snap and a
+   * short fizz of static, so each hit is heard as the storm and not as a bolt.
+   */
+  arcStrike(gain = 0.6): void {
+    if (!this.ctx) return;
+    this.burst(0.05, 0.4 * gain, 5200, 0, 3);
+    this.zap(2400, 180, 0.12, 'sawtooth', 0.14 * gain);
+    this.burst(0.28, 0.16 * gain, 3000, 0.04, 6);
+    this.zap(900, 1400, 0.06, 'square', 0.05 * gain, 0.09);
+  }
   /** Lava geyser letting go under someone's feet. */
   geyser(gain = 0.6): void {
     if (!this.ctx || this.playSample('geyser_blast', gain)) return;

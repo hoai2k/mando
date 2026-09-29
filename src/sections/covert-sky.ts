@@ -119,6 +119,11 @@ function build(ctx: SectionContext): SectionInstance {
   const G = Y0 + SHAFT;
   const T = TEXT.sections['covert-sky'];
   const party = Math.max(1, game.players.length);
+  // The flight has no roof anywhere, so the board's magnetic storm
+  // (world/forge.ts) would be damage nobody could dodge; the flak is this
+  // beat's weather. The storm still dims the sky and rolls its thunder.
+  const shelter = (): boolean => true;
+  ctx.board.sheltered = shelter;
   const solo = party === 1;
   const geo = <Gm extends THREE.BufferGeometry>(g: Gm): Gm => ctx.own(g);
 
@@ -967,6 +972,7 @@ function build(ctx: SectionContext): SectionInstance {
     hud,
     autopilot,
     dispose: () => {
+      if (ctx.board.sheltered === shelter) ctx.board.sheltered = undefined;
       for (const p of game.players) p.sectionMove = null;
       flight.release(game.players);
       const mine = new Set(flaks.map((f) => f.breech));

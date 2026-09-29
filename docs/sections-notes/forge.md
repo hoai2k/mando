@@ -215,6 +215,37 @@ scaling the tilt by distance, which now walks); `guide.ts` entries updated (the
 shield is cover; the charge mark is on the gun's slab); `_followups.md` rows
 for the two props annotated.
 
+## The magnetic storm (2026-09-29, a playtest report)
+
+*Report:* "getting wounded standing near the Armorer". *Cause:* not the
+forge fire — the Great Forge board's magnetic storm (`world/forge.ts`): every
+65 s, 6 s of warning then 13 s in which, every 0.7 s, anyone with nothing
+solid within 45 m overhead takes 5 (65% of the time). It runs on every stage
+of the board, sections included. Hold the Forge's roof is drawn but has no
+collider and the dais is under the open shaft, so the whole defence stood in
+the open; Covert Sky has nothing overhead anywhere. Its only feedback was a
+small spark burst and an occasional thunder roll, which read as a stray bolt.
+Reproduced by logging every hit on a hunter held beside the Armorer through a
+culled forging: 29 hits from the storm; after the fix, none (the 4 left are
+drone blasts and bolts, ordinary visible combat).
+
+*Fix:*
+- `Board.sheltered?(pos)` (new, `world/board.ts`): the storm asks it before
+  its overhead raycast. Hold the Forge (below ground) and Covert Sky (the
+  flak is its weather) both answer true while they stand, and clear it on
+  dispose. The sky still dims and thunders.
+- Where the storm still bites (the board's open stages): every hit now shows
+  a jagged blue-white arc from 12 m up onto the body, and plays its own
+  crackle (`audio.arcStrike`, synthesised); enemies struck get the arc too.
+  The warning puts up a banner — "Magnetic storm — get under a roof, the
+  arcs find open sky" — when any living player is standing exposed.
+- The mechanics test holds a hunter beside the Armorer through a full storm
+  cycle and checks for no damage.
+
+Shared files: `world/board.ts` (the field), `world/forge.ts` (the check, the
+arcs, the banner), `core/audio.ts` (`arcStrike`), `text.ts`
+(`banners.stormWarn`).
+
 ## Known issues / left to do
 
 - The authored models `beskar_barricade` and `flak_tower` are requested but

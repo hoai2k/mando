@@ -210,6 +210,14 @@ export interface Board {
    */
   burnAt?: (x: number, z: number, y: number) => number;
   /**
+   * Is this spot under cover from the board's weather, whatever the physics
+   * says overhead? A gameplay section built below ground, or one whose whole
+   * beat is flight under open sky, answers true so the Great Forge's magnetic
+   * storm (`world/forge.ts`) does not reach it. Unset on the board's own
+   * stages: there a roof is the only shelter.
+   */
+  sheltered?: (pos: THREE.Vector3) => boolean;
+  /**
    * Ground grip multiplier, 1 = normal. Ice returns a fraction and running
    * turns into a drift; only voluntary steering is scaled, so knockbacks and
    * momentum carry exactly as far as they should.
