@@ -14,8 +14,8 @@ import { crateTexture, hullTexture } from '../core/assets';
 import { audio } from '../core/audio';
 import { clamp, damp, dampAngle } from '../core/math';
 import { BANTHA_STRIDE } from '../anim/quadruped';
-import { orientFoot, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
-import type { Rig } from '../anim/skeleton';
+import { orientFoot, reachLeg, seatSurface, spreadKnees, unlean } from '../anim/seating';
+import type { BoneName, Rig } from '../anim/skeleton';
 import { ANKLE_OVER_SOLE, CANONICAL_HIPS, footQuaternion, handFromSeat, stanceRise, VEHICLE_ANCHORS, type VehicleAnchor } from './vehicleAnchors';
 import { createShieldField, type ShieldField } from '../fx/shieldfield';
 import { saberClipsFor } from '../characters/mandalorians';
@@ -712,6 +712,10 @@ export class Vehicle {
   get seatYaw(): number { return THREE.MathUtils.degToRad(this.anchor?.yaw ?? 0); }
   /** a walking mount's back, which carries the saddle as it moves (`SaddleBone`) */
   private saddle: SaddleBone | null = null;
+  /** the rider's joints set by hand for this ride (`VehicleAnchor.pose`), as local rotations */
+  private readonly riderPose: Array<[BoneName, THREE.Quaternion]>;
+  /** the same for the grip: the part of the back or neck the rein hand holds, which moves on its own */
+  private gripHold: SaddleBone | null = null;
   /** per-body ram cooldown, so one pass hits once */
   private ramMemo = new Map<object, number>();
   private dustTimer = 0;
@@ -812,6 +816,9 @@ export class Vehicle {
   brain = { mode: 'close' as 'close' | 'peel', t: 0, side: 1 as -1 | 1, role: 'swinger' as 'swinger' | 'gunner' };
 
   constructor(public spec: VehicleSpec, private board: Board, opts: VehicleOpts = {}) {
+    const r = THREE.MathUtils.DEG2RAD;
+    this.riderPose = Object.entries(VEHICLE_ANCHORS[spec.kind]?.pose ?? {}).map(([name, d]) =>
+      [name as BoneName, new THREE.Quaternion().setFromEuler(new THREE.Euler(d[0] * r, d[1] * r, d[2] * r, 'XYZ'))]);
     const base = VEHICLE_DEFS[spec.kind];
     this.def = opts.gun || opts.sideSwing || opts.pillion || opts.hp || opts.turret
       ? {
@@ -1295,8 +1302,8 @@ export class Vehicle {
    * them (on a bantha the saddle is two metres up that lever), and carried
    * with a walking mount's back, when it has one.
    */
-  private rideToWorld(lx: number, ly: number, lz: number, out: THREE.Vector3): THREE.Vector3 {
-    const shift = this.saddle?.shift;
+  private rideToWorld(lx: number, ly: number, lz: number, out: THREE.Vector3,
+    shift: THREE.Vector3 | undefined = this.saddle?.shift): THREE.Vector3 {
     if (shift) { lx += shift.x; ly += shift.y; lz += shift.z; }
     // the hull where the ride is this frame, whether or not it has been drawn yet
     this.group.position.copy(this.pos);
@@ -1325,6 +1332,10 @@ export class Vehicle {
    * after the animator has posed the frame and before the hands.
    */
   poseLegs(rig: Rig): void {
+    // last frame's lean to the grips off first, before a leg is turned
+    unlean(rig);
+    // the rider's joints as they were set by hand for this ride
+    for (const [name, q] of this.riderPose) rig.bones[name]?.quaternion.copy(q);
     if (!this.anchor?.foot) {
       if (this.legSpread !== null) spreadKnees(rig, this.legSpread);
       return;
@@ -1403,6 +1414,11 @@ export class Vehicle {
     }
     // measured now, at rest, before the gait has taken a step
     this.saddle = new SaddleBone(root, this.group, new THREE.Vector3(this.seatX, this.seatTop, this.seatZ));
+    const g = this.hands;
+    if (g) {
+      const h = handFromSeat(g, 1, this.seatYaw, g.only !== 'left', new THREE.Vector3());
+      this.gripHold = new SaddleBone(root, this.group, new THREE.Vector3(this.seatX + h.x, this.seatTop + h.y, this.seatZ + h.z));
+    }
   }
 
   /**
@@ -1498,7 +1514,10 @@ export class Vehicle {
     const g = this.hands;
     if (!g) return null;
     const h = handFromSeat(g, side, this.seatYaw, g.only !== 'left', out);
-    return this.rideToWorld(this.seatX + h.x, this.seatTop + h.y, this.seatZ + h.z, out);
+    // held with the part of the sculpt the hand is on, where the back and the
+    // neck move apart: a pair of bars moves with the whole ride
+    return this.rideToWorld(this.seatX + h.x, this.seatTop + h.y, this.seatZ + h.z, out,
+      this.gripHold?.shift ?? this.saddle?.shift);
   }
 
   /** Per-frame while parked; a ridden vehicle is driven from its rider instead. */
@@ -2726,6 +2745,7 @@ export class Vehicle {
     }
     this.mixer.update(dt);
     this.saddle?.update();
+    this.gripHold?.update();
   }
 
   /**
@@ -3200,9 +3220,8 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
       group.add(spiral);
       for (const sz of [-1, 1]) track(addCyl(group, hide, 0.28, 0.34, 1.5, sx * 0.8, 0.75, sz * 1.1, 0));
     }
-    // The saddle is the ride's own dressing, not the sculpt's, so it is *not*
-    // tracked: it stays on when the authored bantha lands, and `seatToModel`
-    // drops it onto the back that model actually has.
+    // The saddle and its straps dress the stand-in only: the sculpt carries
+    // its rider bare-backed, so they go with the rest when it lands.
     const saddle = new THREE.Group();
     saddle.name = 'saddle';
     saddle.position.y = 3.2;
@@ -3212,7 +3231,7 @@ export function buildVehicleMesh(kind: VehicleSpec['kind'], group: THREE.Group, 
     addBox(saddle, leather, 0.85, 0.12, 0.85, 0, 0.07, -0.2);
     addBox(saddle, leather, 0.42, 0.2, 0.12, 0, 0.16, 0.25);     // pommel
     for (const sx of [-1, 1]) addBox(saddle, leather, 0.06, 0.5, 0.3, sx * 0.62, -0.2, -0.2); // stirrup straps
-    saddle.traverse((o) => { o.castShadow = true; });
+    saddle.traverse((o) => { o.castShadow = true; if ((o as THREE.Mesh).isMesh) track(o as THREE.Mesh); });
     group.add(saddle);
   } else {
     // skiff: flat working deck, low rails, the helm forward (as the sculpt

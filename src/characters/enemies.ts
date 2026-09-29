@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HUMAN, type Proportions, type Rig } from '../anim/skeleton';
-import { reachArm, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import { leanToReach, reachArm, reachLeg, seatSurface, spreadKnees } from '../anim/seating';
+import { palmShift } from './handAnchors';
 import { clamp, damp } from '../core/math';
 import { attachAuthored, ENEMY_MODELS, loadCreature, loadProp, type CreatureId, type HumanoidKind } from './authored';
 import { addBox, addCyl, addSphere, buildBiped, makeGaffi, makePistol, mat, propsSettled, type CharacterInstance } from './builder';
@@ -834,20 +835,31 @@ export function buildNikto(authored = true): CharacterInstance {
    * workbench when it has one (the same sculpt as the pilotable swoop, in the
    * same frame), or the bars `VEHICLE_DEFS` declares, off the saddle.
    */
+  /** his own grip on the bars, placed in the workbench (`NIKTO_RIDER.grip`), in the bike's space */
+  let ownGrip: [number, number, number] | null = NIKTO_RIDER?.grip ?? null;
+  /** where his left hand goes, in the bike's space: his own grip, or the swoop's */
+  const leftGrip = (saddleY: number): [number, number, number] => ownGrip ?? (swoop
+    ? [swoop.grip[0], swoopAnchorY(swoop.grip[1]), swoop.grip[2]]
+    : [SWOOP_SEAT.x + SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z]);
   const handsToBars = (saddleY: number): void => {
     bike.updateMatrixWorld(true);
-    const anchor = swoop;
     const fwd = new THREE.Vector3();
     group.getWorldDirection(fwd);
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
-    for (const side of [-1, 1] as const) {
-      const local = anchor
-        ? new THREE.Vector3(side === 1 ? anchor.grip[0] : 2 * anchor.seat[0] - anchor.grip[0], swoopAnchorY(anchor.grip[1]), anchor.grip[2])
-        : new THREE.Vector3(SWOOP_SEAT.x + side * SWOOP_BARS.x, saddleY + SWOOP_BARS.y, SWOOP_SEAT.z + SWOOP_BARS.z);
-      const grip = bike.localToWorld(local);
-      const hint = grip.clone().addScaledVector(right, side * 0.5);
+    const [gx, gy, gz] = leftGrip(saddleY);
+    // the right hand mirrors the left across him (his own grip) or the saddle (the swoop's)
+    const mid = ownGrip ? rider.root.position.x : swoop ? swoop.seat[0] : SWOOP_SEAT.x;
+    const grips = ([1, -1] as const).map((side) => ({
+      side: side === 1 ? 'L' as const : 'R' as const, out: side,
+      at: bike.localToWorld(new THREE.Vector3(side === 1 ? gx : 2 * mid - gx, gy, gz)),
+    }));
+    // bend forward to bars past arm's reach, then take them
+    leanToReach(riderRig, grips);
+    for (const { side, out, at } of grips) {
+      const hint = at.clone().addScaledVector(right, out * 0.5);
       hint.y -= 0.4;
-      reachArm(riderRig, side === 1 ? 'L' : 'R', grip, hint);
+      // his own grip is where his wrist goes; the swoop's is Din's, so his palm is put where Din's would be
+      reachArm(riderRig, side, at, hint, ownGrip ? undefined : palmShift('nikto', side));
     }
   };
 
@@ -906,6 +918,10 @@ export function buildNikto(authored = true): CharacterInstance {
     setLegSpread: (knee: number | null) => { ownSpread = knee; spreadLegs(); feetToRests(); handsToBars(saddle); },
     /** the workbench's edits of the swoop's own anchors, seen on him before they are exported */
     useSwoop: (anchor: VehicleAnchor) => { swoop = anchor; spreadLegs(); feetToRests(); handsToBars(saddle); },
+    /** his left hand's grip on the bars, in the bike's space: his own, or the swoop's */
+    get grip(): [number, number, number] { return leftGrip(saddle); },
+    /** his own grip on the bars (null: the swoop's) */
+    setGrip: (g: [number, number, number] | null) => { ownGrip = g; handsToBars(saddle); },
     kneeWidth: () => {
       const thigh = new THREE.Vector3(0, -1, 0).applyQuaternion(thighs[0]);
       return +(riderRig.proportions.hipWidth + riderRig.proportions.upperLegLen * thigh.x).toFixed(3);

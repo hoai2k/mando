@@ -44,6 +44,14 @@ export type V3 = [number, number, number];
 export interface VehicleAnchor {
   seat: V3; grip: V3; legSpread?: number; foot?: V3; yaw?: number; modelYaw?: number;
   seatRotation?: V3; gripRotation?: V3; footRotation?: V3;
+  /**
+   * The rider's joints turned by hand for this ride (the head toward a helm,
+   * a shoulder dropped): each canonical bone's local rotation, degrees XYZ, set
+   * over the riding clip's pose before the legs, the lean and the hands are
+   * solved — so a joint those solves own (an arm on a grip, a leg on a rest)
+   * is theirs in the end.
+   */
+  pose?: Record<string, V3>;
 }
 
 const _euler = new THREE.Euler();
@@ -87,8 +95,10 @@ export const ANKLE_OVER_SOLE = 0.08;
  * its rider in one): this is where the rider's root sits in the bike's space,
  * position in metres and rotation in degrees, when it has been placed by hand,
  * and his knees' spread (as `VehicleAnchor.legSpread`; the swoop's when unset).
+ * `grip`, optional, is where his left hand takes the bars, in the bike's space
+ * (the right mirrored across him); unset, it is the swoop's own grip.
  */
-export interface NiktoRiderAnchor { position: V3; rotation: V3; legSpread?: number }
+export interface NiktoRiderAnchor { position: V3; rotation: V3; legSpread?: number; grip?: V3 }
 
 interface AnchorFile {
   version: number;

@@ -23,6 +23,7 @@ interface NiktoRig {
   bike: THREE.Object3D; rider: THREE.Object3D; handsToBars: () => void;
   readonly legSpread: number | null; setLegSpread: (knee: number | null) => void; kneeWidth: () => number;
   useSwoop: (anchor: VehicleAnchor) => void;
+  readonly grip: V3; setGrip: (g: V3 | null) => void;
 }
 
 type Handle = 'seat' | 'grip' | 'foot' | 'rider';
@@ -51,6 +52,8 @@ export class VehicleAnchorEditor {
   private niktoRider: NiktoRiderAnchor | null = null;
   /** where the game sits the Nikto's rider, before any edit */
   private niktoBase: NiktoRiderAnchor | null = null;
+  /** the Nikto's own grip on the bars, once placed (null: the swoop's) */
+  private niktoGrip: V3 | null = (anchorFile as unknown as { niktoRider: NiktoRiderAnchor | null }).niktoRider?.grip ?? null;
 
   constructor(private scene: THREE.Scene, camera: THREE.PerspectiveCamera,
     private orbit: OrbitControls, private dom: HTMLElement, private onChange: () => void) {
@@ -107,6 +110,12 @@ export class VehicleAnchorEditor {
     } else if (this.nikto) {
       this.handles.set('rider', this.nikto.rider);
       this.marker('rider', 0x9dff8a);
+      // his left hand on the bars, in the bike's frame (the right mirrors it)
+      const grip = new THREE.Object3D();
+      grip.position.set(...this.nikto.grip);
+      this.nikto.bike.add(grip);
+      this.handles.set('grip', grip);
+      this.marker('grip', 0xffc86b);
     }
     this.select(this.handles.has(this.selected ?? 'seat') ? this.selected ?? 'seat' : this.names()[0] ?? null);
   }
@@ -132,6 +141,8 @@ export class VehicleAnchorEditor {
         ? [saved.seatRotation[0], saved.seatRotation[2]] : null;
       vr.gripRotation = saved.gripRotation ?? null;
       vr.footRotation = saved.footRotation ?? null;
+      vr.jointPose = new Map(Object.entries(saved.pose ?? {}).map(([name, d]) =>
+        [name, new THREE.Quaternion().setFromEuler(new THREE.Euler(...rad(d), 'XYZ'))]));
       vr.relayout();
     } else if (nikto) {
       if (!this.niktoBase || this.nikto !== nikto) {
@@ -139,6 +150,7 @@ export class VehicleAnchorEditor {
       }
       const swoop = this.vehicles.get('swoop');
       if (swoop) nikto.useSwoop(swoop);
+      if (this.niktoGrip) nikto.setGrip(this.niktoGrip);
       if (this.niktoRider) {
         nikto.rider.position.set(...this.niktoRider.position);
         nikto.rider.rotation.set(...this.niktoRider.rotation.map(THREE.MathUtils.degToRad) as V3);
@@ -253,6 +265,12 @@ export class VehicleAnchorEditor {
       const kept = this.vehicles.get(vr.kind);
       if (kept && vr.seat.toArray().every((n, i) => Math.abs(n - vr.defaults.seat[i]) < 1e-6)
         && vr.grip.toArray().every((n, i) => Math.abs(n - vr.defaults.grip[i]) < 1e-6)) this.vehicles.delete(vr.kind);
+    } else if (this.nikto && this.selected === 'grip') {
+      // back to the swoop's own grip, and the handle with it
+      this.niktoGrip = null;
+      this.nikto.setGrip(null);
+      this.handles.get('grip')!.position.set(...this.nikto.grip);
+      this.fromHandle();
     } else if (this.nikto && this.selected === 'rider' && this.niktoBase) {
       this.nikto.rider.position.set(...this.niktoBase.position);
       this.nikto.rider.rotation.set(...this.niktoBase.rotation.map(THREE.MathUtils.degToRad) as V3);
@@ -285,24 +303,54 @@ export class VehicleAnchorEditor {
         ? [round(THREE.MathUtils.radToDeg(seat.x)), round(THREE.MathUtils.radToDeg(seat.z))] : null;
       vr.gripRotation = turned(this.handles.get('grip')!.rotation);
       vr.relayout();
-      this.vehicles.set(vr.kind, {
-        seat: v3(vr.seat), grip: v3(vr.grip),
-        ...(vr.legSpread === null ? {} : { legSpread: vr.legSpread }),
-        ...(vr.foot ? { foot: v3(vr.foot) } : {}),
-        ...(vr.yaw ? { yaw: vr.yaw } : {}),
-        ...(vr.modelYaw ? { modelYaw: vr.modelYaw } : {}),
-        ...(vr.seatTilt ? { seatRotation: [vr.seatTilt[0], vr.yaw, vr.seatTilt[1]] as V3 } : {}),
-        ...(vr.gripRotation ? { gripRotation: vr.gripRotation } : {}),
-        ...(vr.foot && vr.footRotation ? { footRotation: vr.footRotation } : {}),
-      });
+      this.record(vr);
     } else if (this.nikto) {
+      const grip = this.handles.get('grip');
+      // the grip handle moved: that is his own grip on the bars from now on
+      if (grip && this.selected === 'grip') {
+        this.niktoGrip = v3(grip.position);
+        this.nikto.setGrip(this.niktoGrip);
+      }
       this.nikto.handsToBars();
+      // a grip he does not have of his own follows the bars wherever he sits
+      if (grip && !this.niktoGrip) grip.position.set(...this.nikto.grip);
       const knee = this.nikto.legSpread;
       this.niktoRider = {
         position: v3(this.nikto.rider.position), rotation: deg(this.nikto.rider.rotation),
         ...(knee === null ? {} : { legSpread: knee }),
+        ...(this.niktoGrip ? { grip: this.niktoGrip } : {}),
       };
     }
+    this.onChange();
+  }
+
+  /** remember a ride's anchors, as they stand on its rig, as this session's edit of it */
+  private record(vr: VehicleRig): void {
+    const pose = [...vr.jointPose].map(([name, q]): [string, V3] => [name, deg(new THREE.Euler().setFromQuaternion(q, 'XYZ'))]);
+    this.vehicles.set(vr.kind, {
+      seat: v3(vr.seat), grip: v3(vr.grip),
+      ...(vr.legSpread === null ? {} : { legSpread: vr.legSpread }),
+      ...(vr.foot ? { foot: v3(vr.foot) } : {}),
+      ...(vr.yaw ? { yaw: vr.yaw } : {}),
+      ...(vr.modelYaw ? { modelYaw: vr.modelYaw } : {}),
+      ...(vr.seatTilt ? { seatRotation: [vr.seatTilt[0], vr.yaw, vr.seatTilt[1]] as V3 } : {}),
+      ...(vr.gripRotation ? { gripRotation: vr.gripRotation } : {}),
+      ...(vr.foot && vr.footRotation ? { footRotation: vr.footRotation } : {}),
+      ...(pose.length ? { pose: Object.fromEntries(pose) } : {}),
+    });
+  }
+
+  /** The rider's joints were turned on a ride (the rotate gizmo): keep them with its anchors. */
+  noteJoints(vr: VehicleRig): void {
+    this.record(vr);
+    this.onChange();
+  }
+
+  /** Give a ride's rider back the clip's own joints. */
+  clearJoints(vr: VehicleRig): void {
+    vr.jointPose.clear();
+    vr.relayout();
+    this.record(vr);
     this.onChange();
   }
 

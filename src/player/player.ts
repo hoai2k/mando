@@ -25,6 +25,7 @@ import { ThrownSaber } from './saberthrow';
 import { updateInCover } from './cover';
 import { updateRiding } from './riding';
 import { leanToReach, reachArm } from '../anim/seating';
+import { palmShift } from '../characters/handAnchors';
 import type { SectionMove } from '../sections/api';
 import { gripEnd, pickStyleMove, type Grip, type StyleMove } from '../characters/styleClips';
 import { pickUnarmed, type UnarmedSlot } from '../anim/unarmed';
@@ -126,6 +127,7 @@ const TAKEN_SINK = 1.5;
 
 /** the two hands' grips, reused frame to frame */
 const _grips = [new THREE.Vector3(), new THREE.Vector3()];
+const _palm = new THREE.Vector3();
 const _elbowHint = new THREE.Vector3();
 
 const AIR_CONTROL = 7.5;
@@ -3154,7 +3156,8 @@ export class Player {
       // where a rider's elbow goes and what stops the solve folding the arm
       // up over the shoulder
       _elbowHint.set(at.x + cos * out * 0.55, at.y - 0.42, at.z - sin * out * 0.55);
-      reachArm(rig, side, at, _elbowHint);
+      // their palm where Din's is on the grip it was placed with
+      reachArm(rig, side, at, _elbowHint, palmShift(this.characterId, side, _palm));
     }
   }
 

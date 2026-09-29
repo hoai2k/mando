@@ -124,13 +124,28 @@ const _basis = new THREE.Matrix4();
  *
  * Call it *after* the animator has written the frame's pose and the character's
  * world matrices are up to date; it overwrites the two bones it owns.
+ *
+ * `palmShift`, in the hand's own frame, moves the wrist off the target: a grip
+ * placed for one rider's hand, reached by another's (`handAnchors.ts`). The
+ * hand's turn depends on the reach, so it is solved, the shift turned the way
+ * the hand then lies, and solved again.
  */
 export function reachArm(rig: Rig, side: 'L' | 'R',
-  target: THREE.Vector3, elbowHint: THREE.Vector3): void {
+  target: THREE.Vector3, elbowHint: THREE.Vector3, palmShift?: THREE.Vector3): void {
   const b = rig.bones;
-  reachLimb(side === 'L' ? b.upperArmL : b.upperArmR, side === 'L' ? b.forearmL : b.forearmR,
-    side === 'L' ? b.handL : b.handR, target, elbowHint, _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone(), -1);
+  const upper = side === 'L' ? b.upperArmL : b.upperArmR, fore = side === 'L' ? b.forearmL : b.forearmR;
+  const hand = side === 'L' ? b.handL : b.handR;
+  const bow = _up.set(side === 'L' ? 1 : -1, -0.4, 0).normalize().clone();
+  reachLimb(upper, fore, hand, target, elbowHint, bow, -1);
+  if (!palmShift || palmShift.lengthSq() < 1e-10) return;
+  hand.updateWorldMatrix(true, false);
+  // the shift as the hand now lies, at its scale, in the world
+  _shift.copy(palmShift).applyMatrix3(_handM.setFromMatrix4(hand.matrixWorld));
+  reachLimb(upper, fore, hand, _shifted.copy(target).add(_shift), elbowHint, bow, -1);
 }
+const _shift = new THREE.Vector3();
+const _shifted = new THREE.Vector3();
+const _handM = new THREE.Matrix3();
 
 const _lean = new THREE.Quaternion();
 const _parentW = new THREE.Quaternion();
@@ -162,16 +177,8 @@ const MAX_LEAN = THREE.MathUtils.degToRad(70);
  */
 export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3 }>): number {
   const b = rig.bones;
-  const turned = [b.hips, b.spine, b.chest, b.upperLegL, b.upperLegR];
-  // Last frame's lean comes off first wherever the clip has not written the
-  // bone since: a pose with no track for a thigh leaves it as the lean left
-  // it, and leaning again from there would wind the legs round frame by frame.
-  const last = leaned.get(rig);
-  if (last) {
-    turned.forEach((bone, i) => { if (bone.quaternion.equals(last.after[i])) bone.quaternion.copy(last.before[i]); });
-    leaned.delete(rig);
-    b.hips.updateMatrixWorld(true);
-  }
+  const turned = leanBones(rig);
+  unlean(rig);
   if (!grips.length || !b.hips.parent) return 0;
   // each arm's full reach, shoulder to wrist, in world metres
   const arms = grips.map(({ side, at }) => {
@@ -222,6 +229,24 @@ export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.
     if (lean(mid) > 0) lo = mid; else hi = mid;
   }
   return settle(hi);
+}
+
+const leanBones = (rig: Rig): THREE.Object3D[] =>
+  [rig.bones.hips, rig.bones.spine, rig.bones.chest, rig.bones.upperLegL, rig.bones.upperLegR];
+
+/**
+ * Take last frame's lean off wherever the clip has not written the bone since:
+ * a pose with no track for a thigh leaves it as the lean left it, and leaning
+ * again from there winds the legs round frame by frame. Call it straight after
+ * the clip writes the pose — before anything else turns a thigh (a leg spread,
+ * a footrest), which would hide the lean's own mark from it.
+ */
+export function unlean(rig: Rig): void {
+  const last = leaned.get(rig);
+  if (!last) return;
+  leanBones(rig).forEach((bone, i) => { if (bone.quaternion.equals(last.after[i])) bone.quaternion.copy(last.before[i]); });
+  leaned.delete(rig);
+  rig.bones.hips.updateMatrixWorld(true);
 }
 
 /** each rider's last lean: the bones as the pose had them, and as the lean left them */
