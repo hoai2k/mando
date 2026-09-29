@@ -371,9 +371,11 @@ function spawn(): void {
   applyPose();
   // a new figure gets the game's landings: carry over a depth being tried
   if (landDepth.soft !== LAND_DEPTH.soft || landDepth.hard !== LAND_DEPTH.hard) rebuildLandings();
+  // a ride offers its rider's joints, edited as that ride's pose for him
   editor.setTargets(figures
-    .filter((f) => f.inst.rig)
-    .map((f) => ({ label: f.label, bones: f.inst.rig!.bones as Record<string, THREE.Object3D> })));
+    .map((f) => ({ label: f.label, rig: f.inst.rig ?? rideOf(f)?.riderRig ?? null }))
+    .filter((t) => t.rig)
+    .map((t) => ({ label: t.label, bones: t.rig!.bones as Record<string, THREE.Object3D> })));
   if (editing && editKind === 'position') refreshPositionPose();
   if (editing && editKind === 'weapon') refreshWeaponPose();
   if (editing) enterEdit();
@@ -1205,11 +1207,67 @@ function exportWeaponChoices(): void {
 const EDITABLE_BONES = BONES.filter((b) => b !== 'weaponL' && b !== 'weaponR');
 let editSignature = '';
 
+/** the ride a figure is, when it is one (its rider's joints are edited as the ride's pose) */
+const rideOf = (f: Figure | undefined): VehicleRig | null =>
+  (f?.inst.root.userData.vehicleRig as VehicleRig | undefined) ?? null;
+
+/**
+ * Rotate on a ride: the rider's joints, kept as that ride's pose for him and
+ * exported with its anchors, rather than written into the riding clip every
+ * rider on every ride shares.
+ */
+function renderRideJointPanel(host: HTMLDivElement, vr: VehicleRig): void {
+  const sel = editor.selected;
+  const deg = editor.selectedEuler();
+  editSignature = signature();
+  const joints = [...vr.jointPose.keys()];
+  host.innerHTML = `${editModeButtons()}
+    <div class="editbox">
+      <p class="hint">The rider's joints on the ${vr.def.name.toLowerCase()}: a turn is kept as this ride's pose
+        for him, over the riding clip, and exported with its anchors. Joints the ride solves (an arm on a grip,
+        a leg on a footrest, the lean to the grips) end where the solve puts them.</p>
+      <div class="field"><label>Rotate about</label><div class="seg" id="space">
+        <button data-space="camera" aria-pressed="${editor.space === 'camera'}">Camera</button>
+        <button data-space="local" aria-pressed="${editor.space === 'local'}">Local</button>
+        <button data-space="world" aria-pressed="${editor.space === 'world'}">World</button>
+      </div></div>
+      <div class="field"><label for="bone">Joint</label><select id="bone">
+        <option value=""${sel ? '' : ' selected'}>— click a joint in the viewport —</option>
+        ${EDITABLE_BONES.map((b) => option(b, b, b === sel)).join('')}
+      </select></div>
+      ${sel && deg ? `<div class="field"><label>Local rotation — degrees, XYZ</label><div class="xyz">
+        <input type="number" id="rx" step="1" value="${deg[0].toFixed(1)}">
+        <input type="number" id="ry" step="1" value="${deg[1].toFixed(1)}">
+        <input type="number" id="rz" step="1" value="${deg[2].toFixed(1)}">
+      </div></div>
+      <p class="hint" id="drag">${dragHint()}</p>` : '<p class="hint">Pick a joint — its rotation rings appear on the rider.</p>'}
+      ${joints.length ? `<div class="ledger">${joints.map((j) => `<div class="edit"><span>${j}</span></div>`).join('')}</div>` : ''}
+      <div class="row">
+        <button id="rideJointsClear" ${joints.length ? '' : 'disabled'}>Clip's own joints</button>
+        <button id="rideJointsExport" class="primary" ${vehicleEditor.edited().length ? '' : 'disabled'}>Export vehicle anchors JSON</button>
+      </div>
+    </div>`;
+  bindEditModeButtons(host);
+  host.querySelector('#space')?.querySelectorAll('button').forEach((btn) => {
+    btn.onclick = () => { editor.setSpace(btn.dataset.space as GizmoSpace); renderEditPanel(); };
+  });
+  const bonePicker = host.querySelector<HTMLSelectElement>('#bone');
+  if (bonePicker) bonePicker.onchange = (e) => editor.select((e.target as HTMLSelectElement).value || null);
+  const fields = ['#rx', '#ry', '#rz'].map((id) => host.querySelector<HTMLInputElement>(id));
+  if (fields[0]) for (const f of fields) {
+    f!.oninput = () => editor.setSelectedEuler(fields.map((x) => Number(x!.value) || 0) as [number, number, number]);
+  }
+  host.querySelector<HTMLButtonElement>('#rideJointsClear')!.onclick = () => { vehicleEditor.clearJoints(vr); renderEditPanel(); };
+  host.querySelector<HTMLButtonElement>('#rideJointsExport')!.onclick = () => downloadAnchors();
+}
+
 function renderEditPanel(): void {
   const host = panel.querySelector<HTMLDivElement>('#edit');
   if (!host) return;
   if (editing && editKind === 'position') { renderPositionPanel(host); return; }
   if (editing && editKind === 'weapon') { renderWeaponPanel(host); return; }
+  const ride = editing && editKind === 'rotate' ? rideOf(figures[0]) : null;
+  if (ride) { renderRideJointPanel(host, ride); return; }
   if (!editing && !edits.size) {
     host.innerHTML = '';
     editSignature = '';
@@ -1481,8 +1539,8 @@ function renderVehiclePanel(host: HTMLDivElement): void {
       <div class="field"><label for="anchorTarget">${nikto ? 'Nikto on his swoop' : `${ed.subjectName} anchors`}</label>
         <select id="anchorTarget">${ed.names().map((n) => option(n, label[n], n === ed.selected)).join('')}</select></div>
       <div class="field"><label>3D handle</label><div class="seg">
-        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto ? ' rider' : ''}</button>
-        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto ? ' rider' : ''}</button>
+        <button data-anchor-mode="translate" aria-pressed="${ed.mode === 'translate'}">Move${nikto && ed.selected === 'rider' ? ' rider' : ''}</button>
+        <button data-anchor-mode="rotate" aria-pressed="${ed.mode === 'rotate'}">Rotate${nikto && ed.selected === 'rider' ? ' rider' : ''}</button>
       </div></div>
       ${cur ? `<div class="field"><label>Position in the ${nikto ? 'bike' : 'ride'}'s frame (m, +Z forward, +X the rider's left)</label>
         <div class="xyz">${cur.position.map((v, i) => `<input data-anchor-axis="p${i}" type="number" step="0.005" value="${v}">`).join('')}</div></div>
@@ -1506,11 +1564,12 @@ function renderVehiclePanel(host: HTMLDivElement): void {
       </div>
       <div class="row"><button id="anchorExport" class="primary" ${edited.length ? '' : 'disabled'}>Export vehicle anchors JSON</button></div>
       <p class="hint">${nikto
-        ? 'Move and turn the rider to sit him on the bike; his hands follow the bars. '
+        ? 'Move and turn the rider to sit him on the bike. Orange is his left hand on the bars (the right mirrors it across him); until it is moved it is the swoop\'s own grip, and follows the bars as he moves. He leans forward to bars out of reach. '
         : 'Blue is the seat: the rider\'s hips sit on it, at each character\'s own hip height. Orange is the left hand, the one that never holds the gun; on a machine the right hand mirrors it. Green is the left footrest: once moved, both feet reach for it (the right mirrored), the knees bowed out to the leg spread. '}
         The export is the game's own <code>src/game/data/vehicleAnchors.json</code>, with these edits over what is already in it.</p>
       ${edited.length ? `<div class="ledger">${edited.map((e) => `<div class="edit"><span>${e.name}</span><code>${
-        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}` : `at ${e.anchor.position.join(', ')}`}${
+        'seat' in e.anchor ? `seat ${e.anchor.seat.join(', ')} · grip ${e.anchor.grip.join(', ')}`
+          : `at ${e.anchor.position.join(', ')}${e.anchor.grip ? ` · grip ${e.anchor.grip.join(', ')}` : ''}`}${
         e.anchor.legSpread !== undefined ? ` · knees ${e.anchor.legSpread}` : ''}${
         'foot' in e.anchor && e.anchor.foot ? ` · foot ${e.anchor.foot.join(', ')}` : ''}${
         'yaw' in e.anchor && e.anchor.yaw ? ` · rider ${e.anchor.yaw}°` : ''}${
@@ -1549,13 +1608,16 @@ function renderVehiclePanel(host: HTMLDivElement): void {
   spread.onchange = () => { spread.blur(); renderVehiclePanel(host); };
   spreadNumber.onchange = () => { ed.setLegSpread(Number(spreadNumber.value)); spreadNumber.blur(); renderVehiclePanel(host); };
   host.querySelector<HTMLButtonElement>('#legSpreadClear')!.onclick = () => { ed.setLegSpread(null); renderVehiclePanel(host); };
-  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = () => {
-    const anchor = document.createElement('a');
-    anchor.href = URL.createObjectURL(new Blob([ed.exportJson()], { type: 'application/json' }));
-    anchor.download = 'vehicleAnchors.json';
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
-  };
+  host.querySelector<HTMLButtonElement>('#anchorExport')!.onclick = downloadAnchors;
+}
+
+/** the anchors file, with this session's edits over what is committed */
+function downloadAnchors(): void {
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(new Blob([vehicleEditor.exportJson()], { type: 'application/json' }));
+  anchor.download = 'vehicleAnchors.json';
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
 }
 
 function renderPositionPanel(host: HTMLDivElement): void {
@@ -1651,6 +1713,14 @@ function syncEditValues(): void {
 }
 
 function onEditorChange(): void {
+  // a ride's rider: the turn the gizmo gave is kept as the ride's pose for him
+  const ride = editing && editKind === 'rotate' ? rideOf(figures[0]) : null;
+  if (ride && editor.selected && ride.jointPose && editor.selectedEuler()) {
+    const before = ride.jointPose.get(editor.selected)?.clone();
+    ride.takeJoint(editor.selected);
+    const after = ride.jointPose.get(editor.selected);
+    if (after && !(before && before.angleTo(after) < 1e-6)) vehicleEditor.noteJoints(ride);
+  }
   if (editing && editKind === 'weapon') {
     const host = panel.querySelector<HTMLDivElement>('#edit');
     if (host) {

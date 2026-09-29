@@ -162,16 +162,8 @@ const MAX_LEAN = THREE.MathUtils.degToRad(70);
  */
 export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.Vector3 }>): number {
   const b = rig.bones;
-  const turned = [b.hips, b.spine, b.chest, b.upperLegL, b.upperLegR];
-  // Last frame's lean comes off first wherever the clip has not written the
-  // bone since: a pose with no track for a thigh leaves it as the lean left
-  // it, and leaning again from there would wind the legs round frame by frame.
-  const last = leaned.get(rig);
-  if (last) {
-    turned.forEach((bone, i) => { if (bone.quaternion.equals(last.after[i])) bone.quaternion.copy(last.before[i]); });
-    leaned.delete(rig);
-    b.hips.updateMatrixWorld(true);
-  }
+  const turned = leanBones(rig);
+  unlean(rig);
   if (!grips.length || !b.hips.parent) return 0;
   // each arm's full reach, shoulder to wrist, in world metres
   const arms = grips.map(({ side, at }) => {
@@ -222,6 +214,24 @@ export function leanToReach(rig: Rig, grips: Array<{ side: 'L' | 'R'; at: THREE.
     if (lean(mid) > 0) lo = mid; else hi = mid;
   }
   return settle(hi);
+}
+
+const leanBones = (rig: Rig): THREE.Object3D[] =>
+  [rig.bones.hips, rig.bones.spine, rig.bones.chest, rig.bones.upperLegL, rig.bones.upperLegR];
+
+/**
+ * Take last frame's lean off wherever the clip has not written the bone since:
+ * a pose with no track for a thigh leaves it as the lean left it, and leaning
+ * again from there winds the legs round frame by frame. Call it straight after
+ * the clip writes the pose — before anything else turns a thigh (a leg spread,
+ * a footrest), which would hide the lean's own mark from it.
+ */
+export function unlean(rig: Rig): void {
+  const last = leaned.get(rig);
+  if (!last) return;
+  leanBones(rig).forEach((bone, i) => { if (bone.quaternion.equals(last.after[i])) bone.quaternion.copy(last.before[i]); });
+  leaned.delete(rig);
+  rig.bones.hips.updateMatrixWorld(true);
 }
 
 /** each rider's last lean: the bones as the pose had them, and as the lean left them */
